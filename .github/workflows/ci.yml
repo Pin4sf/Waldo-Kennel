@@ -2,6 +2,7 @@ name: Foundation CI
 
 on:
   pull_request:
+  # Keep branch pushes enabled so this gate exists before its first merge to main.
   push: {}
 
 permissions:
