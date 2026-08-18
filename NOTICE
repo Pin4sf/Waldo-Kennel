@@ -1,0 +1,9 @@
+Waldo Kennel
+Copyright 2026 Pin4sf contributors
+
+This product includes software derived from Agent Orchestrator:
+https://github.com/Untrivial-ai/agent-orchestrator
+
+The recorded source revision and modification boundary are documented in
+docs/upstream-provenance.md. Agent Orchestrator and this derived work are
+licensed under the Apache License, Version 2.0; see LICENSE.
