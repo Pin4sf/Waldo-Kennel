@@ -2,8 +2,7 @@ name: Foundation CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
+  push: {}
 
 permissions:
   contents: read
