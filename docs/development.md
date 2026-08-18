@@ -1,289 +1,118 @@
-# Development Guide
+# Development guide
 
-How to set up, build, run, and test Agent Orchestrator locally.
+This guide covers the current Kennel foundation. It intentionally does not prescribe Mission, memory, personal-agent, or other post-foundation architecture.
 
-## Prerequisites
+## Toolchain
 
-| Tool       | Minimum version | Notes                                                                  |
-| ---------- | --------------- | ---------------------------------------------------------------------- |
-| Go         | 1.25.7          | `go version` to check; install via [go.dev](https://go.dev/dl/)        |
-| Node.js    | 20.19.0         | `node --version`; install via [nodejs.org](https://nodejs.org/)        |
-| npm        | 10              | Ships with Node.js                                                     |
-| Nix (opt.) | -               | `nix develop` drops you into a shell with all deps; see `../flake.nix` |
+| Tool | Version / requirement |
+| --- | --- |
+| Go | Version in `backend/go.mod` (currently 1.25.7) |
+| Node.js | 22.23.2, pinned by `.nvmrc` |
+| npm | 10.9.8, pinned by the root `packageManager` |
+| Git | Required for worktrees and SCM integration |
+| tmux | Required for terminal sessions on macOS/Linux; Windows uses conpty |
 
-Additional runtime dependencies for the daemon:
+Provider CLIs such as Codex or Claude Code are discovered locally and retain their own authentication. Kennel does not bundle provider credentials.
 
-- **git** (for worktree creation and agent integration)
-- **A running agent CLI** (Claude Code, Codex, Aider, etc.) - see
-  [the installation guide](https://ao-agents.com/docs/installation)
+## Checkout and bootstrap
 
-## Project Layout
+```sh
+git clone https://github.com/Pin4sf/Waldo-Kennel.git
+cd Waldo-Kennel
+npm run bootstrap
+```
+
+`bootstrap` uses `npm ci` for the root, product UI, cloud client, ACP runtime, desktop, retained landing donor, and repository scripts. It does not launch Electron or publish anything.
+
+Create one focused branch per change. Keep `main` clean and preserve uncommitted user work.
+
+## Repository layout
 
 ```text
-agent-orchestrator/
-  backend/              # Go daemon (Cobra CLI, HTTP API, services, storage)
-    cmd/ao/             # CLI entry point
-    internal/           # All library code
-      cli/              # CLI command implementations
-      httpd/            # HTTP controllers, apispec, middleware
-      service/          # Business logic layer
-      domain/           # Domain types
-      ports/            # Port interfaces (contracts)
-      storage/          # SQLite migrations, queries, generated code
-  frontend/             # Electron + React desktop app
-    src/                # Renderer, main, preload
-    e2e/                # Playwright end-to-end tests
-  packages/
-    mobile/             # React Native (Expo) mobile companion app
-    ao/                 # Legacy npm CLI package (frozen)
-  docs/                 # Architecture, ADRs, CLI docs, status
-  CONTRIBUTING.md       # Contribution guide
+backend/                    Go daemon and thin CLI source
+  cmd/ao/                   retained source/upstream compatibility entrypoint
+  internal/                 domain, services, ports, adapters, HTTP, storage
+frontend/                   Electron supervisor and React renderer
+  acp-runtime/              packaged provider bridge runtime
+  src/landing/              retained landing donor, not desktop launch surface
+packages/product-ui/        shared tested product primitives
+packages/cloud-client/      retained typed compatibility client
+packages/mobile/            retained mobile donor, outside current product claim
+packages/ao*/               frozen legacy AO packages
+scripts/                    bootstrap, verification, and retained helpers
+docs/                       foundation contract and chassis references
 ```
 
-## Getting the code
+## Primary verification
 
-```bash
-git clone https://github.com/AgentWrapper/agent-orchestrator.git
-cd agent-orchestrator
-npm ci
+Run the smallest relevant test first, then the foundation matrix:
+
+```sh
+npm run test:foundation
+npm run audit:production
+npm run lint
+cd backend && go test -race ./...
 ```
 
-### Branching
-
-```bash
-git checkout -b my-feature-branch
-```
-
-Keep your branch up to date by rebasing on main:
-
-```bash
-git fetch origin
-git rebase origin/main
-```
-
-### Committing
-
-Keep commits atomic - one logical change per commit. Stage related changes and commit with a conventional message:
-
-```bash
-git add <files>
-```
-
-Commit message tags:
-
-| Tag        | When to use                           |
-| ---------- | ------------------------------------- |
-| `feat`     | New feature                           |
-| `fix`      | Bug fix                               |
-| `docs`     | Documentation only                    |
-| `test`     | Adding or fixing tests                |
-| `refactor` | Code change with no functional change |
-| `chore`    | Maintenance, tooling, dependencies    |
-
-Use **trailers** to provide additional context:
-
-```bash
-git commit -m "fix: handle nil pointer in session lookup
-
-The session resolver panicked when the store returned a nil session
-without an error. Return ErrNotFound instead.
-
-Signed-off-by: Your Name <your.email@example.com>
-Co-authored-by: Contributor Name <contributor@example.com>"
-```
+`test:foundation` covers provenance, Go build/test/vet, shared packages, desktop typecheck/tests, the retained landing build, script tests, and generated sqlc/OpenAPI drift. `audit:production` checks only dependencies that can ship at runtime. Development dependency advisories are tracked separately because inherited Electron/build/test toolchains are not yet fully clean.
 
 ## Backend
 
-### Build
-
-```bash
+```sh
 cd backend
 go build ./...
-```
-
-### Run the daemon
-
-```bash
-cd backend
-# Start the daemon (loopback HTTP server on 127.0.0.1)
-go run .
-```
-
-The CLI is built with Cobra. From `backend/`, run `go run ./cmd/ao --help` for
-available commands.
-
-### Run tests
-
-```bash
-cd backend
-go test ./...              # all tests
-go test -race ./...        # with race detection
-go test -v ./internal/cli/ # a specific package
-```
-
-### Lint
-
-```bash
-npm run lint
-```
-
-### Code generation
-
-```bash
-# Regenerate sqlc code after editing queries or schema
-npm run sqlc
-
-# Regenerate OpenAPI spec and frontend TypeScript types
-npm run api
-```
-
-## Frontend
-
-### Install dependencies
-
-```bash
-cd frontend
-npm install
-```
-
-### Run in development mode
-
-```bash
-cd frontend
-npm run dev            # Electron dev mode
-npm run dev:web        # Web-only (no Electron, for quick UI iteration)
-```
-
-### Build
-
-```bash
-cd frontend
-npm run package        # Package for current platform
-npm run make           # Create distributables when platform packaging deps are installed
-```
-
-On a fresh Linux machine, treat `npm run package` as the default local build
-path. `npm run make` also needs Linux packaging tools that are not provided by a
-minimal setup or by `nix develop` today:
-
-- `rpm` / `rpmbuild` for the RPM target
-- the usual distro packaging toolchain required by Electron Forge makers
-
-CI installs `rpm` explicitly before running `npm run make`. Do the same locally
-if you need Linux distributables, or skip `npm run make` on a fresh setup.
-
-### Run tests
-
-```bash
-cd frontend
-npm run test           # Vitest unit tests in a simulated renderer environment
-npm run test:e2e       # Playwright browser-based renderer E2E tests
-npx playwright show-report  # View Playwright report
-```
-
-### Typecheck
-
-```bash
-cd frontend
-npm run typecheck
-```
-
-Or from repo root:
-
-```bash
-npm run frontend:typecheck
-```
-
-## Mobile companion app
-
-The mobile companion app is still being wired into the contributor docs. Do not
-assume `packages/mobile/README.md` is a complete setup guide on this branch.
-Until a tracked guide lands, use the desktop/backend workflow above and check
-open issues/PRs for current mobile-specific setup notes.
-
-## Running end-to-end
-
-1. Start the desktop app with `npm run dev` from `frontend/`.
-2. The Electron main process starts and supervises the loopback daemon for you.
-3. Use `npm run dev:web` only for renderer-only development; it does not launch Electron.
-
-For CLI-only usage, open two terminals:
-
-**Terminal 1 -- start the daemon:**
-
-```bash
-cd backend
-go run .
-```
-
-**Terminal 2 -- interact while the daemon is running:**
-
-```bash
-cd backend
-go run ./cmd/ao status
+go test ./...
+go test -race ./...
+go vet ./...
 go run ./cmd/ao --help
 ```
 
-## Testing tips
+`backend/cmd/ao` is the retained source path. Builds and packages emit a `kennel` executable. The CLI remains a daemon HTTP client; do not move storage, runtime, or adapter behavior into it.
 
-### Backend
+For API DTO or controller changes:
 
-- Backend tests use `httptest.Server` and injected fakes - no real daemon
-  required.
-- Run the narrowest relevant test suite first (e.g. `go test ./internal/cli/`),
-  then the full suite.
-
-### Frontend
-
-- Unit tests use Vitest and run in a simulated renderer environment.
-- E2E tests use Playwright against the web renderer started by `npm run dev:web`;
-  they do not launch the full Electron app.
-- After changing API types, run `npm run api` from root to regenerate
-  `frontend/src/api/schema.ts`.
-
-## Troubleshooting
-
-### Backend build / test failures
-
-| Symptom                              | Likely cause                               | Fix                                                                                                                                                                                                                                                                               |
-| ------------------------------------ | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `go: go.mod requires go >= 1.25`     | Wrong Go version                           | `go version`; install Go 1.25.7+ from [go.dev]                                                                                                                                                                                                                                    |
-| `sqlc generate` produces errors      | Query SQL syntax or schema migration issue | Check `backend/internal/storage/sqlite/queries/` for SQL syntax, placeholder counts, and referenced columns/tables; if you changed the schema, add a new migration in `backend/internal/storage/sqlite/migrations/` instead of editing an existing one, then rerun `npm run sqlc` |
-| `openapi.yaml` is stale              | Changed DTOs without regenerating          | Run `npm run api` from repo root                                                                                                                                                                                                                                                  |
-| `golangci-lint` failures             | Linter version mismatch                    | Install v2.12.2 or use `npm run lint` from root                                                                                                                                                                                                                                   |
-| Tests fail with "connection refused" | Test tries real daemon                     | Tests should use `httptest`; check for `go test ./...` without a live daemon                                                                                                                                                                                                      |
-
-### Frontend build / test failures
-
-| Symptom                               | Likely cause            | Fix                                                          |
-| ------------------------------------- | ----------------------- | ------------------------------------------------------------ |
-| `npm run typecheck` has type errors   | API types out of sync   | Run `npm run api` from repo root to regenerate               |
-| `npm run dev` fails on native modules | Missing build tools     | Install Python + C++ build tools for `node-gyp`              |
-| `npm install` or `npm ci` fails       | Node.js version too old | `node --version`; must be 20.19.0+ (see prerequisites above) |
-
-### Code generation drift
-
-If CI fails on the `api-drift` check, the OpenAPI-generated files are out of sync with source. Regenerate them locally and commit the updated files:
-
-```bash
+```sh
 npm run api
+cd backend && go test ./internal/httpd/...
 ```
 
-If regeneration introduces unexpected diffs beyond your changes, check that your local tool versions match CI (Go 1.25.7+, Node 20.19.0+, npm 10+).
+For SQLite query/schema changes:
 
-## OpenAPI spec and generated types
-
-The API is defined in Go controller DTOs and operation registrations. Edit
-these source files, then regenerate:
-
-```bash
-npm run api
+```sh
+npm run sqlc
 ```
 
-The generated artifacts are:
+Never modify an already-merged migration or hand-edit sqlc output. Add a migration or an explicit compatibility reconciliation with an upgrade test.
 
-- `backend/internal/httpd/apispec/openapi.yaml`
-- `frontend/src/api/schema.ts`
+## Desktop
 
-Both must be committed together with the Go changes. CI verifies they are
-in sync.
+```sh
+npm --prefix frontend run typecheck
+npm --prefix frontend test
+npm --prefix frontend run dev:web
+```
+
+`dev:web` is renderer-only. `npm --prefix frontend run dev` launches Electron and its daemon; use it only after identity isolation is known-good and a launch is part of the authorized task.
+
+To inspect a packaged identity without launching:
+
+```sh
+npm --prefix frontend run package
+npm --prefix frontend run package:identity
+```
+
+The assertion must pass before any release work. It verifies Kennel's bundle ID, display name, executable, protocol, updater target/cache, daemon name, state namespace, and release repository.
+
+## State safety
+
+Kennel global state belongs under `~/.kennel` or explicit `KENNEL_*` overrides. It must never fall back to `~/.ao` or the operating system's default Electron application-data directory. Use a task-specific temporary directory when a test needs state; do not repurpose `$HOME`.
+
+Project-local `.ao/attachments` and `.ao/launch.json` are documented compatibility formats, not global state. See [identity and state](identity-and-state.md).
+
+## Upstream updates
+
+Do not merge AO wholesale. Follow [upstream provenance](upstream-provenance.md): fetch the pinned AO remote, compare trees/ranges, port reviewed changes on a Kennel branch, preserve every installed-identity boundary, and update `upstream.json` only after verification.
+
+## Frontend demonstration
+
+When a session owns a visual change and the desktop is already authorized/running, use `kennel preview [url]` so the result appears in that session's Browser panel. Do not launch the packaged app merely to prove identity; use the package assertion.

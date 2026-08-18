@@ -1,32 +1,31 @@
-# agent-orchestrator rewrite docs
+# Kennel documentation
 
-The agent-orchestrator is being rebuilt as a long-running Go backend daemon
-(`backend/`) plus an Electron + TypeScript frontend (`frontend/`). The backend
-supervises coding-agent sessions and exposes daemon control, project/session
-state, terminal streaming, and CDC/event infrastructure.
+Kennel currently consists of an AO-derived Go daemon and Electron supervisor plus a prototype Outcome UI. The documents below describe that foundation. Mission, personal memory, Waldo authority/verification semantics, and Xirp/Medley/Paxel integrations are not shipped.
 
-Start with [architecture.md](architecture.md) for the current backend model and
-[cli/README.md](cli/README.md) for the CLI surface.
+## Foundation first
 
-## Reference docs
+| Document | Purpose |
+| --- | --- |
+| [Foundation acceptance — 2026-08-18](foundation-acceptance-2026-08-18.md) | F0-F6 scope, evidence, exclusions, dev-dependency debt, and the next architecture boundary. |
+| [Identity and state](identity-and-state.md) | Kennel-owned bundle, executable, protocol, updater, state, environment, port, branch, and renderer identities. |
+| [Upstream provenance](upstream-provenance.md) | Pinned AO source, license, non-destructive sync seam, and the separately approved ancestry-repair plan. |
+| [Status](STATUS.md) | Current chassis capabilities, donor surfaces, and work that is not shipped. |
+| [Development](development.md) | Reproducible bootstrap and verification commands. |
 
-| Doc                                                    | What it covers                                                                                                        |
-| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| [architecture.md](architecture.md)                     | Current backend model, package layout, status derivation, persistence/CDC, and load-bearing rules.                    |
-| [backend-code-structure.md](backend-code-structure.md) | Package ownership rules for the Go backend: domain, services, ports, adapters, storage, HTTP, CLI, and daemon wiring. |
-| [cli/README.md](cli/README.md)                         | CLI commands and daemon control surface.                                                                              |
-| [cloud-development.md](cloud-development.md)           | Optional private checkout workflow, current Cloud foundation, remaining implementation, and recommended build order. |
-| [cloud-refactor.md](cloud-refactor.md)                 | Public contracts, generated Cloud schema types, typed client, reusable product UI, and private implementation boundaries. |
-| [development.md](development.md)                       | Prerequisites, build steps, running tests, and troubleshooting for local development.                                 |
-| [STATUS.md](STATUS.md)                                 | What is shipped on `main` today and what is still in flight.                                                          |
-| [stack.md](stack.md)                                   | Accepted library/runtime choices, pending stack decisions, and dependencies explicitly avoided for V1.                |
-| [telemetry.md](telemetry.md)                           | User-facing overview of product telemetry, privacy safeguards, and opt-out controls.                                    |
-| [posthog-cost-controls.md](posthog-cost-controls.md)   | PostHog event-name migration, ingestion drop rules, and dashboard queries for reducing telemetry spend.              |
+## Chassis references
 
-## Mental model
+These documents describe the inherited and currently working orchestration implementation. AO vocabulary can remain where it identifies a source compatibility seam; it is not Kennel's installed identity.
 
-Persist durable facts, derive display status:
+| Document | Purpose |
+| --- | --- |
+| [Architecture](architecture.md) | Backend model, persistence/CDC, lifecycle, API, terminal, browser, and load-bearing boundaries. |
+| [Backend code structure](backend-code-structure.md) | Go package ownership and dependency rules. |
+| [CLI](cli/README.md) | The `kennel` thin client over daemon HTTP. |
+| [Stack](stack.md) | Accepted and pending runtime/library choices inherited by the chassis. |
+| [Telemetry](telemetry.md) | Current optional telemetry behavior and privacy safeguards. |
+| [Cloud development](cloud-development.md) | Retained optional cloud donor/compatibility work; not a deployed Kennel cloud claim. |
+| [Cloud refactor](cloud-refactor.md) | Existing shared contracts and donor boundaries. |
 
-- session table: `activity_state`, `is_terminated`, identity, metadata
-- PR tables: PR/CI/review facts
-- derived read model: `service.Session` computes display status from session + PR facts
+## Architectural rule
+
+Persist durable facts and derive display status. Session activity, termination, PR/check/review facts, and change-log events are durable; a display label is not. Product architecture added after the foundation must preserve truthful, inspectable evidence and explicit human authority.
