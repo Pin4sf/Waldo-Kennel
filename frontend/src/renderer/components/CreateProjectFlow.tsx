@@ -278,7 +278,7 @@ async function projectRepositoryPreflight(path: string): Promise<ProjectReposito
 	try {
 		const scan = await aoBridge.app.scanImportFolder({ path, mode: "project" });
 		const reason = scan.repos[0]?.reason ?? "";
-		if (reason.startsWith("Selected folder is inside AO's internal data directory.")) {
+		if (reason.startsWith("Selected folder is inside Kennel's internal data directory.")) {
 			return {
 				blockingError: reason,
 				scan,

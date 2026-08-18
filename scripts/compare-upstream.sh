@@ -37,4 +37,3 @@ exact_blobs="$(comm -12 \
 printf 'upstream=%s\nsource_sha=%s\nsource_tree=%s\ncomparison_ref=%s\nshared_paths=%s\nexact_same_path_blobs=%s\n' \
 	"$upstream_url" "$source_sha" "$source_tree" "$comparison_ref" "$shared_paths" "$exact_blobs"
 git diff --shortstat "$source_sha" "$comparison_ref" || true
-

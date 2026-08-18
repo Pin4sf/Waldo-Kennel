@@ -78,9 +78,9 @@ function isDescendantPath(child: string, parent: string): boolean {
 function projectSetupSafetyReason(repoPath: string, options: ScanOptions = {}): string | undefined {
 	const home = options.homeDir?.trim();
 	if (!home) return undefined;
-	const aoState = path.join(home, ".kennel");
-	if (isDescendantPath(repoPath, aoState)) {
-		return "Selected folder is inside AO's internal data directory. Select a project folder outside ~/.kennel.";
+	const kennelState = path.join(home, ".kennel");
+	if (isDescendantPath(repoPath, kennelState)) {
+		return "Selected folder is inside Kennel's internal data directory. Select a project folder outside ~/.kennel.";
 	}
 	return undefined;
 }
@@ -89,7 +89,7 @@ export async function ancestorRepositorySetupWarning(repoPath: string, options: 
 	try {
 		const top = normalizeGitReportedPath(repoPath, await gitOutput(repoPath, ["rev-parse", "--show-toplevel"], options));
 		if (top && !samePath(top, repoPath)) {
-			return `Selected folder is inside an existing Git repository at ${top}. AO will initialize this folder as a separate repository.`;
+			return `Selected folder is inside an existing Git repository at ${top}. Kennel will initialize this folder as a separate repository.`;
 		}
 	} catch {
 		// No ancestor repository.
@@ -190,7 +190,7 @@ async function scanGitRepo(
 }
 
 function scanRepoValidationReason(name: string): string | undefined {
-	if (name === "__root__") return "Repository name is reserved by AO.";
+	if (name === "__root__") return "Repository name is reserved by Kennel.";
 	return undefined;
 }
 

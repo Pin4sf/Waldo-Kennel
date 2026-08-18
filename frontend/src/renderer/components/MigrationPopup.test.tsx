@@ -34,7 +34,10 @@ beforeEach(() => {
 	getMigration.mockReset();
 	setMigration.mockReset();
 	getMigration.mockResolvedValue({ status: "pending" });
-	getMock.mockResolvedValue({ data: { available: true, legacyRoot: "/home/u/.kennel" }, error: undefined });
+	getMock.mockResolvedValue({
+		data: { available: true, legacyRoot: "/home/u/.agent-orchestrator" },
+		error: undefined,
+	});
 	postMock.mockResolvedValue({ data: { report: { projectsImported: 2, projectsSkipped: 1 } }, error: undefined });
 	setMigration.mockResolvedValue(undefined);
 });
@@ -43,7 +46,7 @@ describe("MigrationPopup", () => {
 	it("shows when a legacy install is available and the marker is pending", async () => {
 		renderPopup();
 		expect(await screen.findByText(/Import projects from your earlier AO/i)).toBeInTheDocument();
-		expect(screen.getByText("/home/u/.kennel")).toBeInTheDocument();
+		expect(screen.getByText("/home/u/.agent-orchestrator")).toBeInTheDocument();
 	});
 
 	it("renders nothing when the marker is declined", async () => {
