@@ -25,13 +25,19 @@ type Outcome struct {
 type OutcomeStatus string
 
 const (
-	OutcomeStatusDraft      OutcomeStatus = "draft"
-	OutcomeStatusPlanning   OutcomeStatus = "planning"
+	// OutcomeStatusDraft is an outcome that has not entered planning.
+	OutcomeStatusDraft OutcomeStatus = "draft"
+	// OutcomeStatusPlanning is an outcome whose execution plan is being defined.
+	OutcomeStatusPlanning OutcomeStatus = "planning"
+	// OutcomeStatusInProgress is an outcome with active execution work.
 	OutcomeStatusInProgress OutcomeStatus = "in_progress"
-	OutcomeStatusBlocked    OutcomeStatus = "blocked"
-	OutcomeStatusCompleted  OutcomeStatus = "completed"
+	// OutcomeStatusBlocked is an outcome that requires an input or dependency.
+	OutcomeStatusBlocked OutcomeStatus = "blocked"
+	// OutcomeStatusCompleted is an outcome whose acceptance contract is satisfied.
+	OutcomeStatusCompleted OutcomeStatus = "completed"
 )
 
+// Valid reports whether s is a recognized durable outcome lifecycle value.
 func (s OutcomeStatus) Valid() bool {
 	switch s {
 	case OutcomeStatusDraft, OutcomeStatusPlanning, OutcomeStatusInProgress, OutcomeStatusBlocked, OutcomeStatusCompleted:
@@ -55,15 +61,21 @@ type OutcomeTask struct {
 	Status           OutcomeTaskStatus
 }
 
+// OutcomeTaskStatus is the durable execution state of one outcome task.
 type OutcomeTaskStatus string
 
 const (
+	// OutcomeTaskStatusPlanned is a task that has not begun execution.
 	OutcomeTaskStatusPlanned OutcomeTaskStatus = "planned"
+	// OutcomeTaskStatusRunning is a task with active execution work.
 	OutcomeTaskStatusRunning OutcomeTaskStatus = "running"
+	// OutcomeTaskStatusBlocked is a task waiting on an input or dependency.
 	OutcomeTaskStatusBlocked OutcomeTaskStatus = "blocked"
-	OutcomeTaskStatusDone    OutcomeTaskStatus = "done"
+	// OutcomeTaskStatusDone is a task whose work has finished.
+	OutcomeTaskStatusDone OutcomeTaskStatus = "done"
 )
 
+// Valid reports whether s is a recognized durable outcome-task state.
 func (s OutcomeTaskStatus) Valid() bool {
 	switch s {
 	case OutcomeTaskStatusPlanned, OutcomeTaskStatusRunning, OutcomeTaskStatusBlocked, OutcomeTaskStatusDone:
