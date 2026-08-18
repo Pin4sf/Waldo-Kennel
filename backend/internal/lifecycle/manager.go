@@ -128,7 +128,7 @@ func WithTelemetry(sink ports.EventSink) Option {
 }
 
 // WithContainerReaper wires the container leg of #2652: MarkTerminated will
-// force-remove the terminated session's ao.session-labeled Docker containers,
+// force-remove the terminated session's kennel.session-labeled Docker containers,
 // unless the project opts out via ProjectConfig.ContainerReap.Disabled.
 func WithContainerReaper(reaper ports.ContainerReaper, projects projectConfigLoader) Option {
 	return func(m *Manager) {
@@ -195,7 +195,7 @@ type Manager struct {
 func New(store sessionStore, messenger ports.AgentMessenger, opts ...Option) *Manager {
 	// UTC so activity-driven LastActivityAt/UpdatedAt match spawn-stamped
 	// timestamps (the session manager clock is UTC too); a local clock here left
-	// `ao session get` showing created in UTC but updated in local time. A
+	// `kennel session get` showing created in UTC but updated in local time. A
 	// WithClock option may still override this in tests.
 	clock := func() time.Time { return time.Now().UTC() }
 	m := &Manager{
@@ -888,7 +888,7 @@ func (m *Manager) waitingInputEvents(next domain.SessionRecord, prevState domain
 	// transition emits neither event so dwell covers the whole pause.
 	if !prevState.NeedsInput() && next.Activity.State.NeedsInput() && !next.IsTerminated {
 		events = append(events, ports.TelemetryEvent{
-			Name:       "ao.session.waiting_input_entered",
+			Name:       "kennel.session.waiting_input_entered",
 			Source:     "lifecycle",
 			OccurredAt: now.UTC(),
 			Level:      ports.TelemetryLevelInfo,
@@ -906,7 +906,7 @@ func (m *Manager) waitingInputEvents(next domain.SessionRecord, prevState domain
 			"exited_to": string(next.Activity.State),
 		}
 		events = append(events, ports.TelemetryEvent{
-			Name:       "ao.session.waiting_input_exited",
+			Name:       "kennel.session.waiting_input_exited",
 			Source:     "lifecycle",
 			OccurredAt: now.UTC(),
 			Level:      ports.TelemetryLevelInfo,
@@ -1170,7 +1170,7 @@ func (m *Manager) MarkTerminated(ctx context.Context, id domain.SessionID) error
 // MarkTerminated call - Kill, daemon-shutdown teardown, Cleanup,
 // RetireForReplacement, and tracker-driven termination - funnels through
 // here, so this single hook covers every terminal-state path rather than
-// only explicit ao session kill. Best-effort: logged on failure, never
+// only explicit kennel session kill. Best-effort: logged on failure, never
 // returned, matching the rest of AO's terminal-state teardown. A project-load
 // error skips reaping rather than guessing - the package's stated bias is to
 // spare on ambiguity, not to reap on it.

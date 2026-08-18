@@ -50,7 +50,7 @@ func TestReviewCommandLaunchesHostTrustedInteractiveTUI(t *testing.T) {
 	if !slices.Equal(spec.Argv, want) || spec.WorkingDirectory != "/worker" {
 		t.Fatalf("spec = %+v, want argv %#v", spec, want)
 	}
-	if spec.Env["HOME"] != filepath.Join(dataDir, "reviewer-runtime", "review-worker-1", "config") || spec.Env["AO_DATA_DIR"] != dataDir {
+	if spec.Env["HOME"] != filepath.Join(dataDir, "reviewer-runtime", "review-worker-1", "config") || spec.Env["KENNEL_DATA_DIR"] != dataDir {
 		t.Fatalf("AO-owned environment = %#v", spec.Env)
 	}
 }

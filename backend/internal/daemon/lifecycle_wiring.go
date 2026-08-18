@@ -167,7 +167,7 @@ func (m sessionLifecycleMessenger) Send(ctx context.Context, id domain.SessionID
 // the caller can wire Reconcile into the boot sequence.
 func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.Runtime, store *sqlite.Store, lcm *lifecycle.Manager, messenger ports.AgentMessenger, telemetry ports.EventSink, agents ports.AgentResolver, previewLifecycle sessionmanager.PreviewLifecycle, browserLifecycle sessionmanager.BrowserLifecycle, browserCapabilities sessionmanager.BrowserCapabilityIssuer, chat sessionmanager.ChatLauncher, defaults sessionmanager.SessionModeDefaults, log *slog.Logger) (*sessionsvc.Service, reviewsvc.Manager, sessionLifecycle, error) {
 	gitWS, err := gitworktree.New(gitworktree.Options{
-		// Per-session worktrees live under the data dir, so a single AO_DATA_DIR
+		// Per-session worktrees live under the data dir, so a single KENNEL_DATA_DIR
 		// override moves all durable per-user state together.
 		ManagedRoot: filepath.Join(cfg.DataDir, "worktrees"),
 		// Resolve each project's source repo from the projects table, so a
@@ -259,7 +259,7 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 }
 
 // runtimeMessageSender is the narrow part of the concrete runtime needed by
-// ao send. Both tmux.Runtime and conpty.Runtime implement this via SendMessage.
+// kennel send. Both tmux.Runtime and conpty.Runtime implement this via SendMessage.
 type runtimeMessageSender interface {
 	SendMessage(ctx context.Context, handle ports.RuntimeHandle, message string) error
 }
@@ -298,7 +298,7 @@ func newSessionMessenger(store *sqlite.Store, runtime runtimeMessageSender, _ *s
 
 // modeAwareMessenger lets lifecycle start before the session manager while
 // ensuring every reaction crosses the same persisted-mode dispatcher as an
-// explicit `ao send`. A send in the short boot window waits for Bind instead of
+// explicit `kennel send`. A send in the short boot window waits for Bind instead of
 // falling through to the terminal runtime, which would be wrong for Chat sessions.
 type modeAwareMessenger struct {
 	mu     sync.RWMutex
@@ -388,7 +388,7 @@ func (r reviewerAgentAuth) AuthStatus(ctx context.Context, harness domain.Review
 
 // buildAgentResolver constructs the per-session agent resolver the Session
 // Manager consumes (sessionmanager.Deps.Agents): a registry of the shipped
-// adapters. It still validates AO_AGENT at startup for compatibility with the
+// adapters. It still validates KENNEL_AGENT at startup for compatibility with the
 // config surface, but worker/orchestrator spawns must provide a resolved
 // harness before calling Agent.
 func buildAgentResolver(defaultAgent string, log *slog.Logger) (ports.AgentResolver, error) {
@@ -425,7 +425,7 @@ func (r projectRepoResolver) RepoPath(projectID domain.ProjectID) (string, error
 		return "", fmt.Errorf("look up project %q: %w", projectID, err)
 	}
 	if !ok {
-		return "", fmt.Errorf("no project registered with id %q — add one with `ao project add`: %w", projectID, sessionmanager.ErrProjectNotResolvable)
+		return "", fmt.Errorf("no project registered with id %q — add one with `kennel project add`: %w", projectID, sessionmanager.ErrProjectNotResolvable)
 	}
 	if !rec.ArchivedAt.IsZero() {
 		return "", fmt.Errorf("project %q is archived: %w", projectID, sessionmanager.ErrProjectNotResolvable)

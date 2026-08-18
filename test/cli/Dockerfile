@@ -4,7 +4,7 @@
 #   docker build -f test/cli/Dockerfile -t ao-cli-smoke .
 #   docker run --rm --init ao-cli-smoke
 #
-# `ao start` is now the desktop-app launcher (it no longer runs a daemon); the
+# `kennel start` is now the desktop-app launcher (it no longer runs a daemon); the
 # fresh-box check just proves the binary is sane and start reaches the fetch
 # path. --init keeps process accounting clean for any short-lived child.
 
@@ -18,7 +18,7 @@ RUN cd backend && go mod download
 
 COPY backend ./backend
 # Pure-Go SQLite (modernc) builds fine with CGO disabled -> a static binary.
-# Build against a release repo with NO published assets so `ao start` reaches the
+# Build against a release repo with NO published assets so `kennel start` reaches the
 # fetch path and fails cleanly (404) on a fresh box. The real AgentWrapper repo
 # now publishes a linux-x64 AppImage, so an unpinned binary would download it and
 # exit 0, defeating the fresh-install assertion below. See install-check.sh.
@@ -29,7 +29,7 @@ RUN cd backend && CGO_ENABLED=0 go build -trimpath \
 # ---- stage 2: a clean machine with NO Go toolchain, just like an end user ----
 FROM debian:bookworm-slim AS run
 
-# Runtime deps a fresh user would need: git is required by `ao doctor`; curl
+# Runtime deps a fresh user would need: git is required by `kennel doctor`; curl
 # drives the HTTP-level guard checks; ca-certificates for good measure. Zellij is
 # optional for this smoke test, so doctor reports a WARN if it is absent.
 RUN apt-get update \

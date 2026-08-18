@@ -13,7 +13,7 @@ const approvedLiterals: Record<string, readonly string[]> = {
 		"AO Preview",
 		"Demo app preview",
 		"The worker exposed a local Vite app with",
-		"ao preview",
+		"kennel preview",
 		"Loaded",
 		"$ npm run dev -- --host 127.0.0.1",
 		"ready in 418 ms",

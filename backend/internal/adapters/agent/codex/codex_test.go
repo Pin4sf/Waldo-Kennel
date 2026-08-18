@@ -643,19 +643,19 @@ func TestGetConfigSpecReportsModelField(t *testing.T) {
 }
 
 // legacyHooksJSON builds a hooks.json in the shape older AO versions wrote:
-// AO-managed entries plus one user-defined Stop hook.
+// Kennel-managed entries plus one user-defined Stop hook.
 func legacyHooksJSON() string {
 	return `{
   "hooks": {
     "Stop": [
       {"matcher": null, "hooks": [
         {"type": "command", "command": "custom stop hook", "timeout": 3},
-        {"type": "command", "command": "ao hooks codex stop", "timeout": 30}
+        {"type": "command", "command": "kennel hooks codex stop", "timeout": 30}
       ]}
     ],
     "UserPromptSubmit": [
       {"matcher": null, "hooks": [
-        {"type": "command", "command": "ao hooks codex user-prompt-submit", "timeout": 30}
+        {"type": "command", "command": "kennel hooks codex user-prompt-submit", "timeout": 30}
       ]}
     ]
   },

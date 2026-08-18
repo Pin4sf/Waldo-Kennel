@@ -92,16 +92,16 @@ test("classification and conclusion are always from the known sets", () => {
 });
 
 test("parsePodVerdict: app pass / app fail / infra / missing", () => {
-	assert.deepEqual(parsePodVerdict('AO_VERDICT {"passed":true,"suite":"real-app-t0"}'), {
+	assert.deepEqual(parsePodVerdict('KENNEL_VERDICT {"passed":true,"suite":"real-app-t0"}'), {
 		passed: true,
 		infra: false,
 	});
-	assert.deepEqual(parsePodVerdict('AO_VERDICT {"passed":false,"playwright_exit":1}'), {
+	assert.deepEqual(parsePodVerdict('KENNEL_VERDICT {"passed":false,"playwright_exit":1}'), {
 		passed: false,
 		infra: false,
 	});
 	// setup/toolchain failure must be flagged infra, not an app failure
-	assert.deepEqual(parsePodVerdict('AO_VERDICT {"passed":false,"infra":true,"stage":"npm-playwright"}'), {
+	assert.deepEqual(parsePodVerdict('KENNEL_VERDICT {"passed":false,"infra":true,"stage":"npm-playwright"}'), {
 		passed: false,
 		infra: true,
 	});
@@ -109,34 +109,34 @@ test("parsePodVerdict: app pass / app fail / infra / missing", () => {
 	assert.deepEqual(parsePodVerdict("some logs but no verdict"), { passed: false, infra: true });
 	assert.deepEqual(parsePodVerdict(""), { passed: false, infra: true });
 	// garbage json => infra, never a false app pass/fail
-	assert.deepEqual(parsePodVerdict("AO_VERDICT {not json}"), { passed: false, infra: true });
+	assert.deepEqual(parsePodVerdict("KENNEL_VERDICT {not json}"), { passed: false, infra: true });
 });
 
-test("parsePodVerdict: uses the LAST AO_VERDICT line, not the first", () => {
+test("parsePodVerdict: uses the LAST KENNEL_VERDICT line, not the first", () => {
 	// A passing verdict followed by a failing one must resolve to the FAILING
 	// one — the pod's final word wins, so a stale optimistic line can't mask a
 	// later failure.
 	const out = [
-		'AO_VERDICT {"passed":true,"suite":"real-app-t0"}',
+		'KENNEL_VERDICT {"passed":true,"suite":"real-app-t0"}',
 		"...some later retry / log output...",
-		'AO_VERDICT {"passed":false,"suite":"real-app-t0","playwright_exit":1}',
+		'KENNEL_VERDICT {"passed":false,"suite":"real-app-t0","playwright_exit":1}',
 	].join("\n");
 	assert.deepEqual(parsePodVerdict(out), { passed: false, infra: false });
 });
 
 test("parsePodVerdict: last verdict wins for infra and pass ordering too", () => {
 	// infra line emitted after an app pass -> infra wins (final word)
-	assert.deepEqual(parsePodVerdict('AO_VERDICT {"passed":true}\nAO_VERDICT {"passed":false,"infra":true}'), {
+	assert.deepEqual(parsePodVerdict('KENNEL_VERDICT {"passed":true}\nKENNEL_VERDICT {"passed":false,"infra":true}'), {
 		passed: false,
 		infra: true,
 	});
 	// a genuine pass after an earlier infra line -> pass wins
-	assert.deepEqual(parsePodVerdict('AO_VERDICT {"passed":false,"infra":true}\nAO_VERDICT {"passed":true}'), {
+	assert.deepEqual(parsePodVerdict('KENNEL_VERDICT {"passed":false,"infra":true}\nKENNEL_VERDICT {"passed":true}'), {
 		passed: true,
 		infra: false,
 	});
 	// trailing whitespace/newlines after the final line must not defeat selection
-	assert.deepEqual(parsePodVerdict('AO_VERDICT {"passed":true}\nAO_VERDICT {"passed":false}\n\n'), {
+	assert.deepEqual(parsePodVerdict('KENNEL_VERDICT {"passed":true}\nKENNEL_VERDICT {"passed":false}\n\n'), {
 		passed: false,
 		infra: false,
 	});
@@ -145,12 +145,12 @@ test("parsePodVerdict: last verdict wins for infra and pass ordering too", () =>
 test("pod infra verdict maps to NEUTRAL, real app fail maps to RED", () => {
 	// This is the reviewer's core point: a pod-side setup failure (infra:true)
 	// must not be reported as a red app_failed release result.
-	const setupFail = parsePodVerdict('AO_VERDICT {"passed":false,"infra":true}');
+	const setupFail = parsePodVerdict('KENNEL_VERDICT {"passed":false,"infra":true}');
 	const infraOutcome = deriveGateOutcome({ ranOk: !setupFail.infra, testsPassed: setupFail.passed });
 	assert.equal(infraOutcome.classification, "infra");
 	assert.equal(infraOutcome.conclusion, "neutral");
 
-	const appFail = parsePodVerdict('AO_VERDICT {"passed":false}');
+	const appFail = parsePodVerdict('KENNEL_VERDICT {"passed":false}');
 	const appOutcome = deriveGateOutcome({ ranOk: !appFail.infra, testsPassed: appFail.passed });
 	assert.equal(appOutcome.classification, "app_failed");
 	assert.equal(appOutcome.conclusion, "failure");

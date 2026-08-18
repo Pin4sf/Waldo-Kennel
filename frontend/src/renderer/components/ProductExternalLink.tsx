@@ -1,4 +1,4 @@
-import type { ExternalLinkProps } from "@aoagents/product-ui";
+import type { ExternalLinkProps } from "@pin4sf/kennel-product-ui";
 
 export function ProductExternalLink({
 	ariaLabel,

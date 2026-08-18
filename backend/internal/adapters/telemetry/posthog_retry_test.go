@@ -38,7 +38,7 @@ func statusResponse(code int) *http.Response {
 
 func activeEvent() ports.TelemetryEvent {
 	return ports.TelemetryEvent{
-		Name:       "ao.app.active",
+		Name:       "kennel.app.active",
 		Source:     "cli",
 		OccurredAt: time.Unix(0, 0).UTC(),
 		Payload:    map[string]any{"channel": "cli", "actor_type": "user"},

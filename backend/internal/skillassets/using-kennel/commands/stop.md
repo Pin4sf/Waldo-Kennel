@@ -1,11 +1,11 @@
-# ao stop
+# kennel stop
 
-Stop the AO daemon.
+Stop the Kennel daemon.
 
 ## Syntax
 
 ```
-ao stop [flags]
+kennel stop [flags]
 ```
 
 ## Flags
@@ -19,10 +19,10 @@ ao stop [flags]
 
 ```bash
 # Stop the daemon
-ao stop
+kennel stop
 ```
 
 ```bash
 # Stop with a longer timeout
-ao stop --timeout 30s
+kennel stop --timeout 30s
 ```

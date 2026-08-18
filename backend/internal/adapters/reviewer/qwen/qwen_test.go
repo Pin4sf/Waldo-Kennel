@@ -62,13 +62,13 @@ func TestReviewCommandIsExactPermanentTUIWithPostReadinessReference(t *testing.T
 	if spec.WorkingDirectory == inv.WorkspacePath || !strings.HasPrefix(spec.WorkingDirectory, inv.DataDir+string(filepath.Separator)) {
 		t.Fatalf("working directory = %q", spec.WorkingDirectory)
 	}
-	if spec.Env["HOME"] == "" || spec.Env["TMPDIR"] == "" || spec.Env["AO_DATA_DIR"] != inv.DataDir {
+	if spec.Env["HOME"] == "" || spec.Env["TMPDIR"] == "" || spec.Env["KENNEL_DATA_DIR"] != inv.DataDir {
 		t.Fatalf("neutral environment = %#v", spec.Env)
 	}
 	if strings.HasPrefix(spec.Env["HOME"], inv.WorkspacePath) {
 		t.Fatalf("HOME points into checkout: %q", spec.Env["HOME"])
 	}
-	if _, ok := spec.Env["AO_REVIEW_GATEWAY_MANIFEST"]; ok {
+	if _, ok := spec.Env["KENNEL_REVIEW_GATEWAY_MANIFEST"]; ok {
 		t.Fatalf("unexpected gateway manifest env = %#v", spec.Env)
 	}
 	for _, path := range []string{spec.WorkingDirectory, spec.Env["HOME"], spec.Env["TMPDIR"]} {

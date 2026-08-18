@@ -15,14 +15,14 @@ import (
 
 const (
 	extensionDirName  = "agent-runtime"
-	extensionFileName = "ao-activity.ts"
+	extensionFileName = "kennel-activity.ts"
 )
 
-//go:embed assets/ao-activity.ts
+//go:embed assets/kennel-activity.ts
 var primeAgentExtensionSource string
 
-// GetAgentHooks installs the AO-managed extension at a stable path under
-// AO_DATA_DIR. Prime receives this exact path through --extension. The install
+// GetAgentHooks installs the Kennel-managed extension at a stable path under
+// KENNEL_DATA_DIR. Prime receives this exact path through --extension. The install
 // is atomic and skips rewriting identical content.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	if err := ctx.Err(); err != nil {

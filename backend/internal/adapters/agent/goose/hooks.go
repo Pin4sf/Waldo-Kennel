@@ -14,13 +14,13 @@ const (
 	// installing the file is sufficient.
 	gooseHooksRootDirName = ".agents"
 	goosePluginsDirName   = "plugins"
-	goosePluginName       = "ao"
+	goosePluginName       = "kennel"
 	gooseHooksSubDirName  = "hooks"
 	gooseHooksFileName    = "hooks.json"
 
 	// gooseHookCommandPrefix identifies the hook commands AO owns, so install
 	// skips duplicates and uninstall recognizes AO entries by prefix.
-	gooseHookCommandPrefix = "ao hooks goose "
+	gooseHookCommandPrefix = "kennel hooks goose "
 	gooseHookTimeout       = 30
 )
 

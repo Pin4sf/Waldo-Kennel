@@ -9,11 +9,12 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import type { CloudAccount } from "../shared/cloud-account";
+import { AUTH_PROTOCOL } from "../shared/product-identity";
 
 const CLIENT_ID =
   import.meta.env.VITE_WORKOS_CLIENT_ID?.trim() ||
   (process.env.VITEST ? "client_test" : "");
-const REDIRECT_URI = "ao-app://callback";
+const REDIRECT_URI = `${AUTH_PROTOCOL}://callback`;
 const AUTH_STORE_FILE = "cloud-auth.bin";
 const LEGACY_SESSION_FILE = "cloud-session.json";
 const PKCE_TTL_MS = 10 * 60 * 1000;
@@ -311,7 +312,7 @@ export async function handleCloudDeepLink(
 ): Promise<CloudAccount | null> {
   if (!workos) throw new Error("WorkOS is not configured.");
   const url = new URL(rawURL);
-  if (url.protocol !== "ao-app:" || url.hostname !== "callback") return null;
+  if (url.protocol !== `${AUTH_PROTOCOL}:` || url.hostname !== "callback") return null;
   const error = url.searchParams.get("error");
   if (error) {
     throw new Error(
@@ -383,12 +384,12 @@ export async function showCloudSignInFailure(error: unknown): Promise<void> {
 
 export function registerCloudProtocol(): void {
   if (process.defaultApp && process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient("ao-app", process.execPath, [
+    app.setAsDefaultProtocolClient(AUTH_PROTOCOL, process.execPath, [
       path.resolve(process.argv[1]),
     ]);
     return;
   }
-  app.setAsDefaultProtocolClient("ao-app");
+  app.setAsDefaultProtocolClient(AUTH_PROTOCOL);
 }
 
 export function installCloudIPC(

@@ -258,7 +258,7 @@ func TestGetAgentHooksInstallsPlugin(t *testing.T) {
 	if !strings.Contains(body, kilocodePluginSentinel) {
 		t.Fatalf("installed plugin missing AO sentinel:\n%s", body)
 	}
-	// Every normalized activity event must be wired via `ao hooks kilocode <event>`.
+	// Every normalized activity event must be wired via `kennel hooks kilocode <event>`.
 	for _, event := range kilocodeManagedEvents {
 		want := kilocodeHookCommandPrefix + event
 		if !strings.Contains(body, want) {
@@ -288,7 +288,7 @@ func TestGetAgentHooksInstallsPlugin(t *testing.T) {
 	if strings.Contains(body, "value?.session_id ?? value?.id") {
 		t.Fatalf("readSessionID must not fall back to generic object id:\n%s", body)
 	}
-	// A hung `ao hooks` call must not block Kilo forever, so each spawn is
+	// A hung `kennel hooks` call must not block Kilo forever, so each spawn is
 	// time-boxed (parity with the claude/codex 30s hook timeout).
 	if !strings.Contains(body, "timeout:") {
 		t.Fatalf("plugin spawn has no timeout; a hung hook would block Kilo:\n%s", body)
@@ -309,7 +309,7 @@ func TestGetAgentHooksRefusesToClobberForeignFile(t *testing.T) {
 	workspace := t.TempDir()
 	ctx := context.Background()
 
-	// A non-AO file occupying AO's exact path must NOT be silently overwritten.
+	// A non-Kennel file occupying AO's exact path must NOT be silently overwritten.
 	pluginPath := kilocodePluginPath(workspace)
 	if err := os.MkdirAll(filepath.Dir(pluginPath), 0o755); err != nil {
 		t.Fatal(err)
@@ -321,7 +321,7 @@ func TestGetAgentHooksRefusesToClobberForeignFile(t *testing.T) {
 
 	err := plugin.GetAgentHooks(ctx, ports.WorkspaceHookConfig{WorkspacePath: workspace})
 	if err == nil {
-		t.Fatal("GetAgentHooks overwrote a non-AO file; want a loud error")
+		t.Fatal("GetAgentHooks overwrote a non-Kennel file; want a loud error")
 	}
 	got, readErr := os.ReadFile(pluginPath)
 	if readErr != nil {
@@ -374,7 +374,7 @@ func TestUninstallHooksLeavesForeignFile(t *testing.T) {
 	workspace := t.TempDir()
 	ctx := context.Background()
 
-	// A non-AO file occupying AO's filename must NOT be deleted by uninstall.
+	// A non-Kennel file occupying AO's filename must NOT be deleted by uninstall.
 	pluginPath := kilocodePluginPath(workspace)
 	if err := os.MkdirAll(filepath.Dir(pluginPath), 0o755); err != nil {
 		t.Fatal(err)

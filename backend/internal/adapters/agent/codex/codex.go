@@ -2,7 +2,7 @@
 // resuming hook-tracked sessions, installing workspace-local hooks, and reading
 // hook-derived session info.
 //
-// AO-managed sessions derive native session identity and display
+// Kennel-managed sessions derive native session identity and display
 // metadata from Codex hooks instead of transcript/cache scans.
 package codex
 
@@ -459,7 +459,7 @@ func (p *Plugin) codexBinary(ctx context.Context) (string, error) {
 	return binary, nil
 }
 
-// DoctorLaunchProbes returns argv tails `ao doctor` runs against the installed
+// DoctorLaunchProbes returns argv tails `kennel doctor` runs against the installed
 // codex binary to smoke-test the launch surface AO's hook delivery depends on.
 // Probe 1 confirms --dangerously-bypass-hook-trust still exists (clap rejects
 // unknown flags with a non-zero exit even alongside --version). Probe 2 loads
@@ -479,7 +479,7 @@ func DoctorLaunchProbes() [][]string {
 		// The probe only asks Codex to parse the hook config; a bare fallback
 		// keeps that diagnostic available if the current executable cannot be
 		// resolved, while real session launches fail closed above.
-		appendSessionHookFlagsForExecutable(&overrideProbe, "ao")
+		appendSessionHookFlagsForExecutable(&overrideProbe, "kennel")
 	}
 	appendWorkspaceTrustFlag(&overrideProbe, os.TempDir())
 	return [][]string{flagProbe, overrideProbe}

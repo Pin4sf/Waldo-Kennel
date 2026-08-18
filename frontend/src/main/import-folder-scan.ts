@@ -78,9 +78,9 @@ function isDescendantPath(child: string, parent: string): boolean {
 function projectSetupSafetyReason(repoPath: string, options: ScanOptions = {}): string | undefined {
 	const home = options.homeDir?.trim();
 	if (!home) return undefined;
-	const aoState = path.join(home, ".ao");
+	const aoState = path.join(home, ".kennel");
 	if (isDescendantPath(repoPath, aoState)) {
-		return "Selected folder is inside AO's internal data directory. Select a project folder outside ~/.ao.";
+		return "Selected folder is inside AO's internal data directory. Select a project folder outside ~/.kennel.";
 	}
 	return undefined;
 }

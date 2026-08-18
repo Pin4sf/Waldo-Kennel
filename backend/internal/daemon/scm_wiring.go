@@ -46,7 +46,7 @@ func startSCMObserver(ctx context.Context, store *sqlite.Store, lcm *lifecycle.M
 
 func newGitHubSCMProvider(logger *slog.Logger) (*scmgithub.Provider, error) {
 	tokens := scmgithub.FallbackTokenSource{
-		scmgithub.EnvTokenSource{EnvVars: []string{"AO_GITHUB_TOKEN"}},
+		scmgithub.EnvTokenSource{EnvVars: []string{"KENNEL_GITHUB_TOKEN"}},
 		&scmgithub.GHTokenSource{},
 	}
 	return scmgithub.NewProvider(scmgithub.ProviderOptions{Token: tokens, SkipTokenPreflight: true, Logger: logger})
@@ -54,7 +54,7 @@ func newGitHubSCMProvider(logger *slog.Logger) (*scmgithub.Provider, error) {
 
 func newGitLabSCMProvider(gitlabCfg config.GitLabConfig, logger *slog.Logger) (*scmgitlab.Provider, error) {
 	tokens := scmgitlab.FallbackTokenSource{
-		scmgitlab.EnvTokenSource{EnvVars: []string{"AO_GITLAB_TOKEN"}},
+		scmgitlab.EnvTokenSource{EnvVars: []string{"KENNEL_GITLAB_TOKEN"}},
 		&scmgitlab.GLabTokenSource{},
 	}
 	hostTokens := make(map[string]scmgitlab.TokenSource, len(gitlabCfg.HostTokens))

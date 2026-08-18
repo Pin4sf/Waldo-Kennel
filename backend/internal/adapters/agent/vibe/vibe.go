@@ -5,7 +5,7 @@
 // Python CLI installed via `uv tool install mistral-vibe`, pip, or its install
 // script. AO drives Vibe in interactive mode by passing the task as the
 // positional initial prompt. `--trust` skips the working-directory trust prompt
-// for AO-managed worktrees while preserving Vibe's normal TUI.
+// for Kennel-managed worktrees while preserving Vibe's normal TUI.
 //
 // Permission modes map onto Vibe's builtin agent profiles via `--agent`:
 // accept-edits ("auto-approves file edits only") and auto-approve
@@ -258,7 +258,7 @@ func vibeAgentRoot(promptFile, dataDir, sessionID string) (string, error) {
 	return vibeManagerOwnedAgentRoot(dataDir, sessionID), nil
 }
 
-// vibeManagerOwnedAgentRoot is the load-bearing AO-managed custom-agent root:
+// vibeManagerOwnedAgentRoot is the load-bearing Kennel-managed custom-agent root:
 // prompt-backed sessions using dataDir/prompts/<sessionID>/system.md and
 // model-only sessions must both resolve to dataDir/prompts/<sessionID>/vibe.
 func vibeManagerOwnedAgentRoot(dataDir, sessionID string) string {
@@ -269,7 +269,7 @@ func vibeAgentTOML(agentName string, mode ports.PermissionMode, model string, ha
 	var b strings.Builder
 	b.WriteString(`agent_type = "agent"` + "\n")
 	b.WriteString(`display_name = "AO Session"` + "\n")
-	b.WriteString(`description = "AO session standing instructions."` + "\n")
+	b.WriteString(`description = "Kennel session standing instructions."` + "\n")
 	b.WriteString(`safety = "neutral"` + "\n")
 	if hasPrompt {
 		promptID, err := vibeTOMLBasicString(agentName)

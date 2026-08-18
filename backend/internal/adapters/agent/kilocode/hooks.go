@@ -28,32 +28,32 @@ const (
 	// sentinel), so user-authored plugins in other files are never touched.
 	// It is TypeScript (Kilo runs on Bun); the file's only import is a type-only
 	// import, which Bun erases at runtime.
-	kilocodePluginFileName = "ao-activity.ts"
+	kilocodePluginFileName = "kennel-activity.ts"
 
-	// kilocodePluginSentinel marks the file as AO-managed. AreHooksInstalled and
+	// kilocodePluginSentinel marks the file as Kennel-managed. AreHooksInstalled and
 	// UninstallHooks key off it so AO never deletes a user file that happens to
 	// share the name. It must appear verbatim in the embedded plugin source.
-	kilocodePluginSentinel = "agent-orchestrator: managed kilocode activity plugin"
+	kilocodePluginSentinel = "kennel: managed kilocode activity plugin"
 
 	// kilocodeHookCommandPrefix identifies the hook commands AO owns. The
-	// embedded plugin shells `ao hooks kilocode <event>`; this prefix is the
-	// shared contract with the `ao hooks` CLI dispatcher and is asserted by tests
+	// embedded plugin shells `kennel hooks kilocode <event>`; this prefix is the
+	// shared contract with the `kennel hooks` CLI dispatcher and is asserted by tests
 	// so the plugin can't silently drift away from it.
-	kilocodeHookCommandPrefix = "ao hooks kilocode "
+	kilocodeHookCommandPrefix = "kennel hooks kilocode "
 )
 
-// kilocodePluginSource is the AO-managed Kilo Code plugin, embedded so it ships
+// kilocodePluginSource is the Kennel-managed Kilo Code plugin, embedded so it ships
 // inside the binary and is written verbatim into a session's worktree on hook
 // install. It is a real, lintable source file under assets/ rather than a Go
 // string literal because it is plugin source code, not a data structure AO
 // assembles (the way it builds Codex/Claude hook JSON).
 //
-//go:embed assets/ao-activity.ts
+//go:embed assets/kennel-activity.ts
 var kilocodePluginSource string
 
 // kilocodeManagedEvents are the normalized activity events the embedded plugin
 // reports. They are defined here (not parsed from the file) so tests can assert
-// the plugin wires every one via the `ao hooks kilocode <event>` command, and
+// the plugin wires every one via the `kennel hooks kilocode <event>` command, and
 // they mirror exactly the events kilocode.DeriveActivityState switches on.
 var kilocodeManagedEvents = []string{"session-start", "user-prompt-submit", "permission-request", "stop"}
 
@@ -63,7 +63,7 @@ var kilocodeManagedEvents = []string{"session-start", "user-prompt-submit", "per
 // surface is a JS/TS plugin. AO therefore writes a dedicated, AO-owned plugin
 // file. The write is atomic and idempotent: re-installing overwrites AO's own
 // file with identical content. It refuses to overwrite a file that is NOT
-// AO-managed (no sentinel), so a user plugin that happens to occupy our path is
+// Kennel-managed (no sentinel), so a user plugin that happens to occupy our path is
 // never silently destroyed — install fails loudly instead.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	if err := ctx.Err(); err != nil {
@@ -75,7 +75,7 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 
 	pluginPath := kilocodePluginPath(cfg.WorkspacePath)
 	// Guard against clobbering a user file at our path: overwrite only when the
-	// target is absent or already AO-managed. A foreign file is a loud error,
+	// target is absent or already Kennel-managed. A foreign file is a loud error,
 	// not silent data loss (uninstall is sentinel-guarded the same way).
 	if _, err := os.Stat(pluginPath); err == nil {
 		managed, err := isAOManagedPlugin(pluginPath)
@@ -83,7 +83,7 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 			return fmt.Errorf("kilocode.GetAgentHooks: %w", err)
 		}
 		if !managed {
-			return fmt.Errorf("kilocode.GetAgentHooks: refusing to overwrite non-AO file at %s — move it so AO can install its plugin", pluginPath)
+			return fmt.Errorf("kilocode.GetAgentHooks: refusing to overwrite non-Kennel file at %s — move it so Kennel can install its plugin", pluginPath)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("kilocode.GetAgentHooks: stat plugin: %w", err)

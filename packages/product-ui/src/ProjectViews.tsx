@@ -687,7 +687,7 @@ export function ProjectWorkflowSettingsView({
 					label={labels.sessionPrefix}
 					id="sessionPrefix"
 					value={prefix}
-					placeholder="ao"
+					placeholder="kennel"
 					onChange={onPrefixChange}
 				/>
 			</ProjectSettingsSection>

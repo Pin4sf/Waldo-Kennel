@@ -122,7 +122,7 @@ describe("report problem drafts", () => {
 
 	it("builds copy handoff destinations for GitHub, Discord, and support email", () => {
 		const github = new URL(reportProblemDestinationUrl(completeInput, diagnostics, "github")!);
-		expect(`${github.origin}${github.pathname}`).toBe("https://github.com/Untrivial-ai/agent-orchestrator/issues/new");
+		expect(`${github.origin}${github.pathname}`).toBe("https://github.com/Pin4sf/Waldo-Kennel/issues/new");
 		expect(github.searchParams.get("title")).toBe("Terminal keeps reconnecting after daemon restart");
 		expect(github.searchParams.get("body")).toContain("[redacted-local-path]");
 		expect(github.searchParams.get("body")).toContain("[redacted-local-url]");
@@ -140,8 +140,8 @@ describe("report problem drafts", () => {
 	});
 
 	it("derives route surface from the hash-history route", async () => {
-		window.ao!.app.getVersion = vi.fn().mockResolvedValue("1.2.3-test");
-		window.ao!.daemon.getStatus = vi.fn().mockResolvedValue({ state: "ready" });
+		window.kennel!.app.getVersion = vi.fn().mockResolvedValue("1.2.3-test");
+		window.kennel!.daemon.getStatus = vi.fn().mockResolvedValue({ state: "ready" });
 		window.location.hash = "#/projects/demo/sessions/demo-1";
 
 		const nextDiagnostics = await collectReportProblemDiagnostics(new Date("2026-07-02T00:00:00.000Z"));

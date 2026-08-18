@@ -198,7 +198,7 @@ func TestManager_AddEmitsProjectAndFirstProjectTelemetry(t *testing.T) {
 	if len(sink.events) != 2 {
 		t.Fatalf("events = %#v, want projects.created + first_project_added", sink.events)
 	}
-	if sink.events[0].Name != "ao.projects.created" || sink.events[1].Name != "ao.onboarding.first_project_added" {
+	if sink.events[0].Name != "kennel.projects.created" || sink.events[1].Name != "kennel.onboarding.first_project_added" {
 		t.Fatalf("event names = %#v", []string{sink.events[0].Name, sink.events[1].Name})
 	}
 }
@@ -221,7 +221,7 @@ func TestManager_AddDoesNotRepeatFirstProjectTelemetry(t *testing.T) {
 	}
 	var firstProjectCount int
 	for _, ev := range sink.events {
-		if ev.Name == "ao.onboarding.first_project_added" {
+		if ev.Name == "kennel.onboarding.first_project_added" {
 			firstProjectCount++
 		}
 	}
@@ -820,8 +820,8 @@ func TestManager_InitializeRepositoryRecovery(t *testing.T) {
 			filepath.Join(home, "Desktop"),
 			filepath.Join(home, "Documents"),
 			filepath.Join(home, "Downloads"),
-			filepath.Join(home, ".ao"),
-			filepath.Join(home, ".ao", "data"),
+			filepath.Join(home, ".kennel"),
+			filepath.Join(home, ".kennel", "data"),
 		}
 		for _, path := range paths {
 			if err := os.MkdirAll(path, 0o755); err != nil {
@@ -835,11 +835,11 @@ func TestManager_InitializeRepositoryRecovery(t *testing.T) {
 		}
 	})
 
-	t.Run("folder inside AO-managed worktrees is rejected before init", func(t *testing.T) {
+	t.Run("folder inside Kennel-managed worktrees is rejected before init", func(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)
 		t.Setenv("USERPROFILE", home)
-		dir := filepath.Join(home, ".ao", "data", "worktrees", "project", "session")
+		dir := filepath.Join(home, ".kennel", "data", "worktrees", "project", "session")
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}

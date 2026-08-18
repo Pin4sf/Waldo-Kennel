@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-// #2483 TRM-001, RENDERER SLICE. Under dev:web there is no window.ao and no PTY,
+// #2483 TRM-001, RENDERER SLICE. Under dev:web there is no window.kennel and no PTY,
 // so TerminalPane renders its deterministic browser-preview transcript (the
 // data-testid="session-terminal" surface) seeded from lib/mock-data.ts. This
 // proves the renderer attaches the terminal surface and paints a stream; the real

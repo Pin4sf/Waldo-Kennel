@@ -15,7 +15,7 @@
 // native session id (a UUID under ~/.copilot/session-state/) is captured by the
 // SessionStart hook AO installs (see hooks.go).
 //
-// AO-managed sessions derive native session identity and display metadata from
+// Kennel-managed sessions derive native session identity and display metadata from
 // Copilot hooks instead of transcript/cache scans.
 package copilot
 

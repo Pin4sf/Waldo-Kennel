@@ -2290,7 +2290,7 @@ body.is-resizing-x [data-slot="inspector-container"] {
 	}
 }
 
-/* ── Shell topbar (agent-orchestrator .dashboard-app-header) ──────────────
+/* ── Shell topbar (kennel .dashboard-app-header) ──────────────
  * One header for every screen (rendered by the shell layout), so one padding:
  * AO's session-topbar values. Upstream splits this into a 14px dashboard
  * header and a 16/14px session override; with the bar hoisted there is a
@@ -2623,7 +2623,7 @@ body.is-resizing-x [data-slot="inspector-container"] {
 	color: var(--fg-passive);
 }
 
-/* ── Session inspector rail (agent-orchestrator SessionInspector) ───────── */
+/* ── Session inspector rail (kennel SessionInspector) ───────── */
 .session-inspector {
 	container-type: inline-size;
 	display: flex;

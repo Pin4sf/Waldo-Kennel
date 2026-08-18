@@ -29,7 +29,7 @@ func TestDenylistSinkPassesEverythingWhenUnconfigured(t *testing.T) {
 	if sink != ports.EventSink(next) {
 		t.Fatal("empty denylist should return the wrapped sink unchanged")
 	}
-	emitAll(sink, "ao.app.active", "ao.session.spawned")
+	emitAll(sink, "kennel.app.active", "kennel.session.spawned")
 	if len(next.events) != 2 {
 		t.Fatalf("names = %v, want both events forwarded", forwardedNames(next))
 	}
@@ -37,9 +37,9 @@ func TestDenylistSinkPassesEverythingWhenUnconfigured(t *testing.T) {
 
 func TestDenylistSinkDropsNamedEvents(t *testing.T) {
 	next := &recordingSink{}
-	sink := NewDenylistSink(next, []string{"ao.session.spawned"})
-	emitAll(sink, "ao.app.active", "ao.session.spawned", "ao.http.5xx")
-	if len(next.events) != 2 || forwardedNames(next)[0] != "ao.app.active" || forwardedNames(next)[1] != "ao.http.5xx" {
+	sink := NewDenylistSink(next, []string{"kennel.session.spawned"})
+	emitAll(sink, "kennel.app.active", "kennel.session.spawned", "kennel.http.5xx")
+	if len(next.events) != 2 || forwardedNames(next)[0] != "kennel.app.active" || forwardedNames(next)[1] != "kennel.http.5xx" {
 		t.Fatalf("names = %v, want the denied event dropped", forwardedNames(next))
 	}
 }
@@ -47,10 +47,10 @@ func TestDenylistSinkDropsNamedEvents(t *testing.T) {
 // An operator reading PostHog sees the exported alias, not the internal name.
 // Typing either one must silence the stream, or the switch is a trap.
 func TestDenylistSinkMatchesEitherInternalOrExportedName(t *testing.T) {
-	for _, denied := range []string{"ao.app.active", "ao.v2.app.active"} {
+	for _, denied := range []string{"kennel.app.active", "kennel.v2.app.active"} {
 		next := &recordingSink{}
 		sink := NewDenylistSink(next, []string{denied})
-		emitAll(sink, "ao.app.active")
+		emitAll(sink, "kennel.app.active")
 		if len(next.events) != 0 {
 			t.Fatalf("denylist %q forwarded %v, want dropped", denied, forwardedNames(next))
 		}
@@ -59,9 +59,9 @@ func TestDenylistSinkMatchesEitherInternalOrExportedName(t *testing.T) {
 
 func TestDenylistSinkSupportsPrefixWildcardAndIsCaseInsensitive(t *testing.T) {
 	next := &recordingSink{}
-	sink := NewDenylistSink(next, []string{"  AO.RENDERER.*  "})
-	emitAll(sink, "ao.renderer.route_viewed", "ao.renderer.api_error", "ao.session.spawned")
-	if len(next.events) != 1 || forwardedNames(next)[0] != "ao.session.spawned" {
+	sink := NewDenylistSink(next, []string{"  KENNEL.RENDERER.*  "})
+	emitAll(sink, "kennel.renderer.route_viewed", "kennel.renderer.api_error", "kennel.session.spawned")
+	if len(next.events) != 1 || forwardedNames(next)[0] != "kennel.session.spawned" {
 		t.Fatalf("names = %v, want only the non-renderer event forwarded", forwardedNames(next))
 	}
 }
@@ -74,7 +74,7 @@ func TestDenylistSinkIgnoresEmptyEntries(t *testing.T) {
 	if sink != ports.EventSink(next) {
 		t.Fatal("blank entries should leave the sink unwrapped")
 	}
-	emitAll(sink, "ao.app.active")
+	emitAll(sink, "kennel.app.active")
 	if len(next.events) != 1 {
 		t.Fatalf("names = %v, want the event forwarded", forwardedNames(next))
 	}

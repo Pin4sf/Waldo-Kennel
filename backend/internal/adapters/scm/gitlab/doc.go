@@ -47,7 +47,7 @@
 //
 // # Authentication
 //
-// Tokens are resolved from AO_GITLAB_TOKEN, GITLAB_TOKEN, or by shelling out
+// Tokens are resolved from KENNEL_GITLAB_TOKEN, GITLAB_TOKEN, or by shelling out
 // to `glab auth status --show-token`. The Authorization: Bearer header is used
 // for REST requests because it works for both OAuth2 tokens and personal access
 // tokens.

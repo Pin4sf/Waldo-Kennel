@@ -17,9 +17,9 @@ export type MakerNSISConfig = {
 	// Display name for the installer + Start menu shortcut. Defaults to appName.
 	productName?: string;
 	// The packaged binary name WITHOUT ".exe" — must match Forge's
-	// packagerConfig.executableName ("agent-orchestrator"). electron-builder
+	// packagerConfig.executableName ("kennel"). electron-builder
 	// otherwise derives the exe name from productName and points the Start menu
-	// shortcut at "Agent Orchestrator.exe", which does not exist, so the app
+	// shortcut at "Kennel.exe", which does not exist, so the app
 	// silently fails to launch and the shortcut shows a generic icon (#2414).
 	executableName?: string;
 	// Path to the Windows .ico used for the app and installer.
@@ -45,9 +45,9 @@ export default class MakerNSIS extends MakerBase<MakerNSISConfig> {
 		// electron-builder derives the Windows exe name — and thus the Start menu
 		// shortcut's target path and icon — from `win.executableName`, falling back
 		// to productName when it is unset. Forge's packager already named the binary
-		// "agent-orchestrator.exe" (packagerConfig.executableName), so we forward the
+		// "kennel.exe" (packagerConfig.executableName), so we forward the
 		// same name here; otherwise the shortcut targets a nonexistent
-		// "Agent Orchestrator.exe" and the app never launches (#2414).
+		// "Kennel.exe" and the app never launches (#2414).
 		const win: Record<string, unknown> = {};
 		if (cfg.icon) win.icon = cfg.icon;
 		if (cfg.executableName) win.executableName = cfg.executableName;

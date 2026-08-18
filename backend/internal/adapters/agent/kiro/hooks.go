@@ -21,18 +21,18 @@ const (
 	// https://kiro.dev/docs/cli/custom-agents/configuration-reference#hooks-field
 	kiroHooksDirName  = ".kiro"
 	kiroAgentsDirName = "agents"
-	kiroAgentFileName = "ao.json"
+	kiroAgentFileName = "kennel.json"
 
 	// kiroHookCommandPrefix identifies the hook commands AO owns, so install
 	// skips duplicates and uninstall recognizes AO entries by prefix without an
 	// embedded template to diff against.
-	kiroHookCommandPrefix = "ao hooks kiro "
+	kiroHookCommandPrefix = "kennel hooks kiro "
 
-	kiroAgentName        = "ao"
-	kiroAgentDescription = "Agent Orchestrator session instructions"
+	kiroAgentName        = "kennel"
+	kiroAgentDescription = "Kennel session instructions"
 )
 
-// kiroHookFile is the on-disk shape of .kiro/agents/ao.json. It is used by
+// kiroHookFile is the on-disk shape of .kiro/agents/kennel.json. It is used by
 // tests to decode the written file. Kiro hooks are a map of camelCase event
 // name to a flat array of {matcher?, command} entries.
 type kiroHookFile struct {
@@ -71,7 +71,7 @@ var kiroManagedHooks = []kiroHookSpec{
 }
 
 // GetAgentHooks installs AO's Kiro hooks into the worktree-local
-// .kiro/agents/ao.json file. Existing hook entries are preserved and duplicate
+// .kiro/agents/kennel.json file. Existing hook entries are preserved and duplicate
 // AO commands are not appended.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	if err := ctx.Err(); err != nil {
@@ -115,7 +115,7 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 }
 
 // UninstallHooks removes AO's Kiro hooks from the workspace-local
-// .kiro/agents/ao.json file, leaving user-defined hooks untouched. A missing
+// .kiro/agents/kennel.json file, leaving user-defined hooks untouched. A missing
 // file is a no-op.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
 	if err := ctx.Err(); err != nil {

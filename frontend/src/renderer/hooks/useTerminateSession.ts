@@ -56,7 +56,7 @@ export function useTerminateSession(options: TerminateSessionOptions = {}) {
 	return useMutation({
 		mutationKey: terminateSessionMutationKey,
 		mutationFn: async (session: WorkspaceSession) => {
-			void captureRendererEvent("ao.renderer.session_kill_requested", { project_id: session.workspaceId });
+			void captureRendererEvent("kennel.renderer.session_kill_requested", { project_id: session.workspaceId });
 			const { error, response } = await apiClient.POST("/api/v1/sessions/{sessionId}/kill", {
 				params: { path: { sessionId: session.id } },
 			});
@@ -66,12 +66,12 @@ export function useTerminateSession(options: TerminateSessionOptions = {}) {
 			}
 		},
 		onSuccess: async (_data, session) => {
-			void captureRendererEvent("ao.renderer.session_kill_succeeded", { project_id: session.workspaceId });
+			void captureRendererEvent("kennel.renderer.session_kill_succeeded", { project_id: session.workspaceId });
 			await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
 			options.onSuccess?.(session);
 		},
 		onError: (_error, session) => {
-			void captureRendererEvent("ao.renderer.session_kill_failed", { project_id: session.workspaceId });
+			void captureRendererEvent("kennel.renderer.session_kill_failed", { project_id: session.workspaceId });
 		},
 	});
 }

@@ -14,7 +14,7 @@ const (
 
 	// droidHookCommandPrefix identifies the hook commands AO owns, so install
 	// skips duplicates and uninstall recognizes AO entries by prefix.
-	droidHookCommandPrefix = "ao hooks droid "
+	droidHookCommandPrefix = "kennel hooks droid "
 	droidHookTimeout       = 30
 )
 

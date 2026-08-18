@@ -18,7 +18,7 @@ const (
 	// (.github/hooks/*.json). AO writes a single dedicated file there so it never
 	// disturbs other hook files the user or repo may ship.
 	copilotHooksDir      = ".github/hooks"
-	copilotHooksFileName = "ao.json"
+	copilotHooksFileName = "kennel.json"
 
 	copilotAgentsDir     = ".github/agents"
 	copilotAgentSentinel = "<!-- managed by agent-orchestrator: copilot agent profile -->"
@@ -29,12 +29,12 @@ const (
 	// copilotHookCommandPrefix identifies the hook commands AO owns, so install
 	// skips duplicates and uninstall recognizes AO entries by prefix without an
 	// embedded template to diff against. The CLI dispatcher routes
-	// `ao hooks copilot <event>` to DeriveActivityState.
-	copilotHookCommandPrefix = "ao hooks copilot "
+	// `kennel hooks copilot <event>` to DeriveActivityState.
+	copilotHookCommandPrefix = "kennel hooks copilot "
 	copilotHookTimeoutSec    = 30
 )
 
-// copilotHookFile is the on-disk shape of .github/hooks/ao.json. AO owns this
+// copilotHookFile is the on-disk shape of .github/hooks/kennel.json. AO owns this
 // dedicated file outright, so it only models the keys it manages (version,
 // disableAllHooks, hooks); user-defined hooks live in their own .github/hooks/*
 // files and are never touched.
@@ -105,7 +105,7 @@ func (p *Plugin) InstallAgentProfile(ctx context.Context, cfg ports.WorkspaceHoo
 
 // GetAgentHooks installs AO's Copilot workspace integration:
 //   - .github/agents/ao-<session>.agent.md for an explicit per-session role.
-//   - .github/hooks/ao.json for normalized activity-state signals.
+//   - .github/hooks/kennel.json for normalized activity-state signals.
 //
 // The launch command selects that profile with --agent=ao-<session>. Avoid
 // writing a repository-root AGENTS.md here so AO does not compete with
@@ -185,7 +185,7 @@ func installCopilotAgent(workspacePath, sessionID, inlinePrompt, promptFile stri
 func copilotAgentProfile(agentName, sessionID, systemPrompt string) string {
 	return "---\n" +
 		"name: " + agentName + "\n" +
-		"description: Agent Orchestrator role profile for AO session " + strings.TrimSpace(sessionID) + ". Use for all work in this session.\n" +
+		"description: Agent Orchestrator role profile for Kennel session " + strings.TrimSpace(sessionID) + ". Use for all work in this session.\n" +
 		"target: github-copilot\n" +
 		"---\n\n" +
 		copilotAgentSentinel + "\n\n" +
@@ -274,7 +274,7 @@ func gitCommonDir(gitDir string) (string, error) {
 }
 
 // UninstallHooks removes AO's Copilot hooks from the workspace-local
-// .github/hooks/ao.json file, leaving user-defined hooks and unrelated keys
+// .github/hooks/kennel.json file, leaving user-defined hooks and unrelated keys
 // untouched. A missing file is a no-op.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
 	if err := ctx.Err(); err != nil {

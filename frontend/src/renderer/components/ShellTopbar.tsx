@@ -149,7 +149,7 @@ export function ShellTopbar({
 			surface: isSessionRoute ? "session_detail" : "project_board",
 			project_id: projectId,
 		});
-		void captureRendererEvent("ao.renderer.orchestrator_open_requested", { project_id: projectId });
+		void captureRendererEvent("kennel.renderer.orchestrator_open_requested", { project_id: projectId });
 		if (orchestrator) {
 			void navigate({
 				to: "/projects/$projectId/sessions/$sessionId",

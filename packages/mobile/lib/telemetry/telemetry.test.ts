@@ -50,7 +50,7 @@ describe("createMobileTelemetry", () => {
 		const { client, captures } = fakeClient();
 		const t = createMobileTelemetry(client, {});
 		// @ts-expect-error deliberately passing an unknown event name
-		t.capture("ao.mobile_app.typo", { feature: "spawn" });
+		t.capture("kennel.mobile_app.typo", { feature: "spawn" });
 		expect(captures).toEqual([]);
 	});
 

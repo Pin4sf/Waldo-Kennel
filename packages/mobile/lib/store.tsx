@@ -30,7 +30,7 @@ import { MOBILE_EVENTS } from "./telemetry/events";
 import { mobileTelemetry, trackFeature } from "./telemetry/runtime";
 import { useConversationEventTransport } from "./chat/conversationEvents";
 
-const ACTIVE_PROJECT_KEY = "ao.activeProject";
+const ACTIVE_PROJECT_KEY = "kennel.activeProject";
 const POLL_INTERVAL_MS = 8000;
 
 // Board-level connection state is derived from the REST poll. The session screen

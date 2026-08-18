@@ -44,6 +44,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { type DaemonLaunchSpec, bundledDaemonIdentityError, resolveDaemonLaunch } from "./shared/daemon-launch";
+import { APP_ID, AUTH_PROTOCOL, PRODUCT_NAME, STATE_DIRECTORY_NAME } from "./shared/product-identity";
 import { createListenPortScanner, defaultRunFilePath, parseRunFile } from "./shared/daemon-discovery";
 import type { DaemonStatus } from "./shared/daemon-status";
 import { attachAppShortcuts } from "./main/app-shortcuts";
@@ -106,29 +107,31 @@ process.stdout.on("error", ignoreStdStreamError);
 process.stderr.on("error", ignoreStdStreamError);
 
 // Must run before app ready so the About panel and default-menu role labels use it.
-app.setName("Kennel");
+app.setName(PRODUCT_NAME);
 
 // Windows shows native toasts only when the app declares an AppUserModelID that
 // matches its installer shortcut (the NSIS maker's appId). Without it,
 // Notification.isSupported() still returns true but show() silently drops the
 // toast, so notifications never appear. No-op on macOS/Linux.
 if (process.platform === "win32") {
-	app.setAppUserModelId("dev.agent-orchestrator.desktop");
+	app.setAppUserModelId(APP_ID);
 }
 
 // Pin ALL Electron-owned state (Chromium cache, cookies, local/session storage,
-// crash dumps) under the canonical AO home at ~/.ao instead of Electron's macOS
+// crash dumps) under the canonical AO home at ~/.kennel instead of Electron's macOS
 // default ~/Library/Application Support/<name>. Keeps the app's entire footprint
-// inside ~/.ao alongside the daemon's data dir and running.json. sessionData and
+// inside ~/.kennel alongside the daemon's data dir and running.json. sessionData and
 // crashDumps derive from userData, so this one override reparents them all.
 // Must run before app ready.
-// Dev runs get their own profile under the same ~/.ao root: the packaged app
+// Dev runs get their own profile under the same ~/.kennel root: the packaged app
 // keeps this directory open, and two Chromium instances sharing one profile
 // corrupt its LevelDB stores. Mirrors how dev already isolates running.json and
-// the daemon data dir into ~/.ao/dev.
+// the daemon data dir into ~/.kennel/dev.
 app.setPath(
 	"userData",
-	app.isPackaged ? path.join(os.homedir(), ".ao", "electron") : path.join(os.homedir(), ".ao", "dev", "electron"),
+	app.isPackaged
+		? path.join(os.homedir(), STATE_DIRECTORY_NAME, "electron")
+		: path.join(os.homedir(), STATE_DIRECTORY_NAME, "dev", "electron"),
 );
 
 let mainWindow: BaseWindow | null = null;
@@ -170,8 +173,8 @@ const isDev = !app.isPackaged;
 // a concurrently running installed-app daemon. The subdir also isolates supervise.sock
 // on Unix (backend derives it as dir(RunFilePath)/supervise.sock) and the named pipe
 // on Windows (supervisorPipeFromRunFile derives it from the same dir basename).
-const DEV_DAEMON_PORT = 3002;
-const DEV_STATE_SUBDIR = "dev"; // ~/.ao/dev/
+const DEV_DAEMON_PORT = 3032;
+const DEV_STATE_SUBDIR = "dev"; // ~/.kennel/dev/
 
 // Height (px) of the custom Windows title bar. Must stay in sync with
 // --size-window-titlebar (tokens.css) and .window-titlebar, plus the Window
@@ -217,7 +220,7 @@ protocol.registerSchemesAsPrivileged([
 	},
 ]);
 
-// Register ao-app:// as the deep-link protocol for WorkOS auth callbacks.
+// Register Kennel's deep-link protocol for WorkOS auth callbacks.
 // Must run before app.whenReady().
 registerCloudProtocol();
 if (!app.requestSingleInstanceLock()) {
@@ -359,8 +362,8 @@ async function createWindowInternal(): Promise<void> {
 		binaryPath: resolveAgentBrowserBinaryPath(),
 		// Agent Browser creates Unix sockets below each run root. Keep this base
 		// deliberately short so the namespace/session suffix stays below macOS's
-		// 103-byte sockaddr_un limit; all AO state remains under ~/.ao.
-		dataDir: path.join(os.homedir(), ".ao", ...(app.isPackaged ? ["br"] : ["dev", "br"])),
+		// 103-byte sockaddr_un limit; all AO state remains under ~/.kennel.
+		dataDir: path.join(os.homedir(), STATE_DIRECTORY_NAME, ...(app.isPackaged ? ["br"] : ["dev", "br"])),
 		log: (message) => console.log(`AO: ${message}`),
 	});
 	await agentBrowserRuntime.prepare();
@@ -469,7 +472,7 @@ async function createWindowInternal(): Promise<void> {
 
 	void shellWebContents.loadURL(rendererUrl());
 
-	if (isDev && process.env.AO_OPEN_DEVTOOLS === "1") {
+	if (isDev && process.env.KENNEL_OPEN_DEVTOOLS === "1") {
 		shellWebContents.once("did-frame-finish-load", () => {
 			shellWebContents.openDevTools({ mode: "detach" });
 		});
@@ -525,7 +528,7 @@ function createWindow(): Promise<void> {
 }
 
 function resolveAgentBrowserBinaryPath(): string {
-	const override = process.env.AO_AGENT_BROWSER_PATH?.trim();
+	const override = process.env.KENNEL_AGENT_BROWSER_PATH?.trim();
 	if (override) return path.resolve(override);
 	const binary = process.platform === "win32" ? "agent-browser.exe" : "agent-browser";
 	return app.isPackaged
@@ -546,8 +549,8 @@ const RUN_FILE_FRESHNESS_SKEW_MS = 2_000;
 const DAEMON_PROBE_TIMEOUT_MS = 2_000;
 
 function runFilePath(): string | null {
-	if (process.env.AO_RUN_FILE) return process.env.AO_RUN_FILE;
-	if (isDev) return path.join(os.homedir(), ".ao", DEV_STATE_SUBDIR, "running.json");
+	if (process.env.KENNEL_RUN_FILE) return process.env.KENNEL_RUN_FILE;
+	if (isDev) return path.join(os.homedir(), STATE_DIRECTORY_NAME, DEV_STATE_SUBDIR, "running.json");
 	return defaultRunFilePath(process.platform, process.env, os.homedir());
 }
 
@@ -565,23 +568,21 @@ let shellEnvPromise: Promise<void> | null = null;
 // Telemetry defaults stamped on the daemon env on every platform; explicit env
 // always wins.
 //
-// Unpackaged builds keep local event recording but never export to PostHog: a
-// dev loop or a CI job driving the real app would otherwise bill production
-// events and inflate install/DAU counts. Set AO_TELEMETRY_REMOTE explicitly to
-// exercise the export path from a dev build.
+// Kennel keeps local event recording but never exports to PostHog by default.
+// Export requires an explicit Kennel-owned project key and remote setting.
 function telemetryOverrides(): Record<string, string> {
 	return {
-		AO_TELEMETRY_EVENTS: process.env.AO_TELEMETRY_EVENTS ?? "on",
-		AO_TELEMETRY_REMOTE: process.env.AO_TELEMETRY_REMOTE ?? (isDev ? "off" : "posthog"),
-		AO_TELEMETRY_POSTHOG_KEY: process.env.AO_TELEMETRY_POSTHOG_KEY ?? DEFAULT_POSTHOG_PROJECT_KEY,
-		AO_TELEMETRY_POSTHOG_HOST: process.env.AO_TELEMETRY_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST,
+		KENNEL_TELEMETRY_EVENTS: process.env.KENNEL_TELEMETRY_EVENTS ?? "on",
+		KENNEL_TELEMETRY_REMOTE: process.env.KENNEL_TELEMETRY_REMOTE ?? "off",
+		KENNEL_TELEMETRY_POSTHOG_KEY: process.env.KENNEL_TELEMETRY_POSTHOG_KEY ?? DEFAULT_POSTHOG_PROJECT_KEY,
+		KENNEL_TELEMETRY_POSTHOG_HOST: process.env.KENNEL_TELEMETRY_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST,
 		// The daemon binary has no version of its own that release tooling sets,
 		// so without this every daemon event lands unattributable to a release.
-		AO_TELEMETRY_APP_VERSION: process.env.AO_TELEMETRY_APP_VERSION ?? app.getVersion(),
+		KENNEL_TELEMETRY_APP_VERSION: process.env.KENNEL_TELEMETRY_APP_VERSION ?? app.getVersion(),
 		// Kill switch: forwarded so a noisy stream can be silenced by env on an
 		// install that already exists, without shipping a new build.
-		...(process.env.AO_TELEMETRY_DISABLED_EVENTS
-			? { AO_TELEMETRY_DISABLED_EVENTS: process.env.AO_TELEMETRY_DISABLED_EVENTS }
+		...(process.env.KENNEL_TELEMETRY_DISABLED_EVENTS
+			? { KENNEL_TELEMETRY_DISABLED_EVENTS: process.env.KENNEL_TELEMETRY_DISABLED_EVENTS }
 			: {}),
 	};
 }
@@ -642,42 +643,42 @@ function ensureShellEnv(): Promise<void> {
 
 // One id per app launch, minted eagerly so every daemon spawn in this process
 // (including supervisor restarts) reports the same run. An explicit
-// AO_APP_RUN_ID in the environment wins, which lets a test or a wrapper pin it.
-const appRunId = process.env.AO_APP_RUN_ID ?? `apprun-${randomUUID()}`;
+// KENNEL_APP_RUN_ID in the environment wins, which lets a test or a wrapper pin it.
+const appRunId = process.env.KENNEL_APP_RUN_ID ?? `apprun-${randomUUID()}`;
 const browserRuntimeToken = randomBytes(32).toString("base64url");
 
 function daemonEnv(forceKeep = keepDaemonAlive(process.env)): NodeJS.ProcessEnv {
-	// AO_OWNER is the daemon's durable spawn-mode record: the daemon writes it
+	// KENNEL_OWNER is the daemon's durable spawn-mode record: the daemon writes it
 	// into running.json and the attach path reads it to decide the supervisor
 	// link from the daemon's own state (not this Electron process's env, which
 	// differs across launches). A keep-alive daemon is "persistent" (never
 	// re-linked, survives app quit); a normal app-owned daemon is "app";
-	// headless `ao start` sets none (stays unlinked, persistent by default).
+	// headless `kennel start` sets none (stays unlinked, persistent by default).
 	//
-	// AO_APP_RUN_ID identifies THIS app launch. It is constant for the process
+	// KENNEL_APP_RUN_ID identifies THIS app launch. It is constant for the process
 	// lifetime, so a daemon the supervisor restarts inherits the same id and its
 	// standalone shell terminals survive; a later app launch gets a new id, which
 	// is how the daemon recognises the previous run's shells as orphans and
 	// destroys them (see internal/service/shellterm).
-	const AO_OWNER = forceKeep ? "persistent" : "app";
+	const KENNEL_OWNER = forceKeep ? "persistent" : "app";
 	const ownerTag = {
-		AO_OWNER,
-		AO_APP_RUN_ID: appRunId,
+		KENNEL_OWNER,
+		KENNEL_APP_RUN_ID: appRunId,
 		// The browser runtime token is handed over through the child's private
 		// stdin pipe below. Never put it in the daemon environment, where a
 		// same-UID worker could inspect the parent process.
-		AO_BROWSER_RUNTIME_TOKEN: "",
-		AO_BROWSER_RUNTIME_TOKEN_STDIN: "1",
+		KENNEL_BROWSER_RUNTIME_TOKEN: "",
+		KENNEL_BROWSER_RUNTIME_TOKEN_STDIN: "1",
 		// Under AppImage, APPIMAGE is the stable outer .AppImage file path (the
 		// FUSE mount in executablePath is random per launch). The daemon echoes
 		// it as appImagePath in /healthz|/readyz so the identity check can
 		// recognise its own daemon across a relaunch-to-update.
-		...(process.env.APPIMAGE ? { AO_APPIMAGE: process.env.APPIMAGE } : {}),
+		...(process.env.APPIMAGE ? { KENNEL_APPIMAGE: process.env.APPIMAGE } : {}),
 		// Claude Code Chat uses AO's packaged ACP adapter + Node runtime. The
 		// provider executable itself is resolved by the daemon from the user's PATH
 		// and passed through CLAUDE_CODE_EXECUTABLE; it is not part of this resource.
-		AO_ACP_RUNTIME_DIR:
-			process.env.AO_ACP_RUNTIME_DIR ??
+		KENNEL_ACP_RUNTIME_DIR:
+			process.env.KENNEL_ACP_RUNTIME_DIR ??
 			(app.isPackaged
 				? path.join(process.resourcesPath, "acp-runtime")
 				: path.join(app.getAppPath(), "resources", "acp-runtime")),
@@ -686,9 +687,11 @@ function daemonEnv(forceKeep = keepDaemonAlive(process.env)): NodeJS.ProcessEnv 
 	// the installed app. User-set env vars take priority (checked first).
 	const devExtras: Record<string, string> = {};
 	if (isDev) {
-		if (!process.env.AO_PORT) devExtras.AO_PORT = String(DEV_DAEMON_PORT);
-		if (!process.env.AO_RUN_FILE) devExtras.AO_RUN_FILE = runFilePath() ?? "";
-		if (!process.env.AO_DATA_DIR) devExtras.AO_DATA_DIR = path.join(os.homedir(), ".ao", DEV_STATE_SUBDIR, "data");
+		if (!process.env.KENNEL_PORT) devExtras.KENNEL_PORT = String(DEV_DAEMON_PORT);
+		if (!process.env.KENNEL_RUN_FILE) devExtras.KENNEL_RUN_FILE = runFilePath() ?? "";
+		if (!process.env.KENNEL_DATA_DIR) {
+			devExtras.KENNEL_DATA_DIR = path.join(os.homedir(), STATE_DIRECTORY_NAME, DEV_STATE_SUBDIR, "data");
+		}
 	}
 	// Windows keeps the old behavior exactly: no shell probe, no unix PATH floor.
 	if (process.platform === "win32") {
@@ -768,14 +771,14 @@ function daemonIdentityError(launch: DaemonLaunchSpec, probe: DaemonProbe): stri
  *
  * Called unconditionally on the spawn path (we always own that daemon).
  * Called on the attach path only when the daemon is app-owned (owner === "app");
- * headless `ao start` daemons stay unlinked so they remain persistent after
+ * headless `kennel start` daemons stay unlinked so they remain persistent after
  * app quit.
  */
 function supervisorPipeFromRunFile(rfp: string | null): string {
-	if (!rfp) return "\\\\.\\pipe\\ao-supervise";
+	if (!rfp) return "\\\\.\\pipe\\kennel-supervise";
 	const dir = path.basename(path.dirname(rfp));
-	if (dir === ".ao" || dir === "." || dir === "") return "\\\\.\\pipe\\ao-supervise";
-	return "\\\\.\\pipe\\ao-supervise-" + dir.replace(/[^a-zA-Z0-9-]/g, "-");
+	if (dir === ".kennel" || dir === "." || dir === "") return "\\\\.\\pipe\\kennel-supervise";
+	return "\\\\.\\pipe\\kennel-supervise-" + dir.replace(/[^a-zA-Z0-9-]/g, "-");
 }
 
 function disposeBrowserRuntimeLink(): void {
@@ -931,9 +934,9 @@ async function startDaemon(): Promise<DaemonStatus> {
 
 // The port this Electron instance expects the daemon to bind. In dev mode a
 // separate port isolates the dev daemon from the installed-app daemon.
-// AO_PORT always wins if set explicitly.
+// KENNEL_PORT always wins if set explicitly.
 function resolvedDaemonPort(): number {
-	return isDev && !process.env.AO_PORT ? DEV_DAEMON_PORT : expectedDaemonPort(process.env);
+	return isDev && !process.env.KENNEL_PORT ? DEV_DAEMON_PORT : expectedDaemonPort(process.env);
 }
 
 function daemonLaunchEnv(): NodeJS.ProcessEnv {
@@ -948,7 +951,7 @@ function daemonLaunchEnv(): NodeJS.ProcessEnv {
 			const daemonPath = path.resolve(parsed.path.trim());
 			const relativePath = path.relative(daemonDir, daemonPath);
 			if (relativePath && !relativePath.startsWith("..") && !path.isAbsolute(relativePath)) {
-				return { ...process.env, AO_DEV_DAEMON_BINARY: daemonPath };
+				return { ...process.env, KENNEL_DEV_DAEMON_BINARY: daemonPath };
 			}
 		}
 	} catch {
@@ -978,7 +981,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	if (!launch) {
 		setDaemonStatus({
 			state: "stopped",
-			message: "AO_DAEMON_COMMAND is not configured; renderer uses loopback REST when available.",
+			message: "KENNEL_DAEMON_COMMAND is not configured; renderer uses loopback REST when available.",
 			code: "not_configured",
 		});
 		return daemonStatus;
@@ -1006,7 +1009,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 		} else {
 			setDaemonStatus(existing.status);
 			// Re-link the supervisor only when attaching to an app-owned daemon (one we
-			// previously spawned). Headless `ao start` daemons (owner unset) stay unlinked
+			// previously spawned). Headless `kennel start` daemons (owner unset) stay unlinked
 			// so they remain persistent after app quit.
 			if (shouldLinkOnAttach(existing.owner)) {
 				establishSupervisorLink();
@@ -1020,9 +1023,9 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	// health.pid mismatch) makes it return null — yet a daemon may still be serving
 	// the port. Spawning then would just make the Go child refuse and exit 1. Probe
 	// the expected port directly, independent of the run-file, and attach if a
-	// daemon answers. The expected port (AO_PORT or the default) is exactly the
+	// daemon answers. The expected port (KENNEL_PORT or the default) is exactly the
 	// port the Go child would bind and collide on — probing a hardcoded 3001 would
-	// miss an AO_PORT override.
+	// miss an KENNEL_PORT override.
 	const directDaemon = await resolveDaemonFromPort({
 		expectedPort: resolvedDaemonPort(),
 		probe: readDaemonProbe,
@@ -1170,22 +1173,22 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	// wrapper and orphan the real daemon (which keeps holding the port). Killing
 	// the whole group via killDaemon() reaches the daemon and any PTY children.
 	//
-	// AO_KEEP_DAEMON: the daemon must survive this app, so it cannot inherit
+	// KENNEL_KEEP_DAEMON: the daemon must survive this app, so it cannot inherit
 	// Electron-owned stdout/stderr pipes — when Electron exits, the pipe read
 	// ends close and the daemon's next stderr log write (SIGPIPE/EPIPE) kills it,
-	// defeating the keep-alive. Redirect stdio to ~/.ao/daemon.log and unref the
+	// defeating the keep-alive. Redirect stdio to ~/.kennel/daemon.log and unref the
 	// child so the parent does not wait on it. Port discovery then relies on the
 	// running.json handshake (the log pipe scan is skipped).
 	const keep = replacementKeepAlive ?? keepDaemonAlive(process.env);
 	let keepDaemonLogFd: number | undefined;
 	let stdio: "pipe" | "ignore" | ["pipe", number | "ignore", number | "ignore"] = "pipe";
 	if (keep) {
-		const logPath = path.join(os.homedir(), ".ao", "daemon.log");
+		const logPath = path.join(os.homedir(), STATE_DIRECTORY_NAME, "daemon.log");
 		try {
 			keepDaemonLogFd = openSync(logPath, "a");
 			stdio = ["pipe", keepDaemonLogFd, keepDaemonLogFd];
 		} catch {
-			// Log redirect failed (e.g. ~/.ao not creatable, permission denied):
+			// Log redirect failed (e.g. ~/.kennel not creatable, permission denied):
 			// fall back to "ignore" so the daemon still runs, but warn — otherwise
 			// a long-lived keep-alive daemon would run with zero log output.
 			console.warn(`AO: keep-daemon log redirect failed; daemon will run with stdio disabled: ${logPath}`);
@@ -1238,7 +1241,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	if (keep) child.unref();
 	daemonProcess = child;
 
-	// Discover the port the daemon ACTUALLY bound rather than trusting AO_PORT:
+	// Discover the port the daemon ACTUALLY bound rather than trusting KENNEL_PORT:
 	// the daemon may fall back to a different port than the one requested. Two
 	// confirmed sources race — the "daemon listening" slog line (stderr, but both
 	// streams are scanned) and the running.json handshake — first one wins.
@@ -1265,16 +1268,16 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 		// exits for any reason, the OS closes the fd and the daemon detects EOF,
 		// then self-stops after its ~5s grace period. The attach paths link only
 		// when the daemon is app-owned (see establishSupervisorLink +
-		// shouldLinkOnAttach); headless `ao start` daemons stay unlinked so they
+		// shouldLinkOnAttach); headless `kennel start` daemons stay unlinked so they
 		// remain persistent across app quit.
 		//
-		// AO_KEEP_DAEMON opts out of the link entirely: the daemon is spawned but
-		// survives the window closing, stopping only on an explicit `ao stop`.
+		// KENNEL_KEEP_DAEMON opts out of the link entirely: the daemon is spawned but
+		// survives the window closing, stopping only on an explicit `kennel stop`.
 		// Reuse the `keep` captured at spawn rather than re-reading process.env
 		// here: the flag is a property of this spawn, not a value that should be
 		// able to flip between spawn and port-confirmation. (The process.on("exit")
 		// orphan-cleanup below re-reads process.env because this `keep` is scoped
-		// to the spawn function — AO_KEEP_DAEMON is set once at startup and never
+		// to the spawn function — KENNEL_KEEP_DAEMON is set once at startup and never
 		// mutated, so both reads agree.)
 		if (!keep) {
 			establishSupervisorLink();
@@ -1282,7 +1285,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	};
 
 	// One scanner per stream: each keeps its own partial-line buffer.
-	// Skipped under AO_KEEP_DAEMON: stdio is redirected to a log file (no pipes
+	// Skipped under KENNEL_KEEP_DAEMON: stdio is redirected to a log file (no pipes
 	// to scan), so port discovery falls back to the running.json handshake below.
 	if (!keep) {
 		const scanStdout = createListenPortScanner(reportBoundPort);
@@ -1364,7 +1367,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 		daemonProcess = null;
 		// An explicit stopDaemon() already set a clean `{ state: "stopped" }`.
 		// daemon-telemetry reports any status carrying a `code` as
-		// ao.renderer.daemon_failure, so don't stamp `code: "exited"` on a stop
+		// kennel.renderer.daemon_failure, so don't stamp `code: "exited"` on a stop
 		// the user or app asked for — that would count intentional stops as
 		// failures. Preserve the clean stopped status instead.
 		if (daemonStoppingProcess === child) {
@@ -1429,7 +1432,7 @@ function stopDaemon(): DaemonStatus {
 function reportDaemonRestartFailure(error: unknown): DaemonStatus {
 	setDaemonStatus({
 		state: "error",
-		message: `Could not restart the AO daemon: ${error instanceof Error ? error.message : String(error)}`,
+		message: `Could not restart the Kennel daemon: ${error instanceof Error ? error.message : String(error)}`,
 		details: daemonOutput.trim() || undefined,
 		code: "spawn_failed",
 	});
@@ -1881,11 +1884,11 @@ ipcMain.on(TRAY_SET_ATTENTION_STATE_CHANNEL, (event, state) => trayLifecycle.han
 ipcMain.on(TRAY_RENDERER_READY_CHANNEL, (event) => trayLifecycle.handleRendererReady(event));
 
 // Cloud auth IPC — cloud:getSession, cloud:signIn, cloud:signOut.
-// Data dir resolves to ~/.ao (prod) or ~/.ao/dev (dev) matching daemon conventions.
+// Data dir resolves to ~/.kennel (prod) or ~/.kennel/dev (dev) matching daemon conventions.
 function cloudDataDir(): string {
 	return isDev
-		? path.join(os.homedir(), ".ao", DEV_STATE_SUBDIR)
-		: path.join(os.homedir(), ".ao");
+		? path.join(os.homedir(), STATE_DIRECTORY_NAME, DEV_STATE_SUBDIR)
+		: path.join(os.homedir(), STATE_DIRECTORY_NAME);
 }
 
 function notifyRenderersOfCloudSession(account: import("./shared/cloud-account").CloudAccount | null): void {
@@ -1916,7 +1919,7 @@ async function handleCloudDeepLinkAndFocus(url: string): Promise<void> {
 	}
 }
 
-// macOS: the OS sends the ao-app:// URL via the open-url event when the app is
+// macOS: the OS sends the Kennel callback URL via the open-url event when the app is
 // already running. If the app is not running, the URL is passed in process.argv
 // on first launch (handled in app.whenReady below).
 app.on("open-url", (event, url) => {
@@ -1925,7 +1928,7 @@ app.on("open-url", (event, url) => {
 });
 
 app.on("second-instance", (_event, argv) => {
-	const deepLink = argv.find((value) => value.startsWith("ao-app://"));
+	const deepLink = argv.find((value) => value.startsWith(`${AUTH_PROTOCOL}://`));
 	if (deepLink) {
 		void handleCloudDeepLinkAndFocus(deepLink);
 		return;
@@ -1947,9 +1950,9 @@ function initAutoUpdates(): void {
 	void ensureUpdatePrefs(stateDir).then(() => startAutoUpdates(stateDir));
 }
 
-// Resolve the bundle path `ao start` will later `open` and stat as a usable app.
-// On macOS process.execPath is .../Agent Orchestrator.app/Contents/MacOS/<exe>;
-// the thing `ao start` opens is the enclosing `.app` directory, so walk up three
+// Resolve the bundle path `kennel start` will later `open` and stat as a usable app.
+// On macOS process.execPath is .../Kennel.app/Contents/MacOS/<exe>;
+// the thing `kennel start` opens is the enclosing `.app` directory, so walk up three
 // levels (MacOS -> Contents -> .app). app.getAppPath() is WRONG here: it returns
 // the app.asar archive path inside the bundle, not the bundle itself.
 // On win32/linux there is no .app wrapper, so record execPath; a richer
@@ -1961,7 +1964,7 @@ function resolveBundlePath(): string {
 	return process.execPath;
 }
 
-// `ao start` opens the app with `--installed-via=<value>` so the app can record
+// `kennel start` opens the app with `--installed-via=<value>` so the app can record
 // how it arrived on first marker creation. Parse it out of argv; absent => the
 // marker defaults installSource to "unknown".
 function parseInstalledVia(argv: string[]): string | undefined {
@@ -1969,18 +1972,18 @@ function parseInstalledVia(argv: string[]): string | undefined {
 	return flag ? flag.slice("--installed-via=".length) : undefined;
 }
 
-// Write ~/.ao/app-state.json so `ao start`'s resolveApp() can find this bundle
+// Write ~/.kennel/app-state.json so `kennel start`'s resolveApp() can find this bundle
 // (spec §7.1). The app is the sole writer (invariant 3) and writes every launch.
 // A failure here must NOT block startup, so the caller wraps this in try/catch;
 // we still surface it via the log.
 async function writeAppStateOnLaunch(): Promise<void> {
-	// Reuse the same ~/.ao resolution as running.json; the marker lives beside it
+	// Reuse the same ~/.kennel resolution as running.json; the marker lives beside it
 	// (the Go side computes its dir as dirname(RunFilePath)). runFilePath() returns
 	// null only when the home dir is unresolvable, in which case we cannot place
 	// the marker; the caller's try/catch logs it.
 	const runFile = runFilePath();
 	if (!runFile) {
-		throw new Error("cannot resolve ~/.ao run-file path; skipping app-state marker");
+		throw new Error("cannot resolve ~/.kennel run-file path; skipping app-state marker");
 	}
 	const stateDir = path.dirname(runFile);
 	await writeAppStateMarker({
@@ -2067,8 +2070,8 @@ app.whenReady().then(async () => {
 	initAutoUpdates();
 
 	// Windows/Linux: on first launch, the deep-link URL may arrive as a
-	// process.argv entry (e.g. ao-app://callback?token=...).
-	const deepLinkArg = process.argv.find((a) => a.startsWith("ao-app://"));
+	// process.argv entry (e.g. kennel-app://callback?token=...).
+	const deepLinkArg = process.argv.find((a) => a.startsWith(`${AUTH_PROTOCOL}://`));
 	if (deepLinkArg) {
 		void handleCloudDeepLinkAndFocus(deepLinkArg);
 	}
@@ -2110,7 +2113,7 @@ app.on("before-quit", (event) => {
 // When the link IS connected we do nothing here and rely on the OS closing the
 // fd on exit, which covers crash and SIGKILL uniformly.
 //
-// AO_KEEP_DAEMON opts out entirely: the daemon is deliberately spawned without a
+// KENNEL_KEEP_DAEMON opts out entirely: the daemon is deliberately spawned without a
 // supervisor link so it persists across app quit, so this orphan-cleanup kill
 // must be skipped — otherwise it would defeat the whole point on quit.
 process.on("exit", () => {

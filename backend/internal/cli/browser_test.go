@@ -62,8 +62,8 @@ func browserCLIServer(t *testing.T, capture *browserRequestCapture) *httptest.Se
 
 func setBrowserIdentity(t *testing.T) {
 	t.Helper()
-	t.Setenv("AO_SESSION_ID", "ao-1")
-	t.Setenv("AO_BROWSER_CAPABILITY", "capability-1")
+	t.Setenv("KENNEL_SESSION_ID", "ao-1")
+	t.Setenv("KENNEL_BROWSER_CAPABILITY", "capability-1")
 }
 
 func TestBrowserStatusAndSnapshot(t *testing.T) {
@@ -369,15 +369,15 @@ func TestBrowserScreenshotWritesWithoutOverwrite(t *testing.T) {
 }
 
 func TestBrowserRequiresSessionAndValidWait(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "")
+	t.Setenv("KENNEL_SESSION_ID", "")
 	if _, _, err := executeCLI(t, Deps{}, "browser", "status"); ExitCode(err) != 2 {
 		t.Fatalf("status error = %v code=%d", err, ExitCode(err))
 	}
-	t.Setenv("AO_SESSION_ID", "ao-1")
+	t.Setenv("KENNEL_SESSION_ID", "ao-1")
 	if _, _, err := executeCLI(t, Deps{}, "browser", "status"); ExitCode(err) != 2 {
 		t.Fatalf("missing capability error = %v code=%d", err, ExitCode(err))
 	}
-	t.Setenv("AO_BROWSER_CAPABILITY", "capability-1")
+	t.Setenv("KENNEL_BROWSER_CAPABILITY", "capability-1")
 	if _, _, err := executeCLI(t, Deps{}, "browser", "wait", "--text", "x", "--url", "y"); ExitCode(err) != 2 {
 		t.Fatalf("wait error = %v code=%d", err, ExitCode(err))
 	}

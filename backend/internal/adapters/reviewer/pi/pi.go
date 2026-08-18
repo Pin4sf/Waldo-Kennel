@@ -17,7 +17,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/reviewgateway"
 )
 
-const extensionFilename = "ao-pi-reviewer.ts"
+const extensionFilename = "kennel-pi-reviewer.ts"
 const manifestPointerFilename = "pi-active-manifest"
 
 var requiredFlags = []string{
@@ -33,10 +33,10 @@ var requiredFlags = []string{
 	"--session-dir",
 }
 
-//go:embed assets/ao-pi-reviewer.ts
+//go:embed assets/kennel-pi-reviewer.ts
 var extensionSource []byte
 
-// Reviewer launches Pi's live TUI with only AO's structured review tools.
+// Reviewer launches Pi's live TUI with only Kennel's structured review tools.
 type Reviewer struct {
 	resolveBinary func(context.Context) (string, error)
 	runHelp       func(context.Context, string) ([]byte, error)
@@ -79,7 +79,7 @@ func (r *Reviewer) ReviewPreflight(ctx context.Context, _ string) error {
 }
 
 // ReviewCommand always starts Pi interactively. Resource discovery and every
-// built-in tool are disabled; the explicit AO-owned extension is the complete
+// built-in tool are disabled; the explicit Kennel-owned extension is the complete
 // tool surface. No print or non-interactive mode flag is ever emitted.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	binary, err := r.resolveBinary(ctx)
@@ -133,10 +133,10 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 		argv = append(argv, inv.Prompt)
 	}
 	envVars := reviewEnv.TUIEnvironment()
-	envVars["AO_PI_REVIEW_WORKSPACE"] = inv.WorkspacePath
-	envVars["AO_PI_REVIEW_PROMPT_ROOT"] = inv.TaskPromptRoot
-	envVars["AO_PI_REVIEW_SESSION"] = string(inv.WorkerSessionID)
-	envVars["AO_PI_REVIEW_MANIFEST_POINTER"] = manifestPointer
+	envVars["KENNEL_PI_REVIEW_WORKSPACE"] = inv.WorkspacePath
+	envVars["KENNEL_PI_REVIEW_PROMPT_ROOT"] = inv.TaskPromptRoot
+	envVars["KENNEL_PI_REVIEW_SESSION"] = string(inv.WorkerSessionID)
+	envVars["KENNEL_PI_REVIEW_MANIFEST_POINTER"] = manifestPointer
 	return ports.ReviewCommandSpec{Argv: argv, Env: envVars}, nil
 }
 
@@ -192,4 +192,4 @@ func (*Reviewer) ReviewCancel(context.Context) (ports.ReviewCancelSpec, error) {
 
 const piPolicy = `Pi reviewer security policy
 
-You are running in Pi's interactive TUI with no built-in tools and no project or user resources. Use only the AO review tools supplied by the loaded AO extension. Use github_post_review instead of the task file's gh command, and use ao_review_submit instead of its ao CLI command. Those structured tools enforce the current review queue and do not provide arbitrary shell execution. Never ask for or attempt to enable other tools or resources.`
+You are running in Pi's interactive TUI with no built-in tools and no project or user resources. Use only the Kennel review tools supplied by the loaded Kennel extension. Use github_post_review instead of the task file's gh command, and use ao_review_submit instead of its kennel CLI command. Those structured tools enforce the current review queue and do not provide arbitrary shell execution. Never ask for or attempt to enable other tools or resources.`

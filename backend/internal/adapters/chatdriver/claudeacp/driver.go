@@ -161,15 +161,15 @@ func resolveRuntime(ctx context.Context) (runtimeLaunch, error) {
 	if err := ctx.Err(); err != nil {
 		return runtimeLaunch{}, err
 	}
-	if command := strings.TrimSpace(os.Getenv("AO_CLAUDE_ACP_COMMAND")); command != "" {
+	if command := strings.TrimSpace(os.Getenv("KENNEL_CLAUDE_ACP_COMMAND")); command != "" {
 		resolved, err := exec.LookPath(command)
 		if err != nil {
-			return runtimeLaunch{}, fmt.Errorf("resolve AO_CLAUDE_ACP_COMMAND %q: %w", command, err)
+			return runtimeLaunch{}, fmt.Errorf("resolve KENNEL_CLAUDE_ACP_COMMAND %q: %w", command, err)
 		}
 		return runtimeLaunch{command: resolved}, nil
 	}
 
-	runtimeDir := strings.TrimSpace(os.Getenv("AO_ACP_RUNTIME_DIR"))
+	runtimeDir := strings.TrimSpace(os.Getenv("KENNEL_ACP_RUNTIME_DIR"))
 	if runtimeDir == "" {
 		runtimeDir = runtimeDirectoryBesideExecutable()
 	}

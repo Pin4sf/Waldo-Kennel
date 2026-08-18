@@ -97,7 +97,7 @@ describe("agent-browser runtime lifecycle", () => {
 		processRunner?: (...args: unknown[]) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
 		socketDir?: string;
 	} = {}) {
-		const dataDir = await mkdtemp(path.join(shortTempDir, "ao-browser-runtime-test-"));
+		const dataDir = await mkdtemp(path.join(shortTempDir, "kennel-browser-runtime-test-"));
 		const bridge = {
 			start: vi.fn(overrides.start ?? (async () => "ws://127.0.0.1:1/fixture")),
 			close: vi.fn(overrides.close ?? (async () => undefined)),
@@ -263,7 +263,7 @@ describe("agent-browser runtime lifecycle", () => {
 	});
 
 	it("rejects an oversized Unix socket path before starting the bridge", async () => {
-		const socketBase = await mkdtemp(path.join(os.tmpdir(), "ao-browser-runtime-long-path-test-"));
+		const socketBase = await mkdtemp(path.join(os.tmpdir(), "kennel-browser-runtime-long-path-test-"));
 		const socketDir = path.join(socketBase, "x".repeat(120));
 		const { dataDir, runtime, bridge } = await fixture({ platform: "darwin", socketDir });
 		try {
@@ -332,7 +332,7 @@ describe("agent-browser runtime lifecycle", () => {
 	});
 
 	it("recovers only confirmed-dead marked run roots", async () => {
-		const dataDir = await mkdtemp(path.join(os.tmpdir(), "ao-browser-scavenge-test-"));
+		const dataDir = await mkdtemp(path.join(os.tmpdir(), "kennel-browser-scavenge-test-"));
 		try {
 			const dead = path.join(dataDir, "run-101-aaaaaaaaaaaa");
 			const shortDead = path.join(dataDir, "r-eeeeeeeeee");
@@ -345,17 +345,17 @@ describe("agent-browser runtime lifecycle", () => {
 			const shortDeadOwnerPath = path.join(shortDead, "owner.json");
 			await writeFile(
 				deadOwnerPath,
-				JSON.stringify({ marker: "AO_BROWSER_RUNTIME_V1", pid: 101, startedAt: new Date().toISOString(), token: "a".repeat(32) }),
+				JSON.stringify({ marker: "KENNEL_BROWSER_RUNTIME_V1", pid: 101, startedAt: new Date().toISOString(), token: "a".repeat(32) }),
 			);
 			await writeFile(
 				shortDeadOwnerPath,
-				JSON.stringify({ marker: "AO_BROWSER_RUNTIME_V1", pid: 101, startedAt: new Date().toISOString(), token: "e".repeat(32) }),
+				JSON.stringify({ marker: "KENNEL_BROWSER_RUNTIME_V1", pid: 101, startedAt: new Date().toISOString(), token: "e".repeat(32) }),
 			);
 			const staleAt = new Date(Date.now() - BROWSER_RUNTIME_RECLAIM_GRACE_MS - 1_000);
 			await Promise.all([utimes(deadOwnerPath, staleAt, staleAt), utimes(shortDeadOwnerPath, staleAt, staleAt)]);
 			await writeFile(
 				path.join(alive, "owner.json"),
-				JSON.stringify({ marker: "AO_BROWSER_RUNTIME_V1", pid: 202, startedAt: new Date().toISOString(), token: "b".repeat(32) }),
+				JSON.stringify({ marker: "KENNEL_BROWSER_RUNTIME_V1", pid: 202, startedAt: new Date().toISOString(), token: "b".repeat(32) }),
 			);
 			await writeFile(path.join(malformed, "owner.json"), "not-json");
 			await writeFile(path.join(legacy, "config.json"), "{}\n");
@@ -375,9 +375,9 @@ describe("agent-browser runtime lifecycle", () => {
 	});
 
 	it.skipIf(process.platform === "win32")("removes only confirmed-dead socket aliases owned by this data root", async () => {
-		const dataDir = await mkdtemp(path.join(shortTempDir, "ao-browser-alias-data-"));
-		const aliasRoot = await mkdtemp(path.join(shortTempDir, "ao-browser-alias-root-"));
-		const foreignRoot = await mkdtemp(path.join(shortTempDir, "ao-browser-alias-foreign-"));
+		const dataDir = await mkdtemp(path.join(shortTempDir, "kennel-browser-alias-data-"));
+		const aliasRoot = await mkdtemp(path.join(shortTempDir, "kennel-browser-alias-root-"));
+		const foreignRoot = await mkdtemp(path.join(shortTempDir, "kennel-browser-alias-foreign-"));
 		try {
 			const deadTarget = path.join(dataDir, "r-aaaaaaaaaa", "s");
 			const liveTarget = path.join(dataDir, "r-bbbbbbbbbb", "s");
@@ -434,7 +434,7 @@ describe("agent-browser structured output", () => {
 	});
 });
 
-const nativeBinary = process.env.AO_AGENT_BROWSER_TEST_BINARY;
+const nativeBinary = process.env.KENNEL_AGENT_BROWSER_TEST_BINARY;
 describe.skipIf(!nativeBinary)("agent-browser native compatibility", () => {
 	it("connects the pinned native daemon and keeps native tab lifecycle commands aligned", async () => {
 		class DebuggerFixture extends EventEmitter {

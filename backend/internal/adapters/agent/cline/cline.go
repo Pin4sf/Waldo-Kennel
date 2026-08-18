@@ -7,7 +7,7 @@
 // and delivers prompted worker tasks after startup so dashboard terminal
 // attachments stay readable and Cline's startup command parser is bypassed.
 //
-// AO-managed sessions derive native session identity from Cline hooks
+// Kennel-managed sessions derive native session identity from Cline hooks
 // (the workspace-local `.clinerules/hooks/` executable scripts AO installs)
 // rather than transcript/cache scans.
 package cline

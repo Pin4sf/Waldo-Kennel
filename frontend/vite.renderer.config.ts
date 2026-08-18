@@ -10,7 +10,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { DEFAULT_POSTHOG_HOST } from "./src/shared/posthog-config";
 
 const POSTHOG_ORIGINS = (() => {
-	const configured = process.env.VITE_AO_POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST;
+	const configured = process.env.VITE_KENNEL_POSTHOG_HOST?.trim() || DEFAULT_POSTHOG_HOST;
 	if (!configured) return [];
 	let url: URL;
 	try {
@@ -102,7 +102,7 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": fileURLToPath(new URL("./src/renderer", import.meta.url)),
-			"@aoagents/product-ui": fileURLToPath(
+			"@pin4sf/kennel-product-ui": fileURLToPath(
 				new URL("../packages/product-ui/src/index.ts", import.meta.url),
 			),
 		},
@@ -113,11 +113,11 @@ export default defineConfig({
 	server: {
 		proxy: {
 			"/api": {
-				target: process.env.AO_DEV_API_TARGET ?? "http://127.0.0.1:3001",
+				target: process.env.KENNEL_DEV_API_TARGET ?? "http://127.0.0.1:3001",
 				changeOrigin: false,
 			},
 			"/mux": {
-				target: process.env.AO_DEV_API_TARGET ?? "http://127.0.0.1:3001",
+				target: process.env.KENNEL_DEV_API_TARGET ?? "http://127.0.0.1:3001",
 				changeOrigin: false,
 				ws: true,
 			},

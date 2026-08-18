@@ -145,9 +145,9 @@ type ExactSupervisedProcessInspector interface {
 }
 
 // ContainerReaper removes Docker containers a worker session owns, identified
-// by the ao.session=<id> label convention (see EnvSessionID). It is an
+// by the kennel.session=<id> label convention (see EnvSessionID). It is an
 // optional capability: nil wiring means container reaping is a no-op, not an
-// error. Implementations MUST treat a container's ao.spare=true label as an
+// error. Implementations MUST treat a container's kennel.spare=true label as an
 // unconditional skip, and MUST bias toward sparing on any ambiguity (e.g. a
 // docker CLI probe failure reaps nothing rather than guessing) -- a wrongly
 // reaped container can cost a live worker its database.
@@ -186,7 +186,7 @@ type Workspace interface {
 	// Never call it from interactive teardown paths.
 	ForceDestroy(ctx context.Context, info WorkspaceInfo) error
 	// StashUncommitted captures all uncommitted work in the worktree as a git
-	// commit object stored at refs/ao/preserved/<session-id>, WITHOUT mutating
+	// commit object stored at refs/kennel/preserved/<session-id>, WITHOUT mutating
 	// the working tree or the global stash stack. Tracked edits and new
 	// non-ignored files are captured; .gitignore-d files are skipped (the count
 	// of skipped ignored paths is logged). Returns the ref name on success, or
@@ -274,7 +274,7 @@ var (
 	// it holds uncommitted changes or untracked files. Teardown is never
 	// forced; callers treat the workspace as intentionally preserved.
 	ErrWorkspaceDirty = errors.New("workspace: uncommitted changes present")
-	// ErrWorkspaceStale reports an AO-managed workspace path no longer points
+	// ErrWorkspaceStale reports an Kennel-managed workspace path no longer points
 	// at a registered git worktree. Replacement paths may skip preservation for
 	// this state after path-safety checks, while real preserve failures remain
 	// fatal.

@@ -209,7 +209,7 @@
 	"daemon.hint.binaryMissing": "Run npm run build:daemon to rebuild the daemon.",
 	"daemon.hint.conflict": "Stop the conflicting daemon, then restart the desktop app.",
 	"daemon.hint.default": "Check the terminal where you ran npm run dev for details.",
-	"daemon.hint.notConfigured": "Set AO_DAEMON_COMMAND or run the desktop app from a source checkout.",
+	"daemon.hint.notConfigured": "Set KENNEL_DAEMON_COMMAND or run the desktop app from a source checkout.",
 	"daemon.hint.notReady": "The daemon has not passed its readiness check yet. Open details below for more information.",
 	"daemon.copied": "Copied",
 	"daemon.copyDetails": "Copy details",

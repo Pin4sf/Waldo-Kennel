@@ -9,12 +9,12 @@ import fs from "node:fs/promises";
 // ready. Testid-free on purpose — the published nightly predates the new
 // data-testids, so these assertions exercise the real IPC/daemon path only.
 //
-// Isolation is per test: each launch gets a unique ephemeral AO_PORT and a fresh
-// AO_DATA_DIR / AO_RUN_FILE under a temp dir. The daemon inherits these (Electron
+// Isolation is per test: each launch gets a unique ephemeral KENNEL_PORT and a fresh
+// KENNEL_DATA_DIR / KENNEL_RUN_FILE under a temp dir. The daemon inherits these (Electron
 // main spreads process.env into the daemon child), so a stale daemon from a prior
 // run — or anything already bound to the default 3001 — can NOT be mistaken for the
 // app under test: nothing else is on our ephemeral port or writes our run file.
-const APP_BIN = process.env.AO_APP_BIN || "/usr/lib/agent-orchestrator/agent-orchestrator";
+const APP_BIN = process.env.KENNEL_APP_BIN || "/usr/lib/agent-orchestrator/agent-orchestrator";
 
 interface RunFile {
 	pid: number;
@@ -61,9 +61,9 @@ async function launchIsolated() {
 		env: {
 			...process.env,
 			ELECTRON_DISABLE_SANDBOX: "1",
-			AO_PORT: String(port),
-			AO_RUN_FILE: runFile,
-			AO_DATA_DIR: dataDir,
+			KENNEL_PORT: String(port),
+			KENNEL_RUN_FILE: runFile,
+			KENNEL_DATA_DIR: dataDir,
 		},
 	});
 	launched.push({ app, tmpDir });
@@ -136,7 +136,7 @@ test("REAL-002 bundled daemon reaches ready (real SQLite) @T0 @real", async () =
 
 	const body = await (await fetch(url)).json();
 	expect(body.status).toBe("ready");
-	expect(body.service).toBe("agent-orchestrator-daemon");
+	expect(body.service).toBe("kennel-daemon");
 	// Attribution: the ready daemon is the exact process this launch's run file
 	// recorded — not a stale daemon that happened to answer on some shared port.
 	expect(body.pid).toBe(info!.pid);

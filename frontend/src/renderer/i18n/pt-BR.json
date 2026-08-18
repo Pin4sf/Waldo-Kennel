@@ -211,7 +211,7 @@
 	"daemon.hint.binaryMissing": "Execute npm run build:daemon para recompilar o daemon.",
 	"daemon.hint.conflict": "Pare o daemon em conflito e reinicie o app desktop.",
 	"daemon.hint.default": "Verifique o terminal em que você executou npm run dev para mais detalhes.",
-	"daemon.hint.notConfigured": "Defina AO_DAEMON_COMMAND ou execute o app desktop a partir de um checkout do código-fonte.",
+	"daemon.hint.notConfigured": "Defina KENNEL_DAEMON_COMMAND ou execute o app desktop a partir de um checkout do código-fonte.",
 	"daemon.hint.notReady": "O daemon ainda não passou na verificação de prontidão. Abra os detalhes abaixo para mais informações.",
 	"daemon.copied": "Copiado",
 	"daemon.copyDetails": "Copiar detalhes",

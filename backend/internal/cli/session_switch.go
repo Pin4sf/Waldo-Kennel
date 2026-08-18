@@ -150,7 +150,7 @@ func newSessionHandoffSubmitCommand(ctx *commandContext) *cobra.Command {
 			return ctx.submitSessionAgentHandoff(cmd.Context(), cmd, opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.session, "session", "", "AO session id (default: AO_SESSION_ID)")
+	cmd.Flags().StringVar(&opts.session, "session", "", "AO session id (default: KENNEL_SESSION_ID)")
 	cmd.Flags().StringVar(&opts.switchID, "switch", "", "Agent switch id (required)")
 	cmd.Flags().StringVar(&opts.sourceGenerationID, "source-generation", "", "Source agent generation id (required)")
 	cmd.Flags().StringVar(&opts.file, "file", "", "Path to the JSON handoff document (required)")
@@ -236,7 +236,7 @@ func switchAgentWaitError(parent, waitCtx context.Context, switchID, sessionID s
 	}
 	if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
 		return fmt.Errorf(
-			"agent switch %s did not finish before the overall timeout; inspect it with `ao session agent-switch ls %s`",
+			"agent switch %s did not finish before the overall timeout; inspect it with `kennel session agent-switch ls %s`",
 			switchID,
 			sessionID,
 		)
@@ -268,12 +268,12 @@ func (c *commandContext) submitSessionAgentHandoff(
 ) error {
 	sessionID := strings.TrimSpace(opts.session)
 	if sessionID == "" {
-		sessionID = strings.TrimSpace(os.Getenv("AO_SESSION_ID"))
+		sessionID = strings.TrimSpace(os.Getenv("KENNEL_SESSION_ID"))
 	}
 	var err error
 	sessionID, err = normalizeSessionID(sessionID)
 	if err != nil {
-		return usageError{errors.New("session id is required (pass --session or set AO_SESSION_ID)")}
+		return usageError{errors.New("session id is required (pass --session or set KENNEL_SESSION_ID)")}
 	}
 	switchID := strings.TrimSpace(opts.switchID)
 	if switchID == "" {

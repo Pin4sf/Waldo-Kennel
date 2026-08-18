@@ -47,12 +47,12 @@ func Build() ([]byte, error) {
 		jsonschema.InterceptDefName(schemaName),
 	)
 
-	r.Spec.SetTitle("Agent Orchestrator HTTP daemon")
+	r.Spec.SetTitle("Kennel HTTP daemon")
 	r.Spec.SetVersion("0.1.0-route-shell")
 	r.Spec.SetDescription("Loopback-only HTTP surface served by the Go daemon. " +
 		"Generated from Go (code-first) — do not edit by hand; run `go generate ./...`.")
 	r.Spec.Servers = []openapi31.Server{
-		*(&openapi31.Server{URL: "http://127.0.0.1:3001"}).WithDescription("Local daemon (loopback only)"),
+		*(&openapi31.Server{URL: "http://127.0.0.1:3031"}).WithDescription("Local daemon (loopback only)"),
 	}
 	r.Spec.Tags = []openapi31.Tag{
 		*(&openapi31.Tag{Name: "agents"}).WithDescription(

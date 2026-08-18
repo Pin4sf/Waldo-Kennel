@@ -14,18 +14,18 @@ import (
 )
 
 // TestLiveCodexAppServer drives a real `codex app-server`. It is skipped unless
-// AO_CODEX_LIVE=1, because it needs a local Codex install, working auth, and it
+// KENNEL_CODEX_LIVE=1, because it needs a local Codex install, working auth, and it
 // makes real model calls. Everything else in this package runs against pipes.
 //
 // Run it after changing the protocol layer:
 //
-//	AO_CODEX_LIVE=1 go test ./internal/adapters/chatdriver/codexappserver/ -run Live -v
+//	KENNEL_CODEX_LIVE=1 go test ./internal/adapters/chatdriver/codexappserver/ -run Live -v
 func TestLiveCodexAppServer(t *testing.T) {
-	if os.Getenv("AO_CODEX_LIVE") != "1" {
-		t.Skip("set AO_CODEX_LIVE=1 to run against a real codex app-server")
+	if os.Getenv("KENNEL_CODEX_LIVE") != "1" {
+		t.Skip("set KENNEL_CODEX_LIVE=1 to run against a real codex app-server")
 	}
 
-	bin := os.Getenv("AO_CODEX_BIN")
+	bin := os.Getenv("KENNEL_CODEX_BIN")
 	if bin == "" {
 		bin = "codex"
 	}

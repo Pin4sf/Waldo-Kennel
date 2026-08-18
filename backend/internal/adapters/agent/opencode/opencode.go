@@ -1,6 +1,6 @@
 // Package opencode implements the opencode (sst/opencode) agent adapter:
 // launching new TUI sessions, resuming sessions by native id, installing a
-// workspace-local activity plugin plus the using-ao skill, and reading
+// workspace-local activity plugin plus the using-kennel skill, and reading
 // plugin-derived session info.
 //
 // opencode differs from Claude Code and Codex in two ways AO has to bridge:
@@ -8,13 +8,13 @@
 //     equivalent). Its only lifecycle-extensibility surface is a JS/TS plugin
 //     loaded from .opencode/plugins/, so GetAgentHooks installs an AO-owned
 //     plugin file (see hooks.go) instead of merging JSON. The same install also
-//     materializes using-ao under .opencode/skills/ so opencode's skill tool
+//     materializes using-kennel under .opencode/skills/ so opencode's skill tool
 //     can discover it (the data-dir skill path alone is invisible to opencode).
 //   - Its CLI exposes only one approval flag (--dangerously-skip-permissions)
 //     and no system-prompt flag, so AO injects standing instructions by writing
 //     an AO-owned per-session config and selecting the generated agent.
 //
-// AO-managed sessions derive native session identity and display metadata from
+// Kennel-managed sessions derive native session identity and display metadata from
 // the opencode plugin's reported events, mirroring the Codex adapter.
 package opencode
 
@@ -43,7 +43,7 @@ import (
 
 const (
 	// adapterID is the registry id and the value users pass to
-	// `ao spawn --agent`. It matches domain.HarnessOpenCode.
+	// `kennel spawn --agent`. It matches domain.HarnessOpenCode.
 	adapterID = "opencode"
 
 	// opencodeAgentSessionIDMetadataKey is the session-metadata key the opencode
@@ -100,7 +100,7 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 //	[env OPENCODE_CONFIG=<ao-config>] opencode [--dangerously-skip-permissions] [--agent <ao-agent>] [--prompt <prompt>]
 //
 // The session runs in the worktree (cwd is set by the runtime, as for Claude
-// Code and Codex). opencode has no CLI flag to set a system prompt, so AO writes
+// Code and Codex). opencode has no CLI flag to set a system prompt, so Kennel writes
 // an opencode config into the AO prompt artifact directory, points OPENCODE_CONFIG
 // at it, and selects the generated agent with --agent. The initial task prompt
 // is delivered via --prompt (its argument, so a leading "-" is not read as a flag).
@@ -186,7 +186,7 @@ func (p *Plugin) AuthStatus(ctx context.Context) (ports.AgentAuthStatus, error) 
 	} else if ok {
 		return status, nil
 	}
-	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	out, err := aoprocess.CommandContext(probeCtx, binary, "auth", "list").CombinedOutput()

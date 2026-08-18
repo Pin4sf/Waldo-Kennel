@@ -3,7 +3,7 @@
 // `pushStatus.ts`); the AsyncStorage side lives in `onboardingStore.ts`.
 
 /** Persisted flag: the user dismissed onboarding without pairing. */
-export const ONBOARDING_SKIPPED_KEY = "ao.onboardingSkipped";
+export const ONBOARDING_SKIPPED_KEY = "kennel.onboardingSkipped";
 
 export type OnboardingInput = {
 	// Whether a server is configured. `null` means "not loaded yet".

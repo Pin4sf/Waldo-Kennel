@@ -25,13 +25,13 @@ test("buckets updater errors into safe categories", () => {
 // bucketed category may leave the process.
 test("never forwards the raw updater message", () => {
 	const outcome = updateFailureOutcome(
-		"EACCES: permission denied, open '/Users/someone/Library/Caches/ao-updater/pending/AO.zip'",
+		"EACCES: permission denied, open '/Users/someone/Library/Caches/kennel-updater/pending/Kennel.zip'",
 		"download",
 		"automatic",
 		"0.11.3",
 	);
 	expect(outcome).toEqual({
-		event: "ao.renderer.update_failed",
+		event: "kennel.renderer.update_failed",
 		phase: "download",
 		trigger: "automatic",
 		error_category: "permission",

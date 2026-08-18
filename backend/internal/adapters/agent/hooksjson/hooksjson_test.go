@@ -11,7 +11,7 @@ import (
 func TestReconcileHookMovesCommandToDeclaredMatcher(t *testing.T) {
 	oldMatcher := "old"
 	newMatcher := "new"
-	managed := "ao hooks test session-start"
+	managed := "kennel hooks test session-start"
 	userOld := HookEntry{Type: "command", Command: "user old", Timeout: 3}
 	userNew := HookEntry{Type: "command", Command: "user new", Timeout: 4}
 	updated := HookEntry{Type: "command", Command: managed, Timeout: 30}
@@ -33,7 +33,7 @@ func TestReconcileHookMovesCommandToDeclaredMatcher(t *testing.T) {
 func TestReconcileHookDeduplicatesCommandAcrossGroups(t *testing.T) {
 	firstMatcher := "first"
 	targetMatcher := "target"
-	managed := "ao hooks test session-start"
+	managed := "kennel hooks test session-start"
 	user := HookEntry{Type: "command", Command: "user hook", Timeout: 7}
 	updated := HookEntry{Type: "command", Command: managed, Timeout: 30}
 	groups := []MatcherGroup{
@@ -55,7 +55,7 @@ func TestReconcileHookDeduplicatesCommandAcrossGroups(t *testing.T) {
 func TestReconcileHookDropsGroupsEmptiedByMove(t *testing.T) {
 	oldMatcher := "old"
 	newMatcher := "new"
-	managed := "ao hooks test session-start"
+	managed := "kennel hooks test session-start"
 	updated := HookEntry{Type: "command", Command: managed, Timeout: 30}
 	groups := []MatcherGroup{
 		{Matcher: &oldMatcher, Hooks: []HookEntry{{Type: "command", Command: managed, Timeout: 5}}},
@@ -97,11 +97,11 @@ func TestManagerPreservesUnknownUserHookFields(t *testing.T) {
 
 	manager := Manager{
 		Label:         "test",
-		CommandPrefix: "ao hooks test ",
+		CommandPrefix: "kennel hooks test ",
 		Timeout:       30,
 		Path:          func(string) string { return hooksPath },
 		Managed: []HookSpec{
-			{Event: "Notification", Command: "ao hooks test notification"},
+			{Event: "Notification", Command: "kennel hooks test notification"},
 		},
 	}
 	if err := manager.Install(t.Context(), workspace); err != nil {
@@ -124,7 +124,7 @@ func TestManagerPreservesManagedHookExtensionsOnReconcile(t *testing.T) {
       "groupExtension": "keep",
       "hooks": [{
         "type": "command",
-        "command": "ao hooks test notification",
+        "command": "kennel hooks test notification",
         "timeout": 7,
         "async": true,
         "commandWindows": "ao-hooks.cmd"
@@ -138,11 +138,11 @@ func TestManagerPreservesManagedHookExtensionsOnReconcile(t *testing.T) {
 
 	manager := Manager{
 		Label:         "test",
-		CommandPrefix: "ao hooks test ",
+		CommandPrefix: "kennel hooks test ",
 		Timeout:       30,
 		Path:          func(string) string { return hooksPath },
 		Managed: []HookSpec{
-			{Event: "Notification", Command: "ao hooks test notification"},
+			{Event: "Notification", Command: "kennel hooks test notification"},
 		},
 	}
 	if err := manager.Install(t.Context(), workspace); err != nil {

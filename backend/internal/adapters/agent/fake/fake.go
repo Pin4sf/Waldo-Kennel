@@ -10,9 +10,9 @@
 //
 // The launch command is a small POSIX shell script that walks that fixed
 // timeline: it prints canned marker lines to its pane and calls
-// `ao hooks fake <event>` at each phase, exactly the way real agents report
+// `kennel hooks fake <event>` at each phase, exactly the way real agents report
 // activity through their native hooks. The daemon pins the session PATH to its
-// own binary and sets AO_SESSION_ID/AO_DATA_DIR, so the bare `ao` in the script
+// own binary and sets KENNEL_SESSION_ID/KENNEL_DATA_DIR, so the bare `ao` in the script
 // reaches the daemon and its activity reports land against the spawning session.
 //
 // The terminal state is deterministic: the run ends on a `session-end` event
@@ -21,7 +21,7 @@
 // it does not set is_terminated. A turn-boundary event (session-end) also clears
 // the sticky `blocked` state that precedes it.
 //
-// Timing is controlled by AO_FAKE_SPEEDUP (a float, default 1): every phase
+// Timing is controlled by KENNEL_FAKE_SPEEDUP (a float, default 1): every phase
 // sleeps for a base duration divided by the speedup, so tests can compress the
 // whole run into well under a second (issue prereq #4, clock control). There is
 // no trailing sleep after the terminal event, so a high speedup collapses the
@@ -44,19 +44,19 @@ import (
 
 // SpeedupEnv is the environment variable that divides every phase duration. A
 // value <= 0 or unparseable falls back to 1 (real-time base durations).
-const SpeedupEnv = "AO_FAKE_SPEEDUP"
+const SpeedupEnv = "KENNEL_FAKE_SPEEDUP"
 
 // HarnessEnv gates the fake harness's AuthStatus. Without a truthy value the
 // probe reports unauthorized, so the fake stays out of the default-selectable
 // catalog on a user's machine — e2e and dev must opt in explicitly by setting
-// AO_FAKE_HARNESS=1 (or any of the truthy tokens accepted by isTruthy). See
+// KENNEL_FAKE_HARNESS=1 (or any of the truthy tokens accepted by isTruthy). See
 // AuthStatus for the rationale (#2692 review, @whoisasx).
-const HarnessEnv = "AO_FAKE_HARNESS"
+const HarnessEnv = "KENNEL_FAKE_HARNESS"
 
 // basePhaseSeconds is how long each timeline phase lasts at speedup 1. The
 // timeline has six sleeping phases (spawning, active, waiting_input, active,
 // pr-push, blocked) — the terminal session-end fires with no trailing sleep —
-// for an ~12s run unspeeded, which AO_FAKE_SPEEDUP compresses for tests.
+// for an ~12s run unspeeded, which KENNEL_FAKE_SPEEDUP compresses for tests.
 const basePhaseSeconds = 2.0
 
 // Plugin is the fake agent adapter. It holds no state and is safe for
@@ -106,7 +106,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, _ ports.LaunchConfig) (cm
 	return []string{sh, "-lc", timelineScript(phaseSleep())}, nil
 }
 
-// AuthStatus reports authorized ONLY when AO_FAKE_HARNESS is set to a truthy
+// AuthStatus reports authorized ONLY when KENNEL_FAKE_HARNESS is set to a truthy
 // value; otherwise it reports unauthorized. The fake needs no credentials, but
 // reporting authorized unconditionally would let it drift into the
 // default-selectable catalog on a user machine after a catalog refresh — desktop
@@ -190,7 +190,7 @@ func DeriveActivityState(event string, _ []byte) (domain.ActivityState, bool) {
 }
 
 // phaseSleep resolves the per-phase sleep duration in seconds from
-// AO_FAKE_SPEEDUP, defaulting to basePhaseSeconds at speedup 1. It reads the
+// KENNEL_FAKE_SPEEDUP, defaulting to basePhaseSeconds at speedup 1. It reads the
 // process environment directly; tests control it with t.Setenv, which restores
 // it automatically — there is no mutable package-level seam to leak across tests.
 func phaseSleep() float64 {
@@ -203,7 +203,7 @@ func phaseSleep() float64 {
 	return basePhaseSeconds / speedup
 }
 
-// timelineScript builds the POSIX shell script the fake runs. Each `ao hooks`
+// timelineScript builds the POSIX shell script the fake runs. Each `kennel hooks`
 // call takes its stdin from /dev/null (the hook reads a payload from stdin) and
 // swallows output, and is guarded with `|| true` so a missing/unreachable
 // daemon never fails the fake mid-timeline. The phases, in order, and the
@@ -218,7 +218,7 @@ func phaseSleep() float64 {
 // than changes state). The run ENDS on session-end (derives exited), a
 // turn-boundary event that clears the sticky `blocked` without terminating the
 // runtime. No trailing sleep follows the terminal event, so a high
-// AO_FAKE_SPEEDUP collapses the whole run.
+// KENNEL_FAKE_SPEEDUP collapses the whole run.
 func timelineScript(sleepSeconds float64) string {
 	d := formatSeconds(sleepSeconds)
 	var b strings.Builder
@@ -227,7 +227,7 @@ func timelineScript(sleepSeconds float64) string {
 	phase := func(marker, event string, sleep bool) {
 		fmt.Fprintf(&b, "printf '%%s\\n' 'fake-agent: %s'\n", marker)
 		if event != "" {
-			fmt.Fprintf(&b, "ao hooks fake %s </dev/null >/dev/null 2>&1 || true\n", event)
+			fmt.Fprintf(&b, "kennel hooks fake %s </dev/null >/dev/null 2>&1 || true\n", event)
 		}
 		if sleep {
 			fmt.Fprintf(&b, "sleep %s\n", d)

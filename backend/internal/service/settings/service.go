@@ -1,6 +1,6 @@
 // Package settings owns AO's daemon-side user preferences.
 //
-// It exists so every spawn surface — desktop, mobile, `ao spawn`, headless —
+// It exists so every spawn surface — desktop, mobile, `kennel spawn`, headless —
 // resolves one value. A renderer-held preference would look correct in Settings
 // while disagreeing with the CLI, which is worse than having no control.
 package settings

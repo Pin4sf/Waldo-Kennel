@@ -20,7 +20,7 @@ const HostTrustWarning = "experimental host-trusted reviewer: Kimchi tool allow/
 // entirely — it launches in --auto mode where these rules are honored. The
 // reviewer can read the checkout and run the few commands it needs (git
 // diff/log/status to inspect the PR, gh api to post the review, printf to pipe
-// JSON, and `ao review submit` to record the verdict) without stalling. This is
+// JSON, and `kennel review submit` to record the verdict) without stalling. This is
 // hardening, not an OS sandbox; the adapter remains host-trusted.
 //
 // The review protocol (review/prompt.go step 1) requires the piped command:
@@ -43,7 +43,7 @@ var reviewerAllowedTools = []string{
 	"bash(git log:*)",
 	"bash(git status:*)",
 	"bash(gh:*)",
-	"bash(ao review submit:*)",
+	"bash(kennel review submit:*)",
 }
 
 // reviewerDisallowedTools denies common write and exfiltration paths inside
@@ -98,7 +98,7 @@ var _ ports.ReviewerRestorer = (*Reviewer)(nil)
 // worker's checkout. --auto keeps the session moving while the allow/deny tool
 // lists provide best-effort hardening for the review tools (git
 // diff/log/status to inspect the PR, gh api to post the review, printf to pipe
-// JSON, and `ao review submit` to record the verdict). The deny list covers
+// JSON, and `kennel review submit` to record the verdict). The deny list covers
 // common mutation paths, but does not make the process read-only or isolated.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	argv, err := r.agent.GetLaunchCommand(ctx, ports.LaunchConfig{

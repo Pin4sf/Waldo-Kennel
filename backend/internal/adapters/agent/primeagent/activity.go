@@ -6,7 +6,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
 
-// DeriveActivityState maps the normalized events emitted by the AO-managed
+// DeriveActivityState maps the normalized events emitted by the Kennel-managed
 // Prime Agent extension to durable AO activity state.
 func DeriveActivityState(event string, payload []byte) (domain.ActivityState, bool) {
 	switch event {

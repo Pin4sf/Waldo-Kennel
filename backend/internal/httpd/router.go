@@ -147,7 +147,7 @@ func mountMobile(r chi.Router, c *controllers.MobileController) {
 // enforced by the transport rather than by a spoofable header.
 //
 // The routes are mounted unconditionally, even when c.Registry is nil (a
-// corrupt ~/.ao/data/mobile/push-devices.json failed to load): each handler
+// corrupt ~/.kennel/data/mobile/push-devices.json failed to load): each handler
 // answers 503 DEVICE_REGISTRY_UNAVAILABLE in that case, so the desktop can tell
 // "the registry failed to load" apart from "this route doesn't exist / talking
 // to an old daemon" (a 404 would be ambiguous with both). Only a nil controller
@@ -178,9 +178,9 @@ func mountTelemetry(r chi.Router, cfg config.Config, sink ports.EventSink) {
 	if sink == nil {
 		return
 	}
-	// CLI telemetry is capped to bounded uniques: ao.app.active once per UTC day
+	// CLI telemetry is capped to bounded uniques: kennel.app.active once per UTC day
 	// for user-context CLI activity (matching the renderer
-	// heartbeat) and ao.cli.invoked once per actor type + command path per UTC
+	// heartbeat) and kennel.cli.invoked once per actor type + command path per UTC
 	// day. Scripts and agent sessions invoke read-only commands (status, ls,
 	// get) in polling loops, so raw invocation counts measure automation, not
 	// usage; bounded uniques keep the "which commands, how many users" signal
@@ -220,7 +220,7 @@ func mountTelemetry(r chi.Router, cfg config.Config, sink ports.EventSink) {
 
 		if now := time.Now(); cliTelemetry.reserveInvoked(now, actorType, commandPath) {
 			sink.Emit(req.Context(), ports.TelemetryEvent{
-				Name:       "ao.cli.invoked",
+				Name:       "kennel.cli.invoked",
 				Source:     "cli",
 				OccurredAt: now.UTC(),
 				Level:      ports.TelemetryLevelInfo,
@@ -235,7 +235,7 @@ func mountTelemetry(r chi.Router, cfg config.Config, sink ports.EventSink) {
 		if actorType == "user" {
 			if now := time.Now(); cliTelemetry.reserveActive(now) {
 				sink.Emit(req.Context(), ports.TelemetryEvent{
-					Name:       "ao.app.active",
+					Name:       "kennel.app.active",
 					Source:     "cli",
 					OccurredAt: now.UTC(),
 					Level:      ports.TelemetryLevelInfo,
@@ -273,7 +273,7 @@ func mountTelemetry(r chi.Router, cfg config.Config, sink ports.EventSink) {
 		}
 
 		sink.Emit(req.Context(), ports.TelemetryEvent{
-			Name:       "ao.cli.usage_errors",
+			Name:       "kennel.cli.usage_errors",
 			Source:     "cli",
 			OccurredAt: time.Now().UTC(),
 			Level:      ports.TelemetryLevelWarn,
@@ -332,11 +332,11 @@ func daemonProbePayload(status string, cfg config.Config) map[string]any {
 	if cfg.StartupWorkingDirectory != "" {
 		payload["startupWorkingDirectory"] = cfg.StartupWorkingDirectory
 	}
-	// AO_APPIMAGE is set by the Electron app at spawn time when it runs from an
+	// KENNEL_APPIMAGE is set by the Electron app at spawn time when it runs from an
 	// AppImage. The value is the stable outer .AppImage file path, which the
 	// app's daemon identity check compares instead of the transient
 	// /tmp/.mount_* executable path (regenerated on every AppImage launch).
-	if appImage := os.Getenv("AO_APPIMAGE"); appImage != "" {
+	if appImage := os.Getenv("KENNEL_APPIMAGE"); appImage != "" {
 		payload["appImagePath"] = appImage
 	}
 	return payload

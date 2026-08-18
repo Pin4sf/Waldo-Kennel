@@ -35,7 +35,7 @@ func TestLauncherSpawnEnvCannotOverrideWorkerContext(t *testing.T) {
 		sessionmanager.EnvSessionID: "hacked-session",
 		sessionmanager.EnvProjectID: "hacked-project",
 		sessionmanager.EnvDataDir:   "hacked-data",
-		"AO_REVIEW_SESSION_ID":      "hacked-review",
+		"KENNEL_REVIEW_SESSION_ID":  "hacked-review",
 		EnvRunFile:                  "hacked-run-file",
 		"REVIEW_ONLY":               "1",
 	}}
@@ -54,14 +54,14 @@ func TestLauncherSpawnEnvCannotOverrideWorkerContext(t *testing.T) {
 	if _, ok := rt.createCfg.Env[sessionmanager.EnvSessionID]; ok {
 		t.Fatalf("reviewer env must not set worker %s: %v", sessionmanager.EnvSessionID, rt.createCfg.Env)
 	}
-	if rt.createCfg.Env["AO_REVIEW_SESSION_ID"] != "review-1" {
-		t.Fatalf("AO_REVIEW_SESSION_ID = %q, want review-1", rt.createCfg.Env["AO_REVIEW_SESSION_ID"])
+	if rt.createCfg.Env["KENNEL_REVIEW_SESSION_ID"] != "review-1" {
+		t.Fatalf("KENNEL_REVIEW_SESSION_ID = %q, want review-1", rt.createCfg.Env["KENNEL_REVIEW_SESSION_ID"])
 	}
-	if rt.createCfg.Env["AO_REVIEW_WORKER_SESSION_ID"] != "mer-1" {
-		t.Fatalf("AO_REVIEW_WORKER_SESSION_ID = %q, want mer-1", rt.createCfg.Env["AO_REVIEW_WORKER_SESSION_ID"])
+	if rt.createCfg.Env["KENNEL_REVIEW_WORKER_SESSION_ID"] != "mer-1" {
+		t.Fatalf("KENNEL_REVIEW_WORKER_SESSION_ID = %q, want mer-1", rt.createCfg.Env["KENNEL_REVIEW_WORKER_SESSION_ID"])
 	}
-	if rt.createCfg.Env["AO_REVIEW_HARNESS"] != string(domain.ReviewerClaudeCode) {
-		t.Fatalf("AO_REVIEW_HARNESS = %q, want %q", rt.createCfg.Env["AO_REVIEW_HARNESS"], domain.ReviewerClaudeCode)
+	if rt.createCfg.Env["KENNEL_REVIEW_HARNESS"] != string(domain.ReviewerClaudeCode) {
+		t.Fatalf("KENNEL_REVIEW_HARNESS = %q, want %q", rt.createCfg.Env["KENNEL_REVIEW_HARNESS"], domain.ReviewerClaudeCode)
 	}
 	if rt.createCfg.Env[sessionmanager.EnvProjectID] != "mer" {
 		t.Fatalf("%s = %q, want mer", sessionmanager.EnvProjectID, rt.createCfg.Env[sessionmanager.EnvProjectID])
@@ -76,7 +76,7 @@ func TestLauncherSpawnEnvCannotOverrideWorkerContext(t *testing.T) {
 
 func TestLauncherSpawnPinsPATHToAOExecutable(t *testing.T) {
 	aoDir := t.TempDir()
-	aoExe := filepath.Join(aoDir, "ao")
+	aoExe := filepath.Join(aoDir, "kennel")
 	reviewer := &fakeReviewer{env: map[string]string{"PATH": "/reviewer/bin"}}
 	rt := &fakeRuntime{}
 	l := NewLauncher(
@@ -117,7 +117,7 @@ func TestLauncherSpawnCreatesAOShimWhenExecutableIsNotNamedAO(t *testing.T) {
 	if len(parts) < 2 || parts[0] != shimDir || parts[1] != "/reviewer/bin" {
 		t.Fatalf("reviewer PATH = %q, want shim dir before adapter PATH", rt.createCfg.Env["PATH"])
 	}
-	shimPath := filepath.Join(shimDir, "ao")
+	shimPath := filepath.Join(shimDir, "kennel")
 	if runtime.GOOS == "windows" {
 		shimPath += ".cmd"
 	}
@@ -416,11 +416,11 @@ func TestLauncherSpawnReturnsStableHandle(t *testing.T) {
 	if _, ok := rt.createCfg.Env[sessionmanager.EnvSessionID]; ok {
 		t.Fatalf("reviewer env must not set worker %s: %v", sessionmanager.EnvSessionID, rt.createCfg.Env)
 	}
-	if rt.createCfg.Env["AO_REVIEW_SESSION_ID"] != "review-1" {
-		t.Fatalf("reviewer AO_REVIEW_SESSION_ID = %q, want review-1", rt.createCfg.Env["AO_REVIEW_SESSION_ID"])
+	if rt.createCfg.Env["KENNEL_REVIEW_SESSION_ID"] != "review-1" {
+		t.Fatalf("reviewer KENNEL_REVIEW_SESSION_ID = %q, want review-1", rt.createCfg.Env["KENNEL_REVIEW_SESSION_ID"])
 	}
-	if rt.createCfg.Env["AO_REVIEW_WORKER_SESSION_ID"] != "mer-1" {
-		t.Fatalf("reviewer AO_REVIEW_WORKER_SESSION_ID = %q, want mer-1", rt.createCfg.Env["AO_REVIEW_WORKER_SESSION_ID"])
+	if rt.createCfg.Env["KENNEL_REVIEW_WORKER_SESSION_ID"] != "mer-1" {
+		t.Fatalf("reviewer KENNEL_REVIEW_WORKER_SESSION_ID = %q, want mer-1", rt.createCfg.Env["KENNEL_REVIEW_WORKER_SESSION_ID"])
 	}
 	if rt.createCfg.Env[sessionmanager.EnvProjectID] != "mer" {
 		t.Fatalf("reviewer %s = %q, want mer", sessionmanager.EnvProjectID, rt.createCfg.Env[sessionmanager.EnvProjectID])
@@ -536,7 +536,7 @@ func TestLauncherRestoreTerminalStartsIdlePane(t *testing.T) {
 
 func TestLauncherRestoreTerminalUsesReviewerRestoreCommandWhenAvailable(t *testing.T) {
 	aoDir := t.TempDir()
-	aoExe := filepath.Join(aoDir, "ao")
+	aoExe := filepath.Join(aoDir, "kennel")
 	reviewer := &fakeRestoringReviewer{
 		restoreOK: true,
 		restoreSpec: ports.ReviewCommandSpec{

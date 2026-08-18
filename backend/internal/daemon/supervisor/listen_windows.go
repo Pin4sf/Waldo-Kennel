@@ -14,17 +14,17 @@ var unsafePipeChars = regexp.MustCompile(`[^a-zA-Z0-9\-]`)
 
 // pipeNameFromRunFile derives a per-instance named-pipe path from the
 // run-file's parent directory, mirroring the Unix supervise.sock placement.
-// ~/.ao/running.json  → \\.\pipe\ao-supervise          (default, backward-compatible)
-// ~/.ao/dev/running.json → \\.\pipe\ao-supervise-dev   (dev isolation)
+// ~/.kennel/running.json  → \\.\pipe\kennel-supervise          (default, backward-compatible)
+// ~/.kennel/dev/running.json → \\.\pipe\kennel-supervise-dev   (dev isolation)
 func pipeNameFromRunFile(runFilePath string) string {
 	if runFilePath == "" {
-		return `\\.\pipe\ao-supervise`
+		return `\\.\pipe\kennel-supervise`
 	}
 	dir := filepath.Base(filepath.Dir(runFilePath))
-	if dir == ".ao" || dir == "." || dir == "" {
-		return `\\.\pipe\ao-supervise`
+	if dir == ".kennel" || dir == "." || dir == "" {
+		return `\\.\pipe\kennel-supervise`
 	}
-	return `\\.\pipe\ao-supervise-` + unsafePipeChars.ReplaceAllString(dir, "-")
+	return `\\.\pipe\kennel-supervise-` + unsafePipeChars.ReplaceAllString(dir, "-")
 }
 
 // Listen creates a Windows named pipe listener for the supervisor watchdog.

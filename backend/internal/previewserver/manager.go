@@ -796,8 +796,8 @@ func previewEnvironment(
 	}
 	env = append(env,
 		"PORT="+strconv.Itoa(port),
-		"AO_PREVIEW_PORT="+strconv.Itoa(port),
-		"AO_SESSION_ID="+string(sessionID),
+		"KENNEL_PREVIEW_PORT="+strconv.Itoa(port),
+		"KENNEL_SESSION_ID="+string(sessionID),
 	)
 	return env
 }

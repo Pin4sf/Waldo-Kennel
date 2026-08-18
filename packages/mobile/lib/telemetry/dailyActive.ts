@@ -1,4 +1,4 @@
-// Once-per-UTC-day gate for the ao.app.active heartbeat, the same shape as the
+// Once-per-UTC-day gate for the kennel.app.active heartbeat, the same shape as the
 // desktop's reservation. Daily actives is a unique count, so emitting more than
 // once a day per install buys nothing and only costs events. This is the pure
 // decision plus a storage seam; the runtime wrapper passes AsyncStorage.
@@ -12,7 +12,7 @@ export type ActiveStorage = {
 	setItem: (key: string, value: string) => Promise<void>;
 };
 
-export const ACTIVE_STORAGE_KEY = "ao.telemetry.activeDay";
+export const ACTIVE_STORAGE_KEY = "kennel.telemetry.activeDay";
 
 function utcDay(now: Date): string {
 	return now.toISOString().slice(0, 10);

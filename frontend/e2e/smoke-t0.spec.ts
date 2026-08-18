@@ -4,7 +4,7 @@ import { installFakeAgent, installFakeBridge } from "./support/fake-bridge";
 // INS/DMN/BRD/SET RENDERER SMOKE (issue #2483, renderer slice).
 //
 // Scope — read this before trusting a green run. These run under `dev:web`
-// (VITE_NO_ELECTRON=1) with an injected `window.ao` (installFakeBridge /
+// (VITE_NO_ELECTRON=1) with an injected `window.kennel` (installFakeBridge /
 // installFakeAgent) plus a fake CDC/SSE stream and workspace snapshot. They
 // assert the renderer's rendering + interaction logic ONLY. They do NOT exercise
 // the real daemon, storage, API, preload, PTY, or filesystem — those boundaries
@@ -70,7 +70,7 @@ test("renderer: first-run home renders with the app launched @T0 @INS", async ({
 test("renderer: reflects a ready daemon (data dir + config initialized) @T0 @INS", async ({ page }) => {
 	// Renderer proxy: reaching "ready" with a REST port means the daemon
 	// initialized its data dir + config skeleton (a not-ready daemon never
-	// advertises a port). Asserting the on-disk ~/.ao layout itself belongs to
+	// advertises a port). Asserting the on-disk ~/.kennel layout itself belongs to
 	// the backend/daemon suite, not this renderer harness — see report.
 	await installFakeBridge(page, { daemonState: "ready", daemonPort: 8080 });
 	await page.goto("/");

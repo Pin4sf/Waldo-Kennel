@@ -273,7 +273,7 @@ func (d *Driver) connect(
 	init, err := conv.conn.Initialize(initCtx, acpsdk.InitializeRequest{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		ClientInfo: &acpsdk.Implementation{
-			Name:    "agent-orchestrator",
+			Name:    "kennel",
 			Title:   pointer("Agent Orchestrator"),
 			Version: "0.1.0",
 		},

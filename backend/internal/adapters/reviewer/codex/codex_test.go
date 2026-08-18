@@ -37,9 +37,9 @@ func (a *captureAgent) SessionInfo(context.Context, ports.SessionRef) (ports.Ses
 }
 
 func TestReviewCommandUsesReadOnlySandbox(t *testing.T) {
-	t.Setenv("AO_PORT", "3103")
-	t.Setenv("AO_DATA_DIR", "/wrong/data")
-	t.Setenv("AO_RUN_FILE", "/wrong/running.json")
+	t.Setenv("KENNEL_PORT", "3103")
+	t.Setenv("KENNEL_DATA_DIR", "/wrong/data")
+	t.Setenv("KENNEL_RUN_FILE", "/wrong/running.json")
 	agent := &captureAgent{}
 	r := &Reviewer{agent: agent}
 
@@ -58,9 +58,9 @@ func TestReviewCommandUsesReadOnlySandbox(t *testing.T) {
 	want := []string{
 		"agent",
 		"--sandbox", "read-only",
-		"-c", `shell_environment_policy.set.AO_PORT="3103"`,
-		"-c", `shell_environment_policy.set.AO_DATA_DIR="/tmp/ao data"`,
-		"-c", `shell_environment_policy.set.AO_RUN_FILE="/tmp/ao data/running.json"`,
+		"-c", `shell_environment_policy.set.KENNEL_PORT="3103"`,
+		"-c", `shell_environment_policy.set.KENNEL_DATA_DIR="/tmp/ao data"`,
+		"-c", `shell_environment_policy.set.KENNEL_RUN_FILE="/tmp/ao data/running.json"`,
 		"--", "review it",
 	}
 	if !slices.Equal(got.Argv, want) {
@@ -113,9 +113,9 @@ func TestReviewCommandUsesHiddenSystemPromptFile(t *testing.T) {
 }
 
 func TestReviewRestoreCommandUsesNativeSessionIDAndReadOnlySandbox(t *testing.T) {
-	t.Setenv("AO_PORT", "3103")
-	t.Setenv("AO_DATA_DIR", "/wrong/data")
-	t.Setenv("AO_RUN_FILE", "/wrong/running.json")
+	t.Setenv("KENNEL_PORT", "3103")
+	t.Setenv("KENNEL_DATA_DIR", "/wrong/data")
+	t.Setenv("KENNEL_RUN_FILE", "/wrong/running.json")
 	agent := &captureAgent{}
 	r := &Reviewer{agent: agent}
 
@@ -136,9 +136,9 @@ func TestReviewRestoreCommandUsesNativeSessionIDAndReadOnlySandbox(t *testing.T)
 	want := []string{
 		"agent", "resume",
 		"--sandbox", "read-only",
-		"-c", `shell_environment_policy.set.AO_PORT="3103"`,
-		"-c", `shell_environment_policy.set.AO_DATA_DIR="/tmp/ao data"`,
-		"-c", `shell_environment_policy.set.AO_RUN_FILE="/tmp/ao data/running.json"`,
+		"-c", `shell_environment_policy.set.KENNEL_PORT="3103"`,
+		"-c", `shell_environment_policy.set.KENNEL_DATA_DIR="/tmp/ao data"`,
+		"-c", `shell_environment_policy.set.KENNEL_RUN_FILE="/tmp/ao data/running.json"`,
 		"codex-native-1",
 	}
 	if !slices.Equal(got.Argv, want) {

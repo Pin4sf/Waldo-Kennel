@@ -12,7 +12,7 @@ export type ThemePreference = "light" | "dark" | "system";
  * The two never share storage, but keeping the name identical means one grep
  * finds both.
  */
-export const THEME_KEY = "ao.theme";
+export const THEME_KEY = "kennel.theme";
 
 /** Default for anyone who has never opened the setting — matches desktop. */
 export const DEFAULT_PREFERENCE: ThemePreference = "system";

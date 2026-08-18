@@ -71,7 +71,7 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 		Short: "Spawn an agent session in a registered project",
 		Long: "Spawn an agent session (worker or orchestrator) in a registered project.\n\n" +
 			"The session runs the chosen agent in a\n" +
-			"fresh isolated workspace. Git projects use worktrees; Scratch uses an AO-managed directory.",
+			"fresh isolated workspace. Git projects use worktrees; Scratch uses an Kennel-managed directory.",
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.noTakeover && opts.claimPR == "" {
@@ -178,7 +178,7 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	// --agent is an alias for --harness so the more intuitive `ao spawn --agent
+	// --agent is an alias for --harness so the more intuitive `kennel spawn --agent
 	// droid` works identically; both resolve to the same harness flag.
 	f.SetNormalizeFunc(func(_ *pflag.FlagSet, name string) pflag.NormalizedName {
 		if name == "agent" {
@@ -186,11 +186,11 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 		}
 		return pflag.NormalizedName(name)
 	})
-	f.StringVar(&opts.project, "project", "", "Project id to spawn the session in (default: AO_PROJECT_ID, current registered repo, or Scratch when it is the only project)")
+	f.StringVar(&opts.project, "project", "", "Project id to spawn the session in (default: KENNEL_PROJECT_ID, current registered repo, or Scratch when it is the only project)")
 	f.StringVar(&opts.harness, "harness", "", "Agent harness / --agent: claude-code, codex, aider, opencode, grok, droid, amp, agy, crush, cursor, qwen, copilot, goose, auggie, continue, devin, cline, kimi, muse, kiro, kilocode, vibe, pi, kimchi, prime-agent, autohand (default: project worker.agent; orchestrator spawns default to project orchestrator.agent; required if the project has none)")
 	f.StringVar(&opts.kind, "kind", "", "Session role: worker or orchestrator (default: worker)")
 	f.StringVar(&opts.mode, "mode", "", "Initial session interface: chat (structured agent connection) or tui (the agent's native terminal). Omitted uses the daemon default; compatible sessions can switch later.")
-	f.StringVar(&opts.branch, "branch", "", "Branch for git project sessions (default: ao/<session-id>/root; unsupported for Scratch)")
+	f.StringVar(&opts.branch, "branch", "", "Branch for git project sessions (default: kennel/<session-id>/root; unsupported for Scratch)")
 	f.StringVar(&opts.prompt, "prompt", "", "Initial prompt for the agent")
 	f.StringVar(&opts.issue, "issue", "", "Issue id to associate with the session")
 	f.StringVar(&opts.trackerProvider, "tracker-provider", "github", "Issue tracker provider: github or gitlab (default: github)")
@@ -219,10 +219,10 @@ func (c *commandContext) resolveSpawnProject(ctx context.Context, explicit strin
 	if id := strings.TrimSpace(explicit); id != "" {
 		return c.fetchProjectDetails(ctx, id)
 	}
-	if id := strings.TrimSpace(os.Getenv("AO_PROJECT_ID")); id != "" {
+	if id := strings.TrimSpace(os.Getenv("KENNEL_PROJECT_ID")); id != "" {
 		return c.fetchProjectDetails(ctx, id)
 	}
-	if sessionID := strings.TrimSpace(os.Getenv("AO_SESSION_ID")); sessionID != "" {
+	if sessionID := strings.TrimSpace(os.Getenv("KENNEL_SESSION_ID")); sessionID != "" {
 		project, err := c.resolveProjectFromSession(ctx, sessionID)
 		if err != nil {
 			return projectDetails{}, err
@@ -236,16 +236,16 @@ func (c *commandContext) resolveSpawnProject(ctx context.Context, explicit strin
 	if ok {
 		return project, nil
 	}
-	return projectDetails{}, usageError{fmt.Errorf("project could not be resolved; pass --project or run `ao project add --path <repo-path> --worker-agent <agent>`")}
+	return projectDetails{}, usageError{fmt.Errorf("project could not be resolved; pass --project or run `kennel project add --path <repo-path> --worker-agent <agent>`")}
 }
 
 func (c *commandContext) resolveProjectFromSession(ctx context.Context, sessionID string) (projectDetails, error) {
 	sess, err := c.fetchScopedSession(ctx, sessionID, "")
 	if err != nil {
-		return projectDetails{}, usageError{fmt.Errorf("project could not be resolved from AO_SESSION_ID %q; pass --project", sessionID)}
+		return projectDetails{}, usageError{fmt.Errorf("project could not be resolved from KENNEL_SESSION_ID %q; pass --project", sessionID)}
 	}
 	if strings.TrimSpace(sess.ProjectID) == "" {
-		return projectDetails{}, usageError{fmt.Errorf("project could not be resolved from AO_SESSION_ID %q; pass --project", sessionID)}
+		return projectDetails{}, usageError{fmt.Errorf("project could not be resolved from KENNEL_SESSION_ID %q; pass --project", sessionID)}
 	}
 	return c.fetchProjectDetails(ctx, sess.ProjectID)
 }
@@ -363,9 +363,9 @@ func resolveSpawnHarness(explicit, kind string, project projectDetails) (string,
 		}
 	}
 	if kind == "orchestrator" {
-		return "", usageError{fmt.Errorf("agent could not be resolved; pass --agent or configure `ao project set-config %s --orchestrator-agent <agent>`", project.ID)}
+		return "", usageError{fmt.Errorf("agent could not be resolved; pass --agent or configure `kennel project set-config %s --orchestrator-agent <agent>`", project.ID)}
 	}
-	return "", usageError{fmt.Errorf("agent could not be resolved; pass --agent or configure `ao project set-config %s --worker-agent <agent>`", project.ID)}
+	return "", usageError{fmt.Errorf("agent could not be resolved; pass --agent or configure `kennel project set-config %s --worker-agent <agent>`", project.ID)}
 }
 
 func (c *commandContext) preflightSpawnAgentAuth(ctx context.Context, cmd *cobra.Command, agentID string) error {
@@ -375,7 +375,7 @@ func (c *commandContext) preflightSpawnAgentAuth(ctx context.Context, cmd *cobra
 	}
 	state := agentCatalogStateFor(inv, agentID)
 	if !state.supported {
-		return fmt.Errorf("agent %q is not supported by this daemon; pass a supported --agent or run `ao agent ls`", agentID)
+		return fmt.Errorf("agent %q is not supported by this daemon; pass a supported --agent or run `kennel agent ls`", agentID)
 	}
 	if !state.installed || state.authStatus == "unauthorized" {
 		fresh, err := c.probeSpawnAgent(ctx, agentID)
@@ -387,7 +387,7 @@ func (c *commandContext) preflightSpawnAgentAuth(ctx context.Context, cmd *cobra
 			return err
 		}
 		if !fresh.Supported {
-			return fmt.Errorf("agent %q is not supported by this daemon; pass a supported --agent or run `ao agent ls`", agentID)
+			return fmt.Errorf("agent %q is not supported by this daemon; pass a supported --agent or run `kennel agent ls`", agentID)
 		}
 		if !fresh.Installed {
 			return fmt.Errorf("agent %q needs install; install the agent CLI or pass --skip-agent-check to let spawn validate it", agentID)

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-	AO_REVIEW_RUN_STATUSES,
-	AO_REVIEW_STATES,
-	AO_REVIEW_VERDICTS,
+	KENNEL_REVIEW_RUN_STATUSES,
+	KENNEL_REVIEW_STATES,
+	KENNEL_REVIEW_VERDICTS,
 	CI_STATES,
 	MERGEABILITY_STATES,
 	PULL_REQUEST_CHECK_STATUSES,
@@ -28,9 +28,9 @@ describe("raw SCM models", () => {
 		]);
 		expect(REVIEW_DECISIONS).toEqual(["none", "approved", "changes_requested", "review_required"]);
 		expect(MERGEABILITY_STATES).toEqual(["unknown", "mergeable", "conflicting", "blocked", "unstable"]);
-		expect(AO_REVIEW_RUN_STATUSES).toEqual(["running", "complete", "delivered", "failed", "cancelled"]);
-		expect(AO_REVIEW_VERDICTS).toEqual(["", "approved", "changes_requested"]);
-		expect(AO_REVIEW_STATES).toEqual([
+		expect(KENNEL_REVIEW_RUN_STATUSES).toEqual(["running", "complete", "delivered", "failed", "cancelled"]);
+		expect(KENNEL_REVIEW_VERDICTS).toEqual(["", "approved", "changes_requested"]);
+		expect(KENNEL_REVIEW_STATES).toEqual([
 			"needs_review",
 			"running",
 			"up_to_date",

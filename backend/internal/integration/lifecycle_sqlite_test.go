@@ -282,7 +282,7 @@ func TestReconcile_TerminatesDeadLiveSessionAndReapsLeakedTmux(t *testing.T) {
 		Harness:      domain.HarnessClaudeCode,
 		IsTerminated: false,
 		Metadata: domain.SessionMetadata{
-			Branch:          "ao/mer-a/root",
+			Branch:          "kennel/mer-a/root",
 			WorkspacePath:   "/ws/mer-a",
 			RuntimeHandleID: "hdl-A",
 		},
@@ -302,7 +302,7 @@ func TestReconcile_TerminatesDeadLiveSessionAndReapsLeakedTmux(t *testing.T) {
 		Harness:      domain.HarnessClaudeCode,
 		IsTerminated: true,
 		Metadata: domain.SessionMetadata{
-			Branch:          "ao/mer-b/root",
+			Branch:          "kennel/mer-b/root",
 			WorkspacePath:   "/ws/mer-b",
 			RuntimeHandleID: "hdl-B",
 		},

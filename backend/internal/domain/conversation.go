@@ -408,7 +408,7 @@ type ConversationPlanStep struct {
 //
 // Durable rather than client-side because they must apply to turns AO dispatches
 // on the user's behalf: a queued message draining after a restart, a relay from
-// `ao send`. A preference held in the renderer would quietly stop applying the
+// `kennel send`. A preference held in the renderer would quietly stop applying the
 // moment the user was not the one pressing send.
 type ConversationSettings struct {
 	// Model is the provider's model id. Empty means the provider's default.

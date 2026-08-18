@@ -31,7 +31,7 @@ const (
 	// cursorHookCommandPrefix identifies the hook commands AO owns, so
 	// install skips duplicates and uninstall recognizes AO entries by
 	// prefix without an embedded template to diff against.
-	cursorHookCommandPrefix = "ao hooks cursor "
+	cursorHookCommandPrefix = "kennel hooks cursor "
 )
 
 // cursorHookFile is the on-disk shape of .cursor/hooks.json. It is used by tests

@@ -1,11 +1,11 @@
-// agent-orchestrator: managed Prime Agent activity extension
+// kennel: managed Prime Agent activity extension
 import { spawnSync } from "node:child_process";
 
 const hookTimeoutMs = 10_000;
 
 function report(event, payload, cwd) {
   try {
-    spawnSync("ao", ["hooks", "prime-agent", event], {
+    spawnSync("kennel", ["hooks", "prime-agent", event], {
       cwd,
       encoding: "utf8",
       input: `${JSON.stringify(payload)}\n`,

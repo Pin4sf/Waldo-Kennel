@@ -881,7 +881,7 @@ func TestGetAgentHooksDoesNotOverwriteProjectCopilotInstructions(t *testing.T) {
 	cfg := ports.WorkspaceHookConfig{
 		DataDir:       t.TempDir(),
 		SessionID:     "sess-1",
-		SystemPrompt:  "ao rules",
+		SystemPrompt:  "kennel rules",
 		WorkspacePath: workspace,
 	}
 	if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
@@ -974,7 +974,7 @@ func TestHookMethodsRequireWorkspacePath(t *testing.T) {
 }
 
 // TestCopilotManagedHooksUseDocumentedEventNames pins the JSON keys AO writes
-// into .github/hooks/ao.json to the camelCase names Copilot CLI documents
+// into .github/hooks/kennel.json to the camelCase names Copilot CLI documents
 // (https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-hooks).
 // Drifting back to lowercase-dashed or any other casing silently disables the
 // hooks, so this is a tripwire for that class of regression.

@@ -76,7 +76,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 	for key, value := range settingsEnv {
 		envVars[key] = value
 	}
-	envVars["AO_DATA_DIR"] = env.DataDir
+	envVars["KENNEL_DATA_DIR"] = env.DataDir
 	return ports.ReviewCommandSpec{
 		Argv:             []string{binary, "--bare", "--approval-mode", "plan"},
 		Env:              envVars,

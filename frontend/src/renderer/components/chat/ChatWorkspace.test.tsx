@@ -129,7 +129,7 @@ function humanMessage(text: string): ConversationMessage {
 const chatSession = {
 	id: chatFixture.sessionId,
 	workspaceId: "project-1",
-	workspaceName: "agent-orchestrator",
+	workspaceName: "kennel",
 	title: "Reviewer chat",
 	provider: "codex",
 	kind: "worker",
@@ -144,7 +144,7 @@ describe("HumanMessage attachments", () => {
 		render(
 			<HumanMessage
 				message={humanMessage(`check again\n\n${header}\n- .ao/attachments/${name}`)}
-				sessionId="ao session/1"
+				sessionId="kennel session/1"
 			/>,
 		);
 
@@ -843,7 +843,7 @@ describe("ChatWorkspace reviewer tabs", () => {
 	});
 
 	it("gives the reviewer terminal working zoom and fullscreen controls", async () => {
-		window.localStorage.setItem("ao.terminal.fontSize", "14");
+		window.localStorage.setItem("kennel.terminal.fontSize", "14");
 		render(
 			<ChatWorkspace
 				snapshot={idleSnapshot()}
@@ -858,14 +858,14 @@ describe("ChatWorkspace reviewer tabs", () => {
 		expect(terminalPaneState.props?.onToggleFullscreen).toEqual(expect.any(Function));
 
 		act(() => terminalPaneState.props?.onChangeFontSize?.(2));
-		expect(window.localStorage.getItem("ao.terminal.fontSize")).toBe("16");
+		expect(window.localStorage.getItem("kennel.terminal.fontSize")).toBe("16");
 		expect(terminalPaneState.props?.fontSize).toBe(16);
 
 		fireEvent.wheel(screen.getByTestId("chat-reviewer-panel"), {
 			ctrlKey: true,
 			deltaY: -80,
 		});
-		expect(window.localStorage.getItem("ao.terminal.fontSize")).toBe("17");
+		expect(window.localStorage.getItem("kennel.terminal.fontSize")).toBe("17");
 		expect(terminalPaneState.props?.fontSize).toBe(17);
 
 		const surface = screen.getByLabelText("Chat");

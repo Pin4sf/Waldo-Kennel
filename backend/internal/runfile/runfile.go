@@ -27,8 +27,8 @@ type Info struct {
 	// Owner records how this daemon was spawned, so the app can decide whether
 	// to hold a supervisor link on attach from the daemon's own durable record
 	// rather than the current process env. "app" = normal desktop-spawned daemon
-	// (re-link on attach); "persistent" = spawned under AO_KEEP_DAEMON, stays
-	// alive across app quit and is never re-linked; empty = headless `ao start`
+	// (re-link on attach); "persistent" = spawned under KENNEL_KEEP_DAEMON, stays
+	// alive across app quit and is never re-linked; empty = headless `kennel start`
 	// daemon, stays persistent across app quit.
 	Owner string `json:"owner,omitempty"`
 	// AppRunID identifies the desktop launch that supplied the private browser

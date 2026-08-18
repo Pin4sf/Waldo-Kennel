@@ -55,12 +55,12 @@ func TestGetLaunchCommandIsScriptedTimeline(t *testing.T) {
 	// Events must appear in timeline order:
 	// active -> waiting_input -> active -> pr-push -> blocked -> done(exited).
 	wantOrder := []string{
-		"ao hooks fake session-start",
-		"ao hooks fake agent-needs-input",
-		"ao hooks fake user-prompt-submit",
-		"ao hooks fake pr-push",
-		"ao hooks fake permission-request",
-		"ao hooks fake session-end",
+		"kennel hooks fake session-start",
+		"kennel hooks fake agent-needs-input",
+		"kennel hooks fake user-prompt-submit",
+		"kennel hooks fake pr-push",
+		"kennel hooks fake permission-request",
+		"kennel hooks fake session-end",
 	}
 	last := 0
 	for _, want := range wantOrder {
@@ -117,7 +117,7 @@ func TestGetLaunchCommandDefaultsToBaseCadence(t *testing.T) {
 }
 
 func TestPhaseSleepIgnoresBadSpeedup(t *testing.T) {
-	// phaseSleep reads AO_FAKE_SPEEDUP straight from the process environment;
+	// phaseSleep reads KENNEL_FAKE_SPEEDUP straight from the process environment;
 	// t.Setenv restores it automatically after each test, so nothing leaks into
 	// other tests under -count/-shuffle (the isolation bug the #2692 re-review
 	// flagged, when a package-level getenv seam was left stubbed).
@@ -171,7 +171,7 @@ func TestAuthStatusIsAuthorizedWhenGateSet(t *testing.T) {
 }
 
 // TestAuthStatusIsUnauthorizedByDefault pins the production-safety default: on
-// a user machine (no AO_FAKE_HARNESS) the fake must NOT be surfaceable as an
+// a user machine (no KENNEL_FAKE_HARNESS) the fake must NOT be surfaceable as an
 // authorized agent, so it never drifts into the default-selectable catalog.
 func TestAuthStatusIsUnauthorizedByDefault(t *testing.T) {
 	t.Setenv(HarnessEnv, "")
@@ -278,14 +278,14 @@ func TestFullLifecycleSpawnToTermination(t *testing.T) {
 	// near-instant, never the ~12s it takes unspeeded.
 	t.Setenv(SpeedupEnv, "2000")
 
-	// Stub `ao` on PATH: the script calls `ao hooks fake <event>`; this shim
+	// Stub `ao` on PATH: the script calls `kennel hooks fake <event>`; this shim
 	// records <event> ($3) to a log so the test can read the ordered events the
 	// hooks actually fired. Its own stdout/stderr are redirected to /dev/null by
 	// the script, so it must persist through a file.
 	dir := t.TempDir()
 	hookLog := filepath.Join(dir, "events.log")
-	shim := "#!/bin/sh\nprintf '%s\\n' \"$3\" >> \"$AO_HOOK_LOG\"\n"
-	if err := os.WriteFile(filepath.Join(dir, "ao"), []byte(shim), 0o755); err != nil { //nolint:gosec // test shim must be executable
+	shim := "#!/bin/sh\nprintf '%s\\n' \"$3\" >> \"$KENNEL_HOOK_LOG\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "kennel"), []byte(shim), 0o755); err != nil { //nolint:gosec // test shim must be executable
 		t.Fatal(err)
 	}
 
@@ -299,8 +299,8 @@ func TestFullLifecycleSpawnToTermination(t *testing.T) {
 	run := exec.Command(cmd[0], cmd[1:]...) //nolint:gosec // argv is the harness's own launch command
 	run.Env = append(os.Environ(),
 		"PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"),
-		"AO_HOOK_LOG="+hookLog,
-		"AO_SESSION_ID=fake-1",
+		"KENNEL_HOOK_LOG="+hookLog,
+		"KENNEL_SESSION_ID=fake-1",
 	)
 	start := time.Now()
 	if out, err := run.CombinedOutput(); err != nil {

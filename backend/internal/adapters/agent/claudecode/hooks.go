@@ -11,7 +11,7 @@ import (
 const (
 	claudeSettingsDirName   = ".claude"
 	claudeSettingsFileName  = "settings.local.json"
-	claudeHookCommandPrefix = "ao hooks claude-code "
+	claudeHookCommandPrefix = "kennel hooks claude-code "
 	claudeHookTimeout       = 30
 )
 
@@ -32,7 +32,7 @@ var claudeStartupMatcher = "startup"
 // approved tool finishes — the daemon-side precedence rule is what makes these
 // signals safe against parallel-subagent traffic (the naive mapping without it
 // was reverted in PR #5's review). PermissionRequest fires when a permission
-// dialog appears and carries the blocking tool_name; `ao hooks` writes nothing
+// dialog appears and carries the blocking tool_name; `kennel hooks` writes nothing
 // to stdout, so installing it never injects a permission decision.
 var claudeManagedHooks = []hooksjson.HookSpec{
 	{Event: "SessionStart", Matcher: &claudeStartupMatcher, Command: claudeHookCommandPrefix + "session-start"},

@@ -39,11 +39,11 @@ export function normalizeServerHost(host: string): string {
 }
 
 // Non-secret host/port/TLS config lives in AsyncStorage (plaintext app sandbox).
-const KEY = "ao.serverConfig";
+const KEY = "kennel.serverConfig";
 // The connection password is the Bearer secret for REST and /mux — it authorizes
 // terminal input, spawn/kill, PR actions, etc. It must NEVER touch AsyncStorage;
 // it lives only in the device keystore (iOS Keychain / Android Keystore).
-const PW_KEY = "ao.serverPassword";
+const PW_KEY = "kennel.serverPassword";
 
 export async function loadConfig(): Promise<ServerConfig> {
 	try {

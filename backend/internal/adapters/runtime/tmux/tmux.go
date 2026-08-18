@@ -1122,7 +1122,7 @@ func buildLaunchCommand(cfg ports.RuntimeConfig) string {
 		parts[i] = shellQuote(a)
 	}
 	b.WriteString(strings.Join(parts, " "))
-	if cfg.Env["AO_SUPERVISED_PROCESS"] == "1" {
+	if cfg.Env["KENNEL_SUPERVISED_PROCESS"] == "1" {
 		// cat consumes and discards any input that arrived while the supervised
 		// child was exiting. Runtime Restart/Destroy replaces or kills the pane.
 		b.WriteString(`; exec cat >/dev/null`)

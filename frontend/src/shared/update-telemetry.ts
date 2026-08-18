@@ -36,7 +36,7 @@ export type UpdatePhase = "check" | "download";
 export type UpdateTrigger = "automatic" | "manual";
 
 export type UpdateOutcome = {
-	event: "ao.renderer.update_failed" | "ao.renderer.update_downloaded" | "ao.renderer.update_unsupported";
+	event: "kennel.renderer.update_failed" | "kennel.renderer.update_downloaded" | "kennel.renderer.update_unsupported";
 	phase: UpdatePhase;
 	trigger: UpdateTrigger;
 	error_category?: UpdateFailureCategory;
@@ -84,7 +84,7 @@ export function updateFailureOutcome(
 	toVersion: string | undefined,
 ): UpdateOutcome {
 	return {
-		event: "ao.renderer.update_failed",
+		event: "kennel.renderer.update_failed",
 		phase,
 		trigger,
 		error_category: updateFailureCategory(message),

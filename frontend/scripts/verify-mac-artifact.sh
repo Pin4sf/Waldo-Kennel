@@ -19,7 +19,7 @@
 #      materializes them as stray "._*" files inside the bundle, which breaks
 #      the seal and makes codesign report a corrupt artifact that is in fact
 #      fine. backend/internal/cli/start.go already encodes this rule in Go for
-#      the `ao start` bootstrapper; this makes it reusable standalone.
+#      the `kennel start` bootstrapper; this makes it reusable standalone.
 #
 #   2. `spctl -a -t exec` needs `-vv`. Without it an ACCEPTED artifact prints
 #      nothing at all and merely exits 0, so any grep for "Notarized Developer

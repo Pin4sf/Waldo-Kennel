@@ -601,7 +601,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 				// and its error text inspectable while disposing the failed socket;
 				// an explicit session restore can create a fresh attachment later.
 				teardownMux();
-				void captureRendererEvent("ao.renderer.terminal_attach_failed", { reason: "pane_error" });
+				void captureRendererEvent("kennel.renderer.terminal_attach_failed", { reason: "pane_error" });
 				invalidateWorkspaces();
 			}),
 			mux.onConnectionChange((connectionState) => {
@@ -699,7 +699,7 @@ export function useTerminalSession(session: WorkspaceSession | undefined, option
 			// Only the first timeout of a reattach sequence is reported; the
 			// backoff loop retrying against a restarting daemon is not news.
 			if (r.attempts === 0) {
-				void captureRendererEvent("ao.renderer.terminal_attach_failed", { reason: "open_timeout" });
+				void captureRendererEvent("kennel.renderer.terminal_attach_failed", { reason: "open_timeout" });
 			}
 			transition("reattaching");
 			teardownMux();

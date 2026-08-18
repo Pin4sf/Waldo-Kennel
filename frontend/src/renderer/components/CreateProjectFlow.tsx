@@ -1,5 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { ProjectModePickerView } from "@aoagents/product-ui";
+import { ProjectModePickerView } from "@pin4sf/kennel-product-ui";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, ChevronRight, Folder, FolderPlus, X, XCircle } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";

@@ -85,11 +85,11 @@ describe("decideRelocation", () => {
 describe("installedBundlePath", () => {
 	it("maps any running bundle to the same name under /Applications", () => {
 		expect(
-			installedBundlePath("/Users/x/Downloads/Agent Orchestrator.app"),
-		).toBe("/Applications/Agent Orchestrator.app");
+			installedBundlePath("/Users/x/Downloads/Kennel.app"),
+		).toBe("/Applications/Kennel.app");
 		expect(
-			installedBundlePath("/Volumes/Agent Orchestrator/Agent Orchestrator.app"),
-		).toBe("/Applications/Agent Orchestrator.app");
+			installedBundlePath("/Volumes/Kennel/Kennel.app"),
+		).toBe("/Applications/Kennel.app");
 	});
 });
 
@@ -99,7 +99,7 @@ describe("readBundleVersion", () => {
 
 	beforeEach(async () => {
 		dir = await mkdtemp(path.join(os.tmpdir(), "ao-relocation-"));
-		bundle = path.join(dir, "Agent Orchestrator.app");
+		bundle = path.join(dir, "Kennel.app");
 		await mkdir(path.join(bundle, "Contents"), { recursive: true });
 	});
 
@@ -118,7 +118,7 @@ describe("readBundleVersion", () => {
 <plist version="1.0">
   <dict>
     <key>CFBundleDisplayName</key>
-    <string>Agent Orchestrator</string>
+    <string>Kennel</string>
     <key>CFBundleShortVersionString</key>
     <string>0.11.2-nightly.202608050602</string>
     <key>CFBundleVersion</key>

@@ -182,7 +182,7 @@ describe("scanImportFolder", () => {
 
 	it("reports folders inside AO-managed worktrees before offering setup", async () => {
 		const home = await tempDir();
-		const selected = path.join(home, ".ao", "data", "worktrees", "project", "session");
+		const selected = path.join(home, ".kennel", "data", "worktrees", "project", "session");
 		await mkdir(selected, { recursive: true });
 
 		const scan = await scanImportFolder(selected, "project", { homeDir: home });
@@ -192,7 +192,7 @@ describe("scanImportFolder", () => {
 				path: selected,
 				relativePath: ".",
 				status: "error",
-				reason: "Selected folder is inside AO's internal data directory. Select a project folder outside ~/.ao.",
+				reason: "Selected folder is inside AO's internal data directory. Select a project folder outside ~/.kennel.",
 			}),
 		]);
 	});

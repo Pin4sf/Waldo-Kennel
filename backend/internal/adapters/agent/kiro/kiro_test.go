@@ -43,7 +43,7 @@ func TestGetLaunchCommandBuildsInteractiveArgv(t *testing.T) {
 
 	want := []string{
 		"kiro-cli", "chat",
-		"--agent", "ao",
+		"--agent", "kennel",
 		"--trust-all-tools",
 	}
 	if !reflect.DeepEqual(cmd, want) {
@@ -64,7 +64,7 @@ func TestGetLaunchCommandOrchestratorUsesInteractiveAgent(t *testing.T) {
 
 	want := []string{
 		"kiro-cli", "chat",
-		"--agent", "ao",
+		"--agent", "kennel",
 	}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
@@ -81,7 +81,7 @@ func TestGetLaunchCommandPromptlessWorkerStaysInteractive(t *testing.T) {
 
 	want := []string{
 		"kiro-cli", "chat",
-		"--agent", "ao",
+		"--agent", "kennel",
 	}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
@@ -102,7 +102,7 @@ func TestGetLaunchCommandPromptedWorkerKeepsPromptOutOfArgv(t *testing.T) {
 
 	want := []string{
 		"kiro-cli", "chat",
-		"--agent", "ao",
+		"--agent", "kennel",
 	}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
@@ -122,7 +122,7 @@ func TestGetLaunchCommandPromptedOrchestratorCarriesPrompt(t *testing.T) {
 
 	want := []string{
 		"kiro-cli", "chat",
-		"--agent", "ao",
+		"--agent", "kennel",
 		"--", "do the explicit task",
 	}
 	if !reflect.DeepEqual(cmd, want) {
@@ -147,7 +147,7 @@ func TestGetLaunchCommandSelectsPreparedCustomAgentForSystemPrompt(t *testing.T)
 
 	want := []string{
 		"kiro-cli", "chat",
-		"--agent", "ao",
+		"--agent", "kennel",
 		"--trust-all-tools",
 	}
 	if !reflect.DeepEqual(cmd, want) {
@@ -184,7 +184,7 @@ func TestGetLaunchCommandDoesNotRewritePreparedAgentConfig(t *testing.T) {
 
 	want := []string{
 		"kiro-cli", "chat",
-		"--agent", "ao",
+		"--agent", "kennel",
 	}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
@@ -584,7 +584,7 @@ func TestGetAgentHooksOverwritesStaleConfiguredModel(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(hooksPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	existing := `{"name":"ao","model":"stale-model","tools":["custom"]}`
+	existing := `{"name":"kennel","model":"stale-model","tools":["custom"]}`
 	if err := os.WriteFile(hooksPath, []byte(existing), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -633,7 +633,7 @@ func TestGetAgentHooksClearsStaleModelWhenConfigRemoved(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(hooksPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	existing := `{"name":"ao","model":"stale-model","tools":["custom"]}`
+	existing := `{"name":"kennel","model":"stale-model","tools":["custom"]}`
 	if err := os.WriteFile(hooksPath, []byte(existing), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -747,7 +747,7 @@ func TestGetRestoreCommandReadsAgentSessionID(t *testing.T) {
 	}
 	want := []string{
 		"kiro-cli", "chat",
-		"--agent", "ao",
+		"--agent", "kennel",
 		"--resume-id", "uuid-123",
 		"--trust-all-tools",
 	}
@@ -786,7 +786,7 @@ func TestGetRestoreCommandReappliesSystemPromptAgent(t *testing.T) {
 	}
 	want := []string{
 		"kiro-cli", "chat",
-		"--agent", "ao",
+		"--agent", "kennel",
 		"--resume-id", "uuid-123",
 	}
 	if !reflect.DeepEqual(cmd, want) {
@@ -830,7 +830,7 @@ func TestGetRestoreCommandOrchestratorUsesInteractiveAgent(t *testing.T) {
 	}
 	want := []string{
 		"kiro-cli", "chat",
-		"--agent", "ao",
+		"--agent", "kennel",
 		"--resume-id", "uuid-123",
 	}
 	if !reflect.DeepEqual(cmd, want) {

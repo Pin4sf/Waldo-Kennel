@@ -1,7 +1,8 @@
 {
-  "name": "@aoagents/cloud-client",
+  "name": "@pin4sf/kennel-cloud-client",
   "version": "0.1.0",
-  "description": "Runtime-neutral TypeScript contracts and client for the public AO Cloud API",
+  "private": true,
+  "description": "Retained runtime-neutral TypeScript contracts for the inherited cloud API surface",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -32,8 +33,10 @@
     "typescript": "~5.9.2",
     "vitest": "^4.1.10"
   },
-  "publishConfig": {
-    "access": "public"
-  },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Pin4sf/Waldo-Kennel.git",
+    "directory": "packages/cloud-client"
+  }
 }

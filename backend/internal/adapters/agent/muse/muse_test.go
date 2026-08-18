@@ -337,8 +337,8 @@ func TestManagedHookCommandsRestoreSanitizedAORoute(t *testing.T) {
 		t.Fatal(err)
 	}
 	command := file.Hooks["UserPromptSubmit"][0].Hooks[0].Command
-	want := "env AO_SESSION_ID='sess-1' AO_DATA_DIR=" + museShellQuote(dataDir) +
-		" AO_RUN_FILE=" + museShellQuote(runFile) + " ao hooks muse user-prompt-submit"
+	want := "env KENNEL_SESSION_ID='sess-1' KENNEL_DATA_DIR=" + museShellQuote(dataDir) +
+		" KENNEL_RUN_FILE=" + museShellQuote(runFile) + " kennel hooks muse user-prompt-submit"
 	if command != want {
 		t.Fatalf("command = %q, want %q", command, want)
 	}

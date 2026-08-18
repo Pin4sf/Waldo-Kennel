@@ -16,8 +16,8 @@ import (
 
 const (
 	museManagedHooksEnvVar = "TBH_MANAGED_HOOKS_PATH"
-	museHookCommandPrefix  = "ao hooks muse "
-	aoRunFileEnvVar        = "AO_RUN_FILE"
+	museHookCommandPrefix  = "kennel hooks muse "
+	aoRunFileEnvVar        = "KENNEL_RUN_FILE"
 )
 
 type museHooksFile struct {
@@ -47,13 +47,13 @@ func museHookGroup(cfg ports.WorkspaceHookConfig, event string) hooksjson.Matche
 	}}}
 }
 
-// Muse sanitizes AO_* variables from hook subprocesses. Put the non-sensitive
+// Muse sanitizes KENNEL_* variables from hook subprocesses. Put the non-sensitive
 // callback route directly in AO's per-session hook command so the callback can
 // identify its AO session and, in dev mode, the exact daemon that launched it.
 func museHookCommand(cfg ports.WorkspaceHookConfig, event string) string {
 	assignments := []string{
-		"AO_SESSION_ID=" + museShellQuote(strings.TrimSpace(cfg.SessionID)),
-		"AO_DATA_DIR=" + museShellQuote(strings.TrimSpace(cfg.DataDir)),
+		"KENNEL_SESSION_ID=" + museShellQuote(strings.TrimSpace(cfg.SessionID)),
+		"KENNEL_DATA_DIR=" + museShellQuote(strings.TrimSpace(cfg.DataDir)),
 	}
 	if runFile := strings.TrimSpace(os.Getenv(aoRunFileEnvVar)); runFile != "" {
 		assignments = append(assignments, aoRunFileEnvVar+"="+museShellQuote(runFile))

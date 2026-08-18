@@ -144,7 +144,7 @@ type SessionView struct {
 	// session, set via POST /sessions/{sessionId}/preview. Empty (omitted) when
 	// no preview has been requested. Pulled from the json:"-" domain Metadata.
 	PreviewURL string `json:"previewUrl,omitempty"`
-	// PreviewRevision bumps on every `ao preview` call (even when previewUrl is
+	// PreviewRevision bumps on every `kennel preview` call (even when previewUrl is
 	// unchanged) so the desktop browser panel can re-navigate / refresh on a
 	// repeated preview of the same target. Pulled from the json:"-" domain
 	// Metadata.
@@ -177,7 +177,7 @@ type SpawnSessionRequest struct {
 	Prompt string             `json:"prompt,omitempty" maxLength:"4096"`
 
 	// DisplayName is the sidebar label for the session, capped at 20 characters.
-	// `ao spawn --name` always sets it; other clients (e.g. the desktop new-task
+	// `kennel spawn --name` always sets it; other clients (e.g. the desktop new-task
 	// dialog) may omit it and fall back to the session id in the read model.
 	DisplayName string `json:"displayName,omitempty" maxLength:"20"`
 	// Attachments are files pasted or dropped into the task brief. Each carries

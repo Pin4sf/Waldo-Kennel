@@ -14,25 +14,25 @@ export const MOBILE_EVENTS = {
 	// Unions with the desktop heartbeat of the same name; the `client` context
 	// property separates mobile from desktop. One "active users" metric, split by
 	// surface.
-	active: "ao.v2.app.active",
+	active: "kennel.v2.app.active",
 
 	// A brand-new credential was validated by scanning a QR or manual entry. The
-	// phone-side confirmation of the daemon's ao.mobile.device_connected.
-	paired: "ao.v2.mobile_app.paired",
+	// phone-side confirmation of the daemon's kennel.mobile.device_connected.
+	paired: "kennel.v2.mobile_app.paired",
 	// The stored config reconnected on launch (no user pairing action).
-	connected: "ao.v2.mobile_app.connected",
+	connected: "kennel.v2.mobile_app.connected",
 
-	onboardingStarted: "ao.v2.mobile_app.onboarding_started",
-	onboardingCompleted: "ao.v2.mobile_app.onboarding_completed",
-	onboardingSkipped: "ao.v2.mobile_app.onboarding_skipped",
+	onboardingStarted: "kennel.v2.mobile_app.onboarding_started",
+	onboardingCompleted: "kennel.v2.mobile_app.onboarding_completed",
+	onboardingSkipped: "kennel.v2.mobile_app.onboarding_skipped",
 
 	// A push notification opened the app. The retention signal.
-	notificationOpened: "ao.v2.mobile_app.notification_opened",
+	notificationOpened: "kennel.v2.mobile_app.notification_opened",
 
 	// A core action was taken (spawn, merge, kill, ...). Drives "most-used
 	// feature". Screen-view tracking was dropped by product decision: feature
 	// events answer the usage question without a second per-navigation stream.
-	featureUsed: "ao.v2.mobile_app.feature_used",
+	featureUsed: "kennel.v2.mobile_app.feature_used",
 
 } as const;
 

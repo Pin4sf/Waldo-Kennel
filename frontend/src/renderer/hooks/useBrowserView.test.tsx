@@ -127,7 +127,7 @@ function setupBridge() {
 			activityListeners.forEach((listener) => listener(state));
 		},
 	};
-	window.ao = { ...window.ao!, browser: bridge };
+	window.kennel = { ...window.kennel!, browser: bridge };
 	return bridge;
 }
 
@@ -685,7 +685,7 @@ describe("useBrowserView", () => {
 		rerender({ previewUrl: "http://localhost:5173/", previewRevision: 1 });
 		expect(bridge.navigate).toHaveBeenCalledTimes(1);
 
-		// Re-running `ao preview` with the SAME url bumps the revision and must
+		// Re-running `kennel preview` with the SAME url bumps the revision and must
 		// re-navigate (refresh) — the regression this issue fixes.
 		rerender({ previewUrl: "http://localhost:5173/", previewRevision: 2 });
 		await waitFor(() => expect(bridge.navigate).toHaveBeenCalledTimes(2));
@@ -742,7 +742,7 @@ describe("useBrowserView", () => {
 		expect(bridge.navigate).toHaveBeenCalledTimes(1);
 		expect(bridge.clear).not.toHaveBeenCalled();
 
-		// A genuine new `ao preview` (revision bump) still takes over.
+		// A genuine new `kennel preview` (revision bump) still takes over.
 		rerender({ sessionId: "sess-1", previewUrl: "http://localhost:5217/", previewRevision: 2 });
 		await waitFor(() => expect(bridge.navigate).toHaveBeenCalledTimes(2));
 		expect(bridge.navigate).toHaveBeenLastCalledWith({ viewId: "42:sess-1", url: "http://localhost:5217/" });
@@ -814,8 +814,8 @@ describe("useBrowserView", () => {
 	it("re-applies the preview on remount without a native browser, whose view state does not survive", async () => {
 		// In web/mock mode navState is component-local, so remounting with an
 		// already-consumed trigger must still restore the static preview.
-		const original = window.ao;
-		window.ao = undefined;
+		const original = window.kennel;
+		window.kennel = undefined;
 		try {
 			const props = {
 				sessionId: "sess-1",
@@ -832,7 +832,7 @@ describe("useBrowserView", () => {
 			await waitFor(() => expect(second.result.current.navState.url).toBe("http://localhost:5217/"));
 			second.unmount();
 		} finally {
-			window.ao = original;
+			window.kennel = original;
 		}
 	});
 
@@ -905,7 +905,7 @@ describe("useBrowserView", () => {
 		);
 		await waitFor(() => expect(bridge.navigate).toHaveBeenCalledTimes(1));
 
-		// `ao preview clear` empties previewUrl and bumps the revision.
+		// `kennel preview clear` empties previewUrl and bumps the revision.
 		rerender({ previewUrl: undefined, previewRevision: 2 });
 		await waitFor(() => expect(bridge.clear).toHaveBeenCalledWith("42:sess-1"));
 		expect(bridge.navigate).toHaveBeenCalledTimes(1);

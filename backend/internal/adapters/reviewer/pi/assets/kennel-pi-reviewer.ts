@@ -3,10 +3,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
-const workspace = mustEnv("AO_PI_REVIEW_WORKSPACE");
-const promptRoot = mustEnv("AO_PI_REVIEW_PROMPT_ROOT");
-const workerSession = mustValue("AO_PI_REVIEW_SESSION");
-const manifestPointer = mustEnv("AO_PI_REVIEW_MANIFEST_POINTER");
+const workspace = mustEnv("KENNEL_PI_REVIEW_WORKSPACE");
+const promptRoot = mustEnv("KENNEL_PI_REVIEW_PROMPT_ROOT");
+const workerSession = mustValue("KENNEL_PI_REVIEW_SESSION");
+const manifestPointer = mustEnv("KENNEL_PI_REVIEW_MANIFEST_POINTER");
 const maxOutput = 100_000;
 
 type ReviewTask = { runId: string; prUrl: string; targetSha: string };
@@ -193,7 +193,7 @@ export default function (pi: ExtensionAPI) {
 				dir = await mkdtemp(join(promptRoot, "ao-submit-"));
 				const input = join(dir, "reviews.json");
 				await writeFile(input, JSON.stringify({ reviews: params.reviews }), { mode: 0o600 });
-				return await run(pi, "ao", ["review", "submit", "--session", workerSession, "--reviews", input], signal);
+				return await run(pi, "kennel", ["review", "submit", "--session", workerSession, "--reviews", input], signal);
 			} catch (error) { return result(String(error), true); }
 			finally { if (dir) await rm(dir, { recursive: true, force: true }); }
 		},

@@ -209,7 +209,7 @@
 	"daemon.hint.binaryMissing": "npm run build:daemon을 실행하여 데몬을 다시 빌드하세요.",
 	"daemon.hint.conflict": "충돌하는 데몬을 중지한 뒤 데스크톱 앱을 다시 시작하세요.",
 	"daemon.hint.default": "npm run dev를 실행한 터미널에서 자세한 내용을 확인하세요.",
-	"daemon.hint.notConfigured": "AO_DAEMON_COMMAND를 설정하거나 소스 체크아웃에서 데스크톱 앱을 실행하세요.",
+	"daemon.hint.notConfigured": "KENNEL_DAEMON_COMMAND를 설정하거나 소스 체크아웃에서 데스크톱 앱을 실행하세요.",
 	"daemon.hint.notReady": "데몬이 아직 준비 상태 검사를 통과하지 못했습니다. 아래에서 자세한 정보를 확인하세요.",
 	"daemon.copied": "복사됨",
 	"daemon.copyDetails": "세부 정보 복사",

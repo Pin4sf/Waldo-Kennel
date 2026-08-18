@@ -38,21 +38,21 @@ func TestCLIInvokedRouteEmitsTelemetryForUserCommands(t *testing.T) {
 		}
 	}
 
-	postInvoked("spawn", "ao spawn")
+	postInvoked("spawn", "kennel spawn")
 	if len(sink.events) != 2 {
 		t.Fatalf("events = %d, want 2", len(sink.events))
 	}
-	if sink.events[0].Name != "ao.cli.invoked" {
-		t.Fatalf("event name = %q, want ao.cli.invoked", sink.events[0].Name)
+	if sink.events[0].Name != "kennel.cli.invoked" {
+		t.Fatalf("event name = %q, want kennel.cli.invoked", sink.events[0].Name)
 	}
-	if got := sink.events[0].Payload["command_path"]; got != "ao spawn" {
-		t.Fatalf("command_path = %#v, want ao spawn", got)
+	if got := sink.events[0].Payload["command_path"]; got != "kennel spawn" {
+		t.Fatalf("command_path = %#v, want kennel spawn", got)
 	}
 	if got := sink.events[0].Payload["actor_type"]; got != "user" {
 		t.Fatalf("actor_type = %#v, want user", got)
 	}
-	if sink.events[1].Name != "ao.app.active" {
-		t.Fatalf("second event name = %q, want ao.app.active", sink.events[1].Name)
+	if sink.events[1].Name != "kennel.app.active" {
+		t.Fatalf("second event name = %q, want kennel.app.active", sink.events[1].Name)
 	}
 	if got := sink.events[1].Payload["channel"]; got != "cli" {
 		t.Fatalf("channel = %#v, want cli", got)
@@ -61,22 +61,22 @@ func TestCLIInvokedRouteEmitsTelemetryForUserCommands(t *testing.T) {
 	// Repeat invocations of the same command the same day are polling noise:
 	// both the per-command invocation event and the daily activity heartbeat
 	// stay silent.
-	postInvoked("spawn", "ao spawn")
+	postInvoked("spawn", "kennel spawn")
 	if len(sink.events) != 2 {
 		t.Fatalf("events after repeat invocation = %d, want 2", len(sink.events))
 	}
 
 	// A different command the same day still reports its first invocation, but
 	// no additional heartbeat.
-	postInvoked("send", "ao send")
+	postInvoked("send", "kennel send")
 	if len(sink.events) != 3 {
 		t.Fatalf("events after new command = %d, want 3", len(sink.events))
 	}
-	if sink.events[2].Name != "ao.cli.invoked" {
-		t.Fatalf("third event name = %q, want ao.cli.invoked", sink.events[2].Name)
+	if sink.events[2].Name != "kennel.cli.invoked" {
+		t.Fatalf("third event name = %q, want kennel.cli.invoked", sink.events[2].Name)
 	}
-	if got := sink.events[2].Payload["command_path"]; got != "ao send" {
-		t.Fatalf("command_path = %#v, want ao send", got)
+	if got := sink.events[2].Payload["command_path"]; got != "kennel send" {
+		t.Fatalf("command_path = %#v, want kennel send", got)
 	}
 }
 
@@ -85,17 +85,17 @@ func TestCLIInvokedRouteDropsRoutineInternalSuccessTelemetry(t *testing.T) {
 	r := NewRouterWithControl(config.Config{DataDir: t.TempDir()}, discardLogger(), nil, APIDeps{Telemetry: sink}, ControlDeps{})
 
 	for _, body := range []string{
-		`{"command":"status","commandPath":"ao status","actorType":"user"}`,
-		`{"command":"ls","commandPath":"ao session ls","actorType":"user"}`,
-		`{"command":"get","commandPath":"ao session get","actorType":"user"}`,
-		`{"command":"ls","commandPath":"ao project ls","actorType":"user"}`,
-		`{"command":"get","commandPath":"ao project get","actorType":"user"}`,
-		`{"command":"ls","commandPath":"ao orchestrator ls","actorType":"user"}`,
-		`{"command":"hooks","commandPath":"ao hooks","actorType":"agent"}`,
-		`{"command":"hooks","commandPath":"ao  hooks","actorType":"user"}`,
-		`{"command":"hooks","commandPath":"AO HOOKS","actorType":"user"}`,
-		`{"command":"hooks","commandPath":"ao hooks claude-code post-tool-use","actorType":"user"}`,
-		`{"command":"pty-host","commandPath":"ao pty-host","actorType":"system"}`,
+		`{"command":"status","commandPath":"kennel status","actorType":"user"}`,
+		`{"command":"ls","commandPath":"kennel session ls","actorType":"user"}`,
+		`{"command":"get","commandPath":"kennel session get","actorType":"user"}`,
+		`{"command":"ls","commandPath":"kennel project ls","actorType":"user"}`,
+		`{"command":"get","commandPath":"kennel project get","actorType":"user"}`,
+		`{"command":"ls","commandPath":"kennel orchestrator ls","actorType":"user"}`,
+		`{"command":"hooks","commandPath":"kennel hooks","actorType":"agent"}`,
+		`{"command":"hooks","commandPath":"kennel  hooks","actorType":"user"}`,
+		`{"command":"hooks","commandPath":"KENNEL HOOKS","actorType":"user"}`,
+		`{"command":"hooks","commandPath":"kennel hooks claude-code post-tool-use","actorType":"user"}`,
+		`{"command":"pty-host","commandPath":"kennel pty-host","actorType":"system"}`,
 	} {
 		req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/internal/telemetry/cli-invoked", strings.NewReader(body))
 		req.Host = "127.0.0.1:3001"
@@ -116,7 +116,7 @@ func TestCLIInvokedRouteDropsUnknownLegacyCommandPaths(t *testing.T) {
 	sink := &captureSink{}
 	r := NewRouterWithControl(config.Config{DataDir: t.TempDir()}, discardLogger(), nil, APIDeps{Telemetry: sink}, ControlDeps{})
 
-	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/internal/telemetry/cli-invoked", strings.NewReader(`{"command":"surprise","commandPath":"ao surprise"}`))
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/internal/telemetry/cli-invoked", strings.NewReader(`{"command":"surprise","commandPath":"kennel surprise"}`))
 	req.Host = "127.0.0.1:3001"
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -145,16 +145,16 @@ func TestCLIInvokedRouteSeparatesAgentAndSystemInvocationsFromActiveUsers(t *tes
 		}
 	}
 
-	// Older CLIs do not send actorType, so the daemon infers ao hooks as a
+	// Older CLIs do not send actorType, so the daemon infers kennel hooks as a
 	// routine internal agent path and drops successful invocation telemetry.
-	postInvoked(`{"command":"hooks","commandPath":"ao hooks"}`)
+	postInvoked(`{"command":"hooks","commandPath":"kennel hooks"}`)
 	if len(sink.events) != 0 {
 		t.Fatalf("events after hooks = %d, want 0", len(sink.events))
 	}
 
-	// Newer CLIs mark any command run inside an AO-managed agent session as
+	// Newer CLIs mark any command run inside an KENNEL-managed agent session as
 	// agent-context, even if it is not the hooks subcommand.
-	postInvoked(`{"command":"send","commandPath":"ao send","actorType":"agent"}`)
+	postInvoked(`{"command":"send","commandPath":"kennel send","actorType":"agent"}`)
 	if len(sink.events) != 1 {
 		t.Fatalf("events after agent send = %d, want 1", len(sink.events))
 	}
@@ -164,7 +164,7 @@ func TestCLIInvokedRouteSeparatesAgentAndSystemInvocationsFromActiveUsers(t *tes
 
 	// Internal runtime hosts are system background processes and should not
 	// emit CLI usage or active-user telemetry at all.
-	postInvoked(`{"command":"pty-host","commandPath":"ao pty-host"}`)
+	postInvoked(`{"command":"pty-host","commandPath":"kennel pty-host"}`)
 	if len(sink.events) != 1 {
 		t.Fatalf("events after pty-host = %d, want 1", len(sink.events))
 	}
@@ -186,21 +186,21 @@ func TestCLIInvokedRouteDedupeIncludesActorType(t *testing.T) {
 		}
 	}
 
-	postInvoked(`{"command":"send","commandPath":"ao send","actorType":"agent"}`)
-	postInvoked(`{"command":"send","commandPath":"ao send","actorType":"agent"}`)
+	postInvoked(`{"command":"send","commandPath":"kennel send","actorType":"agent"}`)
+	postInvoked(`{"command":"send","commandPath":"kennel send","actorType":"agent"}`)
 	if len(sink.events) != 1 {
 		t.Fatalf("events after repeated agent command = %d, want 1", len(sink.events))
 	}
 
-	postInvoked(`{"command":"send","commandPath":"ao send","actorType":"user"}`)
+	postInvoked(`{"command":"send","commandPath":"kennel send","actorType":"user"}`)
 	if len(sink.events) != 3 {
 		t.Fatalf("events after same user command = %d, want 3", len(sink.events))
 	}
-	if sink.events[1].Name != "ao.cli.invoked" || sink.events[1].Payload["actor_type"] != "user" {
-		t.Fatalf("second emitted event = %#v, want user ao.cli.invoked", sink.events[1])
+	if sink.events[1].Name != "kennel.cli.invoked" || sink.events[1].Payload["actor_type"] != "user" {
+		t.Fatalf("second emitted event = %#v, want user kennel.cli.invoked", sink.events[1])
 	}
-	if sink.events[2].Name != "ao.app.active" {
-		t.Fatalf("third emitted event = %#v, want ao.app.active", sink.events[2])
+	if sink.events[2].Name != "kennel.app.active" {
+		t.Fatalf("third emitted event = %#v, want kennel.app.active", sink.events[2])
 	}
 }
 
@@ -208,7 +208,7 @@ func TestCLIInvokedRouteRequiresLoopback(t *testing.T) {
 	sink := &captureSink{}
 	r := NewRouterWithControl(config.Config{DataDir: t.TempDir()}, discardLogger(), nil, APIDeps{Telemetry: sink}, ControlDeps{})
 
-	req := httptest.NewRequest(http.MethodPost, "http://evil.example/internal/telemetry/cli-invoked", strings.NewReader(`{"command":"status","commandPath":"ao status"}`))
+	req := httptest.NewRequest(http.MethodPost, "http://evil.example/internal/telemetry/cli-invoked", strings.NewReader(`{"command":"status","commandPath":"kennel status"}`))
 	req.Host = "evil.example"
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -226,15 +226,15 @@ func TestCLIUsageErrorRouteEmitsTelemetry(t *testing.T) {
 	r := chi.NewRouter()
 	mountTelemetry(r, config.Config{DataDir: t.TempDir()}, sink)
 
-	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/internal/telemetry/cli-usage-error", strings.NewReader(`{"command":"status","commandPath":"ao status","error":"too many args"}`))
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/internal/telemetry/cli-usage-error", strings.NewReader(`{"command":"status","commandPath":"kennel status","error":"too many args"}`))
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202", rec.Code)
 	}
-	if len(sink.events) != 1 || sink.events[0].Name != "ao.cli.usage_errors" {
-		t.Fatalf("events = %#v, want one ao.cli.usage_errors event", sink.events)
+	if len(sink.events) != 1 || sink.events[0].Name != "kennel.cli.usage_errors" {
+		t.Fatalf("events = %#v, want one kennel.cli.usage_errors event", sink.events)
 	}
 	payload := sink.events[0].Payload
 	if got := payload["component"]; got != "cli" {
@@ -243,8 +243,8 @@ func TestCLIUsageErrorRouteEmitsTelemetry(t *testing.T) {
 	if got := payload["operation"]; got != "command_parse" {
 		t.Fatalf("payload.operation = %#v, want command_parse", got)
 	}
-	if got := payload["command_path"]; got != "ao status" {
-		t.Fatalf("payload.command_path = %#v, want ao status", got)
+	if got := payload["command_path"]; got != "kennel status" {
+		t.Fatalf("payload.command_path = %#v, want kennel status", got)
 	}
 	if got := payload["error_kind"]; got != "usage" {
 		t.Fatalf("payload.error_kind = %#v, want usage", got)
@@ -291,7 +291,7 @@ func TestCLIUsageErrorRouteHashesInvalidCommandsBeforeRemoteExport(t *testing.T)
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"http://127.0.0.1/internal/telemetry/cli-usage-error",
-		strings.NewReader(`{"command":"`+rawCommand+`","commandPath":"ao `+rawCommand+`","error":"too many args"}`),
+		strings.NewReader(`{"command":"`+rawCommand+`","commandPath":"kennel `+rawCommand+`","error":"too many args"}`),
 	)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -341,23 +341,23 @@ func TestCLIInvokedRoutePersistsDailyReservationsAcrossRouterRestart(t *testing.
 	}
 
 	r1 := NewRouterWithControl(cfg, discardLogger(), nil, APIDeps{Telemetry: sink}, ControlDeps{})
-	postInvoked(r1, "spawn", "ao spawn")
+	postInvoked(r1, "spawn", "kennel spawn")
 	if len(sink.events) != 2 {
 		t.Fatalf("events after first invocation = %d, want 2", len(sink.events))
 	}
 
 	r2 := NewRouterWithControl(cfg, discardLogger(), nil, APIDeps{Telemetry: sink}, ControlDeps{})
-	postInvoked(r2, "spawn", "ao spawn")
+	postInvoked(r2, "spawn", "kennel spawn")
 	if len(sink.events) != 2 {
 		t.Fatalf("events after router restart repeat = %d, want 2", len(sink.events))
 	}
 
-	postInvoked(r2, "send", "ao send")
+	postInvoked(r2, "send", "kennel send")
 	if len(sink.events) != 3 {
 		t.Fatalf("events after router restart new command = %d, want 3", len(sink.events))
 	}
-	if sink.events[2].Name != "ao.cli.invoked" {
-		t.Fatalf("third event name = %q, want ao.cli.invoked", sink.events[2].Name)
+	if sink.events[2].Name != "kennel.cli.invoked" {
+		t.Fatalf("third event name = %q, want kennel.cli.invoked", sink.events[2].Name)
 	}
 }
 
@@ -379,17 +379,17 @@ func TestRecoverTelemetryEmitsPanicEvent(t *testing.T) {
 	var panicPayload, fiveXXPayload map[string]any
 	for _, ev := range sink.events {
 		switch ev.Name {
-		case "ao.daemon.panic":
+		case "kennel.daemon.panic":
 			panicPayload = ev.Payload
-		case "ao.http.5xx":
+		case "kennel.http.5xx":
 			fiveXXPayload = ev.Payload
 		}
 	}
 	if panicPayload == nil {
-		t.Fatalf("events = %#v, want ao.daemon.panic", sink.events)
+		t.Fatalf("events = %#v, want kennel.daemon.panic", sink.events)
 	}
 	if fiveXXPayload == nil {
-		t.Fatalf("events = %#v, want ao.http.5xx after recovery", sink.events)
+		t.Fatalf("events = %#v, want kennel.http.5xx after recovery", sink.events)
 	}
 	if got := panicPayload["component"]; got != "httpd" {
 		t.Fatalf("panic payload.component = %#v, want httpd", got)

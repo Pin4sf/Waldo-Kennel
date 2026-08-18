@@ -13,7 +13,7 @@
 // instructions through Kimi's documented project instruction file
 // (.kimi-code/AGENTS.md) in the per-session worktree. AO also installs Kimi
 // lifecycle hooks into Kimi's config so native session metadata and activity can
-// flow back through `ao hooks`.
+// flow back through `kennel hooks`.
 package kimi
 
 import (
@@ -56,7 +56,7 @@ func kimiCodeHomeDir(dataDir string) string {
 }
 
 // AugmentRuntimeEnv points Kimi at AO's isolated Kimi home so session hooks and
-// other managed state stay under AO_DATA_DIR instead of the user's profile.
+// other managed state stay under KENNEL_DATA_DIR instead of the user's profile.
 func (p *Plugin) AugmentRuntimeEnv(env map[string]string, dataDir string) {
 	if strings.TrimSpace(dataDir) == "" {
 		return

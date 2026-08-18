@@ -190,7 +190,7 @@ func (c *commandContext) runDoctor(ctx context.Context) []doctorCheck {
 // startup and surfaced through /readyz, so doctor only confirms whether the
 // database file exists yet.
 func checkStore(dataDir string) doctorCheck {
-	dbPath := filepath.Join(dataDir, "ao.db")
+	dbPath := filepath.Join(dataDir, "kennel.db")
 	info, err := os.Stat(dbPath)
 	switch {
 	case err == nil:
@@ -201,7 +201,7 @@ func checkStore(dataDir string) doctorCheck {
 	case errors.Is(err, fs.ErrNotExist):
 		return doctorCheck{
 			Level: doctorWarn, Section: doctorSectionCore, Name: "sqlite",
-			Message: "database not created yet; run `ao start` to initialize and migrate it",
+			Message: "database not created yet; run `kennel start` to initialize and migrate it",
 		}
 	default:
 		return doctorCheck{Level: doctorFail, Section: doctorSectionCore, Name: "sqlite", Message: err.Error()}
@@ -230,7 +230,7 @@ func checkDataDirWritable(dataDir string) doctorCheck {
 }
 
 // checkAOBinary verifies the `ao` that workspace hooks would invoke. Agent
-// adapters install hook commands as a bare `ao hooks <agent> <event>`, so an
+// adapters install hook commands as a bare `kennel hooks <agent> <event>`, so an
 // `ao` earlier on PATH that is not this binary (e.g. a legacy CLI without the
 // hooks command) fails every callback and silently kills activity tracking.
 // The daemon pins PATH inside the sessions it spawns, so a mismatch here is a
@@ -242,19 +242,19 @@ func (c *commandContext) checkAOBinary() doctorCheck {
 	if err != nil {
 		return doctorCheck{Level: doctorWarn, Section: doctorSectionTools, Name: name, Message: fmt.Sprintf("could not resolve the running executable: %v", err)}
 	}
-	onPath, err := c.deps.LookPath("ao")
+	onPath, err := c.deps.LookPath("kennel")
 	if err != nil || onPath == "" {
 		return doctorCheck{
 			Level: doctorWarn, Section: doctorSectionTools, Name: name,
-			Message: "ao not found in PATH; workspace hooks invoke `ao hooks <agent> <event>` (daemon-spawned sessions pin PATH to the daemon binary and are unaffected)",
+			Message: "kennel not found in PATH; workspace hooks invoke `kennel hooks <agent> <event>` (daemon-spawned sessions pin PATH to the daemon binary and are unaffected)",
 		}
 	}
 	if sameBinary(self, onPath) {
-		return doctorCheck{Level: doctorPass, Section: doctorSectionTools, Name: name, Message: fmt.Sprintf("ao in PATH is this binary (%s)", onPath)}
+		return doctorCheck{Level: doctorPass, Section: doctorSectionTools, Name: name, Message: fmt.Sprintf("kennel in PATH is this binary (%s)", onPath)}
 	}
 	return doctorCheck{
 		Level: doctorWarn, Section: doctorSectionTools, Name: name,
-		Message: fmt.Sprintf("ao in PATH is %s, not this binary (%s); workspace hooks run `ao hooks` and a foreign ao breaks activity tracking outside daemon-spawned sessions", onPath, self),
+		Message: fmt.Sprintf("kennel in PATH is %s, not this binary (%s); workspace hooks run `kennel hooks` and a foreign ao breaks activity tracking outside daemon-spawned sessions", onPath, self),
 	}
 }
 
@@ -327,9 +327,9 @@ func (c *commandContext) checkTmux(ctx context.Context) doctorCheck {
 	return doctorCheck{Level: doctorPass, Section: doctorSectionTools, Name: "tmux", Message: fmt.Sprintf("%s (%s)", path, version)}
 }
 
-// checkHooksLog surfaces recent agent hook delivery failures. `ao hooks`
+// checkHooksLog surfaces recent agent hook delivery failures. `kennel hooks`
 // callbacks deliberately swallow errors (a hook must never break the user's
-// agent), so $AO_DATA_DIR/hooks.log is the only place a dead activity feed
+// agent), so $KENNEL_DATA_DIR/hooks.log is the only place a dead activity feed
 // becomes visible. Lines start with an RFC3339 timestamp (see appendHooksLog).
 func checkHooksLog(dataDir string, now time.Time) doctorCheck {
 	const name = "hooks-log"
@@ -486,14 +486,14 @@ func (c *commandContext) checkGitHubToken(ctx context.Context) doctorCheck {
 }
 
 func (c *commandContext) githubToken(ctx context.Context) (token, source string, err error) {
-	for _, name := range []string{"AO_GITHUB_TOKEN", "GITHUB_TOKEN"} {
+	for _, name := range []string{"KENNEL_GITHUB_TOKEN", "GITHUB_TOKEN"} {
 		if v := strings.TrimSpace(os.Getenv(name)); v != "" {
 			return v, name, nil
 		}
 	}
 	path, lookErr := c.deps.LookPath("gh")
 	if lookErr != nil || path == "" {
-		return "", "", errors.New("no GitHub token found (set AO_GITHUB_TOKEN/GITHUB_TOKEN or run `gh auth login`)")
+		return "", "", errors.New("no GitHub token found (set KENNEL_GITHUB_TOKEN/GITHUB_TOKEN or run `gh auth login`)")
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
@@ -553,14 +553,14 @@ func (c *commandContext) checkGitLabToken(ctx context.Context) doctorCheck {
 }
 
 func (c *commandContext) gitlabToken(ctx context.Context) (token, source string, err error) {
-	for _, name := range []string{"AO_GITLAB_TOKEN", "GITLAB_TOKEN"} {
+	for _, name := range []string{"KENNEL_GITLAB_TOKEN", "GITLAB_TOKEN"} {
 		if v := strings.TrimSpace(os.Getenv(name)); v != "" {
 			return v, name, nil
 		}
 	}
 	path, lookErr := c.deps.LookPath("glab")
 	if lookErr != nil || path == "" {
-		return "", "", errors.New("no GitLab token found (set AO_GITLAB_TOKEN/GITLAB_TOKEN or run `glab auth login`)")
+		return "", "", errors.New("no GitLab token found (set KENNEL_GITLAB_TOKEN/GITLAB_TOKEN or run `glab auth login`)")
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()

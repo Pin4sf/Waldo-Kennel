@@ -65,8 +65,8 @@ describe("Report a problem telemetry", () => {
 
 	it("reports the open once, with no properties", async () => {
 		await renderOpen();
-		expect(events("ao.renderer.support_opened")).toHaveLength(1);
-		expect(events("ao.renderer.support_opened")[0][1]).toBeUndefined();
+		expect(events("kennel.renderer.support_opened")).toHaveLength(1);
+		expect(events("kennel.renderer.support_opened")[0][1]).toBeUndefined();
 	});
 
 	it("reports nothing while closed", async () => {
@@ -78,8 +78,8 @@ describe("Report a problem telemetry", () => {
 		await renderOpen();
 		await fillAndSubmit();
 
-		await waitFor(() => expect(events("ao.renderer.support_submitted")).toHaveLength(1));
-		expect(events("ao.renderer.support_submitted")[0][1]).toEqual({
+		await waitFor(() => expect(events("kennel.renderer.support_submitted")).toHaveLength(1));
+		expect(events("kennel.renderer.support_submitted")[0][1]).toEqual({
 			destination: "github",
 			outcome: "succeeded",
 		});
@@ -99,8 +99,8 @@ describe("Report a problem telemetry", () => {
 		await renderOpen();
 		await fillAndSubmit();
 
-		await waitFor(() => expect(events("ao.renderer.support_submitted")).toHaveLength(1));
-		expect(events("ao.renderer.support_submitted")[0][1]).toEqual({
+		await waitFor(() => expect(events("kennel.renderer.support_submitted")).toHaveLength(1));
+		expect(events("kennel.renderer.support_submitted")[0][1]).toEqual({
 			destination: "github",
 			outcome: "failed",
 		});
@@ -113,7 +113,7 @@ describe("Report a problem telemetry", () => {
 		fireEvent.click(screen.getByRole("radio", { name: /discord/i }));
 		await fillAndSubmit();
 
-		await waitFor(() => expect(events("ao.renderer.support_submitted")).toHaveLength(1));
-		expect(events("ao.renderer.support_submitted")[0][1]).toMatchObject({ destination: "discord" });
+		await waitFor(() => expect(events("kennel.renderer.support_submitted")).toHaveLength(1));
+		expect(events("kennel.renderer.support_submitted")[0][1]).toMatchObject({ destination: "discord" });
 	});
 });

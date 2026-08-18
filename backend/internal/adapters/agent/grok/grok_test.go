@@ -71,13 +71,13 @@ func TestGetLaunchCommand(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "grok"}
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Prompt:       "do the thing",
-		SystemPrompt: "ao standing instructions",
+		SystemPrompt: "kennel standing instructions",
 		Permissions:  ports.PermissionModeBypassPermissions,
 	})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	wantPrefix := []string{"grok", "--no-auto-update", "--permission-mode", "bypassPermissions", "--rules", "ao standing instructions"}
+	wantPrefix := []string{"grok", "--no-auto-update", "--permission-mode", "bypassPermissions", "--rules", "kennel standing instructions"}
 	if !reflect.DeepEqual(cmd, wantPrefix) {
 		t.Fatalf("cmd = %#v, want prefix %#v", cmd, wantPrefix)
 	}
@@ -215,7 +215,7 @@ func TestGetRestoreCommand(t *testing.T) {
 				ports.MetadataKeyAgentSessionID: "sess-abc123",
 			},
 		},
-		SystemPrompt: "ao restore instructions",
+		SystemPrompt: "kennel restore instructions",
 		Permissions:  ports.PermissionModeBypassPermissions,
 	})
 	if err != nil {
@@ -224,7 +224,7 @@ func TestGetRestoreCommand(t *testing.T) {
 	if !ok {
 		t.Fatal("ok=false, want true")
 	}
-	want := []string{"grok", "--no-auto-update", "--permission-mode", "bypassPermissions", "--rules", "ao restore instructions", "-r", "sess-abc123"}
+	want := []string{"grok", "--no-auto-update", "--permission-mode", "bypassPermissions", "--rules", "kennel restore instructions", "-r", "sess-abc123"}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("cmd = %#v, want %#v", cmd, want)
 	}
@@ -274,7 +274,7 @@ func TestGetRestoreCommandNoID(t *testing.T) {
 	}{
 		{"empty metadata", ports.SessionRef{Metadata: map[string]string{}}},
 		{"blank agent session metadata", ports.SessionRef{Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "   "}}},
-		{"ao session id only", ports.SessionRef{ID: "ao-7"}},
+		{"kennel session id only", ports.SessionRef{ID: "ao-7"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -345,7 +345,7 @@ func TestGetAgentHooksInstallsGrokCommandsInClaudeSettings(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	existing := `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"my own stop hook","timeout":5},{"type":"command","command":"ao hooks claude-code stop","timeout":30}]}]},"permissions":{"defaultMode":"plan"}}`
+	existing := `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"my own stop hook","timeout":5},{"type":"command","command":"kennel hooks claude-code stop","timeout":30}]}]},"permissions":{"defaultMode":"plan"}}`
 	if err := os.WriteFile(settingsPath, []byte(existing), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -382,7 +382,7 @@ func TestGetAgentHooksInstallsGrokCommandsInClaudeSettings(t *testing.T) {
 		if got := countGrokHookCommand(config.Hooks[spec.Event], spec.Command); got != 1 {
 			t.Fatalf("%s command %q count = %d, want 1", spec.Event, spec.Command, got)
 		}
-		claudeCommand := strings.Replace(spec.Command, "ao hooks grok ", "ao hooks claude-code ", 1)
+		claudeCommand := strings.Replace(spec.Command, "kennel hooks grok ", "kennel hooks claude-code ", 1)
 		if spec.Event != "Stop" && countGrokHookCommand(config.Hooks[spec.Event], claudeCommand) != 0 {
 			t.Fatalf("%s unexpectedly installed Claude command %q", spec.Event, claudeCommand)
 		}
@@ -390,19 +390,19 @@ func TestGetAgentHooksInstallsGrokCommandsInClaudeSettings(t *testing.T) {
 	if countGrokHookCommand(config.Hooks["Stop"], "my own stop hook") != 1 {
 		t.Fatalf("existing Stop hook not preserved: %#v", config.Hooks["Stop"])
 	}
-	if countGrokHookCommand(config.Hooks["Stop"], "ao hooks claude-code stop") != 1 {
+	if countGrokHookCommand(config.Hooks["Stop"], "kennel hooks claude-code stop") != 1 {
 		t.Fatalf("existing Claude AO Stop hook not preserved: %#v", config.Hooks["Stop"])
 	}
 	if len(config.Permissions) == 0 {
 		t.Fatalf("unrelated settings clobbered: %s", data)
 	}
-	if m := grokMatcherForCommand(config.Hooks["SessionStart"], "ao hooks grok session-start"); m == nil || *m != "startup" {
+	if m := grokMatcherForCommand(config.Hooks["SessionStart"], "kennel hooks grok session-start"); m == nil || *m != "startup" {
 		t.Fatalf("SessionStart matcher = %v, want startup", m)
 	}
-	if m := grokMatcherForCommand(config.Hooks["UserPromptSubmit"], "ao hooks grok user-prompt-submit"); m != nil {
+	if m := grokMatcherForCommand(config.Hooks["UserPromptSubmit"], "kennel hooks grok user-prompt-submit"); m != nil {
 		t.Fatalf("UserPromptSubmit matcher = %v, want none", m)
 	}
-	if m := grokMatcherForCommand(config.Hooks["Notification"], "ao hooks grok notification"); m != nil {
+	if m := grokMatcherForCommand(config.Hooks["Notification"], "kennel hooks grok notification"); m != nil {
 		t.Fatalf("Notification matcher = %v, want none", m)
 	}
 
@@ -432,7 +432,7 @@ func TestGetAgentHooksInstallsGrokCommandsInClaudeSettings(t *testing.T) {
 	if countGrokHookCommand(config.Hooks["Stop"], "my own stop hook") != 1 {
 		t.Fatalf("user Stop hook not preserved after uninstall: %#v", config.Hooks["Stop"])
 	}
-	if countGrokHookCommand(config.Hooks["Stop"], "ao hooks claude-code stop") != 1 {
+	if countGrokHookCommand(config.Hooks["Stop"], "kennel hooks claude-code stop") != 1 {
 		t.Fatalf("Claude AO Stop hook not preserved after uninstall: %#v", config.Hooks["Stop"])
 	}
 	if len(config.Permissions) == 0 {

@@ -1,11 +1,11 @@
-# ao spawn
+# kennel spawn
 
-Spawn a worker agent session in a registered project. The session runs the chosen agent in a fresh git worktree. Register the project first with `ao project add`.
+Spawn a worker agent session in a registered project. The session runs the chosen agent in a fresh git worktree. Register the project first with `kennel project add`.
 
 ## Syntax
 
 ```
-ao spawn [flags]
+kennel spawn [flags]
 ```
 
 ## Flags
@@ -29,10 +29,10 @@ Available harnesses: `claude-code`, `codex`, `aider`, `opencode`, `grok`, `droid
 
 ```bash
 # Spawn a worker for issue 142 in the agent-orchestrator project
-ao spawn --project agent-orchestrator --issue 142 --name "fix-session-leak" --prompt "Fix the session leak described in issue 142. Branch off upstream/main."
+kennel spawn --project agent-orchestrator --issue 142 --name "fix-session-leak" --prompt "Fix the session leak described in issue 142. Branch off upstream/main."
 ```
 
 ```bash
 # Spawn a worker and immediately claim an open PR
-ao spawn --project agent-orchestrator --name "review-pr-88" --claim-pr 88 --harness claude-code
+kennel spawn --project agent-orchestrator --name "review-pr-88" --claim-pr 88 --harness claude-code
 ```

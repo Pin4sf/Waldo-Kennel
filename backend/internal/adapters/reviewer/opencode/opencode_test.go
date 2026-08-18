@@ -71,7 +71,7 @@ func TestReviewCommandUsesReadOnlyPermissionPolicy(t *testing.T) {
 		t.Fatalf("permission policy = %#v", permission)
 	}
 	bash := permission["bash"].(map[string]any)
-	if bash["*"] != "deny" || bash["gh api *"] != "allow" || bash["ao review submit *"] != "allow" {
+	if bash["*"] != "deny" || bash["gh api *"] != "allow" || bash["kennel review submit *"] != "allow" {
 		t.Fatalf("bash policy = %#v", bash)
 	}
 }
@@ -240,7 +240,7 @@ func TestBashAllowlistCoversPromptRequiredCommands(t *testing.T) {
 		},
 		{
 			name:    "local review submit",
-			command: `printf '%s' '{ "reviews": [] }' | ao review submit --session sess-1 --reviews -`,
+			command: `printf '%s' '{ "reviews": [] }' | kennel review submit --session sess-1 --reviews -`,
 			allowed: true,
 		},
 		{

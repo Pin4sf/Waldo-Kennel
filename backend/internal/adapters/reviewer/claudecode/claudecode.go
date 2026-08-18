@@ -43,7 +43,7 @@ var _ ports.ReviewerRestorer = (*Reviewer)(nil)
 // prompting, so the reviewer can read the checkout and run the few commands it
 // needs (git diff/log/show to inspect the PR, printf to pipe review JSON into
 // the downstream commands without writing a worktree file, gh to post the
-// review, and `ao review submit` to record the verdict) without stalling.
+// review, and `kennel review submit` to record the verdict) without stalling.
 var reviewerAllowedTools = []string{
 	"Read",
 	"Grep",
@@ -54,7 +54,7 @@ var reviewerAllowedTools = []string{
 	"Bash(git log:*)",
 	"Bash(git show:*)",
 	"Bash(git status:*)",
-	"Bash(ao review submit:*)",
+	"Bash(kennel review submit:*)",
 }
 
 // reviewerDisallowedTools hard-denies the write paths as defense in depth, so a

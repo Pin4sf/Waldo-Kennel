@@ -209,7 +209,7 @@
 	"daemon.hint.binaryMissing": "请运行 npm run build:daemon 重新构建守护进程。",
 	"daemon.hint.conflict": "请先停止冲突的守护进程，然后重启桌面应用。",
 	"daemon.hint.default": "请查看运行 npm run dev 的终端以获取详细信息。",
-	"daemon.hint.notConfigured": "请设置 AO_DAEMON_COMMAND，或从源码检出目录运行桌面应用。",
+	"daemon.hint.notConfigured": "请设置 KENNEL_DAEMON_COMMAND，或从源码检出目录运行桌面应用。",
 	"daemon.hint.notReady": "守护进程尚未通过就绪检查。请展开下方详情了解更多信息。",
 	"daemon.copied": "已复制",
 	"daemon.copyDetails": "复制详情",

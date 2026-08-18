@@ -14,7 +14,7 @@
 // Restore uses `kiro-cli chat --resume-id <UUID>` with the native session id
 // captured from a Kiro hook payload.
 //
-// AO-managed sessions derive native session identity and display metadata from
+// Kennel-managed sessions derive native session identity and display metadata from
 // Kiro's native hooks (see hooks.go) rather than transcript scans.
 package kiro
 
@@ -89,7 +89,7 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 // input submission gap. Kiro runs interactively for both workers and
 // orchestrators; standing instructions come from the generated custom agent.
 // AO standing instructions are installed during workspace preparation through
-// the AO-managed workspace-local agent config, then selected here with --agent.
+// the Kennel-managed workspace-local agent config, then selected here with --agent.
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
 	binary, err := p.kiroBinary(ctx)
 	if err != nil {

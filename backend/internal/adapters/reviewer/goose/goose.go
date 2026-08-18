@@ -180,8 +180,8 @@ func (*Reviewer) ReviewCancel(context.Context) (ports.ReviewCancelSpec, error) {
 
 func hostGooseEnvironment(profile reviewgateway.Environment) map[string]string {
 	env := map[string]string{
-		"AO_DATA_DIR": profile.DataDir,
-		"TMPDIR":      profile.TempRoot,
+		"KENNEL_DATA_DIR": profile.DataDir,
+		"TMPDIR":          profile.TempRoot,
 	}
 	if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
 		env["HOME"] = home

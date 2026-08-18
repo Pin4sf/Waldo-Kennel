@@ -167,7 +167,7 @@ describe("CenterPane toolbar session label", () => {
 	const makeShells = (count: number) =>
 		Array.from({ length: count }, (_, i) => ({
 			handleId: `h-${i}`,
-			title: `agent-orchestrator-${i}`,
+			title: `kennel-${i}`,
 			workingDir: "/tmp/ws",
 			createdAt: "2026-07-22T00:00:00Z",
 		}));
@@ -873,12 +873,12 @@ describe("CenterPane toolbar session label", () => {
 			Array.from(screen.getByRole("tablist", { name: "Open terminals" }).querySelectorAll('[role="tab"]')).map(
 				(tab) => tab.textContent,
 			);
-		expect(tabLabels()).toEqual(["do the thing", "Reviewer", "agent-orchestrator-0", "agent-orchestrator-1"]);
+		expect(tabLabels()).toEqual(["do the thing", "Reviewer", "kennel-0", "kennel-1"]);
 		expect(reorderMocks.onReorder).toBeTypeOf("function");
 
 		act(() => reorderMocks.onReorder?.(["h-0", "reviewer:review-sess-1", "h-1"]));
 
-		expect(tabLabels()).toEqual(["do the thing", "agent-orchestrator-0", "Reviewer", "agent-orchestrator-1"]);
+		expect(tabLabels()).toEqual(["do the thing", "kennel-0", "Reviewer", "kennel-1"]);
 	});
 
 	it("drops a session's remembered terminal order after navigating away", () => {
@@ -890,7 +890,7 @@ describe("CenterPane toolbar session label", () => {
 			);
 
 		act(() => reorderMocks.onReorder?.(["h-1", "h-0"]));
-		expect(tabLabels()).toEqual(["do the thing", "agent-orchestrator-1", "agent-orchestrator-0"]);
+		expect(tabLabels()).toEqual(["do the thing", "kennel-1", "kennel-0"]);
 
 		view.rerender(
 			<TooltipProvider>
@@ -903,7 +903,7 @@ describe("CenterPane toolbar session label", () => {
 			</TooltipProvider>,
 		);
 
-		expect(tabLabels()).toEqual(["do the thing", "agent-orchestrator-0", "agent-orchestrator-1"]);
+		expect(tabLabels()).toEqual(["do the thing", "kennel-0", "kennel-1"]);
 	});
 
 	it("scrolls the tab strip horizontally with the mouse wheel", () => {
@@ -989,7 +989,7 @@ describe("CenterPane toolbar session label", () => {
 
 		const sessionTab = screen.getByRole("tab", { name: /^do the thing/ });
 		const firstShellTab = screen.getByRole("tab", {
-			name: "agent-orchestrator-0",
+			name: "kennel-0",
 		});
 		expect(sessionTab.getAttribute("tabindex")).toBe("0");
 		expect(firstShellTab.getAttribute("tabindex")).toBe("-1");

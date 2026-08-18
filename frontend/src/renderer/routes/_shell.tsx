@@ -267,7 +267,7 @@ function ShellLayout() {
 				operation: "project_add",
 				surface: "project_board",
 			});
-			void captureRendererEvent("ao.renderer.project_add_requested");
+			void captureRendererEvent("kennel.renderer.project_add_requested");
 			const status = await refreshDaemonStatus();
 			if (status.state !== "ready" || !status.port) {
 				throw new Error(status.message || "AO daemon is not ready.");
@@ -301,11 +301,11 @@ function ShellLayout() {
 				orchestratorAgent: input.orchestratorAgent as WorkspaceSummary["orchestratorAgent"],
 				sessions: [],
 			};
-			void captureRendererEvent("ao.renderer.project_add_succeeded", { project_id: workspace.id });
+			void captureRendererEvent("kennel.renderer.project_add_succeeded", { project_id: workspace.id });
 			updateWorkspaces((current) => [workspace, ...current.filter((item) => item.id !== workspace.id)]);
 			setOrchestratorStartupError(workspace.id, null);
 			try {
-				void captureRendererEvent("ao.renderer.orchestrator_spawn_requested", {
+				void captureRendererEvent("kennel.renderer.orchestrator_spawn_requested", {
 					project_id: workspace.id,
 					source: "project_add",
 				});
@@ -332,14 +332,14 @@ function ShellLayout() {
 						: `Failed to spawn orchestrator (${spawnResponse.status})`;
 					throw new Error(message);
 				}
-				void captureRendererEvent("ao.renderer.orchestrator_spawn_succeeded", {
+				void captureRendererEvent("kennel.renderer.orchestrator_spawn_succeeded", {
 					project_id: workspace.id,
 					source: "project_add",
 				});
 				await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
 				void navigate({ to: "/projects/$projectId", params: { projectId: workspace.id } });
 			} catch (spawnError) {
-				void captureRendererEvent("ao.renderer.orchestrator_spawn_failed", {
+				void captureRendererEvent("kennel.renderer.orchestrator_spawn_failed", {
 					project_id: workspace.id,
 					source: "project_add",
 				});
@@ -387,7 +387,7 @@ function ShellLayout() {
 				});
 				throw failure;
 			}
-			void captureRendererEvent("ao.renderer.project_removed", { project_id: projectId });
+			void captureRendererEvent("kennel.renderer.project_removed", { project_id: projectId });
 			updateWorkspaces((current) => current.filter((item) => item.id !== projectId));
 			if (isLastWorkspace) {
               void navigate({ to: "/" });

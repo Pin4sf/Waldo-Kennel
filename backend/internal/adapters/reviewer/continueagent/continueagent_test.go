@@ -142,7 +142,7 @@ func TestContainedEnvironmentReplacesHostDiscoveryState(t *testing.T) {
 			t.Errorf("env[%s] = %q, want %q", key, launch.Command.Env[key], value)
 		}
 	}
-	for _, forbidden := range []string{"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "AO_DATA_DIR", "AO_RUN_FILE", "GITHUB_TOKEN", "GH_TOKEN"} {
+	for _, forbidden := range []string{"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "KENNEL_DATA_DIR", "KENNEL_RUN_FILE", "GITHUB_TOKEN", "GH_TOKEN"} {
 		if _, ok := launch.Command.Env[forbidden]; ok {
 			t.Errorf("replacement env leaks %s", forbidden)
 		}

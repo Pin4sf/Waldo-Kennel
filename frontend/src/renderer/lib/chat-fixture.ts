@@ -171,7 +171,7 @@ export const chatFixture: ConversationSnapshot = {
 			detail: {
 				command: "git status --short",
 				rawCommand: "/bin/zsh -lc 'git status --short'",
-				cwd: "/Users/dhruv/.ao/data/worktrees/agent-orchestrator-1/ao-14",
+				cwd: "/Users/dhruv/.kennel/data/worktrees/kennel-1/ao-14",
 				output: " M backend/internal/session_manager/manager.go\n M backend/internal/ports/chat.go\n",
 				outputMayBePartial: true,
 				outputSource: "aggregate",
@@ -264,7 +264,7 @@ export const chatFixture: ConversationSnapshot = {
 				"```\n\n" +
 				"One line you will want to wrap rather than scroll:\n\n" +
 				"```sh\n" +
-				"AO_DATA_DIR=~/.ao go test ./internal/... -run 'TestConversation|TestSpawn' -count=1 -race -timeout 300s -coverprofile=/tmp/ao-cover.out && go tool cover -func=/tmp/ao-cover.out | tail -1\n" +
+				"KENNEL_DATA_DIR=~/.kennel go test ./internal/... -run 'TestConversation|TestSpawn' -count=1 -race -timeout 300s -coverprofile=/tmp/ao-cover.out && go tool cover -func=/tmp/ao-cover.out | tail -1\n" +
 				"```\n\n" +
 				"A fence with no language is still a block, not inline code:\n\n" +
 				"```\n" +
@@ -307,7 +307,7 @@ export const chatFixture: ConversationSnapshot = {
 			revision: 0,
 			role: "user",
 			origin: "automation",
-			senderLabel: "CI · agent-orchestrator #3431",
+			senderLabel: "CI · kennel #3431",
 			text: "Checks failed on the base branch: lint (golangci-lint) exited 1.",
 			streaming: false,
 			delivery: "accepted",
@@ -325,7 +325,7 @@ export const chatFixture: ConversationSnapshot = {
 			detail: {
 				command: "go test ./internal/...",
 				rawCommand: "/bin/sh -c 'go test ./internal/...'",
-				cwd: "/Users/dhruv/.ao/data/worktrees/agent-orchestrator-1/ao-14",
+				cwd: "/Users/dhruv/.kennel/data/worktrees/kennel-1/ao-14",
 				// A command still running, already printing. Before output deltas were
 				// accumulated there was nothing to show here until it finished, because
 				// the provider's aggregate does not exist until completion.
@@ -365,7 +365,7 @@ export const chatFixture: ConversationSnapshot = {
 			detail: {
 				server: "github",
 				toolName: "search_issues",
-				arguments: { repo: "aoagents/agent-orchestrator", state: "open", labels: ["chat-mode"] },
+				arguments: { repo: "aoagents/kennel", state: "open", labels: ["chat-mode"] },
 				result: {
 					total: 2,
 					issues: [
@@ -385,7 +385,7 @@ export const chatFixture: ConversationSnapshot = {
 			revision: 0,
 			activityKind: "approval",
 			status: "pending",
-			summary: "Run ao spawn --project agent-orchestrator-1 --name http-layer",
+			summary: "Run ao spawn --project kennel-1 --name http-layer",
 			requestId: "0",
 			// Exactly what the provider offered in the captured session: no decline,
 			// and one object-shaped decision carrying a policy amendment.
@@ -395,10 +395,10 @@ export const chatFixture: ConversationSnapshot = {
 				{ id: "cancel", label: "Cancel" },
 			],
 			detail: {
-				command: "ao spawn --project agent-orchestrator-1 --name http-layer --prompt '…'",
+				command: "kennel spawn --project kennel-1 --name http-layer --prompt '…'",
 				rawCommand:
-					"/bin/zsh -lc \"ao spawn --project agent-orchestrator-1 --name http-layer --prompt '…'\"",
-				cwd: "/Users/dhruv/.ao/data/worktrees/agent-orchestrator-1/ao-14",
+					"/bin/zsh -lc \"kennel spawn --project kennel-1 --name http-layer --prompt '…'\"",
+				cwd: "/Users/dhruv/.kennel/data/worktrees/kennel-1/ao-14",
 				reason: "Delegate the conversation HTTP layer to a new worker",
 			},
 			createdAt: t(39, 18),
@@ -452,7 +452,7 @@ export const chatFixture: ConversationSnapshot = {
 				actionType: "command",
 				status: "approved",
 				command: "curl -s https://proxy.golang.org/github.com/aoagents/ao/@v/list",
-				cwd: "/Users/dhruv/.ao/data/worktrees/agent-orchestrator-1/ao-14",
+				cwd: "/Users/dhruv/.kennel/data/worktrees/kennel-1/ao-14",
 				riskLevel: "low",
 				rationale:
 					"Read-only request to the Go module proxy. It fetches a version list, writes nothing, and the host is on the allow list.",

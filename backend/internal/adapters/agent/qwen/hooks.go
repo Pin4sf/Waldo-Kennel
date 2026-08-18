@@ -14,7 +14,7 @@ const (
 
 	// qwenHookCommandPrefix identifies the hook commands AO owns, so install
 	// skips duplicates and uninstall recognizes AO entries by prefix.
-	qwenHookCommandPrefix = "ao hooks qwen "
+	qwenHookCommandPrefix = "kennel hooks qwen "
 
 	// qwenHookTimeout is in milliseconds: Qwen Code (a gemini-cli fork) measures
 	// hook timeouts in ms, unlike Claude/Codex which use seconds.

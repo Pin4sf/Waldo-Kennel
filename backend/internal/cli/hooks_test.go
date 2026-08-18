@@ -56,7 +56,7 @@ func capturedState(t *testing.T, capture *activityCapture) string {
 }
 
 func TestHooks_ReportsUsageTranscriptMetadata(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true,"sessionId":"ao-7","state":""}`)
 	writeRunFileFor(t, cfg, srv)
@@ -105,9 +105,9 @@ func capturedAgentSessionID(t *testing.T, capture *activityCapture) string {
 }
 
 func TestHooks_ReviewerRoutesToReviewActivity(t *testing.T) {
-	t.Setenv("AO_REVIEW_SESSION_ID", "review-7")
-	t.Setenv("AO_REVIEW_WORKER_SESSION_ID", "worker-7")
-	t.Setenv("AO_REVIEW_HARNESS", "codex")
+	t.Setenv("KENNEL_REVIEW_SESSION_ID", "review-7")
+	t.Setenv("KENNEL_REVIEW_WORKER_SESSION_ID", "worker-7")
+	t.Setenv("KENNEL_REVIEW_HARNESS", "codex")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true,"reviewSessionId":"review-7"}`)
 	writeRunFileFor(t, cfg, srv)
@@ -128,9 +128,9 @@ func TestHooks_ReviewerRoutesToReviewActivity(t *testing.T) {
 }
 
 func TestHooks_ReviewerActivityOmitsToolCorrelationFields(t *testing.T) {
-	t.Setenv("AO_REVIEW_SESSION_ID", "review-7")
-	t.Setenv("AO_REVIEW_WORKER_SESSION_ID", "worker-7")
-	t.Setenv("AO_REVIEW_HARNESS", "claude-code")
+	t.Setenv("KENNEL_REVIEW_SESSION_ID", "review-7")
+	t.Setenv("KENNEL_REVIEW_WORKER_SESSION_ID", "worker-7")
+	t.Setenv("KENNEL_REVIEW_HARNESS", "claude-code")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true,"reviewSessionId":"review-7"}`)
 	writeRunFileFor(t, cfg, srv)
@@ -158,9 +158,9 @@ func TestHooks_ReviewerActivityOmitsToolCorrelationFields(t *testing.T) {
 }
 
 func TestHooks_ReviewerRoutingTakesPrecedenceOverWorkerSession(t *testing.T) {
-	t.Setenv("AO_REVIEW_SESSION_ID", "review-7")
-	t.Setenv("AO_REVIEW_WORKER_SESSION_ID", "worker-context-only")
-	t.Setenv("AO_SESSION_ID", "worker-7")
+	t.Setenv("KENNEL_REVIEW_SESSION_ID", "review-7")
+	t.Setenv("KENNEL_REVIEW_WORKER_SESSION_ID", "worker-context-only")
+	t.Setenv("KENNEL_SESSION_ID", "worker-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -178,8 +178,8 @@ func TestHooks_ReviewerRoutingTakesPrecedenceOverWorkerSession(t *testing.T) {
 }
 
 func TestHooks_ReviewWorkerSessionIDDoesNotRouteWithoutReviewSessionID(t *testing.T) {
-	t.Setenv("AO_REVIEW_WORKER_SESSION_ID", "worker-context-only")
-	t.Setenv("AO_SESSION_ID", "")
+	t.Setenv("KENNEL_REVIEW_WORKER_SESSION_ID", "worker-context-only")
+	t.Setenv("KENNEL_SESSION_ID", "")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -197,7 +197,7 @@ func TestHooks_ReviewWorkerSessionIDDoesNotRouteWithoutReviewSessionID(t *testin
 }
 
 func TestHooks_NotificationReportsBlocked(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true,"sessionId":"ao-7","state":"blocked"}`)
 	writeRunFileFor(t, cfg, srv)
@@ -218,7 +218,7 @@ func TestHooks_NotificationReportsBlocked(t *testing.T) {
 }
 
 func TestHooks_IdlePromptReportsIdle(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true,"sessionId":"ao-7","state":"idle"}`)
 	writeRunFileFor(t, cfg, srv)
@@ -236,7 +236,7 @@ func TestHooks_IdlePromptReportsIdle(t *testing.T) {
 }
 
 func TestHooks_SessionEndReportsExited(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -254,8 +254,8 @@ func TestHooks_SessionEndReportsExited(t *testing.T) {
 }
 
 func TestHooks_ThreadsRuntimeLaunchID(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
-	t.Setenv("AO_RUNTIME_LAUNCH_ID", "launch-3")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_RUNTIME_LAUNCH_ID", "launch-3")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -277,7 +277,7 @@ func TestHooks_ThreadsRuntimeLaunchID(t *testing.T) {
 }
 
 func TestHooks_StopReportsIdle(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -295,8 +295,8 @@ func TestHooks_StopReportsIdle(t *testing.T) {
 }
 
 func TestHooks_StopReportsConversationFacts(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
-	t.Setenv("AO_RUNTIME_LAUNCH_ID", "launch-3")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_RUNTIME_LAUNCH_ID", "launch-3")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -322,7 +322,7 @@ func TestHooks_StopReportsConversationFacts(t *testing.T) {
 }
 
 func TestHooks_NonSwitchingHarnessDoesNotReportConversationFacts(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -395,7 +395,7 @@ func mustJSONString(t *testing.T, value string) string {
 }
 
 func TestHooks_SessionStartReportsNativeSessionIDWithoutActivity(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -418,7 +418,7 @@ func TestHooks_SessionStartReportsNativeSessionIDWithoutActivity(t *testing.T) {
 }
 
 func TestHooks_ActivityAlsoReportsNativeSessionID(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -441,7 +441,7 @@ func TestHooks_ActivityAlsoReportsNativeSessionID(t *testing.T) {
 }
 
 func TestHooks_UnknownAgentCannotReportNativeSessionID(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -462,7 +462,7 @@ func TestHooks_ClaudeCodePermissionRequestReportsBlocked(t *testing.T) {
 	// claude-code installs the pre/post-tool-use trio, so a permission-request
 	// blocked state can be correlated and cleared — it is the one harness that
 	// reports blocked.
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -482,7 +482,7 @@ func TestHooks_ClaudeCodePermissionRequestReportsBlocked(t *testing.T) {
 func TestHooks_PostToolUseCarriesCorrelationFields(t *testing.T) {
 	// Tool-use signals must carry the event and the native tool identity so
 	// lifecycle can clear a stale blocked only on the approved tool's post.
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -508,7 +508,7 @@ func TestHooks_EventWithoutToolIdentityOmitsIt(t *testing.T) {
 	// Adapters whose payloads carry no tool fields (codex permission-request
 	// payload here has tool_name only) still tag the event; missing identity
 	// fields stay empty rather than inventing values.
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -531,7 +531,7 @@ func TestHooks_EventWithoutToolIdentityOmitsIt(t *testing.T) {
 }
 
 func TestHooks_OpenCodeUserPromptReportsActive(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -549,7 +549,7 @@ func TestHooks_OpenCodeUserPromptReportsActive(t *testing.T) {
 }
 
 func TestHooks_CodexSessionStartReportsAgentSessionID(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -575,7 +575,7 @@ func TestHooks_CodexSessionStartReportsAgentSessionID(t *testing.T) {
 }
 
 func TestHooks_CodexBlankSessionIDIsIgnored(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -593,7 +593,7 @@ func TestHooks_CodexBlankSessionIDIsIgnored(t *testing.T) {
 }
 
 func TestHooks_ClaudeCodeSessionStartReportsAgentSessionID(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -619,7 +619,7 @@ func TestHooks_ClaudeCodeSessionStartReportsAgentSessionID(t *testing.T) {
 }
 
 func TestHooks_ClaudeCodeBlankSessionIDIsIgnored(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -639,7 +639,7 @@ func TestHooks_ClaudeCodeBlankSessionIDIsIgnored(t *testing.T) {
 func TestHooks_ClaudeCompatibleSessionStartReportsAgentSessionID(t *testing.T) {
 	for _, agent := range []string{"grok", "muse"} {
 		t.Run(agent, func(t *testing.T) {
-			t.Setenv("AO_SESSION_ID", "ao-7")
+			t.Setenv("KENNEL_SESSION_ID", "ao-7")
 			cfg := setConfigEnv(t)
 			srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 			writeRunFileFor(t, cfg, srv)
@@ -667,7 +667,7 @@ func TestHooks_ClaudeCompatibleSessionStartReportsAgentSessionID(t *testing.T) {
 }
 
 func TestHooks_MuseUserPromptReportsActive(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -692,7 +692,7 @@ func TestHooks_MuseUserPromptReportsActive(t *testing.T) {
 func TestHooks_RegisteredHarnessSessionStartReportsAgentSessionID(t *testing.T) {
 	for _, agent := range []string{"opencode", "qwen", "kimi", "kilocode", "goose"} {
 		t.Run(agent, func(t *testing.T) {
-			t.Setenv("AO_SESSION_ID", "ao-7")
+			t.Setenv("KENNEL_SESSION_ID", "ao-7")
 			cfg := setConfigEnv(t)
 			srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 			writeRunFileFor(t, cfg, srv)
@@ -720,7 +720,7 @@ func TestHooks_RegisteredHarnessSessionStartReportsAgentSessionID(t *testing.T) 
 }
 
 func TestHooks_VibePostAgentReportsSessionIDAndIdle(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -746,7 +746,7 @@ func TestHooks_VibePostAgentReportsSessionIDAndIdle(t *testing.T) {
 }
 
 func TestHooks_AgySessionStartReportsConversationID(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	promptDir := filepath.Join(cfg.dataDir, "prompts", "ao-7")
 	if err := os.MkdirAll(promptDir, 0o750); err != nil {
@@ -782,7 +782,7 @@ func TestHooks_AgySessionStartReportsConversationID(t *testing.T) {
 }
 
 func TestHooks_CopilotSessionStartReportsSessionID(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
@@ -808,7 +808,7 @@ func TestHooks_CopilotSessionStartReportsSessionID(t *testing.T) {
 }
 
 func TestHooks_DevinSessionStartInjectsSystemPromptContext(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	promptDir := filepath.Join(cfg.dataDir, "prompts", "ao-7")
 	if err := os.MkdirAll(promptDir, 0o750); err != nil {
@@ -848,7 +848,7 @@ func TestHooks_DevinSessionStartInjectsSystemPromptContext(t *testing.T) {
 }
 
 func TestHooks_AgySessionStartInjectsSystemPromptContext(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	promptDir := filepath.Join(cfg.dataDir, "prompts", "ao-7")
 	if err := os.MkdirAll(promptDir, 0o750); err != nil {
@@ -888,7 +888,7 @@ func TestHooks_AgySessionStartInjectsSystemPromptContext(t *testing.T) {
 }
 
 func TestHooks_RejectsMalformedSessionID(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "../etc/passwd")
+	t.Setenv("KENNEL_SESSION_ID", "../etc/passwd")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{}`)
 	writeRunFileFor(t, cfg, srv)
@@ -906,7 +906,7 @@ func TestHooks_RejectsMalformedSessionID(t *testing.T) {
 }
 
 func TestHooks_NoSessionIDIsNoOp(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "")
+	t.Setenv("KENNEL_SESSION_ID", "")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{}`)
 	writeRunFileFor(t, cfg, srv)
@@ -924,7 +924,7 @@ func TestHooks_NoSessionIDIsNoOp(t *testing.T) {
 }
 
 func TestHooks_UntrackedEventIsNoOp(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{}`)
 	writeRunFileFor(t, cfg, srv)
@@ -942,7 +942,7 @@ func TestHooks_UntrackedEventIsNoOp(t *testing.T) {
 }
 
 func TestHooks_DaemonDownIsBestEffort(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	setConfigEnv(t) // no run-file written: daemon is "not running"
 
 	_, _, err := executeCLI(t, Deps{
@@ -955,7 +955,7 @@ func TestHooks_DaemonDownIsBestEffort(t *testing.T) {
 
 // TestHooks_DeliveryFailureGoesToHooksLog covers the durable failure sink:
 // agents swallow hook stderr, so a delivery failure must also land in
-// $AO_DATA_DIR/hooks.log — and a delivered hook must not write the file at all.
+// $KENNEL_DATA_DIR/hooks.log — and a delivered hook must not write the file at all.
 func TestHooks_DeliveryFailureGoesToHooksLog(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -969,7 +969,7 @@ func TestHooks_DeliveryFailureGoesToHooksLog(t *testing.T) {
 			status:  http.StatusInternalServerError,
 			body:    `{"error":"internal","code":"BOOM","message":"boom"}`,
 			wantLog: true,
-			wantIn:  []string{"ao hooks claude-code session-end", "session=ao-7"},
+			wantIn:  []string{"kennel hooks claude-code session-end", "session=ao-7"},
 		},
 		{
 			name:   "successful delivery writes nothing",
@@ -979,7 +979,7 @@ func TestHooks_DeliveryFailureGoesToHooksLog(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("AO_SESSION_ID", "ao-7")
+			t.Setenv("KENNEL_SESSION_ID", "ao-7")
 			cfg := setConfigEnv(t)
 			srv, _ := activityServer(t, tc.status, tc.body)
 			writeRunFileFor(t, cfg, srv)
@@ -1016,7 +1016,7 @@ func TestHooks_DeliveryFailureGoesToHooksLog(t *testing.T) {
 // a hooks.log already past the cap truncates it first, so a persistently
 // failing hook cannot grow the file without bound.
 func TestHooks_HooksLogTruncatesPastCap(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t) // no run file written: every delivery fails
 	logPath := filepath.Join(cfg.dataDir, "hooks.log")
 	if err := os.MkdirAll(cfg.dataDir, 0o750); err != nil {
@@ -1041,13 +1041,13 @@ func TestHooks_HooksLogTruncatesPastCap(t *testing.T) {
 	if len(data) > maxHooksLogBytes {
 		t.Fatalf("hooks.log = %d bytes, want truncated below the %d cap", len(data), maxHooksLogBytes)
 	}
-	if !strings.Contains(string(data), "ao hooks claude-code session-end") {
+	if !strings.Contains(string(data), "kennel hooks claude-code session-end") {
 		t.Errorf("truncated hooks.log missing the new failure line:\n%s", data)
 	}
 }
 
 func TestHooks_DaemonErrorIsSwallowed(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "ao-7")
+	t.Setenv("KENNEL_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, _ := activityServer(t, http.StatusInternalServerError,
 		`{"error":"internal","code":"BOOM","message":"boom"}`)
@@ -1060,7 +1060,7 @@ func TestHooks_DaemonErrorIsSwallowed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("hooks must exit 0 even on a daemon error, got: %v", err)
 	}
-	if !strings.Contains(errOut, "ao hooks") {
+	if !strings.Contains(errOut, "kennel hooks") {
 		t.Errorf("expected the failure surfaced to stderr, got %q", errOut)
 	}
 }

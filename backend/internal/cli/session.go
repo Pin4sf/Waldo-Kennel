@@ -270,12 +270,12 @@ func newSessionClaimPRCommand(ctx *commandContext) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "claim-pr [<session-id>] <pr-ref>",
 		Short: "Attach an existing PR to a session",
-		Long:  "Attach an existing PR to a session. When session-id is omitted, the current session is read from AO_SESSION_ID.",
-		Example: `  # From inside an AO worker session
-  ao session claim-pr 88
+		Long:  "Attach an existing PR to a session. When session-id is omitted, the current session is read from KENNEL_SESSION_ID.",
+		Example: `  # From inside a Kennel worker session
+  kennel session claim-pr 88
 
   # Target a session explicitly
-  ao session claim-pr mer-3 88`,
+  kennel session claim-pr mer-3 88`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if err := cobra.RangeArgs(1, 2)(cmd, args); err != nil {
 				return usageError{err}
@@ -302,9 +302,9 @@ func resolveSessionClaimPRArgs(args []string) (sessionID, ref string, err error)
 		sessionID, err = normalizeSessionID(args[0])
 		return sessionID, args[1], err
 	}
-	sessionID = strings.TrimSpace(os.Getenv("AO_SESSION_ID"))
+	sessionID = strings.TrimSpace(os.Getenv("KENNEL_SESSION_ID"))
 	if sessionID == "" {
-		return "", "", usageError{errors.New("session id is required (pass <session-id> or set AO_SESSION_ID)")}
+		return "", "", usageError{errors.New("session id is required (pass <session-id> or set KENNEL_SESSION_ID)")}
 	}
 	sessionID, err = normalizeSessionID(sessionID)
 	return sessionID, args[0], err
@@ -734,7 +734,7 @@ func writeSessionList(cmd *cobra.Command, sessions []sessionDTO, hiddenTerminate
 		}
 	}
 	if hiddenOrchestratorCount > 0 {
-		_, err := fmt.Fprintf(out, "%d orchestrator session%s hidden. Use --all or `ao orchestrator ls` to show.\n", hiddenOrchestratorCount, pluralS(hiddenOrchestratorCount))
+		_, err := fmt.Fprintf(out, "%d orchestrator session%s hidden. Use --all or `kennel orchestrator ls` to show.\n", hiddenOrchestratorCount, pluralS(hiddenOrchestratorCount))
 		return err
 	}
 	return nil

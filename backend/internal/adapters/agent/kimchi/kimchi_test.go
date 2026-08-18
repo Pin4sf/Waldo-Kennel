@@ -684,14 +684,14 @@ func TestGetAgentHooksWritesSettingsFile(t *testing.T) {
 
 	content := string(data)
 	for _, cmd := range []string{
-		"ao hooks kimchi session-start",
-		"ao hooks kimchi user-prompt-submit",
-		"ao hooks kimchi stop",
-		"ao hooks kimchi notification",
-		"ao hooks kimchi session-end",
-		"ao hooks kimchi pre-tool-use",
-		"ao hooks kimchi post-tool-use",
-		"ao hooks kimchi post-tool-use-failure",
+		"kennel hooks kimchi session-start",
+		"kennel hooks kimchi user-prompt-submit",
+		"kennel hooks kimchi stop",
+		"kennel hooks kimchi notification",
+		"kennel hooks kimchi session-end",
+		"kennel hooks kimchi pre-tool-use",
+		"kennel hooks kimchi post-tool-use",
+		"kennel hooks kimchi post-tool-use-failure",
 	} {
 		if !contains(content, cmd) {
 			t.Errorf("settings missing hook command %q", cmd)
@@ -723,7 +723,7 @@ func TestGetAgentHooksIdempotent(t *testing.T) {
 	}
 
 	content := string(data)
-	count := countOccurrences(content, "ao hooks kimchi session-start")
+	count := countOccurrences(content, "kennel hooks kimchi session-start")
 	if count != 1 {
 		t.Fatalf("session-start hook duplicated: found %d occurrences", count)
 	}
@@ -746,7 +746,7 @@ func TestUninstallHooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if contains(string(data), "ao hooks kimchi") {
+	if contains(string(data), "kennel hooks kimchi") {
 		t.Fatal("hooks not removed after uninstall")
 	}
 }

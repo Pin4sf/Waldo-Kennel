@@ -1,6 +1,11 @@
 {
-	"name": "kennel",
+	"name": "@pin4sf/waldo-kennel",
 	"private": true,
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Pin4sf/Waldo-Kennel.git"
+	},
 	"scripts": {
 		"lint": "cd backend && go test ./... && go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run --path-mode=abs",
 		"frontend:typecheck": "npm --prefix frontend run typecheck",

@@ -1169,7 +1169,7 @@ func TestSCMCredentialsAvailable(t *testing.T) {
 
 // TestSCMCredentialsAvailable_HostTokens verifies that the credentials probe
 // checks hostTokens in addition to the default token. When a user configures
-// only AO_GITLAB_HOST_TOKENS (self-managed host tokens) without a default
+// only KENNEL_GITLAB_HOST_TOKENS (self-managed host tokens) without a default
 // token, the probe must still return true so the observer is not disabled.
 func TestSCMCredentialsAvailable_HostTokens(t *testing.T) {
 	// No default token, but a valid hostToken → true.

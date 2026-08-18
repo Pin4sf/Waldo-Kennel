@@ -932,7 +932,7 @@ func TestApprovalIsStoredPendingWithProviderDecisions(t *testing.T) {
 		RequestID:      "0",
 		ActivityKind:   domain.ActivityKindCommand,
 		ActivityStatus: domain.ActivityStatusPending,
-		Summary:        "Run ao spawn",
+		Summary:        "Run kennel spawn",
 		Decisions: []ports.ChatDecisionOption{
 			{ID: "accept", Label: "Approve"},
 			{ID: "acceptWithExecpolicyAmendment", Label: "Approve and remember this command"},
@@ -2007,7 +2007,7 @@ func TestInitialPromptIsAttributedToTheUser(t *testing.T) {
 	}
 }
 
-// A relayed message is AO carrying someone else's words: `ao send`, or an
+// A relayed message is AO carrying someone else's words: `kennel send`, or an
 // orchestrator writing to a worker. It must be attributed to automation, not
 // passed off as something the user typed here — the timeline distinguishes the
 // two structurally, and a reader should never have to infer it from a prefix.

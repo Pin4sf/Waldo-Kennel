@@ -9,7 +9,7 @@ import (
 )
 
 func TestIgnoreBrokenPipeSignalSurvivesClosedStderr(t *testing.T) {
-	if os.Getenv("AO_SIGPIPE_HELPER") == "1" {
+	if os.Getenv("KENNEL_SIGPIPE_HELPER") == "1" {
 		ignoreBrokenPipeSignal()
 		_, _ = os.Stderr.WriteString("write after reader closed\n")
 		os.Exit(0)
@@ -21,7 +21,7 @@ func TestIgnoreBrokenPipeSignalSurvivesClosedStderr(t *testing.T) {
 	}
 	_ = r.Close()
 	cmd := exec.Command(os.Args[0], "-test.run=TestIgnoreBrokenPipeSignalSurvivesClosedStderr")
-	cmd.Env = append(os.Environ(), "AO_SIGPIPE_HELPER=1")
+	cmd.Env = append(os.Environ(), "KENNEL_SIGPIPE_HELPER=1")
 	cmd.Stderr = w
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start helper: %v", err)

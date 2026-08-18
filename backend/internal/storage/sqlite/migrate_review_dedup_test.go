@@ -31,7 +31,7 @@ func upTo(t *testing.T, db *sql.DB, version int64) {
 // foreign_keys pragma so review_run rows can be seeded without the full
 // project/session/review parent chain — the dedup is pure data movement.
 func TestMigration0013DedupesExistingDuplicates(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+"?_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel.db")+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestMigration0013DedupesExistingDuplicates(t *testing.T) {
 }
 
 func TestMigration0044BackfillsBatchlessReviewRuns(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+"?_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel.db")+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestMigration0044BackfillsBatchlessReviewRuns(t *testing.T) {
 }
 
 func TestMigration0080MovesReviewerSessionsIntoPerHarnessReviewRows(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+"?_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel.db")+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -219,7 +219,7 @@ ON CONFLICT (session_id, harness) DO UPDATE SET
 }
 
 func TestPrepareReviewPerHarnessMigrationRepairsApplied0080StaleReviewShape(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+"?_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel.db")+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}

@@ -45,14 +45,14 @@ func TestBuildSystemPrompt_WorkerIncludesRulesAndOrchestrator(t *testing.T) {
 	for _, want := range []string{
 		"## AO Worker Role",
 		"## Orchestrator Coordination",
-		`ao send --session mer-orchestrator --message "<your message>"`,
+		`kennel send --session mer-orchestrator --message "<your message>"`,
 		"## Pull Requests for This Session",
 		"## Docker Containers Started By This Session",
 		"## Project Rules",
 		"Always run focused tests.",
 		"Repository: https://github.com/acme/mercury",
-		"ao session claim-pr <pr-ref>",
-		"`AO_SESSION_ID` selects this session automatically",
+		"kennel session claim-pr <pr-ref>",
+		"`KENNEL_SESSION_ID` selects this session automatically",
 		"KENNEL_WORK_STATUS: working",
 		"KENNEL_WORK_STATUS: needs_you",
 		"KENNEL_WORK_STATUS: reviewing",
@@ -69,7 +69,7 @@ func TestBuildSystemPrompt_WorkerIncludesRulesAndOrchestrator(t *testing.T) {
 func TestSystemPromptGuardAllowsHighLevelRoleAndBehaviorSummary(t *testing.T) {
 	got := systemPromptGuard()
 	for _, want := range []string{
-		"say whether you are operating as an AO orchestrator or implementation worker",
+		"say whether you are operating as an Kennel orchestrator or implementation worker",
 		"orchestrators coordinate work and spawn or redirect workers",
 		"workers complete assigned tasks, issues, features",
 		"PR/MR workflow when applicable",
@@ -91,7 +91,7 @@ func TestBuildSystemPrompt_OrchestratorRequiresConfirmationAndAOOnlyDelegation(t
 		"prefer spawning or redirecting a worker unless the human explicitly confirms",
 		"Do not use the agent runtime's built-in subagent or task-delegation tools for implementation work",
 		"You may coordinate multiple workers, but AO workers only",
-		"ao session claim-pr <worker-session-id> <pr-ref>",
+		"kennel session claim-pr <worker-session-id> <pr-ref>",
 		"must pass the target worker session explicitly",
 	} {
 		if !strings.Contains(got, want) {
@@ -115,7 +115,7 @@ func TestBuildSystemPrompt_WorkerHandlesTaskSourcesAndProviderPRRules(t *testing
 		"create or update a PR/MR when the project has a configured remote/provider and the change is ready",
 		"freeform task, new-task button task, or orchestrator-requested feature",
 		"attach it to this worker first",
-		"AO resolves this session from `AO_SESSION_ID`",
+		"AO resolves this session from `KENNEL_SESSION_ID`",
 		"do not invent issue, PR, or MR requirements",
 		"Do not use the agent runtime's built-in subagent or task-delegation tools",
 		"If no orchestrator is attached, continue serially and report the need for additional AO workers to the human",

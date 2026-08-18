@@ -19,11 +19,11 @@ export type { PushRegisterResult, PushStatus } from "./pushStatus";
 // token — is what lets us unregister from the *right* daemon after an app restart
 // or a config change, so an old daemon can't keep pushing to this device (D7).
 // It lives in SecureStore because it contains the connection password.
-const REGISTRATION_KEY = "ao.pushRegistration";
+const REGISTRATION_KEY = "kennel.pushRegistration";
 // Registrations we still owe an unregister to (the daemon was unreachable when we
 // tried). Retried on the next register/foreground so a failed unregister is never
 // silently lost — otherwise an old daemon could keep pushing to this device.
-const PENDING_UNREG_KEY = "ao.pushPendingUnregister";
+const PENDING_UNREG_KEY = "kennel.pushPendingUnregister";
 // Bound the pending list so a permanently-dead daemon can't grow it forever.
 const MAX_PENDING_UNREG = 10;
 

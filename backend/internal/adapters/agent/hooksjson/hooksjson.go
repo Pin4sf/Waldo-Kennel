@@ -165,7 +165,7 @@ type Manager struct {
 	// Label prefixes error messages, e.g. "claude-code" or "goose", so the
 	// wrapped error reads "<label>.GetAgentHooks: ...".
 	Label string
-	// CommandPrefix identifies AO-owned hook commands, e.g. "ao hooks goose ".
+	// CommandPrefix identifies AO-owned hook commands, e.g. "kennel hooks goose ".
 	// Install skips commands already present and uninstall/detect match on it.
 	CommandPrefix string
 	// Timeout is written into each installed hook entry.

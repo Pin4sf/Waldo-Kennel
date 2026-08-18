@@ -289,7 +289,7 @@ func TestSessionSwitchAgentCancellationAndOverallTimeout(t *testing.T) {
 
 		_, _, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }},
 			"session", "switch-agent", "demo-1", "codex")
-		if err == nil || !strings.Contains(err.Error(), "switch-timeout") || !strings.Contains(err.Error(), "ao session agent-switch ls demo-1") {
+		if err == nil || !strings.Contains(err.Error(), "switch-timeout") || !strings.Contains(err.Error(), "kennel session agent-switch ls demo-1") {
 			t.Fatalf("overall timeout error = %v", err)
 		}
 	})
@@ -386,7 +386,7 @@ func TestSessionHandoffSubmitChoosesSessionAndEmbedsRawJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := setConfigEnv(t)
-			t.Setenv("AO_SESSION_ID", tt.environmentID)
+			t.Setenv("KENNEL_SESSION_ID", tt.environmentID)
 			handoffPath := filepath.Join(t.TempDir(), "handoff.json")
 			if err := os.WriteFile(handoffPath, tt.handoff, 0o600); err != nil {
 				t.Fatalf("write handoff fixture: %v", err)
@@ -472,7 +472,7 @@ func TestSessionHandoffSubmitValidatesInputsBeforeDaemonCall(t *testing.T) {
 		{
 			name:    "missing session",
 			args:    []string{"session", "handoff", "submit", "--switch", "switch-1", "--source-generation", "generation-1", "--file", invalidJSONPath},
-			wantErr: "pass --session or set AO_SESSION_ID",
+			wantErr: "pass --session or set KENNEL_SESSION_ID",
 		},
 		{
 			name:    "missing switch",
@@ -507,7 +507,7 @@ func TestSessionHandoffSubmitValidatesInputsBeforeDaemonCall(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("AO_SESSION_ID", tc.envID)
+			t.Setenv("KENNEL_SESSION_ID", tc.envID)
 			_, _, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, tc.args...)
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("err = %v, want containing %q", err, tc.wantErr)

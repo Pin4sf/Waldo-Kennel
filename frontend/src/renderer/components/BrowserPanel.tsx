@@ -36,7 +36,7 @@ type AnnotationStatus = "idle" | "picking" | "queued" | "sending" | "sent" | "er
 // Docked rail visibility: collapsed (0px, tab access via the toolbar trigger) is
 // the default; pinning restores an always-visible icon rail. Persisted so it's a
 // one-time choice, not a state.
-const RAIL_PINNED_STORAGE_KEY = "ao.browserTabs.railPinned";
+const RAIL_PINNED_STORAGE_KEY = "kennel.browserTabs.railPinned";
 
 export type BrowserAnnotationQueueModel = {
 	status: AnnotationStatus;
@@ -254,9 +254,9 @@ export function BrowserPanelView({
 	const [urlInput, setUrlInput] = useState(navState.url);
 	const { beginPicking, cancelPicking, enqueue, error, failPicking, queuedCount, retryQueued, status } =
 		annotationQueue;
-	const hasNativeBrowser = Boolean(window.ao?.browser);
+	const hasNativeBrowser = Boolean(window.kennel?.browser);
 	const showStaticPreview = !hasNativeBrowser && navState.url !== "";
-	const canAnnotate = Boolean(window.ao?.browser && viewId && navState.url);
+	const canAnnotate = Boolean(window.kennel?.browser && viewId && navState.url);
 	const canRetryAnnotation = status === "error" && queuedCount > 0;
 	const canOpenTab = tabs.length < MAX_BROWSER_TABS;
 	const railRef = useRef<BrowserTabsRailHandle>(null);
@@ -276,11 +276,11 @@ export function BrowserPanelView({
 	}, [navState.url]);
 
 	useEffect(() => {
-		const offSubmit = window.ao?.browser.onAnnotationSubmit((payload) => {
+		const offSubmit = window.kennel?.browser.onAnnotationSubmit((payload) => {
 			if (payload.viewId !== viewId) return;
 			enqueue(payload);
 		});
-		const offCancel = window.ao?.browser.onAnnotationCancel((payload) => {
+		const offCancel = window.kennel?.browser.onAnnotationCancel((payload) => {
 			if (payload.viewId !== viewId) return;
 			cancelPicking();
 		});

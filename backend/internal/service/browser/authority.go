@@ -45,7 +45,7 @@ func (a *Authority) Valid(sessionID domain.SessionID, token, verifier string) bo
 
 func capabilityVerifier(sessionID domain.SessionID, token string) string {
 	h := sha256.New()
-	_, _ = h.Write([]byte("ao-browser-capability-verifier-v1\x00"))
+	_, _ = h.Write([]byte("kennel-browser-capability-verifier-v1\x00"))
 	_, _ = h.Write([]byte(sessionID))
 	_, _ = h.Write([]byte{'\x00'})
 	_, _ = h.Write([]byte(token))

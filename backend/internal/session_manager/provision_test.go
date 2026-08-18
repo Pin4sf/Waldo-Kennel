@@ -29,10 +29,10 @@ func TestSpawnEnvProjectVarsCannotOverrideInternal(t *testing.T) {
 		t.Fatalf("FOO = %q, want bar", env["FOO"])
 	}
 	if env[EnvSessionID] != "mer-1" {
-		t.Fatalf("AO_SESSION_ID = %q, want mer-1 (internal wins)", env[EnvSessionID])
+		t.Fatalf("KENNEL_SESSION_ID = %q, want mer-1 (internal wins)", env[EnvSessionID])
 	}
 	if env[EnvProjectID] != "mer" {
-		t.Fatalf("AO_PROJECT_ID = %q, want mer (internal wins)", env[EnvProjectID])
+		t.Fatalf("KENNEL_PROJECT_ID = %q, want mer (internal wins)", env[EnvProjectID])
 	}
 }
 
@@ -58,7 +58,7 @@ func TestRuntimeEnvInjectsBrowserCapability(t *testing.T) {
 func TestRuntimeEnvClearsDaemonBrowserRuntimeSecrets(t *testing.T) {
 	manager := &Manager{
 		dataDir:    "/data",
-		executable: func() (string, error) { return filepath.Join("/opt", "aod", "ao"), nil },
+		executable: func() (string, error) { return filepath.Join("/opt", "kennel", "kennel"), nil },
 		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 	env := manager.runtimeEnv("mer-1", "mer", "", map[string]string{
@@ -72,7 +72,7 @@ func TestRuntimeEnvClearsDaemonBrowserRuntimeSecrets(t *testing.T) {
 
 func TestHookPATH(t *testing.T) {
 	sep := string(os.PathListSeparator)
-	daemonExe := filepath.Join("/opt", "aod", "ao")
+	daemonExe := filepath.Join("/opt", "kennel", "kennel")
 	daemonDir := filepath.Dir(daemonExe)
 	exeOK := func() (string, error) { return daemonExe, nil }
 
@@ -109,9 +109,9 @@ func TestHookPATH(t *testing.T) {
 			wantErr:    true,
 		},
 		{
-			// A daemon binary not named "ao" cannot anchor `ao` resolution by
+			// A daemon binary not named "kennel" cannot anchor `kennel` resolution by
 			// having its directory prepended, so the pin must be refused.
-			name:       "executable not named ao fails",
+			name:       "executable not named kennel fails",
 			executable: func() (string, error) { return filepath.Join("/opt", "aod", "ao-daemon"), nil },
 			daemonPATH: "/usr/bin",
 			wantErr:    true,

@@ -76,7 +76,7 @@ func (f wiringTestRoundTripper) Do(req *http.Request) (*http.Response, error) { 
 // the real aggregation -> rate-limit -> PostHog chain (the same shape
 // newTelemetrySink wires up), using the actual aggregatedEventNames list, and
 // asserts an event named exactly as httpd/router.go emits it
-// ("ao.cli.usage_errors") both gets folded into one rollup AND that the
+// ("kennel.cli.usage_errors") both gets folded into one rollup AND that the
 // rollup's count survives PostHog's remote payload allowlist onto the wire.
 // This is the test that would have caught two real bugs during review: an
 // aggregatedEventNames entry that didn't match the emitted event name
@@ -106,7 +106,7 @@ func TestTelemetryWiringAggregatesUsageErrorsAndPreservesCountOnTheWire(t *testi
 
 	for i := 0; i < 3; i++ {
 		aggregated.Emit(context.Background(), ports.TelemetryEvent{
-			Name:   "ao.cli.usage_errors",
+			Name:   "kennel.cli.usage_errors",
 			Source: "cli",
 			Level:  ports.TelemetryLevelWarn,
 			Payload: map[string]any{
@@ -122,8 +122,8 @@ func TestTelemetryWiringAggregatesUsageErrorsAndPreservesCountOnTheWire(t *testi
 
 	select {
 	case req := <-requests:
-		if got := req["event"]; got != "ao.cli.usage_errors" {
-			t.Fatalf("event = %#v, want ao.cli.usage_errors (aggregatedEventNames entry must match the real emit site)", got)
+		if got := req["event"]; got != "kennel.cli.usage_errors" {
+			t.Fatalf("event = %#v, want kennel.cli.usage_errors (aggregatedEventNames entry must match the real emit site)", got)
 		}
 		props, ok := req["properties"].(map[string]any)
 		if !ok {

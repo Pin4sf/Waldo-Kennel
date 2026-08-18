@@ -108,13 +108,13 @@ if [[ -n "${goexe}" ]]; then
   printf '%s\n' \
     '#!/usr/bin/env bash' \
     'script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' \
-    'exec "${script_dir}/ao.exe" "$@"' > "${shim_path}"
+    'exec "${script_dir}/kennel.exe" "$@"' > "${shim_path}"
   chmod +x "${shim_path}"
 fi
 
 resolved="$(resolve_ao)"
 if [[ -z "${resolved}" ]]; then
-  printf 'ao did not resolve on PATH after installing %s\n' "${install_path}" >&2
+  printf 'kennel did not resolve on PATH after installing %s\n' "${install_path}" >&2
   exit 1
 fi
 resolved_path="$(absolute_path "${resolved}")"
@@ -124,7 +124,7 @@ if [[ -n "${shim_path}" ]]; then
   shim_abs_path="$(absolute_path "${shim_path}")"
 fi
 if [[ "${resolved_path}" != "${install_abs_path}" && "${resolved_path}" != "${shim_abs_path}" ]]; then
-  printf 'ao resolves to %s, expected %s\n' "${resolved}" "${install_path}" >&2
+  printf 'kennel resolves to %s, expected %s\n' "${resolved}" "${install_path}" >&2
   exit 1
 fi
 

@@ -443,7 +443,7 @@ func TestGetAgentHooksMigratesSessionStartMatcher(t *testing.T) {
 		t.Fatal(err)
 	}
 	settingsPath := filepath.Join(settingsDir, "settings.json")
-	existing := `{"hooks":{"SessionStart":[{"matcher":"startup","hooks":[{"type":"command","command":"ao hooks qwen session-start","timeout":30000},{"type":"command","command":"custom startup hook","timeout":3}]}]}}`
+	existing := `{"hooks":{"SessionStart":[{"matcher":"startup","hooks":[{"type":"command","command":"kennel hooks qwen session-start","timeout":30000},{"type":"command","command":"custom startup hook","timeout":3}]}]}}`
 	if err := os.WriteFile(settingsPath, []byte(existing), 0o644); err != nil {
 		t.Fatal(err)
 	}

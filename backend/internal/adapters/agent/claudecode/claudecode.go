@@ -43,7 +43,7 @@ import (
 
 const (
 	// adapterID is the registry id and the value users pass to
-	// `ao spawn --agent`.
+	// `kennel spawn --agent`.
 	adapterID = "claude-code"
 )
 

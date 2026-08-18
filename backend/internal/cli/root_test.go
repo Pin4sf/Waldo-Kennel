@@ -71,7 +71,7 @@ func TestCommandsRejectUnexpectedArgs(t *testing.T) {
 }
 
 func TestVersionEmitsCLIInvocationBestEffort(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "")
+	t.Setenv("KENNEL_SESSION_ID", "")
 	cfg := setConfigEnv(t)
 	called := make(chan map[string]string, 1)
 	if err := runfile.Write(cfg.runFile, runfile.Info{PID: os.Getpid(), Port: 3001, StartedAt: time.Unix(100, 0).UTC()}); err != nil {
@@ -132,7 +132,7 @@ func TestShouldEmitCLIInvocationSkipsNonUsageAndRoutineInternalCommands(t *testi
 }
 
 func TestCLIInvocationActorType(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "")
+	t.Setenv("KENNEL_SESSION_ID", "")
 	byName := map[string]*cobra.Command{}
 	for _, cmd := range NewRootCommand(Deps{}).Commands() {
 		byName[cmd.Name()] = cmd
@@ -145,7 +145,7 @@ func TestCLIInvocationActorType(t *testing.T) {
 		t.Fatalf("status actor without session env = %q, want user", got)
 	}
 
-	t.Setenv("AO_SESSION_ID", "ao-session-1")
+	t.Setenv("KENNEL_SESSION_ID", "ao-session-1")
 	if got := cliInvocationActorType(byName["status"]); got != "agent" {
 		t.Fatalf("status actor with session env = %q, want agent", got)
 	}
@@ -153,13 +153,13 @@ func TestCLIInvocationActorType(t *testing.T) {
 
 func TestTelemetryMetaClassifiesRegisteredCommandPaths(t *testing.T) {
 	systemCommands := map[string]struct{}{
-		"ao agent-process":           {},
-		"ao agent-process supervise": {},
-		"ao completion":              {},
-		"ao daemon":                  {},
-		"ao help":                    {},
-		"ao pty-host":                {},
-		"ao start":                   {},
+		"kennel agent-process":           {},
+		"kennel agent-process supervise": {},
+		"kennel completion":              {},
+		"kennel daemon":                  {},
+		"kennel help":                    {},
+		"kennel pty-host":                {},
+		"kennel start":                   {},
 	}
 
 	var failures []string
@@ -190,10 +190,10 @@ func TestUsageErrorCommandDropsUserArgs(t *testing.T) {
 		wantCommand string
 		wantPath    string
 	}{
-		{[]string{"send", "orchestrator-pack-5", "wake", "heartbeat.reconcile"}, "send", "ao send"},
-		{[]string{"status", "extra"}, "status", "ao status"},
-		{[]string{"not-a-command", "whatever"}, "ao", "ao"},
-		{[]string{"--bad-flag"}, "ao", "ao"},
+		{[]string{"send", "orchestrator-pack-5", "wake", "heartbeat.reconcile"}, "send", "kennel send"},
+		{[]string{"status", "extra"}, "status", "kennel status"},
+		{[]string{"not-a-command", "whatever"}, "kennel", "kennel"},
+		{[]string{"--bad-flag"}, "kennel", "kennel"},
 	} {
 		command, path := usageErrorCommand(tc.args)
 		if command != tc.wantCommand || path != tc.wantPath {
@@ -420,11 +420,11 @@ func setConfigEnv(t *testing.T) testConfig {
 		runFile: filepath.Join(dir, "running.json"),
 		dataDir: filepath.Join(dir, "data"),
 	}
-	t.Setenv("AO_RUN_FILE", cfg.runFile)
-	t.Setenv("AO_DATA_DIR", cfg.dataDir)
-	t.Setenv("AO_PORT", "3001")
-	t.Setenv("AO_REQUEST_TIMEOUT", "")
-	t.Setenv("AO_SHUTDOWN_TIMEOUT", "")
+	t.Setenv("KENNEL_RUN_FILE", cfg.runFile)
+	t.Setenv("KENNEL_DATA_DIR", cfg.dataDir)
+	t.Setenv("KENNEL_PORT", "3001")
+	t.Setenv("KENNEL_REQUEST_TIMEOUT", "")
+	t.Setenv("KENNEL_SHUTDOWN_TIMEOUT", "")
 	return cfg
 }
 

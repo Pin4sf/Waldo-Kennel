@@ -6,7 +6,7 @@ import {
 	SessionsArchiveView,
 	SessionsBoardGridView,
 	archiveToggleOffsetClassName,
-} from "@aoagents/product-ui";
+} from "@pin4sf/kennel-product-ui";
 import { AlertTriangle, LayoutDashboard, Plus, RotateCw } from "lucide-react";
 import {
 	type WorkspaceSession,

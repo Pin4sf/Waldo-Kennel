@@ -308,7 +308,7 @@ describe("startAutoUpdates", () => {
     // installs go silently stale, so suppressing the UI must not lose the signal.
     expect(telemetryMessages().map((m) => m.payload)).toEqual([
       {
-        event: "ao.renderer.update_failed",
+        event: "kennel.renderer.update_failed",
         phase: "check",
         trigger: "automatic",
         error_category: "unknown",
@@ -566,7 +566,7 @@ describe("startAutoUpdates", () => {
     expect(statusMessages()).toEqual([]);
     expect(telemetryMessages().map((m) => m.payload)).toEqual([
       {
-        event: "ao.renderer.update_failed",
+        event: "kennel.renderer.update_failed",
         phase: "check",
         trigger: "automatic",
         error_category: "unknown",
@@ -621,7 +621,7 @@ describe("startAutoUpdates", () => {
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     const { module, updaterEvents } = await importAutoUpdater();
     const err = new Error(
-      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml"',
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/latest-mac.yml"',
     );
 
     await module.checkForUpdatesNow(stateDir);
@@ -638,7 +638,7 @@ describe("startAutoUpdates", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { module, autoUpdater, updaterEvents } = await importAutoUpdater();
     const err = new Error(
-      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml"',
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/latest-mac.yml"',
     );
     autoUpdater.downloadUpdate.mockImplementationOnce(() => {
       updaterEvents.get("error")?.(err);
@@ -657,7 +657,7 @@ describe("startAutoUpdates", () => {
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     const { module, autoUpdater } = await importAutoUpdater();
     const err = new Error(
-      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml"',
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/latest-mac.yml"',
     );
     autoUpdater.checkForUpdates.mockRejectedValueOnce(err);
 
@@ -674,7 +674,7 @@ describe("startAutoUpdates", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const { module, autoUpdater } = await importAutoUpdater();
     const err = new Error(
-      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml"',
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/latest-mac.yml"',
     );
     autoUpdater.downloadUpdate.mockRejectedValueOnce(err);
 
@@ -690,7 +690,7 @@ describe("startAutoUpdates", () => {
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     const { module, updaterEvents } = await importAutoUpdater();
     const err = new Error(
-      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml"',
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/latest-mac.yml"',
     );
 
     await module.checkForUpdatesNow(stateDir);
@@ -709,7 +709,7 @@ describe("startAutoUpdates", () => {
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     const { module, autoUpdater, updaterEvents } = await importAutoUpdater();
     const err = new Error(
-      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/latest-mac.yml"',
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/latest-mac.yml):\nHttpError: 404 "method: GET url: https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/latest-mac.yml"',
     );
 
     await module.checkForUpdatesNow(stateDir);
@@ -728,7 +728,7 @@ describe("startAutoUpdates", () => {
   it("still surfaces non-manifest 404 errors", async () => {
     const { module, updaterEvents } = await importAutoUpdater();
     const err = new Error(
-      'HttpError: 404 "method: GET url: https://github.com/AgentWrapper/agent-orchestrator/releases/download/v0.10.1/some-file.png"',
+      'HttpError: 404 "method: GET url: https://github.com/Pin4sf/Waldo-Kennel/releases/download/v0.10.1/some-file.png"',
     );
 
     await module.checkForUpdatesNow(stateDir);
@@ -1448,18 +1448,18 @@ function stubProcess(platform: NodeJS.Platform, execPath: string): () => void {
 // Builds a real bundle-shaped tree so the writability checks run against the
 // filesystem rather than a stub. Returns the exec path inside it.
 function makeBundle(): { root: string; bundle: string; execPath: string } {
-  const root = mkdtempSync(nodePath.join(os.tmpdir(), "ao-updater-perm-"));
+  const root = mkdtempSync(nodePath.join(os.tmpdir(), "kennel-updater-perm-"));
   const bundle = nodePath.join(root, "Kennel.app");
   mkdirSync(nodePath.join(bundle, "Contents", "MacOS"), { recursive: true });
   return {
     root,
     bundle,
-    execPath: nodePath.join(bundle, "Contents", "MacOS", "agent-orchestrator"),
+    execPath: nodePath.join(bundle, "Contents", "MacOS", "kennel"),
   };
 }
 
 const TRANSLOCATED_EXEC_PATH =
-  "/private/var/folders/hg/vkmz93d1T/T/AppTranslocation/0AC4-11EE/d/Kennel.app/Contents/MacOS/agent-orchestrator";
+  "/private/var/folders/hg/vkmz93d1T/T/AppTranslocation/0AC4-11EE/d/Kennel.app/Contents/MacOS/kennel";
 
 describe("quitAndInstallUpdate", () => {
   afterEach(() => {
@@ -1549,7 +1549,7 @@ describe("quitAndInstallUpdate", () => {
   it("fails open and installs when the derived bundle path does not exist", async () => {
     const restore = stubProcess(
       "darwin",
-      "/nonexistent-ao-test/Kennel.app/Contents/MacOS/agent-orchestrator",
+      "/nonexistent-ao-test/Kennel.app/Contents/MacOS/kennel",
     );
     try {
       const { module, autoUpdater, dialog } = await importAutoUpdater();

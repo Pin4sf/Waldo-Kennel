@@ -456,7 +456,7 @@ func writeProjectList(cmd *cobra.Command, projects []projectSummary) error {
 		if _, err := fmt.Fprintln(out, "No projects registered."); err != nil {
 			return err
 		}
-		_, err := fmt.Fprintln(out, "Run `ao project add --path <path>` to register one.")
+		_, err := fmt.Fprintln(out, "Run `kennel project add --path <path>` to register one.")
 		return err
 	}
 

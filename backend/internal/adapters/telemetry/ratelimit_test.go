@@ -25,7 +25,7 @@ func TestRateLimitedSinkCapsBurstPerMinute(t *testing.T) {
 	now := time.Now()
 
 	for i := 0; i < eventsPerNamePerMinute+10; i++ {
-		s.Emit(ctx, ports.TelemetryEvent{Name: "ao.http.5xx", OccurredAt: now})
+		s.Emit(ctx, ports.TelemetryEvent{Name: "kennel.http.5xx", OccurredAt: now})
 	}
 	if len(rec.events) != eventsPerNamePerMinute {
 		t.Fatalf("events forwarded = %d, want %d", len(rec.events), eventsPerNamePerMinute)
@@ -43,7 +43,7 @@ func TestRateLimitedSinkCapsTotalPerDayEvenWhenPacedUnderBurstLimit(t *testing.T
 	// event timestamp), is what actually simulates pacing here.
 	var forwarded int
 	for i := 0; i < eventsPerNamePerDay+10; i++ {
-		if s.reserve("ao.http.5xx", start) {
+		if s.reserve("kennel.http.5xx", start) {
 			forwarded++
 		}
 		start = start.Add(time.Minute)
@@ -54,7 +54,7 @@ func TestRateLimitedSinkCapsTotalPerDayEvenWhenPacedUnderBurstLimit(t *testing.T
 }
 
 func TestRateLimitedSinkGivesAggregatedNamesTheGenerousDailyTier(t *testing.T) {
-	s := NewRateLimitedSink(&recordingSink{}, []string{"ao.http.5xx"})
+	s := NewRateLimitedSink(&recordingSink{}, []string{"kennel.http.5xx"})
 	start := time.Now()
 
 	// eventsPerNamePerDayAggregated (1500) exceeds the number of minutes in a
@@ -66,7 +66,7 @@ func TestRateLimitedSinkGivesAggregatedNamesTheGenerousDailyTier(t *testing.T) {
 	const step = 30 * time.Second
 	var forwarded int
 	for i := 0; i < eventsPerNamePerDayAggregated+10; i++ {
-		if s.reserve("ao.http.5xx", start) {
+		if s.reserve("kennel.http.5xx", start) {
 			forwarded++
 		}
 		start = start.Add(step)
@@ -77,12 +77,12 @@ func TestRateLimitedSinkGivesAggregatedNamesTheGenerousDailyTier(t *testing.T) {
 }
 
 func TestRateLimitedSinkNonAggregatedNameKeepsStandardTierEvenWhenOthersAreAggregated(t *testing.T) {
-	s := NewRateLimitedSink(&recordingSink{}, []string{"ao.http.5xx"})
+	s := NewRateLimitedSink(&recordingSink{}, []string{"kennel.http.5xx"})
 	start := time.Now()
 
 	var forwarded int
 	for i := 0; i < eventsPerNamePerDay+10; i++ {
-		if s.reserve("ao.daemon.started", start) {
+		if s.reserve("kennel.daemon.started", start) {
 			forwarded++
 		}
 		start = start.Add(time.Minute)
@@ -99,18 +99,18 @@ func TestRateLimitedSinkTracksEventNamesIndependently(t *testing.T) {
 	now := time.Now()
 
 	for i := 0; i < eventsPerNamePerMinute; i++ {
-		s.Emit(ctx, ports.TelemetryEvent{Name: "ao.http.5xx", OccurredAt: now})
+		s.Emit(ctx, ports.TelemetryEvent{Name: "kennel.http.5xx", OccurredAt: now})
 	}
-	s.Emit(ctx, ports.TelemetryEvent{Name: "ao.daemon.panic", OccurredAt: now})
+	s.Emit(ctx, ports.TelemetryEvent{Name: "kennel.daemon.panic", OccurredAt: now})
 
 	var panics int
 	for _, ev := range rec.events {
-		if ev.Name == "ao.daemon.panic" {
+		if ev.Name == "kennel.daemon.panic" {
 			panics++
 		}
 	}
 	if panics != 1 {
-		t.Fatalf("ao.daemon.panic forwarded = %d, want 1 (independent window from ao.http.5xx)", panics)
+		t.Fatalf("kennel.daemon.panic forwarded = %d, want 1 (independent window from kennel.http.5xx)", panics)
 	}
 }
 
@@ -121,9 +121,9 @@ func TestRateLimitedSinkBurstWindowResetsAfterOneMinute(t *testing.T) {
 	now := time.Now()
 
 	for i := 0; i < eventsPerNamePerMinute; i++ {
-		s.Emit(ctx, ports.TelemetryEvent{Name: "ao.http.5xx", OccurredAt: now})
+		s.Emit(ctx, ports.TelemetryEvent{Name: "kennel.http.5xx", OccurredAt: now})
 	}
-	if !s.reserve("ao.http.5xx", now.Add(61*time.Second)) {
+	if !s.reserve("kennel.http.5xx", now.Add(61*time.Second)) {
 		t.Fatal("reserve should succeed once the one-minute burst window has elapsed")
 	}
 }
@@ -133,15 +133,15 @@ func TestRateLimitedSinkDayWindowResetsAfter24Hours(t *testing.T) {
 	start := time.Now()
 
 	for i := 0; i < eventsPerNamePerDay; i++ {
-		if !s.reserve("ao.http.5xx", start) {
+		if !s.reserve("kennel.http.5xx", start) {
 			t.Fatalf("reserve unexpectedly failed at i=%d, before the daily ceiling should be reached", i)
 		}
 		start = start.Add(time.Minute)
 	}
-	if s.reserve("ao.http.5xx", start) {
+	if s.reserve("kennel.http.5xx", start) {
 		t.Fatal("reserve should fail once the daily ceiling is exhausted within the same day")
 	}
-	if !s.reserve("ao.http.5xx", start.Add(24*time.Hour)) {
+	if !s.reserve("kennel.http.5xx", start.Add(24*time.Hour)) {
 		t.Fatal("reserve should succeed once the 24-hour day window has elapsed")
 	}
 }

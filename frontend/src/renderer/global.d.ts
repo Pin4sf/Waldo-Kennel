@@ -2,12 +2,12 @@ import type { AoBridge } from "../preload";
 
 declare global {
 	interface Window {
-		ao?: AoBridge;
+		kennel?: AoBridge;
 	}
 
 	interface ImportMetaEnv {
-		readonly VITE_AO_POSTHOG_KEY?: string;
-		readonly VITE_AO_POSTHOG_HOST?: string;
+		readonly VITE_KENNEL_POSTHOG_KEY?: string;
+		readonly VITE_KENNEL_POSTHOG_HOST?: string;
 	}
 }
 

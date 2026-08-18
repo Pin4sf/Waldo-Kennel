@@ -12,7 +12,7 @@
 // Four things about this flow are counter-intuitive and were verified against
 // the published electron-updater@6.8.9 tarball. Do not "simplify" them:
 //
-//  1. The app signals staging through AO_E2E_UPDATE_SENTINEL, which hangs off
+//  1. The app signals staging through KENNEL_E2E_UPDATE_SENTINEL, which hangs off
 //     the NATIVE updater's update-downloaded event (see auto-updater.ts).
 //     electron-updater's own update-downloaded fires BEFORE Squirrel is told to
 //     fetch, so keying on it stages nothing and the test flaps.
@@ -26,16 +26,16 @@
 //     check backend/internal/cli/e2e_test.go uses. "A process exists" is not
 //     proof the app came up.
 //  5. Both launches spawn the bundle's executable DIRECTLY rather than going
-//     through `open`, because the harness has to hand the app AO_RUN_FILE,
-//     AO_DATA_DIR and the sentinel path. Measured on macOS 27.0: a direct spawn
+//     through `open`, because the harness has to hand the app KENNEL_RUN_FILE,
+//     KENNEL_DATA_DIR and the sentinel path. Measured on macOS 27.0: a direct spawn
 //     propagates all three; `open -a` propagated only what happened to be in the
 //     caller's ambient environment; `open --env VAR=value` works but is
 //     undocumented in `open`'s usage output on older releases, so relying on it
 //     would make the harness depend on the runner image's macOS version.
 //
 // usage:
-//   node scripts/e2e-mac-update.mjs --app "/Applications/Agent Orchestrator.app" \
-//     --expect-version 0.10.4 [--state-dir ~/.ao] [--channel latest|nightly]
+//   node scripts/e2e-mac-update.mjs --app "/Applications/Kennel.app" \
+//     --expect-version 0.10.4 [--state-dir ~/.kennel] [--channel latest|nightly]
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -101,7 +101,7 @@ export function parseArgs(argv) {
 	if (!opts.app) throw new UsageError("--app is required");
 	if (!opts.expectVersion) throw new UsageError("--expect-version is required");
 	if (!opts.app.endsWith(".app")) throw new UsageError(`--app must point at a .app bundle, got ${opts.app}`);
-	opts.stateDir ??= join(homedir(), ".ao");
+	opts.stateDir ??= join(homedir(), ".kennel");
 	// The run file is deleted before each launch so the liveness poll cannot pass
 	// on a stale file. It must be absolute; removeRunFile validates any existing
 	// target as an AO run-file handshake before deletion.
@@ -112,13 +112,13 @@ export function parseArgs(argv) {
 	opts.runFile ??= join(opts.stateDir, "running.json");
 	// Where the APP looks for update-settings.json. Not a free choice: main.ts's
 	// initAutoUpdates does `stateDir = path.dirname(runFilePath())` and hands that
-	// to ensureUpdatePrefs/startAutoUpdates, and runFilePath() returns AO_RUN_FILE
+	// to ensureUpdatePrefs/startAutoUpdates, and runFilePath() returns KENNEL_RUN_FILE
 	// when set. Seeding anywhere else leaves the first-run dialog showing and the
 	// whole flow blocks. Equal to --state-dir unless --run-file moves it.
 	opts.settingsDir = dirname(opts.runFile);
 	// Durable daemon state. Mirrors backend/internal/config's resolveDataDir
 	// default (<ao home>/data) so an overridden --state-dir keeps the daemon's
-	// SQLite out of the real ~/.ao.
+	// SQLite out of the real ~/.kennel.
 	opts.dataDir = join(opts.stateDir, "data");
 	opts.appName = basename(opts.app, ".app");
 	return opts;
@@ -131,22 +131,22 @@ export function parseArgs(argv) {
 export function launchEnv(opts, sentinel, baseEnv = process.env) {
 	return {
 		...baseEnv,
-		AO_E2E_UPDATE_SENTINEL: sentinel,
-		AO_RUN_FILE: opts.runFile,
-		AO_DATA_DIR: opts.dataDir,
+		KENNEL_E2E_UPDATE_SENTINEL: sentinel,
+		KENNEL_RUN_FILE: opts.runFile,
+		KENNEL_DATA_DIR: opts.dataDir,
 	};
 }
 
 // The env var the app reads to enable the staging sentinel. Kept in sync with
 // E2E_UPDATE_SENTINEL_ENV in src/main/auto-updater.ts.
-const SENTINEL_ENV = "AO_E2E_UPDATE_SENTINEL";
+const SENTINEL_ENV = "KENNEL_E2E_UPDATE_SENTINEL";
 
 /**
  * assertSentinelCapable fails fast when the baseline bundle predates the
  * sentinel listener.
  *
  * The listener landed in #3294. Every release published before it ignores
- * AO_E2E_UPDATE_SENTINEL entirely, so the harness would wait out the full
+ * KENNEL_E2E_UPDATE_SENTINEL entirely, so the harness would wait out the full
  * download timeout (20 minutes by default) and report a timeout that looks like
  * a broken update but is really an incapable baseline. A 20 minute silent wait
  * is not an acceptable failure mode, so probe the packaged bundle for the env
@@ -211,7 +211,7 @@ async function waitFor(label, timeoutMs, check) {
 // exists, so pre-seeding is what makes the whole flow non-interactive. Shape
 // must match UpdateSettings in src/main/update-settings.ts.
 //
-// settingsDir must be opts.settingsDir, i.e. dirname(AO_RUN_FILE), because that
+// settingsDir must be opts.settingsDir, i.e. dirname(KENNEL_RUN_FILE), because that
 // is the directory the app derives for itself (see parseArgs). Exported so a
 // test can assert it lands where the app will actually look.
 export function seedUpdateSettings(settingsDir, channel) {
@@ -319,7 +319,7 @@ async function run(opts) {
 	console.log("relaunching the updated app");
 	removeRunFile(opts.runFile);
 	// Same direct spawn as the first launch: the relaunched app must get the same
-	// AO_RUN_FILE/AO_DATA_DIR, or the liveness poll below watches a run file the
+	// KENNEL_RUN_FILE/KENNEL_DATA_DIR, or the liveness poll below watches a run file the
 	// app never writes. The executable name is re-read from the SWAPPED bundle,
 	// so a rename between N-1 and N is picked up. Detached and with stdio
 	// ignored, so this harness can exit without waiting on the app.
@@ -346,7 +346,7 @@ async function run(opts) {
 }
 
 // readExecutableName pulls CFBundleExecutable out of the bundle instead of
-// hardcoding "agent-orchestrator", so a rename of packagerConfig.executableName
+// hardcoding "kennel", so a rename of packagerConfig.executableName
 // does not silently break the harness.
 function readExecutableName(appPath) {
 	const plist = join(appPath, "Contents", "Info.plist");

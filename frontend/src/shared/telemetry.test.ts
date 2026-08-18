@@ -20,12 +20,12 @@ afterEach(async () => {
 	);
 });
 
-test("defaultDataDir prefers AO_DATA_DIR", () => {
-	expect(defaultDataDir("linux", { AO_DATA_DIR: "/tmp/custom" }, "/home/test")).toBe("/tmp/custom");
+test("defaultDataDir prefers KENNEL_DATA_DIR", () => {
+	expect(defaultDataDir("linux", { KENNEL_DATA_DIR: "/tmp/custom" }, "/home/test")).toBe("/tmp/custom");
 });
 
 test("loadOrCreateTelemetryInstallId persists a stable install id", async () => {
-	const dir = await mkdtemp(path.join(os.tmpdir(), "ao-telemetry-"));
+	const dir = await mkdtemp(path.join(os.tmpdir(), "kennel-telemetry-"));
 	tempDirs.push(dir);
 
 	const first = await loadOrCreateTelemetryInstallId(dir);
@@ -41,36 +41,39 @@ test("buildTelemetryBootstrap returns null when no home dir is available", async
 	await expect(buildTelemetryBootstrap({}, "1.2.3", "linux", "")).resolves.toBeNull();
 });
 
-test("renderer telemetry is off on unpackaged builds unless explicitly opted in", () => {
+test("renderer telemetry is off in every build unless explicitly opted in", () => {
 	expect(rendererTelemetryEnabled({}, false)).toBe(false);
-	expect(rendererTelemetryEnabled({}, true)).toBe(true);
-	expect(rendererTelemetryEnabled({ AO_TELEMETRY_RENDERER: " ON " }, false)).toBe(true);
-	expect(rendererTelemetryEnabled({ AO_TELEMETRY_RENDERER: "off" }, true)).toBe(false);
+	expect(rendererTelemetryEnabled({}, true)).toBe(false);
+	expect(rendererTelemetryEnabled({ KENNEL_TELEMETRY_RENDERER: " ON " }, false)).toBe(true);
+	expect(rendererTelemetryEnabled({ KENNEL_TELEMETRY_RENDERER: "off" }, true)).toBe(false);
 });
 
 // A null bootstrap is the switch itself: initTelemetry bails on it, so an
 // unpackaged build never constructs a PostHog client at all.
 test("buildTelemetryBootstrap withholds the bootstrap on an unpackaged build", async () => {
-	const dir = await mkdtemp(path.join(os.tmpdir(), "ao-telemetry-"));
+	const dir = await mkdtemp(path.join(os.tmpdir(), "kennel-telemetry-"));
 	tempDirs.push(dir);
 
 	await expect(buildTelemetryBootstrap({}, "0.11.2", "linux", dir, false)).resolves.toBeNull();
-	const optedIn = await buildTelemetryBootstrap({ AO_TELEMETRY_RENDERER: "on" }, "0.11.2", "linux", dir, false);
+	const optedIn = await buildTelemetryBootstrap({ KENNEL_TELEMETRY_RENDERER: "on" }, "0.11.2", "linux", dir, false);
 	expect(optedIn?.appVersion).toBe("0.11.2");
 });
 
 test("buildTelemetryBootstrap carries the deny list across the process boundary", async () => {
-	const dir = await mkdtemp(path.join(os.tmpdir(), "ao-telemetry-"));
+	const dir = await mkdtemp(path.join(os.tmpdir(), "kennel-telemetry-"));
 	tempDirs.push(dir);
 
 	const bootstrap = await buildTelemetryBootstrap(
-		{ AO_TELEMETRY_DISABLED_EVENTS: "ao.v2.app.active, ao.renderer.* ,, " },
+		{
+			KENNEL_TELEMETRY_RENDERER: "on",
+			KENNEL_TELEMETRY_DISABLED_EVENTS: "kennel.v2.app.active, kennel.renderer.* ,, ",
+		},
 		"0.11.2",
 		"linux",
 		dir,
 		true,
 	);
-	expect(bootstrap?.disabledEvents).toEqual(["ao.v2.app.active", "ao.renderer.*"]);
+	expect(bootstrap?.disabledEvents).toEqual(["kennel.v2.app.active", "kennel.renderer.*"]);
 });
 
 test("parseDisabledEvents treats absent or blank policy as no policy", () => {

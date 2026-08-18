@@ -1,5 +1,5 @@
 // Package ptyregistry is a sideband JSON list of live Windows pty-host
-// processes so ao stop can find and graceful-kill them even when session
+// processes so kennel stop can find and graceful-kill them even when session
 // metadata is lost. Ported from agent-orchestrator's windows-pty-registry.ts.
 package ptyregistry
 
@@ -24,15 +24,15 @@ type Entry struct {
 // pidalive_windows.go).
 var pidAlive = defaultPidAlive
 
-// registryFile resolves ~/.ao/windows-pty-hosts.json. Uses os.UserHomeDir()
+// registryFile resolves ~/.kennel/windows-pty-hosts.json. Uses os.UserHomeDir()
 // so t.Setenv("HOME", dir) in tests redirects reads/writes to a temp dir.
-// ponytail: HOME-based resolution; no AO_DATA_DIR override needed here.
+// ponytail: HOME-based resolution; no KENNEL_DATA_DIR override needed here.
 func registryFile() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".ao", "windows-pty-hosts.json"), nil
+	return filepath.Join(home, ".kennel", "windows-pty-hosts.json"), nil
 }
 
 // readRaw reads and defensively parses the registry. Missing file or malformed

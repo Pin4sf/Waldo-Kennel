@@ -12,8 +12,8 @@ export type ThemeStyle =
 	| "gruvbox"
 	| "solarized";
 
-export const themeStorageKey = "ao.theme";
-export const themeStyleStorageKey = "ao.theme-style";
+export const themeStorageKey = "kennel.theme";
+export const themeStyleStorageKey = "kennel.theme-style";
 
 function getLocalStorage() {
 	if (typeof window === "undefined" || !window.localStorage) return null;

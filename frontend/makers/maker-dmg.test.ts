@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 // Capture buildForge's args without pulling in electron-builder's real machinery.
 const buildForge = vi.fn<(forge: { dir: string }, options: any) => Promise<string[]>>(async () => [
-	"/out/make/Agent Orchestrator-0.10.3-arm64.dmg",
+	"/out/make/Kennel-0.10.3-arm64.dmg",
 ]);
 vi.mock("app-builder-lib", () => ({ buildForge }));
 
@@ -35,9 +35,9 @@ vi.mock("node:child_process", async (importOriginal) => {
 import MakerDMG, { sealDmg, verifyDmg } from "./maker-dmg";
 
 const makeOptions = {
-	dir: "/tmp/app/Agent Orchestrator-darwin-arm64",
+	dir: "/tmp/app/Kennel-darwin-arm64",
 	makeDir: "/tmp/app/make",
-	appName: "Agent Orchestrator",
+	appName: "Kennel",
 	targetPlatform: "darwin" as const,
 	targetArch: "arm64" as const,
 	forgeConfig: {} as never,
@@ -47,7 +47,7 @@ const makeOptions = {
 // What Forge actually hands the maker: `dir` is the PACKAGE directory and the
 // bundle sits inside it. electron-builder's mac path treats buildForge's `dir`
 // as the .app itself, so this is the only correct value to pass through.
-const APP_PATH = "/tmp/app/Agent Orchestrator-darwin-arm64/Agent Orchestrator.app";
+const APP_PATH = "/tmp/app/Kennel-darwin-arm64/Kennel.app";
 
 beforeEach(() => {
 	buildForge.mockClear();
@@ -66,17 +66,17 @@ describe("MakerDMG", () => {
 	});
 
 	it("builds a dmg target for the requested arch and forwards config", async () => {
-		const maker = new MakerDMG({ appId: "dev.agent-orchestrator.desktop" }, ["darwin"]);
+		const maker = new MakerDMG({ appId: "in.heywaldo.kennel" }, ["darwin"]);
 		await maker.prepareConfig(makeOptions.targetArch);
 		const artifacts = await maker.make(makeOptions);
 
-		expect(artifacts).toEqual(["/out/make/Agent Orchestrator-0.10.3-arm64.dmg"]);
+		expect(artifacts).toEqual(["/out/make/Kennel-0.10.3-arm64.dmg"]);
 		const [, options] = buildForge.mock.calls[0];
 		expect(options.mac).toEqual(["dmg:arm64"]);
 		// electron-builder must not try to publish; the workflow does that.
 		expect(options.config.publish).toBeNull();
-		expect(options.config.appId).toBe("dev.agent-orchestrator.desktop");
-		expect(options.config.productName).toBe("Agent Orchestrator");
+		expect(options.config.appId).toBe("in.heywaldo.kennel");
+		expect(options.config.productName).toBe("Kennel");
 	});
 
 	// The layout check. buildForge sets `prepackaged: resolve(dir)`, and
@@ -84,7 +84,7 @@ describe("MakerDMG", () => {
 	// (`appPath = prepackaged ?? join(computeAppOutDir(...), "<name>.app")`), then
 	// dmg-builder copies appPath into the image renamed to "<name>.app". Passing
 	// Forge's package directory here nests the whole directory under that name and
-	// yields "Agent Orchestrator.app/Agent Orchestrator.app", an outer bundle with
+	// yields "Kennel.app/Kennel.app", an outer bundle with
 	// no Contents that cannot launch. Verified against app-builder-lib 26.15.3.
 	it("hands buildForge the .app inside the package dir, not the package dir", async () => {
 		await new MakerDMG().make(makeOptions);
@@ -132,12 +132,12 @@ describe("MakerDMG", () => {
 
 	it("never returns a dmg blockmap among the artifacts", async () => {
 		buildForge.mockResolvedValueOnce([
-			"/out/make/Agent Orchestrator-0.10.3-arm64.dmg",
-			"/out/make/Agent Orchestrator-0.10.3-arm64.dmg.blockmap",
+			"/out/make/Kennel-0.10.3-arm64.dmg",
+			"/out/make/Kennel-0.10.3-arm64.dmg.blockmap",
 		]);
 		// This array is exactly what Forge hands its publisher, so filtering here is
 		// what keeps a sidecar off the release regardless of how it got generated.
-		expect(await new MakerDMG().make(makeOptions)).toEqual(["/out/make/Agent Orchestrator-0.10.3-arm64.dmg"]);
+		expect(await new MakerDMG().make(makeOptions)).toEqual(["/out/make/Kennel-0.10.3-arm64.dmg"]);
 	});
 });
 
@@ -161,7 +161,7 @@ describe("sealDmg", () => {
 	});
 
 	it("throws when notary credentials are present but a signing identity is not", async () => {
-		await expect(sealDmg(dmg, { AO_NOTARY_PROFILE: "ao" })).rejects.toThrow(/no signing identity/);
+		await expect(sealDmg(dmg, { KENNEL_NOTARY_PROFILE: "ao" })).rejects.toThrow(/no signing identity/);
 		expect(commands).toEqual([]);
 	});
 
@@ -175,7 +175,7 @@ describe("sealDmg", () => {
 	it("signs, notarizes with a keychain profile, and staples", async () => {
 		const sealed = await sealDmg(dmg, {
 			APPLE_SIGNING_IDENTITY: "Developer ID Application: Someone (TEAMID)",
-			AO_NOTARY_PROFILE: "ao",
+			KENNEL_NOTARY_PROFILE: "ao",
 		});
 
 		// The return value gates postMake's verify step: only a sealed dmg can pass
@@ -211,13 +211,13 @@ describe("sealDmg", () => {
 	});
 
 	it("falls back to the keychain identity prefix when only CSC_LINK is set", async () => {
-		await sealDmg(dmg, { CSC_LINK: "base64p12", AO_NOTARY_PROFILE: "ao" });
+		await sealDmg(dmg, { CSC_LINK: "base64p12", KENNEL_NOTARY_PROFILE: "ao" });
 		expect(commands[0][1]).toEqual(["--sign", "Developer ID Application", "--timestamp", "--force", dmg]);
 	});
 
 	it("fails the build when signing fails and credentials were present", async () => {
 		nextError = new Error("codesign: no identity found");
-		await expect(sealDmg(dmg, { APPLE_SIGNING_IDENTITY: "id", AO_NOTARY_PROFILE: "ao" })).rejects.toThrow(
+		await expect(sealDmg(dmg, { APPLE_SIGNING_IDENTITY: "id", KENNEL_NOTARY_PROFILE: "ao" })).rejects.toThrow(
 			/no identity found/,
 		);
 	});

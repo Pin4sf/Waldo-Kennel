@@ -8,7 +8,7 @@ function devApiBaseUrl(): string {
 	return typeof window === "undefined" ? "http://127.0.0.1:3001" : window.location.origin;
 }
 
-const explicitApiBaseUrl = import.meta.env.VITE_AO_API_BASE_URL;
+const explicitApiBaseUrl = import.meta.env.VITE_KENNEL_API_BASE_URL;
 const initialApiBaseUrl = explicitApiBaseUrl ?? (import.meta.env.DEV ? devApiBaseUrl() : "http://127.0.0.1:3001");
 
 let runtimeApiBaseUrl: string | null = explicitApiBaseUrl ?? null;
@@ -184,7 +184,7 @@ function reportApiError(operation: string, category: ApiErrorCategory, status?: 
 	const last = lastApiErrorAt.get(key);
 	if (last !== undefined && now - last < API_ERROR_DEDUPE_MS) return;
 	lastApiErrorAt.set(key, now);
-	void captureRendererEvent("ao.renderer.api_error", {
+	void captureRendererEvent("kennel.renderer.api_error", {
 		operation,
 		error_category: category,
 		status,

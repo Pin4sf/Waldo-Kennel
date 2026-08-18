@@ -11,7 +11,7 @@ function joinPath(...segments: string[]): string {
 }
 
 export function bundledDaemonBinaryName(platform: NodeJS.Platform): string {
-	return platform === "win32" ? "ao.exe" : "ao";
+	return platform === "win32" ? "kennel-daemon.exe" : "kennel-daemon";
 }
 
 export function resolveDaemonLaunch(
@@ -22,7 +22,7 @@ export function resolveDaemonLaunch(
 	homeDir: string,
 	platform: NodeJS.Platform,
 ): DaemonLaunchSpec | null {
-	const configuredCommand = env.AO_DAEMON_COMMAND?.trim();
+	const configuredCommand = env.KENNEL_DAEMON_COMMAND?.trim();
 	if (configuredCommand) {
 		return {
 			command: configuredCommand,
@@ -36,7 +36,7 @@ export function resolveDaemonLaunch(
 	if (!isPackaged) {
 		if (platform === "win32") {
 			return {
-				command: env.AO_DEV_DAEMON_BINARY?.trim() || joinPath(appPath, "daemon", bundledDaemonBinaryName(platform)),
+				command: env.KENNEL_DEV_DAEMON_BINARY?.trim() || joinPath(appPath, "daemon", bundledDaemonBinaryName(platform)),
 				args: ["daemon"],
 				cwd: appPath,
 				shell: false,
@@ -55,7 +55,7 @@ export function resolveDaemonLaunch(
 	return {
 		command: joinPath(resourcesPath, "daemon", bundledDaemonBinaryName(platform)),
 		args: ["daemon"],
-		cwd: joinPath(homeDir, ".ao"),
+		cwd: joinPath(homeDir, ".kennel"),
 		shell: false,
 		source: "bundled",
 	};
@@ -69,7 +69,7 @@ export type BundledDaemonProbe = {
 /**
  * Identity check for a bundled daemon. Under AppImage the executable path is a
  * random /tmp/.mount_* path regenerated on every launch, so identity is the
- * stable outer .AppImage file path the daemon reports (AO_APPIMAGE, echoed as
+ * stable outer .AppImage file path the daemon reports (KENNEL_APPIMAGE, echoed as
  * appImagePath) — compared against this process's own APPIMAGE. Outside
  * AppImage the packaged executable path is stable and compared directly.
  *
@@ -84,18 +84,18 @@ export function bundledDaemonIdentityError(
 ): string | null {
 	if (appImagePath) {
 		if (!probe.appImagePath) {
-			return "An older AO daemon is already running, but it does not report its install identity. Stop it and restart this app.";
+			return "An older Kennel daemon is already running, but it does not report its install identity. Stop it and restart this app.";
 		}
 		if (!samePath(probe.appImagePath, appImagePath)) {
-			return `Another AO daemon is already running from ${probe.appImagePath}; expected ${appImagePath}. Stop the other daemon before using this app.`;
+			return `Another Kennel daemon is already running from ${probe.appImagePath}; expected ${appImagePath}. Stop the other daemon before using this app.`;
 		}
 		return null;
 	}
 	if (!probe.executablePath) {
-		return "An older AO daemon is already running, but it does not report its binary path. Stop it and restart this app.";
+		return "An older Kennel daemon is already running, but it does not report its binary path. Stop it and restart this app.";
 	}
 	if (!samePath(probe.executablePath, expectedCommand)) {
-		return `Another AO daemon is already running from ${probe.executablePath}; expected ${expectedCommand}. Stop the other daemon before using this app.`;
+		return `Another Kennel daemon is already running from ${probe.executablePath}; expected ${expectedCommand}. Stop the other daemon before using this app.`;
 	}
 	return null;
 }

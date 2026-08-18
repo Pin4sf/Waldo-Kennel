@@ -503,7 +503,7 @@ function wireUpdaterEvents(): void {
   });
   autoUpdater.on("update-downloaded", (info) => {
     emitUpdateOutcome({
-      event: "ao.renderer.update_downloaded",
+      event: "kennel.renderer.update_downloaded",
       phase: "download",
       trigger: activeUpdateTrigger(),
       ...(info?.version ? { to_version: info.version } : {}),
@@ -664,7 +664,7 @@ async function requestAutomaticUpdateCheck(
   }
 }
 
-// startAutoUpdates configures electron-updater from the user's ~/.ao settings.
+// startAutoUpdates configures electron-updater from the user's ~/.kennel settings.
 // It is a thin shell: all policy (channel, opt-in) comes from update-settings.
 // Caller guards on app.isPackaged.
 export async function startAutoUpdates(stateDir: string): Promise<void> {
@@ -710,7 +710,7 @@ export async function checkForUpdatesNow(
   wireUpdaterEvents();
   if (!app.isPackaged) {
     emitUpdateOutcome({
-      event: "ao.renderer.update_unsupported",
+      event: "kennel.renderer.update_unsupported",
       phase: activeUpdaterPhase,
       trigger: activeUpdateTrigger(),
       error_category: "not_supported",
@@ -776,7 +776,7 @@ export async function returnToHome(
   wireUpdaterEvents();
   if (!app.isPackaged) {
     emitUpdateOutcome({
-      event: "ao.renderer.update_unsupported",
+      event: "kennel.renderer.update_unsupported",
       phase: activeUpdaterPhase,
       trigger: activeUpdateTrigger(),
       error_category: "not_supported",
@@ -819,7 +819,7 @@ export async function downloadUpdateNow(requestId?: string): Promise<void> {
   wireUpdaterEvents();
   if (!app.isPackaged) {
     emitUpdateOutcome({
-      event: "ao.renderer.update_unsupported",
+      event: "kennel.renderer.update_unsupported",
       phase: activeUpdaterPhase,
       trigger: activeUpdateTrigger(),
       error_category: "not_supported",

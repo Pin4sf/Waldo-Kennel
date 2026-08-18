@@ -1,4 +1,4 @@
-import { formatTimeCompact as formatPortableTimeCompact } from "@aoagents/product-ui";
+import { formatTimeCompact as formatPortableTimeCompact } from "@pin4sf/kennel-product-ui";
 import { appI18n, type MessageKey } from "../i18n";
 
 export function formatTimeCompact(isoDate: string | null | undefined): string {

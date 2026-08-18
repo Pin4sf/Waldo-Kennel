@@ -348,13 +348,13 @@ timeout = 7
 		kimiHooksSentinelStart,
 		`event = "SessionStart"`,
 		`matcher = "startup"`,
-		`command = "ao hooks kimi session-start"`,
+		`command = "kennel hooks kimi session-start"`,
 		`event = "UserPromptSubmit"`,
-		`command = "ao hooks kimi user-prompt-submit"`,
+		`command = "kennel hooks kimi user-prompt-submit"`,
 		`event = "PermissionRequest"`,
-		`command = "ao hooks kimi permission-request"`,
+		`command = "kennel hooks kimi permission-request"`,
 		`event = "Stop"`,
-		`command = "ao hooks kimi stop"`,
+		`command = "kennel hooks kimi stop"`,
 		kimiHooksSentinelEnd,
 	} {
 		if !strings.Contains(text, want) {
@@ -393,7 +393,7 @@ default_model = "kimi-code/kimi-for-coding"
 	for _, want := range []string{
 		`api_key = "user-key"`,
 		`default_model = "kimi-code/kimi-for-coding"`,
-		`command = "ao hooks kimi session-start"`,
+		`command = "kennel hooks kimi session-start"`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("AO config missing %q:\n%s", want, text)
@@ -504,7 +504,7 @@ func TestGetAgentHooksReseedsAOManagedConfigWithoutAuth(t *testing.T) {
 		t.Fatalf("read AO config: %v", err)
 	}
 	text := string(data)
-	for _, want := range []string{`api_key = "user-key"`, `command = "ao hooks kimi session-start"`} {
+	for _, want := range []string{`api_key = "user-key"`, `command = "kennel hooks kimi session-start"`} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("AO config missing %q:\n%s", want, text)
 		}
@@ -542,7 +542,7 @@ func TestGetAgentHooksRewritesManagedKimiConfigBlock(t *testing.T) {
 		t.Fatalf("read config: %v", err)
 	}
 	text := string(data)
-	for _, want := range []string{"before = true", "after = true", `command = "ao hooks kimi session-start"`} {
+	for _, want := range []string{"before = true", "after = true", `command = "kennel hooks kimi session-start"`} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("config missing %q:\n%s", want, text)
 		}
@@ -573,8 +573,8 @@ func TestGetAgentHooksRequiresAOManagedKimiHome(t *testing.T) {
 		WorkspacePath: t.TempDir(),
 	})
 
-	if err == nil || !strings.Contains(err.Error(), "AO-managed Kimi Code home is unavailable") {
-		t.Fatalf("GetAgentHooks err = %v, want AO-managed Kimi home requirement", err)
+	if err == nil || !strings.Contains(err.Error(), "Kennel-managed Kimi Code home is unavailable") {
+		t.Fatalf("GetAgentHooks err = %v, want Kennel-managed Kimi home requirement", err)
 	}
 }
 
@@ -637,7 +637,7 @@ func TestGetAgentHooksPreservesUserInstructions(t *testing.T) {
 		}
 	}
 	if strings.Index(text, "user instructions") > strings.Index(text, kimiInstructionsSentinel) {
-		t.Fatalf("user instructions should stay before AO-managed block:\n%s", text)
+		t.Fatalf("user instructions should stay before Kennel-managed block:\n%s", text)
 	}
 }
 

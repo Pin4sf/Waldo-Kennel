@@ -20,6 +20,6 @@ export function useAgentInventoryTelemetry(): void {
   useEffect(() => {
     if (!data || reported.current) return;
     reported.current = true;
-    void captureRendererEvent("ao.renderer.agents_available", buildAgentInventory(data));
+    void captureRendererEvent("kennel.renderer.agents_available", buildAgentInventory(data));
   }, [data]);
 }

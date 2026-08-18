@@ -29,7 +29,7 @@ type PollerConfig struct {
 
 // Poller watches explicitly selected workspace previews and persists refreshes
 // through the normal session service path. It never chooses a preview for a
-// fresh worker: selection belongs to `ao preview`, a managed server start, or
+// fresh worker: selection belongs to `kennel preview`, a managed server start, or
 // deliberate user navigation.
 type Poller struct {
 	source   sessionPreviewSource

@@ -138,8 +138,8 @@ beforeEach(() => {
 
 function renderPane(session?: WorkspaceSession) {
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-	const previousAO = window.ao;
-	window.ao = {} as typeof window.ao;
+	const previousAO = window.kennel;
+	window.kennel = {} as typeof window.kennel;
 	const result = render(
 		<QueryClientProvider client={queryClient}>
 			<TerminalPane daemonReady fontSize={12} session={session} theme="dark" />
@@ -149,7 +149,7 @@ function renderPane(session?: WorkspaceSession) {
 		...result,
 		queryClient,
 		restore: () => {
-			window.ao = previousAO;
+			window.kennel = previousAO;
 		},
 	};
 }
@@ -181,8 +181,8 @@ function renderCachedPane({
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	queryClient.setQueryData(workspaceQueryKey, workspaceWithSessions(sessions));
 	queryClient.setQueryData(shellTerminalsQueryKey, shellTerminals);
-	const previousAO = window.ao;
-	window.ao = {} as typeof window.ao;
+	const previousAO = window.kennel;
+	window.kennel = {} as typeof window.kennel;
 
 	const tree = (nextSession?: WorkspaceSession, nextTarget?: TerminalTarget, showPane = true) => (
 		<QueryClientProvider client={queryClient}>
@@ -208,7 +208,7 @@ function renderCachedPane({
 		show: (nextSession?: WorkspaceSession, nextTarget?: TerminalTarget) =>
 			result.rerender(tree(nextSession, nextTarget)),
 		restore: () => {
-			window.ao = previousAO;
+			window.kennel = previousAO;
 		},
 	};
 }

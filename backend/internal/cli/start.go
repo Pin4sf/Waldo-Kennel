@@ -16,30 +16,28 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/config"
 )
 
-// releaseRepo is the GitHub "owner/repo" that `ao start` fetches the desktop app
+// releaseRepo is the GitHub "owner/repo" that `kennel start` fetches the desktop app
 // from. It defaults to the production target and is overridable at build time so
 // a test binary fetches from the fork without a source edit:
 //
-//	go build -ldflags "-X github.com/aoagents/agent-orchestrator/backend/internal/cli.releaseRepo=harshitsinghbhandari/agent-orchestrator" ./cmd/ao
+//	go build -ldflags "-X github.com/aoagents/agent-orchestrator/backend/internal/cli.releaseRepo=Pin4sf/Waldo-Kennel" ./cmd/ao
 //
 // Mirrors how version.go's Version var is stamped by release tooling.
 //
-// Untrivial-ai is the org the repo was transferred to in July 2026. The old
-// AgentWrapper URLs still resolve only through GitHub's rename redirect, which
-// is not a contract: the same staleness that stranded the baked update feed
-// (#3523) would strand every `ao start` download the day that redirect stops.
-var releaseRepo = "Untrivial-ai/agent-orchestrator"
+// This must remain Kennel-owned: falling back to an AO repository would let a
+// Kennel install fetch a differently identified application.
+var releaseRepo = "Pin4sf/Waldo-Kennel"
 
 // appBundleName is the macOS bundle directory name produced by electron-forge
 // (spaced, per frontend/forge.config.ts).
-const appBundleName = "Agent Orchestrator.app"
+const appBundleName = "Kennel.app"
 
-// appStateFileName is the marker the desktop app writes under ~/.ao on every
-// launch (spec §5). `ao start` is a read-only consumer of it.
+// appStateFileName is the marker the desktop app writes under ~/.kennel on every
+// launch (spec §5). `kennel start` is a read-only consumer of it.
 const appStateFileName = "app-state.json"
 
-// appState mirrors the app-written ~/.ao/app-state.json marker (spec §5). Only
-// the desktop app writes it; `ao start` reads it as a fast-path hint and never
+// appState mirrors the app-written ~/.kennel/app-state.json marker (spec §5). Only
+// the desktop app writes it; `kennel start` reads it as a fast-path hint and never
 // trusts appPath without stat-ing it (invariant 2).
 type appState struct {
 	SchemaVersion    int    `json:"schemaVersion"`
@@ -54,7 +52,7 @@ type startOptions struct {
 	json bool
 }
 
-// startResult is the JSON shape emitted with --json: what `ao start` resolved,
+// startResult is the JSON shape emitted with --json: what `kennel start` resolved,
 // whether it fetched, whether it opened, and the resulting bundle path.
 type startResult struct {
 	Resolved bool   `json:"resolved"`
@@ -67,9 +65,9 @@ func newStartCommand(ctx *commandContext) *cobra.Command {
 	opts := startOptions{}
 	cmd := &cobra.Command{
 		Use:   "start",
-		Short: "Fetch (if needed) and open the Agent Orchestrator desktop app",
-		Long: "Fetch (if needed) and open the Agent Orchestrator desktop app.\n\n" +
-			"The desktop app now owns the daemon, state, and updates. `ao start` no\n" +
+		Short: "Fetch (if needed) and open the Kennel desktop app",
+		Long: "Fetch (if needed) and open the Kennel desktop app.\n\n" +
+			"The desktop app now owns the daemon, state, and updates. `kennel start` no\n" +
 			"longer runs a daemon: it resolves the installed app (or downloads the\n" +
 			"latest release), opens it, and exits.",
 		Args: noArgs,
@@ -134,7 +132,7 @@ func (c *commandContext) runStart(ctx context.Context, cmd *cobra.Command, opts 
 // The exception exists because the marker is not authoritative about which copy
 // the user wants. The app rewrites it on every launch, so a stale copy (the
 // original download, one on a dmg) that got launched leaves the marker pointing
-// at itself, and `ao start` would then keep reopening that copy instead of the
+// at itself, and `kennel start` would then keep reopening that copy instead of the
 // install. /Applications is the one location the updater maintains, so prefer
 // it and let the marker cover the rest (~/Applications, unusual layouts).
 func (c *commandContext) resolveApp() string {
@@ -174,7 +172,7 @@ func darwinApplicationsBundle() string {
 // tests can point the scan at a temp bundle instead of real system paths.
 var appScanLocations = knownAppLocations
 
-// markerAppPath reads ~/.ao/app-state.json and returns its recorded appPath, or
+// markerAppPath reads ~/.kennel/app-state.json and returns its recorded appPath, or
 // "" if the marker is missing/unreadable. It does not stat the path; callers do.
 func (c *commandContext) markerAppPath() string {
 	dir, err := aoStateDir()
@@ -192,14 +190,14 @@ func (c *commandContext) markerAppPath() string {
 	return st.AppPath
 }
 
-// aoStateDir resolves the canonical ~/.ao home, honoring AO_DATA_DIR exactly as
-// the daemon's config does (the marker lives beside running.json under ~/.ao).
+// aoStateDir resolves the canonical ~/.kennel home, honoring KENNEL_DATA_DIR exactly as
+// the daemon's config does (the marker lives beside running.json under ~/.kennel).
 func aoStateDir() (string, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return "", err
 	}
-	// running.json lives directly under ~/.ao; the marker sits beside it.
+	// running.json lives directly under ~/.kennel; the marker sits beside it.
 	return filepath.Dir(cfg.RunFilePath), nil
 }
 
@@ -221,13 +219,13 @@ func knownAppLocations() []string {
 		}
 		// Per-machine fallback (if a user chose an all-users install).
 		if pf := os.Getenv("ProgramFiles"); pf != "" {
-			paths = append(paths, filepath.Join(pf, "Agent Orchestrator", "agent-orchestrator.exe"))
+			paths = append(paths, filepath.Join(pf, "Kennel", "kennel.exe"))
 		}
 		return paths
 	case "linux":
 		paths := []string{linuxAppImagePath()}
 		if home, err := os.UserHomeDir(); err == nil {
-			paths = append(paths, filepath.Join(home, "Applications", "agent-orchestrator.AppImage"))
+			paths = append(paths, filepath.Join(home, "Applications", "kennel.AppImage"))
 		}
 		return paths
 	default:
@@ -238,10 +236,10 @@ func knownAppLocations() []string {
 // windowsInstalledExe is the default per-user electron-builder NSIS install
 // target for the app exe under %LOCALAPPDATA%.
 func windowsInstalledExe(localAppData string) string {
-	return filepath.Join(localAppData, "Programs", "Agent Orchestrator", "agent-orchestrator.exe")
+	return filepath.Join(localAppData, "Programs", "Kennel", "kennel.exe")
 }
 
-// linuxAppImagePath is the stable location `ao start` downloads the AppImage to
+// linuxAppImagePath is the stable location `kennel start` downloads the AppImage to
 // and scans for. Keeping it out of the cleared staging dir lets re-runs resolve
 // the existing download instead of re-fetching (spec §6.2/§6.3).
 func linuxAppImagePath() string {
@@ -249,17 +247,17 @@ func linuxAppImagePath() string {
 	if err != nil {
 		// Fall back to a bare filename so a misconfigured state dir surfaces as a
 		// clear "not found" rather than a panic; fetch will re-error on download.
-		return "agent-orchestrator.AppImage"
+		return "kennel.AppImage"
 	}
-	return filepath.Join(dir, "agent-orchestrator.AppImage")
+	return filepath.Join(dir, "kennel.AppImage")
 }
 
-const linuxDesktopEntryName = "agent-orchestrator-ao-app.desktop"
+const linuxDesktopEntryName = "kennel.desktop"
 
 func linuxApplicationsDir() (string, error) {
 	// A URL-scheme handler is OS integration metadata, not AO runtime state.
 	// freedesktop.org requires desktop entries under XDG_DATA_HOME; keeping the
-	// executable and all mutable AO data under ~/.ao is unchanged.
+	// executable and all mutable AO data under ~/.kennel is unchanged.
 	if dataHome := os.Getenv("XDG_DATA_HOME"); filepath.IsAbs(dataHome) {
 		return filepath.Join(dataHome, "applications"), nil
 	}
@@ -294,11 +292,11 @@ func (c *commandContext) registerLinuxProtocolHandler(
 	}
 	entry := fmt.Sprintf(`[Desktop Entry]
 Type=Application
-Name=Agent Orchestrator
+Name=Kennel
 Exec=%s %%u
 Terminal=false
 NoDisplay=true
-MimeType=x-scheme-handler/ao-app;
+MimeType=x-scheme-handler/kennel-app;
 `, desktopExecPath(appPath))
 	target := filepath.Join(applicationsDir, linuxDesktopEntryName)
 	temporary := target + ".tmp"
@@ -318,10 +316,10 @@ MimeType=x-scheme-handler/ao-app;
 		"xdg-mime",
 		"default",
 		linuxDesktopEntryName,
-		"x-scheme-handler/ao-app",
+		"x-scheme-handler/kennel-app",
 	); err != nil {
 		return fmt.Errorf(
-			"register ao-app URL handler with xdg-mime (install xdg-utils or use the .deb/.rpm package): %w: %s",
+			"register kennel-app URL handler with xdg-mime (install xdg-utils or use the .deb/.rpm package): %w: %s",
 			err,
 			out,
 		)
@@ -331,14 +329,14 @@ MimeType=x-scheme-handler/ao-app;
 		"xdg-mime",
 		"query",
 		"default",
-		"x-scheme-handler/ao-app",
+		"x-scheme-handler/kennel-app",
 	)
 	if err != nil {
-		return fmt.Errorf("verify ao-app URL handler: %w: %s", err, out)
+		return fmt.Errorf("verify kennel-app URL handler: %w: %s", err, out)
 	}
 	if strings.TrimSpace(string(out)) != linuxDesktopEntryName {
 		return fmt.Errorf(
-			"verify ao-app URL handler: xdg-mime selected %q instead of %q",
+			"verify kennel-app URL handler: xdg-mime selected %q instead of %q",
 			strings.TrimSpace(string(out)),
 			linuxDesktopEntryName,
 		)
@@ -377,12 +375,12 @@ func (c *commandContext) fetchApp(ctx context.Context, w io.Writer) (string, err
 	case "linux":
 		return c.fetchAppLinux(ctx, w)
 	default:
-		return "", fmt.Errorf("ao start: fetch not supported on %s", runtime.GOOS)
+		return "", fmt.Errorf("kennel start: fetch not supported on %s", runtime.GOOS)
 	}
 }
 
 // fetchAppDarwin downloads the latest macOS release zip and unpacks it into a
-// staging dir under ~/.ao/staging, returning the .app bundle path (spec §6.3).
+// staging dir under ~/.kennel/staging, returning the .app bundle path (spec §6.3).
 func (c *commandContext) fetchAppDarwin(ctx context.Context, w io.Writer) (string, error) {
 	asset, err := assetName()
 	if err != nil {
@@ -410,7 +408,7 @@ func (c *commandContext) fetchAppDarwin(ctx context.Context, w io.Writer) (strin
 	}
 
 	// The unpack step is silent and can take seconds on a large bundle; announce
-	// it so a quiet `ao start` doesn't look hung after the download finishes.
+	// it so a quiet `kennel start` doesn't look hung after the download finishes.
 	_, _ = fmt.Fprintln(w, "Unpacking...")
 	// ditto preserves the .app code signature; plain unzip corrupts it (spec §6.3).
 	if out, err := c.deps.CommandOutput(ctx, "ditto", "-x", "-k", zipPath, staging); err != nil {
@@ -419,7 +417,7 @@ func (c *commandContext) fetchAppDarwin(ctx context.Context, w io.Writer) (strin
 
 	appPath := filepath.Join(staging, appBundleName)
 	if !isUsableBundle(appPath) {
-		return "", fmt.Errorf("ao start: %s not found in unpacked release at %s", appBundleName, staging)
+		return "", fmt.Errorf("kennel start: %s not found in unpacked release at %s", appBundleName, staging)
 	}
 	return appPath, nil
 }
@@ -467,17 +465,17 @@ func (c *commandContext) fetchAppWindows(ctx context.Context, w io.Writer) (stri
 
 	local := os.Getenv("LOCALAPPDATA")
 	if local == "" {
-		return "", fmt.Errorf("ao start: LOCALAPPDATA not set; cannot locate installed app")
+		return "", fmt.Errorf("kennel start: LOCALAPPDATA not set; cannot locate installed app")
 	}
 	appPath := windowsInstalledExe(local)
 	if !isUsableBundle(appPath) {
-		return "", fmt.Errorf("ao start: installed app not found at %s", appPath)
+		return "", fmt.Errorf("kennel start: installed app not found at %s", appPath)
 	}
 	return appPath, nil
 }
 
 // fetchAppLinux downloads the self-contained AppImage to a stable path under
-// ~/.ao, makes it executable, and returns it. runStart separately installs the
+// ~/.kennel, makes it executable, and returns it. runStart separately installs the
 // freedesktop URL handler on every launch, including for an existing AppImage.
 func (c *commandContext) fetchAppLinux(ctx context.Context, w io.Writer) (string, error) {
 	asset, err := assetName()
@@ -507,7 +505,7 @@ func (c *commandContext) fetchAppLinux(ctx context.Context, w io.Writer) (string
 		return "", fmt.Errorf("install AppImage: %w", err)
 	}
 	if !isUsableBundle(appPath) {
-		return "", fmt.Errorf("ao start: AppImage not found at %s", appPath)
+		return "", fmt.Errorf("kennel start: AppImage not found at %s", appPath)
 	}
 	return appPath, nil
 }
@@ -542,9 +540,9 @@ func (c *commandContext) download(ctx context.Context, w io.Writer, url, asset, 
 	// percentage is unknown and we report transferred bytes instead.
 	total := resp.ContentLength
 	if total > 0 {
-		_, _ = fmt.Fprintf(w, "Downloading Agent Orchestrator (%s, ~%s) from %s...\n", asset, humanBytes(total), releaseRepo)
+		_, _ = fmt.Fprintf(w, "Downloading Kennel (%s, ~%s) from %s...\n", asset, humanBytes(total), releaseRepo)
 	} else {
-		_, _ = fmt.Fprintf(w, "Downloading Agent Orchestrator (%s) from %s...\n", asset, releaseRepo)
+		_, _ = fmt.Fprintf(w, "Downloading Kennel (%s) from %s...\n", asset, releaseRepo)
 	}
 
 	f, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
@@ -629,9 +627,9 @@ func humanBytes(n int64) string {
 
 // assetName maps the current GOOS/GOARCH to the stable release asset name the
 // release pipeline publishes (spec §6.3, §8). The pipeline uses "x64" for amd64.
-//   - darwin: agent-orchestrator-darwin-{arm64,x64}.zip (signed bundle zip)
-//   - windows: agent-orchestrator-win32-x64.exe (NSIS installer, amd64 only)
-//   - linux: agent-orchestrator-linux-x64.AppImage (self-contained, amd64 only)
+//   - darwin: kennel-darwin-{arm64,x64}.zip (signed bundle zip)
+//   - windows: kennel-win32-x64.exe (NSIS installer, amd64 only)
+//   - linux: kennel-linux-x64.AppImage (self-contained, amd64 only)
 func assetName() (string, error) {
 	switch runtime.GOOS {
 	case "darwin":
@@ -639,19 +637,19 @@ func assetName() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("agent-orchestrator-darwin-%s.zip", arch), nil
+		return fmt.Sprintf("kennel-darwin-%s.zip", arch), nil
 	case "windows":
 		if _, err := requireAMD64(); err != nil {
 			return "", err
 		}
-		return "agent-orchestrator-win32-x64.exe", nil
+		return "kennel-win32-x64.exe", nil
 	case "linux":
 		if _, err := requireAMD64(); err != nil {
 			return "", err
 		}
-		return "agent-orchestrator-linux-x64.AppImage", nil
+		return "kennel-linux-x64.AppImage", nil
 	default:
-		return "", fmt.Errorf("ao start: no release asset for %s", runtime.GOOS)
+		return "", fmt.Errorf("kennel start: no release asset for %s", runtime.GOOS)
 	}
 }
 
@@ -660,7 +658,7 @@ func assetName() (string, error) {
 // mirroring assetArch rather than fetching a 404.
 func requireAMD64() (string, error) {
 	if runtime.GOARCH != "amd64" {
-		return "", fmt.Errorf("ao start: unsupported architecture %q on %s (only amd64 is published)", runtime.GOARCH, runtime.GOOS)
+		return "", fmt.Errorf("kennel start: unsupported architecture %q on %s (only amd64 is published)", runtime.GOARCH, runtime.GOOS)
 	}
 	return "x64", nil
 }
@@ -673,7 +671,7 @@ func assetArch(goarch string) (string, error) {
 	case "amd64":
 		return "x64", nil
 	default:
-		return "", fmt.Errorf("ao start: unsupported architecture %q", goarch)
+		return "", fmt.Errorf("kennel start: unsupported architecture %q", goarch)
 	}
 }
 
@@ -696,7 +694,7 @@ func (c *commandContext) openApp(ctx context.Context, appPath string) (bool, err
 		return true, nil
 	case "windows", "linux":
 		// No `open`-style launcher on these platforms; exec the bundle directly,
-		// detached, so `ao start` does not block on the app. StartProcess uses
+		// detached, so `kennel start` does not block on the app. StartProcess uses
 		// cmd.Start() + a detached SysProcAttr (see process.go).
 		//
 		// ponytail: on some Linux hosts the AppImage may need --no-sandbox; not
@@ -720,12 +718,12 @@ func (c *commandContext) openApp(ctx context.Context, appPath string) (bool, err
 // printDeprecationNotice explains the new role of the npm `ao` binary. Keep it
 // honest: Track B (live auto-update) is not done, so it does not promise it.
 func (c *commandContext) printDeprecationNotice(w io.Writer) {
-	_, _ = fmt.Fprint(w, "Agent Orchestrator is now a desktop app, and the npm `ao` is just its launcher.\n"+
+	_, _ = fmt.Fprint(w, "Kennel is distributed as a desktop app.\n"+
 		"The app is distributed from the website and GitHub Releases; it owns the daemon and updates itself.\n"+
-		"You can keep running `ao start` to fetch (if needed) and open it.\n")
+		"You can keep running `kennel start` to fetch (if needed) and open it.\n")
 }
 
-// printManualOpen tells the user how to open the bundle when `ao start` could
+// printManualOpen tells the user how to open the bundle when `kennel start` could
 // not launch it for them (non-darwin, or a failed launch handled upstream).
 func (c *commandContext) printManualOpen(w io.Writer, appPath string) {
 	_, _ = fmt.Fprintf(w, "Could not open the app automatically. Open it manually: %s\n", appPath)

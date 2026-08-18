@@ -96,12 +96,12 @@ describe("native WorkOS authentication", () => {
         provider: "authkit",
         prompt: "login",
         maxAge: 0,
-        redirectUri: "ao-app://callback",
+        redirectUri: "kennel-app://callback",
       }),
     );
 
     const session = await handleCloudDeepLink(
-      "ao-app://callback?code=code_123&state=state_123",
+      "kennel-app://callback?code=code_123&state=state_123",
       dataDir,
     );
     expect(session).toMatchObject({
@@ -123,7 +123,7 @@ describe("native WorkOS authentication", () => {
     await beginCloudSignIn(dataDir);
     await expect(
       handleCloudDeepLink(
-        "ao-app://callback?code=code_123&state=attacker_state",
+        "kennel-app://callback?code=code_123&state=attacker_state",
         dataDir,
       ),
     ).rejects.toThrow("state did not match");
@@ -133,7 +133,7 @@ describe("native WorkOS authentication", () => {
     mocks.encryptionAvailable = false;
     await beginCloudSignIn(dataDir);
     const account = await handleCloudDeepLink(
-      "ao-app://callback?code=code_123&state=state_123",
+      "kennel-app://callback?code=code_123&state=state_123",
       dataDir,
     );
 
@@ -152,7 +152,7 @@ describe("native WorkOS authentication", () => {
     mocks.selectedStorageBackend = "basic_text";
     await beginCloudSignIn(dataDir);
     const account = await handleCloudDeepLink(
-      "ao-app://callback?code=code_123&state=state_123",
+      "kennel-app://callback?code=code_123&state=state_123",
       dataDir,
     );
 
@@ -208,7 +208,7 @@ describe("native WorkOS authentication", () => {
     );
     await beginCloudSignIn(dataDir);
     await handleCloudDeepLink(
-      "ao-app://callback?code=code_123&state=state_123",
+      "kennel-app://callback?code=code_123&state=state_123",
       dataDir,
     );
 
@@ -248,7 +248,7 @@ describe("native WorkOS authentication", () => {
     );
     await beginCloudSignIn(dataDir);
     await handleCloudDeepLink(
-      "ao-app://callback?code=code_123&state=state_123",
+      "kennel-app://callback?code=code_123&state=state_123",
       dataDir,
     );
 
@@ -284,7 +284,7 @@ describe("native WorkOS authentication", () => {
       });
     await beginCloudSignIn(dataDir);
     await handleCloudDeepLink(
-      "ao-app://callback?code=code_123&state=state_123",
+      "kennel-app://callback?code=code_123&state=state_123",
       dataDir,
     );
 
@@ -328,7 +328,7 @@ describe("native WorkOS authentication", () => {
     );
     await beginCloudSignIn(dataDir);
     await handleCloudDeepLink(
-      "ao-app://callback?code=code_123&state=state_123",
+      "kennel-app://callback?code=code_123&state=state_123",
       dataDir,
     );
 
@@ -357,7 +357,7 @@ describe("native WorkOS authentication", () => {
   it("signs out locally without opening the browser", async () => {
     await beginCloudSignIn(dataDir);
     await handleCloudDeepLink(
-      "ao-app://callback?code=code_123&state=state_123",
+      "kennel-app://callback?code=code_123&state=state_123",
       dataDir,
     );
     mocks.openExternal.mockClear();

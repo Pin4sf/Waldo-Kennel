@@ -35,7 +35,7 @@ const (
 	// codexHookCommandPrefix identifies the hook commands AO owns, so the
 	// legacy-file cleanup and uninstall recognize AO entries by prefix
 	// without an embedded template to diff against.
-	codexHookCommandPrefix = "ao hooks codex "
+	codexHookCommandPrefix = "kennel hooks codex "
 	// codexHookTimeout caps how long Codex waits on one AO hook callback. The
 	// callback is a loopback POST that normally returns in milliseconds; a
 	// tight cap keeps a hung daemon from stalling the agent's turn.

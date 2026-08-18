@@ -16,7 +16,7 @@ const (
 	ampPluginDirName  = ".amp"
 	ampPluginSubDir   = "plugins"
 	ampPluginFileName = "ao-system-prompt.ts"
-	ampPluginSentinel = "agent-orchestrator: managed amp system prompt plugin"
+	ampPluginSentinel = "kennel: managed amp system prompt plugin"
 )
 
 // GetAgentHooks installs AO's Amp system-prompt plugin into the worktree-local

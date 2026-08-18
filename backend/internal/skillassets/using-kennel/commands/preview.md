@@ -1,11 +1,11 @@
-# ao preview
+# kennel preview
 
 Open a URL or workspace file in the desktop browser panel for the current
 session, or start a deterministic session-owned dev server from
 an existing `.ao/launch.json`.
 
 Static HTML and Markdown do not need a development server. Open them directly
-with `ao preview <workspace-path>`. Never create or modify `package.json`,
+with `kennel preview <workspace-path>`. Never create or modify `package.json`,
 install dependencies, or introduce npm or another server solely to display
 static files.
 
@@ -21,11 +21,11 @@ When a browser-displayable file is itself the artifact the user requested,
 open it immediately after creating or materially updating it:
 
 ```bash
-ao preview docs/plan.md
-ao preview report.html
-ao preview output.pdf
-ao preview diagram.svg
-ao preview mockup.png
+kennel preview docs/plan.md
+kennel preview report.html
+kennel preview output.pdf
+kennel preview diagram.svg
+kennel preview mockup.png
 ```
 
 Do this without waiting for a separate "open it" request. Browser-displayable
@@ -41,8 +41,8 @@ preview the artifact.
 ## Syntax
 
 ```
-ao preview [url] [flags]
-ao preview [command]
+kennel preview [url] [flags]
+kennel preview [command]
 ```
 
 ## Flags
@@ -53,22 +53,22 @@ No flags beyond `-h / --help`.
 
 ---
 
-### ao preview start
+### kennel preview start
 
 Start a named configuration from `.ao/launch.json`, wait for its loopback URL,
 and open it in this worker's Browser panel. The name is optional when exactly
 one configuration exists.
 
 ```bash
-ao preview start [configuration] [--json]
-ao preview status [--json]
-ao preview stop [--json]
+kennel preview start [configuration] [--json]
+kennel preview status [--json]
+kennel preview stop [--json]
 ```
 
 This command is for an existing, intentional project configuration. Do not
 create the file as routine preview setup. Do not scan unrelated ports.
 `${PORT}` is expanded in `runtimeArgs`, `url`, and `env`; AO also sets `PORT`,
-`AO_PREVIEW_PORT`, and `AO_SESSION_ID`.
+`KENNEL_PREVIEW_PORT`, and `KENNEL_SESSION_ID`.
 
 Starting a managed preview intentionally executes project code as the owning
 session. Treat `.ao/launch.json` like any other executable project script:
@@ -98,12 +98,12 @@ HTTP.
 Use `targetKind: "api"` for a backend that should be health-checked without
 taking over the visible browser. When several configurations exist, select the
 one relevant to the user's request by name. If the agent starts a server
-outside this lifecycle, explicitly adopt its known URL with `ao preview <url>`;
+outside this lifecycle, explicitly adopt its known URL with `kennel preview <url>`;
 terminal URLs are not automatically ranked or selected.
 
 ---
 
-### ao preview (bare form)
+### kennel preview (bare form)
 
 Open the workspace's static entry point, or the session's existing preview target.
 This is the default for a plain static site: an `index.html` is discovered and
@@ -114,31 +114,31 @@ runtime.
 
 ```bash
 # Open the default entry point for this session's workspace
-ao preview
+kennel preview
 ```
 
 ```bash
 # Open a local dev server
-ao preview http://localhost:5173
+kennel preview http://localhost:5173
 (or wherever the dev server is running)
 ```
 
 ```bash
 # Open an exact workspace file (Markdown is rendered to HTML)
-ao preview README.md
-ao preview docs/guide.md
-ao preview index.html
+kennel preview README.md
+kennel preview docs/guide.md
+kennel preview index.html
 ```
 
 ---
 
-### ao preview clear
+### kennel preview clear
 
 Clear the desktop browser panel for the current session.
 
 **Syntax:**
 ```
-ao preview clear [flags]
+kennel preview clear [flags]
 ```
 
 **Flags:**
@@ -149,7 +149,7 @@ No flags beyond `-h / --help`.
 
 ```bash
 # Clear the preview panel
-ao preview clear
+kennel preview clear
 ```
 
 Stopping a managed server clears the panel only when it is still displaying

@@ -222,7 +222,7 @@ describe("ActivityRow command labels", () => {
 				activity={commandActivity(
 					{
 						command:
-							"sed -n '1,240p' ~/.ao/dev/data/skills/using-ao/SKILL.md && sed -n '1,240p' ~/.ao/dev/data/skills/other/SKILL.md",
+							"sed -n '1,240p' ~/.kennel/dev/data/skills/using-ao/SKILL.md && sed -n '1,240p' ~/.kennel/dev/data/skills/other/SKILL.md",
 						output: "skill contents",
 					},
 					"completed",

@@ -29,7 +29,7 @@ vi.mock("electron", () => ({
 await import("./preload");
 
 function exposedBridge(): AoBridge {
-	const call = electronMocks.exposeInMainWorld.mock.calls.find(([key]) => key === "ao");
+	const call = electronMocks.exposeInMainWorld.mock.calls.find(([key]) => key === "kennel");
 	if (!call) throw new Error("preload bridge was not exposed");
 	return call[1] as AoBridge;
 }

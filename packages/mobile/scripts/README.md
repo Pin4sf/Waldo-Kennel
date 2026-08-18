@@ -50,12 +50,12 @@ Then connect the new phone (it becomes the pinned device).
 | -------- | ------------------------ | -------------------------------------------------------- |
 | `PORT`   | `3011`                   | LAN port to expose to the phone                          |
 | `TARGET` | `3001`                   | Loopback daemon port to forward to                       |
-| `STATE`  | `~/.ao/phone-allow.json` | Where the paired-device IP is remembered                 |
+| `STATE`  | `~/.kennel/phone-allow.json` | Where the paired-device IP is remembered                 |
 | `RESET`  | -                        | `RESET=1` clears the pairing, then pairs the next device |
 
 ## Notes
 
-- **Keep the daemon on its default localhost bind** - don't set `AO_HOST`. This
+- **Keep the daemon on its default localhost bind** - don't set `KENNEL_HOST`. This
   bridge is the only thing exposed to the LAN.
 - **DHCP drift:** if the phone's IP changes, its new IP won't match the pin and
   it'll be blocked - `RESET=1` and reconnect, or set a **DHCP reservation** for
