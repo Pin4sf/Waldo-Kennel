@@ -1,12 +1,12 @@
 # Connecting a physical phone (LAN bridge)
 
-> **Note:** `ao-phone-proxy.js` is **superseded** by the built-in Connect Mobile feature (Settings → Connect Mobile in the desktop app). This script is retained for reference only and is no longer the recommended approach.
+> **Note:** `kennel-phone-proxy.js` is **superseded** by the built-in Connect Mobile feature (Settings → Connect Mobile in the desktop app). This script is retained for reference only and is no longer the recommended approach.
 
 The AO daemon binds to **localhost only** (`127.0.0.1:3001`) by design — it has no
 auth, so it never exposes itself to the network. That means a **physical phone**
 (a separate device on your Wi-Fi) can't reach it directly.
 
-`ao-phone-proxy.js` is a tiny bridge that fixes this **without weakening the
+`kennel-phone-proxy.js` is a tiny bridge that fixes this **without weakening the
 daemon**: it opens **one** LAN port, forwards it to the loopback daemon, and uses
 **trust-on-first-connect** - the first device that connects is pinned as the
 _only_ allowed device; every other machine on the Wi-Fi is refused.
@@ -16,7 +16,7 @@ _only_ allowed device; every other machine on the Wi-Fi is refused.
 From the repo root (Node is the only requirement):
 
 ```bash
-node packages/mobile/scripts/ao-phone-proxy.js
+node packages/mobile/scripts/kennel-phone-proxy.js
 ```
 
 You'll see:
@@ -39,7 +39,7 @@ device` - the phone is now the single trusted device. Done.
 ## Re-pair a different phone
 
 ```bash
-RESET=1 node packages/mobile/scripts/ao-phone-proxy.js
+RESET=1 node packages/mobile/scripts/kennel-phone-proxy.js
 ```
 
 Then connect the new phone (it becomes the pinned device).

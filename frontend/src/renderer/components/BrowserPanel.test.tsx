@@ -229,15 +229,15 @@ describe("BrowserPanel", () => {
 
 	it("uses the active app theme for the static browser preview", () => {
 		hookState.navState = { ...hookState.navState, url: "http://localhost:5173/" };
-		const ao = window.kennel;
-		Object.defineProperty(window, "ao", { configurable: true, value: undefined });
+		const kennel = window.kennel;
+		Object.defineProperty(window, "kennel", { configurable: true, value: undefined });
 		try {
 			render(<BrowserPanel active onTogglePopOut={() => undefined} poppedOut={false} session={session} />);
 
 			const preview = screen.getByText("Demo app preview").closest(".bg-preview, .bg-background");
 			expect(preview).toHaveClass("bg-background", "text-foreground");
 		} finally {
-			Object.defineProperty(window, "ao", { configurable: true, value: ao });
+			Object.defineProperty(window, "kennel", { configurable: true, value: kennel });
 		}
 	});
 

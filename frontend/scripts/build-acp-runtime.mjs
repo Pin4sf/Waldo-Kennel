@@ -25,7 +25,7 @@ if (!platform || !arch) {
 	throw new Error(`ACP runtime packaging is unsupported on ${process.platform}/${process.arch}`);
 }
 
-// Release builds run natively on their target OS. This keeps AO's packaged Node
+// Release builds run natively on their target OS. This keeps Kennel's packaged Node
 // runtime aligned with the adapter's >=22 requirement without making the user
 // install Node globally.
 const extension = process.platform === "win32" ? "zip" : "tar.gz";
@@ -37,7 +37,7 @@ const buildSignature = createHash("sha256")
 	.update(readFileSync(join(scriptsDir, "build-acp-runtime-helpers.mjs")))
 	.update(`node=${NODE_VERSION};platform=${platform};arch=${arch}`)
 	.digest("hex");
-const markerPath = join(outDir, ".ao-acp-runtime.json");
+const markerPath = join(outDir, ".kennel-acp-runtime.json");
 const expectedNode = process.platform === "win32"
 	? join(outDir, "node", "node.exe")
 	: join(outDir, "node", "bin", "node");
@@ -64,7 +64,7 @@ run(npm.command, npm.args, { cwd: outDir });
 
 // The Claude Agent SDK declares platform-native Claude executables as optional
 // dependencies. --omit=optional excludes them; this removal is defense-in-depth.
-// At runtime AO sets
+// At runtime Kennel sets
 // CLAUDE_CODE_EXECUTABLE to the user's already-installed Claude Code binary.
 const anthropicDir = join(outDir, "node_modules", "@anthropic-ai");
 const nativeClaudePackages = [

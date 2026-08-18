@@ -645,7 +645,7 @@ function StaticPreview({ url }: { url: string }) {
 	return (
 		<div className="absolute inset-0 overflow-auto bg-background text-foreground">
 			<div className="border-b border-border bg-surface px-4 py-3">
-				<div className="text-caption font-semibold uppercase tracking-wide-md text-muted-foreground">AO Preview</div>
+				<div className="text-caption font-semibold uppercase tracking-wide-md text-muted-foreground">Kennel Preview</div>
 				<div className="mt-1 truncate font-mono text-xs text-accent">{url}</div>
 			</div>
 			<div className="mx-auto max-w-preview-max px-5 py-6">
@@ -656,7 +656,7 @@ function StaticPreview({ url }: { url: string }) {
 								Demo app preview
 							</h1>
 							<p className="mt-1 text-control leading-row text-muted-foreground">
-								The worker exposed a local Vite app with <span className="font-mono">ao preview</span>.
+								The worker exposed a local Vite app with <span className="font-mono">kennel preview</span>.
 							</p>
 						</div>
 						<span className="rounded-md bg-success/15 px-2.5 py-1 text-caption font-semibold text-success">

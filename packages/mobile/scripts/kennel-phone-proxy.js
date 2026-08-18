@@ -10,9 +10,9 @@
 // run once with RESET=1 (or delete the state file).
 //
 // Usage (from the repo root, or anywhere - the path is what matters):
-//   node packages/mobile/scripts/ao-phone-proxy.js         # first device pairs
-//   RESET=1 node packages/mobile/scripts/ao-phone-proxy.js # forget + re-pair
-//   PORT=3011 TARGET=3001 node packages/mobile/scripts/ao-phone-proxy.js
+//   node packages/mobile/scripts/kennel-phone-proxy.js         # first device pairs
+//   RESET=1 node packages/mobile/scripts/kennel-phone-proxy.js # forget + re-pair
+//   PORT=3011 TARGET=3001 node packages/mobile/scripts/kennel-phone-proxy.js
 //
 // Env:
 //   PORT    LAN port to expose      (default 3011)

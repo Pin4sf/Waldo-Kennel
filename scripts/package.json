@@ -1,9 +1,9 @@
 {
-	"name": "ao-e2e-pod-gate",
+	"name": "@pin4sf/kennel-e2e-pod-gate",
 	"version": "0.0.0",
 	"private": true,
 	"type": "module",
-	"description": "Daytona pod runner for the stable-release e2e gate (see frontend-release.yml e2e-gate).",
+	"description": "Retained Daytona runner for a future Kennel release e2e gate; not part of foundation CI.",
 	"dependencies": {
 		"@daytona/sdk": "^0.196.0"
 	}

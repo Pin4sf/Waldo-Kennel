@@ -489,7 +489,7 @@ describe("CommandPalette drill-in + Enter", () => {
 });
 
 describe("CommandPalette actions", () => {
-	it("shows disabled New task reason, skips it for selection, and ignores clicks", async () => {
+	it("shows disabled New outcome reason, skips it for selection, and ignores clicks", async () => {
 		ctx.params = {};
 		renderPalette();
 		act(() => useUiStore.getState().setCommandPaletteOpen(true));
@@ -500,7 +500,7 @@ describe("CommandPalette actions", () => {
 			expect(selected?.textContent).not.toContain("No current project");
 			expect(selected?.getAttribute("aria-disabled")).not.toBe("true");
 		});
-		fireEvent.click(screen.getByText("New task"));
+		fireEvent.click(screen.getByText("New outcome"));
 		expect(navigateMock).not.toHaveBeenCalled();
 		expect(spawnMock).not.toHaveBeenCalled();
 	});
@@ -893,7 +893,7 @@ describe("CommandPalette inline task composer", () => {
 		renderPalette();
 		act(() => useUiStore.getState().setCommandPaletteOpen(true));
 		await screen.findByPlaceholderText(/search projects/i);
-		fireEvent.click(screen.getByText("New task"));
+		fireEvent.click(screen.getByText("New outcome"));
 		return screen.findByTestId("task-composer");
 	}
 

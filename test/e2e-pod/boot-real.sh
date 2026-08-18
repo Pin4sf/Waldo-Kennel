@@ -7,7 +7,7 @@
 # headless, drives it with Playwright (_electron.launch against the app's own
 # electron), and emits a final `KENNEL_VERDICT {json}` line the runner parses.
 #
-# Verdict contract (parsed by scripts/ao-e2e-pod-gate.mjs):
+# Verdict contract (parsed by scripts/kennel-e2e-pod-gate.mjs):
 #   {"passed":true}               -> app smoke passed         (green)
 #   {"passed":false}              -> app smoke FAILED          (red app_failed)
 #   {"passed":false,"infra":true} -> setup/toolchain problem   (neutral, NOT red)

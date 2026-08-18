@@ -151,7 +151,7 @@ describe("HumanMessage attachments", () => {
 		const image = screen.getByRole("img", { name });
 		expect(image).toHaveAttribute(
 			"src",
-			`http://127.0.0.1:3001/api/v1/sessions/ao%20session%2F1/preview/files/.ao/attachments/${name}`,
+			`http://127.0.0.1:3001/api/v1/sessions/kennel%20session%2F1/preview/files/.ao/attachments/${name}`,
 		);
 		expect(screen.getByText("check again")).toBeInTheDocument();
 		expect(screen.queryByText(/Attached (?:files|images) \(read these files/)).not.toBeInTheDocument();
@@ -175,7 +175,7 @@ describe("HumanMessage attachments", () => {
 			"Attached images (read these files in the workspace for visual context):",
 			"image-a1b2c3d4.webp",
 		],
-	])("renders an AO-generated %s image reference as an image", (_source, header, name) => {
+	])("renders an Kennel-generated %s image reference as an image", (_source, header, name) => {
 		renderImageAttachment(header, name);
 	});
 

@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { deriveGateOutcome, parseArgs, parsePodVerdict, validateGateArgs } from "./ao-e2e-pod-gate.mjs";
+import { deriveGateOutcome, parseArgs, parsePodVerdict, validateGateArgs } from "./kennel-e2e-pod-gate.mjs";
 
 test("passed -> success / exit 0", () => {
 	const o = deriveGateOutcome({ ranOk: true, testsPassed: true });

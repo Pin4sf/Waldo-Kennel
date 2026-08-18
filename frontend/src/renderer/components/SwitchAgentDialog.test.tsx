@@ -179,7 +179,7 @@ describe("SwitchAgentDialog", () => {
 		);
 	});
 
-	it("keeps admission controls visible but disabled while displaying Starting...", () => {
+	it("keeps admission controls visible but disabled while displaying Defining...", () => {
 		switchMocks.state.isPending = true;
 
 		renderDialog();
@@ -188,7 +188,7 @@ describe("SwitchAgentDialog", () => {
 		expect(within(dialog).getByRole("button", { name: "Target agent" })).toBeDisabled();
 		expect(within(dialog).getByRole("button", { name: "Model" })).toBeDisabled();
 		expect(within(dialog).getByRole("button", { name: "Close switch agent dialog" })).toBeDisabled();
-		expect(within(dialog).getByRole("button", { name: "Starting..." })).toBeDisabled();
+		expect(within(dialog).getByRole("button", { name: "Defining..." })).toBeDisabled();
 	});
 
 	it("keeps admission failures inline for correction", () => {

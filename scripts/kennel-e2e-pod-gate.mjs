@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Stable-release e2e pod gate runner.
 //
-//   node scripts/ao-e2e-pod-gate.mjs --repo <owner/repo> --sha <sha> --tag <release-tag> --suite T0
+//   node scripts/kennel-e2e-pod-gate.mjs --repo <owner/repo> --sha <sha> --tag <release-tag> --suite T0
 //   - Downloads the release's Linux .deb on the runner (public asset, no token),
 //     spins an ephemeral Daytona pod (env DAYTONA_API_KEY, used only to CREATE
 //     the pod — never passed into it), uploads the build + harness, and runs the
@@ -146,7 +146,7 @@ export function validateGateArgs({ apiKey, repo, tag } = {}) {
 	if (!repo) missing.push("--repo");
 	if (!tag) missing.push("--tag");
 	if (missing.length > 0) {
-		throw new Error(`ao-e2e-pod-gate: missing required input(s): ${missing.join(", ")}`);
+		throw new Error(`kennel-e2e-pod-gate: missing required input(s): ${missing.join(", ")}`);
 	}
 }
 
@@ -216,7 +216,7 @@ async function runPodSuite({ repo, tag, apiKey, suite, artifactsDir, timeoutMs =
 	} catch (err) {
 		// Record WHY the log is short so the always-uploaded pod.log is never a
 		// silent empty file on an infra/exception path.
-		if (!podLog) podLog = `ao-e2e-pod-gate: run failed before the pod produced output: ${err.message}\n`;
+		if (!podLog) podLog = `kennel-e2e-pod-gate: run failed before the pod produced output: ${err.message}\n`;
 		throw err;
 	} finally {
 		// ALWAYS write the pod log — on green, red, infra, or exception — so the
@@ -235,7 +235,7 @@ async function runPodSuite({ repo, tag, apiKey, suite, artifactsDir, timeoutMs =
 
 async function main(argv) {
 	const args = parseArgs(argv.slice(2));
-	console.log("ao-e2e-pod-gate");
+	console.log("kennel-e2e-pod-gate");
 	console.log(`  repo=${args.repo ?? "(unset)"} tag=${args.tag ?? "(unset)"} suite=${args.suite ?? "T0"}`);
 	console.log(`  DAYTONA_API_KEY: ${process.env.DAYTONA_API_KEY ? "present" : "absent"}`);
 
@@ -266,13 +266,13 @@ async function main(argv) {
 			artifactsUrl: runUrl,
 		});
 	} catch (err) {
-		console.error(`ao-e2e-pod-gate: run failed: ${err.message}`);
+		console.error(`kennel-e2e-pod-gate: run failed: ${err.message}`);
 		// Guarantee a pod.log exists even when the run threw before the pod could
 		// produce one (e.g. missing DAYTONA_API_KEY, or a throw before runPodSuite's
 		// own finally): the artifact upload must never find an empty dir silently.
 		try {
 			mkdirSync(artifactsDir, { recursive: true });
-			writeFileSync(join(artifactsDir, "pod.log"), `ao-e2e-pod-gate: run failed (infra/setup): ${err.message}\n`, {
+			writeFileSync(join(artifactsDir, "pod.log"), `kennel-e2e-pod-gate: run failed (infra/setup): ${err.message}\n`, {
 				flag: "wx",
 			});
 		} catch {

@@ -23,6 +23,7 @@ describe("initTelemetry recovery", () => {
 	beforeEach(() => {
 		vi.resetModules();
 		vi.clearAllMocks();
+		vi.stubEnv("VITE_KENNEL_POSTHOG_KEY", "phc_kennel_test");
 	});
 
 	it("retries init after a transient thrown failure instead of caching it", async () => {

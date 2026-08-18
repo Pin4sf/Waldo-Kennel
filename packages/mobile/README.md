@@ -243,7 +243,7 @@ lib/
   pairing.ts         pairing-QR payload parser
   store.tsx          app state + connection polling
   theme.ts, ui.tsx   design primitives
-scripts/             ao-phone-proxy.js — superseded by Connect Mobile, kept for reference
+scripts/             kennel-phone-proxy.js — superseded by Connect Mobile, kept for reference
 ```
 
 ## Verify
