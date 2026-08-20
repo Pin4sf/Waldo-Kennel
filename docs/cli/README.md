@@ -1,6 +1,6 @@
-# AO CLI
+# Kennel CLI
 
-The `ao` CLI is a thin Go/Cobra client for the local Agent Orchestrator daemon.
+The `ao` CLI is a thin Go/Cobra client for the local Kennel daemon.
 It starts, discovers, inspects, and stops the daemon through the loopback HTTP
 surface and the `running.json` handshake. It must not open SQLite directly or
 call runtime, workspace, tracker, or agent adapters in-process.

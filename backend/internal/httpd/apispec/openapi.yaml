@@ -414,55 +414,6 @@ paths:
       summary: Stream CDC events with durable replay
       tags:
       - events
-  /api/v1/import:
-    get:
-      operationId: getImportStatus
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImportStatusResponse'
-          description: OK
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Check whether a legacy AO install is available to import
-      tags:
-      - import
-    post:
-      operationId: runImport
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImportRunResponse'
-          description: OK
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Run the legacy AO project import through the daemon store
-      tags:
-      - import
   /api/v1/mobile/devices:
     get:
       operationId: listMobileDevices
@@ -6237,31 +6188,8 @@ components:
           enum:
           - claude-code
           - codex
-          - aider
           - opencode
-          - grok
-          - droid
-          - amp
-          - agy
-          - crush
           - cursor
-          - qwen
-          - copilot
-          - goose
-          - auggie
-          - continue
-          - devin
-          - cline
-          - kimi
-          - muse
-          - kiro
-          - kilocode
-          - vibe
-          - pi
-          - kimchi
-          - prime-agent
-          - autohand
-          - fake
           type: string
         attachments:
           items:
@@ -6407,40 +6335,6 @@ components:
       required:
       - sourceBranchId
       - activeBranchId
-      type: object
-    ImportReport:
-      properties:
-        dryRun:
-          type: boolean
-        notes:
-          items:
-            type: string
-          type: array
-        projectsImported:
-          type: integer
-        projectsSkipped:
-          type: integer
-      required:
-      - dryRun
-      - projectsImported
-      - projectsSkipped
-      type: object
-    ImportRunResponse:
-      properties:
-        report:
-          $ref: '#/components/schemas/ImportReport'
-      required:
-      - report
-      type: object
-    ImportStatusResponse:
-      properties:
-        available:
-          type: boolean
-        legacyRoot:
-          type: string
-      required:
-      - available
-      - legacyRoot
       type: object
     InitializeRepositoryInput:
       properties:
@@ -8021,29 +7915,8 @@ components:
           enum:
           - claude-code
           - codex
-          - copilot
-          - cursor
-          - kilocode
           - opencode
-          - kiro
-          - pi
-          - qwen
-          - agy
-          - continue
-          - goose
-          - vibe
-          - devin
-          - droid
-          - kimi
-          - kimchi
-          - muse
-          - amp
-          - aider
-          - grok
-          - crush
-          - auggie
-          - cline
-          - autohand
+          - cursor
           type: string
       type: object
     SettingsResponse:
@@ -8125,30 +7998,8 @@ components:
           enum:
           - claude-code
           - codex
-          - aider
           - opencode
-          - grok
-          - droid
-          - amp
-          - agy
-          - crush
           - cursor
-          - qwen
-          - copilot
-          - goose
-          - auggie
-          - continue
-          - devin
-          - cline
-          - kimi
-          - muse
-          - kiro
-          - kilocode
-          - vibe
-          - pi
-          - kimchi
-          - prime-agent
-          - autohand
           type: string
         issueId:
           type: string
@@ -8352,29 +8203,8 @@ components:
           enum:
           - claude-code
           - codex
-          - copilot
-          - cursor
-          - kilocode
           - opencode
-          - kiro
-          - pi
-          - qwen
-          - agy
-          - continue
-          - goose
-          - vibe
-          - devin
-          - droid
-          - kimi
-          - kimchi
-          - muse
-          - amp
-          - aider
-          - grok
-          - crush
-          - auggie
-          - cline
-          - autohand
+          - cursor
           type: string
       type: object
     TriggerReviewResponse:

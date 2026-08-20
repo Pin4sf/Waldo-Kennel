@@ -1177,8 +1177,7 @@ const WORKER_DEFAULT_REVIEWERS: Partial<Record<WorkspaceSession["provider"], Rev
 	"claude-code": "claude-code",
 	codex: "codex",
 	opencode: "opencode",
-	muse: "muse",
-	kimchi: "kimchi",
+	cursor: "cursor",
 };
 
 function resolveDefaultReviewerHarness(config: ProjectConfig | undefined, workerHarness: WorkspaceSession["provider"]): ReviewerHarness {

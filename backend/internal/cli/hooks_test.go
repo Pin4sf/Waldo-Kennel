@@ -637,7 +637,7 @@ func TestHooks_ClaudeCodeBlankSessionIDIsIgnored(t *testing.T) {
 }
 
 func TestHooks_ClaudeCompatibleSessionStartReportsAgentSessionID(t *testing.T) {
-	for _, agent := range []string{"grok", "muse"} {
+	for _, agent := range []string{"claude-code"} {
 		t.Run(agent, func(t *testing.T) {
 			t.Setenv("AO_SESSION_ID", "ao-7")
 			cfg := setConfigEnv(t)
@@ -666,16 +666,16 @@ func TestHooks_ClaudeCompatibleSessionStartReportsAgentSessionID(t *testing.T) {
 	}
 }
 
-func TestHooks_MuseUserPromptReportsActive(t *testing.T) {
+func TestHooks_ClaudeCodeUserPromptReportsActive(t *testing.T) {
 	t.Setenv("AO_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
 	writeRunFileFor(t, cfg, srv)
 
 	_, _, err := executeCLI(t, Deps{
-		In:           strings.NewReader(`{"session_id":"muse-native-1"}`),
+		In:           strings.NewReader(`{"session_id":"claude-native-1"}`),
 		ProcessAlive: func(int) bool { return true },
-	}, "hooks", "muse", "user-prompt-submit")
+	}, "hooks", "claude-code", "user-prompt-submit")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -683,14 +683,14 @@ func TestHooks_MuseUserPromptReportsActive(t *testing.T) {
 	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
 		t.Fatalf("decode body: %v\nbody=%s", err, capture.body)
 	}
-	want := setActivityAPIRequest{State: "active", Event: "user-prompt-submit", AgentSessionID: "muse-native-1"}
+	want := setActivityAPIRequest{State: "active", Event: "user-prompt-submit", AgentSessionID: "claude-native-1"}
 	if req != want {
 		t.Fatalf("body = %+v, want %+v", req, want)
 	}
 }
 
 func TestHooks_RegisteredHarnessSessionStartReportsAgentSessionID(t *testing.T) {
-	for _, agent := range []string{"opencode", "qwen", "kimi", "kilocode", "goose"} {
+	for _, agent := range []string{"opencode"} {
 		t.Run(agent, func(t *testing.T) {
 			t.Setenv("AO_SESSION_ID", "ao-7")
 			cfg := setConfigEnv(t)
@@ -719,7 +719,7 @@ func TestHooks_RegisteredHarnessSessionStartReportsAgentSessionID(t *testing.T) 
 	}
 }
 
-func TestHooks_VibePostAgentReportsSessionIDAndIdle(t *testing.T) {
+func testHooksVibePostAgentReportsSessionIDAndIdle(t *testing.T) {
 	t.Setenv("AO_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
@@ -745,7 +745,7 @@ func TestHooks_VibePostAgentReportsSessionIDAndIdle(t *testing.T) {
 	}
 }
 
-func TestHooks_AgySessionStartReportsConversationID(t *testing.T) {
+func testHooksAgySessionStartReportsConversationID(t *testing.T) {
 	t.Setenv("AO_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	promptDir := filepath.Join(cfg.dataDir, "prompts", "ao-7")
@@ -781,7 +781,7 @@ func TestHooks_AgySessionStartReportsConversationID(t *testing.T) {
 	}
 }
 
-func TestHooks_CopilotSessionStartReportsSessionID(t *testing.T) {
+func testHooksCopilotSessionStartReportsSessionID(t *testing.T) {
 	t.Setenv("AO_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	srv, capture := activityServer(t, http.StatusOK, `{"ok":true}`)
@@ -807,7 +807,7 @@ func TestHooks_CopilotSessionStartReportsSessionID(t *testing.T) {
 	}
 }
 
-func TestHooks_DevinSessionStartInjectsSystemPromptContext(t *testing.T) {
+func testHooksDevinSessionStartInjectsSystemPromptContext(t *testing.T) {
 	t.Setenv("AO_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	promptDir := filepath.Join(cfg.dataDir, "prompts", "ao-7")
@@ -847,7 +847,7 @@ func TestHooks_DevinSessionStartInjectsSystemPromptContext(t *testing.T) {
 	}
 }
 
-func TestHooks_AgySessionStartInjectsSystemPromptContext(t *testing.T) {
+func testHooksAgySessionStartInjectsSystemPromptContext(t *testing.T) {
 	t.Setenv("AO_SESSION_ID", "ao-7")
 	cfg := setConfigEnv(t)
 	promptDir := filepath.Join(cfg.dataDir, "prompts", "ao-7")

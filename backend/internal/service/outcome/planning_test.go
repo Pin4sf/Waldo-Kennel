@@ -40,3 +40,18 @@ func TestBuildPlanFailsClosedForUnavailableHarnessAndCycles(t *testing.T) {
 		t.Fatalf("err = %v, want cycle", err)
 	}
 }
+
+func TestTaskLifecycleRejectsMarkerStyleShortcuts(t *testing.T) {
+	if domain.OutcomeTaskStatusWorking.CanTransitionTo(domain.OutcomeTaskStatusReadyToMerge) {
+		t.Fatal("working task must not bypass evidence review")
+	}
+	if !domain.OutcomeTaskStatusWorking.CanTransitionTo(domain.OutcomeTaskStatusInReview) {
+		t.Fatal("working task should be eligible for daemon-validated review")
+	}
+	if !domain.OutcomeTaskStatusInReview.CanTransitionTo(domain.OutcomeTaskStatusReadyToMerge) {
+		t.Fatal("reviewed task should be eligible for ready_to_merge")
+	}
+	if domain.OutcomeTaskStatusOnHold.CanTransitionTo(domain.OutcomeTaskStatusReadyToMerge) {
+		t.Fatal("dependency hold must not imply completion")
+	}
+}

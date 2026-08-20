@@ -18,7 +18,7 @@ import {
 	useSwitchAgentState,
 } from "../hooks/useSwitchAgent";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
-import { AGENT_LABELS, AGENT_OPTIONS, agentLabel } from "../lib/agent-options";
+import { agentLabel } from "../lib/agent-options";
 import type { WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
 import { AgentModelPicker } from "./AgentModelPicker";
@@ -37,7 +37,7 @@ export const SWITCH_AGENT_OPTIONS = [
 	{ value: "codex", label: "Codex" },
 ] as const satisfies ReadonlyArray<{ value: SwitchAgentHarness; label: string }>;
 
-const ALL_SWITCH_AGENT_OPTIONS = AGENT_OPTIONS.map((value) => ({ value, label: AGENT_LABELS[value] }));
+const ALL_SWITCH_AGENT_OPTIONS = SWITCH_AGENT_OPTIONS;
 
 export function canSwitchAgentHarness(value: string): value is SwitchAgentHarness {
 	return SWITCH_AGENT_OPTIONS.some((option) => option.value === value);

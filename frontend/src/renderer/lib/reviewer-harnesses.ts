@@ -11,31 +11,10 @@ import type { components } from "../../api/schema";
 export type ReviewerHarnessId = NonNullable<components["schemas"]["TriggerReviewRequest"]["harness"]>;
 
 const REVIEWER_HARNESS_IDS = [
-	"agy",
-	"aider",
-	"amp",
-	"auggie",
-	"autohand",
 	"claude-code",
 	"codex",
-	"cline",
-	"continue",
-	"copilot",
-	"crush",
 	"cursor",
-	"devin",
-	"droid",
-	"goose",
-	"grok",
-	"kilocode",
-	"kiro",
-	"kimi",
-	"kimchi",
-	"muse",
 	"opencode",
-	"pi",
-	"qwen",
-	"vibe",
 ] as const satisfies readonly ReviewerHarnessId[];
 
 type UnlistedReviewerHarness = Exclude<ReviewerHarnessId, (typeof REVIEWER_HARNESS_IDS)[number]>;

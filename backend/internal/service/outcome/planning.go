@@ -93,7 +93,7 @@ func chooseHarness(available map[domain.AgentHarness]struct{}) domain.AgentHarne
 	// This is deliberately policy, not a hidden model preference. The stable
 	// order makes a reviewed plan reproducible until a project-level routing
 	// policy is added in a later slice.
-	preferred := []domain.AgentHarness{domain.HarnessCodex, domain.HarnessClaudeCode, domain.HarnessOpenCode}
+	preferred := []domain.AgentHarness{domain.HarnessCodex, domain.HarnessClaudeCode, domain.HarnessOpenCode, domain.HarnessCursor}
 	for _, harness := range preferred {
 		if _, ok := available[harness]; ok {
 			return harness

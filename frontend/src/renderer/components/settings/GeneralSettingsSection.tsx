@@ -1,7 +1,5 @@
 import { useTranslation } from "react-i18next";
 import type { ThemePreference, ThemeStyle } from "../../lib/theme";
-import type { AppLocale } from "../../i18n";
-import { useLocaleStore } from "../../stores/locale-store";
 import { useUiStore } from "../../stores/ui-store";
 import { SettingsOptionMenu, type SettingsOption } from "./SettingsOptionMenu";
 import { SettingsLinkRow, SettingsRow } from "./SettingsRow";
@@ -91,10 +89,6 @@ export function GeneralSettingsSection({
 	const setThemePreference = useUiStore((state) => state.setThemePreference);
 	const themeStyle = useUiStore((state) => state.themeStyle);
 	const setThemeStyle = useUiStore((state) => state.setThemeStyle);
-	const locale = useLocaleStore((state) => state.locale);
-	const setLocale = useLocaleStore((state) => state.setLocale);
-	const localeSaving = useLocaleStore((state) => state.saving);
-	const localeSaveError = useLocaleStore((state) => state.saveError);
 	const developerMode = useUiStore((state) => state.developerMode);
 	const setDeveloperMode = useUiStore((state) => state.setDeveloperMode);
 
@@ -106,17 +100,6 @@ export function GeneralSettingsSection({
 			label: t("settings.theme.system"),
 		},
 	] satisfies SettingsOption<ThemePreference>[];
-
-	const languageOptions = [
-		{ value: "en", label: t("settings.language.en") },
-		{ value: "zh-CN", label: t("settings.language.zhCN") },
-		{ value: "ja", label: t("settings.language.ja") },
-		{ value: "ko", label: t("settings.language.ko") },
-		{ value: "es", label: t("settings.language.es") },
-		{ value: "fr", label: t("settings.language.fr") },
-		{ value: "de", label: t("settings.language.de") },
-		{ value: "pt-BR", label: t("settings.language.ptBR") },
-	] satisfies SettingsOption<AppLocale>[];
 
 	return (
 		<SettingsSection title={t("settings.general")} titleHidden={titleHidden} grouped>
@@ -136,22 +119,6 @@ export function GeneralSettingsSection({
 					onChange={setThemePreference}
 				/>
 			</SettingsRow>
-			<SettingsRow label={t("settings.language")}>
-				<SettingsOptionMenu
-					aria-label={t("settings.language")}
-					disabled={localeSaving}
-					value={locale}
-					options={languageOptions}
-					onChange={(next) => {
-						void setLocale(next);
-					}}
-				/>
-			</SettingsRow>
-			{localeSaveError ? (
-				<p role="alert" className="px-3 text-caption leading-4 text-error">
-					{t("settings.language.saveFailed")}
-				</p>
-			) : null}
 			<SessionInterfaceRow />
 			<SettingsRow label={t("settings.developerMode")}>
 				<Switch

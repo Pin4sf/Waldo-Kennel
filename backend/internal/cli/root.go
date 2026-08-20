@@ -165,8 +165,8 @@ func NewRootCommand(deps Deps) *cobra.Command {
 
 	root := &cobra.Command{
 		Use:           "ao",
-		Short:         "Agent Orchestrator",
-		Long:          "Agent Orchestrator manages the local daemon that supervises parallel coding-agent sessions.",
+		Short:         "Kennel local runtime tools",
+		Long:          "Kennel manages the local daemon behind its outcome-directed coding workbench.",
 		Version:       VersionString(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -192,22 +192,30 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.AddCommand(newStopCommand(ctx))
 	root.AddCommand(newStatusCommand(ctx))
 	root.AddCommand(newDoctorCommand(ctx))
-	root.AddCommand(newAgentCommand(ctx))
-	root.AddCommand(newSpawnCommand(ctx))
-	root.AddCommand(newSendCommand(ctx))
-	root.AddCommand(newPreviewCommand(ctx))
-	root.AddCommand(newBrowserCommand(ctx))
-	root.AddCommand(newHooksCommand(ctx))
-	root.AddCommand(newAgentProcessCommand(ctx))
-	root.AddCommand(newLaunchCommand(ctx))
+	// The desktop workbench is Kennel's product surface. These commands remain
+	// available only as compatibility and agent-runtime plumbing until the
+	// Outcome-scoped control plane replaces them; hiding them prevents the CLI
+	// from advertising arbitrary session control as a normal user workflow.
+	for _, cmd := range []*cobra.Command{
+		newAgentCommand(ctx),
+		newSpawnCommand(ctx),
+		newSendCommand(ctx),
+		newPreviewCommand(ctx),
+		newBrowserCommand(ctx),
+		newHooksCommand(ctx),
+		newAgentProcessCommand(ctx),
+		newLaunchCommand(ctx),
+		newProjectCommand(ctx),
+		newSessionCommand(ctx),
+		newOrchestratorCommand(ctx),
+		newPRCommand(ctx),
+		newReviewCommand(ctx),
+	} {
+		cmd.Hidden = true
+		root.AddCommand(cmd)
+	}
 	root.AddCommand(newPtyHostCommand())
-	root.AddCommand(newImportCommand(ctx))
 	root.AddCommand(newDevCommand(ctx))
-	root.AddCommand(newProjectCommand(ctx))
-	root.AddCommand(newSessionCommand(ctx))
-	root.AddCommand(newOrchestratorCommand(ctx))
-	root.AddCommand(newPRCommand(ctx))
-	root.AddCommand(newReviewCommand(ctx))
 	root.AddCommand(newCompletionCommand())
 	root.AddCommand(newVersionCommand())
 

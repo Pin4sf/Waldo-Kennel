@@ -7,14 +7,18 @@ type AgentHarness string
 const (
 	HarnessClaudeCode AgentHarness = "claude-code"
 	HarnessCodex      AgentHarness = "codex"
-	HarnessAider      AgentHarness = "aider"
 	HarnessOpenCode   AgentHarness = "opencode"
+	HarnessCursor     AgentHarness = "cursor"
+
+	// Retired harness identities remain defined so historical rows and isolated
+	// migration code can decode them. They are intentionally absent from
+	// AllHarnesses and therefore cannot be selected for new work.
+	HarnessAider      AgentHarness = "aider"
 	HarnessGrok       AgentHarness = "grok"
 	HarnessDroid      AgentHarness = "droid"
 	HarnessAmp        AgentHarness = "amp"
 	HarnessAgy        AgentHarness = "agy"
 	HarnessCrush      AgentHarness = "crush"
-	HarnessCursor     AgentHarness = "cursor"
 	HarnessQwen       AgentHarness = "qwen"
 	HarnessCopilot    AgentHarness = "copilot"
 	HarnessGoose      AgentHarness = "goose"
@@ -40,12 +44,10 @@ const (
 // AllHarnesses lists every supported harness. It is the canonical set used to
 // validate user-supplied harness names (e.g. per-project role overrides).
 var AllHarnesses = []AgentHarness{
-	HarnessClaudeCode, HarnessCodex, HarnessAider, HarnessOpenCode, HarnessGrok,
-	HarnessDroid, HarnessAmp, HarnessAgy, HarnessCrush, HarnessCursor, HarnessQwen,
-	HarnessCopilot, HarnessGoose, HarnessAuggie, HarnessContinue, HarnessDevin,
-	HarnessCline, HarnessKimi, HarnessMuse, HarnessKiro, HarnessKilocode, HarnessVibe, HarnessPi,
-	HarnessKimchi, HarnessPrimeAgent, HarnessAutohand,
-	HarnessOMP,
+	HarnessClaudeCode,
+	HarnessCodex,
+	HarnessOpenCode,
+	HarnessCursor,
 }
 
 // IsKnown reports whether h is one of the supported harnesses.

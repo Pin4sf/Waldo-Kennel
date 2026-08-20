@@ -99,10 +99,8 @@ func (c ProjectConfig) ResolveReviewerHarness(worker AgentHarness) ReviewerHarne
 		return ReviewerCodex
 	case HarnessOpenCode:
 		return ReviewerOpenCode
-	case HarnessMuse:
-		return ReviewerMuse
-	case HarnessKimchi:
-		return ReviewerKimchi
+	case HarnessCursor:
+		return ReviewerCursor
 	}
 	return FallbackReviewerHarness
 }

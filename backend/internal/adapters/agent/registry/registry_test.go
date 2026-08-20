@@ -77,48 +77,21 @@ func TestEveryHarnessReportsAuthStatus(t *testing.T) {
 	}
 }
 
-func TestRegistryIncludesPrimeAgent(t *testing.T) {
+func TestRegistryContainsExactlySupportedHarnesses(t *testing.T) {
 	reg, err := Build()
 	if err != nil {
 		t.Fatal(err)
 	}
-	adapter, ok := reg.Get("prime-agent")
-	if !ok {
-		t.Fatal("registry does not contain prime-agent")
-	}
-	manifest := adapter.Manifest()
-	if manifest.Name != "Prime Agent" {
-		t.Fatalf("prime-agent manifest name = %q, want Prime Agent", manifest.Name)
-	}
-
-	for _, item := range Harnessed() {
-		if item.Harness == "prime-agent" {
-			return
+	for _, harness := range domain.AllHarnesses {
+		if _, ok := reg.Get(string(harness)); !ok {
+			t.Errorf("registry does not contain %q", harness)
 		}
 	}
-	t.Fatal("Harnessed does not contain prime-agent")
-}
-
-func TestRegistryIncludesOMP(t *testing.T) {
-	reg, err := Build()
-	if err != nil {
-		t.Fatal(err)
-	}
-	adapter, ok := reg.Get("omp")
-	if !ok {
-		t.Fatal("registry does not contain omp")
-	}
-	manifest := adapter.Manifest()
-	if manifest.Name != "OMP" {
-		t.Fatalf("omp manifest name = %q, want OMP", manifest.Name)
-	}
-
 	for _, item := range Harnessed() {
-		if item.Harness == domain.HarnessOMP {
-			return
+		if !item.Harness.IsKnown() {
+			t.Errorf("registry exposes unsupported harness %q", item.Harness)
 		}
 	}
-	t.Fatal("Harnessed does not contain omp")
 }
 
 func TestHarnessedExcludesFakeHarness(t *testing.T) {

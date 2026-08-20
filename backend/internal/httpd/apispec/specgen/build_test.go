@@ -27,17 +27,19 @@ func TestBuild_MatchesEmbedded(t *testing.T) {
 	}
 }
 
-func TestBuild_SpawnHarnessEnumIncludesPrimeAgent(t *testing.T) {
+func TestBuild_SpawnHarnessEnumIncludesSupportedHarnesses(t *testing.T) {
 	got, err := specgen.Build()
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if !strings.Contains(string(got), "          - prime-agent\n") {
-		t.Fatal("SpawnSessionRequest harness enum does not contain prime-agent")
+	for _, harness := range []string{"claude-code", "codex", "opencode", "cursor"} {
+		if !strings.Contains(string(got), "          - "+harness+"\n") {
+			t.Fatalf("SpawnSessionRequest harness enum does not contain %s", harness)
+		}
 	}
 }
 
-func TestBuild_DelegateAgentEnumIncludesPrimeAgent(t *testing.T) {
+func TestBuild_DelegateAgentEnumIncludesSupportedHarnesses(t *testing.T) {
 	got, err := specgen.Build()
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -55,8 +57,10 @@ func TestBuild_DelegateAgentEnumIncludesPrimeAgent(t *testing.T) {
 		t.Fatalf("parse generated OpenAPI: %v", err)
 	}
 	agents := doc.Components.Schemas["DelegateTaskRequest"].Properties["agent"].Enum
-	if !slices.Contains(agents, "prime-agent") {
-		t.Fatalf("DelegateTaskRequest agent enum = %v, want prime-agent", agents)
+	for _, harness := range []string{"claude-code", "codex", "opencode", "cursor"} {
+		if !slices.Contains(agents, harness) {
+			t.Fatalf("DelegateTaskRequest agent enum = %v, want %s", agents, harness)
+		}
 	}
 }
 

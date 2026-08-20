@@ -1,7 +1,9 @@
-/** UI locales supported across the Electron main, preload, and renderer boundaries. */
-export const APP_LOCALES = ["en", "zh-CN", "ja", "ko", "es", "fr", "de", "pt-BR"] as const;
+/** Kennel launches with one English product surface. */
+export const APP_LOCALES = ["en"] as const;
 
-export type AppLocale = (typeof APP_LOCALES)[number];
+// Kept as a permissive IPC compatibility type: persisted pre-launch locale
+// values are normalized to English by coerceLocale and are never selected.
+export type AppLocale = string;
 
 export const DEFAULT_LOCALE: AppLocale = "en";
 

@@ -2,7 +2,7 @@ import type { components } from "../../api/schema";
 
 type AgentInfo = components["schemas"]["AgentInfo"];
 
-export const DEFAULT_AGENT_PRIORITY = ["claude-code", "codex", "cursor", "opencode", "aider"] as const;
+export const DEFAULT_AGENT_PRIORITY = ["claude-code", "codex", "cursor", "opencode"] as const;
 export const DEFAULT_AGENT_PRIORITY_RANK = new Map<string, number>(
 	DEFAULT_AGENT_PRIORITY.map((agent, index) => [agent, index]),
 );

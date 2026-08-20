@@ -12,29 +12,32 @@ type ReviewerHarness string
 const (
 	ReviewerClaudeCode ReviewerHarness = "claude-code"
 	ReviewerCodex      ReviewerHarness = "codex"
-	ReviewerCopilot    ReviewerHarness = "copilot"
 	ReviewerCursor     ReviewerHarness = "cursor"
-	ReviewerKiloCode   ReviewerHarness = "kilocode"
-	ReviewerKimchi     ReviewerHarness = "kimchi"
 	ReviewerOpenCode   ReviewerHarness = "opencode"
-	ReviewerKiro       ReviewerHarness = "kiro"
-	ReviewerPi         ReviewerHarness = "pi"
-	ReviewerQwen       ReviewerHarness = "qwen"
-	ReviewerAgy        ReviewerHarness = "agy"
-	ReviewerContinue   ReviewerHarness = "continue"
-	ReviewerGoose      ReviewerHarness = "goose"
-	ReviewerVibe       ReviewerHarness = "vibe"
-	ReviewerDevin      ReviewerHarness = "devin"
-	ReviewerDroid      ReviewerHarness = "droid"
-	ReviewerKimi       ReviewerHarness = "kimi"
-	ReviewerMuse       ReviewerHarness = "muse"
-	ReviewerAmp        ReviewerHarness = "amp"
-	ReviewerAider      ReviewerHarness = "aider"
-	ReviewerGrok       ReviewerHarness = "grok"
-	ReviewerCrush      ReviewerHarness = "crush"
-	ReviewerAuggie     ReviewerHarness = "auggie"
-	ReviewerCline      ReviewerHarness = "cline"
-	ReviewerAutohand   ReviewerHarness = "autohand"
+
+	// Retired reviewer identities remain for historical-row decoding only. They
+	// are not selectable because they are absent from AllReviewerHarnesses.
+	ReviewerCopilot  ReviewerHarness = "copilot"
+	ReviewerKiloCode ReviewerHarness = "kilocode"
+	ReviewerKimchi   ReviewerHarness = "kimchi"
+	ReviewerKiro     ReviewerHarness = "kiro"
+	ReviewerPi       ReviewerHarness = "pi"
+	ReviewerQwen     ReviewerHarness = "qwen"
+	ReviewerAgy      ReviewerHarness = "agy"
+	ReviewerContinue ReviewerHarness = "continue"
+	ReviewerGoose    ReviewerHarness = "goose"
+	ReviewerVibe     ReviewerHarness = "vibe"
+	ReviewerDevin    ReviewerHarness = "devin"
+	ReviewerDroid    ReviewerHarness = "droid"
+	ReviewerKimi     ReviewerHarness = "kimi"
+	ReviewerMuse     ReviewerHarness = "muse"
+	ReviewerAmp      ReviewerHarness = "amp"
+	ReviewerAider    ReviewerHarness = "aider"
+	ReviewerGrok     ReviewerHarness = "grok"
+	ReviewerCrush    ReviewerHarness = "crush"
+	ReviewerAuggie   ReviewerHarness = "auggie"
+	ReviewerCline    ReviewerHarness = "cline"
+	ReviewerAutohand ReviewerHarness = "autohand"
 )
 
 // AllReviewerHarnesses is the canonical set used to validate a configured
@@ -42,29 +45,8 @@ const (
 var AllReviewerHarnesses = []ReviewerHarness{
 	ReviewerClaudeCode,
 	ReviewerCodex,
-	ReviewerCopilot,
 	ReviewerCursor,
-	ReviewerKiloCode,
-	ReviewerKimchi,
 	ReviewerOpenCode,
-	ReviewerKiro,
-	ReviewerPi,
-	ReviewerQwen,
-	ReviewerAgy,
-	ReviewerContinue,
-	ReviewerGoose,
-	ReviewerVibe,
-	ReviewerDevin,
-	ReviewerDroid,
-	ReviewerKimi,
-	ReviewerMuse,
-	ReviewerAmp,
-	ReviewerAider,
-	ReviewerGrok,
-	ReviewerCrush,
-	ReviewerAuggie,
-	ReviewerCline,
-	ReviewerAutohand,
 }
 
 // IsKnown reports whether h is one of the supported reviewer harnesses.

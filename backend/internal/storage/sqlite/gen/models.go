@@ -218,6 +218,97 @@ type Notification struct {
 	ResolvedAt sql.NullTime
 }
 
+type Outcome struct {
+	ID                    string
+	ProjectID             string
+	OrchestratorSessionID sql.NullString
+	Title                 string
+	Definition            string
+	Status                string
+	ApprovedRevision      sql.NullInt64
+	CreatedAt             string
+	UpdatedAt             string
+	DeletedAt             sql.NullString
+}
+
+type OutcomeCleanupAudit struct {
+	ID              int64
+	OutcomeID       string
+	SessionID       sql.NullString
+	NativeSessionID sql.NullString
+	Harness         sql.NullString
+	State           string
+	Detail          sql.NullString
+	RecordedAt      string
+}
+
+type OutcomeHumanDecision struct {
+	ID             string
+	TaskID         string
+	Question       string
+	Context        string
+	OptionsJson    string
+	Recommendation string
+	ResumeTarget   string
+	Answer         sql.NullString
+	ResolvedAt     sql.NullString
+}
+
+type OutcomePlanRevision struct {
+	OutcomeID  string
+	Revision   int64
+	PlanJson   string
+	ApprovedAt sql.NullString
+	ApprovedBy sql.NullString
+	CreatedAt  string
+}
+
+type OutcomeTask struct {
+	ID               string
+	OutcomeID        string
+	Title            string
+	Brief            string
+	RequestedHarness sql.NullString
+	AssignedHarness  sql.NullString
+	WorkerSessionID  sql.NullString
+	Status           string
+	HoldReason       sql.NullString
+	CreatedAt        string
+	UpdatedAt        string
+}
+
+type OutcomeTaskCheck struct {
+	ID                  string
+	TaskID              string
+	Statement           string
+	Required            int64
+	AcceptedAt          sql.NullString
+	AcceptedBySessionID sql.NullString
+}
+
+type OutcomeTaskDependency struct {
+	TaskID          string
+	DependsOnTaskID string
+}
+
+type OutcomeTaskEvidence struct {
+	ID                   string
+	TaskID               string
+	CheckID              sql.NullString
+	Reference            string
+	SubmittedBySessionID sql.NullString
+	SubmittedAt          string
+}
+
+type OutcomeTaskTransition struct {
+	ID         int64
+	TaskID     string
+	FromStatus sql.NullString
+	ToStatus   string
+	Reason     string
+	ChangedAt  string
+}
+
 type PR struct {
 	URL                      string
 	SessionID                domain.SessionID
