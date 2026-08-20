@@ -3,413 +3,301 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kennel v1 architecture review prototype</title>
+  <title>Waldo Kennel desktop launch review prototype</title>
   <style>
-    :root {
-      color-scheme: light;
-      --ink: #1c1c1c;
-      --muted: #666;
-      --faint: #929292;
-      --line: #c9c9c9;
-      --line-strong: #777;
-      --paper: #fff;
-      --wash: #f4f4f2;
-      --wash-2: #e9e9e6;
-      --focus: #111;
-      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    * { box-sizing: border-box; }
-    body { margin: 0; overflow-x: hidden; background: var(--wash); color: var(--ink); font-size: 14px; line-height: 1.45; }
-    button, input, textarea, select { font: inherit; color: inherit; }
-    button, select, input, textarea { border: 1px solid var(--line-strong); background: var(--paper); border-radius: 3px; }
-    button { cursor: pointer; min-height: 34px; padding: 7px 11px; text-align: left; }
-    button:hover { background: var(--wash-2); }
-    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-    button.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-    button.primary:hover { background: #3d3d3d; }
-    button.ghost { border-color: transparent; background: transparent; }
-    button.danger { border-style: dashed; }
-    button[disabled] { cursor: not-allowed; color: var(--faint); border-color: var(--line); background: var(--wash); }
-    input, textarea, select { width: 100%; padding: 9px 10px; }
-    textarea { min-height: 92px; resize: vertical; }
-    h1, h2, h3, p { margin-top: 0; }
-    h1 { font-size: 22px; margin-bottom: 6px; }
-    h2 { font-size: 18px; margin-bottom: 8px; }
-    h3 { font-size: 14px; margin-bottom: 5px; }
-    small, .muted { color: var(--muted); }
-    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-    [hidden] { display: none !important; }
-
-    .app { min-height: 100vh; background: var(--paper); }
-    .titlebar { height: 46px; display: flex; align-items: center; gap: 14px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--wash); }
-    .brand { font-weight: 700; letter-spacing: .02em; }
-    .titlebar .project { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-    .prototype-label, .tag { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 7px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: 12px; white-space: nowrap; }
-    .tag.locked { background: var(--ink); color: var(--paper); }
-    .tag.proposed { border-style: dashed; }
-    .tag.unknown { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--wash-2) 4px 8px); }
-    .prototype-note { padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--paper); font-size: 12px; color: var(--muted); }
-
-    .shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: calc(100vh - 79px); }
-    .journey { border-right: 1px solid var(--line); background: var(--wash); padding: 14px 10px 24px; }
-    .journey h2 { padding: 0 7px; margin: 8px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-    .journey button { width: 100%; border-color: transparent; background: transparent; padding: 7px; min-height: 31px; }
-    .journey button:hover { background: var(--wash-2); }
-    .journey button[aria-current="page"] { border-color: var(--line-strong); background: var(--paper); font-weight: 650; }
-    .journey .step-number { display: inline-block; width: 22px; color: var(--muted); font-variant-numeric: tabular-nums; }
-
-    .workspace { min-width: 0; }
-    .workspace-bar { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 7px 18px; border-bottom: 1px solid var(--line); }
-    .workspace-bar .crumb { flex: 1; font-size: 13px; color: var(--muted); }
-    .workspace-bar .crumb strong { color: var(--ink); }
-    .screen { max-width: 1120px; margin: 0 auto; padding: 30px 34px 80px; }
-    .screen-header { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 26px; }
-    .screen-header > div:first-child { flex: 1; }
-    .eyebrow { margin-bottom: 5px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .stack { display: grid; gap: 16px; }
-    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-    .panel { border: 1px solid var(--line); padding: 15px; background: var(--paper); }
-    .panel.emphasis { border: 2px solid var(--ink); }
-    .panel.dashed { border-style: dashed; }
-    .panel-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
-    .panel-header > div:first-child { flex: 1; }
-    .field { display: grid; gap: 5px; }
-    .field label { font-weight: 650; }
-    .field-help { color: var(--muted); font-size: 12px; }
-    .divider { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
-    .list { list-style: none; padding: 0; margin: 0; }
-    .list li { padding: 10px 0; border-top: 1px solid var(--line); }
-    .list li:first-child { border-top: 0; padding-top: 0; }
-    .row { display: flex; align-items: flex-start; gap: 12px; }
-    .row > .grow { flex: 1; min-width: 0; }
-    .state-mark { width: 16px; height: 16px; border: 1px solid var(--line-strong); margin-top: 2px; flex: 0 0 auto; }
-    .state-mark.filled { background: var(--ink); }
-    .state-mark.half { background: linear-gradient(90deg, var(--ink) 50%, var(--paper) 50%); }
-    .state-mark.dashed { border-style: dashed; }
-    .metric { font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
-    .callout { border-left: 3px solid var(--ink); padding: 10px 12px; background: var(--wash); }
-    .callout.dashed { border-left-style: dashed; }
-    .flow-line { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: 4px; }
-    .flow-node { min-width: 145px; border: 1px solid var(--line-strong); padding: 11px; background: var(--paper); }
-    .flow-node.active { border-width: 2px; }
-    .flow-arrow { display: grid; place-items: center; width: 34px; flex: 0 0 34px; color: var(--muted); }
-    .criteria { display: grid; grid-template-columns: 190px minmax(0, 1fr); border-top: 1px solid var(--line); }
-    .criteria > div { padding: 12px; border-bottom: 1px solid var(--line); }
-    .criteria > div:nth-child(odd) { border-left: 1px solid var(--line); font-weight: 650; }
-    .criteria > div:nth-child(even) { border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
-    .checkline { display: flex; gap: 9px; align-items: flex-start; }
-    .checkline input { width: auto; margin-top: 4px; }
-    .trace { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre-wrap; background: var(--wash); padding: 12px; border: 1px solid var(--line); }
-    .tree { margin: 0; padding-left: 21px; }
-    .tree li { margin: 8px 0; }
-    .decision-options { display: grid; gap: 9px; }
-    .decision-option { width: 100%; padding: 12px; }
-    .decision-option strong { display: block; margin-bottom: 2px; }
-    .warning { border: 2px solid var(--ink); padding: 14px; }
-
-    .inspector { position: fixed; top: 0; right: 0; width: min(480px, 94vw); height: 100vh; background: var(--paper); border-left: 2px solid var(--ink); box-shadow: -14px 0 40px rgba(0,0,0,.12); z-index: 20; display: none; overflow: auto; }
-    .inspector.open { display: block; }
-    .inspector-header { position: sticky; top: 0; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--paper); }
-    .inspector-header strong { flex: 1; }
-    .inspector-body { padding: 16px; }
-    .inspector-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
-    .inspector-tabs button { min-height: 30px; padding: 5px 8px; }
-    .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 9px 12px; border-radius: 3px; z-index: 30; display: none; }
-    .toast.show { display: block; }
-
-    @media (max-width: 900px) {
-      .shell { grid-template-columns: 1fr; }
-      .journey { border-right: 0; border-bottom: 1px solid var(--line); display: flex; gap: 5px; overflow-x: auto; padding: 8px; }
-      .journey h2 { display: none; }
-      .journey button { min-width: max-content; width: auto; }
-      .screen { padding: 24px 18px 64px; }
-      .grid-3 { grid-template-columns: 1fr; }
-    }
-
-    @media (max-width: 640px) {
-      .titlebar { padding: 0 10px; }
-      .prototype-label { display: none; }
-      .titlebar .project { display: none; }
-      .workspace-bar { flex-wrap: wrap; }
-      .workspace-bar .crumb { flex: 1 0 100%; }
-      .grid-2 { grid-template-columns: 1fr; }
-      .screen-header { display: block; }
-      .screen-header .actions { margin-top: 14px; }
-      .criteria { grid-template-columns: 1fr; }
-      .criteria > div:nth-child(n) { border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
-      .criteria > div:nth-child(odd) { border-bottom: 0; padding-bottom: 4px; }
-      .criteria > div:nth-child(even) { padding-top: 4px; }
-    }
-
-    @media (prefers-reduced-motion: no-preference) {
-      .inspector { animation: slide-in 120ms ease-out; }
-      .toast.show { animation: toast-in 100ms ease-out; }
-      @keyframes slide-in { from { transform: translateX(24px); opacity: .7; } }
-      @keyframes toast-in { from { transform: translate(-50%, 8px); opacity: 0; } }
-    }
+    :root { color-scheme: light; --ink:#181818; --muted:#666; --line:#c8c8c5; --paper:#fff; --wash:#f3f3f0; --wash2:#e8e8e4; font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--wash); color:var(--ink); font:14px/1.45 Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    button,input,textarea,select { font:inherit; color:inherit; border:1px solid #777; background:var(--paper); border-radius:3px; }
+    button { min-height:34px; padding:7px 11px; cursor:pointer; text-align:left; }
+    button:hover { background:var(--wash2); }
+    button.primary { background:var(--ink); color:#fff; border-color:var(--ink); }
+    button.ghost { border-color:transparent; background:transparent; }
+    button.danger { border-style:dashed; }
+    button[disabled] { color:#999; border-color:var(--line); background:var(--wash); cursor:not-allowed; }
+    button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible { outline:3px solid var(--ink); outline-offset:2px; }
+    input,textarea,select { width:100%; padding:9px 10px; }
+    textarea { min-height:86px; resize:vertical; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { font-size:23px; margin-bottom:6px; }
+    h2 { font-size:17px; margin-bottom:8px; }
+    h3 { font-size:13px; margin-bottom:5px; }
+    code { font:12px ui-monospace,SFMono-Regular,Menlo,monospace; }
+    [hidden] { display:none !important; }
+    .muted { color:var(--muted); }
+    .app { min-height:100vh; background:var(--paper); }
+    .titlebar { height:48px; display:flex; align-items:center; gap:14px; padding:0 16px; border-bottom:1px solid var(--line); background:var(--wash); }
+    .brand { font-weight:800; letter-spacing:.05em; }
+    .prototype { border:1px solid #777; border-radius:999px; padding:2px 8px; font-size:12px; }
+    .top-nav { margin-left:auto; display:flex; gap:5px; }
+    .top-nav button { border-color:transparent; background:transparent; }
+    .note { padding:8px 16px; border-bottom:1px solid var(--line); color:var(--muted); font-size:12px; }
+    .shell { display:grid; grid-template-columns:230px minmax(0,1fr); min-height:calc(100vh - 81px); }
+    .journey { border-right:1px solid var(--line); background:var(--wash); padding:12px 9px 28px; overflow:auto; max-height:calc(100vh - 81px); position:sticky; top:0; }
+    .journey h2 { margin:10px 7px 5px; font-size:11px; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); }
+    .journey button { width:100%; border-color:transparent; background:transparent; min-height:30px; padding:6px 7px; }
+    .journey button[aria-current="page"] { background:var(--paper); border-color:#777; font-weight:700; }
+    .num { display:inline-block; width:24px; color:var(--muted); font-variant-numeric:tabular-nums; }
+    .workspace { min-width:0; }
+    .bar { min-height:47px; display:flex; align-items:center; gap:9px; padding:7px 18px; border-bottom:1px solid var(--line); }
+    .crumb { flex:1; color:var(--muted); }
+    .crumb strong { color:var(--ink); }
+    .screen { max-width:1120px; margin:0 auto; padding:30px 34px 80px; }
+    .header { display:flex; align-items:flex-start; gap:18px; margin-bottom:24px; }
+    .header > div:first-child { flex:1; }
+    .eyebrow { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.09em; margin-bottom:5px; }
+    .tag { display:inline-flex; align-items:center; min-height:24px; padding:2px 8px; border:1px solid #777; border-radius:999px; font-size:12px; white-space:nowrap; }
+    .tag.locked { background:var(--ink); color:#fff; }
+    .tag.beta { border-style:dashed; }
+    .tag.unknown { background:repeating-linear-gradient(135deg,transparent 0 4px,var(--wash2) 4px 8px); }
+    .grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px; }
+    .grid3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:15px; }
+    .stack { display:grid; gap:15px; }
+    .panel { border:1px solid var(--line); padding:15px; background:var(--paper); }
+    .panel.emphasis { border:2px solid var(--ink); }
+    .panel.dashed { border-style:dashed; }
+    .panel-head { display:flex; align-items:flex-start; gap:10px; margin-bottom:11px; }
+    .panel-head > div:first-child { flex:1; }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    .field { display:grid; gap:5px; }
+    .field label { font-weight:700; }
+    .help { color:var(--muted); font-size:12px; }
+    .list { list-style:none; margin:0; padding:0; }
+    .list li { padding:10px 0; border-top:1px solid var(--line); }
+    .list li:first-child { border-top:0; padding-top:0; }
+    .row { display:flex; align-items:flex-start; gap:11px; }
+    .grow { flex:1; min-width:0; }
+    .mark { width:15px; height:15px; border:1px solid #777; margin-top:2px; flex:0 0 auto; }
+    .mark.filled { background:var(--ink); }
+    .mark.half { background:linear-gradient(90deg,var(--ink) 50%,#fff 50%); }
+    .mark.dashed { border-style:dashed; }
+    .metric { font-size:27px; line-height:1; font-variant-numeric:tabular-nums; }
+    .callout { border-left:3px solid var(--ink); padding:10px 12px; background:var(--wash); }
+    .decision { display:grid; gap:9px; }
+    .decision button { width:100%; padding:12px; }
+    .decision strong { display:block; }
+    .facts { display:grid; grid-template-columns:180px minmax(0,1fr); border-top:1px solid var(--line); }
+    .facts > div { padding:10px; border:1px solid var(--line); border-top:0; }
+    .facts > div:nth-child(odd) { font-weight:700; border-right:0; }
+    .flow { display:flex; overflow:auto; align-items:stretch; }
+    .node { min-width:138px; border:1px solid #777; padding:10px; }
+    .node.active { border-width:2px; }
+    .arrow { width:30px; flex:0 0 30px; display:grid; place-items:center; color:var(--muted); }
+    .check { display:flex; gap:8px; align-items:flex-start; }
+    .check input { width:auto; margin-top:4px; }
+    .inspector { position:fixed; inset:0 0 0 auto; width:min(480px,94vw); background:#fff; border-left:2px solid var(--ink); box-shadow:-14px 0 40px rgba(0,0,0,.12); z-index:10; overflow:auto; display:none; }
+    .inspector.open { display:block; }
+    .inspector-head { position:sticky; top:0; display:flex; align-items:center; gap:8px; padding:12px; border-bottom:1px solid var(--line); background:#fff; }
+    .inspector-head strong { flex:1; }
+    .inspector-body { padding:15px; }
+    .trace { white-space:pre-wrap; font:12px ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--wash); border:1px solid var(--line); padding:11px; }
+    .toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); background:var(--ink); color:#fff; padding:9px 12px; display:none; z-index:20; }
+    .toast.show { display:block; }
+    @media (max-width:900px) { .shell { grid-template-columns:1fr; } .journey { position:static; max-height:none; display:flex; gap:4px; overflow-x:auto; border-right:0; border-bottom:1px solid var(--line); padding:8px; } .journey h2 { display:none; } .journey button { min-width:max-content; width:auto; } .screen { padding:24px 18px 64px; } .grid3 { grid-template-columns:1fr; } }
+    @media (max-width:640px) { .prototype,.top-nav { display:none; } .bar { flex-wrap:wrap; } .bar .crumb { flex:1 0 100%; } .grid2 { grid-template-columns:1fr; } .header { display:block; } .header .actions { margin-top:12px; } .facts { grid-template-columns:1fr; } .facts > div:nth-child(odd) { border-right:1px solid var(--line); border-bottom:0; padding-bottom:3px; } .facts > div:nth-child(even) { padding-top:3px; } }
   </style>
 </head>
 <body>
   <div class="app">
     <header class="titlebar">
-      <span class="brand">KENNEL</span>
-      <span class="prototype-label">Architecture review · not shipped</span>
-      <div class="project"><span>Project</span><button type="button" data-go="onboarding">Focus Ledger ▾</button></div>
+      <span class="brand">WALDO KENNEL</span><span class="prototype">Architecture review · not shipped</span>
+      <div class="top-nav"><button type="button" data-go="home">Home</button><button type="button" data-go="work">Work</button><button type="button" data-go="settings">Settings</button></div>
     </header>
-    <div class="prototype-note">Low-fidelity interaction sketch. Grayscale, Outcome-first, and intentionally narrower than the current chassis.</div>
-
+    <div class="note">Low-fidelity grayscale sketch. One Waldo identity, responsibility-first hierarchy, explicit authority, and no automatic Acceptance or closure.</div>
     <div class="shell">
-      <nav class="journey" aria-label="Prototype journey">
-        <h2>Start</h2>
-        <button type="button" data-screen-button="onboarding"><span class="step-number">01</span>Onboarding</button>
-        <button type="button" data-screen-button="home"><span class="step-number">02</span>Work Home</button>
-        <h2>Define</h2>
-        <button type="button" data-screen-button="define"><span class="step-number">03</span>Define</button>
-        <button type="button" data-screen-button="clarify"><span class="step-number">04</span>Clarify</button>
-        <button type="button" data-screen-button="mission"><span class="step-number">05</span>Mission Map</button>
-        <button type="button" data-screen-button="authority"><span class="step-number">06</span>Authority</button>
-        <h2>Run</h2>
-        <button type="button" data-screen-button="run"><span class="step-number">07</span>Run</button>
-        <button type="button" data-screen-button="needs-you"><span class="step-number">08</span>Needs You</button>
-        <button type="button" data-screen-button="action-required"><span class="step-number">09</span>Action Required</button>
-        <button type="button" data-screen-button="waiting"><span class="step-number">10</span>Waiting</button>
-        <h2>Finish</h2>
-        <button type="button" data-screen-button="review"><span class="step-number">11</span>Evidence</button>
-        <button type="button" data-screen-button="accept"><span class="step-number">12</span>Acceptance</button>
-        <button type="button" data-screen-button="close"><span class="step-number">13</span>Adaptive Close</button>
-        <button type="button" data-screen-button="reentry"><span class="step-number">14</span>Re-entry</button>
+      <nav class="journey" aria-label="Prototype screens">
+        <h2>Enter</h2>
+        <button data-screen-button="onboarding"><span class="num">01</span>Onboarding</button>
+        <button data-screen-button="home"><span class="num">02</span>Home / Today</button>
+        <button data-screen-button="capture"><span class="num">03</span>Quick Capture</button>
+        <button data-screen-button="snapshot"><span class="num">04</span>Daily Snapshot</button>
+        <h2>Communication</h2>
+        <button data-screen-button="comms"><span class="num">05</span>Communication</button>
+        <button data-screen-button="comm-brief"><span class="num">06</span>Thread Brief</button>
+        <button data-screen-button="draft"><span class="num">07</span>Draft Review</button>
+        <button data-screen-button="loop"><span class="num">08</span>Open Loop</button>
+        <button data-screen-button="loop-close"><span class="num">09</span>Ready to Close</button>
+        <h2>Work</h2>
+        <button data-screen-button="work"><span class="num">10</span>Work Home</button>
+        <button data-screen-button="define"><span class="num">11</span>Define</button>
+        <button data-screen-button="clarify"><span class="num">12</span>Clarify</button>
+        <button data-screen-button="mission"><span class="num">13</span>Mission Map</button>
+        <button data-screen-button="authority"><span class="num">14</span>Authority</button>
+        <button data-screen-button="run"><span class="num">15</span>Run</button>
+        <h2>Attention</h2>
+        <button data-screen-button="needs-you"><span class="num">16</span>Needs You</button>
+        <button data-screen-button="action-required"><span class="num">17</span>Action Required</button>
+        <button data-screen-button="waiting"><span class="num">18</span>Waiting</button>
+        <h2>Prove and close</h2>
+        <button data-screen-button="review"><span class="num">19</span>Evidence</button>
+        <button data-screen-button="accept"><span class="num">20</span>Acceptance</button>
+        <button data-screen-button="close"><span class="num">21</span>Adaptive Close</button>
+        <button data-screen-button="reentry"><span class="num">22</span>Re-entry</button>
         <h2>Control</h2>
-        <button type="button" data-screen-button="settings"><span class="step-number">15</span>Settings</button>
+        <button data-screen-button="context"><span class="num">23</span>Desktop Context</button>
+        <button data-screen-button="settings"><span class="num">24</span>Settings</button>
       </nav>
 
       <div class="workspace">
-        <div class="workspace-bar">
-          <div class="crumb">Focus Ledger / <strong id="current-screen-label">Project readiness</strong></div>
-          <span class="tag locked">Codex only</span>
-          <button type="button" id="open-inspector">Open inspector</button>
-        </div>
-
+        <div class="bar"><div class="crumb">Waldo Kennel / <strong id="label">First run</strong></div><span class="tag locked">Local first</span><button id="open-inspector">Inspector</button></div>
         <main>
           <section class="screen" data-screen="onboarding">
-            <div class="screen-header">
-              <div><div class="eyebrow">First run · Local custody</div><h1>Choose where Kennel works</h1><p class="muted">No account or cloud upload is required. Repository bytes, worktrees, credentials, and raw sessions stay local.</p></div>
-              <span class="tag locked">Locked flow</span>
-            </div>
-            <div class="grid-2">
-              <div class="panel emphasis stack">
-                <div class="field"><label for="project-name">Project name</label><input id="project-name" value="Focus Ledger"></div>
-                <div class="field"><label for="project-folder">Local folder</label><input id="project-folder" value="~/Developer/focus-ledger"><div class="field-help">Kennel will use this folder as the Project and policy boundary.</div></div>
-                <div class="actions"><button type="button">Choose folder…</button><button type="button" class="primary" data-go="home">Use this Project</button></div>
-              </div>
-              <div class="stack">
-                <div class="panel">
-                  <div class="panel-header"><div><h2>Codex readiness</h2><p class="muted">Checked at the execution boundary.</p></div><span class="tag locked">Ready</span></div>
-                  <ul class="list"><li class="row"><span class="state-mark filled"></span><div class="grow"><strong>CLI found</strong><div class="muted"><code>codex</code> · version recorded; known-bad versions blocked</div></div></li><li class="row"><span class="state-mark filled"></span><div class="grow"><strong>Authenticated</strong><div class="muted">Authoritative probe required before each Attempt</div></div></li><li class="row"><span class="state-mark filled"></span><div class="grow"><strong>Capability admission</strong><div class="muted">Required checks pass; optional capabilities shape routing</div></div><span class="tag locked">Locked</span></li></ul>
-                </div>
-                <div class="callout">Other provider identities remain readable in history but cannot be selected for new v1 work.</div>
-              </div>
-            </div>
+            <div class="header"><div><div class="eyebrow">First run</div><h1>Your local Waldo starts here</h1><p class="muted">Personal Home works without an account, Project, Gmail connection, or desktop capture.</p></div><span class="tag locked">Core</span></div>
+            <div class="grid2"><div class="panel emphasis stack"><h2>Create Personal Home</h2><p>Confirmed Open Loops, explicit notes, Daily Snapshots, and attention stay local.</p><div class="field"><label>Name</label><input value="My Home"></div><button class="primary" data-go="home">Enter Home</button></div><div class="stack"><div class="panel"><h2>Add Work when ready</h2><p class="muted">Connect a local folder and Codex only when you define executable work.</p><button data-go="work">Add Work Project</button></div><div class="panel dashed"><h2>Optional connections</h2><p>Gmail Communication Loops and Desktop Context are separate, revocable betas.</p><div class="actions"><button data-go="comms">Review Gmail</button><button data-go="context">Review Desktop Context</button></div></div></div></div>
           </section>
 
           <section class="screen" data-screen="home" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Work Home</div><h1>What needs handling?</h1><p class="muted">Responsibilities first. Sessions are available in the inspector when they matter.</p></div><button type="button" class="primary" data-go="define">New Outcome</button></div>
-            <div class="panel emphasis" style="margin-bottom:16px"><div class="field"><label for="outcome-focus">Outcome Focus</label><textarea id="outcome-focus">Build a local-only Focus Ledger that helps me determine whether I protected focused work today.</textarea></div><div class="actions" style="margin-top:10px"><button type="button" class="primary" data-go="define">Define this Outcome</button><button type="button">Use a recent Outcome</button></div></div>
-            <div class="grid-3">
-              <div class="panel"><div class="panel-header"><div><h2>Needs You</h2><p class="muted">Material judgment</p></div><div class="metric">1</div></div><button type="button" class="decision-option" data-go="needs-you"><strong>Choose the daily reset behavior</strong><span class="muted">Waldo recommends local midnight.</span></button></div>
-              <div class="panel"><div class="panel-header"><div><h2>Action Required</h2><p class="muted">Human-only step</p></div><div class="metric">1</div></div><button type="button" class="decision-option" data-go="action-required"><strong>Sign in to Codex</strong><span class="muted">Execution is contained until ready.</span></button></div>
-              <div class="panel"><div class="panel-header"><div><h2>Ready for Acceptance</h2><p class="muted">Evidence assembled</p></div><div class="metric">1</div></div><button type="button" class="decision-option" data-go="review"><strong>Focus Ledger</strong><span class="muted">3 criteria · 1 exception</span></button></div>
-            </div>
-            <div class="grid-2" style="margin-top:16px">
-              <div class="panel"><h2>Active Outcomes</h2><ul class="list"><li class="row"><span class="state-mark half"></span><div class="grow"><strong>Focus Ledger</strong><div class="muted">Verify local persistence · Work Unit 3 of 3</div></div><button type="button" data-go="run">Open</button></li><li class="row"><span class="state-mark"></span><div class="grow"><strong>Remove legacy import flow</strong><div class="muted">Waiting for foundation acceptance</div></div></li></ul></div>
-              <div class="panel"><h2>Waiting</h2><ul class="list"><li class="row"><span class="state-mark dashed"></span><div class="grow"><strong>Foundation gate</strong><div class="muted">Owned by maintainer · recheck after complete local run</div></div><button type="button" data-go="waiting">Why?</button></li></ul></div>
-            </div>
+            <div class="header"><div><div class="eyebrow">Home · Today</div><h1>Three things need handling</h1><p class="muted">Responsibility and next action—not activity volume.</p></div><div class="actions"><button data-go="capture">Quick Capture</button><button class="primary" data-go="needs-you">Handle top item</button></div></div>
+            <div class="grid3"><div class="panel emphasis"><div class="panel-head"><div><h2>Needs You</h2><p class="muted">Material judgment</p></div><div class="metric">1</div></div><button class="decision" data-go="needs-you"><strong>Choose daily reset</strong><span class="muted">Waldo recommends local midnight.</span></button></div><div class="panel"><div class="panel-head"><div><h2>Communication</h2><p class="muted">Candidate responsibility</p></div><div class="metric">1</div></div><button data-go="comm-brief">Launch plan reply</button></div><div class="panel"><div class="panel-head"><div><h2>Ready to Close</h2><p class="muted">User decision</p></div><div class="metric">1</div></div><button data-go="loop-close">Design review follow-up</button></div></div>
+            <div class="grid2" style="margin-top:15px"><div class="panel"><h2>Open Loops</h2><ul class="list"><li class="row"><span class="mark dashed"></span><div class="grow"><strong>Waiting for Maya's review</strong><div class="muted">Recheck tomorrow at 10:00</div></div><button data-go="loop">Open</button></li><li class="row"><span class="mark half"></span><div class="grow"><strong>Finish PR convergence</strong><div class="muted">Linked to Waldo Kennel Work</div></div><button data-go="work">Work</button></li></ul></div><div class="panel"><h2>Today's snapshot</h2><p>One Outcome advanced, one decision needs you, one conversation may create a commitment.</p><button data-go="snapshot">Review snapshot</button></div></div>
+          </section>
+
+          <section class="screen" data-screen="capture" hidden>
+            <div class="header"><div><div class="eyebrow">Home · Quick Capture</div><h1>What should Waldo preserve?</h1><p class="muted">Your statement outranks any inferred context.</p></div><span class="tag locked">Explicit input</span></div>
+            <div class="grid2"><div class="panel emphasis stack"><div class="field"><label>Capture</label><textarea>Follow up with Maya after the architecture review and decide whether Gmail stays dogfood-only.</textarea></div><div class="field"><label>Space</label><select><option>Waldo Kennel Work</option><option>Personal Home</option></select></div><div class="actions"><button>Save as note</button><button class="primary" data-go="loop">Create Open Loop</button><button data-go="define">Define Outcome</button></div></div><div class="panel"><h2>Possible duplicate</h2><p><strong>Design review follow-up</strong></p><p class="muted">Waldo found a related confirmed Open Loop. Merge only if you say they are the same responsibility.</p><div class="actions"><button>Keep separate</button><button>Review duplicate</button></div></div></div>
+          </section>
+
+          <section class="screen" data-screen="snapshot" hidden>
+            <div class="header"><div><div class="eyebrow">Home · Daily Snapshot</div><h1>What changed today</h1><p class="muted">Trusted Kennel facts, confirmed Open Loops, and explicit notes. Not durable Memory or a productivity score.</p></div><span class="tag locked">Correctable projection</span></div>
+            <div class="grid2"><div class="panel emphasis"><h2>Became true</h2><ul><li>Architecture gates 2–5 now have launch defaults.</li><li>Focus Ledger reached criterion review.</li></ul><h2>Still open</h2><ul><li>Maya's design review response.</li><li>Foundation full-suite timing failure.</li></ul></div><div class="stack"><div class="panel"><h2>Source boundary</h2><ul class="list"><li>Kennel Outcomes and Attempts <strong>current</strong></li><li>Gmail <strong>synced 4 min ago</strong></li><li>Desktop Context <strong>off</strong></li></ul></div><div class="panel"><h2>Daily Close</h2><p>Preserve two Open Loops for tomorrow. No pressure to close what is genuinely waiting.</p><div class="actions"><button>Correct snapshot</button><button class="primary" data-go="home">Close today</button></div></div></div></div>
+          </section>
+
+          <section class="screen" data-screen="comms" hidden>
+            <div class="header"><div><div class="eyebrow">Home · Communication beta</div><h1>One conversation may need action</h1><p class="muted">This is an actionable projection, not a replacement inbox.</p></div><span class="tag beta">Optional beta</span></div>
+            <div class="grid2"><div class="panel emphasis"><div class="panel-head"><div><h2>Gmail connection</h2><p class="muted">shivansh@… · synced 4 minutes ago</p></div><span class="tag locked">Ready</span></div><div class="facts"><div>Scope</div><div>Read threads; create user-requested drafts</div><div>Send/archive/delete</div><div>Never automated</div><div>Model disclosure</div><div>Current admitted local provider route</div><div>Revoke</div><div>Available in Settings</div></div></div><div class="panel"><h2>Actionable candidates</h2><ul class="list"><li class="row"><span class="mark half"></span><div class="grow"><strong>Re: Kennel launch plan</strong><div class="muted">Possible request: send revised screen map by Friday</div></div><button class="primary" data-go="comm-brief">Open brief</button></li></ul></div></div>
+          </section>
+
+          <section class="screen" data-screen="comm-brief" hidden>
+            <div class="header"><div><div class="eyebrow">Communication Brief</div><h1>The team is asking for the revised screen map</h1><p class="muted">You should not need the full thread to choose the next action.</p></div><span class="tag beta">Candidate</span></div>
+            <div class="grid2"><div class="panel emphasis"><div class="callout"><strong>Waldo recommends confirming Friday delivery and linking the architecture Outcome.</strong><br><span class="muted">The request is clear, but the commitment is not canonical until you confirm it.</span></div><div class="facts" style="margin-top:14px"><div>Ask</div><div>Share updated ontology and screens</div><div>Owner</div><div>You</div><div>Due</div><div>Friday, inferred from the latest message</div><div>Current status</div><div>Architecture docs updated; team review pending</div></div></div><div class="panel"><h2>Your decision</h2><div class="decision"><button>Dismiss / FYI</button><button>Correct the brief</button><button data-go="loop"><strong>Confirm Open Loop</strong><span class="muted">Track communication and closure.</span></button><button data-go="define"><strong>Promote to Outcome</strong><span class="muted">Define executable responsibility.</span></button><button class="primary" data-go="draft"><strong>Review reply draft</strong></button></div><button class="ghost" style="margin-top:10px">Inspect source thread</button></div></div>
+          </section>
+
+          <section class="screen" data-screen="draft" hidden>
+            <div class="header"><div><div class="eyebrow">Effect review · Gmail draft</div><h1>Create this exact draft?</h1><p class="muted">Creating a draft is a consequential remote effect. It does not send or close anything.</p></div><span class="tag locked">User intent required</span></div>
+            <div class="grid2"><div class="panel emphasis stack"><div class="field"><label>To</label><input value="team@…"></div><div class="field"><label>Subject</label><input value="Re: Kennel launch plan"></div><div class="field"><label>Draft</label><textarea>I have updated the Waldo Kennel ontology, UX graph, screen inventory, and phased launch boundary. I will share the review packet for our Excalidraw session by Friday.</textarea></div></div><div class="panel"><h2>EffectIntent</h2><div class="facts"><div>Action</div><div>Create one Gmail draft in this thread</div><div>Send</div><div>Not granted</div><div>Labels/archive</div><div>Not granted</div><div>Closure</div><div>Unaffected</div></div><div class="actions" style="margin-top:14px"><button>Cancel</button><button class="primary" data-action="draft-created" data-go="loop">Create draft</button></div></div></div>
+          </section>
+
+          <section class="screen" data-screen="loop" hidden>
+            <div class="header"><div><div class="eyebrow">Open Loop</div><h1>Share the revised Kennel screen map</h1><p class="muted">A confirmed responsibility, separate from its Gmail thread and linked Work Outcome.</p></div><span class="tag locked">Waiting</span></div>
+            <div class="grid2"><div class="panel emphasis"><div class="facts"><div>Owner</div><div>You until the draft is sent; then team</div><div>Source</div><div>Gmail thread reference · local metadata</div><div>Linked Outcome</div><div>Waldo Kennel launch architecture</div><div>Recheck</div><div>Friday 10:00 or when a reply arrives</div><div>Closure condition</div><div>Team acknowledges the review packet or you consciously release follow-up</div></div></div><div class="panel"><h2>Current next action</h2><p>Open the created draft in Gmail, review it, and send it yourself.</p><div class="actions"><button>Open Gmail draft</button><button>Defer</button><button>Transfer</button><button class="danger">Release</button></div></div></div>
+          </section>
+
+          <section class="screen" data-screen="loop-close" hidden>
+            <div class="header"><div><div class="eyebrow">Open Loop · Ready to Close</div><h1>The team acknowledged the review packet</h1><p class="muted">Waldo proposes closure; only you decide the responsibility is handled.</p></div><span class="tag locked">User decision</span></div>
+            <div class="grid2"><div class="panel emphasis"><h2>What changed</h2><p>New reply: “Received. We will annotate the packet in tomorrow's Excalidraw review.”</p><div class="facts"><div>Declared condition</div><div>Team acknowledges receipt</div><div>Remaining uncertainty</div><div>Design decisions are not yet approved</div><div>Suggested successor</div><div>Review and disposition team annotations</div></div></div><div class="panel"><h2>Disposition</h2><div class="decision"><button class="primary" data-action="loop-closed" data-go="home">Close this Open Loop</button><button data-go="loop">Keep open / change recheck</button><button data-go="define">Create successor Outcome</button><button class="danger">Release without completion</button></div></div></div>
+          </section>
+
+          <section class="screen" data-screen="work" hidden>
+            <div class="header"><div><div class="eyebrow">Work</div><h1>What must become true?</h1><p class="muted">Projects and Outcomes first. Sessions stay in the inspector.</p></div><button class="primary" data-go="define">New Outcome</button></div>
+            <div class="panel emphasis stack"><div class="field"><label>Outcome Focus</label><textarea>Build a local-only Focus Ledger that helps me determine whether I protected focused work today.</textarea></div><div class="actions"><button class="primary" data-go="define">Define Outcome</button><button>Use recent</button></div></div>
+            <div class="grid3" style="margin-top:15px"><div class="panel"><h2>Active</h2><div class="metric">2</div><button data-go="run">Focus Ledger · Work Unit 3/3</button></div><div class="panel"><h2>Waiting</h2><div class="metric">1</div><button data-go="waiting">Foundation acceptance</button></div><div class="panel"><h2>Ready for Acceptance</h2><div class="metric">1</div><button data-go="review">Focus Ledger</button></div></div>
           </section>
 
           <section class="screen" data-screen="define" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Outcome Workspace · Define</div><h1>Define what must become true</h1><p class="muted">Goal, Success, and Review are always present. The contract is versioned before execution.</p></div><span class="tag locked">Contract draft</span></div>
-            <div class="stack">
-              <div class="panel emphasis stack">
-                <div class="field"><label for="goal">Goal</label><textarea id="goal">Build a small local web app called Focus Ledger that helps me determine whether I protected focused work today.</textarea></div>
-                <div class="field"><label for="success">Success</label><textarea id="success">I can record one focus block, see today's protected minutes, and restart the app without losing the entry.</textarea><div class="field-help">Each statement becomes a criterion that evidence and verification must address.</div></div>
-                <div class="field"><label for="review">Review expectation</label><select id="review"><option>Show me the working app and deterministic checks</option><option>Checks only</option></select></div>
-              </div>
-              <div class="grid-2"><div class="panel"><h2>Constraints</h2><div class="checkline"><input id="local-only" type="checkbox" checked><label for="local-only">Local only: no account, cloud sync, analytics, or deployment</label></div></div><div class="panel"><h2>Stop conditions</h2><p>Stop before any external effect, new dependency with unclear license, or change outside the selected Project.</p></div></div>
-              <div class="actions"><button type="button">Save draft</button><button type="button" class="primary" data-go="clarify">Clarify material gaps</button></div>
-            </div>
+            <div class="header"><div><div class="eyebrow">Outcome · Define</div><h1>Define what must become true</h1><p class="muted">Goal, Success, and Review are always explicit.</p></div><span class="tag locked">Contract draft</span></div>
+            <div class="stack"><div class="panel emphasis stack"><div class="field"><label>Goal</label><textarea>Build a small local Focus Ledger that helps me determine whether I protected focused work today.</textarea></div><div class="field"><label>Success</label><textarea>I can record one focus block, see today's protected minutes, and restart without losing the entry.</textarea></div><div class="field"><label>Review</label><select><option>Working app and deterministic checks</option><option>User walkthrough</option></select></div></div><div class="grid2"><div class="panel"><h2>Constraints</h2><div class="check"><input type="checkbox" checked><span>Local only; no account, cloud sync, analytics, or deploy.</span></div></div><div class="panel"><h2>Stop</h2><p>Stop before an unapproved dependency, external effect, or change outside this Project.</p></div></div><div class="actions"><button>Save draft</button><button class="primary" data-go="clarify">Clarify material gap</button></div></div>
           </section>
 
           <section class="screen" data-screen="clarify" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Outcome Workspace · Clarify</div><h1>One decision changes the contract</h1><p class="muted">Waldo asks only when materially different valid interpretations remain.</p></div><span class="tag locked">Question 1 of 1</span></div>
-            <div class="grid-2">
-              <div class="panel emphasis"><h2>When does “today” reset?</h2><p>This affects stored entries, deterministic checks, and what the daily total means.</p><div class="callout"><strong>Waldo recommends local midnight.</strong><br><span class="muted">It matches the user's ordinary expectation and needs no account or background service.</span></div><div class="decision-options" style="margin-top:14px"><button type="button" class="decision-option"><strong>Local midnight</strong><span class="muted">Recommended · use the Mac's current timezone.</span></button><button type="button" class="decision-option"><strong>24 hours from first entry</strong><span class="muted">Rolling window; harder to explain and verify.</span></button><button type="button" class="decision-option"><strong>Let me specify another rule</strong><span class="muted">Creates a custom criterion.</span></button></div></div>
-              <div class="panel"><h2>Contract impact</h2><div class="criteria"><div>Goal</div><div>No change</div><div>Success criterion</div><div>“Today's protected minutes use the Mac's local calendar day.”</div><div>Authority</div><div>Read local timezone; no network access.</div><div>Verification</div><div>Test entries across the reset boundary.</div></div><div class="actions" style="margin-top:14px"><button type="button">Inspect source context</button><button type="button" class="primary" data-go="mission">Apply and review plan</button></div></div>
-            </div>
+            <div class="header"><div><div class="eyebrow">Outcome · Clarify</div><h1>One decision changes success</h1><p class="muted">Waldo asks only when materially different valid interpretations remain.</p></div><span class="tag locked">Question 1 of 1</span></div>
+            <div class="grid2"><div class="panel emphasis"><h2>When does “today” reset?</h2><div class="callout"><strong>Recommendation: local midnight.</strong><br><span class="muted">It matches ordinary calendar meaning and is easiest to verify locally.</span></div><div class="decision" style="margin-top:12px"><button>Local midnight · recommended</button><button>Rolling 24-hour window</button><button>Specify another rule</button></div></div><div class="panel"><h2>Contract impact</h2><div class="facts"><div>Success</div><div>Use the Mac's local calendar day</div><div>Authority</div><div>Read local timezone</div><div>Verification</div><div>Boundary test across midnight</div></div><button class="primary" style="margin-top:14px" data-go="mission">Apply and review plan</button></div></div>
           </section>
 
           <section class="screen" data-screen="mission" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Outcome Workspace · Plan</div><h1>Mission Map</h1><p class="muted">The smallest sufficient topology. This projection is backed by PlanRevision 2.</p></div><span class="tag locked">Codex · 3 Work Units</span></div>
-            <div class="flow-line" aria-label="Mission Map dependency flow"><div class="flow-node active"><strong>1 · Inspect</strong><p class="muted">Understand existing app and test seams.</p><small>Evidence: implementation note</small></div><div class="flow-arrow">→</div><div class="flow-node"><strong>2 · Build</strong><p class="muted">Implement local entry and daily total.</p><small>Evidence: diff + checks</small></div><div class="flow-arrow">→</div><div class="flow-node"><strong>3 · Verify</strong><p class="muted">Exercise persistence and reset behavior.</p><small>Evidence: test + walkthrough</small></div></div>
-            <div class="grid-3" style="margin-top:18px"><div class="panel"><h3>Why sequential?</h3><p class="muted">Small coupled codebase; parallel file ownership would add coordination risk.</p></div><div class="panel"><h3>Routing</h3><p><strong>Codex only</strong></p><p class="muted">Exact model and capability policy remain unapproved.</p></div><div class="panel"><h3>Review boundary</h3><p class="muted">Deterministic tests plus a criterion-bound walkthrough. Evaluator independence is unresolved.</p></div></div>
-            <div class="panel dashed" style="margin-top:16px"><div class="panel-header"><div><h2>Unapproved orchestration details</h2><p class="muted">Lease/fence, retry, cost budget, worktree concurrency, and evaluator independence must be approved before implementation.</p></div><span class="tag unknown">Unknown</span></div></div>
-            <div class="actions" style="margin-top:18px"><button type="button">Edit contract</button><button type="button">Edit plan</button><button type="button" class="primary" data-go="authority">Review authority</button></div>
+            <div class="header"><div><div class="eyebrow">Outcome · Plan</div><h1>Mission Map</h1><p class="muted">The smallest sufficient topology backed by PlanRevision 2.</p></div><span class="tag locked">Codex · sequential</span></div>
+            <div class="flow"><div class="node"><strong>1. Scaffold</strong><p class="muted">UI + local model</p></div><div class="arrow">→</div><div class="node"><strong>2. Record</strong><p class="muted">Entry + total</p></div><div class="arrow">→</div><div class="node active"><strong>3. Verify</strong><p class="muted">Restart + criteria</p></div></div>
+            <div class="grid3" style="margin-top:15px"><div class="panel"><h2>Concurrency</h2><p>Sequential by default. No overlapping write ownership.</p></div><div class="panel"><h2>Fallback</h2><p>No provider fallback; a failure creates a new Codex Attempt or replan.</p></div><div class="panel"><h2>Verification</h2><p>Deterministic checks outside producing session; user walkthrough for semantics.</p></div></div><div class="actions" style="margin-top:15px"><button>Edit plan</button><button class="primary" data-go="authority">Review authority</button></div>
           </section>
 
           <section class="screen" data-screen="authority" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Outcome Workspace · Authority</div><h1>What this plan may do</h1><p class="muted">Approval applies only to ContractRevision 2, PlanRevision 2, and the listed grants.</p></div><span class="tag locked">Local only</span></div>
-            <div class="grid-2">
-              <div class="panel emphasis"><h2>Requested grants</h2><ul class="list"><li class="row"><span class="state-mark filled"></span><div class="grow"><strong>Read</strong><div class="muted">Selected Project files and local timezone</div></div></li><li class="row"><span class="state-mark filled"></span><div class="grow"><strong>Write</strong><div class="muted">One isolated worktree inside Kennel custody</div></div></li><li class="row"><span class="state-mark filled"></span><div class="grow"><strong>Execute</strong><div class="muted">Project-local development and test commands</div></div></li><li class="row"><span class="state-mark"></span><div class="grow"><strong>Disclose</strong><div class="muted">No raw content leaves the local provider/session boundary</div></div></li></ul></div>
-              <div class="stack"><div class="panel"><h2>Explicitly excluded</h2><ul class="list"><li>No deployment or publishing</li><li>No account or cloud sync</li><li>No analytics or telemetry changes</li><li>No writes outside the selected Project</li></ul></div><div class="panel dashed"><div class="panel-header"><div><h2>Effect ceiling</h2><p class="muted">Local edit versus local commit versus draft PR is not yet locked.</p></div><span class="tag unknown">Unknown</span></div><p>The first vertical slice cannot proceed until this ceiling and its just-in-time approval boundary are explicit.</p></div></div>
-            </div>
-            <div class="actions" style="margin-top:18px"><button type="button">Back to plan</button><button type="button" class="primary" data-go="run">Approve revision and run</button></div>
+            <div class="header"><div><div class="eyebrow">Outcome · Authority</div><h1>What this revision may do</h1><p class="muted">Approval binds this contract, plan, worktree, budget, and effect ceiling.</p></div><span class="tag locked">Local work only</span></div>
+            <div class="grid2"><div class="panel emphasis"><div class="facts"><div>Read</div><div>Selected Project</div><div>Write</div><div>Isolated worktree only</div><div>Execute</div><div>Approved local checks and dev server</div><div>Commit</div><div>Allowed only as shown in plan</div><div>Network/remote effects</div><div>Not granted</div></div></div><div class="panel"><h2>Execution control</h2><ul class="list"><li>One write lease per worktree</li><li>Monotonic fence blocks stale writes</li><li>Budget: 3 Work Units · 1 active Attempt</li><li>Unknown effect stops and reconciles</li></ul><button class="primary" data-go="run">Approve and run</button></div></div>
           </section>
 
           <section class="screen" data-screen="run" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Outcome Workspace · Run</div><h1>Focus Ledger</h1><p class="muted">Active responsibility · Work Unit 3 of 3 · acceptance still belongs to you.</p></div><div class="actions"><button type="button">Pause</button><button type="button" id="run-open-inspector">Inspect Attempt</button></div></div>
-            <div class="grid-3"><div class="panel"><div class="metric">3/3</div><div class="muted">Work Units started</div></div><div class="panel"><div class="metric">2/3</div><div class="muted">Criteria with evidence</div></div><div class="panel"><div class="metric">0</div><div class="muted">External effects</div></div></div>
-            <div class="panel emphasis" style="margin-top:16px"><div class="panel-header"><div><h2>Verify persistence</h2><p class="muted">Attempt 03 · Codex session <code>codex-7f2</code></p></div><span class="tag proposed">Verifying</span></div><div class="flow-line"><div class="flow-node"><strong>Started</strong><p class="muted">RunBrief v1</p></div><div class="flow-arrow">→</div><div class="flow-node"><strong>Checks</strong><p class="muted">6 passed</p></div><div class="flow-arrow">→</div><div class="flow-node active"><strong>Walkthrough</strong><p class="muted">Restart case</p></div><div class="flow-arrow">→</div><div class="flow-node"><strong>Evidence</strong><p class="muted">Pending</p></div></div></div>
-            <div class="grid-2" style="margin-top:16px"><div class="panel"><h2>Waldo's next action</h2><p>Wait for the restart walkthrough, bind the result to criterion 3, then assemble the review without accepting it.</p></div><div class="panel"><h2>Recovery receipt</h2><p class="muted">Attempt 02 lost its process after app restart. Worktree and effects were reconciled; Attempt 03 resumed from a verified checkpoint.</p><button type="button" id="recovery-inspector">Inspect recovery</button></div></div>
+            <div class="header"><div><div class="eyebrow">Outcome · Run</div><h1>Focus Ledger</h1><p class="muted">Work Unit 3 of 3 · Attempt 03 · user Acceptance remains separate.</p></div><div class="actions"><button>Pause</button><button id="run-inspector">Inspect Attempt</button></div></div>
+            <div class="grid3"><div class="panel"><div class="metric">3/3</div><p class="muted">Work Units started</p></div><div class="panel"><div class="metric">2/3</div><p class="muted">Criteria evidenced</p></div><div class="panel"><div class="metric">0</div><p class="muted">External effects</p></div></div>
+            <div class="panel emphasis" style="margin-top:15px"><div class="panel-head"><div><h2>Verify persistence</h2><p class="muted">Fence 3 · lease current</p></div><span class="tag beta">Verifying</span></div><div class="flow"><div class="node"><strong>RunBrief</strong><p class="muted">Frozen</p></div><div class="arrow">→</div><div class="node"><strong>Checks</strong><p class="muted">6 passed</p></div><div class="arrow">→</div><div class="node active"><strong>Walkthrough</strong><p class="muted">Restart</p></div><div class="arrow">→</div><div class="node"><strong>Evidence</strong><p class="muted">Pending</p></div></div></div>
+            <div class="grid2" style="margin-top:15px"><div class="panel"><h2>Waldo's next action</h2><p>Wait for the restart walkthrough, bind it to criterion 3, then assemble review without accepting it.</p></div><div class="panel"><h2>Recovery receipt</h2><p>Attempt 02 was lost. Kennel fenced stale events, reconciled the worktree, and created Attempt 03.</p></div></div>
           </section>
 
           <section class="screen" data-screen="needs-you" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Attention · Needs You</div><h1>Choose the daily reset behavior</h1><p class="muted">Two valid paths materially change the product contract.</p></div><span class="tag locked">Judgment required</span></div>
-            <div class="grid-2"><div class="panel emphasis"><div class="callout"><strong>Recommendation: local midnight.</strong><br><span class="muted">It matches ordinary calendar-day meaning, remains local, and is easiest to verify.</span></div><div class="decision-options" style="margin-top:14px"><button type="button" class="decision-option"><strong>Use local midnight</strong><span class="muted">Updates ContractRevision and affected checks.</span></button><button type="button" class="decision-option"><strong>Use a rolling 24-hour window</strong><span class="muted">Changes the displayed meaning and verification cases.</span></button></div></div><div class="panel"><h2>Why you are seeing this</h2><p>Waldo cannot responsibly choose because both paths are technically valid and the difference is user-visible.</p><hr class="divider"><h3>Consequence</h3><p class="muted">Choosing either option supersedes the current plan revision before execution continues.</p><div class="actions"><button type="button">Inspect contract</button><button type="button" class="ghost">Defer and keep paused</button></div></div></div>
+            <div class="header"><div><div class="eyebrow">Attention · Needs You</div><h1>Choose the daily reset behavior</h1><p class="muted">Two valid paths materially change the contract.</p></div><span class="tag locked">Judgment</span></div>
+            <div class="grid2"><div class="panel emphasis"><div class="callout"><strong>Recommendation: local midnight.</strong><br><span class="muted">It is easiest to explain and verify.</span></div><div class="decision" style="margin-top:12px"><button>Use local midnight</button><button>Use rolling 24 hours</button></div></div><div class="panel"><h2>Why you</h2><p>Waldo cannot responsibly choose because both are technically valid and user-visible.</p><h3>Consequence</h3><p class="muted">Either choice supersedes the current plan revision before execution resumes.</p><div class="actions"><button>Inspect contract</button><button>Defer paused</button></div></div></div>
           </section>
 
           <section class="screen" data-screen="action-required" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Attention · Action Required</div><h1>Sign in to Codex</h1><p class="muted">Execution is contained. Kennel cannot perform this account action for you.</p></div><span class="tag locked">Human-only</span></div>
-            <div class="panel emphasis"><div class="grid-2"><div><h2>Do this</h2><ol><li>Open Terminal.</li><li>Run <code>codex login</code>.</li><li>Complete the provider sign-in.</li><li>Return here and recheck.</li></ol></div><div><h2>Completion signal</h2><p>The authoritative Codex probe reports an authenticated identity at the execution boundary.</p><h3>Then Kennel will</h3><p class="muted">Revalidate the current revision and grants, admit a new Attempt if still current, and preserve the blocked Attempt in history.</p></div></div><div class="actions"><button type="button">Open Terminal</button><button type="button" class="primary" data-action="recheck">Recheck Codex</button></div></div>
+            <div class="header"><div><div class="eyebrow">Attention · Action Required</div><h1>Sign in to Codex</h1><p class="muted">Execution is contained. Kennel cannot perform this account action.</p></div><span class="tag locked">Human-only</span></div>
+            <div class="panel emphasis"><div class="grid2"><div><h2>Do this</h2><ol><li>Open Terminal.</li><li>Run <code>codex login</code>.</li><li>Complete sign-in.</li><li>Return and recheck.</li></ol></div><div><h2>Completion signal</h2><p>Live admission reports an authenticated identity.</p><h2>Then</h2><p class="muted">Kennel revalidates revision/grants and admits a new Attempt if still current.</p></div></div><button class="primary" data-action="recheck">Recheck Codex</button></div>
           </section>
 
           <section class="screen" data-screen="waiting" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Attention · Waiting</div><h1>Foundation verification is unresolved</h1><p class="muted">No action from you is useful until the maintainer reruns or fixes the full-suite timing failure.</p></div><span class="tag proposed">Waiting</span></div>
-            <div class="grid-2"><div class="panel emphasis"><h2>Dependency</h2><p><strong>Complete F0-F6 foundation gate</strong></p><div class="criteria"><div>Owner</div><div>Maintainer</div><div>Current fact</div><div>Full suite failed; isolated lifecycle test passed 3/3.</div><div>Recheck</div><div>After a fresh complete gate or an approved deterministic fix.</div><div>Release</div><div>New feature branch may be based on accepted foundation.</div></div></div><div class="panel"><h2>Available actions</h2><p class="muted">You may inspect evidence, revise the Outcome, or release it. Repeated refreshes do not change the dependency.</p><div class="actions"><button type="button">Inspect evidence</button><button type="button">Revise Outcome</button><button type="button" class="danger">Release</button></div></div></div>
+            <div class="header"><div><div class="eyebrow">Attention · Waiting</div><h1>Foundation verification is unresolved</h1><p class="muted">No action is useful until the full local gate is rerun or fixed.</p></div><span class="tag locked">Waiting</span></div>
+            <div class="grid2"><div class="panel emphasis"><div class="facts"><div>Dependency</div><div>Complete F0–F6 foundation gate</div><div>Owner</div><div>Maintainer</div><div>Current fact</div><div>Full suite failed; isolated test passed 3/3</div><div>Recheck</div><div>After fresh complete gate or approved deterministic fix</div></div></div><div class="panel"><h2>Available actions</h2><p>Inspect, revise, or release. Repeated refreshes do not change the dependency.</p><div class="actions"><button>Inspect evidence</button><button>Revise</button><button class="danger">Release</button></div></div></div>
           </section>
 
           <section class="screen" data-screen="review" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Outcome Workspace · Review</div><h1>Evidence by success criterion</h1><p class="muted">Subject: ContractRevision 2 · worktree snapshot <code>focus-ledger@9c41</code></p></div><span class="tag locked">Ready for review</span></div>
-            <div class="stack">
-              <div class="panel"><div class="panel-header"><div><h2>1. Record one focus block</h2><p class="muted">Satisfied by deterministic check and walkthrough.</p></div><span class="tag locked">Verified</span></div><div class="grid-2"><div><h3>Evidence</h3><ul><li><code>focus-entry.test.ts</code> · 3 passing cases</li><li>Walkthrough observation · entry appears immediately</li></ul></div><div><h3>Provenance</h3><p class="muted">Attempt 02 · Codex · worktree snapshot 9c41 · captured locally</p></div></div></div>
-              <div class="panel"><div class="panel-header"><div><h2>2. See today's protected minutes</h2><p class="muted">Verified against local-midnight contract.</p></div><span class="tag locked">Verified</span></div><div class="grid-2"><div><h3>Evidence</h3><ul><li>Boundary test across 23:59 → 00:00</li><li>Visible total matches two sample blocks</li></ul></div><div><h3>Verifier</h3><p class="muted">Codex verification Attempt · independence policy still unapproved.</p></div></div></div>
-              <div class="panel emphasis"><div class="panel-header"><div><h2>3. Preserve the entry after restart</h2><p class="muted">Evidence supports the criterion with one review exception.</p></div><span class="tag proposed">Exception</span></div><div class="grid-2"><div><h3>Evidence</h3><ul><li>Automated persistence test passed</li><li>Manual app restart retained the entry</li></ul></div><div><h3>Exception</h3><p>The test covers a normal restart, not an interrupted filesystem write.</p></div></div></div>
-            </div>
-            <div class="actions" style="margin-top:18px"><button type="button" id="review-inspector">Inspect raw evidence</button><button type="button" class="primary" data-go="accept">Decide acceptance</button></div>
+            <div class="header"><div><div class="eyebrow">Outcome · Evidence and Verification</div><h1>Does current Evidence satisfy current success?</h1><p class="muted">ContractRevision 2 · subject snapshot <code>focus-ledger@9c41</code></p></div><span class="tag locked">Ready for review</span></div>
+            <div class="stack"><div class="panel"><div class="panel-head"><div><h2>1. Record one focus block</h2><p class="muted">Deterministic check + walkthrough</p></div><span class="tag locked">Verified</span></div></div><div class="panel"><div class="panel-head"><div><h2>2. See today's protected minutes</h2><p class="muted">Boundary test outside producing session</p></div><span class="tag locked">Verified</span></div></div><div class="panel emphasis"><div class="panel-head"><div><h2>3. Preserve after restart</h2><p class="muted">Normal restart verified; interrupted write not exercised</p></div><span class="tag beta">Exception</span></div><div class="grid2"><div><h3>Evidence</h3><ul><li>Persistence test passed</li><li>Manual restart retained entry</li></ul></div><div><h3>Provenance</h3><p>Attempt 03 · fence 3 · local snapshot 9c41</p></div></div></div></div><div class="actions" style="margin-top:15px"><button id="review-inspector">Inspect raw evidence</button><button class="primary" data-go="accept">Decide acceptance</button></div>
           </section>
 
           <section class="screen" data-screen="accept" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Outcome Workspace · Accept</div><h1>Is this responsibility handled?</h1><p class="muted">Verification informs this decision. It cannot make it for you.</p></div><span class="tag locked">User authority</span></div>
-            <div class="grid-2"><div class="panel emphasis"><h2>Contract summary</h2><p>Build a local-only Focus Ledger that records a focus block, shows today's protected minutes, and persists entries across a normal restart.</p><div class="criteria"><div>Verified</div><div>3 of 3 criteria</div><div>Exception</div><div>Interrupted filesystem write not exercised</div><div>External effects</div><div>None observed</div></div></div><div class="panel"><h2>Your decision</h2><div class="decision-options"><button type="button" class="decision-option primary" data-go="close"><strong>Accept Outcome</strong><span>Record an immutable AcceptanceDecision and continue to Adaptive Close.</span></button><button type="button" class="decision-option"><strong>Request rework</strong><span class="muted">Keep the Outcome active and bind feedback to affected criteria.</span></button><button type="button" class="decision-option"><strong>Revise while active</strong><span class="muted">Create a new ContractRevision; invalidate affected evidence.</span></button><button type="button" class="decision-option danger"><strong>Release without accepting</strong><span class="muted">Stop responsibility while preserving history.</span></button></div></div></div>
+            <div class="header"><div><div class="eyebrow">Outcome · Acceptance</div><h1>Is this responsibility handled?</h1><p class="muted">Verification informs the decision. It cannot make it.</p></div><span class="tag locked">User authority</span></div>
+            <div class="grid2"><div class="panel emphasis"><h2>Contract summary</h2><p>Record one focus block, show today's protected minutes, and preserve it through a normal restart.</p><div class="facts"><div>Verified</div><div>3/3 criteria</div><div>Exception</div><div>Interrupted write not tested</div><div>External effects</div><div>None</div></div></div><div class="panel"><h2>Your decision</h2><div class="decision"><button class="primary" data-go="close">Accept Outcome</button><button>Request rework</button><button>Revise while active</button><button class="danger">Release without accepting</button></div></div></div>
           </section>
 
           <section class="screen" data-screen="close" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Adaptive Close</div><h1>Focus Ledger was accepted</h1><p class="muted">Accepted history is immutable. Closing is a conscious release, not a disappearing animation.</p></div><span class="tag locked">Accepted</span></div>
-            <div class="grid-2"><div class="panel emphasis"><h2>Close receipt</h2><div class="criteria"><div>Accepted by</div><div>Owner</div><div>Contract</div><div>Revision 2</div><div>Evidence</div><div>7 items · local metadata and digests</div><div>Verification</div><div>3 criteria · 1 disclosed exception</div><div>Workspace</div><div>Dirty worktree retained for explicit disposition</div></div></div><div class="stack"><div class="panel"><h2>What should remain open?</h2><div class="checkline"><input id="keep-note" type="checkbox" checked><label for="keep-note">Keep “test interrupted writes” for later</label></div><div class="checkline"><input id="keep-worktree" type="checkbox" checked><label for="keep-worktree">Keep the local worktree until I inspect it</label></div></div><div class="panel"><h2>Suggested follow-up</h2><p>Add an interrupted-write recovery test without changing the accepted Outcome.</p><button type="button" class="primary" data-go="reentry">Create successor Outcome</button></div></div></div>
+            <div class="header"><div><div class="eyebrow">Adaptive Close</div><h1>Focus Ledger was accepted</h1><p class="muted">Accepted history is immutable. Cleanup and follow-up stay deliberate.</p></div><span class="tag locked">Accepted</span></div>
+            <div class="grid2"><div class="panel emphasis"><h2>Close receipt</h2><div class="facts"><div>Contract</div><div>Revision 2</div><div>Evidence</div><div>7 local metadata references</div><div>Verification</div><div>3 criteria · 1 exception</div><div>Worktree</div><div>Dirty; retained for disposition</div></div></div><div class="stack"><div class="panel"><h2>Keep open</h2><div class="check"><input type="checkbox" checked><span>Test interrupted writes later</span></div><div class="check"><input type="checkbox" checked><span>Retain local worktree for inspection</span></div></div><div class="panel"><h2>Suggested successor</h2><p>Prove interrupted-write recovery.</p><button class="primary" data-go="reentry">Create successor</button></div></div></div>
           </section>
 
           <section class="screen" data-screen="reentry" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Re-entry · Successor</div><h1>Start from what became true</h1><p class="muted">This creates a new Outcome linked to the accepted Focus Ledger. It does not reopen or mutate accepted history.</p></div><span class="tag locked">Successor link</span></div>
-            <div class="grid-2"><div class="panel"><h2>Re-entry packet</h2><ul class="tree"><li>Predecessor: Focus Ledger · accepted</li><li>Known workspace: <code>~/Developer/focus-ledger</code></li><li>Accepted behavior: entry, daily total, normal restart persistence</li><li>Open exception: interrupted filesystem write untested</li><li>Reusable evidence: 7 metadata references; raw artifacts stay local</li></ul></div><div class="panel emphasis stack"><div class="field"><label for="successor-goal">New Outcome</label><textarea id="successor-goal">Prove Focus Ledger preserves or safely recovers an entry when a filesystem write is interrupted.</textarea></div><div class="field"><label for="inherit-context">Context to inherit</label><select id="inherit-context"><option>Accepted contract summary and evidence references</option><option>Contract summary only</option></select></div><div class="actions"><button type="button">Keep for later</button><button type="button" class="primary" data-action="successor">Define successor</button></div></div></div>
+            <div class="header"><div><div class="eyebrow">Re-entry</div><h1>Continue from what became true</h1><p class="muted">Minimum exact context; no mutation of accepted or closed history.</p></div><span class="tag locked">Lineage preserved</span></div>
+            <div class="grid2"><div class="panel"><h2>Return packet</h2><ul><li>Predecessor: Focus Ledger · accepted</li><li>Workspace: <code>~/Developer/focus-ledger</code></li><li>Accepted behavior: entry, total, normal restart</li><li>Open exception: interrupted write</li><li>Evidence: 7 references; raw artifacts local</li></ul></div><div class="panel emphasis stack"><div class="field"><label>Next responsibility</label><textarea>Prove Focus Ledger safely recovers an entry when a filesystem write is interrupted.</textarea></div><div class="actions"><button>Keep for later</button><button class="primary" data-action="successor">Define successor</button></div></div></div>
+          </section>
+
+          <section class="screen" data-screen="context" hidden>
+            <div class="header"><div><div class="eyebrow">Settings · Desktop Context</div><h1>Optional observed context</h1><p class="muted">Launch+1 beta. Home remains useful when this is disabled.</p></div><span class="tag beta">Opt-in beta</span></div>
+            <div class="grid2"><div class="panel emphasis stack"><h2>Separate consent</h2><div class="check"><input type="checkbox"><span>Capture the active display</span></div><div class="check"><input type="checkbox"><span>Analyze locally</span></div><div class="check"><input type="checkbox"><span>Allow selected provider disclosure</span></div><div class="field"><label>Retention</label><select><option>Delete raw frames after 24 hours</option><option>Delete after analysis</option></select></div><button class="primary">Enable selected context</button></div><div class="stack"><div class="panel"><h2>Always excluded</h2><p>Password managers, secret tools, private windows, and user-selected apps.</p><button>Manage exclusions</button></div><div class="callout"><strong>Observations are untrusted.</strong><br><span class="muted">They never become Evidence, authority, Open Loops, rules, skills, or Memory automatically.</span></div></div></div>
           </section>
 
           <section class="screen" data-screen="settings" hidden>
-            <div class="screen-header"><div><div class="eyebrow">Settings & Control</div><h1>Local control</h1><p class="muted">Infrastructure stays hidden from the primary flow but inspectable where it affects permission, placement, failure, or revoke.</p></div><span class="tag locked">Local first</span></div>
-            <div class="grid-2"><div class="stack"><div class="panel"><h2>Projects</h2><ul class="list"><li class="row"><div class="grow"><strong>Focus Ledger</strong><div class="muted"><code>~/Developer/focus-ledger</code></div></div><button type="button">Manage</button></li></ul></div><div class="panel"><div class="panel-header"><div><h2>Provider</h2><p class="muted">Only Codex is selectable for new v1 work.</p></div><span class="tag locked">Codex</span></div><ul class="list"><li>Authentication <strong>Ready</strong></li><li>Admission <strong>Capability-first · per Attempt</strong></li><li>Historical Codex <strong>Reconcile and readmit</strong></li><li>Historical non-Codex <strong>Readable · inspect-only</strong></li></ul></div></div><div class="stack"><div class="panel"><h2>Permissions</h2><ul class="list"><li>Default local read/write scope <button type="button">Review</button></li><li>Disclosure boundary <button type="button">Review</button></li><li>Consequential-effect ceiling <span class="tag unknown">Unknown</span></li></ul></div><div class="panel"><h2>Advanced</h2><ul class="list"><li>Skills and MCP servers <button type="button">Inspect</button></li><li>Routing override <span class="tag proposed">Proposed</span></li><li>Export local records <button type="button">Export…</button></li><li>Revoke Project grants <button type="button" class="danger">Review revoke…</button></li><li>Hosted attachment <button type="button" disabled>Later</button></li></ul></div></div></div>
+            <div class="header"><div><div class="eyebrow">Settings & Control</div><h1>Local control</h1><p class="muted">Infrastructure is hidden until it affects permission, placement, failure, disclosure, or revoke.</p></div><span class="tag locked">Inspectable</span></div>
+            <div class="grid2"><div class="stack"><div class="panel"><h2>Responsibility Spaces</h2><ul class="list"><li>Personal Home <strong>Local</strong></li><li>Waldo Kennel Work <strong>Project ready</strong></li></ul></div><div class="panel"><h2>Codex</h2><ul class="list"><li>Authentication <strong>Ready</strong></li><li>Admission <strong>Per Attempt</strong></li><li>Historical non-Codex <strong>Readable · inspect-only</strong></li></ul></div><div class="panel"><h2>Gmail</h2><ul class="list"><li>Connection <strong>Ready</strong></li><li>Read/draft scope <button>Review</button></li><li>Disconnect/revoke <button class="danger">Review</button></li></ul></div></div><div class="stack"><div class="panel"><h2>Permissions and effects</h2><ul class="list"><li>Local read/write defaults <button>Review</button></li><li>Disclosure boundary <button>Review</button></li><li>Remote effects <strong>Just-in-time approval</strong></li></ul></div><div class="panel"><h2>Privacy and data</h2><ul class="list"><li>Trace retention/export/delete <button>Manage</button></li><li>Raw source attachments <button>Manage</button></li><li>Desktop Context <button data-go="context">Off · review</button></li></ul></div><div class="panel"><h2>Later</h2><ul class="list"><li>Hosted attachment <button disabled>Not available</button></li><li>Durable Memory / Health / Relationship <button disabled>Separate architecture</button></li></ul></div></div></div>
           </section>
         </main>
       </div>
     </div>
   </div>
 
-  <aside class="inspector" id="inspector" aria-label="Operator inspector" aria-hidden="true">
-    <div class="inspector-header"><strong>Operator inspector</strong><span class="tag locked">Operational truth</span><button type="button" id="close-inspector" aria-label="Close inspector">Close</button></div>
-    <div class="inspector-body">
-      <div class="inspector-tabs"><button type="button" class="primary">Attempt</button><button type="button">Terminal</button><button type="button">Worktree</button><button type="button">Browser</button><button type="button">Trace</button></div>
-      <div class="callout"><strong>Inspector facts never accept the Outcome.</strong><br><span class="muted">They support recovery, evidence, and user inspection.</span></div>
-      <div class="stack" style="margin-top:16px">
-        <div class="panel"><h2>Attempt 03</h2><div class="criteria"><div>Provider</div><div>Codex</div><div>Session</div><div><code>codex-7f2</code></div><div>Work Unit</div><div>Verify persistence</div><div>Fence</div><div><span class="tag unknown">Contract unapproved</span></div><div>Workspace</div><div><code>worktrees/focus-ledger-wu3</code></div></div></div>
-        <div class="panel"><h2>Capability snapshot</h2><ul class="list"><li>Read Project <strong>Granted</strong></li><li>Write worktree <strong>Granted</strong></li><li>Execute tests <strong>Granted</strong></li><li>External network <strong>Not granted</strong></li><li>Create PR <strong>Not granted</strong></li></ul></div>
-        <div class="panel"><h2>Redacted trace sketch</h2><div class="trace">outcome: out_01
+  <aside class="inspector" id="inspector" aria-hidden="true">
+    <div class="inspector-head"><strong>Operator inspector</strong><span class="tag locked">Operational truth</span><button id="close-inspector">Close</button></div>
+    <div class="inspector-body stack"><div class="callout"><strong>Inspector facts never Accept or close responsibility.</strong><br><span class="muted">They support recovery, Evidence, and user inspection.</span></div><div class="panel"><h2>Attempt 03</h2><div class="facts"><div>Provider</div><div>Codex</div><div>Work Unit</div><div>Verify persistence</div><div>Lease/fence</div><div>Current · fence 3</div><div>Worktree</div><div><code>focus-ledger-wu3</code></div></div></div><div class="panel"><h2>Capability snapshot</h2><ul class="list"><li>Read Project <strong>Granted</strong></li><li>Write worktree <strong>Granted</strong></li><li>Execute checks <strong>Granted</strong></li><li>Remote effects <strong>Not granted</strong></li></ul></div><div class="panel"><h2>Redacted causal trace</h2><div class="trace">space: rs_work_01
+outcome: out_01
 contract: cr_02
 work_unit: wu_03
 attempt: at_03
+fence: 3
 event: verification.completed
 subject: worktree_snapshot:9c41
-raw_content: [not retained here]
-result: passed_with_exception</div><p class="muted" style="margin-top:8px">The event model, minimization, retention, export, and deletion contract remain unapproved.</p></div>
-        <div class="panel"><h2>Recovery</h2><p>Attempt 02 lost its process. Kennel contained writes, reconciled the worktree and local effects, then created Attempt 03 from a checkpoint.</p><button type="button" data-action="receipt">Copy redacted receipt</button></div>
-      </div>
-    </div>
+raw_content: excluded
+result: passed_with_exception</div></div></div>
   </aside>
-
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script>
     (() => {
-      const labels = {
-        onboarding: 'Project readiness', home: 'Work Home', define: 'Outcome Define', clarify: 'Outcome Clarify',
-        mission: 'Mission Map', authority: 'Authority Preview', run: 'Run', 'needs-you': 'Needs You',
-        'action-required': 'Action Required', waiting: 'Waiting', review: 'Evidence & Verification',
-        accept: 'Acceptance', close: 'Adaptive Close', reentry: 'Re-entry', settings: 'Settings & Control'
-      };
-      const screens = [...document.querySelectorAll('[data-screen]')];
-      const navButtons = [...document.querySelectorAll('[data-screen-button]')];
-      const label = document.getElementById('current-screen-label');
-      const inspector = document.getElementById('inspector');
-      const toast = document.getElementById('toast');
-      let toastTimer;
-
-      function showScreen(name) {
-        if (!labels[name]) return;
-        screens.forEach((screen) => { screen.hidden = screen.dataset.screen !== name; });
-        navButtons.forEach((button) => {
-          if (button.dataset.screenButton === name) button.setAttribute('aria-current', 'page');
-          else button.removeAttribute('aria-current');
-        });
-        label.textContent = labels[name];
-        window.scrollTo({ top: 0, behavior: 'auto' });
-      }
-
-      function openInspector() {
-        inspector.classList.add('open');
-        inspector.setAttribute('aria-hidden', 'false');
-        document.getElementById('close-inspector').focus();
-      }
-
-      function closeInspector() {
-        inspector.classList.remove('open');
-        inspector.setAttribute('aria-hidden', 'true');
-        document.getElementById('open-inspector').focus();
-      }
-
-      function showToast(message) {
-        clearTimeout(toastTimer);
-        toast.textContent = message;
-        toast.classList.add('show');
-        toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
-      }
-
-      document.addEventListener('click', (event) => {
-        const target = event.target.closest('button');
-        if (!target) return;
-        if (target.dataset.screenButton) showScreen(target.dataset.screenButton);
-        if (target.dataset.go) showScreen(target.dataset.go);
-        if (target.dataset.action === 'recheck') showToast('Prototype: Codex readiness would be checked again here.');
-        if (target.dataset.action === 'successor') showToast('Prototype: a new linked Outcome would be drafted here.');
-        if (target.dataset.action === 'receipt') showToast('Prototype: redacted recovery receipt copied.');
-      });
-
-      document.getElementById('open-inspector').addEventListener('click', openInspector);
-      document.getElementById('run-open-inspector').addEventListener('click', openInspector);
-      document.getElementById('recovery-inspector').addEventListener('click', openInspector);
-      document.getElementById('review-inspector').addEventListener('click', openInspector);
-      document.getElementById('close-inspector').addEventListener('click', closeInspector);
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && inspector.classList.contains('open')) closeInspector();
-      });
-
-      showScreen('onboarding');
+      const labels = { onboarding:'First run', home:'Home / Today', capture:'Quick Capture', snapshot:'Daily Snapshot', comms:'Communication', 'comm-brief':'Communication Brief', draft:'Draft Review', loop:'Open Loop', 'loop-close':'Ready to Close', work:'Work Home', define:'Outcome Define', clarify:'Clarification', mission:'Mission Map', authority:'Authority', run:'Run', 'needs-you':'Needs You', 'action-required':'Action Required', waiting:'Waiting', review:'Evidence & Verification', accept:'Acceptance', close:'Adaptive Close', reentry:'Re-entry', context:'Desktop Context', settings:'Settings & Control' };
+      const screens=[...document.querySelectorAll('[data-screen]')], nav=[...document.querySelectorAll('[data-screen-button]')], label=document.getElementById('label'), inspector=document.getElementById('inspector'), toast=document.getElementById('toast');
+      let timer;
+      function show(name){ if(!labels[name])return; screens.forEach(s=>s.hidden=s.dataset.screen!==name); nav.forEach(b=>b.dataset.screenButton===name?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current')); label.textContent=labels[name]; window.scrollTo({top:0,behavior:'auto'}); }
+      function message(text){ clearTimeout(timer); toast.textContent=text; toast.classList.add('show'); timer=setTimeout(()=>toast.classList.remove('show'),2200); }
+      function openInspector(){ inspector.classList.add('open'); inspector.setAttribute('aria-hidden','false'); document.getElementById('close-inspector').focus(); }
+      function closeInspector(){ inspector.classList.remove('open'); inspector.setAttribute('aria-hidden','true'); document.getElementById('open-inspector').focus(); }
+      document.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return; if(b.dataset.screenButton)show(b.dataset.screenButton); if(b.dataset.go)show(b.dataset.go); if(b.dataset.action==='draft-created')message('Prototype: Gmail draft EffectReceipt recorded; nothing sent.'); if(b.dataset.action==='loop-closed')message('Prototype: immutable LoopDisposition recorded.'); if(b.dataset.action==='recheck')message('Prototype: authoritative Codex admission rerun.'); if(b.dataset.action==='successor')message('Prototype: successor Outcome drafted with lineage.'); });
+      document.getElementById('open-inspector').addEventListener('click',openInspector); document.getElementById('run-inspector').addEventListener('click',openInspector); document.getElementById('review-inspector').addEventListener('click',openInspector); document.getElementById('close-inspector').addEventListener('click',closeInspector); document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&inspector.classList.contains('open'))closeInspector(); });
+      const requested=new URLSearchParams(window.location.search).get('screen');
+      show(labels[requested]?requested:'onboarding');
     })();
   </script>
 </body>

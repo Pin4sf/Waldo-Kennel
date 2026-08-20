@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Preserve and accept F0-F6, replace PR #11 with bounded post-foundation cleanup, and establish a clean base for the first approved Kennel v1 vertical slice.
+**Goal:** Preserve and accept F0-F6, replace PR #11 with bounded post-foundation cleanup, and establish a clean base and ordered vertical-slice sequence for the accepted Waldo Kennel desktop launch.
 
-**Architecture:** F0-F6 remains an indivisible prerequisite. PR #11 is not merged or rebased wholesale: accepted cleanup is reapplied on new branches from the accepted foundation, while its unapproved Outcome schema/store, premature provider deletion, CLI authority assumptions, and locale deletion are omitted. Product feature work begins only after the remaining gates in the v1 product architecture are approved.
+**Architecture:** F0-F6 remains an indivisible prerequisite. PR #11 is not merged or rebased wholesale: accepted cleanup is reapplied on new branches from the accepted foundation, while its incompatible Outcome schema/store, premature provider deletion, CLI authority assumptions, and locale deletion are omitted. The product architecture now resolves launch gates 1-5: Codex admission/recovery, RunBrief/lease/fence/concurrency/evaluator defaults, privacy-preserving causal trace, dogfood thresholds, and the consequential-effect ceiling. Each product feature still requires its own approved issue-sized vertical-slice plan.
 
 **Tech Stack:** Git/GitHub, Go daemon and SQLite, Electron/React/TypeScript, generated OpenAPI/sqlc artifacts, npm foundation scripts
 
@@ -286,19 +286,19 @@ Expected: every command exits 0. Record exact local evidence if hosted Actions r
 
 Each description names the accepted foundation SHA, linked issue, exact omissions from PR #11, verification evidence, historical compatibility behavior, and why no Outcome migration is included. Opening or merging a PR requires separate user authorization.
 
-### Task 6: Hold the feature gate before the first Outcome vertical slice
+### Task 6: Plan the first Outcome vertical slice from the accepted architecture
 
 **Files:**
 - Read: `docs/product/kennel-v1-product-architecture.md`
 - Create after approval: one separate implementation plan for the first vertical slice
 
 **Interfaces:**
-- Consumes: approved Codex admission/historical recovery, RunBrief/admission, observability, evaluation, and effect-ceiling decisions
+- Consumes: accepted ResponsibilitySpace/Outcome/OpenLoop ontology plus approved Codex admission, RunBrief/admission, observability, evaluation, and effect-ceiling decisions
 - Produces: a test-driven vertical-slice plan whose schema, service, API, UI, CDC, and user-visible acceptance behavior ship together
 
-- [ ] **Step 1: Approve the remaining design gates**
+- [ ] **Step 1: Verify the resolved design gates are represented without drift**
 
-Gate 1, Codex admission and historical recovery, is approved. Obtain explicit approval for gates 2-5 in the specification. Hosted attachment gate 6 may remain deferred for the fully local launch.
+Confirm the implementation plan preserves gates 1-5 exactly as recorded in the canonical architecture: one write lease/fence per worktree, sequential-by-default execution, no provider fallback, frozen RunBrief/budget, independent verifier classes, metadata-first trace, objective falsifiers, and no autonomous remote effects. Hosted attachment gate 6 remains deferred and must not leak into the local slice.
 
 - [ ] **Step 2: Select one end-to-end dogfood Outcome**
 
@@ -308,6 +308,78 @@ Use the local-only Focus Ledger Outcome from the architecture handoff. The slice
 
 Save it under `docs/superpowers/plans/` and enumerate exact domain, port, service, migration/query, CDC, controller/DTO, generated API, frontend, recovery, and evaluation files. Do not reuse PR #11's schema by default.
 
-- [ ] **Step 4: Stop before feature implementation**
+- [ ] **Step 4: Obtain vertical-slice approval before feature implementation**
 
 Feature execution requires the user's explicit approval of that vertical-slice plan.
+
+### Task 7: Sequence the desktop launch as issue-sized vertical slices
+
+**Files:**
+- Read: `docs/product/kennel-v1-product-architecture.md`
+- Read: `docs/product/kennel-v1-team-review-packet.md`
+- Review: `docs/product/kennel-v1-review-prototype.html`
+
+**Interfaces:**
+- Consumes: accepted foundation and completed bounded cleanup
+- Produces: one independently reviewable branch/PR per user-visible truth boundary
+
+- [ ] **Slice 1: Responsibility and causal-trace spine**
+
+Introduce the smallest `ResponsibilitySpace`, `Outcome`, revision, causal-ID, transition, and CDC boundary needed by the first Work flow. Do not add Gmail, Desktop Context, durable Memory, or broad Open Loop inference.
+
+- [ ] **Slice 2: Home / Work / Settings shell over truthful projections**
+
+Establish the three primary destinations and navigation using current durable facts. Empty, offline, stale, recovery, and not-yet-available states must be honest. The renderer remains read/write only through daemon APIs.
+
+- [ ] **Slice 3: Define and clarify an Outcome**
+
+Ship Goal, Success, Review, immutable ContractRevision, one material clarification at a time, and revision invalidation tests.
+
+- [ ] **Slice 4: Mission Map, authority, and compiled RunBrief**
+
+Ship direct one-Work-Unit and non-trivial plan projections, explicit grants, budget, worktree placement, lease/fence, stop, Evidence, Verification, and recovery requirements.
+
+- [ ] **Slice 5: Fenced Codex Attempt and recovery**
+
+Ship authoritative admission, one-write-lease/fence enforcement, sequential default, ordered observations, contain/reconcile/narrow-retry, and compact recovery receipt.
+
+- [ ] **Slice 6: Attention projections**
+
+Derive Needs You, Action Required, and Waiting from durable decision/dependency/capability/recovery facts. Include required content and resume/recheck semantics; do not persist display labels.
+
+- [ ] **Slice 7: Evidence, Verification, Acceptance, and Re-entry**
+
+Ship criterion/subject-bound Evidence, verifier class, exceptions, explicit immutable AcceptanceDecision, Adaptive Close, dirty-resource disposition, and successor lineage.
+
+- [ ] **Slice 8: Confirmed Open Loops, Quick Capture, and Daily Snapshot**
+
+Ship explicit personal/work Open Loop creation, owner/source/trigger/closure contract, LoopDisposition, Ready to Close, trusted Daily Snapshot, correction, Daily Close, and exact Re-entry. Do not infer canonical loops from raw activity.
+
+- [ ] **Slice 9: One-account Gmail Communication Loops beta**
+
+Only after OAuth/privacy review: ship SourceConnection, incremental sync, Communication Brief, correctable CommitmentCandidate, confirm Open Loop/promote Outcome, user-approved draft EffectIntent/Receipt, Waiting, Ready to Close, revoke, stale/offline, and prompt-injection tests. Keep send/archive/delete/label/auto-close unavailable.
+
+- [ ] **Slice 10: Optional Desktop Context launch+1 beta**
+
+Only after core dogfood and separate privacy approval: ship capture/analysis/disclosure/retention consent, pause/exclusions/storage cap/delete, DesktopObservation, correctable ContextEpisode, and explicit Snapshot/candidate linking. No automatic Evidence, Open Loop, Memory, rule, or skill promotion.
+
+Every slice requires its own test-driven implementation plan and explicit approval. Screen mockups may span several slices for review; canonical writes may not.
+
+### Task 8: Apply the launch falsification gate
+
+**Interfaces:**
+- Consumes: a release-candidate Work core and any enabled beta
+- Produces: launch, dogfood-only, revise, or stop decision backed by recorded evidence
+
+- [ ] Compare at least 20 representative Outcomes with direct Codex use.
+- [ ] Verify median active supervision is at least 30% lower.
+- [ ] Verify full transcript reconstruction is needed in no more than 20% of Outcomes.
+- [ ] Verify attention precision is at least 80%.
+- [ ] Verify 100% current Evidence/Verification coverage for accepted criteria.
+- [ ] Verify false-ready/reopen is no more than 10% for omitted known material facts.
+- [ ] Verify at least 90% of injected recoverable failures contain/reconcile safely.
+- [ ] Verify zero unauthorized, duplicated, widened, or blindly retried consequential effects.
+- [ ] Verify median Re-entry under 60 seconds.
+- [ ] If Gmail beta is enabled, verify zero auto-created canonical commitments and zero auto-sent messages.
+
+Failing a threshold is a product signal, not a reason to relabel the run successful. Record the failure, narrow or revise the product, and rerun the relevant gate.

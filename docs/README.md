@@ -1,6 +1,6 @@
 # Kennel documentation
 
-Kennel currently consists of an AO-derived Go daemon and Electron supervisor plus a prototype Outcome UI. The documents below describe that foundation. Mission, personal memory, Waldo authority/verification semantics, and Xirp/Medley/Paxel integrations are not shipped.
+Kennel currently consists of an AO-derived Go daemon and Electron supervisor plus a prototype Outcome UI. The documents below separate that shipped foundation from the accepted, still-unimplemented Waldo Kennel desktop launch architecture. Home, Open Loops, Communication Loops, Daily Snapshot, Mission, personal continuity, Waldo authority/verification semantics, and named reference adaptations are not shipped.
 
 ## Foundation first
 
@@ -16,10 +16,10 @@ Kennel currently consists of an AO-derived Go daemon and Electron supervisor plu
 
 | Document | Purpose |
 | --- | --- |
-| [Kennel v1 product architecture](product/kennel-v1-product-architecture.md) | Accepted launch wedge, ontology, Outcome flow, attention/recovery contract, work surface, Waldo/Kennel boundary, reference disposition, feature boundary, and remaining architecture gates. It is a design baseline, not a shipped-feature claim. |
-| [Kennel v1 team architecture review packet](product/kennel-v1-team-review-packet.md) | Self-contained founder/product/design/engineering review of the thesis, problem mapping, ontology, lineage, governance, system boundary, screens, flows, scope, evidence boundaries, and unresolved launch gates. |
-| [Kennel v1 clickable review prototype](product/kennel-v1-review-prototype.html) | Low-fidelity, self-contained walkthrough of onboarding, Outcome definition, planning, authority, run, attention, verification, acceptance, re-entry, inspector, and control surfaces. It is not product code or a shipped UI. |
-| [Kennel v1 Excalidraw session seed](product/kennel-v1-excalidraw-session-seed.md) | Frames, flows, prompts, unresolved decisions, and facilitation agenda for a collaborative architecture and UX review. |
+| [Waldo Kennel desktop launch architecture](product/kennel-v1-product-architecture.md) | Canonical local Home + Work thesis, Responsibility Spaces, Outcome/Open Loop/communication ontology, exact lineages, governance, runtime boundary, launch defaults, screens/states, reference disposition, phased feature boundary, dogfood gate, and implementation entry. It is a design baseline, not a shipped-feature claim. |
+| [Desktop launch team review packet](product/kennel-v1-team-review-packet.md) | Shareable founder/product/design/engineering/privacy review of the full launch structure, problem mapping, ontology, lineage, governance, system boundary, screens, UX flows, failures, scope, and PR entry boundary. |
+| [Clickable desktop launch prototype](product/kennel-v1-review-prototype.html) | Low-fidelity walkthrough of Home, Daily Snapshot, communication/Open Loops, Work Outcomes, attention, evidence, acceptance, re-entry, optional Desktop Context, inspector, and control surfaces. It is not product code or a shipped UI. |
+| [Desktop launch Excalidraw session seed](product/kennel-v1-excalidraw-session-seed.md) | Twenty-seven review frames, canonical lineage/state strips, failure injections, dogfood measures, ready-to-paste diagram prompts, and facilitation agenda. |
 | [ADR 0003: Local-first Waldo Core](adr/0003-local-first-waldo-core.md) | Accepted v1 deployment and custody decision: Waldo Core inside the Kennel daemon, local canonical storage, user-authenticated providers, and later explicit hosted attachment. |
 | [PR convergence and architecture gate plan](superpowers/plans/2026-08-20-pr-convergence-and-architecture-gate.md) | Safe sequence for accepting F0-F6, replacing PR #11 with bounded post-foundation cleanup, and holding the first feature implementation gate. |
 

@@ -1,6 +1,6 @@
 # Kennel status
 
-As of the F0-F6 foundation branch on 2026-08-18, Kennel has a working AO-derived coding-agent orchestration chassis with isolated installed identity and state. It does not yet have the Mission/personal-agent architecture that will define the Waldo product.
+As of the F0-F6 foundation branch on 2026-08-18, Kennel has a working AO-derived coding-agent orchestration chassis with isolated installed identity and state. It does not yet implement the accepted Home, Work, Outcome, Open Loop, communication, Daily Snapshot, or personal-continuity architecture that will define the Waldo product.
 
 ## Shipped in the current chassis
 
@@ -63,14 +63,14 @@ npm --prefix frontend run package
 npm --prefix frontend run package:identity
 ```
 
-## Accepted post-foundation design, not shipped
+## Accepted post-foundation desktop launch design, not shipped
 
-The 18-20 August product-architecture session accepted a local-first Kennel v1 direction. Waldo's responsibility/control semantics run inside the Kennel daemon; local SQLite is the sole canonical writer; the launch does not require an account, hosted backend, or Waldo-funded model API. A versioned execution plan is presented as an optional Mission Map rather than a second responsibility object.
+The 18-20 August product-architecture session accepted one local-first Waldo Kennel desktop with synchronized **Home** and **Work** surfaces plus **Settings & Control**. Waldo's responsibility/control semantics run inside the Kennel daemon; local SQLite is the sole canonical writer; the launch does not require an account, hosted backend, or Waldo-funded model API. A `ResponsibilitySpace` separates repository-backed Work Projects from Personal Home without creating a second assistant identity.
 
-The accepted ontology, Outcome flow, attention/recovery contract, three-destination work surface, custody boundary, reference disposition, launch feature boundary, and remaining gates are recorded in [Kennel v1 product architecture](product/kennel-v1-product-architecture.md). The deployment decision is recorded in [ADR 0003](adr/0003-local-first-waldo-core.md).
+The launch core is Outcome-to-verified-Acceptance, confirmed Open Loops, trusted Daily Snapshot, concise attention, and exact Re-entry. One-account Gmail Communication Loops is an optional draft-only beta; Dayflow-inspired Desktop Context is a separately consented launch+1 beta. Durable Memory, Relationship, Health/mobile, hosted attachment, proactive agent, and Waldo-owned harness remain later. The accepted ontology, lineages, attention/recovery contract, three-destination surface, custody boundary, reference disposition, launch defaults, dogfood gate, and phased boundary are recorded in [Waldo Kennel desktop launch architecture](product/kennel-v1-product-architecture.md). The deployment decision is recorded in [ADR 0003](adr/0003-local-first-waldo-core.md).
 
 The launch-provider decision is Codex-only for new v1 work so the team can test the end-to-end responsibility loop with less provider variability. Codex admission is now locked as live, fail-closed, and scoped to every Attempt start or resume, with required versus optional capabilities and capability-first version handling. Historical Codex sessions require exact binding, reconciliation, and readmission; other provider identities remain readable and inspect-only, with continuation through a provenance-bearing packet to a new Codex Attempt.
 
-A [team architecture review packet](product/kennel-v1-team-review-packet.md), [clickable low-fidelity prototype](product/kennel-v1-review-prototype.html), and [Excalidraw session seed](product/kennel-v1-excalidraw-session-seed.md) make the accepted direction and unresolved gates reviewable. These are documentation artifacts, not shipped product surfaces.
+A [team architecture review packet](product/kennel-v1-team-review-packet.md), [clickable low-fidelity prototype](product/kennel-v1-review-prototype.html), and [Excalidraw session seed](product/kennel-v1-excalidraw-session-seed.md) make the accepted direction, screens, states, failures, falsifiers, and phase boundaries reviewable. These are documentation artifacts, not shipped product surfaces.
 
-These documents do not make the prototype Outcome overlay, PR #11's Outcome schema, or any Mission/verification/acceptance feature shipped. The implementation sequence begins with accepting F0-F6 and replacing PR #11 with bounded post-foundation cleanup according to the [PR convergence and architecture gate plan](superpowers/plans/2026-08-20-pr-convergence-and-architecture-gate.md). Permanent Outcome persistence waits for the remaining RunBrief/orchestration, observability, evaluation, and consequential-effect decisions.
+These documents do not make the prototype Outcome overlay, PR #11's Outcome schema, or any Home/Mission/Open Loop/communication/verification/acceptance feature shipped. The implementation sequence begins with accepting F0-F6 and replacing PR #11 with bounded post-foundation cleanup according to the [PR convergence and architecture gate plan](superpowers/plans/2026-08-20-pr-convergence-and-architecture-gate.md). Product features then land as issue-sized vertical slices whose domain, service, migration, CDC, API, UI, recovery, and evaluation boundaries are owned together.

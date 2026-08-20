@@ -6,7 +6,7 @@
 
 ## Context
 
-Kennel's launch wedge is agent-heavy Mac users who need to move from a stated Outcome to verified acceptance with less coordination and supervision. Requiring a hosted Waldo backend, account, API service, and Waldo-funded model calls would add account friction, infrastructure cost, privacy exposure, and a second failure domain before that product loop is proved.
+Kennel's launch wedge is agent-heavy Mac users who need to move from a stated Outcome to verified acceptance with less coordination and supervision. The accepted desktop launch also adds a local Personal Home, confirmed Open Loops, trusted Daily Snapshot, and optional bounded communication continuity. Requiring a hosted Waldo backend, account, API service, and Waldo-funded model calls would add account friction, infrastructure cost, privacy exposure, and a second failure domain before those product loops are proved.
 
 Waldo and Kennel still require a semantic boundary. Waldo owns responsibility and control-plane meaning; Kennel owns local execution and custody. That boundary does not require separate deployments in v1.
 
@@ -16,17 +16,19 @@ Kennel v1 ships a **Local Waldo Core** inside the existing Go daemon. Electron r
 
 The Local Waldo Core owns:
 
-- Outcome and ContractRevision semantics;
+- ResponsibilitySpace, Outcome, OpenLoop, ContractRevision, LoopDisposition, and successor semantics;
 - optional versioned PlanRevision, presented as the Mission Map;
 - Work Unit compilation and authority requirements;
-- decision, evidence, verification, acceptance, and successor lineage;
+- decision, EffectIntent, evidence metadata, verification, acceptance, closure, and lineage;
+- attention, Communication Brief, Daily Snapshot, and Re-entry projections;
 - orchestration policy and provider-specific RunBrief compilation.
 
 The Kennel Runtime owns:
 
 - local projects, workspace bytes, worktrees, processes, terminals, and browser sessions;
 - provider authentication and provider AgentSessions;
-- raw traces, unselected artifacts, local observations, and recovery facts;
+- source connections and authorized connector I/O;
+- raw traces, source content, unselected artifacts, local observations, EffectReceipts, and recovery facts;
 - enforcement of the locally admitted plan and capability grants.
 
 The daemon's local SQLite database is the sole canonical writer for v1. The renderer does not own durable product logic or write around daemon service boundaries.
@@ -43,13 +45,13 @@ Where technically and contractually supported, planning, execution, critique, an
 
 A future Waldo account may be recommended when it provides concrete backup, continuity, cross-device, or relationship value, but it remains optional. Signing in alone never uploads local state or transfers authority.
 
-Attachment is an explicit Project/workspace action:
+Attachment is an explicit ResponsibilitySpace or Project/workspace action:
 
-- future Outcomes in the attached Project inherit attachment;
-- historical Outcomes remain local unless the attachment flow presents them and the user selects them;
-- hosted Waldo may become canonical for Project identity, Outcome contracts, PlanRevisions/Work Units, authority grants, decisions, evidence metadata and digests, verification results, acceptance, and follow-up lineage;
+- future Outcomes and Open Loops in the attached boundary inherit attachment;
+- historical Outcomes, Open Loops, and Daily Snapshot history remain local unless the attachment flow presents them and the user selects them;
+- hosted Waldo may become canonical for attached ResponsibilitySpace/Project identity, Outcome/Open Loop contracts, PlanRevisions/Work Units, authority grants, decisions, EffectIntents, evidence metadata and digests, verification results, acceptance, closure, and follow-up lineage;
 - Kennel remains canonical for workspace bytes, worktrees, terminals, raw traces, credentials, provider authentication, and unselected artifacts;
-- raw artifacts, excerpts, or traces cross the boundary only through explicit disclosure or learning permission.
+- raw artifacts, source messages, excerpts, observations, or traces cross the boundary only through explicit disclosure or learning permission.
 
 The attachment protocol must establish one canonical authority. Dual canonical writers are forbidden. Offline commands, acknowledgement, conflict behavior, detach, revoke, and deletion remain separate design decisions.
 
@@ -60,6 +62,7 @@ The attachment protocol must establish one canonical authority. Dual canonical w
 - proves the launch loop without cloud infrastructure or forced sign-up;
 - preserves local custody and offline usefulness;
 - reuses the AO-derived daemon, SQLite, worktree, session, terminal, browser, and provider-adapter chassis;
+- lets Personal Home and Communication Loops prove useful continuity without pretending they are already durable hosted Memory;
 - keeps a stable Waldo/Kennel responsibility boundary that can later span local and hosted deployments.
 
 ### Costs and deferred capabilities

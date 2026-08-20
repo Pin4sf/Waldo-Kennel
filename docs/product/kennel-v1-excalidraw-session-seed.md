@@ -1,460 +1,507 @@
-# Kennel v1 Excalidraw review session seed
+# Waldo Kennel desktop launch Excalidraw session seed
 
-- Purpose: collaboratively reconstruct and critique the Kennel v1 experience in Excalidraw
-- Source of truth: [team architecture review packet](kennel-v1-team-review-packet.md)
+- Purpose: team critique of the complete local Home + Work launch
+- Source of truth: [team review packet](kennel-v1-team-review-packet.md)
 - Clickable reference: [low-fidelity prototype](kennel-v1-review-prototype.html)
-- Status: facilitation seed; not a final UI specification
-- Session length: 90 minutes
+- Status: facilitation seed, not final visual design
+- Session length: 120 minutes
 
-This seed is deliberately tool-neutral Markdown so a founder, designer, or engineer can recreate the board together rather than importing a polished diagram that discourages correction. Keep the board grayscale. Use solid borders for **Locked**, a small eye marker for **Observed**, dashed borders for **Proposed**, and hatched corners for **Unknown**. Put the label on every decision; do not rely on color.
+Keep the board grayscale. Put **Locked**, **Observed**, **Proposed**, or **Unknown** on every non-obvious claim. Use solid borders for Locked, an eye marker for Observed, dashed borders for Proposed, and a hatched corner for Unknown. Never use color as the only state signal.
 
 ## 1. Board layout
 
-Use a left-to-right canvas with five horizontal lanes:
+Build five left-to-right zones with horizontal lanes.
 
-1. **User responsibility** — what the user believes they delegated and what requires their judgment.
-2. **Product surface** — Work Home, Outcome Workspace, attention, review, and close.
-3. **Local Waldo Core** — contract, plan, authority, evidence, verification, acceptance, and lineage.
-4. **Kennel Runtime** — Codex Attempt, worktree, process, terminal/browser, capability enforcement, and recovery.
-5. **Evidence and unknowns** — observed facts, proposed contracts, questions, and falsifiers.
+### Zones
 
-Place a thin vertical divider after each phase: **Ready**, **Define**, **Authorize**, **Run**, **Review**, **Close**, and **Re-enter**.
+1. **Enter** — onboarding, Home, connections, Project readiness.
+2. **Understand** — Daily Snapshot, Communication Brief, Quick Capture, Outcome Define.
+3. **Decide and authorize** — candidate confirmation, Mission Map, authority/effect preview.
+4. **Act and observe** — Codex Work Units, draft effect, attention, Waiting, recovery.
+5. **Prove and close** — Evidence, Verification, Acceptance, Open Loop closure, Daily Close, Re-entry.
+
+### Lanes
+
+1. **User responsibility** — what the user believes is open and which decision belongs to them.
+2. **Home surface** — personal continuity, communication, Open Loops, Daily Snapshot.
+3. **Work surface** — Outcomes, plans, Work Units, Evidence, Acceptance.
+4. **Local Waldo Core** — contracts, authority, decisions, effects, proof, closure, lineage.
+5. **Kennel Runtime** — Project, worktree, Codex, connector, capture, recovery.
+6. **Evidence, privacy, and unknowns** — sources, disclosure, falsifiers, later boundaries.
 
 ## 2. Shared legend
 
-Create these reusable sticky styles in the top-left:
-
-| Style | Meaning | Example |
+| Shape | Meaning | Example |
 | --- | --- | --- |
-| Solid rectangle | Locked decision | “Codex only for new v1 work” |
-| Rectangle with eye icon | Observed fact | “Current Outcome overlay depends on provider sessions” |
-| Dashed rectangle | Proposed contract | “Authoritative preflight before every Attempt” |
-| Hatched corner | Unknown | “May v1 open a pull request?” |
-| User silhouette | Human authority | AcceptanceDecision |
-| Small document | Immutable revision | ContractRevision 2 |
-| Small gear | Runtime fact | Codex process, worktree, check |
-| Paperclip | Evidence reference | test result, walkthrough, artifact digest |
+| User silhouette | Human authority | AcceptanceDecision, LoopDisposition |
+| Rounded rectangle | Product surface/projection | Communication Brief, Daily Snapshot |
+| Solid rectangle | Canonical object | Outcome, OpenLoop, WorkUnit |
+| Document | Immutable revision | ContractRevision 2 |
+| Gear | Runtime fact | Codex process, Gmail sync |
+| Paperclip | Evidence/provenance | test result, thread reference |
+| Shield | Capability/effect boundary | write grant, draft approval |
+| Dashed arrow | Candidate/admission path | CommitmentCandidate to OpenLoop |
+| Solid arrow | Canonical lineage | Outcome to ContractRevision |
+| Dotted arrow | Later/optional | ContextEpisode to MemoryCandidate |
 
-## 3. Frame inventory
+## 3. Primary product map
 
-Create the following numbered frames. Each frame should fit on one laptop screen at normal zoom and contain one obvious primary action.
+Place this at the top of the board:
 
-### F01 — Onboarding and Project selection
+```text
+WALDO KENNEL DESKTOP
 
-**Question:** Can a user start without understanding infrastructure?
+HOME                                  WORK                               SETTINGS
+Today                                 Projects                           Spaces
+Needs You / Action Required           Outcome Focus                      Codex
+Open Loops / Waiting                  Define / Clarify                   Gmail
+Communication                         Mission Map / Authority             Permissions
+Daily Snapshot / Quick Capture        Run / Review / Accept               Privacy
+Ready to Close / Re-entry             Close / Re-entry                   Desktop Context beta
+```
 
-Elements:
+Add a note: **One Waldo identity. Home and Work are projections over shared responsibility truth.**
 
-- Project name and local-folder picker;
+## 4. Frame inventory
+
+Each frame should fit on one laptop screen at normal zoom and have one obvious primary action.
+
+### F01 — First run
+
+- Local Personal Home created;
+- optional “Add Work Project”;
 - local custody statement;
-- Codex readiness block;
-- “Codex only” locked label;
-- historical Codex: reconcile and readmit or create a new Attempt;
-- historical non-Codex: readable, inspect-only, and continued only through a provenance-bearing packet to a new Codex Attempt;
-- Action Required variant for missing installation or authentication;
-- primary action: **Use this Project**.
+- Gmail and Desktop Context shown as optional Later/Connect actions;
+- primary: **Enter Home**.
 
-Review prompts:
+States: first run, offline daemon, storage unavailable.
 
-- What must be explained before folder access?
-- Does readiness come from the actual execution boundary?
-- Is any account, cloud, API-key, model, MCP, or CLI detail unnecessarily exposed?
+### F02 — Home / Today
 
-### F02 — Work Home
+- concise Today brief;
+- Needs You and Action Required;
+- Open Loops and Waiting;
+- Communication candidates;
+- current Outcomes and Ready to Close;
+- primary: **Handle top item**.
 
-**Question:** Can the user find the next useful intervention in five seconds?
+Review: can the user understand the next useful intervention in five seconds?
 
-Elements:
+### F03 — Quick Capture
 
-- Outcome Focus input;
+- ordinary-language capture;
+- choose note, Open Loop, or Outcome candidate;
+- assign Personal Home or Work Project;
+- show suspected duplicate;
+- primary: **Preserve this**.
+
+### F04 — Daily Snapshot
+
+- what became true;
+- what remains open;
+- what changed since last visit;
+- source confidence/provenance;
+- corrections and Daily Close;
+- primary: **Review what remains open**.
+
+States: collecting, partial source, ready, corrected, closed for day.
+
+### F05 — Communication connection
+
+- connect one Gmail account;
+- exact read/draft scope;
+- model disclosure destination;
+- retention and revoke;
+- no auto-send/labels/archive/delete;
+- primary: **Authorize selected scope**.
+
+States: disconnected, authorizing, denied, syncing, ready, stale, revoked.
+
+### F06 — Communication inbox
+
+- only actionable candidates, not full inbox;
+- Needs reply, commitment detected, waiting, follow-up, possibly resolved;
+- sync health and freshness;
+- primary: **Open brief**.
+
+### F07 — Communication Brief
+
+- actual ask in one sentence;
+- who owes what;
+- due/trigger;
+- what happened;
+- Waldo recommendation and why;
+- source inspect;
+- actions: dismiss, correct, Open Loop, Outcome, draft.
+
+### F08 — Draft effect review
+
+- exact To/Cc/subject/body/thread;
+- why this response;
+- disclosure/provenance;
+- EffectIntent digest;
+- primary: **Create Gmail draft**;
+- user sends outside launch automation.
+
+States: proposed, approved, created, edited, failed, unknown/reconciled, sent externally.
+
+### F09 — Open Loop detail
+
+- responsibility statement;
+- owner;
+- provenance/source;
+- next review/trigger;
+- closure condition;
+- linked Outcome;
+- actions: active, waiting, defer, transfer, release, close.
+
+### F10 — Ready to Close
+
+- what changed;
+- why closure appears satisfied;
+- remaining uncertainty;
+- primary: **Close Loop**;
+- alternatives: reopen, release, promote remaining work.
+
+### F11 — Work Home
+
+- Project selector/readiness;
+- Outcome Focus;
 - Active Outcomes;
-- Needs You;
-- Action Required;
-- Waiting;
+- Needs You, Action Required, Waiting;
 - Ready for Acceptance;
-- recently accepted and Project Follow-up;
 - sessions absent from primary hierarchy.
 
-Review prompts:
+### F12 — Outcome Define
 
-- Does any card report activity instead of responsibility?
-- Are Needs You and Action Required visibly different without color?
-- Is there one clear place to state a new Outcome?
+- Goal, Success, Review always;
+- constraints, non-goals, stop conditions;
+- Plan/Authority expand only when warranted;
+- primary: **Clarify material gaps**.
 
-### F03 — Outcome Define
+### F13 — Adaptive clarification
 
-**Question:** Is the contract understandable without architecture vocabulary?
-
-Elements:
-
-- Goal;
-- Success criteria;
-- Review expectation;
-- constraints and non-goals;
-- stop conditions;
-- optional Plan and Authority sections only when warranted;
-- primary action: **Clarify material gaps**.
-
-### F04 — Adaptive clarification
-
-**Question:** Is this question irreducible and is its consequence explicit?
-
-Elements:
-
-- one question;
-- Waldo recommendation and rationale;
+- one irreducible question;
+- recommendation and rationale;
 - materially different choices;
-- contract/authority/verification impact preview;
-- defer and inspect paths.
+- contract/authority/verification impact;
+- primary: **Apply choice**.
 
-### F05 — Mission Map
+### F14 — Mission Map
 
-**Question:** Is this the smallest sufficient topology?
-
-Elements:
-
-- direct single-Work-Unit variant;
-- sequential three-unit Focus Ledger variant;
-- dependencies and current unit;
-- expected evidence per unit;
+- direct one-WorkUnit variant and non-trivial graph;
+- dependencies, evidence, verification, topology rationale;
 - Codex-only routing;
-- topology rationale;
-- unknown badges for lease/fence, fallback, budget, concurrency, and evaluator independence.
+- sequential default, isolated-worktree parallel exception;
+- budget and recovery boundary;
+- primary: **Review authority**.
 
-### F06 — Authority Preview
+### F15 — Authority and effect preview
 
-**Question:** Can the user explain what execution may do and where?
-
-Elements:
-
-- separate read, write, execute, disclose, spend, and external-effect rows;
-- Project and worktree placement;
-- expiration/revision binding;
+- read, write, execute, disclose, spend, effect rows;
+- Project/worktree placement;
+- expiry/revision binding;
 - explicit exclusions;
-- revoke behavior;
-- hatched consequential-effect ceiling;
-- primary action: **Approve this revision and grants**.
+- local commit if included;
+- remote effects require later approval;
+- primary: **Approve revision and run**.
 
-### F07 — Run
+### F16 — Run
 
-**Question:** Does progress describe the responsibility rather than transcript volume?
+- Outcome responsibility and current Work Unit;
+- Attempt/fence/lease summary;
+- Waldo's next safe action;
+- Evidence progress;
+- recovery receipt;
+- primary: **Pause** or no action when healthy.
 
-Elements:
+### F17 — Needs You
 
-- Outcome and current Work Unit;
-- Attempt identity and Codex session reference;
-- evidence progress by criterion;
-- Waldo's next action;
-- Pause and inspector actions;
-- compact recovery receipt;
-- lost/reconciled/new-Attempt variant.
-
-### F08 — Needs You
-
-**Question:** Is human judgment genuinely required?
-
-Elements:
-
-- current problem;
+- problem;
 - recommendation and why;
-- consequence of each path;
-- primary choice, override, inspect, and defer;
-- revision invalidation note.
+- consequence;
+- primary choice, override, inspect;
+- never a generic error.
 
-### F09 — Action Required
+### F18 — Action Required
 
-**Question:** Is there exactly one human-only action?
-
-Elements:
-
-- exact action and location;
-- reason it cannot be delegated;
+- exact human-only action;
+- location;
+- reason;
 - completion signal;
-- what Kennel validates next;
-- resume behavior;
-- failed/retry variant.
+- resume behavior.
 
-### F10 — Waiting
+### F19 — Waiting
 
-**Question:** Is it clear why action now would not help?
-
-Elements:
-
-- dependency and owner/source;
-- current durable fact;
+- dependency;
+- owner/source;
 - recheck condition;
 - release behavior;
-- inspect, revise, and release actions;
-- timeout/dependency-failure variant.
+- revise/release, but no pressure to refresh.
 
-### F11 — Evidence and Verification
+### F20 — Evidence and Verification
 
-**Question:** Can the user judge every criterion without reading a transcript?
+- current ContractRevision and subject;
+- one row per criterion;
+- supporting and contradicting Evidence;
+- verifier class and independence;
+- failures/exceptions;
+- primary: **Decide acceptance**.
 
-Elements:
-
-- ContractRevision and subject snapshot;
-- criterion rows;
-- supporting and contradicting evidence;
-- provenance and raw-inspect link;
-- VerificationRun method, identity/independence, result, and exceptions;
-- missing, stale, failed, and conflict variants.
-
-### F12 — Acceptance
-
-**Question:** Does the surface preserve conscious human closure?
-
-Elements:
+### F21 — Acceptance
 
 - contract summary;
-- verification summary and exceptions;
-- Accept Outcome;
-- Request rework;
-- Revise while active;
-- Release without accepting;
-- explicit statement that no automated event can accept.
+- Evidence/Verification summary;
+- exceptions and unknown effects;
+- accept, rework, revise active, release;
+- primary: **Accept Outcome**;
+- user authority marker.
 
-### F13 — Adaptive Close
-
-**Question:** What should be consciously released or kept?
-
-Elements:
+### F22 — Adaptive Close
 
 - immutable close receipt;
-- local resource disposition;
-- Keep for later;
-- follow-up suggestion;
-- dirty-worktree and retained-artifact variants.
+- worktree/artifact disposition;
+- remaining Open Loops;
+- suggested successor;
+- primary: **Finish close**.
 
-### F14 — Re-entry and successor
+### F23 — Re-entry
 
-**Question:** Can follow-up begin without mutating accepted history?
+- predecessor/source;
+- what became true;
+- what remains open;
+- exact workspace/thread return target;
+- inherited Evidence references;
+- new Outcome or reopened Open Loop;
+- primary: **Continue from here**.
 
-Elements:
+### F24 — Operator inspector
 
-- predecessor link;
-- accepted facts;
-- unresolved exception/open loop;
-- context inheritance choices;
-- new Outcome contract draft;
-- primary action: **Define successor**.
+- Attempt, terminal, worktree, browser, trace, recovery;
+- privacy warning for raw sources;
+- facts never accept or close responsibility;
+- contextual drawer, not top-level nav.
 
-### F15 — Operator inspector
+### F25 — Desktop Context consent
 
-**Question:** Are operational details available without becoming product truth?
+- capture toggle and visible pause;
+- app exclusions and secret-app defaults;
+- analysis route and provider disclosure;
+- retention/storage cap/delete;
+- “observations are untrusted” statement;
+- primary: **Enable selected context**.
 
-Elements:
+States: disabled, denied, paused, excluded app, storage cap, provider unavailable, delete pending.
 
-- Attempt and `AgentSessionRef`;
-- terminal/chat;
-- worktree and file ownership;
-- browser;
-- capability snapshot;
-- redacted trace;
-- recovery facts;
-- persistent reminder: inspector facts cannot accept an Outcome.
+### F26 — Context episode correction
 
-### F16 — Settings and Control
+- time range and apps;
+- derived description;
+- edit/dismiss/split/merge;
+- explicit link to Snapshot or candidate;
+- no automatic Evidence/OpenLoop/Memory/skill;
+- primary: **Confirm selected use**.
 
-**Question:** Can advanced control be found without burdening the primary flow?
+### F27 — Settings & Control
 
-Elements:
+- Responsibility Spaces and Projects;
+- Codex readiness and historical providers;
+- Gmail connection/sync/revoke;
+- grants/effects/disclosure;
+- retention/export/delete;
+- skills/MCP/rules advanced;
+- Desktop Context beta;
+- hosted attachment Later.
 
-- Projects and paths;
-- Codex authentication/readiness;
-- historical provider identities;
-- rules, skills, MCP servers, and advanced routing override;
-- permission and disclosure defaults;
-- effect ceiling;
-- local export and revoke;
-- hosted attachment visibly later.
+## 5. Canonical lineage strips
 
-## 4. Primary flow arrows
-
-Draw these solid arrows:
-
-```text
-F01 Onboarding
- -> F02 Work Home
- -> F03 Define
- -> F04 Clarify (zero or more)
- -> F05 Mission Map (optional for simple work)
- -> F06 Authority Preview
- -> F07 Run
- -> F11 Evidence & Verification
- -> F12 Acceptance
- -> F13 Adaptive Close
- -> F14 Re-entry (optional successor)
-```
-
-Draw these conditional arrows:
-
-- F01 -> F09 when Codex is unavailable or unauthenticated;
-- F07 -> F08 for irreducible judgment;
-- F07 -> F09 for a human-only action;
-- F07 -> F10 for a passive dependency;
-- F07 -> F15 whenever the user inspects operational detail;
-- F11 -> F07 when verification requires rework;
-- F12 -> F07 when the user requests rework;
-- F03/F05/F06 -> earlier revision when a material change occurs;
-- F07 -> F07 through a new Attempt after contain/reconcile/narrow retry;
-- F02/F07/F11 -> F16 for settings or control, then back to the originating context.
-
-Use a dashed arrow for every flow whose exact contract is unapproved.
-
-## 5. Canonical lineage strip
-
-Across the bottom of the board, draw one continuous lineage strip:
+### Work
 
 ```text
-Project
- -> Outcome
- -> ContractRevision
- -> PlanRevision
- -> WorkUnit
- -> CapabilityGrant
- -> Attempt
- -> AgentSessionRef
- -> EvidenceItem
- -> VerificationRun
- -> AcceptanceDecision
- -> SuccessorLink -> new Outcome
+ResponsibilitySpace -> Project -> Outcome -> ContractRevision
+-> PlanRevision / Mission Map -> CapabilityGrants -> WorkUnits
+-> fenced Attempts -> Evidence -> Verification -> Ready for Acceptance
+-> user Acceptance -> Adaptive Close -> successor/Re-entry
 ```
 
-Place these projections above the object that derives them:
-
-- clarification above ContractRevision;
-- Mission Map above PlanRevision;
-- Needs You above DecisionRequest;
-- Action Required and Waiting above durable capability/dependency facts;
-- Ready for Acceptance above EvidenceItem + VerificationRun;
-- recovery receipt above Attempt/recovery facts;
-- re-entry packet above AcceptanceDecision + SuccessorLink.
-
-Add one red note: **No projection is a competing canonical writer.**
-
-## 6. Architecture frame
-
-Create one system frame with four boxes:
+### Communication
 
 ```text
-Electron UI
-    <-> loopback daemon API
-        -> Local Waldo Core <-> local SQLite
-        -> Kennel Runtime   <-> local SQLite
-             -> Codex AgentSessions
-             -> Project/worktree/terminal/browser
+Gmail Connection -> ThreadRef -> Communication Brief
+-> CommitmentCandidate -> user confirms OpenLoop or Outcome
+-> optional Draft EffectIntent/Receipt -> Waiting
+-> reply/change -> Ready to Close -> user LoopDisposition -> Re-entry
 ```
 
-Arrow labels:
+### Daily continuity
 
-- Waldo Core -> Kennel Runtime: authorized graph, frozen grants, RunBrief;
-- Kennel Runtime -> Waldo Core: observations, effects, candidate evidence, recovery facts;
-- User -> Waldo Core: contract, authority decisions, acceptance;
-- Inspector -> User: operational truth, never acceptance.
+```text
+trusted Kennel facts + confirmed OpenLoops + explicit notes
+-> Daily Snapshot -> correction -> Today attention -> Daily Close -> Re-entry
+```
 
-Put a lock above SQLite: **sole canonical writer in v1**. Put a dashed cloud outside the frame: **hosted attachment later; no dual writer**.
+### Optional context
 
-## 7. Failure-injection mini-board
+```text
+raw frame -> DesktopObservation -> ContextEpisode
+-> explicit confirmation/link -> Snapshot input or CommitmentCandidate
+-> MemoryCandidate later only
+```
 
-Create eight small cards. Each card must answer “contain, reconcile, resume/escalate.”
+Cross out these invalid shortcuts:
 
-1. Codex missing;
-2. stale authentication report;
-3. capability mismatch;
-4. process lost after app restart;
-5. TUI/chat transition delivery unknown;
-6. dirty or overlapping worktree;
-7. verification failure;
-8. external effect outcome unknown.
+- session done -> Outcome accepted;
+- green check -> Acceptance;
+- thread archived -> Open Loop closed;
+- model extracted TODO -> canonical commitment;
+- screenshot -> Evidence or Memory;
+- draft created -> message sent;
+- app activity -> productivity/personality claim.
 
-Add a ninth solid card: **historical provider session** — Codex requires exact binding, reconciliation, and fresh admission; non-Codex is inspect-only and hands off explicitly selected recovery context to a new Codex Attempt.
+## 6. State-machine mini-board
 
-## 8. Ready-to-paste Excalidraw prompts
+```text
+Outcome
+Draft -> Contracted -> Active -> Ready for Acceptance -> Accepted
+                      |                 -> Reopened -> Active
+                      -> Superseded / Released
 
-Use these prompts only to establish rough geometry; the team should correct every generated label against the review packet.
+OpenLoop
+Open -> Active -> Waiting -> Ready to Close -> Closed
+  |       -> Deferred         -> Reopened
+  -> Released / Superseded / Transferred
 
-### Prompt A — end-to-end product flow
+Connection
+Disconnected -> Authorizing -> Syncing -> Ready -> Stale
+                -> Denied                         -> Revoked
 
-> Create a grayscale low-fidelity desktop product flow for Kennel. Arrange 16 numbered frames left to right: Onboarding, Work Home, Outcome Define, Clarify, Mission Map, Authority Preview, Run, Needs You, Action Required, Waiting, Evidence and Verification, Acceptance, Adaptive Close, Re-entry, Operator Inspector, Settings and Control. Use solid borders for locked decisions, dashed borders for proposed details, and hatched corners for unknowns. Keep Outcome as the primary hierarchy and provider sessions inside the inspector. Show solid primary-flow arrows and dashed exception/recovery arrows. Do not add color, gradients, mascots, analytics dashboards, or decorative cards.
+Attempt
+Queued -> Running -> Paused -> Succeeded / Failed / Cancelled
+                  -> Lost -> Reconciled -> new Attempt or attention
+```
 
-### Prompt B — ontology and lineage
+## 7. Authority and custody frame
 
-> Draw one exact left-to-right lineage: Project to Outcome to ContractRevision to optional PlanRevision to WorkUnit to CapabilityGrant to Attempt to AgentSessionRef to EvidenceItem to VerificationRun to AcceptanceDecision to SuccessorLink and a new Outcome. Place clarification, Mission Map, Needs You, Action Required, Waiting, Ready for Acceptance, recovery receipt, and re-entry packet above the facts they project. Mark every projection as derived and add a rule that only the user creates AcceptanceDecision.
+Draw a vertical boundary:
+
+| Local Waldo Core | Kennel Runtime |
+| --- | --- |
+| ResponsibilitySpace, Outcome, OpenLoop | Files, repositories, worktrees |
+| Contracts, plans, WorkUnits | Codex sessions/processes |
+| Decisions, grants, EffectIntents | Credentials and connector I/O |
+| Evidence metadata, Verification | Raw sources/artifacts/traces |
+| Acceptance, LoopDisposition, lineage | Effect reconciliation/recovery facts |
+| Attention, briefs, snapshots, Re-entry | Terminal/browser/capture custody |
+
+Add beneath: **Hosted Waldo is absent at launch. Explicit future attachment chooses one semantic canonical writer; raw local custody remains Kennel.**
+
+## 8. Failure-injection board
+
+Create cards for:
+
+1. Codex missing or unauthenticated;
+2. protocol/capability mismatch;
+3. stale fenced Attempt emits late result;
+4. app restarts with dirty worktree;
+5. deterministic check fails;
+6. external effect result unknown;
+7. Gmail refresh token revoked;
+8. incremental sync history expired;
+9. email contains prompt injection;
+10. draft created but user edits/sends elsewhere;
+11. communication source disappears;
+12. Desktop Context permission denied;
+13. excluded app accidentally captured;
+14. storage cap reached;
+15. user corrects a false Commitment Candidate.
+
+For each, require: **contain, reconcile, user-visible truth, next action, retry owner, causal receipt**.
+
+## 9. Dogfood board
+
+Add scorecards for:
+
+- supervision minutes vs direct Codex: target 30% lower;
+- transcript reconstruction: at most 20%;
+- attention precision: at least 80%;
+- current Evidence/Verification coverage: 100% for accepted criteria;
+- false-ready/reopen: at most 10%;
+- injected recovery: at least 90% safe;
+- unauthorized/duplicate effects: zero;
+- Re-entry: median under 60 seconds;
+- auto-created commitments or auto-sent mail: zero.
+
+Ask: **What result makes us stop building this wedge?**
+
+## 10. Ready-to-paste Excalidraw prompts
+
+### Prompt A — complete UX flow
+
+> Create a grayscale left-to-right UX flow for Waldo Kennel desktop. Use three primary destinations: Home, Work, Settings. Home includes Today, Quick Capture, Daily Snapshot, Communication Inbox, Communication Brief, Open Loop, Draft Review, Ready to Close, and Re-entry. Work includes Project readiness, Outcome Define, Clarify, Mission Map, Authority, Run, Needs You, Action Required, Waiting, Evidence, Acceptance, Adaptive Close, and Re-entry. Show Gmail and Desktop Context as optional bounded sources. Mark user-confirmed transitions and consequential-effect approvals. Never imply that sessions, checks, email activity, or screenshots create Acceptance or closure.
+
+### Prompt B — ontology and governance
+
+> Draw the Waldo Kennel ontology in grayscale. ResponsibilitySpace branches to WorkProject and PersonalHome. WorkProject contains Project and Outcome. Outcome owns ContractRevision, PlanRevision, WorkUnit, Attempt, EvidenceItem, VerificationRun, AcceptanceDecision, and SuccessorLink. PersonalHome contains OpenLoop, LoopDisposition, DailySnapshot, and explicit notes. Gmail SourceConnection produces CommunicationThreadRef and CommitmentCandidate, which requires user confirmation before OpenLoop or Outcome. EffectIntent precedes external I/O and EffectReceipt follows reconciliation. DesktopObservation and ContextEpisode are optional untrusted inputs; MemoryCandidate is later. Distinguish canonical objects, projections, runtime facts, and later candidates.
 
 ### Prompt C — local architecture
 
-> Draw a local-first architecture with Electron as a thin UI over a loopback daemon API. Inside the daemon, separate Local Waldo Core from Kennel Runtime. Both persist through daemon service boundaries to local SQLite, the sole canonical writer. Local Waldo Core owns Outcome, contract, plan, authority, evidence metadata, verification, acceptance, and lineage. Kennel Runtime owns Projects, worktrees, Codex sessions, processes, terminals, browser, raw traces, and recovery facts. Show authorized graph and grants flowing to runtime and observations/candidate evidence flowing back. Place hosted attachment outside as a future dashed box and forbid dual writers.
+> Draw User to Electron to loopback Go daemon. Inside the daemon separate Local Waldo Core from Kennel Runtime around one SQLite canonical writer. Waldo owns responsibility semantics, authority, effects, Evidence metadata, Verification, Acceptance, closure, and lineage. Kennel owns files, worktrees, Codex, credentials, raw sources, connector I/O, browser/terminal, and recovery facts. Show optional direct Gmail and Desktop Context connections. Hosted Waldo is outside the launch boundary and may attach later without dual canonical writers.
 
-## 9. Unresolved-decision parking lot
+## 11. Review agenda
 
-Move **Codex admission and historical recovery** to the resolved strip: per-Attempt fail-closed admission, required/optional capability separation, capability-first compatibility, and asymmetric historical recovery are locked.
+### 0–15 minutes — Thesis and boundary
 
-Put these four unresolved cards in review order:
+- Does one responsibility system coherently connect work and personal continuity?
+- Is Gmail an adjacent proof rather than a second product?
+- Is Desktop Context visibly optional and later?
 
-2. **RunBrief and orchestration** — schema, leases/fences, routing/fallback, budget, capabilities/effects, worktree concurrency, evaluator independence.
-3. **Redacted Outcome Trace** — event fields, correlation, minimization, retention, export, deletion, and debugging access.
-4. **Dogfood proof** — tasks, objective measures, supervision accounting, thresholds, failure injection, and falsifiers.
-5. **Consequential-effect ceiling** — local edits, commits, draft/open PRs, network, spend, and just-in-time approval.
+### 15–35 minutes — Home
 
-Hosted attachment offline/sync/detach/revoke/delete goes in a separate **Deferred** area, not the launch-blocking queue.
+- Walk F01–F10.
+- Remove anything that behaves like an activity dashboard or full inbox.
+- Test false candidates, waiting, closure, and correction.
 
-## 10. Review agenda
+### 35–65 minutes — Work
 
-### 0-10 minutes — Align on the promise
+- Walk F11–F23.
+- Test simple versus non-trivial Outcome, authority, recovery, Evidence, and Acceptance.
 
-- Read the product promise and launch wedge aloud.
-- Confirm that the proof is lower supervision cost and verified acceptance.
-- Remove any frame that primarily celebrates provider activity.
+### 65–80 minutes — Runtime and privacy
 
-### 10-25 minutes — Walk the happy path
+- Review F24–F27 and authority/custody boundary.
+- Test connector/capture disclosure and revoke.
 
-- Traverse F01 -> F14 without opening the inspector.
-- Mark any place where the user needs hidden infrastructure knowledge.
-- Confirm one primary action and one reading path per frame.
+### 80–100 minutes — Failures and falsifiers
 
-### 25-40 minutes — Authority and truth audit
+- Run the failure-injection board.
+- Reject any recovery that hides unknown effects or needs transcript reconstruction.
 
-- Follow every canonical entity on the lineage strip.
-- Challenge any projection being persisted as product truth.
-- Identify every action that can widen scope, cost, permission, disclosure, or effect.
+### 100–115 minutes — Simplification
 
-### 40-55 minutes — Failure and recovery
+- Which object is actually a projection?
+- Which screen can disappear?
+- Which launch-beta item can remain internal without weakening the Work proof?
 
-- Inject three failure cards into F07.
-- Verify contain -> reconcile -> narrow retry.
-- Confirm that unknown effects never retry blindly and stale Attempts cannot write current truth.
+### 115–120 minutes — Record decisions
 
-### 55-70 minutes — Evidence and acceptance
+- Approved as-is;
+- approved with named changes;
+- blocked by one concrete unknown;
+- deferred to later phase.
 
-- Review one satisfied criterion, one failed check, and one exception.
-- Confirm the subject revision and verifier boundary are visible.
-- Confirm that only the user can accept or reopen.
-
-### 70-85 minutes — Open gates
-
-- Take the four unresolved decision cards in order.
-- Record one explicit decision or one named owner/evidence need per card.
-- Do not convert a proposal into Locked merely because it is drawn cleanly.
-
-### 85-90 minutes — Close
-
-- List contradictions and missing states.
-- Name the smallest next decision, not the first implementation task.
-- Reconfirm that documentation approval does not authorize product implementation.
-
-## 11. Capture template
-
-For each team annotation, write:
+## 12. Decision capture template
 
 ```text
-Frame:
-Label: Locked / Observed / Inference / Proposed / Unknown
-Problem or contradiction:
-Why it matters to user responsibility:
-Suggested decision:
-Evidence needed:
+Decision:
+Label: Locked | Observed | Proposed | Unknown
+Problem it solves:
+Chosen behavior:
+Rejected alternative:
+Ontology objects affected:
+Screens/states affected:
+Authority/privacy consequence:
+Failure/recovery consequence:
+Evidence or source:
 Owner:
+Follow-up issue/PR:
 ```
-
-At session end, copy approved decisions into the architecture packet and leave every other card visibly Proposed or Unknown.

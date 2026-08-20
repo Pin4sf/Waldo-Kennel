@@ -1,157 +1,205 @@
-# Kennel v1 product architecture
+# Waldo Kennel desktop launch product architecture
 
-- Status: Accepted design baseline; not implemented
+- Status: Accepted architecture baseline; documentation only
 - Decision date: 2026-08-20
-- Launch wedge: Kennel-first for agent-heavy Mac users
-- Launch proof: Outcome to verified acceptance with lower coordination and supervision cost
+- Launch wedge: agent-heavy Mac users, expanding through governed communication continuity
+- Launch proof: useful Outcomes and commitments reach conscious closure with lower coordination and supervision cost
+- Current implementation status: not implemented by the existing Outcome overlay or PR #11
 
-This document records the product, ontology, state, user-flow, and work-surface decisions accepted during the 18-20 August 2026 architecture session. It is the design gate for post-foundation work. It does not claim that the current prototype or PR #11 implements these decisions.
+This is the canonical product, ontology, lineage, governance, state, and surface definition for the first Waldo Kennel desktop launch. It consolidates the accepted Kennel Work loop with the approved local personal Home, Gmail Communication Loops beta, and phased Dayflow-inspired Desktop Context. It does not authorize feature edits on the F0-F6 foundation branch, a merge, release, or hosted deployment.
 
 ## Evidence boundaries
 
 ### Observed
 
-- F0-F6 provides an AO-derived Go daemon, SQLite and trigger-based CDC, Electron supervisor, worktrees, provider sessions, terminal/chat/browser surfaces, recovery, and PR/check/review observation.
-- The current Outcome overlay is a prototype based substantially on provider-session coordination; it is not the accepted product model.
-- PR #11 removes substantial inherited surface area but also adds an unwired permanent Outcome schema and store that do not preserve the accepted contract, verification, acceptance, CDC, or recovery semantics.
+- F0-F6 provides an AO-derived Go daemon, SQLite and trigger-based CDC, Electron supervisor, worktrees, provider sessions, terminal/chat/browser surfaces, recovery facts, and PR/check/review observation.
+- The current Outcome overlay is substantially session-oriented and is not this accepted model.
+- PR #11 contains useful cleanup but also an unwired permanent Outcome schema/store that does not preserve the accepted contract, CDC, verification, acceptance, effect, Open Loop, or recovery semantics.
+- Gmail can expose conversations, message history, and drafts directly to a desktop client. Inbox reading and draft creation require restricted OAuth scopes for a public application.
+- Dayflow demonstrates local desktop capture, local storage, timeline, and daily-summary mechanisms, but desktop observation cannot establish intent, a complete life context, or durable Memory.
 
 ### Reported
 
-- GitHub Actions are currently disabled for the account, so PR acceptance may require the repository's complete local verification matrix until hosted checks return.
-- Users supervising multiple coding agents lose time reconstructing transcripts, deciding whether an agent is actually done, and repairing interrupted or incorrectly routed work.
+- Users supervising agent-heavy work lose time reconstructing transcripts, deciding whether an agent is actually done, and repairing interrupted or incorrectly routed work.
+- Work and personal commitments also disappear inside long email threads, follow-ups, and context switching.
+- GitHub Actions are disabled for the account, so complete local verification remains necessary until hosted checks return.
 
 ### Inference
 
-- The first product must improve responsibility transfer and judgment compression, not maximize agent count or expose a larger provider dashboard.
-- A local-first Waldo Core reduces launch dependencies while retaining a clean future hosted boundary.
+- The launch product should transfer responsibility and compress judgment rather than maximize agents, inbox automation, or captured activity.
+- Kennel Work proves bounded execution; Communication Loops prove continuity across human coordination; Personal Home unifies the user's attention without claiming to be the later complete Waldo ecosystem.
+- A local-first Waldo Core can prove this without a required Waldo account, hosted API, Waldo-funded model calls, or central Memory service.
 
 ### Unknown
 
-- routing thresholds, fallback policy, concurrency ceilings, and evaluator independence rules;
-- offline attachment acknowledgement, conflict, detach/revoke, and deletion semantics;
-- the objective dogfood thresholds required to call the wedge proved;
-- whether and when a hosted account provides enough concrete value to recommend it.
+- whether Google restricted-scope verification and any required security assessment can complete on the intended public-launch schedule;
+- whether Desktop Context reduces re-entry cost enough to justify system-wide capture for launch users;
+- hosted attachment, offline acknowledgement, detach/revoke, deletion, and cross-device conflict behavior;
+- pricing, commercialization, health/body-state semantics, Relationship, mobile, durable Memory, and the future Waldo harness.
 
-## Product thesis and non-goals
+## Product thesis
 
-Kennel helps a user delegate a responsibility as an Outcome, understand and authorize the proposed work, let local provider agents execute bounded Work Units, receive only irreducible interventions, inspect criterion-bound evidence and verification, and consciously accept or reopen the result.
+Waldo Kennel is one local-first Mac application with two synchronized surfaces:
 
-Launch is not:
+- **Home** helps the user understand what needs attention across confirmed Outcomes, Open Loops, communication, and today's trusted facts.
+- **Work** turns a delegated Outcome into bounded local execution, evidence, verification, conscious acceptance, and exact re-entry.
 
-- a generic multi-agent dashboard;
-- a provider launcher or lowest-common-denominator chat wrapper;
-- prompt rewriting presented as orchestration;
-- a transcript archive, activity score, or automatic claim that more agents mean more useful output;
-- the Memory, Relationship, or broader life-plus-work Waldo product;
-- a hosted synchronization product or required account funnel.
+Kennel should answer four questions without requiring transcript reconstruction:
 
-Memory is a supporting continuity capability after the core loop proves demand. Relationship and broader life-plus-work Waldo are planned in a separate architecture session.
+1. What responsibility is currently open?
+2. What has become true, and what remains uncertain?
+3. Does Waldo need judgment, a human-only action, or simply time?
+4. What is the smallest safe next action, and why?
+
+### Launch jobs
+
+| Job | Current problem | Kennel progress |
+| --- | --- | --- |
+| Delegate agent-heavy work | Success, authority, and stopping conditions live in the user's head or transcript. | A versioned Outcome contract compiles into bounded Work Units and admitted Attempts. |
+| Know when to intervene | Activity, errors, and decisions are mixed together. | Needs You, Action Required, and Waiting expose only the relevant responsibility. |
+| Judge whether work is done | Provider completion, commits, and checks are mistaken for user success. | Criterion-bound Evidence and Verification lead to explicit Acceptance. |
+| Process communication | Long threads hide requests, commitments, ownership, and follow-up. | Waldo proposes a concise brief, Commitment Candidates, a next action, and a draft-first effect. |
+| Preserve personal continuity | Work facts, notes, and waiting commitments disappear between sessions. | Personal Home and Daily Snapshot restore trusted, correctable context without claiming durable Memory. |
+| Recover and re-enter | Interrupted work and delayed replies require manual reconstruction. | Contain, reconcile, narrow retry, and exact Re-entry preserve lineage and next action. |
+
+### Launch non-goals
+
+- a generic multi-agent dashboard or provider launcher;
+- a full email client, autonomous inbox, or automatic-reply bot;
+- automatic task, Outcome, Open Loop, Acceptance, or closure creation from model inference;
+- a transcript archive, productivity score, personality assessment, or ambient surveillance product;
+- a complete life model, health-aware planner, Relationship product, durable agent, or mobile Waldo;
+- a required account, hosted canonical backend, cross-device sync, or Waldo-funded inference;
+- automatic skill/rule promotion from traces;
+- provider-authored truth or prompt rewriting presented as orchestration.
+
+## Product identity and responsibility scopes
+
+Waldo is the single intelligence and responsibility identity. Kennel is its local desktop presence, not another assistant.
+
+`ResponsibilitySpace` is the launch root for context, authority, retention, and future explicit attachment:
+
+| Space kind | Purpose | Execution |
+| --- | --- | --- |
+| `WorkProject` | Repository/folder-backed work responsibility. | May compile Outcomes to local Work Units and Codex Attempts. |
+| `PersonalHome` | Confirmed personal Open Loops, explicit notes, communication items, and Daily Snapshots not belonging to a Project. | No arbitrary code execution by default; may propose or create explicitly approved connector effects. |
+
+An Outcome or Open Loop belongs to exactly one Responsibility Space at a time. Moving one creates a recorded transfer; it does not silently rewrite provenance. Future hosted attachment is explicit per Responsibility Space or Project, with one canonical writer and no dual authority.
 
 ## Canonical ontology
 
+### Responsibility and continuity
+
 | Object | Definition and invariant |
 | --- | --- |
-| `Project` | Local workspace and policy boundary. A future hosted attachment occurs at this boundary. |
-| `Outcome` | The responsibility delegated by the user. It owns lineage, not a provider session or a PR. |
-| `ContractRevision` | Immutable version of goal, success criteria, constraints, review expectation, authority envelope, and stop conditions. |
-| `PlanRevision` | Versioned execution proposal. Its understandable projection is the optional **Mission Map**. It is not a second responsibility object. |
-| `WorkUnit` | Smallest bounded schedulable unit with dependencies, required capabilities, expected evidence, verification method, stop conditions, and recovery policy. |
-| `Attempt` | One execution of a Work Unit. Retries and provider switches create new Attempts rather than rewriting history. |
-| `AgentSessionRef` | Reference to the provider-native Codex, Claude, or other admitted session used by an Attempt. |
-| `CapabilityGrant` | Explicit, scoped authority to read, write, execute, disclose, spend, or create a consequential effect. |
-| `DecisionRequest` | Irreducible judgment requiring the user, including Waldo's recommendation, rationale, consequence, override, and inspect path. |
-| `EvidenceItem` | Provenance-bearing artifact or observation tied to one ContractRevision criterion and the subject it evaluates. |
-| `VerificationRun` | Method, verifier identity/independence, subject revision, result, and exceptions. Verification does not equal acceptance. |
-| `AcceptanceDecision` | User-owned decision to accept or reopen. Accepted history is immutable. |
-| `SuccessorLink` | Lineage from an accepted Outcome to a later Outcome created through re-entry or follow-up. |
+| `ResponsibilitySpace` | Explicit Work Project or Personal Home boundary for policy, context, retention, and later attachment. |
+| `Project` | Local executable workspace inside a Work Project space. Repository bytes and worktrees remain Kennel custody. |
+| `Outcome` | User-delegated responsibility: something that needs to become true. It owns execution and acceptance lineage. |
+| `ContractRevision` | Immutable goal, success criteria, constraints, review expectation, authority envelope, and stop conditions. |
+| `PlanRevision` | Versioned execution proposal. The optional Mission Map is its user-facing projection. |
+| `OpenLoop` | Confirmed unresolved responsibility or commitment that must be preserved, revisited, consciously closed, released, or promoted to an Outcome. |
+| `LoopDisposition` | Immutable user decision to confirm, close, release, reopen, transfer, or supersede an Open Loop. |
+| `SuccessorLink` | Lineage from an accepted Outcome or closed Open Loop to a later follow-up responsibility. |
 
-The following are projections, interactions, or display language rather than independent canonical aggregates:
+### Execution, authority, and effects
 
-- clarification;
+| Object | Definition and invariant |
+| --- | --- |
+| `WorkUnit` | Smallest bounded schedulable unit with dependencies, capabilities, evidence, verification, stop, and recovery policy. |
+| `Attempt` | One execution of one Work Unit. Retry, fallback, or provider handoff always creates a new Attempt. |
+| `AgentSessionRef` | Stable reference to the provider-native session used by an Attempt. |
+| `CapabilityGrant` | Explicit scoped authority to read, write, execute, disclose, spend, or propose/perform an effect. |
+| `DecisionRequest` | Irreducible judgment with recommendation, rationale, consequence, override, and inspect path. |
+| `EffectIntent` | Frozen proposed external or consequential action with canonical arguments, scope, expected result, and approval state. |
+| `EffectReceipt` | Reconciled record of what the Effect Intent actually changed, including unknown outcome when certainty is unavailable. |
+
+### Evidence, verification, and acceptance
+
+| Object | Definition and invariant |
+| --- | --- |
+| `EvidenceItem` | Provenance-bearing support or contradiction tied to a criterion and exact subject revision. |
+| `VerificationRun` | Method, verifier class/identity, evaluated subject, result, and exceptions. Verification never equals acceptance. |
+| `AcceptanceDecision` | Immutable user accept or reopen decision for an Outcome. No automated actor may create it. |
+
+### Communication and personal context
+
+| Object | Definition and invariant |
+| --- | --- |
+| `SourceConnection` | User-authorized external source such as one Gmail account, with explicit scope, disclosure, retention, revoke, and sync status. |
+| `CommunicationThreadRef` | Reference to an external conversation. It is source context, never the ID of an Outcome or Open Loop. |
+| `CommitmentCandidate` | Correctable model-derived proposal about an obligation, owner, due condition, or next action. It is not canonical responsibility until confirmed. |
+| `DraftEffect` | A Gmail-draft EffectIntent and resulting receipt. Draft creation does not mean sent, acknowledged, or closed. |
+| `DailySnapshot` | Time-bounded projection of trusted facts, confirmed Open Loops, explicit notes, and current attention. It is not durable Memory. |
+| `DesktopObservation` | Optional untrusted local observation derived from consented capture. It cannot grant authority or become Evidence automatically. |
+| `ContextEpisode` | Correctable grouping of Desktop Observations. It remains a proposal until explicitly linked or admitted. |
+| `MemoryCandidate` | Later proposal for durable continuity, requiring provenance, admission, correction, expiry, rollback, and deletion. |
+
+### Projections, not competing canonical aggregates
+
+- clarification and Outcome Focus;
 - Mission Map;
 - Needs You, Action Required, Waiting, and Ready for Acceptance;
-- current session status;
-- Recovery receipt;
-- Re-entry packet;
-- Project Follow-up / Keep for later.
+- provider readiness, current session status, recovery receipt, and operator views;
+- Communication Brief, Daily Snapshot, and Re-entry packet;
+- Project Follow-up and Keep for later.
 
-Provider completion, commits, PRs, checks, artifacts, and process exit are observations or candidate evidence. None can create an `AcceptanceDecision`.
+Provider completion, commits, PRs, checks, messages, drafts, archive state, screenshots, and activity are observations or candidate Evidence. None can create Acceptance or close an Open Loop.
 
-## Launch provider decision
+## Exact lineages
 
-Kennel v1 admits **Codex only for new work**. This deliberately narrow launch set reduces provider variability while the team tests the Outcome-to-acceptance loop, admission behavior, recovery, evidence quality, and supervision cost.
-
-Other inherited provider identities remain recognized and readable for historical records, but they are not selectable for new v1 Attempts. Their original identity must not be rewritten.
-
-### Authoritative Codex admission
-
-Admission is strict, fail-closed, and scoped to one Attempt. A project-level readiness badge is a convenience projection, never execution authority. Before every Attempt start or resume, Kennel runs an authoritative live preflight for:
-
-- a compatible Codex executable and protocol;
-- the current authenticated identity;
-- stable session identity and the requested session mode;
-- start, resume, pause/cancel, and ordered event capture;
-- Project/worktree binding and Attempt correlation;
-- local evidence capture required by the Work Unit.
-
-Missing any required capability blocks admission and creates Action Required or a reviewed replan. Explicit model pinning, native subagents, structured output, checkpoint export, cost/token reporting, browser automation, and MCP-specific capabilities are optional; their absence removes only the routing or topology choices that require them.
-
-Compatibility is capability-first rather than binary-exists or exact-version-only. Kennel records the Codex version, blocks explicitly known-bad versions, and may admit a new or unrecognized version provisionally only when every required live check passes. The admission result is bound to the Attempt and is not reused for a later resume.
-
-### Historical-session recovery
-
-- A historical Codex session may resume only when Kennel can bind it to exactly one current Attempt, reconcile its workspace and possible effects, and rerun admission against the current contract, grants, credentials, and budget. Otherwise it remains inspect-only and continuation creates a new Codex Attempt.
-- A historical non-Codex session is inspect-only in v1. Continuation creates a new Codex Attempt from a provenance-bearing recovery packet. Raw transcript content enters that packet only through explicit user selection.
-- Recovery never rewrites the original provider identity, session record, or Attempt history.
-
-## Product flow and lineage
+### Work Outcome
 
 ```text
-Project
+ResponsibilitySpace / WorkProject
   -> Outcome
-  -> clarification produces ContractRevision
-  -> simple direct plan or optional PlanRevision / Mission Map
-  -> approved CapabilityGrants
-  -> WorkUnits and dependencies
-  -> Attempts using provider AgentSessions
+  -> clarification -> ContractRevision
+  -> direct plan or PlanRevision / Mission Map
+  -> CapabilityGrants
+  -> WorkUnits + dependencies
+  -> Attempts -> AgentSessionRefs
   -> EvidenceItems
   -> VerificationRuns
   -> Ready for Acceptance
   -> AcceptanceDecision
   -> Adaptive Close
-  -> optional Project Follow-up / Successor Outcome
+  -> optional SuccessorLink -> new Outcome or OpenLoop
 ```
 
-### Contract and change behavior
+### Communication continuity
 
-- Before execution, edits create a new ContractRevision and corresponding plan revision.
-- During execution, a material contract change creates a revision and invalidates affected plans, Work Units, evidence, or verification; it never silently mutates authorized work.
-- Low-risk reversible execution mechanics may be recompiled automatically within the approved authority envelope.
-- Meaningful decomposition, material cost, new permissions, external effects, or changed scope/success criteria require user review.
-- After acceptance, historical contract, decisions, evidence, and verification are immutable. Re-entry creates a successor Outcome.
+```text
+SourceConnection / Gmail
+  -> CommunicationThreadRef
+  -> Communication Brief + CommitmentCandidate(s)
+  -> user: dismiss | correct | confirm OpenLoop | create Outcome
+  -> recommended next action
+  -> optional approved DraftEffect
+  -> user sends outside launch automation
+  -> Waiting with owner + recheck condition
+  -> reply / observable change / explicit user update
+  -> close, release, reopen, or promote to Outcome
+```
 
-### Orchestration and prompt compilation
+### Personal daily continuity
 
-Waldo selects the smallest sufficient topology from the Outcome's uncertainty, coupling, risk, capabilities, evidence needs, cost, latency, and reversibility. Simple Outcomes may compile directly to one Work Unit. Non-trivial Outcomes may show a Mission Map and a more detailed compiled execution graph.
+```text
+Trusted Kennel facts + confirmed OpenLoops + explicit notes
+  -> DailySnapshot
+  -> user corrects / confirms / dismisses candidates
+  -> today attention + next actions
+  -> Daily Close
+  -> exact tomorrow Re-entry
 
-Every Work Unit receives a versioned provider-specific `RunBrief` containing:
+Optional beta only:
+raw frame -> DesktopObservation -> ContextEpisode
+  -> explicit user confirmation/link
+  -> Snapshot input or CommitmentCandidate
+  -> MemoryCandidate later, never automatic
+```
 
-- parent Outcome and ContractRevision identifiers;
-- exact objective, inputs, constraints, and non-goals;
-- dependency and workspace snapshot;
-- capability/effect envelope and disclosure boundary;
-- expected outputs and criterion-bound evidence;
-- verification method and evaluator boundary;
-- stop/escalation conditions;
-- lease/fence, retry, recovery, and handoff rules.
+## State models
 
-Kennel admits and executes only the locally authorized graph. Provider-native strengths remain available behind a shared capability and event contract; routing must not pretend that all providers have identical behavior.
-
-## State model
-
-Durable facts and explicit decisions are stored; attention labels are derived.
-
-### Outcome responsibility
+### Outcome
 
 ```text
 Draft -> Contracted -> Active -> Ready for Acceptance -> Accepted
@@ -160,130 +208,278 @@ Draft -> Contracted -> Active -> Ready for Acceptance -> Accepted
                       -> Superseded / Released
 ```
 
-`Accepted` requires an immutable user AcceptanceDecision. `Completed` is not a launch Outcome state because execution completion and user acceptance are different facts.
+`Completed` is not an Outcome state. Acceptance requires the user's immutable decision.
 
-### Work Unit
-
-```text
-Proposed -> Ready -> Admitted -> Running -> Verifying -> Satisfied
-                                  |             |
-                                  |             -> Rework -> Ready
-                                  -> Failed / Superseded
-```
-
-Waiting, Action Required, and Needs You are derived from durable dependency, capability, failure, and decision facts.
-
-### Attempt
+### Open Loop
 
 ```text
-Queued -> Running -> Paused -> Succeeded
-                  |         -> Failed
-                  |         -> Cancelled
-                  -> Lost -> Reconciled -> narrow retry or human attention
+Open -> Active -> Waiting -> Ready to Close -> Closed
+  |       |          |             |             |
+  |       -> Deferred              -> Reopened <-+
+  -> Released / Superseded / Transferred
 ```
 
-Unknown external effects are reconciled and never blindly retried.
+An Open Loop requires an owner, source/provenance, a next review or trigger, and a declared closure condition. A thread becoming quiet or archived never closes it.
+
+### Work Unit and Attempt
+
+```text
+WorkUnit: Proposed -> Ready -> Admitted -> Running -> Verifying -> Satisfied
+                                      |             -> Rework -> Ready
+                                      -> Failed / Superseded
+
+Attempt: Queued -> Running -> Paused -> Succeeded
+                          |         -> Failed / Cancelled
+                          -> Lost -> Reconciled -> new narrow Attempt or attention
+```
+
+### Connection and communication
+
+```text
+Connection: Disconnected -> Authorizing -> Syncing -> Ready
+                           |               |          |
+                           -> Denied        -> Stale   -> Revoked
+
+CommitmentCandidate: Proposed -> Corrected / Confirmed -> OpenLoop or Outcome
+                           -> Dismissed
+
+DraftEffect: Proposed -> Approved -> Created -> Edited / SentExternally
+                    |             -> Failed / Unknown -> Reconciled
+                    -> Rejected
+```
 
 ## Attention and recovery contract
 
 | Projection | Meaning | Required presentation |
 | --- | --- | --- |
-| **Needs You** | Waldo cannot responsibly choose between materially different valid paths. | Current problem, recommendation, why, consequence, primary action, override, and inspect path. |
-| **Action Required** | One exact human-only action is necessary, such as sign-in, scoped permission, or an external step. | Exact action, location, reason, completion signal, and resume behavior. |
-| **Waiting** | A dependency or timed condition is unresolved and no immediate user action is useful. | Dependency, owner/source, recheck condition, and expected release behavior. |
+| **Needs You** | Waldo cannot responsibly choose between materially different valid paths. | Problem, recommendation, why, consequence, primary action, override, inspect. |
+| **Action Required** | One exact human-only action is necessary. | Exact action, location, reason, completion signal, resume behavior. |
+| **Waiting** | A dependency or timed condition is unresolved and immediate action is not useful. | Dependency, owner/source, recheck condition, expected release behavior. |
+| **Ready for Acceptance** | Current Outcome criteria have required Evidence and Verification. | Criteria, support/contradiction, verification, exceptions, accept/reopen. |
+| **Ready to Close** | An Open Loop's declared closure condition appears satisfied. | What changed, Evidence/source, uncertainty, close/reopen/release. |
 
-The user must never need to read the full transcript to understand one of these states. Raw sessions remain inspectable.
+The user never needs the full transcript or entire email thread to resolve attention. Raw sources remain inspectable with privacy boundaries.
 
-Recovery is `contain -> reconcile -> narrowly retry`. Non-material recovery stays in history. Material recovery appears as a compact receipt. If recovery exposes human responsibility, it becomes Action Required or Needs You.
+Recovery is `contain -> reconcile -> narrowly retry`. Unknown effects are never blindly repeated. Non-material recovery stays in history; material recovery creates a compact receipt and exact Re-entry.
 
-## Work surface
+## Local Waldo Core and Kennel Runtime
 
-Kennel has three primary destinations rather than a large collection of top-level screens.
+### Waldo owns semantics and control
 
-### 1. Work Home
+- Responsibility Spaces, Outcome/Open Loop meaning, revisions, plans, Work Units, grants, decisions, Effect Intents, Evidence metadata, Verification, Acceptance, closure, and lineage;
+- attention, Communication Brief, Daily Snapshot, and Re-entry projections;
+- policy for orchestration, admission requirements, disclosure, and retention.
 
-- Outcome Focus as the entry point;
-- Active Outcomes;
-- Needs You;
-- Action Required;
-- Waiting;
-- Ready for Acceptance;
-- recently accepted Outcomes and Project Follow-up.
+### Kennel owns local custody and execution
 
-Provider sessions are subordinate operational detail rather than the home-level organizing object.
+- repository/workspace bytes, worktrees, terminals, browser sessions, provider authentication, credentials, processes, raw traces, and unselected artifacts;
+- Codex session start/resume/pause/cancel, ordered observations, capability enforcement, and recovery reconciliation;
+- direct connector I/O under admitted intents and grants.
 
-### 2. Outcome Workspace
+### Launch deployment
 
-One progressive surface with these modes:
+- Local Waldo Core runs inside the Go daemon; Electron stays a thin supervisor.
+- SQLite is the sole canonical local writer and durable product changes emit through trigger-based CDC.
+- Primary daemon API remains loopback-only on `127.0.0.1` and unauthenticated.
+- App data remains under `~/.kennel`; credential-storage mechanics must satisfy repository and platform security review.
+- No account or hosted Waldo backend is required. An account may be recommended later when attachment has real value.
+- Provider/model calls use the user's admitted local provider route; any private content disclosure is explicit and inspectable.
 
-1. **Define** — Goal, Success, and Review always; Plan and Authority only when warranted.
-2. **Plan** — optional Mission Map, dependencies, roles, routing rationale, cost/risk, evidence, and authority preview.
-3. **Run** — Work Units, Attempts, concise current state, and Waldo's next-best action.
-4. **Review** — evidence and verification grouped by success criterion, including exceptions and failed checks.
-5. **Accept / Re-enter** — accept, request rework, revise while active, release, or create a successor Outcome after acceptance.
+### Future post-attachment custody
 
-Terminal, transcript, worktree, browser, provider selection, and low-level recovery live in an inspectable operator drawer. Xirp's simpler local-project/session/rules/skills/worktree interaction is a UX reference, but Outcome responsibility remains primary.
+Hosted Waldo becomes canonical only for explicitly attached Responsibility Spaces and their identity, Outcome/Open Loop contracts, authority, decisions, Evidence metadata/digests, Verification, Acceptance, closure, and lineage. Kennel remains canonical for local files, worktrees, terminals, credentials, provider sessions, raw traces, and unselected artifacts. No record has dual canonical writers.
 
-### 3. Settings and Control
+## Orchestration and execution contracts
 
-- Projects and workspaces;
-- providers, models, authentication, readiness, and advanced routing overrides;
-- rules, skills, MCP servers, and capability defaults;
-- permissions, disclosure, and consequential-effect policy;
-- local data, export, revoke, and future explicit hosted attachment.
+### Provider admission
 
-Infrastructure terminology stays hidden by default but remains inspectable where it affects permission, placement, failure, recovery, or revoke.
+- Codex is the only selectable provider for new launch Work Units.
+- Historical provider identities remain readable; non-Codex sessions are inspect-only and continue through a provenance-bearing packet into a new Codex Attempt.
+- Every Attempt start/resume performs live fail-closed checks for executable/protocol, current authentication, stable session identity, requested mode, lifecycle controls, ordered events, Project/worktree binding, Attempt correlation, and required local Evidence capture.
+- Known-bad versions are blocked. Unrecognized versions may be provisionally admitted only when all required checks pass.
+
+### `RunBrief`
+
+Every Work Unit receives a frozen versioned RunBrief with:
+
+- ResponsibilitySpace, Project, Outcome, ContractRevision, PlanRevision, WorkUnit, Attempt, and correlation IDs;
+- objective, inputs, constraints, non-goals, dependencies, and workspace snapshot;
+- capability/effect/disclosure envelope and explicit exclusions;
+- expected output, criterion-bound Evidence, and Verification method/class;
+- stop/escalation rules, budget, lease/fence, retry, recovery, and handoff policy.
+
+### Locked launch defaults
+
+- One active write lease per worktree. Attempts receive a monotonically increasing fence; stale events cannot mutate current state.
+- Execution is sequential by default. Parallel Work Units require isolated worktrees, no overlapping write ownership, and an approved Mission Map.
+- There is no provider fallback in launch: Codex failure creates a new Codex Attempt, a replan, or human attention.
+- The approved budget envelope covers maximum Work Units, concurrent Attempts, wall-clock limit, and any provider-reported cost/token ceiling. Missing cost telemetry cannot silently widen work.
+- Deterministic checks run outside the producing session. A producing Codex session may propose Evidence but cannot mark its own semantic criterion verified. Non-deterministic criteria require an independent review Attempt or explicit user walkthrough.
+
+### Consequential-effect ceiling
+
+- Approved Work Units may read/write the authorized local worktree and run allowed local commands.
+- Local commits require explicit inclusion in the approved plan. Dirty worktrees are never force-deleted.
+- Push, remote PR creation, comments, merges, deploys, publishes, releases, payments, destructive remote mutation, and direct message sending require separate just-in-time approval and are not autonomous launch behavior.
+- Communication Loops may read the explicitly connected Gmail scope and create one user-requested draft after an EffectIntent approval. They never auto-send, archive, delete, mark complete, or silently change labels.
+
+## Privacy-preserving Outcome Trace
+
+The launch trace records enough causal metadata to reconstruct responsibility without retaining private content by default:
+
+- stable correlation IDs and parent/causal IDs;
+- timestamp, actor class, event kind, prior/new state, revision, Attempt, and Work Unit;
+- capability class, EffectIntent/Receipt status, Evidence type/digest, Verification class/result, and attention reason;
+- failure/recovery classification and redacted receipt;
+- disclosure destination and policy decision when content leaves local custody.
+
+Raw prompts, email bodies, files, terminal output, screenshots, credentials, secrets, health values, and model chain-of-thought are excluded from the canonical trace. Source excerpts are explicit, minimized, local, provenance-bearing attachments. Trace export, retention, deletion, and debug access are user-controlled.
+
+## Information architecture
+
+Kennel has three primary destinations:
+
+### 1. Home
+
+- Today brief and Daily Snapshot;
+- Needs You and Action Required across spaces;
+- Open Loops, Waiting, follow-ups, and Ready to Close;
+- Communication Loops beta;
+- explicit quick capture and correction;
+- recent accepted Outcomes and exact Re-entry.
+
+Home is a responsibility/attention projection, not a dashboard of activity or a Memory product.
+
+### 2. Work
+
+- Projects and project readiness;
+- Outcome Focus and Active Outcomes;
+- Ready for Acceptance and recent closes;
+- Outcome Workspace modes: Define, Clarify, Plan/Mission Map, Authority, Run, Review, Accept, Close/Re-enter;
+- contextual operator inspector for sessions, terminal, browser, worktree, trace, and recovery.
+
+### 3. Settings & Control
+
+- Responsibility Spaces, Projects, Gmail Connections, Codex authentication/admission;
+- permissions, disclosure, effect policy, retention, export, revoke, and deletion;
+- skills, MCP servers, rules, routing overrides, and Desktop Context beta;
+- future hosted attachment clearly marked later.
+
+## Complete launch screen and state inventory
+
+| Surface | User job | Required states |
+| --- | --- | --- |
+| Onboarding | Establish local Home and optional Work Project. | no Project, invalid folder, Codex absent/auth required, ready, offline daemon. |
+| Home / Today | See what needs handling now. | empty, normal, stale, offline, recovery, high-attention. |
+| Quick Capture | Add or correct an explicit Open Loop/note. | draft, duplicate candidate, assigned space, deferred. |
+| Daily Snapshot | Reconstruct today from trusted facts. | collecting, ready, corrected, partial source, Daily Close. |
+| Communication Inbox | See only actionable conversation candidates. | disconnected, authorizing, syncing, ready, stale, revoked, no actionable items. |
+| Communication Brief | Understand the ask and next action without reading the thread. | candidate uncertain, corrected, confirmed Open Loop, promoted Outcome, dismissed. |
+| Draft Review | Approve a bounded remote draft effect. | proposed, approval, created, edited, failed, unknown/reconciled, sent externally. |
+| Open Loop Detail | Track owner, closure condition, next review, provenance, and linked Outcomes. | active, waiting, deferred, ready to close, closed, released, reopened, transferred. |
+| Work Home | Find Project Outcomes and next intervention. | empty, active, Needs You, Action Required, Waiting, Ready for Acceptance. |
+| Outcome Define/Clarify | Establish an inspectable contract. | vague success, conflict, revision, defer. |
+| Mission Map/Authority | Understand plan, topology, Evidence, budget, placement, and effects. | direct unit, non-trivial graph, invalidated, capability blocked, changed grant. |
+| Run | Track responsibility by Work Unit. | queued, running, paused, retry, lost, recovery, partial Evidence. |
+| Evidence/Verification | Judge each current criterion. | missing/stale/contradicting Evidence, failed check, verifier conflict, exception. |
+| Acceptance/Adaptive Close | Accept, reopen, release, retain resources, or create successor. | accept, rework, revised active, dirty worktree, unresolved Open Loop. |
+| Re-entry | Continue with minimum exact context. | Outcome successor, Open Loop reopened, source unavailable, historical provider unavailable. |
+| Desktop Context beta | Consent to optional ambient context and correct episodes. | disabled, permission denied, paused, excluded app, storage cap, local/provider disclosure, delete. |
+| Settings & Control | Inspect and revoke authority. | provider incompatible, connection revoked, retention/export/delete, attachment unavailable. |
 
 ## Reference disposition
 
-| Reference | Launch use |
+| Reference | Decision |
 | --- | --- |
-| AO-derived Kennel chassis | **Adopt** daemon, sessions, worktrees, terminal, browser, observations, and recovery; do not adopt AO identity or provider-authored product truth. |
-| Xirp | **Adapt** simpler projects, sessions, rules, skills, worktree UX, native provider auth, and local custody. |
-| Medley | **Adapt** interview, explicit plan contract, approval, bounded workers, review tasks, recovery, and receipts. Reject opaque authority and same-working-tree assumptions. |
-| Devin Review, Greptile/TREX, CodeRabbit | **Adapt** evidence and independent review mechanisms. Reject reviewer output as user acceptance. |
+| AO-derived Kennel chassis | **Adopt** daemon, sessions, worktrees, terminal/browser, observations, and recovery. Reject AO identity and provider-authored product truth. |
+| Xirp | **Adapt** simpler Project/session/rules/skills/worktree UX, local custody, and native provider authentication. |
+| Medley | **Adapt** interview, explicit plan approval, bounded workers, review tasks, recovery, and receipts. |
+| Devin Review, Greptile/TREX, CodeRabbit | **Adapt** Evidence and independent review; reject reviewer output as Acceptance. |
 | OpenAI Useful-Work Scorecard | **Adapt** objective useful-output and supervision-cost evaluation. |
-| ChatGPT Work, Notion Custom Agents, Webhound | **Adapt** concise attention, reusable work context, and governed proactive work where source evidence supports it. |
-| Claude Code auto-memory | **Adapt later** project-scoped continuity after explicit admission/correction rules. |
-| Paxel and AutoResearch-style loops | **Later** consented trace learning, candidate procedures/skills, evaluation, promotion, versioning, correction, rollback, and deletion. |
-| Folk, Poke, Dimension, Manus, Grok Bot, Qodo, Lifestack | **Later/reference only**; they do not define the Kennel Work launch loop. |
-| Standalone WHOOP/Oura and minimi entries | **Remove from active Kennel benchmark**; retain only as broader Waldo source history. |
+| ChatGPT Work, Notion Custom Agents, Webhound | **Adapt** concise attention, reusable work context, and governed proactive work. |
+| [Gmail API](https://developers.google.com/workspace/gmail/api/guides) and [Gmail MCP reference shape](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server) | **Adapt** thread search/get, draft creation, incremental sync, and prompt-injection boundary. Do not depend on Developer Preview MCP for public launch. Restricted-scope and user-data policy review remain launch-beta gates. |
+| [Dayflow](https://github.com/JerryZLiu/Dayflow/tree/86f5288d7267c9c8da1ab47e9c25ad1cd0b80046) | **Adapt after core stability** optional capture consent, exclusions, local timeline, Daily/Weekly projections, and local-model route. Reject default-on capture, direct DB access, automatic truth, and permanent raw screenshots. |
+| Claude Code auto-memory | **Later** project continuity with explicit admission/correction rules. |
+| Paxel and AutoResearch-style loops | **Later** consented trace learning, candidate skills, evaluation, promotion, correction, rollback, and deletion. |
+| Folk, Poke, Dimension, Manus, Grok Bot, Qodo, Lifestack | **Later/reference only**. |
+| [TapeFlow](https://github.com/xingrz/tapeflow) / [Tapflow](https://www.tapflow.ai/) products | **Reject** as unrelated to the communication/personal-agent mechanism. |
+| Standalone WHOOP/Oura and minimi entries | **Remove from active Kennel benchmark**; preserve as broader Waldo history. |
 
-No proprietary prompt, algorithm, engine, scoring model, archetype, or visual language is copied. Open-source mechanisms require source-pinned license and security review before adoption.
+Open-source code may only be copied after a source-pinned license, dependency, provenance, and security review. No proprietary prompt, engine, scoring model, hidden behavior, or visual language is copied.
 
-## Launch feature boundary
+## Phased launch boundary
 
-### Required for the first proof
+### Launch core: required
 
-- local Project and provider readiness;
-- Codex-only admission for new work, with historical provider identities retained as readable but non-selectable;
-- guided Outcome definition and versioned contract;
-- direct plan or optional Mission Map;
-- compiled Work Units, RunBriefs, capabilities, and local admission;
-- provider Attempts with worktree/recovery custody;
-- Needs You, Action Required, and Waiting;
-- criterion-bound evidence and verification;
-- explicit acceptance, immutable close, and successor re-entry;
+- local-first Home, Work, and Settings destinations;
+- Responsibility Spaces, Project readiness, Codex-only admission, and historical provider readability;
+- guided Outcome contract, optional Mission Map, RunBrief, Work Units, grants, fenced Attempts, recovery;
+- Needs You, Action Required, Waiting, Evidence, Verification, explicit Acceptance, Adaptive Close, and Re-entry;
+- confirmed Open Loops and explicit Quick Capture;
+- Daily Snapshot from trusted Kennel facts, confirmed items, and explicit notes;
 - redacted Outcome Trace and dogfood instrumentation.
 
-### Deliberately later
+### Launch beta: optional but coherent
 
-- hosted attachment and cross-device sync;
-- Waldo-funded inference or hosted remote execution;
-- Memory as a product surface, Relationship, and life-plus-work Open Loops;
-- Paxel/AutoResearch learning and automatic skill promotion;
-- broad provider catalog, mobile product, teams, marketplace, and commercialization.
+- one Gmail account connection;
+- actionable-thread triage, Communication Brief, correctable Commitment Candidates;
+- confirm as Open Loop or promote to Outcome;
+- user-approved draft creation, Waiting, follow-up, Ready to Close, and Re-entry;
+- no auto-send, archive, deletion, labels, or closure.
 
-## Resolved architecture gate
+Public availability of this beta depends on Google OAuth verification and an approved model-disclosure/security boundary. It may remain dogfood-only while the Work core launches.
 
-1. **Codex admission and historical recovery:** strict per-Attempt live admission, required/optional capability separation, capability-first compatibility with known-bad blocking, historical Codex reconciliation/readmission, and inspect-only non-Codex handoff to a new Codex Attempt are locked.
+### Launch+1 beta
 
-## Remaining architecture gates before feature execution
+- Dayflow-inspired Desktop Context with separate capture, analysis, provider-disclosure, retention, and deletion consent;
+- DesktopObservation and ContextEpisode correction;
+- optional Snapshot linkage only after confirmation.
 
-2. Lock `RunBrief`, lease/fence, routing/fallback, cost/budget, capability/effect, worktree/concurrency, and evaluator-independence contracts.
-3. Lock the redacted Outcome Trace and privacy-preserving observability event model.
-4. Lock objective dogfood measures, thresholds, failure injections, and falsifiers.
-5. Decide the v1 consequential-effect ceiling, including whether Kennel may create only local changes, draft PRs, or other external effects before a distinct approval.
-6. Resolve offline hosted-attachment, detach/revoke, and deletion semantics before implementing attachment; these do not block the fully local launch.
+### Later Waldo ecosystem
 
-No permanent Outcome migration or feature implementation should begin until gates 2-5 are approved. Gate 6 is required only before hosted attachment implementation.
+- explicit hosted attachment, backup, cross-device sync, and hosted remote execution;
+- durable Memory and governed trace-learning/skill promotion;
+- Relationship and broad work-plus-life Open Loops;
+- Health First mobile experience and permissioned body-state planning;
+- durable proactive agent, Waldo-owned harness, broader providers, teams, marketplace, and commercialization.
+
+## Dogfood and falsification gate
+
+The launch candidate must be compared with direct Codex use across at least 20 representative Outcomes and a smaller communication-loop set, recording both successful and failed attempts.
+
+| Measure | Launch threshold |
+| --- | --- |
+| Active supervision minutes per accepted Outcome | Median at least 30% lower than direct-Codex baseline. |
+| Full transcript reconstruction | Needed in no more than 20% of Outcomes. |
+| Attention precision | At least 80% of Needs You/Action Required items judged necessary and correctly classified. |
+| Criterion Evidence coverage | 100% of accepted criteria have current provenance-bearing Evidence and a Verification result/exception. |
+| False-ready/reopen rate | No more than 10% of Outcomes reopened because readiness omitted a material known fact. |
+| Recovery | At least 90% of injected recoverable failures produce containment, reconciliation, and a safe next action without manual state reconstruction. |
+| Authority safety | Zero unauthorized, duplicate, silently widened, or blindly retried consequential effects. |
+| Re-entry | Median under 60 seconds for the user to identify current state and next action after interruption. |
+| Communication correction | Zero auto-created canonical commitments or auto-sent messages. |
+
+The wedge is falsified or paused if supervision cost is not lower, false readiness exceeds the threshold, users still read full transcripts routinely, authority cannot be explained, recovery duplicates effects, or Gmail/privacy requirements make the local launch misleading.
+
+## Architecture gates and execution entry
+
+### Resolved for implementation planning
+
+1. Codex-only new-work admission and historical provider recovery.
+2. RunBrief semantic fields, one-write-lease/fence rule, sequential-by-default concurrency, no provider fallback, explicit budget envelope, and evaluator classes.
+3. Redacted causal Outcome Trace with private content excluded by default.
+4. Objective dogfood measures, thresholds, failure injections, and falsifiers.
+5. Consequential-effect ceiling: authorized local work plus separately approved local commits; no autonomous remote effects; Gmail draft only after explicit user intent.
+
+### Deferred and non-blocking for fully local launch
+
+6. Hosted attachment offline/sync acknowledgement, detach/revoke, deletion, and conflict semantics.
+7. Durable Memory admission, Relationship, Health, mobile, proactive agent, trace learning, and Waldo-owned harness.
+
+### Implementation entry rules
+
+- PR #1/F0-F6 must first be accepted on its existing foundation boundary from a complete green local gate.
+- PR #11 must not merge wholesale. Rebase/re-extract issue-sized cleanup after foundation; remove its speculative Outcome migration/store until a vertical slice owns domain, service, storage, CDC, API, UI, recovery, and evaluation together.
+- Product work occurs only on post-foundation feature worktrees, never on the F0-F6 branch.
+- Build in vertical slices: truthful local facts and projections first, then the Outcome loop, then communication beta, then optional Desktop Context.
+- No merge, push, deploy, publish, release, destructive cleanup, or hosted attachment is authorized by this document.
