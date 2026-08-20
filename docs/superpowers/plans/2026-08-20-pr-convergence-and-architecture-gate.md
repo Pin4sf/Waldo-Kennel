@@ -4,7 +4,7 @@
 
 **Goal:** Preserve and accept F0-F6, replace PR #11 with bounded post-foundation cleanup, and establish a clean base and ordered vertical-slice sequence for the accepted Waldo Kennel desktop launch.
 
-**Architecture:** F0-F6 remains an indivisible prerequisite. PR #11 is not merged or rebased wholesale: accepted cleanup is reapplied on new branches from the accepted foundation, while its incompatible Outcome schema/store, premature provider deletion, CLI authority assumptions, and locale deletion are omitted. The product architecture resolves the local v0 dogfood gates: Codex admission/recovery through a provider-neutral adapter seam, provider-neutral RunBrief/lease/fence/concurrency, privacy-preserving causal trace, dogfood thresholds, and the consequential-effect ceiling. Codex-only is a v0 testing constraint; v1's provider set and evaluator-independence policy are TBD. Each product feature still requires its own approved issue-sized vertical-slice plan.
+**Architecture:** F0-F6 remains an indivisible prerequisite. PR #11 is not merged or rebased wholesale: accepted cleanup is reapplied on new branches from the accepted foundation, while its incompatible Outcome schema/store, premature provider deletion, CLI authority assumptions, and locale deletion are omitted. The product architecture resolves the local v0 dogfood gates: Codex admission/recovery through a provider-neutral adapter seam, grounded provider-neutral RunBrief and hybrid orchestration, autonomy-preserving leases/fences, privacy-preserving causal trace, dogfood thresholds, and the consequential-effect ceiling. Codex-only is a v0 testing constraint; v1's provider set is TBD, while evaluator results use a locked provider-neutral independence classification. Each product feature still requires its own approved issue-sized vertical-slice plan.
 
 **Tech Stack:** Git/GitHub, Go daemon and SQLite, Electron/React/TypeScript, generated OpenAPI/sqlc artifacts, npm foundation scripts
 
@@ -298,7 +298,7 @@ Each description names the accepted foundation SHA, linked issue, exact omission
 
 - [ ] **Step 1: Verify the resolved design gates are represented without drift**
 
-Confirm the implementation plan preserves gates 1-5 exactly as recorded in the canonical architecture: one write lease/fence per worktree, sequential-by-default execution, no silent provider fallback, frozen provider-neutral RunBrief core plus adapter-compiled form, metadata-first trace, objective falsifiers, and no autonomous remote effects. Preserve the open evaluator-independence decision truthfully; do not claim provider/model independence. Hosted attachment gate 6 remains deferred and must not leak into the local slice.
+Confirm the implementation plan preserves gates 1-5 exactly as recorded in the canonical architecture: one fenced writer per worktree with autonomy-preserving `unconfirmed` recovery, smallest-sufficient hybrid orchestration, no silent provider fallback, grounded frozen provider-neutral RunBrief core plus adapter-compiled form, multidimensional budget, truthfully classified evaluator independence, metadata-first trace, objective falsifiers, and no autonomous remote effects. Do not claim provider/model independence unless it actually exists. Hosted attachment gate 6 remains deferred and must not leak into the local slice.
 
 - [ ] **Step 2: Select one end-to-end dogfood Outcome**
 

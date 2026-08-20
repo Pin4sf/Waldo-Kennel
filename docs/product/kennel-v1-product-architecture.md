@@ -313,13 +313,38 @@ Every Work Unit receives a frozen versioned provider-neutral RunBrief core with:
 
 The admitted adapter compiles that immutable core into a provider-specific execution form (for example, its session/mode/tool configuration and recovery bindings). Compilation may narrow authority or expose an admission failure; it may not widen the core's grants, effects, disclosure, budget, or acceptance semantics. The core and compiled-form digests are recorded on the Attempt.
 
+The RunBrief is grounded in this precedence order: current user-approved ContractRevision and explicit decisions; approved PlanRevision and WorkUnit; Project policy, grants, disclosure/effect policy, and budget; verified dependency outputs; exact workspace/worktree snapshot and Project rules; user-approved Project knowledge or durable memory; then optional retrieved context with provenance and freshness. Transcripts, inferred preferences, screen observations, retrieved memory, and agent-authored plans are candidate context only. They cannot override higher authority. A material change to scope, criteria, dependencies, workspace, authority, budget, provider capability, or approved knowledge creates a new revision and Attempt; stale or contradictory grounding blocks compilation.
+
+### Orchestration Advisor and routing
+
+- Waldo recommends the smallest sufficient topology in plain language, with a simpler alternative and an advanced override when useful. Methods include direct, sequential, parallel isolated specialists, planner-executor, discovery-replan, implementer-reviewer, competing proposals with a judge, and human-gated effects.
+- A model proposes decompositions and tactics. A deterministic, inspectable Orchestration Policy validates dependencies, file overlap, risk/effects, Evidence needs, admitted capabilities, budget, supervision cost, and recovery complexity. Opaque learned scores do not control routing; later trace learning may propose policy changes but cannot silently apply them.
+- One direct Attempt is the default. Within an admitted Attempt, the provider may choose tools, tactics, and native subagents freely. Changing provider, model/session mode, topology, worktree ownership, authority, or a material budget creates a new RunBrief and Attempt. User review is required only when the change is material to scope, cost, permission, risk, or effect.
+- There is no silent provider fallback. Reversible command retry may remain within the Attempt. A provider handoff is a new Attempt through an admitted adapter, with review when its material authority or plan changes.
+
+### Authority, budget, worktrees, and recovery fences
+
+- Effective authority is the intersection of Project policy, approved Contract/Plan, WorkUnit requirements, explicit user grants, admitted provider capabilities, current worktree ownership, and the consequential-effect ceiling. Read, write, execute, disclose, spend, and external effect are classified separately. A lower layer may narrow authority but never widen it.
+- A new capability or effect raises a just-in-time DecisionRequest explaining the need, location, consequence, and revoke path. Grants bind to a revision or Attempt by default, not permanently to the Project.
+- The budget envelope covers elapsed time, Attempts/retries, concurrent sessions, worktrees/storage, trustworthy token or monetary usage when exposed, consequential effects/disclosure, and requested human interventions. Models remain free inside it; soft limits warn and hard limits pause. Unknown cost stays labeled unknown and is governed through time, concurrency, retries, and effects rather than invented prices.
+- Every write-capable Attempt owns one isolated worktree at a pinned base; two Attempts never write the same worktree. Read-only discovery may share a snapshot. Provider-native subagents inside one Attempt remain one fenced writer. Parallel WorkUnits require separate worktrees and non-conflicting dependencies/ownership; integration is an explicit WorkUnit/Attempt. Dirty or useful failed work is retained until explicit cleanup.
+- Attempt authority lasts until completion, explicit pause/revoke, or confirmed recovery/takeover, and renews silently while healthy. A missed heartbeat means `unconfirmed`, not dead. The Attempt may continue reasoning, observing, exploring, and doing ordinary authorized local work; only new consequential effects and canonical truth mutations pause until reconciliation.
+- Fences protect canonical durable writes and consequential effects, not model reasoning or tactical freedom. A new fence is issued only after reconciliation confirms retry, takeover, or replacement. Late work and observations from a stale Attempt remain inspectable but cannot overwrite current Evidence, results, or canonical state.
+
+### Verification independence
+
+- Deterministic verification outside the producing session is preferred. Producer self-checks are useful Evidence but are not independent verification.
+- A fresh read-only review Attempt receives the criteria and subject through a verifier-focused RunBrief, without the implementer's conclusions or raw transcript by default. It cannot modify the subject; rework receives a separate write Attempt.
+- In v0 Codex-only dogfood, a separate Codex session is labeled **separate-session review**, never provider-independent; deterministic tools and owner walkthroughs remain explicit. When multiple adapters are admitted, Waldo may recommend another provider or model when that reduces correlated failure and satisfies the verifier capability profile.
+- Only the user accepts an Outcome. Every result states its actual independence class; the v1 provider set remains Unknown/TBD, but this tiered evaluator policy is provider-neutral and locked.
+
 ### Locked launch defaults
 
-- One active write lease per worktree. Attempts receive a monotonically increasing fence; stale events cannot mutate current state.
-- Execution is sequential by default. Parallel Work Units require isolated worktrees, no overlapping write ownership, and an approved Mission Map.
+- One fenced writer per worktree; the renewable Attempt lease preserves tactical autonomy. Missing heartbeat becomes `unconfirmed`, and fences block only consequential effects and canonical mutations until reconciliation.
+- One direct Attempt is the smallest-sufficient default. Parallel Work Units require isolated worktrees, no overlapping write ownership, and an approved Mission Map.
 - There is no silent provider fallback. In v0, a Codex failure creates a new Codex Attempt, a replan, or human attention. A later provider handoff requires a new Attempt, an admitted adapter, and any required authority/plan review.
-- The approved budget envelope covers maximum Work Units, concurrent Attempts, wall-clock limit, and any provider-reported cost/token ceiling. Missing cost telemetry cannot silently widen work.
-- Deterministic checks run outside the producing session. A producing provider session may propose Evidence but cannot mark its own semantic criterion verified. **Proposed/Unresolved:** evaluator independence policy for multi-provider v1 remains to be decided; non-deterministic criteria currently require a separately classified review Attempt or explicit user walkthrough, without claiming provider/model independence unless actually present.
+- The multidimensional budget governs time, retries, concurrency, storage, disclosed cost when trustworthy, effects, disclosure, and human interruptions without micromanaging tactics.
+- Deterministic, producer self-check, separate-session, cross-provider/model, and owner-walkthrough verification are labeled truthfully. Only the user accepts.
 
 ### Consequential-effect ceiling
 
@@ -470,8 +495,8 @@ The wedge is falsified or paused if supervision cost is not lower, false readine
 
 ### Resolved for implementation planning
 
-1. v0 Codex-only admission plus provider-neutral adapter/conformance seam and immutable historical provider identity. The v1 provider set and evaluator-independence policy remain **Unknown/TBD**.
-2. Provider-neutral RunBrief core/compiled form, one-write-lease/fence rule, sequential-by-default concurrency, no silent provider fallback, and explicit budget envelope.
+1. v0 Codex-only admission plus provider-neutral adapter/conformance seam and immutable historical provider identity. The v1 provider set remains **Unknown/TBD**.
+2. Grounded provider-neutral RunBrief core/compiled form; recommendation-first hybrid orchestration; autonomy-preserving leases/fences; intersected capability/effect admission; isolated-worktree concurrency; multidimensional budgets; no silent provider fallback; and truthfully labeled evaluator independence.
 3. Redacted causal Outcome Trace with private content excluded by default.
 4. Objective dogfood measures, thresholds, failure injections, and falsifiers.
 5. Consequential-effect ceiling: authorized local work plus separately approved local commits; no autonomous remote effects; Gmail draft only after explicit user intent.

@@ -193,9 +193,11 @@ States: proposed, approved, created, edited, failed, unknown/reconciled, sent ex
 - dependencies, evidence, verification, topology rationale;
 - v0 Codex-only routing, visibly labeled as local dogfood rather than a v1 provider decision;
 - provider-neutral RunBrief core plus adapter-compiled form; required versus optional capability profile;
-- no silent provider fallback; later handoff is a new Attempt after adapter admission and required review;
-- sequential default, isolated-worktree parallel exception;
-- budget and recovery boundary;
+- no silent provider fallback; later handoff is a new Attempt after adapter admission and any review required by a material change;
+- smallest-sufficient direct default, with model-proposed topology checked by an inspectable deterministic policy;
+- autonomy-preserving lease: `unconfirmed` is not dead, and fences guard only canonical writes/effects;
+- multidimensional budget and recovery boundary;
+- truthful evaluator tiers: deterministic, self-check, separate-session, cross-provider/model, owner walkthrough;
 - primary: **Review authority**.
 
 ### F15 — Authority and effect preview

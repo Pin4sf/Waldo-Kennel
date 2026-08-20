@@ -352,12 +352,13 @@ The beta may remain internal while Google OAuth verification and model-disclosur
 
 ## 12. Resolved architecture defaults
 
-- One active write lease per worktree with monotonic fence; stale events cannot mutate current state.
-- Sequential execution by default; concurrency only in isolated non-overlapping worktrees approved in the Mission Map.
-- No silent provider fallback. v0 dogfood uses Codex only; any later handoff creates a new Attempt through an admitted adapter and required review.
-- Every provider-neutral RunBrief core freezes IDs, objective, dependencies, workspace, grants/effects/disclosure, Evidence/Verification, budget, stop/recovery/handoff. The adapter compiles a provider-specific form that may narrow but never widen it.
+- One fenced writer per worktree. Attempt authority renews silently until completion, pause/revoke, or confirmed recovery; a missed heartbeat is `unconfirmed`, not dead. Fences pause only new consequential effects and canonical mutations while ordinary reasoning, observation, exploration, and authorized local tactics remain free.
+- Waldo recommends the smallest sufficient topology using model-proposed decomposition checked by a deterministic, inspectable Orchestration Policy. One direct Attempt is the default; parallel work uses isolated non-overlapping worktrees and explicit dependencies/integration.
+- No silent provider fallback. v0 dogfood uses Codex only; any later handoff creates a new Attempt through an admitted adapter and any review required by a material authority or plan change.
+- Every provider-neutral RunBrief core freezes IDs, objective, dependencies, workspace, grants/effects/disclosure, Evidence/Verification, budget, stop/recovery/handoff. It is grounded from approved contract and plan through verified facts to lower-trust candidate context; contradictions block compilation. The adapter compiles a provider-specific form that may narrow but never widen it.
 - Admission is fail-closed on every Attempt start/resume. Required adapter capabilities block admission; optional capabilities enable only dependent routes. Historical identity remains immutable; later conformant recovery is selectable only after reconciliation and readmission.
-- Deterministic checks execute outside the producing session. **Proposed/Unresolved:** v1 evaluator-independence policy remains open; semantic criteria need a separately classified review Attempt or user walkthrough and must state actual independence.
+- Effective authority is the intersection of approved policy, plan, grants, admitted capabilities, worktree ownership, and effect ceiling. Budgets cover time, retries, concurrency, storage, trustworthy cost, effects/disclosure, and human interruptions while leaving tactics free inside the envelope.
+- Deterministic verification is preferred. Self-check, separate-session, cross-provider/model, and owner-walkthrough results are labeled truthfully; a fresh verifier is read-only and only the user accepts. v1's provider set remains Unknown/TBD, not the evaluator policy.
 - Local worktree read/write/commands may be authorized; local commits must be explicit. No autonomous push, PR, comment, merge, deploy, publish, release, payment, destructive remote effect, or message send.
 - Gmail draft creation requires a user-requested EffectIntent. Send/archive/delete/labels/closure are not automated.
 - Causal trace is metadata-first and private-content-minimized.
