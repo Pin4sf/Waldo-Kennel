@@ -78,14 +78,27 @@ States: first run, offline daemon, storage unavailable.
 
 ### F02 — Home / Today
 
-- concise Today brief;
+- calm Morning Brief from trusted current facts, useful with connectors off;
+- focused Catch Up pane with one correctable suggestion at a time;
 - Needs You and Action Required;
 - Open Loops and Waiting;
 - Communication candidates;
 - current Outcomes and Ready to Close;
-- primary: **Handle top item**.
+- primary: **Handle** or **Connect to Work**.
 
 Review: can the user understand the next useful intervention in five seconds?
+
+### F02A — Connect Home to Work
+
+- suggestion remains a non-canonical projection until the user acts;
+- correct/dismiss, keep or confirm Home Open Loop, create draft Work Outcome, or link existing Outcome;
+- select Work Project and preserve exact source/provenance;
+- explicit `ResponsibilityLink` for an Open Loop-to-Outcome relation;
+- linking never transfers, merges, closes, verifies, or accepts either side;
+- Work receives a draft/link and requires its own Goal, Success, Review, authority, Evidence, and Acceptance;
+- primary: **Create draft Work Outcome**.
+
+States: candidate, corrected, no Project, duplicate, new draft, existing link, Home-only.
 
 ### F03 — Quick Capture
 
@@ -166,6 +179,7 @@ States: proposed, approved, created, edited, failed, unknown/reconciled, sent ex
 ### F11 — Work Home
 
 - Project selector/readiness;
+- incoming Home draft/link with preserved provenance;
 - Outcome Focus;
 - Active Outcomes;
 - Needs You, Action Required, Waiting;
@@ -342,6 +356,15 @@ Gmail Connection -> ThreadRef -> Communication Brief
 ```text
 trusted Kennel facts + confirmed OpenLoops + explicit notes
 -> Daily Snapshot -> correction -> Today attention -> Daily Close -> Re-entry
+```
+
+### Home to Work
+
+```text
+trusted facts -> Suggested Next Action (projection)
+-> user dismisses/corrects OR confirms OpenLoop OR creates draft Outcome
+OpenLoop -> explicit ResponsibilityLink -> new/existing Work Outcome
+Home closure lineage remains separate from Work Evidence/Verification/Acceptance
 ```
 
 ### Optional context

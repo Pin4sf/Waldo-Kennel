@@ -88,6 +88,7 @@ Messages, model text, commits, PRs, checks, screenshots, activity, and provider 
 | `MissionMap` | Optional understandable projection of PlanRevision. | Canonical responsibility. |
 | `LoopDisposition` | Immutable confirm/close/release/reopen/transfer decision. | Automatic status inference. |
 | `SuccessorLink` | Explicit follow-up lineage. | Mutation of accepted/closed history. |
+| `ResponsibilityLink` | Explicit Home OpenLoop-to-Work Outcome relationship with provenance. | Moving, merging, closing, verifying, or accepting either item. |
 
 ### Execution and control
 
@@ -141,6 +142,8 @@ flowchart TD
   AD --> AC["Adaptive Close and Re-entry"]
 
   H --> OL["Confirmed Open Loops"]
+  OL --> RL["Explicit Responsibility Link"]
+  RL --> O
   G["Gmail Thread Reference"] --> CB["Communication Brief"]
   CB --> CC["Commitment Candidate"]
   CC -->|"user confirms"| OL
@@ -210,6 +213,7 @@ The user sees responsibility and attention across spaces:
 - actionable Communication Loops beta;
 - Quick Capture and correction;
 - recent accepted Outcomes and exact Re-entry.
+- a calm daily brief and focused Catch Up pane whose suggestions can be dismissed, corrected, confirmed, or explicitly connected to Work.
 
 Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboard.
 
@@ -218,6 +222,7 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 - Projects and readiness;
 - Outcome Focus, Active Outcomes, Waiting, Ready for Acceptance, and recent closes;
 - Outcome Workspace: Define, Clarify, Mission Map, Authority, Run, Review, Accept, Close/Re-enter;
+- incoming Home suggestions/Open Loops as drafts or explicit links; they do not become executable Outcome truth merely by appearing in Work;
 - contextual operator inspector for Attempt, terminal, worktree, browser, trace, and recovery.
 
 ### Settings & Control
@@ -235,6 +240,7 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 | --- | --- | --- |
 | Onboarding | Establish Personal Home and optionally add a Work Project. | first run, no Project, invalid folder, Codex unavailable, ready, offline. |
 | Home / Today | What needs me now? | empty, normal, high attention, stale, offline, recovering. |
+| Connect to Work | Should this Home candidate/Open Loop become a new Work Outcome or link to an existing one? | candidate, corrected, no Project, new draft, existing link, duplicate, keep Home-only. |
 | Quick Capture | What should Waldo preserve? | note/OpenLoop choice, duplicate, space assignment, defer. |
 | Daily Snapshot | What happened, what remains open, what comes next? | collecting, partial, ready, corrected, Daily Close. |
 | Communication Inbox | Which conversations contain potential responsibility? | disconnected, authorizing, syncing, ready, stale, revoked, empty. |
@@ -273,7 +279,15 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 3. The user can correct, dismiss, capture, defer, or open exact source context.
 4. Daily Close records what remains open and creates tomorrow's Re-entry; it does not maximize closure count.
 
-### C. Work Outcome
+### C. Home to Work
+
+1. Home's Morning Brief shows trusted current responsibility; Catch Up presents one correctable Suggested Next Action at a time.
+2. The user may dismiss or correct the suggestion, confirm or keep an Open Loop, create a draft Outcome in a selected Work Project, or link the Open Loop to an existing Outcome.
+3. A direct candidate-to-Outcome conversion preserves source/provenance. An Open Loop-to-Outcome connection records a `ResponsibilityLink`.
+4. Linking never transfers, merges, closes, verifies, or accepts either side. The Home Open Loop retains its owner, recheck, and closure condition; the Work Outcome receives its own contract, Evidence, Verification, and Acceptance lineage.
+5. Work shows the incoming draft/link and requires Goal, Success, Review, authority, and placement before execution.
+
+### D. Work Outcome
 
 1. Outcome Focus accepts normal language.
 2. Goal, Success, and Review are always visible; Plan and Authority expand as risk warrants.
@@ -285,7 +299,7 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 8. User Accepts, requests rework, revises active work, or releases.
 9. Adaptive Close preserves accepted history and creates successors/Open Loops as needed.
 
-### D. Communication Loop
+### E. Communication Loop
 
 1. User connects one Gmail account with explicit scope/disclosure/retention notice.
 2. Kennel polls incrementally and shows only actionable candidates, not the whole inbox.
@@ -296,7 +310,7 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 7. A reply or user update produces a concise change brief and next action.
 8. Waldo proposes Ready to Close; user closes, releases, reopens, or promotes remaining work.
 
-### E. Optional Desktop Context
+### F. Optional Desktop Context
 
 1. User separately enables capture, analysis route, provider disclosure, exclusions, retention, and deletion.
 2. Raw frames remain local and short-lived; observations are untrusted.

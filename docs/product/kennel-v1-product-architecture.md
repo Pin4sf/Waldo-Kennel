@@ -101,6 +101,7 @@ An Outcome or Open Loop belongs to exactly one Responsibility Space at a time. M
 | `OpenLoop` | Confirmed unresolved responsibility or commitment that must be preserved, revisited, consciously closed, released, or promoted to an Outcome. |
 | `LoopDisposition` | Immutable user decision to confirm, close, release, reopen, transfer, or supersede an Open Loop. |
 | `SuccessorLink` | Lineage from an accepted Outcome or closed Open Loop to a later follow-up responsibility. |
+| `ResponsibilityLink` | Explicit provenance-bearing relationship from a Home Open Loop to a new or existing Work Outcome. Linking never moves, merges, closes, verifies, or accepts either responsibility. |
 
 ### Execution, authority, and effects
 
@@ -142,6 +143,7 @@ An Outcome or Open Loop belongs to exactly one Responsibility Space at a time. M
 - Needs You, Action Required, Waiting, and Ready for Acceptance;
 - provider readiness, current session status, recovery receipt, and operator views;
 - Communication Brief, Daily Snapshot, and Re-entry packet;
+- Suggested Next Actions and Home Catch Up; these are correctable projections, not tasks or canonical responsibility;
 - Project Follow-up and Keep for later.
 
 Provider completion, commits, PRs, checks, messages, drafts, archive state, screenshots, and activity are observations or candidate Evidence. None can create Acceptance or close an Open Loop.
@@ -197,6 +199,17 @@ raw frame -> DesktopObservation -> ContextEpisode
   -> Snapshot input or CommitmentCandidate
   -> MemoryCandidate later, never automatic
 ```
+
+### Home to Work
+
+```text
+trusted facts -> Suggested Next Action projection
+  -> user: dismiss | correct | confirm/keep OpenLoop | create draft Outcome
+OpenLoop -> explicit ResponsibilityLink -> new or existing Work Outcome
+Home owner/recheck/closure remains separate from Work contract/Evidence/Acceptance
+```
+
+A direct candidate-to-Outcome conversion preserves the candidate's source and provenance. An Open Loop connection records a `ResponsibilityLink`. Work does not execute until the destination Project and Outcome contract are explicitly defined.
 
 ## State models
 
@@ -377,6 +390,7 @@ Kennel has three primary destinations:
 - Communication Loops beta;
 - explicit quick capture and correction;
 - recent accepted Outcomes and exact Re-entry.
+- a calm brief plus focused Catch Up pane, with explicit conversion/link actions from suggested next actions or Open Loops into Work.
 
 Home is a responsibility/attention projection, not a dashboard of activity or a Memory product.
 
@@ -387,6 +401,7 @@ Home is a responsibility/attention projection, not a dashboard of activity or a 
 - Ready for Acceptance and recent closes;
 - Outcome Workspace modes: Define, Clarify, Plan/Mission Map, Authority, Run, Review, Accept, Close/Re-enter;
 - contextual operator inspector for sessions, terminal, browser, worktree, trace, and recovery.
+- incoming Home candidates and Open Loop links, kept separate from executable Outcome truth until the user confirms and defines the Work contract.
 
 ### 3. Settings & Control
 
@@ -401,6 +416,7 @@ Home is a responsibility/attention projection, not a dashboard of activity or a 
 | --- | --- | --- |
 | Onboarding | Establish local Home and optional Work Project. | no Project, invalid folder, Codex absent/auth required, ready, offline daemon. |
 | Home / Today | See what needs handling now. | empty, normal, stale, offline, recovery, high-attention. |
+| Connect to Work | Turn a Home suggestion/Open Loop into a draft Outcome or link it to an existing Outcome without losing provenance. | candidate, corrected, no Project, new Outcome draft, existing link, keep Home-only, duplicate. |
 | Quick Capture | Add or correct an explicit Open Loop/note. | draft, duplicate candidate, assigned space, deferred. |
 | Daily Snapshot | Reconstruct today from trusted facts. | collecting, ready, corrected, partial source, Daily Close. |
 | Communication Inbox | See only actionable conversation candidates. | disconnected, authorizing, syncing, ready, stale, revoked, no actionable items. |
