@@ -93,7 +93,7 @@ Review: can the user understand the next useful intervention in five seconds?
 - suggestion remains a non-canonical projection until the user acts;
 - correct/dismiss, keep or confirm Home Open Loop, create draft Work Outcome, or link existing Outcome;
 - select Work Project and preserve exact source/provenance;
-- explicit `ResponsibilityLink` for an Open Loop-to-Outcome relation;
+- explicit Open Loop-to-Outcome relation; `ResponsibilityLink` is the proposed persisted name, with schema/cardinality TBD;
 - linking never transfers, merges, closes, verifies, or accepts either side;
 - Work receives a draft/link and requires its own Goal, Success, Review, authority, Evidence, and Acceptance;
 - primary: **Create draft Work Outcome**.

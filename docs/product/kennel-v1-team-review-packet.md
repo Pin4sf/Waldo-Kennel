@@ -88,7 +88,7 @@ Messages, model text, commits, PRs, checks, screenshots, activity, and provider 
 | `MissionMap` | Optional understandable projection of PlanRevision. | Canonical responsibility. |
 | `LoopDisposition` | Immutable confirm/close/release/reopen/transfer decision. | Automatic status inference. |
 | `SuccessorLink` | Explicit follow-up lineage. | Mutation of accepted/closed history. |
-| `ResponsibilityLink` | Explicit Home OpenLoop-to-Work Outcome relationship with provenance. | Moving, merging, closing, verifying, or accepting either item. |
+| `ResponsibilityLink` | **Proposed persisted form** for the locked explicit Home OpenLoop-to-Work Outcome relationship; exact schema/cardinality remain TBD. | Moving, merging, closing, verifying, or accepting either item. |
 
 ### Execution and control
 

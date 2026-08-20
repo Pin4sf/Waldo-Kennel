@@ -101,7 +101,7 @@ An Outcome or Open Loop belongs to exactly one Responsibility Space at a time. M
 | `OpenLoop` | Confirmed unresolved responsibility or commitment that must be preserved, revisited, consciously closed, released, or promoted to an Outcome. |
 | `LoopDisposition` | Immutable user decision to confirm, close, release, reopen, transfer, or supersede an Open Loop. |
 | `SuccessorLink` | Lineage from an accepted Outcome or closed Open Loop to a later follow-up responsibility. |
-| `ResponsibilityLink` | Explicit provenance-bearing relationship from a Home Open Loop to a new or existing Work Outcome. Linking never moves, merges, closes, verifies, or accepts either responsibility. |
+| `ResponsibilityLink` | **Proposed persisted form** for the locked explicit, provenance-bearing relationship from a Home Open Loop to a new or existing Work Outcome. Linking never moves, merges, closes, verifies, or accepts either responsibility; exact schema and cardinality remain an implementation-gate decision. |
 
 ### Execution, authority, and effects
 
