@@ -35,6 +35,7 @@ Messages, model text, commits, PRs, checks, screenshots, activity, and provider 
 
 - Waldo is one user-owned intelligence and responsibility identity. Kennel is its local Mac presence, not a separate assistant.
 - The launch product has three primary destinations: **Home**, **Work**, and **Settings & Control**.
+- The common product spine is five adaptive surfaces: **Enter -> Understand -> Decide & Authorize -> Act & Observe -> Prove & Close**. Destinations select context; they do not create competing workflows.
 - Work remains the launch spine for agent-heavy Mac users: Outcome to verified Acceptance with lower supervision cost.
 - Home adds confirmed Open Loops, trusted Daily Snapshot, concise attention, communication continuity, and exact Re-entry without claiming durable Memory or complete life understanding.
 - Gmail Communication Loops is an optional bounded beta: read actionable threads, propose correctable commitments, confirm an Open Loop or Outcome, create a user-requested draft, track Waiting, and consciously close. It never auto-sends or auto-closes.
@@ -88,7 +89,7 @@ Messages, model text, commits, PRs, checks, screenshots, activity, and provider 
 | `MissionMap` | Optional understandable projection of PlanRevision. | Canonical responsibility. |
 | `LoopDisposition` | Immutable confirm/close/release/reopen/transfer decision. | Automatic status inference. |
 | `SuccessorLink` | Explicit follow-up lineage. | Mutation of accepted/closed history. |
-| `ResponsibilityLink` | **Proposed persisted form** for the locked explicit Home OpenLoop-to-Work Outcome relationship; exact schema/cardinality remain TBD. | Moving, merging, closing, verifying, or accepting either item. |
+| `ResponsibilityLink` | Immutable explicit many-to-many lineage between one Home OpenLoop and one Work Outcome, with provenance, creator/reason, created time, and optional ended time/reason; duplicate active pairs are rejected. | Moving, merging, closing, verifying, accepting, or mutating either item. |
 
 ### Execution and control
 
@@ -234,43 +235,28 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 - skills, MCP, rules, optional Desktop Context;
 - hosted attachment visibly Later.
 
-## 8. Screen and state review matrix
+## 8. Five adaptive product surfaces
 
-| Screen | Primary question/action | Essential states |
-| --- | --- | --- |
-| Onboarding | Establish Personal Home and optionally add a Work Project. | first run, no Project, invalid folder, Codex unavailable, ready, offline. |
-| Home / Today | What needs me now? | empty, normal, high attention, stale, offline, recovering. |
-| Connect to Work | Should this Home candidate/Open Loop become a new Work Outcome or link to an existing one? | candidate, corrected, no Project, new draft, existing link, duplicate, keep Home-only. |
-| Quick Capture | What should Waldo preserve? | note/OpenLoop choice, duplicate, space assignment, defer. |
-| Daily Snapshot | What happened, what remains open, what comes next? | collecting, partial, ready, corrected, Daily Close. |
-| Communication Inbox | Which conversations contain potential responsibility? | disconnected, authorizing, syncing, ready, stale, revoked, empty. |
-| Communication Brief | What is the actual ask and recommended next action? | uncertain candidate, corrected, confirmed OpenLoop, promoted Outcome, dismissed. |
-| Draft Review | May Kennel create this exact Gmail draft? | intent, approval, created, edited, failed, unknown/reconciled, sent externally. |
-| Open Loop Detail | Who owns what, when do we recheck, and what closes it? | active, waiting, deferred, ready to close, closed, released, reopened, transferred. |
-| Work Home | Which Outcomes require attention? | empty, active, Needs You, Action Required, Waiting, Ready for Acceptance. |
-| Outcome Define | What must become true and how will we review it? | vague success, conflicts, local-only, draft revision. |
-| Clarification | Which one material decision changes the contract? | recommended choice, custom answer, defer, contradiction. |
-| Mission Map | Is this the smallest sufficient topology? | direct one-unit, graph, invalidated, capability/budget conflict. |
-| Authority | What may happen, where, until when, and how is it revoked? | new grant, missing auth, external effect, changed revision. |
-| Run | What is happening and what is Waldo's next safe action? | queued, running, paused, failed, lost, reconciled, retry, partial Evidence. |
-| Needs You | Which irreducible judgment must I make? | recommendation, alternatives, consequence, expiry, inspect. |
-| Action Required | What exact human-only step must I perform? | sign-in, permission, denial, completed elsewhere, resume. |
-| Waiting | Why is action not useful yet? | dependency, timeout, failure, manual refresh, transfer. |
-| Evidence & Verification | Does current Evidence support each current criterion? | missing, stale, contradicting, failed check, exception, verifier conflict. |
-| Acceptance | Is this responsibility handled? | accept, request rework, revise active, release. |
-| Adaptive Close | What should remain open or be cleaned up? | dirty worktree, retained artifact, OpenLoop, suggested successor. |
-| Re-entry | What minimum context restores useful action? | successor Outcome, reopened loop, missing source, historical provider unavailable. |
-| Desktop Context beta | What may be observed and retained? | disabled, permission denied, paused, excluded app, storage cap, delete. |
-| Settings | What can I inspect, limit, export, revoke, or delete? | provider mismatch, connection revoked, deletion confirmation, attachment unavailable. |
+The earlier 25-screen atlas is collapsed into five surfaces. Named screens below are adaptive modes, panels, or overlays; they are not separate top-level products.
+
+| Surface | Primary question | Home modes | Work modes | Failure/attention modes |
+| --- | --- | --- | --- | --- |
+| **Enter** | What responsibility are we taking on, and where? | enter Home, Quick Capture, source candidate | Work-first onboarding, Project selection/readiness, Outcome entry | invalid folder, daemon offline, Codex unavailable |
+| **Understand** | What is true, uncertain, and required? | Today/Catch Up, Daily Snapshot, Communication Brief, Open Loop detail | Work Home, Outcome Define, Clarify | stale/partial source, correction, duplicate, provenance inspect |
+| **Decide & Authorize** | What approach is recommended, and what needs consent? | Connect to Work, Draft Review | direct unit/Mission Map, authority/effect/budget preview | capability blocked, invalidated plan, changed grant |
+| **Act & Observe** | What is Waldo doing and where is attention useful? | Waiting/follow-up, reconciled draft effect | Run and Work Unit progress | Needs You, Action Required, Waiting, pause, retry, lost/recovery |
+| **Prove & Close** | Is the current responsibility proved and consciously handled? | Ready to Close, Daily Close, release/reopen | Evidence, Verification, Acceptance, Adaptive Close | contradictory/stale evidence, dirty resources, successor, Re-entry |
+
+Settings & Control and Operator Inspector are persistent overlays. They can be entered from any stage without changing responsibility state.
 
 ## 9. End-to-end UX flows
 
 ### A. First run
 
-1. Kennel creates local Personal Home and explains local custody.
-2. The user may add a Work Project immediately or later.
-3. Codex readiness appears only when the user enters Work or defines an executable Outcome.
-4. Gmail and Desktop Context are optional, separately explained connections—not onboarding blockers.
+1. Kennel explains local custody and recommends **Start with Work** for v0 dogfood.
+2. The user selects a local Project, Kennel checks daemon/Codex readiness, and Enter opens the first Outcome.
+3. **Start with Home** remains available, but no Personal Home is silently created and it is not a prerequisite for Work.
+4. Gmail, Desktop Context, an account, and hosted attachment are optional, separately explained, and never onboarding blockers.
 
 ### B. Daily Home
 
@@ -287,17 +273,13 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 4. Linking never transfers, merges, closes, verifies, or accepts either side. The Home Open Loop retains its owner, recheck, and closure condition; the Work Outcome receives its own contract, Evidence, Verification, and Acceptance lineage.
 5. Work shows the incoming draft/link and requires Goal, Success, Review, authority, and placement before execution.
 
-### D. Work Outcome
+### D. Work Outcome through the common spine
 
-1. Outcome Focus accepts normal language.
-2. Goal, Success, and Review are always visible; Plan and Authority expand as risk warrants.
-3. One material clarification at a time creates a frozen ContractRevision.
-4. Simple work compiles directly; complex work shows a Mission Map.
-5. User approves authority; Kennel admits a fenced Attempt through the selected v0 Codex route or a future conformant provider adapter.
-6. Run shows Work Units and Waldo's next safe action, not transcript volume.
-7. Evidence is grouped by criterion; Verification is independent by class.
-8. User Accepts, requests rework, revises active work, or releases.
-9. Adaptive Close preserves accepted history and creates successors/Open Loops as needed.
+1. **Enter:** capture the Outcome in its selected Work Project.
+2. **Understand:** keep Goal, Success, and Review visible; resolve one material ambiguity at a time into a frozen ContractRevision.
+3. **Decide & Authorize:** recommend the smallest sufficient topology; compile simple work directly and expand Mission Map, authority, effects, and budget only as risk warrants.
+4. **Act & Observe:** admit a fenced Attempt through the v0 Codex adapter; show Work Units, change, failure/recovery, and Waldo's next safe action rather than transcript volume.
+5. **Prove & Close:** group Evidence by current criterion, label verifier independence truthfully, and let the user accept, request rework, revise, release, or create a successor/Open Loop.
 
 ### E. Communication Loop
 
@@ -331,20 +313,17 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 | Prompt injection in message/source | Treat all inbound content as untrusted data; source text cannot grant capabilities or issue instructions. |
 | Desktop capture denied/paused | Keep Home useful from trusted Kennel facts; show partial source truth without pressure. |
 
-Canonical traces exclude raw prompts, email bodies, files, terminal output, screenshots, credentials, health values, and model chain-of-thought. Private excerpts are explicit minimized local attachments. Disclosure destination, reason, and policy are inspectable.
+Canonical traces exclude raw prompts, email bodies, files, terminal output, screenshots, credentials, health values, and model chain-of-thought. Private excerpts are explicit minimized local attachments. Disclosure destination, reason, and policy are inspectable. Canonical control/lineage metadata follows its responsibility until user deletion; redacted operational diagnostics expire after 30 days by default and may be shortened or disabled; raw private artifacts require an explicit save and expiry; deletion leaves only a content-free anti-resurrection generation marker.
 
 ## 11. Launch scope and sequence
 
 ### Launch core
 
-1. Foundation acceptance and truthful local projections.
-2. Personal Home, Work, and Settings shell.
-3. ResponsibilitySpace, Outcome/OpenLoop domain spine and causal trace.
-4. Define/Clarify/Mission/Authority.
-5. Fenced v0 Codex WorkUnit/Attempt execution and recovery through the provider-neutral adapter seam.
-6. Attention, Evidence, Verification, Acceptance, Close, and Re-entry.
-7. Trusted Daily Snapshot and explicit Quick Capture.
-8. Dogfood/falsification gate.
+1. Foundation acceptance and bounded extraction of PR #11 cleanup.
+2. The complete [Local Focus Ledger](kennel-v0-first-outcome-slice.md) through Enter, Understand, Decide & Authorize, Act & Observe, and Prove & Close.
+3. Failure injection and paired direct-Codex evaluation of that complete slice; this is an early architecture signal, not the 20-Outcome launch claim.
+4. Personal Home, Open Loop persistence, explicit Home -> Work `ResponsibilityLink`, trusted Daily Snapshot, and Quick Capture after the Work core proves coherent.
+5. Broader 20-Outcome dogfood/falsification gate across the three destinations and five surfaces.
 
 ### Optional launch beta
 
@@ -376,6 +355,7 @@ The beta may remain internal while Google OAuth verification and model-disclosur
 - Local worktree read/write/commands may be authorized; local commits must be explicit. No autonomous push, PR, comment, merge, deploy, publish, release, payment, destructive remote effect, or message send.
 - Gmail draft creation requires a user-requested EffectIntent. Send/archive/delete/labels/closure are not automated.
 - Causal trace is metadata-first and private-content-minimized.
+- Canonical trace metadata follows responsibility retention; operational diagnostics default to 30 days; private artifacts are opt-in with expiry; deletion cannot silently resurrect content.
 
 ## 13. Dogfood acceptance and falsifiers
 
@@ -409,7 +389,9 @@ Pause or falsify the wedge when coordination cost is not lower, users routinely 
 
 - Every product slice starts from accepted foundation in a separate worktree.
 - One issue and one end-to-end vertical boundary per PR.
-- Screens may be prototyped together, but canonical writes and state transitions land only with their daemon/domain/CDC contract.
+- The first milestone uses five stage-aligned PRs—Enter, Understand, Decide & Authorize, Act & Observe, Prove & Close—and each owns every daemon/domain/storage/CDC/API/UI/recovery/evaluation change its truth boundary requires, while reusing foundation APIs where no new durable fact is introduced.
+- Screens may be prototyped together, but canonical writes and state transitions land only with their daemon/domain/CDC contract. Home -> Work begins only after the complete Work slice has evidence.
+- Start the authorized implementation session from the [Kennel First Outcome Execution Handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md).
 - No feature edits belong on F0-F6.
 - This packet does not authorize push, merge, deploy, publish, release, destructive cleanup, or hosted attachment.
 
@@ -423,7 +405,7 @@ Review in this order:
 4. Does Home show only what helps the next decision, not an activity dashboard?
 5. Can every permission/effect be explained by placement, scope, consequence, and revoke?
 6. Are Gmail and Desktop Context genuinely optional and honest about privacy/compliance?
-7. Which screen or object can be removed without breaking the proof?
+7. Does each former screen behave as a mode of one of the five surfaces, or can it be removed?
 8. What would cause the team to stop building or change the launch wedge?
 
 Record contradictions, missing states, and removable surfaces against the numbered frames in the Excalidraw seed. Team review may simplify presentation, but it must not weaken authority, Evidence, Acceptance, closure, privacy, or recovery invariants.

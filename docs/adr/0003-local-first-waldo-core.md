@@ -33,6 +33,10 @@ The Kennel Runtime owns:
 
 The daemon's local SQLite database is the sole canonical writer for v1. The renderer does not own durable product logic or write around daemon service boundaries.
 
+The product has three navigation/custody destinations—Home, Work, and Settings & Control—but one lifecycle: **Enter -> Understand -> Decide & Authorize -> Act & Observe -> Prove & Close**. These five stages are adaptive surfaces, not separate services or mandatory wizard pages. Settings and the Operator Inspector are overlays. This presentation rule does not change the Waldo/Kennel deployment boundary.
+
+For v0 dogfood, onboarding recommends Work-first entry: select a local Project and define the first Outcome. Home remains an available peer and can be added later; Work does not require a Personal Home, connector, account, or hosted service. An explicit Home OpenLoop-to-Work Outcome link preserves separate closure and acceptance lineages and does not transfer canonical ownership.
+
 Launch does not require:
 
 - a hosted Waldo backend or synchronization service;

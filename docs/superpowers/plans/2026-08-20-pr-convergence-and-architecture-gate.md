@@ -286,33 +286,34 @@ Expected: every command exits 0. Record exact local evidence if hosted Actions r
 
 Each description names the accepted foundation SHA, linked issue, exact omissions from PR #11, verification evidence, historical compatibility behavior, and why no Outcome migration is included. Opening or merging a PR requires separate user authorization.
 
-### Task 6: Plan the first Outcome vertical slice from the accepted architecture
+### Task 6: Accept the converged first Outcome contract and handoff
 
 **Files:**
 - Read: `docs/product/kennel-v1-product-architecture.md`
-- Create after approval: one separate implementation plan for the first vertical slice
+- Read: `docs/product/kennel-v0-first-outcome-slice.md`
+- Read: `docs/superpowers/plans/2026-08-20-first-outcome-execution-handoff.md`
 
 **Interfaces:**
 - Consumes: accepted ResponsibilitySpace/Outcome/OpenLoop ontology plus v0 Codex dogfood admission, provider-neutral RunBrief/admission, observability, and effect-ceiling decisions
-- Produces: a test-driven vertical-slice plan whose schema, service, API, UI, CDC, and user-visible acceptance behavior ship together
+- Produces: one explicitly authorized first issue from the complete five-stage handoff
 
 - [ ] **Step 1: Verify the resolved design gates are represented without drift**
 
 Confirm the implementation plan preserves gates 1-5 exactly as recorded in the canonical architecture: one fenced writer per worktree with autonomy-preserving `unconfirmed` recovery, smallest-sufficient hybrid orchestration, no silent provider fallback, grounded frozen provider-neutral RunBrief core plus adapter-compiled form, multidimensional budget, truthfully classified evaluator independence, metadata-first trace, objective falsifiers, and no autonomous remote effects. Do not claim provider/model independence unless it actually exists. Hosted attachment gate 6 remains deferred and must not leak into the local slice.
 
-- [ ] **Step 2: Select one end-to-end dogfood Outcome**
+- [x] **Step 2: Select one end-to-end dogfood Outcome**
 
 Use the local-only Focus Ledger Outcome from the architecture handoff. The slice demonstrates contract definition, smallest sufficient execution topology, local authority, provider Attempt, evidence, verification, and owner acceptance without account, cloud sync, analytics, or deployment.
 
-- [ ] **Step 3: Write a separate vertical-slice implementation plan**
+- [x] **Step 3: Write the separate vertical-slice specification and implementation handoff**
 
-Save it under `docs/superpowers/plans/` and enumerate exact domain, port, service, migration/query, CDC, controller/DTO, generated API, frontend, recovery, and evaluation files. Do not reuse PR #11's schema by default.
+The Focus Ledger contract is frozen in `docs/product/kennel-v0-first-outcome-slice.md`. The exact domain, port, service, migration/query, CDC, controller/DTO, generated API, frontend, recovery, and evaluation ownership is in `docs/superpowers/plans/2026-08-20-first-outcome-execution-handoff.md`. Do not reuse PR #11's schema by default.
 
 - [ ] **Step 4: Obtain vertical-slice approval before feature implementation**
 
 Feature execution requires the user's explicit approval of that vertical-slice plan.
 
-### Task 7: Sequence the desktop launch as issue-sized vertical slices
+### Task 7: Sequence the first milestone on the five-stage lifecycle
 
 **Files:**
 - Read: `docs/product/kennel-v1-product-architecture.md`
@@ -321,49 +322,18 @@ Feature execution requires the user's explicit approval of that vertical-slice p
 
 **Interfaces:**
 - Consumes: accepted foundation and completed bounded cleanup
-- Produces: one independently reviewable branch/PR per user-visible truth boundary
+- Produces: one independently reviewable end-to-end PR for each lifecycle stage, together forming one complete Outcome proof
 
-- [ ] **Slice 1: Responsibility and causal-trace spine**
+- [ ] **PR A — Enter**: Work-first onboarding, Project readiness, Outcome entry, and honest unavailable/offline states.
+- [ ] **PR B — Understand**: minimal responsibility/Outcome contract model, immutable ContractRevision, grounding, causal trace, and one material clarification.
+- [ ] **PR C — Decide & Authorize**: one-WorkUnit plan, authority/effect/budget/placement preview, approval, and provider-neutral RunBrief compilation.
+- [ ] **PR D — Act & Observe**: authoritative v0 Codex admission, fenced Attempt, derived attention, containment, reconciliation, and safe retry/re-entry.
+- [ ] **PR E — Prove & Close**: criterion-bound Evidence, truthfully labeled Verification, explicit AcceptanceDecision, Adaptive Close, resource disposition, and successor lineage.
+- [ ] **Evaluation**: run the first-slice conformance/failure protocol and five paired direct-Codex trials; record `continue to Home`, `revise the Outcome core`, or `stop/falsified`.
+- [ ] **Next milestone only after `continue to Home`**: Personal Home/OpenLoop persistence, Quick Capture, Daily Snapshot, and immutable many-to-many ResponsibilityLink. Home and Work retain separate closure/acceptance lineages.
+- [ ] **Later gates**: one-account Gmail Communication Loops beta, then optional Desktop Context after separate privacy approval. No automatic Evidence, Open Loop, Memory, rule, or skill promotion.
 
-Introduce the smallest `ResponsibilitySpace`, `Outcome`, revision, causal-ID, transition, and CDC boundary needed by the first Work flow. Do not add Gmail, Desktop Context, durable Memory, or broad Open Loop inference.
-
-- [ ] **Slice 2: Home / Work / Settings shell over truthful projections**
-
-Establish the three primary destinations and navigation using current durable facts. Empty, offline, stale, recovery, and not-yet-available states must be honest. The renderer remains read/write only through daemon APIs.
-
-- [ ] **Slice 3: Define and clarify an Outcome**
-
-Ship Goal, Success, Review, immutable ContractRevision, one material clarification at a time, and revision invalidation tests.
-
-- [ ] **Slice 4: Mission Map, authority, and provider-neutral compiled RunBrief**
-
-Ship direct one-Work-Unit and non-trivial plan projections, explicit grants, budget, worktree placement, lease/fence, stop, Evidence, Verification, and recovery requirements.
-
-- [ ] **Slice 5: Fenced v0 Codex Attempt and provider-neutral recovery seam**
-
-Ship authoritative v0 Codex admission through the provider-neutral adapter contract, one-write-lease/fence enforcement, sequential default, ordered observations, contain/reconcile/narrow-retry, and compact recovery receipt. Do not decide v1 providers in this slice.
-
-- [ ] **Slice 6: Attention projections**
-
-Derive Needs You, Action Required, and Waiting from durable decision/dependency/capability/recovery facts. Include required content and resume/recheck semantics; do not persist display labels.
-
-- [ ] **Slice 7: Evidence, Verification, Acceptance, and Re-entry**
-
-Ship criterion/subject-bound Evidence, verifier class, exceptions, explicit immutable AcceptanceDecision, Adaptive Close, dirty-resource disposition, and successor lineage.
-
-- [ ] **Slice 8: Confirmed Open Loops, Quick Capture, and Daily Snapshot**
-
-Ship explicit personal/work Open Loop creation, owner/source/trigger/closure contract, LoopDisposition, Ready to Close, trusted Daily Snapshot, correction, Daily Close, and exact Re-entry. Do not infer canonical loops from raw activity.
-
-- [ ] **Slice 9: One-account Gmail Communication Loops beta**
-
-Only after OAuth/privacy review: ship SourceConnection, incremental sync, Communication Brief, correctable CommitmentCandidate, confirm Open Loop/promote Outcome, user-approved draft EffectIntent/Receipt, Waiting, Ready to Close, revoke, stale/offline, and prompt-injection tests. Keep send/archive/delete/label/auto-close unavailable.
-
-- [ ] **Slice 10: Optional Desktop Context launch+1 beta**
-
-Only after core dogfood and separate privacy approval: ship capture/analysis/disclosure/retention consent, pause/exclusions/storage cap/delete, DesktopObservation, correctable ContextEpisode, and explicit Snapshot/candidate linking. No automatic Evidence, Open Loop, Memory, rule, or skill promotion.
-
-Every slice requires its own test-driven implementation plan and explicit approval. Screen mockups may span several slices for review; canonical writes may not.
+Every PR owns every domain, service, storage/migration, trigger-based CDC, API/generated type, UI, recovery, and evaluation change required by its user-visible truth boundary, reusing accepted foundation APIs when no new durable truth is needed. A horizontal schema, incomplete daemon-only layer, or deceptive screen-only PR does not satisfy a stage. Every issue requires explicit approval; this plan does not authorize implementation.
 
 ### Task 8: Apply the launch falsification gate
 

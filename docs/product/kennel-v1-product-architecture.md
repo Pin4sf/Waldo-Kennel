@@ -6,7 +6,7 @@
 - Launch proof: useful Outcomes and commitments reach conscious closure with lower coordination and supervision cost
 - Current implementation status: not implemented by the existing Outcome overlay or PR #11
 
-This is the canonical product, ontology, lineage, governance, state, and surface definition for Waldo Kennel's local v0 dogfood. It consolidates the accepted Kennel Work loop with the approved local personal Home, Gmail Communication Loops beta, and phased Dayflow-inspired Desktop Context. Codex-only execution is a v0 testing constraint, not a locked v1 provider decision: v1's provider set is **Unknown/TBD** and its orchestration core must remain provider-neutral. This document does not authorize feature edits on the F0-F6 foundation branch, a merge, release, or hosted deployment.
+This is the canonical product, ontology, lineage, governance, state, and surface definition for Waldo Kennel's local v0 dogfood. It consolidates the accepted Kennel Work loop with the approved local personal Home, Gmail Communication Loops beta, and phased Dayflow-inspired Desktop Context. Codex-only execution is a v0 testing constraint, not a locked v1 provider decision: v1's provider set is **Unknown/TBD** and its orchestration core must remain provider-neutral. Home, Work, and Settings are destinations; **Enter -> Understand -> Decide & Authorize -> Act & Observe -> Prove & Close** is the common lifecycle spine inside them. This document does not authorize feature edits on the F0-F6 foundation branch, a merge, release, or hosted deployment.
 
 ## Evidence boundaries
 
@@ -36,14 +36,25 @@ This is the canonical product, ontology, lineage, governance, state, and surface
 - whether Desktop Context reduces re-entry cost enough to justify system-wide capture for launch users;
 - hosted attachment, offline acknowledgement, detach/revoke, deletion, and cross-device conflict behavior;
 - pricing, commercialization, health/body-state semantics, Relationship, mobile, durable Memory, and the future Waldo harness.
-- the v1 provider set, routing-policy defaults, and evaluator-independence policy beyond truthful v0 labels.
+- the v1 provider set and routing-policy defaults; evaluator identity and independence must always be labeled truthfully, while the future provider mix remains unknown.
 
 ## Product thesis
 
-Waldo Kennel is one local-first Mac application with two synchronized surfaces:
+Waldo Kennel is one local-first Mac application with two synchronized responsibility destinations and one control destination:
 
 - **Home** helps the user understand what needs attention across confirmed Outcomes, Open Loops, communication, and today's trusted facts.
 - **Work** turns a delegated Outcome into bounded local execution, evidence, verification, conscious acceptance, and exact re-entry.
+- **Settings & Control** makes provider readiness, authority, disclosure, retention, export, revoke, and deletion inspectable.
+
+The destinations do not define separate workflows. Every responsibility advances through the same five-stage spine:
+
+1. **Enter** — choose or confirm the responsibility space and capture an explicit responsibility.
+2. **Understand** — ground the current facts, ambiguity, provenance, and success contract.
+3. **Decide & Authorize** — recommend a plan and obtain only the material decisions, capabilities, effects, and budget it needs.
+4. **Act & Observe** — execute bounded work while exposing progress, failure, recovery, and attention without transcript reconstruction.
+5. **Prove & Close** — bind evidence to current criteria, verify independently where claimed, and let the responsible person accept, reopen, release, or create a successor.
+
+These are five adaptive product surfaces, not five mandatory wizard pages. A simple local Outcome may move through them quickly; ambiguity, failure, or consequential effects expand the relevant surface without changing the lineage.
 
 Kennel should answer four questions without requiring transcript reconstruction:
 
@@ -101,7 +112,7 @@ An Outcome or Open Loop belongs to exactly one Responsibility Space at a time. M
 | `OpenLoop` | Confirmed unresolved responsibility or commitment that must be preserved, revisited, consciously closed, released, or promoted to an Outcome. |
 | `LoopDisposition` | Immutable user decision to confirm, close, release, reopen, transfer, or supersede an Open Loop. |
 | `SuccessorLink` | Lineage from an accepted Outcome or closed Open Loop to a later follow-up responsibility. |
-| `ResponsibilityLink` | **Proposed persisted form** for the locked explicit, provenance-bearing relationship from a Home Open Loop to a new or existing Work Outcome. Linking never moves, merges, closes, verifies, or accepts either responsibility; exact schema and cardinality remain an implementation-gate decision. |
+| `ResponsibilityLink` | Immutable, explicit, many-to-many lineage between one Home `OpenLoop` and one Work `Outcome`, recording source, destination, creator, reason, created time, and optional ended time/reason. Create/end never moves, merges, closes, verifies, accepts, or mutates either responsibility. Duplicate active pairs are rejected. |
 
 ### Execution, authority, and effects
 
@@ -378,6 +389,13 @@ The launch trace records enough causal metadata to reconstruct responsibility wi
 
 Raw prompts, email bodies, files, terminal output, screenshots, credentials, secrets, health values, and model chain-of-thought are excluded from the canonical trace. Source excerpts are explicit, minimized, local, provenance-bearing attachments. Trace export, retention, deletion, and debug access are user-controlled.
 
+Locked local defaults:
+
+- canonical contract, decision, authority, effect, evidence, verification, acceptance, recovery, and lineage metadata is retained with its responsibility until the user deletes that responsibility;
+- redacted operational diagnostics expire 30 days after an Attempt ends and may be shortened or disabled by the user;
+- raw private artifacts are not retained by the trace unless the user explicitly saves one with a visible scope and expiry;
+- deletion records only a content-free generation marker so stale replicas or recovery logs cannot silently resurrect deleted trace content.
+
 ## Information architecture
 
 Kennel has three primary destinations:
@@ -410,28 +428,25 @@ Home is a responsibility/attention projection, not a dashboard of activity or a 
 - skills, MCP servers, rules, routing overrides, and Desktop Context beta;
 - future hosted attachment clearly marked later.
 
-## Complete launch screen and state inventory
+## Five adaptive product surfaces
 
-| Surface | User job | Required states |
+The former review atlas is a state catalogue, not a requirement for separate routes. The product has exactly five lifecycle surfaces; each adapts to Home or Work context and to the current failure/attention state. Settings & Control and the Operator Inspector are overlays, not lifecycle stages.
+
+| Surface | Primary question | Adaptive modes and required states |
 | --- | --- | --- |
-| Onboarding | Establish local Home and optional Work Project. | no Project, invalid folder, Codex absent/auth required, ready, offline daemon. |
-| Home / Today | See what needs handling now. | empty, normal, stale, offline, recovery, high-attention. |
-| Connect to Work | Turn a Home suggestion/Open Loop into a draft Outcome or link it to an existing Outcome without losing provenance. | candidate, corrected, no Project, new Outcome draft, existing link, keep Home-only, duplicate. |
-| Quick Capture | Add or correct an explicit Open Loop/note. | draft, duplicate candidate, assigned space, deferred. |
-| Daily Snapshot | Reconstruct today from trusted facts. | collecting, ready, corrected, partial source, Daily Close. |
-| Communication Inbox | See only actionable conversation candidates. | disconnected, authorizing, syncing, ready, stale, revoked, no actionable items. |
-| Communication Brief | Understand the ask and next action without reading the thread. | candidate uncertain, corrected, confirmed Open Loop, promoted Outcome, dismissed. |
-| Draft Review | Approve a bounded remote draft effect. | proposed, approval, created, edited, failed, unknown/reconciled, sent externally. |
-| Open Loop Detail | Track owner, closure condition, next review, provenance, and linked Outcomes. | active, waiting, deferred, ready to close, closed, released, reopened, transferred. |
-| Work Home | Find Project Outcomes and next intervention. | empty, active, Needs You, Action Required, Waiting, Ready for Acceptance. |
-| Outcome Define/Clarify | Establish an inspectable contract. | vague success, conflict, revision, defer. |
-| Mission Map/Authority | Understand plan, topology, Evidence, budget, placement, and effects. | direct unit, non-trivial graph, invalidated, capability blocked, changed grant. |
-| Run | Track responsibility by Work Unit. | queued, running, paused, retry, lost, recovery, partial Evidence. |
-| Evidence/Verification | Judge each current criterion. | missing/stale/contradicting Evidence, failed check, verifier conflict, exception. |
-| Acceptance/Adaptive Close | Accept, reopen, release, retain resources, or create successor. | accept, rework, revised active, dirty worktree, unresolved Open Loop. |
-| Re-entry | Continue with minimum exact context. | Outcome successor, Open Loop reopened, source unavailable, historical provider unavailable. |
-| Desktop Context beta | Consent to optional ambient context and correct episodes. | disabled, permission denied, paused, excluded app, storage cap, local/provider disclosure, delete. |
-| Settings & Control | Inspect and revoke authority. | provider incompatible, connection revoked, retention/export/delete, attachment unavailable. |
+| **Enter** | What responsibility are we taking on, and where does it belong? | Work-first onboarding, Project selection/readiness, Home entry, Quick Capture, source candidate, invalid folder, provider unavailable, daemon offline. |
+| **Understand** | What is true, uncertain, and required for success? | Work Home/Outcome Define/Clarify; Home Today/Catch Up/Daily Snapshot/Communication Brief/Open Loop detail; stale source, correction, duplicate, provenance inspect. |
+| **Decide & Authorize** | What is the recommended approach, and what must the user decide or permit? | Mission Map or direct Work Unit, authority/effect/budget preview, Connect Home to Work, draft review, capability blocked, plan invalidated, changed grant. |
+| **Act & Observe** | What is Waldo doing, what changed, and does it need attention? | Run, Needs You, Action Required, Waiting, paused/retry/lost/recovery, draft-effect reconciliation, partial evidence. |
+| **Prove & Close** | Is each criterion proved, and should the responsibility close? | Evidence/Verification, Ready for Acceptance/Ready to Close, Acceptance, Adaptive Close, release, reopen, successor, Re-entry, dirty-worktree/resource disposition. |
+
+### Work-first first run
+
+For v0 local dogfood, first run recommends **Work first**: choose a local Project, verify daemon/provider readiness, and enter the first Outcome. The user may instead enter Home, but Home, Gmail, Desktop Context, an account, and hosted attachment are never onboarding blockers and no Personal Home is silently created. After either path, Home and Work remain peers over shared responsibility truth.
+
+### First implementation milestone
+
+The first complete vertical slice is the [Local Focus Ledger Outcome](kennel-v0-first-outcome-slice.md). It must traverse all five stages with one smallest-sufficient Work Unit, durable restart/recovery, criterion-bound evidence, verification, and explicit user acceptance. Its paired evaluation is an early architecture signal; the 20-Outcome dogfood gate remains the broader launch test. The exact issue/PR handoff is [Kennel First Outcome Execution Handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md).
 
 ## Reference disposition
 
@@ -527,5 +542,8 @@ The wedge is falsified or paused if supervision cost is not lower, false readine
 - PR #1/F0-F6 must first be accepted on its existing foundation boundary from a complete green local gate.
 - PR #11 must not merge wholesale. Rebase/re-extract issue-sized cleanup after foundation; remove its speculative Outcome migration/store until a vertical slice owns domain, service, storage, CDC, API, UI, recovery, and evaluation together.
 - Product work occurs only on post-foundation feature worktrees, never on the F0-F6 branch.
-- Build in vertical slices: truthful local facts and projections first, then the Outcome loop, then communication beta, then optional Desktop Context.
+- Implement the Focus Ledger milestone as five stage-aligned issue-sized PRs: Enter; Understand; Decide & Authorize; Act & Observe; Prove & Close. Each PR owns every domain, storage, CDC, service, API, UI, recovery, and evaluation change required by its user-visible truth boundary, reusing proven foundation APIs where no new durable truth is needed; no PR may leave a horizontal schema or deceptive screen layer for another PR to make true.
+- Do not call the milestone complete until the five-stage contract and failure-injection protocol pass. Only then add Home/Open Loop persistence and the explicit Home -> Work relation as a separate milestone; communication beta and optional Desktop Context follow core evidence.
+- Preserve Home and Work responsibility lineages even when one adaptive surface displays both. A `ResponsibilityLink` is lineage, never lifecycle coupling.
+- Use the [first Outcome specification](kennel-v0-first-outcome-slice.md) and [execution handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) as the implementation entry, after explicit authorization in a new session.
 - No merge, push, deploy, publish, release, destructive cleanup, or hosted attachment is authorized by this document.
