@@ -27,7 +27,8 @@ This document records the product, ontology, state, user-flow, and work-surface 
 
 ### Unknown
 
-- exact provider launch set and provider-by-provider unattended/subscription compatibility;
+- Codex admission thresholds, execution-mode requirements, and unattended/subscription compatibility;
+- historical-session resume, handoff, and recovery behavior for providers that are not selectable for new v1 work;
 - routing thresholds, fallback policy, concurrency ceilings, and evaluator independence rules;
 - offline attachment acknowledgement, conflict, detach/revoke, and deletion semantics;
 - the objective dogfood thresholds required to call the wedge proved;
@@ -77,6 +78,12 @@ The following are projections, interactions, or display language rather than ind
 - Project Follow-up / Keep for later.
 
 Provider completion, commits, PRs, checks, artifacts, and process exit are observations or candidate evidence. None can create an `AcceptanceDecision`.
+
+## Launch provider decision
+
+Kennel v1 admits **Codex only for new work**. This deliberately narrow launch set reduces provider variability while the team tests the Outcome-to-acceptance loop, admission behavior, recovery, evidence quality, and supervision cost.
+
+Other inherited provider identities remain recognized and readable for historical records, but they are not selectable for new v1 Attempts. Their original identity must not be rewritten. The exact contract for resuming, handing off, or recovering a historical non-Codex session remains unapproved, as do the authoritative Codex preflight matrix and capability-specific degraded modes.
 
 ## Product flow and lineage
 
@@ -230,6 +237,7 @@ No proprietary prompt, algorithm, engine, scoring model, archetype, or visual la
 ### Required for the first proof
 
 - local Project and provider readiness;
+- Codex-only admission for new work, with historical provider identities retained as readable but non-selectable;
 - guided Outcome definition and versioned contract;
 - direct plan or optional Mission Map;
 - compiled Work Units, RunBriefs, capabilities, and local admission;
@@ -249,7 +257,7 @@ No proprietary prompt, algorithm, engine, scoring model, archetype, or visual la
 
 ## Remaining architecture gates before feature execution
 
-1. Define the exact launch provider capability/admission matrix and historical-session recovery contract.
+1. Define the exact Codex capability/admission matrix and historical-session recovery contract; the new-work provider set is locked to Codex only.
 2. Lock `RunBrief`, lease/fence, routing/fallback, cost/budget, capability/effect, worktree/concurrency, and evaluator-independence contracts.
 3. Lock the redacted Outcome Trace and privacy-preserving observability event model.
 4. Lock objective dogfood measures, thresholds, failure injections, and falsifiers.

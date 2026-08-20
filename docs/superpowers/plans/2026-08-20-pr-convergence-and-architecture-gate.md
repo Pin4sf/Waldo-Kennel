@@ -210,7 +210,7 @@ git commit -m "chore: remove legacy user import flow"
 
 - [ ] **Step 1: Stop if the provider matrix is not approved**
 
-Do not assume PR #11's exact four-provider set. The matrix must record authentication truth, Chat/TUI, model selection, continuation, cancellation, worktree behavior, evidence support, unattended/subscription constraints, cost visibility, deletion, and fallback.
+The new-work launch set is locked to Codex only. Do not treat that decision as permission to delete inherited provider identities or historical decoder paths. Stop until the Codex matrix and historical non-Codex recovery contract record authentication truth, Chat/TUI, model selection, continuation, cancellation, worktree behavior, evidence support, unattended/subscription constraints, cost visibility, deletion, and fallback.
 
 - [ ] **Step 2: Write the historical recovery test**
 
@@ -293,7 +293,7 @@ Each description names the accepted foundation SHA, linked issue, exact omission
 - Create after approval: one separate implementation plan for the first vertical slice
 
 **Interfaces:**
-- Consumes: approved provider, RunBrief/admission, observability, evaluation, and effect-ceiling decisions
+- Consumes: approved Codex admission/historical recovery, RunBrief/admission, observability, evaluation, and effect-ceiling decisions
 - Produces: a test-driven vertical-slice plan whose schema, service, API, UI, CDC, and user-visible acceptance behavior ship together
 
 - [ ] **Step 1: Approve the remaining design gates**
