@@ -63,4 +63,10 @@ npm --prefix frontend run package
 npm --prefix frontend run package:identity
 ```
 
-The next architecture entrypoint after this foundation is accepted is a written Mission/personal-agent contract covering ownership, authority, memory, verification, acceptance, and Kennel's role as a Waldo presence. No implementation should precede that decision.
+## Accepted post-foundation design, not shipped
+
+The 18-20 August product-architecture session accepted a local-first Kennel v1 direction. Waldo's responsibility/control semantics run inside the Kennel daemon; local SQLite is the sole canonical writer; the launch does not require an account, hosted backend, or Waldo-funded model API. A versioned execution plan is presented as an optional Mission Map rather than a second responsibility object.
+
+The accepted ontology, Outcome flow, attention/recovery contract, three-destination work surface, custody boundary, reference disposition, launch feature boundary, and remaining gates are recorded in [Kennel v1 product architecture](product/kennel-v1-product-architecture.md). The deployment decision is recorded in [ADR 0003](adr/0003-local-first-waldo-core.md).
+
+These documents do not make the prototype Outcome overlay, PR #11's Outcome schema, or any Mission/verification/acceptance feature shipped. The implementation sequence begins with accepting F0-F6 and replacing PR #11 with bounded post-foundation cleanup according to the [PR convergence and architecture gate plan](superpowers/plans/2026-08-20-pr-convergence-and-architecture-gate.md). Permanent Outcome persistence waits for the remaining provider/admission, RunBrief, observability, evaluation, and consequential-effect decisions.

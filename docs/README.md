@@ -12,6 +12,14 @@ Kennel currently consists of an AO-derived Go daemon and Electron supervisor plu
 | [Status](STATUS.md) | Current chassis capabilities, donor surfaces, and work that is not shipped. |
 | [Development](development.md) | Reproducible bootstrap and verification commands. |
 
+## Accepted product architecture
+
+| Document | Purpose |
+| --- | --- |
+| [Kennel v1 product architecture](product/kennel-v1-product-architecture.md) | Accepted launch wedge, ontology, Outcome flow, attention/recovery contract, work surface, Waldo/Kennel boundary, reference disposition, feature boundary, and remaining architecture gates. It is a design baseline, not a shipped-feature claim. |
+| [ADR 0003: Local-first Waldo Core](adr/0003-local-first-waldo-core.md) | Accepted v1 deployment and custody decision: Waldo Core inside the Kennel daemon, local canonical storage, user-authenticated providers, and later explicit hosted attachment. |
+| [PR convergence and architecture gate plan](superpowers/plans/2026-08-20-pr-convergence-and-architecture-gate.md) | Safe sequence for accepting F0-F6, replacing PR #11 with bounded post-foundation cleanup, and holding the first feature implementation gate. |
+
 ## Chassis references
 
 These documents describe the inherited and currently working orchestration implementation. AO vocabulary can remain where it identifies a source compatibility seam; it is not Kennel's installed identity.
