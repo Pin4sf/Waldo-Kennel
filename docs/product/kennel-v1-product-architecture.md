@@ -345,6 +345,34 @@ Recovery is `contain -> reconcile -> narrowly retry`. Unknown effects are never 
 
 Hosted Waldo becomes canonical only for explicitly attached Responsibility Spaces and their identity, Outcome/Open Loop contracts, authority, decisions, Evidence metadata/digests, Verification, Acceptance, closure, and lineage. Kennel remains canonical for local files, worktrees, terminals, credentials, provider sessions, raw traces, and unselected artifacts. No record has dual canonical writers.
 
+## Local v0 operating envelope and quality trade-offs
+
+### Locked constraints
+
+- one user on one Mac, one local daemon, one SQLite canonical writer, and no required hosted control plane;
+- bounded local agent concurrency, with exactly one fenced writer for each worktree;
+- strong read-after-write consistency for local canonical responsibility and authority facts;
+- backpressure, pause, and truthful degraded states are preferred over hidden queues, duplicate writers, or optimistic effect claims;
+- the modular daemon remains one deployment. Microservices, distributed consensus, and cross-device conflict resolution would solve problems outside the v0 envelope.
+
+### Quality priority
+
+| Priority | Attribute | Target and accepted cost |
+| --- | --- | --- |
+| 1 | Authority/correctness | No actor silently widens authority, accepts, closes, or retries an unknown effect. Accept extra approval/reconciliation latency. |
+| 2 | Durability/recovery | Canonical facts survive restart and recovery preserves lineage. Accept local storage and explicit resource disposition. |
+| 3 | Privacy/custody | Useful without account or capture; private content excluded by default. Accept less automatic context in v0. |
+| 4 | Comprehensibility | Current responsibility, evidence, authority, and next action are inspectable without transcripts. Accept fewer opaque optimizations. |
+| 5 | Evolvability | Provider-neutral contracts and additive storage/API evolution. Accept adapter/conformance work before provider expansion. |
+| 6 | Responsiveness | Attention and navigation remain interactive while agents run. Long work is asynchronous and observable. |
+| 7 | Scale | Optimize for one person's bounded local workload first; do not trade the higher priorities for speculative multi-user scale. |
+
+### Bottleneck and counter-challenge
+
+At substantially higher local load, provider/process concurrency, worktree/disk pressure, terminal/browser resources, connector rate limits, and optional capture storage fail before loopback HTTP or SQLite query throughput. v0 responds with concurrency/storage budgets, backpressure, cleanup/retention controls, and narrower scheduling—not premature distributed services. Exact concurrency, storage, and latency thresholds remain **Unknown** until measured by the first-slice and broader dogfood protocols.
+
+The architecture should be revised rather than scaled if its central assumption is false: that a governed Outcome-to-Acceptance loop lowers supervision and re-entry cost compared with direct provider use.
+
 ## Orchestration and execution contracts
 
 ### Provider admission
@@ -583,6 +611,10 @@ The wedge is falsified or paused if supervision cost is not lower, false readine
 
 6. Hosted attachment offline/sync acknowledgement, detach/revoke, deletion, and conflict semantics.
 7. Durable Memory admission, Relationship, Health, mobile, proactive agent, trace learning, and Waldo-owned harness.
+
+### Final architecture-review conclusion
+
+No unresolved architecture choice blocks starting the first authorized v0 issue after the foundation gate. Remaining Unknowns are either implementation evidence—exact performance/concurrency, first-slice evaluation, foundation acceptance—or explicitly later capabilities. They must not be silently decided inside an implementation PR. A failed test, recovery injection, or dogfood falsifier reopens the relevant architecture decision rather than being relabeled as completion.
 
 ### Implementation entry rules
 

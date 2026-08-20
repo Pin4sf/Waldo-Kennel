@@ -393,6 +393,10 @@ The beta may remain internal while Google OAuth verification and model-disclosur
 
 ## 12. Resolved architecture defaults
 
+The final architecture review ranks local v0 priorities as: authority/correctness; durability/recovery; privacy/custody; comprehensibility; evolvability; responsiveness; then speculative scale. The system is intentionally a single-user, single-Mac modular daemon with one SQLite canonical writer. At higher local load, provider/process concurrency, worktree/disk pressure, terminal/browser resources, connector limits, and optional capture storage are expected to fail before loopback HTTP or SQLite throughput; bounded concurrency, backpressure, retention, and cleanup come before distributed services.
+
+No remaining architecture choice blocks the first authorized v0 issue after the foundation gate. Exact performance limits, implementation evidence, and later Memory/hosted/mobile/provider decisions remain explicit Unknowns and cannot be silently settled inside a feature PR.
+
 - One fenced writer per worktree. Attempt authority renews silently until completion, pause/revoke, or confirmed recovery; a missed heartbeat is `unconfirmed`, not dead. Fences pause only new consequential effects and canonical mutations while ordinary reasoning, observation, exploration, and authorized local tactics remain free.
 - Waldo recommends the smallest sufficient topology using model-proposed decomposition checked by a deterministic, inspectable Orchestration Policy. One direct Attempt is the default; parallel work uses isolated non-overlapping worktrees and explicit dependencies/integration.
 - No silent provider fallback. v0 dogfood uses Codex only; any later handoff creates a new Attempt through an admitted adapter and any review required by a material authority or plan change.
