@@ -41,6 +41,10 @@ No provider marketing claim, process state, agent self-report, commit, pull requ
 - A simple Outcome may compile to one Work Unit. A non-trivial Outcome may expose an optional Mission Map backed by a versioned `PlanRevision`.
 - Codex is the only provider selectable for new v1 work, intentionally narrowing variability for better testing.
 - Other provider identities remain historical and readable but non-selectable for new work. Original provider identity is never rewritten.
+- Codex admission is live, fail-closed, and bound to every Attempt start or resume; a readiness badge is not authority.
+- Required capabilities block admission when absent. Optional model, subagent, structured-output, checkpoint, cost, browser, or MCP capabilities only remove dependent topology choices.
+- Compatibility is capability-first: known-bad versions are blocked, while an unrecognized version may run provisionally only after every required check passes.
+- Historical Codex sessions require exact binding, reconciliation, and readmission. Historical non-Codex sessions are inspect-only and hand off through a provenance-bearing packet to a new Codex Attempt.
 - Hosted attachment, Memory as a product surface, Relationship, Paxel learning, broad providers, teams, mobile, and commercialization are later.
 
 ### Observed
@@ -256,6 +260,10 @@ flowchart LR
 - Every execution is an Attempt against a frozen Work Unit and contract/plan revision.
 - Codex is the only new-work provider in v1.
 - Provider-native strengths remain available behind shared capability and event contracts; the product must not imply unsupported parity.
+- Before every Attempt start or resume, Kennel authoritatively checks compatible executable/protocol, current authentication, stable session identity, requested mode, start/resume/pause/cancel, ordered events, Project/worktree binding, Attempt correlation, and required local evidence capture.
+- Admission is fail-closed for required capabilities. Optional model pinning, native subagents, structured output, checkpoint export, cost/token reporting, browser automation, and MCP-specific capabilities only enable dependent routes.
+- Version policy is capability-first: record the version, block known-bad versions, and admit an unrecognized version provisionally only if every required live check succeeds.
+- Historical Codex resume requires exact Attempt binding, workspace/effect reconciliation, and fresh admission. Historical non-Codex sessions are inspect-only; continuation creates a new Codex Attempt from explicitly selected, provenance-bearing recovery context.
 
 ### RunBrief minimum understanding
 
@@ -273,22 +281,16 @@ This is an accepted semantic outline, not a final wire schema.
 
 ### Proposed, not approved
 
-- Perform an authoritative Codex preflight for installation/version, authentication, requested session mode, start/resume/cancel support, worktree binding, and evidence/event capture before each admitted Attempt.
-- Fail closed when a required capability is unavailable; disable only the topology branches that depend on optional capabilities such as model pinning or native subagents.
 - Freeze one capability manifest and budget envelope per Attempt.
 - Use leases and monotonically increasing fences so stale sessions cannot write current results.
 - Permit automatic fallback only for low-risk reversible mechanics within the same approved capability and budget envelope.
 
 ### Unknown and launch-blocking
 
-- exact Codex capability/admission matrix and version policy;
-- authoritative authentication probe and freshness interval;
-- session-mode requirements and continuation guarantees;
 - lease duration, renewal, fencing, and stale-event rules;
 - routing and fallback thresholds, cost/budget representation, and concurrency ceiling;
 - worktree overlap and ownership policy for concurrent Work Units;
 - evaluator-independence requirements and whether Codex may verify its own Attempt;
-- resume, inspect-only, handoff, and close behavior for historical non-Codex sessions.
 
 ## 9. State machines
 
@@ -343,7 +345,7 @@ Recovery follows **contain -> reconcile -> narrowly retry**.
 | Worktree dirty or overlaps another Attempt | Block destructive cleanup or competing ownership. | Attribute files and active owner. | Serialize, replan, or request judgment. |
 | Check or verification fails | Keep Outcome active. | Bind failure to criterion and subject revision. | Rework affected Work Unit; preserve failed evidence. |
 | Effect outcome unknown | Stop repeated effects. | Query authoritative external/local state. | Record receipt, request judgment, or retry only after certainty. |
-| Historical non-Codex session | Keep record readable and non-selectable for new work. | Inspect identity and recoverable facts without rewriting them. | **Unknown:** inspect-only, resume, or handoff contract awaits approval. |
+| Historical provider session | Keep identity and history unchanged; non-Codex remains non-selectable. | Historical Codex: bind, reconcile, and readmit. Non-Codex: inspect and select explicit recovery context. | Resume the exact Codex Attempt only when safe; otherwise create a new Codex Attempt with provenance. |
 
 Non-material recovery remains in history. Material recovery creates a compact receipt. Human responsibility becomes Needs You or Action Required, never a vague error banner.
 
@@ -464,9 +466,12 @@ Kennel has three primary destinations: **Work Home**, **Outcome Workspace**, and
 
 - Product thesis, launch wedge, local-first topology, ownership/custody split, ontology, lineage, attention contract, screen hierarchy, Codex-only new-work provider set, acceptance authority, and broad launch/later boundary.
 
+### Resolved
+
+1. **Codex admission and historical recovery:** strict per-Attempt admission, required/optional capabilities, capability-first version handling, historical Codex reconciliation/readmission, and inspect-only non-Codex handoff are locked.
+
 ### Still unapproved and launch-blocking
 
-1. **Codex admission and historical recovery:** exact capability matrix, live preflight, session modes, model policy, and non-Codex historical resume/handoff rules.
 2. **RunBrief and orchestration contracts:** wire schema, leases/fences, routing/fallback, cost/budget, capabilities/effects, worktree concurrency, and evaluator independence.
 3. **Redacted Outcome Trace:** event schema, correlation identifiers, retention, minimization, export, deletion, and debugging access.
 4. **Dogfood proof:** measures, thresholds, task suite, failure injections, supervision accounting, and falsifiers.
@@ -478,14 +483,13 @@ Hosted attachment offline/sync/detach/revoke/delete semantics are deferred becau
 
 The team should review these in order and record one decision at a time:
 
-1. What exact capabilities must Codex prove at admission, and what is inspect-only versus resumable for historical non-Codex sessions?
-2. Which RunBrief fields and lease/fence rules are mandatory for the first vertical slice?
-3. Can Codex verify its own Attempt in v1, and if so, what deterministic check or independent boundary prevents self-attestation from becoming truth?
-4. What redacted event set is sufficient to reconstruct an Outcome without retaining raw prompts, private files, or terminal content?
-5. What dogfood threshold proves lower supervision cost than direct Codex use, and what result falsifies the wedge?
-6. What is the highest effect v1 may perform before a separate, just-in-time approval?
-7. Does every prototype screen preserve Outcome-first hierarchy and one obvious next action?
-8. Is any canonical object actually a projection, or any projection being treated as durable truth?
+1. Which RunBrief fields and lease/fence rules are mandatory for the first vertical slice?
+2. Can Codex verify its own Attempt in v1, and if so, what deterministic check or independent boundary prevents self-attestation from becoming truth?
+3. What redacted event set is sufficient to reconstruct an Outcome without retaining raw prompts, private files, or terminal content?
+4. What dogfood threshold proves lower supervision cost than direct Codex use, and what result falsifies the wedge?
+5. What is the highest effect v1 may perform before a separate, just-in-time approval?
+6. Does every prototype screen preserve Outcome-first hierarchy and one obvious next action?
+7. Is any canonical object actually a projection, or any projection being treated as durable truth?
 
 ## 16. Review and implementation gate
 
@@ -494,6 +498,6 @@ Reviewers should annotate this packet and the clickable prototype with contradic
 Before the first Outcome migration or vertical slice:
 
 - PR #1/F0-F6 must be accepted from a green complete gate;
-- gates 1-5 above must be explicitly approved;
+- gates 2-5 above must be explicitly approved;
 - an issue-sized vertical-slice plan must enumerate domain, service, storage, CDC, API, frontend, recovery, and evaluation changes;
 - the user must explicitly authorize implementation of that plan.

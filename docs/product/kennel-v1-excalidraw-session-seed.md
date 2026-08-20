@@ -49,7 +49,8 @@ Elements:
 - local custody statement;
 - Codex readiness block;
 - “Codex only” locked label;
-- historical providers: readable, non-selectable;
+- historical Codex: reconcile and readmit or create a new Attempt;
+- historical non-Codex: readable, inspect-only, and continued only through a provenance-bearing packet to a new Codex Attempt;
 - Action Required variant for missing installation or authentication;
 - primary action: **Use this Project**.
 
@@ -367,7 +368,7 @@ Create eight small cards. Each card must answer “contain, reconcile, resume/es
 7. verification failure;
 8. external effect outcome unknown.
 
-Add a ninth hatched card: **historical non-Codex session** — readable and non-selectable is locked; inspect/resume/handoff behavior is unknown.
+Add a ninth solid card: **historical provider session** — Codex requires exact binding, reconciliation, and fresh admission; non-Codex is inspect-only and hands off explicitly selected recovery context to a new Codex Attempt.
 
 ## 8. Ready-to-paste Excalidraw prompts
 
@@ -387,9 +388,10 @@ Use these prompts only to establish rough geometry; the team should correct ever
 
 ## 9. Unresolved-decision parking lot
 
-Put these five cards in review order:
+Move **Codex admission and historical recovery** to the resolved strip: per-Attempt fail-closed admission, required/optional capability separation, capability-first compatibility, and asymmetric historical recovery are locked.
 
-1. **Codex admission and historical recovery** — live preflight, capability matrix, version/model/session mode, continuation, and non-Codex inspect/resume/handoff.
+Put these four unresolved cards in review order:
+
 2. **RunBrief and orchestration** — schema, leases/fences, routing/fallback, budget, capabilities/effects, worktree concurrency, evaluator independence.
 3. **Redacted Outcome Trace** — event fields, correlation, minimization, retention, export, deletion, and debugging access.
 4. **Dogfood proof** — tasks, objective measures, supervision accounting, thresholds, failure injection, and falsifiers.
@@ -431,7 +433,7 @@ Hosted attachment offline/sync/detach/revoke/delete goes in a separate **Deferre
 
 ### 70-85 minutes — Open gates
 
-- Take the five decision cards in order.
+- Take the four unresolved decision cards in order.
 - Record one explicit decision or one named owner/evidence need per card.
 - Do not convert a proposal into Locked merely because it is drawn cleanly.
 

@@ -27,8 +27,6 @@ This document records the product, ontology, state, user-flow, and work-surface 
 
 ### Unknown
 
-- Codex admission thresholds, execution-mode requirements, and unattended/subscription compatibility;
-- historical-session resume, handoff, and recovery behavior for providers that are not selectable for new v1 work;
 - routing thresholds, fallback policy, concurrency ceilings, and evaluator independence rules;
 - offline attachment acknowledgement, conflict, detach/revoke, and deletion semantics;
 - the objective dogfood thresholds required to call the wedge proved;
@@ -83,7 +81,28 @@ Provider completion, commits, PRs, checks, artifacts, and process exit are obser
 
 Kennel v1 admits **Codex only for new work**. This deliberately narrow launch set reduces provider variability while the team tests the Outcome-to-acceptance loop, admission behavior, recovery, evidence quality, and supervision cost.
 
-Other inherited provider identities remain recognized and readable for historical records, but they are not selectable for new v1 Attempts. Their original identity must not be rewritten. The exact contract for resuming, handing off, or recovering a historical non-Codex session remains unapproved, as do the authoritative Codex preflight matrix and capability-specific degraded modes.
+Other inherited provider identities remain recognized and readable for historical records, but they are not selectable for new v1 Attempts. Their original identity must not be rewritten.
+
+### Authoritative Codex admission
+
+Admission is strict, fail-closed, and scoped to one Attempt. A project-level readiness badge is a convenience projection, never execution authority. Before every Attempt start or resume, Kennel runs an authoritative live preflight for:
+
+- a compatible Codex executable and protocol;
+- the current authenticated identity;
+- stable session identity and the requested session mode;
+- start, resume, pause/cancel, and ordered event capture;
+- Project/worktree binding and Attempt correlation;
+- local evidence capture required by the Work Unit.
+
+Missing any required capability blocks admission and creates Action Required or a reviewed replan. Explicit model pinning, native subagents, structured output, checkpoint export, cost/token reporting, browser automation, and MCP-specific capabilities are optional; their absence removes only the routing or topology choices that require them.
+
+Compatibility is capability-first rather than binary-exists or exact-version-only. Kennel records the Codex version, blocks explicitly known-bad versions, and may admit a new or unrecognized version provisionally only when every required live check passes. The admission result is bound to the Attempt and is not reused for a later resume.
+
+### Historical-session recovery
+
+- A historical Codex session may resume only when Kennel can bind it to exactly one current Attempt, reconcile its workspace and possible effects, and rerun admission against the current contract, grants, credentials, and budget. Otherwise it remains inspect-only and continuation creates a new Codex Attempt.
+- A historical non-Codex session is inspect-only in v1. Continuation creates a new Codex Attempt from a provenance-bearing recovery packet. Raw transcript content enters that packet only through explicit user selection.
+- Recovery never rewrites the original provider identity, session record, or Attempt history.
 
 ## Product flow and lineage
 
@@ -255,13 +274,16 @@ No proprietary prompt, algorithm, engine, scoring model, archetype, or visual la
 - Paxel/AutoResearch learning and automatic skill promotion;
 - broad provider catalog, mobile product, teams, marketplace, and commercialization.
 
+## Resolved architecture gate
+
+1. **Codex admission and historical recovery:** strict per-Attempt live admission, required/optional capability separation, capability-first compatibility with known-bad blocking, historical Codex reconciliation/readmission, and inspect-only non-Codex handoff to a new Codex Attempt are locked.
+
 ## Remaining architecture gates before feature execution
 
-1. Define the exact Codex capability/admission matrix and historical-session recovery contract; the new-work provider set is locked to Codex only.
 2. Lock `RunBrief`, lease/fence, routing/fallback, cost/budget, capability/effect, worktree/concurrency, and evaluator-independence contracts.
 3. Lock the redacted Outcome Trace and privacy-preserving observability event model.
 4. Lock objective dogfood measures, thresholds, failure injections, and falsifiers.
 5. Decide the v1 consequential-effect ceiling, including whether Kennel may create only local changes, draft PRs, or other external effects before a distinct approval.
 6. Resolve offline hosted-attachment, detach/revoke, and deletion semantics before implementing attachment; these do not block the fully local launch.
 
-No permanent Outcome migration or feature implementation should begin until gates 1-5 are approved. Gate 6 is required only before hosted attachment implementation.
+No permanent Outcome migration or feature implementation should begin until gates 2-5 are approved. Gate 6 is required only before hosted attachment implementation.

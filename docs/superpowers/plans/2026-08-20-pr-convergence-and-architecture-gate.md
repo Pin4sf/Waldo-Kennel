@@ -208,9 +208,9 @@ git commit -m "chore: remove legacy user import flow"
 - Consumes: the approved provider capability/admission matrix
 - Produces: separate recognition of historical provider identities and selectability for new work
 
-- [ ] **Step 1: Stop if the provider matrix is not approved**
+- [ ] **Step 1: Implement the approved provider boundary faithfully**
 
-The new-work launch set is locked to Codex only. Do not treat that decision as permission to delete inherited provider identities or historical decoder paths. Stop until the Codex matrix and historical non-Codex recovery contract record authentication truth, Chat/TUI, model selection, continuation, cancellation, worktree behavior, evidence support, unattended/subscription constraints, cost visibility, deletion, and fallback.
+The new-work launch set is Codex only. Admission is live, fail-closed, and bound to each Attempt start or resume. Required capabilities block admission; optional capabilities only enable dependent routing choices. Compatibility is capability-first with known-bad blocking. Do not treat this as permission to delete inherited provider identities or historical decoder paths: historical Codex requires reconciliation and readmission, while historical non-Codex is inspect-only and hands off to a new Codex Attempt without rewriting identity.
 
 - [ ] **Step 2: Write the historical recovery test**
 
@@ -298,7 +298,7 @@ Each description names the accepted foundation SHA, linked issue, exact omission
 
 - [ ] **Step 1: Approve the remaining design gates**
 
-Obtain explicit approval for gates 1-5 in the specification. Hosted attachment gate 6 may remain deferred for the fully local launch.
+Gate 1, Codex admission and historical recovery, is approved. Obtain explicit approval for gates 2-5 in the specification. Hosted attachment gate 6 may remain deferred for the fully local launch.
 
 - [ ] **Step 2: Select one end-to-end dogfood Outcome**
 
