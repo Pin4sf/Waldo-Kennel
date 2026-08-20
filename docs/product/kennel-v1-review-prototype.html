@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Waldo Kennel desktop launch review prototype</title>
+  <title>Waldo Kennel v0 dogfood and provider-neutral v1 review prototype</title>
   <style>
     :root { color-scheme: light; --ink:#181818; --muted:#666; --line:#c8c8c5; --paper:#fff; --wash:#f3f3f0; --wash2:#e8e8e4; font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
     * { box-sizing:border-box; }
@@ -103,7 +103,7 @@
       <span class="brand">WALDO KENNEL</span><span class="prototype">Architecture review · not shipped</span>
       <div class="top-nav"><button type="button" data-go="home">Home</button><button type="button" data-go="work">Work</button><button type="button" data-go="settings">Settings</button></div>
     </header>
-    <div class="note">Low-fidelity grayscale sketch. One Waldo identity, responsibility-first hierarchy, explicit authority, and no automatic Acceptance or closure.</div>
+    <div class="note">Low-fidelity grayscale v0 dogfood sketch. One Waldo identity, responsibility-first hierarchy, explicit authority, no automatic Acceptance or closure, and a provider-neutral v1 seam. Codex-only is local testing—not a v1 provider decision.</div>
     <div class="shell">
       <nav class="journey" aria-label="Prototype screens">
         <h2>Enter</h2>
@@ -143,7 +143,7 @@
         <main>
           <section class="screen" data-screen="onboarding">
             <div class="header"><div><div class="eyebrow">First run</div><h1>Your local Waldo starts here</h1><p class="muted">Personal Home works without an account, Project, Gmail connection, or desktop capture.</p></div><span class="tag locked">Core</span></div>
-            <div class="grid2"><div class="panel emphasis stack"><h2>Create Personal Home</h2><p>Confirmed Open Loops, explicit notes, Daily Snapshots, and attention stay local.</p><div class="field"><label>Name</label><input value="My Home"></div><button class="primary" data-go="home">Enter Home</button></div><div class="stack"><div class="panel"><h2>Add Work when ready</h2><p class="muted">Connect a local folder and Codex only when you define executable work.</p><button data-go="work">Add Work Project</button></div><div class="panel dashed"><h2>Optional connections</h2><p>Gmail Communication Loops and Desktop Context are separate, revocable betas.</p><div class="actions"><button data-go="comms">Review Gmail</button><button data-go="context">Review Desktop Context</button></div></div></div></div>
+            <div class="grid2"><div class="panel emphasis stack"><h2>Create Personal Home</h2><p>Confirmed Open Loops, explicit notes, Daily Snapshots, and attention stay local.</p><div class="field"><label>Name</label><input value="My Home"></div><button class="primary" data-go="home">Enter Home</button></div><div class="stack"><div class="panel"><h2>Add Work when ready</h2><p class="muted">Connect a local folder and the v0 Codex dogfood route only when you define executable work. v1 providers remain TBD.</p><button data-go="work">Add Work Project</button></div><div class="panel dashed"><h2>Optional connections</h2><p>Gmail Communication Loops and Desktop Context are separate, revocable betas.</p><div class="actions"><button data-go="comms">Review Gmail</button><button data-go="context">Review Desktop Context</button></div></div></div></div>
           </section>
 
           <section class="screen" data-screen="home" hidden>
@@ -204,9 +204,9 @@
           </section>
 
           <section class="screen" data-screen="mission" hidden>
-            <div class="header"><div><div class="eyebrow">Outcome · Plan</div><h1>Mission Map</h1><p class="muted">The smallest sufficient topology backed by PlanRevision 2.</p></div><span class="tag locked">Codex · sequential</span></div>
+            <div class="header"><div><div class="eyebrow">Outcome · Plan</div><h1>Mission Map</h1><p class="muted">The smallest sufficient topology backed by PlanRevision 2.</p></div><span class="tag locked">v0 Codex · sequential</span></div>
             <div class="flow"><div class="node"><strong>1. Scaffold</strong><p class="muted">UI + local model</p></div><div class="arrow">→</div><div class="node"><strong>2. Record</strong><p class="muted">Entry + total</p></div><div class="arrow">→</div><div class="node active"><strong>3. Verify</strong><p class="muted">Restart + criteria</p></div></div>
-            <div class="grid3" style="margin-top:15px"><div class="panel"><h2>Concurrency</h2><p>Sequential by default. No overlapping write ownership.</p></div><div class="panel"><h2>Fallback</h2><p>No provider fallback; a failure creates a new Codex Attempt or replan.</p></div><div class="panel"><h2>Verification</h2><p>Deterministic checks outside producing session; user walkthrough for semantics.</p></div></div><div class="actions" style="margin-top:15px"><button>Edit plan</button><button class="primary" data-go="authority">Review authority</button></div>
+            <div class="grid3" style="margin-top:15px"><div class="panel"><h2>Concurrency</h2><p>Sequential by default. No overlapping write ownership.</p></div><div class="panel"><h2>Provider route</h2><p>v0: Codex only. v1: adapter-selected after conformance; no silent fallback.</p></div><div class="panel"><h2>Verification</h2><p>Deterministic checks outside producing session; user walkthrough for semantics.</p></div></div><div class="actions" style="margin-top:15px"><button>Edit plan</button><button class="primary" data-go="authority">Review authority</button></div>
           </section>
 
           <section class="screen" data-screen="authority" hidden>
@@ -263,7 +263,7 @@
 
           <section class="screen" data-screen="settings" hidden>
             <div class="header"><div><div class="eyebrow">Settings & Control</div><h1>Local control</h1><p class="muted">Infrastructure is hidden until it affects permission, placement, failure, disclosure, or revoke.</p></div><span class="tag locked">Inspectable</span></div>
-            <div class="grid2"><div class="stack"><div class="panel"><h2>Responsibility Spaces</h2><ul class="list"><li>Personal Home <strong>Local</strong></li><li>Waldo Kennel Work <strong>Project ready</strong></li></ul></div><div class="panel"><h2>Codex</h2><ul class="list"><li>Authentication <strong>Ready</strong></li><li>Admission <strong>Per Attempt</strong></li><li>Historical non-Codex <strong>Readable · inspect-only</strong></li></ul></div><div class="panel"><h2>Gmail</h2><ul class="list"><li>Connection <strong>Ready</strong></li><li>Read/draft scope <button>Review</button></li><li>Disconnect/revoke <button class="danger">Review</button></li></ul></div></div><div class="stack"><div class="panel"><h2>Permissions and effects</h2><ul class="list"><li>Local read/write defaults <button>Review</button></li><li>Disclosure boundary <button>Review</button></li><li>Remote effects <strong>Just-in-time approval</strong></li></ul></div><div class="panel"><h2>Privacy and data</h2><ul class="list"><li>Trace retention/export/delete <button>Manage</button></li><li>Raw source attachments <button>Manage</button></li><li>Desktop Context <button data-go="context">Off · review</button></li></ul></div><div class="panel"><h2>Later</h2><ul class="list"><li>Hosted attachment <button disabled>Not available</button></li><li>Durable Memory / Health / Relationship <button disabled>Separate architecture</button></li></ul></div></div></div>
+            <div class="grid2"><div class="stack"><div class="panel"><h2>Responsibility Spaces</h2><ul class="list"><li>Personal Home <strong>Local</strong></li><li>Waldo Kennel Work <strong>Project ready</strong></li></ul></div><div class="panel"><h2>Provider routes</h2><ul class="list"><li>v0 Codex authentication <strong>Ready</strong></li><li>Admission <strong>Per Attempt · fail closed</strong></li><li>v1 providers <strong>TBD · adapter conformance</strong></li><li>Historical sessions <strong>Readable; recovery only after fresh readmission</strong></li></ul></div><div class="panel"><h2>Gmail</h2><ul class="list"><li>Connection <strong>Ready</strong></li><li>Read/draft scope <button>Review</button></li><li>Disconnect/revoke <button class="danger">Review</button></li></ul></div></div><div class="stack"><div class="panel"><h2>Permissions and effects</h2><ul class="list"><li>Local read/write defaults <button>Review</button></li><li>Disclosure boundary <button>Review</button></li><li>Remote effects <strong>Just-in-time approval</strong></li></ul></div><div class="panel"><h2>Privacy and data</h2><ul class="list"><li>Trace retention/export/delete <button>Manage</button></li><li>Raw source attachments <button>Manage</button></li><li>Desktop Context <button data-go="context">Off · review</button></li></ul></div><div class="panel"><h2>Later</h2><ul class="list"><li>Hosted attachment <button disabled>Not available</button></li><li>Durable Memory / Health / Relationship <button disabled>Separate architecture</button></li></ul></div></div></div>
           </section>
         </main>
       </div>

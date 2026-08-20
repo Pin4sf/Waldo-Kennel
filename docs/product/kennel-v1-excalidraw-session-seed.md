@@ -1,6 +1,6 @@
-# Waldo Kennel desktop launch Excalidraw session seed
+# Waldo Kennel v0 dogfood and provider-neutral v1 Excalidraw session seed
 
-- Purpose: team critique of the complete local Home + Work launch
+- Purpose: team critique of the complete local Home + Work v0 dogfood and provider-neutral v1 seam
 - Source of truth: [team review packet](kennel-v1-team-review-packet.md)
 - Clickable reference: [low-fidelity prototype](kennel-v1-review-prototype.html)
 - Status: facilitation seed, not final visual design
@@ -17,7 +17,7 @@ Build five left-to-right zones with horizontal lanes.
 1. **Enter** — onboarding, Home, connections, Project readiness.
 2. **Understand** — Daily Snapshot, Communication Brief, Quick Capture, Outcome Define.
 3. **Decide and authorize** — candidate confirmation, Mission Map, authority/effect preview.
-4. **Act and observe** — Codex Work Units, draft effect, attention, Waiting, recovery.
+4. **Act and observe** — v0 Codex Work Units, provider-adapter seam, draft effect, attention, Waiting, recovery.
 5. **Prove and close** — Evidence, Verification, Acceptance, Open Loop closure, Daily Close, Re-entry.
 
 ### Lanes
@@ -26,7 +26,7 @@ Build five left-to-right zones with horizontal lanes.
 2. **Home surface** — personal continuity, communication, Open Loops, Daily Snapshot.
 3. **Work surface** — Outcomes, plans, Work Units, Evidence, Acceptance.
 4. **Local Waldo Core** — contracts, authority, decisions, effects, proof, closure, lineage.
-5. **Kennel Runtime** — Project, worktree, Codex, connector, capture, recovery.
+5. **Kennel Runtime** — Project, worktree, provider adapters, connector, capture, recovery.
 6. **Evidence, privacy, and unknowns** — sources, disclosure, falsifiers, later boundaries.
 
 ## 2. Shared legend
@@ -37,7 +37,7 @@ Build five left-to-right zones with horizontal lanes.
 | Rounded rectangle | Product surface/projection | Communication Brief, Daily Snapshot |
 | Solid rectangle | Canonical object | Outcome, OpenLoop, WorkUnit |
 | Document | Immutable revision | ContractRevision 2 |
-| Gear | Runtime fact | Codex process, Gmail sync |
+| Gear | Runtime fact | provider adapter session, Gmail sync |
 | Paperclip | Evidence/provenance | test result, thread reference |
 | Shield | Capability/effect boundary | write grant, draft approval |
 | Dashed arrow | Candidate/admission path | CommitmentCandidate to OpenLoop |
@@ -191,7 +191,9 @@ States: proposed, approved, created, edited, failed, unknown/reconciled, sent ex
 
 - direct one-WorkUnit variant and non-trivial graph;
 - dependencies, evidence, verification, topology rationale;
-- Codex-only routing;
+- v0 Codex-only routing, visibly labeled as local dogfood rather than a v1 provider decision;
+- provider-neutral RunBrief core plus adapter-compiled form; required versus optional capability profile;
+- no silent provider fallback; later handoff is a new Attempt after adapter admission and required review;
 - sequential default, isolated-worktree parallel exception;
 - budget and recovery boundary;
 - primary: **Review authority**.
@@ -305,7 +307,7 @@ States: disabled, denied, paused, excluded app, storage cap, provider unavailabl
 ### F27 — Settings & Control
 
 - Responsibility Spaces and Projects;
-- Codex readiness and historical providers;
+- v0 Codex readiness, provider-adapter capability profiles, and historical providers;
 - Gmail connection/sync/revoke;
 - grants/effects/disclosure;
 - retention/export/delete;

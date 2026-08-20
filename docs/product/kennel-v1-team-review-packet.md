@@ -1,12 +1,12 @@
-# Waldo Kennel desktop launch team review packet
+# Waldo Kennel v0 dogfood and provider-neutral v1 team review packet
 
-- Status: Team review baseline; documentation and prototype only
+- Status: v0 dogfood baseline; provider-neutral v1 direction remains partly proposed; documentation and prototype only
 - Date: 2026-08-20
 - Audience: founders, product, design, engineering, privacy, and security
 - Canonical source: [desktop launch product architecture](kennel-v1-product-architecture.md)
 - Implementation status: not implemented
 
-This packet is the shareable review view of the accepted Waldo Kennel desktop launch. It combines the Kennel Work loop with a local Personal Home, confirmed Open Loops, Daily Snapshot, a bounded Gmail Communication Loops beta, and a later opt-in Desktop Context beta. It is not a claim that current code or PR #11 already implements these decisions.
+This packet is the shareable review view of the accepted Waldo Kennel local v0 dogfood. It combines the Kennel Work loop with a local Personal Home, confirmed Open Loops, Daily Snapshot, a bounded Gmail Communication Loops beta, and a later opt-in Desktop Context beta. Codex-only execution is locked only for local v0 testing; v1 provider selection is Unknown/TBD and must use provider-neutral adapters. It is not a claim that current code or PR #11 already implements these decisions.
 
 Companion artifacts:
 
@@ -41,7 +41,8 @@ Messages, model text, commits, PRs, checks, screenshots, activity, and provider 
 - Desktop Context is launch+1, separately consented, optional, local, correctable, and never automatic Memory/Evidence/authority.
 - Local Waldo Core runs inside the daemon. Electron is a thin supervisor. Local SQLite is the sole canonical writer.
 - No account, hosted Waldo API, Waldo-funded model, or central Memory service is required for launch.
-- Codex is the only provider selectable for new Work Attempts. Historical providers remain readable and retain original identity.
+- **v0 only:** Codex is the only provider selectable for local dogfood Work Attempts. Historical provider identities remain readable and retain original identity.
+- **Unknown/TBD for v1:** provider selection is not locked. Claude and other providers require an admitted adapter and conformance before becoming selectable; the core orchestration model remains provider-neutral.
 - Provider completion, commits, PRs, checks, Verification, messages, and drafts never create Acceptance or Open Loop closure.
 - All consequential effects have an EffectIntent before I/O and an EffectReceipt after reconciliation.
 - Hosted attachment, durable Memory, Relationship, Health/mobile, durable proactive agent, Waldo-owned harness, teams, marketplace, and commercialization remain later.
@@ -66,7 +67,7 @@ Messages, model text, commits, PRs, checks, screenshots, activity, and provider 
 
 | User/job | Problem today | Launch mechanism | Falsifier |
 | --- | --- | --- | --- |
-| Technical founder/developer delegates code work | Intent, plan, permissions, and proof are buried in sessions. | Outcome contract, Mission Map, Work Units, Codex Attempts, Evidence, Verification, Acceptance. | More supervision than direct Codex. |
+| Technical founder/developer delegates code work | Intent, plan, permissions, and proof are buried in sessions. | Outcome contract, Mission Map, Work Units, admitted provider Attempts, Evidence, Verification, Acceptance. | More supervision than direct Codex in v0 dogfood. |
 | User returns after interruption | They reconstruct branches, sessions, messages, and next steps. | Causal trace, Recovery receipt, Daily Snapshot, Re-entry packet. | Full transcripts still required routinely. |
 | User receives an important email | The actual ask, owner, due condition, and next action are unclear. | Communication Brief and correctable Commitment Candidate. | False commitments become canonical. |
 | User waits on another person | A quiet thread is forgotten or incorrectly considered done. | Open Loop with owner, trigger, next review, and closure condition. | Archive/inactivity silently closes it. |
@@ -132,7 +133,7 @@ flowchart TD
   O --> C["Contract Revision"]
   C --> M["Direct plan or Mission Map"]
   M --> W["Work Units"]
-  W --> A["Fenced Codex Attempts"]
+  W --> A["Fenced provider Attempts"]
   A --> E["Evidence"]
   E --> V["Verification"]
   V --> RA["Ready for Acceptance"]
@@ -178,7 +179,7 @@ flowchart LR
   API --> K["Kennel Runtime"]
   W <--> DB[("SQLite sole canonical writer")]
   K <--> DB
-  K --> C["Codex AgentSessions"]
+  K --> C["Provider adapters and AgentSessions"]
   K --> F["Projects, worktrees, terminal, browser"]
   K --> G["Optional Gmail connection"]
   K -.-> D["Optional Desktop Context beta"]
@@ -222,7 +223,7 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 ### Settings & Control
 
 - Responsibility Spaces and Projects;
-- Codex admission/authentication and historical-provider inspection;
+- v0 Codex admission/authentication, provider-adapter capability profiles, and historical-provider inspection;
 - Gmail connections and sync/privacy/disclosure state;
 - permissions, effects, retention, export, revoke, deletion;
 - skills, MCP, rules, optional Desktop Context;
@@ -278,7 +279,7 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 2. Goal, Success, and Review are always visible; Plan and Authority expand as risk warrants.
 3. One material clarification at a time creates a frozen ContractRevision.
 4. Simple work compiles directly; complex work shows a Mission Map.
-5. User approves authority; Kennel admits a fenced Codex Attempt.
+5. User approves authority; Kennel admits a fenced Attempt through the selected v0 Codex route or a future conformant provider adapter.
 6. Run shows Work Units and Waldo's next safe action, not transcript volume.
 7. Evidence is grouped by criterion; Verification is independent by class.
 8. User Accepts, requests rework, revises active work, or releases.
@@ -326,7 +327,7 @@ Canonical traces exclude raw prompts, email bodies, files, terminal output, scre
 2. Personal Home, Work, and Settings shell.
 3. ResponsibilitySpace, Outcome/OpenLoop domain spine and causal trace.
 4. Define/Clarify/Mission/Authority.
-5. Fenced Codex WorkUnit/Attempt execution and recovery.
+5. Fenced v0 Codex WorkUnit/Attempt execution and recovery through the provider-neutral adapter seam.
 6. Attention, Evidence, Verification, Acceptance, Close, and Re-entry.
 7. Trusted Daily Snapshot and explicit Quick Capture.
 8. Dogfood/falsification gate.
@@ -346,16 +347,17 @@ The beta may remain internal while Google OAuth verification and model-disclosur
 - Hosted attachment and cross-device sync;
 - durable Memory and consented Paxel/AutoResearch-style learning;
 - Relationship, Health First mobile, body-state planning;
-- durable proactive Waldo, Waldo-owned harness, broader providers;
+- durable proactive Waldo, Waldo-owned harness, provider routing beyond v0;
 - teams, marketplace, pricing, and commercialization.
 
 ## 12. Resolved architecture defaults
 
 - One active write lease per worktree with monotonic fence; stale events cannot mutate current state.
 - Sequential execution by default; concurrency only in isolated non-overlapping worktrees approved in the Mission Map.
-- No provider fallback; new work is Codex-only.
-- Every RunBrief freezes IDs, objective, dependencies, workspace, grants/effects/disclosure, Evidence/Verification, budget, stop/recovery/handoff.
-- Deterministic checks execute outside the producing session. Semantic criteria need an independent review Attempt or user walkthrough.
+- No silent provider fallback. v0 dogfood uses Codex only; any later handoff creates a new Attempt through an admitted adapter and required review.
+- Every provider-neutral RunBrief core freezes IDs, objective, dependencies, workspace, grants/effects/disclosure, Evidence/Verification, budget, stop/recovery/handoff. The adapter compiles a provider-specific form that may narrow but never widen it.
+- Admission is fail-closed on every Attempt start/resume. Required adapter capabilities block admission; optional capabilities enable only dependent routes. Historical identity remains immutable; later conformant recovery is selectable only after reconciliation and readmission.
+- Deterministic checks execute outside the producing session. **Proposed/Unresolved:** v1 evaluator-independence policy remains open; semantic criteria need a separately classified review Attempt or user walkthrough and must state actual independence.
 - Local worktree read/write/commands may be authorized; local commits must be explicit. No autonomous push, PR, comment, merge, deploy, publish, release, payment, destructive remote effect, or message send.
 - Gmail draft creation requires a user-requested EffectIntent. Send/archive/delete/labels/closure are not automated.
 - Causal trace is metadata-first and private-content-minimized.

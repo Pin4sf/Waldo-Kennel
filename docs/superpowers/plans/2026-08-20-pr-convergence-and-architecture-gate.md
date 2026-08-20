@@ -4,7 +4,7 @@
 
 **Goal:** Preserve and accept F0-F6, replace PR #11 with bounded post-foundation cleanup, and establish a clean base and ordered vertical-slice sequence for the accepted Waldo Kennel desktop launch.
 
-**Architecture:** F0-F6 remains an indivisible prerequisite. PR #11 is not merged or rebased wholesale: accepted cleanup is reapplied on new branches from the accepted foundation, while its incompatible Outcome schema/store, premature provider deletion, CLI authority assumptions, and locale deletion are omitted. The product architecture now resolves launch gates 1-5: Codex admission/recovery, RunBrief/lease/fence/concurrency/evaluator defaults, privacy-preserving causal trace, dogfood thresholds, and the consequential-effect ceiling. Each product feature still requires its own approved issue-sized vertical-slice plan.
+**Architecture:** F0-F6 remains an indivisible prerequisite. PR #11 is not merged or rebased wholesale: accepted cleanup is reapplied on new branches from the accepted foundation, while its incompatible Outcome schema/store, premature provider deletion, CLI authority assumptions, and locale deletion are omitted. The product architecture resolves the local v0 dogfood gates: Codex admission/recovery through a provider-neutral adapter seam, provider-neutral RunBrief/lease/fence/concurrency, privacy-preserving causal trace, dogfood thresholds, and the consequential-effect ceiling. Codex-only is a v0 testing constraint; v1's provider set and evaluator-independence policy are TBD. Each product feature still requires its own approved issue-sized vertical-slice plan.
 
 **Tech Stack:** Git/GitHub, Go daemon and SQLite, Electron/React/TypeScript, generated OpenAPI/sqlc artifacts, npm foundation scripts
 
@@ -192,7 +192,7 @@ git add backend frontend
 git commit -m "chore: remove legacy user import flow"
 ```
 
-### Task 4: Separate provider admission from historical recovery
+### Task 4: Establish provider-neutral admission and historical recovery
 
 **Files:**
 - Modify: `backend/internal/domain/harness.go`
@@ -206,15 +206,15 @@ git commit -m "chore: remove legacy user import flow"
 
 **Interfaces:**
 - Consumes: the approved provider capability/admission matrix
-- Produces: separate recognition of historical provider identities and selectability for new work
+- Produces: separate recognition of immutable historical provider identities, per-Attempt capability admission, and selectability for new work
 
 - [ ] **Step 1: Implement the approved provider boundary faithfully**
 
-The new-work launch set is Codex only. Admission is live, fail-closed, and bound to each Attempt start or resume. Required capabilities block admission; optional capabilities only enable dependent routing choices. Compatibility is capability-first with known-bad blocking. Do not treat this as permission to delete inherited provider identities or historical decoder paths: historical Codex requires reconciliation and readmission, while historical non-Codex is inspect-only and hands off to a new Codex Attempt without rewriting identity.
+The **v0 local dogfood** new-work set is Codex only. This is not a locked v1 provider decision. Admission is live, fail-closed, and bound to every Attempt start or resume. A provider adapter exposes its required and optional capability profile; required capabilities block admission while optional capabilities only enable dependent routing choices. Compatibility is capability-first with known-bad blocking. Keep provider-neutral domain/orchestration contracts and compile an immutable RunBrief core into an adapter-specific execution form that may narrow but never widen it. Do not treat this as permission to delete inherited provider identities or historical decoder paths: identity remains immutable and readable. A historical session may resume only when its adapter is later admitted, supports recovery, and passes fresh reconciliation/readmission; otherwise it is inspect-only and hands off through a provenance-bearing packet to a new Attempt on an admitted provider.
 
 - [ ] **Step 2: Write the historical recovery test**
 
-Persist a session using one retired provider identity, load it successfully, expose it as unavailable for new work, and prove it can switch or migrate to an admitted provider without rewriting its original identity.
+Persist a session using one retired provider identity, load it successfully, expose it as unavailable for new work, and prove it can hand off to an admitted provider without rewriting its original identity. Add a separate test that makes recovery selectable only when the adapter is conformant, declares recovery support, and passes fresh readmission.
 
 - [ ] **Step 3: Verify the test fails under PR #11 semantics**
 
@@ -231,7 +231,7 @@ Use domain vocabulary equivalent to `IsRecognizedPersisted` and `IsSelectable`. 
 
 - [ ] **Step 5: Apply the approved launch matrix consistently**
 
-Update backend registries, frontend options, reviewer availability, and readiness presentation together. A provider missing one capability must expose an honest degraded/admission result rather than implied parity.
+Update backend registries, frontend options, reviewer availability, and readiness presentation together. A provider missing one required capability must expose an honest degraded/admission result rather than implied parity. Do not hard-code Codex-specific execution semantics into the domain, RunBrief core, recovery record, or routing policy; Claude and other providers must be addable through the adapter/conformance boundary.
 
 - [ ] **Step 6: Run focused verification**
 
@@ -248,7 +248,7 @@ Expected: every command exits 0, including historical-row recovery.
 
 ```bash
 git add backend frontend
-git commit -m "feat: separate provider admission from historical recovery"
+git commit -m "feat: add provider-neutral admission boundary"
 ```
 
 ### Task 5: Run the post-foundation cleanup gate
@@ -293,12 +293,12 @@ Each description names the accepted foundation SHA, linked issue, exact omission
 - Create after approval: one separate implementation plan for the first vertical slice
 
 **Interfaces:**
-- Consumes: accepted ResponsibilitySpace/Outcome/OpenLoop ontology plus approved Codex admission, RunBrief/admission, observability, evaluation, and effect-ceiling decisions
+- Consumes: accepted ResponsibilitySpace/Outcome/OpenLoop ontology plus v0 Codex dogfood admission, provider-neutral RunBrief/admission, observability, and effect-ceiling decisions
 - Produces: a test-driven vertical-slice plan whose schema, service, API, UI, CDC, and user-visible acceptance behavior ship together
 
 - [ ] **Step 1: Verify the resolved design gates are represented without drift**
 
-Confirm the implementation plan preserves gates 1-5 exactly as recorded in the canonical architecture: one write lease/fence per worktree, sequential-by-default execution, no provider fallback, frozen RunBrief/budget, independent verifier classes, metadata-first trace, objective falsifiers, and no autonomous remote effects. Hosted attachment gate 6 remains deferred and must not leak into the local slice.
+Confirm the implementation plan preserves gates 1-5 exactly as recorded in the canonical architecture: one write lease/fence per worktree, sequential-by-default execution, no silent provider fallback, frozen provider-neutral RunBrief core plus adapter-compiled form, metadata-first trace, objective falsifiers, and no autonomous remote effects. Preserve the open evaluator-independence decision truthfully; do not claim provider/model independence. Hosted attachment gate 6 remains deferred and must not leak into the local slice.
 
 - [ ] **Step 2: Select one end-to-end dogfood Outcome**
 
@@ -335,13 +335,13 @@ Establish the three primary destinations and navigation using current durable fa
 
 Ship Goal, Success, Review, immutable ContractRevision, one material clarification at a time, and revision invalidation tests.
 
-- [ ] **Slice 4: Mission Map, authority, and compiled RunBrief**
+- [ ] **Slice 4: Mission Map, authority, and provider-neutral compiled RunBrief**
 
 Ship direct one-Work-Unit and non-trivial plan projections, explicit grants, budget, worktree placement, lease/fence, stop, Evidence, Verification, and recovery requirements.
 
-- [ ] **Slice 5: Fenced Codex Attempt and recovery**
+- [ ] **Slice 5: Fenced v0 Codex Attempt and provider-neutral recovery seam**
 
-Ship authoritative admission, one-write-lease/fence enforcement, sequential default, ordered observations, contain/reconcile/narrow-retry, and compact recovery receipt.
+Ship authoritative v0 Codex admission through the provider-neutral adapter contract, one-write-lease/fence enforcement, sequential default, ordered observations, contain/reconcile/narrow-retry, and compact recovery receipt. Do not decide v1 providers in this slice.
 
 - [ ] **Slice 6: Attention projections**
 

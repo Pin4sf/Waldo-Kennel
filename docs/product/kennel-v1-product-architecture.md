@@ -1,12 +1,12 @@
-# Waldo Kennel desktop launch product architecture
+# Waldo Kennel v0 dogfood and provider-neutral v1 architecture
 
-- Status: Accepted architecture baseline; documentation only
+- Status: Accepted v0 dogfood baseline and proposed provider-neutral v1 direction; documentation only
 - Decision date: 2026-08-20
 - Launch wedge: agent-heavy Mac users, expanding through governed communication continuity
 - Launch proof: useful Outcomes and commitments reach conscious closure with lower coordination and supervision cost
 - Current implementation status: not implemented by the existing Outcome overlay or PR #11
 
-This is the canonical product, ontology, lineage, governance, state, and surface definition for the first Waldo Kennel desktop launch. It consolidates the accepted Kennel Work loop with the approved local personal Home, Gmail Communication Loops beta, and phased Dayflow-inspired Desktop Context. It does not authorize feature edits on the F0-F6 foundation branch, a merge, release, or hosted deployment.
+This is the canonical product, ontology, lineage, governance, state, and surface definition for Waldo Kennel's local v0 dogfood. It consolidates the accepted Kennel Work loop with the approved local personal Home, Gmail Communication Loops beta, and phased Dayflow-inspired Desktop Context. Codex-only execution is a v0 testing constraint, not a locked v1 provider decision: v1's provider set is **Unknown/TBD** and its orchestration core must remain provider-neutral. This document does not authorize feature edits on the F0-F6 foundation branch, a merge, release, or hosted deployment.
 
 ## Evidence boundaries
 
@@ -36,6 +36,7 @@ This is the canonical product, ontology, lineage, governance, state, and surface
 - whether Desktop Context reduces re-entry cost enough to justify system-wide capture for launch users;
 - hosted attachment, offline acknowledgement, detach/revoke, deletion, and cross-device conflict behavior;
 - pricing, commercialization, health/body-state semantics, Relationship, mobile, durable Memory, and the future Waldo harness.
+- the v1 provider set, routing-policy defaults, and evaluator-independence policy beyond truthful v0 labels.
 
 ## Product thesis
 
@@ -81,7 +82,7 @@ Waldo is the single intelligence and responsibility identity. Kennel is its loca
 
 | Space kind | Purpose | Execution |
 | --- | --- | --- |
-| `WorkProject` | Repository/folder-backed work responsibility. | May compile Outcomes to local Work Units and Codex Attempts. |
+| `WorkProject` | Repository/folder-backed work responsibility. | May compile Outcomes to local Work Units and admitted provider Attempts. |
 | `PersonalHome` | Confirmed personal Open Loops, explicit notes, communication items, and Daily Snapshots not belonging to a Project. | No arbitrary code execution by default; may propose or create explicitly approved connector effects. |
 
 An Outcome or Open Loop belongs to exactly one Responsibility Space at a time. Moving one creates a recorded transfer; it does not silently rewrite provenance. Future hosted attachment is explicit per Responsibility Space or Project, with one canonical writer and no dual authority.
@@ -106,7 +107,7 @@ An Outcome or Open Loop belongs to exactly one Responsibility Space at a time. M
 | Object | Definition and invariant |
 | --- | --- |
 | `WorkUnit` | Smallest bounded schedulable unit with dependencies, capabilities, evidence, verification, stop, and recovery policy. |
-| `Attempt` | One execution of one Work Unit. Retry, fallback, or provider handoff always creates a new Attempt. |
+| `Attempt` | One execution of one Work Unit through an admitted provider adapter. Retry, fallback, or provider handoff always creates a new Attempt. |
 | `AgentSessionRef` | Stable reference to the provider-native session used by an Attempt. |
 | `CapabilityGrant` | Explicit scoped authority to read, write, execute, disclose, spend, or propose/perform an effect. |
 | `DecisionRequest` | Irreducible judgment with recommendation, rationale, consequence, override, and inspect path. |
@@ -273,7 +274,7 @@ Recovery is `contain -> reconcile -> narrowly retry`. Unknown effects are never 
 ### Kennel owns local custody and execution
 
 - repository/workspace bytes, worktrees, terminals, browser sessions, provider authentication, credentials, processes, raw traces, and unselected artifacts;
-- Codex session start/resume/pause/cancel, ordered observations, capability enforcement, and recovery reconciliation;
+- provider-adapter session start/resume/pause/cancel, ordered observations, capability enforcement, and recovery reconciliation;
 - direct connector I/O under admitted intents and grants.
 
 ### Launch deployment
@@ -293,14 +294,16 @@ Hosted Waldo becomes canonical only for explicitly attached Responsibility Space
 
 ### Provider admission
 
-- Codex is the only selectable provider for new launch Work Units.
-- Historical provider identities remain readable; non-Codex sessions are inspect-only and continue through a provenance-bearing packet into a new Codex Attempt.
-- Every Attempt start/resume performs live fail-closed checks for executable/protocol, current authentication, stable session identity, requested mode, lifecycle controls, ordered events, Project/worktree binding, Attempt correlation, and required local Evidence capture.
-- Known-bad versions are blocked. Unrecognized versions may be provisionally admitted only when all required checks pass.
+- **Locked v0 dogfood constraint:** Codex is the only selectable provider for local testing. It limits early variability; it does not establish a v1 provider set.
+- **Unknown/TBD v1 provider set:** Claude and other providers may become selectable only through a provider adapter that passes the same conformance contract. Provider names, models, and routing preferences are not architecture truth.
+- An adapter publishes a capability profile: executable/protocol and version, authentication, stable session identity, requested mode, start/resume/pause/cancel, ordered events, Project/worktree binding, Attempt correlation, local Evidence capture, cost visibility, and recovery support. Required capabilities block admission; optional capabilities enable only their dependent route or presentation.
+- Every Attempt start/resume performs live fail-closed admission against that profile and the current authority envelope. Known-bad versions are blocked. Unrecognized versions may be provisionally admitted only when every required check passes.
+- Provider compatibility is capability-first, not name-first. Routing later selects among admitted providers by required capability, disclosure/privacy policy, user preference, budget/cost visibility, and task fit; it never silently falls back across providers.
+- Historical provider identity is immutable and always readable. A historical session is continuable only when its adapter is later admitted, supports recovery, and the session passes fresh reconciliation and readmission. Otherwise it remains inspectable and may hand off through a provenance-bearing packet to a new Attempt on an admitted provider.
 
-### `RunBrief`
+### `RunBrief`: provider-neutral core and compiled form
 
-Every Work Unit receives a frozen versioned RunBrief with:
+Every Work Unit receives a frozen versioned provider-neutral RunBrief core with:
 
 - ResponsibilitySpace, Project, Outcome, ContractRevision, PlanRevision, WorkUnit, Attempt, and correlation IDs;
 - objective, inputs, constraints, non-goals, dependencies, and workspace snapshot;
@@ -308,13 +311,15 @@ Every Work Unit receives a frozen versioned RunBrief with:
 - expected output, criterion-bound Evidence, and Verification method/class;
 - stop/escalation rules, budget, lease/fence, retry, recovery, and handoff policy.
 
+The admitted adapter compiles that immutable core into a provider-specific execution form (for example, its session/mode/tool configuration and recovery bindings). Compilation may narrow authority or expose an admission failure; it may not widen the core's grants, effects, disclosure, budget, or acceptance semantics. The core and compiled-form digests are recorded on the Attempt.
+
 ### Locked launch defaults
 
 - One active write lease per worktree. Attempts receive a monotonically increasing fence; stale events cannot mutate current state.
 - Execution is sequential by default. Parallel Work Units require isolated worktrees, no overlapping write ownership, and an approved Mission Map.
-- There is no provider fallback in launch: Codex failure creates a new Codex Attempt, a replan, or human attention.
+- There is no silent provider fallback. In v0, a Codex failure creates a new Codex Attempt, a replan, or human attention. A later provider handoff requires a new Attempt, an admitted adapter, and any required authority/plan review.
 - The approved budget envelope covers maximum Work Units, concurrent Attempts, wall-clock limit, and any provider-reported cost/token ceiling. Missing cost telemetry cannot silently widen work.
-- Deterministic checks run outside the producing session. A producing Codex session may propose Evidence but cannot mark its own semantic criterion verified. Non-deterministic criteria require an independent review Attempt or explicit user walkthrough.
+- Deterministic checks run outside the producing session. A producing provider session may propose Evidence but cannot mark its own semantic criterion verified. **Proposed/Unresolved:** evaluator independence policy for multi-provider v1 remains to be decided; non-deterministic criteria currently require a separately classified review Attempt or explicit user walkthrough, without claiming provider/model independence unless actually present.
 
 ### Consequential-effect ceiling
 
@@ -412,7 +417,7 @@ Open-source code may only be copied after a source-pinned license, dependency, p
 ### Launch core: required
 
 - local-first Home, Work, and Settings destinations;
-- Responsibility Spaces, Project readiness, Codex-only admission, and historical provider readability;
+- Responsibility Spaces, Project readiness, v0 Codex-only admission, provider-neutral adapter/conformance seam, and historical provider readability;
 - guided Outcome contract, optional Mission Map, RunBrief, Work Units, grants, fenced Attempts, recovery;
 - Needs You, Action Required, Waiting, Evidence, Verification, explicit Acceptance, Adaptive Close, and Re-entry;
 - confirmed Open Loops and explicit Quick Capture;
@@ -441,7 +446,7 @@ Public availability of this beta depends on Google OAuth verification and an app
 - durable Memory and governed trace-learning/skill promotion;
 - Relationship and broad work-plus-life Open Loops;
 - Health First mobile experience and permissioned body-state planning;
-- durable proactive agent, Waldo-owned harness, broader providers, teams, marketplace, and commercialization.
+- durable proactive agent, Waldo-owned harness, provider routing beyond v0, teams, marketplace, and commercialization.
 
 ## Dogfood and falsification gate
 
@@ -465,8 +470,8 @@ The wedge is falsified or paused if supervision cost is not lower, false readine
 
 ### Resolved for implementation planning
 
-1. Codex-only new-work admission and historical provider recovery.
-2. RunBrief semantic fields, one-write-lease/fence rule, sequential-by-default concurrency, no provider fallback, explicit budget envelope, and evaluator classes.
+1. v0 Codex-only admission plus provider-neutral adapter/conformance seam and immutable historical provider identity. The v1 provider set and evaluator-independence policy remain **Unknown/TBD**.
+2. Provider-neutral RunBrief core/compiled form, one-write-lease/fence rule, sequential-by-default concurrency, no silent provider fallback, and explicit budget envelope.
 3. Redacted causal Outcome Trace with private content excluded by default.
 4. Objective dogfood measures, thresholds, failure injections, and falsifiers.
 5. Consequential-effect ceiling: authorized local work plus separately approved local commits; no autonomous remote effects; Gmail draft only after explicit user intent.
