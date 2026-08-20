@@ -13,7 +13,7 @@ This is the canonical product, ontology, lineage, governance, state, and surface
 ### Observed
 
 - F0-F6 provides an AO-derived Go daemon, SQLite and trigger-based CDC, Electron supervisor, worktrees, provider sessions, terminal/chat/browser surfaces, recovery facts, and PR/check/review observation.
-- The current Outcome overlay is substantially session-oriented and is not this accepted model.
+- The current Outcome overlay is substantially session-oriented: a provider session and marker-parsed model text drive the visible task/plan/Kanban presentation. It is useful donor UI, but the session—not a durable user-approved Outcome contract—is still the practical center of gravity.
 - PR #11 contains useful cleanup but also an unwired permanent Outcome schema/store that does not preserve the accepted contract, CDC, verification, acceptance, effect, Open Loop, or recovery semantics.
 - Gmail can expose conversations, message history, and drafts directly to a desktop client. Inbox reading and draft creation require restricted OAuth scopes for a public application.
 - Dayflow demonstrates local desktop capture, local storage, timeline, and daily-summary mechanisms, but desktop observation cannot establish intent, a complete life context, or durable Memory.
@@ -26,7 +26,7 @@ This is the canonical product, ontology, lineage, governance, state, and surface
 
 ### Inference
 
-- The launch product should transfer responsibility and compress judgment rather than maximize agents, inbox automation, or captured activity.
+- The launch product should first prove responsibility transfer and judgment compression. Later it may maximize useful agent concurrency, inbox automation, and captured context, but those remain means governed by the Outcome/Open Loop contract—not product-success metrics or independent sources of truth.
 - Kennel Work proves bounded execution; Communication Loops prove continuity across human coordination; Personal Home unifies the user's attention without claiming to be the later complete Waldo ecosystem.
 - A local-first Waldo Core can prove this without a required Waldo account, hosted API, Waldo-funded model calls, or central Memory service.
 
@@ -56,6 +56,16 @@ The destinations do not define separate workflows. Every responsibility advances
 
 These are five adaptive product surfaces, not five mandatory wizard pages. A simple local Outcome may move through them quickly; ambiguity, failure, or consequential effects expand the relevant surface without changing the lineage.
 
+### From session-oriented to Outcome-oriented
+
+The AO-derived orchestration and Kanban experience remains valuable; its authority changes. Today, the practical story is often “open a session, ask an agent, read its output, and infer whether the task is done.” In the accepted model:
+
+```text
+Outcome -> ContractRevision -> PlanRevision -> WorkUnit -> Attempt -> AgentSessionRef
+```
+
+The Outcome is the durable responsibility. A Work Unit is the bounded piece of work. An Attempt is one try. A Codex/Claude/provider session is the executor used by that Attempt. Kanban, Mission Map, session lists, terminal, browser, and operator views remain useful projections over those facts; none is removed. This lets Kennel replace or recover a failed session without losing the user's goal, approved authority, evidence, or closure history.
+
 Kennel should answer four questions without requiring transcript reconstruction:
 
 1. What responsibility is currently open?
@@ -76,6 +86,8 @@ Kennel should answer four questions without requiring transcript reconstruction:
 
 ### Launch non-goals
 
+These are exclusions from the first verified local release, not permanent product rejections. Broad agent orchestration, inbox automation, ambient context, and durable Memory return only after the responsibility/evidence loop proves safe and useful.
+
 - a generic multi-agent dashboard or provider launcher;
 - a full email client, autonomous inbox, or automatic-reply bot;
 - automatic task, Outcome, Open Loop, Acceptance, or closure creation from model inference;
@@ -84,6 +96,8 @@ Kennel should answer four questions without requiring transcript reconstruction:
 - a required account, hosted canonical backend, cross-device sync, or Waldo-funded inference;
 - automatic skill/rule promotion from traces;
 - provider-authored truth or prompt rewriting presented as orchestration.
+
+The current plan therefore does **not** automatically promote skills or rules from traces. Later, traces may generate a candidate skill/rule, but promotion requires consent, evaluation against held-out work, visible scope, versioning, rollback, and removal. The current plan also does **not** treat a provider's answer or rewritten prompt as orchestration truth: models may propose a plan or context packet, while deterministic policy and explicit user authority decide what is admitted.
 
 ## Product identity and responsibility scopes
 
@@ -156,8 +170,25 @@ An Outcome or Open Loop belongs to exactly one Responsibility Space at a time. M
 - Communication Brief, Daily Snapshot, and Re-entry packet;
 - Suggested Next Actions and Home Catch Up; these are correctable projections, not tasks or canonical responsibility;
 - Project Follow-up and Keep for later.
+- AO-style Kanban columns, agent/session lists, Mission topology, terminal/browser activity, and provider status. They remain operational projections rather than the canonical Outcome contract.
 
 Provider completion, commits, PRs, checks, messages, drafts, archive state, screenshots, and activity are observations or candidate Evidence. None can create Acceptance or close an Open Loop.
+
+### Durable local Memory extension — Proposed after the verified Work loop
+
+Waldo can and should develop a durable, updating personal Memory; the limitation is that capture alone cannot establish it. A screenshot can show that an app was visible, but not whether the user agreed, cared, changed their mind, completed a commitment elsewhere, or wants the observation remembered. Dayflow-style capture therefore produces candidate context, while Memory requires an admission and correction lifecycle.
+
+The proposed local architecture uses both SQLite and a user-readable Waldo filesystem under `~/.kennel/waldo/memory/`:
+
+- SQLite remains canonical for identity, provenance, admission decisions, relationships, scope, freshness, supersession, expiry, deletion generation, and retrieval indexes;
+- daemon-owned Markdown files contain inspectable admitted memory narratives, decisions, preferences, project continuity, and user corrections;
+- direct user edits are re-imported as explicit candidate revisions and never silently overwrite lineage;
+- captured activity, messages, transcripts, and model summaries enter a Memory inbox as candidates, not durable truth;
+- admission records source, confidence, responsible space, valid time, review/expiry, and whether the user explicitly confirmed it;
+- corrections supersede rather than erase history; deletion removes content and leaves only a content-free anti-resurrection marker;
+- retrieval returns a minimized, provenance-bearing, freshness-labeled packet and cannot override a current ContractRevision or explicit user statement.
+
+This supports Minimi-like ambient continuity and Open Loop help while adding Waldo's stronger distinction between observation, memory, responsibility, execution, verification, and conscious closure. Exact file format, reconciliation protocol, encryption, embedding route, and memory-evaluation threshold remain **Unknown** until the later Memory architecture gate.
 
 ## Exact lineages
 
@@ -440,6 +471,21 @@ The former review atlas is a state catalogue, not a requirement for separate rou
 | **Act & Observe** | What is Waldo doing, what changed, and does it need attention? | Run, Needs You, Action Required, Waiting, paused/retry/lost/recovery, draft-effect reconciliation, partial evidence. |
 | **Prove & Close** | Is each criterion proved, and should the responsibility close? | Evidence/Verification, Ready for Acceptance/Ready to Close, Acceptance, Adaptive Close, release, reopen, successor, Re-entry, dirty-worktree/resource disposition. |
 
+### Detailed review-screen atlas is preserved
+
+The five surfaces group the previous screen atlas; they do not delete it. The earlier seed contains F01-F27 plus the inserted F02A Home-to-Work frame—28 review frames when counted individually. They remain the concrete team discussion and UI-state inventory:
+
+| Lifecycle group | Detailed screens retained |
+| --- | --- |
+| **Enter** | F01 First run; F03 Quick Capture; F05 Communication connection. |
+| **Understand** | F02 Home/Today; F04 Daily Snapshot; F06 Communication inbox; F07 Communication Brief; F09 Open Loop detail; F11 Work Home; F12 Outcome Define; F13 Adaptive clarification; F26 Context episode correction. |
+| **Decide & Authorize** | F02A Connect Home to Work; F08 Draft effect review; F14 Mission Map; F15 Authority/effect preview; F25 Desktop Context consent. |
+| **Act & Observe** | F16 Run; F17 Needs You; F18 Action Required; F19 Waiting. |
+| **Prove & Close** | F10 Ready to Close; F20 Evidence and Verification; F21 Acceptance; F22 Adaptive Close; F23 Re-entry. |
+| **Cross-stage overlays** | F24 Operator Inspector; F27 Settings & Control. |
+
+Some may ultimately share a route or component, but each remains a distinct user conversation with its own purpose, primary action, empty/error/recovery states, and review acceptance. Implementation may combine layouts only after proving that none of those details becomes hidden or ambiguous.
+
 ### Work-first first run
 
 For v0 local dogfood, first run recommends **Work first**: choose a local Project, verify daemon/provider readiness, and enter the first Outcome. The user may instead enter Home, but Home, Gmail, Desktop Context, an account, and hosted attachment are never onboarding blockers and no Personal Home is silently created. After either path, Home and Work remain peers over shared responsibility truth.
@@ -460,11 +506,12 @@ The first complete vertical slice is the [Local Focus Ledger Outcome](kennel-v0-
 | ChatGPT Work, Notion Custom Agents, Webhound | **Adapt** concise attention, reusable work context, and governed proactive work. |
 | [Gmail API](https://developers.google.com/workspace/gmail/api/guides) and [Gmail MCP reference shape](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server) | **Adapt** thread search/get, draft creation, incremental sync, and prompt-injection boundary. Do not depend on Developer Preview MCP for public launch. Restricted-scope and user-data policy review remain launch-beta gates. |
 | [Dayflow](https://github.com/JerryZLiu/Dayflow/tree/86f5288d7267c9c8da1ab47e9c25ad1cd0b80046) | **Adapt after core stability** optional capture consent, exclusions, local timeline, Daily/Weekly projections, and local-model route. Reject default-on capture, direct DB access, automatic truth, and permanent raw screenshots. |
+| [Minimi](https://www.projectminimi.com/) | **Adapt after the verified Work loop** local ambient memory, Open Loop discovery, cross-app continuity, and user-owned retrieval. Add Waldo's explicit admission/correction/provenance model, separate responsibility lineage, verified work execution, and conscious acceptance/closure; do not copy unsupported accuracy or automatic-closure claims as product truth. |
 | Claude Code auto-memory | **Later** project continuity with explicit admission/correction rules. |
 | Paxel and AutoResearch-style loops | **Later** consented trace learning, candidate skills, evaluation, promotion, correction, rollback, and deletion. |
 | Folk, Poke, Dimension, Manus, Grok Bot, Qodo, Lifestack | **Later/reference only**. |
 | [TapeFlow](https://github.com/xingrz/tapeflow) / [Tapflow](https://www.tapflow.ai/) products | **Reject** as unrelated to the communication/personal-agent mechanism. |
-| Standalone WHOOP/Oura and minimi entries | **Remove from active Kennel benchmark**; preserve as broader Waldo history. |
+| Standalone WHOOP/Oura entries | **Remove from active Kennel benchmark**; preserve as broader Waldo history. |
 
 Open-source code may only be copied after a source-pinned license, dependency, provenance, and security review. No proprietary prompt, engine, scoring model, hidden behavior, or visual language is copied.
 

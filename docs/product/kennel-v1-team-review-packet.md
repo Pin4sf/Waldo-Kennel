@@ -36,6 +36,7 @@ Messages, model text, commits, PRs, checks, screenshots, activity, and provider 
 - Waldo is one user-owned intelligence and responsibility identity. Kennel is its local Mac presence, not a separate assistant.
 - The launch product has three primary destinations: **Home**, **Work**, and **Settings & Control**.
 - The common product spine is five adaptive surfaces: **Enter -> Understand -> Decide & Authorize -> Act & Observe -> Prove & Close**. Destinations select context; they do not create competing workflows.
+- The complete detailed screen atlas remains reviewable underneath those five surfaces. The stages organize the flow; they do not erase individual screens, interactions, or states.
 - Work remains the launch spine for agent-heavy Mac users: Outcome to verified Acceptance with lower supervision cost.
 - Home adds confirmed Open Loops, trusted Daily Snapshot, concise attention, communication continuity, and exact Re-entry without claiming durable Memory or complete life understanding.
 - Gmail Communication Loops is an optional bounded beta: read actionable threads, propose correctable commitments, confirm an Open Loop or Outcome, create a user-requested draft, track Waiting, and consciously close. It never auto-sends or auto-closes.
@@ -61,6 +62,8 @@ Messages, model text, commits, PRs, checks, screenshots, activity, and provider 
 - The coherent product is not “coding agents plus an inbox plus screenshots.” It is one governed responsibility system with multiple sources and bounded executors.
 - Launch value comes from reducing coordination burden: less context reconstruction, fewer reducible interruptions, clearer authority, safer recovery, and faster conscious closure.
 - Gmail broadens the proof from agent execution to human coordination, but should not delay the Work core if OAuth/privacy gates are not ready.
+- The AO agent/session/Kanban experience remains useful as an operational projection. Moving the canonical center from Session to Outcome makes session recovery and provider replacement possible without losing intent or proof.
+- Minimi-like ambient continuity and Dayflow-like capture can expand Waldo later; captured activity becomes candidate context until admitted into durable, correctable, provenance-bearing Memory.
 
 ## 3. Launch promise, users, and problems
 
@@ -235,9 +238,9 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 - skills, MCP, rules, optional Desktop Context;
 - hosted attachment visibly Later.
 
-## 8. Five adaptive product surfaces
+## 8. Five-stage spine and complete screen atlas
 
-The earlier 25-screen atlas is collapsed into five surfaces. Named screens below are adaptive modes, panels, or overlays; they are not separate top-level products.
+The five surfaces organize the detailed atlas; they do **not** replace it. F01-F27 plus the inserted F02A Home-to-Work review frame remain concrete screen conversations for design and implementation.
 
 | Surface | Primary question | Home modes | Work modes | Failure/attention modes |
 | --- | --- | --- | --- | --- |
@@ -248,6 +251,39 @@ The earlier 25-screen atlas is collapsed into five surfaces. Named screens below
 | **Prove & Close** | Is the current responsibility proved and consciously handled? | Ready to Close, Daily Close, release/reopen | Evidence, Verification, Acceptance, Adaptive Close | contradictory/stale evidence, dirty resources, successor, Re-entry |
 
 Settings & Control and Operator Inspector are persistent overlays. They can be entered from any stage without changing responsibility state.
+
+| Frame | Stage | Screen and user problem | Essential interactions and states |
+| --- | --- | --- | --- |
+| F01 | Enter | **First run:** begin useful local work without understanding providers or setting up Home. | Start with Work, Start with Home, Project selection, invalid folder, daemon offline, Codex unavailable, ready. |
+| F02 | Understand | **Home / Today:** see what needs judgment, action, waiting, or closure now. | empty, normal, high attention, stale, offline, recovering, open source, correct/dismiss. |
+| F02A | Decide & Authorize | **Connect Home to Work:** turn a candidate/Open Loop into related executable work without losing its source. | correct, keep Home-only, new Outcome draft, link existing, no Project, duplicate, cancel. |
+| F03 | Enter | **Quick Capture:** preserve an explicit thought or responsibility immediately. | note/OpenLoop/Outcome choice, duplicate, ResponsibilitySpace, defer, cancel. |
+| F04 | Understand | **Daily Snapshot:** reconstruct what changed and what remains open. | collecting, partial, ready, corrected, source inspect, Daily Close. |
+| F05 | Enter | **Communication connection:** authorize one source without making it mandatory. | scope/disclosure/retention, authorize, denied, syncing, revoke, disconnected. |
+| F06 | Understand | **Communication inbox:** see actionable conversation candidates instead of a raw inbox. | ready, empty, stale, syncing, uncertain, revoked, prompt-injection quarantine. |
+| F07 | Understand | **Communication Brief:** understand the ask, owner, trigger, and recommended next action. | correct, dismiss, confirm OpenLoop, promote Outcome, inspect source. |
+| F08 | Decide & Authorize | **Draft effect review:** approve the exact bounded communication effect. | intent, approve, edit, create, failed, unknown/reconciled, sent externally. |
+| F09 | Understand | **Open Loop detail:** know owner, trigger, recheck, closure, provenance, and related Work. | active, waiting, deferred, ready to close, closed, released, reopened, transferred. |
+| F10 | Prove & Close | **Ready to Close:** decide whether a Home responsibility is consciously handled. | evidence/change summary, close, release, reopen, promote remaining work. |
+| F11 | Understand | **Work Home:** scan Outcomes and the next useful intervention while retaining AO-style orchestration visibility. | empty, active, Needs You, Action Required, Waiting, Ready for Acceptance, recovery. |
+| F12 | Understand | **Outcome Define:** state what must become true and how success will be reviewed. | natural-language entry, vague success, conflict, local-only, draft revision. |
+| F13 | Understand | **Adaptive clarification:** answer the one material question that changes the contract. | recommendation, alternative, custom answer, contradiction, defer. |
+| F14 | Decide & Authorize | **Mission Map:** review the smallest sufficient agent/WorkUnit topology. | direct unit, sequential/parallel graph, dependencies, invalidated, capability/budget conflict. |
+| F15 | Decide & Authorize | **Authority and effect preview:** understand what may happen, where, until when, and how to revoke. | grant, deny, changed revision, missing capability, effect intent, budget/placement. |
+| F16 | Act & Observe | **Run:** see WorkUnits, Attempts, agents, Kanban state, current change, and next safe action. | queued, running, paused, failed, lost, reconciled, retry, partial Evidence. |
+| F17 | Act & Observe | **Needs You:** resolve an irreducible judgment without reading the transcript. | recommendation, alternatives, rationale, consequence, expiry, inspect, defer. |
+| F18 | Act & Observe | **Action Required:** complete an exact human-only action. | sign-in, permission, denial, completed elsewhere, recheck, resume. |
+| F19 | Act & Observe | **Waiting:** understand why action is not useful yet and when to recheck. | dependency, external owner, timeout, provider recovery, manual refresh, transfer. |
+| F20 | Prove & Close | **Evidence and Verification:** judge every current success criterion. | missing, stale, contradicting, passed/failed check, exception, verifier conflict. |
+| F21 | Prove & Close | **Acceptance:** let the responsible user decide whether the Outcome is handled. | accept, request rework, revise active, release; never automatic. |
+| F22 | Prove & Close | **Adaptive Close:** decide what history, worktree, artifact, or Open Loop remains. | dirty worktree, retain/clean later, unresolved item, successor suggestion. |
+| F23 | Prove & Close | **Re-entry:** restore minimum exact context after interruption or successor creation. | reopened Outcome/OpenLoop, source missing, historical provider unavailable, handoff packet. |
+| F24 | Overlay | **Operator Inspector:** inspect session, terminal, browser, worktree, trace, and recovery truth. | current/stale Attempt, fence, provider identity, raw local evidence, redaction, replay. |
+| F25 | Decide & Authorize | **Desktop Context consent:** separately approve observation and analysis. | disabled, permission denied, pause, exclusions, storage cap, local/cloud route, delete. |
+| F26 | Understand | **Context episode correction:** fix what screen-derived context means before admission. | untrusted candidate, split/merge, correct, dismiss, link, expiry, source unavailable. |
+| F27 | Overlay | **Settings & Control:** inspect, limit, export, revoke, or delete authority and data. | provider mismatch, connection revoke, retention, export, delete, hosted attachment unavailable. |
+
+The implementation may reuse layout primitives or routes across these frames, but a review cannot drop a frame's purpose, interactions, failure states, or lineage simply because it shares one of the five lifecycle stages.
 
 ## 9. End-to-end UX flows
 
@@ -299,6 +335,17 @@ Settings & Control and Operator Inspector are persistent overlays. They can be e
 3. Episodes are correctable and never become responsibility, Evidence, rules, skills, or Memory automatically.
 4. Explicitly confirmed episodes may inform a Daily Snapshot or Commitment Candidate.
 
+### G. Later durable local Memory
+
+1. Ambient activity, messages, transcripts, explicit notes, and Outcome/Open Loop history create provenance-bearing `MemoryCandidate`s.
+2. Waldo proposes what may be worth remembering; user statements and corrections outrank inference.
+3. Admission records scope, source, valid time, freshness/review, expiry, and confirmation level.
+4. SQLite holds canonical identity, lineage, relationships, admission, supersession, and retrieval indexes; daemon-owned Markdown under `~/.kennel/waldo/memory/` provides an inspectable local narrative layer.
+5. Corrections create revisions; deletion removes content and prevents stale recovery from resurrecting it.
+6. Retrieval can ground a RunBrief only below current explicit contract/authority and with visible provenance/freshness.
+
+This is how Waldo may adapt Minimi-like ambient continuity and Open Loop discovery without claiming that captured activity alone is durable truth. The filesystem schema, encryption, embedding route, reconciliation, and evaluation thresholds remain a later architecture gate.
+
 ## 10. Failure, privacy, and recovery
 
 | Failure | Product response |
@@ -338,7 +385,8 @@ The beta may remain internal while Google OAuth verification and model-disclosur
 ### Later ecosystem
 
 - Hosted attachment and cross-device sync;
-- durable Memory and consented Paxel/AutoResearch-style learning;
+- durable local SQLite + inspectable Markdown Memory, then optional hosted attachment;
+- consented Paxel/AutoResearch-style candidate skill/rule learning with evaluation and rollback—never automatic promotion from traces;
 - Relationship, Health First mobile, body-state planning;
 - durable proactive Waldo, Waldo-owned harness, provider routing beyond v0;
 - teams, marketplace, pricing, and commercialization.
@@ -356,6 +404,7 @@ The beta may remain internal while Google OAuth verification and model-disclosur
 - Gmail draft creation requires a user-requested EffectIntent. Send/archive/delete/labels/closure are not automated.
 - Causal trace is metadata-first and private-content-minimized.
 - Canonical trace metadata follows responsibility retention; operational diagnostics default to 30 days; private artifacts are opt-in with expiry; deletion cannot silently resurrect content.
+- Provider text may propose plans or rewritten context, but it never becomes orchestration truth by authorship alone; deterministic policy and user authority decide admission.
 
 ## 13. Dogfood acceptance and falsifiers
 

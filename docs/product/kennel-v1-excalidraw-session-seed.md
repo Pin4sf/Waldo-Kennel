@@ -6,7 +6,7 @@
 - Interactive companion: [five-stage review prototype](kennel-v1-review-prototype.html)
 - First proof: [Local Focus Ledger vertical slice](kennel-v0-first-outcome-slice.md)
 
-Use this seed to recreate the product architecture collaboratively. It intentionally replaces the former 27-frame screen atlas with five adaptive product frames. Home, Work, and Settings remain destinations; they are not separate lifecycles.
+Use this seed to recreate the product architecture collaboratively. Five adaptive lifecycle frames organize—not replace—the detailed F01-F27 screen atlas and inserted F02A Home-to-Work frame. Home, Work, and Settings remain destinations; they are not separate lifecycles.
 
 ## 1. Board grammar
 
@@ -153,6 +153,58 @@ Show:
 - immutable history and exact Re-entry packet.
 
 Add a bold invariant: **Verification never creates Acceptance; silence, archive, or inactivity never closes an Open Loop.**
+
+## 2A. Detailed screen subframes
+
+Under each large lifecycle frame, place the original screen cards. Each card must show: screen name, user problem, primary action, normal state, one empty/unavailable state, one failure/recovery state, canonical objects read/written, and the next/previous screen links. Do not merge cards during the review merely because they share a component.
+
+### Under Enter
+
+- **F01 First run** — Work-first Project/Outcome entry, Home alternative, readiness and offline/error states.
+- **F03 Quick Capture** — explicit note/Open Loop/Outcome capture, space assignment, duplicate and defer.
+- **F05 Communication connection** — source scope, disclosure, retention, authorize/deny/sync/revoke.
+
+### Under Understand
+
+- **F02 Home / Today** — Morning Brief, focused Catch Up, empty/stale/offline/recovery.
+- **F04 Daily Snapshot** — trusted daily reconstruction, partial sources, correction, Daily Close.
+- **F06 Communication inbox** — actionable candidates, empty/stale/revoked and untrusted-source state.
+- **F07 Communication Brief** — ask/owner/trigger/next action, correct/dismiss/confirm/promote.
+- **F09 Open Loop detail** — owner/recheck/closure/provenance, waiting/ready/reopen/transfer.
+- **F11 Work Home** — Outcome portfolio plus AO-style agent/Kanban projection and attention states.
+- **F12 Outcome Define** — Goal/Success/Review and draft ContractRevision.
+- **F13 Adaptive clarification** — one material decision, recommendation, alternative, defer/conflict.
+- **F26 Context episode correction** — split/merge/correct/dismiss/link/expire untrusted observations.
+
+### Under Decide & Authorize
+
+- **F02A Connect Home to Work** — correct/keep Home-only/create draft/link existing/duplicate/no Project.
+- **F08 Draft effect review** — exact intent, approve/edit/create/fail/unknown/reconcile.
+- **F14 Mission Map** — direct or multi-WorkUnit topology, dependencies, agents, concurrency and invalidation.
+- **F15 Authority and effect preview** — capabilities, placement, budget, disclosure, effects and revoke.
+- **F25 Desktop Context consent** — capture/analysis route/exclusions/retention/pause/delete.
+
+### Under Act & Observe
+
+- **F16 Run** — WorkUnits, Attempts, agents, Kanban progress, evidence progress and recovery.
+- **F17 Needs You** — irreducible judgment, recommendation, alternatives, consequence and inspect.
+- **F18 Action Required** — exact human-only step, completion signal, recheck and resume.
+- **F19 Waiting** — dependency/owner/recheck, timeout, refresh, provider recovery and transfer.
+
+### Under Prove & Close
+
+- **F10 Ready to Close** — Home closure evidence, close/release/reopen/promote.
+- **F20 Evidence and Verification** — per-criterion current/stale/contradictory evidence and verifier class.
+- **F21 Acceptance** — accept/rework/revise/release, always explicit user authority.
+- **F22 Adaptive Close** — dirty resources, retention, cleanup and successor/Open Loop.
+- **F23 Re-entry** — exact minimum context for interruption, reopening or successor.
+
+### Cross-stage overlays
+
+- **F24 Operator Inspector** — provider/session/terminal/browser/worktree/trace/recovery facts; never Acceptance.
+- **F27 Settings & Control** — providers, connections, permissions, retention, export, revoke/delete and later attachment.
+
+The screen count is deliberately explicit: F01-F27 plus F02A yields 28 review cards. “Five surfaces” describes lifecycle grouping, not a reduction in the screen/state inventory.
 
 ## 3. Canonical lineage strips
 
