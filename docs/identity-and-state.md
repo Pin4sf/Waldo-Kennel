@@ -44,6 +44,6 @@ The frozen `packages/ao*` npm packages are retained, unchanged compatibility art
 
 ## Verification
 
-`npm --prefix frontend run package:identity` inspects a packaged app without launching it. It rejects drift in the application ID, display name, executable, deep-link protocol, updater cache, release target, daemon name, state-root variables, and forbidden AO identifiers. The `macOS package identity` CI job packages and runs this assertion on every pull request.
+`npm --prefix frontend run package:identity` inspects a packaged app without launching it. It rejects drift in the application ID, display name, executable, deep-link protocol, updater cache, release target, daemon name, state-root variables, and forbidden AO identifiers. Run it locally after packaging while hosted CI is deferred.
 
 Do not validate identity by launching a pre-foundation packaged application. A pre-isolation build may still collide with AO state; package the current source and inspect it instead.

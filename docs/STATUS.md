@@ -23,7 +23,7 @@ As of the F0-F6 foundation branch on 2026-08-18, Kennel has a working AO-derived
 - Pinned AO provenance and a non-destructive synchronization procedure.
 - Compatibility reconciliation for the colliding migration 0098 ledgers.
 - Reproducible Node/npm selection and a multi-package bootstrap.
-- Foundation CI, Go lint/race checks, production dependency audit, macOS packaged-identity assertion, Gitleaks, govulncheck, pinned Actions, and Dependabot.
+- Local foundation tests, Go lint/race checks, production dependency audit, macOS packaged-identity assertion, Dependabot, and GitHub secret scanning. Hosted CI/security workflows are intentionally deferred.
 - Zero known production npm vulnerabilities across the audited package sets at the dated foundation run. Inherited development toolchain advisories remain documented in the [acceptance record](foundation-acceptance-2026-08-18.md).
 
 ## Present but not a current product promise
