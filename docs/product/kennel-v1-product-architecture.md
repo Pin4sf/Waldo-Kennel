@@ -97,7 +97,7 @@ These are exclusions from the first verified local release or from automatic beh
 - automatic skill/rule promotion from traces;
 - provider-authored truth or prompt rewriting presented as orchestration.
 
-The current plan therefore does **not** automatically promote skills or rules from traces. Later, traces may generate a candidate skill/rule, but promotion requires consent, evaluation against held-out work, visible scope, versioning, rollback, and removal. The current plan also does **not** treat a provider's answer or rewritten prompt as orchestration truth: models may propose a plan or context packet, while deterministic policy and explicit user authority decide what is admitted.
+The current plan therefore does **not** automatically promote skills or rules from traces. The proposed [Learning and Skill Evolution design](../superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md) and [ADR 0005](../adr/0005-governed-project-learning-and-skill-evolution.md) specify consented LearningEpisodes, candidate kinds, bounded experiments, hidden held-out evaluation, explicit promotion, versioning, rollback, and deletion. Until that written specification is approved, trace learning remains non-authoritative. The current plan also does **not** treat a provider's answer or rewritten prompt as orchestration truth: models may propose a plan or context packet, while deterministic policy and explicit user authority decide what is admitted.
 
 ## Product identity and responsibility scopes
 
@@ -555,7 +555,7 @@ ADR 0004 starts a separate Home/Personal Agent lane in parallel. That lane follo
 | Mem0, Graphiti/Zep, and Supermemory | **Adapt as subordinate infrastructure patterns** hybrid retrieval, temporal provenance, version relationships, and preview/apply deletion. Reject a second canonical store, namespace-as-authorization, and model-to-truth insertion. |
 | Letta, LangGraph/LangMem, and AutoGen | **Adapt at the orchestration boundary** tiered context, source-addressed compaction, checkpoint lineage, pending writes, and explicit save/load. Runtime state remains under Attempt and cannot become personal truth or proof. |
 | Claude Code auto-memory | **Adapt only through MemoryCandidate** with explicit admission/correction rules. |
-| Paxel and AutoResearch-style loops | **Adapt later** as consented trace learning, candidate skills, evaluation, promotion, correction, rollback, and deletion. |
+| [Paxel and AutoResearch-style loops](../research/2026-08-21-paxel-autoresearch-learning-reference.md) | **Proposed adaptation:** Paxel-style attributable LearningEpisodes observe patterns; AutoResearch-style campaigns test one bounded editable surface; Waldo governs candidate scope, evaluation, promotion, correction, rollback, and deletion. Reject automatic promotion, personality scoring, visible/editable evaluators, and self-authorizing harness changes. |
 | Folk, Poke, Dimension, Manus, Grok Bot, Qodo, Lifestack | **Later/reference only**. |
 | [TapeFlow](https://github.com/xingrz/tapeflow) / [Tapflow](https://www.tapflow.ai/) products | **Reject** as unrelated to the communication/personal-agent mechanism. |
 | Standalone WHOOP/Oura entries | **Remove from active Kennel benchmark**; preserve as broader Waldo history. |
@@ -595,10 +595,21 @@ Public availability of this beta depends on Google OAuth verification and an app
 - cross-space denial, stale-index hydration, crash recovery, and non-resurrection evaluation;
 - durable admitted Memory use only after this gate passes.
 
+### Proposed learning-foundation gate
+
+- consented, Project-attributed LearningEpisode projections over canonical Outcome facts and permitted source references;
+- candidate routing into skill, context-rule, orchestration-policy, Memory, or Open Loop review without collapsing their contracts;
+- baseline, held-in, proposer-hidden held-out, adversarial, cost, and safety evaluation under a locked runtime/evaluator boundary;
+- daemon-owned SkillRecord/SkillRevision/SkillBinding with provider-specific materialization as a rebuildable projection;
+- first activation limited to one explicitly promoted, provisional Project-scoped procedural skill with invocation receipts and immediate rollback;
+- no orchestration-policy activation until the project-skill proof passes; no harness/optimizer self-modification without another ADR.
+
+Learning contracts, fixtures, shadow episodes, and candidate evaluation may proceed alongside Work/Home after ADR 0005 approval. Active skills still wait for trustworthy Outcome result facts and the promotion gate.
+
 ### Later Waldo ecosystem
 
 - explicit hosted attachment, backup, cross-device sync, and hosted remote execution;
-- governed durable Memory after the candidate-memory gate and governed trace-learning/skill promotion;
+- governed durable Memory after the candidate-memory gate, broader learned skills after the project-skill gate, and later orchestration-policy evaluation;
 - Relationship and broad work-plus-life Open Loops;
 - phone/wearable Waldo presence, Health First mobile experience, and permissioned body-state planning through the same source/memory contract;
 - durable proactive agent, Waldo-owned harness, provider routing beyond v0, teams, marketplace, and commercialization.
@@ -634,7 +645,7 @@ The wedge is falsified or paused if supervision cost is not lower, false readine
 ### Deferred and non-blocking for the parallel local lanes
 
 6. Hosted attachment offline/sync acknowledgement, detach/revoke, deletion, and conflict semantics.
-7. Durable admitted Memory use until its candidate/admission/deletion gate passes; Relationship, Health, phone/wearable implementation, proactive agent, trace learning, and Waldo-owned harness.
+7. Durable admitted Memory use until its candidate/admission/deletion gate passes; active learned skills until the learning promotion gate passes; Relationship, Health, phone/wearable implementation, proactive agent, orchestration-policy learning, and Waldo-owned harness.
 
 ### Final architecture-review conclusion
 
@@ -647,7 +658,8 @@ No unresolved architecture choice blocks starting the first authorized v0 issue 
 - Product work starts from current `origin/main` in a new issue-specific worktree, never from the historical F0-F6 or PR #11 branches.
 - Implement the Focus Ledger milestone as five stage-aligned issue-sized PRs: Enter; Understand; Decide & Authorize; Act & Observe; Prove & Close. Each PR owns every domain, storage, CDC, service, API, UI, recovery, and evaluation change required by its user-visible truth boundary, reusing proven foundation APIs where no new durable truth is needed; no PR may leave a horizontal schema or deceptive screen layer for another PR to make true.
 - Implement Home/Personal Agent in a separate parallel worktree and PR sequence: Home shell/fixtures; PersonalHome/OpenLoop/Quick Capture; Today/Catch Up/detail/closure; ResponsibilityLink/shared intake; required screen/audio CaptureGrant and source episodes; MemoryCandidate review and retrieval evaluation. Durable admitted Memory remains separately gated.
+- After ADR 0005 and its written specification are approved, implement Learning through separate plans: L1 Experience Ledger/candidate mining in shadow mode; L2 bounded Experiment/Evaluation; L3 daemon skill registry and one provisional Project-scoped skill. L4 orchestration-policy learning remains later.
 - Before code edits, record exact file and API ownership for both lanes. Shared contract changes use a named integration owner; Home and Work must not independently implement intake/Q&A, ResponsibilitySpace, ResponsibilityLink, RunBrief memory references, CDC semantics, or generated DTOs.
 - Preserve Home and Work responsibility lineages even when one adaptive surface displays both. A `ResponsibilityLink` is lineage, never lifecycle coupling.
-- Use the [first Outcome specification](kennel-v0-first-outcome-slice.md) and amended [execution handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) for Work. Use the [Home/Personal Agent design](../superpowers/specs/2026-08-21-home-personal-agent-memory-design.md) and ADR 0004 for Home. Each code slice still requires an implementation plan and explicit PR scope.
+- Use the [first Outcome specification](kennel-v0-first-outcome-slice.md) and amended [execution handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) for Work. Use the [Home/Personal Agent design](../superpowers/specs/2026-08-21-home-personal-agent-memory-design.md) and ADR 0004 for Home. After review, use the [Learning and Skill Evolution design](../superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md) and ADR 0005 for Learning. Each code slice still requires an implementation plan and explicit PR scope.
 - No merge, push, deploy, publish, release, destructive cleanup, or hosted attachment is authorized by this document.

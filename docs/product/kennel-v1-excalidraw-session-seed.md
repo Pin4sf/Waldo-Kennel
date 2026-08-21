@@ -202,7 +202,7 @@ Under each large lifecycle frame, place the original screen cards. Each card mus
 ### Cross-stage overlays
 
 - **F24 Operator Inspector** — provider/session/terminal/browser/worktree/trace/recovery facts; never Acceptance.
-- **F27 Settings & Control** — providers, connections, permissions, retention, export, revoke/delete and later attachment.
+- **F27 Settings & Control** — providers, connections, permissions, retention, export, revoke/delete, plus proposed Learning grants, candidate/experiment review, scoped skill bindings, invocation receipts, rollback and evaluation freshness; hosted attachment remains later.
 
 The screen count is deliberately explicit: F01-F27 plus F02A yields 28 review cards. “Five surfaces” describes lifecycle grouping, not a reduction in the screen/state inventory.
 

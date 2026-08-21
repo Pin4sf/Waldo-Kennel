@@ -24,10 +24,12 @@ Kennel currently consists of an AO-derived Go daemon and Electron supervisor plu
 | [ADR 0003: Local-first Waldo Core](adr/0003-local-first-waldo-core.md) | Accepted v1 deployment and custody decision: Waldo Core inside the Kennel daemon, local canonical storage, user-authenticated providers, and later explicit hosted attachment. |
 | [ADR 0004: Parallel Home/Personal Agent and required governed capture](adr/0004-parallel-home-personal-agent-and-required-capture.md) | Accepted sequencing amendment: Work and Home may proceed in parallel; desktop screen/audio are required capabilities behind explicit CaptureGrants; durable Memory remains separately gated. |
 | [Home, Personal Agent, capture, and memory design](superpowers/specs/2026-08-21-home-personal-agent-memory-design.md) | Approved written specification for Home/OpenLoop, shared intake, required screen/audio capture, candidate-first memory, retrieval, deletion, evaluation, and non-overlapping Work/Home ownership. |
+| [Proposed ADR 0005: Governed project learning and skill evolution](adr/0005-governed-project-learning-and-skill-evolution.md) | Proposed Paxel-observer + AutoResearch-experimenter + Waldo-governor decision; no automatic promotion, opaque scoring, or self-authorizing skill changes. |
+| [Waldo Learning and Skill Evolution design](superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md) | Written specification for consented LearningEpisodes, candidates, experiments, held-out evaluation, skill registry, provisional activation, rollback, deletion, and lane ownership. |
 | [PR convergence and architecture gate plan](superpowers/plans/2026-08-20-pr-convergence-and-architecture-gate.md) | Completed prerequisite record for F0-F6 and the bounded PR #11 donor extraction, plus the still-current first-feature gate. |
 | [First Outcome execution handoff](superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) | Exact new-session PR/issue sequence, file ownership, tests, dependencies, acceptance, falsifiers, and handoff constraints for the five-stage Focus Ledger milestone. |
 
-## Personal Agent and memory research
+## Personal Agent, memory, and learning research
 
 | Document | Purpose |
 | --- | --- |
@@ -37,6 +39,7 @@ Kennel currently consists of an AO-derived Go daemon and Electron supervisor plu
 | [Personal-agent memory benchmark](research/2026-08-21-personal-agent-memory-research-benchmark.md) | MIRIX, Hindsight, MemOS, and A-MEM comparison covering typed memory, temporal claims, provenance, consolidation, deletion, and evaluation. |
 | [Agent-memory infrastructure benchmark](research/2026-08-21-agent-memory-infrastructure-benchmark.md) | Mem0, Graphiti/Zep, and Supermemory comparison covering canonical storage, retrieval projections, correction, deletion, and failure behavior. |
 | [Orchestration/runtime memory benchmark](research/2026-08-21-orchestration-runtime-memory-benchmark.md) | Letta, LangGraph/LangMem, and AutoGen comparison separating checkpoints, context, durable knowledge, responsibility, and proof. |
+| [Paxel and AutoResearch learning reference](research/2026-08-21-paxel-autoresearch-learning-reference.md) | Clean-room project/session analysis plus pinned bounded-experiment reference, synthesized into Waldo Adopt/Adapt/Reject and a governed skill-evolution boundary. |
 
 ## Chassis references
 

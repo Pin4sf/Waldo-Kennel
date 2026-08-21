@@ -243,7 +243,9 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 - v0 Codex admission/authentication, provider-adapter capability profiles, and historical-provider inspection;
 - Gmail connections and sync/privacy/disclosure state;
 - permissions, effects, retention, export, revoke, deletion;
-- skills, MCP, rules, and required capture capabilities with per-modality grant/processing/retention controls;
+- external skill/MCP catalogs remain distinct from the proposed Waldo Learning registry;
+- proposed Learning grants, source coverage, candidates, experiments, provisional/active Project bindings, invocation receipts, evaluation freshness, rollback, revoke, export, and deletion;
+- required capture capabilities with per-modality grant/processing/retention controls;
 - hosted attachment visibly Later.
 
 ## 8. Five-stage spine and complete screen atlas
@@ -289,7 +291,7 @@ Settings & Control and Operator Inspector are persistent overlays. They can be e
 | F24 | Overlay | **Operator Inspector:** inspect session, terminal, browser, worktree, trace, and recovery truth. | current/stale Attempt, fence, provider identity, raw local evidence, redaction, replay. |
 | F25 | Decide & Authorize | **Capture grants:** separately approve screen, system-audio, microphone, processing, and disclosure. | disabled, permission denied, enabled, pause, exclusions, storage cap, local/cloud route, export, revoke, delete. |
 | F26 | Understand | **Context episode correction:** fix what screen-derived context means before admission. | untrusted candidate, split/merge, correct, dismiss, link, expiry, source unavailable. |
-| F27 | Overlay | **Settings & Control:** inspect, limit, export, revoke, or delete authority and data. | provider mismatch, connection revoke, retention, export, delete, hosted attachment unavailable. |
+| F27 | Overlay | **Settings & Control:** inspect, limit, export, revoke, or delete authority, data, and proposed governed Learning. | provider mismatch, connection revoke, retention, Learning denied/paused/stale/provisional/active/suspended/rolled back, export, delete, hosted attachment unavailable. |
 
 The implementation may reuse layout primitives or routes across these frames, but a review cannot drop a frame's purpose, interactions, failure states, or lineage simply because it shares one of the five lifecycle stages.
 
@@ -395,7 +397,7 @@ The beta may remain internal while Google OAuth verification and model-disclosur
 
 - Hosted attachment and cross-device sync;
 - governed durable local Memory after its gate, then optional hosted attachment;
-- consented Paxel/AutoResearch-style candidate skill/rule learning with evaluation and rollback—never automatic promotion from traces;
+- proposed consented Paxel-style LearningEpisodes plus AutoResearch-style bounded skill experiments, held-out evaluation, explicit promotion, invocation receipts, and rollback—never automatic promotion from traces;
 - phone/wearable Waldo presence through the same source contract, Relationship, Health First mobile, and body-state planning;
 - durable proactive Waldo, Waldo-owned harness, provider routing beyond v0;
 - teams, marketplace, pricing, and commercialization.
@@ -404,7 +406,7 @@ The beta may remain internal while Google OAuth verification and model-disclosur
 
 The final architecture review ranks local v0 priorities as: authority/correctness; durability/recovery; privacy/custody; comprehensibility; evolvability; responsiveness; then speculative scale. The system is intentionally a single-user, single-Mac modular daemon with one SQLite canonical writer. At higher local load, retained screen/audio media, derived-index rebuilds, provider/process concurrency, worktree/disk pressure, terminal/browser resources, and connector limits are expected to fail before loopback HTTP or SQLite throughput; capture cadence, bounded concurrency, backpressure, age/storage retention, projection checkpoints, and cleanup come before distributed services.
 
-No remaining architecture choice blocks implementation planning for either local lane. Exact capture cadence, performance/energy/storage limits, implementation evidence, durable-memory gate results, and hosted/phone/wearable/provider decisions cannot be silently settled inside a feature PR.
+No remaining architecture choice blocks implementation planning for Work or Home. Learning architecture is now written for review in ADR 0005 and the Learning/Skill Evolution specification; its implementation plans and GitHub milestone remain blocked on that review. Exact capture cadence, performance/energy/storage limits, implementation evidence, durable-memory and skill-promotion gate results, and hosted/phone/wearable/provider decisions cannot be silently settled inside a feature PR.
 
 - One fenced writer per worktree. Attempt authority renews silently until completion, pause/revoke, or confirmed recovery; a missed heartbeat is `unconfirmed`, not dead. Fences pause only new consequential effects and canonical mutations while ordinary reasoning, observation, exploration, and authorized local tactics remain free.
 - Waldo recommends the smallest sufficient topology using model-proposed decomposition checked by a deterministic, inspectable Orchestration Policy. One direct Attempt is the default; parallel work uses isolated non-overlapping worktrees and explicit dependencies/integration.
