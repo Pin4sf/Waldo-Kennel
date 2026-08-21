@@ -61,8 +61,20 @@ The planning ledger reserves migrations `0099-0102` for Work, `0103-0106` for Ho
 
 The first four milestones contain issue-sized implementation work. The fifth contains architecture/evaluation gates only; it is not a promise that durable hosted Waldo, the Health-aware mobile app, or orchestration-policy learning can start before their prerequisites pass.
 
+### GitHub execution map
+
+| Milestone | Canonical issues |
+| --- | --- |
+| Foundation | [#16 active identity](https://github.com/Pin4sf/Waldo-Kennel/issues/16), [#22 donor consumers](https://github.com/Pin4sf/Waldo-Kennel/issues/22), [#27 bounded donor removal](https://github.com/Pin4sf/Waldo-Kennel/issues/27), [#34 docs](https://github.com/Pin4sf/Waldo-Kennel/issues/34), [#37 compatibility seams](https://github.com/Pin4sf/Waldo-Kennel/issues/37) |
+| Work | [#17 Enter](https://github.com/Pin4sf/Waldo-Kennel/issues/17), [#21 contract](https://github.com/Pin4sf/Waldo-Kennel/issues/21), [#26 authority](https://github.com/Pin4sf/Waldo-Kennel/issues/26), [#31 execution](https://github.com/Pin4sf/Waldo-Kennel/issues/31), [#35 proof and acceptance](https://github.com/Pin4sf/Waldo-Kennel/issues/35), [#38 evaluation](https://github.com/Pin4sf/Waldo-Kennel/issues/38), [#40 Home integration](https://github.com/Pin4sf/Waldo-Kennel/issues/40) |
+| Home | [#18 shell](https://github.com/Pin4sf/Waldo-Kennel/issues/18), [#23 capture and Open Loops](https://github.com/Pin4sf/Waldo-Kennel/issues/23), [#29 Home projections](https://github.com/Pin4sf/Waldo-Kennel/issues/29), [#32 shared intake](https://github.com/Pin4sf/Waldo-Kennel/issues/32), [#36 governed capture](https://github.com/Pin4sf/Waldo-Kennel/issues/36), [#39 MemoryCandidate review](https://github.com/Pin4sf/Waldo-Kennel/issues/39), [#41 gate](https://github.com/Pin4sf/Waldo-Kennel/issues/41) |
+| Learning | [#19 L1 Experience Ledger](https://github.com/Pin4sf/Waldo-Kennel/issues/19), [#25 L2 experiments](https://github.com/Pin4sf/Waldo-Kennel/issues/25), [#30 L3 skill registry](https://github.com/Pin4sf/Waldo-Kennel/issues/30) |
+| Later gates | [#20 durable Memory](https://github.com/Pin4sf/Waldo-Kennel/issues/20), [#24 hosted attachment](https://github.com/Pin4sf/Waldo-Kennel/issues/24), [#28 Health-aware mobile](https://github.com/Pin4sf/Waldo-Kennel/issues/28), [#33 L4 policy learning](https://github.com/Pin4sf/Waldo-Kennel/issues/33) |
+
+Foundation, Work, and Home use one issue per implementation-plan task. Learning uses one issue per gated L1/L2/L3 plan, with that plan's four tasks serving as the issue checklist. The later milestone contains gates, not implementation promises. Closed AO-era issues [#2-#10](https://github.com/Pin4sf/Waldo-Kennel/issues?q=is%3Aissue+is%3Aclosed+number%3A2..10) retain their completion or supersession comments rather than being rewritten.
+
 ## Completion definition
 
-Planning is complete when canonical docs link to these plans, ADRs 0003-0006 are consistent, GitHub issues map one-to-one to plan tasks, old issues are closed with completion/supersession evidence, and no plan represents a prototype or competitor feature as shipped Waldo behavior.
+Planning is complete when canonical docs link to these plans, ADRs 0003-0006 are consistent, GitHub issues map to every authorized plan or plan task at the granularity above, old issues are closed with completion/supersession evidence, and no plan represents a prototype or competitor feature as shipped Waldo behavior.
 
 Implementation begins only from an authorized issue in an issue-specific worktree. No document authorizes merge, push, deployment, publication, release, health-data processing, hosted attachment, or destructive donor deletion without its named gate.
