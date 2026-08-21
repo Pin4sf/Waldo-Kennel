@@ -20,7 +20,7 @@ Kennel is isolated from Agent Orchestrator at every installed-product boundary:
 | Loopback / development / LAN ports | `3031` / `3032` / `3041` |
 | Generated branch namespace | `kennel/` |
 
-Kennel never implicitly reads or migrates `~/.ao`. Existing AO installations remain separate. A narrowly scoped legacy importer may inspect the older `~/.agent-orchestrator` layout only after a user chooses that import flow. Project-local `.ao/attachments` and `.ao/launch.json` names remain temporary upstream compatibility artifacts inside a project; they are not Kennel global state.
+Kennel does not read or migrate `~/.ao` or the older `~/.agent-orchestrator` layout. Existing AO installations remain separate, and users add local repositories explicitly through Kennel's supported project flow. Project-local `.ao/attachments` and `.ao/launch.json` names remain temporary upstream compatibility artifacts inside a project; they are not Kennel global state.
 
 The source entrypoint remains `backend/cmd/ao`, and the Go module remains `github.com/aoagents/agent-orchestrator/backend`, as deliberate upstream synchronization seams. Packaged users receive the `kennel` executable and Kennel identifiers. See [identity and state](docs/identity-and-state.md) and [upstream provenance](docs/upstream-provenance.md).
 
