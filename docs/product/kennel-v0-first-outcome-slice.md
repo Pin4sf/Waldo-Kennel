@@ -4,6 +4,7 @@
 - Date: 2026-08-20
 - Canonical parent: [Waldo Kennel product architecture](kennel-v1-product-architecture.md)
 - Execution handoff: [first Outcome execution handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md)
+- Parallel-lane amendment: [ADR 0004](../adr/0004-parallel-home-personal-agent-and-required-capture.md)
 - Implementation status: not shipped and not authorized by this document
 
 ## Decision boundary
@@ -23,9 +24,9 @@
 - The chassis already provides Project registration, worktrees, Codex sessions, local process observation, SQLite, trigger-based CDC, loopback APIs, and Electron routes.
 - The inherited `domain.Outcome`, `OutcomeTask`, session-oriented orchestration service, marker-parsed UI, and `Completed` state do not implement this contract and are donor code, not the target model.
 
-### Unknown outside this slice
+### Outside this Work slice
 
-- v1 provider selection, hosted attachment, Home/Open Loop persistence, Gmail, Desktop Context, durable Memory, Health, Relationship, mobile, and commercialization.
+- v1 provider selection, hosted attachment, Home/Open Loop persistence, Gmail, capture, durable Memory, Health, Relationship, phone/wearable implementation, and commercialization do not belong in this Work milestone. ADR 0004 permits Home/OpenLoop, governed capture, and candidate-memory foundations in a separate parallel lane; it does not add them to this slice.
 
 ## Outcome fixture
 
@@ -89,7 +90,7 @@ The first milestone persists only:
 - resource disposition and optional `SuccessorLink`;
 - metadata-first causal events emitted through SQLite-triggered `change_log`.
 
-Do not add PersonalHome, OpenLoop, ResponsibilityLink, SourceConnection, Gmail, DesktopObservation, Memory, hosted IDs, or generic multi-provider routing to this first milestone.
+Do not add PersonalHome, OpenLoop, ResponsibilityLink, SourceConnection, Gmail, Observation/capture, Memory, hosted IDs, or generic multi-provider routing to this Work milestone. Those contracts belong to their separately owned lane.
 
 ## Evaluation protocol
 
@@ -138,7 +139,7 @@ Record active supervision minutes, transcript opens, material interventions, tim
 
 ### D. Falsifiers
 
-Stop and revise the architecture before adding Home or connectors if any of these occurs:
+Stop and revise the affected shared contract before integrating Home or connectors with this Work slice if any of these occurs:
 
 - the complete lifecycle still depends on parsing provider prose or rebuilding a transcript;
 - the renderer becomes a canonical writer;
@@ -150,4 +151,4 @@ Stop and revise the architecture before adding Home or connectors if any of thes
 
 ## Completion definition
 
-The first Outcome milestone is complete only after all five stage-aligned PRs are accepted in order, the contract conformance gate passes, the failure matrix is recorded, and five paired dogfood trials are reported. It does not authorize launch, Home, Gmail, Desktop Context, provider expansion, merge, push, deploy, publish, or release.
+The first Outcome milestone is complete only after all five stage-aligned PRs are accepted in order, the contract conformance gate passes, the failure matrix is recorded, and five paired dogfood trials are reported. Its completion is no longer a prerequisite for starting the separately owned Home/Personal Agent lane. This document does not authorize launch, Home code inside the Work slice, Gmail, capture code inside the Work slice, provider expansion, merge, push, deploy, publish, or release.

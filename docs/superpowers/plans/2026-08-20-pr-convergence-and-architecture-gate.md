@@ -1,5 +1,7 @@
 # Kennel PR Convergence and Architecture Gate Implementation Plan
 
+> **Sequencing amendment (2026-08-21):** [ADR 0004](../../adr/0004-parallel-home-personal-agent-and-required-capture.md) permits a separately owned Home/Personal Agent lane to proceed in parallel and makes governed desktop screen/audio capture required product capabilities. The Work PR sequence below remains unchanged, but Work evaluation is no longer a prerequisite for starting Home, and capture is no longer an optional launch+1-only idea. Durable admitted Memory remains separately gated.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Preserve and accept F0-F6, replace PR #11 with bounded post-foundation cleanup, and establish a clean base and ordered vertical-slice sequence for the accepted Waldo Kennel desktop launch.
@@ -334,8 +336,8 @@ Feature execution requires the user's explicit approval of that vertical-slice p
 - [ ] **PR D — Act & Observe**: authoritative v0 Codex admission, fenced Attempt, derived attention, containment, reconciliation, and safe retry/re-entry.
 - [ ] **PR E — Prove & Close**: criterion-bound Evidence, truthfully labeled Verification, explicit AcceptanceDecision, Adaptive Close, resource disposition, and successor lineage.
 - [ ] **Evaluation**: run the first-slice conformance/failure protocol and five paired direct-Codex trials; record `continue to Home`, `revise the Outcome core`, or `stop/falsified`.
-- [ ] **Next milestone only after `continue to Home`**: Personal Home/OpenLoop persistence, Quick Capture, Daily Snapshot, and immutable many-to-many ResponsibilityLink. Home and Work retain separate closure/acceptance lineages.
-- [ ] **Later gates**: one-account Gmail Communication Loops beta, then optional Desktop Context after separate privacy approval. No automatic Evidence, Open Loop, Memory, rule, or skill promotion.
+- [ ] **Parallel Home milestone under ADR 0004**: Personal Home/OpenLoop persistence, Quick Capture, Daily Snapshot, and immutable many-to-many ResponsibilityLink proceed in a separately owned lane. Home and Work retain separate closure/acceptance lineages.
+- [ ] **Separate gates**: one-account Gmail Communication Loops beta; per-modality activation of the required governed desktop screen/audio capabilities; and later durable Memory admission. No automatic Evidence, Open Loop, Memory, rule, or skill promotion.
 
 Every PR owns every domain, service, storage/migration, trigger-based CDC, API/generated type, UI, recovery, and evaluation change required by its user-visible truth boundary, reusing accepted foundation APIs when no new durable truth is needed. A horizontal schema, incomplete daemon-only layer, or deceptive screen-only PR does not satisfy a stage. Every issue requires explicit approval; this plan does not authorize implementation.
 

@@ -22,8 +22,21 @@ Kennel currently consists of an AO-derived Go daemon and Electron supervisor plu
 | [Five-stage Excalidraw session seed](product/kennel-v1-excalidraw-session-seed.md) | Five adaptive lifecycle frames organizing the complete detailed screen subframes, destination/context rail, canonical lineage strips, failure injections, Focus Ledger overlay, privacy defaults, and facilitation agenda. |
 | [First complete Outcome slice](product/kennel-v0-first-outcome-slice.md) | Locked Local Focus Ledger contract and evaluation protocol across Enter, Understand, Decide & Authorize, Act & Observe, and Prove & Close. |
 | [ADR 0003: Local-first Waldo Core](adr/0003-local-first-waldo-core.md) | Accepted v1 deployment and custody decision: Waldo Core inside the Kennel daemon, local canonical storage, user-authenticated providers, and later explicit hosted attachment. |
+| [ADR 0004: Parallel Home/Personal Agent and required governed capture](adr/0004-parallel-home-personal-agent-and-required-capture.md) | Accepted sequencing amendment: Work and Home may proceed in parallel; desktop screen/audio are required capabilities behind explicit CaptureGrants; durable Memory remains separately gated. |
+| [Home, Personal Agent, capture, and memory design](superpowers/specs/2026-08-21-home-personal-agent-memory-design.md) | Approved written specification for Home/OpenLoop, shared intake, required screen/audio capture, candidate-first memory, retrieval, deletion, evaluation, and non-overlapping Work/Home ownership. |
 | [PR convergence and architecture gate plan](superpowers/plans/2026-08-20-pr-convergence-and-architecture-gate.md) | Completed prerequisite record for F0-F6 and the bounded PR #11 donor extraction, plus the still-current first-feature gate. |
 | [First Outcome execution handoff](superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) | Exact new-session PR/issue sequence, file ownership, tests, dependencies, acceptance, falsifiers, and handoff constraints for the five-stage Focus Ledger milestone. |
+
+## Personal Agent and memory research
+
+| Document | Purpose |
+| --- | --- |
+| [Omi implementation reference](research/2026-08-21-omi-implementation-reference.md) | Pinned source review of Omi capture, admission, authority, task, memory, and deletion mechanisms with Waldo Adopt/Adapt/Reject decisions. |
+| [Project Minimi reference](research/2026-08-21-project-minimi-reference.md) | First-party product/artifact review of local durability, cloud-assisted processing, ambient continuity, Open Loop claims, and Waldo boundaries. |
+| [Dayflow versus Omi capture](research/2026-08-21-dayflow-vs-omi-capture-reference.md) | Source-backed comparison of desktop visual capture and conversational audio capture for Waldo's required governed source plane. |
+| [Personal-agent memory benchmark](research/2026-08-21-personal-agent-memory-research-benchmark.md) | MIRIX, Hindsight, MemOS, and A-MEM comparison covering typed memory, temporal claims, provenance, consolidation, deletion, and evaluation. |
+| [Agent-memory infrastructure benchmark](research/2026-08-21-agent-memory-infrastructure-benchmark.md) | Mem0, Graphiti/Zep, and Supermemory comparison covering canonical storage, retrieval projections, correction, deletion, and failure behavior. |
+| [Orchestration/runtime memory benchmark](research/2026-08-21-orchestration-runtime-memory-benchmark.md) | Letta, LangGraph/LangMem, and AutoGen comparison separating checkpoints, context, durable knowledge, responsibility, and proof. |
 
 ## Chassis references
 

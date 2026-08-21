@@ -54,7 +54,7 @@ Show:
 - alternative “Start with Home” path with no silently created Personal Home;
 - Quick Capture and source candidate as Home modes;
 - daemon offline, invalid folder, and Codex unavailable states;
-- Gmail, Desktop Context, account, hosted attachment, and broad providers as non-blocking later/optional cards.
+- Capture activation, Gmail, account, hosted attachment, and broad providers as non-blocking cards. Screen/audio capability belongs to the required Personal Agent lane, but each modality requires an explicit CaptureGrant.
 
 Required decision:
 
@@ -182,7 +182,7 @@ Under each large lifecycle frame, place the original screen cards. Each card mus
 - **F08 Draft effect review** — exact intent, approve/edit/create/fail/unknown/reconcile.
 - **F14 Mission Map** — direct or multi-WorkUnit topology, dependencies, agents, concurrency and invalidation.
 - **F15 Authority and effect preview** — capabilities, placement, budget, disclosure, effects and revoke.
-- **F25 Desktop Context consent** — capture/analysis route/exclusions/retention/pause/delete.
+- **F25 Capture grants** — screen/system-audio/microphone scope, analysis route, disclosure, exclusions, retention, pause/revoke/export/delete; required capability, governed activation.
 
 ### Under Act & Observe
 

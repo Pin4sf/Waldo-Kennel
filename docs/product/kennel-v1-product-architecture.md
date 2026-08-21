@@ -1,12 +1,12 @@
 # Waldo Kennel v0 dogfood and provider-neutral v1 architecture
 
-- Status: Accepted v0 dogfood baseline and proposed provider-neutral v1 direction; documentation only
-- Decision date: 2026-08-20
-- Launch wedge: agent-heavy Mac users, expanding through governed communication continuity
+- Status: Accepted v0 dogfood baseline and provider-neutral v1 direction, amended by ADR 0004; documentation only
+- Decision date: 2026-08-20; Home/Personal Agent amendment accepted 2026-08-21
+- Launch wedge: agent-heavy Mac users, expanding through governed personal and communication continuity
 - Launch proof: useful Outcomes and commitments reach conscious closure with lower coordination and supervision cost
 - Current implementation status: prerequisite foundation, legacy-import removal, Codex admission, and CLI reduction are on `main`; the accepted Outcome/Home/continuity model is not implemented by the existing overlay
 
-This is the canonical product, ontology, lineage, governance, state, and surface definition for Waldo Kennel's local v0 dogfood. It consolidates the accepted Kennel Work loop with the approved local personal Home, Gmail Communication Loops beta, and phased Dayflow-inspired Desktop Context. Codex-only execution is a v0 testing constraint, not a locked v1 provider decision: v1's provider set is **Unknown/TBD** and its orchestration core must remain provider-neutral. Home, Work, and Settings are destinations; **Enter -> Understand -> Decide & Authorize -> Act & Observe -> Prove & Close** is the common lifecycle spine inside them. This document is a contract for separately authorized implementation slices; it does not itself ship a feature, release, or hosted deployment.
+This is the canonical product, ontology, lineage, governance, state, and surface definition for Waldo Kennel's local v0 dogfood. It consolidates the accepted Kennel Work loop with the approved local Personal Home, required governed desktop screen/audio capture capabilities, and Gmail Communication Loops beta. Codex-only execution is a v0 testing constraint, not a locked v1 provider decision: v1's provider set is **Unknown/TBD** and its orchestration core must remain provider-neutral. Home, Work, and Settings are destinations; **Enter -> Understand -> Decide & Authorize -> Act & Observe -> Prove & Close** is the common lifecycle spine inside them. Work and Home/Personal Agent implementation may proceed in parallel through the ownership rules in [ADR 0004](../adr/0004-parallel-home-personal-agent-and-required-capture.md) and the [Home/Personal Agent design](../superpowers/specs/2026-08-21-home-personal-agent-memory-design.md). This document is a contract for separately authorized implementation slices; it does not itself ship a feature, release, or hosted deployment.
 
 ## Evidence boundaries
 
@@ -26,16 +26,16 @@ This is the canonical product, ontology, lineage, governance, state, and surface
 
 ### Inference
 
-- The launch product should first prove responsibility transfer and judgment compression. Later it may maximize useful agent concurrency, inbox automation, and captured context, but those remain means governed by the Outcome/Open Loop contract—not product-success metrics or independent sources of truth.
-- Kennel Work proves bounded execution; Communication Loops prove continuity across human coordination; Personal Home unifies the user's attention without claiming to be the later complete Waldo ecosystem.
+- Work should prove responsibility transfer and judgment compression while Home/Personal Agent proves attention continuity, source governance, candidate quality, and conscious Open Loop closure. Useful agent concurrency, inbox automation, and captured context remain means governed by the Outcome/Open Loop contract—not product-success metrics or independent sources of truth.
+- Kennel Work proves bounded execution; Personal Home proves work-plus-life continuity; Communication Loops prove continuity across human coordination. These lanes share one Waldo identity and one intake/context contract.
 - A local-first Waldo Core can prove this without a required Waldo account, hosted API, Waldo-funded model calls, or central Memory service.
 
 ### Unknown
 
 - whether Google restricted-scope verification and any required security assessment can complete on the intended public-launch schedule;
-- whether Desktop Context reduces re-entry cost enough to justify system-wide capture for launch users;
+- the capture cadence, local model route, retention budget, and review volume that meet the Personal Agent utility, privacy, battery, and deletion gates;
 - hosted attachment, offline acknowledgement, detach/revoke, deletion, and cross-device conflict behavior;
-- pricing, commercialization, health/body-state semantics, Relationship, mobile, durable Memory, and the future Waldo harness.
+- pricing, commercialization, health/body-state semantics, Relationship, phone/wearable implementation, governed durable Memory admission, and the future Waldo harness.
 - the v1 provider set and routing-policy defaults; evaluator identity and independence must always be labeled truthfully, while the future provider mix remains unknown.
 
 ## Product thesis
@@ -86,13 +86,13 @@ Kennel should answer four questions without requiring transcript reconstruction:
 
 ### Launch non-goals
 
-These are exclusions from the first verified local release, not permanent product rejections. Broad agent orchestration, inbox automation, ambient context, and durable Memory return only after the responsibility/evidence loop proves safe and useful.
+These are exclusions from the first verified local release or from automatic behavior, not permanent product rejections. Home/OpenLoop and required capture foundations may proceed in parallel with Work; governed durable Memory use still waits for its admission, privacy, deletion, and evaluation gate.
 
 - a generic multi-agent dashboard or provider launcher;
 - a full email client, autonomous inbox, or automatic-reply bot;
 - automatic task, Outcome, Open Loop, Acceptance, or closure creation from model inference;
 - a transcript archive, productivity score, personality assessment, or ambient surveillance product;
-- a complete life model, health-aware planner, Relationship product, durable agent, or mobile Waldo;
+- a complete or hidden life model, health-aware planner, Relationship product, durable proactive agent, or phone/wearable Waldo implementation;
 - a required account, hosted canonical backend, cross-device sync, or Waldo-funded inference;
 - automatic skill/rule promotion from traces;
 - provider-authored truth or prompt rewriting presented as orchestration.
@@ -152,14 +152,25 @@ An Outcome or Open Loop belongs to exactly one Responsibility Space at a time. M
 
 | Object | Definition and invariant |
 | --- | --- |
+| `IntakeSession` | Shared adaptive Home/Work understanding flow. It owns source, space, purpose, material clarification, responsibility proposal, and current revision; neither destination builds a separate Q&A state machine. |
+| `ClarificationRequest` | One material question with reason, recommendation, alternatives, and the consequence of deferral. |
+| `ResponsibilityProposal` | Proposed note, Open Loop, Outcome, link, correction, or dismissal. It is never canonical by itself. |
 | `SourceConnection` | User-authorized external source such as one Gmail account, with explicit scope, disclosure, retention, revoke, and sync status. |
 | `CommunicationThreadRef` | Reference to an external conversation. It is source context, never the ID of an Outcome or Open Loop. |
 | `CommitmentCandidate` | Correctable model-derived proposal about an obligation, owner, due condition, or next action. It is not canonical responsibility until confirmed. |
 | `DraftEffect` | A Gmail-draft EffectIntent and resulting receipt. Draft creation does not mean sent, acknowledged, or closed. |
 | `DailySnapshot` | Time-bounded projection of trusted facts, confirmed Open Loops, explicit notes, and current attention. It is not durable Memory. |
-| `DesktopObservation` | Optional untrusted local observation derived from consented capture. It cannot grant authority or become Evidence automatically. |
-| `ContextEpisode` | Correctable grouping of Desktop Observations. It remains a proposal until explicitly linked or admitted. |
-| `MemoryCandidate` | Later proposal for durable continuity, requiring provenance, admission, correction, expiry, rollback, and deletion. |
+| `CaptureGrant` | User-governed screen, system-audio, microphone, explicit-capture, connector, or future device-source contract covering purpose, scope, exclusions, processing, disclosure, retention, pause, revoke, export, and deletion. |
+| `SourceArtifact` | Original captured or imported source identity, coverage, sensitivity, retention, and deletion generation. Source content is not truth by existence. |
+| `Observation` | Untrusted typed observation derived from an explicit capture, structured source, connector, screen, audio, or future device source. It cannot grant authority or become Evidence or Memory automatically. |
+| `ContextEpisode` | Correctable grouping of observations with time, actors, derivation version, and known source gaps. It remains a proposal until explicitly linked or admitted. |
+| `MemoryCandidate` | Provenance-bearing proposal for durable continuity with type, valid-time proposal, uncertainty, sensitivity, and review need. It is not admitted memory. |
+| `AdmissionDecision` | Immutable accept, edit, reject, or defer decision with actor, policy, reason, and scope. A model reviewer is not the user. |
+| `MemoryRecord` | Stable conceptual identity across immutable `MemoryRevision`s. |
+| `MemoryRevision` | Admitted content with provenance, recorded time, real-world valid time, scope, expiry, uncertainty, and supersession state. |
+| `CounterEvidence` | Source-backed challenge that may propose a revision without overwriting current or historical claims. |
+| `DeletionTombstone` | Content-free identity/digest and generation fence that prevents stale indexes, jobs, checkpoints, or source replay from resurrecting deleted content. |
+| `RetrievalReceipt` | Purpose, caller, eligible spaces, included/excluded revisions, index generations, and degradation for one context compilation. |
 
 ### Projections, not competing canonical aggregates
 
@@ -174,21 +185,23 @@ An Outcome or Open Loop belongs to exactly one Responsibility Space at a time. M
 
 Provider completion, commits, PRs, checks, messages, drafts, archive state, screenshots, and activity are observations or candidate Evidence. None can create Acceptance or close an Open Loop.
 
-### Durable local Memory extension — Proposed after the verified Work loop
+### Governed local Memory — candidate foundations in parallel, admission separately gated
 
 Waldo can and should develop a durable, updating personal Memory; the limitation is that capture alone cannot establish it. A screenshot can show that an app was visible, but not whether the user agreed, cared, changed their mind, completed a commitment elsewhere, or wants the observation remembered. Dayflow-style capture therefore produces candidate context, while Memory requires an admission and correction lifecycle.
 
-The proposed local architecture uses both SQLite and a user-readable Waldo filesystem under `~/.kennel/waldo/memory/`:
+The approved local architecture uses SQLite as canonical truth plus subordinate encrypted blobs, indexes, and a user-readable Waldo filesystem under `~/.kennel/waldo/memory/`:
 
-- SQLite remains canonical for identity, provenance, admission decisions, relationships, scope, freshness, supersession, expiry, deletion generation, and retrieval indexes;
-- daemon-owned Markdown files contain inspectable admitted memory narratives, decisions, preferences, project continuity, and user corrections;
+- SQLite remains canonical for identity, provenance, admission decisions, relationships, scope, freshness, supersession, expiry, deletion generation, and projection checkpoints;
+- encrypted content-addressed blobs hold retained source payloads under source-specific retention and deletion policy;
+- SQLite FTS, optional local embeddings, and typed relationship indexes are rebuildable projections keyed by revision and canonical generation;
+- daemon-owned Markdown files contain inspectable projections of admitted memory narratives, decisions, preferences, project continuity, and user corrections;
 - direct user edits are re-imported as explicit candidate revisions and never silently overwrite lineage;
 - captured activity, messages, transcripts, and model summaries enter a Memory inbox as candidates, not durable truth;
 - admission records source, confidence, responsible space, valid time, review/expiry, and whether the user explicitly confirmed it;
-- corrections supersede rather than erase history; deletion removes content and leaves only a content-free anti-resurrection marker;
+- corrections supersede rather than erase history; deletion advances a generation, removes source and derived content, regenerates dependent projections, and leaves only a content-free anti-resurrection marker and permitted propagation receipt;
 - retrieval returns a minimized, provenance-bearing, freshness-labeled packet and cannot override a current ContractRevision or explicit user statement.
 
-This supports Minimi-like ambient continuity and Open Loop help while adding Waldo's stronger distinction between observation, memory, responsibility, execution, verification, and conscious closure. Exact file format, reconciliation protocol, encryption, embedding route, and memory-evaluation threshold remain **Unknown** until the later Memory architecture gate.
+This supports Minimi-like ambient continuity and Open Loop help while adding Waldo's stronger distinction between observation, memory, responsibility, execution, verification, and conscious closure. The Home lane may implement sources, episodes, candidates, review, deletion-generation fixtures, and retrieval evaluation in parallel. Enabling durable admitted Memory remains a separate gate; no implementation PR may settle that gate by convenience.
 
 ## Exact lineages
 
@@ -235,11 +248,11 @@ Trusted Kennel facts + confirmed OpenLoops + explicit notes
   -> Daily Close
   -> exact tomorrow Re-entry
 
-Optional beta only:
-raw frame -> DesktopObservation -> ContextEpisode
+Required capability, activated only by explicit per-modality CaptureGrant:
+raw screen frame / system audio / microphone segment -> Observation -> ContextEpisode
   -> explicit user confirmation/link
   -> Snapshot input or CommitmentCandidate
-  -> MemoryCandidate later, never automatic
+  -> MemoryCandidate, never automatic durable truth
 ```
 
 ### Home to Work
@@ -369,7 +382,7 @@ Hosted Waldo becomes canonical only for explicitly attached Responsibility Space
 
 ### Bottleneck and counter-challenge
 
-At substantially higher local load, provider/process concurrency, worktree/disk pressure, terminal/browser resources, connector rate limits, and optional capture storage fail before loopback HTTP or SQLite query throughput. v0 responds with concurrency/storage budgets, backpressure, cleanup/retention controls, and narrower scheduling—not premature distributed services. Exact concurrency, storage, and latency thresholds remain **Unknown** until measured by the first-slice and broader dogfood protocols.
+At substantially higher local load, retained screen/audio media, derived-index rebuilds, provider/process concurrency, worktree/disk pressure, terminal/browser resources, and connector rate limits fail before loopback HTTP or SQLite query throughput. v0 responds with capture cadence, age/storage retention, deduplication, concurrency budgets, backpressure, projection checkpoints, and cleanup—not premature distributed services. Exact concurrency, storage, energy, and latency thresholds are measured by the Work and Home/Personal Agent dogfood protocols.
 
 The architecture should be revised rather than scaled if its central assumption is false: that a governed Outcome-to-Acceptance loop lowers supervision and re-entry cost compared with direct provider use.
 
@@ -484,7 +497,7 @@ Home is a responsibility/attention projection, not a dashboard of activity or a 
 
 - Responsibility Spaces, Projects, Gmail Connections, Codex authentication/admission;
 - permissions, disclosure, effect policy, retention, export, revoke, and deletion;
-- skills, MCP servers, rules, routing overrides, and Desktop Context beta;
+- skills, MCP servers, rules, routing overrides, and required screen/audio capture capabilities with per-modality grants;
 - future hosted attachment clearly marked later.
 
 ## Five adaptive product surfaces
@@ -507,7 +520,7 @@ The five surfaces group the previous screen atlas; they do not delete it. The ea
 | --- | --- |
 | **Enter** | F01 First run; F03 Quick Capture; F05 Communication connection. |
 | **Understand** | F02 Home/Today; F04 Daily Snapshot; F06 Communication inbox; F07 Communication Brief; F09 Open Loop detail; F11 Work Home; F12 Outcome Define; F13 Adaptive clarification; F26 Context episode correction. |
-| **Decide & Authorize** | F02A Connect Home to Work; F08 Draft effect review; F14 Mission Map; F15 Authority/effect preview; F25 Desktop Context consent. |
+| **Decide & Authorize** | F02A Connect Home to Work; F08 Draft effect review; F14 Mission Map; F15 Authority/effect preview; F25 screen/audio Capture grants. |
 | **Act & Observe** | F16 Run; F17 Needs You; F18 Action Required; F19 Waiting. |
 | **Prove & Close** | F10 Ready to Close; F20 Evidence and Verification; F21 Acceptance; F22 Adaptive Close; F23 Re-entry. |
 | **Cross-stage overlays** | F24 Operator Inspector; F27 Settings & Control. |
@@ -516,11 +529,13 @@ Some may ultimately share a route or component, but each remains a distinct user
 
 ### Work-first first run
 
-For v0 local dogfood, first run recommends **Work first**: choose a local Project, verify daemon/provider readiness, and enter the first Outcome. The user may instead enter Home, but Home, Gmail, Desktop Context, an account, and hosted attachment are never onboarding blockers and no Personal Home is silently created. After either path, Home and Work remain peers over shared responsibility truth.
+For v0 local dogfood, first run recommends **Work first**: choose a local Project, verify daemon/provider readiness, and enter the first Outcome. The user may instead enter Home, and no Personal Home is silently created. Screen/audio capture capabilities are required product surfaces but activation is never an onboarding blocker: each modality requires an explicit CaptureGrant and Home remains useful when capture is denied, paused, unavailable, or deleted. Gmail, an account, and hosted attachment also remain non-blocking. After either path, Home and Work remain peers over shared responsibility truth.
 
 ### First implementation milestone
 
-The first complete vertical slice is the [Local Focus Ledger Outcome](kennel-v0-first-outcome-slice.md). It must traverse all five stages with one smallest-sufficient Work Unit, durable restart/recovery, criterion-bound evidence, verification, and explicit user acceptance. Its paired evaluation is an early architecture signal; the 20-Outcome dogfood gate remains the broader launch test. The exact issue/PR handoff is [Kennel First Outcome Execution Handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md).
+The first complete Work vertical slice remains the [Local Focus Ledger Outcome](kennel-v0-first-outcome-slice.md). It must traverse all five stages with one smallest-sufficient Work Unit, durable restart/recovery, criterion-bound evidence, verification, and explicit user acceptance. Its scope and paired evaluation remain unchanged.
+
+ADR 0004 starts a separate Home/Personal Agent lane in parallel. That lane follows the [Home, Personal Agent, capture, and memory design](../superpowers/specs/2026-08-21-home-personal-agent-memory-design.md) and may implement canonical Home/OpenLoop, required governed screen/audio capture, candidate-memory foundations, and retrieval evaluation without waiting for the Work evaluation. Shared `ResponsibilitySpace`, `ResponsibilityLink`, intake, RunBrief reference, CDC, and API contracts require coordinated ownership; neither lane may create a duplicate contract or second writer.
 
 ## Reference disposition
 
@@ -533,10 +548,14 @@ The first complete vertical slice is the [Local Focus Ledger Outcome](kennel-v0-
 | OpenAI Useful-Work Scorecard | **Adapt** objective useful-output and supervision-cost evaluation. |
 | ChatGPT Work, Notion Custom Agents, Webhound | **Adapt** concise attention, reusable work context, and governed proactive work. |
 | [Gmail API](https://developers.google.com/workspace/gmail/api/guides) and [Gmail MCP reference shape](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server) | **Adapt** thread search/get, draft creation, incremental sync, and prompt-injection boundary. Do not depend on Developer Preview MCP for public launch. Restricted-scope and user-data policy review remain launch-beta gates. |
-| [Dayflow](https://github.com/JerryZLiu/Dayflow/tree/86f5288d7267c9c8da1ab47e9c25ad1cd0b80046) | **Adapt after core stability** optional capture consent, exclusions, local timeline, Daily/Weekly projections, and local-model route. Reject default-on capture, direct DB access, automatic truth, and permanent raw screenshots. |
-| [Minimi](https://www.projectminimi.com/) | **Adapt after the verified Work loop** local ambient memory, Open Loop discovery, cross-app continuity, and user-owned retrieval. Add Waldo's explicit admission/correction/provenance model, separate responsibility lineage, verified work execution, and conscious acceptance/closure; do not copy unsupported accuracy or automatic-closure claims as product truth. |
-| Claude Code auto-memory | **Later** project continuity with explicit admission/correction rules. |
-| Paxel and AutoResearch-style loops | **Later** consented trace learning, candidate skills, evaluation, promotion, correction, rollback, and deletion. |
+| [Omi](https://github.com/BasedHardware/omi) | **Adapt now at the source-contract level** conversation/audio capture, explicit application surfaces, and broad provider integration. Reject automatic durable truth, capture-led onboarding, and any provider/session store as Waldo authority. |
+| [Dayflow](https://github.com/JerryZLiu/Dayflow/tree/86f5288d7267c9c8da1ab47e9c25ad1cd0b80046) | **Adapt now as a required Personal Agent capability** screen capture, exclusions, visible pause, local batching, recoverable observations, and local-model route. Activation remains explicit per user/modality. Reject direct DB access, automatic truth, incomplete deletion, and permanent raw screenshots. |
+| [Minimi](https://www.projectminimi.com/) | **Adapt now at the Home/Personal Agent architecture level** ambient continuity, Open Loop discovery, cross-app context, and user-owned retrieval. Add Waldo's explicit admission/correction/provenance model, separate responsibility lineage, verified work execution, and conscious acceptance/closure; do not copy unsupported accuracy or automatic-closure claims as product truth. |
+| MIRIX, Hindsight, MemOS, and A-MEM | **Adapt** typed memory, source-linked synthesis, temporal validity, scopes, and linked projections. Reject raw-secret memory, opaque beliefs, silent neighbor mutation, and source replay that resurrects deletion. |
+| Mem0, Graphiti/Zep, and Supermemory | **Adapt as subordinate infrastructure patterns** hybrid retrieval, temporal provenance, version relationships, and preview/apply deletion. Reject a second canonical store, namespace-as-authorization, and model-to-truth insertion. |
+| Letta, LangGraph/LangMem, and AutoGen | **Adapt at the orchestration boundary** tiered context, source-addressed compaction, checkpoint lineage, pending writes, and explicit save/load. Runtime state remains under Attempt and cannot become personal truth or proof. |
+| Claude Code auto-memory | **Adapt only through MemoryCandidate** with explicit admission/correction rules. |
+| Paxel and AutoResearch-style loops | **Adapt later** as consented trace learning, candidate skills, evaluation, promotion, correction, rollback, and deletion. |
 | Folk, Poke, Dimension, Manus, Grok Bot, Qodo, Lifestack | **Later/reference only**. |
 | [TapeFlow](https://github.com/xingrz/tapeflow) / [Tapflow](https://www.tapflow.ai/) products | **Reject** as unrelated to the communication/personal-agent mechanism. |
 | Standalone WHOOP/Oura entries | **Remove from active Kennel benchmark**; preserve as broader Waldo history. |
@@ -545,15 +564,19 @@ Open-source code may only be copied after a source-pinned license, dependency, p
 
 ## Phased launch boundary
 
-### Launch core: required
+### Parallel launch-core lanes: required
 
 - local-first Home, Work, and Settings destinations;
 - Responsibility Spaces, Project readiness, v0 Codex-only admission, provider-neutral adapter/conformance seam, and historical provider readability;
 - guided Outcome contract, optional Mission Map, RunBrief, Work Units, grants, fenced Attempts, recovery;
 - Needs You, Action Required, Waiting, Evidence, Verification, explicit Acceptance, Adaptive Close, and Re-entry;
-- confirmed Open Loops and explicit Quick Capture;
-- Daily Snapshot from trusted Kennel facts, confirmed items, and explicit notes;
+- confirmed Open Loops, LoopDisposition, explicit Quick Capture, and Home-to-Work ResponsibilityLink;
+- Today/Morning Brief, Catch Up, Open Loop detail, Ready to Close, and Daily Snapshot from trusted facts, confirmed items, explicit notes, and correctable candidates;
+- required desktop screen and audio capture capabilities behind explicit per-modality CaptureGrants, with visible pause, exclusions, local preprocessing, retention, revoke, export, and deletion;
+- SourceArtifact, Observation, ContextEpisode, CommitmentCandidate, and MemoryCandidate foundations;
 - redacted Outcome Trace and dogfood instrumentation.
+
+The Work Local Focus Ledger and Home/Personal Agent slices may proceed in parallel through separate file/API ownership. Shared intake, ResponsibilitySpace, ResponsibilityLink, RunBrief references, CDC, and generated API contracts are designed once and integrated through coordinated PRs.
 
 ### Launch beta: optional but coherent
 
@@ -565,18 +588,19 @@ Open-source code may only be copied after a source-pinned license, dependency, p
 
 Public availability of this beta depends on Google OAuth verification and an approved model-disclosure/security boundary. It may remain dogfood-only while the Work core launches.
 
-### Launch+1 beta
+### Candidate-memory gate
 
-- Dayflow-inspired Desktop Context with separate capture, analysis, provider-disclosure, retention, and deletion consent;
-- DesktopObservation and ContextEpisode correction;
-- optional Snapshot linkage only after confirmation.
+- candidate extraction and correction from explicit, structured, screen, and audio sources;
+- bitemporal revisions, counter-evidence, expiry, revocation, deletion generation, and retrieval receipts;
+- cross-space denial, stale-index hydration, crash recovery, and non-resurrection evaluation;
+- durable admitted Memory use only after this gate passes.
 
 ### Later Waldo ecosystem
 
 - explicit hosted attachment, backup, cross-device sync, and hosted remote execution;
-- durable Memory and governed trace-learning/skill promotion;
+- governed durable Memory after the candidate-memory gate and governed trace-learning/skill promotion;
 - Relationship and broad work-plus-life Open Loops;
-- Health First mobile experience and permissioned body-state planning;
+- phone/wearable Waldo presence, Health First mobile experience, and permissioned body-state planning through the same source/memory contract;
 - durable proactive agent, Waldo-owned harness, provider routing beyond v0, teams, marketplace, and commercialization.
 
 ## Dogfood and falsification gate
@@ -607,10 +631,10 @@ The wedge is falsified or paused if supervision cost is not lower, false readine
 4. Objective dogfood measures, thresholds, failure injections, and falsifiers.
 5. Consequential-effect ceiling: authorized local work plus separately approved local commits; no autonomous remote effects; Gmail draft only after explicit user intent.
 
-### Deferred and non-blocking for fully local launch
+### Deferred and non-blocking for the parallel local lanes
 
 6. Hosted attachment offline/sync acknowledgement, detach/revoke, deletion, and conflict semantics.
-7. Durable Memory admission, Relationship, Health, mobile, proactive agent, trace learning, and Waldo-owned harness.
+7. Durable admitted Memory use until its candidate/admission/deletion gate passes; Relationship, Health, phone/wearable implementation, proactive agent, trace learning, and Waldo-owned harness.
 
 ### Final architecture-review conclusion
 
@@ -622,7 +646,8 @@ No unresolved architecture choice blocks starting the first authorized v0 issue 
 - PR #11 is a superseded donor and must not merge wholesale. Its speculative Outcome migration/store and locale deletion remain rejected until an authorized vertical slice owns domain, service, storage, CDC, API, UI, recovery, and evaluation together.
 - Product work starts from current `origin/main` in a new issue-specific worktree, never from the historical F0-F6 or PR #11 branches.
 - Implement the Focus Ledger milestone as five stage-aligned issue-sized PRs: Enter; Understand; Decide & Authorize; Act & Observe; Prove & Close. Each PR owns every domain, storage, CDC, service, API, UI, recovery, and evaluation change required by its user-visible truth boundary, reusing proven foundation APIs where no new durable truth is needed; no PR may leave a horizontal schema or deceptive screen layer for another PR to make true.
-- Do not call the milestone complete until the five-stage contract and failure-injection protocol pass. Only then add Home/Open Loop persistence and the explicit Home -> Work relation as a separate milestone; communication beta and optional Desktop Context follow core evidence.
+- Implement Home/Personal Agent in a separate parallel worktree and PR sequence: Home shell/fixtures; PersonalHome/OpenLoop/Quick Capture; Today/Catch Up/detail/closure; ResponsibilityLink/shared intake; required screen/audio CaptureGrant and source episodes; MemoryCandidate review and retrieval evaluation. Durable admitted Memory remains separately gated.
+- Before code edits, record exact file and API ownership for both lanes. Shared contract changes use a named integration owner; Home and Work must not independently implement intake/Q&A, ResponsibilitySpace, ResponsibilityLink, RunBrief memory references, CDC semantics, or generated DTOs.
 - Preserve Home and Work responsibility lineages even when one adaptive surface displays both. A `ResponsibilityLink` is lineage, never lifecycle coupling.
-- Use the [first Outcome specification](kennel-v0-first-outcome-slice.md) and [execution handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) as the implementation entry, after explicit authorization in a new session.
+- Use the [first Outcome specification](kennel-v0-first-outcome-slice.md) and amended [execution handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) for Work. Use the [Home/Personal Agent design](../superpowers/specs/2026-08-21-home-personal-agent-memory-design.md) and ADR 0004 for Home. Each code slice still requires an implementation plan and explicit PR scope.
 - No merge, push, deploy, publish, release, destructive cleanup, or hosted attachment is authorized by this document.
