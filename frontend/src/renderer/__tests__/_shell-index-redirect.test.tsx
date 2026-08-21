@@ -1,4 +1,4 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { type ComponentType } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceSummary } from "../types/workspace";
@@ -22,7 +22,6 @@ vi.mock("../hooks/useWorkspaceQuery", () => ({
 	}),
 }));
 
-vi.mock("../components/MigrationPopup", () => ({ MigrationPopup: () => null }));
 vi.mock("../components/SessionsBoard", () => ({ SessionsBoard: () => <div data-testid="sessions-board" /> }));
 
 import { Route } from "../routes/_shell.index";
@@ -72,5 +71,11 @@ describe("shell index route", () => {
 		await renderIndex();
 
 		expect(routeMocks.navigate).not.toHaveBeenCalled();
+	});
+
+	it("does not offer the retired legacy import flow", async () => {
+		await renderIndex();
+
+		expect(screen.queryByText(/Import projects from your earlier AO/i)).not.toBeInTheDocument();
 	});
 });

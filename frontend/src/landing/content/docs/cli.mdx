@@ -24,7 +24,6 @@ ao
 ├── review                         ls, trigger, cancel, submit
 ├── preview                        select/clear a target; start, status, stop a server
 ├── browser                        Control the selected session browser
-├── import                         Import projects from legacy AO data
 ├── completion                     Generate shell completions
 └── version                        Print build information
 ```
@@ -189,11 +188,10 @@ The command family includes status/open, accessibility snapshots and references,
 
 References become stale after navigation, DOM replacement, frame changes, or tab changes. Take another snapshot when AO reports `STALE_REFERENCE`. Network capture is off by default, metadata-only, bounded, and automatically expires.
 
-## Migration and shell integration
+## Shell integration
 
 | Command | Purpose |
 | --- | --- |
-| `ao import` | Import legacy projects from `~/.agent-orchestrator`; supports `--dry-run`, `--yes`, and `--json`. Unsupported legacy plugin settings are reported as dropped. |
 | `ao completion bash\|zsh\|fish\|powershell` | Generate a shell completion script. |
 | `ao version` / `ao --version` | Print build metadata. |
 

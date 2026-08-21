@@ -39,6 +39,16 @@ func TestRootHelpDoesNotShowDaemon(t *testing.T) {
 	}
 }
 
+func TestRootHelpDoesNotAdvertiseLegacyImport(t *testing.T) {
+	out, _, err := executeCLI(t, Deps{}, "--help")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "\n  import") {
+		t.Fatalf("retired legacy import command leaked into help:\n%s", out)
+	}
+}
+
 func TestRootCommandsHaveUniqueNames(t *testing.T) {
 	seen := make(map[string]struct{})
 	for _, cmd := range NewRootCommand(Deps{}).Commands() {

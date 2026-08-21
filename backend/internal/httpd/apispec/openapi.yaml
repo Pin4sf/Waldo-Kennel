@@ -414,55 +414,6 @@ paths:
       summary: Stream CDC events with durable replay
       tags:
       - events
-  /api/v1/import:
-    get:
-      operationId: getImportStatus
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImportStatusResponse'
-          description: OK
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Check whether a legacy AO install is available to import
-      tags:
-      - import
-    post:
-      operationId: runImport
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImportRunResponse'
-          description: OK
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Run the legacy AO project import through the daemon store
-      tags:
-      - import
   /api/v1/mobile/devices:
     get:
       operationId: listMobileDevices
@@ -6407,40 +6358,6 @@ components:
       required:
       - sourceBranchId
       - activeBranchId
-      type: object
-    ImportReport:
-      properties:
-        dryRun:
-          type: boolean
-        notes:
-          items:
-            type: string
-          type: array
-        projectsImported:
-          type: integer
-        projectsSkipped:
-          type: integer
-      required:
-      - dryRun
-      - projectsImported
-      - projectsSkipped
-      type: object
-    ImportRunResponse:
-      properties:
-        report:
-          $ref: '#/components/schemas/ImportReport'
-      required:
-      - report
-      type: object
-    ImportStatusResponse:
-      properties:
-        available:
-          type: boolean
-        legacyRoot:
-          type: string
-      required:
-      - available
-      - legacyRoot
       type: object
     InitializeRepositoryInput:
       properties:

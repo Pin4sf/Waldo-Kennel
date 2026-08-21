@@ -1,6 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { MigrationPopup } from "../components/MigrationPopup";
 import { SessionsBoard } from "../components/SessionsBoard";
 import { useWorkspaceQuery } from "../hooks/useWorkspaceQuery";
 
@@ -25,10 +24,5 @@ function ShellIndex() {
 		});
 	}, [navigate, workspaceQuery.data, workspaceQuery.isSuccess]);
 
-	return (
-		<>
-			<MigrationPopup />
-			<SessionsBoard />
-		</>
-	);
+	return <SessionsBoard />;
 }

@@ -22,7 +22,6 @@ trigger: "Using the Kennel CLI in a Kennel workspace: spawning workers, managing
 | `stop` | Stop the Kennel daemon | Shutting down Kennel | [commands/stop.md](commands/stop.md) |
 | `status` | Show daemon status | Verifying the daemon is up and healthy | [commands/status.md](commands/status.md) |
 | `doctor` | Run local health checks | Diagnosing Kennel setup problems | [commands/doctor.md](commands/doctor.md) |
-| `import` | Import projects from a legacy Agent Orchestrator install | Migrating from the old flat-file store | [commands/import.md](commands/import.md) |
 | `version` | Print version information | Checking installed version | - |
 | `completion` | Generate shell completion scripts | Setting up tab completion | - |
 
