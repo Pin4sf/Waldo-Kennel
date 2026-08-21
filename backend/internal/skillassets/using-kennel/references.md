@@ -37,4 +37,3 @@ Natural-language-to-command mappings for common AO tasks.
 | Claim an existing PR for another session | `kennel session claim-pr <id> <pr-ref>` |
 | Submit a code review verdict | `kennel review submit <session-id> --run <run-id> --verdict approved` |
 | Configure a project's default branch or model | `kennel project set-config <id> --default-branch <branch> --model <model>` |
-| Import projects from a legacy Agent Orchestrator install | `kennel import --dry-run` (preview), then `kennel import -y` |

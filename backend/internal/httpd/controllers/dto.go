@@ -8,7 +8,6 @@ import (
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/devimport"
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/legacyimport"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 	agentsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/agent"
 	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
@@ -1092,19 +1091,6 @@ type MarkAllNotificationsReadRequest struct {
 type MarkAllNotificationsReadResponse struct {
 	Notifications []NotificationResponse `json:"notifications" description:"Deprecated compatibility field. Always empty so mark-all responses stay bounded."`
 	UpdatedCount  int64                  `json:"updatedCount" description:"Number of notifications changed from unread to read."`
-}
-
-// ImportStatusResponse is the body of GET /api/v1/import: whether a legacy AO
-// install is available to import, and the root the daemon would read from.
-type ImportStatusResponse struct {
-	Available  bool   `json:"available"`
-	LegacyRoot string `json:"legacyRoot"`
-}
-
-// ImportRunResponse is the body of POST /api/v1/import: the structured outcome
-// of the import run (counts + notes), reused verbatim from the import engine.
-type ImportRunResponse struct {
-	Report legacyimport.Report `json:"report"`
 }
 
 // DevImportProjectsRequest is the body of POST /api/v1/dev/import-projects.

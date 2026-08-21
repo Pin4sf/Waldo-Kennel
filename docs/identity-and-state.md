@@ -27,7 +27,7 @@ The primary daemon listener remains unauthenticated and loopback-only. The LAN l
 
 Kennel must not read, write, move, delete, or automatically import `~/.ao`. That directory belongs to AO. Opening Kennel with no `~/.kennel` produces a new Kennel state root.
 
-An inherited, explicitly chosen legacy-import path may inspect `~/.agent-orchestrator`, which predates AO's current `~/.ao` layout. It does not make `~/.ao` a fallback and must not silently activate. Any future AO-to-Kennel importer needs its own proposal, preview, confirmation, copy-only implementation, and rollback evidence.
+Kennel also does not inspect the older `~/.agent-orchestrator` layout. Any future AO-to-Kennel importer needs its own proposal, preview, confirmation, copy-only implementation, and rollback evidence; it must not silently activate or treat either AO directory as a fallback.
 
 Two project-local names remain upstream compatibility seams:
 
