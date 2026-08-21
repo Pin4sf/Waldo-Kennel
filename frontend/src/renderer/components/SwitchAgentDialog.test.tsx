@@ -4,7 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { agentModelsQueryKey } from "../hooks/useAgentModelsQuery";
 import type { WorkspaceSession } from "../types/workspace";
-import { SwitchAgentDialog } from "./SwitchAgentDialog";
+import {
+	isRecognizedSwitchSourceHarness,
+	isSelectableSwitchTargetHarness,
+	SwitchAgentDialog,
+} from "./SwitchAgentDialog";
 
 const switchMocks = vi.hoisted(() => ({
 	clear: vi.fn(),
@@ -87,6 +91,13 @@ beforeEach(() => {
 });
 
 describe("SwitchAgentDialog", () => {
+	it("recognizes historical sources separately from Codex-only targets", () => {
+		expect(isRecognizedSwitchSourceHarness("claude-code")).toBe(true);
+		expect(isRecognizedSwitchSourceHarness("codex")).toBe(true);
+		expect(isSelectableSwitchTargetHarness("claude-code")).toBe(false);
+		expect(isSelectableSwitchTargetHarness("codex")).toBe(true);
+	});
+
 	it("renders a compact agent and model picker without optional context or cancel actions", () => {
 		renderDialog();
 
@@ -163,9 +174,7 @@ describe("SwitchAgentDialog", () => {
 		);
 
 		await waitFor(() =>
-			expect(screen.getByRole("button", { name: "Model" })).toHaveTextContent(
-				"Use Claude Code's default",
-			),
+			expect(screen.getByRole("button", { name: "Model" })).toHaveTextContent("Use Codex's default"),
 		);
 		await userEvent.click(screen.getByRole("button", { name: "Switch" }));
 		expect(switchMocks.mutate).toHaveBeenLastCalledWith(
@@ -173,7 +182,7 @@ describe("SwitchAgentDialog", () => {
 				idempotencyKey: "idempotency-1",
 				model: "",
 				session: switchedSession,
-				targetHarness: "claude-code",
+				targetHarness: "codex",
 			},
 			{ onSuccess: expect.any(Function) },
 		);

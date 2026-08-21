@@ -6,7 +6,7 @@ import { clearSwitchAgentState } from "../hooks/useSwitchAgent";
 import type { AgentSwitchPresentation } from "../lib/agent-switch-presentation";
 import { cn } from "../lib/utils";
 import { sessionIsActive, type WorkspaceSession } from "../types/workspace";
-import { canSwitchAgentHarness, SwitchAgentDialog } from "./SwitchAgentDialog";
+import { isRecognizedSwitchSourceHarness, SwitchAgentDialog } from "./SwitchAgentDialog";
 import { TopbarButton } from "./TopbarButton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -41,7 +41,8 @@ export function TerminalSwitchAgentButton({
 	if (
 		session.kind !== "worker" ||
 		session.isTerminated ||
-		!canSwitchAgentHarness(session.provider) ||
+		session.provider === "codex" ||
+		!isRecognizedSwitchSourceHarness(session.provider) ||
 		(!controlPresentation && !sessionIsActive(session))
 	) {
 		return null;

@@ -1048,8 +1048,8 @@ func newManager() (*Manager, *fakeStore, *fakeRuntime, *fakeWorkspace) {
 }
 func testRoleAgents() domain.ProjectConfig {
 	return domain.ProjectConfig{
-		Worker:       domain.RoleOverride{Harness: domain.HarnessClaudeCode},
-		Orchestrator: domain.RoleOverride{Harness: domain.HarnessClaudeCode},
+		Worker:       domain.RoleOverride{Harness: domain.HarnessCodex},
+		Orchestrator: domain.RoleOverride{Harness: domain.HarnessCodex},
 	}
 }
 
@@ -1144,6 +1144,42 @@ func TestSpawn_ResolvesProjectConfig(t *testing.T) {
 	}
 	if got := ws.lastCfg.BaseBranch; got != "" {
 		t.Fatalf("automatic workspace base branch = %q, want empty for adapter inference", got)
+	}
+}
+
+func TestSpawn_ExplicitCodexClearsHistoricalProjectModelAndMode(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
+		AgentConfig: domain.AgentConfig{Model: "claude-shared", Mode: "plan", Permissions: domain.PermissionModeAuto},
+		Worker: domain.RoleOverride{
+			Harness:     domain.HarnessClaudeCode,
+			AgentConfig: domain.AgentConfig{Model: "claude-role", Mode: "dangerous"},
+		},
+	}}
+	agent := &recordingAgent{}
+	m := New(Deps{
+		Runtime: &fakeRuntime{}, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st,
+		Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: func(string) (string, error) { return "/bin/true", nil },
+	})
+
+	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex}); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	if agent.lastLaunch.Config.Model != "" || agent.lastLaunch.Config.Mode != "" {
+		t.Fatalf("Codex launch inherited historical provider config: %#v", agent.lastLaunch.Config)
+	}
+	if agent.lastLaunch.Config.Permissions != domain.PermissionModeAuto {
+		t.Fatalf("Codex launch permissions = %q, want provider-neutral auto", agent.lastLaunch.Config.Permissions)
+	}
+
+	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+		ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex,
+		AgentConfig: ports.AgentConfig{Model: "gpt-5", Mode: "high"},
+	}); err != nil {
+		t.Fatalf("Spawn with explicit config: %v", err)
+	}
+	if agent.lastLaunch.Config.Model != "gpt-5" || agent.lastLaunch.Config.Mode != "high" {
+		t.Fatalf("explicit Codex overrides = %#v, want gpt-5/high", agent.lastLaunch.Config)
 	}
 }
 
@@ -1544,7 +1580,7 @@ func TestSpawn_ExplicitHarnessWinsWithoutProjectRoleHarness(t *testing.T) {
 
 func TestSpawn_AssignsIDAndGoesIdle(t *testing.T) {
 	m, st, rt, _ := newManager()
-	s, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode, Prompt: "do it"})
+	s, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex, Prompt: "do it"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1564,7 +1600,7 @@ func TestSpawn_AssignsIDAndGoesIdle(t *testing.T) {
 
 func TestSpawn_ReturnsFinalPromptByteMetrics(t *testing.T) {
 	m, _, _, _ := newManager()
-	cfg := ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode}
+	cfg := ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex}
 	wantPrompt, wantSystemPrompt, err := m.buildSpawnTexts(ctx, cfg)
 	if err != nil {
 		t.Fatalf("buildSpawnTexts: %v", err)
@@ -2939,7 +2975,7 @@ func TestSpawnTeardown_WorkspaceRepoPathRoundTrip(t *testing.T) {
 	// so the value is available to be persisted and later reused.
 	ws.createRepoPath = repoPath
 
-	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode})
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3120,7 +3156,7 @@ func TestSpawn_ForwardsResolvedAgentConfigPermissions(t *testing.T) {
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
 		AgentConfig: domain.AgentConfig{Permissions: domain.PermissionModeAuto},
 		Worker: domain.RoleOverride{
-			Harness:     domain.HarnessClaudeCode,
+			Harness:     domain.HarnessCodex,
 			AgentConfig: domain.AgentConfig{Permissions: domain.PermissionModeBypassPermissions},
 		},
 	}}
@@ -3286,7 +3322,7 @@ func TestSpawnWorker_AppendsActiveOrchestratorContact(t *testing.T) {
 	lookPath := func(string) (string, error) { return "/bin/true", nil }
 	m := New(Deps{Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: ws, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
 
-	s, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode, Prompt: "do it"})
+	s, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex, Prompt: "do it"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3330,7 +3366,7 @@ func TestSpawnWorker_WritesSystemPromptFile(t *testing.T) {
 		LookPath:  lookPath,
 	})
 
-	s, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode, Prompt: "do it"})
+	s, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex, Prompt: "do it"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3366,7 +3402,7 @@ func TestSpawnWorker_FallsBackToInlineWhenPromptFileUnavailable(t *testing.T) {
 		Logger:    slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)),
 	})
 
-	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode, Prompt: "do it"}); err != nil {
+	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex, Prompt: "do it"}); err != nil {
 		t.Fatal(err)
 	}
 	if agent.lastLaunch.SystemPrompt == "" {
@@ -3394,11 +3430,8 @@ func TestSpawnWorker_PromptFileFailureBlocksFileOnlyHarness(t *testing.T) {
 	})
 
 	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessAider, Prompt: "do it"})
-	if err == nil {
-		t.Fatal("Spawn succeeded, want prompt-file error for file-only harness")
-	}
-	if !strings.Contains(err.Error(), "system prompt file") {
-		t.Fatalf("Spawn err = %v, want system prompt file error", err)
+	if err == nil || !strings.Contains(err.Error(), "not selectable for new work") {
+		t.Fatalf("Spawn err = %v, want non-selectable harness rejection", err)
 	}
 	if _, ok := st.sessions["mer-1"]; ok {
 		t.Fatal("seed row still exists after prompt-file failure")
@@ -3663,7 +3696,7 @@ func TestRestore_OrchestratorRederivesSystemPrompt(t *testing.T) {
 func TestRestore_FallsBackToInlineWhenPromptFileUnavailable(t *testing.T) {
 	st := newFakeStore()
 	st.sessions["mer-1"] = domain.SessionRecord{
-		ID: "mer-1", ProjectID: "mer", Kind: domain.KindOrchestrator, Harness: domain.HarnessClaudeCode, IsTerminated: true,
+		ID: "mer-1", ProjectID: "mer", Kind: domain.KindOrchestrator, Harness: domain.HarnessCodex, IsTerminated: true,
 		Metadata: domain.SessionMetadata{WorkspacePath: "/ws/mer-1", Branch: "b", AgentSessionID: "agent-x"},
 	}
 	agent := &recordingAgent{}
@@ -4588,6 +4621,28 @@ func TestSpawn_RejectsUnknownHarness(t *testing.T) {
 	}
 }
 
+func TestSpawn_RejectsHistoricalHarnessBeforeCreatingStateOrWorkspace(t *testing.T) {
+	m, st, rt, ws := newManager()
+
+	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+		ProjectID: "mer",
+		Kind:      domain.KindWorker,
+		Harness:   domain.HarnessClaudeCode,
+	})
+	if err == nil || !strings.Contains(err.Error(), "not selectable for new work") {
+		t.Fatalf("Spawn() error = %v, want non-selectable harness rejection", err)
+	}
+	if len(st.sessions) != 0 {
+		t.Fatalf("rejected harness must not create a session row, got %d", len(st.sessions))
+	}
+	if ws.lastCfg.SessionID != "" || ws.destroyed != 0 {
+		t.Fatal("rejected harness must not create or destroy a workspace")
+	}
+	if rt.created != 0 {
+		t.Fatal("rejected harness must not create a runtime")
+	}
+}
+
 // pathPinManager builds a manager whose Executable dep is stubbed, plus a
 // buffer capturing its log output, for the hook PATH pin tests.
 func pathPinManager(executable func() (string, error)) (*Manager, *fakeStore, *fakeRuntime, *bytes.Buffer) {
@@ -4685,7 +4740,7 @@ func TestSpawn_ProjectPATHIsPinBase(t *testing.T) {
 	m, st, rt, _ := pathPinManager(func() (string, error) { return daemonExe, nil })
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
 		Env:    map[string]string{"PATH": "/proj/bin"},
-		Worker: domain.RoleOverride{Harness: domain.HarnessClaudeCode},
+		Worker: domain.RoleOverride{Harness: domain.HarnessCodex},
 	}}
 	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker}); err != nil {
 		t.Fatal(err)
@@ -5170,7 +5225,7 @@ func TestSaveAndTeardownAllDoesNotDestroyWorkspaceWhenAttachmentImportIsUnsafe(t
 		DataDir: dataDir, LookPath: func(string) (string, error) { return "/bin/true", nil },
 	})
 	st.sessions["mer-1"] = domain.SessionRecord{
-		ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode,
+		ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex,
 		Metadata: domain.SessionMetadata{WorkspacePath: workspacePath, Branch: "kennel/mer-1/root", RuntimeHandleID: "h1", AgentSessionID: "agent-w"},
 		Activity: domain.Activity{State: domain.ActivityActive},
 	}
@@ -6642,22 +6697,22 @@ func TestReconcile_AdoptAcrossDaemonRestart(t *testing.T) {
 	// Alive orchestrator: the promptless session whose adoption failure used to
 	// mint a fresh orchestrator id. It must be adopted in place.
 	st.sessions["mer-1"] = domain.SessionRecord{
-		ID: "mer-1", ProjectID: "mer", Kind: domain.KindOrchestrator, Harness: domain.HarnessClaudeCode,
+		ID: "mer-1", ProjectID: "mer", Kind: domain.KindOrchestrator, Harness: domain.HarnessCodex,
 		Metadata: domain.SessionMetadata{Branch: "kennel/mer-1/root", WorkspacePath: "/ws/mer-1", RuntimeHandleID: "orch"},
 	}
 	// Alive worker: adopted as a no-op.
 	st.sessions["mer-2"] = domain.SessionRecord{
-		ID: "mer-2", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode,
+		ID: "mer-2", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex,
 		Metadata: domain.SessionMetadata{Branch: "kennel/mer-2/root", WorkspacePath: "/ws/mer-2", RuntimeHandleID: "w-alive", AgentSessionID: "agent-2"},
 	}
 	// Dead worker: its runtime died with the daemon; capture + relaunch under same id.
 	st.sessions["mer-3"] = domain.SessionRecord{
-		ID: "mer-3", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode,
+		ID: "mer-3", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex,
 		Metadata: domain.SessionMetadata{Branch: "kennel/mer-3/root", WorkspacePath: "/ws/mer-3", RuntimeHandleID: "w-dead", AgentSessionID: "agent-3"},
 	}
 	// Truly-dead session the user killed before restart (terminated, no marker).
 	st.sessions["mer-4"] = domain.SessionRecord{
-		ID: "mer-4", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode,
+		ID: "mer-4", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex,
 		IsTerminated: true, Activity: domain.Activity{State: domain.ActivityExited},
 		Metadata: domain.SessionMetadata{Branch: "kennel/mer-4/root", WorkspacePath: "/ws/mer-4"},
 	}

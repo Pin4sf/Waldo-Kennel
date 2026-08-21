@@ -79,7 +79,6 @@ import {
 	type ReviewRunFacts,
 } from "../lib/session-reviews";
 
-type ProjectConfig = components["schemas"]["ProjectConfig"];
 type OpenReviewerTerminal = (target: { handleId: string; harness: string }) => void;
 
 export type { InspectorView } from "@pin4sf/kennel-product-ui";
@@ -1173,18 +1172,15 @@ type ReviewerHarness = NonNullable<components["schemas"]["TriggerReviewRequest"]
 type AgentInfo = components["schemas"]["AgentInfo"];
 type AgentCatalog = { supported?: AgentInfo[]; installed?: AgentInfo[]; authorized?: AgentInfo[] };
 
-const WORKER_DEFAULT_REVIEWERS: Partial<Record<WorkspaceSession["provider"], ReviewerHarness>> = {
-	"claude-code": "claude-code",
-	codex: "codex",
-	opencode: "opencode",
-	muse: "muse",
-	kimchi: "kimchi",
-};
+function resolveDefaultReviewerHarness(): ReviewerHarness {
+	// This default starts new work. Historical worker/config identities remain
+	// visible in their persisted session and review history, but must never be
+	// selected as the runnable reviewer fallback.
+	return "codex";
+}
 
-function resolveDefaultReviewerHarness(config: ProjectConfig | undefined, workerHarness: WorkspaceSession["provider"]): ReviewerHarness {
-	const configuredHarness = config?.reviewers?.[0]?.harness;
-	if (configuredHarness) return configuredHarness as ReviewerHarness;
-	return WORKER_DEFAULT_REVIEWERS[workerHarness] ?? "claude-code";
+function selectableReviewerOverride(harness?: string): ReviewerHarness | "" {
+	return harness === "codex" ? harness : "";
 }
 
 function ReviewsSection({
@@ -1212,26 +1208,16 @@ function ReviewsSection({
 		},
 	});
 	const agentsQuery = useQuery(agentsQueryOptions);
-	const projectConfigQuery = useQuery({
-		queryKey: ["project-config", session.workspaceId],
-		enabled: hasPr,
-		queryFn: async () => {
-			if (usePreviewData) return mockProjectConfig();
-			const { data, error } = await apiClient.GET("/api/v1/projects/{id}", {
-				params: { path: { id: session.workspaceId } },
-			});
-			if (error) return undefined;
-			return projectConfig(data?.project);
-		},
-	});
 	// The reviewer preference belongs to the worker session, not this component
 	// or the whole project. Keep local state responsive while the daemon persists
 	// it, and resync when the inspector moves to another session.
 	const [reviewerOverride, setReviewerOverride] = useState<ReviewerHarness | "">(
-		session.reviewerHarness ?? "",
+		selectableReviewerOverride(session.reviewerHarness),
 	);
+	const runnableReviewerHarness = resolveDefaultReviewerHarness();
+	const effectiveRunnableReviewerHarness = reviewerOverride === "codex" ? reviewerOverride : runnableReviewerHarness;
 	useEffect(() => {
-		setReviewerOverride(session.reviewerHarness ?? "");
+		setReviewerOverride(selectableReviewerOverride(session.reviewerHarness));
 	}, [session.id, session.reviewerHarness]);
 	const saveReviewer = useMutation({
 		mutationFn: async (harness: ReviewerHarness | "") => {
@@ -1261,11 +1247,11 @@ function ReviewsSection({
 	});
 	const triggerReview = useMutation({
 		mutationFn: async () => {
-			// No override sends no body at all, leaving the default path on the wire
-			// exactly as it was.
+			// Always send the admitted reviewer. Existing historical configuration
+			// remains readable, but cannot become a new review execution target.
 			const { data, error, response } = await apiClient.POST("/api/v1/sessions/{sessionId}/reviews/trigger", {
 				params: { path: { sessionId: session.id } },
-				...(reviewerOverride ? { body: { harness: reviewerOverride } } : {}),
+				body: { harness: effectiveRunnableReviewerHarness },
 			});
 			if (error) throw new Error(apiErrorMessage(error, t("inspector.unableStartReview")));
 			return { data, reused: response?.status === 200 };
@@ -1337,7 +1323,6 @@ function ReviewsSection({
 			    on top, then one list carrying both sources keyed by PR. */}
 			<ReviewPanel
 				autoReviewEnabled={autoReviewEnabled}
-				config={projectConfigQuery.data}
 				error={
 					reviewsQuery.error ??
 					triggerReview.error ??
@@ -1360,10 +1345,12 @@ function ReviewsSection({
 				reviewStates={reviewStates}
 				notice={reviewNotice}
 				agentCatalog={agentsQuery.data}
-				reviewerOverride={reviewerOverride}
+				reviewerOverride={reviewerOverride === "codex" ? reviewerOverride : ""}
 				onReviewerOverrideChange={(next) => {
-					setReviewerOverride(next);
-					saveReviewer.mutate(next);
+					// The only visible runnable choice is Codex; persist it explicitly
+					// instead of clearing into a historical project fallback.
+					setReviewerOverride(next || runnableReviewerHarness);
+					saveReviewer.mutate(next || runnableReviewerHarness);
 				}}
 				session={session}
 			/>
@@ -1642,23 +1629,9 @@ function sanitizeWorkerMessagePart(value: string): string {
 	return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
 }
 
-function projectConfig(project: components["schemas"]["ProjectOrDegraded"] | undefined): ProjectConfig | undefined {
-	if (!project || !("config" in project)) return undefined;
-	return project.config;
-}
-
-function mockProjectConfig(): ProjectConfig {
-	return {
-		worker: { agent: "codex" },
-		orchestrator: { agent: "codex" },
-		reviewers: [{ harness: "codex" }],
-	};
-}
-
 function ReviewPanel({
 	autoReviewEnabled,
 	session,
-	config,
 	reviewStates,
 	reviewerHandleId,
 	isLoading,
@@ -1679,7 +1652,6 @@ function ReviewPanel({
 }: {
 	autoReviewEnabled: boolean;
 	session: WorkspaceSession;
-	config?: ProjectConfig;
 	reviewStates: PRReviewState[];
 	reviewerHandleId: string;
 	isLoading: boolean;
@@ -1735,7 +1707,7 @@ function ReviewPanel({
 		.filter((run): run is NonNullable<typeof run> => Boolean(run))
 		.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
 	const latest = runningRun ?? newestRun;
-	const resolvedDefaultHarness = resolveDefaultReviewerHarness(config, session.provider);
+	const resolvedDefaultHarness = resolveDefaultReviewerHarness();
 	const effectiveReviewerHarness = reviewerOverride || resolvedDefaultHarness;
 	const activeReviewerHarness = latest?.harness || effectiveReviewerHarness;
 	const autoReviewFailure =

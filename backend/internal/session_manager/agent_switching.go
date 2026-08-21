@@ -246,8 +246,8 @@ func (m *Manager) admitAgentSwitch(ctx context.Context, id domain.SessionID, cfg
 	if rec.Metadata.WorkspacePath == "" || rec.Metadata.RuntimeHandleID == "" {
 		return domain.AgentSwitch{}, nil, fmt.Errorf("switch agent %s: %w", id, ErrIncompleteHandle)
 	}
-	if !switchHarnessSupported(rec.Harness) || !switchHarnessSupported(cfg.TargetHarness) {
-		return domain.AgentSwitch{}, nil, fmt.Errorf("switch agent %s: %w: supported harnesses are claude-code and codex", id, ErrUnsupportedSwitchHarness)
+	if !switchHarnessSupported(rec.Harness) || !cfg.TargetHarness.IsSelectableForNewWork() {
+		return domain.AgentSwitch{}, nil, fmt.Errorf("switch agent %s: %w: source must be a recoverable historical harness and target must be selectable for new work", id, ErrUnsupportedSwitchHarness)
 	}
 	if rec.Harness == cfg.TargetHarness {
 		return domain.AgentSwitch{}, nil, fmt.Errorf("switch agent %s: %w: %s", id, ErrAlreadyUsingHarness, cfg.TargetHarness)
@@ -1100,11 +1100,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 	if err != nil {
 		return preparedTargetActivation{}, fmt.Errorf("system prompt file: %w", err)
 	}
-	config := effectiveAgentConfig(rec.Kind, project.Config)
-	if roleOverride(rec.Kind, project.Config).Harness != harness {
-		config.Model = ""
-		config.Mode = ""
-	}
+	config := freshAgentConfig(rec.Kind, harness, project.Config)
 	if model := strings.TrimSpace(modelOverride); model != "" {
 		config.Model = model
 	}

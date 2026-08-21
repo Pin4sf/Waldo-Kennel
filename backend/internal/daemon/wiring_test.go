@@ -236,8 +236,8 @@ func TestWiring_StartSessionSpawnsScratchWithoutGitRepo(t *testing.T) {
 		Kind:         domain.ProjectKindScratch,
 		RegisteredAt: time.Now(),
 		Config: domain.ProjectConfig{
-			Worker:       domain.RoleOverride{Harness: domain.HarnessClaudeCode},
-			Orchestrator: domain.RoleOverride{Harness: domain.HarnessClaudeCode},
+			Worker:       domain.RoleOverride{Harness: domain.HarnessCodex},
+			Orchestrator: domain.RoleOverride{Harness: domain.HarnessCodex},
 		},
 	}); err != nil {
 		t.Fatalf("UpsertProject: %v", err)
@@ -246,9 +246,9 @@ func TestWiring_StartSessionSpawnsScratchWithoutGitRepo(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	lcm := lifecycle.New(store, nil)
 	runtime := &selectableRuntime{}
-	cfg := config.Config{DataDir: dataDir, Agent: string(domain.HarnessClaudeCode)}
+	cfg := config.Config{DataDir: dataDir, Agent: string(domain.HarnessCodex)}
 	messenger := newSessionMessenger(store, runtime, log)
-	agents, err := buildAgentResolver(string(domain.HarnessClaudeCode), log)
+	agents, err := buildAgentResolver(string(domain.HarnessCodex), log)
 	if err != nil {
 		t.Fatalf("buildAgentResolver: %v", err)
 	}

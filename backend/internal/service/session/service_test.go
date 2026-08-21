@@ -493,15 +493,47 @@ func TestSessionSetReviewerHarnessPersistsPerSession(t *testing.T) {
 	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
 	st.sessions["mer-2"] = domain.SessionRecord{ID: "mer-2", ProjectID: "mer", Kind: domain.KindWorker}
 
-	sess, err := (&Service{store: st}).SetReviewerHarness(context.Background(), "mer-1", domain.ReviewerOpenCode)
+	sess, err := (&Service{store: st}).SetReviewerHarness(context.Background(), "mer-1", domain.ReviewerCodex)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sess.ReviewerHarness != domain.ReviewerOpenCode || st.sessions["mer-1"].ReviewerHarness != domain.ReviewerOpenCode {
+	if sess.ReviewerHarness != domain.ReviewerCodex || st.sessions["mer-1"].ReviewerHarness != domain.ReviewerCodex {
 		t.Fatalf("reviewer harness was not persisted: session=%+v stored=%+v", sess, st.sessions["mer-1"])
 	}
 	if got := st.sessions["mer-2"].ReviewerHarness; got != "" {
 		t.Fatalf("other session reviewer harness = %q, want empty", got)
+	}
+}
+
+func TestSessionSetReviewerHarnessRejectsHistoricalHarness(t *testing.T) {
+	st := newFakeStore()
+	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
+
+	if _, err := (&Service{store: st}).SetReviewerHarness(context.Background(), "mer-1", domain.ReviewerOpenCode); err == nil {
+		t.Fatal("SetReviewerHarness succeeded, want non-selectable reviewer rejection")
+	}
+	if got := st.sessions["mer-1"].ReviewerHarness; got != "" {
+		t.Fatalf("historical reviewer must not be persisted, got %q", got)
+	}
+}
+
+func TestSessionSetReviewerHarnessRejectsEmptyHistoricalFallbackWithoutWriting(t *testing.T) {
+	st := newFakeStore()
+	st.sessions["mer-1"] = domain.SessionRecord{
+		ID:              "mer-1",
+		ProjectID:       "mer",
+		Harness:         domain.HarnessClaudeCode,
+		ReviewerHarness: domain.ReviewerCodex,
+	}
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
+		Reviewers: []domain.ReviewerConfig{{Harness: domain.ReviewerClaudeCode}},
+	}}
+
+	if _, err := (&Service{store: st}).SetReviewerHarness(context.Background(), "mer-1", ""); err == nil {
+		t.Fatal("SetReviewerHarness succeeded, want historical fallback rejection")
+	}
+	if got := st.sessions["mer-1"].ReviewerHarness; got != domain.ReviewerCodex {
+		t.Fatalf("reviewer preference changed to %q, want original codex", got)
 	}
 }
 

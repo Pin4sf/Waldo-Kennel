@@ -13,7 +13,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/gitdefault"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
@@ -75,8 +74,9 @@ var _ Manager = (*Service)(nil)
 
 // Deps captures optional collaborators for project use-cases.
 type Deps struct {
-	// DefaultHarness is the daemon's configured default agent (KENNEL_AGENT).
-	// When empty, the service falls back to config.DefaultAgent.
+	// DefaultHarness is the daemon-composed candidate for new project work.
+	// Retired compatibility values (including KENNEL_AGENT) are never allowed to
+	// seed fresh project roles.
 	DefaultHarness domain.AgentHarness
 	Store          Store
 	Sessions       SessionTeardowner
@@ -92,8 +92,8 @@ func New(store Store) *Service {
 // NewWithDeps returns a project service with optional teardown dependencies.
 func NewWithDeps(d Deps) *Service {
 	defaultHarness := d.DefaultHarness
-	if defaultHarness == "" {
-		defaultHarness = domain.AgentHarness(config.DefaultAgent)
+	if !defaultHarness.IsSelectableForNewWork() {
+		defaultHarness = domain.HarnessCodex
 	}
 	s := &Service{
 		store:          d.Store,

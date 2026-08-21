@@ -2,8 +2,6 @@ package specgen_test
 
 import (
 	"bytes"
-	"slices"
-	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -27,17 +25,7 @@ func TestBuild_MatchesEmbedded(t *testing.T) {
 	}
 }
 
-func TestBuild_SpawnHarnessEnumIncludesPrimeAgent(t *testing.T) {
-	got, err := specgen.Build()
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
-	if !strings.Contains(string(got), "          - prime-agent\n") {
-		t.Fatal("SpawnSessionRequest harness enum does not contain prime-agent")
-	}
-}
-
-func TestBuild_DelegateAgentEnumIncludesPrimeAgent(t *testing.T) {
+func TestBuild_FreshWriteHarnessEnumsAreCodexOnly(t *testing.T) {
 	got, err := specgen.Build()
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -54,9 +42,17 @@ func TestBuild_DelegateAgentEnumIncludesPrimeAgent(t *testing.T) {
 	if err := yaml.Unmarshal(got, &doc); err != nil {
 		t.Fatalf("parse generated OpenAPI: %v", err)
 	}
-	agents := doc.Components.Schemas["DelegateTaskRequest"].Properties["agent"].Enum
-	if !slices.Contains(agents, "prime-agent") {
-		t.Fatalf("DelegateTaskRequest agent enum = %v, want prime-agent", agents)
+	for schema, property := range map[string]string{
+		"SpawnSessionRequest":       "harness",
+		"SwitchAgentRequest":        "targetHarness",
+		"SetSessionReviewerRequest": "harness",
+		"DelegateTaskRequest":       "agent",
+		"TriggerReviewRequest":      "harness",
+	} {
+		got := doc.Components.Schemas[schema].Properties[property].Enum
+		if len(got) != 1 || got[0] != "codex" {
+			t.Fatalf("%s.%s enum = %v, want [codex]", schema, property, got)
+		}
 	}
 }
 

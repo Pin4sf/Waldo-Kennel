@@ -273,7 +273,6 @@ describe("CenterPane toolbar session label", () => {
 	it("keeps a new admission presented above unrelated settled completion history", () => {
 		const settledSession = {
 			...worker,
-			provider: "codex",
 			terminalHandleId: "settled-target-terminal",
 		} satisfies WorkspaceSession;
 		agentSwitchMocks.switches.push(switchRecord({ state: "completed" }));
@@ -281,14 +280,14 @@ describe("CenterPane toolbar session label", () => {
 			idempotencyKey: "switch-request-2",
 			model: "",
 			session: settledSession,
-			targetHarness: "claude-code",
+			targetHarness: "codex",
 		};
 		agentSwitchMocks.mutation.isPending = true;
 
 		renderCenterPane({ session: settledSession });
 
 		expect(
-			screen.getByRole("status", { name: "Switching from Codex to Claude Code" }),
+			screen.getByRole("status", { name: "Switching from Claude Code to Codex" }),
 		).toHaveAttribute("aria-busy", "true");
 		expect(screen.getByTestId("terminal-interaction-surface")).toHaveAttribute("inert");
 		expect(screen.getByText("terminal body")).toHaveAttribute("data-input-disabled", "true");

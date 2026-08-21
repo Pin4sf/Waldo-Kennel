@@ -631,6 +631,7 @@ describe("CommandPalette PR and review actions", () => {
 
 	beforeEach(() => {
 		ctx.workspaces[0].sessions[0].prs = [openPr];
+		ctx.workspaces[0].sessions[0].provider = "codex";
 		mockReviews([]);
 		postMock.mockResolvedValue({ data: { reviewerHandleId: "", reviews: [] } });
 	});
@@ -657,13 +658,15 @@ describe("CommandPalette PR and review actions", () => {
 		await waitFor(() => expect(paletteInput()).toBeNull());
 	});
 
-	it("triggers a review for the PR's session and closes", async () => {
+	it("triggers a Codex review for a historical PR session and closes", async () => {
+		ctx.workspaces[0].sessions[0].provider = "claude-code";
 		mockReviews([reviewState("needs_review")]);
 		await openPaletteWithQuery("review");
 		fireEvent.click(await screen.findByText("Review latest commit #7"));
 		await waitFor(() =>
 			expect(postMock).toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/reviews/trigger", {
 				params: { path: { sessionId: "w-merge" } },
+				body: { harness: "codex" },
 			}),
 		);
 		await waitFor(() => expect(paletteInput()).toBeNull());

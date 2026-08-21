@@ -171,6 +171,9 @@ func (s *Service) Refresh(ctx context.Context) (Inventory, error) {
 	results := make(chan probeResult, len(s.agents))
 	var wg sync.WaitGroup
 	for _, item := range s.agents {
+		if !item.Harness.IsSelectableForNewWork() {
+			continue
+		}
 		if err := ctx.Err(); err != nil {
 			return Inventory{}, err
 		}
@@ -461,6 +464,9 @@ func (s *Service) agent(agentID string) (agentregistry.HarnessAgent, bool) {
 func supportedInfos(agents []agentregistry.HarnessAgent) []Info {
 	supported := make([]Info, 0, len(agents))
 	for _, item := range agents {
+		if !item.Harness.IsSelectableForNewWork() {
+			continue
+		}
 		info := Info{ID: string(item.Harness), Label: item.Manifest.Name}
 		if info.Label == "" {
 			info.Label = info.ID

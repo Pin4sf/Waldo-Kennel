@@ -199,8 +199,8 @@ func (e *Engine) TriggerWithSource(ctx stdctx.Context, workerID domain.SessionID
 	if workerID == "" {
 		return TriggerResult{}, fmt.Errorf("%w: worker session id is required", ErrInvalid)
 	}
-	if override != "" && !override.IsKnown() {
-		return TriggerResult{}, fmt.Errorf("%w: unknown reviewer harness %q", ErrInvalid, override)
+	if override != "" && !override.IsSelectableForNewWork() {
+		return TriggerResult{}, fmt.Errorf("%w: reviewer harness %q is not selectable for new work", ErrInvalid, override)
 	}
 	if source != domain.ReviewTriggerManual && source != domain.ReviewTriggerAuto {
 		return TriggerResult{}, fmt.Errorf("%w: unknown review trigger source %q", ErrInvalid, source)
@@ -250,6 +250,9 @@ func (e *Engine) TriggerWithSource(ctx stdctx.Context, workerID domain.SessionID
 	}
 	if override != "" {
 		harness = override
+	}
+	if !harness.IsSelectableForNewWork() {
+		return TriggerResult{}, fmt.Errorf("%w: reviewer harness %q is not selectable for new work", ErrInvalid, harness)
 	}
 	reviewRows, err := e.store.ListReviewsBySession(ctx, workerID)
 	if err != nil {
@@ -424,8 +427,8 @@ func (e *Engine) SwitchReviewer(ctx stdctx.Context, workerID domain.SessionID, h
 	if workerID == "" {
 		return SessionReviews{}, fmt.Errorf("%w: worker session id is required", ErrInvalid)
 	}
-	if harness != "" && !harness.IsKnown() {
-		return SessionReviews{}, fmt.Errorf("%w: unknown reviewer harness %q", ErrInvalid, harness)
+	if harness != "" && !harness.IsSelectableForNewWork() {
+		return SessionReviews{}, fmt.Errorf("%w: reviewer harness %q is not selectable for new work", ErrInvalid, harness)
 	}
 	unlock := e.lockWorker(workerID)
 	defer unlock()
@@ -437,15 +440,21 @@ func (e *Engine) SwitchReviewer(ctx stdctx.Context, workerID domain.SessionID, h
 	if !ok {
 		return SessionReviews{}, fmt.Errorf("%w: worker session %q", ErrNotFound, workerID)
 	}
-	if ok, err := e.store.SetSessionReviewerHarness(ctx, workerID, harness, e.clock()); err != nil {
-		return SessionReviews{}, err
-	} else if !ok {
-		return SessionReviews{}, fmt.Errorf("%w: worker session %q", ErrNotFound, workerID)
-	}
+	// Resolve admission before altering the persisted preference or a reviewer
+	// terminal. Clearing an override must not revive a retired project/worker
+	// fallback from historical configuration.
 	worker.ReviewerHarness = harness
 	selected, err := e.reviewerHarness(ctx, worker)
 	if err != nil {
 		return SessionReviews{}, err
+	}
+	if !selected.IsSelectableForNewWork() {
+		return SessionReviews{}, fmt.Errorf("%w: reviewer harness %q is not selectable for new work", ErrInvalid, selected)
+	}
+	if ok, err := e.store.SetSessionReviewerHarness(ctx, workerID, harness, e.clock()); err != nil {
+		return SessionReviews{}, err
+	} else if !ok {
+		return SessionReviews{}, fmt.Errorf("%w: worker session %q", ErrNotFound, workerID)
 	}
 	reviewRows, err := e.store.ListReviewsBySession(ctx, workerID)
 	if err != nil {
