@@ -49,6 +49,42 @@ func TestRootHelpDoesNotAdvertiseLegacyImport(t *testing.T) {
 	}
 }
 
+func TestRootHelpHidesInheritedRuntimeCommandsButKeepsThemCallable(t *testing.T) {
+	out, _, err := executeCLI(t, Deps{}, "--help")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"agent",
+		"spawn",
+		"send",
+		"preview",
+		"browser",
+		"hooks",
+		"agent-process",
+		"launch",
+		"project",
+		"session",
+		"orchestrator",
+		"pr",
+		"review",
+	} {
+		if strings.Contains(out, "\n  "+name) {
+			t.Fatalf("hidden command %q leaked into root help:\n%s", name, out)
+		}
+	}
+	for _, name := range []string{"start", "stop", "status", "doctor", "dev", "completion", "version"} {
+		if !strings.Contains(out, "\n  "+name) {
+			t.Fatalf("root help missing supported command %q:\n%s", name, out)
+		}
+	}
+	for _, args := range [][]string{{"preview", "--help"}, {"session", "--help"}} {
+		if _, errOut, err := executeCLI(t, Deps{}, args...); err != nil {
+			t.Fatalf("%s failed: %v\nstderr: %s", strings.Join(args, " "), err, errOut)
+		}
+	}
+}
+
 func TestRootCommandsHaveUniqueNames(t *testing.T) {
 	seen := make(map[string]struct{})
 	for _, cmd := range NewRootCommand(Deps{}).Commands() {

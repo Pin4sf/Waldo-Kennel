@@ -1,6 +1,6 @@
 # Kennel CLI
 
-`kennel` is a thin Go/Cobra client for the local Kennel daemon. It starts, discovers, inspects, and stops the daemon through loopback HTTP and the `running.json` handshake. It must not open SQLite directly or call runtime, workspace, tracker, or provider adapters in-process.
+`kennel` is a thin Go/Cobra client for Kennel. It opens the desktop app and discovers, inspects, and stops the app-owned local daemon through loopback HTTP and the `running.json` handshake. It must not open SQLite directly or call runtime, workspace, tracker, or provider adapters in-process.
 
 The source entrypoint remains `backend/cmd/ao` as an audited AO synchronization seam. Local and packaged builds name the executable `kennel`; `ao` is not a supported alias for Kennel.
 
@@ -19,18 +19,13 @@ Start the daemon before product commands, either through the desktop app or:
 ./bin/kennel status --json
 ```
 
-## Command families
+## Public command surface
 
-The exact flags are authoritative in `kennel <command> --help`. Current command families include:
+The exact flags are authoritative in `kennel <command> --help`. The root help exposes lifecycle and support commands:
 
-- daemon control: `start`, `stop`, `status`, `doctor`, `completion`, `version`;
-- projects and agents: `project`, `agent`;
-- workers and orchestrators: `spawn`, `session`, `orchestrator`, `send`;
-- source control and reviews: `pr`, `review`;
-- visual work: `preview`, `browser`;
-- internal agent integration: `hooks` and the hidden `daemon` entrypoint.
+- `start`, `stop`, `status`, `doctor`, `dev`, `completion`, and `version`.
 
-Every product command resolves to a daemon route. CLI misuse returns a usage error; daemon/runtime failures preserve the API error envelope and request ID where available.
+The desktop app is the product surface. Inherited runtime commands remain registered for operational compatibility, but are omitted from root help. The `daemon` and `start` lifecycle/bootstrap commands manage the local process or desktop-app boundary directly; `completion` and `version` render locally. The current `dev import-projects` subcommand validates local inputs before calling its daemon route. Every product command is a thin client to a daemon route. It must not open SQLite directly or call runtime, workspace, tracker, or provider adapters in-process. CLI misuse returns a usage error; daemon/runtime failures preserve the API error envelope and request ID where available.
 
 ## Session context
 
@@ -75,7 +70,7 @@ The primary listener always binds `127.0.0.1`. A second listener can bind the Ke
 
 ## Isolated smoke test
 
-This test starts only the CLI-built daemon with temporary Kennel paths; it does not launch Electron:
+This test starts only the CLI-built daemon with temporary Kennel paths; it does not launch Electron. It uses the hidden `daemon` entrypoint directly because `kennel start` opens the desktop app:
 
 ```sh
 cd backend
@@ -86,11 +81,27 @@ export KENNEL_RUN_FILE="$KENNEL_TEST_ROOT/running.json"
 export KENNEL_DATA_DIR="$KENNEL_TEST_ROOT/data"
 export KENNEL_PORT=3037
 
+/tmp/kennel daemon >"$KENNEL_TEST_ROOT/daemon.log" 2>&1 &
+KENNEL_DAEMON_PID=$!
+cleanup() {
+  /tmp/kennel stop >/dev/null 2>&1 || true
+  if kill -0 "$KENNEL_DAEMON_PID" 2>/dev/null; then
+    kill "$KENNEL_DAEMON_PID" 2>/dev/null || true
+  fi
+  wait "$KENNEL_DAEMON_PID" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+for _ in {1..100}; do
+  /tmp/kennel status --json | grep -q '"state": "ready"' && break
+  sleep 0.1
+done
+/tmp/kennel status --json | grep -q '"state": "ready"'
 /tmp/kennel status --json
 /tmp/kennel doctor
-/tmp/kennel start
-/tmp/kennel status --json
 /tmp/kennel stop
+wait "$KENNEL_DAEMON_PID"
+trap - EXIT INT TERM
 ```
 
 Remove the exact temporary directory only after verifying `KENNEL_TEST_ROOT` contains the path created for this smoke test.

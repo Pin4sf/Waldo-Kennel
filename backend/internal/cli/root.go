@@ -192,21 +192,26 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.AddCommand(newStopCommand(ctx))
 	root.AddCommand(newStatusCommand(ctx))
 	root.AddCommand(newDoctorCommand(ctx))
-	root.AddCommand(newAgentCommand(ctx))
-	root.AddCommand(newSpawnCommand(ctx))
-	root.AddCommand(newSendCommand(ctx))
-	root.AddCommand(newPreviewCommand(ctx))
-	root.AddCommand(newBrowserCommand(ctx))
-	root.AddCommand(newHooksCommand(ctx))
-	root.AddCommand(newAgentProcessCommand(ctx))
-	root.AddCommand(newLaunchCommand(ctx))
+	for _, command := range []*cobra.Command{
+		newAgentCommand(ctx),
+		newSpawnCommand(ctx),
+		newSendCommand(ctx),
+		newPreviewCommand(ctx),
+		newBrowserCommand(ctx),
+		newHooksCommand(ctx),
+		newAgentProcessCommand(ctx),
+		newLaunchCommand(ctx),
+		newProjectCommand(ctx),
+		newSessionCommand(ctx),
+		newOrchestratorCommand(ctx),
+		newPRCommand(ctx),
+		newReviewCommand(ctx),
+	} {
+		command.Hidden = true
+		root.AddCommand(command)
+	}
 	root.AddCommand(newPtyHostCommand())
 	root.AddCommand(newDevCommand(ctx))
-	root.AddCommand(newProjectCommand(ctx))
-	root.AddCommand(newSessionCommand(ctx))
-	root.AddCommand(newOrchestratorCommand(ctx))
-	root.AddCommand(newPRCommand(ctx))
-	root.AddCommand(newReviewCommand(ctx))
 	root.AddCommand(newCompletionCommand())
 	root.AddCommand(newVersionCommand())
 
