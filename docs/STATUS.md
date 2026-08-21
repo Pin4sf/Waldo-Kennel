@@ -1,6 +1,6 @@
 # Kennel status
 
-As of the F0-F6 foundation branch on 2026-08-18, Kennel has a working AO-derived coding-agent orchestration chassis with isolated installed identity and state. It does not yet have the Mission/personal-agent architecture that will define the Waldo product.
+As of `main` after PRs #1 and #12-#14 on 2026-08-21, Kennel has a working AO-derived coding-agent orchestration chassis with isolated installed identity and state, a reduced public CLI surface, and a provider-neutral admission boundary that selects Codex for fresh v0 work while preserving historical provider compatibility. It does not yet implement the accepted Home, Work, Outcome, Open Loop, communication, Daily Snapshot, or personal-continuity architecture that will define the Waldo product.
 
 ## Shipped in the current chassis
 
@@ -9,7 +9,9 @@ As of the F0-F6 foundation branch on 2026-08-18, Kennel has a working AO-derived
 - A Go daemon bound to `127.0.0.1`, with health/readiness/control endpoints and an opt-in authenticated home-LAN listener.
 - SQLite persistence, additive migrations, trigger-based change-data capture, SSE invalidation/replay, and durable session/chat facts.
 - A thin `kennel` Cobra CLI that uses daemon HTTP rather than opening storage or adapters directly.
+- A deliberately narrow root help surface; advanced/runtime commands remain directly callable for operators and compatibility.
 - Project and session lifecycle, native chat and terminal interfaces, worktree management, recovery, PR/check/review observation, terminal mux, browser preview/control, and a broad inherited provider-adapter catalog.
+- Codex-only admission for fresh v0 work/reviews/delegation/switch targets, with historical provider identities and recovery reads preserved.
 - Generated OpenAPI and frontend TypeScript contracts with drift checks.
 
 ### Desktop supervisor
@@ -41,7 +43,7 @@ As of the F0-F6 foundation branch on 2026-08-18, Kennel has a working AO-derived
 - Personal memory admission, correction, provenance, conscious closure, or release semantics.
 - Waldo verification/acceptance contracts beyond the inherited coding-work evidence model.
 - Xirp, Medley, Paxel, or other named integrations.
-- A decision that the current Outcome overlay is the final product model.
+- Implementation of the accepted Outcome contract; the current `OutcomeTask`/`completed` overlay remains donor code and is not the final product model.
 - Shared Git ancestry with AO. Repairing ancestry would rewrite published history and requires separate explicit approval.
 
 ## Verification
@@ -63,4 +65,18 @@ npm --prefix frontend run package
 npm --prefix frontend run package:identity
 ```
 
-The next architecture entrypoint after this foundation is accepted is a written Mission/personal-agent contract covering ownership, authority, memory, verification, acceptance, and Kennel's role as a Waldo presence. No implementation should precede that decision.
+## Accepted post-foundation desktop launch design, not shipped
+
+The 18-20 August product-architecture session accepted one local-first Waldo Kennel desktop with three destinations—**Home**, **Work**, and **Settings & Control**—and one common five-stage lifecycle: **Enter -> Understand -> Decide & Authorize -> Act & Observe -> Prove & Close**. The stages organize the complete F01-F27 plus F02A detailed screen/state atlas; they do not replace those screens or force them into mandatory wizard steps. Settings and Operator Inspector are cross-stage overlays. Waldo's responsibility/control semantics run inside the Kennel daemon; local SQLite is the sole canonical writer; the launch does not require an account, hosted backend, or Waldo-funded model API. A `ResponsibilitySpace` separates repository-backed Work Projects from Personal Home without creating a second assistant identity.
+
+The launch core is Outcome-to-verified-Acceptance, confirmed Open Loops, trusted Daily Snapshot, concise attention, and exact Re-entry. One-account Gmail Communication Loops is an optional draft-only beta; Dayflow-inspired Desktop Context is a separately consented launch+1 beta. Durable Memory, Relationship, Health/mobile, hosted attachment, proactive agent, and Waldo-owned harness remain later. The accepted ontology, lineages, attention/recovery contract, three-destination surface, custody boundary, reference disposition, launch defaults, dogfood gate, and phased boundary are recorded in [Waldo Kennel desktop launch architecture](product/kennel-v1-product-architecture.md). The deployment decision is recorded in [ADR 0003](adr/0003-local-first-waldo-core.md).
+
+The current **v0 local dogfood** provider constraint is Codex-only, so the team can test the end-to-end responsibility loop with less provider variability. It is not a locked v1 provider decision: v1's provider set is TBD and the core must stay provider-neutral. Current code fails closed for fresh session/review/delegation/switch selection while preserving historical identities and recovery reads. The accepted Outcome architecture extends that boundary to every Attempt start or resume, with required versus optional adapter capabilities and capability-first compatibility. A historical session becomes continuable only after its adapter is admitted, supports recovery, and passes fresh reconciliation/readmission; otherwise it remains inspectable and can hand off through a provenance-bearing packet to a new Attempt on an admitted provider.
+
+The approved orchestration contract is recommendation-first rather than a rigid recipe: a model proposes the smallest sufficient topology and an inspectable deterministic policy validates authority, dependencies, overlap, risk, Evidence, capability, budget, and recovery constraints. RunBrief grounding follows approved user intent and verified facts before candidate context. Attempts retain tactical freedom inside an intersected authority and multidimensional budget. Leases renew silently; missing heartbeat is `unconfirmed`, not dead; fences guard canonical writes and consequential effects rather than reasoning or ordinary exploration. Verification truthfully distinguishes deterministic, producer self-check, separate-session, cross-provider/model, and owner-walkthrough evidence, and only the user accepts.
+
+v0 onboarding recommends Work first: select a local Project and define the first Outcome. Home remains an available peer and never blocks Work; Gmail, Desktop Context, an account, and hosted attachment are optional. Home has a calm Morning Brief and focused Catch Up flow. Suggested Next Actions remain correctable projections. The user may keep or confirm an Open Loop, create a draft Outcome in a selected Work Project, or explicitly link an Open Loop to an existing Outcome. The immutable many-to-many `ResponsibilityLink` preserves provenance and never transfers, merges, closes, verifies, accepts, or mutates either responsibility; Work still requires its own contract and authority before execution.
+
+A [team architecture review packet](product/kennel-v1-team-review-packet.md), [clickable five-stage prototype](product/kennel-v1-review-prototype.html), and [Excalidraw session seed](product/kennel-v1-excalidraw-session-seed.md) make the accepted direction, complete detailed screen atlas, adaptive modes, lineages, failures, falsifiers, and phase boundaries reviewable. These are documentation artifacts, not shipped product surfaces.
+
+These documents do not make the prototype Outcome overlay, PR #11's rejected Outcome schema, or any Home/Mission/Open Loop/communication/verification/acceptance feature shipped. The prerequisite sequence is complete: F0-F6 landed in PR #1, legacy import removal in PR #12, provider-neutral admission in PR #13, and CLI reduction in PR #14. PR #11 is closed unmerged as a superseded donor. The first complete milestone is now the [Local Focus Ledger Outcome](product/kennel-v0-first-outcome-slice.md), delivered as five stage-aligned, issue-sized end-to-end PRs and evaluated before Home persistence expands. Exact new-session ownership and commands are in the [First Outcome execution handoff](superpowers/plans/2026-08-20-first-outcome-execution-handoff.md). Each implementation slice still requires its own explicit issue/PR authority.
