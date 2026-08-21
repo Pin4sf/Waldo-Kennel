@@ -199,15 +199,16 @@ export function TaskComposer({
 	// instead of parking the controls on a "default" label the user has to
 	// remember. Both resolved values remain directly editable.
 	const projectWorkerAgent = projectQuery.data?.config?.worker?.agent ?? "";
-	const globalDefaultAgent = projectQuery.data?.agent ?? "";
-	const defaultWorkerAgent = projectWorkerAgent || globalDefaultAgent;
-	const selectedAgent = agent || defaultWorkerAgent;
+	// Project/global defaults can be historical persisted identities. They remain
+	// display/history data, never a fresh task selection.
+	const defaultWorkerAgent: string = "codex";
+	const selectedAgent = agent === "codex" ? agent : defaultWorkerAgent;
 	const defaultWorkerModel =
 		projectQuery.data?.config?.worker?.agentConfig?.model ?? projectQuery.data?.config?.agentConfig?.model ?? "";
 	const defaultWorkerMode =
 		projectQuery.data?.config?.worker?.agentConfig?.mode ?? projectQuery.data?.config?.agentConfig?.mode ?? "";
-	const projectModelForSelectedAgent = selectedAgent === defaultWorkerAgent ? defaultWorkerModel : "";
-	const projectModeForSelectedAgent = selectedAgent === defaultWorkerAgent ? defaultWorkerMode : "";
+	const projectModelForSelectedAgent = selectedAgent === "codex" && projectWorkerAgent === "codex" ? defaultWorkerModel : "";
+	const projectModeForSelectedAgent = selectedAgent === "codex" && projectWorkerAgent === "codex" ? defaultWorkerMode : "";
 	const agentCatalog = agentsQuery.data;
 
 	// Shares the picker's query key, so this is the same fetch, not a second one.

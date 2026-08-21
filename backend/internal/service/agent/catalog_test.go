@@ -266,20 +266,43 @@ func TestListReturnsInitialSupportedInventoryWithoutProbing(t *testing.T) {
 	}
 }
 
-func TestDefaultCatalogDisplaysPrimeAgent(t *testing.T) {
+func TestInventoryExposesOnlyHarnessesSelectableForNewWork(t *testing.T) {
+	svc := NewWithAgents([]agentregistry.HarnessAgent{
+		harnessAuthAgent("codex", "Codex", ports.AgentAuthStatusAuthorized, nil),
+		harnessAuthAgent("claude-code", "Claude Code", ports.AgentAuthStatusAuthorized, nil),
+	})
+
+	initial, err := svc.List(context.Background())
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if got := initial.Supported; len(got) != 1 || got[0].ID != "codex" {
+		t.Fatalf("initial supported = %#v, want only codex", got)
+	}
+
+	refreshed, err := svc.Refresh(context.Background())
+	if err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	for name, infos := range map[string][]Info{
+		"supported":  refreshed.Supported,
+		"installed":  refreshed.Installed,
+		"authorized": refreshed.Authorized,
+	} {
+		if len(infos) != 1 || infos[0].ID != "codex" {
+			t.Fatalf("%s = %#v, want only codex", name, infos)
+		}
+	}
+}
+
+func TestDefaultCatalogExposesCodexForNewWork(t *testing.T) {
 	got, err := New().List(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, info := range got.Supported {
-		if info.ID == "prime-agent" {
-			if info.Label != "Prime Agent" {
-				t.Fatalf("prime-agent label = %q, want Prime Agent", info.Label)
-			}
-			return
-		}
+	if len(got.Supported) != 1 || got.Supported[0].ID != "codex" || got.Supported[0].Label != "Codex" {
+		t.Fatalf("default supported = %#v, want only Codex", got.Supported)
 	}
-	t.Fatal("default catalog does not contain prime-agent")
 }
 
 func TestRefreshReportsInstalledAgentsAndIgnoresDetectorErrors(t *testing.T) {
@@ -293,8 +316,8 @@ func TestRefreshReportsInstalledAgentsAndIgnoresDetectorErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Refresh: %v", err)
 	}
-	if len(got.Supported) != 3 {
-		t.Fatalf("supported = %#v, want 3 agents", got.Supported)
+	if len(got.Supported) != 1 || got.Supported[0].ID != "codex" {
+		t.Fatalf("supported = %#v, want only codex", got.Supported)
 	}
 	if len(got.Installed) != 1 || got.Installed[0].ID != "codex" {
 		t.Fatalf("installed = %#v, want only codex", got.Installed)
@@ -313,8 +336,8 @@ func TestRefreshReportsAuthorizedInstalledAgents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Refresh: %v", err)
 	}
-	if len(got.Supported) != 4 || len(got.Installed) != 4 {
-		t.Fatalf("inventory = %#v, want supported=4 installed=4", got)
+	if len(got.Supported) != 1 || len(got.Installed) != 1 {
+		t.Fatalf("inventory = %#v, want only codex", got)
 	}
 	if len(got.Authorized) != 1 || got.Authorized[0].ID != "codex" {
 		t.Fatalf("authorized = %#v, want only codex", got.Authorized)
@@ -326,15 +349,6 @@ func TestRefreshReportsAuthorizedInstalledAgents(t *testing.T) {
 	}
 	if byID["codex"].AuthStatus != ports.AgentAuthStatusAuthorized {
 		t.Fatalf("codex authStatus = %q", byID["codex"].AuthStatus)
-	}
-	if byID["claude-code"].AuthStatus != ports.AgentAuthStatusUnauthorized {
-		t.Fatalf("claude-code authStatus = %q", byID["claude-code"].AuthStatus)
-	}
-	if byID["opencode"].AuthStatus != ports.AgentAuthStatusUnknown {
-		t.Fatalf("opencode authStatus = %q", byID["opencode"].AuthStatus)
-	}
-	if byID["broken-auth"].AuthStatus != ports.AgentAuthStatusUnknown {
-		t.Fatalf("broken-auth authStatus = %q", byID["broken-auth"].AuthStatus)
 	}
 }
 
@@ -363,8 +377,8 @@ func TestRefreshDoesNotWaitForSlowAgentProbe(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
 		t.Fatalf("List took %s, want bounded by slow probe timeout", elapsed)
 	}
-	if len(got.Supported) != 2 {
-		t.Fatalf("supported = %#v, want both agents", got.Supported)
+	if len(got.Supported) != 1 || got.Supported[0].ID != "codex" {
+		t.Fatalf("supported = %#v, want only codex", got.Supported)
 	}
 	if len(got.Installed) != 1 || got.Installed[0].ID != "codex" {
 		t.Fatalf("installed = %#v, want only codex", got.Installed)
@@ -383,10 +397,10 @@ func TestRefreshUsesSeparateTimeoutForAuthProbe(t *testing.T) {
 
 	svc := NewWithAgents([]agentregistry.HarnessAgent{
 		{
-			Harness: domain.AgentHarness("claude-code"),
+			Harness: domain.AgentHarness("codex"),
 			Manifest: adapters.Manifest{
-				ID:   "claude-code",
-				Name: "Claude Code",
+				ID:   "codex",
+				Name: "Codex",
 			},
 			Agent: fakeAuthAgent{
 				fakeAgent: fakeAgent{},
@@ -400,8 +414,8 @@ func TestRefreshUsesSeparateTimeoutForAuthProbe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Refresh: %v", err)
 	}
-	if len(got.Authorized) != 1 || got.Authorized[0].ID != "claude-code" {
-		t.Fatalf("authorized = %#v, want claude-code", got.Authorized)
+	if len(got.Authorized) != 1 || got.Authorized[0].ID != "codex" {
+		t.Fatalf("authorized = %#v, want codex", got.Authorized)
 	}
 }
 

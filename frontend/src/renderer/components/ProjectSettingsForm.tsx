@@ -137,18 +137,33 @@ function SettingsBody({
 	const workspace = workspaceQuery.data?.find((item) => item.id === projectId);
 	const activeOrchestrator = newestActiveOrchestrator(workspace?.sessions ?? []);
 	const intake: TrackerIntakeConfig = config.trackerIntake ?? {};
+	const persistedHarnesses = [config.worker?.agent, config.orchestrator?.agent, config.reviewers?.[0]?.harness];
+	const hasRetiredProviderConfig = persistedHarnesses.some((harness) => harness !== undefined && harness !== "codex");
+	const hasRetiredRoleConfig =
+		(config.worker?.agent !== undefined && config.worker.agent !== "codex") ||
+		(config.orchestrator?.agent !== undefined && config.orchestrator.agent !== "codex");
+	const workerRoleMigrates = config.worker?.agent !== undefined && config.worker.agent !== "codex";
+	const orchestratorRoleMigrates = config.orchestrator?.agent !== undefined && config.orchestrator.agent !== "codex";
 	const [form, setForm] = useState({
 		displayName: project.name,
 		defaultBranch: config.defaultBranch ?? DEFAULT_BRANCH_AUTO,
 		sessionPrefix: config.sessionPrefix ?? "",
-		workerAgent: config.worker?.agent ?? "",
-		orchestratorAgent: config.orchestrator?.agent ?? "",
-		workerModel: config.worker?.agentConfig?.model ?? config.agentConfig?.model ?? "",
-		orchestratorModel: config.orchestrator?.agentConfig?.model ?? config.agentConfig?.model ?? "",
-		workerMode: config.worker?.agentConfig?.mode ?? config.agentConfig?.mode ?? "",
-		orchestratorMode: config.orchestrator?.agentConfig?.mode ?? config.agentConfig?.mode ?? "",
+		workerAgent: "codex",
+		orchestratorAgent: "codex",
+		workerModel: workerRoleMigrates
+			? ""
+			: config.worker?.agentConfig?.model ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.model ?? ""),
+		orchestratorModel: orchestratorRoleMigrates
+			? ""
+			: config.orchestrator?.agentConfig?.model ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.model ?? ""),
+		workerMode: workerRoleMigrates
+			? ""
+			: config.worker?.agentConfig?.mode ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.mode ?? ""),
+		orchestratorMode: orchestratorRoleMigrates
+			? ""
+			: config.orchestrator?.agentConfig?.mode ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.mode ?? ""),
 		permissions: config.agentConfig?.permissions ?? "",
-		reviewerHarness: config.reviewers?.[0]?.harness ?? "",
+		reviewerHarness: "codex",
 		intakeEnabled: intake.enabled ?? false,
 		intakeRepo: intake.repo ?? "",
 		intakeAssignee: intake.assignee ?? "",
@@ -157,7 +172,7 @@ function SettingsBody({
 	const [showSaving, setShowSaving] = useState(false);
 	const [replacementError, setReplacementError] = useState<string | null>(null);
 	const [validationError, setValidationError] = useState<string | null>(null);
-	const initialOrchestratorAgent = config.orchestrator?.agent ?? "";
+	const initialOrchestratorAgent = "codex";
 	const missingRequiredAgent = form.workerAgent === "" || form.orchestratorAgent === "";
 	const agentsQuery = useQuery(agentsQueryOptions);
 	const agentCatalog = agentsQuery.data;
@@ -247,7 +262,7 @@ function SettingsBody({
 			if (error) throw new Error(apiErrorMessage(error));
 			if (
 				form.orchestratorAgent !== initialOrchestratorAgent ||
-				(activeOrchestrator && activeOrchestrator.provider !== form.orchestratorAgent)
+				(!hasRetiredProviderConfig && activeOrchestrator && activeOrchestrator.provider !== form.orchestratorAgent)
 			) {
 				try {
 					const sessionId = await spawnOrchestrator(projectId, "settings", true);
@@ -373,6 +388,11 @@ function SettingsBody({
 				mutation.mutate();
 			}}
 		>
+			{hasRetiredProviderConfig ? (
+				<p className="px-1 text-xs text-settings-muted" role="status">
+					{t("settings.project.retiredProviderMigration")}
+				</p>
+			) : null}
 			{section === "general" && (
 				<>
 					<ProjectGeneralSettingsView

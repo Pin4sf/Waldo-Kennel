@@ -108,7 +108,7 @@ type chatSpawn struct {
 func (m *Manager) launchChatController(ctx context.Context, in chatSpawn) (domain.SessionRecord, error) {
 	id := in.record.ID
 	agentConfig := applySpawnAgentConfig(
-		effectiveAgentConfig(in.cfg.Kind, in.project.Config),
+		freshAgentConfig(in.cfg.Kind, in.cfg.Harness, in.project.Config),
 		in.cfg.AgentConfig,
 	)
 

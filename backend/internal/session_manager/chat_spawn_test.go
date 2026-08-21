@@ -305,7 +305,7 @@ func TestTUISpawnNeverTouchesTheChatLauncher(t *testing.T) {
 	rec, _, _, err := mgr.Spawn(context.Background(), ports.SpawnConfig{
 		ProjectID: chatTestProject,
 		Kind:      domain.KindWorker,
-		Harness:   domain.HarnessClaudeCode,
+		Harness:   domain.HarnessCodex,
 		Prompt:    "hello",
 		// No requested mode: resolution must land on TUI.
 	})
@@ -389,6 +389,34 @@ func TestChatSpawnStartsControllerAndNoRuntime(t *testing.T) {
 
 	if len(launcher.turns) != 1 || launcher.turns[0] == "" {
 		t.Fatalf("initial prompt was not delivered as a turn: %v", launcher.turns)
+	}
+}
+
+func TestChatSpawn_ExplicitCodexClearsHistoricalProjectModel(t *testing.T) {
+	launcher := &recordingLauncher{}
+	mgr, store, _ := newChatManager(launcher)
+	store.projects[string(chatTestProject)] = domain.ProjectRecord{ID: string(chatTestProject), Config: domain.ProjectConfig{
+		AgentConfig: domain.AgentConfig{Model: "claude-shared", Mode: "plan", Permissions: domain.PermissionModeAuto},
+		Worker: domain.RoleOverride{
+			Harness:     domain.HarnessClaudeCode,
+			AgentConfig: domain.AgentConfig{Model: "claude-role", Mode: "dangerous"},
+		},
+	}}
+
+	if _, _, _, err := mgr.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: chatTestProject, Kind: domain.KindWorker, Harness: domain.HarnessCodex,
+		RequestedMode: domain.SessionModeChat,
+	}); err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	if len(launcher.started) != 1 {
+		t.Fatalf("started controllers = %d, want 1", len(launcher.started))
+	}
+	if launcher.started[0].Model != "" {
+		t.Fatalf("Codex chat launch model = %q, want no historical model", launcher.started[0].Model)
+	}
+	if launcher.started[0].Permissions != domain.PermissionModeAuto {
+		t.Fatalf("Codex chat launch permissions = %q, want auto", launcher.started[0].Permissions)
 	}
 }
 

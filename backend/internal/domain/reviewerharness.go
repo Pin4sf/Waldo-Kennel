@@ -67,12 +67,23 @@ var AllReviewerHarnesses = []ReviewerHarness{
 	ReviewerAutohand,
 }
 
-// IsKnown reports whether h is one of the supported reviewer harnesses.
-func (h ReviewerHarness) IsKnown() bool {
+// IsRecognizedPersisted reports whether h is an identity that existing durable
+// review rows may continue to read.
+func (h ReviewerHarness) IsRecognizedPersisted() bool {
 	for _, k := range AllReviewerHarnesses {
 		if h == k {
 			return true
 		}
 	}
 	return false
+}
+
+// IsSelectableForNewWork reports whether h may start a new review in this build.
+func (h ReviewerHarness) IsSelectableForNewWork() bool {
+	return h == ReviewerCodex
+}
+
+// IsKnown is retained as a compatibility alias for persisted identity checks.
+func (h ReviewerHarness) IsKnown() bool {
+	return h.IsRecognizedPersisted()
 }

@@ -1055,6 +1055,7 @@
 	"settings.project.intakeDescription": "Inicia sessões de worker automaticamente a partir de issues do tracker correspondentes.",
 	"settings.project.intakeHelpAria": "O que a ativação do intake de issues faz?",
 	"settings.project.intakeTooltip": "Inicia automaticamente uma sessão de worker para cada issue do GitHub correspondente.",
+	"settings.project.retiredProviderMigration": "This project uses retired provider settings. Saving updates new-work defaults to Codex; existing sessions are unchanged.",
 	"settings.migration.title": "Migração",
 	"settings.migration.description": "Importe projetos e sessões do orchestrator de uma instalação anterior do Kennel. Seus arquivos antigos nunca são modificados, e é seguro executar mais de uma vez.",
 	"settings.migration.statusLabel": "Status",

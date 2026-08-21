@@ -438,8 +438,8 @@ func TestManager_DefaultsWhenUnconfigured(t *testing.T) {
 	if got.Project.DefaultBranch != domain.DefaultBranchAuto {
 		t.Fatalf("default branch = %q, want %q", got.Project.DefaultBranch, domain.DefaultBranchAuto)
 	}
-	if got.Project.Agent != "claude-code" {
-		t.Fatalf("default agent = %q, want claude-code", got.Project.Agent)
+	if got.Project.Agent != "codex" {
+		t.Fatalf("default agent = %q, want codex", got.Project.Agent)
 	}
 	if got.Project.Config != nil {
 		t.Fatalf("unconfigured project should omit config, got %#v", got.Project.Config)

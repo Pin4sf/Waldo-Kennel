@@ -36,7 +36,7 @@ vi.mock("./CreateProjectAgentSheet", () => ({
 				className={triggerClassName}
 				data-testid="agent-field"
 				data-value={value}
-				onClick={() => onChange(value === "codex" ? "claude-code" : "codex")}
+				onClick={() => onChange("codex")}
 			/>
 		);
 	},
@@ -118,7 +118,7 @@ describe("TaskComposer", () => {
 		expect(task()).toHaveValue("Investigate the failure");
 	});
 
-	it("keeps agent and model in equal stable toolbar tracks", () => {
+	it("keeps agent and model in equal stable toolbar tracks", async () => {
 		render(
 			<Wrap>
 				<TaskComposer projectId="proj-1" onCreated={vi.fn()} />
@@ -130,7 +130,7 @@ describe("TaskComposer", () => {
 		expect(runControls.closest(".composer-toolbar")).not.toBeNull();
 		expect(runControls.querySelectorAll(".composer-toolbar-slot")).toHaveLength(2);
 		expect(screen.getByTestId("agent-field").closest(".composer-toolbar-slot")).not.toBeNull();
-		expect(screen.getByLabelText("Model").closest(".composer-toolbar-slot")).not.toBeNull();
+		expect((await screen.findByLabelText("Model")).closest(".composer-toolbar-slot")).not.toBeNull();
 		expect(runControls.querySelector(".composer-toolbar-divider")).not.toBeNull();
 	});
 
@@ -379,10 +379,10 @@ describe("TaskComposer", () => {
 		expect(h.agentValues).not.toContain("");
 	});
 
-	it("falls back to the global default agent when the project sets no worker agent", async () => {
+	it("uses Codex for a historical global default and submits the admitted harness", async () => {
 		h.get.mockImplementation(async (path: string) => {
 			if (path.includes("/models")) {
-				return { data: { agent: "claude-code", selectionMode: "text", models: [], allowCustom: true } };
+				return { data: { agent: "codex", selectionMode: "text", models: [], allowCustom: true } };
 			}
 			return { data: { status: "ok", project: { agent: "claude-code", config: {} } } };
 		});
@@ -393,7 +393,15 @@ describe("TaskComposer", () => {
 			</Wrap>,
 		);
 
-		await waitFor(() => expect(screen.getByTestId("agent-field")).toHaveAttribute("data-value", "claude-code"));
+		await waitFor(() => expect(screen.getByTestId("agent-field")).toHaveAttribute("data-value", "codex"));
+		fireEvent.change(task(), { target: { value: "Deliver the outcome" } });
+		fireEvent.click(screen.getByRole("button", { name: "Define outcome" }));
+		await waitFor(() =>
+			expect(h.post).toHaveBeenCalledWith(
+				"/api/v1/orchestrators/delegate",
+				expect.objectContaining({ body: expect.objectContaining({ agent: "codex" }) }),
+			),
+		);
 	});
 
 	it("preselects the agent's default model when the project configures none", async () => {
@@ -423,22 +431,10 @@ describe("TaskComposer", () => {
 		expect(await screen.findByDisplayValue("gpt-5-codex")).toBeInTheDocument();
 	});
 
-	it("clears a stale model while the newly selected agent catalog resolves", async () => {
-		let resolveClaudeCatalog!: (value: {
-			data: {
-				agent: string;
-				selectionMode: "text";
-				models: Array<{ id: string; label: string; isDefault: boolean }>;
-				allowCustom: boolean;
-			};
-		}) => void;
+	it("does not inherit a historical project's model or mode", async () => {
 		h.get.mockImplementation(async (path: string, request?: { params?: { path?: { agent?: string } } }) => {
 			if (path.includes("/models")) {
-				if (request?.params?.path?.agent === "claude-code") {
-					return new Promise((resolve) => {
-						resolveClaudeCatalog = resolve;
-					});
-				}
+				expect(request?.params?.path?.agent).toBe("codex");
 				return {
 					data: {
 						agent: "codex",
@@ -448,7 +444,15 @@ describe("TaskComposer", () => {
 					},
 				};
 			}
-			return { data: { status: "ok", project: { agent: "codex", config: {} } } };
+			return {
+				data: {
+					status: "ok",
+					project: {
+						agent: "claude-code",
+						config: { worker: { agent: "claude-code", agentConfig: { model: "opus", mode: "plan" } } },
+					},
+				},
+			};
 		});
 
 		render(
@@ -458,22 +462,15 @@ describe("TaskComposer", () => {
 		);
 
 		expect(await screen.findByDisplayValue("gpt-5.6-sol")).toBeInTheDocument();
-		fireEvent.click(screen.getByTestId("agent-field"));
-
-		expect(screen.queryByDisplayValue("gpt-5.6-sol")).not.toBeInTheDocument();
-		expect(screen.getByRole("status", { name: "Loading models…" })).toBeInTheDocument();
-
-		await act(async () => {
-			resolveClaudeCatalog({
-				data: {
-					agent: "claude-code",
-					selectionMode: "text",
-					models: [{ id: "opus[1m]", label: "opus[1m]", isDefault: true }],
-					allowCustom: true,
-				},
-			});
-		});
-		expect(await screen.findByDisplayValue("opus[1m]")).toBeInTheDocument();
+		expect(screen.getByTestId("agent-field")).toHaveAttribute("data-value", "codex");
+		fireEvent.change(task(), { target: { value: "Deliver the outcome" } });
+		fireEvent.click(screen.getByRole("button", { name: "Define outcome" }));
+		await waitFor(() =>
+			expect(h.post).toHaveBeenCalledWith(
+				"/api/v1/orchestrators/delegate",
+				expect.objectContaining({ body: expect.objectContaining({ agent: "codex", model: undefined }) }),
+			),
+		);
 	});
 
 	it("shows the same no-override label on the trigger and in the menu", async () => {

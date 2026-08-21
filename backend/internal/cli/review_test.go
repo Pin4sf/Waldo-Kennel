@@ -239,9 +239,11 @@ func TestReviewRestartTooManyArgsIsUsageError(t *testing.T) {
 	}
 }
 
-func TestReviewRestartPostsTriggerCreated(t *testing.T) {
+func TestReviewRestartPostsExplicitCodexTriggerForHistoricalSession(t *testing.T) {
 	cfg := setConfigEnv(t)
-	// 201 with created:true means a new review pass was started.
+	// The CLI does not decode a session's persisted provider. Its explicit
+	// Codex target prevents a historical reviewer fallback from selecting a
+	// retired reviewer when this command restarts the review.
 	srv, capture := reviewServer(t, http.StatusCreated, `{"created":true}`)
 	writeRunFileFor(t, cfg, srv)
 
@@ -251,6 +253,13 @@ func TestReviewRestartPostsTriggerCreated(t *testing.T) {
 	}
 	if capture.method != http.MethodPost || capture.path != "/api/v1/sessions/mer-1/reviews/trigger" {
 		t.Fatalf("request = %s %s", capture.method, capture.path)
+	}
+	var req triggerReviewRequest
+	if err := json.Unmarshal([]byte(capture.body), &req); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if req.Harness != "codex" {
+		t.Fatalf("harness = %q, want codex", req.Harness)
 	}
 	if !strings.Contains(out, "started a new review for mer-1") {
 		t.Fatalf("stdout = %q, want the created message", out)

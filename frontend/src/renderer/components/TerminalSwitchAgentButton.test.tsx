@@ -3,7 +3,6 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AGENT_OPTIONS } from "../lib/agent-options";
 import {
 	deriveAgentSwitchPresentation,
 	type AgentSwitchPresentation,
@@ -167,6 +166,7 @@ describe("TerminalSwitchAgentButton", () => {
 
 	it.each([
 		["unsupported provider", { provider: "cursor" }],
+		["already admitted provider", { provider: "codex" }],
 		["terminated worker", { isTerminated: true, status: "terminated" }],
 		["orchestrator", { id: "orch-1", kind: "orchestrator" }],
 	] as const)("does not render for an %s", (_name, overrides) => {
@@ -191,8 +191,8 @@ describe("TerminalSwitchAgentButton", () => {
 		const targetAgent = within(dialog).getByRole("button", { name: "Target agent" });
 		expect(targetAgent).toHaveTextContent("Codex");
 		await userEvent.click(targetAgent);
-		expect(screen.getAllByRole("menuitem")).toHaveLength(AGENT_OPTIONS.length);
-		expect(screen.getByRole("menuitem", { name: /Cursor,\s*Coming soon/ })).toHaveAttribute("data-disabled");
+		expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+		expect(screen.getByRole("menuitem", { name: "Codex" })).toBeInTheDocument();
 		await userEvent.keyboard("{Escape}");
 		expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
 		await userEvent.click(within(dialog).getByRole("button", { name: "Switch" }));

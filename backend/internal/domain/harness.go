@@ -48,12 +48,26 @@ var AllHarnesses = []AgentHarness{
 	HarnessOMP,
 }
 
-// IsKnown reports whether h is one of the supported harnesses.
-func (h AgentHarness) IsKnown() bool {
+// IsRecognizedPersisted reports whether h is an identity that existing durable
+// rows and recovery paths may continue to read.
+func (h AgentHarness) IsRecognizedPersisted() bool {
+	if h == HarnessFake {
+		return true
+	}
 	for _, k := range AllHarnesses {
 		if h == k {
 			return true
 		}
 	}
 	return false
+}
+
+// IsSelectableForNewWork reports whether h may start new work in this build.
+func (h AgentHarness) IsSelectableForNewWork() bool {
+	return h == HarnessCodex
+}
+
+// IsKnown is retained as a compatibility alias for persisted identity checks.
+func (h AgentHarness) IsKnown() bool {
+	return h.IsRecognizedPersisted()
 }

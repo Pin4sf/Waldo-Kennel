@@ -6186,33 +6186,7 @@ components:
       properties:
         agent:
           enum:
-          - claude-code
           - codex
-          - aider
-          - opencode
-          - grok
-          - droid
-          - amp
-          - agy
-          - crush
-          - cursor
-          - qwen
-          - copilot
-          - goose
-          - auggie
-          - continue
-          - devin
-          - cline
-          - kimi
-          - muse
-          - kiro
-          - kilocode
-          - vibe
-          - pi
-          - kimchi
-          - prime-agent
-          - autohand
-          - fake
           type: string
         attachments:
           items:
@@ -7936,31 +7910,7 @@ components:
       properties:
         harness:
           enum:
-          - claude-code
           - codex
-          - copilot
-          - cursor
-          - kilocode
-          - opencode
-          - kiro
-          - pi
-          - qwen
-          - agy
-          - continue
-          - goose
-          - vibe
-          - devin
-          - droid
-          - kimi
-          - kimchi
-          - muse
-          - amp
-          - aider
-          - grok
-          - crush
-          - auggie
-          - cline
-          - autohand
           type: string
       type: object
     SettingsResponse:
@@ -8040,32 +7990,7 @@ components:
           type: string
         harness:
           enum:
-          - claude-code
           - codex
-          - aider
-          - opencode
-          - grok
-          - droid
-          - amp
-          - agy
-          - crush
-          - cursor
-          - qwen
-          - copilot
-          - goose
-          - auggie
-          - continue
-          - devin
-          - cline
-          - kimi
-          - muse
-          - kiro
-          - kilocode
-          - vibe
-          - pi
-          - kimchi
-          - prime-agent
-          - autohand
           type: string
         issueId:
           type: string
@@ -8243,7 +8168,6 @@ components:
         targetHarness:
           description: Agent harness to continue the logical AO session with.
           enum:
-          - claude-code
           - codex
           type: string
       required:
@@ -8267,31 +8191,7 @@ components:
       properties:
         harness:
           enum:
-          - claude-code
           - codex
-          - copilot
-          - cursor
-          - kilocode
-          - opencode
-          - kiro
-          - pi
-          - qwen
-          - agy
-          - continue
-          - goose
-          - vibe
-          - devin
-          - droid
-          - kimi
-          - kimchi
-          - muse
-          - amp
-          - aider
-          - grok
-          - crush
-          - auggie
-          - cline
-          - autohand
           type: string
       type: object
     TriggerReviewResponse:

@@ -47,23 +47,26 @@ function requestBody() {
 
 const agentInventory = {
 	supported: [
+		{ id: "codex", label: "Codex" },
 		{ id: "claude-code", label: "Claude Code" },
 		{ id: "cursor", label: "Cursor" },
 		{ id: "kiro", label: "Kiro" },
 	],
 	installed: [
+		{ id: "codex", label: "Codex", authStatus: "authorized" },
 		{ id: "claude-code", label: "Claude Code", authStatus: "authorized" },
 		{ id: "cursor", label: "Cursor", authStatus: "authorized" },
 		{ id: "kiro", label: "Kiro", authStatus: "unknown" },
 	],
 	authorized: [
+		{ id: "codex", label: "Codex", authStatus: "authorized" },
 		{ id: "claude-code", label: "Claude Code", authStatus: "authorized" },
 		{ id: "cursor", label: "Cursor", authStatus: "authorized" },
 	],
 };
 
 async function waitForAgentCatalog() {
-	await waitFor(() => expect(screen.getAllByText("Claude Code").length).toBeGreaterThan(0));
+	await waitFor(() => expect(screen.getAllByText("Codex").length).toBeGreaterThan(0));
 }
 
 beforeEach(() => {
@@ -95,7 +98,7 @@ describe("NewTaskDialog", () => {
 		expect(screen.queryByText("Runs with")).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Close new task dialog" })).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Agent" })).toHaveTextContent("Claude Code");
+		expect(screen.getByRole("button", { name: "Agent" })).toHaveTextContent("Codex");
 		expect(await screen.findByLabelText("Model")).toHaveValue("");
 		expect(screen.getByRole("button", { name: "Add file" })).toBeInTheDocument();
 		expect(screen.getByLabelText("Outcome")).toHaveAttribute("placeholder", "Describe the result you want Kennel to deliver…");
@@ -118,7 +121,7 @@ describe("NewTaskDialog", () => {
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 	});
 
-	it("submits the outcome naming the preferred worker agent and optional model", async () => {
+	it("submits Codex for a historical project worker with an optional model", async () => {
 		const { onCreated, onOpenChange } = renderDialog();
 		const user = userEvent.setup();
 		const brief = "  Restore the fallback renderer after WebGL init fails.  ";
@@ -135,9 +138,9 @@ describe("NewTaskDialog", () => {
 			projectId: "proj-1",
 			brief,
 			outcome: true,
-				// The dialog preselects the project's worker agent, so the delegate
-				// call names it instead of relying on a server-side fallback.
-				agent: "claude-code",
+				// A historical project worker remains readable, but fresh delegation
+				// explicitly names its admitted Codex fallback.
+				agent: "codex",
 				model: "placeholder-model",
 			},
 		});
@@ -152,7 +155,7 @@ describe("NewTaskDialog", () => {
 		postMock
 			.mockResolvedValueOnce({
 				data: undefined,
-				error: { code: "CHAT_AUTH_REQUIRED", message: "Claude Code needs login" },
+				error: { code: "CHAT_AUTH_REQUIRED", message: "Codex needs login" },
 			})
 			.mockResolvedValueOnce({ data: { ok: true, workerId: "worker-tui" }, error: undefined });
 		const { onCreated } = renderDialog();
@@ -172,7 +175,7 @@ describe("NewTaskDialog", () => {
 		expect(onCreated).toHaveBeenCalledWith("worker-tui");
 	});
 
-	it("sends the chosen agent when the user overrides the default", async () => {
+	it("offers only Codex when the catalog includes retired agents", async () => {
 		renderDialog();
 		const user = userEvent.setup();
 		await waitForAgentCatalog();
@@ -180,30 +183,47 @@ describe("NewTaskDialog", () => {
 		await user.type(screen.getByLabelText("Outcome"), "B");
 
 		await user.click(screen.getByRole("button", { name: "Agent" }));
-		await user.click(await screen.findByRole("menuitem", { name: "Cursor" }));
+		expect((await screen.findAllByRole("menuitem")).map((option) => option.textContent)).toEqual(["Codex"]);
+		await user.click(screen.getByRole("menuitem", { name: "Codex" }));
 
 		await user.click(screen.getByRole("button", { name: "Define outcome" }));
 
 		await waitFor(() => expect(requestBody).not.toThrow());
-		expect(requestBody().agent).toBe("cursor");
+		expect(requestBody().agent).toBe("codex");
 	});
 
-	it("allows selecting an installed agent with unknown auth", async () => {
+	it("allows selecting Codex when its auth status is unknown", async () => {
+		getMock.mockImplementation(async (path: string) => {
+			if (path === "/api/v1/agents") {
+				return {
+					data: {
+						supported: agentInventory.supported,
+						installed: [{ id: "codex", label: "Codex", authStatus: "unknown" }],
+						authorized: [],
+					},
+					error: undefined,
+				};
+			}
+			return {
+				data: { status: "ok", project: { id: "proj-1", config: { worker: { agent: "claude-code" } } } },
+				error: undefined,
+			};
+		});
 		renderDialog();
 		const user = userEvent.setup();
 		await waitForAgentCatalog();
 
 		await user.click(screen.getByRole("button", { name: "Agent" }));
 		const options = await screen.findAllByRole("menuitem");
-		expect(options.map((option) => option.textContent)).toEqual(["Claude Code", "Cursor", "KiroAuth unknown"]);
-		expect(options[2]).not.toHaveAttribute("aria-disabled", "true");
-		await user.click(options[2]);
+		expect(options.map((option) => option.textContent)).toEqual(["CodexAuth unknown"]);
+		expect(options[0]).not.toHaveAttribute("aria-disabled", "true");
+		await user.click(options[0]);
 
 		await user.type(screen.getByLabelText("Outcome"), "B");
 		await user.click(screen.getByRole("button", { name: "Define outcome" }));
 
 		await waitFor(() => expect(requestBody).not.toThrow());
-		expect(requestBody().agent).toBe("kiro");
+		expect(requestBody().agent).toBe("codex");
 	});
 
 	it("requires an outcome before delegation", async () => {
@@ -221,9 +241,12 @@ describe("NewTaskDialog", () => {
 			if (path === "/api/v1/agents") {
 				return {
 					data: {
-						supported: [{ id: "claude-code", label: "Claude Code" }],
-						installed: [{ id: "claude-code", label: "Claude Code", authStatus: "authorized" }],
-						authorized: [{ id: "claude-code", label: "Claude Code", authStatus: "authorized" }],
+						supported: [
+							{ id: "codex", label: "Codex" },
+							{ id: "claude-code", label: "Claude Code" },
+						],
+						installed: [{ id: "codex", label: "Codex", authStatus: "authorized" }],
+						authorized: [{ id: "codex", label: "Codex", authStatus: "authorized" }],
 					},
 					error: undefined,
 				};

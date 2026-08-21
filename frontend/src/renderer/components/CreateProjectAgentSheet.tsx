@@ -10,11 +10,8 @@ import { TriangleAlert, X, type LucideIcon } from "lucide-react";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import type { components } from "../../api/schema";
 import { agentsQueryKey, agentsQueryOptions, refreshAgents } from "../hooks/useAgentsQuery";
-import { AGENT_OPTIONS } from "../lib/agent-options";
 import {
-	agentLabelCompare,
 	buildRankedAgentOptions,
-	DEFAULT_AGENT_PRIORITY,
 	DEFAULT_AGENT_PRIORITY_RANK,
 } from "../lib/agent-select-options";
 import { cn } from "../lib/utils";
@@ -353,11 +350,12 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	value: string;
 	variant?: "stacked" | "settings-row" | "chip";
 }) {
-	const fallbackAgents: AgentInfo[] = AGENT_OPTIONS.map((agent) => ({ id: agent, label: agent }));
+	const fallbackAgents: AgentInfo[] = [{ id: "codex", label: "Codex" }];
+	const selectableSupported = (supported ?? fallbackAgents).filter((agent) => agent.id === "codex");
 	const options = buildRankedAgentOptions({
-		supported,
-		installed,
-		authorized,
+		supported: selectableSupported.length > 0 ? selectableSupported : fallbackAgents,
+		installed: installed?.filter((agent) => agent.id === "codex"),
+		authorized: authorized?.filter((agent) => agent.id === "codex"),
 		priorityRank: DEFAULT_AGENT_PRIORITY_RANK,
 		fallbackAgents,
 	});
@@ -521,8 +519,5 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 });
 
 export function defaultAuthorizedAgent(authorizedAgents: AgentInfo[]): string {
-	const authorizedIds = new Set(authorizedAgents.map((agent) => agent.id));
-	const prioritized = DEFAULT_AGENT_PRIORITY.find((agent) => authorizedIds.has(agent));
-	if (prioritized) return prioritized;
-	return [...authorizedAgents].sort(agentLabelCompare)[0]?.id ?? "";
+	return authorizedAgents.some((agent) => agent.id === "codex") ? "codex" : "";
 }

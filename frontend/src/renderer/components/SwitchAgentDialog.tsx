@@ -18,7 +18,7 @@ import {
 	useSwitchAgentState,
 } from "../hooks/useSwitchAgent";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
-import { AGENT_LABELS, AGENT_OPTIONS, agentLabel } from "../lib/agent-options";
+import { agentLabel } from "../lib/agent-options";
 import type { WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
 import { AgentModelPicker } from "./AgentModelPicker";
@@ -33,14 +33,17 @@ import {
 } from "./ui/dialog";
 
 export const SWITCH_AGENT_OPTIONS = [
-	{ value: "claude-code", label: "Claude Code" },
 	{ value: "codex", label: "Codex" },
 ] as const satisfies ReadonlyArray<{ value: SwitchAgentHarness; label: string }>;
 
-const ALL_SWITCH_AGENT_OPTIONS = AGENT_OPTIONS.map((value) => ({ value, label: AGENT_LABELS[value] }));
+// Historical sessions can still be displayed as switch sources, but generated
+// write-contract targets are deliberately narrower: only Codex starts new work.
+export function isRecognizedSwitchSourceHarness(value: string): boolean {
+	return value === "claude-code" || value === "codex";
+}
 
-export function canSwitchAgentHarness(value: string): value is SwitchAgentHarness {
-	return SWITCH_AGENT_OPTIONS.some((option) => option.value === value);
+export function isSelectableSwitchTargetHarness(value: string): value is SwitchAgentHarness {
+	return value === "codex";
 }
 
 function SwitchTargetPicker({
@@ -55,9 +58,9 @@ function SwitchTargetPicker({
 	value: SwitchAgentHarness;
 }) {
 	const { t } = useTranslation();
-	const options = ALL_SWITCH_AGENT_OPTIONS.map((option) => ({
+	const options = SWITCH_AGENT_OPTIONS.map((option) => ({
 		...option,
-		disabled: !canSwitchAgentHarness(option.value) || option.value === currentHarness,
+		disabled: option.value === currentHarness,
 	}));
 	const selected = options.find((option) => option.value === value);
 	return (
@@ -68,22 +71,16 @@ function SwitchTargetPicker({
 			menuClassName="settings-agent-menu-surface"
 			menuItemClassName="settings-agent-menu-item"
 			onChange={(nextValue) => {
-				if (canSwitchAgentHarness(nextValue) && nextValue !== currentHarness) onChange(nextValue);
+				if (isSelectableSwitchTargetHarness(nextValue) && nextValue !== currentHarness) onChange(nextValue);
 			}}
 			options={options}
 			renderMenuItem={(option) => {
-				const supported = canSwitchAgentHarness(option.value);
 				const current = option.value === currentHarness;
 				return (
 					<span className="flex w-full min-w-0 items-center gap-2">
 						<AgentAvatar className="size-icon-base" decorative provider={option.value} />
 						<span className="min-w-0 flex-1 truncate">{option.label}</span>
-						{!supported ? (
-							<span className="shrink-0 text-micro text-settings-muted">
-								<span className="sr-only">, </span>
-								{t("switchAgent.comingSoon")}
-							</span>
-						) : current ? (
+						{current ? (
 							<span className="shrink-0 text-micro text-settings-muted">
 								<span className="sr-only">, </span>
 								{t("switchAgent.current")}
@@ -116,7 +113,7 @@ type SwitchAgentDialogProps = {
 export function SwitchAgentDialog({ container, open, session, onOpenChange }: SwitchAgentDialogProps) {
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
-	const defaultTargetHarness: SwitchAgentHarness = session.provider === "claude-code" ? "codex" : "claude-code";
+	const defaultTargetHarness: SwitchAgentHarness = "codex";
 	const [targetHarness, setTargetHarness] = useState<SwitchAgentHarness>(defaultTargetHarness);
 	const [model, setModel] = useState("");
 	const [mode, setMode] = useState("");
@@ -156,7 +153,7 @@ export function SwitchAgentDialog({ container, open, session, onOpenChange }: Sw
 	const [refreshingRecovery, setRefreshingRecovery] = useState(false);
 	const operationPending = admissionPending || recoverAgentSwitch.isPending;
 	useEffect(() => {
-		setTargetHarness(session.provider === "claude-code" ? "codex" : "claude-code");
+		setTargetHarness("codex");
 		setModel("");
 		setMode("");
 		setModelWarning(undefined);

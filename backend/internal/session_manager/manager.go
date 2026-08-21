@@ -677,6 +677,12 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	if cfg.Harness == "" {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: configure project %s.agent or pass --harness", ErrMissingHarness, roleConfigName(cfg.Kind))
 	}
+	if !cfg.Harness.IsRecognizedPersisted() {
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: %q", ErrUnknownHarness, cfg.Harness)
+	}
+	if !cfg.Harness.IsSelectableForNewWork() {
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: harness %q is not selectable for new work", cfg.Harness)
+	}
 
 	// Reject an unknown harness before any durable state is created. Doing this
 	// after CreateSession would leave a terminated orphan row and waste a
@@ -791,7 +797,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: no agent adapter for harness %q", id, cfg.Harness)
 	}
-	agentConfig := applySpawnAgentConfig(effectiveAgentConfig(cfg.Kind, project.Config), cfg.AgentConfig)
+	agentConfig := applySpawnAgentConfig(freshAgentConfig(cfg.Kind, cfg.Harness, project.Config), cfg.AgentConfig)
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(id, cfg.ProjectID, cfg.IssueID, project.Config.Env)
 	if err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, true)
@@ -1125,6 +1131,19 @@ func effectiveAgentConfig(kind domain.SessionKind, cfg domain.ProjectConfig) por
 		merged.Permissions = override.Permissions
 	}
 	return merged
+}
+
+// freshAgentConfig resolves project defaults for a new launch. Model and mode
+// belong to the provider that stored the role configuration, so they must not
+// cross a harness boundary; permissions remain provider-neutral. Explicit
+// request overrides are applied by the caller after this compatibility guard.
+func freshAgentConfig(kind domain.SessionKind, harness domain.AgentHarness, cfg domain.ProjectConfig) ports.AgentConfig {
+	config := effectiveAgentConfig(kind, cfg)
+	if roleOverride(kind, cfg).Harness != harness {
+		config.Model = ""
+		config.Mode = ""
+	}
+	return config
 }
 
 func applySpawnAgentConfig(base, override ports.AgentConfig) ports.AgentConfig {

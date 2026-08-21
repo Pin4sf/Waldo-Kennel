@@ -1407,6 +1407,24 @@ func TestSwitchAgentRejectsCursorAndKimiBeforeMutation(t *testing.T) {
 	}
 }
 
+func TestSwitchAgentRejectsHistoricalTargetBeforeMutation(t *testing.T) {
+	runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
+	manager, store, _ := newSwitchTestManager(t, runtime)
+	rec := store.sessions["proj-1"]
+	rec.Harness = domain.HarnessCodex
+	store.sessions[rec.ID] = rec
+
+	_, err := switchAgentSynchronously(context.Background(), manager, rec.ID, SwitchAgentConfig{
+		TargetHarness: domain.HarnessClaudeCode, IdempotencyKey: "historical-target",
+	})
+	if !errors.Is(err, ErrUnsupportedSwitchHarness) {
+		t.Fatalf("SwitchAgent error = %v, want ErrUnsupportedSwitchHarness", err)
+	}
+	if runtime.created != 0 || runtime.destroyed != 0 || len(store.switches) != 0 {
+		t.Fatalf("rejected switch mutated runtime/saga: created=%d destroyed=%d switches=%d", runtime.created, runtime.destroyed, len(store.switches))
+	}
+}
+
 func TestSwitchAgentFreshPreservesAOIdentityAndDeliversArtifact(t *testing.T) {
 	runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
 	manager, store, _ := newSwitchTestManager(t, runtime)
@@ -1917,7 +1935,7 @@ func TestSwitchAgentUnknownResumeEvidenceStartsFresh(t *testing.T) {
 	}
 }
 
-func TestSwitchAgentModelCodexToClaudeDropsSourceOverride(t *testing.T) {
+func TestSwitchAgentModelCodexToClaudeIsRejected(t *testing.T) {
 	runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
 	manager, store, _ := newSwitchTestManager(t, runtime)
 	rec := store.sessions["proj-1"]
@@ -1927,20 +1945,12 @@ func TestSwitchAgentModelCodexToClaudeDropsSourceOverride(t *testing.T) {
 	project.Config.Worker.Harness = domain.HarnessCodex
 	project.Config.Worker.AgentConfig.Model = "gpt-5.4-mini"
 	store.projects[project.ID] = project
-	target := manager.agents.(switchTestAgents)[domain.HarnessClaudeCode].(*switchTestAgent)
-
-	switchRecord, err := switchAgentSynchronously(context.Background(), manager, rec.ID, SwitchAgentConfig{
+	_, err := switchAgentSynchronously(context.Background(), manager, rec.ID, SwitchAgentConfig{
 		TargetHarness:  domain.HarnessClaudeCode,
 		IdempotencyKey: "codex-to-claude-drops-model",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if switchRecord.State != domain.AgentSwitchCompleted {
-		t.Fatalf("switch state = %q, want completed", switchRecord.State)
-	}
-	if target.launchModel != "" {
-		t.Fatalf("Claude target launch model = %q, want no source override", target.launchModel)
+	if !errors.Is(err, ErrUnsupportedSwitchHarness) {
+		t.Fatalf("SwitchAgent error = %v, want ErrUnsupportedSwitchHarness", err)
 	}
 }
 

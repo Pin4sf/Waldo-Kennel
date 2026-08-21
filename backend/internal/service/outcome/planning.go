@@ -32,7 +32,7 @@ func BuildPlan(outcome domain.Outcome, tasks []domain.OutcomeTask, available []d
 	}
 	availableSet := make(map[domain.AgentHarness]struct{}, len(available))
 	for _, harness := range available {
-		if harness.IsKnown() {
+		if harness.IsSelectableForNewWork() {
 			availableSet[harness] = struct{}{}
 		}
 	}
@@ -54,8 +54,8 @@ func BuildPlan(outcome domain.Outcome, tasks []domain.OutcomeTask, available []d
 			return Plan{}, fmt.Errorf("outcome plan has duplicate task id %q", task.ID)
 		}
 		if task.RequestedHarness != "" {
-			if !task.RequestedHarness.IsKnown() {
-				return Plan{}, fmt.Errorf("task %q requests unknown harness %q", task.ID, task.RequestedHarness)
+			if !task.RequestedHarness.IsSelectableForNewWork() {
+				return Plan{}, fmt.Errorf("task %q requests harness %q that is not selectable for new work", task.ID, task.RequestedHarness)
 			}
 			if _, ok := availableSet[task.RequestedHarness]; !ok {
 				return Plan{}, fmt.Errorf("task %q requests unavailable harness %q", task.ID, task.RequestedHarness)

@@ -85,7 +85,7 @@ func (s *Service) ChatHarnesses(candidates []domain.AgentHarness) []domain.Agent
 	}
 	var out []domain.AgentHarness
 	for _, harness := range candidates {
-		if s.chat.SupportsChat(harness) {
+		if harness.IsSelectableForNewWork() && s.chat.SupportsChat(harness) {
 			out = append(out, harness)
 		}
 	}

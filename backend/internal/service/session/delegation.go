@@ -50,8 +50,8 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 	if _, err := s.requireProject(ctx, in.ProjectID); err != nil {
 		return DelegateTaskOutcome{}, err
 	}
-	if in.RequestedAgent != "" && !in.RequestedAgent.IsKnown() {
-		return DelegateTaskOutcome{}, apierr.Invalid("UNKNOWN_HARNESS", "Unknown requested agent", nil)
+	if in.RequestedAgent != "" && !in.RequestedAgent.IsSelectableForNewWork() {
+		return DelegateTaskOutcome{}, apierr.Invalid("HARNESS_NOT_SELECTABLE", "Requested agent is not selectable for new work", nil)
 	}
 	if in.RequestedMode != "" && !in.RequestedMode.Valid() {
 		return DelegateTaskOutcome{}, apierr.Invalid("INVALID_SESSION_MODE", "mode must be chat or tui", nil)

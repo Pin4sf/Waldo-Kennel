@@ -53,6 +53,13 @@ type triggerReviewResponse struct {
 	Created bool `json:"created"`
 }
 
+// triggerReviewRequest mirrors controllers.TriggerReviewRequest. The daemon
+// only admits Codex as a new review target; keep the CLI's manual DTO boundary
+// explicit rather than relying on a historical persisted reviewer fallback.
+type triggerReviewRequest struct {
+	Harness string `json:"harness"`
+}
+
 // reviewRunResponse mirrors controllers.ReviewRunResponse.
 type reviewRunResponse struct {
 	Review           reviewRun   `json:"review"`
@@ -281,7 +288,7 @@ func (c *commandContext) restartReview(cmd *cobra.Command, args []string, opts r
 	// Decode the response so we can tell whether a new pass was started or an
 	// existing run for the same commit was reused, and report it accurately.
 	var res triggerReviewResponse
-	if err := c.postJSON(cmd.Context(), path, struct{}{}, &res); err != nil {
+	if err := c.postJSON(cmd.Context(), path, triggerReviewRequest{Harness: "codex"}, &res); err != nil {
 		return err
 	}
 	msg := "reused the existing review for %s\n"

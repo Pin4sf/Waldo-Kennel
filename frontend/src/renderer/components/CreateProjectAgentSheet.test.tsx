@@ -52,13 +52,13 @@ describe("CreateProjectAgentSheet", () => {
 		).toBe("codex");
 	});
 
-	it("falls back to the alphabetically first authorized agent when no priority agent is authorized", () => {
+	it("does not select a retired authorized agent", () => {
 		expect(
 			defaultAuthorizedAgent([
 				{ id: "goose", label: "Goose", authStatus: "authorized" },
 				{ id: "devin", label: "Devin", authStatus: "authorized" },
 			]),
-		).toBe("devin");
+		).toBe("");
 	});
 
 	it("uses the compact trigger size for agent fields", () => {
@@ -92,15 +92,15 @@ describe("CreateProjectAgentSheet", () => {
 
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
 		expect(onSubmit).toHaveBeenCalledWith({
-			workerAgent: "claude-code",
-			orchestratorAgent: "claude-code",
+			workerAgent: "codex",
+			orchestratorAgent: "codex",
 			trackerIntake: undefined,
 		});
 	});
 
 	it("blocks submit when intake is enabled with no assignee, then passes the intake payload once one is set", async () => {
 		const onSubmit = renderSheet();
-		await chooseOption(screen.getByLabelText("Worker agent"), "claude-code");
+		await chooseOption(screen.getByLabelText("Worker agent"), "codex");
 		await chooseOption(screen.getByLabelText("Orchestrator agent"), "codex");
 
 		await userEvent.click(screen.getByLabelText("Enable issue intake"));
@@ -113,7 +113,7 @@ describe("CreateProjectAgentSheet", () => {
 
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
 		expect(onSubmit).toHaveBeenCalledWith({
-			workerAgent: "claude-code",
+			workerAgent: "codex",
 			orchestratorAgent: "codex",
 			trackerIntake: { enabled: true, provider: "github", assignee: "octocat" },
 		});

@@ -727,8 +727,26 @@ func (s *Service) Unpin(ctx context.Context, id domain.SessionID) (domain.Sessio
 // SetReviewerHarness persists the reviewer selected for this session. Empty
 // clears the preference and restores the project-level fallback.
 func (s *Service) SetReviewerHarness(ctx context.Context, id domain.SessionID, harness domain.ReviewerHarness) (domain.Session, error) {
-	if harness != "" && !harness.IsKnown() {
-		return domain.Session{}, apierr.Invalid("UNKNOWN_REVIEWER_HARNESS", "Unknown reviewer harness", nil)
+	if harness != "" && !harness.IsSelectableForNewWork() {
+		return domain.Session{}, apierr.Invalid("REVIEWER_HARNESS_NOT_SELECTABLE", "Reviewer harness is not selectable for new work", nil)
+	}
+	if harness == "" {
+		session, ok, err := s.store.GetSession(ctx, id)
+		if err != nil {
+			return domain.Session{}, fmt.Errorf("set reviewer harness %s: %w", id, err)
+		}
+		if !ok {
+			return domain.Session{}, apierr.NotFound("SESSION_NOT_FOUND", "Unknown session")
+		}
+		var cfg domain.ProjectConfig
+		if project, found, err := s.store.GetProject(ctx, string(session.ProjectID)); err != nil {
+			return domain.Session{}, fmt.Errorf("set reviewer harness %s: %w", id, err)
+		} else if found {
+			cfg = project.Config
+		}
+		if effective := cfg.ResolveReviewerHarness(session.Harness); !effective.IsSelectableForNewWork() {
+			return domain.Session{}, apierr.Invalid("REVIEWER_HARNESS_NOT_SELECTABLE", "Reviewer harness is not selectable for new work", nil)
+		}
 	}
 	updated, err := s.store.SetSessionReviewerHarness(ctx, id, harness, time.Now().UTC())
 	if err != nil {

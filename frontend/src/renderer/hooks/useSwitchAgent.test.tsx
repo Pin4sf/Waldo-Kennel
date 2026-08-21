@@ -47,7 +47,7 @@ describe("useSwitchAgent", () => {
 					fromHarness: "codex",
 					id: "switch-1",
 					state: "preparing_handoff",
-					targetHarness: "claude-code",
+					targetHarness: "codex",
 				},
 			},
 			error: undefined,
@@ -61,7 +61,7 @@ describe("useSwitchAgent", () => {
 
 		await result.current.mutateAsync({
 			session,
-			targetHarness: "claude-code",
+			targetHarness: "codex",
 			model: " ",
 			idempotencyKey: "switch-request-1",
 		});
@@ -70,7 +70,7 @@ describe("useSwitchAgent", () => {
 			"/api/v1/sessions/{sessionId}/switch-agent",
 			{
 				params: { path: { sessionId: "sess-1" } },
-				body: { targetHarness: "claude-code", idempotencyKey: "switch-request-1" },
+				body: { targetHarness: "codex", idempotencyKey: "switch-request-1" },
 			},
 		);
 		await waitFor(() => {

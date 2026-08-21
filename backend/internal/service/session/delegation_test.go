@@ -21,7 +21,7 @@ func TestDelegateTaskSpawnsWorkerThenRequestsTitleFromNewestActiveOrchestrator(t
 		wantAgent domain.AgentHarness
 	}{
 		{name: "project default"},
-		{name: "requested agent model and mode", agent: domain.HarnessCursor, model: "  sonnet-custom  ", mode: domain.SessionModeChat, wantAgent: domain.HarnessCursor},
+		{name: "requested agent model and mode", agent: domain.HarnessCodex, model: "  gpt-5.4  ", mode: domain.SessionModeChat, wantAgent: domain.HarnessCodex},
 	}
 
 	for _, tt := range tests {
@@ -73,10 +73,26 @@ func TestDelegateTaskSpawnsWorkerThenRequestsTitleFromNewestActiveOrchestrator(t
 					t.Fatalf("title delegation missing %q:\n%s", want, cmd.sentMessages[0])
 				}
 			}
-			if tt.model != "" && !strings.Contains(cmd.sentMessages[0], "Requested model: sonnet-custom") {
+			if tt.model != "" && !strings.Contains(cmd.sentMessages[0], "Requested model: gpt-5.4") {
 				t.Fatalf("title delegation missing requested model:\n%s", cmd.sentMessages[0])
 			}
 		})
+	}
+}
+
+func TestDelegateTaskRejectsHistoricalRequestedAgentBeforeSpawn(t *testing.T) {
+	st := newFakeStore()
+	st.projects["ao"] = domain.ProjectRecord{ID: "ao"}
+	cmd := &fakeCommander{}
+
+	_, err := (&Service{store: st, manager: cmd}).DelegateTask(context.Background(), DelegateTaskInput{
+		ProjectID: "ao", Brief: "Review the branch", RequestedAgent: domain.HarnessClaudeCode,
+	})
+	if err == nil || !strings.Contains(err.Error(), "not selectable for new work") {
+		t.Fatalf("DelegateTask() error = %v, want non-selectable agent rejection", err)
+	}
+	if cmd.spawned {
+		t.Fatal("DelegateTask() spawned a worker for a rejected agent")
 	}
 }
 

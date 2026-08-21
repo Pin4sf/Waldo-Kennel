@@ -169,8 +169,8 @@ func (c ProjectConfig) Validate() error {
 		return err
 	}
 	for role, ro := range map[string]RoleOverride{"worker": c.Worker, "orchestrator": c.Orchestrator} {
-		if ro.Harness != "" && !ro.Harness.IsKnown() {
-			return fmt.Errorf("%s.agent: unknown harness %q", role, ro.Harness)
+		if ro.Harness != "" && !ro.Harness.IsSelectableForNewWork() {
+			return fmt.Errorf("%s.agent: harness %q is not selectable for new work", role, ro.Harness)
 		}
 		if err := ro.AgentConfig.Validate(); err != nil {
 			return fmt.Errorf("%s.%w", role, err)
@@ -185,8 +185,8 @@ func (c ProjectConfig) Validate() error {
 		return fmt.Errorf("agentRulesFile %q: %w", c.AgentRulesFile, err)
 	}
 	for i, rv := range c.Reviewers {
-		if !rv.Harness.IsKnown() {
-			return fmt.Errorf("reviewers[%d].harness: unknown harness %q", i, rv.Harness)
+		if !rv.Harness.IsSelectableForNewWork() {
+			return fmt.Errorf("reviewers[%d].harness: harness %q is not selectable for new work", i, rv.Harness)
 		}
 	}
 	if err := c.TrackerIntake.Validate(); err != nil {
