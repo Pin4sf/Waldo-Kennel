@@ -1,0 +1,230 @@
+/* ==========================================================================
+   Settings window
+   --------------------------------------------------------------------------
+   Plain, opaque, scrollable. The island performs; this does not. Everything
+   here is sized so a slider and its readout sit on one line at the window's
+   fixed width, because the fine tune is used by dragging and watching the
+   notch, not by reading the pane.
+   ========================================================================== */
+
+html.is-settings-window,
+html.is-settings-window body,
+html.is-settings-window #root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--settings-bg);
+}
+
+.settings {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+  color: var(--island-text);
+  font-size: var(--fs-body);
+}
+
+/* --------------------------------------------------------------------------
+   Chrome
+   -------------------------------------------------------------------------- */
+
+/*
+ * The window uses `hiddenInset` traffic lights, so the tab row has to start
+ * clear of them and the whole strip has to stay draggable — a frameless-ish
+ * window with nothing to grab is a window that cannot be moved.
+ */
+.settings__chrome {
+  -webkit-app-region: drag;
+  padding: 30px 20px 0 84px;
+  border-bottom: 1px solid var(--island-border);
+  background: var(--settings-chrome);
+}
+
+.settings__tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.settings__tab {
+  -webkit-app-region: no-drag;
+  padding: 7px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--island-muted);
+  font-size: var(--fs-title);
+  font-weight: 560;
+  cursor: pointer;
+}
+
+.settings__tab:hover {
+  color: var(--island-text);
+}
+
+.settings__tab.is-active {
+  border-bottom-color: var(--island-blue);
+  color: var(--island-text);
+}
+
+/* --------------------------------------------------------------------------
+   Body
+   -------------------------------------------------------------------------- */
+
+.settings__body {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  padding: 22px 24px 28px;
+  overflow-y: auto;
+}
+
+.settings-group__title {
+  margin: 0 0 6px;
+  color: var(--island-text);
+  font-size: var(--fs-title);
+  font-weight: 620;
+}
+
+.settings-group__hint {
+  margin: 0 0 14px;
+  max-width: 46em;
+  color: var(--island-muted);
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+}
+
+.settings-group__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* --------------------------------------------------------------------------
+   Fields
+   --------------------------------------------------------------------------
+   Both kinds are one grid, so a toggle's label and a slider's label land on
+   the same left edge however the two are interleaved.
+   -------------------------------------------------------------------------- */
+
+.settings-field {
+  display: grid;
+  align-items: center;
+  column-gap: 12px;
+}
+
+/* A disabled control is dimmed rather than hidden: the reason it is off is the
+   switch immediately above it, and a control that vanished would take that
+   explanation with it. */
+.settings-field[data-disabled="true"] {
+  opacity: 0.42;
+}
+
+.settings-field__label {
+  color: var(--island-text);
+  font-size: var(--fs-body);
+}
+
+.settings-field__hint {
+  margin: 3px 0 0;
+  max-width: 44em;
+  color: var(--island-subdued);
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+}
+
+.settings-field--toggle {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "box label"
+    ".   hint";
+}
+
+.settings-field--toggle .settings-field__checkbox {
+  grid-area: box;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--island-blue);
+}
+
+.settings-field--toggle .settings-field__label {
+  grid-area: label;
+}
+
+.settings-field--toggle .settings-field__hint {
+  grid-area: hint;
+}
+
+.settings-field--range {
+  grid-template-columns: 132px minmax(0, 1fr) 62px;
+  grid-template-areas:
+    "label slider value"
+    ".     hint   hint";
+}
+
+.settings-field--range .settings-field__label {
+  grid-area: label;
+}
+
+.settings-field__range {
+  grid-area: slider;
+  width: 100%;
+  margin: 0;
+  accent-color: var(--island-blue);
+}
+
+.settings-field__value {
+  grid-area: value;
+  color: var(--island-muted);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.settings-field--range .settings-field__hint {
+  grid-area: hint;
+}
+
+.settings-field__checkbox:disabled,
+.settings-field__range:disabled {
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------------
+   Footer
+   -------------------------------------------------------------------------- */
+
+.settings__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--island-border);
+  background: var(--settings-chrome);
+}
+
+.settings__footer-note {
+  margin: 0;
+  color: var(--island-subdued);
+  font-size: var(--fs-meta);
+}
+
+.settings__reset {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 1px solid var(--island-border);
+  border-radius: 7px;
+  background: var(--island-surface-raised);
+  color: var(--island-text);
+  font-size: var(--fs-meta);
+  font-weight: 560;
+  cursor: pointer;
+}
+
+.settings__reset:hover {
+  border-color: var(--island-delete);
+  color: var(--island-delete);
+}
