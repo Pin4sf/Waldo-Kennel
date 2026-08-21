@@ -59,7 +59,9 @@ npm --prefix frontend run package:identity
 
 [`upstream.json`](upstream.json) pins the AO source tree, and [`scripts/compare-upstream.sh`](scripts/compare-upstream.sh) supports reviewed, non-destructive synchronization. The repositories do not share Git ancestry; repairing published ancestry would rewrite `main` and therefore requires a separate approved migration.
 
-The foundation and bounded PR #11 donor cleanup are accepted on `main`. Product contributors must start with the [canonical product architecture](docs/product/kennel-v1-product-architecture.md), the [first complete Outcome slice](docs/product/kennel-v0-first-outcome-slice.md), and the [execution handoff](docs/superpowers/plans/2026-08-20-first-outcome-execution-handoff.md). The next implementation boundary is the five-stage Local Focus Ledger milestone; Home, communication, Desktop Context, durable Memory, and hosted attachment remain later gates.
+The foundation and bounded donor cleanup are accepted on `main`. Product contributors must start with the [canonical product architecture](docs/product/kennel-v1-product-architecture.md), the [build program](docs/product/kennel-build-program.md), and the issue-specific implementation plan. Work and the separately owned Home/Personal Agent lane may proceed in parallel through their documented shared contracts; governed capture is required, Home persistence is dependency-gated, and durable Memory, hosted attachment, Health-aware mobile, and orchestration-policy learning retain their separate later gates.
+
+Contributor branches start from `beta` and open PRs back to `beta`. After integrated verification, maintainers promote `beta` to `main` through a separate PR. Neither branch movement authorizes release or deployment.
 
 See the dated [foundation acceptance record](docs/foundation-acceptance-2026-08-18.md) for exact evidence and exclusions.
 

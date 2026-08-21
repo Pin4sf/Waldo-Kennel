@@ -54,7 +54,7 @@ Show:
 - alternative “Start with Home” path with no silently created Personal Home;
 - Quick Capture and source candidate as Home modes;
 - daemon offline, invalid folder, and Codex unavailable states;
-- Gmail, Desktop Context, account, hosted attachment, and broad providers as non-blocking later/optional cards.
+- Capture activation, Gmail, account, hosted attachment, and broad providers as non-blocking cards. Screen/audio capability belongs to the required Personal Agent lane, but each modality requires an explicit CaptureGrant.
 
 Required decision:
 
@@ -171,7 +171,7 @@ Under each large lifecycle frame, place the original screen cards. Each card mus
 - **F06 Communication inbox** — actionable candidates, empty/stale/revoked and untrusted-source state.
 - **F07 Communication Brief** — ask/owner/trigger/next action, correct/dismiss/confirm/promote.
 - **F09 Open Loop detail** — owner/recheck/closure/provenance, waiting/ready/reopen/transfer.
-- **F11 Work Home** — Outcome portfolio plus AO-style agent/Kanban projection and attention states.
+- **F11 Work Home** — Outcome portfolio plus inherited agent/Kanban projection and attention states.
 - **F12 Outcome Define** — Goal/Success/Review and draft ContractRevision.
 - **F13 Adaptive clarification** — one material decision, recommendation, alternative, defer/conflict.
 - **F26 Context episode correction** — split/merge/correct/dismiss/link/expire untrusted observations.
@@ -182,7 +182,7 @@ Under each large lifecycle frame, place the original screen cards. Each card mus
 - **F08 Draft effect review** — exact intent, approve/edit/create/fail/unknown/reconcile.
 - **F14 Mission Map** — direct or multi-WorkUnit topology, dependencies, agents, concurrency and invalidation.
 - **F15 Authority and effect preview** — capabilities, placement, budget, disclosure, effects and revoke.
-- **F25 Desktop Context consent** — capture/analysis route/exclusions/retention/pause/delete.
+- **F25 Capture grants** — screen/system-audio/microphone scope, analysis route, disclosure, exclusions, retention, pause/revoke/export/delete; required capability, governed activation.
 
 ### Under Act & Observe
 
@@ -202,7 +202,7 @@ Under each large lifecycle frame, place the original screen cards. Each card mus
 ### Cross-stage overlays
 
 - **F24 Operator Inspector** — provider/session/terminal/browser/worktree/trace/recovery facts; never Acceptance.
-- **F27 Settings & Control** — providers, connections, permissions, retention, export, revoke/delete and later attachment.
+- **F27 Settings & Control** — providers, connections, permissions, retention, export, revoke/delete, plus Learning grants, candidate/experiment review, scoped skill bindings, invocation receipts, rollback and evaluation freshness; later hosted attachment connects Kennel and Health-aware mobile to the same durable Waldo identity.
 
 The screen count is deliberately explicit: F01-F27 plus F02A yields 28 review cards. “Five surfaces” describes lifecycle grouping, not a reduction in the screen/state inventory.
 

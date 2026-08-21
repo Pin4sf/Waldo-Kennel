@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-08-20
 - Scope: Kennel v1 launch topology and post-attachment custody
+- Sequencing amendment: [ADR 0004](0004-parallel-home-personal-agent-and-required-capture.md) starts Home/Personal Agent in parallel and makes governed desktop screen/audio capture required capabilities
+- Final ecosystem target: [ADR 0006](0006-one-durable-waldo-multiple-governed-presences.md) keeps one durable Waldo identity across Kennel desktop and the Health-aware mobile presence
 
 ## Context
 
@@ -35,7 +37,7 @@ The daemon's local SQLite database is the sole canonical writer for v1. The rend
 
 The product has three navigation/custody destinations—Home, Work, and Settings & Control—but one lifecycle: **Enter -> Understand -> Decide & Authorize -> Act & Observe -> Prove & Close**. These five stages are adaptive surfaces, not separate services or mandatory wizard pages. Settings and the Operator Inspector are overlays. This presentation rule does not change the Waldo/Kennel deployment boundary.
 
-For v0 dogfood, onboarding recommends Work-first entry: select a local Project and define the first Outcome. Home remains an available peer and can be added later; Work does not require a Personal Home, connector, account, or hosted service. An explicit Home OpenLoop-to-Work Outcome link preserves separate closure and acceptance lineages and does not transfer canonical ownership.
+For v0 dogfood, onboarding recommends Work-first entry: select a local Project and define the first Outcome. Home remains an available peer and may be implemented and selected in parallel; Work does not require a Personal Home, active capture grant, connector, account, or hosted service. An explicit Home OpenLoop-to-Work Outcome link preserves separate closure and acceptance lineages and does not transfer canonical ownership.
 
 Launch does not require:
 

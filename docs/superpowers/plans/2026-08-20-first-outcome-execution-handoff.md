@@ -1,5 +1,7 @@
 # Kennel First Outcome Execution Handoff
 
+> **2026-08-21 sequencing amendment:** [ADR 0004](../../adr/0004-parallel-home-personal-agent-and-required-capture.md) permits a separately owned Home/Personal Agent lane to execute in parallel. This handoff continues to govern only the Work Local Focus Ledger milestone. Its Home exclusions are file/API ownership boundaries for this lane, not a global prohibition on parallel Home work. The Home lane uses the [Home/Personal Agent design](../specs/2026-08-21-home-personal-agent-memory-design.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Starting from the accepted prerequisite baseline on `main`, deliver one complete Local Focus Ledger Outcome through Enter → Understand → Decide & Authorize → Act & Observe → Prove & Close.
@@ -16,7 +18,7 @@
 - **Observed:** the dated PR/SHA facts below and the current donor/code paths inspected at commit `5a38593f`; refresh them before execution because repository and PR state can change.
 - **Inference:** five stage-aligned end-to-end PRs are the smallest review boundaries that preserve user-visible truth while avoiding horizontal schema/UI ownership.
 - **Proposed implementation detail:** filenames, Go interfaces, route/component names, migration numbers, and exact PR cuts below. The implementing agent must reconcile them with current `origin/main` and may narrow them without changing the locked contract.
-- **Unknown until execution evidence:** implementation effort, exact issue-sized file ownership after reconciling current `main`, and whether the first-slice trials justify continuing to Home.
+- **Unknown until execution evidence:** implementation effort, exact issue-sized Work file ownership after reconciling current `main`, and whether the first-slice trials justify integrating or revising shared Work/Home contracts. Home may begin separately under ADR 0004.
 
 ## Global constraints
 
@@ -42,8 +44,9 @@ Read-only refresh on 2026-08-21:
 | PR #12 | Merged as `348851867e50b6341c251f51083c72dedaeff85b`; removes the user-facing legacy import flow. |
 | PR #13 | Merged as `ad79f3c5fd9f578bc1717a437f295551aee29fd1`; establishes provider-neutral Codex admission and historical compatibility. |
 | PR #14 | Merged as `aef1ede793c8fa9736cb7e05ab836041e7021e86`; narrows public CLI discovery while preserving direct invocation. |
+| PR #15 | Merged as `25fec2c5347a002436ab2b58b8ac4414266e6ce9`; publishes the canonical Kennel architecture and first Outcome execution boundary. |
 | PR #11 | Closed unmerged on 2026-08-21 as a superseded donor; its Outcome store/schema and locale deletion remain rejected. |
-| `origin/main` at this handoff refresh | `aef1ede793c8fa9736cb7e05ab836041e7021e86`. |
+| `origin/main` at this handoff refresh | `25fec2c5347a002436ab2b58b8ac4414266e6ce9`. |
 
 Refresh `origin/main` at execution time and use its current SHA as the base. The historical merge SHAs above are provenance, not branch targets.
 
@@ -431,18 +434,19 @@ cd backend && go test -race ./...
 
 - [ ] **Step 4: Record the milestone decision**
 
-Choose exactly one: `continue to Home`, `revise the Outcome core`, or `stop/falsified`. A failure remains a recorded product result and cannot be relabeled green.
+Choose exactly one: `continue shared integration`, `revise the Outcome core`, or `stop/falsified`. Home may be active in parallel; this decision governs whether the Work contract is stable enough to integrate. A failure remains a recorded product result and cannot be relabeled green.
 
-### Task 9: Prepare Home → Work as the next separate milestone
+### Task 9: Prepare Work-side integration with the parallel Home lane
 
 **Files:**
 - Read: `docs/product/kennel-v1-product-architecture.md`
 - Read: `docs/product/kennel-v1-team-review-packet.md`
-- Create only after first-slice evidence: a separate Home/OpenLoop implementation plan
+- Read: `docs/superpowers/specs/2026-08-21-home-personal-agent-memory-design.md`
+- Create after both lane contracts are reviewable: a focused Home-to-Work integration plan
 
 **Interfaces:**
-- Consumes: accepted complete Work lifecycle and evaluation decision `continue to Home`
-- Produces: PersonalHome, OpenLoop/LoopDisposition, Morning Brief/Catch Up projections, and explicit many-to-many ResponsibilityLink behavior
+- Consumes: stable Work Outcome/ContractRevision references plus the separately owned Home/OpenLoop contracts
+- Produces: coordinated `ResponsibilityLink`, shared-intake, and provenance behavior without moving either lifecycle into this Work lane
 
 - [ ] **Step 1: Preserve separate lineages**
 
@@ -454,12 +458,12 @@ Suggested Next Actions remain projections. Direct candidate-to-Outcome creation 
 
 - [ ] **Step 3: Keep later systems out**
 
-Do not include Gmail, Dayflow/Desktop Context, hosted attachment, durable Memory, Health, Relationship, mobile, or broad providers in the Home milestone.
+Do not include Gmail, governed capture, durable Memory, Health, Relationship, phone/wearable, hosted attachment, or broad providers in this Work milestone. The Home/Personal Agent lane owns its separately approved capture and candidate-memory scope.
 
 ## New-session start checklist
 
 1. Read `AGENTS.md`, the canonical architecture, first-slice spec, this handoff, and `docs/STATUS.md` completely.
-2. Fetch and record the current `origin/main` SHA; confirm PRs #1 and #12-#14 remain ancestors and PR #11 remains closed unmerged.
+2. Fetch and record the current `origin/main` SHA; confirm PRs #1 and #12-#15 remain ancestors and PR #11 remains closed unmerged.
 3. Obtain explicit user authority for exactly one issue/PR task.
 4. Create a fresh `codex/` worktree from current `origin/main`.
 5. State claimed files, dependencies, acceptance, falsifier, verification commands, rollback, and worktree disposition before editing.
