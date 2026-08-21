@@ -2,7 +2,7 @@
 
 Kennel is an independently maintained, AO-derived desktop foundation for supervising coding-agent work. This repository currently ships the orchestration chassis: a Go loopback daemon and `kennel` CLI, an Electron/React supervisor, provider adapters, durable session and terminal infrastructure, worktree/SCM coordination, and a prototype Outcome-oriented UI overlay.
 
-This is a foundation, not a completed Waldo personal agent. Mission, durable personal memory, Waldo authority and verification semantics, and Xirp/Medley/Paxel integrations are not implemented here. The existing Outcome screens are an inherited/prototype product surface; they are not evidence that the broader product architecture has shipped.
+This is a foundation, not a completed Waldo personal agent. The accepted Waldo Kennel ontology, exact lineages, governance, and first Outcome slice are documented in the [product architecture](docs/product/kennel-v1-product-architecture.md), but they are not yet implemented. The existing Outcome screens are an inherited/prototype product surface; they are not evidence that the accepted architecture has shipped.
 
 ## Foundation contract
 
@@ -28,7 +28,7 @@ The source entrypoint remains `backend/cmd/ao`, and the Go module remains `githu
 
 - A local Go daemon with HTTP/SSE/WebSocket APIs, SQLite persistence, lifecycle handling, and change-data capture.
 - An Electron desktop supervisor connected through the generated API client.
-- Claude Code, Codex, and other inherited coding-harness adapters, terminals, worktrees, browser preview, PR/review facts, and recovery machinery.
+- Codex for fresh v0 work through a provider-neutral admission boundary, plus readable historical provider identities/adapters, terminals, worktrees, browser preview, PR/review facts, and recovery machinery.
 - Desktop packaging with asserted Kennel bundle, executable, protocol, updater, release-target, and state identities.
 - An Outcome clarification and planning overlay which remains a prototype, not the next product architecture.
 - Additive migration compatibility for databases that traversed the colliding AO/Kennel migration 0098 histories.
@@ -59,7 +59,7 @@ npm --prefix frontend run package:identity
 
 [`upstream.json`](upstream.json) pins the AO source tree, and [`scripts/compare-upstream.sh`](scripts/compare-upstream.sh) supports reviewed, non-destructive synchronization. The repositories do not share Git ancestry; repairing published ancestry would rewrite `main` and therefore requires a separate approved migration.
 
-Once this foundation PR is accepted, the next architecture entrypoint is to define Mission and personal-agent semantics—ownership, authority, memory, verification, and release/closure contracts—before implementing them. That work is deliberately outside this gate.
+The foundation and bounded PR #11 donor cleanup are accepted on `main`. Product contributors must start with the [canonical product architecture](docs/product/kennel-v1-product-architecture.md), the [first complete Outcome slice](docs/product/kennel-v0-first-outcome-slice.md), and the [execution handoff](docs/superpowers/plans/2026-08-20-first-outcome-execution-handoff.md). The next implementation boundary is the five-stage Local Focus Ledger milestone; Home, communication, Desktop Context, durable Memory, and hosted attachment remain later gates.
 
 See the dated [foundation acceptance record](docs/foundation-acceptance-2026-08-18.md) for exact evidence and exclusions.
 
