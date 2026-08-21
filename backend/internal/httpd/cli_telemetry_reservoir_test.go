@@ -15,7 +15,7 @@ func TestCLITelemetryReservoirPersistsDailyReservations(t *testing.T) {
 	if !first.reserveActive(now) {
 		t.Fatal("first active reservation = false, want true")
 	}
-	if !first.reserveInvoked(now, "user", "ao status") {
+	if !first.reserveInvoked(now, "user", "kennel status") {
 		t.Fatal("first invoked reservation = false, want true")
 	}
 
@@ -23,13 +23,13 @@ func TestCLITelemetryReservoirPersistsDailyReservations(t *testing.T) {
 	if second.reserveActive(now) {
 		t.Fatal("active reservation in same slot after reload = true, want false")
 	}
-	if second.reserveInvoked(now, "user", "ao status") {
+	if second.reserveInvoked(now, "user", "kennel status") {
 		t.Fatal("invoked reservation after reload = true, want false")
 	}
-	if !second.reserveInvoked(now, "agent", "ao status") {
+	if !second.reserveInvoked(now, "agent", "kennel status") {
 		t.Fatal("same command with different actor after reload = false, want true")
 	}
-	if !second.reserveInvoked(now, "user", "ao session ls") {
+	if !second.reserveInvoked(now, "user", "kennel session ls") {
 		t.Fatal("new command reservation after reload = false, want true")
 	}
 }
@@ -40,13 +40,13 @@ func TestCLITelemetryReservoirResetsOnNewUTCDay(t *testing.T) {
 	secondDay := time.Date(2026, 7, 21, 0, 1, 0, 0, time.UTC)
 
 	r := newCLITelemetryReservoir(dir)
-	if !r.reserveActive(firstDay) || !r.reserveInvoked(firstDay, "user", "ao status") {
+	if !r.reserveActive(firstDay) || !r.reserveInvoked(firstDay, "user", "kennel status") {
 		t.Fatal("initial reservations failed")
 	}
 	if !r.reserveActive(secondDay) {
 		t.Fatal("active reservation on new UTC day = false, want true")
 	}
-	if !r.reserveInvoked(secondDay, "user", "ao status") {
+	if !r.reserveInvoked(secondDay, "user", "kennel status") {
 		t.Fatal("invoked reservation on new UTC day = false, want true")
 	}
 }
@@ -56,13 +56,13 @@ func TestCLITelemetryReservoirNormalizesCommandPathReservations(t *testing.T) {
 	now := time.Date(2026, 7, 20, 10, 0, 0, 0, time.UTC)
 
 	r := newCLITelemetryReservoir(dir)
-	if !r.reserveInvoked(now, "user", "AO   SEND") {
+	if !r.reserveInvoked(now, "user", "KENNEL   SEND") {
 		t.Fatal("first normalized command reservation = false, want true")
 	}
-	if r.reserveInvoked(now, "user", "ao send") {
+	if r.reserveInvoked(now, "user", "kennel send") {
 		t.Fatal("same normalized command reservation = true, want false")
 	}
-	if !r.reserveInvoked(now, "agent", "ao send") {
+	if !r.reserveInvoked(now, "agent", "kennel send") {
 		t.Fatal("same normalized command with different actor = false, want true")
 	}
 }

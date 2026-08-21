@@ -10,7 +10,7 @@
 //     Tracker, failures are not.
 //
 // The adapter reuses the SCM provider's TokenSource chain
-// (AO_GITLAB_TOKEN / GITLAB_TOKEN / glab auth status --show-token).
+// (KENNEL_GITLAB_TOKEN / GITLAB_TOKEN / glab auth status --show-token).
 //
 // # State mapping
 //

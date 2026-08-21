@@ -1656,7 +1656,7 @@ func TestSpawnEmitsFirstSessionOnboardingAndDuration(t *testing.T) {
 	if len(sink.events) != 2 {
 		t.Fatalf("events = %#v, want spawned + first_session", sink.events)
 	}
-	if sink.events[0].Name != "ao.session.spawned" || sink.events[1].Name != "ao.onboarding.first_session_spawned" {
+	if sink.events[0].Name != "kennel.session.spawned" || sink.events[1].Name != "kennel.onboarding.first_session_spawned" {
 		t.Fatalf("event names = %#v", []string{sink.events[0].Name, sink.events[1].Name})
 	}
 	if got := sink.events[0].Payload["duration_ms"]; got != int64(0) {
@@ -1937,7 +1937,7 @@ func TestSpawnFailedEmitsDuration(t *testing.T) {
 	if _, _, _, err := svc.Spawn(context.Background(), ports.SpawnConfig{ProjectID: "mer"}); err == nil {
 		t.Fatal("Spawn should fail")
 	}
-	if len(sink.events) != 1 || sink.events[0].Name != "ao.session.spawn_failed" {
+	if len(sink.events) != 1 || sink.events[0].Name != "kennel.session.spawn_failed" {
 		t.Fatalf("events = %#v, want one spawn_failed", sink.events)
 	}
 	if got := sink.events[0].Payload["duration_ms"]; got != int64(1500) {
@@ -1977,7 +1977,7 @@ func TestSpawnEmitsTelemetryOnSuccess(t *testing.T) {
 		t.Fatalf("telemetry events = %d, want 1", len(ts.events))
 	}
 	ev := ts.events[0]
-	if ev.Name != "ao.session.spawned" || ev.Source != "session_service" {
+	if ev.Name != "kennel.session.spawned" || ev.Source != "session_service" {
 		t.Fatalf("event = %+v", ev)
 	}
 	if ev.ProjectID == nil || *ev.ProjectID != "mer" || ev.SessionID == nil || *ev.SessionID != "mer-9" {
@@ -2004,7 +2004,7 @@ func TestSpawnEmitsTelemetryOnFailure(t *testing.T) {
 		t.Fatalf("telemetry events = %d, want 1", len(ts.events))
 	}
 	ev := ts.events[0]
-	if ev.Name != "ao.session.spawn_failed" || ev.Source != "session_service" || ev.Level != ports.TelemetryLevelError {
+	if ev.Name != "kennel.session.spawn_failed" || ev.Source != "session_service" || ev.Level != ports.TelemetryLevelError {
 		t.Fatalf("event = %+v", ev)
 	}
 	if ev.ProjectID == nil || *ev.ProjectID != "mer" || ev.SessionID != nil {

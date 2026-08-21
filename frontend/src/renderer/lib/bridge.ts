@@ -3,7 +3,7 @@ import { coerceLocale } from "../../shared/ui-locale";
 export type { FeatureBuild } from "../../main/feature-builds";
 
 export const aoBridge: AoBridge =
-	window.ao ??
+	window.kennel ??
 	({
 		app: {
 			getVersion: async () => "0.0.0-preview",

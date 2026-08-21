@@ -1,26 +1,28 @@
 {
-	"name": "kennel",
+	"name": "@pin4sf/kennel-desktop",
 	"productName": "Kennel",
 	"version": "0.10.3",
 	"private": true,
 	"description": "Kennel desktop outcome orchestration workspace",
 	"author": "Kennel",
-	"license": "MIT",
-	"homepage": "https://github.com/aoagents/agent-orchestrator",
+	"license": "Apache-2.0",
+	"homepage": "https://github.com/Pin4sf/Waldo-Kennel",
 	"main": ".vite/build/main.js",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/aoagents/agent-orchestrator"
+		"url": "https://github.com/Pin4sf/Waldo-Kennel.git"
 	},
 	"scripts": {
 		"build:acp-runtime": "node ./scripts/build-acp-runtime.mjs",
 		"browser-runtime:prepare": "node ./scripts/prepare-agent-browser.mjs",
 		"build:daemon": "node ./scripts/build-daemon.mjs",
+		"build": "npm run package",
 		"predev": "npm run build:daemon -- --dev && node ./scripts/ensure-browser-runtime.mjs && npm run build:acp-runtime",
 		"dev": "electron-forge start",
 		"dev:web": "VITE_NO_ELECTRON=1 vite --config vite.renderer.config.ts",
 		"prepackage": "npm run build:daemon && npm run browser-runtime:prepare && npm run build:acp-runtime",
 		"package": "electron-forge package",
+		"package:identity": "node ./scripts/assert-package-identity.mjs",
 		"premake": "npm run build:daemon && npm run browser-runtime:prepare && npm run build:acp-runtime",
 		"make": "electron-forge make",
 		"publish": "npm run build:daemon && npm run browser-runtime:prepare && npm run build:acp-runtime && electron-forge publish",
@@ -61,7 +63,7 @@
 		"vitest": "^4.1.8"
 	},
 	"dependencies": {
-		"@aoagents/product-ui": "file:../packages/product-ui",
+		"@pin4sf/kennel-product-ui": "file:../packages/product-ui",
 		"@dnd-kit/core": "^6.3.1",
 		"@dnd-kit/sortable": "^10.0.0",
 		"@dnd-kit/utilities": "^3.2.2",

@@ -16,7 +16,7 @@ function RootComponent() {
 	const loadKeybindings = useKeybindingsStore((state) => state.load);
 
 	useEffect(() => {
-		void captureRendererEvent("ao.renderer.route_viewed", {
+		void captureRendererEvent("kennel.renderer.route_viewed", {
 			surface: routeSurface(location.pathname),
 		});
 	}, [location.pathname]);

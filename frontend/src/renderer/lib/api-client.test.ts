@@ -251,7 +251,7 @@ describe("api error telemetry", () => {
 
 		await apiClient.GET("/api/v1/projects");
 
-		expect(captureMock).toHaveBeenCalledWith("ao.renderer.api_error", {
+		expect(captureMock).toHaveBeenCalledWith("kennel.renderer.api_error", {
 			operation: "GET /api/v1/projects",
 			error_category: "http_5xx",
 			status: 500,
@@ -266,7 +266,7 @@ describe("api error telemetry", () => {
 			params: { path: { sessionId: "ao-raw-id" } },
 		});
 
-		expect(captureMock).toHaveBeenCalledWith("ao.renderer.api_error", {
+		expect(captureMock).toHaveBeenCalledWith("kennel.renderer.api_error", {
 			operation: "POST /api/v1/sessions/:id/kill",
 			error_category: "http_4xx",
 			status: 404,
@@ -279,7 +279,7 @@ describe("api error telemetry", () => {
 
 		await expect(apiClient.GET("/api/v1/projects")).rejects.toThrow("Failed to fetch");
 
-		expect(captureMock).toHaveBeenCalledWith("ao.renderer.api_error", {
+		expect(captureMock).toHaveBeenCalledWith("kennel.renderer.api_error", {
 			operation: "GET /api/v1/projects",
 			error_category: "network_error",
 			status: undefined,
@@ -300,7 +300,7 @@ describe("api error telemetry", () => {
 
 		await apiClient.GET("/api/v1/projects");
 
-		expect(captureMock).toHaveBeenCalledWith("ao.renderer.api_error", {
+		expect(captureMock).toHaveBeenCalledWith("kennel.renderer.api_error", {
 			operation: "GET /api/v1/projects",
 			error_category: "daemon_unavailable",
 			status: 503,

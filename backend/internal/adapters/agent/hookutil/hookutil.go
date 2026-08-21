@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// GitignoreSentinel marks a workspace .gitignore as AO-managed so
+// GitignoreSentinel marks a workspace .gitignore as Kennel-managed so
 // EnsureWorkspaceGitignore can rewrite its own file idempotently while never
 // touching a user- or repo-provided .gitignore at the same path.
 const GitignoreSentinel = "# managed by agent-orchestrator: AO hook files stay out of git status"

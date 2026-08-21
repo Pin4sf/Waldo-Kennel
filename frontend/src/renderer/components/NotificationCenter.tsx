@@ -50,7 +50,7 @@ function useNotificationTargetNavigation() {
 		(notification: NotificationDTO) => {
 			const sessionId = notification.target.sessionId || notification.sessionId;
 			if (!sessionId) return;
-			void captureRendererEvent("ao.renderer.notification_opened", { target: "session" });
+			void captureRendererEvent("kennel.renderer.notification_opened", { target: "session" });
 			navigateToSession(notification.projectId, sessionId);
 		},
 		[navigateToSession],
@@ -59,7 +59,7 @@ function useNotificationTargetNavigation() {
 	const openPrimary = useCallback(
 		(notification: NotificationDTO) => {
 			if (notification.target.kind === "pr" && notification.target.prUrl) {
-				void captureRendererEvent("ao.renderer.notification_opened", { target: "pr" });
+				void captureRendererEvent("kennel.renderer.notification_opened", { target: "pr" });
 				window.open(notification.target.prUrl, "_blank", "noopener,noreferrer");
 				return;
 			}
@@ -225,11 +225,11 @@ export function NotificationCenter({ style }: NotificationCenterProps) {
 		});
 
 		setMarkReadError(null);
-		void captureRendererEvent("ao.renderer.notification_mark_read_requested", { scope: "all" });
+		void captureRendererEvent("kennel.renderer.notification_mark_read_requested", { scope: "all" });
 		void markAllMutate(newly)
-			.then(() => captureRendererEvent("ao.renderer.notification_mark_read_succeeded", { scope: "all" }))
+			.then(() => captureRendererEvent("kennel.renderer.notification_mark_read_succeeded", { scope: "all" }))
 			.catch((error: unknown) => {
-				void captureRendererEvent("ao.renderer.notification_mark_read_failed", { scope: "all" });
+				void captureRendererEvent("kennel.renderer.notification_mark_read_failed", { scope: "all" });
 				for (const id of newly) acknowledgedIdsRef.current.delete(id);
 				setMarkReadError(error instanceof Error ? error.message : t("notify.couldNotMarkAllRead"));
 			});
@@ -516,7 +516,7 @@ function NotificationItem({
 										onClick={(event) => {
 											event.preventDefault();
 											event.stopPropagation();
-											void captureRendererEvent("ao.renderer.notification_opened", { target: "pr" });
+											void captureRendererEvent("kennel.renderer.notification_opened", { target: "pr" });
 											void openLinkInSystemBrowser(titleLink.url);
 										}}
 										rel="noopener noreferrer"

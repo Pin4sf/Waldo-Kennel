@@ -4,27 +4,36 @@ import MakerNSIS from "./makers/maker-nsis";
 import MakerDMG, { sealDmg, verifyDmg } from "./makers/maker-dmg";
 import MakerAppImage from "./makers/maker-appimage";
 import { writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import {
+	APP_ID,
+	AUTH_PROTOCOL as AUTH_PROTOCOL_SCHEME,
+	EXECUTABLE_NAME,
+	PRODUCT_NAME,
+	RELEASE_REPOSITORY,
+	UPDATER_CACHE_DIRECTORY_NAME,
+} from "./src/shared/product-identity";
 
 // Default GitHub release target (production). Releases land on Untrivial-ai
 // (the org the repo was transferred to in July 2026; AgentWrapper and aoagents
 // are prior homes). Builds cut by CI must NOT rely on this fallback: the
-// workflows set AO_RELEASE_REPO to the repo they run in, and build-artifacts.yml
+// workflows set KENNEL_RELEASE_REPO to the repo they run in, and the package
 // asserts the baked app-update.yml matches it, so a future org/repo rename
 // fails the build instead of stranding the fleet on a redirect (#3523).
-const DEFAULT_RELEASE_REPO = "Untrivial-ai/agent-orchestrator";
+const DEFAULT_RELEASE_REPO = RELEASE_REPOSITORY;
 
 // The packaged binary name (no extension). Single source of truth: the packager
 // names the exe/ELF from this, and the NSIS + deb makers must point their
 // shortcut/launcher at the SAME name. Drift here means a broken Start menu
 // shortcut on Windows (#2414) or "could not find the Electron app binary" on deb.
-const EXECUTABLE_NAME = "agent-orchestrator";
 const AUTH_PROTOCOL = {
 	name: "Kennel authentication callback",
-	schemes: ["ao-app"],
+	schemes: [AUTH_PROTOCOL_SCHEME],
 };
-const AUTH_PROTOCOL_MIME_TYPE = "x-scheme-handler/ao-app";
+const AUTH_PROTOCOL_MIME_TYPE = `x-scheme-handler/${AUTH_PROTOCOL_SCHEME}`;
 
-// parseReleaseRepo turns an "owner/repo" string (from AO_RELEASE_REPO) into the
+// parseReleaseRepo turns an "owner/repo" string (from KENNEL_RELEASE_REPO) into the
 // publisher-github { owner, name } shape, falling back to the production default
 // when unset or malformed.
 function parseReleaseRepo(value: string | undefined): { owner: string; name: string } {
@@ -39,8 +48,8 @@ function parseReleaseRepo(value: string | undefined): { owner: string; name: str
 const config: ForgeConfig = {
 	packagerConfig: {
 		asar: true,
-		appBundleId: "dev.agent-orchestrator.desktop",
-		name: "Kennel",
+		appBundleId: APP_ID,
+		name: PRODUCT_NAME,
 		executableName: EXECUTABLE_NAME,
 		protocols: [AUTH_PROTOCOL],
 		appCategoryType: "public.app-category.developer-tools",
@@ -58,11 +67,35 @@ const config: ForgeConfig = {
 			"assets/trayIconTemplate@2x.png",
 			"app-update.yml",
 		],
+		// electron-packager derives CFBundleDisplayName from executableName after
+		// applying extendInfo. Kennel deliberately uses a lowercase CLI executable,
+		// so set the Finder-facing name after resources are copied but before the
+		// signing/notarization stages seal the bundle.
+		afterCopyExtraResources: [
+			(buildPath, _electronVersion, platform, _arch, callback) => {
+				if (platform !== "darwin") {
+					callback();
+					return;
+				}
+				try {
+					execFileSync("/usr/bin/plutil", [
+						"-replace",
+						"CFBundleDisplayName",
+						"-string",
+						PRODUCT_NAME,
+						path.join(buildPath, `${PRODUCT_NAME}.app`, "Contents", "Info.plist"),
+					]);
+					callback();
+				} catch (error) {
+					callback(error instanceof Error ? error : new Error(String(error)));
+				}
+			},
+		],
 		// Notarization. Two paths:
 		//  - CI: an App Store Connect API key. APPLE_API_KEY is a PATH to the .p8
 		//    (the workflow decodes APPLE_API_KEY_BASE64 to a temp file), plus the
 		//    key id + issuer uuid. Matches the proven local runbook creds.
-		//  - Local: AO_NOTARY_PROFILE, a notarytool keychain profile created with
+		//  - Local: KENNEL_NOTARY_PROFILE, a notarytool keychain profile created with
 		//    `notarytool store-credentials`. See ao-macos-signed-release runbook.
 		// Both are valid NotaryToolCredentials, so no cast is needed.
 		osxSign: process.env.APPLE_SIGNING_IDENTITY
@@ -70,8 +103,8 @@ const config: ForgeConfig = {
 			: process.env.CSC_LINK
 				? {}
 				: undefined,
-		osxNotarize: process.env.AO_NOTARY_PROFILE
-			? { keychainProfile: process.env.AO_NOTARY_PROFILE }
+		osxNotarize: process.env.KENNEL_NOTARY_PROFILE
+			? { keychainProfile: process.env.KENNEL_NOTARY_PROFILE }
 			: process.env.APPLE_API_KEY
 				? {
 						appleApiKey: process.env.APPLE_API_KEY,
@@ -88,14 +121,14 @@ const config: ForgeConfig = {
 		// above, so it is copied into the bundle and SIGNED as part of the seal.
 		// Writing it after signing (a postPackage hook) adds an unsealed resource
 		// and macOS reports the app as "damaged". owner/repo are baked from
-		// AO_RELEASE_REPO at build time.
+		// KENNEL_RELEASE_REPO at build time.
 		prePackage: async () => {
-			const { owner, name } = parseReleaseRepo(process.env.AO_RELEASE_REPO);
+			const { owner, name } = parseReleaseRepo(process.env.KENNEL_RELEASE_REPO);
 			const yml = [
 				"provider: github",
 				`owner: ${owner}`,
 				`repo: ${name}`,
-				"updaterCacheDirName: agent-orchestrator-updater",
+				`updaterCacheDirName: ${UPDATER_CACHE_DIRECTORY_NAME}`,
 				"",
 			].join("\n");
 			writeFileSync("app-update.yml", yml);
@@ -133,10 +166,10 @@ const config: ForgeConfig = {
 		// custom install dir or proper uninstaller (issue #401).
 		new MakerNSIS(
 			{
-				appId: "dev.agent-orchestrator.desktop",
-				productName: "Kennel",
+				appId: APP_ID,
+				productName: PRODUCT_NAME,
 				// Match the packaged binary name so the Start menu shortcut targets
-				// the real "agent-orchestrator.exe" (not "Agent Orchestrator.exe").
+				// the real "kennel.exe" (not "Kennel.exe").
 				executableName: EXECUTABLE_NAME,
 				icon: "assets/icon.ico",
 			},
@@ -152,19 +185,19 @@ const config: ForgeConfig = {
 		// break the signature seal on the way in (see makers/maker-dmg.ts, #3267).
 		new MakerDMG(
 			{
-				appId: "dev.agent-orchestrator.desktop",
-				productName: "Kennel",
+				appId: APP_ID,
+				productName: PRODUCT_NAME,
 			},
 			["darwin"],
 		),
-		// Linux fetch-and-run artifact for `ao start`: a single self-contained
+		// Linux fetch-and-run artifact for `kennel start`: a single self-contained
 		// AppImage the Go bootstrapper downloads and runs directly (see
 		// makers/maker-appimage.ts). The deb/rpm makers below stay for users who
 		// prefer a system package.
 		new MakerAppImage(
 			{
-				appId: "dev.agent-orchestrator.desktop",
-				productName: "Kennel",
+				appId: APP_ID,
+				productName: PRODUCT_NAME,
 				icon: "assets/icon.png",
 				protocols: [AUTH_PROTOCOL],
 			},
@@ -176,11 +209,11 @@ const config: ForgeConfig = {
 				options: {
 					// Must match packagerConfig.executableName, or the deb maker
 					// looks for the package name and fails with "could not find
-					// the Electron app binary". (Both are "agent-orchestrator".)
+					// the Electron app binary". (Both are "kennel".)
 					bin: EXECUTABLE_NAME,
 					icon: "assets/icon.png",
-					maintainer: "Kennel",
-					homepage: "https://github.com/aoagents/agent-orchestrator",
+					maintainer: PRODUCT_NAME,
+					homepage: "https://github.com/Pin4sf/Waldo-Kennel",
 					mimeType: [AUTH_PROTOCOL_MIME_TYPE],
 				},
 			},
@@ -191,8 +224,8 @@ const config: ForgeConfig = {
 				options: {
 					icon: "assets/icon.png",
 					// rpmbuild rejects a spec with an empty License field.
-					license: "MIT",
-					homepage: "https://github.com/aoagents/agent-orchestrator",
+					license: "Apache-2.0",
+					homepage: "https://github.com/Pin4sf/Waldo-Kennel",
 					mimeType: [AUTH_PROTOCOL_MIME_TYPE],
 				},
 			},
@@ -202,15 +235,12 @@ const config: ForgeConfig = {
 		{
 			name: "@electron-forge/publisher-github",
 			// Release target is build-time overridable so a fork run publishes to the
-			// fork without a source edit. AO_RELEASE_REPO is "owner/repo"; it defaults
+			// fork without a source edit. KENNEL_RELEASE_REPO is "owner/repo"; it defaults
 			// to the production target. The dev/test loop sets
-			// AO_RELEASE_REPO=harshitsinghbhandari/agent-orchestrator (spec §1.1, §8).
-			// Note: aoagents/agent-orchestrator and AgentWrapper/agent-orchestrator
-			// are prior homes and intentionally NOT the default; releases land on
-			// Untrivial-ai.
+			// Release builds must explicitly remain on the Kennel-owned repository.
 			config: {
-				repository: parseReleaseRepo(process.env.AO_RELEASE_REPO),
-				prerelease: process.env.AO_RELEASE_PRERELEASE === "true",
+				repository: parseReleaseRepo(process.env.KENNEL_RELEASE_REPO),
+				prerelease: process.env.KENNEL_RELEASE_PRERELEASE === "true",
 				draft: false,
 			},
 		},

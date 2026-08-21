@@ -1,11 +1,11 @@
 {
-  "name": "aoagents-landing",
+  "name": "@pin4sf/kennel-landing-donor",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "postbuild": "node scripts/generate-markdown-twins.mjs",
     "start": "next start"
   },
@@ -20,7 +20,7 @@
     "@mux/mux-player-react": "^3.13.2",
     "@neondatabase/serverless": "^1.1.0",
     "@paper-design/shaders-react": "workspace:*",
-    "@sentry/nextjs": "10.46.0",
+    "@sentry/nextjs": "10.70.0",
     "@t3-oss/env-nextjs": "0.13.11",
     "@xterm/xterm": "^6.0.0",
     "clsx": "^2.1.1",
@@ -29,7 +29,7 @@
     "gray-matter": "4.0.3",
     "lucide-react": "0.563.0",
     "motion": "^12.42.2",
-    "next": "16.2.11",
+    "next": "16.3.1",
     "next-mdx-remote": "6.0.0",
     "next-themes": "0.4.6",
     "posthog-js": "1.310.1",

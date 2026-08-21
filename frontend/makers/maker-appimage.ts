@@ -5,7 +5,7 @@ import type { ForgePlatform } from "@electron-forge/shared-types";
 // Electron Forge has no first-party AppImage maker, so we bridge to
 // electron-builder's `buildForge`, exactly as makers/maker-nsis.ts does for the
 // Windows NSIS installer. AppImage is the Linux fetch-and-run artifact for the
-// `ao start` bootstrapper: a single self-contained executable the Go agent can
+// `kennel start` bootstrapper: a single self-contained executable the Go agent can
 // download from releases/latest/download and run directly, with no system
 // package manager. The deb/rpm makers stay for users who want a system package.
 //

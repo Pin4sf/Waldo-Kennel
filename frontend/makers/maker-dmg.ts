@@ -59,7 +59,7 @@ export default class MakerDMG extends MakerBase<MakerDMGConfig> {
 		// image renamed to "<productFilename>.app" (dmg.ts computeDmgOptions'
 		// default `contents` entry). Passing Forge's PACKAGE directory here would
 		// therefore copy the whole package dir in under that name and produce
-		// "Agent Orchestrator.app/Agent Orchestrator.app", an outer bundle with no
+		// "Kennel.app/Kennel.app", an outer bundle with no
 		// Contents that cannot launch.
 		//
 		// maker-nsis.ts passes the bare `dir` and is correct to: winPackager goes
@@ -133,10 +133,10 @@ function resolveSigningIdentity(env: NodeJS.ProcessEnv): string | undefined {
 }
 
 // resolveNotaryArgs mirrors packagerConfig.osxNotarize's two credential shapes:
-// an AO_NOTARY_PROFILE notarytool keychain profile locally, or the App Store
+// an KENNEL_NOTARY_PROFILE notarytool keychain profile locally, or the App Store
 // Connect API key trio in CI.
 function resolveNotaryArgs(env: NodeJS.ProcessEnv): string[] | undefined {
-	if (env.AO_NOTARY_PROFILE) return ["--keychain-profile", env.AO_NOTARY_PROFILE];
+	if (env.KENNEL_NOTARY_PROFILE) return ["--keychain-profile", env.KENNEL_NOTARY_PROFILE];
 	if (env.APPLE_API_KEY && env.APPLE_API_KEY_ID && env.APPLE_API_ISSUER) {
 		return ["--key", env.APPLE_API_KEY, "--key-id", env.APPLE_API_KEY_ID, "--issuer", env.APPLE_API_ISSUER];
 	}
@@ -198,7 +198,7 @@ export async function sealDmg(dmgPath: string, env: NodeJS.ProcessEnv = process.
 	}
 	if (!notaryArgs) {
 		throw new Error(
-			`[dmg] a signing identity is set but no notarization credentials are (AO_NOTARY_PROFILE, or the ` +
+			`[dmg] a signing identity is set but no notarization credentials are (KENNEL_NOTARY_PROFILE, or the ` +
 				`APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER trio); refusing to publish an unnotarized ` +
 				`${dmgPath}. Set both, or neither for an unsigned local build.`,
 		);

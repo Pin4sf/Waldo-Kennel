@@ -7,7 +7,7 @@ import {
 	ProjectSettingsSection,
 	ProjectWorkflowSettingsView,
 	validateProjectSettings,
-} from "@aoagents/product-ui";
+} from "@pin4sf/kennel-product-ui";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
@@ -183,7 +183,7 @@ function SettingsBody({
 
 	const mutation = useMutation({
 		mutationFn: async () => {
-			void captureRendererEvent("ao.renderer.settings_save_requested", { project_id: projectId });
+			void captureRendererEvent("kennel.renderer.settings_save_requested", { project_id: projectId });
 			const displayName = form.displayName.trim();
 			const {
 				model: _legacyModel,
@@ -281,7 +281,7 @@ function SettingsBody({
 			} satisfies SettingsSaveResult;
 		},
 		onSuccess: async (result) => {
-			void captureRendererEvent("ao.renderer.settings_save_succeeded", { project_id: projectId });
+			void captureRendererEvent("kennel.renderer.settings_save_succeeded", { project_id: projectId });
 			setSavedAt(Date.now());
 			setReplacementError(result.replacementError);
 			setValidationError(null);
@@ -307,7 +307,7 @@ function SettingsBody({
 			}
 		},
 		onError: () => {
-			void captureRendererEvent("ao.renderer.settings_save_failed", { project_id: projectId });
+			void captureRendererEvent("kennel.renderer.settings_save_failed", { project_id: projectId });
 		},
 	});
 

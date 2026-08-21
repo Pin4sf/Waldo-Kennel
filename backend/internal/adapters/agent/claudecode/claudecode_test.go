@@ -442,18 +442,18 @@ func TestGetAgentHooksInstallsClaudeHooks(t *testing.T) {
 		t.Fatalf("unrelated settings clobbered: %s", data)
 	}
 	// SessionStart carries the required matcher; UserPromptSubmit omits it.
-	if m := matcherForCommand(config.Hooks["SessionStart"], "ao hooks claude-code session-start"); m == nil || *m != "startup" {
+	if m := matcherForCommand(config.Hooks["SessionStart"], "kennel hooks claude-code session-start"); m == nil || *m != "startup" {
 		t.Fatalf("SessionStart matcher = %v, want startup", m)
 	}
-	if m := matcherForCommand(config.Hooks["UserPromptSubmit"], "ao hooks claude-code user-prompt-submit"); m != nil {
+	if m := matcherForCommand(config.Hooks["UserPromptSubmit"], "kennel hooks claude-code user-prompt-submit"); m != nil {
 		t.Fatalf("UserPromptSubmit matcher = %v, want none", m)
 	}
 	// Notification and SessionEnd install with no matcher (they fire for all
 	// sub-types; the handler filters on the payload).
-	if m := matcherForCommand(config.Hooks["Notification"], "ao hooks claude-code notification"); m != nil {
+	if m := matcherForCommand(config.Hooks["Notification"], "kennel hooks claude-code notification"); m != nil {
 		t.Fatalf("Notification matcher = %v, want none", m)
 	}
-	if m := matcherForCommand(config.Hooks["SessionEnd"], "ao hooks claude-code session-end"); m != nil {
+	if m := matcherForCommand(config.Hooks["SessionEnd"], "kennel hooks claude-code session-end"); m != nil {
 		t.Fatalf("SessionEnd matcher = %v, want none", m)
 	}
 }

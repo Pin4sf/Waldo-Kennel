@@ -12,12 +12,12 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
-// Run explicitly with AO_LIVE_OPENCODE_ACP=1. It uses the user's existing
+// Run explicitly with KENNEL_LIVE_OPENCODE_ACP=1. It uses the user's existing
 // OpenCode executable, configuration, providers, and credentials; CI never
 // depends on any of them.
 func TestLiveOpenCodeACP(t *testing.T) {
-	if os.Getenv("AO_LIVE_OPENCODE_ACP") != "1" {
-		t.Skip("set AO_LIVE_OPENCODE_ACP=1 to run against the local OpenCode account")
+	if os.Getenv("KENNEL_LIVE_OPENCODE_ACP") != "1" {
+		t.Skip("set KENNEL_LIVE_OPENCODE_ACP=1 to run against the local OpenCode account")
 	}
 
 	driver := New(opencode.New(), nil)

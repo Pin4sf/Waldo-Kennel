@@ -14,7 +14,7 @@ import type { SessionMode } from "../../types/workspace";
 /**
  * The default interface for new sessions.
  *
- * Daemon-owned, so `ao spawn` and mobile resolve the same value. Two things this
+ * Daemon-owned, so `kennel spawn` and mobile resolve the same value. Two things this
  * control must be honest about: it only affects sessions created afterwards —
  * a session's interface is fixed when it is born — and chat is limited to the
  * agents that have a structured driver today.

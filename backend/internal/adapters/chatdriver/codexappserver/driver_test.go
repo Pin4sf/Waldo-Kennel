@@ -1080,12 +1080,12 @@ func TestCompactionIsAdvertised(t *testing.T) {
 func TestEnvSliceMergesOverTheDaemonEnvironment(t *testing.T) {
 	t.Setenv("HOME", "/Users/someone")
 	t.Setenv("SSH_AUTH_SOCK", "/tmp/agent.sock")
-	t.Setenv("AO_SESSION", "stale-from-the-shell-that-started-the-daemon")
+	t.Setenv("KENNEL_SESSION", "stale-from-the-shell-that-started-the-daemon")
 
 	got := map[string]string{}
 	for _, entry := range envSlice(map[string]string{
-		"AO_SESSION": "p1-1",
-		"PATH":       "/pinned/bin:/usr/bin",
+		"KENNEL_SESSION": "p1-1",
+		"PATH":           "/pinned/bin:/usr/bin",
 	}) {
 		key, value, _ := strings.Cut(entry, "=")
 		got[key] = value
@@ -1099,8 +1099,8 @@ func TestEnvSliceMergesOverTheDaemonEnvironment(t *testing.T) {
 		t.Errorf("SSH_AUTH_SOCK = %q; without it the agent cannot push over SSH", got["SSH_AUTH_SOCK"])
 	}
 	// AO's overlay wins: a session must not inherit a stale id.
-	if got["AO_SESSION"] != "p1-1" {
-		t.Errorf("AO_SESSION = %q, want the session's own id to win", got["AO_SESSION"])
+	if got["KENNEL_SESSION"] != "p1-1" {
+		t.Errorf("KENNEL_SESSION = %q, want the session's own id to win", got["KENNEL_SESSION"])
 	}
 	if got["PATH"] != "/pinned/bin:/usr/bin" {
 		t.Errorf("PATH = %q, want the HookPATH-pinned value to win", got["PATH"])

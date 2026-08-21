@@ -10,7 +10,7 @@ export const mobileDevicesQueryKey = ["mobile-devices"] as const;
 
 /**
  * Error code the daemon returns from all three roster routes (list/mute/remove)
- * when the on-disk device registry (~/.ao/data/mobile/push-devices.json) failed
+ * when the on-disk device registry (~/.kennel/data/mobile/push-devices.json) failed
  * to load — e.g. it's corrupt. This is distinct from "you have no devices": an
  * unreadable registry must be surfaced explicitly, never rendered as the empty
  * state.

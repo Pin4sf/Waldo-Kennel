@@ -12,7 +12,7 @@ const COMMAND_TIMEOUT_MS = 60_000;
 const CLOSE_TIMEOUT_MS = 10_000;
 const BRIDGE_CLOSE_TIMEOUT_MS = 5_000;
 export const BROWSER_RUNTIME_RECLAIM_GRACE_MS = 15 * 60_000;
-const RUNTIME_OWNER_MARKER = "AO_BROWSER_RUNTIME_V1";
+const RUNTIME_OWNER_MARKER = "KENNEL_BROWSER_RUNTIME_V1";
 const RUNTIME_OWNER_FILE = "owner.json";
 const RUNTIME_ROOT_PATTERN = /^(?:run-(\d+)-[0-9a-f]{12}|r-[0-9a-f]{10})$/;
 const SOCKET_ALIAS_PATTERN = /^ao-br-(\d+)-[0-9a-f]{12}$/;
@@ -385,7 +385,7 @@ export class AgentBrowserRuntime {
 				let socketDirAlias: string | null = null;
 				if (!this.socketDirOverride && process.platform !== "win32") {
 					// agent-browser applies the macOS 103-byte Unix socket limit on
-					// every Unix build. Keep the real runtime state under ~/.ao, but
+					// every Unix build. Keep the real runtime state under ~/.kennel, but
 					// hand the native process a short symlink path whose length does
 					// not depend on the user's home directory or username.
 					socketDirAlias = path.join("/tmp", `ao-br-${process.pid}-${randomBytes(6).toString("hex")}`);

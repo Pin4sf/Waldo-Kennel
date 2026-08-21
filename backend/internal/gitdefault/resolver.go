@@ -21,7 +21,7 @@ const (
 	// ManagedDefaultConfigKey records the branch AO selected when it initialized
 	// a repository itself. It is intentionally repo-local and is only consulted
 	// when the repository has no remotes.
-	ManagedDefaultConfigKey = "ao.defaultBranch"
+	ManagedDefaultConfigKey = "kennel.defaultBranch"
 )
 
 // ErrUnresolved means Git exposes no authoritative default branch. Callers

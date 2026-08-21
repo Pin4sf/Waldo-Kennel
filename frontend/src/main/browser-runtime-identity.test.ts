@@ -4,7 +4,7 @@ import { sameBrowserRuntimeIdentity, type BrowserRuntimeIdentity } from "./brows
 const identity: BrowserRuntimeIdentity = {
 	pid: 42,
 	startedAtMs: 1_725_000_000_000,
-	address: "\\\\.\\pipe\\ao-browser-dev",
+	address: "\\\\.\\pipe\\kennel-browser-dev",
 	token: "token-1",
 };
 
@@ -16,7 +16,7 @@ describe("browser runtime identity", () => {
 	it.each([
 		["pid", { pid: 43 }],
 		["start time", { startedAtMs: identity.startedAtMs + 1 }],
-		["address", { address: "\\\\.\\pipe\\ao-browser-next" }],
+		["address", { address: "\\\\.\\pipe\\kennel-browser-next" }],
 		["token", { token: "token-2" }],
 	])("rebuilds the link when the daemon %s changes", (_label, change) => {
 		expect(sameBrowserRuntimeIdentity(identity, { ...identity, ...change })).toBe(false);

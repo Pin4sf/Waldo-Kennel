@@ -160,10 +160,10 @@ describe("XtermTerminal", () => {
 		state.lastTerminal = null;
 		state.linkHandler = null;
 		setNavigatorPlatform("Linux x86_64");
-		window.ao!.clipboard.writeText = vi.fn().mockResolvedValue(undefined);
-		window.ao!.clipboard.readText = vi.fn().mockResolvedValue("");
-		window.ao!.terminal.setFocused = vi.fn();
-		window.ao!.terminal.onFontSizeShortcut = () => () => undefined;
+		window.kennel!.clipboard.writeText = vi.fn().mockResolvedValue(undefined);
+		window.kennel!.clipboard.readText = vi.fn().mockResolvedValue("");
+		window.kennel!.terminal.setFocused = vi.fn();
+		window.kennel!.terminal.onFontSizeShortcut = () => () => undefined;
 	});
 
 	it("fits on each observed frame while an ancestor requests live terminal resizing", () => {
@@ -326,7 +326,7 @@ describe("XtermTerminal", () => {
 
 		expect(allowed).toBe(false);
 		expect(event.preventDefault).toHaveBeenCalled();
-		expect(window.ao!.clipboard.writeText).toHaveBeenCalledWith("copied selection");
+		expect(window.kennel!.clipboard.writeText).toHaveBeenCalledWith("copied selection");
 	});
 
 	it.each([
@@ -368,7 +368,7 @@ describe("XtermTerminal", () => {
 
 	it("reports terminal focus and applies main-process font-size shortcuts only there", () => {
 		let fontSizeShortcut: ((delta: -1 | 1) => void) | undefined;
-		window.ao!.terminal.onFontSizeShortcut = (listener) => {
+		window.kennel!.terminal.onFontSizeShortcut = (listener) => {
 			fontSizeShortcut = listener;
 			return () => undefined;
 		};
@@ -377,14 +377,14 @@ describe("XtermTerminal", () => {
 		const textarea = container.querySelector("textarea")!;
 
 		textarea.focus();
-		expect(window.ao!.terminal.setFocused).toHaveBeenLastCalledWith(true);
+		expect(window.kennel!.terminal.setFocused).toHaveBeenLastCalledWith(true);
 		fontSizeShortcut?.(1);
 		expect(onChangeFontSize).toHaveBeenCalledWith(1);
 
 		const outside = document.createElement("button");
 		document.body.appendChild(outside);
 		outside.focus();
-		expect(window.ao!.terminal.setFocused).toHaveBeenLastCalledWith(false);
+		expect(window.kennel!.terminal.setFocused).toHaveBeenLastCalledWith(false);
 		fontSizeShortcut?.(-1);
 		expect(onChangeFontSize).toHaveBeenCalledTimes(1);
 		outside.remove();
@@ -403,7 +403,7 @@ describe("XtermTerminal", () => {
 
 		expect(event.defaultPrevented).toBe(true);
 		expect(setData).toHaveBeenCalledWith("text/plain", "native copied selection");
-		expect(window.ao!.clipboard.writeText).toHaveBeenCalledWith("native copied selection");
+		expect(window.kennel!.clipboard.writeText).toHaveBeenCalledWith("native copied selection");
 	});
 
 	it("copies from the focused xterm textarea when the window receives the copy shortcut", () => {
@@ -420,7 +420,7 @@ describe("XtermTerminal", () => {
 		window.dispatchEvent(event);
 
 		expect(event.defaultPrevented).toBe(true);
-		expect(window.ao!.clipboard.writeText).toHaveBeenCalledWith("focused copied selection");
+		expect(window.kennel!.clipboard.writeText).toHaveBeenCalledWith("focused copied selection");
 	});
 
 	it("opens a themed context menu on right-click and disables Copy without a selection", async () => {
@@ -468,7 +468,7 @@ describe("XtermTerminal", () => {
 
 		fireEvent.contextMenu(host);
 		fireEvent.click(await screen.findByText("Copy"));
-		await waitFor(() => expect(window.ao!.clipboard.writeText).toHaveBeenCalledWith("menu copy"));
+		await waitFor(() => expect(window.kennel!.clipboard.writeText).toHaveBeenCalledWith("menu copy"));
 		expect(state.lastTerminal!.focus).toHaveBeenCalled();
 
 		fireEvent.contextMenu(host);
@@ -478,19 +478,19 @@ describe("XtermTerminal", () => {
 
 	it("pastes from the context menu through the terminal paste path", async () => {
 		const onInput = vi.fn();
-		window.ao!.clipboard.readText = vi.fn().mockResolvedValue("menu\npaste");
+		window.kennel!.clipboard.readText = vi.fn().mockResolvedValue("menu\npaste");
 		const { container } = render(<XtermTerminal theme="dark" onReady={(terminal) => terminal.onUserInput(onInput)} />);
 
 		fireEvent.contextMenu(container.firstElementChild!);
 		fireEvent.click(await screen.findByText("Paste"));
 
 		await waitFor(() => expect(onInput).toHaveBeenCalledWith("menu\rpaste", "paste"));
-		expect(window.ao!.clipboard.readText).toHaveBeenCalledTimes(1);
+		expect(window.kennel!.clipboard.readText).toHaveBeenCalledTimes(1);
 	});
 
 	it("honors bracketed paste mode from the context menu", async () => {
 		const onInput = vi.fn();
-		window.ao!.clipboard.readText = vi.fn().mockResolvedValue("bracketed\npaste");
+		window.kennel!.clipboard.readText = vi.fn().mockResolvedValue("bracketed\npaste");
 		const { container } = render(<XtermTerminal theme="dark" onReady={(terminal) => terminal.onUserInput(onInput)} />);
 		state.lastTerminal!.modes.bracketedPasteMode = true;
 
@@ -503,7 +503,7 @@ describe("XtermTerminal", () => {
 	it("auto-copies new selections and retries explicit copy if the auto-copy failed", async () => {
 		render(<XtermTerminal theme="dark" />);
 		const writeText = vi.fn().mockRejectedValueOnce(new Error("clipboard failed")).mockResolvedValueOnce(undefined);
-		window.ao!.clipboard.writeText = writeText;
+		window.kennel!.clipboard.writeText = writeText;
 
 		state.lastTerminal!.selection = "retry me";
 		state.lastTerminal!.selectionListeners.forEach((listener) => listener());
@@ -542,7 +542,7 @@ describe("XtermTerminal", () => {
 		expect(allowed).toBe(true);
 		expect(event.preventDefault).not.toHaveBeenCalled();
 		expect(event.stopPropagation).not.toHaveBeenCalled();
-		expect(window.ao!.clipboard.writeText).not.toHaveBeenCalled();
+		expect(window.kennel!.clipboard.writeText).not.toHaveBeenCalled();
 	});
 
 	it("copies selected text with plain Ctrl+C on Windows", () => {
@@ -564,7 +564,7 @@ describe("XtermTerminal", () => {
 		expect(allowed).toBe(false);
 		expect(event.preventDefault).toHaveBeenCalled();
 		expect(event.stopPropagation).toHaveBeenCalled();
-		expect(window.ao!.clipboard.writeText).toHaveBeenCalledWith("windows copy");
+		expect(window.kennel!.clipboard.writeText).toHaveBeenCalledWith("windows copy");
 	});
 
 	it("leaves plain Ctrl+C as terminal input on Windows when nothing is selected", () => {
@@ -586,7 +586,7 @@ describe("XtermTerminal", () => {
 		expect(allowed).toBe(true);
 		expect(event.preventDefault).not.toHaveBeenCalled();
 		expect(event.stopPropagation).not.toHaveBeenCalled();
-		expect(window.ao!.clipboard.writeText).not.toHaveBeenCalled();
+		expect(window.kennel!.clipboard.writeText).not.toHaveBeenCalled();
 	});
 
 	it.each(["Linux x86_64", "Win32"])(
@@ -594,7 +594,7 @@ describe("XtermTerminal", () => {
 		async (platform) => {
 			setNavigatorPlatform(platform);
 			const onInput = vi.fn();
-			window.ao!.clipboard.readText = vi.fn().mockResolvedValue("hello\nworld");
+			window.kennel!.clipboard.readText = vi.fn().mockResolvedValue("hello\nworld");
 			const { container } = render(
 				<XtermTerminal theme="dark" onReady={(terminal) => terminal.onUserInput(onInput)} />,
 			);
@@ -619,7 +619,7 @@ describe("XtermTerminal", () => {
 			expect(allowed).toBe(false);
 			expect(event.preventDefault).toHaveBeenCalled();
 			expect(event.stopPropagation).toHaveBeenCalled();
-			expect(window.ao!.clipboard.readText).toHaveBeenCalledTimes(1);
+			expect(window.kennel!.clipboard.readText).toHaveBeenCalledTimes(1);
 			expect(pasteEvent.defaultPrevented).toBe(true);
 			expect(onInput).toHaveBeenCalledTimes(1);
 			expect(onInput).toHaveBeenCalledWith("hello\rworld", "paste");
@@ -629,7 +629,7 @@ describe("XtermTerminal", () => {
 	it("supports plain Ctrl+V paste on Windows", async () => {
 		setNavigatorPlatform("Win32");
 		const onInput = vi.fn();
-		window.ao!.clipboard.readText = vi.fn().mockResolvedValue("windows paste");
+		window.kennel!.clipboard.readText = vi.fn().mockResolvedValue("windows paste");
 		render(<XtermTerminal theme="dark" onReady={(terminal) => terminal.onUserInput(onInput)} />);
 
 		const event = {
@@ -647,13 +647,13 @@ describe("XtermTerminal", () => {
 		expect(allowed).toBe(false);
 		expect(event.preventDefault).toHaveBeenCalled();
 		expect(event.stopPropagation).toHaveBeenCalled();
-		expect(window.ao!.clipboard.readText).toHaveBeenCalled();
+		expect(window.kennel!.clipboard.readText).toHaveBeenCalled();
 		expect(onInput).toHaveBeenCalledWith("windows paste", "paste");
 	});
 
 	it("suppresses a queued native paste event after a handled paste shortcut", async () => {
 		const onInput = vi.fn();
-		window.ao!.clipboard.readText = vi.fn().mockResolvedValue("shortcut paste");
+		window.kennel!.clipboard.readText = vi.fn().mockResolvedValue("shortcut paste");
 		const { container } = render(<XtermTerminal theme="dark" onReady={(terminal) => terminal.onUserInput(onInput)} />);
 
 		const event = {
@@ -682,7 +682,7 @@ describe("XtermTerminal", () => {
 
 	it("supports classic Windows terminal copy and paste shortcuts", async () => {
 		const onInput = vi.fn();
-		window.ao!.clipboard.readText = vi.fn().mockResolvedValue("insert paste");
+		window.kennel!.clipboard.readText = vi.fn().mockResolvedValue("insert paste");
 		render(<XtermTerminal theme="dark" onReady={(terminal) => terminal.onUserInput(onInput)} />);
 		state.lastTerminal!.selection = "insert copy";
 
@@ -696,7 +696,7 @@ describe("XtermTerminal", () => {
 			stopPropagation: vi.fn(),
 		} as unknown as KeyboardEvent;
 		expect(state.lastTerminal!.keyHandler!(copyEvent)).toBe(false);
-		expect(window.ao!.clipboard.writeText).toHaveBeenCalledWith("insert copy");
+		expect(window.kennel!.clipboard.writeText).toHaveBeenCalledWith("insert copy");
 
 		const pasteEvent = {
 			key: "Insert",
@@ -710,7 +710,7 @@ describe("XtermTerminal", () => {
 		expect(state.lastTerminal!.keyHandler!(pasteEvent)).toBe(false);
 		await Promise.resolve();
 
-		expect(window.ao!.clipboard.readText).toHaveBeenCalled();
+		expect(window.kennel!.clipboard.readText).toHaveBeenCalled();
 		expect(onInput).toHaveBeenCalledWith("insert paste", "paste");
 	});
 
@@ -770,7 +770,7 @@ describe("XtermTerminal", () => {
 	});
 
 	it("does not re-paste on the keyup that follows a Cmd+V keydown", async () => {
-		window.ao!.clipboard.readText = vi.fn().mockResolvedValue("pasted once");
+		window.kennel!.clipboard.readText = vi.fn().mockResolvedValue("pasted once");
 		const onInput = vi.fn();
 		render(<XtermTerminal theme="dark" onReady={(terminal) => terminal.onUserInput(onInput)} />);
 
@@ -791,7 +791,7 @@ describe("XtermTerminal", () => {
 		expect(state.lastTerminal!.keyHandler!(keyUp)).toBe(true);
 		await Promise.resolve();
 
-		expect(window.ao!.clipboard.readText).toHaveBeenCalledTimes(1);
+		expect(window.kennel!.clipboard.readText).toHaveBeenCalledTimes(1);
 		expect(onInput).toHaveBeenCalledTimes(1);
 	});
 
@@ -1005,7 +1005,7 @@ describe("XtermTerminal", () => {
 
 	it.each(["plain", "OSC 8"])("opens %s web links in the system browser on Option/Alt+Click", (kind) => {
 		const openExternal = vi.fn().mockResolvedValue(undefined);
-		window.ao!.app.openExternal = openExternal;
+		window.kennel!.app.openExternal = openExternal;
 		const onLinkOpen = vi.fn();
 		render(<XtermTerminal onLinkOpen={onLinkOpen} theme="dark" />);
 		const oscHandler = state.lastTerminal!.options.linkHandler as { activate: (event: MouseEvent, uri: string) => void };

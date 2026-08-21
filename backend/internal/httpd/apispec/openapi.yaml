@@ -2,11 +2,11 @@ openapi: 3.1.0
 info:
   description: Loopback-only HTTP surface served by the Go daemon. Generated from
     Go (code-first) — do not edit by hand; run `go generate ./...`.
-  title: Agent Orchestrator HTTP daemon
+  title: Kennel HTTP daemon
   version: 0.1.0-route-shell
 servers:
 - description: Local daemon (loopback only)
-  url: http://127.0.0.1:3001
+  url: http://127.0.0.1:3031
 paths:
   /api/v1/agents:
     get:

@@ -1223,7 +1223,7 @@ func TestSessionsAPI_SetPreviewEmptyURLAutodetectsIndex(t *testing.T) {
 func TestSessionsAPI_SetPreviewEmptyURLPrefersWorkspaceEntryOverExistingTarget(t *testing.T) {
 	svc := newFakeSessionService()
 	workspace := t.TempDir()
-	// An index.html exists, so bare `ao preview` returns to the workspace entry
+	// An index.html exists, so bare `kennel preview` returns to the workspace entry
 	// instead of sticking to the last explicit target.
 	if err := os.WriteFile(filepath.Join(workspace, "index.html"), []byte(`<html></html>`), 0o644); err != nil {
 		t.Fatalf("write index: %v", err)
@@ -2156,7 +2156,7 @@ func TestSessionsAPI_SpawnBranchNotFetchedReturnsTypedError(t *testing.T) {
 
 // TestSessionsAPI_SpawnRejectsOverlongDisplayName asserts the spawn endpoint
 // caps displayName at 20 characters even though the field itself is optional
-// (the desktop new-task dialog omits it). `ao spawn` enforces the same limit
+// (the desktop new-task dialog omits it). `kennel spawn` enforces the same limit
 // CLI-side before the request is sent.
 func TestSessionsAPI_SpawnRejectsOverlongDisplayName(t *testing.T) {
 	srv := newSessionTestServer(t, newFakeSessionService())

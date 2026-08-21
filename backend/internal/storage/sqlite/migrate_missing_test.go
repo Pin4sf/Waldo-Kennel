@@ -13,7 +13,7 @@ import (
 // prevents the daemon from starting even though the missing migrations can be
 // applied normally.
 func TestMigrateAppliesMissingMigrationsBeforeCurrentVersion(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -78,7 +78,7 @@ WHERE is_applied = 1 AND version_id IN (28, 29, 30, 31)
 // A database that already recorded version 41 must still receive the browser
 // capability column from the append-only 0081 migration.
 func TestMigrateAppliesBrowserVerifierAfterUpstreamVersion41(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestMigrateAppliesBrowserVerifierAfterUpstreamVersion41(t *testing.T) {
 }
 
 func TestMigrateRecognizesBrowserVerifierFromEarlierBranchBuild(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestMigrateRecognizesBrowserVerifierFromEarlierBranchBuild(t *testing.T) {
 }
 
 func TestMigrateRepairsQueuedTurnPromotionColumnsWhenVersionAlreadyClaimed(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestMigrateRepairsQueuedTurnPromotionColumnsWhenVersionAlreadyClaimed(t *te
 }
 
 func TestMigrateRepairsQueuedTurnPromotionWhenVersion88WasClaimed(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestMigrateRepairsQueuedTurnPromotionWhenVersion88WasClaimed(t *testing.T) 
 // that has already applied main's version 41. The catalog must use the next
 // migration version so goose applies it independently.
 func TestMigrateAppliesAgentModelCatalogAfterUpstreamMigration(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}

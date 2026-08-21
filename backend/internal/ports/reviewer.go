@@ -83,7 +83,7 @@ type ReviewInvocation struct {
 	// native session id), derived from the worker session.
 	ReviewerID string
 	// RunID is the review_run this pass completes; the reviewer passes it to
-	// `ao review submit`.
+	// `kennel review submit`.
 	RunID string
 	// WorkerSessionID is the worker whose PR is under review.
 	WorkerSessionID domain.SessionID

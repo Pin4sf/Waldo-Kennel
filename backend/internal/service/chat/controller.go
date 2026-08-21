@@ -746,7 +746,7 @@ func (c *Controller) dispatch(
 	requestedAt time.Time,
 ) (domain.ConversationTurn, error) {
 	// Every dispatch carries the conversation's choices, including one AO makes on
-	// the user's behalf: a queued message draining, or a relay from `ao send`. A
+	// the user's behalf: a queued message draining, or a relay from `kennel send`. A
 	// setting that only applied when the user pressed send would silently stop
 	// applying exactly when they were not watching.
 	msg.Settings = c.turnSettings()

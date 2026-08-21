@@ -34,7 +34,7 @@ let telemetry: MobileTelemetry | null = null;
  * Idempotent: repeated calls return the same instance, so mounting the init
  * component more than once cannot create a second client.
  */
-const RATE_STORAGE_KEY = "ao.telemetry.rateLimit";
+const RATE_STORAGE_KEY = "kennel.telemetry.rateLimit";
 let rateState: RateLimitState = {};
 let rateStateLoaded = false;
 

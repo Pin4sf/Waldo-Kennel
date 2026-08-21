@@ -20,7 +20,7 @@ const (
 	// autohandHookCommandPrefix identifies the hook commands AO owns, so
 	// install skips duplicates and uninstall recognizes AO entries by prefix
 	// without an embedded template to diff against.
-	autohandHookCommandPrefix = "ao hooks autohand "
+	autohandHookCommandPrefix = "kennel hooks autohand "
 	autohandHookTimeout       = 30
 )
 

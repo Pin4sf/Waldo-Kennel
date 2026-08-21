@@ -65,7 +65,7 @@ const INSPECTOR_SEPARATOR_RESERVE_PX = 8;
 // inset gives a 325px inspector breakpoint for the animation lock.
 const INSPECTOR_COMPACT_MAX_PX = 325;
 const TOPBAR_SECONDARY_COMPACT_MAX_PX = 759;
-const inspectorWidthStorageKey = "ao.inspector.widthPx";
+const inspectorWidthStorageKey = "kennel.inspector.widthPx";
 const inspectorWidthVar = "--ao-inspector-w";
 const INSPECTOR_SPRING_MS = 400;
 const INSPECTOR_SPRING_EASING =
@@ -299,7 +299,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 	const reviewerQuery = useQuery({
 		queryKey: ["session-reviews", sessionId],
 		enabled: Boolean(
-			window.ao && session && sessionIsActive(session) && !isOrchestratorSession(session) && session.prs.length > 0,
+			window.kennel && session && sessionIsActive(session) && !isOrchestratorSession(session) && session.prs.length > 0,
 		),
 		refetchInterval: (query) => {
 			const data = query.state.data as ReviewsResponse | undefined;

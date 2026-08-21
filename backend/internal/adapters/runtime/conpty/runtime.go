@@ -15,7 +15,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
-const runtimeLaunchIDEnv = "AO_RUNTIME_LAUNCH_ID"
+const runtimeLaunchIDEnv = "KENNEL_RUNTIME_LAUNCH_ID"
 
 // Ensure Runtime satisfies the port at compile time (Attach in attach.go).
 var _ ports.Runtime = (*Runtime)(nil)

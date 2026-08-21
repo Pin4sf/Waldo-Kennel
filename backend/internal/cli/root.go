@@ -1,4 +1,4 @@
-// Package cli implements the user-facing ao command. It stays thin: commands
+// Package cli implements the user-facing kennel command. It stays thin: commands
 // discover the local daemon, call its loopback HTTP API, and format output.
 package cli
 
@@ -20,7 +20,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
 )
 
-// Execute runs the ao CLI with process stdio.
+// Execute runs the Kennel CLI with process stdio.
 func Execute() error {
 	return executeWithDeps(DefaultDeps(), os.Args[1:])
 }
@@ -164,9 +164,9 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	ctx := &commandContext{deps: deps}
 
 	root := &cobra.Command{
-		Use:           "ao",
-		Short:         "Agent Orchestrator",
-		Long:          "Agent Orchestrator manages the local daemon that supervises parallel coding-agent sessions.",
+		Use:           "kennel",
+		Short:         "Kennel",
+		Long:          "Kennel manages the local daemon that supervises coding-agent sessions.",
 		Version:       VersionString(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -224,11 +224,11 @@ func shouldEmitCLIInvocation(cmd *cobra.Command) bool {
 		return false
 	}
 	switch commandPath {
-	// "ao daemon"/"ao start" are supervisor-driven bootstrapping, and
-	// "ao completion"/"ao help" are shell setup and self-documentation.
-	// "ao pty-host" and "ao agent-process" are internal runtime processes.
+	// "kennel daemon"/"kennel start" are supervisor-driven bootstrapping, and
+	// "kennel completion"/"kennel help" are shell setup and self-documentation.
+	// "kennel pty-host" and "kennel agent-process" are internal runtime processes.
 	// None reflect user activity.
-	case "ao daemon", "ao start", "ao completion", "ao help", "ao pty-host", "ao agent-process", "ao agent-process supervise":
+	case "kennel daemon", "kennel start", "kennel completion", "kennel help", "kennel pty-host", "kennel agent-process", "kennel agent-process supervise":
 		return false
 	default:
 		return true
@@ -246,10 +246,10 @@ func (c *commandContext) emitCLIInvoked(ctx context.Context, cmd *cobra.Command)
 }
 
 func cliInvocationActorType(cmd *cobra.Command) string {
-	if strings.TrimSpace(cmd.CommandPath()) == "ao hooks" {
+	if strings.TrimSpace(cmd.CommandPath()) == "kennel hooks" {
 		return "agent"
 	}
-	if sessionIDPattern.MatchString(strings.TrimSpace(os.Getenv("AO_SESSION_ID"))) {
+	if sessionIDPattern.MatchString(strings.TrimSpace(os.Getenv("KENNEL_SESSION_ID"))) {
 		return "agent"
 	}
 	return "user"
@@ -271,7 +271,7 @@ func usageErrorCommand(args []string) (string, string) {
 	// path: anything past the deepest match is user data (session names,
 	// prompts, orchestrator names) and must never ride into telemetry.
 	current := NewRootCommand(Deps{})
-	tokens := []string{"ao"}
+	tokens := []string{"kennel"}
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "-") {
 			break
@@ -290,7 +290,7 @@ func usageErrorCommand(args []string) (string, string) {
 		current = next
 	}
 	commandPath := strings.Join(tokens, " ")
-	command := "ao"
+	command := "kennel"
 	if len(tokens) > 1 {
 		command = tokens[len(tokens)-1]
 	}
@@ -323,7 +323,7 @@ func atMostOneArg(cmd *cobra.Command, args []string) error {
 func newDaemonCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:    "daemon",
-		Short:  "Run the AO backend daemon",
+		Short:  "Run the Kennel backend daemon",
 		Hidden: true,
 		Args:   noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {

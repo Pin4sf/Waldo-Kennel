@@ -16,23 +16,23 @@ import { selectInstallers, feedFilename, buildYml, hashFile, generateFeeds } fro
 import { writeBlockmap } from "./blockmap.mjs";
 const V = "0.10.4";
 const NAMES = [
-	"Agent.Orchestrator.Setup.0.10.4.exe", // win versioned
-	"Agent.Orchestrator-0.10.4.AppImage", // linux versioned
-	"Agent.Orchestrator-darwin-arm64-0.10.4.zip", // mac arm64 versioned
-	"Agent.Orchestrator-darwin-x64-0.10.4.zip", // mac x64 versioned
-	"agent-orchestrator-darwin-arm64.zip", // ao-start alias (no version) -> excluded
-	"agent-orchestrator-win32-x64.exe", // alias (no version) -> excluded
-	"agent-orchestrator_0.10.4_amd64.deb", // deb -> excluded by extension
-	"agent-orchestrator-0.10.4.x86_64.rpm", // rpm -> excluded by extension
+	"Kennel.Setup.0.10.4.exe", // win versioned
+	"Kennel-0.10.4.AppImage", // linux versioned
+	"Kennel-darwin-arm64-0.10.4.zip", // mac arm64 versioned
+	"Kennel-darwin-x64-0.10.4.zip", // mac x64 versioned
+	"kennel-darwin-arm64.zip", // kennel-start alias (no version) -> excluded
+	"kennel-win32-x64.exe", // alias (no version) -> excluded
+	"kennel_0.10.4_amd64.deb", // deb -> excluded by extension
+	"kennel-0.10.4.x86_64.rpm", // rpm -> excluded by extension
 ];
 
 describe("selectInstallers", () => {
 	it("keeps only versioned exe/AppImage/darwin-zip, split by arch", () => {
 		const s = selectInstallers(NAMES, V);
-		expect(s.win).toEqual(["Agent.Orchestrator.Setup.0.10.4.exe"]);
-		expect(s.linux).toEqual(["Agent.Orchestrator-0.10.4.AppImage"]);
-		expect(s.macArm64).toEqual(["Agent.Orchestrator-darwin-arm64-0.10.4.zip"]);
-		expect(s.macX64).toEqual(["Agent.Orchestrator-darwin-x64-0.10.4.zip"]);
+		expect(s.win).toEqual(["Kennel.Setup.0.10.4.exe"]);
+		expect(s.linux).toEqual(["Kennel-0.10.4.AppImage"]);
+		expect(s.macArm64).toEqual(["Kennel-darwin-arm64-0.10.4.zip"]);
+		expect(s.macX64).toEqual(["Kennel-darwin-x64-0.10.4.zip"]);
 	});
 });
 
@@ -83,16 +83,16 @@ describe("buildYml", () => {
 	it("serializes one file with deprecated top-level fields and no blockMapSize", () => {
 		const yml = buildYml(
 			"0.10.4",
-			[{ url: "Agent.Orchestrator.Setup.0.10.4.exe", sha512: "AA/BB+cc==", size: 123 }],
+			[{ url: "Kennel.Setup.0.10.4.exe", sha512: "AA/BB+cc==", size: 123 }],
 			"2026-06-27T12:00:00.000Z",
 		);
 		expect(yml).toBe(
 			"version: 0.10.4\n" +
 				"files:\n" +
-				"  - url: Agent.Orchestrator.Setup.0.10.4.exe\n" +
+				"  - url: Kennel.Setup.0.10.4.exe\n" +
 				"    sha512: AA/BB+cc==\n" +
 				"    size: 123\n" +
-				"path: Agent.Orchestrator.Setup.0.10.4.exe\n" +
+				"path: Kennel.Setup.0.10.4.exe\n" +
 				"sha512: AA/BB+cc==\n" +
 				"releaseDate: '2026-06-27T12:00:00.000Z'\n",
 		);
@@ -103,21 +103,21 @@ describe("buildYml", () => {
 		const yml = buildYml(
 			"0.10.4",
 			[
-				{ url: "Agent.Orchestrator-darwin-arm64-0.10.4.zip", sha512: "ARM==", size: 10 },
-				{ url: "Agent.Orchestrator-darwin-x64-0.10.4.zip", sha512: "X64==", size: 20 },
+				{ url: "Kennel-darwin-arm64-0.10.4.zip", sha512: "ARM==", size: 10 },
+				{ url: "Kennel-darwin-x64-0.10.4.zip", sha512: "X64==", size: 20 },
 			],
 			"2026-06-27T12:00:00.000Z",
 		);
 		const lines = yml.split("\n");
-		expect(lines[2]).toBe("  - url: Agent.Orchestrator-darwin-arm64-0.10.4.zip");
-		expect(lines[5]).toBe("  - url: Agent.Orchestrator-darwin-x64-0.10.4.zip");
-		expect(yml).toContain("path: Agent.Orchestrator-darwin-arm64-0.10.4.zip");
+		expect(lines[2]).toBe("  - url: Kennel-darwin-arm64-0.10.4.zip");
+		expect(lines[5]).toBe("  - url: Kennel-darwin-x64-0.10.4.zip");
+		expect(yml).toContain("path: Kennel-darwin-arm64-0.10.4.zip");
 	});
 
 	it("omits important key when flag is false (byte-identical to old output)", () => {
 		const yml = buildYml(
 			"0.10.4",
-			[{ url: "Agent.Orchestrator.Setup.0.10.4.exe", sha512: "AA/BB+cc==", size: 123 }],
+			[{ url: "Kennel.Setup.0.10.4.exe", sha512: "AA/BB+cc==", size: 123 }],
 			"2026-06-27T12:00:00.000Z",
 			false,
 		);
@@ -127,7 +127,7 @@ describe("buildYml", () => {
 	it("emits important: true as top-level key when flag is true", () => {
 		const yml = buildYml(
 			"0.10.4",
-			[{ url: "Agent.Orchestrator.Setup.0.10.4.exe", sha512: "AA/BB+cc==", size: 123 }],
+			[{ url: "Kennel.Setup.0.10.4.exe", sha512: "AA/BB+cc==", size: 123 }],
 			"2026-06-27T12:00:00.000Z",
 			true,
 		);
@@ -179,7 +179,7 @@ describe("generateFeeds mac blockmap exclusion (#3034)", () => {
 
 	it("does not call writeBlockmap or write a .blockmap sidecar for mac zips", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "feed-test-"));
-		const macZip = "Agent.Orchestrator-darwin-arm64-0.10.4.zip";
+		const macZip = "Kennel-darwin-arm64-0.10.4.zip";
 		writeFileSync(join(dir, macZip), "fake mac zip");
 
 		await generateFeeds(dir, "0.10.4", "nightly", "2026-06-27T12:00:00.000Z");
@@ -196,8 +196,8 @@ describe("generateFeeds mac blockmap exclusion (#3034)", () => {
 
 	it("still calls writeBlockmap for win and linux installers", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "feed-test-"));
-		const winExe = "Agent.Orchestrator.Setup.0.10.4.exe";
-		const linuxAppImage = "Agent.Orchestrator-0.10.4.AppImage";
+		const winExe = "Kennel.Setup.0.10.4.exe";
+		const linuxAppImage = "Kennel-0.10.4.AppImage";
 		writeFileSync(join(dir, winExe), "fake win installer");
 		writeFileSync(join(dir, linuxAppImage), "fake linux installer");
 

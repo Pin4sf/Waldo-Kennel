@@ -1113,7 +1113,7 @@ describe("SessionView", () => {
 	});
 
 	it("restores and clamps the persisted inspector width in pixels", () => {
-		window.localStorage.setItem("ao.inspector.widthPx", "240");
+		window.localStorage.setItem("kennel.inspector.widthPx", "240");
 		act(() => useUiStore.getState().setInspectorOpen("sess-1", true));
 		render(<SessionView sessionId="sess-1" />);
 		expect(document.documentElement.style.getPropertyValue("--ao-inspector-w")).toBe("280px");
@@ -1245,7 +1245,7 @@ describe("SessionView", () => {
 		expect(document.querySelector(".files-popout-overlay")).not.toHaveClass("files-popout-overlay--mac-windowed");
 	});
 
-	it("opens Browser for a new live `ao preview` target", () => {
+	it("opens Browser for a new live `kennel preview` target", () => {
 		const worker = workerSession("sess-1");
 		const { rerender } = render(<SessionView sessionId="sess-1" />);
 
@@ -1381,7 +1381,7 @@ describe("SessionView", () => {
 		expect(inspectorButton()).toHaveAttribute("data-view", "summary");
 	});
 
-	it("does not open Browser when `ao preview clear` removes the target", () => {
+	it("does not open Browser when `kennel preview clear` removes the target", () => {
 		const worker = workerSession("sess-1");
 		const { rerender } = render(<SessionView sessionId="sess-1" />);
 

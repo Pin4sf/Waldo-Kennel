@@ -56,7 +56,7 @@ func (c *commandContext) runImport(cmd *cobra.Command, opts importOptions) error
 	if live, err := runfile.CheckStale(cfg.RunFilePath); err != nil {
 		return fmt.Errorf("inspect run-file: %w", err)
 	} else if live != nil {
-		return usageError{fmt.Errorf("the AO daemon is running (pid %d); stop it first with `ao stop` before importing", live.PID)}
+		return usageError{fmt.Errorf("the AO daemon is running (pid %d); stop it first with `kennel stop` before importing", live.PID)}
 	}
 
 	root := opts.from

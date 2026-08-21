@@ -20,7 +20,7 @@ var allowedTools = []string{
 	"shell(git status:*)",
 	"shell(printf:*)",
 	"shell(gh api:*)",
-	"shell(ao review submit:*)",
+	"shell(kennel review submit:*)",
 }
 
 var deniedTools = []string{
@@ -60,7 +60,7 @@ var _ ports.Reviewer = (*Reviewer)(nil)
 var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 
 // PreLaunch installs only the AO-owned custom-agent profile. Reviewer panes do
-// not use worker lifecycle hooks, so this must not create .github/hooks/ao.json.
+// not use worker lifecycle hooks, so this must not create .github/hooks/kennel.json.
 func (r *Reviewer) PreLaunch(ctx context.Context, inv ports.ReviewInvocation) error {
 	return r.agent.InstallAgentProfile(ctx, ports.WorkspaceHookConfig{
 		DataDir:          inv.DataDir,

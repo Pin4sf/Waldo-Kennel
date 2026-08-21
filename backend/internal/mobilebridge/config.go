@@ -1,5 +1,5 @@
 // Package mobilebridge owns the durable state and helpers for the Connect
-// Mobile LAN listener: the ~/.ao/mobile/config.json store and the rotating
+// Mobile LAN listener: the ~/.kennel/mobile/config.json store and the rotating
 // connection password. It has no httpd/daemon dependencies.
 package mobilebridge
 
@@ -17,12 +17,12 @@ import (
 // DefaultPort is the LAN listener's default port for the Connect Mobile
 // bridge. Distinct from config.DefaultPort (the loopback API port) since the
 // two listeners can run concurrently.
-const DefaultPort = 3011
+const DefaultPort = 3041
 
-// State is the persisted Connect Mobile bridge config in ~/.ao/mobile/config.json.
+// State is the persisted Connect Mobile bridge config in ~/.kennel/mobile/config.json.
 // Password is stored in plaintext by deliberate decision: it is a low-value,
 // rotating LAN enabler that already travels in plaintext over the LAN and is
-// shown on the desktop screen, so persisting it (in a 0600 file under ~/.ao)
+// shown on the desktop screen, so persisting it (in a 0600 file under ~/.kennel)
 // lets the desktop redisplay it while the bridge is enabled. The daemon derives
 // the auth hash from it in memory (HashPassword) — see BridgeService.
 type State struct {
@@ -38,7 +38,7 @@ type State struct {
 }
 
 // Path returns the Connect Mobile config file location under the data dir
-// (~/.ao/mobile/config.json).
+// (~/.kennel/mobile/config.json).
 func Path(dataDir string) string { return filepath.Join(dataDir, "mobile", "config.json") }
 
 // Load reads the Connect Mobile config from path. A missing file is not an

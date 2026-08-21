@@ -167,13 +167,13 @@ describe("BrowserPanel", () => {
 		postMock.mockResolvedValue({ data: {} });
 		annotationSubmitListeners.clear();
 		annotationCancelListeners.clear();
-		window.ao!.browser.onAnnotationSubmit = vi.fn((listener: (payload: BrowserAnnotationSubmitPayload) => void) => {
+		window.kennel!.browser.onAnnotationSubmit = vi.fn((listener: (payload: BrowserAnnotationSubmitPayload) => void) => {
 			annotationSubmitListeners.add(listener);
 			return () => {
 				annotationSubmitListeners.delete(listener);
 			};
 		});
-		window.ao!.browser.onAnnotationCancel = vi.fn((listener: (payload: BrowserAnnotationCancelPayload) => void) => {
+		window.kennel!.browser.onAnnotationCancel = vi.fn((listener: (payload: BrowserAnnotationCancelPayload) => void) => {
 			annotationCancelListeners.add(listener);
 			return () => {
 				annotationCancelListeners.delete(listener);
@@ -229,15 +229,15 @@ describe("BrowserPanel", () => {
 
 	it("uses the active app theme for the static browser preview", () => {
 		hookState.navState = { ...hookState.navState, url: "http://localhost:5173/" };
-		const ao = window.ao;
-		Object.defineProperty(window, "ao", { configurable: true, value: undefined });
+		const kennel = window.kennel;
+		Object.defineProperty(window, "kennel", { configurable: true, value: undefined });
 		try {
 			render(<BrowserPanel active onTogglePopOut={() => undefined} poppedOut={false} session={session} />);
 
 			const preview = screen.getByText("Demo app preview").closest(".bg-preview, .bg-background");
 			expect(preview).toHaveClass("bg-background", "text-foreground");
 		} finally {
-			Object.defineProperty(window, "ao", { configurable: true, value: ao });
+			Object.defineProperty(window, "kennel", { configurable: true, value: kennel });
 		}
 	});
 

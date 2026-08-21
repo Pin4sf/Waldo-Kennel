@@ -17,7 +17,7 @@ func TestChatModeSpawnPrecedenceAndDefaultIsolation(t *testing.T) {
 	project := seedProject(t, d, "modes")
 
 	// The daemon owns the default, so a client that says nothing still gets a
-	// consistent answer — including `ao spawn` and mobile, which have no UI state.
+	// consistent answer — including `kennel spawn` and mobile, which have no UI state.
 	d.mustCall("PATCH", "/settings/session-interface", http.StatusOK,
 		map[string]any{"defaultSessionMode": "chat"}, nil)
 
@@ -28,7 +28,7 @@ func TestChatModeSpawnPrecedenceAndDefaultIsolation(t *testing.T) {
 		t.Fatalf("session spawned under a chat default has mode %q", fromDefault.Session.Mode)
 	}
 
-	// An explicit request outranks the default. This is the path `ao spawn --mode`
+	// An explicit request outranks the default. This is the path `kennel spawn --mode`
 	// uses, and it must not be silently normalized to the default.
 	explicitTUI := spawn(t, d, map[string]any{
 		"projectId": project, "kind": "worker", "harness": "codex", "mode": "tui",

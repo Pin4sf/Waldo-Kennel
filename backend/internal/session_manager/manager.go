@@ -132,37 +132,37 @@ var (
 
 // Env vars a spawned process reads to learn who it is. A worker that starts
 // its own Docker containers (a database, a queue, any ad-hoc service) should
-// label them `--label ao.session=$AO_SESSION_ID` so AO's container reaper
+// label them `--label kennel.session=$KENNEL_SESSION_ID` so AO's container reaper
 // (dockerreap) removes them on session kill/terminal state — see #2652. Add
-// `--label ao.spare=true` to a deliberately shared container that must
+// `--label kennel.spare=true` to a deliberately shared container that must
 // survive past this session.
 const (
-	EnvSessionID = "AO_SESSION_ID"
-	EnvProjectID = "AO_PROJECT_ID"
-	EnvIssueID   = "AO_ISSUE_ID"
+	EnvSessionID = "KENNEL_SESSION_ID"
+	EnvProjectID = "KENNEL_PROJECT_ID"
+	EnvIssueID   = "KENNEL_ISSUE_ID"
 	// EnvRuntimeLaunchID identifies the current supervised agent generation.
-	EnvRuntimeLaunchID = "AO_RUNTIME_LAUNCH_ID"
+	EnvRuntimeLaunchID = "KENNEL_RUNTIME_LAUNCH_ID"
 	// EnvSupervisedProcess tells terminal runtimes that the AO supervisor owns
 	// this launch. When it exits, tmux must park on a non-interpreting input sink
 	// instead of exposing its historical interactive-shell fallback.
-	EnvSupervisedProcess = "AO_SUPERVISED_PROCESS"
+	EnvSupervisedProcess = "KENNEL_SUPERVISED_PROCESS"
 	// EnvDataDir tells a spawned agent's AO hook commands where the store lives.
-	EnvDataDir = "AO_DATA_DIR"
+	EnvDataDir = "KENNEL_DATA_DIR"
 	// EnvBrowserCapability proves ownership of the session's browser target.
-	EnvBrowserCapability = "AO_BROWSER_CAPABILITY"
+	EnvBrowserCapability = "KENNEL_BROWSER_CAPABILITY"
 	// EnvBrowserRuntimeToken must never be inherited by a worker. It authenticates
 	// the privileged Electron runtime, not session-scoped browser callers.
-	EnvBrowserRuntimeToken = "AO_BROWSER_RUNTIME_TOKEN" //nolint:gosec // Environment variable name, not a credential.
+	EnvBrowserRuntimeToken = "KENNEL_BROWSER_RUNTIME_TOKEN" //nolint:gosec // Environment variable name, not a credential.
 	// EnvBrowserRuntimeTokenStdin is the daemon-only token handoff marker and
 	// must be cleared before a worker process is spawned.
-	EnvBrowserRuntimeTokenStdin = "AO_BROWSER_RUNTIME_TOKEN_STDIN" //nolint:gosec // Environment variable name, not a credential.
+	EnvBrowserRuntimeTokenStdin = "KENNEL_BROWSER_RUNTIME_TOKEN_STDIN" //nolint:gosec // Environment variable name, not a credential.
 )
 
 // hookBinaryName is the executable name the workspace hook commands invoke:
-// every agent adapter installs a bare `ao hooks <agent> <event>`. The session
-// PATH pin (hookPATH) only works when the daemon's own executable carries this
-// name, since prepending its directory must change what `ao` resolves to.
-const hookBinaryName = "ao"
+// every agent adapter installs a bare `kennel hooks <agent> <event>`. The session
+// PATH pin (HookPATH) only works when the daemon's own executable carries this
+// name, since prepending its directory must change what `kennel` resolves to.
+const hookBinaryName = "kennel"
 
 type lifecycleRecorder interface {
 	PrepareLaunch(id domain.SessionID, launchID string) error
@@ -507,7 +507,7 @@ type BrowserCapabilityIssuer interface {
 }
 
 // sendConfirmConfig bounds the best-effort activity-confirmation loop run after
-// Send. AO has no delivery ack: ao send returns 200 the moment tmux send-keys
+// Send. AO has no delivery ack: kennel send returns 200 the moment tmux send-keys
 // exits 0, and for a large multiline paste the single Enter may not submit the
 // prompt — so UserPromptSubmit never fires and the orchestrator cannot tell the
 // worker started. confirmActive observes the durable Activity.State (written by
@@ -559,7 +559,7 @@ type Deps struct {
 	Browser             BrowserLifecycle
 	BrowserCapabilities BrowserCapabilityIssuer
 	// DataDir owns durable attachment storage and is exported to spawned agents
-	// as AO_DATA_DIR so their hook commands can open the same store.
+	// as KENNEL_DATA_DIR so their hook commands can open the same store.
 	DataDir string
 	Clock   func() time.Time
 	// LookPath overrides exec.LookPath for the pre-launch agent-binary check.
@@ -633,7 +633,7 @@ func New(d Deps) *Manager {
 	if m.clock == nil {
 		// UTC so spawn-stamped CreatedAt/UpdatedAt match every other session
 		// write (rename, activity) — all of which use time.Now().UTC(). A local
-		// default produced mixed-timezone timestamps in `ao session get`.
+		// default produced mixed-timezone timestamps in `kennel session get`.
 		m.clock = func() time.Time { return time.Now().UTC() }
 	}
 	if m.backgroundContext == nil {
@@ -2579,7 +2579,7 @@ func (m *Manager) send(ctx context.Context, id domain.SessionID, message, client
 	// Chat mode has no pane to type into, so it does not go through the messenger
 	// at all. Without this branch the send reached the runtime guard and was
 	// refused as "missing runtime handles" — true of the handles, wrong about the
-	// session, and it left `ao send` and orchestrator-to-worker relay unable to
+	// session, and it left `kennel send` and orchestrator-to-worker relay unable to
 	// reach a chat worker.
 	if handled, err := m.sendChat(ctx, id, message, clientMessageID); handled {
 		return err
@@ -2659,15 +2659,15 @@ func copilotOrchestratorMessage(projectID domain.ProjectID, message string) stri
 	if project == "" {
 		project = "<project>"
 	}
-	return fmt.Sprintf(`AO ORCHESTRATOR DIRECTIVE
+	return fmt.Sprintf(`KENNEL ORCHESTRATOR DIRECTIVE
 
-You are acting as the AO orchestrator for project %s. Do not implement code changes, edit files, run implementation tests, or complete the user's task yourself.
+You are acting as the Kennel orchestrator for project %s. Do not implement code changes, edit files, run implementation tests, or complete the user's task yourself.
 
 Your next action for any implementation, fix, UI change, test, PR, or code-review task must be to spawn or redirect a worker session. Use:
 
-ao spawn --project %s --name "<label, max 20 chars>" --prompt "<clear worker task>"
+kennel spawn --project %s --name "<label, max 20 chars>" --prompt "<clear worker task>"
 
-If a suitable worker already exists, use ao send to redirect that worker instead. After spawning or redirecting, report the worker session id and stop. Do not do the worker's task in this orchestrator session.
+If a suitable worker already exists, use kennel send to redirect that worker instead. After spawning or redirecting, report the worker session id and stop. Do not do the worker's task in this orchestrator session.
 
 USER MESSAGE:
 %s`, project, project, message)
@@ -2978,11 +2978,11 @@ func defaultSessionBranch(id domain.SessionID, kind domain.SessionKind, prefix, 
 	// A fresh, unique branch per worker session: gitworktree can't add a worktree
 	// on a branch already checked out elsewhere (e.g. main). Put the root work
 	// branch under a session namespace so sibling PR branches such as
-	// ao/<session>/<topic> remain valid Git refs.
+	// kennel/<session>/<topic> remain valid Git refs.
 	return aoBranch(branchNamespace, string(id), "root")
 }
 
-// DefaultSpawnBranch returns AO's generated work branch for a spawn. Explicit
+// DefaultSpawnBranch returns Kennel's generated work branch for a spawn. Explicit
 // user-provided branches bypass this helper.
 func DefaultSpawnBranch(id domain.SessionID, kind domain.SessionKind, prefix string, projectKind domain.ProjectKind, dataDir string) string {
 	if projectKind == domain.ProjectKindScratch {
@@ -3002,7 +3002,7 @@ func DefaultOrchestratorBranch(prefix, dataDir string) string {
 }
 
 func aoBranch(namespace string, parts ...string) string {
-	all := []string{"ao"}
+	all := []string{"kennel"}
 	if namespace != "" {
 		all = append(all, namespace)
 	}
@@ -3025,7 +3025,7 @@ func isDefaultDevDataDir(dataDir string) bool {
 	if err != nil {
 		return false
 	}
-	want, err := filepath.Abs(filepath.Join(home, ".ao", "dev", "data"))
+	want, err := filepath.Abs(filepath.Join(home, ".kennel", "dev", "data"))
 	if err != nil {
 		return false
 	}
@@ -3211,7 +3211,7 @@ func (m *Manager) buildSystemPrompt(ctx context.Context, kind domain.SessionKind
 }
 
 // aoSkillPointer is appended to every agent system prompt. It points the agent
-// at the using-ao skill the daemon installs under the data dir, rather than
+// at the using-kennel skill the daemon installs under the data dir, rather than
 // inlining the whole CLI catalog. The path is absolute so it resolves from any
 // project's worktree, not just the AO repo (the only place a repo-relative
 // skills/ path would exist). The skill file carries exact flags and examples,
@@ -3226,9 +3226,9 @@ func (m *Manager) aoSkillPointer() string {
 		"When using `ao`, read `" + skillFile + "` and only the relevant file under `" + commandsGlob + "`; do not load unrelated command guides.\n\n" +
 		"## AO desktop Browser panel\n\n" +
 		"For frontend work, read `" + previewFile + "` before previewing or starting an app: open static HTML or Markdown directly; Never create or modify `package.json` or install dependencies solely to display static files. Do not create `.ao/launch.json` unless the user asks. Automatically open the primary requested browser-displayable artifact immediately after creating or materially updating it, but do not replace an active application preview with a supporting asset. " +
-		"For page inspection or interaction, read `" + browserFile + "` and use `ao browser` from this AO session. Browser network capture is optional and off by default; follow that guide and never enable it for routine browser actions. " +
+		"For page inspection or interaction, read `" + browserFile + "` and use `kennel browser` from this AO session. Browser network capture is optional and off by default; follow that guide and never enable it for routine browser actions. " +
 		"Do not use Codex/host in-app browser connectors, `agent.browsers.get(\"iab\")`, or a browser MCP for the AO Browser panel: those are separate browser runtimes and cannot see or control AO's session-owned page. " +
-		"`ao browser` operates the same live page the user sees in that panel."
+		"`kennel browser` operates the same live page the user sees in that panel."
 }
 
 func (m *Manager) workspaceProjectPrompt(ctx context.Context, kind domain.SessionKind, projectID domain.ProjectID) (string, error) {
@@ -3357,7 +3357,7 @@ func workspaceRepoList(repos []domain.WorkspaceRepoRecord) string {
 
 // spawnEnv builds the runtime environment: the per-project env vars first, then
 // the AO-internal vars last so they always win (a project cannot override
-// AO_SESSION_ID and friends).
+// KENNEL_SESSION_ID and friends).
 func spawnEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueID, dataDir string, projectEnv map[string]string) map[string]string {
 	env := make(map[string]string, len(projectEnv)+4)
 	for k, v := range projectEnv {
@@ -3371,9 +3371,9 @@ func spawnEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueI
 }
 
 // runtimeEnv is spawnEnv plus the hook PATH pin: the session's PATH puts the
-// running daemon's own directory first, so the bare `ao` in workspace hook
+// running daemon's own directory first, so the bare `kennel` in workspace hook
 // commands resolves to the daemon that installed them rather than whatever
-// `ao` is first on the inherited PATH (e.g. a legacy CLI without the hooks
+// `kennel` is first on the inherited PATH (e.g. a stale CLI without the hooks
 // command, which fails every callback and silently kills activity tracking).
 // When the pin cannot be applied the inherited PATH is kept and a warning is
 // logged so the degradation isn't silent.
@@ -3384,7 +3384,7 @@ func (m *Manager) runtimeEnv(id domain.SessionID, project domain.ProjectID, issu
 	env[EnvBrowserRuntimeTokenStdin] = ""
 	path, err := HookPATH(m.executable, os.Getenv, projectEnv)
 	if err != nil {
-		m.logger.Warn("session PATH not pinned to the daemon binary; `ao hooks` callbacks may resolve to a different ao and activity tracking will stall",
+		m.logger.Warn("session PATH not pinned to the daemon binary; `kennel hooks` callbacks may resolve to a different Kennel binary and activity tracking will stall",
 			"session", id, "error", err)
 		return env
 	}
@@ -3428,8 +3428,8 @@ func (m *Manager) persistBrowserCapabilityVerifier(ctx context.Context, rec doma
 // executable's directory prepended to the base PATH (the project's PATH
 // override when set, else the daemon's inherited PATH — matching what the
 // runtime would have exported anyway). An error means the pin cannot be
-// applied: the executable is unresolvable, or is not named "ao", in which case
-// prepending its directory would not change what `ao` resolves to. Exported so
+// applied: the executable is unresolvable, or is not named "kennel", in which case
+// prepending its directory would not change what `kennel` resolves to. Exported so
 // the reviewer launcher can pin its pane's PATH the same way.
 func HookPATH(executable func() (string, error), getenv func(string) string, projectEnv map[string]string) (string, error) {
 	exe, err := executable()
@@ -4128,7 +4128,7 @@ func (m *Manager) wrapAgentProcessWithLaunchID(agent ports.Agent, id domain.Sess
 	env[EnvSupervisedProcess] = "1"
 	executable, err := m.executable()
 	if err != nil {
-		return nil, fmt.Errorf("resolve AO executable: %w", err)
+		return nil, fmt.Errorf("resolve Kennel executable: %w", err)
 	}
 	wrapped := make([]string, 0, 8+len(argv))
 	wrapped = append(wrapped, executable, "agent-process", "supervise", "--session", string(id), "--launch", launchID, "--")

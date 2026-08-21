@@ -101,6 +101,7 @@ var shippedMigrations = map[int64]string{
 	95: "0095_allow_omp_harness.sql",
 	96: "0096_session_worktree_base_ref.sql",
 	97: "0097_pr_provider_identity.sql",
+	98: "0098_project_chat_assistant_projection.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they
@@ -173,7 +174,7 @@ func TestMigrationVersionLedger(t *testing.T) {
 // columns. Startup schema reconciliation must repair the physical schema so
 // the session list works instead of returning 500 INTERNAL_ERROR.
 func TestSessionListSucceedsOnBurnedMigrationHistory(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}

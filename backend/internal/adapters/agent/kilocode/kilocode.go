@@ -16,7 +16,7 @@
 //     instructions are delivered via the KILO_CONFIG_CONTENT env var, which Kilo
 //     deep-merges as the highest-precedence inline config.
 //
-// AO-managed sessions derive native session identity and display metadata from
+// Kennel-managed sessions derive native session identity and display metadata from
 // the Kilo plugin's reported events, mirroring the opencode and Codex adapters.
 package kilocode
 
@@ -36,7 +36,7 @@ import (
 
 const (
 	// adapterID is the registry id and the value users pass to
-	// `ao spawn --agent`. It matches domain.HarnessKilocode.
+	// `kennel spawn --agent`. It matches domain.HarnessKilocode.
 	adapterID = "kilocode"
 )
 

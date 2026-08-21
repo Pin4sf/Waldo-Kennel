@@ -22,12 +22,12 @@ const defaultReviewerInitialDelay = 500 * time.Millisecond
 const reviewerTaskMessagePrefix = "Read and follow the AO review task in `"
 
 // EnvRunFile points reviewer-local AO CLI calls at the live daemon run-file.
-const EnvRunFile = "AO_RUN_FILE"
+const EnvRunFile = "KENNEL_RUN_FILE"
 
 // EnvAOCommandWarning records why AO could not guarantee a reviewer-local `ao`
 // command. Review launch remains best-effort so provider reviews can still be
 // posted and later reconciled, but this makes the degraded path diagnosable.
-const EnvAOCommandWarning = "AO_REVIEW_AO_COMMAND_WARNING"
+const EnvAOCommandWarning = "KENNEL_REVIEW_KENNEL_COMMAND_WARNING"
 
 // Launcher spawns, re-notifies, and probes a reviewer over a worker's worktree.
 // It is the side of the engine that talks to the reviewer registry and runtime;
@@ -133,7 +133,7 @@ func WithAgentAuth(auth agentAuthResolver) LauncherOption {
 
 // WithExecutable overrides os.Executable for reviewer PATH pinning. Production
 // leaves this unset; tests use it to model the daemon binary that should make a
-// bare `ao review submit` available inside reviewer panes.
+// bare `kennel review submit` available inside reviewer panes.
 func WithExecutable(executable func() (string, error)) LauncherOption {
 	return func(l *agentLauncher) {
 		l.executable = executable
@@ -141,8 +141,8 @@ func WithExecutable(executable func() (string, error)) LauncherOption {
 }
 
 // WithRunFilePath pins reviewer-local AO CLI calls to this daemon's run-file.
-// This is intentionally separate from AO_DATA_DIR: the CLI discovers the live
-// daemon from AO_RUN_FILE, not from the durable data directory.
+// This is intentionally separate from KENNEL_DATA_DIR: the CLI discovers the live
+// daemon from KENNEL_RUN_FILE, not from the durable data directory.
 func WithRunFilePath(path string) LauncherOption {
 	return func(l *agentLauncher) {
 		l.runFile = path
@@ -523,9 +523,9 @@ func (l *agentLauncher) runtimeEnv(ctx context.Context, spec LaunchSpec, argv []
 		env[k] = v
 	}
 	delete(env, sessionmanager.EnvSessionID)
-	env["AO_REVIEW_SESSION_ID"] = spec.ReviewSessionID
-	env["AO_REVIEW_WORKER_SESSION_ID"] = string(spec.WorkerID)
-	env["AO_REVIEW_HARNESS"] = string(spec.Harness)
+	env["KENNEL_REVIEW_SESSION_ID"] = spec.ReviewSessionID
+	env["KENNEL_REVIEW_WORKER_SESSION_ID"] = string(spec.WorkerID)
+	env["KENNEL_REVIEW_HARNESS"] = string(spec.Harness)
 	env[sessionmanager.EnvProjectID] = string(spec.ProjectID)
 	env[sessionmanager.EnvDataDir] = l.dataDir
 	if strings.TrimSpace(l.runFile) != "" {
@@ -561,7 +561,7 @@ func (l *agentLauncher) ensureAOShimDir() (string, error) {
 	if err := os.MkdirAll(shimDir, 0o700); err != nil {
 		return "", fmt.Errorf("create reviewer AO shim directory: %w", err)
 	}
-	shimPath := filepath.Join(shimDir, "ao")
+	shimPath := filepath.Join(shimDir, "kennel")
 	if runtime.GOOS == "windows" {
 		shimPath += ".cmd"
 	}

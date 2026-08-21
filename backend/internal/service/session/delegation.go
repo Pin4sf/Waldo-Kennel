@@ -42,7 +42,7 @@ type DelegateTaskOutcome struct {
 	WorkerID       domain.SessionID
 }
 
-// DelegateTask spawns the worker directly, matching `ao spawn`, with a
+// DelegateTask spawns the worker directly, matching `kennel spawn`, with a
 // provisional display name derived from the task brief. AO then best-effort
 // refines that title in the background through the project orchestrator,
 // resuming or creating the coordinator when necessary.
@@ -253,7 +253,7 @@ func taskTitleDelegationMessage(workerID domain.SessionID, in DelegateTaskInput)
 	b.WriteString("AO TASK TITLE UPDATE\n")
 	b.WriteString("A worker was already spawned directly with the user's task. Do not spawn another worker or orchestrator, and do not implement the task in this orchestrator session.\n")
 	b.WriteString("Choose a concise task title from the brief and run:\n\n")
-	b.WriteString("ao session rename ")
+	b.WriteString("kennel session rename ")
 	b.WriteString(string(workerID))
 	b.WriteString(" \"<title, max 20 chars>\"\n\n")
 	b.WriteString("Worker session id: ")

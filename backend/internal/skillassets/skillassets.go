@@ -1,7 +1,7 @@
-// Package skillassets embeds the using-ao skill (the ao CLI catalog) and
-// installs it into the AO data dir at daemon boot. Worker sessions run in a
+// Package skillassets embeds the using-kennel skill (the ao CLI catalog) and
+// installs it into the Kennel data dir at daemon boot. Worker sessions run in a
 // worktree of whatever project they were spawned in, so a repo-relative
-// skills/ path only resolves when that project happens to be the AO repo
+// skills/ path only resolves when that project happens to be the Kennel repo
 // itself. Installing under the data dir gives every session, in any project, a
 // stable absolute path to read.
 //
@@ -25,11 +25,11 @@ import (
 	"embed"
 )
 
-//go:embed using-ao
+//go:embed using-kennel
 var files embed.FS
 
 // SkillName is the installed skill's directory name under <dataDir>/skills.
-const SkillName = "using-ao"
+const SkillName = "using-kennel"
 
 // Dir returns the absolute directory the skill installs into for a given data
 // dir. Callers building prompts use this so the path they cite always matches
@@ -38,18 +38,18 @@ func Dir(dataDir string) string {
 	return filepath.Join(dataDir, "skills", SkillName)
 }
 
-// Install writes the embedded using-ao skill into <dataDir>/skills/using-ao,
+// Install writes the embedded using-kennel skill into <dataDir>/skills/using-kennel,
 // replacing any existing copy. It runs once at daemon boot, before any session
 // spawns, so a plain clobber-and-write needs no locking: there are no
 // concurrent readers yet. A failure is returned but is non-fatal to boot (the
-// skill enhances `ao --help`, it is not load-bearing).
+// skill enhances `kennel --help`, it is not load-bearing).
 func Install(dataDir string) error {
 	return Materialize(Dir(dataDir))
 }
 
-// Materialize writes the embedded using-ao skill into destDir (the skill root
-// itself, e.g. <dataDir>/skills/using-ao or <workspace>/.opencode/skills/using-ao),
-// replacing any existing copy. Callers that need AO-ownership guards must apply
+// Materialize writes the embedded using-kennel skill into destDir (the skill root
+// itself, e.g. <dataDir>/skills/using-kennel or <workspace>/.opencode/skills/using-kennel),
+// replacing any existing copy. Callers that need Kennel-ownership guards must apply
 // them before calling Materialize.
 func Materialize(destDir string) error {
 	if strings.TrimSpace(destDir) == "" {
@@ -58,7 +58,7 @@ func Materialize(destDir string) error {
 	if err := os.RemoveAll(destDir); err != nil {
 		return fmt.Errorf("clear skill dir %q: %w", destDir, err)
 	}
-	// embed.FS always uses forward-slash paths rooted at "using-ao"; strip that
+	// embed.FS always uses forward-slash paths rooted at "using-kennel"; strip that
 	// prefix and map each entry onto destDir with the platform separator.
 	return fs.WalkDir(files, SkillName, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {

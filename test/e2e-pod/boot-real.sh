@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Runs INSIDE the Daytona pod for the stable-release e2e gate.
 #
-# The release .deb and this harness are uploaded by the runner (AO_DEB_PATH) —
+# The release .deb and this harness are uploaded by the runner (KENNEL_DEB_PATH) —
 # the pod holds NO secret and fetches NO application code (CodeRabbit lesson: a
 # compromised pod finds nothing to pivot to). It boots the real Electron app
 # headless, drives it with Playwright (_electron.launch against the app's own
-# electron), and emits a final `AO_VERDICT {json}` line the runner parses.
+# electron), and emits a final `KENNEL_VERDICT {json}` line the runner parses.
 #
-# Verdict contract (parsed by scripts/ao-e2e-pod-gate.mjs):
+# Verdict contract (parsed by scripts/kennel-e2e-pod-gate.mjs):
 #   {"passed":true}               -> app smoke passed         (green)
 #   {"passed":false}              -> app smoke FAILED          (red app_failed)
 #   {"passed":false,"infra":true} -> setup/toolchain problem   (neutral, NOT red)
@@ -29,15 +29,15 @@
 # TODO: bake xvfb/tmux/@playwright/test into the Daytona snapshot.
 set -o pipefail
 cd /home/daytona
-DEB="${AO_DEB_PATH:-/home/daytona/app.deb}"
-# Optional tag filter (e.g. AO_SUITE=T0 -> playwright --grep @T0). Empty = all.
-SUITE="${AO_SUITE:-}"
+DEB="${KENNEL_DEB_PATH:-/home/daytona/app.deb}"
+# Optional tag filter (e.g. KENNEL_SUITE=T0 -> playwright --grep @T0). Empty = all.
+SUITE="${KENNEL_SUITE:-}"
 
 # Emit an INFRA verdict and stop. Setup/toolchain problems are NOT the release
 # build's fault — the runner maps infra:true to a NEUTRAL gate result, never red.
 fail_infra() {
 	echo "== INFRA FAILURE ($1): $2 =="
-	echo "AO_VERDICT {\"passed\":false,\"infra\":true,\"stage\":\"$1\",\"reason\":\"$2\"}"
+	echo "KENNEL_VERDICT {\"passed\":false,\"infra\":true,\"stage\":\"$1\",\"reason\":\"$2\"}"
 	exit 0
 }
 
@@ -45,7 +45,7 @@ fail_infra() {
 # or ships no runnable binary) — a real release-build failure, mapped to RED.
 fail_app() {
 	echo "== APP FAILURE ($1): $2 =="
-	echo "AO_VERDICT {\"passed\":false,\"suite\":\"real-app-t0\",\"stage\":\"$1\",\"reason\":\"$2\"}"
+	echo "KENNEL_VERDICT {\"passed\":false,\"suite\":\"real-app-t0\",\"stage\":\"$1\",\"reason\":\"$2\"}"
 	exit 0
 }
 
@@ -126,7 +126,7 @@ echo "== real-app e2e under xvfb${SUITE:+ (suite @$SUITE)} =="
 # From here PW is the REAL app-test result: 0 = app passed, non-zero = app failed.
 # Setup is done and the package installed a runnable binary; only the app under
 # test decides pass/fail now.
-export AO_APP_BIN="$APP"
+export KENNEL_APP_BIN="$APP"
 xvfb-run -a npx playwright test -c playwright.electron.config.ts ${SUITE:+--grep "@$SUITE"} 2>&1
 PW=$?
 
@@ -136,7 +136,7 @@ PW=$?
 tar czf /home/daytona/artifacts.tgz -C /home/daytona test-results playwright-report 2>/dev/null || true
 
 if [ "$PW" = 0 ]; then
-	echo "AO_VERDICT {\"passed\":true,\"suite\":\"real-app-t0\"${SUITE:+,\"grep\":\"@$SUITE\"}}"
+	echo "KENNEL_VERDICT {\"passed\":true,\"suite\":\"real-app-t0\"${SUITE:+,\"grep\":\"@$SUITE\"}}"
 else
-	echo "AO_VERDICT {\"passed\":false,\"suite\":\"real-app-t0\",\"playwright_exit\":$PW}"
+	echo "KENNEL_VERDICT {\"passed\":false,\"suite\":\"real-app-t0\",\"playwright_exit\":$PW}"
 fi

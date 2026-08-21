@@ -103,7 +103,7 @@ export function ReportProblemDialog({ open, onOpenChange }: ReportProblemDialogP
 		}
 		// Reported here rather than on the settings row so any future entry point
 		// into this dialog is counted too.
-		void captureRendererEvent("ao.renderer.support_opened");
+		void captureRendererEvent("kennel.renderer.support_opened");
 		let active = true;
 		void collectReportProblemDiagnostics().then((nextDiagnostics) => {
 			if (active) setDiagnostics(nextDiagnostics);
@@ -140,11 +140,11 @@ export function ReportProblemDialog({ open, onOpenChange }: ReportProblemDialogP
 			// Only which destination was chosen. The summary, details, and the
 			// diagnostics block are the user's own words and machine state, and
 			// none of them may be reported.
-			void captureRendererEvent("ao.renderer.support_submitted", { destination: output, outcome: "succeeded" });
+			void captureRendererEvent("kennel.renderer.support_submitted", { destination: output, outcome: "succeeded" });
 		} catch (err) {
 			setCopyError(err instanceof Error ? err.message : t("report.copyFailed"));
 			setCopiedOutput(null);
-			void captureRendererEvent("ao.renderer.support_submitted", { destination: output, outcome: "failed" });
+			void captureRendererEvent("kennel.renderer.support_submitted", { destination: output, outcome: "failed" });
 		}
 	};
 

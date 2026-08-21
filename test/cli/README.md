@@ -41,7 +41,7 @@ docker run --rm --init ao-cli-smoke
 
 `TestE2E_VersionAndHelp` (version/`--version`/help, daemon hidden) ·
 `TestE2E_DoctorDoesNotTouchTheStore` (doctor text + `--json`; proves it does
-**not** create/migrate `ao.db`) · `TestE2E_StatusStopped` (stopped + idempotent
+**not** create/migrate `kennel.db`) · `TestE2E_StatusStopped` (stopped + idempotent
 stop) · `TestE2E_Lifecycle` (start, ready, idempotent, daemon-created store,
 `/healthz` identity, stop, run-file cleanup) · `TestE2E_ShutdownGuard` (the
 `/shutdown` CSRF + DNS-rebinding 403 guard, daemon survives) ·
@@ -65,5 +65,5 @@ detach path and per-OS config-dir resolution. The container stays as a thin
   `postShutdown` helpers.
 - **Add an OS:** extend the `matrix.os` list in `.github/workflows/cli-e2e.yml`.
 - Deeper per-OS path assertions (state resolves under the OS-native config dir
-  when `AO_RUN_FILE`/`AO_DATA_DIR` are unset) fit best as unit tests in
+  when `KENNEL_RUN_FILE`/`KENNEL_DATA_DIR` are unset) fit best as unit tests in
   `internal/config`.

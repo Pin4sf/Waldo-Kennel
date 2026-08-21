@@ -506,9 +506,9 @@ func TestSubmitReportsReviewOutcome(t *testing.T) {
 		t.Fatalf("Submit: %v", err)
 	}
 
-	got := sink.named("ao.review.submitted")
+	got := sink.named("kennel.review.submitted")
 	if len(got) != 1 {
-		t.Fatalf("ao.review.submitted count = %d, want 1", len(got))
+		t.Fatalf("kennel.review.submitted count = %d, want 1", len(got))
 	}
 	p := got[0].Payload
 	if p["verdict"] != string(domain.VerdictChangesRequested) {
@@ -565,7 +565,7 @@ func TestSubmitNeverReportsReviewProseOrRepoIdentifiers(t *testing.T) {
 			t.Fatalf("payload carries a body key: %#v", ev.Payload)
 		}
 	}
-	if p := sink.named("ao.review.submitted")[0].Payload; p["posted_to_provider"] != false {
+	if p := sink.named("kennel.review.submitted")[0].Payload; p["posted_to_provider"] != false {
 		t.Fatalf("posted_to_provider = %#v, want false when nothing was posted", p["posted_to_provider"])
 	}
 }
@@ -589,8 +589,8 @@ func TestResubmitDoesNotDoubleReport(t *testing.T) {
 			t.Fatalf("Submit %d: %v", i, err)
 		}
 	}
-	if got := len(sink.named("ao.review.submitted")); got != 1 {
-		t.Fatalf("ao.review.submitted count = %d, want 1 across three submits", got)
+	if got := len(sink.named("kennel.review.submitted")); got != 1 {
+		t.Fatalf("kennel.review.submitted count = %d, want 1 across three submits", got)
 	}
 }
 

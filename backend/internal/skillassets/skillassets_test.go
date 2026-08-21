@@ -10,7 +10,7 @@ import (
 )
 
 func TestEmbeddedSkillFrontmatterIsValidYAML(t *testing.T) {
-	body, err := files.ReadFile("using-ao/SKILL.md")
+	body, err := files.ReadFile("using-kennel/SKILL.md")
 	if err != nil {
 		t.Fatalf("read embedded SKILL.md: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestEmbeddedSkillFrontmatterIsValidYAML(t *testing.T) {
 }
 
 func TestEmbeddedPreviewGuidanceDoesNotScaffoldStaticSites(t *testing.T) {
-	previewBody, err := files.ReadFile("using-ao/commands/preview.md")
+	previewBody, err := files.ReadFile("using-kennel/commands/preview.md")
 	if err != nil {
 		t.Fatalf("read embedded preview guidance: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestEmbeddedPreviewGuidanceDoesNotScaffoldStaticSites(t *testing.T) {
 		}
 	}
 
-	skillBody, err := files.ReadFile("using-ao/SKILL.md")
+	skillBody, err := files.ReadFile("using-kennel/SKILL.md")
 	if err != nil {
 		t.Fatalf("read embedded SKILL.md: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestEmbeddedPreviewGuidanceDoesNotScaffoldStaticSites(t *testing.T) {
 }
 
 func TestEmbeddedBrowserGuidanceKeepsNetworkCaptureOptional(t *testing.T) {
-	body, err := files.ReadFile("using-ao/commands/browser.md")
+	body, err := files.ReadFile("using-kennel/commands/browser.md")
 	if err != nil {
 		t.Fatalf("read embedded browser guidance: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestEmbeddedBrowserGuidanceKeepsNetworkCaptureOptional(t *testing.T) {
 }
 
 // TestInstall_WritesSkillAndIsIdempotent: Install must lay down the embedded
-// skill (SKILL.md plus a commands file) under <dataDir>/skills/using-ao, and a
+// skill (SKILL.md plus a commands file) under <dataDir>/skills/using-kennel, and a
 // second run must clobber cleanly, leaving no stale files. This is the whole
 // contract the daemon boot hook relies on.
 func TestInstall_WritesSkillAndIsIdempotent(t *testing.T) {
@@ -131,7 +131,7 @@ func TestInstall_WritesSkillAndIsIdempotent(t *testing.T) {
 }
 
 // TestMaterialize_WritesIntoArbitraryDest covers the opencode adapter path:
-// materialize the skill into .opencode/skills/using-ao (not the data-dir layout).
+// materialize the skill into .opencode/skills/using-kennel (not the data-dir layout).
 func TestMaterialize_WritesIntoArbitraryDest(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), ".opencode", "skills", SkillName)
 	if err := Materialize(dest); err != nil {

@@ -59,7 +59,7 @@ func Open(dataDir string) (*Store, error) {
 	if err := os.MkdirAll(dataDir, 0o750); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
-	dsn := "file:" + filepath.Join(dataDir, "ao.db") + pragmas
+	dsn := "file:" + filepath.Join(dataDir, "kennel.db") + pragmas
 
 	writeDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -86,7 +86,7 @@ func Open(dataDir string) (*Store, error) {
 // OpenReadOnly opens an existing SQLite database under dataDir without creating
 // the directory, opening a writable connection, or running migrations.
 func OpenReadOnly(ctx context.Context, dataDir string) (*Store, error) {
-	dsn := "file:" + filepath.Join(dataDir, "ao.db") + readOnlyPragmas
+	dsn := "file:" + filepath.Join(dataDir, "kennel.db") + readOnlyPragmas
 
 	writeDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -159,7 +159,74 @@ func migrate(db *sql.DB) error {
 	if err := goose.Up(db, "migrations", goose.WithAllowMissing()); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
+	if err := reconcileProjectChatProjection(db); err != nil {
+		return fmt.Errorf("reconcile project chat projection: %w", err)
+	}
 	return reconcileSchema(db)
+}
+
+// reconcileProjectChatProjection repairs the one known cross-repository Goose
+// version collision. Kennel merged its project-chat projection as 0098 before
+// AO assigned the same number to session_native_identity_generation. An
+// AO-derived database can therefore legitimately contain version 98 without
+// these triggers, causing Goose to skip Kennel's file. The physical trigger
+// seam is unambiguous and CREATE TRIGGER IF NOT EXISTS is idempotent, so startup
+// reconciles the missing behavior without rewriting either shipped ledger.
+func reconcileProjectChatProjection(db *sql.DB) error {
+	for table, columns := range map[string][]string{
+		"sessions":              {"latest_assistant_update", "session_mode"},
+		"conversations":         {"current_session_id"},
+		"conversation_messages": {"role", "streaming", "text", "updated_at"},
+	} {
+		for _, column := range columns {
+			var present int
+			if err := db.QueryRow(
+				`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`, table, column,
+			).Scan(&present); err != nil {
+				return err
+			}
+			if present == 0 {
+				return fmt.Errorf("required column %s.%s is missing", table, column)
+			}
+		}
+	}
+
+	_, err := db.Exec(`
+CREATE TRIGGER IF NOT EXISTS conversation_assistant_insert_session_projection
+AFTER INSERT ON conversation_messages
+WHEN NEW.role = 'assistant' AND NEW.streaming = 0
+BEGIN
+    UPDATE sessions
+    SET latest_assistant_update = NEW.text,
+        updated_at = CASE WHEN updated_at < NEW.updated_at THEN NEW.updated_at ELSE updated_at END
+    WHERE id = (
+        SELECT current_session_id
+        FROM conversations
+        WHERE id = NEW.conversation_id
+    )
+      AND session_mode = 'chat'
+      AND is_terminated = 0;
+END;
+
+CREATE TRIGGER IF NOT EXISTS conversation_assistant_settle_session_projection
+AFTER UPDATE OF text, streaming ON conversation_messages
+WHEN NEW.role = 'assistant'
+ AND NEW.streaming = 0
+ AND (OLD.streaming <> 0 OR OLD.text <> NEW.text)
+BEGIN
+    UPDATE sessions
+    SET latest_assistant_update = NEW.text,
+        updated_at = CASE WHEN updated_at < NEW.updated_at THEN NEW.updated_at ELSE updated_at END
+    WHERE id = (
+        SELECT current_session_id
+        FROM conversations
+        WHERE id = NEW.conversation_id
+    )
+      AND session_mode = 'chat'
+      AND is_terminated = 0;
+END;
+`)
+	return err
 }
 
 // prepareAutoInjectReviewMigration preserves development databases whose

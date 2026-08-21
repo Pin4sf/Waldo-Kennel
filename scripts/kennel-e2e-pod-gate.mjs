@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // Stable-release e2e pod gate runner.
 //
-//   node scripts/ao-e2e-pod-gate.mjs --repo <owner/repo> --sha <sha> --tag <release-tag> --suite T0
+//   node scripts/kennel-e2e-pod-gate.mjs --repo <owner/repo> --sha <sha> --tag <release-tag> --suite T0
 //   - Downloads the release's Linux .deb on the runner (public asset, no token),
 //     spins an ephemeral Daytona pod (env DAYTONA_API_KEY, used only to CREATE
 //     the pod — never passed into it), uploads the build + harness, and runs the
 //     real-app T0 Playwright suite inside the pod. The pod holds no secret and
 //     needs no egress.
-//   - Prints a final line: AO_VERDICT {"passed":true|false,...}
+//   - Prints a final line: KENNEL_VERDICT {"passed":true|false,...}
 //   - Exits 0 on green, non-zero on red.
 //
 // Wired by .github/workflows/frontend-release.yml `e2e-gate` (currently ADVISORY:
@@ -103,7 +103,7 @@ export function deriveGateOutcome({ ranOk, testsPassed, timedOut = false, artifa
 }
 
 /**
- * Parse the pod's final AO_VERDICT line into { passed, infra }.
+ * Parse the pod's final KENNEL_VERDICT line into { passed, infra }.
  *
  * The pod (test/e2e-pod/boot-real.sh) distinguishes setup/toolchain failures
  * (apt/npm/dpkg) from the real app-test result:
@@ -113,7 +113,7 @@ export function deriveGateOutcome({ ranOk, testsPassed, timedOut = false, artifa
  * A missing or unparseable verdict means the pod never produced a result at all,
  * which is itself infra (the suite could not run), never an app failure.
  *
- * The pod may emit more than one AO_VERDICT line (e.g. a retry, or a later
+ * The pod may emit more than one KENNEL_VERDICT line (e.g. a retry, or a later
  * stage that overrides an earlier optimistic result). The FINAL line is the
  * authoritative one — the pod's last word on the run — so we select the LAST
  * match, never the first, otherwise a stale passing line could mask a later
@@ -123,7 +123,7 @@ export function deriveGateOutcome({ ranOk, testsPassed, timedOut = false, artifa
  * @returns {{passed:boolean, infra:boolean}}
  */
 export function parsePodVerdict(out) {
-	const matches = [...(out ?? "").matchAll(/^.*AO_VERDICT (\{.*\})\s*$/gm)];
+	const matches = [...(out ?? "").matchAll(/^.*KENNEL_VERDICT (\{.*\})\s*$/gm)];
 	if (matches.length === 0) return { passed: false, infra: true };
 	const last = matches[matches.length - 1];
 	let v;
@@ -146,7 +146,7 @@ export function validateGateArgs({ apiKey, repo, tag } = {}) {
 	if (!repo) missing.push("--repo");
 	if (!tag) missing.push("--tag");
 	if (missing.length > 0) {
-		throw new Error(`ao-e2e-pod-gate: missing required input(s): ${missing.join(", ")}`);
+		throw new Error(`kennel-e2e-pod-gate: missing required input(s): ${missing.join(", ")}`);
 	}
 }
 
@@ -183,14 +183,14 @@ async function runPodSuite({ repo, tag, apiKey, suite, artifactsDir, timeoutMs =
 
 		const { Daytona } = await import("@daytona/sdk");
 		const daytona = new Daytona({ apiKey });
-		sandbox = await daytona.create({ snapshot: process.env.AO_DAYTONA_SNAPSHOT || "daytona-small" });
+		sandbox = await daytona.create({ snapshot: process.env.KENNEL_DAYTONA_SNAPSHOT || "daytona-small" });
 		await sandbox.fs.uploadFile(deb, "/home/daytona/app.deb");
 		for (const f of ["playwright.electron.config.ts", "real-app.spec.ts", "boot-real.sh"]) {
 			await sandbox.fs.uploadFile(await readFile(join(podDir, f)), `/home/daytona/${f}`);
 		}
-		const suiteEnv = suite ? `AO_SUITE=${suite} ` : "";
+		const suiteEnv = suite ? `KENNEL_SUITE=${suite} ` : "";
 		const r = await sandbox.process.executeCommand(
-			`AO_DEB_PATH=/home/daytona/app.deb ${suiteEnv}bash /home/daytona/boot-real.sh`,
+			`KENNEL_DEB_PATH=/home/daytona/app.deb ${suiteEnv}bash /home/daytona/boot-real.sh`,
 			"/home/daytona",
 			undefined,
 			Math.floor(timeoutMs / 1000),
@@ -216,7 +216,7 @@ async function runPodSuite({ repo, tag, apiKey, suite, artifactsDir, timeoutMs =
 	} catch (err) {
 		// Record WHY the log is short so the always-uploaded pod.log is never a
 		// silent empty file on an infra/exception path.
-		if (!podLog) podLog = `ao-e2e-pod-gate: run failed before the pod produced output: ${err.message}\n`;
+		if (!podLog) podLog = `kennel-e2e-pod-gate: run failed before the pod produced output: ${err.message}\n`;
 		throw err;
 	} finally {
 		// ALWAYS write the pod log — on green, red, infra, or exception — so the
@@ -235,14 +235,14 @@ async function runPodSuite({ repo, tag, apiKey, suite, artifactsDir, timeoutMs =
 
 async function main(argv) {
 	const args = parseArgs(argv.slice(2));
-	console.log("ao-e2e-pod-gate");
+	console.log("kennel-e2e-pod-gate");
 	console.log(`  repo=${args.repo ?? "(unset)"} tag=${args.tag ?? "(unset)"} suite=${args.suite ?? "T0"}`);
 	console.log(`  DAYTONA_API_KEY: ${process.env.DAYTONA_API_KEY ? "present" : "absent"}`);
 
 	// Where downloaded pod artifacts land (the workflow uploads this dir); the
 	// check links to the workflow run, where that upload is attached.
 	const artifactsDir =
-		process.env.AO_ARTIFACTS_DIR || join(dirname(fileURLToPath(import.meta.url)), "..", "e2e-artifacts");
+		process.env.KENNEL_ARTIFACTS_DIR || join(dirname(fileURLToPath(import.meta.url)), "..", "e2e-artifacts");
 	const runUrl =
 		process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
 			? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
@@ -266,13 +266,13 @@ async function main(argv) {
 			artifactsUrl: runUrl,
 		});
 	} catch (err) {
-		console.error(`ao-e2e-pod-gate: run failed: ${err.message}`);
+		console.error(`kennel-e2e-pod-gate: run failed: ${err.message}`);
 		// Guarantee a pod.log exists even when the run threw before the pod could
 		// produce one (e.g. missing DAYTONA_API_KEY, or a throw before runPodSuite's
 		// own finally): the artifact upload must never find an empty dir silently.
 		try {
 			mkdirSync(artifactsDir, { recursive: true });
-			writeFileSync(join(artifactsDir, "pod.log"), `ao-e2e-pod-gate: run failed (infra/setup): ${err.message}\n`, {
+			writeFileSync(join(artifactsDir, "pod.log"), `kennel-e2e-pod-gate: run failed (infra/setup): ${err.message}\n`, {
 				flag: "wx",
 			});
 		} catch {
@@ -288,7 +288,7 @@ async function main(argv) {
 		summary: outcome.description,
 		...(outcome.artifactsUrl ? { artifactsUrl: outcome.artifactsUrl } : {}),
 	};
-	console.log(`AO_VERDICT ${JSON.stringify(verdict)}`);
+	console.log(`KENNEL_VERDICT ${JSON.stringify(verdict)}`);
 	// Hand the classification to the CI job deterministically so it maps to a
 	// check-run conclusion (success/failure/neutral) without re-parsing stdout.
 	if (process.env.GITHUB_OUTPUT) {

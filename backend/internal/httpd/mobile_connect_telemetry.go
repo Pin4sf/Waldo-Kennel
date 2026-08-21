@@ -18,7 +18,7 @@ import (
 //
 // Everything the renderer can see stops at intent — the modal was opened, the
 // bridge was switched on. Both happen whether or not anyone ever scans the QR.
-const mobileDeviceConnectedEvent = "ao.mobile.device_connected"
+const mobileDeviceConnectedEvent = "kennel.mobile.device_connected"
 
 // connectedReportWindow is why this type exists rather than an Emit call inside
 // authMiddleware. Every request from a paired phone passes that middleware,

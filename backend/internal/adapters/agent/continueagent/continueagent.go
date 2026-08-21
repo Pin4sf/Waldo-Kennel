@@ -11,7 +11,7 @@
 // PreToolUse, PostToolUse, Stop, Notification) with the standard hook payload
 // (session_id, hook_event_name, hookSpecificOutput, permissionDecision,
 // additionalContext). So we reuse the claudecode hook installer and route hook
-// callbacks through the existing "ao hooks claude-code <evt>" dispatcher — no
+// callbacks through the existing "kennel hooks claude-code <evt>" dispatcher — no
 // Continue-specific native hook config or activity deriver is needed.
 //
 // Launch is interactive via `cn [--auto|--readonly] [--rule <rule>] [-- <prompt>]`.
@@ -123,7 +123,7 @@ func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, cfg ports.Launch
 // GetAgentHooks reuses the Claude Code hook installer because the Continue CLI
 // natively reads Claude Code hook settings.
 //
-// The installed commands are "ao hooks claude-code <evt>", so the existing CLI
+// The installed commands are "kennel hooks claude-code <evt>", so the existing CLI
 // hook dispatcher routes them to the claude derive logic. The Continue CLI reads
 // .claude/settings.local.json from the worktree and fires Claude-format events
 // (SessionStart / UserPromptSubmit / Stop / Notification), giving AO

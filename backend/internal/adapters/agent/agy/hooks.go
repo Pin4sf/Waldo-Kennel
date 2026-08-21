@@ -17,7 +17,7 @@ const (
 	agyHooksDirName  = ".gemini"
 	agyHooksFileName = "hooks.json"
 
-	agyHookCommandPrefix = "ao hooks agy "
+	agyHookCommandPrefix = "kennel hooks agy "
 )
 
 type agyHookFile struct {

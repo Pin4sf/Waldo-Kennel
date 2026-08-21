@@ -68,7 +68,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 		return ports.ReviewCommandSpec{}, err
 	}
 	envVars := env.TUIEnvironment()
-	envVars["AO_DATA_DIR"] = env.DataDir
+	envVars["KENNEL_DATA_DIR"] = env.DataDir
 	envVars["CONTINUE_CLI_ENABLE_TELEMETRY"] = "0"
 	if key := strings.TrimSpace(os.Getenv("CONTINUE_API_KEY")); key != "" {
 		envVars["CONTINUE_API_KEY"] = key

@@ -15,7 +15,7 @@ vi.mock("electron", () => ({
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Build a mock GitHub releases API response entry. */
-const DEFAULT_MARKER = '<!-- ao-feature-build: {"pr":2270,"base":"main","sha":"abc1234","slug":"pr2270"} -->';
+const DEFAULT_MARKER = '<!-- kennel-feature-build: {"pr":2270,"base":"main","sha":"abc1234","slug":"pr2270"} -->';
 
 function makeRelease(
 	overrides: {
@@ -138,7 +138,7 @@ describe("listFeatureBuilds", () => {
 	});
 
 	it("excludes releases with a malformed marker JSON", async () => {
-		stubFetch([makeRelease({ body: "<!-- ao-feature-build: {bad json} -->" })]);
+		stubFetch([makeRelease({ body: "<!-- kennel-feature-build: {bad json} -->" })]);
 		const result = await listFeatureBuilds();
 		expect(result).toEqual([]);
 	});
@@ -249,19 +249,19 @@ describe("listFeatureBuilds", () => {
 					tag_name: "v0.2.0-pr2271.202607040000",
 					name: "pr2271 build",
 					published_at: t1,
-					body: '<!-- ao-feature-build: {"pr":2271,"base":"main","sha":"def5678","slug":"pr2271"} -->',
+					body: '<!-- kennel-feature-build: {"pr":2271,"base":"main","sha":"def5678","slug":"pr2271"} -->',
 				}),
 				makeRelease({
 					tag_name: "v0.2.0-pr2272.202607060000",
 					name: "pr2272 build",
 					published_at: t2,
-					body: '<!-- ao-feature-build: {"pr":2272,"base":"main","sha":"ghi9012","slug":"pr2272"} -->',
+					body: '<!-- kennel-feature-build: {"pr":2272,"base":"main","sha":"ghi9012","slug":"pr2272"} -->',
 				}),
 				makeRelease({
 					tag_name: "v0.2.0-pr2270.202607050000",
 					name: "pr2270 build",
 					published_at: t3,
-					body: '<!-- ao-feature-build: {"pr":2270,"base":"main","sha":"abc1234","slug":"pr2270"} -->',
+					body: '<!-- kennel-feature-build: {"pr":2270,"base":"main","sha":"abc1234","slug":"pr2270"} -->',
 				}),
 			],
 			{ 2271: { state: "open" }, 2272: { state: "open" }, 2270: { state: "open" } },
@@ -342,7 +342,7 @@ describe("reconcileFeaturePin", () => {
 			[
 				makeRelease({
 					tag_name: "v0.2.0-pr999.202607061200",
-					body: '<!-- ao-feature-build: {"pr":999,"base":"main","sha":"x","slug":"y"} -->',
+					body: '<!-- kennel-feature-build: {"pr":999,"base":"main","sha":"x","slug":"y"} -->',
 				}),
 			],
 			{ 999: { state: "open" } },

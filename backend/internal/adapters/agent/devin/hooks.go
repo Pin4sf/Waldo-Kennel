@@ -10,7 +10,7 @@ import (
 const (
 	devinConfigDirName     = ".devin"
 	devinConfigFileName    = "config.local.json"
-	devinHookCommandPrefix = "ao hooks devin "
+	devinHookCommandPrefix = "kennel hooks devin "
 	devinHookTimeout       = 30
 )
 

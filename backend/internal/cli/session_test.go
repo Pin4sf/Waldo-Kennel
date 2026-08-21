@@ -144,7 +144,7 @@ func TestSessionList_ProjectFilterAndDefaultFiltering(t *testing.T) {
 	if !strings.Contains(out, "1 terminated session hidden") {
 		t.Fatalf("hidden terminated hint missing:\n%s", out)
 	}
-	if !strings.Contains(out, "2 orchestrator sessions hidden. Use --all or `ao orchestrator ls` to show.") {
+	if !strings.Contains(out, "2 orchestrator sessions hidden. Use --all or `kennel orchestrator ls` to show.") {
 		t.Fatalf("hidden orchestrator hint missing:\n%s", out)
 	}
 	want := []string{
@@ -179,7 +179,7 @@ func TestSessionList_HintsWhenOnlyTerminatedOrchestratorIsHidden(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session ls failed: %v\nstderr=%s", err, errOut)
 	}
-	if !strings.Contains(out, "1 orchestrator session hidden. Use --all or `ao orchestrator ls` to show.") {
+	if !strings.Contains(out, "1 orchestrator session hidden. Use --all or `kennel orchestrator ls` to show.") {
 		t.Fatalf("terminated orchestrator hint missing:\n%s", out)
 	}
 	if strings.Contains(out, "terminated session hidden") {
@@ -573,14 +573,14 @@ func TestSessionClaimPR_ProjectScopeMismatchIsUsage(t *testing.T) {
 }
 
 func TestSessionClaimPR_UsesCurrentSessionFromEnv(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "demo-1")
+	t.Setenv("KENNEL_SESSION_ID", "demo-1")
 	cfg := setConfigEnv(t)
 	srv, log := sessionCommandServer(t)
 	writeRunFileFor(t, cfg, srv)
 
 	out, errOut, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "session", "claim-pr", "142")
 	if err != nil {
-		t.Fatalf("claim-pr with AO_SESSION_ID failed: %v stderr=%s", err, errOut)
+		t.Fatalf("claim-pr with KENNEL_SESSION_ID failed: %v stderr=%s", err, errOut)
 	}
 	if !strings.Contains(out, "claimed PR #142") {
 		t.Fatalf("unexpected output: %s", out)
@@ -596,14 +596,14 @@ func TestSessionClaimPR_UsesCurrentSessionFromEnv(t *testing.T) {
 }
 
 func TestSessionClaimPR_OneArgRequiresCurrentSessionEnv(t *testing.T) {
-	t.Setenv("AO_SESSION_ID", "")
+	t.Setenv("KENNEL_SESSION_ID", "")
 	setConfigEnv(t)
 
 	_, _, err := executeCLI(t, Deps{}, "session", "claim-pr", "142")
 	if err == nil || ExitCode(err) != 2 {
 		t.Fatalf("err=%v exit=%d, want usage error", err, ExitCode(err))
 	}
-	if !strings.Contains(err.Error(), "pass <session-id> or set AO_SESSION_ID") {
+	if !strings.Contains(err.Error(), "pass <session-id> or set KENNEL_SESSION_ID") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -615,9 +615,9 @@ func TestSessionClaimPR_HelpDocumentsCurrentSessionShorthand(t *testing.T) {
 	}
 	for _, want := range []string{
 		"claim-pr [<session-id>] <pr-ref>",
-		"current session is read from AO_SESSION_ID",
-		"ao session claim-pr 88",
-		"ao session claim-pr mer-3 88",
+		"current session is read from KENNEL_SESSION_ID",
+		"kennel session claim-pr 88",
+		"kennel session claim-pr mer-3 88",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("help missing %q:\n%s", want, out)

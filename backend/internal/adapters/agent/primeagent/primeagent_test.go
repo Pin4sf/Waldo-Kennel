@@ -54,7 +54,7 @@ func TestGetLaunchCommandOrdersFlagsAndProtectsPrompt(t *testing.T) {
 	want := []string{
 		"/bin/prime-agent",
 		"--no-session",
-		"--extension", filepath.Join(dataDir, "agent-runtime", "prime-agent", "ao-activity.ts"),
+		"--extension", filepath.Join(dataDir, "agent-runtime", "prime-agent", "kennel-activity.ts"),
 		"--append-system-prompt", "follow repository rules",
 		"--model", "prime/model",
 		"--", "--delete-nothing",
@@ -76,7 +76,7 @@ func TestGetLaunchCommandOmitsBlankOptionalArguments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"prime-agent", "--no-session", "--extension", filepath.Join(dataDir, "agent-runtime", "prime-agent", "ao-activity.ts")}
+	want := []string{"prime-agent", "--no-session", "--extension", filepath.Join(dataDir, "agent-runtime", "prime-agent", "kennel-activity.ts")}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("command = %#v, want %#v", cmd, want)
 	}

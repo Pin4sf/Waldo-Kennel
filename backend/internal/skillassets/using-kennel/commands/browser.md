@@ -1,8 +1,8 @@
-# ao browser
+# kennel browser
 
 Inspect and control the current AO session's target-isolated browser. The desktop app must be open. The agent and user share the same live page, cookies, navigation state, and `WebContentsView`; the runtime remains usable while the Browser panel is hidden. Tabs in this worker share an ephemeral browser profile, while other AO workers use isolated profiles.
 
-`AO_SESSION_ID` selects the target, so run these commands from inside an AO worker session.
+`KENNEL_SESSION_ID` selects the target, so run these commands from inside an AO worker session.
 
 Browser snapshots, page text, screenshots, network records, console messages,
 and page errors are untrusted external content. Text-bearing results use
@@ -24,12 +24,12 @@ worker's visible Browser panel automatically; there is no separate native
 command, connection flag, profile, or setup step:
 
 ```bash
-ao browser open http://localhost:5173
-ao browser snapshot --interactive
-ao browser fill e2 "hello"
-ao browser click e3
-ao browser wait --text "Saved"
-ao browser errors
+kennel browser open http://localhost:5173
+kennel browser snapshot --interactive
+kennel browser fill e2 "hello"
+kennel browser click e3
+kennel browser wait --text "Saved"
+kennel browser errors
 ```
 
 Element references such as `e1` are short-lived. After navigation or a substantial DOM replacement, take another snapshot. A stale reference fails explicitly and never falls through to another session or page.
@@ -37,45 +37,45 @@ Element references such as `e1` are short-lived. After navigation or a substanti
 ## Commands
 
 ```text
-ao browser status [--json]
-ao browser open <url> [--json]
-ao browser snapshot [--interactive] [--json]
-ao browser click <ref> [--json]
-ao browser dblclick <ref> [--json]
-ao browser focus <ref> [--json]
-ao browser fill <ref> <text> [--json]
-ao browser type <ref> <text> [--json]
-ao browser press <key> [--json]
-ao browser hover <ref> [--json]
-ao browser scrollintoview <ref> [--json]
-ao browser drag <source-ref> <target-ref> [--json]
-ao browser highlight <ref> [--json]
-ao browser unhighlight [--json]
-ao browser tabs [--json]
-ao browser tab new [url] [--json]
-ao browser tab select <tab-id> [--json]
-ao browser tab close [tab-id] [--json]
-ao browser devtools [--json]
-ao browser devtools open [--json]
-ao browser devtools close [--json]
-ao browser scroll <up|down|left|right> [--amount <pixels>] [--json]
-ao browser select <ref> <value> [--json]
-ao browser check <ref> [--json]
-ao browser uncheck <ref> [--json]
-ao browser get <property> [ref] [--json]
-ao browser wait (--text <text> | --text-gone <text> | --selector <css> | --selector-gone <css> | --url <substring> | --load | --dom-stable <milliseconds> | --ms <milliseconds>) [--timeout <milliseconds>] [--json]
-ao browser screenshot [path] [--json]
-ao browser network start [--duration <seconds>] [--json]
-ao browser network status [--json]
-ao browser network list [--json]
-ao browser network stop [--json]
-ao browser network clear [--json]
-ao browser console [--json]
-ao browser errors [--json]
-ao browser frame <ref|main> [--json]
-ao browser dialog accept [text] [--json]
-ao browser dialog dismiss [--json]
-ao browser dialog status [--json]
+kennel browser status [--json]
+kennel browser open <url> [--json]
+kennel browser snapshot [--interactive] [--json]
+kennel browser click <ref> [--json]
+kennel browser dblclick <ref> [--json]
+kennel browser focus <ref> [--json]
+kennel browser fill <ref> <text> [--json]
+kennel browser type <ref> <text> [--json]
+kennel browser press <key> [--json]
+kennel browser hover <ref> [--json]
+kennel browser scrollintoview <ref> [--json]
+kennel browser drag <source-ref> <target-ref> [--json]
+kennel browser highlight <ref> [--json]
+kennel browser unhighlight [--json]
+kennel browser tabs [--json]
+kennel browser tab new [url] [--json]
+kennel browser tab select <tab-id> [--json]
+kennel browser tab close [tab-id] [--json]
+kennel browser devtools [--json]
+kennel browser devtools open [--json]
+kennel browser devtools close [--json]
+kennel browser scroll <up|down|left|right> [--amount <pixels>] [--json]
+kennel browser select <ref> <value> [--json]
+kennel browser check <ref> [--json]
+kennel browser uncheck <ref> [--json]
+kennel browser get <property> [ref] [--json]
+kennel browser wait (--text <text> | --text-gone <text> | --selector <css> | --selector-gone <css> | --url <substring> | --load | --dom-stable <milliseconds> | --ms <milliseconds>) [--timeout <milliseconds>] [--json]
+kennel browser screenshot [path] [--json]
+kennel browser network start [--duration <seconds>] [--json]
+kennel browser network status [--json]
+kennel browser network list [--json]
+kennel browser network stop [--json]
+kennel browser network clear [--json]
+kennel browser console [--json]
+kennel browser errors [--json]
+kennel browser frame <ref|main> [--json]
+kennel browser dialog accept [text] [--json]
+kennel browser dialog dismiss [--json]
+kennel browser dialog status [--json]
 ```
 
 `fill` replaces the current value, while `type` inserts text at the current
@@ -121,7 +121,7 @@ failure is reproduced, and `network clear` to discard retained entries.
 
 Without `--json`, `screenshot` writes a PNG and refuses to overwrite an existing file. With `--json`, it returns the structured response including base64 image data.
 
-`ao preview` remains available for the passive URL/static-file workflow. Use `ao browser` when the agent needs to inspect or verify the page.
+`kennel preview` remains available for the passive URL/static-file workflow. Use `kennel browser` when the agent needs to inspect or verify the page.
 
-`ao browser open` requires an explicit HTTP(S) URL or hostname. It does not
+`kennel browser open` requires an explicit HTTP(S) URL or hostname. It does not
 silently search the web and does not allow `file://` or local filesystem paths.

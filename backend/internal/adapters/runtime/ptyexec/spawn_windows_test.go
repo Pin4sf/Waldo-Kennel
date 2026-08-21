@@ -20,12 +20,12 @@ func TestSpawnWindowsStreamsOutput(t *testing.T) {
 		t.Fatalf("Spawn: %v", err)
 	}
 	defer p.Close()
-	if _, err := p.Write([]byte("echo AO_CONPTY_OK\r\n")); err != nil {
+	if _, err := p.Write([]byte("echo KENNEL_CONPTY_OK\r\n")); err != nil {
 		t.Fatalf("write PTY: %v", err)
 	}
 
-	out := readPTYUntil(t, p, "AO_CONPTY_OK", 5*time.Second)
-	if !strings.Contains(out, "AO_CONPTY_OK") {
+	out := readPTYUntil(t, p, "KENNEL_CONPTY_OK", 5*time.Second)
+	if !strings.Contains(out, "KENNEL_CONPTY_OK") {
 		t.Fatalf("output %q does not contain marker", out)
 	}
 }

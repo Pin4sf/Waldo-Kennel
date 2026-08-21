@@ -400,7 +400,7 @@ function prReviewCommand(
 		group: "prs",
 		title: t("command.reviewPr", { action: runLabel, number: pr.number }),
 		subtitle,
-		keywords: [...keywords, "review", "run review", "re-run review", "ao review"],
+		keywords: [...keywords, "review", "run review", "re-run review", "kennel review"],
 		searchOnly: true,
 		disabled,
 		disabledReason,

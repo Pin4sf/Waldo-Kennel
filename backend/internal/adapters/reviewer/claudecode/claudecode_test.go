@@ -78,7 +78,7 @@ func TestReviewCommandLaunchesReadOnlyOffBypass(t *testing.T) {
 	if spec.AgentSessionID != agent.got.SessionID {
 		t.Fatalf("persisted agent session id = %q, launched session id = %q", spec.AgentSessionID, agent.got.SessionID)
 	}
-	if !contains(agent.got.AllowedTools, "Read") || !contains(agent.got.AllowedTools, "Bash(ao review submit:*)") {
+	if !contains(agent.got.AllowedTools, "Read") || !contains(agent.got.AllowedTools, "Bash(kennel review submit:*)") {
 		t.Fatalf("allowlist missing read-only review tools: %#v", agent.got.AllowedTools)
 	}
 	for _, denied := range []string{"Edit", "Write", "Bash(git push:*)", "Bash(git commit:*)"} {
@@ -125,7 +125,7 @@ func TestAllowlistCoversPromptRequiredPipedCommands(t *testing.T) {
 
 	for _, cmd := range []string{
 		"printf '%s' '{ \"event\": \"COMMENT\", \"body\": \"x\" }' | gh api --method POST repos/o/r/pulls/1/reviews --input - --jq '.id'",
-		"printf '%s' '{ \"reviews\": [] }' | ao review submit --session sess-1 --reviews -",
+		"printf '%s' '{ \"reviews\": [] }' | kennel review submit --session sess-1 --reviews -",
 	} {
 		if !compoundCommandCovered(agent.got.AllowedTools, cmd) {
 			t.Fatalf("allowlist does not cover prompt-required command %q with tools %#v", cmd, agent.got.AllowedTools)

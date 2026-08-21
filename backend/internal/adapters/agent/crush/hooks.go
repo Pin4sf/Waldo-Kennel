@@ -20,7 +20,7 @@ const (
 	crushConfigFileName     = ".crush.json"
 	crushSystemPromptName   = "ao-system-prompt.md"
 	crushSystemPromptPath   = crushConfigDirName + "/" + crushSystemPromptName
-	crushSystemPromptMarker = "agent-orchestrator: managed crush system prompt"
+	crushSystemPromptMarker = "kennel: managed crush system prompt"
 
 	// crushModelSeparator splits AO's "<provider>/<model-id>" convention.
 	// Crush's config schema (models.large / models.small) requires both a

@@ -22,7 +22,7 @@
 		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/renderer/*"],
-			"@aoagents/product-ui": ["../packages/product-ui/src/index.ts"]
+			"@pin4sf/kennel-product-ui": ["../packages/product-ui/src/index.ts"]
 		}
 	},
 	"include": [

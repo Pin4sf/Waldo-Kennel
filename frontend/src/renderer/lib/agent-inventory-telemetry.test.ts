@@ -7,7 +7,7 @@ const catalog = (over: Partial<AgentCatalog> = {}): AgentCatalog =>
 
 describe("agent inventory", () => {
 	// The open question is whether people ever configure more than one agent.
-	// ao.session.spawned only shows which harness ran, so an install with six
+	// kennel.session.spawned only shows which harness ran, so an install with six
 	// authorized agents that always picks one looked identical to one that has
 	// only that one.
 	it("counts installed, authorized, and supported separately", () => {

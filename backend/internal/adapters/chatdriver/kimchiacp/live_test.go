@@ -12,11 +12,11 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
-// Run explicitly with AO_LIVE_KIMCHI_ACP=1. It uses the user's existing Kimchi
+// Run explicitly with KENNEL_LIVE_KIMCHI_ACP=1. It uses the user's existing Kimchi
 // executable, settings, and account; CI never depends on any of them.
 func TestLiveKimchiACP(t *testing.T) {
-	if os.Getenv("AO_LIVE_KIMCHI_ACP") != "1" {
-		t.Skip("set AO_LIVE_KIMCHI_ACP=1 to run against the local Kimchi account")
+	if os.Getenv("KENNEL_LIVE_KIMCHI_ACP") != "1" {
+		t.Skip("set KENNEL_LIVE_KIMCHI_ACP=1 to run against the local Kimchi account")
 	}
 
 	driver := New(kimchi.New(), nil)

@@ -70,7 +70,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 		return ports.ReviewCommandSpec{}, fmt.Errorf("agy reviewer: prepare AO-owned profile: %w", err)
 	}
 	envVars := env.TUIEnvironment()
-	envVars["AO_DATA_DIR"] = env.DataDir
+	envVars["KENNEL_DATA_DIR"] = env.DataDir
 	if err := r.verifyCompatibility(ctx, binary, envVars); err != nil {
 		return ports.ReviewCommandSpec{}, err
 	}

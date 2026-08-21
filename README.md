@@ -1,103 +1,68 @@
 # Kennel
 
-Kennel is an outcome-first desktop workspace for directing coding agents.
+Kennel is an independently maintained, AO-derived desktop foundation for supervising coding-agent work. This repository currently ships the orchestration chassis: a Go loopback daemon and `kennel` CLI, an Electron/React supervisor, provider adapters, durable session and terminal infrastructure, worktree/SCM coordination, and a prototype Outcome-oriented UI overlay.
 
-Most agent tools begin with a chat or a task. Kennel begins with the result you want. You describe an **Outcome**, clarify what success means, review the proposed deliverables and objective checks, and approve the plan before implementation starts. Kennel then coordinates the available coding-agent harnesses, keeps their work legible, and returns the decisions and evidence needed to judge whether the Outcome was actually delivered.
+This is a foundation, not a completed Waldo personal agent. Mission, durable personal memory, Waldo authority and verification semantics, and Xirp/Medley/Paxel integrations are not implemented here. The existing Outcome screens are an inherited/prototype product surface; they are not evidence that the broader product architecture has shipped.
 
-Kennel was built as an abstraction on Agent Orchestrator, retaining its local execution, agent-harness, workspace, and source-control foundations while moving the product toward an Outcome-driven workflow.
+## Foundation contract
 
-## The central idea
+Kennel is isolated from Agent Orchestrator at every installed-product boundary:
 
-The Outcome is the unit of truth.
+| Boundary | Kennel value |
+| --- | --- |
+| Product / executable / CLI | `Kennel` / `kennel` |
+| macOS bundle and application ID | `in.heywaldo.kennel` |
+| Deep-link protocol | `kennel-app` |
+| Global state root | `~/.kennel` |
+| Updater cache | `kennel-updater` |
+| Release repository | `Pin4sf/Waldo-Kennel` |
+| Environment namespace | `KENNEL_*` |
+| Loopback / development / LAN ports | `3031` / `3032` / `3041` |
+| Generated branch namespace | `kennel/` |
 
-An agent session is execution activity beneath an Outcome. A completed model turn, an idle terminal, a passing check, or even a merged pull request can be useful evidence, but none of those events independently proves that the user's intended result has been achieved. Kennel keeps intent, execution, evidence, review, and human acceptance separate so that work can be supervised without surrendering judgment to the agents performing it.
+Kennel never implicitly reads or migrates `~/.ao`. Existing AO installations remain separate. A narrowly scoped legacy importer may inspect the older `~/.agent-orchestrator` layout only after a user chooses that import flow. Project-local `.ao/attachments` and `.ao/launch.json` names remain temporary upstream compatibility artifacts inside a project; they are not Kennel global state.
 
-## How Kennel works
+The source entrypoint remains `backend/cmd/ao`, and the Go module remains `github.com/aoagents/agent-orchestrator/backend`, as deliberate upstream synchronization seams. Packaged users receive the `kennel` executable and Kennel identifiers. See [identity and state](docs/identity-and-state.md) and [upstream provenance](docs/upstream-provenance.md).
 
-1. **Understand the project**
+## What is present today
 
-   When a project is opened, the selected orchestrator performs a quick, read-only orientation of the codebase. Kennel can use that context to suggest useful Outcomes before the user writes one.
+- A local Go daemon with HTTP/SSE/WebSocket APIs, SQLite persistence, lifecycle handling, and change-data capture.
+- An Electron desktop supervisor connected through the generated API client.
+- Claude Code, Codex, and other inherited coding-harness adapters, terminals, worktrees, browser preview, PR/review facts, and recovery machinery.
+- Desktop packaging with asserted Kennel bundle, executable, protocol, updater, release-target, and state identities.
+- An Outcome clarification and planning overlay which remains a prototype, not the next product architecture.
+- Additive migration compatibility for databases that traversed the colliding AO/Kennel migration 0098 histories.
+- Reproducible bootstrap, foundation, dependency, package-identity, and security checks.
 
-2. **Define an Outcome**
-
-   The user describes the result they want rather than manually decomposing it into implementation tasks.
-
-3. **Resolve ambiguity**
-
-   If material details are missing, the orchestrator asks focused clarifying questions. Kennel presents relevant choices and always allows a custom answer.
-
-4. **Review the orchestration plan**
-
-   Once the Outcome is clear, Kennel presents a reviewable plan containing:
-
-   - concrete deliverables;
-   - objective completion checks;
-   - constraints and exclusions;
-   - the agent assigned to each part of the work;
-   - a graph showing the orchestrator, worker agents, their responsibilities, and how they converge on the Outcome.
-
-5. **Approve before execution**
-
-   The user can approve the plan or continue refining it. The orchestrator must not begin implementation or spawn implementation workers until the plan is explicitly approved.
-
-6. **Delegate bounded work**
-
-   After approval, the orchestrator breaks the plan into focused work and delegates it to installed harnesses such as Codex, Claude Code, or OpenCode. Workers operate in isolated workspaces where appropriate, while the orchestrator coordinates dependencies, blockers, review feedback, and verification.
-
-7. **Follow progress on the board**
-
-   The Kanban board is the default operational view. Work moves through meaningful states:
-
-   - **Working** while implementation is active;
-   - **Needs You** when a decision, answer, failed check, or requested change requires attention;
-   - **In Review** while deliverables and checks are being validated;
-   - **Ready to Merge** when the approved work is complete and supported by evidence.
-
-   Provider idleness is not treated as completion. Workers and orchestrators report explicit lifecycle progress, while source-control, CI, and review facts remain authoritative when available.
-
-8. **Inspect and decide**
-
-   The user can open the orchestrator conversation at any time, inspect individual workers, review changes and evidence, revise the plan, or provide a blocked decision. Kennel prepares the work for acceptance; the human retains authority over merging and whether the Outcome is truly complete.
-
-## Product principles
-
-- **Outcomes before tasks.** Users define the result and its success conditions; Kennel owns the decomposition.
-- **Plans are contracts.** Deliverables and checks are visible and editable before agents receive write authority.
-- **Orchestrators coordinate; workers implement.** Planning, delegation, implementation, and review have distinct responsibilities.
-- **Evidence over claims.** Completion should be supported by changed files, tests, checks, reviews, and explicit receipts—not an agent saying it is finished.
-- **Parallel work stays legible.** Each worker has a bounded responsibility, visible ownership, and an isolated execution context where needed.
-- **Human judgment remains final.** Kennel can recommend, verify, and prepare work, but it does not silently widen authority or accept an Outcome for the user.
-- **Local custody by default.** Projects, agent activity, and orchestration state are managed locally, with provider access constrained to the work the user placed in scope.
-
-## What Kennel includes
-
-Kennel is an Electron desktop application with a local backend service. Its current foundation includes:
-
-- project-aware orchestrator sessions;
-- multiple coding-agent harnesses and models;
-- structured chat and native terminal interfaces;
-- Git branches and isolated worktrees for parallel workers;
-- an Outcome clarification and plan-approval workflow;
-- deliverable, completion-check, and agent-assignment views;
-- a live Kanban derived from agent, pull-request, CI, and review state;
-- direct access to orchestrator and worker conversations;
-- pull-request, review, preview, and browser-assisted development surfaces.
-
-The goal is not to become another agent chat window. Kennel is intended to be a trustworthy local operating environment for turning human intent into coordinated, reviewable, evidence-backed agent work.
+Some AO-derived surfaces remain in the tree as donors or compatibility seams and are not current Kennel product promises: `frontend/src/landing`, `packages/mobile`, `packages/cloud-client`, the frozen `packages/ao*` npm packages, and release/pod helper scripts. They stay buildable or inspectable while their future is decided explicitly; they are not published by this foundation work.
 
 ## Development
 
-The repository contains the Electron frontend, Go backend, shared product UI, provider adapters, and packaging scripts. Generated runtimes and compiled binaries are intentionally excluded from Git and are rebuilt by the development scripts.
-
-Start with [the development guide](docs/development.md) for prerequisites, local setup, build commands, and verification. The main checks are:
+Use Node 22.23.2, npm 10.9.8, and Go 1.25.7. From a clean checkout:
 
 ```sh
-npm --prefix frontend test
-npm run frontend:typecheck
-npm run product-ui:check
-npm run lint
+npm run bootstrap
+npm run test:foundation
+npm run audit:production
 ```
+
+Narrow checks are documented in [the development guide](docs/development.md). API changes require `npm run api`; SQLite query/schema changes require `npm run sqlc`.
+
+Do not launch an older packaged build to validate this branch: it can use the pre-isolation identity. Package without launching, then run:
+
+```sh
+npm --prefix frontend run package
+npm --prefix frontend run package:identity
+```
+
+## Upstream and next step
+
+[`upstream.json`](upstream.json) pins the AO source tree, and [`scripts/compare-upstream.sh`](scripts/compare-upstream.sh) supports reviewed, non-destructive synchronization. The repositories do not share Git ancestry; repairing published ancestry would rewrite `main` and therefore requires a separate approved migration.
+
+Once this foundation PR is accepted, the next architecture entrypoint is to define Mission and personal-agent semantics—ownership, authority, memory, verification, and release/closure contracts—before implementing them. That work is deliberately outside this gate.
+
+See the dated [foundation acceptance record](docs/foundation-acceptance-2026-08-18.md) for exact evidence and exclusions.
 
 ## License
 
-See [LICENSE](LICENSE).
+Kennel is licensed under Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

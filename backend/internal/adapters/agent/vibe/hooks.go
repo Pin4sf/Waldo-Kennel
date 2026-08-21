@@ -104,9 +104,9 @@ func vibeHooksBlock() string {
 	// optional match, command, and a floating-point timeout measured in seconds.
 	// Native event names use underscores; AO's hook CLI uses hyphenated tokens.
 	return vibeHooksSentinelStart + "\n\n" +
-		vibeHookEntry("ao-session-metadata", "post_agent", "", "ao hooks vibe post-agent") +
-		vibeHookEntry("ao-pre-tool", "pre_tool", "*", "ao hooks vibe pre-tool") +
-		vibeHookEntry("ao-post-tool", "post_tool", "*", "ao hooks vibe post-tool") +
+		vibeHookEntry("ao-session-metadata", "post_agent", "", "kennel hooks vibe post-agent") +
+		vibeHookEntry("ao-pre-tool", "pre_tool", "*", "kennel hooks vibe pre-tool") +
+		vibeHookEntry("ao-post-tool", "post_tool", "*", "kennel hooks vibe post-tool") +
 		vibeHooksSentinelEnd + "\n"
 }
 

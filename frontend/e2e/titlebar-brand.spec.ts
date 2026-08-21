@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-// Regression guard for #366 (macOS): the sidebar's "Agent Orchestrator" brand
+// Regression guard for #366 (macOS): the sidebar's "Kennel" brand
 // must never sit under the TitlebarNav cluster, and the wordmark must stay
 // readable. TitlebarNav now lives in the sidebar header below the traffic
 // lights (in-flow), so the brand is the next row — these tests lock that the
@@ -14,7 +14,7 @@ test.use({
 		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 });
 
-const brand = (page: Page) => page.getByText("Agent Orchestrator", { exact: true });
+const brand = (page: Page) => page.getByText("Kennel", { exact: true });
 
 // Two boxes overlap iff they intersect on both axes.
 function overlaps(a: { x: number; y: number; width: number; height: number }, b: typeof a) {

@@ -2,7 +2,7 @@
 // sessions, resuming hook-tracked sessions, installing workspace-local hooks,
 // and reading hook-derived session info.
 //
-// AO-managed sessions derive native session identity and display
+// Kennel-managed sessions derive native session identity and display
 // metadata from Cursor hooks instead of transcript/cache scans. The driven
 // binary is `cursor-agent` (not the `cursor` editor binary).
 package cursor
@@ -41,7 +41,7 @@ var _ adapters.Adapter = (*Plugin)(nil)
 var _ ports.Agent = (*Plugin)(nil)
 
 // cursorDataDir returns the isolated Cursor profile AO uses for managed Cursor
-// sessions. This keeps Cursor's trust/cache state under AO_DATA_DIR instead of
+// sessions. This keeps Cursor's trust/cache state under KENNEL_DATA_DIR instead of
 // the user's normal ~/.cursor profile.
 func cursorDataDir(dataDir string) string {
 	return filepath.Join(dataDir, "cursor")

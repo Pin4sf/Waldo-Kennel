@@ -209,7 +209,7 @@
 	"daemon.hint.binaryMissing": "Führen Sie npm run build:daemon aus, um den Daemon neu zu bauen.",
 	"daemon.hint.conflict": "Stoppen Sie den konfliktierenden Daemon und starten Sie die Desktop-App neu.",
 	"daemon.hint.default": "Prüfen Sie das Terminal, in dem Sie npm run dev ausgeführt haben, für Details.",
-	"daemon.hint.notConfigured": "Setzen Sie AO_DAEMON_COMMAND oder starten Sie die Desktop-App aus einem Quell-Checkout.",
+	"daemon.hint.notConfigured": "Setzen Sie KENNEL_DAEMON_COMMAND oder starten Sie die Desktop-App aus einem Quell-Checkout.",
 	"daemon.hint.notReady": "Der Daemon hat die Bereitschaftsprüfung noch nicht bestanden. Öffnen Sie die Details unten für weitere Informationen.",
 	"daemon.copied": "Kopiert",
 	"daemon.copyDetails": "Details kopieren",

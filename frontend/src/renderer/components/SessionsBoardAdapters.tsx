@@ -10,7 +10,7 @@ import {
 	type BoardSplitLaneLabels,
 	type BoardUsagePresentation,
 	type ProductUITranslator,
-} from "@aoagents/product-ui";
+} from "@pin4sf/kennel-product-ui";
 import { Check, Copy, GitBranch, LoaderCircle, RotateCcw, Trash2 } from "lucide-react";
 import type { MessageKey } from "../i18n";
 import { aoBridge } from "../lib/bridge";

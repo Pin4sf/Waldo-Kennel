@@ -158,7 +158,7 @@ func TestReviewPolicyAllowsReviewCommandsAndDeniesWritesAndGitMutations(t *testi
 		"shell(git status:*)",
 		"shell(printf:*)",
 		"shell(gh api:*)",
-		"shell(ao review submit:*)",
+		"shell(kennel review submit:*)",
 	} {
 		if !slices.Contains(allowedTools, want) {
 			t.Errorf("allowed policy missing %q: %#v", want, allowedTools)

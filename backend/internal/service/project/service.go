@@ -75,7 +75,7 @@ var _ Manager = (*Service)(nil)
 
 // Deps captures optional collaborators for project use-cases.
 type Deps struct {
-	// DefaultHarness is the daemon's configured default agent (AO_AGENT).
+	// DefaultHarness is the daemon's configured default agent (KENNEL_AGENT).
 	// When empty, the service falls back to config.DefaultAgent.
 	DefaultHarness domain.AgentHarness
 	Store          Store
@@ -366,7 +366,7 @@ func validateRepositorySetupPathSafety(path string) error {
 		}
 	}
 
-	aoState := comparablePath(filepath.Join(home, ".ao"))
+	aoState := comparablePath(filepath.Join(home, ".kennel"))
 	if samePath(clean, aoState) || isDescendantPath(clean, aoState) {
 		return unsafeRepositorySetupPathError(path, "AO state directory")
 	}
@@ -490,7 +490,7 @@ func (m *Service) emitProjectAdded(row domain.ProjectRecord, firstProject bool) 
 		"has_git_remote": row.RepoOriginURL != "",
 	}
 	m.telemetry.Emit(context.Background(), ports.TelemetryEvent{
-		Name:       "ao.projects.created",
+		Name:       "kennel.projects.created",
 		Source:     "project_service",
 		OccurredAt: at,
 		Level:      ports.TelemetryLevelInfo,
@@ -501,7 +501,7 @@ func (m *Service) emitProjectAdded(row domain.ProjectRecord, firstProject bool) 
 		return
 	}
 	m.telemetry.Emit(context.Background(), ports.TelemetryEvent{
-		Name:       "ao.onboarding.first_project_added",
+		Name:       "kennel.onboarding.first_project_added",
 		Source:     "project_service",
 		OccurredAt: at,
 		Level:      ports.TelemetryLevelInfo,
@@ -860,7 +860,7 @@ func resolveSessionPrefix(row domain.ProjectRecord) string {
 
 func sessionPrefix(id string) string {
 	if id == "" {
-		return "ao"
+		return "kennel"
 	}
 	if len(id) <= 12 {
 		return id

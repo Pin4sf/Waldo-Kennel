@@ -38,24 +38,24 @@ func (s *syncRecordingSink) snapshot() []ports.TelemetryEvent {
 
 func TestAggregatingSinkPassesThroughUnaggregatedNamesImmediately(t *testing.T) {
 	rec := &syncRecordingSink{}
-	s := NewAggregatingSink(rec, []string{"ao.http.5xx"}, time.Hour)
+	s := NewAggregatingSink(rec, []string{"kennel.http.5xx"}, time.Hour)
 	defer s.Close(context.Background())
 
-	s.Emit(context.Background(), ports.TelemetryEvent{Name: "ao.cli.invoked"})
+	s.Emit(context.Background(), ports.TelemetryEvent{Name: "kennel.cli.invoked"})
 
 	events := rec.snapshot()
-	if len(events) != 1 || events[0].Name != "ao.cli.invoked" {
-		t.Fatalf("events = %#v, want one immediate ao.cli.invoked passthrough", events)
+	if len(events) != 1 || events[0].Name != "kennel.cli.invoked" {
+		t.Fatalf("events = %#v, want one immediate kennel.cli.invoked passthrough", events)
 	}
 }
 
 func TestAggregatingSinkFoldsBurstIntoOneRollupOnFlush(t *testing.T) {
 	rec := &syncRecordingSink{}
-	s := NewAggregatingSink(rec, []string{"ao.http.5xx"}, time.Hour)
+	s := NewAggregatingSink(rec, []string{"kennel.http.5xx"}, time.Hour)
 
 	for i := 0; i < 812; i++ {
 		s.Emit(context.Background(), ports.TelemetryEvent{
-			Name:    "ao.http.5xx",
+			Name:    "kennel.http.5xx",
 			Payload: map[string]any{"path": "/api/v1/whatever"},
 		})
 	}
@@ -69,8 +69,8 @@ func TestAggregatingSinkFoldsBurstIntoOneRollupOnFlush(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("events after flush = %d, want 1 rollup", len(events))
 	}
-	if events[0].Name != "ao.http.5xx" {
-		t.Fatalf("rollup name = %q, want ao.http.5xx", events[0].Name)
+	if events[0].Name != "kennel.http.5xx" {
+		t.Fatalf("rollup name = %q, want kennel.http.5xx", events[0].Name)
 	}
 	if count, _ := events[0].Payload["count"].(int); count != 812 {
 		t.Fatalf("rollup count = %#v, want 812", events[0].Payload["count"])
@@ -96,12 +96,12 @@ func TestAggregatingSinkFoldsBurstIntoOneRollupOnFlush(t *testing.T) {
 
 func TestAggregatingSinkTracksEventNamesIndependently(t *testing.T) {
 	rec := &syncRecordingSink{}
-	s := NewAggregatingSink(rec, []string{"ao.http.5xx", "ao.daemon.panic"}, time.Hour)
+	s := NewAggregatingSink(rec, []string{"kennel.http.5xx", "kennel.daemon.panic"}, time.Hour)
 
 	for i := 0; i < 3; i++ {
-		s.Emit(context.Background(), ports.TelemetryEvent{Name: "ao.http.5xx"})
+		s.Emit(context.Background(), ports.TelemetryEvent{Name: "kennel.http.5xx"})
 	}
-	s.Emit(context.Background(), ports.TelemetryEvent{Name: "ao.daemon.panic"})
+	s.Emit(context.Background(), ports.TelemetryEvent{Name: "kennel.daemon.panic"})
 	s.flush(context.Background())
 
 	events := rec.snapshot()
@@ -110,19 +110,19 @@ func TestAggregatingSinkTracksEventNamesIndependently(t *testing.T) {
 		count, _ := ev.Payload["count"].(int)
 		counts[ev.Name] = count
 	}
-	if counts["ao.http.5xx"] != 3 {
-		t.Fatalf("ao.http.5xx rollup count = %d, want 3", counts["ao.http.5xx"])
+	if counts["kennel.http.5xx"] != 3 {
+		t.Fatalf("kennel.http.5xx rollup count = %d, want 3", counts["kennel.http.5xx"])
 	}
-	if counts["ao.daemon.panic"] != 1 {
-		t.Fatalf("ao.daemon.panic rollup count = %d, want 1", counts["ao.daemon.panic"])
+	if counts["kennel.daemon.panic"] != 1 {
+		t.Fatalf("kennel.daemon.panic rollup count = %d, want 1", counts["kennel.daemon.panic"])
 	}
 }
 
 func TestAggregatingSinkClosesFlushesBufferedEvents(t *testing.T) {
 	rec := &syncRecordingSink{}
-	s := NewAggregatingSink(rec, []string{"ao.http.5xx"}, time.Hour)
+	s := NewAggregatingSink(rec, []string{"kennel.http.5xx"}, time.Hour)
 
-	s.Emit(context.Background(), ports.TelemetryEvent{Name: "ao.http.5xx"})
+	s.Emit(context.Background(), ports.TelemetryEvent{Name: "kennel.http.5xx"})
 	if err := s.Close(context.Background()); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}
@@ -138,9 +138,9 @@ func TestAggregatingSinkClosesFlushesBufferedEvents(t *testing.T) {
 
 func TestAggregatingSinkClosedTwiceDoesNotFlushAgain(t *testing.T) {
 	rec := &syncRecordingSink{}
-	s := NewAggregatingSink(rec, []string{"ao.http.5xx"}, time.Hour)
+	s := NewAggregatingSink(rec, []string{"kennel.http.5xx"}, time.Hour)
 
-	s.Emit(context.Background(), ports.TelemetryEvent{Name: "ao.http.5xx"})
+	s.Emit(context.Background(), ports.TelemetryEvent{Name: "kennel.http.5xx"})
 	if err := s.Close(context.Background()); err != nil {
 		t.Fatalf("first Close() error = %v", err)
 	}

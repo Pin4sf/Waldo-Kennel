@@ -49,20 +49,20 @@ describe("telemetry sanitizers", () => {
 	// straight to PostHog, so the policy has to be honoured here too or the kill
 	// switch only covers half the producers.
 	it("honours the supervisor deny list, by either internal or exported name", () => {
-		expect(isDeniedEvent("ao.app.active", ["ao.v2.app.active"])).toBe(true);
-		expect(isDeniedEvent("ao.app.active", ["ao.app.active"])).toBe(true);
-		expect(isDeniedEvent("ao.app.active", ["  AO.V2.APP.ACTIVE  "])).toBe(true);
-		expect(isDeniedEvent("ao.renderer.route_viewed", ["ao.renderer.*"])).toBe(true);
+		expect(isDeniedEvent("kennel.app.active", ["kennel.v2.app.active"])).toBe(true);
+		expect(isDeniedEvent("kennel.app.active", ["kennel.app.active"])).toBe(true);
+		expect(isDeniedEvent("kennel.app.active", ["  KENNEL.V2.APP.ACTIVE  "])).toBe(true);
+		expect(isDeniedEvent("kennel.renderer.route_viewed", ["kennel.renderer.*"])).toBe(true);
 		expect(isDeniedEvent("$exception", ["$exception"])).toBe(true);
 
-		expect(isDeniedEvent("ao.session.spawned", ["ao.renderer.*"])).toBe(false);
-		expect(isDeniedEvent("ao.app.active", [])).toBe(false);
+		expect(isDeniedEvent("kennel.session.spawned", ["kennel.renderer.*"])).toBe(false);
+		expect(isDeniedEvent("kennel.app.active", [])).toBe(false);
 		// A bare "*" must not silence everything by accident.
-		expect(isDeniedEvent("ao.app.active", ["", "  ", "*"])).toBe(false);
+		expect(isDeniedEvent("kennel.app.active", ["", "  ", "*"])).toBe(false);
 	});
 
 	it("allowlists only counts and the fixed agent-id list on agent inventory", async () => {
-		const safe = await sanitizeRendererProperties("ao.renderer.agents_available", {
+		const safe = await sanitizeRendererProperties("kennel.renderer.agents_available", {
 			installed_count: 2,
 			authorized_count: 1,
 			supported_count: 23,
@@ -81,13 +81,13 @@ describe("telemetry sanitizers", () => {
 	});
 
 	it("allowlists only enum-like fields on update events", async () => {
-		const safe = await sanitizeRendererProperties("ao.renderer.update_failed", {
+		const safe = await sanitizeRendererProperties("kennel.renderer.update_failed", {
 			to_version: "0.11.2",
 			error_category: "network",
 			phase: "download",
 			trigger: "automatic",
 			// Must be dropped: raw updater text can carry feed URLs and local paths.
-			message: "EACCES /Users/someone/Library/Caches/ao-updater",
+			message: "EACCES /Users/someone/Library/Caches/kennel-updater",
 			stack: "at Object.<anonymous>",
 		});
 		expect(safe).toEqual({
@@ -98,12 +98,12 @@ describe("telemetry sanitizers", () => {
 		});
 
 		// An unrecognized phase is not passed through as-is.
-		const bogus = await sanitizeRendererProperties("ao.renderer.update_failed", { phase: "sideload" });
+		const bogus = await sanitizeRendererProperties("kennel.renderer.update_failed", { phase: "sideload" });
 		expect(bogus.phase).toBeUndefined();
 	});
 
 	it("reports a support submission with only the destination and outcome", async () => {
-		const safe = await sanitizeRendererProperties("ao.renderer.support_submitted", {
+		const safe = await sanitizeRendererProperties("kennel.renderer.support_submitted", {
 			destination: "discord",
 			outcome: "succeeded",
 			// Everything the dialog collects is passed in deliberately: the user's own
@@ -116,7 +116,7 @@ describe("telemetry sanitizers", () => {
 	});
 
 	it("drops an unrecognised support destination rather than forwarding it", async () => {
-		const safe = await sanitizeRendererProperties("ao.renderer.support_submitted", {
+		const safe = await sanitizeRendererProperties("kennel.renderer.support_submitted", {
 			destination: "mailto:founder@example.com",
 			outcome: "failed",
 		});
@@ -124,14 +124,14 @@ describe("telemetry sanitizers", () => {
 	});
 
 	it("reports the support open with no properties at all", async () => {
-		const safe = await sanitizeRendererProperties("ao.renderer.support_opened", {
+		const safe = await sanitizeRendererProperties("kennel.renderer.support_opened", {
 			summary: "everything is broken",
 		});
 		expect(safe).toEqual({});
 	});
 
 	it("reports the mobile connect open with only the bridge state", async () => {
-		const safe = await sanitizeRendererProperties("ao.renderer.mobile_connect_opened", {
+		const safe = await sanitizeRendererProperties("kennel.renderer.mobile_connect_opened", {
 			bridge_enabled: true,
 			// Everything the QR encodes is in scope for leaking here, so it is all
 			// passed in deliberately and must all be dropped.
@@ -143,7 +143,7 @@ describe("telemetry sanitizers", () => {
 	});
 
 	it("reports the bridge toggle without the pairing payload", async () => {
-		const safe = await sanitizeRendererProperties("ao.renderer.mobile_bridge_toggled", {
+		const safe = await sanitizeRendererProperties("kennel.renderer.mobile_bridge_toggled", {
 			enabled: true,
 			outcome: "succeeded",
 			password: "hunter2secret",
@@ -153,7 +153,7 @@ describe("telemetry sanitizers", () => {
 	});
 
 	it("drops an unrecognised toggle outcome rather than forwarding it", async () => {
-		const safe = await sanitizeRendererProperties("ao.renderer.mobile_bridge_toggled", {
+		const safe = await sanitizeRendererProperties("kennel.renderer.mobile_bridge_toggled", {
 			enabled: false,
 			outcome: "kind-of-worked",
 		});
@@ -188,7 +188,7 @@ describe("telemetry sanitizers", () => {
 			disable_surveys: true,
 		});
 		try {
-			const captured = client.capture("ao.app.active", { channel: "renderer" });
+			const captured = client.capture("kennel.app.active", { channel: "renderer" });
 
 			expect(captured?.properties).toMatchObject({
 				distinct_id: "ins_stable-install-id",
@@ -209,23 +209,23 @@ describe("telemetry sanitizers", () => {
 	it("builds stable AO version context for PostHog events", () => {
 		expect(buildTelemetryContext(" 1.2.3-nightly.20260707 ", "linux")).toMatchObject({
 			app_version: "1.2.3-nightly.20260707",
-			ao_version: "1.2.3-nightly.20260707",
+			kennel_version: "1.2.3-nightly.20260707",
 			platform: "linux",
 			telemetry_schema_version: 2,
 		});
 		expect(buildTelemetryContext("", "darwin")).toMatchObject({
 			app_version: "unknown",
-			ao_version: "unknown",
+			kennel_version: "unknown",
 			platform: "darwin",
 			telemetry_schema_version: 2,
 		});
 	});
 
 	it("uses v2 PostHog event names for streams that have noisy legacy producers", () => {
-		expect(postHogEventName("ao.app.active")).toBe("ao.v2.app.active");
-		expect(postHogEventName("ao.renderer.route_viewed")).toBe("ao.v2.renderer.route_viewed");
-		expect(postHogEventName("ao.renderer.api_error")).toBe("ao.v2.renderer.api_error");
-		expect(postHogEventName("ao.session.spawned")).toBe("ao.session.spawned");
+		expect(postHogEventName("kennel.app.active")).toBe("kennel.v2.app.active");
+		expect(postHogEventName("kennel.renderer.route_viewed")).toBe("kennel.v2.renderer.route_viewed");
+		expect(postHogEventName("kennel.renderer.api_error")).toBe("kennel.v2.renderer.api_error");
+		expect(postHogEventName("kennel.session.spawned")).toBe("kennel.session.spawned");
 	});
 
 	it("forces renderer events to stay anonymous in PostHog", () => {
@@ -243,11 +243,11 @@ describe("telemetry sanitizers", () => {
 	});
 
 	it("hashes renderer ids and drops raw route identifiers", async () => {
-		const props = await sanitizeRendererProperties("ao.renderer.project_removed", { project_id: "demo-project" });
+		const props = await sanitizeRendererProperties("kennel.renderer.project_removed", { project_id: "demo-project" });
 		expect(props).toHaveProperty("project_id_hash");
 		expect(props).not.toHaveProperty("project_id");
 
-		const routeProps = await sanitizeRendererProperties("ao.renderer.route_viewed", {
+		const routeProps = await sanitizeRendererProperties("kennel.renderer.route_viewed", {
 			surface: "project_board",
 			pathname: "/projects/demo",
 			search: "?token=secret",
@@ -256,7 +256,7 @@ describe("telemetry sanitizers", () => {
 	});
 
 	it("keeps only the renderer channel on app active events", async () => {
-		const props = await sanitizeRendererProperties("ao.app.active", {
+		const props = await sanitizeRendererProperties("kennel.app.active", {
 			channel: "renderer",
 			project_id: "demo-project",
 			ip: "203.0.113.10",
@@ -264,12 +264,12 @@ describe("telemetry sanitizers", () => {
 		});
 
 		expect(props).toEqual({ channel: "renderer" });
-		expect(await sanitizeRendererProperties("ao.app.active", { channel: "cli" })).toEqual({});
+		expect(await sanitizeRendererProperties("kennel.app.active", { channel: "cli" })).toEqual({});
 	});
 
 	it("keeps only bounded session-state fallback diagnostics", async () => {
 		expect(
-			await sanitizeRendererProperties("ao.renderer.session_state_unknown", {
+			await sanitizeRendererProperties("kennel.renderer.session_state_unknown", {
 				field: "status",
 				reason: "unrecognized",
 				raw_value: "future-backend-state",
@@ -365,15 +365,15 @@ describe("telemetry sanitizers", () => {
 
 	it("hashes project ids and drops everything else on CTA triads", async () => {
 		const triads = [
-			"ao.renderer.task_create_requested",
-			"ao.renderer.task_create_succeeded",
-			"ao.renderer.task_create_failed",
-			"ao.renderer.session_kill_requested",
-			"ao.renderer.session_kill_succeeded",
-			"ao.renderer.session_kill_failed",
-			"ao.renderer.settings_save_requested",
-			"ao.renderer.settings_save_succeeded",
-			"ao.renderer.settings_save_failed",
+			"kennel.renderer.task_create_requested",
+			"kennel.renderer.task_create_succeeded",
+			"kennel.renderer.task_create_failed",
+			"kennel.renderer.session_kill_requested",
+			"kennel.renderer.session_kill_succeeded",
+			"kennel.renderer.session_kill_failed",
+			"kennel.renderer.settings_save_requested",
+			"kennel.renderer.settings_save_succeeded",
+			"kennel.renderer.settings_save_failed",
 		];
 		for (const event of triads) {
 			const props = await sanitizeRendererProperties(event, {
@@ -386,14 +386,14 @@ describe("telemetry sanitizers", () => {
 	});
 
 	it("keeps only the source enum on orchestrator_spawn events", async () => {
-		const props = await sanitizeRendererProperties("ao.renderer.orchestrator_spawn_requested", {
+		const props = await sanitizeRendererProperties("kennel.renderer.orchestrator_spawn_requested", {
 			project_id: "demo-project",
 			source: "board",
 		});
 		expect(Object.keys(props).sort()).toEqual(["project_id_hash", "source"]);
 		expect(props.source).toBe("board");
 
-		const badSource = await sanitizeRendererProperties("ao.renderer.orchestrator_spawn_failed", {
+		const badSource = await sanitizeRendererProperties("kennel.renderer.orchestrator_spawn_failed", {
 			project_id: "demo-project",
 			source: "/Users/alice/private",
 		});
@@ -402,7 +402,7 @@ describe("telemetry sanitizers", () => {
 
 	it("keeps every whitelisted spawn source (the shared ORCHESTRATOR_SPAWN_SOURCES list)", async () => {
 		for (const source of ORCHESTRATOR_SPAWN_SOURCES) {
-			const props = await sanitizeRendererProperties("ao.renderer.orchestrator_spawn_succeeded", {
+			const props = await sanitizeRendererProperties("kennel.renderer.orchestrator_spawn_succeeded", {
 				project_id: "demo-project",
 				source,
 			});
@@ -412,26 +412,26 @@ describe("telemetry sanitizers", () => {
 	});
 
 	it("keeps only enum values on notification events", async () => {
-		expect(await sanitizeRendererProperties("ao.renderer.notification_opened", { target: "pr" })).toEqual({
+		expect(await sanitizeRendererProperties("kennel.renderer.notification_opened", { target: "pr" })).toEqual({
 			target: "pr",
 		});
-		expect(await sanitizeRendererProperties("ao.renderer.notification_opened", { target: "http://x" })).toEqual({});
-		expect(await sanitizeRendererProperties("ao.renderer.notification_mark_read_requested", { scope: "all" })).toEqual({
+		expect(await sanitizeRendererProperties("kennel.renderer.notification_opened", { target: "http://x" })).toEqual({});
+		expect(await sanitizeRendererProperties("kennel.renderer.notification_mark_read_requested", { scope: "all" })).toEqual({
 			scope: "all",
 		});
-		expect(await sanitizeRendererProperties("ao.renderer.notification_mark_read_succeeded", { scope: "all" })).toEqual({
+		expect(await sanitizeRendererProperties("kennel.renderer.notification_mark_read_succeeded", { scope: "all" })).toEqual({
 			scope: "all",
 		});
-		expect(await sanitizeRendererProperties("ao.renderer.notification_mark_read_failed", { scope: "all" })).toEqual({
+		expect(await sanitizeRendererProperties("kennel.renderer.notification_mark_read_failed", { scope: "all" })).toEqual({
 			scope: "all",
 		});
 		expect(
-			await sanitizeRendererProperties("ao.renderer.notification_mark_read_requested", { scope: "everything" }),
+			await sanitizeRendererProperties("kennel.renderer.notification_mark_read_requested", { scope: "everything" }),
 		).toEqual({});
 	});
 
 	it("whitelists coarse daemon failure fields and drops messages", async () => {
-		const props = await sanitizeRendererProperties("ao.renderer.daemon_failure", {
+		const props = await sanitizeRendererProperties("kennel.renderer.daemon_failure", {
 			daemon_state: "error",
 			code: "spawn_failed",
 			exit_code: 1,
@@ -442,7 +442,7 @@ describe("telemetry sanitizers", () => {
 	});
 
 	it("whitelists normalized api_error fields", async () => {
-		const props = await sanitizeRendererProperties("ao.renderer.api_error", {
+		const props = await sanitizeRendererProperties("kennel.renderer.api_error", {
 			operation: "GET /api/v1/projects/:id",
 			error_category: "http_5xx",
 			status: 500,
@@ -452,11 +452,11 @@ describe("telemetry sanitizers", () => {
 	});
 
 	it("keeps only the reason enum on terminal_attach_failed", async () => {
-		expect(await sanitizeRendererProperties("ao.renderer.terminal_attach_failed", { reason: "open_timeout" })).toEqual({
+		expect(await sanitizeRendererProperties("kennel.renderer.terminal_attach_failed", { reason: "open_timeout" })).toEqual({
 			reason: "open_timeout",
 		});
 		expect(
-			await sanitizeRendererProperties("ao.renderer.terminal_attach_failed", { reason: "something else" }),
+			await sanitizeRendererProperties("kennel.renderer.terminal_attach_failed", { reason: "something else" }),
 		).toEqual({});
 	});
 });
@@ -465,15 +465,15 @@ describe("reserveCapture", () => {
 	it("allows up to 5 captures of a name within a minute", () => {
 		const start = 1_000_000;
 		for (let i = 0; i < 5; i += 1) {
-			expect(reserveCapture("ao.renderer.route_viewed", start + i)).toBe(true);
+			expect(reserveCapture("kennel.renderer.route_viewed", start + i)).toBe(true);
 		}
-		expect(reserveCapture("ao.renderer.route_viewed", start + 5)).toBe(false);
+		expect(reserveCapture("kennel.renderer.route_viewed", start + 5)).toBe(false);
 	});
 
 	it("tracks each name in its own window", () => {
 		const start = 2_000_000;
 		for (let i = 0; i < 5; i += 1) {
-			reserveCapture("ao.renderer.route_viewed", start + i);
+			reserveCapture("kennel.renderer.route_viewed", start + i);
 		}
 		expect(reserveCapture("exception:TypeError", start)).toBe(true);
 	});
@@ -481,13 +481,13 @@ describe("reserveCapture", () => {
 	it("resets the burst window once a minute elapses", () => {
 		const start = 3_000_000;
 		for (let i = 0; i < 5; i += 1) {
-			reserveCapture("ao.renderer.loaded", start + i);
+			reserveCapture("kennel.renderer.loaded", start + i);
 		}
-		expect(reserveCapture("ao.renderer.loaded", start + 60_001)).toBe(true);
+		expect(reserveCapture("kennel.renderer.loaded", start + 60_001)).toBe(true);
 	});
 
 	it("caps the daily total even when calls are paced under the burst limit", () => {
-		const name = "ao.renderer.paced_loop";
+		const name = "kennel.renderer.paced_loop";
 		let start = 10_000_000;
 		let allowed = 0;
 		for (let i = 0; i < 210; i += 1) {
@@ -498,7 +498,7 @@ describe("reserveCapture", () => {
 	});
 
 	it("resets the daily ceiling after 24 hours", () => {
-		const name = "ao.renderer.daily_reset";
+		const name = "kennel.renderer.daily_reset";
 		let start = 20_000_000;
 		for (let i = 0; i < 200; i += 1) {
 			expect(reserveCapture(name, start)).toBe(true);
@@ -544,7 +544,7 @@ describe("daily active heartbeat", () => {
 	});
 
 	it("reports only the two channel names on a switch", async () => {
-		const safe = await sanitizeRendererProperties("ao.renderer.update_channel_changed", {
+		const safe = await sanitizeRendererProperties("kennel.renderer.update_channel_changed", {
 			from_channel: "stable",
 			to_channel: "nightly",
 			feature: 1234,
@@ -554,7 +554,7 @@ describe("daily active heartbeat", () => {
 	});
 
 	it("drops an unrecognised channel value", async () => {
-		const safe = await sanitizeRendererProperties("ao.renderer.update_channel_changed", {
+		const safe = await sanitizeRendererProperties("kennel.renderer.update_channel_changed", {
 			from_channel: "canary",
 			to_channel: "nightly",
 		});
@@ -579,7 +579,7 @@ describe("daily active heartbeat", () => {
 		// The upgrade path: a build that emitted per slot wrote { date, slots }.
 		// Reading it must not hand out a fresh reservation for the same day.
 		const storage = memoryStorage();
-		storage.setItem("ao.telemetry.activeSlotsByDate", JSON.stringify({ date: "2026-07-12", slots: [0] }));
+		storage.setItem("kennel.telemetry.activeSlotsByDate", JSON.stringify({ date: "2026-07-12", slots: [0] }));
 		expect(reserveDailyActiveCapture(storage, new Date("2026-07-12T14:00:00.000Z"))).toBe(false);
 		expect(reserveDailyActiveCapture(storage, new Date("2026-07-13T00:00:00.000Z"))).toBe(true);
 	});

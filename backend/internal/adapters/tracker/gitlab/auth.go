@@ -12,12 +12,12 @@ import (
 var ErrNoToken = scmgitlab.ErrNoToken
 
 // DefaultTokenSource returns the standard GitLab token source chain used
-// by the tracker: AO_GITLAB_TOKEN → GITLAB_TOKEN → glab auth status
+// by the tracker: KENNEL_GITLAB_TOKEN → GITLAB_TOKEN → glab auth status
 // --show-token. This mirrors the SCM provider's chain so both adapters
 // honor the same precedence.
 func DefaultTokenSource() scmgitlab.TokenSource {
 	return scmgitlab.FallbackTokenSource{
-		&scmgitlab.EnvTokenSource{EnvVars: []string{"AO_GITLAB_TOKEN"}},
+		&scmgitlab.EnvTokenSource{EnvVars: []string{"KENNEL_GITLAB_TOKEN"}},
 		&scmgitlab.GLabTokenSource{},
 	}
 }

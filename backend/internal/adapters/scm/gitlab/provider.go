@@ -33,7 +33,7 @@ type ProviderOptions struct {
 
 	// HostTokens maps a self-managed host to a token override. Hosts in
 	// AllowedHosts without an explicit entry fall back to the default Token
-	// (typically AO_GITLAB_TOKEN / GITLAB_TOKEN / glab). The per-host
+	// (typically KENNEL_GITLAB_TOKEN / GITLAB_TOKEN / glab). The per-host
 	// selection ensures the gitlab.com token is not attached to a self-managed
 	// host and vice versa.
 	HostTokens map[string]TokenSource
@@ -285,7 +285,7 @@ func (p *Provider) AuthenticatedIdentityForHost(ctx context.Context, host string
 
 // SCMCredentialsAvailable reports whether usable GitLab credentials exist.
 // It checks the default token source first, then falls back to per-host
-// token sources (AO_GITLAB_HOST_TOKENS). If any token source (default or
+// token sources (KENNEL_GITLAB_HOST_TOKENS). If any token source (default or
 // host-specific) is usable, it returns true. This ensures the observer is
 // not disabled when a user configures only self-managed host tokens without
 // a default token.

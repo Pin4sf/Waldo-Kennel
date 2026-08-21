@@ -1300,7 +1300,7 @@ func TestSetSessionPreviewURLBumpsRevisionAndFiresCDCOnSameURL(t *testing.T) {
 	}
 
 	// Both sets fire session_updated even though the URL never changed — the
-	// revision bump is what trips the trigger, so a same-URL `ao preview` re-run
+	// revision bump is what trips the trigger, so a same-URL `kennel preview` re-run
 	// still reaches the browser panel.
 	evs, err := s.EventsAfter(ctx, base, 100)
 	if err != nil {
@@ -1442,7 +1442,7 @@ func TestSessionWorktreesRoundTrip(t *testing.T) {
 	}
 	rows := []domain.SessionWorktreeRecord{
 		{SessionID: rec.ID, RepoName: domain.RootWorkspaceRepoName, Branch: "ao/ws-1", BaseSHA: "root-base", BaseRef: "refs/remotes/origin/trunk", WorktreePath: "/managed/ws/ws-1", State: "active"},
-		{SessionID: rec.ID, RepoName: "api", Branch: "ao/ws-1", BaseSHA: "api-base", BaseRef: "refs/remotes/origin/dev", WorktreePath: "/managed/ws/ws-1/api", PreservedRef: "refs/ao/preserved/ws-1", State: "removed"},
+		{SessionID: rec.ID, RepoName: "api", Branch: "ao/ws-1", BaseSHA: "api-base", BaseRef: "refs/remotes/origin/dev", WorktreePath: "/managed/ws/ws-1/api", PreservedRef: "refs/kennel/preserved/ws-1", State: "removed"},
 	}
 	for _, row := range rows {
 		if err := s.UpsertSessionWorktree(ctx, row); err != nil {
@@ -1457,7 +1457,7 @@ func TestSessionWorktreesRoundTrip(t *testing.T) {
 		t.Fatalf("worktrees = %#v, want %#v", got, rows)
 	}
 	one, ok, err := s.GetSessionWorktree(ctx, rec.ID, "api")
-	if err != nil || !ok || one.PreservedRef != "refs/ao/preserved/ws-1" {
+	if err != nil || !ok || one.PreservedRef != "refs/kennel/preserved/ws-1" {
 		t.Fatalf("get api = %#v ok=%v err=%v", one, ok, err)
 	}
 	rows[1].State = "active"

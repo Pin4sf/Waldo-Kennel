@@ -62,7 +62,7 @@ func TestRemoveAllWithRetryTreatsMissingPathAsSuccess(t *testing.T) {
 }
 
 // TestRemoveAllWithRetrySucceedsAfterTransientFailure is the regression for the
-// Windows sharing violation this retry exists for: `ao session kill` destroys a
+// Windows sharing violation this retry exists for: `kennel session kill` destroys a
 // session's scoped shell terminal and then removes its worktree in the same
 // request, but the PTY's handle on that directory can outlive the call that
 // killed it, so the first removal fails and a moment later succeeds.

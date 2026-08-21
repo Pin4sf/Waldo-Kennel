@@ -26,24 +26,24 @@ const DEAD = () => false;
 const NO_IDENTITY_ERROR = () => null;
 
 describe("expectedDaemonPort", () => {
-	it("defaults to 3001 when AO_PORT is unset or empty", () => {
-		expect(expectedDaemonPort({})).toBe(3001);
-		expect(expectedDaemonPort({ AO_PORT: "" })).toBe(3001);
-		expect(DEFAULT_DAEMON_PORT).toBe(3001);
+	it("defaults to 3031 when KENNEL_PORT is unset or empty", () => {
+		expect(expectedDaemonPort({})).toBe(3031);
+		expect(expectedDaemonPort({ KENNEL_PORT: "" })).toBe(3031);
+		expect(DEFAULT_DAEMON_PORT).toBe(3031);
 	});
 
-	it("honors a valid AO_PORT override", () => {
-		expect(expectedDaemonPort({ AO_PORT: "3037" })).toBe(3037);
-		expect(expectedDaemonPort({ AO_PORT: "1" })).toBe(1);
-		expect(expectedDaemonPort({ AO_PORT: "65535" })).toBe(65535);
+	it("honors a valid KENNEL_PORT override", () => {
+		expect(expectedDaemonPort({ KENNEL_PORT: "3037" })).toBe(3037);
+		expect(expectedDaemonPort({ KENNEL_PORT: "1" })).toBe(1);
+		expect(expectedDaemonPort({ KENNEL_PORT: "65535" })).toBe(65535);
 	});
 
-	it("falls back to the default for an out-of-range or non-integer AO_PORT", () => {
-		expect(expectedDaemonPort({ AO_PORT: "0" })).toBe(3001);
-		expect(expectedDaemonPort({ AO_PORT: "70000" })).toBe(3001);
-		expect(expectedDaemonPort({ AO_PORT: "3001.5" })).toBe(3001);
-		expect(expectedDaemonPort({ AO_PORT: "not-a-number" })).toBe(3001);
-		expect(expectedDaemonPort({ AO_PORT: "-1" })).toBe(3001);
+	it("falls back to the default for an out-of-range or non-integer KENNEL_PORT", () => {
+		expect(expectedDaemonPort({ KENNEL_PORT: "0" })).toBe(3031);
+		expect(expectedDaemonPort({ KENNEL_PORT: "70000" })).toBe(3031);
+		expect(expectedDaemonPort({ KENNEL_PORT: "3001.5" })).toBe(3031);
+		expect(expectedDaemonPort({ KENNEL_PORT: "not-a-number" })).toBe(3031);
+		expect(expectedDaemonPort({ KENNEL_PORT: "-1" })).toBe(3031);
 	});
 });
 
@@ -112,9 +112,9 @@ describe("parseDaemonProbe", () => {
 	it("carries appImagePath when the daemon reports it", () => {
 		const probe = parseDaemonProbe("readyz", {
 			...readyBody,
-			appImagePath: "/home/user/Apps/agent-orchestrator.AppImage",
+			appImagePath: "/home/user/Apps/kennel.AppImage",
 		});
-		expect(probe?.appImagePath).toBe("/home/user/Apps/agent-orchestrator.AppImage");
+		expect(probe?.appImagePath).toBe("/home/user/Apps/kennel.AppImage");
 	});
 
 	it("drops appImagePath when absent or not a string", () => {
@@ -196,7 +196,7 @@ describe("resolveDaemonFromRunFile", () => {
 			pid: 4242,
 			executablePath: undefined,
 			workingDirectory: undefined,
-			message: "An AO daemon is already running, but it is not ready yet.",
+			message: "A Kennel daemon is already running, but it is not ready yet.",
 			code: "not_ready",
 		});
 	});
@@ -209,13 +209,13 @@ describe("resolveDaemonFromRunFile", () => {
 				"3001:healthz": { status: "ok", service: DAEMON_SERVICE_NAME, pid: 4242 },
 				"3001:readyz": { status: "ready", service: DAEMON_SERVICE_NAME, pid: 4242, workingDirectory: "/other" },
 			}),
-			identityError: () => "Another AO daemon is already running from /other.",
+			identityError: () => "Another Kennel daemon is already running from /other.",
 		});
 		expect(result).toMatchObject({
 			state: "error",
 			pid: 4242,
 			port: 3001,
-			message: "Another AO daemon is already running from /other.",
+			message: "Another Kennel daemon is already running from /other.",
 		});
 	});
 
@@ -294,7 +294,7 @@ describe("resolveDaemonFromPort", () => {
 			pid: 777,
 			executablePath: undefined,
 			workingDirectory: undefined,
-			message: "An AO daemon is already running, but it is not ready yet.",
+			message: "A Kennel daemon is already running, but it is not ready yet.",
 			code: "not_ready",
 		});
 	});
@@ -309,13 +309,13 @@ describe("resolveDaemonFromPort", () => {
 			identityError: (probe) =>
 				probe.executablePath === "/new/ao"
 					? null
-					: `Another AO daemon is already running from ${probe.executablePath}.`,
+					: `Another Kennel daemon is already running from ${probe.executablePath}.`,
 		});
 		expect(result).toMatchObject({
 			state: "error",
 			port: 3001,
 			pid: 777,
-			message: "Another AO daemon is already running from /old/ao.",
+			message: "Another Kennel daemon is already running from /old/ao.",
 		});
 	});
 
@@ -460,17 +460,17 @@ describe("end-to-end against a real daemon server", () => {
 			identityError: (probe) =>
 				probe.executablePath === "/expected/ao"
 					? null
-					: `Another AO daemon is already running from ${probe.executablePath}.`,
+					: `Another Kennel daemon is already running from ${probe.executablePath}.`,
 		});
 		expect(result).toMatchObject({
 			state: "error",
 			port,
 			pid: 909,
-			message: "Another AO daemon is already running from /old/build/ao.",
+			message: "Another Kennel daemon is already running from /old/build/ao.",
 		});
 	});
 
-	// THE #367 SCENARIO: a standalone `ao daemon` is serving the port, but the
+	// THE #367 SCENARIO: a standalone `kennel daemon` is serving the port, but the
 	// run-file diverges — here it names a DEAD pid (e.g. a stale handshake from a
 	// crashed launch). Pre-fix this fell through to spawn() and the Go child
 	// refused with exit 1. Post-fix the port probe attaches instead.

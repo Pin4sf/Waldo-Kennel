@@ -12,14 +12,14 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
-// Run explicitly with AO_LIVE_CLAUDE_ACP=1. It spends two very small real turns
+// Run explicitly with KENNEL_LIVE_CLAUDE_ACP=1. It spends two very small real turns
 // against the user's existing Claude Code login and proves the complete boundary,
 // including standing-context replacement on resume: packaged Node ->
 // claude-agent-acp -> user-installed Claude -> normalized AO events. CI never
 // depends on credentials or the network.
 func TestLiveClaudeACP(t *testing.T) {
-	if os.Getenv("AO_LIVE_CLAUDE_ACP") != "1" {
-		t.Skip("set AO_LIVE_CLAUDE_ACP=1 to run against the local Claude Code account")
+	if os.Getenv("KENNEL_LIVE_CLAUDE_ACP") != "1" {
+		t.Skip("set KENNEL_LIVE_CLAUDE_ACP=1 to run against the local Claude Code account")
 	}
 
 	driver := New(claudecode.New(), nil)

@@ -16,7 +16,7 @@ import {
 const MAX_VISIBLE_MODELS = 50;
 const MODEL_SEARCH_THRESHOLD = 8;
 const MAX_RECENT_MODELS = 3;
-const RECENT_MODELS_STORAGE_KEY = "ao.recentModels.v1";
+const RECENT_MODELS_STORAGE_KEY = "kennel.recentModels.v1";
 
 type AgentModel = NonNullable<AgentModelCatalog["models"]>[number];
 

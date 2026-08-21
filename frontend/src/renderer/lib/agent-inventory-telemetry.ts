@@ -4,7 +4,7 @@ import type { AgentCatalog } from "../hooks/useAgentsQuery";
  * How many agents an install actually has available.
  *
  * The open product question is whether most people ever configure more than one
- * agent. Nothing answered it: `ao.session.spawned` carries the harness that ran,
+ * agent. Nothing answered it: `kennel.session.spawned` carries the harness that ran,
  * so it shows which agents get *used*, not how many were available to choose
  * from. An install with six authorized agents that always picks one looks
  * identical to an install that only has one.

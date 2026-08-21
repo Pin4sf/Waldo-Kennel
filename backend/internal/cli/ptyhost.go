@@ -8,7 +8,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/conpty"
 )
 
-// newPtyHostCommand registers the "ao pty-host" hidden subcommand that the
+// newPtyHostCommand registers the "kennel pty-host" hidden subcommand that the
 // conpty runtime spawns on Windows to host a ConPTY session over loopback TCP.
 // DisableFlagParsing ensures agent shell args with leading dashes are not
 // consumed by cobra before being passed to RunHost.

@@ -256,7 +256,7 @@ func TestChatInterruptWithNoActiveTurnIsRefusedNotAnError(t *testing.T) {
 	}
 }
 
-// `ao send` and orchestrator-to-worker relay both go through this endpoint. A
+// `kennel send` and orchestrator-to-worker relay both go through this endpoint. A
 // chat session has no pane to type into, so without a mode branch the send is
 // refused as "missing runtime handles" and chat workers are unreachable by AO's
 // own automation.
@@ -266,7 +266,7 @@ func TestChatRelayThroughTheSendEndpointIsAttributedToAutomation(t *testing.T) {
 	project := seedProject(t, d, "relay")
 	session := chatSession(t, d, project, "Reply with exactly: READY")
 
-	// The endpoint answers 200 with an echo, the same shape `ao send` already
+	// The endpoint answers 200 with an echo, the same shape `kennel send` already
 	// depends on for a terminal session.
 	d.mustCall("POST", "/sessions/"+session+"/send", http.StatusOK,
 		map[string]any{"message": "Reply with exactly: RELAYED"}, nil)
@@ -401,7 +401,7 @@ func TestChatAgentCanRunTheAOCLI(t *testing.T) {
 	session := chatSession(t, d, project, "Reply with exactly: READY")
 
 	send(t, d, session,
-		"Run the shell command `ao --version` and reply with its exact output, or reply NOT-FOUND if the command does not exist.",
+		"Run the shell command `kennel --version` and reply with its exact output, or reply NOT-FOUND if the command does not exist.",
 		"ao-path")
 
 	snap := d.awaitConversation(session, 3*time.Minute, "the ao probe to finish", func(s snapshot) bool {

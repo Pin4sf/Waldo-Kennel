@@ -18,7 +18,7 @@
 // session metadata; GetRestoreCommand reads it back.
 //
 // Hooks: Kimchi has a native hook adapter that reads .kimchi/hooks.local.json.
-// AO installs hooks in that file using `ao hooks kimchi <event>` commands.
+// AO installs hooks in that file using `kennel hooks kimchi <event>` commands.
 // The adapter is always-on; no user configuration is needed for hooks to fire.
 //
 // PreLaunch: Kimchi does NOT have a first-run trust/onboarding dialog (unlike

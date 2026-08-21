@@ -4,7 +4,7 @@
 //   1. the running.json handshake file (whatever the last daemon wrote), and
 //   2. a direct probe of the expected port, independent of the run-file.
 //
-// (2) is the defensive backstop for issue #367: a standalone `ao daemon` may be
+// (2) is the defensive backstop for issue #367: a standalone `kennel daemon` may be
 // serving the port while running.json is missing, stale, unparseable, names a
 // dead PID, or reports a PID that disagrees with /healthz. In every one of those
 // cases the run-file check yields null; without the port probe the supervisor
@@ -20,10 +20,10 @@
 import type { DaemonStatus } from "./daemon-status";
 import { parseRunFile } from "./daemon-discovery";
 
-// The daemon's default bind port (backend/internal/config). AO_PORT overrides it.
-export const DEFAULT_DAEMON_PORT = 3001;
-// The `service` field every genuine AO daemon stamps on its health payloads.
-export const DAEMON_SERVICE_NAME = "agent-orchestrator-daemon";
+// The daemon's default bind port (backend/internal/config). KENNEL_PORT overrides it.
+export const DEFAULT_DAEMON_PORT = 3031;
+// The `service` field every genuine Kennel daemon stamps on its health payloads.
+export const DAEMON_SERVICE_NAME = "kennel-daemon";
 
 export type DaemonProbe = {
 	status: string;
@@ -32,7 +32,7 @@ export type DaemonProbe = {
 	executablePath?: string;
 	workingDirectory?: string;
 	startupWorkingDirectory?: string;
-	/** Stable outer .AppImage path (AO_APPIMAGE), present only when the daemon's launcher runs under AppImage. */
+	/** Stable outer .AppImage path (KENNEL_APPIMAGE), present only when the daemon's launcher runs under AppImage. */
 	appImagePath?: string;
 };
 
@@ -40,12 +40,12 @@ export type DaemonProbe = {
 export type DaemonProber = (port: number, endpoint: "healthz" | "readyz") => Promise<DaemonProbe | null>;
 
 /**
- * The port a freshly spawned daemon is expected to bind: AO_PORT when set and
+ * The port a freshly spawned daemon is expected to bind: KENNEL_PORT when set and
  * valid, otherwise the daemon's default. Used to probe for an already-serving
  * daemon before spawning a child that would only refuse and exit.
  */
 export function expectedDaemonPort(env: Record<string, string | undefined>): number {
-	const configured = env.AO_PORT ? Number(env.AO_PORT) : NaN;
+	const configured = env.KENNEL_PORT ? Number(env.KENNEL_PORT) : NaN;
 	return Number.isInteger(configured) && configured >= 1 && configured <= 65535 ? configured : DEFAULT_DAEMON_PORT;
 }
 
@@ -152,7 +152,7 @@ async function readinessStatus(
 			pid,
 			executablePath: health.executablePath,
 			workingDirectory: health.workingDirectory,
-			message: "An AO daemon is already running, but it is not ready yet.",
+			message: "A Kennel daemon is already running, but it is not ready yet.",
 			code: "not_ready",
 		};
 	}

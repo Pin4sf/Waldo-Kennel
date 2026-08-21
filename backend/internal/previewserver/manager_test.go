@@ -19,7 +19,7 @@ import (
 )
 
 func TestPreviewServerHelper(t *testing.T) {
-	if os.Getenv("AO_PREVIEW_TEST_HELPER") != "1" {
+	if os.Getenv("KENNEL_PREVIEW_TEST_HELPER") != "1" {
 		return
 	}
 	port, err := strconv.Atoi(os.Getenv("PORT"))
@@ -172,17 +172,17 @@ func TestPreviewEnvironmentDoesNotInheritDaemonCredentials(t *testing.T) {
 			"PATH=/usr/bin",
 			"HOME=/home/test",
 			"GITHUB_TOKEN=secret",
-			"AO_BROWSER_RUNTIME_TOKEN=runtime-secret",
+			"KENNEL_BROWSER_RUNTIME_TOKEN=runtime-secret",
 		},
 		map[string]string{"PUBLIC_FLAG": "enabled"},
 		"session-1",
 		4173,
 	)
 	joined := strings.Join(env, "\n")
-	if strings.Contains(joined, "GITHUB_TOKEN") || strings.Contains(joined, "AO_BROWSER_RUNTIME_TOKEN") {
+	if strings.Contains(joined, "GITHUB_TOKEN") || strings.Contains(joined, "KENNEL_BROWSER_RUNTIME_TOKEN") {
 		t.Fatalf("preview inherited daemon credentials: %v", env)
 	}
-	for _, want := range []string{"PATH=/usr/bin", "HOME=/home/test", "PUBLIC_FLAG=enabled", "AO_SESSION_ID=session-1"} {
+	for _, want := range []string{"PATH=/usr/bin", "HOME=/home/test", "PUBLIC_FLAG=enabled", "KENNEL_SESSION_ID=session-1"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("preview env missing %q: %v", want, env)
 		}
@@ -198,7 +198,7 @@ func helperConfiguration(name string, kind TargetKind) Configuration {
 		AutoPort:           true,
 		URL:                "http://127.0.0.1:${PORT}/",
 		TargetKind:         kind,
-		Env:                map[string]string{"AO_PREVIEW_TEST_HELPER": "1"},
+		Env:                map[string]string{"KENNEL_PREVIEW_TEST_HELPER": "1"},
 		ReadyTimeoutMillis: 5000,
 	}
 }

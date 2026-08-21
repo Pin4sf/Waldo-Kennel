@@ -1,5 +1,7 @@
 # Desktop release runbook
 
+> Kennel foundation notice (2026-08-18): this is a retained AO release donor, not an executable Kennel release procedure. Repository names, asset names, tags, credentials, environments, and approval steps below describe the upstream process and must not be run against Kennel. The current package identity targets `Pin4sf/Waldo-Kennel`, but the F0-F6 gate does not deploy or publish. Write and review a Kennel-specific release migration before the first release; preserve the one-publisher and macOS verification rules when doing so.
+
 How to cut a stable desktop release, end to end. Written from the v0.10.3 cut
 (2026-07-12), which bumps the version on `main` via a PR and tags the merge
 commit. v0.10.1/v0.10.2 used an older tag-only stamp commit that never landed

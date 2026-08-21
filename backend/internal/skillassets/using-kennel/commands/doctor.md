@@ -1,11 +1,11 @@
-# ao doctor
+# kennel doctor
 
 Run local AO health checks. Use this to diagnose setup problems or verify the environment is correctly configured.
 
 ## Syntax
 
 ```
-ao doctor [flags]
+kennel doctor [flags]
 ```
 
 ## Flags
@@ -18,10 +18,10 @@ ao doctor [flags]
 
 ```bash
 # Run health checks
-ao doctor
+kennel doctor
 ```
 
 ```bash
 # Get health check results as JSON
-ao doctor --json
+kennel doctor --json
 ```

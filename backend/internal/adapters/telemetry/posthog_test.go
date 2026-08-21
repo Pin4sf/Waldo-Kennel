@@ -33,7 +33,7 @@ func TestPostHogSinkCapturesEvent(t *testing.T) {
 	projectID := domain.ProjectID("proj-1")
 	sessionID := domain.SessionID("sess-1")
 	sink.Emit(context.Background(), ports.TelemetryEvent{
-		Name:       "ao.session.spawned",
+		Name:       "kennel.session.spawned",
 		Source:     "session_service",
 		OccurredAt: time.Unix(1700000000, 0).UTC(),
 		Level:      ports.TelemetryLevelInfo,
@@ -50,8 +50,8 @@ func TestPostHogSinkCapturesEvent(t *testing.T) {
 
 	select {
 	case req := <-requests:
-		if got := req["event"]; got != "ao.session.spawned" {
-			t.Fatalf("event = %#v, want ao.session.spawned", got)
+		if got := req["event"]; got != "kennel.session.spawned" {
+			t.Fatalf("event = %#v, want kennel.session.spawned", got)
 		}
 		props, ok := req["properties"].(map[string]any)
 		if !ok {
@@ -91,7 +91,7 @@ func TestPostHogSinkSanitizesPayloads(t *testing.T) {
 	}
 
 	sink.Emit(context.Background(), ports.TelemetryEvent{
-		Name:       "ao.daemon.panic",
+		Name:       "kennel.daemon.panic",
 		Source:     "http",
 		OccurredAt: time.Unix(1700000000, 0).UTC(),
 		Level:      ports.TelemetryLevelError,
@@ -157,14 +157,14 @@ func TestPostHogSinkSanitizesAppActivePayload(t *testing.T) {
 	}
 
 	sink.Emit(context.Background(), ports.TelemetryEvent{
-		Name:       "ao.app.active",
+		Name:       "kennel.app.active",
 		Source:     "cli",
 		OccurredAt: time.Unix(1700000000, 0).UTC(),
 		Level:      ports.TelemetryLevelInfo,
 		Payload: map[string]any{
 			"channel":      "cli",
 			"command":      "spawn",
-			"command_path": "ao spawn",
+			"command_path": "kennel spawn",
 			"ip":           "203.0.113.10",
 			"country":      "US",
 			"city":         "San Francisco",
@@ -178,20 +178,20 @@ func TestPostHogSinkSanitizesAppActivePayload(t *testing.T) {
 
 	select {
 	case req := <-requests:
-		if got := req["event"]; got != "ao.v2.app.active" {
-			t.Fatalf("event = %#v, want ao.v2.app.active", got)
+		if got := req["event"]; got != "kennel.v2.app.active" {
+			t.Fatalf("event = %#v, want kennel.v2.app.active", got)
 		}
 		props, ok := req["properties"].(map[string]any)
 		if !ok {
 			t.Fatalf("properties type = %T, want map[string]any", req["properties"])
 		}
-		if props["legacy_event_name"] != "ao.app.active" {
-			t.Fatalf("legacy_event_name = %#v, want ao.app.active", props["legacy_event_name"])
+		if props["legacy_event_name"] != "kennel.app.active" {
+			t.Fatalf("legacy_event_name = %#v, want kennel.app.active", props["legacy_event_name"])
 		}
 		if props["telemetry_schema_version"] != float64(2) {
 			t.Fatalf("telemetry_schema_version = %#v, want 2", props["telemetry_schema_version"])
 		}
-		if props["channel"] != "cli" || props["command"] != "spawn" || props["command_path"] != "ao spawn" {
+		if props["channel"] != "cli" || props["command"] != "spawn" || props["command_path"] != "kennel spawn" {
 			t.Fatalf("sanitized properties = %#v, want active CLI metadata", props)
 		}
 		for _, key := range []string{"ip", "country", "city", "latitude", "longitude"} {
@@ -233,7 +233,7 @@ func TestPostHogSinkStampsAppVersionWhenSupplied(t *testing.T) {
 
 	emit := func(sink *PostHogSink) map[string]any {
 		sink.Emit(context.Background(), ports.TelemetryEvent{
-			Name:       "ao.session.spawn_failed",
+			Name:       "kennel.session.spawn_failed",
 			Source:     "session_service",
 			OccurredAt: time.Unix(1700000000, 0).UTC(),
 			Level:      ports.TelemetryLevelError,
@@ -252,8 +252,8 @@ func TestPostHogSinkStampsAppVersionWhenSupplied(t *testing.T) {
 	}
 
 	props := emit(newSink(" 0.11.2 "))
-	if props["app_version"] != "0.11.2" || props["ao_version"] != "0.11.2" {
-		t.Fatalf("version properties = %#v / %#v, want trimmed 0.11.2", props["app_version"], props["ao_version"])
+	if props["app_version"] != "0.11.2" || props["kennel_version"] != "0.11.2" {
+		t.Fatalf("version properties = %#v / %#v, want trimmed 0.11.2", props["app_version"], props["kennel_version"])
 	}
 
 	// An unset supervisor env var must leave the properties off rather than
@@ -262,7 +262,7 @@ func TestPostHogSinkStampsAppVersionWhenSupplied(t *testing.T) {
 	if _, ok := props["app_version"]; ok {
 		t.Fatalf("app_version present without the option: %#v", props["app_version"])
 	}
-	if _, ok := props["ao_version"]; ok {
-		t.Fatalf("ao_version present without the option: %#v", props["ao_version"])
+	if _, ok := props["kennel_version"]; ok {
+		t.Fatalf("kennel_version present without the option: %#v", props["kennel_version"])
 	}
 }

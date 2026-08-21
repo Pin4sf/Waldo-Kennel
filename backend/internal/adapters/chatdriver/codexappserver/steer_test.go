@@ -225,20 +225,20 @@ func TestSteerFallsBackToTheRequestedTurnWhenTheProviderNamesNone(t *testing.T) 
 }
 
 // TestLiveSteerKeepsTheTurnAndItsWork drives a real `codex app-server`. Skipped
-// unless AO_CODEX_LIVE=1: it needs a local Codex install, working auth, and it makes
+// unless KENNEL_CODEX_LIVE=1: it needs a local Codex install, working auth, and it makes
 // real model calls.
 //
-//	AO_CODEX_LIVE=1 go test ./internal/adapters/chatdriver/codexappserver/ -run LiveSteer -v
+//	KENNEL_CODEX_LIVE=1 go test ./internal/adapters/chatdriver/codexappserver/ -run LiveSteer -v
 //
 // This is the test that earns the capability. Steering is advertised only because
 // this passed against codex-cli 0.146.0, and the claim it checks is the one the
 // feature exists for: the turn the user was waiting on survives, keeps its id, and
 // finishes having followed the correction — not interrupted, not restarted.
 func TestLiveSteerKeepsTheTurnAndItsWork(t *testing.T) {
-	if os.Getenv("AO_CODEX_LIVE") != "1" {
-		t.Skip("set AO_CODEX_LIVE=1 to run against a real codex app-server")
+	if os.Getenv("KENNEL_CODEX_LIVE") != "1" {
+		t.Skip("set KENNEL_CODEX_LIVE=1 to run against a real codex app-server")
 	}
-	bin := os.Getenv("AO_CODEX_BIN")
+	bin := os.Getenv("KENNEL_CODEX_BIN")
 	if bin == "" {
 		bin = "codex"
 	}

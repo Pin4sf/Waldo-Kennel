@@ -4,7 +4,7 @@ import {
 	PRSummaryParts as ProductPRSummaryParts,
 	type CountNounLabel,
 	type PRSummaryPartKey,
-} from "@aoagents/product-ui";
+} from "@pin4sf/kennel-product-ui";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { SessionPRSummary } from "../hooks/useSessionScmSummary";

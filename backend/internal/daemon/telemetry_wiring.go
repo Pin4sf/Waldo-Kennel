@@ -19,16 +19,16 @@ import (
 // httpd/log.go) exactly, including underscores - there is no compile-time
 // check tying this list to the emit sites.
 //
-// Deliberately does NOT include ao.cli.invoked or ao.app.active: those are
-// already deduped to at most once per command-path/day (ao.cli.invoked) or
-// once per day (ao.app.active) at the httpd layer before they ever reach a
-// sink, including for ao hooks/ao pty-host and high-frequency polling
-// commands like ao status/ao session ls - adding them here would double up
+// Deliberately does NOT include kennel.cli.invoked or kennel.app.active: those are
+// already deduped to at most once per command-path/day (kennel.cli.invoked) or
+// once per day (kennel.app.active) at the httpd layer before they ever reach a
+// sink, including for kennel hooks/ao pty-host and high-frequency polling
+// commands like kennel status/kennel session ls - adding them here would double up
 // on dedup logic that already owns that job and gains nothing.
 var aggregatedEventNames = []string{
-	"ao.http.5xx",
-	"ao.daemon.panic",
-	"ao.cli.usage_errors",
+	"kennel.http.5xx",
+	"kennel.daemon.panic",
+	"kennel.cli.usage_errors",
 }
 
 func newTelemetrySink(cfg config.Config, store *sqlite.Store, log *slog.Logger) ports.EventSink {

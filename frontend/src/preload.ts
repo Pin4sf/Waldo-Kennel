@@ -373,6 +373,6 @@ const api = {
 	},
 };
 
-contextBridge.exposeInMainWorld("ao", api);
+contextBridge.exposeInMainWorld("kennel", api);
 
 export type AoBridge = typeof api;

@@ -114,7 +114,7 @@ func (c *commandContext) waitForStopped(ctx context.Context, pid int, runFilePat
 		alive := c.deps.ProcessAlive(pid)
 		if !alive {
 			// Only remove the run-file if it still belongs to the process we
-			// stopped. A concurrent `ao start` may have already written a new
+			// stopped. A concurrent `kennel start` may have already written a new
 			// run-file for a different daemon; removing that would corrupt its
 			// handshake and make a live daemon look stopped.
 			if info != nil && info.PID == pid {
@@ -135,7 +135,7 @@ func (c *commandContext) waitForStopped(ctx context.Context, pid int, runFilePat
 			// up the data directory, but exceeding the timeout is NOT an error:
 			// with no desktop client connected the daemon can drain its
 			// background workers slower than the stop timeout, and failing here
-			// made `ao stop` spuriously report failure (issue #2214).
+			// made `kennel stop` spuriously report failure (issue #2214).
 			if !c.deps.Now().Before(deadline) {
 				return daemonStatus{State: stateStopped, RunFile: runFilePath, DataDir: dataDir}, nil
 			}

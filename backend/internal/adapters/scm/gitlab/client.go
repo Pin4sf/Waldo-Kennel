@@ -427,7 +427,7 @@ var ErrPaginationURLRejected = fmt.Errorf("gitlab scm: pagination URL rejected")
 // host, port, and API base path as restBase, and rejects HTTPS-to-HTTP
 // downgrades. The host check implicitly enforces the per-host trust boundary
 // from ticket 01: a client's restBase is already scoped to an allowlisted host
-// (gitlab.com or an entry in AO_GITLAB_ALLOWED_HOSTS), so any next URL whose
+// (gitlab.com or an entry in KENNEL_GITLAB_ALLOWED_HOSTS), so any next URL whose
 // host differs from restBase's host is, by construction, not in the allowlist
 // for this client and is rejected before the Authorization header is attached.
 //

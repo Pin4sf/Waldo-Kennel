@@ -44,7 +44,7 @@ func (s StaticTokenSource) Token(context.Context) (string, error) {
 
 // EnvTokenSource reads the first non-empty value from the listed env vars,
 // falling back to GITLAB_TOKEN. Order matters: a project-scoped variable
-// (AO_GITLAB_TOKEN) should win over the global default.
+// (KENNEL_GITLAB_TOKEN) should win over the global default.
 type EnvTokenSource struct {
 	EnvVars []string
 }

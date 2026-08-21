@@ -20,7 +20,7 @@ import (
 //
 // Uses ConfigForHost (no network I/O) instead of Get to avoid real DNS/HTTP.
 func TestNewGitLabTracker_PassesAllowedHosts(t *testing.T) {
-	t.Setenv("AO_GITLAB_TOKEN", "default-token")
+	t.Setenv("KENNEL_GITLAB_TOKEN", "default-token")
 
 	selfHost := "gitlab.internal.example"
 	cfg := config.GitLabConfig{
@@ -52,7 +52,7 @@ func TestNewGitLabTracker_PassesAllowedHosts(t *testing.T) {
 // TestNewGitLabTracker_GitLabComStillWorks verifies that the zero-value host
 // (gitlab.com) still works after wiring — backward compatibility.
 func TestNewGitLabTracker_GitLabComStillWorks(t *testing.T) {
-	t.Setenv("AO_GITLAB_TOKEN", "default-token")
+	t.Setenv("KENNEL_GITLAB_TOKEN", "default-token")
 
 	cfg := config.GitLabConfig{}
 	tracker, err := newGitLabTracker(cfg)
@@ -83,7 +83,7 @@ func TestNewGitLabTracker_GitLabComStillWorks(t *testing.T) {
 // For full end-to-end token routing, the tracker_test.go in the adapter
 // package already covers Get/List with a fake server.
 func TestNewGitLabTracker_HostTokensRoutedCorrectly(t *testing.T) {
-	t.Setenv("AO_GITLAB_TOKEN", "default-token")
+	t.Setenv("KENNEL_GITLAB_TOKEN", "default-token")
 
 	selfHost := "gitlab.internal.example"
 	cfg := config.GitLabConfig{
@@ -124,7 +124,7 @@ func TestNewGitLabTracker_HostTokensRoutedCorrectly(t *testing.T) {
 // mixed-case config key (e.g. "GitLab.Internal.Example") still matches the
 // lowercased host lookup in the tracker's configForHost.
 func TestNewGitLabTracker_HostTokensCaseInsensitive(t *testing.T) {
-	t.Setenv("AO_GITLAB_TOKEN", "default-token")
+	t.Setenv("KENNEL_GITLAB_TOKEN", "default-token")
 
 	selfHost := "GitLab.Internal.Example" // mixed case in config
 	cfg := config.GitLabConfig{
@@ -157,7 +157,7 @@ func TestNewGitLabTracker_HostTokensCaseInsensitive(t *testing.T) {
 // credential is attached — both for Get-style and List-style host lookups
 // (both go through configForHost).
 func TestNewGitLabTracker_UnconfiguredHostRejected(t *testing.T) {
-	t.Setenv("AO_GITLAB_TOKEN", "default-token")
+	t.Setenv("KENNEL_GITLAB_TOKEN", "default-token")
 
 	cfg := config.GitLabConfig{
 		AllowedHosts: []string{"gitlab.internal.example"},
@@ -204,8 +204,8 @@ func TestNewGitLabTracker_UnconfiguredHostRejected(t *testing.T) {
 // instead call Get with a deliberately unconfigured host and assert
 // ErrHostNotAllowed, which fires before any network I/O.
 func TestNewMultiTracker_WithGitLabConfig(t *testing.T) {
-	t.Setenv("AO_GITLAB_TOKEN", "default-token")
-	t.Setenv("AO_GITHUB_TOKEN", "")
+	t.Setenv("KENNEL_GITLAB_TOKEN", "default-token")
+	t.Setenv("KENNEL_GITHUB_TOKEN", "")
 
 	selfHost := "gitlab.internal.example"
 	cfg := config.GitLabConfig{

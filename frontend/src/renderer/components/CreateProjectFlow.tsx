@@ -1,5 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { ProjectModePickerView } from "@aoagents/product-ui";
+import { ProjectModePickerView } from "@pin4sf/kennel-product-ui";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, ChevronRight, Folder, FolderPlus, X, XCircle } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -278,7 +278,7 @@ async function projectRepositoryPreflight(path: string): Promise<ProjectReposito
 	try {
 		const scan = await aoBridge.app.scanImportFolder({ path, mode: "project" });
 		const reason = scan.repos[0]?.reason ?? "";
-		if (reason.startsWith("Selected folder is inside AO's internal data directory.")) {
+		if (reason.startsWith("Selected folder is inside Kennel's internal data directory.")) {
 			return {
 				blockingError: reason,
 				scan,

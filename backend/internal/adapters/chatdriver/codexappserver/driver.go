@@ -23,8 +23,8 @@ import (
 // clientName identifies AO to the provider. It shows up in the app-server's
 // reported user agent, which makes a stray process attributable.
 const (
-	clientName    = "agent-orchestrator"
-	clientTitle   = "Agent Orchestrator"
+	clientName    = "kennel"
+	clientTitle   = "Kennel"
 	clientVersion = "0.1.0"
 	// This is the oldest Codex build whose complete Chat surface AO exercised:
 	// thread start/resume, turn start/interrupt, approvals, and every advertised

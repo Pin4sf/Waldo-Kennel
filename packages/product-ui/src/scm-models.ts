@@ -21,21 +21,21 @@ export type ReviewDecision = (typeof REVIEW_DECISIONS)[number];
 export const MERGEABILITY_STATES = ["unknown", "mergeable", "conflicting", "blocked", "unstable"] as const;
 export type MergeabilityState = (typeof MERGEABILITY_STATES)[number];
 
-export const AO_REVIEW_RUN_STATUSES = ["running", "complete", "delivered", "failed", "cancelled"] as const;
-export type AOReviewRunStatus = (typeof AO_REVIEW_RUN_STATUSES)[number];
+export const KENNEL_REVIEW_RUN_STATUSES = ["running", "complete", "delivered", "failed", "cancelled"] as const;
+export type AOReviewRunStatus = (typeof KENNEL_REVIEW_RUN_STATUSES)[number];
 
 // The empty value is AO's existing stored "no verdict yet" vocabulary.
-export const AO_REVIEW_VERDICTS = ["", "approved", "changes_requested"] as const;
-export type AOReviewVerdict = (typeof AO_REVIEW_VERDICTS)[number];
+export const KENNEL_REVIEW_VERDICTS = ["", "approved", "changes_requested"] as const;
+export type AOReviewVerdict = (typeof KENNEL_REVIEW_VERDICTS)[number];
 
-export const AO_REVIEW_STATES = [
+export const KENNEL_REVIEW_STATES = [
 	"needs_review",
 	"running",
 	"up_to_date",
 	"changes_requested",
 	"ineligible",
 ] as const;
-export type AOReviewState = (typeof AO_REVIEW_STATES)[number];
+export type AOReviewState = (typeof KENNEL_REVIEW_STATES)[number];
 
 export type PullRequestFailingCheck = {
 	name: string;

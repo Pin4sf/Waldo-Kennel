@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const KEY = "ao.installId";
+const KEY = "kennel.installId";
 
 // The install id identifies this app installation to the daemon. It keys the
 // push-device registry, so one phone stays one row even when its Expo push token

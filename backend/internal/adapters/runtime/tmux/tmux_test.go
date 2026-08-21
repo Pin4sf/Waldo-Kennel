@@ -281,7 +281,7 @@ func TestCreateIssuesNewSessionAndStatusOff(t *testing.T) {
 		SessionID:     "sess-1",
 		WorkspacePath: "/tmp/ws",
 		Argv:          []string{"echo", "hi"},
-		Env:           map[string]string{"AO_SESSION_ID": "sess-1"},
+		Env:           map[string]string{"KENNEL_SESSION_ID": "sess-1"},
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -383,10 +383,10 @@ func TestCreateLaunchCommandExportsEnvVars(t *testing.T) {
 		WorkspacePath: "/tmp/ws",
 		Argv:          []string{"myagent"},
 		Env: map[string]string{
-			"AO_SESSION_ID": "sess-1",
-			"COLORTERM":     "ansi",
-			"ODD":           "can't",
-			"PATH":          "/custom/bin:/usr/bin",
+			"KENNEL_SESSION_ID": "sess-1",
+			"COLORTERM":         "ansi",
+			"ODD":               "can't",
+			"PATH":              "/custom/bin:/usr/bin",
 		},
 	})
 	if err != nil {
@@ -396,7 +396,7 @@ func TestCreateLaunchCommandExportsEnvVars(t *testing.T) {
 	launchCmd := args[len(args)-1]
 	for _, want := range []string{
 		"unset NO_COLOR;",
-		"export AO_SESSION_ID='sess-1';",
+		"export KENNEL_SESSION_ID='sess-1';",
 		"export COLORTERM='truecolor';",
 		"export ODD='can'\\''t';",
 		"export PATH='/custom/bin:/usr/bin';",
@@ -629,7 +629,7 @@ func TestRestartRespawnsExistingPaneAndPreservesHandle(t *testing.T) {
 		SessionID:     "sess-1",
 		WorkspacePath: "/tmp/ws",
 		Argv:          []string{"codex", "resume", "native-1"},
-		Env:           map[string]string{"AO_SESSION_ID": "sess-1"},
+		Env:           map[string]string{"KENNEL_SESSION_ID": "sess-1"},
 	}
 
 	got, err := r.Restart(context.Background(), handle, cfg)

@@ -74,7 +74,7 @@ type AuxiliaryTerminal =
 
 type TerminalOrder = { sessionId: string; keys: string[] };
 
-const terminalFontSizeStorageKey = "ao.terminal.fontSize";
+const terminalFontSizeStorageKey = "kennel.terminal.fontSize";
 const WHEEL_ZOOM_THRESHOLD = 80;
 const WHEEL_ZOOM_RESET_MS = 250;
 const isMac = isMacPlatform();

@@ -17,7 +17,7 @@ import (
 func newLaunchCommand(ctx *commandContext) *cobra.Command {
 	return &cobra.Command{
 		Use:    "launch",
-		Short:  "Launch an AO-managed agent process (internal)",
+		Short:  "Launch an Kennel-managed agent process (internal)",
 		Hidden: true,
 		Args:   noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -29,7 +29,7 @@ func newLaunchCommand(ctx *commandContext) *cobra.Command {
 func (c *commandContext) launchAgent(ctx context.Context) error {
 	specPath := strings.TrimSpace(os.Getenv(agentlaunch.EnvSpecPath))
 	if specPath == "" {
-		return errors.New("launch: AO_LAUNCH_SPEC is required")
+		return errors.New("launch: KENNEL_LAUNCH_SPEC is required")
 	}
 	spec, err := agentlaunch.ReadAndRemove(specPath)
 	if err != nil {
@@ -42,7 +42,7 @@ func (c *commandContext) launchAgent(ctx context.Context) error {
 		return launchErr
 	}
 	if launchErr != nil {
-		_, _ = fmt.Fprintf(c.deps.Err, "\r\n[ao launch] agent process exited: %v\r\n", launchErr)
+		_, _ = fmt.Fprintf(c.deps.Err, "\r\n[kennel launch] agent process exited: %v\r\n", launchErr)
 	}
 	return c.runLaunchCommand(ctx, spec.WorkspacePath, spec.FallbackArgv, env)
 }

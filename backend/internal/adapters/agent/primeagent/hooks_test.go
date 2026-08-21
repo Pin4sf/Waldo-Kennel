@@ -25,7 +25,7 @@ func TestGetAgentHooksInstallsManagedExtensionIdempotently(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	path := filepath.Join(dataDir, "agent-runtime", "prime-agent", "ao-activity.ts")
+	path := filepath.Join(dataDir, "agent-runtime", "prime-agent", "kennel-activity.ts")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -59,7 +59,7 @@ func TestGetAgentHooksInstallsManagedExtensionIdempotently(t *testing.T) {
 
 func TestGetAgentHooksReplacesStaleManagedPath(t *testing.T) {
 	dataDir := t.TempDir()
-	path := filepath.Join(dataDir, "agent-runtime", "prime-agent", "ao-activity.ts")
+	path := filepath.Join(dataDir, "agent-runtime", "prime-agent", "kennel-activity.ts")
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -103,9 +103,9 @@ func TestManagedExtensionMapsPrimeLifecycleEventsAndIgnoresHookFailures(t *testi
 	if err := New().GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{DataDir: dataDir}); err != nil {
 		t.Fatal(err)
 	}
-	extensionPath := filepath.Join(dataDir, "agent-runtime", "prime-agent", "ao-activity.ts")
+	extensionPath := filepath.Join(dataDir, "agent-runtime", "prime-agent", "kennel-activity.ts")
 	fixtureDir := t.TempDir()
-	extensionModulePath := filepath.Join(fixtureDir, "ao-activity.mjs")
+	extensionModulePath := filepath.Join(fixtureDir, "kennel-activity.mjs")
 	extensionSource, err := os.ReadFile(extensionPath)
 	if err != nil {
 		t.Fatal(err)
@@ -114,14 +114,14 @@ func TestManagedExtensionMapsPrimeLifecycleEventsAndIgnoresHookFailures(t *testi
 		t.Fatal(err)
 	}
 	capturePath := filepath.Join(fixtureDir, "calls.jsonl")
-	writeExecutable(t, filepath.Join(fixtureDir, "ao"), `#!/usr/bin/env node
+	writeExecutable(t, filepath.Join(fixtureDir, "kennel"), `#!/usr/bin/env node
 const fs = require("node:fs");
 let input = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", chunk => { input += chunk; });
 process.stdin.on("end", () => {
-  fs.appendFileSync(process.env.AO_TEST_CAPTURE, JSON.stringify({args: process.argv.slice(2), cwd: process.cwd(), input}) + "\n");
-  process.exit(Number(process.env.AO_TEST_EXIT || "0"));
+  fs.appendFileSync(process.env.KENNEL_TEST_CAPTURE, JSON.stringify({args: process.argv.slice(2), cwd: process.cwd(), input}) + "\n");
+  process.exit(Number(process.env.KENNEL_TEST_EXIT || "0"));
 });
 `)
 	harnessPath := filepath.Join(fixtureDir, "harness.mjs")
@@ -158,7 +158,7 @@ for (const name of ["session_start", "before_agent_start", "agent_start", "agent
 		t.Fatal(err)
 	}
 	cmd := exec.CommandContext(context.Background(), node, harnessPath, extensionModulePath, workspace)
-	cmd.Env = append(os.Environ(), "PATH="+fixtureDir+string(os.PathListSeparator)+os.Getenv("PATH"), "AO_TEST_CAPTURE="+capturePath, "AO_TEST_EXIT=9")
+	cmd.Env = append(os.Environ(), "PATH="+fixtureDir+string(os.PathListSeparator)+os.Getenv("PATH"), "KENNEL_TEST_CAPTURE="+capturePath, "KENNEL_TEST_EXIT=9")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("extension harness failed despite hook exit 9: %v\n%s", err, output)

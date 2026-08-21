@@ -574,7 +574,7 @@ func newEditHarness(t *testing.T) (*harness, *historyRecorder, *editDriverState)
 	ctrl, err := svc.Start(context.Background(), chatsvc.StartConfig{
 		SessionID: testSession, ProjectID: testProject, Kind: domain.KindWorker,
 		Harness: domain.HarnessCodex, WorkspacePath: workspace,
-		Env: map[string]string{"AO_EDIT_TEST": "yes"}, SystemPrompt: "preserved prompt",
+		Env: map[string]string{"KENNEL_EDIT_TEST": "yes"}, SystemPrompt: "preserved prompt",
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -635,7 +635,7 @@ func TestEditMessageForksBeforeMiddlePromptAndReusesStoredContent(t *testing.T) 
 	if len(sent) != 1 || sent[0].Text != "B edited" || len(sent[0].Content) != 1 || sent[0].Content[0].Data != "data:image/png;base64,AA==" {
 		t.Fatalf("replacement send = %#v", sent)
 	}
-	if len(resumes) != 1 || resumes[0].WorkspacePath == "" || resumes[0].Env["AO_EDIT_TEST"] != "yes" || resumes[0].SystemPrompt != "preserved prompt" {
+	if len(resumes) != 1 || resumes[0].WorkspacePath == "" || resumes[0].Env["KENNEL_EDIT_TEST"] != "yes" || resumes[0].SystemPrompt != "preserved prompt" {
 		t.Fatalf("resume config = %#v", resumes)
 	}
 }

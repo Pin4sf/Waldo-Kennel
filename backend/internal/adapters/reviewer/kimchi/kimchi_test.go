@@ -60,7 +60,7 @@ func TestReviewCommandAppliesBestEffortPolicyOffBypass(t *testing.T) {
 	if agent.got.Permissions != ports.PermissionModeAuto {
 		t.Fatalf("reviewer must launch in auto permission mode; got %q", agent.got.Permissions)
 	}
-	if !contains(agent.got.AllowedTools, "read") || !contains(agent.got.AllowedTools, "bash(ao review submit:*)") {
+	if !contains(agent.got.AllowedTools, "read") || !contains(agent.got.AllowedTools, "bash(kennel review submit:*)") {
 		t.Fatalf("allowlist missing read-only review tools: %#v", agent.got.AllowedTools)
 	}
 	for _, denied := range []string{
@@ -129,9 +129,9 @@ func TestAllowlistIncludesProtocolToolsAndDeniesDangerousGh(t *testing.T) {
 		}
 	}
 
-	// The reviewer can still submit verdicts via ao review submit.
-	if !contains(agent.got.AllowedTools, "bash(ao review submit:*)") {
-		t.Fatalf("allowlist missing ao review submit: %#v", agent.got.AllowedTools)
+	// The reviewer can still submit verdicts via kennel review submit.
+	if !contains(agent.got.AllowedTools, "bash(kennel review submit:*)") {
+		t.Fatalf("allowlist missing kennel review submit: %#v", agent.got.AllowedTools)
 	}
 
 	// git show must NOT be in the allow list — it can read arbitrary tracked

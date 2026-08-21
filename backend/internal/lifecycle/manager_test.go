@@ -1636,7 +1636,7 @@ func TestCommitControllerEpochAllowsExplicitFreshHandoff(t *testing.T) {
 
 // TestMarkSpawned_StampsUTCActivity locks the lifecycle clock to UTC so
 // activity-driven timestamps match the session manager's spawn timestamps. A
-// local clock here left `ao session get` showing created in UTC but updated in
+// local clock here left `kennel session get` showing created in UTC but updated in
 // local time.
 func TestMarkSpawned_StampsUTCActivity(t *testing.T) {
 	m, st, _ := newManager()
@@ -1672,7 +1672,7 @@ func TestActivity_WaitingInputEntryAndExitEmitTelemetry(t *testing.T) {
 	if len(sink.events) != 2 {
 		t.Fatalf("events = %#v, want waiting_input entered/exited", sink.events)
 	}
-	if sink.events[0].Name != "ao.session.waiting_input_entered" || sink.events[1].Name != "ao.session.waiting_input_exited" {
+	if sink.events[0].Name != "kennel.session.waiting_input_entered" || sink.events[1].Name != "kennel.session.waiting_input_exited" {
 		t.Fatalf("event names = %#v", []string{sink.events[0].Name, sink.events[1].Name})
 	}
 	if got := sink.events[1].Payload["dwell_ms"]; got != int64(3000) {
@@ -2974,7 +2974,7 @@ func TestActivity_BlockedEntryAndExitEmitTelemetry(t *testing.T) {
 	if len(sink.events) != 2 {
 		t.Fatalf("events = %#v, want entered/exited", sink.events)
 	}
-	if sink.events[0].Name != "ao.session.waiting_input_entered" || sink.events[1].Name != "ao.session.waiting_input_exited" {
+	if sink.events[0].Name != "kennel.session.waiting_input_entered" || sink.events[1].Name != "kennel.session.waiting_input_exited" {
 		t.Fatalf("event names = %#v (family events keep the waiting_input_* names)", []string{sink.events[0].Name, sink.events[1].Name})
 	}
 	if got := sink.events[0].Payload["state"]; got != "blocked" {
@@ -3314,7 +3314,7 @@ func newManagerWithContainerReaper(cr ports.ContainerReaper, pl projectConfigLoa
 // shared teardown path: MarkTerminated must reap the terminated session's
 // containers, covering every terminal-state path (Kill, daemon shutdown,
 // Cleanup, RetireForReplacement, tracker-driven termination) through this one
-// choke point rather than only explicit ao session kill.
+// choke point rather than only explicit kennel session kill.
 func TestMarkTerminated_ReapsContainers(t *testing.T) {
 	cr := &fakeLifecycleContainerReaper{removed: 2}
 	pl := &fakeProjectConfigLoader{projects: map[string]domain.ProjectRecord{

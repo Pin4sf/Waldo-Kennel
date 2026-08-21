@@ -226,7 +226,7 @@ export function Sidebar({
 	});
 	const isNightly = typeof appVersion === "string" && appVersion.includes("-nightly.");
 
-	// agent-orchestrator's sidebar resize: drag the right edge (200-420px,
+	// kennel's sidebar resize: drag the right edge (200-420px,
 	// persisted), double-click to reset to 240px. Drives --ao-sidebar-w on :root,
 	// which the provider forwards into shadcn's --sidebar-width. Dragging clamps
 	// at SIDEBAR_MIN_WIDTH — collapsing stays on the explicit toggle (⌘B /

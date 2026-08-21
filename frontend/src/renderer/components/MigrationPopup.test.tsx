@@ -34,7 +34,10 @@ beforeEach(() => {
 	getMigration.mockReset();
 	setMigration.mockReset();
 	getMigration.mockResolvedValue({ status: "pending" });
-	getMock.mockResolvedValue({ data: { available: true, legacyRoot: "/home/u/.agent-orchestrator" }, error: undefined });
+	getMock.mockResolvedValue({
+		data: { available: true, legacyRoot: "/home/u/.agent-orchestrator" },
+		error: undefined,
+	});
 	postMock.mockResolvedValue({ data: { report: { projectsImported: 2, projectsSkipped: 1 } }, error: undefined });
 	setMigration.mockResolvedValue(undefined);
 });

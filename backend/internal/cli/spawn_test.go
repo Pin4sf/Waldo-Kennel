@@ -28,8 +28,8 @@ func TestSpawnHelpListsPrimeAgentHarness(t *testing.T) {
 	}
 }
 
-// TestSpawnCommand_MissingProjectContext asserts `ao spawn` gives a project
-// setup hint when neither --project, AO_PROJECT_ID, nor cwd can resolve one.
+// TestSpawnCommand_MissingProjectContext asserts `kennel spawn` gives a project
+// setup hint when neither --project, KENNEL_PROJECT_ID, nor cwd can resolve one.
 func TestSpawnCommand_MissingProjectContext(t *testing.T) {
 	cfg := setConfigEnv(t)
 	var requests []string
@@ -49,7 +49,7 @@ func TestSpawnCommand_MissingProjectContext(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error when project context is missing")
 	}
-	if !strings.Contains(err.Error(), "ao project add --path <repo-path> --worker-agent <agent>") {
+	if !strings.Contains(err.Error(), "kennel project add --path <repo-path> --worker-agent <agent>") {
 		t.Fatalf("error = %v, want project add hint", err)
 	}
 	if want := []string{"GET /api/v1/projects"}; !reflect.DeepEqual(requests, want) {
@@ -57,7 +57,7 @@ func TestSpawnCommand_MissingProjectContext(t *testing.T) {
 	}
 }
 
-// TestProjectAddCommand_RequiresPath asserts `ao project add` rejects a missing
+// TestProjectAddCommand_RequiresPath asserts `kennel project add` rejects a missing
 // --path before touching the network.
 func TestProjectAddCommand_RequiresPath(t *testing.T) {
 	var out, errb bytes.Buffer
@@ -207,7 +207,7 @@ func TestSpawnNoTakeoverRequiresClaimPR(t *testing.T) {
 	}
 }
 
-// TestSpawnCommand_RequiresName asserts `ao spawn` rejects a missing --name
+// TestSpawnCommand_RequiresName asserts `kennel spawn` rejects a missing --name
 // without contacting the daemon.
 func TestSpawnCommand_RequiresName(t *testing.T) {
 	_, _, err := executeCLI(t, Deps{}, "spawn", "--project", "demo", "--agent", "codex")
@@ -216,7 +216,7 @@ func TestSpawnCommand_RequiresName(t *testing.T) {
 	}
 }
 
-// TestSpawnCommand_RejectsOverlongName asserts `ao spawn` rejects a --name
+// TestSpawnCommand_RejectsOverlongName asserts `kennel spawn` rejects a --name
 // longer than 20 characters without contacting the daemon.
 func TestSpawnCommand_RejectsOverlongName(t *testing.T) {
 	_, _, err := executeCLI(t, Deps{}, "spawn", "--project", "demo", "--name", strings.Repeat("x", 21))
@@ -248,7 +248,7 @@ func TestSpawnResolvesProjectFromEnvAndDefaultAgent(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	writeRunFileFor(t, cfg, srv)
-	t.Setenv("AO_PROJECT_ID", "demo")
+	t.Setenv("KENNEL_PROJECT_ID", "demo")
 
 	out, errOut, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "spawn", "--prompt", "Fix failing tests in auth", "--name", "worker")
 	if err != nil {
@@ -294,7 +294,7 @@ func TestSpawnResolvesProjectFromAOSessionID(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	writeRunFileFor(t, cfg, srv)
-	t.Setenv("AO_SESSION_ID", "demo-1")
+	t.Setenv("KENNEL_SESSION_ID", "demo-1")
 
 	_, errOut, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "spawn", "--prompt", "Fix tests", "--name", "worker")
 	if err != nil {
@@ -325,11 +325,11 @@ func TestSpawnAOSessionIDFailureRequiresProject(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	writeRunFileFor(t, cfg, srv)
-	t.Setenv("AO_SESSION_ID", "missing")
+	t.Setenv("KENNEL_SESSION_ID", "missing")
 
 	_, _, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "spawn", "--agent", "codex", "--name", "worker")
-	if err == nil || !strings.Contains(err.Error(), `project could not be resolved from AO_SESSION_ID "missing"; pass --project`) {
-		t.Fatalf("err=%v, want AO_SESSION_ID project error", err)
+	if err == nil || !strings.Contains(err.Error(), `project could not be resolved from KENNEL_SESSION_ID "missing"; pass --project`) {
+		t.Fatalf("err=%v, want KENNEL_SESSION_ID project error", err)
 	}
 	want := []string{"GET /api/v1/sessions/missing"}
 	if !reflect.DeepEqual(requests, want) {
@@ -833,7 +833,7 @@ func TestSpawnUnknownAuthRefreshesWarnsAndAllows(t *testing.T) {
 	}
 }
 
-// TestSpawnCommand_RejectsInvalidKind asserts `ao spawn` rejects a --kind value
+// TestSpawnCommand_RejectsInvalidKind asserts `kennel spawn` rejects a --kind value
 // outside worker/orchestrator at the CLI boundary, without contacting the daemon.
 func TestSpawnCommand_RejectsInvalidKind(t *testing.T) {
 	// Pass a valid --name so this exercises the --kind boundary specifically:
@@ -865,7 +865,7 @@ func TestResolveSpawnHarness_OrchestratorDefault(t *testing.T) {
 	if got, err := resolveSpawnHarness("aider", "orchestrator", project); err != nil || got != "aider" {
 		t.Fatalf("explicit agent: got %q err %v, want aider", got, err)
 	}
-	// Unset kind is the default `ao spawn` path and must resolve to worker.agent.
+	// Unset kind is the default `kennel spawn` path and must resolve to worker.agent.
 	if got, err := resolveSpawnHarness("", "", project); err != nil || got != "codex" {
 		t.Fatalf("unset kind: got %q err %v, want codex", got, err)
 	}

@@ -161,7 +161,7 @@ func TestWorkspaceIntegrationDestroyDirtyWorktree(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	// AO-managed hook files behind a self-ignoring .gitignore: invisible to git
+	// Kennel-managed hook files behind a self-ignoring .gitignore: invisible to git
 	// status, so they must not block teardown.
 	hookDir := filepath.Join(info.Path, ".codex")
 	if err := os.MkdirAll(hookDir, 0o750); err != nil {
@@ -510,7 +510,7 @@ func TestWorkspaceIntegrationAutoUsesAOInitializedRemotelessDefault(t *testing.T
 	runGit(t, git, repo, "config", "core.autocrlf", "false")
 	runGit(t, git, repo, "config", "user.email", "ao@example.com")
 	runGit(t, git, repo, "config", "user.name", "Ao Agents")
-	runGit(t, git, repo, "config", "ao.defaultBranch", "main")
+	runGit(t, git, repo, "config", "kennel.defaultBranch", "main")
 	if err := os.WriteFile(filepath.Join(repo, "README.md"), []byte("seed\n"), 0o644); err != nil {
 		t.Fatalf("write seed: %v", err)
 	}

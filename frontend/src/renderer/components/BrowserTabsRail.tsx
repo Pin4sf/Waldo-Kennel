@@ -79,8 +79,8 @@ export const BrowserTabsRail = forwardRef<BrowserTabsRailHandle, BrowserTabsRail
 	const collapsed = !expanded && !pinned;
 
 	const { onPointerDown: onResizePointerDown, onDoubleClick: onResizeDoubleClick } = useResizable({
-		cssVar: "--ao-browser-tabs-w",
-		storageKey: "ao-browser-tabs-w",
+		cssVar: "--kennel-browser-tabs-w",
+		storageKey: "kennel-browser-tabs-w",
 		defaultWidth: RAIL_DEFAULT_WIDTH,
 		min: RAIL_MIN_WIDTH,
 		max: RAIL_MAX_WIDTH,
@@ -213,7 +213,7 @@ export const BrowserTabsRail = forwardRef<BrowserTabsRailHandle, BrowserTabsRail
 			className={cn(
 				"browser-tabs-rail relative flex h-full shrink-0 flex-col border-border bg-surface",
 				expanded ? "border-r" : pinned ? "border-l" : "",
-				expanded ? "w-(--ao-browser-tabs-w)" : pinned ? "w-8" : "w-0",
+				expanded ? "w-(--kennel-browser-tabs-w)" : pinned ? "w-8" : "w-0",
 			)}
 			data-testid="browser-tabs-rail"
 			onBlur={

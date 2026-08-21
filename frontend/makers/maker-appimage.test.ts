@@ -8,9 +8,9 @@ vi.mock("app-builder-lib", () => ({ buildForge }));
 import MakerAppImage from "./maker-appimage";
 
 const makeOptions = {
-	dir: "/tmp/app/Agent Orchestrator-linux-x64",
+	dir: "/tmp/app/Kennel-linux-x64",
 	makeDir: "/tmp/app/make",
-	appName: "Agent Orchestrator",
+	appName: "Kennel",
 	targetPlatform: "linux" as const,
 	targetArch: "x64" as const,
 	forgeConfig: {} as never,
@@ -32,12 +32,12 @@ describe("MakerAppImage", () => {
 	it("writes callback protocols into the AppImage desktop entry", async () => {
 		const protocols = [
 			{
-				name: "Agent Orchestrator authentication callback",
-				schemes: ["ao-app"],
+				name: "Kennel authentication callback",
+				schemes: ["kennel-app"],
 			},
 		];
 		const maker = new MakerAppImage(
-			{ appId: "dev.agent-orchestrator.desktop", protocols },
+			{ appId: "in.heywaldo.kennel", protocols },
 			["linux"],
 		);
 		await maker.prepareConfig(makeOptions.targetArch);

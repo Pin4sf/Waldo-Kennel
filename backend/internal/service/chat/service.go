@@ -1019,7 +1019,7 @@ func (s *Service) SetTurnSettings(
 
 // RelayChatTurn delivers a message AO is carrying for someone else.
 //
-// Origin is automation, not human: `ao send` and an orchestrator writing to a
+// Origin is automation, not human: `kennel send` and an orchestrator writing to a
 // worker are AO acting on the user's instructions, and the timeline attributes
 // them so rather than passing them off as something the user typed here. The
 // distinction is durable and structural — a reader must not have to infer it

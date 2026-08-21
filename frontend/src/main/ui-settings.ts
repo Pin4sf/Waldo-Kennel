@@ -5,7 +5,7 @@ import { DEFAULT_UI_SETTINGS, coerceUiSettings, type UiSettings } from "../share
 export { DEFAULT_UI_SETTINGS, coerceUiSettings } from "../shared/ui-locale";
 export type { AppLocale, UiSettings } from "../shared/ui-locale";
 
-/** File holding lightweight UI prefs (locale) under the ~/.ao state dir. */
+/** File holding lightweight UI prefs (locale) under the ~/.kennel state dir. */
 export const UI_SETTINGS_FILE_NAME = "ui-settings.json";
 
 let settingsOperationQueue: Promise<void> = Promise.resolve();

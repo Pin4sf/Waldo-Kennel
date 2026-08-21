@@ -176,7 +176,7 @@ describe("GlobalSettingsForm", () => {
 		expect(toggle).toHaveAttribute("aria-checked", "false");
 
 		await user.click(toggle);
-		expect(window.localStorage.getItem("ao.developerMode")).toBe("true");
+		expect(window.localStorage.getItem("kennel.developerMode")).toBe("true");
 		await user.click(screen.getByLabelText("Updates channel"));
 		expect(await screen.findByRole("menuitem", { name: "Feature Releases" })).toBeInTheDocument();
 	});
@@ -383,7 +383,7 @@ describe("GlobalSettingsForm", () => {
 		expect(copied).not.toContain("## Type");
 		expect(copied).not.toContain("Generated locally by AO");
 		expect(openExternal).toHaveBeenCalledWith(
-			expect.stringContaining("https://github.com/Untrivial-ai/agent-orchestrator/issues/new"),
+			expect.stringContaining("https://github.com/Pin4sf/Waldo-Kennel/issues/new"),
 		);
 		expect(open).not.toHaveBeenCalled();
 		expect(screen.getByLabelText("Title")).toHaveValue("");

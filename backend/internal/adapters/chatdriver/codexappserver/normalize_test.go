@@ -366,7 +366,7 @@ func TestUnwrapShellLeavesPlainCommands(t *testing.T) {
 		{"date -u", "date -u"},
 		{"/bin/sh -c 'ls -la'", "ls -la"},
 		{`/bin/bash -lc "git status"`, "git status"},
-		{"ao spawn --project p --name w", "ao spawn --project p --name w"},
+		{"kennel spawn --project p --name w", "kennel spawn --project p --name w"},
 		// A non-shell binary that happens to take -c must not be unwrapped.
 		{"python -c print(1)", "python -c print(1)"},
 	} {

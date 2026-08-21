@@ -20,7 +20,7 @@ import {
 	type InspectorReviewLabels,
 	type InspectorTimelineEvent,
 	type InspectorView,
-} from "@aoagents/product-ui";
+} from "@pin4sf/kennel-product-ui";
 import {
 	ArrowUpRight,
 	ChevronDown,
@@ -82,7 +82,7 @@ import {
 type ProjectConfig = components["schemas"]["ProjectConfig"];
 type OpenReviewerTerminal = (target: { handleId: string; harness: string }) => void;
 
-export type { InspectorView } from "@aoagents/product-ui";
+export type { InspectorView } from "@pin4sf/kennel-product-ui";
 
 const VIEW_DEFS: {
 	id: InspectorView;
@@ -1503,11 +1503,11 @@ function MergedReviewsSection({
 		return {
 			ao: ao
 				? {
-						dimmed: ao.status === "ineligible",
-						historical:
-							ao.status === "needs_review" &&
-							Boolean(ao.previousRun) &&
-							(!ao.latestRun || ao.latestRun.status === "failed" || ao.latestRun.status === "cancelled"),
+					dimmed: ao.status === "ineligible",
+					historical:
+						ao.status === "needs_review" &&
+						Boolean(ao.previousRun) &&
+						(!ao.latestRun || ao.latestRun.status === "failed" || ao.latestRun.status === "cancelled"),
 						notInjected: aoRuns.some((run) => run.autoInjectReview === false),
 						runs: reviewRuns,
 					}

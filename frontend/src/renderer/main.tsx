@@ -52,7 +52,7 @@ if (import.meta.env.DEV) {
 		});
 		console.log("[testNotif] bell updated - click away from AO now, bounce fires in 3s");
 		setTimeout(() => {
-			void window.ao?.notifications.devBounce();
+			void window.kennel?.notifications.devBounce();
 			// Restore normal stale time after bounce
 			queryClient.setQueryDefaults(key, { staleTime: 0 });
 		}, 3000);

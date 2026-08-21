@@ -44,7 +44,7 @@ func newCLITelemetryReservoir(dataDir string) *cliTelemetryReservoir {
 	return r
 }
 
-// reserveActive hands out one ao.app.active report per UTC day. It was four per
+// reserveActive hands out one kennel.app.active report per UTC day. It was four per
 // day, one per six-hour slot, which cost four events per install for a number
 // that is a unique count and therefore never changed.
 func (r *cliTelemetryReservoir) reserveActive(now time.Time) bool {

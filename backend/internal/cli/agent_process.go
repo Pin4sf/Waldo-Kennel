@@ -17,7 +17,7 @@ const supervisedExitReportTimeout = 5 * time.Second
 func newAgentProcessCommand(ctx *commandContext) *cobra.Command {
 	root := &cobra.Command{
 		Use:    "agent-process",
-		Short:  "Run an AO-managed agent process (internal)",
+		Short:  "Run an Kennel-managed agent process (internal)",
 		Hidden: true,
 	}
 	root.AddCommand(newAgentProcessSuperviseCommand(ctx))

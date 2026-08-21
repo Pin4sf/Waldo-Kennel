@@ -1,28 +1,28 @@
 ---
-name: using-ao
-description: "Catalog of the AO (Agent Orchestrator) `ao` CLI: spawning workers, managing sessions and projects, sending messages, controlling the shared browser, previewing pages, and daemon control. Use when using the ao CLI, spawning workers, or managing AO sessions in an AO workspace."
-trigger: "Using the ao CLI in an AO workspace: spawning workers, managing sessions/projects, sending messages, controlling or previewing pages."
+name: using-kennel
+description: "Catalog of the Kennel `kennel` CLI: spawning workers, managing sessions and projects, sending messages, controlling the shared browser, previewing pages, and daemon control. Use when using the Kennel CLI, spawning workers, or managing sessions in a Kennel workspace."
+trigger: "Using the Kennel CLI in a Kennel workspace: spawning workers, managing sessions or projects, sending messages, controlling or previewing pages."
 ---
 
-# AO CLI Catalog
+# Kennel CLI Catalog
 
-`ao` is a thin CLI over the local AO daemon. Every command is `ao <command> --help` for the authoritative flag list.
+`kennel` is a thin CLI over the local Kennel daemon. Every command is `kennel <command> --help` for the authoritative flag list.
 
 | Command | What it does | When to use | Details |
 |---|---|---|---|
 | `spawn` | Spawn a worker agent in a fresh git worktree | Starting a new task or issue | [commands/spawn.md](commands/spawn.md) |
 | `session` | Manage agent sessions (list, kill, rename, restore, etc.) | Inspecting or controlling running/terminated sessions | [commands/session.md](commands/session.md) |
-| `project` | Register, inspect, configure, or remove projects | Setting up or managing repos AO knows about | [commands/project.md](commands/project.md) |
+| `project` | Register, inspect, configure, or remove projects | Setting up or managing repos Kennel knows about | [commands/project.md](commands/project.md) |
 | `orchestrator` | List orchestrator sessions | Viewing which sessions are orchestrators | [commands/orchestrator.md](commands/orchestrator.md) |
 | `review` | Submit a reviewer result for a worker's PR | Completing a code review loop | [commands/review.md](commands/review.md) |
 | `send` | Send a message to a running agent session | Correcting or directing a live agent | [commands/send.md](commands/send.md) |
 | `preview` | Start a session-owned app or open an exact URL/file | Running and showing the worker's relevant app, Markdown, HTML, PDF, or image | [commands/preview.md](commands/preview.md) |
 | `browser` | Inspect and control the session's shared live browser | Verifying a web app through snapshots, interactions, waits, screenshots, console, and errors | [commands/browser.md](commands/browser.md) |
-| `start` | Fetch (if needed) and open the AO desktop app | Launching the app | [commands/start.md](commands/start.md) |
-| `stop` | Stop the AO daemon | Shutting down AO | [commands/stop.md](commands/stop.md) |
+| `start` | Fetch (if needed) and open the Kennel desktop app | Launching the app | [commands/start.md](commands/start.md) |
+| `stop` | Stop the Kennel daemon | Shutting down Kennel | [commands/stop.md](commands/stop.md) |
 | `status` | Show daemon status | Verifying the daemon is up and healthy | [commands/status.md](commands/status.md) |
-| `doctor` | Run local health checks | Diagnosing AO setup problems | [commands/doctor.md](commands/doctor.md) |
-| `import` | Import projects from a legacy AO install | Migrating from the old flat-file store | [commands/import.md](commands/import.md) |
+| `doctor` | Run local health checks | Diagnosing Kennel setup problems | [commands/doctor.md](commands/doctor.md) |
+| `import` | Import projects from a legacy Agent Orchestrator install | Migrating from the old flat-file store | [commands/import.md](commands/import.md) |
 | `version` | Print version information | Checking installed version | - |
 | `completion` | Generate shell completion scripts | Setting up tab completion | - |
 
@@ -30,8 +30,8 @@ trigger: "Using the ao CLI in an AO workspace: spawning workers, managing sessio
 
 - Most read commands accept `--json` for machine-readable output.
 - `-p / --project` scopes session subcommand lookups to one project.
-- Session and project ids are shown by `ao session ls` and `ao project ls`.
-- `--agent` is an alias for `--harness` on `ao spawn`.
+- Session and project ids are shown by `kennel session ls` and `kennel project ls`.
+- `--agent` is an alias for `--harness` on `kennel spawn`.
 - Every command accepts `-h / --help` for the full flag list.
 - For frontend launch, preview selection, or artifact handoff, read
   [commands/preview.md](commands/preview.md) before acting. Its static-file,

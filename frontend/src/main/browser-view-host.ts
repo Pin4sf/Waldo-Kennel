@@ -562,7 +562,7 @@ export function createBrowserViewHost(options: BrowserViewHostOptions): BrowserV
 				// A non-persist: Electron partition is memory-only. Every tab in
 				// this worker shares it, while a fresh worker runtime receives a
 				// different partition even if a session ID is ever reused.
-				profilePartition: `ao-browser-${randomUUID()}`,
+				profilePartition: `kennel-browser-${randomUUID()}`,
 				tabs: new Map(),
 				activeTabId: "",
 				nextTabNumber: 1,
@@ -926,7 +926,7 @@ export function createBrowserViewHost(options: BrowserViewHostOptions): BrowserV
 		return pushNavState(options, entry);
 	};
 
-	// clear resets the view to a blank page (`ao preview clear`). about:blank is
+	// clear resets the view to a blank page (`kennel preview clear`). about:blank is
 	// loaded directly, bypassing the URL allowlist — it carries no content and
 	// readNavState normalizes it back to an empty url so the panel shows its
 	// empty state.
@@ -2035,7 +2035,7 @@ function normalizeAgentBrowserURL(input: string): string {
 		throw browserError("BROWSER_URL_FORBIDDEN", "Agent browser commands cannot open local files");
 	}
 	if (!/^https?:\/\//i.test(raw) && !isLocalhostLike(raw) && !looksLikeHost(raw)) {
-		throw browserError("INVALID_URL", "ao browser open requires an explicit http(s) URL or hostname");
+		throw browserError("INVALID_URL", "kennel browser open requires an explicit http(s) URL or hostname");
 	}
 	const normalized = normalizeBrowserURL(raw);
 	if (normalized.protocol !== "http:" && normalized.protocol !== "https:") {

@@ -67,7 +67,7 @@ export function useConversationEventTransport(cfg: ServerConfig | null): void {
 }
 
 function eventCursorKey(cfg: ServerConfig): string {
-	return `ao.chat.events.${cfg.secure ? "https" : "http"}.${cfg.host}.${cfg.httpPort}`;
+	return `kennel.chat.events.${cfg.secure ? "https" : "http"}.${cfg.host}.${cfg.httpPort}`;
 }
 
 function wait(ms: number): Promise<void> {

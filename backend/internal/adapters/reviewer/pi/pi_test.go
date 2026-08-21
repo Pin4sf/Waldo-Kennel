@@ -63,7 +63,7 @@ func TestExtensionRejectsCommandInjectionSurfaces(t *testing.T) {
 	// only fixed executable names, and every subprocess receives an argv array.
 	runCall := regexp.MustCompile(`run\(pi,\s*([^,]+),`)
 	for _, match := range runCall.FindAllStringSubmatch(text, -1) {
-		if match[1] != `"git"` && match[1] != `"gh"` && match[1] != `"ao"` {
+		if match[1] != `"git"` && match[1] != `"gh"` && match[1] != `"kennel"` {
 			t.Fatalf("extension has non-constant executable in %q", match[0])
 		}
 	}
@@ -120,7 +120,7 @@ func TestReviewCommandIsInteractiveAndIsolated(t *testing.T) {
 	if got := spec.Argv[len(spec.Argv)-1]; got != "Read and follow the AO review task in `/ao/task.md`." {
 		t.Fatalf("terminal-visible prompt = %q", got)
 	}
-	if spec.Env["AO_PI_REVIEW_SESSION"] != "worker-1" || spec.Env["AO_PI_REVIEW_PROMPT_ROOT"] != inv.TaskPromptRoot || spec.Env["AO_PI_REVIEW_MANIFEST_POINTER"] == "" {
+	if spec.Env["KENNEL_PI_REVIEW_SESSION"] != "worker-1" || spec.Env["KENNEL_PI_REVIEW_PROMPT_ROOT"] != inv.TaskPromptRoot || spec.Env["KENNEL_PI_REVIEW_MANIFEST_POINTER"] == "" {
 		t.Fatalf("env = %#v", spec.Env)
 	}
 	wantProfileRoot := filepath.Join(inv.DataDir, "reviewer-runtime", inv.ReviewerID)
@@ -131,7 +131,7 @@ func TestReviewCommandIsInteractiveAndIsolated(t *testing.T) {
 		spec.Env["TMPDIR"] != filepath.Join(wantProfileRoot, "tmp") {
 		t.Fatalf("Pi reviewer must use AO-owned profile roots, env = %#v", spec.Env)
 	}
-	manifest := readActiveManifest(t, spec.Env["AO_PI_REVIEW_MANIFEST_POINTER"])
+	manifest := readActiveManifest(t, spec.Env["KENNEL_PI_REVIEW_MANIFEST_POINTER"])
 	if len(manifest.Tasks) != 1 || manifest.Tasks[0].RunID != inv.RunID || manifest.Tasks[0].PRURL != inv.PRURL || manifest.Tasks[0].TargetSHA != inv.TargetSHA {
 		t.Fatalf("active manifest = %+v", manifest)
 	}
@@ -160,7 +160,7 @@ func TestSequentialReviewMessagesReplaceRatherThanAccumulateAuthority(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	pointer := spec.Env["AO_PI_REVIEW_MANIFEST_POINTER"]
+	pointer := spec.Env["KENNEL_PI_REVIEW_MANIFEST_POINTER"]
 	if got := readActiveManifest(t, pointer).Tasks; len(got) != 1 || got[0].RunID != "run-1" {
 		t.Fatalf("first active tasks = %+v", got)
 	}

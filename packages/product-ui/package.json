@@ -1,7 +1,8 @@
 {
-	"name": "@aoagents/product-ui",
+	"name": "@pin4sf/kennel-product-ui",
 	"version": "0.1.0",
-	"description": "Portable product presentation models, helpers, and leaf components for AO clients",
+	"private": true,
+	"description": "Portable product presentation models, helpers, and leaf components for Kennel clients",
 	"type": "module",
 	"sideEffects": false,
 	"main": "./dist/index.js",
@@ -45,10 +46,10 @@
 		"vite": "^8.0.16",
 		"vitest": "^4.1.8"
 	},
-	"license": "MIT",
+	"license": "Apache-2.0",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/aoagents/agent-orchestrator.git",
+		"url": "https://github.com/Pin4sf/Waldo-Kennel.git",
 		"directory": "packages/product-ui"
 	}
 }

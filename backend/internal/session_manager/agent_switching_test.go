@@ -945,8 +945,8 @@ func TestBuildSourceHandoffRequestUsesCurrentNativeSessionContext(t *testing.T) 
 		TargetHarness:      domain.HarnessClaudeCode,
 	}
 	candidatePath := filepath.Join(t.TempDir(), "agent-handoff-candidate.json")
-	aoExecutable := filepath.Join(t.TempDir(), "AO Tools", "ao")
-	request := buildSourceHandoffRequest(sw, candidatePath, aoExecutable)
+	kennelExecutable := filepath.Join(t.TempDir(), "AO Tools", "ao")
+	request := buildSourceHandoffRequest(sw, candidatePath, kennelExecutable)
 
 	for _, want := range []string{
 		"context already present in your current native conversation",
@@ -959,10 +959,10 @@ func TestBuildSourceHandoffRequestUsesCurrentNativeSessionContext(t *testing.T) 
 		"recommendedNextSteps",
 		"taskComplete",
 		candidatePath,
-		aoExecutable,
+		kennelExecutable,
 		`"switch": "switch-1"`,
 		`"sourceGeneration": "source-generation"`,
-		`"aoExecutable":`,
+		`"kennelExecutable":`,
 		`"arguments": [`,
 		`"session"`,
 		`"handoff"`,
@@ -2117,7 +2117,7 @@ func TestSwitchAgentIncludesAvailableSourceAuthoredHandoff(t *testing.T) {
 		if !strings.Contains(message, "context already present in your current native conversation") || !strings.Contains(message, "comprehensive semantic handoff") {
 			t.Errorf("source request does not ask for its own session summary:\n%s", message)
 		}
-		if strings.Contains(message, `"aoExecutable": "ao"`) || !strings.Contains(message, `"aoExecutable": "`) {
+		if strings.Contains(message, `"kennelExecutable": "ao"`) || !strings.Contains(message, `"kennelExecutable": "`) {
 			t.Errorf("source request did not use the daemon's absolute executable:\n%s", message)
 		}
 		sw, ok, err := store.GetActiveAgentSwitch(context.Background(), "proj-1")

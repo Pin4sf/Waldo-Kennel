@@ -48,7 +48,7 @@ func CLIStatus(ctx context.Context, binary string, commands [][]string) (ports.A
 }
 
 func commandStatus(ctx context.Context, binary string, args []string) (ports.AgentAuthStatus, error) {
-	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	out, err := CmdRunner(probeCtx, binary, args...)

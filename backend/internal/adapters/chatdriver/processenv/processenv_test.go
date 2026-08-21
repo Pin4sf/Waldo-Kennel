@@ -7,20 +7,20 @@ import (
 )
 
 func TestMergeInheritsDaemonEnvironmentAndAppliesOverlay(t *testing.T) {
-	t.Setenv("AO_PROCESSENV_INHERITED", "parent")
-	t.Setenv("AO_PROCESSENV_REPLACED", "old")
+	t.Setenv("KENNEL_PROCESSENV_INHERITED", "parent")
+	t.Setenv("KENNEL_PROCESSENV_REPLACED", "old")
 
 	got := Merge(map[string]string{
-		"AO_PROCESSENV_REPLACED": "new",
-		"AO_PROCESSENV_SESSION":  "session",
+		"KENNEL_PROCESSENV_REPLACED": "new",
+		"KENNEL_PROCESSENV_SESSION":  "session",
 	})
 	if !slices.IsSorted(got) {
 		t.Fatalf("environment is not sorted: %v", got)
 	}
 	want := map[string]string{
-		"AO_PROCESSENV_INHERITED": "parent",
-		"AO_PROCESSENV_REPLACED":  "new",
-		"AO_PROCESSENV_SESSION":   "session",
+		"KENNEL_PROCESSENV_INHERITED": "parent",
+		"KENNEL_PROCESSENV_REPLACED":  "new",
+		"KENNEL_PROCESSENV_SESSION":   "session",
 	}
 	for _, entry := range got {
 		key, value, ok := strings.Cut(entry, "=")

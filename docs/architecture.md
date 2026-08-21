@@ -1,4 +1,6 @@
-# Agent Orchestrator Architecture
+# Kennel orchestration chassis architecture
+
+> Foundation boundary (2026-08-18): this document describes the working AO-derived coding-agent chassis. AO names in diagrams, source packages, and historical vocabulary are compatibility seams, not Kennel's installed identity. The Mission, personal-agent, memory, authority, and verification architecture has not been defined or implemented. See [identity and state](identity-and-state.md) and the [foundation acceptance record](foundation-acceptance-2026-08-18.md).
 
 Agent Orchestrator is a long-running Go daemon that supervises multiple parallel AI coding agent sessions. Every session owns an isolated git worktree and one committed interface mode at a time. A TUI session runs its agent inside a tmux/conpty runtime; a Chat session runs a native protocol controller without an agent terminal runtime. A durable handoff may move a compatible native conversation between them, but both controllers are never live at once. The daemon coordinates both through the same session, lifecycle, workspace, storage, and observation boundaries.
 
@@ -55,7 +57,7 @@ graph TB
     subgraph Frontend
         FE[Electron + React UI]
         Mobile[Expo + React Native UI]
-        CLI[ao CLI]
+        CLI[kennel CLI]
     end
 
     subgraph HTTP["HTTP Daemon (127.0.0.1)"]
@@ -862,8 +864,8 @@ flowchart TD
 
 The daemon runs two independent HTTP listeners sharing the same chi router:
 
-1. **Primary (Loopback) Listener** — binds `127.0.0.1:3001` with no authentication. All existing daemon operations (CLI, desktop app) use this listener.
-2. **LAN Listener** (Connect Mobile) — an opt-in second listener that binds `0.0.0.0:3011` (or ephemeral fallback) **only when explicitly enabled** by the user through the desktop app's Settings. It wraps the shared router in bearer-password authentication middleware, serves app API routes to mobile clients, but never exposes loopback-gated control routes (`/shutdown`, telemetry, mobile control commands). All traffic is plaintext HTTP on a home network only, by deliberate security decision — see `docs/adr/0001-lan-listener-for-mobile.md` for rationale and threat model. Auth state (hashed password, per-source lockout) is persisted to `~/.ao/mobile/config.json` and restored on daemon boot.
+1. **Primary (Loopback) Listener** — binds `127.0.0.1:3031` with no authentication. All existing daemon operations (CLI, desktop app) use this listener.
+2. **LAN Listener** (Connect Mobile) — an opt-in second listener that binds `0.0.0.0:3041` (or ephemeral fallback) **only when explicitly enabled** by the user through the desktop app's Settings. It wraps the shared router in bearer-password authentication middleware, serves app API routes to mobile clients, but never exposes loopback-gated control routes (`/shutdown`, telemetry, mobile control commands). All traffic is plaintext HTTP on a home network only, by deliberate security decision — see `docs/adr/0001-lan-listener-for-mobile.md` for rationale and threat model. Auth state (hashed password, per-source lockout) is persisted to `~/.kennel/mobile/config.json` and restored on daemon boot.
 
 The mobile app is a second thin renderer over those same session resources. It
 branches on the session's persisted `mode`: TUI attaches the existing mux PTY,
@@ -1016,8 +1018,8 @@ These rules are **load-bearing** — changing them breaks fundamental architectu
 1. **Never store display status** — Status is derived from durable facts at read time
 2. **Never treat failed probes as death** — A failed probe is a fact, not a termination signal
 3. **Never force-delete dirty worktrees** — User data safety over cleanup convenience
-4. **All app state under ~/.ao** — No OS-default app-data locations
-5. **Daemon binds to 127.0.0.1 only** — No network exposure, ever
+4. **All Kennel app state under ~/.kennel** — No OS-default app-data locations and no implicit `~/.ao` fallback. Project-local `.ao/attachments` and `.ao/launch.json` remain file-format compatibility seams only.
+5. **Primary daemon listener binds to 127.0.0.1 only** — The sole exception is the separately authenticated, explicitly enabled LAN listener described above; it never exposes loopback-only controls.
 6. **CLI is thin** — All logic lives in the daemon, CLI is just an HTTP client
 7. **CDC is source-truth for events** — DB triggers write to change_log, poller fans out
 8. **Adapters are leaves** — Adapters never import core packages, only ports and domain

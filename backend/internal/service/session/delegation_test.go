@@ -65,7 +65,7 @@ func TestDelegateTaskSpawnsWorkerThenRequestsTitleFromNewestActiveOrchestrator(t
 			for _, want := range []string{
 				"AO TASK TITLE UPDATE",
 				"Do not spawn another worker or orchestrator",
-				`ao session rename mer-9 "<title, max 20 chars>"`,
+				`kennel session rename mer-9 "<title, max 20 chars>"`,
 				"Worker session id: mer-9",
 				brief,
 			} {

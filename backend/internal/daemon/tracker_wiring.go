@@ -14,7 +14,7 @@ import (
 )
 
 func newGitHubTracker() (ports.Tracker, error) {
-	return trackergithub.New(trackergithub.Options{Token: trackergithub.EnvTokenSource{EnvVars: []string{"AO_GITHUB_TOKEN"}}})
+	return trackergithub.New(trackergithub.Options{Token: trackergithub.EnvTokenSource{EnvVars: []string{"KENNEL_GITHUB_TOKEN"}}})
 }
 
 // newGitLabTracker constructs a host-aware GitLab tracker. AllowedHosts and

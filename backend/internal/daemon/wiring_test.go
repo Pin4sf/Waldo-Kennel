@@ -281,10 +281,10 @@ func TestWiring_StartSessionSpawnsScratchWithoutGitRepo(t *testing.T) {
 // issue #2685: when no GitHub token is configured, startSession must wire a
 // true-nil ports.Tracker so Spawn's issue-context guard fires instead of
 // dereferencing a typed-nil *github.Tracker. The pre-fix wiring assigned the
-// typed-nil return of newGitHubTracker directly, and `ao spawn --issue` panicked
+// typed-nil return of newGitHubTracker directly, and `kennel spawn --issue` panicked
 // on the first lookup.
 func TestStartSession_SpawnDoesNotPanicWhenNoTrackerToken(t *testing.T) {
-	t.Setenv("AO_GITHUB_TOKEN", "")
+	t.Setenv("KENNEL_GITHUB_TOKEN", "")
 	t.Setenv("GITHUB_TOKEN", "")
 
 	ctx := context.Background()
@@ -389,14 +389,14 @@ func TestStartTrackerIntake_RunsEvenWithoutEnabledProjects(t *testing.T) {
 }
 
 func TestTrackerTokenSourcePrefersAOGitHubToken(t *testing.T) {
-	t.Setenv("AO_GITHUB_TOKEN", "ao-token")
+	t.Setenv("KENNEL_GITHUB_TOKEN", "ao-token")
 	t.Setenv("GITHUB_TOKEN", "github-token")
 	token, err := (&trackerTokenSource{}).Token(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if token != "ao-token" {
-		t.Fatalf("token = %q, want AO_GITHUB_TOKEN", token)
+		t.Fatalf("token = %q, want KENNEL_GITHUB_TOKEN", token)
 	}
 }
 
@@ -734,7 +734,7 @@ func (r *selectableRuntime) SendMessage(context.Context, ports.RuntimeHandle, st
 // neither case may it return a typed-nil (non-nil interface wrapping a nil
 // pointer), which would bypass the session service's `tracker == nil` guard.
 func TestWiring_NewMultiTracker_NeverTypedNilWhenNoGitHubToken(t *testing.T) {
-	t.Setenv("AO_GITHUB_TOKEN", "")
+	t.Setenv("KENNEL_GITHUB_TOKEN", "")
 	t.Setenv("GITHUB_TOKEN", "")
 
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -756,8 +756,8 @@ func TestWiring_NewMultiTracker_NeverTypedNilWhenNoGitHubToken(t *testing.T) {
 // (GitLab token missing), the multi-tracker still returns a non-nil
 // ports.Tracker that serves GitHub issue lookups.
 func TestWiring_NewMultiTracker_ReturnsNonNilWhenGitHubHasToken(t *testing.T) {
-	t.Setenv("AO_GITHUB_TOKEN", "gh-test-token")
-	t.Setenv("AO_GITLAB_TOKEN", "")
+	t.Setenv("KENNEL_GITHUB_TOKEN", "gh-test-token")
+	t.Setenv("KENNEL_GITLAB_TOKEN", "")
 	t.Setenv("GITLAB_TOKEN", "")
 
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))

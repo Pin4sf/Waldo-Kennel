@@ -10,14 +10,14 @@
 // run once with RESET=1 (or delete the state file).
 //
 // Usage (from the repo root, or anywhere - the path is what matters):
-//   node packages/mobile/scripts/ao-phone-proxy.js         # first device pairs
-//   RESET=1 node packages/mobile/scripts/ao-phone-proxy.js # forget + re-pair
-//   PORT=3011 TARGET=3001 node packages/mobile/scripts/ao-phone-proxy.js
+//   node packages/mobile/scripts/kennel-phone-proxy.js         # first device pairs
+//   RESET=1 node packages/mobile/scripts/kennel-phone-proxy.js # forget + re-pair
+//   PORT=3011 TARGET=3001 node packages/mobile/scripts/kennel-phone-proxy.js
 //
 // Env:
 //   PORT    LAN port to expose      (default 3011)
 //   TARGET  loopback daemon port    (default 3001)
-//   STATE   pairing file path       (default ~/.ao/phone-allow.json)
+//   STATE   pairing file path       (default ~/.kennel/phone-allow.json)
 //   RESET   "1" clears the pairing before starting
 
 const net = require("net");
@@ -27,7 +27,7 @@ const path = require("path");
 
 const PORT = parseInt(process.env.PORT || "3011", 10);
 const TARGET = parseInt(process.env.TARGET || "3001", 10);
-const STATE = process.env.STATE || path.join(os.homedir(), ".ao", "phone-allow.json");
+const STATE = process.env.STATE || path.join(os.homedir(), ".kennel", "phone-allow.json");
 
 // Normalize IPv4-mapped IPv6 (e.g. "::ffff:192.168.1.50") to plain IPv4.
 const norm = (ip) => (ip || "").replace(/^::ffff:/, "");

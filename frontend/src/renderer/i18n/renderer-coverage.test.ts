@@ -10,10 +10,10 @@ const displayAttributes = new Set(["alt", "aria-label", "placeholder", "title"])
 // English UI copy. Keeping this allowlist exact makes newly introduced chrome fail.
 const approvedLiterals: Record<string, readonly string[]> = {
 	"components/BrowserPanel.tsx": [
-		"AO Preview",
+		"Kennel Preview",
 		"Demo app preview",
 		"The worker exposed a local Vite app with",
-		"ao preview",
+		"kennel preview",
 		"Loaded",
 		"$ npm run dev -- --host 127.0.0.1",
 		"ready in 418 ms",

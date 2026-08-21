@@ -59,7 +59,7 @@ func TestReviewCommandLaunchesHostTrustedPlanTUI(t *testing.T) {
 	if !reflect.DeepEqual(spec.Argv, want) || spec.InitialMessage != "" || spec.WorkingDirectory != inv.WorkspacePath {
 		t.Fatalf("ReviewCommand spec = %+v, want argv %#v", spec, want)
 	}
-	if spec.Env["VIBE_HOME"] != filepath.Join(inv.DataDir, "reviewer-runtime", inv.ReviewerID, "config") || spec.Env["AO_DATA_DIR"] != inv.DataDir {
+	if spec.Env["VIBE_HOME"] != filepath.Join(inv.DataDir, "reviewer-runtime", inv.ReviewerID, "config") || spec.Env["KENNEL_DATA_DIR"] != inv.DataDir {
 		t.Fatalf("AO-owned Vibe profile = %#v", spec.Env)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

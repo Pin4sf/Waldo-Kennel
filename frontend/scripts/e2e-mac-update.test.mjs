@@ -10,16 +10,16 @@ import { assertSentinelCapable, launchEnv, parseArgs, removeRunFile, seedUpdateS
 // time rather than half-run an update test and report a confusing timeout.
 
 describe("e2e-mac-update parseArgs", () => {
-	const required = ["--app", "/Applications/Agent Orchestrator.app", "--expect-version", "0.10.4"];
+	const required = ["--app", "/Applications/Kennel.app", "--expect-version", "0.10.4"];
 
-	it("parses the required flags and defaults the state dir to ~/.ao", () => {
+	it("parses the required flags and defaults the state dir to ~/.kennel", () => {
 		const opts = parseArgs(required);
-		expect(opts.app).toBe("/Applications/Agent Orchestrator.app");
+		expect(opts.app).toBe("/Applications/Kennel.app");
 		expect(opts.expectVersion).toBe("0.10.4");
-		expect(opts.appName).toBe("Agent Orchestrator");
-		// All app state lives under ~/.ao only (see AGENTS.md hard rules).
-		expect(opts.stateDir).toBe(join(homedir(), ".ao"));
-		expect(opts.runFile).toBe(join(homedir(), ".ao", "running.json"));
+		expect(opts.appName).toBe("Kennel");
+		// All app state lives under ~/.kennel only (see AGENTS.md hard rules).
+		expect(opts.stateDir).toBe(join(homedir(), ".kennel"));
+		expect(opts.runFile).toBe(join(homedir(), ".kennel", "running.json"));
 		expect(opts.channel).toBe("latest");
 	});
 
@@ -64,13 +64,13 @@ describe("e2e-mac-update parseArgs", () => {
 	// update-settings.json from there (main.ts initAutoUpdates), so the settings
 	// directory follows --run-file, not --state-dir, when the two diverge.
 	it("derives the settings dir from the run file, which is what the app reads", () => {
-		expect(parseArgs(required).settingsDir).toBe(join(homedir(), ".ao"));
+		expect(parseArgs(required).settingsDir).toBe(join(homedir(), ".kennel"));
 		const moved = parseArgs([...required, "--state-dir", "/tmp/ao-e2e", "--run-file", "/tmp/elsewhere/run.json"]);
 		expect(moved.settingsDir).toBe("/tmp/elsewhere");
 	});
 
 	// Mirrors backend/internal/config resolveDataDir's default of <ao home>/data,
-	// so an overridden --state-dir keeps the daemon's SQLite out of the real ~/.ao.
+	// so an overridden --state-dir keeps the daemon's SQLite out of the real ~/.kennel.
 	it("derives the daemon data dir under the state dir", () => {
 		expect(parseArgs([...required, "--state-dir", "/tmp/ao-e2e"]).dataDir).toBe(join("/tmp/ao-e2e", "data"));
 	});
@@ -94,12 +94,12 @@ describe("e2e-mac-update parseArgs", () => {
 });
 
 // The bug these cover: --state-dir and --run-file were parsed and used by the
-// harness, but neither launch passed AO_DATA_DIR or AO_RUN_FILE to the app. The
+// harness, but neither launch passed KENNEL_DATA_DIR or KENNEL_RUN_FILE to the app. The
 // harness seeded and polled paths the app never used, so it could only time out.
 describe("e2e-mac-update launch environment", () => {
 	const opts = parseArgs([
 		"--app",
-		"/Applications/Agent Orchestrator.app",
+		"/Applications/Kennel.app",
 		"--expect-version",
 		"0.10.4",
 		"--state-dir",
@@ -108,9 +108,9 @@ describe("e2e-mac-update launch environment", () => {
 
 	it("hands the app every override the harness itself relies on", () => {
 		const env = launchEnv(opts, "/tmp/sentinel.json", { PATH: "/usr/bin" });
-		expect(env.AO_E2E_UPDATE_SENTINEL).toBe("/tmp/sentinel.json");
-		expect(env.AO_RUN_FILE).toBe(opts.runFile);
-		expect(env.AO_DATA_DIR).toBe(opts.dataDir);
+		expect(env.KENNEL_E2E_UPDATE_SENTINEL).toBe("/tmp/sentinel.json");
+		expect(env.KENNEL_RUN_FILE).toBe(opts.runFile);
+		expect(env.KENNEL_DATA_DIR).toBe(opts.dataDir);
 		// Still an inherited environment, not a replacement one.
 		expect(env.PATH).toBe("/usr/bin");
 	});
@@ -120,7 +120,7 @@ describe("e2e-mac-update launch environment", () => {
 		try {
 			const moved = parseArgs([
 				"--app",
-				"/Applications/Agent Orchestrator.app",
+				"/Applications/Kennel.app",
 				"--expect-version",
 				"0.10.4",
 				"--run-file",
@@ -137,7 +137,7 @@ describe("e2e-mac-update launch environment", () => {
 	});
 });
 
-// A baseline published before the AO_E2E_UPDATE_SENTINEL listener existed
+// A baseline published before the KENNEL_E2E_UPDATE_SENTINEL listener existed
 // ignores the env var, so the harness could only ever burn its full download
 // timeout and report a "never staged" failure that looks like a broken update.
 describe("e2e-mac-update assertSentinelCapable", () => {
@@ -157,12 +157,12 @@ describe("e2e-mac-update assertSentinelCapable", () => {
 	});
 
 	it("accepts a bundle whose app.asar carries the sentinel env var", () => {
-		expect(() => assertSentinelCapable(bundle("Capable", 'process.env["AO_E2E_UPDATE_SENTINEL"]'))).not.toThrow();
+		expect(() => assertSentinelCapable(bundle("Capable", 'process.env["KENNEL_E2E_UPDATE_SENTINEL"]'))).not.toThrow();
 	});
 
 	it("fails fast, naming the cause, on a baseline that predates the listener", () => {
 		expect(() => assertSentinelCapable(bundle("Old", "some older bundle without it"))).toThrow(
-			/no AO_E2E_UPDATE_SENTINEL listener/,
+			/no KENNEL_E2E_UPDATE_SENTINEL listener/,
 		);
 	});
 

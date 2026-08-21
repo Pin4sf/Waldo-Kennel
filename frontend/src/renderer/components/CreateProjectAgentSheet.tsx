@@ -3,7 +3,7 @@ import {
 	canSubmitProjectSetup,
 	ProjectSetupFormView,
 	ProjectSetupHeaderView,
-} from "@aoagents/product-ui";
+} from "@pin4sf/kennel-product-ui";
 import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
 import { TriangleAlert, X, type LucideIcon } from "lucide-react";

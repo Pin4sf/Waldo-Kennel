@@ -105,17 +105,17 @@ func Run() error {
 	}
 	defer func() { _ = store.Close() }()
 
-	// Refresh the embedded using-ao skill into the data dir so worker sessions
+	// Refresh the embedded using-kennel skill into the data dir so worker sessions
 	// in any project can read the ao CLI catalog from a stable absolute path.
-	// Non-fatal: the skill is an enhancement over `ao --help`, not required.
+	// Non-fatal: the skill is an enhancement over `kennel --help`, not required.
 	if err := skillassets.Install(cfg.DataDir); err != nil {
-		log.Warn("install using-ao skill", "err", err)
+		log.Warn("install using-kennel skill", "err", err)
 	}
 
 	telemetrySink := newTelemetrySink(cfg, store, log)
 	defer func() { _ = telemetrySink.Close(context.Background()) }()
 	telemetrySink.Emit(context.Background(), ports.TelemetryEvent{
-		Name:       "ao.daemon.started",
+		Name:       "kennel.daemon.started",
 		Source:     "daemon",
 		OccurredAt: time.Now().UTC(),
 		Level:      ports.TelemetryLevelInfo,
@@ -183,7 +183,7 @@ func Run() error {
 
 	// Wire the controller-facing session service over the same store + LCM, the
 	// selected runtime, routed git/scratch workspaces, the per-session agent
-	// resolver (AO_AGENT validated here for compatibility), and the agent
+	// resolver (KENNEL_AGENT validated here for compatibility), and the agent
 	// messenger, then mount it on the API.
 	chatDrivers := chatdriverregistry.Build(log)
 
@@ -480,7 +480,7 @@ func Run() error {
 	const supervisorGrace = 5 * time.Second
 
 	if ln, addr, err := supervisor.Listen(cfg.RunFilePath); err != nil {
-		// Non-fatal: without the link the daemon still works (e.g. headless "ao start"),
+		// Non-fatal: without the link the daemon still works (e.g. headless "kennel start"),
 		// it just will not auto-stop when a frontend dies. Do not block startup on it.
 		log.Warn("supervisor: listener unavailable; frontend-death auto-stop disabled", "err", err)
 	} else {

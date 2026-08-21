@@ -85,8 +85,8 @@ func TestHealthProbesIncludeDaemonIdentity(t *testing.T) {
 func TestHealthProbesIncludeAppImageIdentity(t *testing.T) {
 	client := &http.Client{Timeout: 2 * time.Second}
 
-	t.Run("reports AO_APPIMAGE when set", func(t *testing.T) {
-		t.Setenv("AO_APPIMAGE", "/home/user/Apps/agent-orchestrator.AppImage")
+	t.Run("reports KENNEL_APPIMAGE when set", func(t *testing.T) {
+		t.Setenv("KENNEL_APPIMAGE", "/home/user/Apps/agent-orchestrator.AppImage")
 		router := newTestRouter(config.Config{}, discardLogger(), nil)
 		srv := httptest.NewServer(router)
 		defer srv.Close()
@@ -104,13 +104,13 @@ func TestHealthProbesIncludeAppImageIdentity(t *testing.T) {
 				t.Fatalf("decode %s: %v", path, err)
 			}
 			if body.AppImagePath != "/home/user/Apps/agent-orchestrator.AppImage" {
-				t.Errorf("GET %s appImagePath = %q, want the AO_APPIMAGE value", path, body.AppImagePath)
+				t.Errorf("GET %s appImagePath = %q, want the KENNEL_APPIMAGE value", path, body.AppImagePath)
 			}
 		}
 	})
 
-	t.Run("omits appImagePath when AO_APPIMAGE is unset", func(t *testing.T) {
-		t.Setenv("AO_APPIMAGE", "")
+	t.Run("omits appImagePath when KENNEL_APPIMAGE is unset", func(t *testing.T) {
+		t.Setenv("KENNEL_APPIMAGE", "")
 		router := newTestRouter(config.Config{}, discardLogger(), nil)
 		srv := httptest.NewServer(router)
 		defer srv.Close()

@@ -206,21 +206,14 @@ describe("NewTaskDialog", () => {
 		expect(requestBody().agent).toBe("kiro");
 	});
 
-	it("starts an untitled task without an initial prompt", async () => {
+	it("requires an outcome before delegation", async () => {
 		const { onCreated, onOpenChange } = renderDialog();
-		const user = userEvent.setup();
 		await waitForAgentCatalog();
 
-		await user.click(screen.getByRole("button", { name: "Define outcome" }));
-
-		await waitFor(() => expect(requestBody).not.toThrow());
-		expect(requestBody()).toMatchObject({
-			projectId: "proj-1",
-			brief: "",
-			agent: "claude-code",
-		});
-		expect(onCreated).toHaveBeenCalledWith("worker-1");
-		expect(onOpenChange).toHaveBeenCalledWith(false);
+		expect(screen.getByRole("button", { name: "Define outcome" })).toBeDisabled();
+		expect(postMock).not.toHaveBeenCalledWith("/api/v1/orchestrators/delegate", expect.anything());
+		expect(onCreated).not.toHaveBeenCalled();
+		expect(onOpenChange).not.toHaveBeenCalled();
 	});
 
 	it("shows an empty Model field for scratch projects and omits it from delegation", async () => {

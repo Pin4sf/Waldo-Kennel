@@ -26,7 +26,7 @@ const (
 // project-level instruction file. Kimi has no system-prompt argv flag, and its
 // user-level config lives outside AO's data dir, so a gitignored worktree-local
 // instruction file is the least invasive session-scoped injection point. It
-// also installs Kimi lifecycle hooks into the AO-managed Kimi config so AO can
+// also installs Kimi lifecycle hooks into the Kennel-managed Kimi config so AO can
 // capture Kimi's native session id for true resume without mutating the user's
 // global Kimi profile.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
@@ -75,13 +75,13 @@ func kimiInstructionsPath(workspacePath string) string {
 func installKimiConfigHooks(cfg ports.WorkspaceHookConfig) error {
 	home, ok := kimiCodeHomeFromEnv(cfg.Env)
 	if !ok {
-		return errors.New("kimi: AO-managed Kimi Code home is unavailable")
+		return errors.New("kimi: Kennel-managed Kimi Code home is unavailable")
 	}
 	if err := seedKimiCredentials(home); err != nil {
 		return err
 	}
 	path := filepath.Join(home, "config.toml")
-	data, err := os.ReadFile(path) //nolint:gosec // path is the AO-managed Kimi config under KIMI_CODE_HOME.
+	data, err := os.ReadFile(path) //nolint:gosec // path is the Kennel-managed Kimi config under KIMI_CODE_HOME.
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
@@ -159,7 +159,7 @@ func kimiSeedConfig(targetPath string, existing []byte) ([]byte, bool, error) {
 	if sameKimiConfigPath(sourcePath, targetPath) {
 		return nil, false, nil
 	}
-	source, err := os.ReadFile(sourcePath) //nolint:gosec // user/process Kimi config used only as a seed for AO-managed home.
+	source, err := os.ReadFile(sourcePath) //nolint:gosec // user/process Kimi config used only as a seed for Kennel-managed home.
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, false, nil
 	}
@@ -231,10 +231,10 @@ func mergeKimiHooksConfig(existing string) string {
 
 func kimiHooksConfigBlock() string {
 	return kimiHooksSentinelStart + "\n\n" +
-		kimiHookEntry("SessionStart", "startup", "ao hooks kimi session-start") +
-		kimiHookEntry("UserPromptSubmit", "", "ao hooks kimi user-prompt-submit") +
-		kimiHookEntry("PermissionRequest", "", "ao hooks kimi permission-request") +
-		kimiHookEntry("Stop", "", "ao hooks kimi stop") +
+		kimiHookEntry("SessionStart", "startup", "kennel hooks kimi session-start") +
+		kimiHookEntry("UserPromptSubmit", "", "kennel hooks kimi user-prompt-submit") +
+		kimiHookEntry("PermissionRequest", "", "kennel hooks kimi permission-request") +
+		kimiHookEntry("Stop", "", "kennel hooks kimi stop") +
 		kimiHooksSentinelEnd + "\n"
 }
 
@@ -307,7 +307,7 @@ func mergeKimiInstructionFile(existing, systemPrompt string) string {
 	afterStart := existing[start+len(kimiInstructionsSentinel):]
 	endRel := strings.Index(afterStart, kimiInstructionsEnd)
 	if endRel < 0 {
-		// Older AO-managed files did not have an end marker. Treat the marker as
+		// Older Kennel-managed files did not have an end marker. Treat the marker as
 		// owning the rest of the file so stale AO instructions are replaced.
 		return joinKimiInstructionParts(existing[:start], block, "")
 	}

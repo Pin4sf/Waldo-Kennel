@@ -21,7 +21,7 @@ import (
 
 const (
 	// adapterID is the registry id and the value users pass to
-	// `ao spawn --agent`. It matches domain.HarnessCrush.
+	// `kennel spawn --agent`. It matches domain.HarnessCrush.
 	adapterID = "crush"
 )
 

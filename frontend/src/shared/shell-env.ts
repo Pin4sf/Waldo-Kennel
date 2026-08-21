@@ -7,7 +7,7 @@
 // daemon-attach.ts) so the parsing/merging logic is testable directly; the real
 // shell spawn lives in main.ts and is injected as a ShellRunner.
 
-export const SHELL_ENV_SENTINEL = "__AO_SHELL_ENV__";
+export const SHELL_ENV_SENTINEL = "__KENNEL_SHELL_ENV__";
 
 // PATH floor: dirs a working macOS/Linux box keeps tools in, appended when the
 // shell probe fails so zellij/git/agents still resolve.

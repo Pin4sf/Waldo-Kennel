@@ -22,7 +22,7 @@ func setupHome(t *testing.T) string {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	t.Setenv("USERPROFILE", dir)
-	return filepath.Join(dir, ".ao", "windows-pty-hosts.json")
+	return filepath.Join(dir, ".kennel", "windows-pty-hosts.json")
 }
 
 func nowRFC3339() string {

@@ -1,6 +1,6 @@
 // Package dockerreap implements ports.ContainerReaper by shelling out to the
-// docker CLI. It force-removes containers labeled ao.session=<id>, skipping
-// any also labeled ao.spare=true — the opt-out for deliberately shared
+// docker CLI. It force-removes containers labeled kennel.session=<id>, skipping
+// any also labeled kennel.spare=true — the opt-out for deliberately shared
 // substrate (a shared postgres, a registry) a worker's task explicitly wants
 // to survive session end.
 //
@@ -27,14 +27,14 @@ import (
 )
 
 // SessionLabel is the label key a worker's own `docker run` should set to
-// `--label ao.session=$AO_SESSION_ID` so AO can identify containers it owns.
-const SessionLabel = "ao.session"
+// `--label kennel.session=$KENNEL_SESSION_ID` so AO can identify containers it owns.
+const SessionLabel = "kennel.session"
 
 // SpareLabel opts a container out of reaping even though it carries
-// SessionLabel — set `--label ao.spare=true` on a deliberately shared
+// SessionLabel — set `--label kennel.spare=true` on a deliberately shared
 // container (a shared postgres, a registry) that must survive the session
 // that happened to start it.
-const SpareLabel = "ao.spare"
+const SpareLabel = "kennel.spare"
 
 // reapTimeout bounds every docker CLI call this adapter makes. Kill is
 // user-facing and synchronous, and the reap runs between runtime destroy and
@@ -79,7 +79,7 @@ func newWithRunner(r commandRunner) *Reaper {
 }
 
 // ReapSessionContainers force-removes every container labeled
-// ao.session=<id> that is not also labeled ao.spare=true.
+// kennel.session=<id> that is not also labeled kennel.spare=true.
 //
 // Any failure to enumerate or inspect containers spares everything found so
 // far and returns the error — reaping is only ever additive-on-certainty,

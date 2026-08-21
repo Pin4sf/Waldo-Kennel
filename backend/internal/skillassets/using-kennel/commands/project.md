@@ -1,24 +1,24 @@
-# ao project
+# kennel project
 
 Manage projects: register repos, inspect, configure per-project settings, and remove.
 
 ## Syntax
 
 ```
-ao project <subcommand> [args] [flags]
+kennel project <subcommand> [args] [flags]
 ```
 
 ## Subcommands
 
 ---
 
-### ao project add
+### kennel project add
 
 Register a local git repo as a project so sessions can be spawned in it. The path must be an existing git repository on disk. With `--as-workspace`, the path may be a parent folder containing direct child git repositories; AO initializes/adopts the parent as the root repo and gitignores children.
 
 **Syntax:**
 ```
-ao project add [flags]
+kennel project add [flags]
 ```
 
 **Flags:**
@@ -36,23 +36,23 @@ ao project add [flags]
 
 ```bash
 # Register a repo as a project
-ao project add --path /Users/harshit/Downloads/side-quests/agent-orchestrator --name "agent-orchestrator"
+kennel project add --path /Users/example/Developer/my-project --name "my-project"
 ```
 
 ```bash
 # Register a workspace (parent folder containing multiple repos)
-ao project add --path /Users/harshit/Downloads/side-quests --as-workspace --name "side-quests"
+kennel project add --path /Users/harshit/Downloads/side-quests --as-workspace --name "side-quests"
 ```
 
 ---
 
-### ao project ls
+### kennel project ls
 
 List registered projects. Aliases: `ls`, `list`.
 
 **Syntax:**
 ```
-ao project ls [flags]
+kennel project ls [flags]
 ```
 
 **Flags:**
@@ -65,18 +65,18 @@ ao project ls [flags]
 
 ```bash
 # List all registered projects
-ao project ls
+kennel project ls
 ```
 
 ---
 
-### ao project get
+### kennel project get
 
 Fetch one registered project.
 
 **Syntax:**
 ```
-ao project get <id> [flags]
+kennel project get <id> [flags]
 ```
 
 **Flags:**
@@ -89,18 +89,18 @@ ao project get <id> [flags]
 
 ```bash
 # Get details for the agent-orchestrator project
-ao project get agent-orchestrator
+kennel project get agent-orchestrator
 ```
 
 ---
 
-### ao project rm
+### kennel project rm
 
 Remove a registered project. Aliases: `rm`, `remove`, `delete`.
 
 **Syntax:**
 ```
-ao project rm <id> [flags]
+kennel project rm <id> [flags]
 ```
 
 **Flags:**
@@ -114,23 +114,23 @@ ao project rm <id> [flags]
 
 ```bash
 # Remove a project (with confirmation)
-ao project rm agent-orchestrator
+kennel project rm agent-orchestrator
 ```
 
 ```bash
 # Remove without prompt
-ao project rm agent-orchestrator -y
+kennel project rm agent-orchestrator -y
 ```
 
 ---
 
-### ao project set-config
+### kennel project set-config
 
 Replace a project's per-project config (branch, session prefix, env, symlinks, post-create, agent model/permissions, role overrides, worker rules, and orchestrator rules). The config is resolved when a session spawns. Set fields via flags, pass the whole object with `--config-json`, or `--clear` to remove all config.
 
 **Syntax:**
 ```
-ao project set-config <id> [flags]
+kennel project set-config <id> [flags]
 ```
 
 **Flags:**
@@ -157,20 +157,20 @@ ao project set-config <id> [flags]
 
 ```bash
 # Set default branch and model for a project
-ao project set-config agent-orchestrator --default-branch main --model claude-opus-4-5
+kennel project set-config agent-orchestrator --default-branch main --model claude-opus-4-5
 ```
 
 ```bash
 # Set an env var and a post-create command
-ao project set-config agent-orchestrator --env "NODE_ENV=development" --post-create "npm install"
+kennel project set-config agent-orchestrator --env "NODE_ENV=development" --post-create "npm install"
 ```
 
 ```bash
 # Set worker and orchestrator standing rules
-ao project set-config agent-orchestrator --agent-rules "Run focused tests before reporting done." --orchestrator-rules "Delegate implementation work to worker sessions."
+kennel project set-config agent-orchestrator --agent-rules "Run focused tests before reporting done." --orchestrator-rules "Delegate implementation work to worker sessions."
 ```
 
 ```bash
 # Load worker rules from a repo-relative file
-ao project set-config agent-orchestrator --agent-rules-file docs/ao-worker-rules.md
+kennel project set-config agent-orchestrator --agent-rules-file docs/ao-worker-rules.md
 ```

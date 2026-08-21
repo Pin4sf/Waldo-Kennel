@@ -1,1 +1,1 @@
-export { formatTokenCount } from "@aoagents/product-ui";
+export { formatTokenCount } from "@pin4sf/kennel-product-ui";

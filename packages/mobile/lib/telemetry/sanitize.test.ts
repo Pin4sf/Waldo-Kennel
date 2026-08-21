@@ -30,7 +30,7 @@ describe("sanitizeMobileProperties", () => {
 	});
 
 	it("returns {} for an unknown event rather than passing the payload through", () => {
-		expect(sanitizeMobileProperties("ao.mobile_app.not_a_real_event", { anything: "x" })).toEqual({});
+		expect(sanitizeMobileProperties("kennel.mobile_app.not_a_real_event", { anything: "x" })).toEqual({});
 	});
 
 	it("keeps a valid count but drops NaN, Infinity, negatives, and floats", () => {

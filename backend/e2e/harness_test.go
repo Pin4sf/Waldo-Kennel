@@ -1,6 +1,6 @@
 //go:build !windows
 
-// Package e2e drives a real `ao daemon` over HTTP.
+// Package e2e drives a real `kennel daemon` over HTTP.
 //
 // These are not unit tests with a fake seam. They boot the actual daemon binary
 // against a throwaway data dir, register a real git project, and talk to a real
@@ -9,10 +9,10 @@
 // survives a restart", "the agent asked before it acted" are claims about the
 // whole stack — routes, store, controller, provider — not about any one package.
 //
-// Gated on AO_CHAT_E2E=1 because they cost real model calls and need a working
+// Gated on KENNEL_CHAT_E2E=1 because they cost real model calls and need a working
 // local agent install:
 //
-//	AO_CHAT_E2E=1 go test ./e2e/ -v -timeout 20m
+//	KENNEL_CHAT_E2E=1 go test ./e2e/ -v -timeout 20m
 //
 // Windows is excluded: the harness uses process groups to make sure a killed
 // daemon takes its agent child processes with it.
@@ -37,7 +37,7 @@ import (
 	"time"
 )
 
-const gateEnv = "AO_CHAT_E2E"
+const gateEnv = "KENNEL_CHAT_E2E"
 
 // requireE2E skips unless the gate is set and the agent binary is present.
 // Skipping loudly with a reason beats a green run that exercised nothing.
@@ -53,7 +53,7 @@ func requireE2E(t *testing.T) {
 }
 
 func codexBinary() string {
-	if bin := os.Getenv("AO_CODEX_BIN"); bin != "" {
+	if bin := os.Getenv("KENNEL_CODEX_BIN"); bin != "" {
 		return bin
 	}
 	return "codex"
@@ -121,9 +121,9 @@ func startDaemon(t *testing.T, dataDir string) *daemon {
 
 	cmd := exec.Command(bin, "daemon")
 	cmd.Env = append(os.Environ(),
-		"AO_DATA_DIR="+dataDir,
-		"AO_RUN_FILE="+filepath.Join(dataDir, "running.json"),
-		"AO_PORT="+strconv.Itoa(port),
+		"KENNEL_DATA_DIR="+dataDir,
+		"KENNEL_RUN_FILE="+filepath.Join(dataDir, "running.json"),
+		"KENNEL_PORT="+strconv.Itoa(port),
 	)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile

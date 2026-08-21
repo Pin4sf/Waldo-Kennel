@@ -37,7 +37,7 @@ func TestRuntimeIntegration(t *testing.T) {
 		// exec is added by buildLaunchCommand, but we also verify here that output
 		// appears).
 		Argv: []string{"sh", "-c", "echo hello-from-tmux"},
-		Env:  map[string]string{"AO_SESSION_ID": id},
+		Env:  map[string]string{"KENNEL_SESSION_ID": id},
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -149,7 +149,7 @@ func TestRuntimeIntegrationSupervisedExitKeepsInteractiveShell(t *testing.T) {
 		SessionID:     domain.SessionID(id),
 		WorkspacePath: workspace,
 		Argv:          []string{os.Args[0], "-test.run=TestSupervisorProcessHelper", "--", "agent-process", "supervise", "--session", id, "--launch", launchID, "--"},
-		Env:           map[string]string{"AO_TMUX_SUPERVISOR_HELPER": "1"},
+		Env:           map[string]string{"KENNEL_TMUX_SUPERVISOR_HELPER": "1"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -222,7 +222,7 @@ func TestRuntimeIntegrationSupervisedExitKeepsInteractiveShell(t *testing.T) {
 }
 
 func TestSupervisorProcessHelper(t *testing.T) {
-	if os.Getenv("AO_TMUX_SUPERVISOR_HELPER") != "1" {
+	if os.Getenv("KENNEL_TMUX_SUPERVISOR_HELPER") != "1" {
 		return
 	}
 	time.Sleep(2 * time.Second)

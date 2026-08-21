@@ -12,7 +12,7 @@ const (
 	settingsDirName  = ".kimchi"
 	settingsFileName = "hooks.local.json"
 
-	hookCommandPrefix = "ao hooks kimchi "
+	hookCommandPrefix = "kennel hooks kimchi "
 	hookTimeout       = 30
 )
 

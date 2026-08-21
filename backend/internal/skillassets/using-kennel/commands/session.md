@@ -1,24 +1,24 @@
-# ao session
+# kennel session
 
 Manage agent sessions: list, inspect, rename, kill, restore, clean up, and claim PRs.
 
 ## Syntax
 
 ```
-ao session <subcommand> [args] [flags]
+kennel session <subcommand> [args] [flags]
 ```
 
 ## Subcommands
 
 ---
 
-### ao session ls
+### kennel session ls
 
 List sessions.
 
 **Syntax:**
 ```
-ao session ls [flags]
+kennel session ls [flags]
 ```
 
 **Flags:**
@@ -34,23 +34,23 @@ ao session ls [flags]
 
 ```bash
 # List all active worker sessions
-ao session ls
+kennel session ls
 ```
 
 ```bash
 # List all sessions including terminated, scoped to one project
-ao session ls --include-terminated -p agent-orchestrator
+kennel session ls --include-terminated -p agent-orchestrator
 ```
 
 ---
 
-### ao session get
+### kennel session get
 
 Fetch one session.
 
 **Syntax:**
 ```
-ao session get <id> [flags]
+kennel session get <id> [flags]
 ```
 
 **Flags:**
@@ -64,23 +64,23 @@ ao session get <id> [flags]
 
 ```bash
 # Get details for session mer-3
-ao session get mer-3
+kennel session get mer-3
 ```
 
 ```bash
 # Get session details as JSON
-ao session get mer-3 --json
+kennel session get mer-3 --json
 ```
 
 ---
 
-### ao session kill
+### kennel session kill
 
 Terminate a session.
 
 **Syntax:**
 ```
-ao session kill <id> [flags]
+kennel session kill <id> [flags]
 ```
 
 **Flags:**
@@ -93,18 +93,18 @@ ao session kill <id> [flags]
 
 ```bash
 # Kill session mer-3
-ao session kill mer-3
+kennel session kill mer-3
 ```
 
 ---
 
-### ao session rename
+### kennel session rename
 
 Rename a session.
 
 **Syntax:**
 ```
-ao session rename <id> <name> [flags]
+kennel session rename <id> <name> [flags]
 ```
 
 **Flags:**
@@ -117,18 +117,18 @@ ao session rename <id> <name> [flags]
 
 ```bash
 # Rename session mer-3 to a new display name
-ao session rename mer-3 "fix-auth-bug"
+kennel session rename mer-3 "fix-auth-bug"
 ```
 
 ---
 
-### ao session restore
+### kennel session restore
 
 Relaunch a terminated session.
 
 **Syntax:**
 ```
-ao session restore <id> [flags]
+kennel session restore <id> [flags]
 ```
 
 **Flags:**
@@ -141,18 +141,18 @@ ao session restore <id> [flags]
 
 ```bash
 # Restore a terminated session
-ao session restore mer-3
+kennel session restore mer-3
 ```
 
 ---
 
-### ao session cleanup
+### kennel session cleanup
 
 Clean up terminated sessions by reclaiming eligible workspaces. Dirty worktrees are skipped by the daemon.
 
 **Syntax:**
 ```
-ao session cleanup [flags]
+kennel session cleanup [flags]
 ```
 
 **Flags:**
@@ -166,27 +166,27 @@ ao session cleanup [flags]
 
 ```bash
 # Clean up all terminated sessions (skip prompt)
-ao session cleanup -y
+kennel session cleanup -y
 ```
 
 ```bash
 # Clean up terminated sessions for one project
-ao session cleanup -p agent-orchestrator
+kennel session cleanup -p agent-orchestrator
 ```
 
 ---
 
-### ao session claim-pr
+### kennel session claim-pr
 
 Attach an existing PR to the current AO session, or target another session explicitly.
 
 **Syntax:**
 ```
-ao session claim-pr <pr-ref> [flags]
-ao session claim-pr <session-id> <pr-ref> [flags]
+kennel session claim-pr <pr-ref> [flags]
+kennel session claim-pr <session-id> <pr-ref> [flags]
 ```
 
-With one positional argument, `AO_SESSION_ID` supplies the session. This is the preferred form inside a worker. Pass both arguments from an orchestrator or external shell when targeting another session.
+With one positional argument, `KENNEL_SESSION_ID` supplies the session. This is the preferred form inside a worker. Pass both arguments from an orchestrator or external shell when targeting another session.
 
 **Flags:**
 
@@ -200,15 +200,15 @@ With one positional argument, `AO_SESSION_ID` supplies the session. This is the 
 
 ```bash
 # Attach PR 88 to the current worker session
-ao session claim-pr 88
+kennel session claim-pr 88
 ```
 
 ```bash
 # Attach PR 88 to session mer-3 explicitly
-ao session claim-pr mer-3 88
+kennel session claim-pr mer-3 88
 ```
 
 ```bash
 # Claim PR 88 for the current worker but refuse if another session owns it
-ao session claim-pr 88 --no-takeover
+kennel session claim-pr 88 --no-takeover
 ```

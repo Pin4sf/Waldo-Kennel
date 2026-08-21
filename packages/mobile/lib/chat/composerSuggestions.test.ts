@@ -12,7 +12,7 @@ describe("mobile Chat composer suggestions", () => {
 	it("finds slash skills and @ files at token boundaries", () => {
 		expect(findComposerSuggestion("/rev")).toMatchObject({ kind: "skills", query: "rev", start: 0 });
 		expect(findComposerSuggestion("inspect @src/app")).toMatchObject({ kind: "files", query: "src/app" });
-		expect(findComposerSuggestion("https://ao.dev")).toBeUndefined();
+		expect(findComposerSuggestion("https://kennel.dev")).toBeUndefined();
 		expect(findComposerSuggestion("please /review")).toBeUndefined();
 		expect(findComposerSuggestion("email@example.com")).toBeUndefined();
 	});

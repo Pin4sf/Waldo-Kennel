@@ -115,8 +115,8 @@ export type OrchestratorReplacementFailure = {
 	requestId?: string;
 };
 
-const sidebarStorageKey = "ao.sidebar.open";
-const developerModeStorageKey = "ao.developerMode";
+const sidebarStorageKey = "kennel.sidebar.open";
+const developerModeStorageKey = "kennel.developerMode";
 function getLocalStorage() {
 	if (typeof window === "undefined" || !window.localStorage) return null;
 	return window.localStorage;

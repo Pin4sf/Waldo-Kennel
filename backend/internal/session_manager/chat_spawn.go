@@ -39,7 +39,7 @@ type ChatLauncher interface {
 	// turn or reports why.
 	StartChatTurn(ctx context.Context, id domain.SessionID, text string) (string, error)
 	// RelayChatTurn delivers a message AO is carrying on someone else's behalf —
-	// `ao send`, an orchestrator writing to a worker, an automation — as a turn
+	// `kennel send`, an orchestrator writing to a worker, an automation — as a turn
 	// attributed to automation rather than to the human at the keyboard.
 	RelayChatTurn(ctx context.Context, id domain.SessionID, text string) (string, error)
 	// RelayChatTurnWithID is the durable-retry form. Implementations must pass
@@ -64,7 +64,7 @@ type ChatStart struct {
 	DataDir       string
 	WorkspacePath string
 	// Env carries the HookPATH-pinned PATH, which is how the agent's own shell
-	// commands find `ao`. An orchestrator delegates by running `ao spawn`, so
+	// commands find `ao`. An orchestrator delegates by running `kennel spawn`, so
 	// without this a chat orchestrator could talk but not work.
 	Env                   map[string]string
 	Model                 string

@@ -249,7 +249,7 @@ describe("TerminalSwitchAgentButton", () => {
 
 		await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
 		const dialog = screen.getByRole("dialog", { name: "Switch agent" });
-		expect(within(dialog).getByRole("button", { name: "Starting..." })).toBeDisabled();
+		expect(within(dialog).getByRole("button", { name: "Defining..." })).toBeDisabled();
 		expect(within(dialog).getByRole("button", { name: "Close switch agent dialog" })).toBeDisabled();
 	});
 

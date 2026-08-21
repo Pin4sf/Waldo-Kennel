@@ -96,7 +96,7 @@ func PrepareHostTrustedEnvironment(dataDir, reviewerID string) (Environment, err
 	return env, nil
 }
 
-// PrepareEnvironment creates a private reviewer root under AO_DATA_DIR and an
+// PrepareEnvironment creates a private reviewer root under KENNEL_DATA_DIR and an
 // immutable, content-addressed authorization manifest. It never creates files
 // in the project checkout.
 func PrepareEnvironment(dataDir string, manifest Manifest) (Environment, error) {

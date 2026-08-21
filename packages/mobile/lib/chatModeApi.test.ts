@@ -11,7 +11,7 @@ import type { ServerConfig } from "./config";
 
 const { getConversationPage, getWorkspacePaths } = chatApi;
 
-const cfg: ServerConfig = { host: "ao.test", httpPort: "3011", muxPort: "3011", secure: false, password: "secret12" };
+const cfg: ServerConfig = { host: "kennel.test", httpPort: "3011", muxPort: "3011", secure: false, password: "secret12" };
 
 describe("mobile Chat API boundaries", () => {
 	beforeEach(() => vi.stubGlobal("fetch", vi.fn()));
@@ -33,7 +33,7 @@ describe("mobile Chat API boundaries", () => {
 			source: "codex", stale: false, fetchedAt: "2026-08-09T00:00:00Z",
 		}));
 		const catalog = await getAgentModels(cfg, "codex", "project one");
-		expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe("http://ao.test:3011/api/v1/agents/codex/models?projectId=project%20one");
+		expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe("http://kennel.test:3011/api/v1/agents/codex/models?projectId=project%20one");
 		expect(catalog.models[0]).toMatchObject({ id: "gpt-5", isDefault: true });
 	});
 
@@ -52,7 +52,7 @@ describe("mobile Chat API boundaries", () => {
 			.mockResolvedValueOnce(response({ session: { id: "w-2", projectId: "p-1", harness: "codex", mode: "chat" } }));
 		const session = await delegateTask(cfg, { projectId: "p-1", brief: "", agent: "codex", model: "gpt-5", mode: "chat" });
 		const [url, init] = vi.mocked(fetch).mock.calls[0];
-		expect(url).toBe("http://ao.test:3011/api/v1/orchestrators/delegate");
+		expect(url).toBe("http://kennel.test:3011/api/v1/orchestrators/delegate");
 		expect(JSON.parse(String(init?.body))).toEqual({ projectId: "p-1", brief: "", agent: "codex", model: "gpt-5", mode: "chat" });
 		expect(session).toMatchObject({ id: "w-2", projectId: "p-1", mode: "chat" });
 	});
@@ -69,7 +69,7 @@ describe("mobile Chat API boundaries", () => {
 		vi.mocked(fetch).mockResolvedValue(response({ ok: true }));
 		await resumeSessionAgent(cfg, "chat-1");
 		const [url, init] = vi.mocked(fetch).mock.calls[0];
-		expect(url).toBe("http://ao.test:3011/api/v1/sessions/chat-1/resume-agent");
+		expect(url).toBe("http://kennel.test:3011/api/v1/sessions/chat-1/resume-agent");
 		expect(init?.method).toBe("POST");
 	});
 
@@ -77,7 +77,7 @@ describe("mobile Chat API boundaries", () => {
 		vi.mocked(fetch).mockResolvedValue(response({ ok: true }));
 		await restoreSession(cfg, "chat-terminated");
 		const [url, init] = vi.mocked(fetch).mock.calls[0];
-		expect(url).toBe("http://ao.test:3011/api/v1/sessions/chat-terminated/restore");
+		expect(url).toBe("http://kennel.test:3011/api/v1/sessions/chat-terminated/restore");
 		expect(init?.method).toBe("POST");
 	});
 
@@ -114,7 +114,7 @@ describe("mobile Chat API boundaries", () => {
 		vi.mocked(fetch).mockResolvedValueOnce(response({ entry: "README.md" }));
 		expect(await getPreview(cfg, "w-1")).toEqual({
 			entry: "README.md",
-			url: "http://ao.test:3011/api/v1/sessions/w-1/preview/files/README.md",
+			url: "http://kennel.test:3011/api/v1/sessions/w-1/preview/files/README.md",
 			authenticated: true,
 		});
 		vi.mocked(fetch).mockResolvedValueOnce(response({}));
@@ -122,10 +122,10 @@ describe("mobile Chat API boundaries", () => {
 			url: "https://example.com/demo",
 			authenticated: false,
 		});
-		expect(mobileReachablePreviewURL("http://127.0.0.1:5173", "ao.test")?.href).toBe("http://ao.test:5173/");
+		expect(mobileReachablePreviewURL("http://127.0.0.1:5173", "kennel.test")?.href).toBe("http://kennel.test:5173/");
 		expect(mobileReachablePreviewURL("http://localhost:5173", "2001:db8::5")?.href).toBe("http://[2001:db8::5]:5173/");
 		expect(mobileReachablePreviewURL("http://127.0.0.1:5173", "https://macbook.local/")?.href).toBe("http://macbook.local:5173/");
-		expect(mobileReachablePreviewURL("file:///tmp/demo.html", "ao.test")).toBeUndefined();
+		expect(mobileReachablePreviewURL("file:///tmp/demo.html", "kennel.test")).toBeUndefined();
 	});
 
 	it("maps the provider-neutral conversation wire model without inventing protocol state", async () => {
@@ -154,8 +154,8 @@ describe("mobile Chat API boundaries", () => {
 		await getConversationPage(cfg, "w-1", 100);
 
 		expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual([
-			"http://ao.test:3011/api/v1/sessions/w-1/conversation?limit=50",
-			"http://ao.test:3011/api/v1/sessions/w-1/conversation?limit=200&beforeSequence=100",
+			"http://kennel.test:3011/api/v1/sessions/w-1/conversation?limit=50",
+			"http://kennel.test:3011/api/v1/sessions/w-1/conversation?limit=200&beforeSequence=100",
 		]);
 	});
 

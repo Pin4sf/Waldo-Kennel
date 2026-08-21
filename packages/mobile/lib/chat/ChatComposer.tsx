@@ -78,7 +78,7 @@ export function ChatComposer({
 	const canEmbedFiles = snapshot.capabilities?.includes("embedded_context");
 	const steerEligible = canSteer && delivery === "steer" && attachments.length === 0;
 	const stopped = snapshot.controller.state === "stopped";
-	const draftKey = `ao.chat.draft.${sessionId}`;
+	const draftKey = `kennel.chat.draft.${sessionId}`;
 	const openingSuggestion = useRef<string | undefined>(undefined);
 	const pickerGate = useRef(createRequestGate()).current;
 	const latestText = useRef(text);

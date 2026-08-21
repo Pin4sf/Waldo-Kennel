@@ -274,7 +274,7 @@ func (m *Manager) admitAgentSwitch(ctx context.Context, id domain.SessionID, cfg
 	if sourceGeneration == "" {
 		// Sessions created by older AO versions predate unconditional generation
 		// ids. A unique legacy fence still makes handoff submission idempotent;
-		// the target generation is always a real AO_RUNTIME_LAUNCH_ID.
+		// the target generation is always a real KENNEL_RUNTIME_LAUNCH_ID.
 		sourceGeneration = domain.AgentGenerationID("legacy-" + uuid.NewString())
 	}
 	sourceEnv := m.runtimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env)
@@ -1642,11 +1642,11 @@ func (m *Manager) collectOptionalAgentHandoff(ctx context.Context, store ports.A
 		}
 		return settled, settleErr
 	}
-	aoExecutable := hookBinaryName
+	kennelExecutable := hookBinaryName
 	if executable, executableErr := m.executable(); executableErr == nil && filepath.IsAbs(executable) {
-		aoExecutable = executable
+		kennelExecutable = executable
 	}
-	request := buildSourceHandoffRequest(sw, candidatePath, aoExecutable)
+	request := buildSourceHandoffRequest(sw, candidatePath, kennelExecutable)
 	if safe, safeErr := m.sourceGenerationCanReceiveCoordination(handoffCtx, rec); safeErr != nil || !safe {
 		updated, settleErr := m.settleOptionalAgentHandoff(ctx, store, sw, domain.AgentHandoffUnavailable)
 		if settleErr != nil {
@@ -1908,7 +1908,7 @@ func (m *Manager) composerIsEmpty(ctx context.Context, handle ports.RuntimeHandl
 	return detector.ComposerIsEmpty(output), nil
 }
 
-func buildSourceHandoffRequest(sw domain.AgentSwitch, candidatePath, aoExecutable string) string {
+func buildSourceHandoffRequest(sw domain.AgentSwitch, candidatePath, kennelExecutable string) string {
 	arguments := []string{
 		"session", "handoff", "submit",
 		"--switch", string(sw.ID),
@@ -1919,13 +1919,13 @@ func buildSourceHandoffRequest(sw domain.AgentSwitch, candidatePath, aoExecutabl
 		SwitchID         string   `json:"switch"`
 		SourceGeneration string   `json:"sourceGeneration"`
 		CandidateFile    string   `json:"candidateFile"`
-		AOExecutable     string   `json:"aoExecutable"`
+		AOExecutable     string   `json:"kennelExecutable"`
 		Arguments        []string `json:"arguments"`
 	}{
 		SwitchID:         string(sw.ID),
 		SourceGeneration: string(sw.SourceGenerationID),
 		CandidateFile:    candidatePath,
-		AOExecutable:     aoExecutable,
+		AOExecutable:     kennelExecutable,
 		Arguments:        arguments,
 	}, "", "  ")
 	return fmt.Sprintf(`<ao-handoff-request switch-id=%s source-generation=%s>
@@ -1939,7 +1939,7 @@ If you can respond, write exactly one JSON object (schemaVersion 1, maximum 64 K
 %s
 </ao-handoff-submission-parameters>
 
-Then invoke the exact executable in aoExecutable with the arguments array in order. Do not substitute a bare ao command: older sessions may not have AO on PATH. Decode standard JSON Unicode escapes such as \u003c and \u003e to their literal characters.
+Then invoke the exact executable in kennelExecutable with the arguments array in order. Do not substitute a bare ao command: older sessions may not have AO on PATH. Decode standard JSON Unicode escapes such as \u003c and \u003e to their literal characters.
 
 The switch will continue with AO's deterministic continuation if you cannot provide this optional semantic handoff.
 </ao-handoff-request>`, coordinationQuotedAttribute(string(sw.ID)), coordinationQuotedAttribute(string(sw.SourceGenerationID)), escapeAOCoordinationTags(string(sw.TargetHarness)), params)

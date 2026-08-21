@@ -114,7 +114,7 @@ func seedChatResumeSession(store *fakeStore, state domain.ActivityState) {
 		Activity:  domain.Activity{State: state},
 		Metadata: domain.SessionMetadata{
 			WorkspacePath:          "/ws/mer-1",
-			Branch:                 "ao/mer-1",
+			Branch:                 "kennel/mer-1",
 			ProviderConversationID: "thread-existing",
 		},
 	}
@@ -363,7 +363,7 @@ func TestChatSpawnStartsControllerAndNoRuntime(t *testing.T) {
 	// `ao` — the mechanism an orchestrator delegates through.
 	//
 	// The PATH value itself is not asserted here: HookPATH deliberately declines
-	// to pin when the running binary is not named "ao", which is always the case
+	// to pin when the running binary is not named "kennel", which is always the case
 	// under `go test`. That the pin works end to end was verified against a real
 	// app-server with a fake `ao` on an injected PATH.
 	if start.Env == nil {
@@ -530,7 +530,7 @@ func TestRestoreResumesChatRatherThanRelaunchingATerminal(t *testing.T) {
 	}
 }
 
-// `ao send` and orchestrator-to-worker relay both go through Manager.Send. A chat
+// `kennel send` and orchestrator-to-worker relay both go through Manager.Send. A chat
 // session has no pane to type into, so without a mode branch the send reached the
 // runtime guard and was refused as "missing runtime handles" — which is true of
 // the handles and wrong about the session, and left chat workers unreachable by

@@ -164,11 +164,11 @@ describe("useWorkspaceQuery", () => {
 			autoInjectReview: true,
 			autoInjectCI: true,
 		});
-		expect(captureRendererEventMock).toHaveBeenCalledWith("ao.renderer.session_state_unknown", {
+		expect(captureRendererEventMock).toHaveBeenCalledWith("kennel.renderer.session_state_unknown", {
 			field: "status",
 			reason: "unrecognized",
 		});
-		expect(captureRendererEventMock).toHaveBeenCalledWith("ao.renderer.session_state_unknown", {
+		expect(captureRendererEventMock).toHaveBeenCalledWith("kennel.renderer.session_state_unknown", {
 			field: "activity",
 			reason: "missing",
 		});
@@ -183,7 +183,7 @@ describe("useWorkspaceQuery", () => {
 							id: "scratch",
 							name: "Scratch",
 							kind: "scratch",
-							path: "/home/me/.ao/scratch/default",
+							path: "/home/me/.kennel/scratch/default",
 						},
 					],
 				},

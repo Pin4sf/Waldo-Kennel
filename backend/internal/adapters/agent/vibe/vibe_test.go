@@ -341,7 +341,7 @@ func TestGetLaunchCommandWritesExactModelTOML(t *testing.T) {
 	want := strings.Join([]string{
 		`agent_type = "agent"`,
 		`display_name = "AO Session"`,
-		`description = "AO session standing instructions."`,
+		`description = "Kennel session standing instructions."`,
 		`safety = "neutral"`,
 		`active_model = "mistral\n\u0007\u007F"`,
 		"",
@@ -379,7 +379,7 @@ func TestGetLaunchCommandBuildsCustomAgentForSystemPromptAndModel(t *testing.T) 
 	wantConfig := strings.Join([]string{
 		`agent_type = "agent"`,
 		`display_name = "AO Session"`,
-		`description = "AO session standing instructions."`,
+		`description = "Kennel session standing instructions."`,
 		`safety = "neutral"`,
 		`system_prompt_id = "ao-system-prompt"`,
 		`active_model = "mistral \"medium\" \\ latest"`,
@@ -699,16 +699,16 @@ func TestGetAgentHooksInstallsManagedHooksWithoutChangingConfig(t *testing.T) {
 		`name = "ao-post-tool"`,
 		`type = "post_tool"`,
 		`match = "*"`,
-		`command = "ao hooks vibe post-agent"`,
-		`command = "ao hooks vibe pre-tool"`,
-		`command = "ao hooks vibe post-tool"`,
+		`command = "kennel hooks vibe post-agent"`,
+		`command = "kennel hooks vibe pre-tool"`,
+		`command = "kennel hooks vibe post-tool"`,
 		"timeout = 30.0",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("hooks.toml missing %q:\n%s", want, body)
 		}
 	}
-	if strings.Count(body, vibeHooksSentinelStart) != 1 || strings.Count(body, "ao hooks vibe post-agent") != 1 {
+	if strings.Count(body, vibeHooksSentinelStart) != 1 || strings.Count(body, "kennel hooks vibe post-agent") != 1 {
 		t.Fatalf("managed hooks duplicated:\n%s", body)
 	}
 	if strings.Count(body, "timeout = 30.0") != 3 || strings.Count(body, `match = "*"`) != 2 {
@@ -773,7 +773,7 @@ func TestUninstallHooksPreservesUserHooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(got), "user-command") || strings.Contains(string(got), "ao hooks vibe") {
+	if !strings.Contains(string(got), "user-command") || strings.Contains(string(got), "kennel hooks vibe") {
 		t.Fatalf("hooks after uninstall:\n%s", got)
 	}
 }

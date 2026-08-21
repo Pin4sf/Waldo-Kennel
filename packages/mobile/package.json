@@ -1,8 +1,9 @@
 {
-	"name": "@agent-orchestrator/mobile",
+	"name": "@pin4sf/kennel-mobile",
 	"version": "0.0.0",
 	"private": true,
-	"description": "Expo mobile supervisor for Agent Orchestrator",
+	"description": "Retained Expo mobile supervisor source for Kennel",
+	"license": "Apache-2.0",
 	"main": "expo-router/entry",
 	"scripts": {
 		"start": "expo start",

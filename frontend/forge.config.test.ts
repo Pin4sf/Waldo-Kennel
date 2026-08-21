@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import config from "./forge.config";
 
-describe("packaged authentication callback registration", () => {
-	it("declares ao-app in the macOS bundle and Linux package metadata", () => {
+describe("packaged Kennel identity", () => {
+	it("uses Kennel-owned bundle, executable, protocol, updater, and release identities", () => {
+		expect(config.packagerConfig).toMatchObject({
+			appBundleId: "in.heywaldo.kennel",
+			name: "Kennel",
+			executableName: "kennel",
+		});
+		expect(config.packagerConfig?.afterCopyExtraResources).toHaveLength(1);
 		expect(config.packagerConfig?.protocols).toEqual([
 			{
-				name: "Agent Orchestrator authentication callback",
-				schemes: ["ao-app"],
+				name: "Kennel authentication callback",
+				schemes: ["kennel-app"],
 			},
 		]);
 
@@ -20,8 +26,13 @@ describe("packaged authentication callback registration", () => {
 		]) {
 			const maker = makers.find((candidate) => candidate.name === name);
 			expect(maker?.config?.options?.mimeType).toEqual([
-				"x-scheme-handler/ao-app",
+				"x-scheme-handler/kennel-app",
 			]);
 		}
+
+		const publishers = config.publishers as Array<{
+			config?: { repository?: { owner?: string; name?: string } };
+		}>;
+		expect(publishers[0]?.config?.repository).toEqual({ owner: "Pin4sf", name: "Waldo-Kennel" });
 	});
 });

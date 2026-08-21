@@ -2,17 +2,19 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { app } from "electron";
 import type { UpdateSettings } from "./update-settings";
+import { RELEASE_REPOSITORY } from "../shared/product-identity";
 
 const GITHUB_API = "https://api.github.com";
 
 // Default when the baked app-update.yml cannot be read (dev, or a malformed
 // bundle). Matches forge.config.ts DEFAULT_RELEASE_REPO.
-const DEFAULT_REPO = { owner: "Untrivial-ai", repo: "agent-orchestrator" } as const;
+const [DEFAULT_OWNER, DEFAULT_REPO_NAME] = RELEASE_REPOSITORY.split("/");
+const DEFAULT_REPO = { owner: DEFAULT_OWNER, repo: DEFAULT_REPO_NAME } as const;
 
 // Resolve the GitHub repo the app updates from by reading the same bundled
-// app-update.yml that electron-updater uses. Both are baked from AO_RELEASE_REPO
+// app-update.yml that electron-updater uses. Both are baked from KENNEL_RELEASE_REPO
 // at build time, so this keeps the feature list and the updater on the SAME repo
-// (a fork build lists that fork's feature releases, not Untrivial-ai's). The
+// (a fork build lists that fork's feature releases, not Kennel's canonical repository). The
 // list and the updater must never diverge, or the picker would offer builds
 // the updater cannot install.
 let cachedRepo: { owner: string; repo: string } | undefined;
@@ -33,7 +35,7 @@ function resolveRepo(): { owner: string; repo: string } {
 }
 
 // Marker embedded in feature-build release bodies by the CI workflow.
-const FEATURE_BUILD_MARKER = "<!-- ao-feature-build:";
+const FEATURE_BUILD_MARKER = "<!-- kennel-feature-build:";
 
 // Feature builds older than this are dropped from the list, matching the
 // cleanup workflow's 7-day expiry sweep so the app and CI agree on liveness.
@@ -87,7 +89,7 @@ interface MarkerPayload {
 function parseMarker(body: string): MarkerPayload | null {
 	const idx = body.indexOf(FEATURE_BUILD_MARKER);
 	if (idx === -1) return null;
-	// Marker format: <!-- ao-feature-build: {"pr":2270,"base":"main","sha":"abc","slug":"..."} -->
+	// Marker format: <!-- kennel-feature-build: {"pr":2270,"base":"main","sha":"abc","slug":"..."} -->
 	const start = idx + FEATURE_BUILD_MARKER.length;
 	const end = body.indexOf("-->", start);
 	if (end === -1) return null;
@@ -105,7 +107,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 		headers: {
 			Accept: "application/vnd.github+json",
 			"X-GitHub-Api-Version": "2022-11-28",
-			"User-Agent": `ao-desktop/${app.getVersion()}`,
+			"User-Agent": `kennel-desktop/${app.getVersion()}`,
 		},
 	});
 	if (!res.ok) throw new Error(`GitHub API ${res.status}: ${url}`);

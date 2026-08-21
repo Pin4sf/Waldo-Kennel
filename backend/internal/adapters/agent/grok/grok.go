@@ -11,7 +11,7 @@
 // subcommands.
 // AO's standing instructions are appended with `--rules` so Grok's built-in
 // coding-agent system prompt is preserved. Permission handling uses
-// `--permission-mode`. We also pass `--no-auto-update` for AO-managed sessions
+// `--permission-mode`. We also pass `--no-auto-update` for Kennel-managed sessions
 // (parity with Codex no-update).
 // Restore prefers the hook-captured native session id via `-r <id>`.
 //
@@ -51,7 +51,7 @@ var grokBinarySpec = binaryutil.BinarySpec{
 const (
 	grokClaudeSettingsDirName  = ".claude"
 	grokClaudeSettingsFileName = "settings.local.json"
-	grokHookCommandPrefix      = "ao hooks grok "
+	grokHookCommandPrefix      = "kennel hooks grok "
 	grokHookTimeout            = 30
 )
 
@@ -59,7 +59,7 @@ var grokStartupMatcher = "startup"
 
 // grokManagedHooks is Claude Code's hook event shape with Grok-specific AO
 // hook commands. Grok reads this file through its Claude compatibility layer,
-// while `ao hooks grok` keeps activity and session metadata attributed to the
+// while `kennel hooks grok` keeps activity and session metadata attributed to the
 // Grok harness.
 var grokManagedHooks = []hooksjson.HookSpec{
 	{Event: "SessionStart", Matcher: &grokStartupMatcher, Command: grokHookCommandPrefix + "session-start"},

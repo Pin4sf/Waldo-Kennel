@@ -16,7 +16,7 @@ import {
 	type SessionStatusView,
 	type SessionTimelinePillStatus,
 	type SessionTimelinePillView,
-} from "@aoagents/product-ui";
+} from "@pin4sf/kennel-product-ui";
 import type { TFunction } from "i18next";
 import { appI18n, type MessageKey } from "../i18n";
 import type { SessionActivity, SessionStatus } from "../types/workspace";

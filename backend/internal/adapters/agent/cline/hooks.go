@@ -18,7 +18,7 @@ import (
 // writing a JSON result on stdout (see docs.cline.bot hooks reference).
 //
 // AO installs one wrapper script per managed event. Each script forwards the
-// hook payload to `ao hooks cline <subcommand>` and emits the no-op
+// hook payload to `kennel hooks cline <subcommand>` and emits the no-op
 // continuation result Cline expects. Scripts carry a marker line so install is
 // idempotent and uninstall recognizes AO-owned scripts without an embedded
 // template to diff against; user-authored hooks (lacking the marker) are never
@@ -28,8 +28,8 @@ const (
 	clineHooksSubDir  = "hooks"
 
 	// clineHookCommandPrefix identifies the hook commands AO owns. The CLI hook
-	// dispatcher routes "ao hooks cline <subcommand>" to DeriveActivityState.
-	clineHookCommandPrefix = "ao hooks cline "
+	// dispatcher routes "kennel hooks cline <subcommand>" to DeriveActivityState.
+	clineHookCommandPrefix = "kennel hooks cline "
 
 	// clineHookMarker tags AO-generated hook scripts so install/uninstall can
 	// distinguish them from user-authored Cline hooks in the same directory.

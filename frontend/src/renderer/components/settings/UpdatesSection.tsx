@@ -122,7 +122,7 @@ export function UpdatesSection({ titleHidden }: { titleHidden?: boolean } = {}) 
 			// moves to nightly and does not update yet is on nightly by intent while
 			// still running a stable build.
 			setReleaseChannelContext(to);
-			void captureRendererEvent("ao.renderer.update_channel_changed", { from_channel: from, to_channel: to });
+			void captureRendererEvent("kennel.renderer.update_channel_changed", { from_channel: from, to_channel: to });
 		}
 	};
 

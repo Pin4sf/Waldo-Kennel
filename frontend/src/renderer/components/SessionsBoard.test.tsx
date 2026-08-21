@@ -68,7 +68,7 @@ vi.mock("../lib/platform", async (importOriginal) => {
 	};
 });
 
-import { archiveToggleHeightClassName, archiveToggleOffsetClassName } from "@aoagents/product-ui";
+import { archiveToggleHeightClassName, archiveToggleOffsetClassName } from "@pin4sf/kennel-product-ui";
 import { SessionsBoard } from "./SessionsBoard";
 import { TooltipProvider } from "./ui/tooltip";
 
@@ -100,7 +100,7 @@ beforeEach(() => {
 	postMock.mockReset().mockResolvedValue({ data: {} });
 	workspaceQueryMock.mockReset().mockReturnValue({ data: [], isError: false });
 	usageQueryMock.mockReset().mockReturnValue({ data: new Map() });
-	window.localStorage.removeItem("ao.board.archive.layout");
+	window.localStorage.removeItem("kennel.board.archive.layout");
 	boardActionsInPanelMock.mockReset().mockReturnValue(false);
 });
 
@@ -867,7 +867,7 @@ describe("SessionsBoard", () => {
 	});
 
 	it("renders archived sessions as a grid even when rows were previously saved", async () => {
-		window.localStorage.setItem("ao.board.archive.layout", "rows");
+		window.localStorage.setItem("kennel.board.archive.layout", "rows");
 		workspaceQueryMock.mockReturnValue({
 			data: [workspaceWithSessions([terminatedSession()])],
 			isError: false,

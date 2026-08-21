@@ -93,9 +93,9 @@ func (s *Server) Run(ctx context.Context) error {
 		PID:                   os.Getpid(),
 		Port:                  s.boundPort(),
 		StartedAt:             time.Now().UTC(),
-		Owner:                 os.Getenv("AO_OWNER"),
+		Owner:                 os.Getenv("KENNEL_OWNER"),
 		AppRunID:              s.cfg.AppRunID,
-		BrowserRuntimeAddress: os.Getenv("AO_BROWSER_RUNTIME_ADDRESS"),
+		BrowserRuntimeAddress: os.Getenv("KENNEL_BROWSER_RUNTIME_ADDRESS"),
 	}
 	if err := runfile.Write(s.cfg.RunFilePath, info); err != nil {
 		_ = s.listen.Close()
