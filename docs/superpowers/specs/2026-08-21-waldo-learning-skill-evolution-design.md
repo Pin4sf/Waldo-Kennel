@@ -1,10 +1,10 @@
 # Waldo Learning and Skill Evolution design
 
-- **Status:** Approved conceptual direction; written specification for review
+- **Status:** Approved written specification
 - **Date:** 2026-08-21
 - **Scope:** consented project-session analysis, learning candidates, bounded experiments, governed runtime skills, and later orchestration-policy learning
 - **Implementation status:** Not shipped; this document does not authorize product code, promotion, merge, push, release, or deployment
-- **Decision record:** [Proposed ADR 0005](../../adr/0005-governed-project-learning-and-skill-evolution.md)
+- **Decision record:** [ADR 0005](../../adr/0005-governed-project-learning-and-skill-evolution.md)
 - **Research:** [Paxel and AutoResearch learning reference](../../research/2026-08-21-paxel-autoresearch-learning-reference.md)
 
 ## 1. Positioning
@@ -326,12 +326,13 @@ Only after L3 demonstrates useful skills with acceptable review burden may Waldo
 
 ## 14. GitHub planning projection
 
-After written-spec approval, GitHub should use parallel milestones:
+GitHub uses parallel milestones:
 
-1. **v0 Work — First Verified Outcome**
-2. **v0 Home — Personal Agent Foundations**
-3. **v0 Learning — First Evaluated Project Skill**
-4. **Later Gates — Durable Memory, Mobile, Hosted**
+1. **v0 Foundation — Kennel Identity & AO Retirement**
+2. **v0 Work — First Verified Outcome**
+3. **v0 Home — Personal Agent Foundations**
+4. **v0 Learning — First Evaluated Project Skill**
+5. **Later Gates — Durable Memory, Mobile, Hosted**
 
 Work issues follow the five accepted lifecycle stages. Home issues follow the seven vertical slices in the Home/Personal Agent design. Learning issues follow L1-L3; L4 remains a later-gate issue rather than an implementation milestone.
 

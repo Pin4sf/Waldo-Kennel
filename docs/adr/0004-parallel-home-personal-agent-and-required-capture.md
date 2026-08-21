@@ -4,6 +4,7 @@
 - Date: 2026-08-21
 - Scope: Phase sequencing, capture commitment, memory boundary, and Work/Home ownership
 - Amends: [ADR 0003](0003-local-first-waldo-core.md) and the sequencing sections of the accepted v0 architecture
+- Final presence model: [ADR 0006](0006-one-durable-waldo-multiple-governed-presences.md)
 
 ## Context
 
@@ -64,7 +65,7 @@ The Home lane may implement `MemoryCandidate`, admission-review contracts, delet
 
 ### One Waldo across devices
 
-A later phone or wearable presence extends Waldo's source coverage through the same identity, CaptureGrant, ResponsibilitySpace, admission, retrieval, and deletion contracts. It does not create a second assistant, a second canonical writer, or an independently evolving personal profile.
+A later Health-aware mobile, phone, or wearable presence extends Waldo's source coverage through the same durable identity, CaptureGrant, ResponsibilitySpace, admission, retrieval, and deletion contracts. It does not create a second assistant, a second canonical writer, or an independently evolving personal profile. Health First remains recommended, not required.
 
 ## Consequences
 

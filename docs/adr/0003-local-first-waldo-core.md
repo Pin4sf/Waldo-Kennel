@@ -4,6 +4,7 @@
 - Date: 2026-08-20
 - Scope: Kennel v1 launch topology and post-attachment custody
 - Sequencing amendment: [ADR 0004](0004-parallel-home-personal-agent-and-required-capture.md) starts Home/Personal Agent in parallel and makes governed desktop screen/audio capture required capabilities
+- Final ecosystem target: [ADR 0006](0006-one-durable-waldo-multiple-governed-presences.md) keeps one durable Waldo identity across Kennel desktop and the Health-aware mobile presence
 
 ## Context
 

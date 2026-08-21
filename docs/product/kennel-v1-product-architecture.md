@@ -58,7 +58,7 @@ These are five adaptive product surfaces, not five mandatory wizard pages. A sim
 
 ### From session-oriented to Outcome-oriented
 
-The AO-derived orchestration and Kanban experience remains valuable; its authority changes. Today, the practical story is often “open a session, ask an agent, read its output, and infer whether the task is done.” In the accepted model:
+The inherited orchestration and Kanban experience remains valuable; its authority changes. Today, the practical story is often “open a session, ask an agent, read its output, and infer whether the task is done.” In the accepted model:
 
 ```text
 Outcome -> ContractRevision -> PlanRevision -> WorkUnit -> Attempt -> AgentSessionRef
@@ -181,7 +181,7 @@ An Outcome or Open Loop belongs to exactly one Responsibility Space at a time. M
 - Communication Brief, Daily Snapshot, and Re-entry packet;
 - Suggested Next Actions and Home Catch Up; these are correctable projections, not tasks or canonical responsibility;
 - Project Follow-up and Keep for later.
-- AO-style Kanban columns, agent/session lists, Mission topology, terminal/browser activity, and provider status. They remain operational projections rather than the canonical Outcome contract.
+- Kanban columns, agent/session lists, Mission topology, terminal/browser activity, and provider status. They remain operational projections rather than the canonical Outcome contract.
 
 Provider completion, commits, PRs, checks, messages, drafts, archive state, screenshots, and activity are observations or candidate Evidence. None can create Acceptance or close an Open Loop.
 
@@ -595,7 +595,7 @@ Public availability of this beta depends on Google OAuth verification and an app
 - cross-space denial, stale-index hydration, crash recovery, and non-resurrection evaluation;
 - durable admitted Memory use only after this gate passes.
 
-### Proposed learning-foundation gate
+### Learning-foundation gate
 
 - consented, Project-attributed LearningEpisode projections over canonical Outcome facts and permitted source references;
 - candidate routing into skill, context-rule, orchestration-policy, Memory, or Open Loop review without collapsing their contracts;
@@ -604,15 +604,18 @@ Public availability of this beta depends on Google OAuth verification and an app
 - first activation limited to one explicitly promoted, provisional Project-scoped procedural skill with invocation receipts and immediate rollback;
 - no orchestration-policy activation until the project-skill proof passes; no harness/optimizer self-modification without another ADR.
 
-Learning contracts, fixtures, shadow episodes, and candidate evaluation may proceed alongside Work/Home after ADR 0005 approval. Active skills still wait for trustworthy Outcome result facts and the promotion gate.
+Learning contracts, fixtures, shadow episodes, and candidate evaluation may proceed alongside Work/Home under ADR 0005. Active skills still wait for trustworthy Outcome result facts and the promotion gate.
 
 ### Later Waldo ecosystem
 
-- explicit hosted attachment, backup, cross-device sync, and hosted remote execution;
+- one owner-scoped durable Waldo agent, with Kennel as its desktop Work/execution presence and the Health-aware Waldo mobile app as the same agent's personal presence;
+- explicit hosted attachment, identity-preserving custody migration, backup, cross-device sync, bounded offline replicas, and hosted remote execution with one canonical writer per scope/epoch;
 - governed durable Memory after the candidate-memory gate, broader learned skills after the project-skill gate, and later orchestration-policy evaluation;
 - Relationship and broad work-plus-life Open Loops;
-- phone/wearable Waldo presence, Health First mobile experience, and permissioned body-state planning through the same source/memory contract;
+- phone/wearable Waldo presence, Health First mobile experience, and permissioned body-state planning through the same source/memory contract; Health remains recommended rather than required and never silently enters general Memory, Work, or Learning;
 - durable proactive agent, Waldo-owned harness, provider routing beyond v0, teams, marketplace, and commercialization.
+
+[ADR 0006](../adr/0006-one-durable-waldo-multiple-governed-presences.md) governs this evolution. It does not move hosted or mobile scope into the local v0 milestones.
 
 ## Dogfood and falsification gate
 
@@ -658,8 +661,9 @@ No unresolved architecture choice blocks starting the first authorized v0 issue 
 - Product work starts from current `origin/main` in a new issue-specific worktree, never from the historical F0-F6 or PR #11 branches.
 - Implement the Focus Ledger milestone as five stage-aligned issue-sized PRs: Enter; Understand; Decide & Authorize; Act & Observe; Prove & Close. Each PR owns every domain, storage, CDC, service, API, UI, recovery, and evaluation change required by its user-visible truth boundary, reusing proven foundation APIs where no new durable truth is needed; no PR may leave a horizontal schema or deceptive screen layer for another PR to make true.
 - Implement Home/Personal Agent in a separate parallel worktree and PR sequence: Home shell/fixtures; PersonalHome/OpenLoop/Quick Capture; Today/Catch Up/detail/closure; ResponsibilityLink/shared intake; required screen/audio CaptureGrant and source episodes; MemoryCandidate review and retrieval evaluation. Durable admitted Memory remains separately gated.
-- After ADR 0005 and its written specification are approved, implement Learning through separate plans: L1 Experience Ledger/candidate mining in shadow mode; L2 bounded Experiment/Evaluation; L3 daemon skill registry and one provisional Project-scoped skill. L4 orchestration-policy learning remains later.
+- Implement Learning through separate plans: L1 Experience Ledger/candidate mining in shadow mode; L2 bounded Experiment/Evaluation; L3 daemon skill registry and one provisional Project-scoped skill. L4 orchestration-policy learning remains later.
+- Retire misleading AO product identity and disconnected donor surfaces through the [AO legacy retirement audit](ao-legacy-retirement-audit.md) and its isolated plan while retaining provenance, historical migrations, and measured compatibility seams.
 - Before code edits, record exact file and API ownership for both lanes. Shared contract changes use a named integration owner; Home and Work must not independently implement intake/Q&A, ResponsibilitySpace, ResponsibilityLink, RunBrief memory references, CDC semantics, or generated DTOs.
 - Preserve Home and Work responsibility lineages even when one adaptive surface displays both. A `ResponsibilityLink` is lineage, never lifecycle coupling.
-- Use the [first Outcome specification](kennel-v0-first-outcome-slice.md) and amended [execution handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) for Work. Use the [Home/Personal Agent design](../superpowers/specs/2026-08-21-home-personal-agent-memory-design.md) and ADR 0004 for Home. After review, use the [Learning and Skill Evolution design](../superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md) and ADR 0005 for Learning. Each code slice still requires an implementation plan and explicit PR scope.
+- Use the [first Outcome specification](kennel-v0-first-outcome-slice.md) and amended [execution handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) for Work. Use the [Home/Personal Agent design](../superpowers/specs/2026-08-21-home-personal-agent-memory-design.md) and ADR 0004 for Home. Use the [Learning and Skill Evolution design](../superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md) and ADR 0005 for Learning. ADR 0006 governs the later durable/mobile ecosystem. Each code slice still requires an implementation plan and explicit PR scope.
 - No merge, push, deploy, publish, release, destructive cleanup, or hosted attachment is authorized by this document.

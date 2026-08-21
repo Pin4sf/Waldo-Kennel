@@ -1,6 +1,6 @@
 # Waldo Kennel Home, Personal Agent, capture, and memory design
 
-- **Status:** Approved architectural direction; written specification for review
+- **Status:** Approved written specification
 - **Date:** 2026-08-21
 - **Scope:** Personal Home, Open Loops, life-and-work capture, memory candidates, retrieval, and the shared boundary with Work orchestration
 - **Implementation status:** Not shipped; this document does not authorize merge, push, release, or deployment
@@ -21,7 +21,7 @@ The memory invariant is:
 1. Personal Home and Work are parallel implementation lanes over one daemon-owned canonical model.
 2. Desktop screen capture and desktop audio capture are required Personal Agent capabilities. They are not optional roadmap ideas.
 3. Required capability does not mean forced activation. Capture starts only through an explicit `CaptureGrant` and always provides visible state, pause, exclusions, retention, revoke, export, and deletion.
-4. A later phone or wearable presence extends Waldo into physical-world life capture through the same source, admission, scope, and deletion contracts. It does not create another assistant or another canonical memory store.
+4. A later Health-aware mobile, phone, or wearable presence extends Waldo into physical-world life capture through the same durable identity, source, admission, scope, and deletion contracts. It does not create another assistant or another canonical memory store; Health First remains recommended, not required.
 5. Observations, OCR, transcripts, summaries, and inferred patterns become candidates. They never become durable personal truth automatically.
 6. SQLite in the Kennel daemon is the sole canonical writer. Blobs, full-text indexes, embeddings, relationship indexes, Markdown, and provider state are subordinate projections or references.
 7. `MemoryCandidate`, `OpenLoop`, `Outcome`, `AgentSessionRef`, `EvidenceItem`, `VerificationRun`, and `AcceptanceDecision` stay distinct.
@@ -383,8 +383,8 @@ parallel Work + Home foundations
   -> required desktop screen/audio source plane
   -> candidate-only memory and retrieval evaluation
   -> governed durable local Memory
-  -> phone/wearable Waldo presence
-  -> optional explicit hosted attachment
+  -> explicit identity-preserving durable Waldo attachment
+  -> Health-aware mobile/phone/wearable presence on that same durable agent
 ```
 
-Every later presence consumes the same canonical contracts and preserves one Waldo identity.
+Every later presence consumes the same canonical contracts and preserves one Waldo identity. ADR 0006 governs the final ecosystem: Kennel remains the desktop Work/execution presence, the Health-aware mobile app is the personal presence, Health stays recommended rather than required, and offline caches never become competing canonical writers.

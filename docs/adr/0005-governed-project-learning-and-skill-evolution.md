@@ -1,6 +1,6 @@
 # ADR 0005: Governed project learning and skill evolution
 
-- Status: Proposed; awaiting written-specification review
+- Status: Accepted
 - Date: 2026-08-21
 - Scope: Session-derived learning, bounded experiments, skill registry, promotion, and orchestration-policy boundary
 - Depends on: [ADR 0003](0003-local-first-waldo-core.md), [ADR 0004](0004-parallel-home-personal-agent-and-required-capture.md), and canonical Outcome/Evidence/Acceptance contracts
@@ -75,4 +75,4 @@ The first promotion scope is one Project. Generalization to a task family, Respo
 
 The detailed contract, ownership matrix, evaluation gate, and phased subprojects live in [Waldo Learning and Skill Evolution design](../superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md).
 
-This ADR does not authorize code, active learned skills, automatic promotion, global policy changes, push, merge, deployment, release, or publication. Its status becomes Accepted only after the written specification is reviewed and approved.
+This ADR does not authorize code, active learned skills, automatic promotion, global policy changes, push, merge, deployment, release, or publication. Each implementation subproject requires its own issue-sized plan and gate.

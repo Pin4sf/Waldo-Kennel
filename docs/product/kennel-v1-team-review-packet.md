@@ -64,7 +64,7 @@ Messages, model text, commits, PRs, checks, screenshots, activity, and provider 
 - The coherent product is not “coding agents plus an inbox plus screenshots.” It is one governed responsibility system with multiple sources and bounded executors.
 - Launch value comes from reducing coordination burden: less context reconstruction, fewer reducible interruptions, clearer authority, safer recovery, and faster conscious closure.
 - Gmail broadens the proof from agent execution to human coordination, but should not delay the Work core if OAuth/privacy gates are not ready.
-- The AO agent/session/Kanban experience remains useful as an operational projection. Moving the canonical center from Session to Outcome makes session recovery and provider replacement possible without losing intent or proof.
+- The inherited agent/session/Kanban experience remains useful as an operational projection. Moving the canonical center from Session to Outcome makes session recovery and provider replacement possible without losing intent or proof.
 - Omi/Minimi-like ambient continuity and Dayflow-like capture are now required Personal Agent architecture inputs. Captured activity still becomes candidate context until admitted into durable, correctable, provenance-bearing Memory.
 
 ## 3. Launch promise, users, and problems
@@ -244,7 +244,7 @@ Home is not an activity feed, raw inbox, screenshot timeline, or Memory dashboar
 - Gmail connections and sync/privacy/disclosure state;
 - permissions, effects, retention, export, revoke, deletion;
 - external skill/MCP catalogs remain distinct from the proposed Waldo Learning registry;
-- proposed Learning grants, source coverage, candidates, experiments, provisional/active Project bindings, invocation receipts, evaluation freshness, rollback, revoke, export, and deletion;
+- governed Learning grants, source coverage, candidates, experiments, provisional/active Project bindings, invocation receipts, evaluation freshness, rollback, revoke, export, and deletion;
 - required capture capabilities with per-modality grant/processing/retention controls;
 - hosted attachment visibly Later.
 
@@ -275,7 +275,7 @@ Settings & Control and Operator Inspector are persistent overlays. They can be e
 | F08 | Decide & Authorize | **Draft effect review:** approve the exact bounded communication effect. | intent, approve, edit, create, failed, unknown/reconciled, sent externally. |
 | F09 | Understand | **Open Loop detail:** know owner, trigger, recheck, closure, provenance, and related Work. | active, waiting, deferred, ready to close, closed, released, reopened, transferred. |
 | F10 | Prove & Close | **Ready to Close:** decide whether a Home responsibility is consciously handled. | evidence/change summary, close, release, reopen, promote remaining work. |
-| F11 | Understand | **Work Home:** scan Outcomes and the next useful intervention while retaining AO-style orchestration visibility. | empty, active, Needs You, Action Required, Waiting, Ready for Acceptance, recovery. |
+| F11 | Understand | **Work Home:** scan Outcomes and the next useful intervention while retaining dense orchestration visibility. | empty, active, Needs You, Action Required, Waiting, Ready for Acceptance, recovery. |
 | F12 | Understand | **Outcome Define:** state what must become true and how success will be reviewed. | natural-language entry, vague success, conflict, local-only, draft revision. |
 | F13 | Understand | **Adaptive clarification:** answer the one material question that changes the contract. | recommendation, alternative, custom answer, contradiction, defer. |
 | F14 | Decide & Authorize | **Mission Map:** review the smallest sufficient agent/WorkUnit topology. | direct unit, sequential/parallel graph, dependencies, invalidated, capability/budget conflict. |
@@ -398,7 +398,7 @@ The beta may remain internal while Google OAuth verification and model-disclosur
 - Hosted attachment and cross-device sync;
 - governed durable local Memory after its gate, then optional hosted attachment;
 - proposed consented Paxel-style LearningEpisodes plus AutoResearch-style bounded skill experiments, held-out evaluation, explicit promotion, invocation receipts, and rollback—never automatic promotion from traces;
-- phone/wearable Waldo presence through the same source contract, Relationship, Health First mobile, and body-state planning;
+- one durable Waldo agent across Kennel desktop and the Health-aware Waldo mobile presence, with phone/wearable sources through the same identity, consent, Memory, responsibility, deletion, and learning contracts;
 - durable proactive Waldo, Waldo-owned harness, provider routing beyond v0;
 - teams, marketplace, pricing, and commercialization.
 
@@ -406,7 +406,7 @@ The beta may remain internal while Google OAuth verification and model-disclosur
 
 The final architecture review ranks local v0 priorities as: authority/correctness; durability/recovery; privacy/custody; comprehensibility; evolvability; responsiveness; then speculative scale. The system is intentionally a single-user, single-Mac modular daemon with one SQLite canonical writer. At higher local load, retained screen/audio media, derived-index rebuilds, provider/process concurrency, worktree/disk pressure, terminal/browser resources, and connector limits are expected to fail before loopback HTTP or SQLite throughput; capture cadence, bounded concurrency, backpressure, age/storage retention, projection checkpoints, and cleanup come before distributed services.
 
-No remaining architecture choice blocks implementation planning for Work or Home. Learning architecture is now written for review in ADR 0005 and the Learning/Skill Evolution specification; its implementation plans and GitHub milestone remain blocked on that review. Exact capture cadence, performance/energy/storage limits, implementation evidence, durable-memory and skill-promotion gate results, and hosted/phone/wearable/provider decisions cannot be silently settled inside a feature PR.
+No remaining architecture choice blocks implementation planning for Work, Home, or the first three Learning subprojects. ADR 0006 fixes the final one-Waldo/multiple-presence direction while leaving hosted attachment, mobile implementation, and health processing behind later specifications. Exact capture cadence, performance/energy/storage limits, implementation evidence, durable-memory and skill-promotion gate results, and hosted/phone/wearable/provider decisions cannot be silently settled inside a feature PR.
 
 - One fenced writer per worktree. Attempt authority renews silently until completion, pause/revoke, or confirmed recovery; a missed heartbeat is `unconfirmed`, not dead. Fences pause only new consequential effects and canonical mutations while ordinary reasoning, observation, exploration, and authorized local tactics remain free.
 - Waldo recommends the smallest sufficient topology using model-proposed decomposition checked by a deterministic, inspectable Orchestration Policy. One direct Attempt is the default; parallel work uses isolated non-overlapping worktrees and explicit dependencies/integration.

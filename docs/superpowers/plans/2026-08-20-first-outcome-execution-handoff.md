@@ -44,8 +44,9 @@ Read-only refresh on 2026-08-21:
 | PR #12 | Merged as `348851867e50b6341c251f51083c72dedaeff85b`; removes the user-facing legacy import flow. |
 | PR #13 | Merged as `ad79f3c5fd9f578bc1717a437f295551aee29fd1`; establishes provider-neutral Codex admission and historical compatibility. |
 | PR #14 | Merged as `aef1ede793c8fa9736cb7e05ab836041e7021e86`; narrows public CLI discovery while preserving direct invocation. |
+| PR #15 | Merged as `25fec2c5347a002436ab2b58b8ac4414266e6ce9`; publishes the canonical Kennel architecture and first Outcome execution boundary. |
 | PR #11 | Closed unmerged on 2026-08-21 as a superseded donor; its Outcome store/schema and locale deletion remain rejected. |
-| `origin/main` at this handoff refresh | `aef1ede793c8fa9736cb7e05ab836041e7021e86`. |
+| `origin/main` at this handoff refresh | `25fec2c5347a002436ab2b58b8ac4414266e6ce9`. |
 
 Refresh `origin/main` at execution time and use its current SHA as the base. The historical merge SHAs above are provenance, not branch targets.
 
@@ -462,7 +463,7 @@ Do not include Gmail, governed capture, durable Memory, Health, Relationship, ph
 ## New-session start checklist
 
 1. Read `AGENTS.md`, the canonical architecture, first-slice spec, this handoff, and `docs/STATUS.md` completely.
-2. Fetch and record the current `origin/main` SHA; confirm PRs #1 and #12-#14 remain ancestors and PR #11 remains closed unmerged.
+2. Fetch and record the current `origin/main` SHA; confirm PRs #1 and #12-#15 remain ancestors and PR #11 remains closed unmerged.
 3. Obtain explicit user authority for exactly one issue/PR task.
 4. Create a fresh `codex/` worktree from current `origin/main`.
 5. State claimed files, dependencies, acceptance, falsifier, verification commands, rollback, and worktree disposition before editing.
