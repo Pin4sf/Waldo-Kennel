@@ -24,7 +24,7 @@ npm run bootstrap
 
 `bootstrap` uses `npm ci` for the root, product UI, cloud client, ACP runtime, desktop, retained landing donor, and repository scripts. It does not launch Electron or publish anything.
 
-Create one focused branch per change. Keep `main` clean and preserve uncommitted user work.
+Create one focused branch per change from the latest `origin/beta`, and open the PR back to `beta`. Keep both `beta` and `main` free of direct contributor commits and preserve uncommitted user work. Maintainers promote a tested integration state through a separate `beta` -> `main` PR.
 
 ## Repository layout
 

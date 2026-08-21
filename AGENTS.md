@@ -133,7 +133,7 @@ Commit `openapi.yaml` and `frontend/src/api/schema.ts` together with the Go chan
 
 ## PR hygiene
 
-- Branch from `main` unless explicitly continuing an existing PR.
+- Product and documentation work branches from the latest `beta` and opens a PR back to `beta`, unless explicitly continuing an existing PR. `main` advances through a separately reviewed and tested `beta` -> `main` promotion PR; release/hotfix exceptions require explicit maintainer direction.
 - Keep one issue per PR. If asked for separate work, create a separate branch and PR.
 - Use conventional commit messages (`feat:`, `fix:`, `docs:`, `test:`, `chore:`).
 - Explain intentional omissions in the PR body, especially when the TypeScript original had more behavior than the Go rewrite domain currently supports.

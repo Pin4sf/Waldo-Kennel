@@ -2,7 +2,15 @@
 
 - **Status:** Architecture and issue planning complete; product implementation not started by this document
 - **Date:** 2026-08-21
-- **Current base:** refresh `origin/main` before every issue; historical planning base is not an execution target
+- **Current base:** refresh `origin/beta` before every implementation issue; historical planning bases are not execution targets
+
+## Integration branch policy
+
+- `main` is the tested promotion branch and remains the default/release source.
+- `beta` is the shared integration branch. Contributors do not push commits directly to it; each assigned issue uses a focused branch created from the latest `origin/beta` and a PR back to `beta`.
+- The integration owner sequences PRs that touch shared routes, DTO/spec generation, migrations, RunBrief contracts, or product vocabulary. A PR refreshes from current `beta` before final verification.
+- After the milestone acceptance matrix passes on integrated `beta`, a maintainer opens a separate `beta` -> `main` promotion PR. Promotion does not itself authorize publication, release, or deployment.
+- Emergency hotfixes or release-only branches that bypass `beta` require explicit maintainer authorization and a reconciliation PR back into `beta`.
 
 ## Canonical inputs
 
@@ -49,7 +57,7 @@ AO donor detachment can run beside Work/Home. The destructive donor removal wait
 
 One PR owns a shared file at a time. Parallel branches do not independently edit DTO registry, route registration, migration numbers, generated API files, or shared RunBrief contracts.
 
-The planning ledger reserves migrations `0099-0102` for Work, `0103-0106` for Home, `0107-0109` for Learning L1, `0110` for L2, and `0111` for L3. These are coordination reservations, not merged schema. If `origin/main` advances first, the integration owner renumbers the affected unmerged issue before code edits and updates its plan/issue atomically.
+The planning ledger reserves migrations `0099-0102` for Work, `0103-0106` for Home, `0107-0109` for Learning L1, `0110` for L2, and `0111` for L3. These are coordination reservations, not merged schema. If `origin/beta` advances first, the integration owner renumbers the affected unmerged issue before code edits and updates its plan/issue atomically.
 
 ## Milestones
 
