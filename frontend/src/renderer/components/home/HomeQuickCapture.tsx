@@ -7,10 +7,13 @@ const copy = {
   heading: "Anything on your mind?",
   label: "Quick Capture",
   placement: "Explicit note · Home",
-  placeholder: "Write it down without deciding what it is yet…",
 };
 
-export function HomeQuickCapture() {
+export function HomeQuickCapture({
+  placeholder = "Write it down without deciding what it is yet…",
+}: {
+  placeholder?: string;
+}) {
   const [draft, setDraft] = useState(sessionDraft);
 
   return (
@@ -30,7 +33,7 @@ export function HomeQuickCapture() {
             sessionDraft = event.target.value;
             setDraft(event.target.value);
           }}
-          placeholder={copy.placeholder}
+          placeholder={placeholder}
           type="text"
           value={draft}
         />

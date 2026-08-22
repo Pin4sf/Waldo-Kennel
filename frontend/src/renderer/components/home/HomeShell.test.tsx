@@ -42,6 +42,94 @@ describe("HomeShell", () => {
     expect(screen.getByText("Proposed, not added")).toBeInTheDocument();
   });
 
+  it("recalibrates Today around the next commitment in the afternoon", () => {
+    render(
+      <HomeShell
+        fixture={homeFixture("today", "ready", {
+          dayPhase: "afternoon",
+          contextFlow: "before_next",
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Good afternoon, Shivansh." }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Afternoon brief" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Before your next thing" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Pricing workshop")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Note what changed…")).toBeInTheDocument();
+    expect(screen.getAllByRole("textbox", { name: "Quick Capture" })).toHaveLength(1);
+  });
+
+  it("shows an honest replan when a prior assumption changed", () => {
+    render(
+      <HomeShell
+        fixture={homeFixture("today", "ready", {
+          dayPhase: "afternoon",
+          contextFlow: "plans_changed",
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Plans changed" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The pricing workshop would start at 3:30 PM."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("The organizer moved it to 4:30 PM.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Release" })).toBeInTheDocument();
+  });
+
+  it("invites explicit Closure from the evening chapter without starting it", () => {
+    render(
+      <HomeShell
+        fixture={homeFixture("today", "ready", {
+          dayPhase: "evening",
+          contextFlow: "evening_review",
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Good evening, Shivansh." }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Evening review" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Review the evening transition" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Review the deck follow-up" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Start Closure" })).toHaveAttribute(
+      "href",
+      "#/home/daily-close",
+    );
+    expect(screen.getByPlaceholderText("Leave context for tomorrow…")).toBeInTheDocument();
+  });
+
+  it("lets quiet focus stay quiet when no intervention earns attention", () => {
+    render(
+      <HomeShell
+        fixture={homeFixture("today", "ready", {
+          dayPhase: "afternoon",
+          contextFlow: "quiet_focus",
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Quiet focus" })).toBeInTheDocument();
+    expect(screen.getByText("Nothing needs your judgment right now.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Review the deck follow-up" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps Home useful when capture is off without pressuring activation", () => {
     render(<HomeShell fixture={homeFixture("today", "capture_off")} />);
 

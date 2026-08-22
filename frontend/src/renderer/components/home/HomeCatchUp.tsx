@@ -13,8 +13,6 @@ const copy = {
   correct: "Correct",
   defer: "Defer",
   dismiss: "Dismiss",
-  finish: "Finish morning brief",
-  finished: "Morning brief reviewed",
   gapSuffix: ". Waldo cannot know what changed during that interval.",
   handoffBoundary:
     "No Outcome or responsibility link has been created. Work would still require its own contract and authority review.",
@@ -160,7 +158,9 @@ export function HomeCatchUp({
           onClick={() => setReviewed(true)}
           type="button"
         >
-          {reviewed ? copy.finished : `${copy.finish} →`}
+          {reviewed
+            ? `${fixture.presentation.briefLabel} reviewed`
+            : `${fixture.presentation.finishLabel} →`}
         </button>
       </footer>
     </section>

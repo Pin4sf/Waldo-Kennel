@@ -7,7 +7,7 @@ import {
   type HomeFixtureState,
 } from "../../lib/home-fixture";
 import { HomeBrief } from "./HomeBrief";
-import { HomeCatchUp } from "./HomeCatchUp";
+import { HomeContextPanel } from "./HomeContextPanel";
 import { HomeDestinationView } from "./HomeDestinationView";
 import { HomeQuickCapture } from "./HomeQuickCapture";
 
@@ -80,10 +80,10 @@ export function HomeShell({
 }) {
   const scrollContainerRef = useRef<HTMLElement>(null);
   const reviewRef = useRef<HTMLButtonElement>(null);
-  const catchUpHeadingRef = useRef<HTMLHeadingElement>(null);
+  const contextHeadingRef = useRef<HTMLHeadingElement>(null);
   const showToday = destination === "today";
   const offlineToday = showToday && fixture.availability === "offline";
-  const focusCatchUp = () => catchUpHeadingRef.current?.focus({ preventScroll: true });
+  const focusContext = () => contextHeadingRef.current?.focus({ preventScroll: true });
 
   return (
     <CenterPanelShell titlebarAlign={false}>
@@ -105,7 +105,7 @@ export function HomeShell({
                 {copy.offlineDescription}
               </p>
               <div className="mt-7 max-w-2xl">
-                <HomeQuickCapture />
+                <HomeQuickCapture placeholder={fixture.presentation.capturePlaceholder} />
               </div>
             </section>
           </div>
@@ -119,19 +119,19 @@ export function HomeShell({
                 <div className="mt-7">
                   <HomeBrief
                     fixture={fixture}
-                    onReview={focusCatchUp}
+                    onReview={focusContext}
                     reviewRef={reviewRef}
                   />
                 </div>
                 <div className="mt-auto pt-10">
-                  <HomeQuickCapture />
+                  <HomeQuickCapture placeholder={fixture.presentation.capturePlaceholder} />
                 </div>
               </div>
             </div>
-            <aside className="home-today-catch-up-pane border-t border-border sm:min-h-[34rem]">
-              <HomeCatchUp
+            <aside className="home-today-catch-up-pane home-today-context-pane border-t border-border sm:min-h-[34rem]">
+              <HomeContextPanel
                 fixture={fixture}
-                headingRef={catchUpHeadingRef}
+                headingRef={contextHeadingRef}
                 scrollContainerRef={scrollContainerRef}
               />
             </aside>
