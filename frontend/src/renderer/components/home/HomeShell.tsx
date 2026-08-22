@@ -66,6 +66,8 @@ const copy = {
   todayCaptureDisclosure:
     "Today expands this fixture so you can see where a future explicit intake would begin.",
   statusLabel: "Home status",
+  previewStatusLabel: "Architecture preview status",
+  previewStatusBadge: "Architecture preview",
   workRecommended: "Go to Work (recommended)",
 };
 
@@ -79,9 +81,20 @@ export function HomeShell({
   const [contextualMode, setContextualMode] = useState<HomeMode | null>(null);
   const [captureOpen, setCaptureOpen] = useState(destination === "today");
   const scrollContainerRef = useRef<HTMLElement>(null);
+  const catchUpRef = useRef<HTMLButtonElement>(null);
+  const catchUpScrollTop = useRef(0);
   const state: HomeSurfaceState = fixture.availability === "ready" ? "empty" : fixture.availability;
   const content = stateContent[state];
   const mode = contextualMode ?? fixture.mode;
+  const openCatchUp = () => {
+    catchUpScrollTop.current = scrollContainerRef.current?.scrollTop ?? 0;
+    setContextualMode("catch_up");
+  };
+  const returnToToday = () => {
+    setContextualMode(null);
+    catchUpRef.current?.focus();
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = catchUpScrollTop.current;
+  };
   return (
     <CenterPanelShell titlebarAlign={false}>
       <section
@@ -115,7 +128,8 @@ export function HomeShell({
             {destination === "today" ? (
               <button
                 className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-                onClick={() => setContextualMode("catch_up")}
+                onClick={openCatchUp}
+                ref={catchUpRef}
                 type="button"
               >
                 {copy.catchUp}
@@ -124,7 +138,7 @@ export function HomeShell({
             {contextualMode === "catch_up" ? (
               <button
                 className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-                onClick={() => setContextualMode(null)}
+                onClick={returnToToday}
                 type="button"
               >
                 {copy.backToToday}
@@ -150,9 +164,10 @@ export function HomeShell({
             </section>
           ) : null}
           <section
-            aria-label={copy.statusLabel}
+            aria-label={copy.previewStatusLabel}
             className="rounded-xl border border-border bg-raised/40 p-6"
           >
+            <span className="text-xs font-medium text-muted-foreground">{copy.previewStatusBadge}</span>
             <h2 className="text-base font-semibold text-foreground">
               {content.title}
             </h2>

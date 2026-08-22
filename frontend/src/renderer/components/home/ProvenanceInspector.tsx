@@ -19,7 +19,6 @@ export function ProvenanceInspector({
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const returnButtonRef = useRef<HTMLButtonElement>(null);
   const returnPosition = useRef(0);
   const [open, setOpen] = useState(false);
   const inspect = () => {
@@ -40,11 +39,6 @@ export function ProvenanceInspector({
       returnToHome();
       return;
     }
-    if (event.key === "Tab") {
-      event.preventDefault();
-      if (document.activeElement === dialogRef.current) returnButtonRef.current?.focus();
-      else dialogRef.current?.focus();
-    }
   };
   return (
     <>
@@ -59,7 +53,6 @@ export function ProvenanceInspector({
       {open ? (
         <div
           aria-label={copy.dialogLabel}
-          aria-modal="true"
           className="rounded-xl border border-border bg-raised p-5"
           onKeyDown={onDialogKeyDown}
           ref={dialogRef}
@@ -75,7 +68,6 @@ export function ProvenanceInspector({
           <button
             className="mt-4 rounded-md bg-interactive-active px-3 py-2 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
             onClick={returnToHome}
-            ref={returnButtonRef}
             type="button"
           >
             {copy.returnToHome}

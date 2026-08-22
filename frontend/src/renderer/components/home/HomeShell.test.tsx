@@ -124,6 +124,23 @@ describe("HomeShell", () => {
     );
 
     expect(screen.getByText(expected)).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Architecture preview status" }),
+    ).toHaveTextContent(expected);
+  });
+
+  it("returns exact focus and panel scroll from contextual Catch Up", async () => {
+    const user = userEvent.setup();
+    render(<HomeShell fixture={todayFixture} />);
+    const panel = screen.getByRole("region", { name: "Home" });
+    Object.defineProperty(panel, "scrollTop", { configurable: true, value: 144, writable: true });
+    const catchUp = screen.getByRole("button", { name: "Catch Up" });
+
+    await user.click(catchUp);
+    await user.click(screen.getByRole("button", { name: "Back to Today" }));
+
+    expect(catchUp).toHaveFocus();
+    expect(panel.scrollTop).toBe(144);
   });
 
   it("returns focus and exact panel scroll after inspecting fixture provenance", async () => {
@@ -140,6 +157,7 @@ describe("HomeShell", () => {
     await user.click(inspect);
     const dialog = screen.getByRole("dialog", { name: "Fixture provenance" });
     expect(dialog).toHaveFocus();
+    expect(dialog).not.toHaveAttribute("aria-modal");
     await user.keyboard("{Escape}");
 
     expect(inspect).toHaveFocus();
