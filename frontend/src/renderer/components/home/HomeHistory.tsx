@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type {
   HomeContinuityEvent,
   HomeContinuityEventKind,
@@ -7,14 +8,6 @@ import type {
 
 type HistoryLayer = "continuity" | "activity";
 
-const kindLabels: Record<HomeContinuityEventKind, string> = {
-  observation: "Observation",
-  correction: "Correction",
-  work_link_preview: "Work link preview",
-  close_receipt_preview: "Close preview",
-  reentry: "Re-entry",
-};
-
 function EventDetail({
   event,
   onBack,
@@ -22,10 +15,18 @@ function EventDetail({
   event: HomeContinuityEvent;
   onBack: () => void;
 }) {
+  const { t } = useTranslation();
+  const kindLabels: Record<HomeContinuityEventKind, string> = {
+    observation: t("home.visual.history.kind.observation"),
+    correction: t("home.visual.history.kind.correction"),
+    work_link_preview: t("home.visual.history.kind.workLinkPreview"),
+    close_receipt_preview: t("home.visual.history.kind.closePreview"),
+    reentry: t("home.visual.history.kind.reentry"),
+  };
   return (
     <article className="home-history-detail min-w-0" aria-labelledby={`${event.id}-history-detail-heading`}>
       <button className="home-history-back mb-6 text-xs font-medium text-muted-foreground underline underline-offset-4" onClick={onBack} type="button">
-        Back to History
+        {t("home.visual.history.back")}
       </button>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -41,18 +42,18 @@ function EventDetail({
 
       <section className="mt-7 border-y border-border py-5" aria-labelledby={`${event.id}-statement-heading`}>
         <h4 className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground" id={`${event.id}-statement-heading`}>
-          What the record says
+          {t("home.visual.history.recordSays")}
         </h4>
         <p className="mt-3 text-base leading-relaxed text-foreground">{event.detail}</p>
       </section>
 
       <dl className="mt-6 space-y-5">
         <div>
-          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Source</dt>
+          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">{t("home.visual.source")}</dt>
           <dd className="mt-1.5 text-sm leading-relaxed text-foreground">{event.sourceSummary}</dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Architecture boundary</dt>
+          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">{t("home.visual.architectureBoundary")}</dt>
           <dd className="mt-1.5 border-l border-warning/50 pl-4 text-sm leading-relaxed text-muted-foreground">
             {event.boundary}
           </dd>
@@ -63,6 +64,14 @@ function EventDetail({
 }
 
 export function HomeHistory({ fixture }: { fixture: HomeFixtureState }) {
+  const { t } = useTranslation();
+  const kindLabels: Record<HomeContinuityEventKind, string> = {
+    observation: t("home.visual.history.kind.observation"),
+    correction: t("home.visual.history.kind.correction"),
+    work_link_preview: t("home.visual.history.kind.workLinkPreview"),
+    close_receipt_preview: t("home.visual.history.kind.closePreview"),
+    reentry: t("home.visual.history.kind.reentry"),
+  };
   const [layer, setLayer] = useState<HistoryLayer>("continuity");
   const [selectedId, setSelectedId] = useState(fixture.continuity[0]?.id ?? "");
   const [mobileView, setMobileView] = useState<"index" | "detail">("index");
@@ -73,27 +82,27 @@ export function HomeHistory({ fixture }: { fixture: HomeFixtureState }) {
   return (
     <section aria-labelledby="history-heading">
       <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-        Continuity, not activity volume
+        {t("home.visual.history.eyebrow")}
       </p>
       <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground" id="history-heading">
-        History
+        {t("home.visual.history.title")}
       </h2>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-        Follow how a correction, proposed Work link, and tomorrow re-entry became the context Waldo can return to.
+        {t("home.visual.history.description")}
       </p>
 
-      <div aria-label="History layers" className="mt-7 flex gap-1 border-b border-border" role="tablist">
+      <div aria-label={t("home.visual.history.layers")} className="mt-7 flex gap-1 border-b border-border" role="tablist">
         <button aria-selected={layer === "continuity"} className="border-b-2 border-transparent px-3 pb-3 pt-1 text-xs text-muted-foreground aria-selected:border-foreground aria-selected:text-foreground" onClick={() => setLayer("continuity")} role="tab" type="button">
-          Continuity
+          {t("home.visual.history.continuity")}
         </button>
         <button aria-selected={layer === "activity"} className="border-b-2 border-transparent px-3 pb-3 pt-1 text-xs text-muted-foreground aria-selected:border-foreground aria-selected:text-foreground" onClick={() => setLayer("activity")} role="tab" type="button">
-          Supporting activity
+          {t("home.visual.history.supportingActivity")}
         </button>
       </div>
 
       {layer === "continuity" ? (
         <div className="home-history-desk mt-8" data-mobile-view={mobileView}>
-          <ol aria-label="Continuity history" className="home-history-spine relative ml-2 border-l border-border pl-6">
+          <ol aria-label={t("home.visual.history.continuityHistory")} className="home-history-spine relative ml-2 border-l border-border pl-6">
             {fixture.continuity.map((event) => (
               <li className="relative pb-7 last:pb-0" key={event.id}>
                 <span aria-hidden="true" className="home-history-marker absolute -left-[1.9rem] top-1.5 size-3 border border-border-strong bg-background" data-kind={event.kind} />
@@ -133,19 +142,19 @@ export function HomeHistory({ fixture }: { fixture: HomeFixtureState }) {
       ) : (
         <section className="mt-8 max-w-3xl" aria-labelledby="activity-evidence-heading">
           <h3 className="text-lg font-semibold tracking-tight text-foreground" id="activity-evidence-heading">
-            Activity evidence, not productivity
+            {t("home.visual.history.activityTitle")}
           </h3>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            These source observations help explain the continuity record. They do not measure attention, effort, personality, or performance.
+            {t("home.visual.history.activityDescription")}
           </p>
-          <ol className="mt-6 divide-y divide-border border-y border-border" aria-label="Supporting activity evidence">
+          <ol className="mt-6 divide-y divide-border border-y border-border" aria-label={t("home.visual.history.activityEvidence")}>
             {fixture.continuity.map((event) => (
               <li className="grid gap-2 py-4 sm:grid-cols-[5rem_minmax(0,1fr)]" key={event.id}>
                 <time className="text-xs text-muted-foreground">{event.time}</time>
                 <div>
                   <p className="text-sm text-foreground">{event.sourceSummary}</p>
                   <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                    Evidence for: {event.title}
+                    {t("home.visual.history.evidenceFor", { title: event.title })}
                   </p>
                 </div>
               </li>

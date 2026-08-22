@@ -1,21 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import type { HomeFixtureState } from "../../lib/home-fixture";
-
-const copy = {
-  boundary: "Boundary",
-  boundaryDescription:
-    "This source can support a proposal. It cannot create or close responsibility.",
-  gap: "Known gap",
-  gapDescription: "Meeting audio unavailable from 3:10–3:24 PM",
-  inspect: "Inspect source",
-  dialogLabel: "Source provenance",
-  dialogTitle: "Source provenance",
-  originalSource: "Original source",
-  originalStatement: "“I'll send Ashish the revised deck tomorrow.”",
-  returnToHome: "Return to Catch Up",
-  fixtureDescription: (sourceLabel: string) =>
-    `${sourceLabel} is static product copy. It is not a source connection, a captured fact, or your data.`,
-};
 
 export function ProvenanceInspector({
   fixture,
@@ -24,6 +9,7 @@ export function ProvenanceInspector({
   fixture: HomeFixtureState;
   scrollContainerRef: RefObject<HTMLElement | null>;
 }) {
+  const { t } = useTranslation();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const returnPosition = useRef(0);
@@ -55,11 +41,11 @@ export function ProvenanceInspector({
         ref={triggerRef}
         type="button"
       >
-        {copy.inspect}
+        {t("home.visual.provenance.inspect")}
       </button>
       {open ? (
         <div
-          aria-label={copy.dialogLabel}
+          aria-label={t("home.visual.provenance.label")}
           className="mt-4 rounded-lg border border-border bg-raised p-4"
           onKeyDown={onDialogKeyDown}
           ref={dialogRef}
@@ -67,28 +53,28 @@ export function ProvenanceInspector({
           tabIndex={-1}
         >
           <h2 className="text-base font-semibold text-foreground">
-            {copy.dialogTitle}
+            {t("home.visual.provenance.label")}
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            {copy.fixtureDescription(fixture.sourceLabel)}
+            {t("home.visual.provenance.fixtureDescription", { sourceLabel: fixture.sourceLabel })}
           </p>
           <dl className="mt-4 space-y-3 border-t border-border pt-4 text-xs">
             <div>
-              <dt className="font-medium text-muted-foreground">{copy.originalSource}</dt>
+              <dt className="font-medium text-muted-foreground">{t("home.visual.provenance.originalSource")}</dt>
               <dd className="mt-1 leading-relaxed text-foreground">
-                {copy.originalStatement}
+                {t("home.visual.provenance.originalStatement")}
               </dd>
             </div>
             <div>
-              <dt className="font-medium text-muted-foreground">{copy.gap}</dt>
+              <dt className="font-medium text-muted-foreground">{t("home.visual.knownGap")}</dt>
               <dd className="mt-1 leading-relaxed text-warning">
-                {copy.gapDescription}
+                {t("home.visual.provenance.gapDescription")}
               </dd>
             </div>
             <div>
-              <dt className="font-medium text-muted-foreground">{copy.boundary}</dt>
+              <dt className="font-medium text-muted-foreground">{t("home.visual.provenance.boundary")}</dt>
               <dd className="mt-1 leading-relaxed text-foreground">
-                {copy.boundaryDescription}
+                {t("home.visual.provenance.boundaryDescription")}
               </dd>
             </div>
           </dl>
@@ -97,7 +83,7 @@ export function ProvenanceInspector({
             onClick={returnToHome}
             type="button"
           >
-            {copy.returnToHome}
+            {t("home.visual.provenance.returnToCatchUp")}
           </button>
         </div>
       ) : null}

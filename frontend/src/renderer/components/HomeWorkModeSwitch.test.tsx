@@ -44,7 +44,19 @@ describe("HomeWorkModeSwitch", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Work" }));
-    expect(historyPush).toHaveBeenCalledWith("/");
+    expect(historyPush).toHaveBeenCalledWith("/work");
+  });
+
+  it("remembers beta's Work entry route as a meaningful Work destination", async () => {
+    const user = userEvent.setup();
+    mockPathname.current = "/work";
+    const { rerender } = render(<HomeWorkModeSwitch />);
+
+    mockPathname.current = "/home";
+    rerender(<HomeWorkModeSwitch />);
+    await user.click(screen.getByRole("button", { name: "Work" }));
+
+    expect(historyPush).toHaveBeenCalledWith("/work");
   });
 
   it("returns to the last meaningful path in each mode", async () => {

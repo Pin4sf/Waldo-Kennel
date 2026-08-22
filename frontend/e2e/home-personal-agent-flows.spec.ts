@@ -69,7 +69,7 @@ test("Home and Work return to the last meaningful route in each mode", async ({ 
 	await page.goto("/#/home/open-loops");
 
 	await page.getByRole("button", { name: "Work", exact: true }).click();
-	await expect(page).toHaveURL(/\/#\/$/);
+	await expect(page).toHaveURL(/\/#\/work$/);
 	await page.getByRole("button", { name: "Home", exact: true }).click();
 	await expect(page).toHaveURL(/\/#\/home\/open-loops$/);
 });

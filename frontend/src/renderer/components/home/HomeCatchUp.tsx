@@ -1,35 +1,10 @@
 import { useState, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import type { HomeFixtureState } from "../../lib/home-fixture";
 import { ProvenanceInspector } from "./ProvenanceInspector";
 
 const actionClass =
   "rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-border-strong hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70";
-
-const copy = {
-  catchUp: "Catch Up",
-  catchUpDecision: "Catch Up decision",
-  confirmOpenLoop: "Confirm Open Loop",
-  continueInWork: "Continue in Work",
-  correct: "Correct",
-  defer: "Defer",
-  dismiss: "Dismiss",
-  gapSuffix: ". Waldo cannot know what changed during that interval.",
-  handoffBoundary:
-    "No Outcome or responsibility link has been created. Work would still require its own contract and authority review.",
-  handoffLabel: "Work handoff preview",
-  handoffPreview: "Preview only",
-  handoffTarget: "Pitch-deck Project · prepare, do not send",
-  keepNote: "Keep as note",
-  knownGap: "Known capture gap",
-  oneDecision: "One decision",
-  position: (current: number, total: number) => `${current} of ${total}`,
-  preview: "Preview context — not live data",
-  proposalBoundary: "Proposed wording only. Your correction outranks the inference.",
-  sourceBoundary: "Source material and Waldo's interpretation remain separate.",
-  sourceSummary: "Source summary",
-  userStatement: "User statement",
-  waldoProposal: "Waldo proposal",
-};
 
 export function HomeCatchUp({
   fixture,
@@ -40,6 +15,7 @@ export function HomeCatchUp({
   headingRef: RefObject<HTMLHeadingElement | null>;
   scrollContainerRef: RefObject<HTMLElement | null>;
 }) {
+  const { t } = useTranslation();
   const [handoffOpen, setHandoffOpen] = useState(false);
   const [reviewed, setReviewed] = useState(false);
   const item = fixture.attention[0];
@@ -57,29 +33,29 @@ export function HomeCatchUp({
           ref={headingRef}
           tabIndex={-1}
         >
-          {copy.catchUp}
+          {t("home.visual.catchUp.title")}
         </h2>
         <div className="mt-5 flex items-center justify-between gap-4 text-xs text-muted-foreground">
           <span>
-            {copy.oneDecision} · {fixture.sourceLabel}
+            {t("home.visual.attention.oneDecision")} · {fixture.sourceLabel}
           </span>
-          <span>{copy.position(1, fixture.attention.length)}</span>
+          <span>{t("home.visual.position", { current: 1, total: fixture.attention.length })}</span>
         </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7">
         <article
-          aria-label={copy.catchUpDecision}
+          aria-label={t("home.visual.catchUp.decision")}
           className="border border-border bg-background/20 p-4 sm:p-5"
         >
           <p className="border-b border-border pb-4 text-xs text-muted-foreground">
-            {copy.preview}
+            {t("home.visual.catchUp.preview")}
           </p>
 
           <div className="space-y-5">
             <div className="pt-5">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                {copy.userStatement}
+                {t("home.visual.catchUp.userStatement")}
               </p>
               <p className="mt-2 text-sm leading-relaxed text-foreground">
                 {item.statement}
@@ -87,31 +63,31 @@ export function HomeCatchUp({
             </div>
             <div className="border-t border-border pt-5">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                {copy.waldoProposal}
+                {t("home.visual.waldoProposal")}
               </p>
               <p className="mt-2 text-sm font-medium leading-relaxed text-foreground">
                 {item.proposedMeaning}
               </p>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                {copy.proposalBoundary}
+                {t("home.visual.catchUp.proposalBoundary")}
               </p>
             </div>
             <div className="border-t border-border pt-5">
-              <p className="text-xs font-medium text-warning">{copy.knownGap}</p>
+              <p className="text-xs font-medium text-warning">{t("home.visual.catchUp.knownCaptureGap")}</p>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                 <span>{item.sourceGap}</span>
-                <span>{copy.gapSuffix}</span>
+                <span>{t("home.visual.catchUp.gapSuffix")}</span>
               </p>
             </div>
             <div className="border-t border-border pt-5">
               <p className="text-xs font-medium text-muted-foreground">
-                {copy.sourceSummary}
+                {t("home.visual.catchUp.sourceSummary")}
               </p>
               <p className="mt-2 text-xs leading-relaxed text-foreground/80">
                 {item.sourceSummary}
               </p>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                {copy.sourceBoundary}
+                {t("home.visual.catchUp.sourceBoundary")}
               </p>
               <div className="mt-4">
                 <ProvenanceInspector
@@ -123,11 +99,11 @@ export function HomeCatchUp({
           </div>
 
           <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-4">
-            <button className={actionClass} type="button">{copy.correct}</button>
-            <button className={actionClass} type="button">{copy.keepNote}</button>
-            <button className={actionClass} type="button">{copy.confirmOpenLoop}</button>
-            <button className={actionClass} type="button">{copy.defer}</button>
-            <button className={actionClass} type="button">{copy.dismiss}</button>
+            <button className={actionClass} type="button">{t("home.visual.correct")}</button>
+            <button className={actionClass} type="button">{t("home.visual.catchUp.keepNote")}</button>
+            <button className={actionClass} type="button">{t("home.visual.catchUp.confirmOpenLoop")}</button>
+            <button className={actionClass} type="button">{t("home.visual.defer")}</button>
+            <button className={actionClass} type="button">{t("home.visual.catchUp.dismiss")}</button>
           </div>
 
           <button
@@ -135,17 +111,17 @@ export function HomeCatchUp({
             onClick={() => setHandoffOpen(true)}
             type="button"
           >
-            {copy.continueInWork}
+            {t("home.visual.continueInWork")}
           </button>
 
           {handoffOpen ? (
-            <section aria-label={copy.handoffLabel} className="mt-4 border-t border-border pt-4">
+            <section aria-label={t("home.visual.catchUp.handoffLabel")} className="mt-4 border-t border-border pt-4">
               <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                {copy.handoffPreview}
+                {t("home.visual.catchUp.handoffPreview")}
               </p>
-              <p className="mt-2 text-sm font-medium text-foreground">{copy.handoffTarget}</p>
+              <p className="mt-2 text-sm font-medium text-foreground">{t("home.visual.catchUp.handoffTarget")}</p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {copy.handoffBoundary}
+                {t("home.visual.catchUp.handoffBoundary")}
               </p>
             </section>
           ) : null}
@@ -159,7 +135,7 @@ export function HomeCatchUp({
           type="button"
         >
           {reviewed
-            ? `${fixture.presentation.briefLabel} reviewed`
+            ? t("home.visual.catchUp.reviewed", { briefLabel: fixture.presentation.briefLabel })
             : `${fixture.presentation.finishLabel} →`}
         </button>
       </footer>

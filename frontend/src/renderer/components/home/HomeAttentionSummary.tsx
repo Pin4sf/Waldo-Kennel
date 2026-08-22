@@ -1,14 +1,6 @@
 import type { RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import type { HomeFixtureState } from "../../lib/home-fixture";
-
-const copy = {
-  empty: "Nothing needs you.",
-  needsYou: "Needs you",
-  oneDecision: "One decision",
-  proposedMeaning: "Prepare the revised deck; do not send it yet.",
-  review: "Review",
-  reviewLabel: "Review the deck follow-up",
-};
 
 export function HomeAttentionSummary({
   fixture,
@@ -19,12 +11,13 @@ export function HomeAttentionSummary({
   onReview: () => void;
   reviewRef: RefObject<HTMLButtonElement | null>;
 }) {
+  const { t } = useTranslation();
   const item = fixture.attention[0];
   if (!item) {
     return (
-      <section aria-label={copy.needsYou}>
-        <p className="text-xs font-medium text-muted-foreground">{copy.needsYou}</p>
-        <p className="mt-2 text-sm text-foreground">{copy.empty}</p>
+      <section aria-label={t("home.visual.attention.needsYou")}>
+        <p className="text-xs font-medium text-muted-foreground">{t("home.visual.attention.needsYou")}</p>
+        <p className="mt-2 text-sm text-foreground">{t("home.visual.attention.empty")}</p>
       </section>
     );
   }
@@ -36,12 +29,12 @@ export function HomeAttentionSummary({
           className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground"
           id="needs-you-heading"
         >
-          {copy.needsYou} · {fixture.attention.length}
+          {t("home.visual.attention.needsYou")} · {fixture.attention.length}
         </h2>
-        <span className="text-xs text-muted-foreground">{copy.oneDecision}</span>
+        <span className="text-xs text-muted-foreground">{t("home.visual.attention.oneDecision")}</span>
       </div>
       <button
-        aria-label={copy.reviewLabel}
+        aria-label={t("home.visual.brief.review.catchUp")}
         className="group mt-3 flex w-full items-start justify-between gap-5 rounded-xl border border-border bg-raised/35 px-5 py-4 text-left transition-[background-color,border-color] hover:border-border-strong hover:bg-raised/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 motion-reduce:transition-none"
         onClick={onReview}
         ref={reviewRef}
@@ -49,7 +42,7 @@ export function HomeAttentionSummary({
       >
         <span className="min-w-0">
           <span className="block text-sm font-medium text-foreground">
-            {copy.proposedMeaning}
+            {t("home.visual.attention.proposedMeaning")}
           </span>
           <span className="mt-1.5 block text-xs leading-relaxed text-muted-foreground">
             {item.sourceSummary}
@@ -59,7 +52,7 @@ export function HomeAttentionSummary({
           </span>
         </span>
         <span className="shrink-0 pt-0.5 text-xs font-medium text-foreground group-hover:underline">
-          {copy.review}
+          {t("home.visual.review")}
         </span>
       </button>
     </section>

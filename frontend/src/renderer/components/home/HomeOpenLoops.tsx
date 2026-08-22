@@ -1,21 +1,12 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type {
   HomeFixtureState,
   HomeOpenLoopFixture,
   HomeOpenLoopState,
 } from "../../lib/home-fixture";
 
-const stateTabs: Array<{ state: HomeOpenLoopState; label: string }> = [
-  { state: "attention", label: "Needs attention" },
-  { state: "waiting", label: "Waiting" },
-  { state: "ready_to_close", label: "Ready to close" },
-];
-
-const stateLabels: Record<HomeOpenLoopState, string> = {
-  attention: "Needs attention",
-  waiting: "Waiting",
-  ready_to_close: "Ready to close",
-};
+type OpenLoopPreviewStatus = "initial" | "correct" | "context" | "work";
 
 function ResponsibilityDetail({
   loop,
@@ -24,8 +15,14 @@ function ResponsibilityDetail({
 }: {
   loop: HomeOpenLoopFixture;
   onBack: () => void;
-  onPreview: (message: string) => void;
+  onPreview: (status: OpenLoopPreviewStatus) => void;
 }) {
+  const { t } = useTranslation();
+  const stateLabels: Record<HomeOpenLoopState, string> = {
+    attention: t("home.visual.openLoops.state.attention"),
+    waiting: t("home.visual.openLoops.state.waiting"),
+    ready_to_close: t("home.visual.openLoops.state.readyToClose"),
+  };
   return (
     <article className="home-open-loops-detail min-w-0" aria-labelledby={`${loop.id}-detail-heading`}>
       <button
@@ -33,12 +30,12 @@ function ResponsibilityDetail({
         onClick={onBack}
         type="button"
       >
-        Back to Open Loops
+        {t("home.visual.openLoops.back")}
       </button>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-            Confirmed responsibility
+            {t("home.visual.openLoops.confirmedResponsibility")}
           </p>
           <h3 className="mt-2 text-xl font-semibold tracking-tight text-foreground" id={`${loop.id}-detail-heading`}>
             {loop.label}
@@ -55,32 +52,32 @@ function ResponsibilityDetail({
 
       <dl className="mt-7 grid gap-x-8 gap-y-5 border-y border-border py-5 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Owner</dt>
-          <dd className="mt-1.5 text-foreground">Owner: {loop.owner}</dd>
+          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">{t("home.visual.openLoops.owner")}</dt>
+          <dd className="mt-1.5 text-foreground">{t("home.visual.openLoops.ownerValue", { owner: loop.owner })}</dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Source strength</dt>
+          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">{t("home.visual.openLoops.sourceStrength")}</dt>
           <dd className="mt-1.5 text-foreground">{loop.sourceStrength}</dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Return trigger</dt>
+          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">{t("home.visual.openLoops.returnTrigger")}</dt>
           <dd className="mt-1.5 leading-relaxed text-foreground">{loop.trigger}</dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Recheck</dt>
+          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">{t("home.visual.openLoops.recheck")}</dt>
           <dd className="mt-1.5 text-foreground">{loop.recheck}</dd>
         </div>
       </dl>
 
       <section className="mt-6" aria-labelledby={`${loop.id}-provenance-heading`}>
         <h4 className="text-xs uppercase tracking-[0.1em] text-muted-foreground" id={`${loop.id}-provenance-heading`}>
-          Why Waldo believes this
+          {t("home.visual.openLoops.provenance")}
         </h4>
         <p className="mt-2 text-sm leading-relaxed text-foreground">{loop.sourceSummary}</p>
         <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{loop.lastConfirmedAt}</p>
         {loop.sourceGap ? (
           <p className="mt-3 border-l border-warning/50 pl-3 text-xs leading-relaxed text-muted-foreground">
-            Known gap · {loop.sourceGap}
+            {t("home.visual.openLoops.knownGap", { gap: loop.sourceGap })}
           </p>
         ) : null}
       </section>
@@ -88,24 +85,24 @@ function ResponsibilityDetail({
       <div className="mt-7 flex flex-wrap gap-2">
         <button
           className="rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-interactive-hover"
-          onClick={() => onPreview("Correction controls are local to this preview; no responsibility was changed.")}
+          onClick={() => onPreview("correct")}
           type="button"
         >
-          Correct this
+          {t("home.visual.openLoops.correct")}
         </button>
         <button
           className="rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-interactive-hover"
-          onClick={() => onPreview("Context controls are local to this preview; no context was saved.")}
+          onClick={() => onPreview("context")}
           type="button"
         >
-          Add context
+          {t("home.visual.openLoops.addContext")}
         </button>
         <button
           className="rounded-md border border-border-strong bg-interactive-active px-3 py-2 text-xs font-medium text-foreground hover:bg-interactive-hover"
-          onClick={() => onPreview("Preview only. No Work Outcome or responsibility link has been created.")}
+          onClick={() => onPreview("work")}
           type="button"
         >
-          Continue in Work
+          {t("home.visual.continueInWork")}
         </button>
       </div>
     </article>
@@ -113,14 +110,18 @@ function ResponsibilityDetail({
 }
 
 export function HomeOpenLoops({ fixture }: { fixture: HomeFixtureState }) {
+  const { t } = useTranslation();
+  const stateTabs: Array<{ state: HomeOpenLoopState; label: string }> = [
+    { state: "attention", label: t("home.visual.openLoops.state.attention") },
+    { state: "waiting", label: t("home.visual.openLoops.state.waiting") },
+    { state: "ready_to_close", label: t("home.visual.openLoops.state.readyToClose") },
+  ];
   const [activeState, setActiveState] = useState<HomeOpenLoopState>("attention");
   const [selectedId, setSelectedId] = useState<string>(
     () => fixture.openLoops.find((loop) => loop.state === "attention")?.id ?? fixture.openLoops[0]?.id ?? "",
   );
   const [mobileView, setMobileView] = useState<"index" | "detail">("index");
-  const [previewStatus, setPreviewStatus] = useState(
-    "Preview only. Select a responsibility to inspect it; no state changes are saved.",
-  );
+  const [previewStatus, setPreviewStatus] = useState<OpenLoopPreviewStatus>("initial");
   const selectedRowRef = useRef<HTMLButtonElement | null>(null);
   const shouldRestoreFocusRef = useRef(false);
   const visibleLoops = fixture.openLoops.filter((loop) => loop.state === activeState);
@@ -148,16 +149,16 @@ export function HomeOpenLoops({ fixture }: { fixture: HomeFixtureState }) {
   return (
     <section aria-labelledby="open-loops-heading">
       <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-        Confirmed responsibility
+        {t("home.visual.openLoops.confirmedResponsibility")}
       </p>
       <h2 className="mt-2 text-xl font-semibold tracking-tight text-foreground" id="open-loops-heading">
-        Open Loops
+        {t("home.visual.openLoops.title")}
       </h2>
       <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-        What remains unresolved, when it should return, and why it belongs to you.
+        {t("home.visual.openLoops.description")}
       </p>
 
-      <div aria-label="Open Loop states" className="mt-7 flex gap-1 border-b border-border" role="tablist">
+      <div aria-label={t("home.visual.openLoops.states")} className="mt-7 flex gap-1 border-b border-border" role="tablist">
         {stateTabs.map((tab) => {
           const count = fixture.openLoops.filter((loop) => loop.state === tab.state).length;
           return (
@@ -178,7 +179,7 @@ export function HomeOpenLoops({ fixture }: { fixture: HomeFixtureState }) {
       <div className="home-open-loops-desk" data-mobile-view={mobileView}>
         <div className="home-open-loops-index border-b border-border sm:border-b-0">
           <p className="px-1 pb-3 text-xs leading-relaxed text-muted-foreground">
-            Responsibilities are shown by return state, not urgency score.
+            {t("home.visual.openLoops.returnStateBoundary")}
           </p>
           <div className="divide-y divide-border border-y border-border">
             {visibleLoops.map((loop) => (
@@ -213,8 +214,8 @@ export function HomeOpenLoops({ fixture }: { fixture: HomeFixtureState }) {
         ) : null}
       </div>
 
-      <p aria-label="Open Loop preview status" className="mt-6 text-xs leading-relaxed text-muted-foreground" role="status">
-        {previewStatus}
+      <p aria-label={t("home.visual.openLoops.statusLabel")} className="mt-6 text-xs leading-relaxed text-muted-foreground" role="status">
+        {t(`home.visual.openLoops.status.${previewStatus}`)}
       </p>
     </section>
   );

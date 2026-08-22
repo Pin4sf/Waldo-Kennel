@@ -1,4 +1,5 @@
 import type { ReactNode, RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import type { HomeFixtureState } from "../../lib/home-fixture";
 
 export function HomeContextFrame({
@@ -16,6 +17,7 @@ export function HomeContextFrame({
   headingRef: RefObject<HTMLHeadingElement | null>;
   title: string;
 }) {
+  const { t } = useTranslation();
   return (
     <section aria-labelledby="home-context-heading" className="flex h-full min-h-0 flex-col">
       <header className="border-b border-border px-5 pb-5 pt-14 sm:px-7 sm:pt-16">
@@ -31,7 +33,7 @@ export function HomeContextFrame({
           {title}
         </h2>
         <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-          {fixture.sourceLabel} · no live data or canonical state
+          {fixture.sourceLabel} {t("home.visual.contextFixtureBoundary")}
         </p>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7">

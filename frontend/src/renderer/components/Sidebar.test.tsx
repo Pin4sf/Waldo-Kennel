@@ -272,6 +272,15 @@ describe("Sidebar", () => {
 		expect(screen.queryByRole("button", { name: "Work (recommended)" })).not.toBeInTheDocument();
 	});
 
+	it("treats beta's Work entry route as an active Work destination", () => {
+		mockPathname.current = "/work";
+		renderSidebar();
+
+		expect(screen.getByRole("button", { name: "Orchestrator board" })).toHaveClass(
+			"group-data-[collapsible=icon]:bg-interactive-active",
+		);
+	});
+
 	it("shows personal destinations without the Work project tree in Home", () => {
 		mockPathname.current = "/home";
 		renderSidebar();

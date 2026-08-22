@@ -1,10 +1,8 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { HomeFixtureState, HomeMemoryCandidate } from "../../lib/home-fixture";
 
-const sensitivityLabel: Record<HomeMemoryCandidate["sensitivity"], string> = {
-  ordinary: "Ordinary context",
-  sensitive: "Sensitive context",
-};
+type MemoryPreviewStatus = "review" | "correction" | "rejected" | "deferred";
 
 function CandidateDetail({
   candidate,
@@ -21,16 +19,21 @@ function CandidateDetail({
   onOutcome: (outcome: "correct" | "reject" | "defer") => void;
   showCorrection: boolean;
 }) {
+  const { t } = useTranslation();
+  const sensitivityLabel: Record<HomeMemoryCandidate["sensitivity"], string> = {
+    ordinary: t("home.visual.memory.sensitivity.ordinary"),
+    sensitive: t("home.visual.memory.sensitivity.sensitive"),
+  };
   return (
     <article className="home-memory-review-detail min-w-0" aria-labelledby={`${candidate.id}-memory-heading`}>
       <button className="home-memory-review-back mb-6 text-xs font-medium text-muted-foreground underline underline-offset-4" onClick={onBack} type="button">
-        Back to candidates
+        {t("home.visual.memory.back")}
       </button>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-            Candidate — not memory
+            {t("home.visual.memory.candidateBoundary")}
           </p>
           <h3 className="mt-2 text-xl font-semibold tracking-tight text-foreground" id={`${candidate.id}-memory-heading`}>
             {candidate.label}
@@ -47,15 +50,15 @@ function CandidateDetail({
 
       <dl className="mt-7 grid gap-x-8 gap-y-5 border-y border-border py-5 text-sm sm:grid-cols-2">
         <div>
-          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Origin</dt>
+          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">{t("home.visual.memory.origin")}</dt>
           <dd className="mt-1.5 leading-relaxed text-foreground">{candidate.sourceSummary}</dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Validity</dt>
+          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">{t("home.visual.memory.validity")}</dt>
           <dd className="mt-1.5 leading-relaxed text-foreground">{candidate.validUntil}</dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Uncertainty</dt>
+          <dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">{t("home.visual.memory.uncertainty")}</dt>
           <dd className="mt-1.5 leading-relaxed text-foreground">{candidate.uncertainty}</dd>
         </div>
       </dl>
@@ -63,7 +66,7 @@ function CandidateDetail({
       {candidate.sourceGap ? (
         <section className="mt-6 border-l border-warning/50 pl-4" aria-labelledby={`${candidate.id}-gap-heading`}>
           <h4 className="text-xs font-medium uppercase tracking-[0.1em] text-warning" id={`${candidate.id}-gap-heading`}>
-            Known source gap
+            {t("home.visual.knownSourceGap")}
           </h4>
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{candidate.sourceGap}</p>
         </section>
@@ -71,9 +74,9 @@ function CandidateDetail({
 
       {showCorrection ? (
         <label className="mt-6 block text-xs font-medium text-muted-foreground">
-          Candidate correction
+          {t("home.visual.memory.correction")}
           <textarea
-            aria-label="Candidate correction"
+            aria-label={t("home.visual.memory.correction")}
             className="mt-2 min-h-24 w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 text-sm font-normal leading-relaxed text-foreground outline-none focus:border-border-strong"
             onChange={(event) => onCorrectionChange(event.target.value)}
             value={correction}
@@ -83,13 +86,13 @@ function CandidateDetail({
 
       <div className="mt-7 flex flex-wrap gap-2">
         <button className="rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-interactive-hover" onClick={() => onOutcome("correct")} type="button">
-          Correct
+          {t("home.visual.correct")}
         </button>
         <button className="rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-interactive-hover" onClick={() => onOutcome("defer")} type="button">
-          Defer
+          {t("home.visual.defer")}
         </button>
         <button className="rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-interactive-hover" onClick={() => onOutcome("reject")} type="button">
-          Reject
+          {t("home.visual.reject")}
         </button>
       </div>
     </article>
@@ -97,11 +100,10 @@ function CandidateDetail({
 }
 
 export function HomeMemoryReview({ fixture }: { fixture: HomeFixtureState }) {
+  const { t } = useTranslation();
   const [selectedId, setSelectedId] = useState(fixture.memoryCandidates[0]?.id ?? "");
   const [mobileView, setMobileView] = useState<"index" | "detail">("index");
-  const [status, setStatus] = useState(
-    "Review only. No candidate has been admitted to durable memory.",
-  );
+  const [status, setStatus] = useState<MemoryPreviewStatus>("review");
   const [correctingId, setCorrectingId] = useState<string>();
   const [corrections, setCorrections] = useState<Record<string, string>>({});
   const selectedRowRef = useRef<HTMLButtonElement | null>(null);
@@ -117,34 +119,30 @@ export function HomeMemoryReview({ fixture }: { fixture: HomeFixtureState }) {
         ...current,
         [selected.id]: current[selected.id] ?? selected.statement,
       }));
-      setStatus("Correction opened in this preview — no durable memory changed");
+      setStatus("correction");
       return;
     }
     setCorrectingId(undefined);
-    setStatus(
-      outcome === "reject"
-        ? "Rejected in this preview — no durable memory changed"
-        : "Deferred in this preview — no durable memory changed",
-    );
+    setStatus(outcome === "reject" ? "rejected" : "deferred");
   };
 
   return (
     <section aria-labelledby="memory-review-heading">
       <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-        Proposed context · explicit review
+        {t("home.visual.memory.eyebrow")}
       </p>
       <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground" id="memory-review-heading">
-        Memory Review
+        {t("home.visual.memory.title")}
       </h2>
       <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-        Decide whether proposed context is accurate enough to revisit later. Candidates remain separate from responsibility and durable memory in this preview.
+        {t("home.visual.memory.description")}
       </p>
 
       <div className="home-memory-review-desk mt-8" data-mobile-view={mobileView}>
         <div className="home-memory-review-index">
           <div className="flex items-baseline justify-between gap-3 pb-3">
-            <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Candidates</p>
-            <span className="text-xs text-muted-foreground">{fixture.memoryCandidates.length} to review</span>
+            <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">{t("home.visual.memory.candidates")}</p>
+            <span className="text-xs text-muted-foreground">{t("home.visual.memory.toReview", { count: fixture.memoryCandidates.length })}</span>
           </div>
           <div className="divide-y divide-border border-y border-border">
             {fixture.memoryCandidates.map((candidate) => (
@@ -162,7 +160,7 @@ export function HomeMemoryReview({ fixture }: { fixture: HomeFixtureState }) {
                 type="button"
               >
                 <span className="block text-sm font-medium text-foreground">{candidate.label}</span>
-                <span className="mt-1.5 block text-xs text-muted-foreground">Needs review</span>
+                <span className="mt-1.5 block text-xs text-muted-foreground">{t("home.visual.memory.needsReview")}</span>
               </button>
             ))}
           </div>
@@ -183,8 +181,8 @@ export function HomeMemoryReview({ fixture }: { fixture: HomeFixtureState }) {
         ) : null}
       </div>
 
-      <p aria-label="Memory review status" className="mt-6 text-xs leading-relaxed text-muted-foreground" role="status">
-        {status}
+      <p aria-label={t("home.visual.memory.statusLabel")} className="mt-6 text-xs leading-relaxed text-muted-foreground" role="status">
+        {t(`home.visual.memory.status.${status}`)}
       </p>
     </section>
   );

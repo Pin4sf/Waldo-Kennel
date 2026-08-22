@@ -1,21 +1,7 @@
 import type { RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import type { HomeFixtureState } from "../../lib/home-fixture";
 import type { HomeContextFlow } from "../../lib/home-day-phase";
-
-const copy = {
-  proposed: "Proposed, not added",
-  review: "Review",
-  suggests: "Waldo suggests",
-  todo: "To do",
-};
-
-const reviewLabels: Record<HomeContextFlow, string> = {
-  catch_up: "Review the deck follow-up",
-  before_next: "Review before your next thing",
-  plans_changed: "Review the changed plan",
-  evening_review: "Review the evening transition",
-  quiet_focus: "Review quiet focus",
-};
 
 export function HomeBrief({
   fixture,
@@ -26,6 +12,14 @@ export function HomeBrief({
   onReview: () => void;
   reviewRef: RefObject<HTMLButtonElement | null>;
 }) {
+  const { t } = useTranslation();
+  const reviewLabels: Record<HomeContextFlow, string> = {
+    catch_up: t("home.visual.brief.review.catchUp"),
+    before_next: t("home.visual.brief.review.beforeNext"),
+    plans_changed: t("home.visual.brief.review.plansChanged"),
+    evening_review: t("home.visual.brief.review.evening"),
+    quiet_focus: t("home.visual.brief.review.quietFocus"),
+  };
   return (
     <div className="flex flex-col">
       <header>
@@ -41,7 +35,7 @@ export function HomeBrief({
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
           <p className="text-lg text-foreground/80">
             {fixture.attention.length === 0
-              ? "No review is waiting."
+              ? t("home.visual.brief.noReview")
               : fixture.presentation.attentionSummary}
           </p>
           {fixture.attention.length > 0 ? (
@@ -52,7 +46,7 @@ export function HomeBrief({
               ref={reviewRef}
               type="button"
             >
-              {copy.review} →
+              {t("home.visual.review")} →
             </button>
           ) : null}
         </div>
@@ -102,7 +96,7 @@ export function HomeBrief({
             <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground/75">
               {fixture.presentation.suggestionLabel}
             </h3>
-            <span className="text-xs text-muted-foreground">{copy.proposed}</span>
+            <span className="text-xs text-muted-foreground">{t("home.visual.brief.proposed")}</span>
           </div>
           <ul aria-label={fixture.presentation.suggestionLabel} className="mt-2" role="list">
             {fixture.suggestions.map((item) => (

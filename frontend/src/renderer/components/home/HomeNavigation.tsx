@@ -1,15 +1,6 @@
 import type { HomeDestination } from "../../lib/home-fixture";
+import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
-
-const destinations: Array<{
-  destination: HomeDestination;
-  label: string;
-  href: string;
-}> = [
-  { destination: "today", label: "Today", href: "#/home" },
-  { destination: "open_loops", label: "Open Loops", href: "#/home/open-loops" },
-];
-const navigationLabel = "Home destinations";
 
 export function HomeNavigation({
   destination,
@@ -18,9 +9,14 @@ export function HomeNavigation({
   destination: HomeDestination;
   variant?: "panel" | "sidebar";
 }) {
+  const { t } = useTranslation();
+  const destinations: Array<{ destination: HomeDestination; label: string; href: string }> = [
+    { destination: "today", label: t("home.visual.navigation.today"), href: "#/home" },
+    { destination: "open_loops", label: t("home.visual.openLoops.title"), href: "#/home/open-loops" },
+  ];
   return (
     <nav
-      aria-label={navigationLabel}
+      aria-label={t("home.visual.navigation.label")}
       className={cn(variant === "sidebar" ? "flex flex-col gap-0.5 px-2" : "-mx-1 flex gap-1 overflow-x-auto px-1 pb-1")}
     >
       {destinations.map((item) => (

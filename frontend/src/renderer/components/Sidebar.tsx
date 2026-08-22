@@ -146,6 +146,7 @@ function useSelection() {
 	const pathname = useRouterState({ select: (state) => state.location.pathname });
 	const isWork =
 		pathname === "/" ||
+		pathname === "/work" ||
 		/^\/projects\/[^/]+(?:\/sessions\/[^/]+)?$/.test(pathname) ||
 		/^\/sessions\/[^/]+$/.test(pathname);
 	return {

@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { CenterPanelShell } from "../CenterPanelShell";
 import {
   homeFixture,
@@ -11,47 +12,34 @@ import { HomeContextPanel } from "./HomeContextPanel";
 import { HomeDestinationView } from "./HomeDestinationView";
 import { HomeQuickCapture } from "./HomeQuickCapture";
 
-const availabilityContent: Record<
-  HomeAvailability,
-  { title: string; description: string }
-> = {
-  ready: {
-    title: "Capture is paused",
-    description: "This preview uses explicit fixture context only.",
-  },
-  partial: {
-    title: "Some sources are unavailable",
-    description: "Available facts remain visible; gaps stay explicit.",
-  },
-  capture_off: {
-    title: "Capture is off",
-    description:
-      "Home still works from explicit notes and confirmed responsibilities.",
-  },
-  stale: {
-    title: "Home facts may be out of date",
-    description: "The last known facts remain visible with their freshness boundary.",
-  },
-  offline: {
-    title: "Home facts are unavailable",
-    description:
-      "Waldo cannot tell whether nothing changed while the source plane is offline.",
-  },
-};
-
-const copy = {
-  availability: "Home availability",
-  home: "Home",
-  offlineDescription:
-    "Explicit Quick Capture remains available, but this preview will not invent a brief or attention state from missing facts.",
-  offlineTitle: "Confirmed Home context is not available right now",
-};
-
 function HomeAvailabilityStatus({ fixture }: { fixture: HomeFixtureState }) {
+  const { t } = useTranslation();
+  const availabilityContent: Record<HomeAvailability, { title: string; description: string }> = {
+    ready: {
+      title: t("home.visual.availability.ready.title"),
+      description: t("home.visual.availability.ready.description"),
+    },
+    partial: {
+      title: t("home.visual.availability.partial.title"),
+      description: t("home.visual.availability.partial.description"),
+    },
+    capture_off: {
+      title: t("home.visual.availability.captureOff.title"),
+      description: t("home.visual.availability.captureOff.description"),
+    },
+    stale: {
+      title: t("home.visual.availability.stale.title"),
+      description: t("home.visual.availability.stale.description"),
+    },
+    offline: {
+      title: t("home.visual.availability.offline.title"),
+      description: t("home.visual.availability.offline.description"),
+    },
+  };
   const content = availabilityContent[fixture.availability];
   return (
     <section
-      aria-label={copy.availability}
+      aria-label={t("home.visual.availability.label")}
       className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 border-b border-border pb-4"
       role="status"
     >
@@ -76,6 +64,7 @@ export function HomeShell({
   fixture?: HomeFixtureState;
   destination?: HomeDestination;
 }) {
+  const { t } = useTranslation();
   const scrollContainerRef = useRef<HTMLElement>(null);
   const reviewRef = useRef<HTMLButtonElement>(null);
   const contextHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -90,17 +79,17 @@ export function HomeShell({
         className="flex min-h-0 flex-1 flex-col overflow-y-auto"
         ref={scrollContainerRef}
       >
-        <h1 className="sr-only" id="home-heading">{copy.home}</h1>
+        <h1 className="sr-only" id="home-heading">{t("home.visual.title")}</h1>
 
         {offlineToday ? (
           <div className="mx-auto w-full max-w-5xl px-5 pb-10 pt-14 sm:px-9 sm:pb-12 sm:pt-16">
             <HomeAvailabilityStatus fixture={fixture} />
             <section className="py-8" aria-labelledby="offline-heading">
               <h2 className="text-lg font-semibold text-foreground" id="offline-heading">
-                {copy.offlineTitle}
+                {t("home.visual.offline.title")}
               </h2>
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                {copy.offlineDescription}
+                {t("home.visual.offline.description")}
               </p>
               <div className="mt-7 max-w-2xl">
                 <HomeQuickCapture placeholder={fixture.presentation.capturePlaceholder} />

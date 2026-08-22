@@ -1,4 +1,5 @@
 import { useState, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import type { HomeFixtureState } from "../../lib/home-fixture";
 import { HomeContextFrame } from "./HomeContextFrame";
 
@@ -12,20 +13,22 @@ export function HomePlansChanged({
   fixture: HomeFixtureState;
   headingRef: RefObject<HTMLHeadingElement | null>;
 }) {
+  const { t } = useTranslation();
   const [choice, setChoice] = useState<string | null>(null);
   const change = fixture.planChange;
+  const choices = [t("home.visual.keep"), t("home.visual.defer"), t("home.visual.release")];
 
   return (
     <HomeContextFrame
-      eyebrow="Calendar changed · 2:41 PM"
+      eyebrow={t("home.visual.plansChanged.eyebrow")}
       fixture={fixture}
       headingRef={headingRef}
-      title="Plans changed"
+      title={t("home.visual.plansChanged.title")}
     >
       <article className="border-y border-border py-5">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Earlier assumption
+            {t("home.visual.plansChanged.earlierAssumption")}
           </p>
           <p className="mt-2 text-sm leading-relaxed text-foreground/78">
             {change.previousAssumption}
@@ -33,7 +36,7 @@ export function HomePlansChanged({
         </div>
         <div className="mt-5 border-t border-border pt-5">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            What changed
+            {t("home.visual.plansChanged.whatChanged")}
           </p>
           <p className="mt-2 text-sm font-medium leading-relaxed text-foreground">
             {change.newFact}
@@ -41,18 +44,18 @@ export function HomePlansChanged({
         </div>
         <div className="mt-5 border-t border-border pt-5">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Waldo proposal
+            {t("home.visual.waldoProposal")}
           </p>
           <p className="mt-2 text-sm leading-relaxed text-foreground/82">{change.proposal}</p>
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-            Proposed wording only. Your choice outranks this replan.
+            {t("home.visual.plansChanged.proposalBoundary")}
           </p>
         </div>
         <p className="mt-5 border-t border-border pt-5 text-xs text-muted-foreground">
           {change.sourceSummary}
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
-          {["Keep", "Defer", "Release"].map((label) => (
+          {choices.map((label) => (
             <button className={actionClass} key={label} onClick={() => setChoice(label)} type="button">
               {label}
             </button>
@@ -60,7 +63,7 @@ export function HomePlansChanged({
         </div>
         {choice ? (
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground" role="status">
-            {choice} selected in this preview. No responsibility changed.
+          {t("home.visual.plansChanged.selectionBoundary", { choice })}
           </p>
         ) : null}
       </article>

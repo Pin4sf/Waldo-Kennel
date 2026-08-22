@@ -143,6 +143,8 @@ git add frontend/src/renderer
 git commit -m "feat: add truthful Personal Home shell"
 ```
 
+**Issue #18 beta integration record (2026-08-23):** The completed renderer-only Home visual slice was rebased onto `origin/beta` at `8ebddf3fa`. The generated route tree now contains beta's `/work` route and all `/home` routes. The global mode control defaults Work to `/work`, remembers later Work and Home routes independently, and beta's equal “Set up Home” choice navigates to `/home` without creating canonical state. This record completes only the Task 1 visual/fixture boundary; Tasks 2-9 and their daemon, persistence, capture, memory, linking, and evaluation gates remain unimplemented.
+
 ### Task 2 (#23): PersonalHome, Quick Capture, and confirmed Open Loops
 
 **Files:**

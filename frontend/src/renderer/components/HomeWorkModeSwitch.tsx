@@ -20,6 +20,7 @@ function isHomePath(pathname: string) {
 function isWorkPath(pathname: string) {
   return (
     pathname === "/" ||
+    pathname === "/work" ||
     /^\/projects(?:\/|$)/.test(pathname) ||
     /^\/sessions(?:\/|$)/.test(pathname) ||
     pathname === "/terminals"
@@ -32,7 +33,7 @@ export function HomeWorkModeSwitch() {
     select: (state) => state.location.pathname,
   });
   const lastHomePath = useRef("/home");
-  const lastWorkPath = useRef("/");
+  const lastWorkPath = useRef("/work");
   const mode = isHomePath(pathname) ? "home" : "work";
 
   useEffect(() => {

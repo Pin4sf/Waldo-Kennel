@@ -1,4 +1,5 @@
 import { useState, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import type { HomeFixtureState } from "../../lib/home-fixture";
 import { HomeContextFrame } from "./HomeContextFrame";
 
@@ -9,6 +10,7 @@ export function HomeBeforeNext({
   fixture: HomeFixtureState;
   headingRef: RefObject<HTMLHeadingElement | null>;
 }) {
+  const { t } = useTranslation();
   const [previewOpen, setPreviewOpen] = useState(false);
   const next = fixture.nextThing;
 
@@ -17,7 +19,7 @@ export function HomeBeforeNext({
       eyebrow={next.startsAt}
       fixture={fixture}
       headingRef={headingRef}
-      title="Before your next thing"
+      title={t("home.visual.beforeNext.title")}
     >
       <article aria-label={next.title} className="border-y border-border py-5">
         <h3 className="text-xl font-medium tracking-tight text-foreground">{next.title}</h3>
@@ -28,7 +30,7 @@ export function HomeBeforeNext({
             className="border-b border-border pb-3 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground"
             id="promises-heading"
           >
-            Promises in play
+            {t("home.visual.beforeNext.promises")}
           </h4>
           <ul className="divide-y divide-border/60" role="list">
             {next.promises.map((promise) => (
@@ -44,7 +46,7 @@ export function HomeBeforeNext({
             className="border-b border-border pb-3 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground"
             id="questions-heading"
           >
-            One open question
+            {t("home.visual.beforeNext.openQuestion")}
           </h4>
           {next.openQuestions.map((question) => (
             <p className="py-3 text-sm leading-relaxed text-foreground" key={question.id}>
@@ -55,11 +57,11 @@ export function HomeBeforeNext({
 
         <dl className="mt-6 space-y-3 border-t border-border pt-5 text-xs">
           <div>
-            <dt className="font-medium text-muted-foreground">Sources searched</dt>
+            <dt className="font-medium text-muted-foreground">{t("home.visual.sourcesSearched")}</dt>
             <dd className="mt-1 leading-relaxed text-foreground/82">{next.sourceSummary}</dd>
           </div>
           <div>
-            <dt className="font-medium text-warning">Known gap</dt>
+            <dt className="font-medium text-warning">{t("home.visual.knownGap")}</dt>
             <dd className="mt-1 leading-relaxed text-muted-foreground">{next.sourceGap}</dd>
           </div>
         </dl>
@@ -69,11 +71,11 @@ export function HomeBeforeNext({
           onClick={() => setPreviewOpen(true)}
           type="button"
         >
-          Prepare in Work
+          {t("home.visual.prepareInWork")}
         </button>
         {previewOpen ? (
           <p className="mt-3 border-l border-border-strong pl-3 text-xs leading-relaxed text-muted-foreground" role="status">
-            Preview only. No Work Outcome, responsibility link, or AgentSession was created.
+            {t("home.visual.workPreviewBoundary")}
           </p>
         ) : null}
       </article>

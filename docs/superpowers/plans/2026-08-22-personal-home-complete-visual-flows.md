@@ -27,6 +27,10 @@
 - Use editorial bands, dividers, compact rows, and one focused decision plane. Avoid equal card grids, generic analytics, urgency scores, streaks, and productivity scoring.
 - Keep all controls keyboard accessible, preserve focus on pane transitions, support reduced motion, and validate wide and narrow layouts.
 
+### Integration authorization update · 2026-08-23
+
+The local-only constraint above governed visual implementation. After that work passed its local gate, the user explicitly authorized rebasing this issue branch onto current `origin/beta`, updating required documentation, pushing the issue branch, and opening a PR to `beta`. That authorization does not permit direct pushes to `beta` or `main`, merge, deployment, publication, or release.
+
 ---
 
 ### Task 1: Add the shared day-phase and contextual-flow fixture contract
@@ -649,6 +653,7 @@ Before committing, inspect the staged list with `git diff --cached --name-only` 
 - `npm --prefix frontend run build` packaged the local arm64 Electron app successfully.
 - Visual checkpoints covered Today and the supporting Home routes at `1512x982`, plus Open Loops at `720x760`. Review images remain local under `/tmp/waldo-home-visual-review-2026-08-22/`.
 - The local Electron development build was restarted from this worktree after verification. No backend, agent, harness, provider, memory persistence, or remote behavior was added.
+- The branch was subsequently rebased onto `origin/beta` at `8ebddf3fa`. The route tree preserves both `/work` and `/home/*`; Work-first “Set up Home” now enters `/home`, and the Home/Work mode control uses `/work` as its initial Work return while retaining later meaningful Work routes.
 
 ## Final Visual Acceptance Matrix
 
