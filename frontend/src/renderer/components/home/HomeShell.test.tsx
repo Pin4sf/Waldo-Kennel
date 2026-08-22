@@ -1,42 +1,37 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { homeFixture } from "../../lib/home-fixture";
 import { HomeShell } from "./HomeShell";
-import type { HomeFixtureState } from "../../lib/home-fixture";
-
-const todayFixture: HomeFixtureState = {
-  kind: "preview_fixture",
-  sourceLabel: "Architecture preview",
-  mode: "today",
-  availability: "ready",
-};
 
 describe("HomeShell", () => {
-  it("keeps Work recommended while Home has no confirmed responsibilities", () => {
-    render(<HomeShell />);
+  it("opens on an adaptive brief with one contextual Quick Capture field", () => {
+    render(<HomeShell fixture={homeFixture("today")} />);
 
     expect(screen.getByRole("heading", { name: "Home" })).toBeInTheDocument();
-    expect(screen.getByText("Nothing is held here yet.")).toBeInTheDocument();
-    expect(screen.getByText("Personal space")).toHaveClass(
-      "text-muted-foreground",
-    );
-    const workLink = screen.getByRole("link", {
-      name: "Go to Work (recommended)",
-    });
-    expect(workLink).toHaveAttribute("href", "#/");
-    expect(workLink).toHaveClass(
-      "text-foreground",
-      "underline",
-      "hover:text-muted-foreground",
-    );
+    expect(
+      screen.getByRole("heading", { name: "What matters now" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Prepare the revised deck; do not send it yet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Meeting audio unavailable from 3:10–3:24 PM"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("textbox", { name: "Quick Capture" }),
+    ).toHaveLength(1);
+    expect(
+      screen.queryByRole("link", { name: /Work \(recommended\)/i }),
+    ).not.toBeInTheDocument();
   });
 
-  it("keeps Home useful when capture is disabled without asking the user to enable it", () => {
-    render(<HomeShell fixture={{ ...todayFixture, availability: "capture_off" }} />);
+  it("keeps Home useful when capture is off without pressuring activation", () => {
+    render(<HomeShell fixture={homeFixture("today", "capture_off")} />);
 
-    expect(screen.getByText("Capture is off.")).toBeInTheDocument();
+    expect(screen.getByText("Capture is off")).toBeInTheDocument();
     expect(
-      screen.getByText(/Home still works with what you choose to add here/i),
+      screen.getByText(/Home still works from explicit notes and confirmed responsibilities/i),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /enable capture/i }),
@@ -44,108 +39,112 @@ describe("HomeShell", () => {
   });
 
   it("does not present unavailable Home facts as an empty Home", () => {
-    render(<HomeShell fixture={{ ...todayFixture, availability: "offline" }} />);
+    render(<HomeShell fixture={homeFixture("today", "offline")} />);
 
+    expect(screen.getByText("Home facts are unavailable")).toBeInTheDocument();
     expect(
-      screen.getByText("Home facts are unavailable right now."),
+      screen.getByText(/Waldo cannot tell whether nothing changed/i),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Nothing is held here yet."),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Nothing needs you")).not.toBeInTheDocument();
   });
 
   it.each([
-    ["today", "Today"],
-    ["catch_up", "Catch Up"],
-    ["open_loops", "Open Loops"],
-    ["ready_to_close", "Ready to Close"],
-  ] as const)(
-    "renders only the selected %s architecture-preview mode",
-    (mode, title) => {
-      const fixture: HomeFixtureState = { ...todayFixture, mode };
-      render(<HomeShell fixture={fixture} />);
-
-      expect(screen.getAllByRole("article")).toHaveLength(1);
-      expect(screen.getByRole("article")).toHaveTextContent(
-        "Architecture preview",
-      );
-      expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
-      expect(
-        screen.getByText("These are example projections, not your data."),
-      ).toBeInTheDocument();
-    },
-  );
-
-  it("keeps Home destinations out of the content panel and makes Catch Up contextual", async () => {
-    const user = userEvent.setup();
-    render(<HomeShell fixture={todayFixture} />);
+    ["partial", "Some sources are unavailable"],
+    ["capture_off", "Capture is off"],
+    ["stale", "Home facts may be out of date"],
+    ["offline", "Home facts are unavailable"],
+  ] as const)("labels %s fixture facts truthfully", (availability, expected) => {
+    render(<HomeShell fixture={homeFixture("today", availability)} />);
 
     expect(
-      screen.queryByRole("navigation", { name: "Home destinations" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: "Catch Up" }),
-    ).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Catch Up" }));
-    expect(
-      screen.getByRole("heading", { name: "Catch Up" }),
-    ).toBeInTheDocument();
-  });
-
-  it("opens Quick Capture as a non-persistent architecture-preview fixture", async () => {
-    const user = userEvent.setup();
-    render(<HomeShell fixture={todayFixture} />);
-
-    expect(
-      screen.getByRole("region", { name: "Quick Capture preview" }),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Quick Capture (preview)" }));
-    expect(screen.queryByRole("region", { name: "Quick Capture preview" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Quick Capture (preview)" }));
-    expect(
-      screen.getByText("Quick Capture is a preview. Nothing is saved."),
-    ).toBeInTheDocument();
-    expect(screen.getAllByText("Architecture preview").length).toBeGreaterThan(
-      0,
-    );
-  });
-
-  it.each([
-    ["partial", "Some Home facts are unavailable."],
-    ["capture_off", "Capture is off."],
-    ["stale", "Home facts may be out of date."],
-    ["offline", "Home facts are unavailable right now."],
-  ] as const)("labels %s fixture facts truthfully", (state, expected) => {
-    render(
-      <HomeShell
-        fixture={{ ...todayFixture, availability: state }}
-      />,
-    );
-
-    expect(screen.getByText(expected)).toBeInTheDocument();
-    expect(
-      screen.getByRole("region", { name: "Architecture preview status" }),
+      screen.getByRole("status", { name: "Home availability" }),
     ).toHaveTextContent(expected);
+  });
+
+  it("opens Catch Up from the meaningful Needs You item", async () => {
+    const user = userEvent.setup();
+    render(<HomeShell fixture={homeFixture("today")} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Review the deck follow-up" }),
+    );
+
+    expect(screen.getByRole("heading", { name: "Catch Up" })).toBeInTheDocument();
+    expect(
+      screen.getByText("I'll send Ashish the revised deck tomorrow."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Prepare the revised deck for Ashish; do not send it."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Known capture gap")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Continue in Work" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps Continue in Work truthful and preview-only", async () => {
+    const user = userEvent.setup();
+    render(<HomeShell fixture={homeFixture("today")} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Review the deck follow-up" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Continue in Work" }));
+
+    expect(
+      screen.getByRole("region", { name: "Work handoff preview" }),
+    ).toHaveTextContent("Preview only");
+    expect(
+      screen.getByText(/No Outcome or responsibility link has been created/i),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps an unsaved Quick Capture draft through contextual review", async () => {
+    const user = userEvent.setup();
+    render(<HomeShell fixture={homeFixture("today")} />);
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Quick Capture" }),
+      "Call Mum after dinner",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Review the deck follow-up" }),
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Quick Capture" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Back to Today" }));
+    expect(screen.getByRole("textbox", { name: "Quick Capture" })).toHaveValue(
+      "Call Mum after dinner",
+    );
   });
 
   it("returns exact focus and panel scroll from contextual Catch Up", async () => {
     const user = userEvent.setup();
-    render(<HomeShell fixture={todayFixture} />);
+    render(<HomeShell fixture={homeFixture("today")} />);
     const panel = screen.getByRole("region", { name: "Home" });
-    Object.defineProperty(panel, "scrollTop", { configurable: true, value: 144, writable: true });
-    const catchUp = screen.getByRole("button", { name: "Catch Up" });
+    Object.defineProperty(panel, "scrollTop", {
+      configurable: true,
+      value: 144,
+      writable: true,
+    });
+    const review = screen.getByRole("button", {
+      name: "Review the deck follow-up",
+    });
 
-    await user.click(catchUp);
+    await user.click(review);
     await user.click(screen.getByRole("button", { name: "Back to Today" }));
 
-    expect(catchUp).toHaveFocus();
+    expect(
+      screen.getByRole("button", { name: "Review the deck follow-up" }),
+    ).toHaveFocus();
     expect(panel.scrollTop).toBe(144);
   });
 
-  it("returns focus and exact panel scroll after inspecting fixture provenance", async () => {
+  it("returns focus and exact panel scroll after inspecting provenance", async () => {
     const user = userEvent.setup();
-    render(<HomeShell fixture={todayFixture} />);
+    render(<HomeShell fixture={homeFixture("today")} />);
     const panel = screen.getByRole("region", { name: "Home" });
     Object.defineProperty(panel, "scrollTop", {
       configurable: true,
@@ -153,14 +152,83 @@ describe("HomeShell", () => {
       writable: true,
     });
 
-    const inspect = screen.getByRole("button", { name: "Inspect provenance" });
+    await user.click(
+      screen.getByRole("button", { name: "Review the deck follow-up" }),
+    );
+    const inspect = screen.getByRole("button", { name: "Inspect source" });
     await user.click(inspect);
-    const dialog = screen.getByRole("dialog", { name: "Fixture provenance" });
+    const dialog = screen.getByRole("dialog", { name: "Source provenance" });
     expect(dialog).toHaveFocus();
     expect(dialog).not.toHaveAttribute("aria-modal");
     await user.keyboard("{Escape}");
 
     expect(inspect).toHaveFocus();
     expect(panel.scrollTop).toBe(248);
+  });
+
+  it.each([
+    ["open_loops", "Open Loops"],
+    ["memory", "Memory Review"],
+    ["daily_close", "Daily Close"],
+    ["history", "History"],
+  ] as const)(
+    "renders the %s destination without repeating Quick Capture",
+    (destination, heading) => {
+      render(
+        <HomeShell
+          destination={destination}
+          fixture={homeFixture(destination)}
+        />,
+      );
+
+      expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
+      expect(
+        screen.queryByRole("textbox", { name: "Quick Capture" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("shows responsibility meaning and recheck context in Open Loops", () => {
+    render(
+      <HomeShell
+        destination="open_loops"
+        fixture={homeFixture("open_loops")}
+      />,
+    );
+
+    const loop = screen.getByRole("article", { name: "Deck follow-up" });
+    expect(loop).toHaveTextContent("Owner: You");
+    expect(loop).toHaveTextContent("Recheck tomorrow morning");
+    expect(loop).toHaveTextContent("User-confirmed");
+  });
+
+  it("keeps Daily Close distinct from responsibility closure", () => {
+    render(
+      <HomeShell
+        destination="daily_close"
+        fixture={homeFixture("daily_close")}
+      />,
+    );
+
+    expect(screen.getByText("What became true")).toBeInTheDocument();
+    expect(screen.getByText("What remains unresolved")).toBeInTheDocument();
+    expect(
+      screen.getByText("A review never closes a responsibility by itself."),
+    ).toBeInTheDocument();
+  });
+
+  it("renders History as continuity decisions rather than activity scoring", () => {
+    render(
+      <HomeShell
+        destination="history"
+        fixture={homeFixture("history")}
+      />,
+    );
+
+    const history = screen.getByRole("list", { name: "Continuity history" });
+    expect(within(history).getByText("User correction recorded")).toBeInTheDocument();
+    expect(within(history).getByText("Work link proposed")).toBeInTheDocument();
+    expect(within(history).getByText("Tomorrow re-entry selected")).toBeInTheDocument();
+    expect(screen.queryByText(/productivity score/i)).not.toBeInTheDocument();
   });
 });

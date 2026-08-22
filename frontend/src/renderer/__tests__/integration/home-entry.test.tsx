@@ -47,12 +47,17 @@ describe("Home entry route", () => {
     expect(HistoryRouteDefinition.id).toBe("/_shell/home_/history");
   });
 
-  it("renders the empty Home shell only when the daemon is ready", async () => {
+  it("renders the adaptive Home brief when the daemon is ready", async () => {
     await renderHomeRoute("ready");
     expect(
       await screen.findByRole("heading", { name: "Home" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Nothing is held here yet.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "What matters now" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Quick Capture" }),
+    ).toBeInTheDocument();
   });
 
   it.each(["stopped", "error"] as const)(
@@ -61,10 +66,10 @@ describe("Home entry route", () => {
       await renderHomeRoute(state);
 
       expect(
-        await screen.findByText("Home facts are unavailable right now."),
+        await screen.findByText("Home facts are unavailable"),
       ).toBeInTheDocument();
       expect(
-        screen.queryByText("Nothing is held here yet."),
+        screen.queryByRole("heading", { name: "What matters now" }),
       ).not.toBeInTheDocument();
     },
   );

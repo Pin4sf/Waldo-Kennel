@@ -7,6 +7,12 @@ const noDragStyle = isMacPlatform()
   ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperties)
   : undefined;
 
+const copy = {
+  home: "Home",
+  modeLabel: "Waldo mode",
+  work: "Work",
+};
+
 function isHomePath(pathname: string) {
   return /^\/home(?:\/|$)/.test(pathname);
 }
@@ -43,13 +49,13 @@ export function HomeWorkModeSwitch() {
 
   return (
     <nav
-      aria-label="Waldo mode"
+      aria-label={copy.modeLabel}
       className="pointer-events-auto inline-flex h-7 items-center rounded-full border border-border bg-raised/92 p-0.5 shadow-sm backdrop-blur-md"
       style={noDragStyle}
     >
       {(["home", "work"] as const).map((item) => {
         const selected = mode === item;
-        const label = item === "home" ? "Home" : "Work";
+        const label = item === "home" ? copy.home : copy.work;
         return (
           <button
             aria-pressed={selected}

@@ -1,75 +1,75 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { CenterPanelShell } from "../CenterPanelShell";
 import {
   homeFixture,
+  type HomeAvailability,
   type HomeDestination,
   type HomeFixtureState,
-  type HomeMode,
 } from "../../lib/home-fixture";
-import { HomeScreenFixture } from "./HomeScreenFixture";
+import { HomeBrief } from "./HomeBrief";
+import { HomeCatchUp } from "./HomeCatchUp";
+import { HomeDestinationView } from "./HomeDestinationView";
+import { HomeQuickCapture } from "./HomeQuickCapture";
 
-export type HomeSurfaceState =
-  | "empty"
-  | "partial"
-  | "capture_disabled"
-  | "capture_off"
-  | "stale"
-  | "offline";
-
-const stateContent: Record<
-  HomeSurfaceState,
+const availabilityContent: Record<
+  HomeAvailability,
   { title: string; description: string }
 > = {
-  empty: {
-    title: "Nothing is held here yet.",
-    description:
-      "When you choose to add something, Home can help you keep track of it without assuming anything about your life.",
+  ready: {
+    title: "Capture is paused",
+    description: "This preview uses explicit fixture context only.",
   },
   partial: {
-    title: "Some Home facts are unavailable.",
-    description:
-      "Waldo can show only the confirmed facts currently available; it will not fill gaps with assumptions.",
-  },
-  capture_disabled: {
-    title: "Capture is off.",
-    description:
-      "Home still works with what you choose to add here. Nothing is being captured.",
+    title: "Some sources are unavailable",
+    description: "Available facts remain visible; gaps stay explicit.",
   },
   capture_off: {
-    title: "Capture is off.",
+    title: "Capture is off",
     description:
-      "Home still works with what you choose to add here. Nothing is being captured.",
+      "Home still works from explicit notes and confirmed responsibilities.",
   },
   stale: {
-    title: "Home facts may be out of date.",
-    description:
-      "Waldo is showing the last available facts and does not know what changed while they were unavailable.",
+    title: "Home facts may be out of date",
+    description: "The last known facts remain visible with their freshness boundary.",
   },
   offline: {
-    title: "Home facts are unavailable right now.",
+    title: "Home facts are unavailable",
     description:
-      "Reconnect to see confirmed responsibilities. Waldo cannot tell whether there is nothing to show while facts are unavailable.",
+      "Waldo cannot tell whether nothing changed while the source plane is offline.",
   },
 };
 
 const copy = {
-  personalSpace: "Personal space",
-  title: "Home",
-  description:
-    "A calm place for the responsibilities you explicitly choose to keep here.",
-  quickCapture: "Quick Capture (preview)",
-  catchUp: "Catch Up",
-  backToToday: "Back to Today",
-  quickCaptureLabel: "Quick Capture preview",
-  quickCaptureTitle: "Quick Capture",
-  quickCaptureDisclosure: "Quick Capture is a preview. Nothing is saved.",
-  todayCaptureDisclosure:
-    "Today expands this fixture so you can see where a future explicit intake would begin.",
-  statusLabel: "Home status",
-  previewStatusLabel: "Architecture preview status",
-  previewStatusBadge: "Architecture preview",
-  workRecommended: "Go to Work (recommended)",
+  availability: "Home availability",
+  description: "What needs judgment, what can wait, and where to resume.",
+  home: "Home",
+  offlineDescription:
+    "Explicit Quick Capture remains available, but this preview will not invent a brief or attention state from missing facts.",
+  offlineTitle: "Confirmed Home context is not available right now",
+  personalAgency: "Personal agency",
 };
+
+function HomeAvailabilityStatus({ fixture }: { fixture: HomeFixtureState }) {
+  const content = availabilityContent[fixture.availability];
+  return (
+    <section
+      aria-label={copy.availability}
+      className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 border-b border-border pb-4"
+      role="status"
+    >
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span
+          aria-hidden="true"
+          className="size-1.5 shrink-0 rounded-full bg-muted-foreground"
+        />
+        <p className="text-xs font-medium text-foreground">{content.title}</p>
+      </div>
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        {content.description}
+      </p>
+    </section>
+  );
+}
 
 export function HomeShell({
   fixture = homeFixture("today"),
@@ -78,110 +78,99 @@ export function HomeShell({
   fixture?: HomeFixtureState;
   destination?: HomeDestination;
 }) {
-  const [contextualMode, setContextualMode] = useState<HomeMode | null>(null);
-  const [captureOpen, setCaptureOpen] = useState(destination === "today");
+  const [contextualMode, setContextualMode] = useState<"catch_up" | null>(null);
   const scrollContainerRef = useRef<HTMLElement>(null);
-  const catchUpRef = useRef<HTMLButtonElement>(null);
-  const catchUpScrollTop = useRef(0);
-  const state: HomeSurfaceState = fixture.availability === "ready" ? "empty" : fixture.availability;
-  const content = stateContent[state];
-  const mode = contextualMode ?? fixture.mode;
+  const reviewRef = useRef<HTMLButtonElement>(null);
+  const returnScrollTop = useRef(0);
+  const restoreTodayContext = useRef(false);
+
+  useLayoutEffect(() => {
+    if (contextualMode !== null || !restoreTodayContext.current) return;
+
+    restoreTodayContext.current = false;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = returnScrollTop.current;
+    }
+    reviewRef.current?.focus({ preventScroll: true });
+  }, [contextualMode]);
+
   const openCatchUp = () => {
-    catchUpScrollTop.current = scrollContainerRef.current?.scrollTop ?? 0;
+    returnScrollTop.current = scrollContainerRef.current?.scrollTop ?? 0;
     setContextualMode("catch_up");
   };
+
   const returnToToday = () => {
+    restoreTodayContext.current = true;
     setContextualMode(null);
-    catchUpRef.current?.focus();
-    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = catchUpScrollTop.current;
   };
+
+  const showToday = destination === "today" && contextualMode === null;
+  const showCatchUp = destination === "today" && contextualMode === "catch_up";
+  const offlineToday = showToday && fixture.availability === "offline";
+
   return (
     <CenterPanelShell titlebarAlign={false}>
       <section
         aria-labelledby="home-heading"
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-8 sm:px-10 sm:py-12"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-10 pt-14 sm:px-9 sm:pb-12 sm:pt-16"
         ref={scrollContainerRef}
       >
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
-          <header className="flex flex-col gap-3 border-b border-border pb-6">
-            <p className="text-sm font-medium text-muted-foreground">
-              {copy.personalSpace}
-            </p>
-            <h1
-              className="text-heading font-semibold tracking-tight text-foreground"
-              id="home-heading"
-            >
-              {copy.title}
-            </h1>
-            <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-7">
+          <header className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                {copy.personalAgency}
+              </p>
+              <h1
+                className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground"
+                id="home-heading"
+              >
+                {copy.home}
+              </h1>
+            </div>
+            <p className="max-w-sm text-right text-xs leading-relaxed text-muted-foreground">
               {copy.description}
             </p>
           </header>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              className="rounded-md bg-interactive-active px-3 py-2 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-              onClick={() => setCaptureOpen((open) => !open)}
-              type="button"
-            >
-              {copy.quickCapture}
-            </button>
-            {destination === "today" ? (
-              <button
-                className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-                onClick={openCatchUp}
-                ref={catchUpRef}
-                type="button"
-              >
-                {copy.catchUp}
-              </button>
-            ) : null}
-            {contextualMode === "catch_up" ? (
-              <button
-                className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-                onClick={returnToToday}
-                type="button"
-              >
-                {copy.backToToday}
-              </button>
-            ) : null}
-          </div>
-          {captureOpen ? (
-            <section
-              aria-label={copy.quickCaptureLabel}
-              className="rounded-xl border border-border bg-raised/40 p-5"
-            >
-              <h2 className="text-base font-semibold text-foreground">
-                {copy.quickCaptureTitle}
+
+          <HomeAvailabilityStatus fixture={fixture} />
+
+          {offlineToday ? (
+            <section className="py-8" aria-labelledby="offline-heading">
+              <h2 className="text-lg font-semibold text-foreground" id="offline-heading">
+                {copy.offlineTitle}
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {copy.quickCaptureDisclosure}
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                {copy.offlineDescription}
               </p>
-              {destination === "today" ? (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {copy.todayCaptureDisclosure}
-                </p>
-              ) : null}
+              <div className="mt-7 max-w-2xl">
+                <HomeQuickCapture />
+              </div>
             </section>
           ) : null}
-          <section
-            aria-label={copy.previewStatusLabel}
-            className="rounded-xl border border-border bg-raised/40 p-6"
-          >
-            <span className="text-xs font-medium text-muted-foreground">{copy.previewStatusBadge}</span>
-            <h2 className="text-base font-semibold text-foreground">
-              {content.title}
-            </h2>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              {content.description}
-            </p>
-            <a
-              className="mt-5 inline-flex text-sm font-medium text-foreground underline underline-offset-2 transition-colors hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-              href="#/"
-            >
-              {copy.workRecommended}
-            </a>
-          </section>
-          <HomeScreenFixture fixture={fixture} mode={mode} scrollContainerRef={scrollContainerRef} />
+
+          {showToday && !offlineToday ? (
+            <>
+              <HomeBrief
+                fixture={fixture}
+                onReview={openCatchUp}
+                reviewRef={reviewRef}
+              />
+              <HomeQuickCapture />
+            </>
+          ) : null}
+
+          {showCatchUp ? (
+            <HomeCatchUp
+              fixture={fixture}
+              onReturn={returnToToday}
+              scrollContainerRef={scrollContainerRef}
+            />
+          ) : null}
+
+          {destination !== "today" ? (
+            <HomeDestinationView destination={destination} fixture={fixture} />
+          ) : null}
         </div>
       </section>
     </CenterPanelShell>
