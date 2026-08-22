@@ -581,6 +581,21 @@
 	border-top: 0;
 }
 
+.home-memory-review-desk {
+	display: grid;
+	grid-template-columns: minmax(14rem, 0.78fr) minmax(0, 1.5fr);
+	gap: 2rem;
+}
+
+.home-memory-review-detail {
+	border-left: 1px solid var(--color-border);
+	padding-left: 2rem;
+}
+
+.home-memory-review-back {
+	display: none;
+}
+
 @container center-panel (max-width: 700px) {
 	.home-open-loops-desk {
 		display: block;
@@ -609,6 +624,24 @@
 	.home-daily-close-receipt > :nth-child(even) {
 		border-left: 0;
 		padding-left: 0;
+	}
+
+	.home-memory-review-desk {
+		display: block;
+	}
+
+	.home-memory-review-detail {
+		border-left: 0;
+		padding-left: 0;
+	}
+
+	.home-memory-review-back {
+		display: inline-flex;
+	}
+
+	.home-memory-review-desk[data-mobile-view="index"] .home-memory-review-detail,
+	.home-memory-review-desk[data-mobile-view="detail"] .home-memory-review-index {
+		display: none;
 	}
 }
 

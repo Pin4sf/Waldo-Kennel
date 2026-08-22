@@ -1,5 +1,6 @@
 import type { HomeDestination, HomeFixtureState } from "../../lib/home-fixture";
 import { HomeDailyClose } from "./HomeDailyClose";
+import { HomeMemoryReview } from "./HomeMemoryReview";
 import { HomeOpenLoops } from "./HomeOpenLoops";
 
 const sectionTitleClass = "text-xl font-semibold tracking-tight text-foreground";
@@ -65,33 +66,7 @@ export function HomeDestinationView({
   }
 
   if (destination === "memory") {
-    return (
-      <section aria-labelledby="memory-review-heading">
-        <p className={eyebrowClass}>{copy.proposedContext}</p>
-        <h2 className={`mt-2 ${sectionTitleClass}`} id="memory-review-heading">
-          {copy.memoryReview}
-        </h2>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          {copy.memoryDescription}
-        </p>
-        <article className="mt-7 border-y border-border py-5" aria-label={copy.memoryProposal}>
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-medium text-muted-foreground">{copy.memoryCandidate}</p>
-            <span className="text-xs text-muted-foreground">{copy.memorySource}</span>
-          </div>
-          <p className="mt-3 text-sm font-medium text-foreground">
-            {copy.memoryStatement}
-          </p>
-          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-            {copy.memoryStatus}
-          </p>
-          <div className="mt-4 flex gap-4 text-xs font-medium text-foreground">
-            <button className="underline underline-offset-4" type="button">{copy.correct}</button>
-            <button className="underline underline-offset-4" type="button">{copy.reject}</button>
-          </div>
-        </article>
-      </section>
-    );
+    return <HomeMemoryReview fixture={fixture} />;
   }
 
   if (destination === "daily_close") {

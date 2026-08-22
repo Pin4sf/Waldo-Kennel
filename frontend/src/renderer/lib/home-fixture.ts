@@ -114,6 +114,7 @@ export type HomeClosureReview = {
 
 export type HomeMemoryCandidate = {
   id: string;
+  label: string;
   statement: string;
   sourceSummary: string;
   sourceGap?: string;
@@ -389,12 +390,22 @@ export function homeFixture(
     memoryCandidates: [
       {
         id: "deck-send-boundary",
+        label: "Deck delivery boundary",
         statement: "Ashish should receive the deck only after the revision is reviewed.",
         sourceSummary: "Meeting note · user correction · today at 3:31 PM",
         sourceGap: "Source contains a 14 minute audio gap",
         validUntil: "Valid until the deck is sent or this instruction is corrected",
         sensitivity: "ordinary",
         uncertainty: "Proposed from one corrected statement; no durable memory exists.",
+      },
+      {
+        id: "pricing-evidence-rule",
+        label: "Pricing evidence rule",
+        statement: "Keep the current pricing recommendation until new customer evidence changes it.",
+        sourceSummary: "Pricing workshop note · today at 5:18 PM",
+        validUntil: "Valid until a newer pricing decision is confirmed",
+        sensitivity: "ordinary",
+        uncertainty: "Proposed from one decision note; no durable memory exists.",
       },
     ],
   };
