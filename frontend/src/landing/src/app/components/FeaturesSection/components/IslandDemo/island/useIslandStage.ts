@@ -7,7 +7,7 @@ import {
   type RefObject,
 } from "react";
 import { dominantColor, SAMPLE_SIZE, toCssColor } from "./artwork";
-import { defaultStageGeometry } from "./layout";
+import { defaultStageGeometry } from "./stage-layout";
 import {
   otherSubject,
   peekSubjectFor,

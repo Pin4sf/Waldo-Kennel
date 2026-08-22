@@ -28,7 +28,7 @@ import {
   islandRadius,
   islandWidths,
   ISLAND_HEADER_HEIGHT,
-} from "./layout";
+} from "./stage-layout";
 import {
   ISLAND_CONTENT_BLUR,
   islandContentEnter,

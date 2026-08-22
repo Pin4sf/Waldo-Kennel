@@ -1,6 +1,6 @@
 export { createMemoryIslandAdapter, useKennelIsland } from "./adapter";
 export { KennelIsland } from "./KennelIsland";
-export { defaultStageGeometry, islandRadius, islandWidths } from "./layout";
+export { defaultStageGeometry, islandRadius, islandWidths } from "./stage-layout";
 export {
   POINTER_LEAVE_GRACE_MS,
   shouldCollapseOnPointerLeave,

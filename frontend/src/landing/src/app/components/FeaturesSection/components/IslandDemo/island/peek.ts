@@ -1,6 +1,6 @@
 // The explicit extension is what lets `node --experimental-strip-types` run the
 // tests beside this file without a bundler in the way.
-import { ISLAND_HEADER_HEIGHT } from "./layout";
+import { ISLAND_HEADER_HEIGHT } from "./stage-layout";
 
 /* --------------------------------------------------------------------------
    Resting shapes
