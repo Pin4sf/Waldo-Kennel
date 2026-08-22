@@ -189,10 +189,11 @@ function ShellLayout() {
 	const isSettingsRoute =
 		Boolean(matchRoute({ to: "/settings", fuzzy: true })) ||
 		Boolean(matchRoute({ to: "/projects/$projectId/settings", fuzzy: true }));
+	const isHomeRoute = Boolean(matchRoute({ to: "/home" }));
 	// Welcome/settings always self-frame. Platforms that hide the shell-owned
 	// topbar (macOS) use the same full-height inset; session actions mount
 	// inside SessionView.
-	const selfFramedCenterPanel = isWelcomeBoard || isSettingsRoute;
+	const selfFramedCenterPanel = isWelcomeBoard || isSettingsRoute || isHomeRoute;
 	const hideShellTopbar = selfFramedCenterPanel || shellTopbarHiddenByPlatform;
 	const setProjectRestarting = useUiStore((state) => state.setProjectRestarting);
 	const orchestratorReplacementErrors = useUiStore((state) => state.orchestratorReplacementErrors);
