@@ -1,0 +1,2098 @@
+/* ==========================================================================
+   Kennel Island — landing page demo
+   --------------------------------------------------------------------------
+   Ported from packages/kennel-island/src/styles/{tokens,app}.css. That sheet
+   targets a standalone Electron/Vite window, so it resets `:root`/`body`
+   directly; here everything is scoped under `.kennel-island-demo` so it can't
+   leak into the rest of the marketing site.
+
+   Everything is authored at 1x. There is no scale transform anywhere: the
+   numbers below are the points that reach the display, which is what keeps
+   text on the pixel grid and hit targets honest.
+   ========================================================================== */
+
+.kennel-island-demo {
+  color-scheme: dark;
+  font-family: "SF Pro Rounded", "SF Pro Display", "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+
+  --island-black: #000000;
+  --island-surface: #161616;
+  --island-surface-raised: #1e1e1e;
+  --island-tab: #353533;
+  --island-text: #fafaf8;
+  --island-muted: #9a9a96;
+  --island-subdued: #6b6b68;
+  --island-blue: #2388ff;
+  --island-yellow: #fbbc04;
+  --island-orange: #fb8404;
+  --island-purple: #8338ec;
+  --island-success: #00cc6e;
+  --island-delete: #ff2530;
+  --island-border: rgba(255, 255, 255, 0.08);
+  --stage-orange: #fb943f;
+  --island-media: #a3e635;
+
+  --island-fillet: 12px;
+  --island-shadow: 0 14px 30px -8px rgba(0, 0, 0, 0.62);
+
+  --island-peek-radius: 12px;
+  --island-peek-fillet: 6px;
+  --island-peek-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.7);
+
+  --island-calibration: #ff43d0;
+
+  --settings-bg: #131313;
+  --settings-chrome: #1a1a1a;
+
+  --fs-title: 12.5px;
+  --fs-body: 12px;
+  --fs-meta: 11px;
+  --fs-micro: 10px;
+}
+
+.kennel-island-demo,
+.kennel-island-demo *,
+.kennel-island-demo *::before,
+.kennel-island-demo *::after {
+  box-sizing: border-box;
+}
+
+.kennel-island-demo button,
+.kennel-island-demo input,
+.kennel-island-demo textarea {
+  font: inherit;
+}
+
+.kennel-island-demo button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Scoped for the landing page: the desktop-window and native-app resets from
+   the source sheet (body/html.is-desktop-island) don't apply inside a card on
+   a marketing page, so only the focus-visible rule carries over, scoped. */
+.kennel-island-demo button:focus-visible,
+.kennel-island-demo textarea:focus-visible {
+  outline: 2px solid var(--island-blue);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Stage
+   -------------------------------------------------------------------------- */
+
+.island-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/*
+ * The anchor is the island's hit target, so it reserves the fillet width as
+ * padding: the concave corners live outside the body box, and a pointer on one
+ * of them is still a pointer on the island.
+ */
+.island-stage__anchor {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: max-content;
+  padding: 0 var(--island-fillet);
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Island body
+   -------------------------------------------------------------------------- */
+
+/*
+ * The island's width is an inline pixel length written by the component and
+ * driven by a spring, so nothing here may set it. The surfaces are stacked in
+ * one grid cell rather than flowed, because during a swap both are mounted:
+ * flowed they would stack and double the island's height for the length of the
+ * cross-fade.
+ */
+.kennel-island {
+  position: relative;
+  display: grid;
+  /* `minmax(0, …)` and not `1fr`: a bare `1fr` track carries an automatic
+     min-content floor, and a surface wider than the island it is animating
+     towards would push the track past the island rather than overflow it. */
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  color: var(--island-text);
+}
+
+.kennel-island > * {
+  grid-area: 1 / 1;
+}
+
+/*
+ * One body for every surface. Square at the top because it is flush with the
+ * display edge, rounded below, and joined to the menu bar by the two fillets.
+ * `overflow: visible` is deliberate — the fillets sit outside this box.
+ */
+.island-body {
+  position: relative;
+  width: 100%;
+  padding-bottom: 8px;
+  border-radius: 0 0 var(--island-radius) var(--island-radius);
+  background: var(--island-black);
+  box-shadow: var(--island-shadow);
+}
+
+/*
+ * Concave corners. Each is a square of solid black with a quarter disc erased
+ * from the side facing the body, so the island's edge curves outward into the
+ * menu bar instead of ending in a hard step.
+ */
+.island-fillet {
+  position: absolute;
+  top: 0;
+  width: var(--island-fillet);
+  height: var(--island-fillet);
+  pointer-events: none;
+}
+
+.island-fillet--left {
+  right: 100%;
+  background: radial-gradient(
+    circle at 0 100%,
+    transparent var(--island-fillet),
+    var(--island-black) calc(var(--island-fillet) + 0.5px)
+  );
+}
+
+.island-fillet--right {
+  left: 100%;
+  background: radial-gradient(
+    circle at 100% 100%,
+    transparent var(--island-fillet),
+    var(--island-black) calc(var(--island-fillet) + 0.5px)
+  );
+}
+
+/* --------------------------------------------------------------------------
+   Resting island
+   --------------------------------------------------------------------------
+   At rest the island is two stacked bars, not one body: a header strip, and
+   a narrower ticker that only exists while the pointer is on it. The seam
+   between them is the same concave fillet that joins the strip to the menu
+   bar, so the pair reads as one piece of hardware growing a second row.
+   -------------------------------------------------------------------------- */
+
+/* The strip fills the island, and the island's width is the spring. Nothing
+   in this sheet transitions a size: every size on the island is a value
+   animated by the component, so a curve declared here could only fight it. */
+.island-resting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.island-body--header {
+  padding-bottom: 0;
+  /* Height is sprung by the component; only the corner is left to CSS, and it
+     rounds on the same clock the strip wakes up on. */
+  transition: border-radius 220ms ease;
+}
+
+.island-body--header .island-header {
+  height: 100%;
+}
+
+/* A panel's height is animated, so its bottom padding moves inside, where the
+   measurement that feeds the animation can see it. */
+.island-body--panel {
+  padding-bottom: 0;
+}
+
+.island-body__measure {
+  padding-bottom: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .island-body--header {
+    transition: none;
+  }
+}
+
+/* Nothing running and nothing playing: the body is exactly the camera housing,
+   black on black, and the notch looks like plain hardware again. */
+.island-resting[data-awake="false"] .island-body--header {
+  border-radius: 0 0 calc(var(--island-radius) * 0.6) calc(var(--island-radius) * 0.6);
+  box-shadow: none;
+}
+
+/* Dormant, the fillets would draw a curve into a bezel that has no island on
+   it. Peeking, they are the whole point: they are what makes the swell read as
+   the hardware growing rather than as a rectangle appearing under it. */
+.island-resting[data-shape="dormant"] .island-fillet {
+  display: none;
+}
+
+/*
+ * The peek. A few points on every side of the housing, a softer corner than
+ * the panel's, and a shadow just heavy enough to lift the lower edge off the
+ * desktop — because at this size the only thing distinguishing the shape from
+ * the bezel is that it casts something.
+ *
+ * The size itself is animated by the component, on the same spring as every
+ * other size on the island. Only the corner and the shadow are left to CSS.
+ */
+.island-resting[data-shape="peek"] .island-body--header {
+  border-radius: 0 0 var(--island-peek-radius) var(--island-peek-radius);
+  box-shadow: var(--island-peek-shadow);
+}
+
+.island-resting[data-shape="peek"] .island-fillet {
+  /* Smaller than the panel's fillet: a 12pt curve against a 6pt swell would
+     read as a notch in the notch. */
+  width: var(--island-peek-fillet);
+  height: var(--island-peek-fillet);
+}
+
+.island-resting[data-shape="peek"] .island-fillet--left {
+  background: radial-gradient(
+    circle at 0 100%,
+    transparent var(--island-peek-fillet),
+    var(--island-black) calc(var(--island-peek-fillet) + 0.5px)
+  );
+}
+
+.island-resting[data-shape="peek"] .island-fillet--right {
+  background: radial-gradient(
+    circle at 100% 100%,
+    transparent var(--island-peek-fillet),
+    var(--island-black) calc(var(--island-peek-fillet) + 0.5px)
+  );
+}
+
+/* The dormant and peeking shapes are one button, and it has to fill the shape:
+   a hit target shorter than the housing leaves a strip of notch that looks
+   interactive and is not. */
+.island-header__notch--bare {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   Notch calibration
+   --------------------------------------------------------------------------
+   The measured housing, drawn over the real one while the settings window is
+   open. The fine tune asks someone to match a black shape against a black
+   bezel; this is the only thing in the app that gives them an edge to aim at.
+   -------------------------------------------------------------------------- */
+
+.island-calibration {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  display: flex;
+  justify-content: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.island-calibration__box {
+  position: relative;
+  box-sizing: border-box;
+  border: 1px solid var(--island-calibration);
+  border-top: 0;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+}
+
+.island-calibration__label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-top: 4px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--island-calibration);
+  color: #14001a;
+  font-size: var(--fs-micro);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+/* --------------------------------------------------------------------------
+   Peek
+   --------------------------------------------------------------------------
+   The bar under the strip. Its own fillets curve up into the header above,
+   which is why it carries a top radius of zero and hangs flush against it.
+
+   Width is an inline pixel length written by the component and driven by a
+   spring, so nothing here may set it: the bar is sized by its content, bounded
+   by the midlines of the chips above.
+   -------------------------------------------------------------------------- */
+
+.island-peek {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 30px;
+  border-radius: 0 0 14px 14px;
+  /* The wash is taken from the album art when there is any, which is why the
+     accent is a variable rather than a colour. */
+  background:
+    radial-gradient(120% 260% at 50% 0%, color-mix(in srgb, var(--island-accent) 26%, transparent), transparent 72%),
+    var(--island-black);
+  box-shadow: var(--island-shadow);
+}
+
+/* The content wrapper is the flex row; the button is only the surface it sits
+   on. They are separate so the cross-fade has one element to swap. */
+.peek__content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.peek {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 0 12px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--island-text);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+/*
+ * The travelling half. `min-width: 0` is what lets it be narrower than its own
+ * content — without it the flex item refuses to shrink and the bar grows past
+ * the bound it was given.
+ */
+.peek__rail {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  /* Content dissolves at both edges instead of ending on a hard cut, which is
+     what makes a moving line read as continuous rather than clipped. */
+  mask-image: linear-gradient(90deg, transparent, #000 10px, #000 calc(100% - 10px), transparent);
+}
+
+/*
+ * `max-content` is load-bearing, not cosmetic. The bar's width is decided from
+ * this element's `scrollWidth`, and without it the track would be laid out
+ * against the rail — so a track that fitted would report the rail's width back
+ * as its own, and the bar could never size itself down to its content.
+ */
+.peek__track {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.peek__track[data-scrolling="true"] {
+  animation: island-marquee var(--marquee-duration) ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .peek__track[data-scrolling="true"] {
+    animation: none;
+  }
+
+  /* Without motion the tail would simply be unreachable, so the line truncates
+     honestly instead of pretending the rest is coming. */
+  .peek__track {
+    display: flex;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.peek__title {
+  flex: 0 0 auto;
+  font-size: var(--fs-title);
+  font-weight: 580;
+}
+
+.peek__title--muted,
+.peek__artist {
+  flex: 0 0 auto;
+  color: var(--island-muted);
+  font-size: var(--fs-meta);
+  font-weight: 540;
+}
+
+.peek__branch {
+  flex: 0 0 auto;
+}
+
+.peek__phase {
+  flex: 0 0 auto;
+  color: var(--island-subdued);
+  font-size: var(--fs-meta);
+}
+
+.peek__phase--blocked {
+  color: var(--island-orange);
+}
+
+.peek__phase--paused {
+  color: var(--island-yellow);
+}
+
+/*
+ * The pinned half.
+ *
+ * These are the parts read as symbols rather than as words: a tick that slid
+ * past would have to be waited for, and a diff that slid past would be
+ * unreadable at any speed. Each sits over a gradient of the bar's own
+ * background, so the text travelling underneath never competes with it.
+ */
+.peek__agent {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+}
+
+.peek__agent img {
+  width: 100%;
+  height: 100%;
+}
+
+.peek__pin {
+  position: absolute;
+  top: 0;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 8px;
+  pointer-events: none;
+}
+
+/* The lead pin sits just inside the agent glyph, which is why its inset is the
+   bar's padding plus the glyph plus the gap between them. */
+.peek__pin--lead {
+  left: calc(12px + 14px + 8px);
+  padding-left: 0;
+  background: linear-gradient(90deg, var(--island-black) 62%, transparent);
+}
+
+.peek__pin--trail {
+  right: 0;
+  padding-right: 12px;
+  background: linear-gradient(270deg, var(--island-black) 62%, transparent);
+}
+
+.peek__tick {
+  color: var(--island-success);
+  font-size: var(--fs-title);
+  font-weight: 700;
+}
+
+.peek__diff {
+  display: flex;
+  gap: 6px;
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   Marquee
+   -------------------------------------------------------------------------- */
+
+.marquee {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  /* Content dissolves at both edges instead of ending on a hard cut, which is
+     what makes a moving line read as continuous rather than clipped. */
+  mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent);
+}
+
+.marquee__track {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.marquee__track[data-scrolling="true"] {
+  animation: island-marquee var(--marquee-duration) ease-in-out infinite alternate;
+}
+
+@keyframes island-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(var(--marquee-shift));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee__track[data-scrolling="true"] {
+    animation: none;
+  }
+
+  /* Without motion the tail would simply be unreachable, so the line truncates
+     honestly instead of pretending the rest is coming. */
+  .marquee__track {
+    display: flex;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.island-ticker__artist {
+  flex: 0 0 auto;
+  color: var(--island-muted);
+  font-size: var(--fs-meta);
+  font-weight: 540;
+}
+
+.island-ticker__title--muted {
+  color: var(--island-muted);
+}
+
+.island-ticker__phase--blocked {
+  color: var(--island-orange);
+}
+
+.island-ticker__phase--paused {
+  color: var(--island-yellow);
+}
+
+.island-ticker__phase--running {
+  color: var(--island-subdued);
+}
+
+/* --------------------------------------------------------------------------
+   Header
+   -------------------------------------------------------------------------- */
+
+/* The horizontal padding is the user's `Content padding`: it is the gap
+   between the housing and the icons flanking it, and the resting width is
+   computed from the same number, so the two cannot disagree. */
+.island-header {
+  display: flex;
+  align-items: center;
+  height: var(--island-header-height);
+  padding: 0 var(--island-content-padding, 12px);
+}
+
+.island-header__cluster {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.island-header__cluster--right {
+  justify-content: flex-end;
+}
+
+/*
+ * The camera housing. Invisible against the body it sits on, and the largest
+ * target in the island, which makes it the natural place to click.
+ */
+.island-header__notch {
+  flex: 0 0 var(--island-notch-width);
+  align-self: stretch;
+  width: var(--island-notch-width);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.island-status,
+.island-pet,
+.island-waveform,
+.island-count {
+  display: grid;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--island-text);
+  cursor: pointer;
+}
+
+.island-status {
+  background: var(--island-blue);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.island-status--action {
+  background: var(--island-orange);
+}
+
+.island-status--ready {
+  background: var(--island-success);
+}
+
+.island-status--review {
+  background: var(--island-yellow);
+  color: #151515;
+}
+
+.island-status--muted {
+  background: #363636;
+}
+
+.island-status--error {
+  background: var(--island-delete);
+}
+
+/* --------------------------------------------------------------------------
+   Presence chips
+   --------------------------------------------------------------------------
+   The chip colour is the state. The badge ring follows it so a count is never
+   read without the reason for it, and the numeral stays white because the ring
+   already carries the meaning.
+   -------------------------------------------------------------------------- */
+
+.island-status--blocked {
+  background: var(--island-orange);
+}
+
+.island-status--paused {
+  background: var(--island-yellow);
+}
+
+.island-status--running {
+  background: var(--island-blue);
+}
+
+.island-status__pause {
+  width: 12px;
+  height: 12px;
+}
+
+.island-status__spinner {
+  width: 24px;
+  height: 24px;
+}
+
+.island-status__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(250, 250, 248, 0.48);
+  box-shadow: 0 0 0 3px rgba(250, 250, 248, 0.06);
+}
+
+.island-status__dot--offline {
+  background: #92928d;
+  box-shadow: 0 0 0 3px rgba(146, 146, 141, 0.14);
+}
+
+/*
+ * The album art. Rounded like an app icon rather than square, because at 24pt a
+ * square cover reads as a screenshot of a cover; and clipped rather than
+ * letterboxed, because a cover that is not square is still recognisably itself
+ * cropped, and is not recognisable at all with bars down its sides.
+ */
+.island-pet__art {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  object-fit: cover;
+  background: var(--island-surface);
+}
+
+/* --------------------------------------------------------------------------
+   Waveform
+   --------------------------------------------------------------------------
+   Generated motion, not measured. Each bar runs a loop of a different length,
+   so the four never line up and the group reads as sound rather than as a
+   four-frame animation — see the note on `Waveform` for why the real output
+   level is out of reach.
+   -------------------------------------------------------------------------- */
+
+.waveform {
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+  width: 24px;
+  height: 24px;
+  justify-content: center;
+}
+
+/* The bars take the artwork's colour, never the session's: the waveform is a
+   media chip, and colouring it by whichever agent happens to be running would
+   attach it to the wrong thing. */
+.waveform__bar {
+  width: 3px;
+  height: 40%;
+  border-radius: 2px;
+  background: var(--island-artwork, var(--island-media));
+  transform-origin: center;
+}
+
+.waveform[data-playing="true"] .waveform__bar {
+  animation: island-waveform calc(620ms + var(--bar) * 190ms) ease-in-out infinite alternate;
+  animation-delay: calc(var(--bar) * -230ms);
+}
+
+@keyframes island-waveform {
+  from {
+    height: 24%;
+  }
+  to {
+    height: 78%;
+  }
+}
+
+/* A still waveform still has to say "playing", so the bars keep the stepped
+   heights the animation would otherwise give them. */
+@media (prefers-reduced-motion: reduce) {
+  .waveform[data-playing="true"] .waveform__bar {
+    animation: none;
+    height: calc(34% + var(--bar) * 12%);
+  }
+}
+
+.island-count {
+  border: 1.5px solid var(--island-blue);
+  border-radius: 8px;
+  background: var(--island-surface);
+  font-size: 11.5px;
+  font-weight: 620;
+  line-height: 1;
+}
+
+.island-count--blocked {
+  border-color: var(--island-orange);
+}
+
+.island-count--paused {
+  border-color: var(--island-yellow);
+}
+
+.island-count--running {
+  border-color: var(--island-blue);
+}
+
+/*
+ * Provider colour on the session chips.
+ *
+ * The ring keeps the presence colour — how urgent this is — and the glyph takes
+ * the provider's. Both facts matter, and a chip that carried only one of them
+ * would be answering the wrong question half the time.
+ */
+.island-status[style*="--island-provider"] > * {
+  color: var(--island-provider);
+}
+
+.island-count[style*="--island-provider"] {
+  color: var(--island-provider);
+}
+
+.island-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  height: 26px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--island-surface);
+}
+
+.island-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--island-muted);
+  font-size: var(--fs-meta);
+  font-weight: 540;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.island-tab:hover {
+  color: var(--island-text);
+}
+
+.island-tab.is-selected {
+  border-color: var(--island-border);
+  background: var(--island-tab);
+  color: var(--island-text);
+}
+
+.island-tool {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+.island-tool--progress {
+  flex: 0 0 auto;
+}
+
+.island-tool-button {
+  display: grid;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.island-tool-button:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.island-tool-button:disabled {
+  cursor: default;
+  opacity: 0.82;
+}
+
+.island-tool-button:disabled:hover {
+  background: transparent;
+}
+
+.island-header__cluster--right .island-count {
+  margin-left: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   Content
+   -------------------------------------------------------------------------- */
+
+.island-content {
+  padding: 0 12px;
+}
+
+/* --------------------------------------------------------------------------
+   Ticker
+   -------------------------------------------------------------------------- */
+
+.island-ticker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--island-text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.island-ticker:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.island-ticker__agent {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+}
+
+.island-ticker__check {
+  flex: 0 0 auto;
+  color: var(--island-success);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.island-ticker__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-title);
+  font-weight: 560;
+  letter-spacing: -0.005em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The ticker is a headline plus its provenance. The headline can be clipped —
+   its full text is on the control's title and in the expanded queue — but the
+   project and branch it belongs to should survive intact. */
+.island-ticker__branch {
+  flex: 0 0.15 auto;
+  min-width: 0;
+  max-width: 54%;
+}
+
+.island-ticker__diff,
+.island-ticker__phase {
+  flex: 0 0 auto;
+  font-size: var(--fs-meta);
+  font-weight: 560;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.island-ticker__diff {
+  display: flex;
+  gap: 5px;
+}
+
+.island-ticker__phase--working,
+.island-ticker__phase--offline {
+  color: var(--island-subdued);
+}
+
+.island-ticker__phase--idle,
+.island-ticker__phase--muted {
+  color: var(--island-muted);
+}
+
+.island-ticker__phase--needs_input,
+.island-ticker__phase--action {
+  color: var(--island-orange);
+}
+
+.island-ticker__phase--ready {
+  color: var(--island-success);
+}
+
+.island-ticker__phase--review {
+  color: var(--island-yellow);
+}
+
+.island-ticker__phase--error {
+  color: var(--island-delete);
+}
+
+.diff-add {
+  color: var(--island-success);
+}
+
+.diff-delete {
+  color: var(--island-delete);
+}
+
+/* --------------------------------------------------------------------------
+   Branch chip
+   -------------------------------------------------------------------------- */
+
+.branch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  height: 19px;
+  padding: 0 7px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--island-surface-raised);
+  color: var(--island-muted);
+  font-size: var(--fs-micro);
+  font-weight: 540;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.branch-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The project name gives way first; a truncated branch name is a guess about
+   which branch an agent is on, which is worse than no branch name at all. */
+.branch-chip > span:first-child {
+  flex: 0 1 auto;
+  min-width: 2.4em;
+  color: rgba(250, 250, 248, 0.78);
+}
+
+/* Shrinks a tenth as fast as the project name, and never below a legible stub:
+   a branch clipped to one character is a guess about which branch an agent is
+   on, which is worse than a clipped project name next to it. */
+.branch-chip__branch {
+  flex: 0 0.1 auto;
+  min-width: 4.5em;
+  color: var(--island-purple);
+}
+
+/* --------------------------------------------------------------------------
+   Queue
+   -------------------------------------------------------------------------- */
+
+/*
+ * The list owns the column track, and each row inherits it through subgrid, so
+ * every branch chip, timestamp, and action button lines up down the column
+ * regardless of how long the row above it is. Rows that each ran their own
+ * grid would give a ragged edge on every boundary.
+ */
+.island-queue {
+  display: grid;
+  grid-template-columns:
+    8px 14px minmax(80px, 1.1fr) minmax(96px, 1.25fr) minmax(64px, 0.9fr) 14px auto auto;
+  align-content: start;
+  max-height: 264px;
+  padding-right: 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+.island-queue {
+  column-gap: 9px;
+}
+
+.island-queue::-webkit-scrollbar {
+  width: 6px;
+}
+
+.island-queue::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.island-queue__error {
+  margin: 0 0 6px;
+  overflow: hidden;
+  color: #ff6b72;
+  font-size: var(--fs-meta);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Rows are a grid, not a stack of absolute coordinates, so a long session
+ * title borrows space from its neighbours instead of running under them.
+ */
+.queue-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  height: 30px;
+  padding: 0 6px;
+  border-radius: 8px;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+
+.queue-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.queue-row.is-dimmed {
+  opacity: 0.42;
+}
+
+.queue-row__tone {
+  width: 8px;
+  height: 8px;
+  border: 0.5px solid var(--island-border);
+  border-radius: 50%;
+}
+
+.queue-row__tone--action {
+  background: var(--island-orange);
+}
+
+.queue-row__tone--review {
+  background: var(--island-yellow);
+}
+
+.queue-row__tone--working {
+  background: var(--island-blue);
+}
+
+.queue-row__tone--ready {
+  background: var(--island-success);
+}
+
+.queue-row__tone--muted {
+  background: #4a4a48;
+}
+
+.queue-row__tone--error {
+  background: var(--island-delete);
+}
+
+.queue-row__agent,
+.queue-row__progress {
+  display: block;
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+.queue-row__title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-body);
+  font-weight: 540;
+  letter-spacing: -0.005em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-row__branch {
+  justify-self: stretch;
+}
+
+.queue-row__target {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--island-muted);
+  cursor: pointer;
+  font-size: var(--fs-meta);
+}
+
+.queue-row__target span {
+  overflow: hidden;
+  text-decoration: underline;
+  text-decoration-color: rgba(250, 250, 248, 0.24);
+  text-underline-offset: 2px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-row__target:hover {
+  color: var(--island-text);
+}
+
+.queue-row__link {
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+}
+
+.queue-row__updated {
+  color: var(--island-subdued);
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+}
+
+.queue-row__action {
+  height: 22px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--island-surface-raised);
+  color: var(--island-text);
+  cursor: pointer;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 120ms ease;
+}
+
+.queue-row__action:hover,
+.queue-home__open:hover {
+  background: #2a2a2a;
+}
+
+.queue-row__action:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.queue-row__action:disabled:hover {
+  background: var(--island-surface-raised);
+}
+
+/* --------------------------------------------------------------------------
+   Queue: home and empty
+   -------------------------------------------------------------------------- */
+
+.queue-home {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--island-surface);
+}
+
+.queue-home__hero {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.queue-home__mark {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.queue-home__copy {
+  min-width: 0;
+}
+
+.queue-home__eyebrow {
+  margin: 0 0 3px;
+  overflow: hidden;
+  color: var(--island-muted);
+  font-size: var(--fs-micro);
+  font-weight: 560;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-home__title {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--fs-title);
+  font-weight: 570;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-home__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.queue-home__open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--island-surface-raised);
+  color: var(--island-text);
+  cursor: pointer;
+  font-size: var(--fs-meta);
+  font-weight: 580;
+  white-space: nowrap;
+  transition: background 120ms ease;
+}
+
+.queue-empty {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--island-surface);
+}
+
+.queue-empty .queue-row__tone {
+  grid-row: 1;
+}
+
+.queue-empty__title {
+  grid-row: 1;
+  font-size: var(--fs-title);
+  font-weight: 570;
+}
+
+.queue-empty .queue-row__action {
+  grid-row: 1;
+}
+
+.queue-empty__detail {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  color: var(--island-muted);
+  font-size: var(--fs-meta);
+  line-height: 1.35;
+}
+
+/* --------------------------------------------------------------------------
+   Prompt surfaces
+   -------------------------------------------------------------------------- */
+
+.island-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.island-prompt__panel {
+  border-radius: 14px;
+  background: var(--island-surface);
+}
+
+.prompt-panel,
+.usage-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.prompt-panel__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.prompt-panel__question {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--island-text);
+  font-size: var(--fs-title);
+  font-weight: 540;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
+}
+
+.prompt-panel__error {
+  margin: 0;
+  color: #ff6b72;
+  font-size: var(--fs-meta);
+  line-height: 1.35;
+}
+
+.prompt-nav {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  color: rgba(250, 250, 248, 0.6);
+  font-size: var(--fs-micro);
+  font-weight: 540;
+  line-height: 1;
+}
+
+.prompt-nav__position {
+  padding: 0 1px;
+  white-space: nowrap;
+}
+
+.icon-button {
+  display: grid;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.icon-button:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+.micro-icon {
+  display: block;
+  width: 11px;
+  height: 11px;
+}
+
+.prompt-nav__left {
+  transform: rotate(180deg);
+}
+
+/* --------------------------------------------------------------------------
+   Choice
+   -------------------------------------------------------------------------- */
+
+.choice-list {
+  display: grid;
+  gap: 2px;
+}
+
+.choice-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(250, 250, 248, 0.62);
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.choice-option:hover,
+.choice-option.is-selected {
+  background: var(--island-surface-raised);
+  color: var(--island-text);
+}
+
+.choice-option:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.choice-option__number {
+  display: grid;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--island-muted);
+  font-size: var(--fs-micro);
+  font-weight: 620;
+  line-height: 1;
+}
+
+.choice-option__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-body);
+  font-weight: 540;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.choice-option__badge {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(35, 136, 255, 0.16);
+  color: var(--island-blue);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.choice-option__sending,
+.choice-option__skip {
+  flex: 0 0 auto;
+  color: var(--island-subdued);
+  font-size: var(--fs-micro);
+  font-weight: 560;
+}
+
+.choice-option__arrow {
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+}
+
+.choice-option.is-freeform .choice-option__label {
+  font-style: italic;
+}
+
+/* --------------------------------------------------------------------------
+   Permission
+   -------------------------------------------------------------------------- */
+
+.permission-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--island-black);
+  color: var(--island-muted);
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.permission-context:hover {
+  background: #0d0d0d;
+}
+
+.permission-context__branch {
+  flex: 0 0 auto;
+  background: var(--island-surface-raised);
+}
+
+/*
+ * One truncating line rather than a row of individually squeezed cells. Three
+ * file names each clipped to eight characters tell you nothing; the first name
+ * in full followed by as much of the next as fits tells you what is going on.
+ */
+.permission-context__files {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.permission-context__files > span + span {
+  margin-left: 8px;
+}
+
+.permission-context__command {
+  color: var(--island-text);
+  font-weight: 540;
+}
+
+.permission-context__arrow {
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+}
+
+.permission-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.permission-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 27px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--island-surface-raised);
+  color: var(--island-text);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.permission-button:hover {
+  background: #2a2a2a;
+}
+
+.permission-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.permission-button span {
+  color: var(--island-subdued);
+  font-size: var(--fs-micro);
+  font-weight: 560;
+}
+
+.permission-button strong {
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+
+.permission-pause {
+  display: grid;
+  flex: 0 0 auto;
+  width: 27px;
+  height: 27px;
+  margin-left: auto;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: var(--island-surface-raised);
+  color: var(--island-text);
+  cursor: pointer;
+  font-size: var(--fs-meta);
+  font-weight: 650;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.permission-pause:hover {
+  background: #2a2a2a;
+}
+
+.permission-pause.is-confirming {
+  background: var(--island-delete);
+  color: #fff;
+}
+
+.permission-pause:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.permission-pause img {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+.permission-fallback {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: rgba(251, 132, 4, 0.1);
+}
+
+.permission-fallback > span {
+  flex: 1 1 auto;
+  color: rgba(250, 250, 248, 0.82);
+  font-size: var(--fs-meta);
+  line-height: 1.35;
+}
+
+.permission-fallback__open {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  height: 25px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--island-surface-raised);
+  color: var(--island-text);
+  cursor: pointer;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.permission-fallback__open:hover {
+  background: #2a2a2a;
+}
+
+/* --------------------------------------------------------------------------
+   Steer
+   -------------------------------------------------------------------------- */
+
+.steer-panel__input {
+  width: 100%;
+  min-height: 62px;
+  max-height: 150px;
+  padding: 9px 10px;
+  border: 1px solid var(--island-border);
+  border-radius: 9px;
+  background: var(--island-black);
+  color: var(--island-text);
+  font-size: var(--fs-body);
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.steer-panel__input::placeholder {
+  color: var(--island-subdued);
+}
+
+.steer-panel__input:disabled {
+  opacity: 0.55;
+}
+
+.steer-panel__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--island-subdued);
+  font-size: var(--fs-micro);
+  font-weight: 540;
+}
+
+.steer-panel__footer button {
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--island-blue);
+  color: #fff;
+  cursor: pointer;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+
+.steer-panel__footer button:disabled {
+  background: var(--island-surface-raised);
+  color: var(--island-subdued);
+  cursor: default;
+}
+
+/* --------------------------------------------------------------------------
+   Usage
+   -------------------------------------------------------------------------- */
+
+.usage-panel {
+  border-radius: 14px;
+  background: var(--island-surface);
+}
+
+.usage-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.usage-panel__logo {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+}
+
+.usage-panel__plan {
+  flex: 0 0 auto;
+  font-size: var(--fs-title);
+  font-weight: 590;
+  letter-spacing: -0.01em;
+}
+
+.usage-panel__account {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--island-muted);
+  font-size: var(--fs-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-panel__spacer {
+  flex: 1 1 auto;
+}
+
+.usage-panel__sessions-label {
+  flex: 0 0 auto;
+  color: var(--island-muted);
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+}
+
+.usage-panel__count {
+  display: grid;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1.5px solid var(--island-blue);
+  border-radius: 7px;
+  font-size: var(--fs-micro);
+  font-weight: 620;
+  line-height: 1;
+}
+
+.usage-panel__limits {
+  display: grid;
+  gap: 10px;
+}
+
+.usage-panel__unavailable {
+  margin: 0;
+  color: var(--island-muted);
+  font-size: var(--fs-meta);
+  line-height: 1.35;
+}
+
+.usage-limit {
+  display: grid;
+  gap: 6px;
+}
+
+.usage-limit__copy {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--fs-meta);
+}
+
+.usage-limit__label {
+  flex: 0 0 auto;
+  color: var(--island-text);
+  font-weight: 580;
+}
+
+.usage-limit__percent {
+  flex: 0 0 auto;
+  color: var(--island-muted);
+}
+
+.usage-limit__reset {
+  flex: 1 1 auto;
+  color: var(--island-subdued);
+  font-size: var(--fs-micro);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.usage-limit__track {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.usage-limit__track > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--island-blue);
+  transition: width 260ms ease;
+}
+
+/* The mini chevron exports are up-arrows at a 8.04:4.79 ratio, and the SVGs
+   set preserveAspectRatio="none", so the box has to carry the proportion. */
+.usage-chevron {
+  display: block;
+  width: 9px;
+  height: 5.5px;
+}
+
+.usage-chevron--left {
+  transform: rotate(-90deg);
+}
+
+.usage-chevron--right {
+  transform: rotate(90deg);
+}
+
+/* --------------------------------------------------------------------------
+   Reduced motion
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .island-tab,
+  .island-ticker,
+  .queue-row,
+  .queue-row__action,
+  .choice-option,
+  .permission-button,
+  .permission-pause,
+  .usage-limit__track > span {
+    transition: none;
+  }
+}
+
+/* ==========================================================================
+   Browser state lab
+   --------------------------------------------------------------------------
+   Not shipped in the desktop app. It parks the same island on a mock desktop
+   so surfaces can be reviewed without a running daemon.
+   ========================================================================== */
+
+.prototype-shell {
+  min-height: 100vh;
+}
+
+.desktop-stage {
+  position: relative;
+  min-height: 460px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 36%, rgba(255, 255, 255, 0.12), transparent 31%),
+    linear-gradient(125deg, #ffad55 0%, var(--stage-orange) 48%, #ff8d3a 100%);
+  border-radius: 0 0 28px 28px;
+}
+
+.desktop-stage__grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.2;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.06'/%3E%3C/svg%3E");
+}
+
+.desktop-stage__island {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 2;
+  padding: 0 var(--island-fillet);
+  transform: translateX(-50%);
+}
+
+.desktop-stage__hint {
+  position: absolute;
+  top: 300px;
+  left: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+  color: rgba(250, 250, 248, 0.76);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.26px;
+  transition: opacity 160ms ease;
+}
+
+.desktop-stage:has(.kennel-island:not(.kennel-island--compact)) .desktop-stage__hint {
+  opacity: 0;
+}
+
+.desktop-stage__caption {
+  position: absolute;
+  right: 22px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(42, 19, 3, 0.68);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(12px);
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #1f9d55;
+  box-shadow: 0 0 0 3px rgba(31, 157, 85, 0.14);
+}
+
+.state-lab {
+  width: min(1040px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 44px 0 64px;
+}
+
+.state-lab__intro {
+  display: grid;
+  grid-template-columns: 1fr minmax(320px, 540px);
+  align-items: end;
+  gap: 56px;
+  margin-bottom: 28px;
+}
+
+.state-lab__eyebrow {
+  margin: 0 0 7px;
+  color: #7c7c78;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.state-lab h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 570;
+  letter-spacing: -0.035em;
+}
+
+.state-lab__intro > p {
+  margin: 0;
+  color: #8e8e89;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.scenario-picker {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.scenario-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 68px;
+  padding: 13px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  background: #151515;
+  color: #d8d8d5;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.scenario-card:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: #1a1a1a;
+}
+
+.scenario-card.is-active {
+  border-color: rgba(35, 136, 255, 0.5);
+  background: #182130;
+  color: var(--island-text);
+}
+
+.scenario-card span {
+  font-size: 13px;
+  font-weight: 570;
+}
+
+.scenario-card small {
+  color: #85857f;
+  font-size: 11px;
+}
+
+.state-lab__tip {
+  margin: 20px 0 0;
+  color: #7c7c78;
+  font-size: 12px;
+}
+
+.desktop-stage__media-toggle {
+  position: absolute;
+  bottom: 20px;
+  left: 22px;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(42, 19, 3, 0.78);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  backdrop-filter: blur(12px);
+}

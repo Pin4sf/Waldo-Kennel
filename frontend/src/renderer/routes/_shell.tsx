@@ -5,6 +5,7 @@ import { CommandPalette } from "../components/CommandPalette";
 import { CenterPanelShell } from "../components/CenterPanelShell";
 import { DaemonFailureBanner } from "../components/DaemonFailureBanner";
 import { NotificationRuntime } from "../components/NotificationCenter";
+import { OnboardingTour } from "../components/OnboardingTour";
 import { TrayRuntime } from "../components/TrayRuntime";
 import { GlobalNewTaskDialog } from "../components/GlobalNewTaskDialog";
 import { SettingsDialog } from "../components/SettingsDialog";
@@ -656,6 +657,7 @@ function ShellLayout() {
 		<ShellProvider value={{ daemonStatus, workspaceStartupState, createProject, initializeProjectRepository }}>
 			<SessionTopbarProvider>
 				<NotificationRuntime />
+				<OnboardingTour daemonReady={daemonStatus.state === "ready"} />
 				<TrayRuntime />
 				<GlobalNewTaskDialog />
 				<SettingsDialog />

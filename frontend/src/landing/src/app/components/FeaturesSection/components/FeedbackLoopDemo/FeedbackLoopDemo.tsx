@@ -39,9 +39,9 @@ const ACTION_MARKER = "*";
 const RESULT_MARKER = "L";
 
 const status = {
-	working: "#60a5fa",
-	needsYou: "#fb923c",
-	ready: "#4ade80",
+	working: "#2388ff",
+	needsYou: "#fb8404",
+	ready: "#00cc6e",
 	idle: "oklch(0.705 0.015 286.067)",
 	exited: "oklch(0.704 0.191 22.216)",
 } as const;

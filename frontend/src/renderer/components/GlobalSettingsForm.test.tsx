@@ -28,6 +28,10 @@ const {
 	getKeybindings,
 	setKeybindings,
 	setKeybindingRecording,
+	getIslandState,
+	setIslandVisible,
+	openIslandSettings,
+	onIslandState,
 } = vi.hoisted(() => ({
 	getUpdate: vi.fn(),
 	setUpdate: vi.fn(),
@@ -49,6 +53,10 @@ const {
 	getKeybindings: vi.fn(),
 	setKeybindings: vi.fn(),
 	setKeybindingRecording: vi.fn(),
+	getIslandState: vi.fn(),
+	setIslandVisible: vi.fn(),
+	openIslandSettings: vi.fn(),
+	onIslandState: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -70,6 +78,12 @@ vi.mock("../lib/bridge", () => ({
 			get: getKeybindings,
 			set: setKeybindings,
 			setRecording: setKeybindingRecording,
+		},
+		island: {
+			getState: getIslandState,
+			setVisible: setIslandVisible,
+			openSettings: openIslandSettings,
+			onState: onIslandState,
 		},
 		updates: {
 			getStatus: updGetStatus,
@@ -115,6 +129,10 @@ beforeEach(async () => {
 		getKeybindings,
 		setKeybindings,
 		setKeybindingRecording,
+		getIslandState,
+		setIslandVisible,
+		openIslandSettings,
+		onIslandState,
 	]) {
 		m.mockReset();
 	}
@@ -139,6 +157,15 @@ beforeEach(async () => {
 	getKeybindings.mockResolvedValue({});
 	setKeybindings.mockImplementation(async (overrides) => overrides);
 	setKeybindingRecording.mockResolvedValue(undefined);
+	getIslandState.mockResolvedValue({ supported: true, enabled: true, visible: true, shortcut: "⌘`" });
+	setIslandVisible.mockImplementation(async (visible: boolean) => ({
+		supported: true,
+		enabled: visible,
+		visible,
+		shortcut: "⌘`",
+	}));
+	openIslandSettings.mockResolvedValue({ open: true });
+	onIslandState.mockReturnValue(() => undefined);
 	// Locale defaults to English so existing copy assertions stay green.
 	await appI18n.changeLanguage("en");
 	useLocaleStore.setState({ locale: "en", loaded: false, saving: false, saveError: false });
@@ -167,6 +194,30 @@ describe("GlobalSettingsForm", () => {
 		for (const row of [connectMobile, keyboardShortcuts]) {
 			expect(row).toHaveClass("settings-row-bar", "settings-link-row");
 		}
+	});
+
+	it("updates Island visibility immediately and opens its detailed settings", async () => {
+		const user = userEvent.setup();
+		renderForm();
+
+		const toggle = await screen.findByRole("switch", { name: "Show Island" });
+		expect(toggle).toHaveAttribute("aria-checked", "true");
+
+		await user.click(toggle);
+		expect(toggle).toHaveAttribute("aria-checked", "false");
+		expect(setIslandVisible).toHaveBeenCalledWith(false);
+
+		await user.click(screen.getByRole("button", { name: "Open Island settings" }));
+		expect(openIslandSettings).toHaveBeenCalledTimes(1);
+	});
+
+	it("disables Island controls with clear copy on unsupported hardware", async () => {
+		getIslandState.mockResolvedValue({ supported: false, enabled: false, visible: false, shortcut: "⌘`" });
+		renderForm();
+
+		expect(await screen.findByRole("switch", { name: "Show Island" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Open Island settings" })).toBeDisabled();
+		expect(screen.getByText("Island is available on Macs with a built-in display notch.")).toBeInTheDocument();
 	});
 
 	it("persists Developer Mode and reveals Feature Releases", async () => {

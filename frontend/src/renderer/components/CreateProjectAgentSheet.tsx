@@ -25,6 +25,7 @@ import type { ProjectKind } from "../types/workspace";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { appI18n } from "../i18n";
+import { useUiStore } from "../stores/ui-store";
 
 type TrackerIntakeConfig = components["schemas"]["TrackerIntakeConfig"];
 
@@ -117,6 +118,7 @@ export function CreateProjectAgentSheet({
 	const agents = agentsQuery.data;
 	const installedAgents = agents?.installed ?? [];
 	const agentOptions = agents?.authorized ?? [];
+	const preferredAgentId = useUiStore((state) => state.defaultAgentId);
 	const supportedAgents = agents?.supported ?? [];
 	const isLoadingAgents = agents === undefined && agentsQuery.isFetching;
 	const agentsError = agentsQuery.isError
@@ -150,10 +152,10 @@ export function CreateProjectAgentSheet({
 
 	useEffect(() => {
 		if (!open) return;
-		const defaultAgent = defaultAuthorizedAgent(agentOptions);
+		const defaultAgent = preferredDefaultAgent(agentOptions, preferredAgentId);
 		if (!workerAgentTouched) setWorkerAgent(defaultAgent);
 		if (!orchestratorAgentTouched) setOrchestratorAgent(defaultAgent);
-	}, [agentOptions, open, orchestratorAgentTouched, workerAgentTouched]);
+	}, [agentOptions, open, orchestratorAgentTouched, preferredAgentId, workerAgentTouched]);
 
 	useEffect(() => {
 		if (!open) {
@@ -520,4 +522,16 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 
 export function defaultAuthorizedAgent(authorizedAgents: AgentInfo[]): string {
 	return authorizedAgents.some((agent) => agent.id === "codex") ? "codex" : "";
+}
+
+/**
+ * The agent a person chose in the setup tour wins over the built-in preference,
+ * but only while it is still authorized here — a stored pick for an agent that
+ * has since been uninstalled would seed a form that cannot be submitted.
+ */
+export function preferredDefaultAgent(authorizedAgents: AgentInfo[], preferredAgentId: string): string {
+	if (preferredAgentId && authorizedAgents.some((agent) => agent.id === preferredAgentId)) {
+		return preferredAgentId;
+	}
+	return defaultAuthorizedAgent(authorizedAgents);
 }

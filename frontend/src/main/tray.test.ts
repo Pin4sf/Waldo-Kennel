@@ -99,9 +99,9 @@ describe("createTrayController", () => {
 		expect(tray.title).toBe("2");
 		expect(tray.tooltip).toBe("2 sessions need attention");
 		const labels = tray.template.map((i) => i.label);
-		expect(labels).toContain("Ready to merge");
+		expect(labels).toContain("Ready");
 		expect(labels).toContain("Needs you");
-		expect(labels.indexOf("Ready to merge")).toBeLessThan(labels.indexOf("Needs you"));
+		expect(labels.indexOf("Ready")).toBeLessThan(labels.indexOf("Needs you"));
 		expect(sessionItems(tray).map((i) => i.label)).toEqual(["ready  ·  note-tauri", "needs you  ·  note-tauri"]);
 	});
 

@@ -43,9 +43,9 @@ const ACTION_MARKER = "*";
 const RESULT_MARKER = "L";
 
 const status = {
-	working: "#60a5fa",
-	needsYou: "#fb923c",
-	ready: "#4ade80",
+	working: "#2388ff",
+	needsYou: "#fb8404",
+	ready: "#00cc6e",
 	idle: "oklch(0.705 0.015 286.067)",
 	exited: "oklch(0.704 0.191 22.216)",
 } as const;
@@ -138,7 +138,7 @@ const workersByProject: Record<ProjectId, Record<WorkerId, Worker>> = {
 			branch: "ao/ao-12/auth-flow",
 			path: "~/ao/ao-12/auth-flow",
 			statusLabel: "In review",
-			statusTone: "#facc15",
+			statusTone: "#fbbc04",
 			breathe: true,
 			railTitle: "Cover callback flow end-to-end",
 			railSubtitle: "PR is open and checks are running.",
@@ -176,7 +176,7 @@ const workersByProject: Record<ProjectId, Record<WorkerId, Worker>> = {
 			branch: "ao/ao-14/digest-queries",
 			path: "~/ao/ao-14/digest-queries",
 			statusLabel: "In review",
-			statusTone: "#facc15",
+			statusTone: "#fbbc04",
 			breathe: true,
 			railTitle: "Cover digest query edges",
 			railSubtitle: "PR is up and checks are pending.",
@@ -226,7 +226,7 @@ const workersByProject: Record<ProjectId, Record<WorkerId, Worker>> = {
 			branch: "ao/ao-16/launch-docs",
 			path: "~/ao/ao-16/launch-docs",
 			statusLabel: "In review",
-			statusTone: "#facc15",
+			statusTone: "#fbbc04",
 			breathe: true,
 			railTitle: "Update launch checklist",
 			railSubtitle: "Docs branch is ready for review.",
@@ -415,7 +415,7 @@ const SCRIPT: Step[] = [
 	{ type: "line", session: "codex", tone: "fg", text: "Bash(gh pr create --fill)", marker: "⏺" },
 	{ type: "pause", ms: 180 },
 	{ type: "line", session: "codex", tone: "dim", text: "Opened PR #52", marker: "⎿" },
-	{ type: "sessionStatus", session: "codex", label: "In review", tone: "#facc15", breathe: true },
+	{ type: "sessionStatus", session: "codex", label: "In review", tone: "#fbbc04", breathe: true },
 	{ type: "pause", ms: 520 },
 	{ type: "cursor", target: "session-cursor", click: true },
 	{ type: "switch", session: "cursor" },
@@ -514,7 +514,7 @@ const SCRIPT: Step[] = [
 	{ type: "line", session: "codex", tone: "fg", text: "Bash(gh pr create --fill)", marker: "⏺" },
 	{ type: "pause", ms: 160 },
 	{ type: "line", session: "codex", tone: "dim", text: "Opened PR #67", marker: "⎿" },
-	{ type: "sessionStatus", session: "codex", label: "In review", tone: "#facc15", breathe: true },
+	{ type: "sessionStatus", session: "codex", label: "In review", tone: "#fbbc04", breathe: true },
 	{ type: "pause", ms: 480 },
 	{ type: "cursor", target: "session-cursor", click: true },
 	{ type: "switch", session: "cursor" },
@@ -604,7 +604,7 @@ const SCRIPT: Step[] = [
 	{ type: "pause", ms: 1010 },
 	{ type: "blank", session: "cursor" },
 	{ type: "line", session: "cursor", tone: "dim", text: "Docs branch ready for review", marker: "⎿" },
-	{ type: "sessionStatus", session: "cursor", label: "In review", tone: "#facc15", breathe: true },
+	{ type: "sessionStatus", session: "cursor", label: "In review", tone: "#fbbc04", breathe: true },
 	{ type: "pause", ms: 1200 },
 	{ type: "reset" },
 ];
@@ -825,18 +825,18 @@ export function DelegationDemo() {
 			setStatusesByProject({
 				"solkit-ui": {
 					claude: { label: "Ready", tone: status.ready, breathe: false },
-					codex: { label: "In review", tone: "#facc15", breathe: true },
+					codex: { label: "In review", tone: "#fbbc04", breathe: true },
 					cursor: { label: "Needs input", tone: status.needsYou, breathe: true },
 				},
 				"metrics-api": {
 					claude: { label: "Ready", tone: status.ready, breathe: false },
-					codex: { label: "In review", tone: "#facc15", breathe: true },
+					codex: { label: "In review", tone: "#fbbc04", breathe: true },
 					cursor: { label: "Ready", tone: status.ready, breathe: false },
 				},
 				"northstar-web": {
 					claude: { label: "Ready", tone: status.ready, breathe: false },
 					codex: { label: "Needs input", tone: status.needsYou, breathe: true },
-					cursor: { label: "In review", tone: "#facc15", breathe: true },
+					cursor: { label: "In review", tone: "#fbbc04", breathe: true },
 				},
 			});
 			setLinesBySession({

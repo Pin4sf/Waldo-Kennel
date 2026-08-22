@@ -19,7 +19,7 @@ const T = {
 	input: "var(--preview-input)",
 	hover: "var(--preview-sidebar-hover)",
 	selected: "var(--preview-sidebar-accent)",
-	warning: "#fb923c",
+	warning: "#fb8404",
 } as const;
 
 const AGENTS = PROJECT_AGENT_MENU_OPTIONS;
@@ -359,10 +359,10 @@ type BoardCardData = {
 };
 
 const COLUMN_CONFIG: { id: string; title: string; color: string }[] = [
-	{ id: "working", title: "Pending Work", color: "#60a5fa" },
+	{ id: "working", title: "Pending Work", color: "#2388ff" },
 	{ id: "staging", title: "Iterating", color: "#a78bfa" },
-	{ id: "in_review", title: "In Review", color: "#facc15" },
-	{ id: "merge", title: "Ready to merge", color: "#4ade80" },
+	{ id: "in_review", title: "In Review", color: "#fbbc04" },
+	{ id: "merge", title: "Ready to merge", color: "#00cc6e" },
 ];
 
 function BoardCard({ card }: { card: BoardCardData }) {

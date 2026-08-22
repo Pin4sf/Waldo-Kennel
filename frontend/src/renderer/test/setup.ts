@@ -91,6 +91,22 @@ if (typeof window !== "undefined") {
 			isFullScreen: async () => false,
 			onFullScreen: () => () => undefined,
 		},
+		island: {
+			getState: async () => ({
+				supported: false,
+				enabled: false,
+				visible: false,
+				shortcut: "⌘`",
+			}),
+			setVisible: async (visible: boolean) => ({
+				supported: false,
+				enabled: visible,
+				visible: false,
+				shortcut: "⌘`",
+			}),
+			openSettings: async () => ({ open: false }),
+			onState: () => () => undefined,
+		},
 		theme: {
 			set: async () => undefined,
 		},

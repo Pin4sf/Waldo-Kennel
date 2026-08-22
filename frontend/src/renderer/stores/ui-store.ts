@@ -27,6 +27,8 @@ export type SettingsModal =
 
 /** Worker detail view toggles — Changes (Git rail) is the default. */
 export type WorkbenchTab = "changes" | "files" | "terminal";
+/** Board or List reading of the same session lanes. */
+export type SessionsViewMode = "board" | "list";
 export type InspectorView = "summary" | "reviews" | "browser" | "files";
 
 export type InspectorSessionState = {
@@ -44,6 +46,15 @@ export type InspectorSessionState = {
 // state, and the active workbench tab within a session.
 type UiState = {
 	workbenchTab: WorkbenchTab;
+	/** Which reading of the sessions lanes is showing. Sticky across launches:
+	 *  a person picks board or list once and expects it to stay picked. */
+	sessionsViewMode: SessionsViewMode;
+	/** Agent seeded into new project and session forms. Empty means "let the app
+	 *  pick", which is what a person who skipped the setup tour gets. */
+	defaultAgentId: string;
+	/** The setup tour has run to the end (or been skipped) at least once. */
+	hasCompletedOnboarding: boolean;
+	isOnboardingOpen: boolean;
 	isSidebarOpen: boolean;
 	inspectorSessions: Record<string, InspectorSessionState>;
 	isCommandPaletteOpen: boolean;
@@ -83,6 +94,10 @@ type UiState = {
 	// need that distinction, and SessionView's own target is local state.
 	visibleTerminalKindBySession: Record<string, TerminalTarget["kind"]>;
 	setWorkbenchTab: (tab: WorkbenchTab) => void;
+	setSessionsViewMode: (mode: SessionsViewMode) => void;
+	setDefaultAgentId: (agentId: string) => void;
+	openOnboarding: () => void;
+	closeOnboarding: () => void;
 	setThemePreference: (theme: ThemePreference) => void;
 	setThemeStyle: (style: ThemeStyle) => void;
 	setDeveloperMode: (enabled: boolean) => void;
@@ -116,6 +131,9 @@ export type OrchestratorReplacementFailure = {
 };
 
 const sidebarStorageKey = "kennel.sidebar.open";
+const sessionsViewModeStorageKey = "kennel.sessions.viewMode";
+const defaultAgentStorageKey = "kennel.agent.default";
+const onboardingStorageKey = "kennel.onboarding.completed";
 const developerModeStorageKey = "kennel.developerMode";
 function getLocalStorage() {
 	if (typeof window === "undefined" || !window.localStorage) return null;
@@ -124,6 +142,18 @@ function getLocalStorage() {
 
 function initialSidebarOpen() {
 	return getLocalStorage()?.getItem(sidebarStorageKey) !== "false";
+}
+
+function initialSessionsViewMode(): SessionsViewMode {
+	return getLocalStorage()?.getItem(sessionsViewModeStorageKey) === "list" ? "list" : "board";
+}
+
+function initialDefaultAgentId() {
+	return getLocalStorage()?.getItem(defaultAgentStorageKey) ?? "";
+}
+
+function initialHasCompletedOnboarding() {
+	return getLocalStorage()?.getItem(onboardingStorageKey) === "true";
 }
 
 function initialDeveloperMode() {
@@ -139,6 +169,10 @@ const initialThemeStyle = readStoredThemeStyle();
 
 export const useUiStore = create<UiState>((set, get) => ({
 	workbenchTab: "changes",
+	sessionsViewMode: initialSessionsViewMode(),
+	defaultAgentId: initialDefaultAgentId(),
+	hasCompletedOnboarding: initialHasCompletedOnboarding(),
+	isOnboardingOpen: false,
 	isSidebarOpen: initialSidebarOpen(),
 	inspectorSessions: {},
 	isCommandPaletteOpen: false,
@@ -156,6 +190,21 @@ export const useUiStore = create<UiState>((set, get) => ({
 	activeShellTerminalHandleId: null,
 	visibleTerminalKindBySession: {},
 	setWorkbenchTab: (workbenchTab) => set({ workbenchTab }),
+	setSessionsViewMode: (sessionsViewMode) => {
+		getLocalStorage()?.setItem(sessionsViewModeStorageKey, sessionsViewMode);
+		set({ sessionsViewMode });
+	},
+	setDefaultAgentId: (defaultAgentId) => {
+		getLocalStorage()?.setItem(defaultAgentStorageKey, defaultAgentId);
+		set({ defaultAgentId });
+	},
+	openOnboarding: () => set({ isOnboardingOpen: true }),
+	// Closing is the completion event whichever exit was used: a person who
+	// dismisses the tour has answered it, and should not meet it again on relaunch.
+	closeOnboarding: () => {
+		getLocalStorage()?.setItem(onboardingStorageKey, "true");
+		set({ isOnboardingOpen: false, hasCompletedOnboarding: true });
+	},
 	setThemePreference: (themePreference) => {
 		if (get().themePreference === themePreference) return;
 		runThemeTransition(() => {

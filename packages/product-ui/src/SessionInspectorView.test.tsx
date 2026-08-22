@@ -203,7 +203,7 @@ describe("portable inspector presentations", () => {
     expect(events[0].querySelector(".animate-status-pulse")).toHaveStyle({
       background: "#60a5fa",
     });
-    expect(screen.getByText("2h ago")).toHaveClass("font-mono", "text-passive");
+    expect(screen.getByText("2h ago")).toHaveClass("text-2xs", "text-passive");
   });
 
   it("owns grouped review disclosure while the host supplies markdown and assets", () => {

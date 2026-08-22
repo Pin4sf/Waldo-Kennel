@@ -104,6 +104,11 @@ beforeEach(() => {
 	boardActionsInPanelMock.mockReset().mockReturnValue(false);
 });
 
+/** The lane dot sits beside its truncating label, not inside it. */
+function laneDot(label: HTMLElement) {
+	return label.parentElement?.querySelector('[aria-hidden="true"]') ?? null;
+}
+
 describe("SessionsBoard", () => {
 	it("localizes dynamic card actions and pull request lifecycle labels", async () => {
 		await appI18n.changeLanguage("zh-CN");
@@ -242,7 +247,8 @@ describe("SessionsBoard", () => {
 
 		renderBoard();
 
-		expect(screen.getByText("Board")).toBeInTheDocument();
+		// The crumb and the view switch both read "Board" — assert the crumb itself.
+		expect(screen.getByTestId("board-topbar-label")).toHaveTextContent("Board");
 	});
 
 	it("labels an idle session as Idle, not Working", () => {
@@ -281,7 +287,7 @@ describe("SessionsBoard", () => {
 		expect(terminateButton).toHaveClass("opacity-0", "group-hover:opacity-100", "group-focus-within:opacity-100");
 		expect(terminateButton.querySelector("svg")).toHaveClass("lucide-trash-2");
 		expect(within(idleCard).getByText("Idle").parentElement?.parentElement).toHaveClass("flex");
-		expect(within(idleCard).getByText("brand-font-pipeline")).toHaveClass("font-semibold", "line-clamp-2");
+		expect(within(idleCard).getByText("brand-font-pipeline")).toHaveClass("font-medium", "line-clamp-3");
 	});
 
 	it("shows compact token usage on active and archived cards and hides empty totals", async () => {
@@ -494,7 +500,8 @@ describe("SessionsBoard", () => {
 		renderBoard("p1");
 
 		const needsYouColumn = screen.getByText("Needs you").closest("section") as HTMLElement;
-		expect(needsYouColumn.firstElementChild).toHaveClass("h-12");
+		expect(needsYouColumn).toHaveClass("rounded-group", "column-shell");
+		expect(needsYouColumn.firstElementChild).toHaveClass("items-center", "justify-between");
 		expect(within(needsYouColumn).getByText("agent-exited-task")).toBeInTheDocument();
 		expect(within(needsYouColumn).getByText("Exited").parentElement).toHaveClass("text-status-exited");
 	});
@@ -552,11 +559,11 @@ describe("SessionsBoard", () => {
 		const reviewRegion = screen.getByRole("region", { name: "In review sessions" });
 		const workSummary = within(workLane).getByRole("group", { name: "Idle / Working lane summary" });
 
-		expect(within(workSummary).getByText("Idle").querySelector("span")).toHaveClass("bg-status-idle");
-		expect(within(workSummary).getByText("Working").querySelector("span")).toHaveClass("bg-status-working");
-		expect(workSummary).toHaveClass("font-mono", "text-2xs", "uppercase");
-		expect(workSummary.parentElement).toHaveClass("h-12");
-		expect(workingRegion.firstElementChild).toHaveClass("py-2.5");
+		expect(laneDot(within(workSummary).getByText("Idle"))).toHaveClass("bg-status-idle");
+		expect(laneDot(within(workSummary).getByText("Working"))).toHaveClass("bg-status-working");
+		expect(workSummary).toHaveClass("text-sm", "font-medium");
+		expect(workSummary.parentElement).toHaveClass("items-center", "justify-between");
+		expect(workingRegion.firstElementChild).toHaveClass("py-0.75");
 		expect(within(workLane).getByLabelText("2 idle sessions")).toHaveTextContent("2");
 		expect(within(workLane).getByLabelText("1 working session")).toHaveTextContent("1");
 		expect(screen.queryByRole("button", { name: /idle sessions/i })).not.toBeInTheDocument();
@@ -826,11 +833,10 @@ describe("SessionsBoard", () => {
 			"https://github.com/example/radic/pull/42",
 		);
 		expect(within(terminatedCard!).getByRole("button", { name: "Copy branch ao/dead-worker" })).toBeInTheDocument();
-		const divider = terminatedCard!.querySelector("div[aria-hidden='true'].h-px.bg-border");
-		expect(divider).not.toBeNull();
-		expect(divider!.compareDocumentPosition(prStatus) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+		// Provenance leads, review state trails: the card reads whose work this is
+		// before it reads where the work stands.
 		expect(
-			screen.getByText("ao/dead-worker").compareDocumentPosition(divider!) & Node.DOCUMENT_POSITION_FOLLOWING,
+			screen.getByText("ao/dead-worker").compareDocumentPosition(prStatus) & Node.DOCUMENT_POSITION_FOLLOWING,
 		).not.toBe(0);
 		expect(screen.getByRole("button", { name: "Restore dead worker" })).toBeInTheDocument();
 
@@ -1115,11 +1121,11 @@ describe("SessionsBoard", () => {
 
 		renderBoard("p1");
 
-		const mergeLane = screen.getByRole("region", { name: "Ready to merge / Merged sessions" });
+		const mergeLane = screen.getByRole("region", { name: "Ready / Merged sessions" });
 		const mergedRegion = within(mergeLane).getByRole("region", { name: "Merged sessions" });
-		const mergeSummary = within(mergeLane).getByRole("group", { name: "Ready to merge / Merged lane summary" });
-		expect(within(mergeSummary).getByText("Ready to merge").querySelector("span")).toHaveClass("bg-status-ready");
-		expect(within(mergeSummary).getByText("Merged").querySelector("span")).toHaveClass("bg-status-merged");
+		const mergeSummary = within(mergeLane).getByRole("group", { name: "Ready / Merged lane summary" });
+		expect(laneDot(within(mergeSummary).getByText("Ready"))).toHaveClass("bg-status-ready");
+		expect(laneDot(within(mergeSummary).getByText("Merged"))).toHaveClass("bg-status-merged");
 		expect(within(mergeLane).getByLabelText("0 ready to merge sessions")).toHaveTextContent("0");
 		expect(within(mergeLane).getByLabelText("1 merged session")).toHaveTextContent("1");
 		expect(within(mergeLane).queryByRole("region", { name: "Ready to merge sessions" })).not.toBeInTheDocument();
@@ -1151,7 +1157,7 @@ describe("SessionsBoard", () => {
 
 		renderBoard("p1");
 
-		const mergeLane = screen.getByRole("region", { name: "Ready to merge / Merged sessions" });
+		const mergeLane = screen.getByRole("region", { name: "Ready / Merged sessions" });
 		const readyRegion = within(mergeLane).getByRole("region", { name: "Ready to merge sessions" });
 		const mergedRegion = within(mergeLane).getByRole("region", { name: "Merged sessions" });
 		expect(within(mergeLane).getByLabelText("1 ready to merge session")).toHaveTextContent("1");

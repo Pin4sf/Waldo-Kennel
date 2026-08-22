@@ -88,8 +88,8 @@ describe("session presentation", () => {
 	});
 
 	it.each([
-		["approved", "merge", "Ready to merge"],
-		["mergeable", "merge", "Ready to merge"],
+		["approved", "merge", "Ready"],
+		["mergeable", "merge", "Ready"],
 		["needs_input", "action", "Needs you"],
 		["exited", "action", "Needs you"],
 		["no_signal", "action", "Needs you"],
@@ -99,9 +99,9 @@ describe("session presentation", () => {
 		["review_pending", "pending", "In review"],
 		["pr_open", "pending", "In review"],
 		["draft", "pending", "In review"],
-		["working", "working", "Working"],
-		["idle", "working", "Working"],
-		["merged", "merge", "Ready to merge"],
+		["working", "working", "Running"],
+		["idle", "working", "Running"],
+		["merged", "merge", "Ready"],
 		["terminated", "done", "Terminated"],
 	] as const)("maps %s to the %s attention zone", (status, zone, label) => {
 		expect(attentionZone(sessionWith({ status }))).toBe(zone);

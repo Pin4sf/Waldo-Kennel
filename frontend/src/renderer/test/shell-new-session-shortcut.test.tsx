@@ -260,6 +260,10 @@ function emitShortcut() {
 }
 
 beforeEach(() => {
+	// These cover sidebar and shortcut behaviour on a shell a person already set
+	// up. Leaving onboarding unfinished would float the setup tour over every one
+	// of them and swallow the pointer events they assert on.
+	useUiStore.setState({ hasCompletedOnboarding: true, isOnboardingOpen: false });
 	shellMocks.navigate.mockReset();
 	shellMocks.onNewSessionShortcut.mockClear();
 	shellMocks.onKeyboardShortcutsHelp.mockClear();

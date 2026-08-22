@@ -159,14 +159,11 @@ describe("SessionsBoardView", () => {
 			/>,
 		);
 
+		// The state line owns its own row and truncates there; the usage metric
+		// sits in the provenance row and never wraps. Neither can push the other.
 		const statusLabel = screen.getByText("Review pending");
-		const status = statusLabel.parentElement;
-		const metadataRow = status?.parentElement;
 		expect(statusLabel).toHaveClass("min-w-0", "truncate");
-		expect(status).toHaveClass("min-w-0", "flex-1");
-		expect(metadataRow).toHaveClass("flex", "items-center", "gap-2");
-		expect(metadataRow).not.toHaveClass("flex-wrap");
-		expect(screen.getByText("24.6M tok").parentElement).toHaveClass("shrink-0", "whitespace-nowrap");
+		expect(screen.getByText("24.6M tok")).toHaveClass("shrink-0", "whitespace-nowrap");
 	});
 
 	it("keeps archive toggle height and board offset classes in lockstep", () => {

@@ -29,6 +29,13 @@ import type {
 	BrowserAnnotationModeInput,
 	BrowserAnnotationSubmitPayload,
 } from "./shared/browser-annotations";
+import {
+	ISLAND_GET_STATE_CHANNEL,
+	ISLAND_OPEN_SETTINGS_CHANNEL,
+	ISLAND_SET_VISIBLE_CHANNEL,
+	ISLAND_STATE_CHANNEL,
+	type IslandVisibilityState,
+} from "./shared/island";
 
 if (typeof document !== "undefined") {
 	const markNativeBrowserComposition = () => {
@@ -189,6 +196,19 @@ const api = {
 			ipcRenderer.on("window:fullscreen", wrapped);
 			return () => {
 				ipcRenderer.off("window:fullscreen", wrapped);
+			};
+		},
+	},
+	island: {
+		getState: () => ipcRenderer.invoke(ISLAND_GET_STATE_CHANNEL) as Promise<IslandVisibilityState>,
+		setVisible: (visible: boolean) =>
+			ipcRenderer.invoke(ISLAND_SET_VISIBLE_CHANNEL, visible) as Promise<IslandVisibilityState>,
+		openSettings: () => ipcRenderer.invoke(ISLAND_OPEN_SETTINGS_CHANNEL) as Promise<{ open: boolean }>,
+		onState: (listener: (state: IslandVisibilityState) => void) => {
+			const wrapped = (_event: Electron.IpcRendererEvent, state: IslandVisibilityState) => listener(state);
+			ipcRenderer.on(ISLAND_STATE_CHANNEL, wrapped);
+			return () => {
+				ipcRenderer.off(ISLAND_STATE_CHANNEL, wrapped);
 			};
 		},
 	},

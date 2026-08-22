@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
 	SessionCardView,
+	SessionRowView,
 	SessionUsageMetricView,
 	type BoardPullRequestLabels,
 	type BoardSessionPresentation,
@@ -110,6 +111,50 @@ export function BoardSessionCardAdapter({
 			onTerminate={onTerminate}
 			session={session}
 			usage={usage}
+		/>
+	);
+}
+
+/**
+ * The list view's row. It shares the card's data and labels wholesale — the two
+ * views must never disagree about what a session says — and differs only in
+ * layout and in trading the card's inline actions for a single open affordance.
+ */
+export function BoardSessionRowAdapter({
+	onOpen,
+	session,
+	usage,
+}: {
+	onOpen: () => void;
+	session: WorkspaceSession;
+	usage?: SessionUsageSummary;
+}) {
+	const { t } = useTranslation();
+	const summaries = sessionPRDisplaySummaries(session, useSessionScmSummary(session.id).data);
+	const termination = useTerminateSessionState(session.id);
+	const translate: ProductUITranslator = (key, values) => t(key as MessageKey, values);
+	return (
+		<SessionRowView
+			branchIcon={<GitBranch aria-hidden="true" className="size-icon-2xs shrink-0" />}
+			error={termination.error ?? undefined}
+			externalLink={ProductExternalLink}
+			labels={{
+				formatTime: formatTimeCompact,
+				intakeIssue: (id) => t("shell.intakeIssue", { id }),
+				pr: pullRequestLabels(t),
+				updatedAt: (time) => t("shell.updatedAt", { time }),
+			}}
+			onOpen={onOpen}
+			prs={summaries.map((pr) => ({
+				number: pr.number,
+				state: pr.state,
+				url: prBrowserUrl(pr),
+			}))}
+			renderAvatar={(provider) => <AgentAvatar provider={provider} />}
+			renderUsage={(presentation) => <DesktopUsageMetric usage={presentation} />}
+			session={toBoardSessionPresentation(session, t)}
+			translate={translate}
+			usage={toUsagePresentation(usage, t)}
 		/>
 	);
 }
