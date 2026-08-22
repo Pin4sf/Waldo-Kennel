@@ -451,7 +451,7 @@ Pause or falsify the wedge when coordination cost is not lower, users routinely 
 
 ### Feature branches
 
-- Every product slice starts from current `origin/main` in a separate worktree.
+- Every product slice starts from current `origin/beta` in a separate worktree and opens its PR back to `beta`; promotion to `main` is a separate tested maintainer action.
 - One issue and one end-to-end vertical boundary per PR.
 - Work uses five stage-aligned PRs—Enter, Understand, Decide & Authorize, Act & Observe, Prove & Close—and each owns every daemon/domain/storage/CDC/API/UI/recovery/evaluation change its truth boundary requires.
 - Home/Personal Agent uses separate vertical PRs for shell/fixtures; PersonalHome/OpenLoop/Quick Capture; Today/Catch Up/detail/closure; Home-to-Work/shared intake; required screen/audio capture; and candidate-memory review/retrieval evaluation.

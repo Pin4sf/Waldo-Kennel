@@ -21,7 +21,7 @@ Parallel implementation increases collision and truth-ownership risk. It must no
 
 ### Parallel lanes
 
-Work and Home/Personal Agent implementation may proceed in parallel from current `main` in separate issue-specific worktrees.
+Work and Home/Personal Agent implementation may proceed in parallel in separate issue-specific worktrees. Under the current integration policy, each issue branch starts from the latest `origin/beta` and opens its PR back to `beta`; tested promotion to `main` remains separate.
 
 The Work lane retains the locked Local Focus Ledger scope and owns:
 
