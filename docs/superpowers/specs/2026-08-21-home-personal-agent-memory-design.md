@@ -27,6 +27,10 @@ The memory invariant is:
 7. `MemoryCandidate`, `OpenLoop`, `Outcome`, `AgentSessionRef`, `EvidenceItem`, `VerificationRun`, and `AcceptanceDecision` stay distinct.
 8. The Work Local Focus Ledger keeps its original scope and evaluation contract. Parallel Home work does not add Home concepts to Work migrations or APIs.
 9. Durable admitted Memory remains behind a separate admission, privacy, deletion, threat-model, and evaluation gate. The Home lane may implement observations, episodes, candidates, review, and retrieval fixtures before that gate.
+10. The provisional Home v0 has five stable destinations: Today, Open Loops, Memory, Daily Close, and History. Catch Up is a contextual review flow launched from Today, not a sixth destination.
+11. This information architecture is a buildable prototype contract, not a permanent visual design. Product use may redesign navigation, layout, and grouping without changing canonical responsibility, provenance, admission, or authority boundaries.
+12. Quick Capture and governed ambient capture are shared Waldo capabilities, not Today-owned behavior. Today presents the expanded explicit composer; enabled ambient capture continues independently of the open destination.
+13. Daily Close closes a review interval, not a responsibility. History is a derived continuity projection, not a second event store or a product rendering of raw `change_log` rows.
 
 ## 3. Product scope
 
@@ -38,6 +42,8 @@ The memory invariant is:
 - Catch Up;
 - Quick Capture;
 - confirmed Open Loops and Open Loop detail;
+- Daily Close and exact tomorrow re-entry;
+- continuity-first History with optional activity and audit drill-down;
 - Waiting, Ready to Close, close, release, reopen, and transfer dispositions;
 - explicit Home-to-Work linking;
 - screen and audio capture controls and ingestion;
@@ -59,6 +65,66 @@ The memory invariant is:
 - automatic skill promotion from traces.
 
 ## 4. User experience
+
+### Provisional v0 information architecture
+
+The first working Home prototype optimizes for learning rather than visual finality. It must make the complete loop usable and truthful, while keeping layout, styling, density, and grouping easy to replace after dogfood.
+
+The desktop Home shell provides:
+
+- a stable Home/Work destination switch;
+- direct navigation to Today, Open Loops, Memory, Daily Close, and History;
+- a persistent Quick Capture action;
+- one main content region;
+- one shared source/provenance inspector opened only when the user requests detail;
+- explicit empty, partial, capture-off, stale, and offline states shared across the five destinations.
+
+`/home` opens Today. The other stable destinations use `/home/open-loops`, `/home/memory`, `/home/daily-close`, and `/home/history`. Catch Up is restartable Today state rather than permanent navigation. On desktop v0, navigation stays in the adaptive sidebar; a floating mobile-style bottom bar is not part of this slice.
+
+The shell does not add widgets, personalization, scoring, a graph canvas, a Kanban board, or user-configurable dashboards. Those would add structure before real use demonstrates a need.
+
+### Five destination contracts
+
+| Destination | Primary question | Minimum v0 content | Explicit exclusion |
+| --- | --- | --- | --- |
+| **Today** | What matters now? | Expanded Quick Capture, concise brief, material Catch Up entry, Open Loops needing attention, recent Outcome facts, source freshness/gaps, and Daily Close entry. | Raw activity feed, every responsibility, or background-agent controls. |
+| **Open Loops** | What confirmed responsibility remains unresolved? | Searchable list, Waiting and Ready to Close views, owner, meaning, trigger, recheck condition, provenance, related Work Outcomes, and explicit dispositions. | Inferred TODOs or provider/session completion presented as closure. |
+| **Memory** | What context is Waldo proposing or permitted to retain? | Candidate review queue, source spans, uncertainty/sensitivity, correct, reject, defer, and admitted-revision state only when the durable Memory gate has passed. | An automatic profile, personality score, or ambient observations presented as admitted truth. |
+| **Daily Close** | What became true, what remains open, and where should tomorrow resume? | Activity-backed reconstruction, known gaps, source inspection, explicit corrections, unresolved responsibility references, optional note, and selected re-entry. | Inbox-zero pressure, streaks, productivity scores, or implicit Open Loop/Outcome closure. |
+| **History** | How did the current situation become true? | Continuity timeline of decisions, corrections, candidate decisions, Open Loop dispositions, Daily Close receipts, responsibility links, and re-entry. Activity and audit are optional filters or drill-down. | Raw CDC/change-log rows as user-facing history or a duplicate canonical event store. |
+
+Selecting an item on any destination opens the same provenance inspector. Closing the inspector returns focus and scroll position to the exact originating item.
+
+### Natural flow
+
+The design is direct navigation, not a wizard:
+
+```text
+Launch -> Today
+  -> Quick Capture at any time
+  -> Catch Up only when a material candidate needs judgment
+  -> confirm Open Loop, keep note, correct, dismiss, defer, or draft/link Work
+
+During the day -> Open Loops and Memory remain directly accessible
+
+End of day -> Daily Close
+  -> review activity-backed reconstruction and known gaps
+  -> append corrections or native responsibility dispositions
+  -> choose exact tomorrow re-entry
+
+Whenever explanation is needed -> History -> shared provenance inspector
+```
+
+The user may skip Catch Up, open Daily Close at any time, or navigate directly to any stable destination. An empty Catch Up queue is a successful state and does not leave an empty permanent screen.
+
+### Capture placement
+
+Capture has two distinct paths:
+
+1. **Explicit Quick Capture:** a persistent Home-shell action and expanded composer on Today. Text is the v0 input. The command enters shared adaptive intake and may remain a note or propose an Open Loop, correction, dismissal, or draft Work Outcome. The UI preserves unsent input across route changes and recoverable failures.
+2. **Governed ambient capture:** independently granted screen, audio, application, or structured-source ingestion. It continues independently of the open Home destination, exposes active/paused/denied/stale/failed state, and never treats an unobserved interval as proof that nothing happened.
+
+Today, Catch Up, Daily Close, Memory, and History consume provenance-bearing projections from the capture/source plane. They do not directly write raw observations or bypass the daemon. When ambient capture is off, explicit capture, confirmed responsibilities, and trusted Work facts keep Home useful.
 
 ### First run and shared intake
 
@@ -104,6 +170,18 @@ Catch Up processes one material item at a time. Each card exposes source, uncert
 ### Quick Capture
 
 Quick Capture accepts text first and may later accept voice, image, file, or shared content. Explicit user intent makes it the strongest candidate source. It still asks for confirmation before creating an Open Loop or Outcome unless the user issued an unambiguous direct command.
+
+### Daily Close and re-entry
+
+Daily Close combines a time-bounded `DailyCloseProjection` with optional source inspection. The projection contains trusted facts, confirmed responsibilities, explicit notes, activity episodes, capture gaps, and proposed changes. It may suggest that an Open Loop is Ready to Close, but the user must create the native `LoopDisposition`; completing Daily Close cannot create that disposition implicitly.
+
+Finishing the review appends an immutable `DailyCloseReceipt` containing the local date, reviewed-through watermark, acknowledged gaps, optional user note, and references selected for tomorrow's re-entry. The receipt does not copy or mutate the referenced Open Loops or Outcomes. Re-entry resolves those references against their current canonical state and discloses missing, superseded, released, or unavailable sources.
+
+### History
+
+History consumes a derived `ContinuityEvent` read model assembled from native facts. Its default ordering favors user decisions and continuity changes over activity volume. Supported event families are explicit captures, corrections, candidate decisions, Open Loop dispositions, ResponsibilityLink changes, Outcome facts permitted in Home, Daily Close receipts, and re-entry.
+
+Activity episodes and audit metadata are filters or drill-downs. The read model remains rebuildable and does not become a new authority source. A displayed event always links back to its canonical object and provenance when available.
 
 ### Open Loop detail and closure
 
@@ -185,6 +263,9 @@ Home and Work controllers consume this contract. Neither owns a separate transcr
 | `SourceArtifact` | Original imported or captured source identity and retention state. |
 | `Observation` | Untrusted typed fact derived from a source segment. |
 | `ContextEpisode` | Correctable grouping of observations with time, actors, source gaps, and derivation version. |
+| `DailyCloseProjection` | Rebuildable, time-bounded read model for review; never canonical responsibility truth. |
+| `DailyCloseReceipt` | Immutable record of the reviewed-through point, acknowledged gaps, optional note, and selected re-entry references; never a closure disposition. |
+| `ContinuityEvent` | Rebuildable History read model derived from canonical facts and source lineage. |
 
 ### Memory objects
 
@@ -286,11 +367,11 @@ Before code begins, the Work and Home lanes claim non-overlapping files and API 
 
 | Area | Work lane owns | Home / Personal Agent lane owns | Shared integration rule |
 | --- | --- | --- | --- |
-| Domain | Outcome, ContractRevision, PlanRevision, WorkUnit, Attempt, Evidence, Verification, Acceptance | PersonalHome, OpenLoop, LoopDisposition, CaptureGrant, SourceArtifact, Observation, ContextEpisode, memory objects | ResponsibilitySpace, ResponsibilityLink, intake contracts, RunBrief references require coordinated review |
+| Domain | Outcome, ContractRevision, PlanRevision, WorkUnit, Attempt, Evidence, Verification, Acceptance | PersonalHome, OpenLoop, LoopDisposition, DailyCloseReceipt, CaptureGrant, SourceArtifact, Observation, ContextEpisode, memory objects | ResponsibilitySpace, ResponsibilityLink, intake contracts, RunBrief references require coordinated review |
 | Services | Outcome lifecycle, execution, verification, acceptance, recovery | Home lifecycle, capture, candidate admission/review, retrieval | Shared intake and context compilation are implemented once in a neutral service package |
-| Storage | Work lineage migrations and queries | Home, source, episode, candidate, memory migrations and queries | Separate additive migrations; neither edits the other's merged migration |
+| Storage | Work lineage migrations and queries | Home, Daily Close receipt, source, episode, candidate, memory migrations and queries | Separate additive migrations; neither edits the other's merged migration |
 | HTTP API | Work Outcome and Attempt operations | Home, Open Loop, capture, candidate, memory operations | Shared DTOs and routes land through one contract PR and regenerate OpenAPI/types together |
-| Frontend | Work destination and execution/review projections | Home destination, Today, Catch Up, capture controls, candidate review | Shared shell, intake components, provenance, and authority UI have one owner per PR |
+| Frontend | Work destination and execution/review projections | Home destination, Today, Catch Up, Open Loops, Memory, Daily Close, History, capture controls, candidate review | Shared shell, intake components, provenance, and authority UI have one owner per PR |
 | Evaluation | Outcome conformance, recovery, effect and proof gates | candidate precision, capture/privacy, correction, deletion, retrieval, Home utility | Cross-lane Home-to-Work and RunBrief tests are integration-owned |
 
 No frontend component, provider adapter, capture worker, or memory library owns canonical truth.
@@ -302,7 +383,7 @@ The implementation plan may split files more finely, but it must preserve these 
 | Owner | Reserved backend files/packages | Reserved API prefix | Reserved frontend files/directories |
 | --- | --- | --- | --- |
 | Work | `backend/internal/domain/{outcome,contract,plan,workunit,attempt,evidence,verification,acceptance}*.go`; `backend/internal/service/outcome/**` and future Work execution/proof packages; matching Work query files | `/api/v1/outcomes/**`, `/api/v1/work-units/**`, `/api/v1/attempts/**`, `/api/v1/verification-runs/**` | future `frontend/src/renderer/routes/work/**` and `components/work/**`; existing donor Outcome components only when claimed by the Work plan |
-| Home / Personal Agent | `backend/internal/domain/{home,openloop,capture,source,observation,memory}*.go`; `backend/internal/service/{home,capture,memory}/**`; matching `home.sql`, `open_loops.sql`, `capture.sql`, `observations.sql`, and `memory.sql` query files | `/api/v1/home/**`, `/api/v1/open-loops/**`, `/api/v1/capture-grants/**`, `/api/v1/sources/**`, `/api/v1/observations/**`, `/api/v1/memory-candidates/**`, `/api/v1/memory/**` | future `frontend/src/renderer/routes/home/**`, `components/home/**`, `components/capture/**`, `components/memory/**`; OS capture bridge only under a separately claimed `frontend/src/main/capture/**` |
+| Home / Personal Agent | `backend/internal/domain/{home,openloop,daily_close,continuity,capture,source,observation,memory}*.go`; `backend/internal/service/{home,capture,memory}/**`; matching `home.sql`, `open_loops.sql`, `daily_close.sql`, `capture.sql`, `observations.sql`, and `memory.sql` query files | `/api/v1/home/**`, `/api/v1/open-loops/**`, `/api/v1/capture-grants/**`, `/api/v1/sources/**`, `/api/v1/observations/**`, `/api/v1/memory-candidates/**`, `/api/v1/memory/**` | future `frontend/src/renderer/routes/home/**`, `components/home/**`, `components/capture/**`, `components/memory/**`; OS capture bridge only under a separately claimed `frontend/src/main/capture/**` |
 | Shared integration owner | `backend/internal/domain/{responsibility,intake,responsibility_link,run_brief_ref}*.go`; `backend/internal/service/intake/**`; `backend/internal/httpd/controllers/dto.go`; `backend/internal/httpd/apispec/specgen/build.go`; route registration; shared CDC semantics | `/api/v1/responsibility-spaces/**`, `/api/v1/intake/**`, `/api/v1/responsibility-links/**`; shared schemas referenced by both lane prefixes | `frontend/src/renderer/components/IntakeFields.tsx`, `OutcomeIntakePanel.tsx`, future `components/intake/**` and `components/responsibility/**`; `frontend/src/api/schema.ts` |
 
 The integration owner also coordinates generated `backend/internal/httpd/apispec/openapi.yaml` and `frontend/src/api/schema.ts`; both generated artifacts land with their source DTO/controller change. Parallel branches must not hand-edit either artifact or resolve generated conflicts by choosing one side.
@@ -327,7 +408,7 @@ Continue the Local Focus Ledger five-stage Outcome milestone unchanged. It must 
 
 1. Home shell plus read-only fixture projections.
 2. PersonalHome, OpenLoop, LoopDisposition, and Quick Capture vertical slice.
-3. Today, Catch Up, Open Loop detail, Ready to Close, and restart/re-entry.
+3. Today, contextual Catch Up, Open Loop detail, Ready to Close, Daily Close/receipt, continuity History, and restart/re-entry.
 4. ResponsibilityLink and shared-intake Home-to-Work integration.
 5. CaptureGrant and required desktop screen/audio ingestion into SourceArtifact, Observation, and ContextEpisode.
 6. MemoryCandidate review, correction, expiry, revocation, deletion-generation fixtures, and purpose-bound retrieval.
@@ -349,11 +430,20 @@ Each step owns domain, storage, CDC, service, API, UI, recovery, and evaluation 
 | User revokes or deletes | Stop use immediately, advance generation, scrub every derived layer, and report propagation. |
 | Work requests Home context | Apply purpose and space policy; require one-run or standing disclosure grant where needed. |
 | Provider session ends | Preserve Attempt state; never close an Outcome or Open Loop automatically. |
+| Daily Close has partial or stale sources | Permit a review with acknowledged gaps; never present the interval as complete. |
+| A History source is unavailable | Preserve the continuity event and disclose that its source cannot currently be inspected. |
 
 ## 13. Evaluation gates
 
 The Home and Personal Agent lane measures:
 
+- all five stable routes remain directly navigable and preserve active navigation state;
+- Catch Up opens from and returns to the exact Today context without becoming permanent navigation;
+- Quick Capture remains available across Home routes and preserves an unsent draft across recoverable navigation and failures;
+- every destination renders truthful populated, empty, partial/capture-off, and offline states without treating unavailable data as empty;
+- the shared provenance inspector returns focus and scroll position to the originating item;
+- finishing Daily Close cannot close, release, accept, or otherwise mutate a referenced responsibility without its native explicit command;
+- History rebuilds from canonical facts and never requires a second event store;
 - candidate precision and user review burden;
 - provenance completeness and source-span accuracy;
 - temporal updates and contradiction behavior;
