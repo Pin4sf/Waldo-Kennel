@@ -4,6 +4,7 @@
 - **Date:** 2026-08-22
 - **Scope:** Frontend-only Personal Home fixture experience
 - **Out of scope:** daemon APIs, persistence, capture workers, memory admission, agent execution, harness wiring, push, PR, merge, deploy, and GitHub mutation
+- **Research basis:** [Dimension personal-agency visual audit](../../research/dimensions-personal-agency-visual-audit-2026-08-22.md)
 
 ## Product decision
 
@@ -62,6 +63,31 @@ Use editorial bands and responsibility rows. Reserve elevation for the current c
 
 Empty Home is successful and calm. Partial, capture-off, stale, and offline states remain explicit and do not masquerade as empty.
 
+## Adaptive day lifecycle
+
+Home is one continuous daily surface whose chapter changes as the user's day changes. It is not a collection of separate morning, afternoon, and evening dashboards.
+
+The daily rhythm is:
+
+1. **Morning Brief** — orient around confirmed commitments, schedule constraints, changes since the last acknowledged checkpoint, and the smallest genuine `Needs You` queue.
+2. **Afternoon Brief** — recalibrate around what became true, what changed, what remains realistic, and what deserves the next focus block. It does not repeat the morning brief with a different greeting.
+3. **Evening Brief** — transition out of active work by separating completed evidence, unresolved responsibility, and candidate follow-up.
+4. **Closure** — a user-started review that lets the user correct Waldo, acknowledge source gaps, and explicitly close, release, defer, transfer, or choose tomorrow's re-entry.
+5. **Daily Close** — the inspectable receipt produced by Closure. It records the reviewed facts, dispositions, gaps, and re-entry choice; it is not a productivity score and does not close an Open Loop or Outcome merely because the review finished.
+
+Clock time supplies a default chapter only. Calendar boundaries, acknowledged checkpoints, return after absence, source freshness, active responsibility, and explicit user action may change the composition. Closure never starts automatically from the clock, and Daily Close never appears as if confirmed before the user reviews it.
+
+Event-driven overlays may interrupt any chapter when justified:
+
+- **Catch Up** — finite material changes since an acknowledged checkpoint;
+- **Resume** — exact re-entry into the last meaningful responsibility or thought;
+- **Before your next thing** — time-bounded preparation for an upcoming commitment;
+- **Plans changed** — an honest replan when earlier assumptions no longer hold;
+- **Needs your judgment** — one consequential ambiguity requiring confirmation;
+- **Quiet focus** — the correct state when no intervention earns attention.
+
+The visual fixture keeps these axes separate: a `dayPhase` chooses the editorial brief while a contextual flow chooses the right-hand review. Tests inject the phase deterministically. The later daemon projection, not renderer-owned inference, will decide the live phase and overlay from permissioned facts.
+
 ## Catch Up and provenance
 
 Catch Up processes one material candidate at a time. The visual fixture uses the approved scenario: Waldo observed “I'll send Ashish the revised deck tomorrow,” the source has a known capture gap, and the user can correct it to “Prepare the revised deck for Ashish; do not send it.”
@@ -79,16 +105,16 @@ Open Loops is the only other primary Home destination in the visual hierarchy. I
 
 Selecting a row enters responsibility detail. `Continue in Work` previews the explicit lineage boundary; it does not simulate successful daemon creation or Work execution.
 
-## Daily Close and History
+## Closure, Daily Close, and History
 
-Daily Close is a contextual review, not a permanent dashboard and not an inbox-zero ritual. It presents:
+Closure is a contextual review, not a permanent dashboard and not an inbox-zero ritual. It presents:
 
 - what became true;
 - what remains unresolved;
 - acknowledged source gaps;
 - explicit close, release, defer, or tomorrow re-entry choices.
 
-Completing the visual flow never implies that an Open Loop or Outcome was mutated.
+Daily Close is the resulting inspectable receipt. Completing the visual flow never implies that an Open Loop or Outcome was mutated.
 
 History uses a continuity timeline for user decisions, corrections, links, close receipts, and re-entry. Activity evidence is subordinate drill-down, not the primary story and not a productivity score.
 
@@ -117,11 +143,12 @@ The later backend/agent/harness phase will separately define daemon services, DT
 
 1. The permanent shell exposes a keyboard-accessible horizontal `Home | Work` pill and removes duplicate generic Home/Work rows.
 2. Home mode shows the reduced primary hierarchy without deleting addressable review routes.
-3. Today renders the adaptive brief and exactly one expanded Quick Capture field.
+3. Today renders a deterministically testable Morning, Afternoon, or Evening brief and exactly one expanded Quick Capture field.
 4. Other Home destinations do not repeat the expanded composer.
 5. Catch Up and provenance use a wide split pane and narrow replacement view with exact return.
 6. The approved source-gap/correction/Continue-in-Work scenario is visually traversable without claiming persistence.
-7. Daily Close and History use continuity evidence without activity scoring or implied closure.
+7. Evening Brief can enter explicit Closure, and the resulting Daily Close and History use continuity evidence without activity scoring or implied responsibility closure.
 8. Empty, partial, capture-off, stale, and offline states remain truthful.
 9. Focus states, keyboard paths, narrow layout, and reduced motion remain usable.
 10. Existing Work navigation, project/session selection, and non-Home routes continue to pass their focused tests.
+11. Event-driven Catch Up, Resume, replanning, judgment, and quiet-focus overlays remain independent of the clock-selected daily chapter.
