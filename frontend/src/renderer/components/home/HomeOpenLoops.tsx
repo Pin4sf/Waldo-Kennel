@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type {
   HomeFixtureState,
   HomeOpenLoopFixture,
@@ -122,6 +122,7 @@ export function HomeOpenLoops({ fixture }: { fixture: HomeFixtureState }) {
     "Preview only. Select a responsibility to inspect it; no state changes are saved.",
   );
   const selectedRowRef = useRef<HTMLButtonElement | null>(null);
+  const shouldRestoreFocusRef = useRef(false);
   const visibleLoops = fixture.openLoops.filter((loop) => loop.state === activeState);
   const selectedLoop =
     fixture.openLoops.find((loop) => loop.id === selectedId) ?? visibleLoops[0] ?? fixture.openLoops[0];
@@ -134,9 +135,15 @@ export function HomeOpenLoops({ fixture }: { fixture: HomeFixtureState }) {
   };
 
   const returnToIndex = () => {
+    shouldRestoreFocusRef.current = true;
     setMobileView("index");
-    selectedRowRef.current?.focus({ preventScroll: true });
   };
+
+  useLayoutEffect(() => {
+    if (mobileView !== "index" || !shouldRestoreFocusRef.current) return;
+    shouldRestoreFocusRef.current = false;
+    selectedRowRef.current?.focus({ preventScroll: true });
+  }, [mobileView]);
 
   return (
     <section aria-labelledby="open-loops-heading">

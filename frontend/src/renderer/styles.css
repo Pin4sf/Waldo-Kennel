@@ -625,7 +625,7 @@
 	transform: rotate(45deg);
 }
 
-@container center-panel (max-width: 700px) {
+@container center-panel (max-width: 760px) {
 	.home-open-loops-desk {
 		display: block;
 	}
