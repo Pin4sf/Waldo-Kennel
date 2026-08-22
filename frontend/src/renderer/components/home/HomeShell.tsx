@@ -52,7 +52,7 @@ export function HomeShell({
 			<section className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-8 sm:px-10 sm:py-12" aria-labelledby="home-heading">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
 					<header className="flex flex-col gap-3 border-b border-border pb-6">
-						<p className="text-sm font-medium text-accent">{t("home.personalSpace")}</p>
+						<p className="text-sm font-medium text-muted-foreground">{t("home.personalSpace")}</p>
 						<h1 className="text-heading font-semibold tracking-tight text-foreground" id="home-heading">
 							{t("home.title")}
 						</h1>
@@ -64,7 +64,10 @@ export function HomeShell({
 					<section className="rounded-xl border border-border bg-raised/40 p-6" aria-label={t("home.status")}>
 						<h2 className="text-base font-semibold text-foreground">{content.title}</h2>
 						<p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{content.description}</p>
-						<a className="mt-5 inline-flex text-sm font-medium text-accent hover:underline" href="#/">
+						<a
+							className="mt-5 inline-flex text-sm font-medium text-foreground underline underline-offset-2 transition-colors hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+							href="#/"
+						>
 							{t("home.workRecommended")}
 						</a>
 					</section>

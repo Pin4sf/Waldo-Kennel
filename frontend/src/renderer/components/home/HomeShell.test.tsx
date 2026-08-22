@@ -15,7 +15,14 @@ describe("HomeShell", () => {
 
 		expect(screen.getByRole("heading", { name: "Home" })).toBeInTheDocument();
 		expect(screen.getByText("Nothing is held here yet.")).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "Go to Work (recommended)" })).toHaveAttribute("href", "#/");
+		expect(screen.getByText("Personal space")).toHaveClass("text-muted-foreground");
+		const workLink = screen.getByRole("link", { name: "Go to Work (recommended)" });
+		expect(workLink).toHaveAttribute("href", "#/");
+		expect(workLink).toHaveClass(
+		"text-foreground",
+		"underline",
+		"hover:text-muted-foreground",
+	);
 	});
 
 	it("keeps Home useful when capture is disabled without asking the user to enable it", () => {
