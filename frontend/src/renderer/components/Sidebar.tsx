@@ -363,6 +363,8 @@ export function Sidebar({
 				</SidebarGroup>
 			) : null}
 
+			{!selection.isHome ? (
+				<>
 			{/* Keep Search + section chrome fixed; only the project tree scrolls. */}
 			<div className="flex shrink-0 flex-col gap-0 px-2 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
 				{commandPaletteEnabled ? (
@@ -446,6 +448,8 @@ export function Sidebar({
 					</SidebarGroupContent>
 				</SidebarGroup>
 			</SidebarContent>
+				</>
+			) : null}
 
 			{/* Footer — Settings opens the global settings page directly.
 			    Its hairline and row height match the board Archive bar. Bottom

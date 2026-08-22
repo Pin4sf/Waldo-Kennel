@@ -272,7 +272,7 @@ describe("Sidebar", () => {
 		expect(screen.queryByRole("button", { name: "Work (recommended)" })).not.toBeInTheDocument();
 	});
 
-	it("shows only Today and Open Loops as primary Home destinations", () => {
+	it("shows personal destinations without the Work project tree in Home", () => {
 		mockPathname.current = "/home";
 		renderSidebar();
 
@@ -282,6 +282,9 @@ describe("Sidebar", () => {
 		expect(within(navigation).queryByRole("link", { name: "Memory" })).not.toBeInTheDocument();
 		expect(within(navigation).queryByRole("link", { name: "Daily Close" })).not.toBeInTheDocument();
 		expect(within(navigation).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Search" })).not.toBeInTheDocument();
+		expect(screen.queryByText("Projects")).not.toBeInTheDocument();
+		expect(screen.queryByText("Project One")).not.toBeInTheDocument();
 	});
 
 	it("suppresses focus chrome without removing keyboard focusability", () => {
