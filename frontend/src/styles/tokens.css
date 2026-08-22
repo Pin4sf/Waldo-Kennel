@@ -19,42 +19,45 @@
 	/* ── Color scheme hint for native form controls / scrollbars ── */
 	color-scheme: dark;
 
-	/* shadcn base-luma / olive preset (b6tOz2I0x). The renderer is dark-first,
-	   so the preset's .dark values are the default application values. */
-	--background: oklch(0.185 0.006 285.885);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.24 0.008 285.885);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.28 0.008 285.885);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.92 0.004 286.32);
-	--primary-foreground: oklch(0.21 0.006 285.885);
-	--secondary: oklch(0.274 0.006 286.033);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.274 0.006 286.033);
-	--muted-foreground: oklch(0.705 0.015 286.067);
-	--accent: oklch(0.274 0.006 286.033);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	/* Hairlines separate, they do not decorate: below the shadcn dark default of
-	 * 10% so column rules and card edges recede behind content. */
-	--border: oklch(1 0 0 / 7%);
-	--input: oklch(1 0 0 / 4%);
-	--ring: oklch(0.552 0.016 285.938);
-	--chart-1: oklch(0.871 0.006 286.286);
-	--chart-2: oklch(0.552 0.016 285.938);
-	--chart-3: oklch(0.442 0.017 285.786);
-	--chart-4: oklch(0.37 0.013 285.805);
-	--chart-5: oklch(0.274 0.006 286.033);
-	--radius: 0.625rem;
-	--sidebar: oklch(0.155 0.005 285.823);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.274 0.006 286.033);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
+	/* Kennel orchestrator design system (Figma "Waldo", node 2984-17556).
+	 * Warm near-black ramp: the canvas is neutral #151515, every raised plane
+	 * warms slightly (#272725 card, #353533 chip/popover) so elevation reads by
+	 * temperature, not by shadow. Dark is the designed theme; light below is a
+	 * derived counterpart. */
+	--background: #151515; /* window canvas */
+	--foreground: #fafaf8; /* primary text */
+	--card: #272725; /* session card, list row, active segment */
+	--card-foreground: #fafaf8;
+	--popover: #353533; /* chips, secondary buttons, popovers, choice panel */
+	--popover-foreground: #fafaf8;
+	--primary: #fafaf8; /* primary button plate is the text colour inverted */
+	--primary-foreground: #272725;
+	--secondary: #353533;
+	--secondary-foreground: #fafaf8;
+	--muted: #1e1e1e; /* row hover / pressed inside sidebar-weight surfaces */
+	--muted-foreground: #9a9a96; /* secondary label (sidebar rows, List tab) */
+	--accent: #272725; /* selected row inside a popover-weight surface */
+	--accent-foreground: #fafaf8;
+	--destructive: #ff453a;
+	/* Hairlines separate, they do not decorate. The design draws them at 0.6px
+	 * white/8 on cards and white/10 on chips — see --size-hairline-fine. */
+	--border: rgb(255 255 255 / 8%);
+	--input: rgb(255 255 255 / 10%);
+	--ring: #2388ff;
+	--chart-1: #00e07a; /* success-bright */
+	--chart-2: #9a9a96;
+	--chart-3: #6b6b68; /* passive text, terminated lane */
+	--chart-4: #8338ec; /* branch / purple */
+	--chart-5: #353533;
+	--radius: 0.5rem; /* 8px — the system's default control radius */
+	--sidebar: #161616;
+	--sidebar-foreground: #fafaf8;
+	--sidebar-primary: #2388ff;
+	--sidebar-primary-foreground: #fafaf8;
+	--sidebar-accent: #1e1e1e;
+	--sidebar-accent-foreground: #fafaf8;
 	--sidebar-border: var(--border);
-	--sidebar-ring: oklch(0.552 0.016 285.938);
+	--sidebar-ring: #2388ff;
 
 	/* ═══════════════════════════════════════════════════════════════
 	   COLOR — semantic (swap these per theme; do not invent new roles
@@ -67,6 +70,10 @@
 	--color-bg-tertiary: var(--muted);
 	--color-bg-elevated: var(--popover);
 	--color-bg-sidebar: var(--sidebar);
+	/* The plate a board column or list section sits on. It is one step above the
+	 * canvas and below the card, so a column reads as a container even before a
+	 * card lands in it. Board columns fade it out downward; list groups keep it flat. */
+	--color-bg-shell: #1a1a1a;
 	/* Token keeps the historical #101317e7 value; painted surfaces use the
 	   opaque plate so the p-2 gutter cannot composite into #111316. */
 	--color-bg-terminal-opaque: #101317;
@@ -78,6 +85,14 @@
 	--color-text-primary: var(--foreground);
 	--color-text-muted: var(--muted-foreground);
 	--color-text-passive: var(--chart-3);
+	/* Row meta in the list view sits one step above passive so timestamps stay
+	 * legible against the card plate rather than the canvas. */
+	--color-text-meta: #979797;
+	/* Links carry the only saturated blue in the neutral ramp; branch names
+	 * carry the only violet. Both are identity, not state. */
+	--color-link: #2388ff;
+	--color-link-hover: #4c9dff;
+	--color-branch: #8338ec;
 	--color-brand-logo: #79b0dc;
 	--color-brand-logo-bright: #a5cde7;
 	--color-brand-logo-foreground: #0a0b0d;
@@ -110,11 +125,12 @@
 	--color-accent-strong: var(--primary);
 	--color-danger-strong: var(--destructive);
 
-	/* Board lane signals, matched to the landing hero's board preview. */
-	--color-status-working: #60a5fa;
-	--color-status-needs-you: #fb923c;
-	--color-status-in-review: #facc15;
-	--color-status-ready: #4ade80;
+	/* Board lane signals, taken from the Figma column dots:
+	 * Needs Choice #fb8404, Needs Input #fbbc04, Ready #00cc6e, Running #2388ff. */
+	--color-status-working: #2388ff;
+	--color-status-needs-you: #fb8404;
+	--color-status-in-review: #fbbc04;
+	--color-status-ready: #00cc6e;
 	--color-status-merged: var(--color-status-ready);
 	--color-status-idle: var(--muted-foreground);
 	--color-status-exited: var(--destructive);
@@ -145,14 +161,17 @@
 	   TYPOGRAPHY
 	   ═══════════════════════════════════════════════════════════════ */
 
-	--font-family-base: "Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif;
+	/* The design is set in SF Pro Rounded. macOS resolves it by name (and via the
+	 * ui-rounded generic); Windows/Linux fall back to the bundled Geist. */
+	--font-family-base:
+		"SF Pro Rounded", ui-rounded, -apple-system, "Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif;
 	--font-family-mono:
 		"Geist Mono Variable", "Geist Mono", "JetBrainsMono Nerd Font Mono", "JetBrainsMono Nerd Font",
 		"FiraCode Nerd Font Mono", "FiraCode Nerd Font", "MesloLGS NF", ui-monospace, SFMono-Regular, Menlo, Monaco,
 		Consolas, "Liberation Mono", "Courier New", monospace;
 
 	/* Scale — dense UI chrome uses half-steps between base sizes */
-	--font-size-2xs: 10.5px; /* uppercase meta, board footers */
+	--font-size-2xs: 10px; /* card meta line, timestamps, lane counts */
 	--font-size-xs: 10px; /* micro labels, tight pills */
 	--font-size-nano: 8px; /* smallest chrome text — sidebar search label */
 	--font-size-caption: 11px; /* badges, kanban labels */
@@ -170,17 +189,22 @@
 	--font-weight-medium: 500;
 	--font-weight-semibold: 600;
 
-	--line-height-normal: 1.5;
-	--line-height-snug: 1.42;
+	/* The design sets everything at 1.3 and only opens to 1.4 for wrapped body
+	 * copy (card summaries, choice-panel description). */
+	--line-height-normal: 1.4;
+	--line-height-snug: 1.3;
 	--line-height-row: 1.25rem; /* 20px — helper rows at text-xs / text-control */
 	--line-height-body-md: 1.55;
 	--line-height-relaxed: 1.6;
 	--line-height-loose: 1.7;
 
-	/* Letter-spacing — uppercase meta, tight headings */
-	--tracking-tight-xl: -0.025em;
-	--tracking-tight-lg: -0.015em;
-	--tracking-tight: -0.01em;
+	/* Letter-spacing — SF Pro Rounded is set at a uniform +2% across every size
+	 * in the design, so the "tight" roles resolve to the system tracking rather
+	 * than pulling glyphs together. Applied globally on <body>. */
+	--tracking-base: 0.02em;
+	--tracking-tight-xl: 0.02em;
+	--tracking-tight-lg: 0.02em;
+	--tracking-tight: 0.02em;
 	--tracking-wide-xs: 0.04em;
 	--tracking-wide-sm: 0.05em;
 	--tracking-wide: 0.06em;
@@ -235,11 +259,15 @@
 	   RADIUS
 	   ═══════════════════════════════════════════════════════════════ */
 
-	--radius-xs: calc(var(--radius) * 0.4);
-	--radius-sm: calc(var(--radius) * 0.6);
-	--radius-md: calc(var(--radius) * 0.8);
-	--radius-lg: var(--radius);
-	--radius-panel: calc(var(--radius) * 1.4);
+	/* Figma steps, not multipliers: 5 / 6 / 8 / 12 / 15 / 16 / 18. 8px is the
+	   workhorse (chips, buttons, sidebar rows); 15/16/18 frame the planes. */
+	--radius-xs: 5px; /* option index chips */
+	--radius-sm: 6px; /* keyboard hints, micro buttons */
+	--radius-md: 8px; /* chips, buttons, rows — the default */
+	--radius-lg: 12px; /* segmented control track + thumb */
+	--radius-card: 15px; /* session card */
+	--radius-panel: 16px; /* popovers, choice panel, list group plate */
+	--radius-group: 18px; /* board column shell */
 	--radius-full: 999px; /* pills, avatars, status dots */
 	--radius-swatch: 2px; /* board lane squares: square-reading, not a dot */
 
@@ -257,7 +285,13 @@
 	--ring-width-focus: 3px; /* select trigger focus ring */
 
 	--size-hairline: 1px;
+	/* Cards and chips are stroked at 0.6px in the design — a rule that reads as
+	 * an edge at 2x without turning into a frame. */
+	--size-hairline-fine: 0.6px;
 	--size-icon-2xs: 12px;
+	/* Agent glyph on a session card — sits between the 16px and 18px steps in
+	   the design (17.28px) and is the card's only fixed-size mark. */
+	--size-icon-agent: 17px;
 	--size-icon-xs: 9px;
 	--size-icon-sm: 13px;
 	--size-icon-md: 14px;
@@ -271,6 +305,12 @@
 	--size-control-xs: 20px;
 	--size-control-sm: 24px;
 	--size-control-md: 28px;
+	/* Lane count chip and lane menu button: one square control that reads as
+	   part of the header line rather than a button dropped onto it. */
+	--size-control-chip: 26px;
+	/* List / Board segmented control — shorter than a form control so it reads as
+	   a view toggle sitting in the header line, not an input. */
+	--size-control-segment: 31px;
 	--size-control-lg: 34px;
 	--size-control-xl: 38px;
 	--size-control-board-sm: 30px;
@@ -295,6 +335,13 @@
 	--space-topbar-group: 4px;
 	--radius-topbar-control: 7px;
 	--size-row-md: 52px;
+	/* One session as a line in the list view, and the fixed width its timestamp
+	   column reserves so the action buttons stay in a straight edge. */
+	--size-row-list: 39px;
+	/* The setup tour reserves one body height across all four steps: a dialog
+	   that resizes under the cursor moves its own footer buttons. */
+	--size-onboarding-body: 320px;
+	--size-list-time: 56px;
 	--size-browser-url: 29px;
 	--size-browser-min: 320px;
 	--size-sidebar-icon: 48px;
@@ -569,6 +616,11 @@
 	/* @theme bridge — avoids Tailwind theme key / :root name collisions */
 	--bridge-border: var(--color-border);
 	--bridge-border-strong: var(--color-border-strong);
+	--bridge-bg-shell: var(--color-bg-shell);
+	--bridge-link: var(--color-link);
+	--bridge-link-hover: var(--color-link-hover);
+	--bridge-branch: var(--color-branch);
+	--bridge-text-meta: var(--color-text-meta);
 	--bridge-accent: var(--color-accent);
 	--bridge-accent-fg: var(--color-accent-foreground);
 	--bridge-accent-weak: var(--color-accent-weak);
@@ -634,44 +686,48 @@
 :root[data-theme="light"] {
 	color-scheme: light;
 
-	--background: oklch(0.985 0 0);
-	--foreground: oklch(0.141 0.005 285.823);
-	--card: oklch(0.985 0 0);
-	--card-foreground: oklch(0.141 0.005 285.823);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.141 0.005 285.823);
-	--primary: oklch(0.21 0.006 285.885);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.967 0.001 286.375);
-	--secondary-foreground: oklch(0.21 0.006 285.885);
-	--muted: oklch(0.967 0.001 286.375);
-	--muted-foreground: oklch(0.552 0.016 285.938);
-	--accent: oklch(0.967 0.001 286.375);
-	--accent-foreground: oklch(0.21 0.006 285.885);
-	--destructive: oklch(0.577 0.245 27.325);
-	/* Same intent as dark: one step lighter than the shadcn default hairline. */
-	--border: oklch(0.945 0.003 286.32);
-	--input: oklch(0.92 0.004 286.32);
-	--ring: oklch(0.705 0.015 286.067);
-	--chart-1: oklch(0.871 0.006 286.286);
-	--chart-2: oklch(0.552 0.016 285.938);
-	--chart-3: oklch(0.442 0.017 285.786);
-	--chart-4: oklch(0.37 0.013 285.805);
-	--chart-5: oklch(0.274 0.006 286.033);
-	--sidebar: oklch(1 0 0);
-	--sidebar-foreground: oklch(0.141 0.005 285.823);
-	--sidebar-primary: oklch(0.21 0.006 285.885);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.967 0.001 286.375);
-	--sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+	/* Light is the derived counterpart of the designed dark ramp: the same warm
+	 * neutral family inverted, so a card still reads as one step off the canvas
+	 * and chips one step off the card. */
+	--background: #f2f2ef; /* window canvas */
+	--foreground: #1a1a18; /* primary text */
+	--card: #ffffff; /* session card, list row, active segment */
+	--card-foreground: #1a1a18;
+	--popover: #ffffff; /* chips, secondary buttons, popovers, choice panel */
+	--popover-foreground: #1a1a18;
+	--primary: #272725; /* primary plate is the text colour inverted */
+	--primary-foreground: #fafaf8;
+	--secondary: #eaeae5;
+	--secondary-foreground: #1a1a18;
+	--muted: #e7e7e2; /* row hover / pressed */
+	--muted-foreground: #6f6f6a; /* secondary label */
+	--accent: #eaeae5; /* selected row inside a popover-weight surface */
+	--accent-foreground: #1a1a18;
+	--destructive: #d70015;
+	/* Same intent as dark: a hairline that separates without framing. */
+	--border: rgb(0 0 0 / 8%);
+	--input: rgb(0 0 0 / 12%);
+	--ring: #0a6fd8;
+	--chart-1: #00a85c; /* success-bright */
+	--chart-2: #6f6f6a;
+	--chart-3: #8c8c86; /* passive text, terminated lane */
+	--chart-4: #6a24c4; /* branch / purple */
+	--chart-5: #eaeae5;
+	--sidebar: #ededea;
+	--sidebar-foreground: #1a1a18;
+	--sidebar-primary: #0a6fd8;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #e3e3de;
+	--sidebar-accent-foreground: #1a1a18;
 	--sidebar-border: var(--border);
-	--sidebar-ring: oklch(0.705 0.015 286.067);
+	--sidebar-ring: #0a6fd8;
 
 	--color-bg-primary: var(--background);
 	--color-bg-secondary: var(--card);
 	--color-bg-tertiary: var(--muted);
 	--color-bg-elevated: var(--popover);
 	--color-bg-sidebar: var(--sidebar);
+	--color-bg-shell: #e9e9e5;
 	--color-bg-terminal-opaque: #f5f5f4;
 	--color-bg-terminal: #f5f5f4;
 	--color-bg-terminal-opaque: #f5f5f4;
@@ -679,6 +735,10 @@
 	--color-text-primary: var(--foreground);
 	--color-text-muted: var(--muted-foreground);
 	--color-text-passive: var(--chart-3);
+	--color-text-meta: #7a7a74;
+	--color-link: #0a6fd8;
+	--color-link-hover: #0a5cb4;
+	--color-branch: var(--chart-4);
 	--color-brand-logo: #304c83;
 	--color-brand-logo-bright: #466daa;
 	--color-brand-logo-foreground: #ffffff;
@@ -703,15 +763,15 @@
 	--color-accent: var(--primary);
 	--color-accent-foreground: var(--primary-foreground);
 	--color-accent-weak: color-mix(in oklch, var(--primary) 12%, transparent);
-	--color-accent-dim: var(--chart-1);
+	--color-accent-dim: var(--chart-4);
 	--color-accent-strong: var(--primary);
 	--color-danger-strong: var(--destructive);
 
 	/* Same lane hues as dark, deepened so they hold contrast on a light canvas. */
-	--color-status-working: #2563eb;
-	--color-status-needs-you: #ea580c;
-	--color-status-in-review: #ca8a04;
-	--color-status-ready: #16a34a;
+	--color-status-working: #0a6fd8;
+	--color-status-needs-you: #c96400;
+	--color-status-in-review: #a37a00;
+	--color-status-ready: #00874a;
 	--color-status-merged: var(--color-status-ready);
 	--color-status-idle: var(--muted-foreground);
 	--color-status-exited: var(--destructive);

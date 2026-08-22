@@ -38,10 +38,10 @@ const englishLabels: Record<SessionPresentationMessageKey, string> = {
 	"status.merged": "Merged",
 	"status.terminated": "Terminated",
 	"status.unknown": "Unknown status",
-	"zone.merge": "Ready to merge",
+	"zone.merge": "Ready",
 	"zone.action": "Needs you",
 	"zone.pending": "In review",
-	"zone.working": "Working",
+	"zone.working": "Running",
 	"zone.done": "Terminated",
 	"timeline.no_signal": "No Signal",
 	"timeline.ci_failed": "CI Failed",
@@ -229,7 +229,13 @@ const attentionZoneBases: Record<AttentionZone, AttentionZoneBase> = {
 };
 
 export const attentionZoneOrder: AttentionZone[] = ["merge", "action", "pending", "working", "done"];
-export const boardAttentionZoneOrder: AttentionZone[] = ["working", "action", "pending", "merge"];
+/**
+ * Board lane order, left to right: what is blocked on a person first, what is
+ * waiting on someone else next, what is finished after that, and what the agents
+ * are still doing last. Reading the board left to right is reading your queue in
+ * priority order — running work is the column you glance at, not the one you act on.
+ */
+export const boardAttentionZoneOrder: AttentionZone[] = ["action", "pending", "merge", "working"];
 
 export function attentionZone(input: SessionStatus | SessionStatusModel): AttentionZone {
 	const status = typeof input === "string" ? input : input.status;

@@ -30,6 +30,9 @@ export type BoardSessionPresentation = {
 	provider: string;
 	status: SessionStatus;
 	statusPresentation?: BoardSessionStatusPresentation;
+	/** One or two lines on what the agent is actually doing inside the session.
+	 *  Optional: a card without one closes up rather than reserving empty space. */
+	summary?: string;
 	title: string;
 	trackerIssueId?: string;
 	updatedAt: string;
@@ -107,11 +110,10 @@ export function SessionsBoardGridView<TSession extends BoardSessionPresentation>
 			className="board-horizontal-scrollbar h-full overflow-x-auto overflow-y-hidden"
 			data-testid="board-horizontal-scroll"
 		>
-			<div className="relative grid h-full min-w-[64rem] grid-cols-4 divide-x divide-border-strong xl:min-w-0">
-				<div
-					aria-hidden="true"
-					className="pointer-events-none absolute inset-x-0 top-12 z-10 border-t border-border-strong"
-				/>
+			{/* Lanes sit flush against each other. Each carries its own shell plate,
+			    so the row reads as one continuous surface that fades out under the
+			    cards rather than four boxes divided by rules. */}
+			<div className="relative grid h-full min-w-[64rem] grid-cols-4 px-2.5 pb-2.5 xl:min-w-0">
 				{columns.map((column) => (
 					<BoardColumnView
 						column={column}
@@ -178,33 +180,74 @@ function BoardColumnView<TSession extends BoardSessionPresentation>({
 	return (
 		<section
 			aria-label={labels.columnAria(column.label)}
-			className="flex min-w-0 flex-col overflow-hidden"
+			className={boardLaneShellClassName}
 			data-testid="board-column"
 			data-column={column.zone}
 		>
-			<div className="flex h-12 shrink-0 items-center gap-2.5 px-4">
-				<span
-					className="size-dot-sm rounded-full"
-					style={{
-						background: column.dot,
-						boxShadow: column.dotGlow
-							? `0 0 7px color-mix(in srgb, ${column.dot} 60%, transparent)`
-							: undefined,
-					}}
-				/>
-				<span className={cn("font-mono text-2xs font-medium uppercase tracking-wide-sm", column.titleClassName)}>
-					{column.label}
-				</span>
-				<span className="ml-auto font-mono text-2xs leading-none text-passive">{sessions.length}</span>
-			</div>
-			<div className="board-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-3">
-				<div className="flex min-h-full flex-col gap-2.5">
+			<BoardLaneHeader count={sessions.length} dot={column.dot} label={column.label} />
+			<div className="board-scrollbar min-h-0 flex-1 overflow-y-auto">
+				<div className="flex min-h-full flex-col gap-2">
 					{sessions.map((session) => (
 						<Fragment key={session.id}>{renderSessionCard(session)}</Fragment>
 					))}
 				</div>
 			</div>
 		</section>
+	);
+}
+
+/**
+ * The plate a lane's cards sit on. Solid at the header and gone by the foot, so
+ * a lane holding one card does not draw a box around the empty space below it.
+ */
+const boardLaneShellClassName =
+	"flex min-w-0 flex-col gap-2 overflow-hidden rounded-group column-shell px-0.75 py-1.25";
+
+/**
+ * Lane heading: state dot, name, and a count that is a control-sized chip rather
+ * than loose text — it is the lane's one piece of quantitative UI, and the chip
+ * keeps it from being read as part of the name.
+ */
+function BoardLaneHeader({
+	count,
+	dot,
+	label,
+	menu,
+}: {
+	count: number;
+	dot: string;
+	label: string;
+	menu?: ReactNode;
+}) {
+	return (
+		<div className="flex shrink-0 items-center justify-between py-0.75 pl-2.5 pr-1">
+			<div className="flex min-w-0 items-center gap-1.75">
+				<div className="flex min-w-0 items-center gap-2.25">
+					<BoardLaneDot dot={dot} />
+					<span className="truncate text-sm font-medium text-foreground">{label}</span>
+				</div>
+				<BoardLaneCount count={count} />
+			</div>
+			{menu ?? <span aria-hidden="true" className="size-control-chip shrink-0" />}
+		</div>
+	);
+}
+
+function BoardLaneDot({ dot }: { dot: string }) {
+	return (
+		<span
+			aria-hidden="true"
+			className="size-3 shrink-0 rounded-full hairline border-border"
+			style={{ background: dot }}
+		/>
+	);
+}
+
+function BoardLaneCount({ count }: { count: number }) {
+	return (
+		<span className="inline-flex size-control-chip shrink-0 items-center justify-center rounded-md border border-border-strong bg-shell text-sm font-semibold leading-none text-foreground">
+			{count}
+		</span>
 	);
 }
 
@@ -274,35 +317,38 @@ function SplitLaneColumnView<TSession extends BoardSessionPresentation>({
 	return (
 		<section
 			aria-label={ariaLabel}
-			className="flex min-w-0 flex-col overflow-hidden"
+			className={boardLaneShellClassName}
 			data-column={zone}
 			data-testid="board-column"
 		>
-			<div className="flex h-12 shrink-0 items-center gap-2.5 px-4">
+			<div className="flex shrink-0 items-center justify-between py-0.75 pl-2.5 pr-1">
 				<div
 					aria-label={laneSummary(primaryTone.label, secondaryTone.label)}
-					className="flex min-w-0 items-center gap-2 font-mono text-2xs font-medium uppercase tracking-wide-sm"
+					className="flex min-w-0 items-center gap-1.75 overflow-hidden text-sm font-medium text-foreground"
 					role="group"
 				>
 					<LaneStatusLabel tone={primaryTone} />
 					<span className="text-passive" aria-hidden="true">/</span>
 					<LaneStatusLabel tone={secondaryTone} />
 				</div>
-				<div className="ml-auto flex shrink-0 items-center gap-2 font-mono text-2xs leading-none text-passive">
+				<div className="ml-auto flex shrink-0 items-center gap-1">
 					<SessionCount count={primarySessions.length} label={primaryTone.countLabel} format={countSessions} />
-					<span aria-hidden="true">/</span>
-					<SessionCount count={secondarySessions.length} label={secondaryTone.countLabel} format={countSessions} />
+					<SessionCount
+						count={secondarySessions.length}
+						label={secondaryTone.countLabel}
+						format={countSessions}
+					/>
 				</div>
 			</div>
-			<div className="board-scrollbar min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-3">
+			<div className="board-scrollbar min-h-0 flex-1 overflow-y-auto">
 				<div className="flex min-h-full flex-col">
 					{showPrimary ? (
 						<div
 							aria-label={primaryTone.regionLabel}
-							className={cn("flex flex-col", showSecondary ? "flex-none pb-3" : "flex-1")}
+							className={cn("flex flex-col", showSecondary ? "flex-none pb-2" : "flex-1")}
 							role="region"
 						>
-							<div className="flex flex-col gap-2.5">
+							<div className="flex flex-col gap-2">
 								{primarySessions.map((session) => (
 									<Fragment key={session.id}>{renderSessionCard(session)}</Fragment>
 								))}
@@ -325,17 +371,9 @@ function SplitLaneColumnView<TSession extends BoardSessionPresentation>({
 
 function LaneStatusLabel({ tone }: { tone: SplitLaneTone }) {
 	return (
-		<span className={cn("inline-flex shrink-0 items-center gap-2 whitespace-nowrap", tone.titleClassName)}>
-			<span
-				aria-hidden="true"
-				className={cn("size-dot-sm rounded-full", tone.dotClassName)}
-				style={{
-					boxShadow: tone.dotGlow
-						? `0 0 7px color-mix(in srgb, ${tone.color} 60%, transparent)`
-						: undefined,
-				}}
-			/>
-			{tone.label}
+		<span className="inline-flex min-w-0 items-center gap-2.25 whitespace-nowrap text-foreground">
+			<span aria-hidden="true" className={cn("size-3 shrink-0 rounded-full hairline border-border", tone.dotClassName)} />
+			<span className="truncate">{tone.label}</span>
 		</span>
 	);
 }
@@ -349,7 +387,14 @@ function SessionCount({
 	format: BoardSplitLaneLabels["countSessions"];
 	label: string;
 }) {
-	return <span aria-label={format(count, label)}>{count}</span>;
+	return (
+		<span
+			aria-label={format(count, label)}
+			className="inline-flex size-control-chip shrink-0 items-center justify-center rounded-md border border-border-strong bg-shell text-sm font-semibold leading-none text-foreground"
+		>
+			{count}
+		</span>
+	);
 }
 
 function SecondaryLaneSection<TSession extends BoardSessionPresentation>({
@@ -368,17 +413,20 @@ function SecondaryLaneSection<TSession extends BoardSessionPresentation>({
 			aria-label={tone.regionLabel}
 			className={cn(
 				"overflow-hidden",
-				standalone ? "flex flex-1 flex-col" : "flex flex-1 flex-col border-t border-border-strong",
+				standalone ? "flex flex-1 flex-col" : "flex flex-1 flex-col border-t border-border",
 			)}
 			role="region"
 		>
-			<div className="flex shrink-0 items-center gap-2.5 px-4 py-2.5">
-				<div className="font-mono text-2xs font-medium uppercase tracking-wide-sm">
+			<div className="flex shrink-0 items-center justify-between py-0.75 pl-2.5 pr-1">
+				<div className="text-sm font-medium">
 					<LaneStatusLabel tone={tone} />
 				</div>
-				<span className="ml-auto font-mono text-2xs leading-none text-passive">{sessions.length}</span>
+				<span className="inline-flex size-control-chip shrink-0 items-center justify-center rounded-md border border-border-strong bg-shell text-sm font-semibold leading-none text-foreground">
+					{sessions.length}
+				</span>
 			</div>
-			<div className="flex flex-col gap-2.5 pt-3">
+			<div className="flex flex-col gap-2 pt-2">
+
 				{sessions.map((session) => (
 					<Fragment key={session.id}>{renderSessionCard(session)}</Fragment>
 				))}
@@ -389,6 +437,9 @@ function SecondaryLaneSection<TSession extends BoardSessionPresentation>({
 
 export type SessionCardViewProps = {
 	action?: ReactNode;
+	/** Decisions the card can carry inline (merge, instruct, pause). Rendered as
+	 *  the card's last row so the eye reaches them after the context, never before. */
+	actions?: ReactNode;
 	branchAction?: ReactNode;
 	branchIcon?: ReactNode;
 	error?: string;
@@ -413,6 +464,7 @@ export type SessionCardViewProps = {
 
 export function SessionCardView({
 	action,
+	actions,
 	branchAction,
 	branchIcon,
 	error,
@@ -441,8 +493,8 @@ export function SessionCardView({
 			onClick={interactive ? onOpen : undefined}
 			role={interactive ? undefined : "listitem"}
 			className={cn(
-				"group relative w-full rounded-lg border text-left transition-[border-color,box-shadow]",
-				badge.cardClassName ?? "border-border bg-surface",
+				"group relative flex w-full flex-col gap-5 rounded-card hairline p-4.5 text-left transition-[border-color,box-shadow]",
+				badge.cardClassName ?? "border-border bg-card",
 				interactive &&
 					"cursor-pointer hover:border-border-strong hover:shadow-sm focus-within:border-border-strong focus-within:ring-2 focus-within:ring-ring/60",
 			)}
@@ -452,82 +504,112 @@ export function SessionCardView({
 			{interactive && onOpen ? (
 				<button
 					aria-label={session.title}
-					className="pointer-events-none absolute inset-0 rounded-lg outline-none"
+					className="pointer-events-none absolute inset-0 rounded-card outline-none"
 					type="button"
 				/>
 			) : null}
 			{overlay}
 			{action ? <div className="absolute right-2 top-1.5 z-10">{action}</div> : null}
-			<div className="flex items-start gap-2.5 px-3.5 pb-2.5 pt-3">
-				{renderAvatar(session.provider)}
-				<div className="min-w-0 flex-1">
+
+			{/* Provenance first: which agent, which branch, how long ago. The card
+			    answers "whose work is this" before it answers "what is it". */}
+			<div className="flex flex-col gap-3.75">
+				<div className="flex min-w-0 items-center gap-2">
+					{renderAvatar(session.provider)}
+					{showBranch ? (
+						<span
+							className="inline-flex min-w-0 max-w-branch-chip items-center gap-1.25 rounded-md hairline border-border-strong bg-popover px-2 py-0.5 text-xs text-foreground"
+							title={branch}
+						>
+							{branchIcon ?? <GitBranchIcon aria-hidden="true" className="size-icon-2xs shrink-0" />}
+							<span className="truncate text-branch">{branch}</span>
+							{branchAction}
+						</span>
+					) : null}
+					<span className="shrink-0 whitespace-nowrap text-2xs text-passive" title={labels.updatedAt(session.updatedAt)}>
+						{labels.formatTime(session.updatedAt)}
+					</span>
+					{usage ? renderUsage(usage) : null}
+					{interactive ? (
+						<ChevronIcon
+							aria-hidden="true"
+							className="size-icon-sm shrink-0 text-passive"
+							direction="right"
+						/>
+					) : null}
+				</div>
+
+				<div className="flex flex-col gap-2.5">
+					{/* The state line is a coloured sentence, not a pill: on a lane that
+					    already carries the state, the card spends its colour on what the
+					    agent is doing right now. */}
+					<span
+						className={cn(
+							"flex min-w-0 items-center gap-1.5 text-2xs",
+							statusPresentation?.className ?? badge.className,
+						)}
+						style={!statusPresentation && showLiveActivity ? { color: activity.tone } : undefined}
+					>
+						{/* A dot only where it carries motion: live agent activity and
+						    in-flight agent switches pulse. Settled states are plain text,
+						    because the lane already says what the state is. */}
+						{statusPresentation?.indicatorClassName || showLiveActivity ? (
+							<span
+								aria-hidden="true"
+								className={cn(
+									"size-dot-sm shrink-0 rounded-full",
+									statusPresentation?.indicatorClassName ?? activity.indicatorClassName,
+								)}
+							/>
+						) : null}
+						<span className="min-w-0 truncate">{statusPresentation?.label ?? badge.label}</span>
+					</span>
 					<div
 						className={cn(
-							"line-clamp-2 overflow-hidden text-sm-md font-semibold leading-tight tracking-tight text-foreground",
+							"line-clamp-3 overflow-hidden text-brand font-medium leading-snug text-foreground",
 							(overlay || action) && "pr-6",
 						)}
 						title={session.title}
 					>
 						{session.title}
 					</div>
-					{showBranch && (
-						<div className="mt-1.5 flex min-w-0 items-center gap-1.5 font-mono text-2xs text-passive">
-							{branchIcon ?? <GitBranchIcon aria-hidden="true" className="size-icon-2xs shrink-0" />}
-							<span className="truncate">{branch}</span>
-							{branchAction}
+					{session.summary ? (
+						<p className="line-clamp-3 overflow-hidden text-xs leading-body text-foreground opacity-60">
+							{session.summary}
+						</p>
+					) : null}
+				</div>
+			</div>
+
+			{prs.length > 0 || session.trackerIssueId ? (
+				<div className="flex flex-col gap-2.5">
+					{prs.length > 0 && (
+						<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-passive">
+							{groupBoardPullRequests(prs).map((group) => (
+								<BoardPullRequestGroup
+									externalLink={externalLink}
+									group={group}
+									key={group.state}
+									labels={labels.pr}
+								/>
+							))}
 						</div>
 					)}
-				</div>
-			</div>
-			<div aria-hidden="true" className="mx-3.5 my-px h-px bg-border" />
-			<div className="flex flex-col gap-1.5 px-3.5 py-2">
-				<div className="flex items-center gap-2">
-					<span
-						className={cn(
-							"inline-flex min-w-0 flex-1 items-center gap-1.5 text-2xs font-medium",
-							statusPresentation?.className ?? badge.className,
-						)}
-						style={!statusPresentation && showLiveActivity ? { color: activity.tone } : undefined}
-					>
+					{session.trackerIssueId && (
 						<span
-							aria-hidden="true"
-							className={cn(
-								"size-dot-sm shrink-0 rounded-full",
-								statusPresentation?.indicatorClassName ??
-									(showLiveActivity ? activity.indicatorClassName : "bg-current"),
-							)}
-						/>
-						<span className="min-w-0 truncate">{statusPresentation?.label ?? badge.label}</span>
-					</span>
-					<div className="ml-auto flex shrink-0 items-center gap-1.5 whitespace-nowrap font-mono text-2xs text-passive">
-						{usage ? renderUsage(usage) : null}
-						{usage ? <span aria-hidden="true">·</span> : null}
-						<span title={labels.updatedAt(session.updatedAt)}>{labels.formatTime(session.updatedAt)}</span>
-					</div>
+							className="inline-flex max-w-branch-chip items-center self-start truncate rounded-md hairline border-border-strong bg-popover px-2 py-0.5 text-xs text-foreground"
+							title={labels.intakeIssue(session.trackerIssueId)}
+						>
+							{session.trackerIssueId}
+						</span>
+					)}
 				</div>
-				{prs.length > 0 && (
-					<div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-2xs text-passive">
-						{groupBoardPullRequests(prs).map((group) => (
-							<BoardPullRequestGroup
-								externalLink={externalLink}
-								group={group}
-								key={group.state}
-								labels={labels.pr}
-							/>
-						))}
-					</div>
-				)}
-				{session.trackerIssueId && (
-					<span
-						className="inline-flex max-w-branch-chip items-center self-start truncate rounded-sm bg-accent/12 px-1.5 py-0.5 font-mono text-micro text-accent"
-						title={labels.intakeIssue(session.trackerIssueId)}
-					>
-						{session.trackerIssueId}
-					</span>
-				)}
-			</div>
+			) : null}
+
+			{actions ? <div className="flex flex-wrap items-start gap-1.25">{actions}</div> : null}
+
 			{error ? (
-				<div className="border-t border-border px-3.5 py-1.5 text-2xs text-destructive" role="alert">
+				<div className="text-2xs text-destructive" role="alert">
 					{error}
 				</div>
 			) : null}
@@ -544,7 +626,7 @@ export const SessionUsageMetricView = forwardRef<
 		{...props}
 		aria-label={usage.accessibleLabel}
 		className={cn(
-			"inline-flex shrink-0 items-center gap-1 whitespace-nowrap font-mono text-2xs text-muted-foreground",
+			"inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-2xs text-muted-foreground",
 			className,
 		)}
 		ref={ref}
@@ -701,7 +783,7 @@ export const SessionsArchiveView = memo(function SessionsArchiveView<
 					direction="right"
 				/>
 				<span className="text-2xs font-medium tracking-wide-sm">{labels.archive}</span>
-				<span className="ml-1.5 font-mono text-micro text-passive">{sessions.length}</span>
+				<span className="ml-1.5 text-micro text-passive">{sessions.length}</span>
 			</button>
 			{/* Keep the sheet mounted after first open; height tracks `expanded`. */}
 			{cardsReady ? (

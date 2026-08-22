@@ -14,7 +14,7 @@ export function ContextMenuContent({
 		<ContextMenuPrimitive.Portal>
 			<ContextMenuPrimitive.Content
 				className={cn(
-					"z-overlay min-w-[10rem] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md",
+					"z-overlay min-w-[10rem] overflow-hidden rounded-panel hairline border-border bg-popover p-1 text-popover-foreground shadow-md",
 					"data-[state=open]:animate-overlay-in",
 					className,
 				)}

@@ -280,7 +280,7 @@ export function InspectorPullRequestCardView({
 			<div className={cn("flex min-w-0 items-center gap-2", pr.title && "mt-1.5")}>
 				<ExternalLink
 					ariaLabel={openLabel}
-					className="inline-flex min-w-0 items-center gap-1 font-mono text-xs font-medium text-settings-label decoration-muted-foreground underline-offset-2 hover:text-settings-label hover:underline focus-visible:rounded-sm focus-visible:text-settings-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+					className="inline-flex min-w-0 items-center gap-1 text-xs font-medium text-settings-label decoration-muted-foreground underline-offset-2 hover:text-settings-label hover:underline focus-visible:rounded-sm focus-visible:text-settings-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 					href={pr.href}
 				>
 					{pullRequestIcon ?? <GitPullRequestIcon className="size-icon-sm shrink-0" />}
@@ -372,7 +372,7 @@ export function InspectorActivityTimelineView({ events }: { events: InspectorTim
 						<div className="text-xs leading-normal text-foreground [&_b]:font-semibold">{event.content}</div>
 					</div>
 					{event.timestamp ? (
-						<div className="mt-1 font-mono text-2xs text-passive">{event.timestamp}</div>
+						<div className="mt-1 text-2xs text-passive">{event.timestamp}</div>
 					) : null}
 				</div>
 			))}
@@ -648,7 +648,7 @@ function ReviewDisclosure({
 						</span>
 						{verdict ? <VerdictBadge verdict={verdict} /> : null}
 					</span>
-					<span className="whitespace-normal break-words font-mono text-micro leading-snug text-passive" title={meta}>
+					<span className="whitespace-normal break-words text-micro leading-snug text-passive" title={meta}>
 						{meta}
 					</span>
 				</div>
@@ -670,7 +670,7 @@ function ReviewDisclosure({
 					<span className="whitespace-normal break-words text-sm-md font-semibold leading-snug text-foreground" title={title}>
 						{title}
 					</span>
-					<span className="whitespace-normal break-words font-mono text-micro leading-snug text-passive" title={meta}>
+					<span className="whitespace-normal break-words text-micro leading-snug text-passive" title={meta}>
 						{meta}
 					</span>
 				</span>
@@ -886,9 +886,9 @@ function ExternalReviewCard({
 							<GithubAvatar login={entry.reviewerId} />
 							<span className="truncate">{entry.reviewerId}</span>
 						</span>
-						{entry.isBot ? <span className="shrink-0 font-mono text-micro text-passive">{labels.bot}</span> : null}
+						{entry.isBot ? <span className="shrink-0 text-micro text-passive">{labels.bot}</span> : null}
 					</span>
-					<span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 font-mono text-micro text-passive">
+					<span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-micro text-passive">
 						{entry.submittedAtLabel ? <span>{labels.reviewedAt(entry.submittedAtLabel)}</span> : null}
 						{entry.submittedAtLabel && openInlineCount > 0 ? <span aria-hidden="true">·</span> : null}
 						{openInlineCount > 0 ? (
@@ -1171,11 +1171,11 @@ function ReviewSummaryCard({
 					{renderAvatar(actor)}
 					<span className="truncate">{actor}</span>
 				</span>
-				{isBot ? <span className="shrink-0 font-mono text-micro text-passive">{labels.bot}</span> : null}
+				{isBot ? <span className="shrink-0 text-micro text-passive">{labels.bot}</span> : null}
 				<VerdictBadge verdict={verdict} />
 				<span className="ml-auto inline-flex shrink-0 items-center gap-1.5 text-micro text-passive">
 					{isEarlier ? <span>{labels.earlierPass}</span> : null}
-					<span className="font-mono">{timestamp}</span>
+					<span>{timestamp}</span>
 				</span>
 			</span>
 			{body ? (

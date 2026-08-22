@@ -5,6 +5,8 @@ import { useNavigate } from "@tanstack/react-router";
 import {
 	SessionsArchiveView,
 	SessionsBoardGridView,
+	SessionsListView,
+	SessionsViewSwitch,
 	archiveToggleOffsetClassName,
 } from "@pin4sf/kennel-product-ui";
 import { AlertTriangle, LayoutDashboard, Plus, RotateCw } from "lucide-react";
@@ -59,6 +61,7 @@ import { useShellMaybe } from "../lib/shell-context";
 import {
 	ArchivedSessionCardAdapter,
 	BoardSessionCardAdapter,
+	BoardSessionRowAdapter,
 	sessionsBoardLabels,
 } from "./SessionsBoardAdapters";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -143,6 +146,8 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const setOrchestratorReplacementError = useUiStore((state) => state.setOrchestratorReplacementError);
 	const setOrchestratorStartupError = useUiStore((state) => state.setOrchestratorStartupError);
 	const requestNewTask = useUiStore((state) => state.requestNewTask);
+	const sessionsViewMode = useUiStore((state) => state.sessionsViewMode);
+	const setSessionsViewMode = useUiStore((state) => state.setSessionsViewMode);
 	const isProjectRestarting = projectId ? restartingProjectIds.has(projectId) : false;
 	const health = workspace ? orchestratorHealth(workspace, isProjectRestarting) : { state: "ok" as const };
 	const visibleSpawnError = spawnError ?? orchestratorStartupError;
@@ -458,20 +463,53 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 						spawnError={visibleSpawnError}
 					/>
 				) : (
-					<SessionsBoardGridView
-						columns={columns}
-						key={projectId ?? "all"}
-						labels={boardLabels}
-						renderSessionCard={(session) => (
-							<BoardSessionCardAdapter
-								onOpen={() => openSession(session)}
-								onTerminate={() => terminateSession.mutate(session)}
-								session={session}
-								usage={usageBySession.get(session.id)}
+					<div className="flex h-full min-h-0 flex-col">
+						{/* The view switch heads the lanes rather than the window: it
+						    changes what is below it, so it belongs to that region. */}
+						<div className="flex shrink-0 items-center gap-2 px-2.5 pb-2.5 pt-2.5">
+							<SessionsViewSwitch
+								labels={{
+									ariaLabel: t("shell.viewSwitchAria"),
+									board: t("shell.viewBoard"),
+									list: t("shell.viewList"),
+								}}
+								onChange={setSessionsViewMode}
+								value={sessionsViewMode}
 							/>
-						)}
-						sessions={activeSessions}
-					/>
+						</div>
+						<div className="min-h-0 flex-1">
+							{sessionsViewMode === "list" ? (
+								<SessionsListView
+									columns={columns}
+									key={`list-${projectId ?? "all"}`}
+									labels={boardLabels}
+									renderSessionRow={(session) => (
+										<BoardSessionRowAdapter
+											onOpen={() => openSession(session)}
+											session={session}
+											usage={usageBySession.get(session.id)}
+										/>
+									)}
+									sessions={activeSessions}
+								/>
+							) : (
+								<SessionsBoardGridView
+									columns={columns}
+									key={projectId ?? "all"}
+									labels={boardLabels}
+									renderSessionCard={(session) => (
+										<BoardSessionCardAdapter
+											onOpen={() => openSession(session)}
+											onTerminate={() => terminateSession.mutate(session)}
+											session={session}
+											usage={usageBySession.get(session.id)}
+										/>
+									)}
+									sessions={activeSessions}
+								/>
+							)}
+						</div>
+					</div>
 				)}
 			</div>
 

@@ -115,22 +115,24 @@ function OutcomeQuestions({
 		await onSubmit(nextAnswers);
 	};
 
+	// The question is the only thing on screen blocked on a person, so it carries
+	// the attention hue; everything around it stays neutral.
 	return (
-		<div className="w-full max-w-3xl overflow-hidden rounded-xl border border-border bg-raised shadow-xl" data-testid="outcome-questions">
-			<div className="flex items-start justify-between gap-6 border-b border-border px-5 py-4">
-				<h2 className="max-w-2xl text-sm font-medium leading-relaxed text-foreground">{question.prompt}</h2>
-				<div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-					<button type="button" aria-label={t("board.outcome.previousQuestion")} className="rounded p-1 hover:bg-muted disabled:opacity-30" disabled={index === 0 || busy} onClick={() => setIndex((current) => current - 1)}>
-						<ChevronLeft className="size-4" aria-hidden="true" />
+		<div className="w-full max-w-3xl overflow-hidden rounded-panel hairline border-border bg-popover shadow-xl" data-testid="outcome-questions">
+			<div className="flex items-start justify-between gap-6 px-3.5 pb-2.5 pt-3">
+				<h2 className="max-w-2xl text-sm font-medium leading-snug text-status-needs-you">{question.prompt}</h2>
+				<div className="flex shrink-0 items-center gap-1 text-2xs text-foreground/60">
+					<button type="button" aria-label={t("board.outcome.previousQuestion")} className="rounded-sm p-0.75 hover:bg-card disabled:opacity-30" disabled={index === 0 || busy} onClick={() => setIndex((current) => current - 1)}>
+						<ChevronLeft className="size-icon-sm" aria-hidden="true" />
 					</button>
-					<span>{t("board.outcome.questionProgress", { current: index + 1, total: questionSet.questions.length })}</span>
-					<button type="button" aria-label={t("board.outcome.nextQuestion")} className="rounded p-1 hover:bg-muted disabled:opacity-30" disabled={isLast || !canContinue || busy} onClick={() => void continueFlow()}>
-						<ChevronRight className="size-4" aria-hidden="true" />
+					<span className="font-medium">{t("board.outcome.questionProgress", { current: index + 1, total: questionSet.questions.length })}</span>
+					<button type="button" aria-label={t("board.outcome.nextQuestion")} className="rounded-sm p-0.75 hover:bg-card disabled:opacity-30" disabled={isLast || !canContinue || busy} onClick={() => void continueFlow()}>
+						<ChevronRight className="size-icon-sm" aria-hidden="true" />
 					</button>
 				</div>
 			</div>
 
-			<div className="space-y-1.5 p-3">
+			<div className="flex flex-col gap-px px-3.5 pb-3">
 				{question.options.map((option, optionIndex) => {
 					const selected = answer === option.label && !custom.trim();
 					return (
@@ -139,8 +141,8 @@ function OutcomeQuestions({
 							type="button"
 							aria-pressed={selected}
 							className={cn(
-								"group flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
-								selected ? "border-accent/45 bg-accent/10" : "border-transparent bg-surface hover:border-border hover:bg-muted",
+								"group flex w-full items-center justify-between gap-2 rounded-md py-0.75 pl-0.75 pr-2 text-left transition-colors",
+								selected ? "bg-card" : "hover:bg-card/60",
 							)}
 							disabled={busy}
 							onClick={() => {
@@ -148,23 +150,27 @@ function OutcomeQuestions({
 								setCustomAnswers((current) => ({ ...current, [question.id]: "" }));
 							}}
 						>
-							<span className={cn("grid size-6 shrink-0 place-items-center rounded-full border text-xs", selected ? "border-accent bg-accent text-accent-foreground" : "border-border text-muted-foreground")}>
-								{selected ? <Check className="size-3.5" aria-hidden="true" /> : optionIndex + 1}
+							<span className="flex min-w-0 items-center gap-2">
+								{/* A numbered chip, not a radio: options are addressable by
+								    position and the number is the shortcut. */}
+								<span className={cn("grid size-control-xs shrink-0 place-items-center rounded-xs hairline border-border-strong text-2xs font-medium", selected ? "bg-card text-foreground" : "bg-popover text-foreground/60")}>
+									{selected ? <Check className="size-icon-2xs" aria-hidden="true" /> : optionIndex + 1}
+								</span>
+								<span className="flex min-w-0 items-center gap-1.5">
+									<span className={cn("truncate text-xs", selected ? "text-foreground" : "text-foreground/60")}>{option.label}</span>
+									{option.recommended ? <span className="shrink-0 rounded-md hairline border-border bg-popover px-1.25 py-0.5 text-2xs text-foreground/60">{t("board.outcome.recommended")}</span> : null}
+									{option.description ? <span className="truncate text-2xs text-muted-foreground">{option.description}</span> : null}
+								</span>
 							</span>
-							<span className="min-w-0 flex-1">
-								<span className="font-medium text-foreground">{option.label}</span>
-								{option.recommended ? <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">{t("board.outcome.recommended")}</span> : null}
-								{option.description ? <span className="ml-2 text-xs text-muted-foreground">{option.description}</span> : null}
-							</span>
-							<ArrowRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+							<ArrowRight className={cn("size-icon-sm shrink-0 text-foreground transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover:opacity-60")} aria-hidden="true" />
 						</button>
 					);
 				})}
-				<label className={cn("mt-2 flex items-start gap-3 rounded-lg border bg-surface px-3 py-2.5", custom.trim() ? "border-accent/45" : "border-transparent focus-within:border-border")}>
-					<PencilLine className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+				<label className={cn("mt-1 flex items-start gap-2 rounded-md py-0.75 pl-0.75 pr-2 transition-colors", custom.trim() ? "bg-card" : "focus-within:bg-card")}>
+					<PencilLine className="mt-0.5 size-icon-sm shrink-0 text-foreground/60" aria-hidden="true" />
 					<span className="sr-only">{t("board.outcome.ownAnswer")}</span>
 					<textarea
-						className="min-h-10 flex-1 resize-none bg-transparent text-xs leading-relaxed text-foreground outline-none placeholder:text-muted-foreground"
+						className="min-h-10 flex-1 resize-none bg-transparent text-xs leading-body text-foreground outline-none placeholder:text-foreground/30"
 						disabled={busy}
 						placeholder={t("board.outcome.ownAnswerPlaceholder")}
 						value={custom}
@@ -173,7 +179,7 @@ function OutcomeQuestions({
 				</label>
 			</div>
 
-			<div className="flex items-center justify-between border-t border-border px-4 py-3">
+			<div className="flex items-center justify-between border-t border-border px-3.5 py-2.5">
 				<button type="button" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40" disabled={index === 0 || busy} onClick={() => setIndex((current) => current - 1)}>
 					<ArrowLeft className="size-3.5" aria-hidden="true" /> {t("board.outcome.back")}
 				</button>

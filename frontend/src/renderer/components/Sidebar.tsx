@@ -99,15 +99,17 @@ const noDragStyle = isMac ? ({ WebkitAppRegion: "no-drag" } as React.CSSProperti
 const HOVER_ACTION_CLASS =
 	"grid size-5 shrink-0 place-items-center rounded-md text-passive transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=open]:text-foreground [&_svg]:size-icon-lg";
 
-// Shared nav-row chrome (Codex-style): inset pill hover/selected, 14px type, no accent bar.
+// Shared nav-row chrome: 8px row radius, 14px secondary type, and a selected row
+// that takes the card plate and its hairline — the same plane a session card sits
+// on, so "this is the thing I am looking at" reads the same in both places.
 const NAV_ROW_CLASS =
-	"h-9 gap-2.5 rounded-lg px-2.5 text-sm font-medium text-muted-foreground transition-[background-color,color] hover:bg-interactive-hover hover:text-foreground active:bg-interactive-hover active:text-foreground data-[active=true]:bg-interactive-active data-[active=true]:font-medium data-[active=true]:text-foreground";
+	"h-8 gap-2.5 rounded-md px-1.75 text-sm font-normal text-muted-foreground transition-[background-color,color] hover:bg-muted hover:text-foreground active:bg-muted active:text-foreground data-[active=true]:hairline data-[active=true]:border-border data-[active=true]:bg-card data-[active=true]:font-normal data-[active=true]:text-foreground";
 
 // Search + Pinned/Projects section chrome: same type, icon, and row size.
 const SECTION_ROW_CLASS =
-	"flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2.5 text-sm font-medium text-passive [&_svg]:size-icon-md [&_svg]:shrink-0";
+	"flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-1.75 text-sm font-normal text-muted-foreground [&_svg]:size-icon-md [&_svg]:shrink-0";
 // Hover fill only for collapsible section headers (Pinned). Projects is a static label.
-const SECTION_ROW_INTERACTIVE_CLASS = "transition-colors hover:bg-interactive-hover hover:text-foreground";
+const SECTION_ROW_INTERACTIVE_CLASS = "transition-colors hover:bg-muted hover:text-foreground";
 
 // Mirrors the daemon's display-name cap (maxDisplayNameLen) and the spawn
 // `--name` flag, so inline edits never round-trip a value the API would reject.
@@ -927,7 +929,7 @@ function SessionRow({
 	if (isEditing) {
 		return (
 			<SidebarMenuSubItem className={cn(indented && "pl-4.5")}>
-				<div className="relative flex h-8 w-full items-center gap-1.5 rounded-lg px-2.5 py-0">
+				<div className="relative flex h-7 w-full items-center gap-1.25 rounded-md px-1.75 py-0">
 					<SessionStatusDot session={session} />
 					<input
 						aria-label={t("shell.renameSession", { title: session.title })}
@@ -958,9 +960,9 @@ function SessionRow({
 		<SidebarMenuSubItem className={cn(indented && "pl-4.5")}>
 			<div
 				className={cn(
-					"group/session-row flex h-8 w-full items-center rounded-lg transition-[background-color,color]",
-					"hover:bg-interactive-hover hover:text-foreground focus-within:bg-interactive-hover",
-					active && "bg-interactive-active text-foreground",
+					"group/session-row flex h-7 w-full items-center rounded-md transition-[background-color,color]",
+					"hover:bg-muted hover:text-foreground focus-within:bg-muted",
+					active && "bg-muted text-foreground",
 				)}
 				data-session-row=""
 			>
@@ -970,7 +972,7 @@ function SessionRow({
 						aria-current={active ? "page" : undefined}
 						aria-describedby={switchLabel ? switchStatusId : undefined}
 						aria-label={t("shell.openSession", { title: session.title })}
-						className="flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2.5 py-0 text-left text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+						className="flex h-7 min-w-0 flex-1 items-center gap-1.25 rounded-md px-1.75 py-0 text-left text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
 						onClick={onOpen}
 						type="button"
 					>
@@ -1333,7 +1335,7 @@ function SidebarSearchButton({ onOpen }: { onOpen: () => void }) {
 				tooltip={isCollapsed ? t("shell.search") : undefined}
 				className={cn(
 					// Filled search trigger (Cursor-style): icon + label.
-					"h-8 gap-2 rounded-lg bg-muted px-2.5 text-sm font-normal text-muted-foreground",
+					"h-8 gap-2 rounded-md hairline border-border bg-card px-1.75 text-sm font-normal text-muted-foreground",
 					"transition-[background-color,color] duration-150 ease-out hover:bg-interactive-hover! hover:text-foreground active:bg-interactive-hover! [&_svg]:size-icon-sm!",
 					"group-data-[collapsible=icon]:size-control-form! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:hover:bg-interactive-hover!",
 				)}
@@ -1342,7 +1344,7 @@ function SidebarSearchButton({ onOpen }: { onOpen: () => void }) {
 				<span className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-left leading-none group-data-[collapsible=icon]:hidden">
 					{t("shell.search")}
 				</span>
-				<kbd className="sidebar-expanded-chrome ml-auto shrink-0 rounded-sm border border-border-strong/60 bg-surface/50 px-1.5 py-0.5 font-mono text-caption leading-none text-muted-foreground/80 group-data-[collapsible=icon]:hidden">
+				<kbd className="sidebar-expanded-chrome ml-auto shrink-0 rounded-sm hairline border-border-strong bg-popover px-1.5 py-0.5 text-caption leading-none text-muted-foreground group-data-[collapsible=icon]:hidden">
 					{commandPaletteShortcutLabel}
 				</kbd>
 			</SidebarMenuButton>

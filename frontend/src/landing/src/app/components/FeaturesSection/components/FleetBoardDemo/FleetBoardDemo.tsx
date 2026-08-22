@@ -29,10 +29,10 @@ interface Card {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const COLUMN_CONFIG: Record<ColumnId, { title: string; color: string; weight: number }> = {
-	working:   { title: "Pending Work",   color: "#60a5fa", weight: 4 },
+	working:   { title: "Pending Work",   color: "#2388ff", weight: 4 },
 	staging:   { title: "Iterating",      color: "#a78bfa", weight: 3 },
-	in_review: { title: "In Review",      color: "#facc15", weight: 2 },
-	merge:     { title: "Ready to merge", color: "#4ade80", weight: 1 },
+	in_review: { title: "In Review",      color: "#fbbc04", weight: 2 },
+	merge:     { title: "Ready to merge", color: "#00cc6e", weight: 1 },
 };
 
 const COLUMN_ORDER: ColumnId[] = ["working", "staging", "in_review", "merge"];
@@ -218,7 +218,7 @@ function CircleProgressIcon({ pass, total }: { pass: number; total: number }) {
 	const circ = 2 * Math.PI * r;
 	const ratio = total > 0 ? pass / total : 0;
 	const dash = ratio * circ;
-	const fillColor = ratio >= 1 ? "#4ade80" : ratio < 0.5 ? "#fb923c" : "#e5e7eb";
+	const fillColor = ratio >= 1 ? "#00cc6e" : ratio < 0.5 ? "#fb8404" : "#e5e7eb";
 	return (
 		<svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
 			<circle cx="6" cy="6" r={r} stroke="#374151" strokeWidth="1.5" />
@@ -273,15 +273,15 @@ function BoardCard({ card, isPulsing }: { card: Card; isPulsing: boolean }) {
 	const isReviewFlag = isWaiting && card.column === "in_review";
 
 	const activityColor =
-		card.activityState === "passed" ? "text-[#4ade80]"
-		: card.activityState === "waiting" ? (isReviewFlag ? "text-[#f87171]" : "text-[#fb923c]")
-		: card.activityState === "reviewing" ? "text-[#facc15]"
+		card.activityState === "passed" ? "text-[#00cc6e]"
+		: card.activityState === "waiting" ? (isReviewFlag ? "text-[#f87171]" : "text-[#fb8404]")
+		: card.activityState === "reviewing" ? "text-[#fbbc04]"
 		: "text-[var(--preview-muted-foreground)]";
 
 	const attentionBorder = isWaiting
-		? isReviewFlag ? "border-[#f87171]/70" : "border-[#fb923c]/60"
+		? isReviewFlag ? "border-[#f87171]/70" : "border-[#fb8404]/60"
 		: "border-[var(--preview-border)]";
-	const badgeColor = isReviewFlag ? "bg-[#f87171]" : "bg-[#fb923c]";
+	const badgeColor = isReviewFlag ? "bg-[#f87171]" : "bg-[#fb8404]";
 	const attentionAnim = isWaiting && isPulsing ? "ao-attention-pulse" : "";
 	const isTestCard = card.column === "staging" && !!card.testResults;
 
@@ -345,7 +345,7 @@ function BoardCard({ card, isPulsing }: { card: Card; isPulsing: boolean }) {
 						) : null}
 					</div>
 					{card.prComments !== undefined ? (
-						<span className={`text-[8px] ${card.prComments > 0 ? "text-[#fb923c]" : "text-[var(--preview-muted-foreground)]"}`}>
+						<span className={`text-[8px] ${card.prComments > 0 ? "text-[#fb8404]" : "text-[var(--preview-muted-foreground)]"}`}>
 							{card.prComments === 0 ? "0 cmt" : `${card.prComments} cmt`}
 						</span>
 					) : null}
@@ -395,7 +395,7 @@ function BoardColumn({ cards, color, title }: { cards: Card[]; color: string; ti
 				<div className="truncate text-[8px] font-medium tracking-wide text-[var(--preview-muted-foreground)]">{title}</div>
 				<div className="ml-auto font-mono text-[8px] leading-none text-[var(--preview-muted-foreground)] opacity-60">{cards.length}</div>
 				{extraWaiting > 0 ? (
-					<div className="inline-flex items-center gap-1 rounded-[3px] bg-[#fb923c]/10 px-1 py-0.5 text-[7px] font-semibold text-[#fb923c]">
+					<div className="inline-flex items-center gap-1 rounded-[3px] bg-[#fb8404]/10 px-1 py-0.5 text-[7px] font-semibold text-[#fb8404]">
 						<WaitingIcon className="h-2 w-2" />
 						{extraWaiting} waiting
 					</div>

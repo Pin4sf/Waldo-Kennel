@@ -5,7 +5,112 @@
 > - Radix/shadcn + xterm, in `frontend/src/renderer`). Read this before any visual
 >   or UI change. Created by `/design-consultation` on 2026-06-09.
 
-## ⚠️ Design direction — clone agent-orchestrator verbatim (SUPERSEDES prior direction · 2026-06-10)
+## ⚠️ Design direction — Kennel orchestrator system, Figma (SUPERSEDES all prior direction · 2026-08-22)
+
+By explicit user decision (2026-08-22), the desktop app follows the **Kennel
+orchestrator design system** authored in Figma:
+
+- **Source of truth:** Figma file `Dl0WP9uIvx6QbSzZi7cZQY` ("Waldo"), section
+  `2984-17556`. Board screen `2948:15618`, List screen `2960:16130`, choice panel
+  `2960:16912`. The Figma is gospel down to spacing and stroke width; where this
+  document or the agent-orchestrator direction below conflicts with it, **Figma wins**.
+- **Notch tuning:** Kennel Island (`packages/kennel-island`) uses this same system,
+  tuned for the notch with reduced text hierarchy, simpler composition, and a
+  `#000000` background at all times so it reads as continuous with the physical
+  camera housing. Its components otherwise follow the same design language.
+
+### The system in one page
+
+**Surfaces** — a warm near-black ramp where elevation reads by temperature, not shadow:
+
+| Role | Token | Dark | Where |
+| --- | --- | --- | --- |
+| Canvas | `--background` | `#151515` | window / content |
+| Sidebar | `--sidebar` | `#161616` | left rail |
+| Shell plate | `--color-bg-shell` | `#1a1a1a` | board lane, list group, segmented track |
+| Card | `--card` | `#272725` | session card, list row plate, active segment |
+| Raised | `--popover` | `#353533` | chips, secondary buttons, popovers, choice panel |
+| Row hover | `--muted` | `#1e1e1e` | sidebar rows |
+
+**Text** — `#fafaf8` primary, `#9a9a96` secondary (`--muted-foreground`), `#6b6b68`
+passive (`--color-text-passive`), `#979797` list meta (`--color-text-meta`).
+
+**Lines** — `rgb(255 255 255 / 8%)` (`--border`) and `rgb(255 255 255 / 10%)`
+(`--input`), drawn at **0.6px** via the `hairline` utility on cards, chips and
+buttons. Hairlines separate; they never frame.
+
+**Lane hues** — Needs Choice `#fb8404`, Needs Input `#fbbc04`, Ready `#00cc6e`,
+Running `#2388ff`. Links are `#2388ff` (`--color-link`), branch names `#8338ec`
+(`--color-branch`). These are the only saturated colours in the app.
+
+**Type** — SF Pro Rounded (`--font-family-base`, falls back to Geist off macOS) at a
+uniform **+2% tracking** (`--tracking-base`, applied on `body`). Sizes: 16 title
+(`text-brand`), 14 chrome (`text-sm`), 12 body/chips (`text-xs`), 10 meta
+(`text-2xs`). Leading 1.3 (`leading-snug`) everywhere, 1.4 (`leading-body`) for
+wrapped copy. **No monospace in product chrome** — the terminal keeps its own face.
+
+**Radii** — 5 (`rounded-xs`) · 6 (`rounded-sm`) · 8 (`rounded-md`, the workhorse) ·
+12 (`rounded-lg`) · 15 (`rounded-card`) · 16 (`rounded-panel`) · 18 (`rounded-group`).
+
+**Spacing** — 3 / 5 / 8 / 10 / 15 / 18 / 20px on the existing `--space-*` scale.
+
+### Composition rules
+
+- A **board lane** is a `rounded-group` plate that fades out downward
+  (`column-shell`): solid under the header, gone by the foot, so a lane holding
+  one card does not box empty space. Lanes sit flush; the row reads as one surface.
+- A **lane heading** is dot · name · count chip, with a reserved 26px slot on the
+  right for the lane menu.
+- A **session card** is `bg-card` + `hairline` at `rounded-card`, 18px padding,
+  20px between blocks: provenance (agent · branch chip · age) → state line → title →
+  summary → links → actions. Provenance leads because the card answers "whose work
+  is this" before "what is it".
+- The **state line** is coloured text, not a pill, and only carries a dot when that
+  dot is moving (live agent activity, in-flight agent switch).
+- The **list view** is the same lanes with each session on one line; long cells clip
+  behind a fade (`list-cell-fade`) rather than ellipsing, so columns stay aligned.
+- **List / Board** is a two-item segmented control on the shell plate, heading the
+  lanes it governs. The choice persists (`kennel.sessions.viewMode`).
+
+### First-run setup tour
+
+`OnboardingTour` is the app's one modal that a person does not summon. Its shape
+is borrowed from Xirp's getting-started flow (Spotify's docs, `xirp/getting-started`)
+and rebuilt in this system:
+
+- Centred dialog on a `rounded-panel` card plate, header and footer separated by
+  hairlines from a **fixed-height** body — a tour that grows with its content
+  moves its own footer buttons while a person is reaching for them, so long steps
+  scroll instead.
+- Header: step name · `· N of 4` · dot pager · close. Footer: `← Back` ·
+  `Skip tour` · one primary action.
+- Progress dots are **neutral greys**, never the lane hues. Orange and green mean
+  "needs you" and "ready" everywhere else; spending them on a step counter would
+  make them mean nothing.
+- Four steps, each one decision that writes a real setting: default coding agent
+  (from the daemon's probe), session alerts (fires a real notification so a person
+  can confirm it reaches them), and layout (Board or List). Every one is reachable
+  again from Settings → Replay welcome tour.
+- It waits for the daemon to be ready before opening, and closing by any route —
+  finish, skip, or the X — counts as answered.
+
+### Known gaps (design elements without data or product wiring)
+
+- Lane menu button: the 26px slot is reserved and empty — no lane-level action exists.
+- Card summary (`BoardSessionPresentation.summary`) renders when supplied; the daemon
+  does not yet supply it.
+- Card action row (`SessionCardView` `actions` prop) is styled and empty; Instruct /
+  Merge / pause are not wired.
+- Figma's lane names "Needs Choice" and "Needs Input" describe a different lane model
+  than the app's attention zones; `zone.action` stays "Needs you" and `zone.pending`
+  stays "In review" until that model changes. "Ready" and "Running" were adopted.
+
+---
+
+## Superseded — clone agent-orchestrator verbatim (2026-06-10)
+
+> Kept for provenance. The Figma direction above governs.
+
 
 By explicit user decision (2026-06-10), the renderer **clones the
 agent-orchestrator web app verbatim** in looks and design. This **supersedes the
