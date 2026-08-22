@@ -28,6 +28,14 @@ As of `main` after PRs #1 and #12-#14 on 2026-08-21, Kennel has a working AO-der
 - Local foundation tests, Go lint/race checks, production dependency audit, macOS packaged-identity assertion, Dependabot, and GitHub secret scanning. Hosted CI/security workflows are intentionally deferred.
 - Zero known production npm vulnerabilities across the audited package sets at the dated foundation run. Inherited development toolchain advisories remain documented in the [acceptance record](foundation-acceptance-2026-08-18.md).
 
+## Beta integration work, not shipped on `main`
+
+- `beta` adds the Work-first `/work` Enter surface as the recommended local-dogfood starting point. It is an entry and readiness shell, not the complete Outcome lifecycle.
+- Issue #18 adds the peer `/home` destination and contextual Home routes for Today, Open Loops, Daily Close, Memory Review, and History. These screens use deterministic renderer fixtures and local preview interactions; they do not persist a `PersonalHome`, admit Memory, create Work Outcomes, close responsibilities, or run a Personal Agent.
+- The global Home/Work mode control treats `/work` as the initial Work destination, remembers an already-visited Work project/session/board route, and remembers the last Home route independently. Work project/session navigation is not rendered inside Home.
+- The Work-first “Set up Home” choice navigates to the real `/home` surface without creating either responsibility space. Onboarding default persistence remains deferred to a later preferences/daemon contract.
+- This beta UI work does not advance the capture, source, Home persistence, ResponsibilityLink, durable Memory, Paxel, AutoResearch, BYOK, or agent/harness gates described below.
+
 ## Present but not a current product promise
 
 - `frontend/src/landing` is an AO marketing donor retained for build coverage; it is not the desktop launch surface.

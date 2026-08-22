@@ -114,10 +114,11 @@ describe("Work-first Enter surface", () => {
 		expect(postMock).not.toHaveBeenCalled();
 	});
 
-	it("does not create a Home record when the user chooses Home either", async () => {
+	it("routes the equal Home choice to the live Home destination without creating a record", async () => {
 		renderSurface();
 		await userEvent.click(await screen.findByRole("button", { name: /home/i }));
 		await waitFor(() => expect(postMock).not.toHaveBeenCalled());
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/home" });
 	});
 
 	it("shows a distinct daemon-offline state", async () => {

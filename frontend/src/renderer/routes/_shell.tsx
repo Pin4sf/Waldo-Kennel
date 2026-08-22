@@ -8,6 +8,7 @@ import { NotificationRuntime } from "../components/NotificationCenter";
 import { OnboardingTour } from "../components/OnboardingTour";
 import { TrayRuntime } from "../components/TrayRuntime";
 import { GlobalNewTaskDialog } from "../components/GlobalNewTaskDialog";
+import { HomeWorkModeSwitch } from "../components/HomeWorkModeSwitch";
 import { SettingsDialog } from "../components/SettingsDialog";
 import { KeyboardShortcutsDialog } from "../components/KeyboardShortcutsDialog";
 import { KeyboardShortcutsSettingsDialog } from "../components/settings/KeyboardShortcutsSettingsDialog";
@@ -189,10 +190,11 @@ function ShellLayout() {
 	const isSettingsRoute =
 		Boolean(matchRoute({ to: "/settings", fuzzy: true })) ||
 		Boolean(matchRoute({ to: "/projects/$projectId/settings", fuzzy: true }));
+	const isHomeRoute = Boolean(matchRoute({ to: "/home", fuzzy: true }));
 	// Welcome/settings always self-frame. Platforms that hide the shell-owned
 	// topbar (macOS) use the same full-height inset; session actions mount
 	// inside SessionView.
-	const selfFramedCenterPanel = isWelcomeBoard || isSettingsRoute;
+	const selfFramedCenterPanel = isWelcomeBoard || isSettingsRoute || isHomeRoute;
 	const hideShellTopbar = selfFramedCenterPanel || shellTopbarHiddenByPlatform;
 	const setProjectRestarting = useUiStore((state) => state.setProjectRestarting);
 	const orchestratorReplacementErrors = useUiStore((state) => state.orchestratorReplacementErrors);
@@ -730,7 +732,7 @@ function ShellLayout() {
 						workspaceError={workspaceQuery.isError ? errorMessage(workspaceQuery.error) : undefined}
 						workspaces={workspaces}
 					/>
-					<main className={cn("flex min-w-0 flex-1 flex-col overflow-x-hidden", !isSidebarOpen && "sidebar-hidden")}>
+					<main className={cn("relative flex min-w-0 flex-1 flex-col overflow-x-hidden", !isSidebarOpen && "sidebar-hidden")}>
 						<div className="min-h-0 flex-1 overflow-x-hidden">
 							{/* Board/session routes render inside the same inset box the welcome board and settings paint for themselves, so every screen sits within the app's outer boundary. */}
 							{hideShellTopbar ? (
@@ -759,7 +761,12 @@ function ShellLayout() {
 								<Outlet />
 							</div>
 						</CenterPanelShell>
-					)}
+							)}
+						</div>
+						{/* Electron composes drag/no-drag regions in DOM order. This control
+						    must follow route-owned titlebars so Work cannot swallow its clicks. */}
+						<div className="pointer-events-none absolute left-1/2 top-1.5 z-titlebar -translate-x-1/2">
+							<HomeWorkModeSwitch />
 						</div>
 					</main>
 					</div>

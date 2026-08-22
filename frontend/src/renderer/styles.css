@@ -511,6 +511,207 @@
 		border-radius 280ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
+/* Personal Home / Today: an editorial brief and a decision workspace share one
+ * continuous surface. The cool field gives the brief identity without turning
+ * the page into a stack of cards; the right pane stays on the neutral app ramp. */
+.home-today-layout {
+	display: flex;
+	min-height: 0;
+	flex: 1 1 0%;
+	flex-direction: column;
+}
+
+.home-today-brief-pane {
+	background-color: color-mix(in oklch, var(--color-bg-primary) 91%, var(--color-status-working));
+	background-image: radial-gradient(
+		circle at 18% 8%,
+		color-mix(in oklch, var(--color-status-working) 14%, transparent),
+		transparent 54%
+	);
+}
+
+.home-destination-surface {
+	background-color: color-mix(in oklch, var(--color-bg-primary) 94%, var(--color-status-working));
+	background-image: radial-gradient(
+		circle at 16% 4%,
+		color-mix(in oklch, var(--color-status-working) 9%, transparent),
+		transparent 48%
+	);
+}
+
+.home-today-catch-up-pane {
+	background-color: color-mix(in oklch, var(--color-bg-primary) 88%, var(--color-bg-sidebar));
+}
+
+.home-open-loops-desk {
+	display: grid;
+	grid-template-columns: minmax(14rem, 0.78fr) minmax(0, 1.5fr);
+	gap: 2rem;
+	margin-top: 1.75rem;
+}
+
+.home-open-loops-detail {
+	border-left: 1px solid var(--color-border);
+	padding-left: 2rem;
+}
+
+.home-open-loops-back {
+	display: none;
+}
+
+.home-daily-close-review-grid,
+.home-daily-close-receipt {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	column-gap: 2.5rem;
+}
+
+.home-daily-close-review-grid > :nth-child(2) {
+	border-top: 0;
+	border-left: 1px solid var(--color-border);
+	padding-left: 2.5rem;
+}
+
+.home-daily-close-receipt > :nth-child(even) {
+	border-left: 1px solid var(--color-border);
+	padding-left: 2.5rem;
+}
+
+.home-daily-close-receipt > :nth-child(2) {
+	border-top: 0;
+}
+
+.home-memory-review-desk {
+	display: grid;
+	grid-template-columns: minmax(14rem, 0.78fr) minmax(0, 1.5fr);
+	gap: 2rem;
+}
+
+.home-memory-review-detail {
+	border-left: 1px solid var(--color-border);
+	padding-left: 2rem;
+}
+
+.home-memory-review-back {
+	display: none;
+}
+
+.home-history-desk {
+	display: grid;
+	grid-template-columns: minmax(15rem, 0.85fr) minmax(0, 1.5fr);
+	gap: 2rem;
+}
+
+.home-history-detail {
+	border-left: 1px solid var(--color-border);
+	padding-left: 2rem;
+}
+
+.home-history-back {
+	display: none;
+}
+
+.home-history-marker {
+	border-radius: 999px;
+}
+
+.home-history-marker[data-kind="correction"] {
+	border-radius: 2px;
+}
+
+.home-history-marker[data-kind="work_link_preview"],
+.home-history-marker[data-kind="close_receipt_preview"] {
+	border-radius: 2px;
+	transform: rotate(45deg);
+}
+
+@container center-panel (max-width: 760px) {
+	.home-open-loops-desk {
+		display: block;
+	}
+
+	.home-open-loops-detail {
+		border-left: 0;
+		padding-left: 0;
+	}
+
+	.home-open-loops-back {
+		display: inline-flex;
+	}
+
+	.home-open-loops-desk[data-mobile-view="index"] .home-open-loops-detail,
+	.home-open-loops-desk[data-mobile-view="detail"] .home-open-loops-index {
+		display: none;
+	}
+
+	.home-daily-close-review-grid,
+	.home-daily-close-receipt {
+		display: block;
+	}
+
+	.home-daily-close-review-grid > :nth-child(2),
+	.home-daily-close-receipt > :nth-child(even) {
+		border-left: 0;
+		padding-left: 0;
+	}
+
+	.home-memory-review-desk {
+		display: block;
+	}
+
+	.home-memory-review-detail {
+		border-left: 0;
+		padding-left: 0;
+	}
+
+	.home-memory-review-back {
+		display: inline-flex;
+	}
+
+	.home-memory-review-desk[data-mobile-view="index"] .home-memory-review-detail,
+	.home-memory-review-desk[data-mobile-view="detail"] .home-memory-review-index {
+		display: none;
+	}
+
+	.home-history-desk {
+		display: block;
+	}
+
+	.home-history-detail {
+		border-left: 0;
+		padding-left: 0;
+	}
+
+	.home-history-back {
+		display: inline-flex;
+	}
+
+	.home-history-desk[data-mobile-view="index"] .home-history-detail,
+	.home-history-desk[data-mobile-view="detail"] .home-history-spine {
+		display: none;
+	}
+}
+
+@container center-panel (min-width: 960px) {
+	.home-today-layout {
+		display: grid;
+		grid-template-columns: minmax(0, 3fr) minmax(22rem, 2fr);
+		overflow: hidden;
+	}
+
+	.home-today-brief-pane {
+		min-height: 0;
+		overflow-y: auto;
+	}
+
+	.home-today-catch-up-pane {
+		min-height: 0;
+		overflow: hidden;
+		border-top: 0;
+		border-left: 1px solid var(--color-border);
+	}
+}
+
 /* A fully hidden sidebar no longer contributes a left layout gutter. Restore
  * the shared frame inset while transient hover previews overlay this surface. */
 .sidebar-hidden .center-panel-shell {

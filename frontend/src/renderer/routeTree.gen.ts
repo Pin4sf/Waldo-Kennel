@@ -14,8 +14,13 @@ import { Route as ShellIndexRouteImport } from './routes/_shell.index'
 import { Route as ShellWorkRouteImport } from './routes/_shell.work'
 import { Route as ShellTerminalsRouteImport } from './routes/_shell.terminals'
 import { Route as ShellSettingsRouteImport } from './routes/_shell.settings'
+import { Route as ShellHomeRouteImport } from './routes/_shell.home'
 import { Route as ShellSessionsSessionIdRouteImport } from './routes/_shell.sessions.$sessionId'
 import { Route as ShellProjectsProjectIdRouteImport } from './routes/_shell.projects.$projectId'
+import { Route as ShellHomeOpenLoopsRouteImport } from './routes/_shell.home_.open-loops'
+import { Route as ShellHomeMemoryRouteImport } from './routes/_shell.home_.memory'
+import { Route as ShellHomeHistoryRouteImport } from './routes/_shell.home_.history'
+import { Route as ShellHomeDailyCloseRouteImport } from './routes/_shell.home_.daily-close'
 import { Route as ShellProjectsProjectIdSettingsRouteImport } from './routes/_shell.projects.$projectId_.settings'
 import { Route as ShellProjectsProjectIdSessionsSessionIdRouteImport } from './routes/_shell.projects.$projectId_.sessions.$sessionId'
 
@@ -43,6 +48,11 @@ const ShellSettingsRoute = ShellSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellHomeRoute = ShellHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellSessionsSessionIdRoute = ShellSessionsSessionIdRouteImport.update({
   id: '/sessions/$sessionId',
   path: '/sessions/$sessionId',
@@ -51,6 +61,26 @@ const ShellSessionsSessionIdRoute = ShellSessionsSessionIdRouteImport.update({
 const ShellProjectsProjectIdRoute = ShellProjectsProjectIdRouteImport.update({
   id: '/projects/$projectId',
   path: '/projects/$projectId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellHomeOpenLoopsRoute = ShellHomeOpenLoopsRouteImport.update({
+  id: '/home_/open-loops',
+  path: '/home/open-loops',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellHomeMemoryRoute = ShellHomeMemoryRouteImport.update({
+  id: '/home_/memory',
+  path: '/home/memory',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellHomeHistoryRoute = ShellHomeHistoryRouteImport.update({
+  id: '/home_/history',
+  path: '/home/history',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellHomeDailyCloseRoute = ShellHomeDailyCloseRouteImport.update({
+  id: '/home_/daily-close',
+  path: '/home/daily-close',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellProjectsProjectIdSettingsRoute =
@@ -68,19 +98,29 @@ const ShellProjectsProjectIdSessionsSessionIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof ShellIndexRoute
+  '/home': typeof ShellHomeRoute
   '/settings': typeof ShellSettingsRoute
   '/terminals': typeof ShellTerminalsRoute
   '/work': typeof ShellWorkRoute
+  '/home/daily-close': typeof ShellHomeDailyCloseRoute
+  '/home/history': typeof ShellHomeHistoryRoute
+  '/home/memory': typeof ShellHomeMemoryRoute
+  '/home/open-loops': typeof ShellHomeOpenLoopsRoute
   '/projects/$projectId': typeof ShellProjectsProjectIdRoute
   '/sessions/$sessionId': typeof ShellSessionsSessionIdRoute
   '/projects/$projectId/settings': typeof ShellProjectsProjectIdSettingsRoute
   '/projects/$projectId/sessions/$sessionId': typeof ShellProjectsProjectIdSessionsSessionIdRoute
 }
 export interface FileRoutesByTo {
+  '/home': typeof ShellHomeRoute
   '/settings': typeof ShellSettingsRoute
   '/terminals': typeof ShellTerminalsRoute
   '/work': typeof ShellWorkRoute
   '/': typeof ShellIndexRoute
+  '/home/daily-close': typeof ShellHomeDailyCloseRoute
+  '/home/history': typeof ShellHomeHistoryRoute
+  '/home/memory': typeof ShellHomeMemoryRoute
+  '/home/open-loops': typeof ShellHomeOpenLoopsRoute
   '/projects/$projectId': typeof ShellProjectsProjectIdRoute
   '/sessions/$sessionId': typeof ShellSessionsSessionIdRoute
   '/projects/$projectId/settings': typeof ShellProjectsProjectIdSettingsRoute
@@ -89,10 +129,15 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_shell': typeof ShellRouteWithChildren
+  '/_shell/home': typeof ShellHomeRoute
   '/_shell/settings': typeof ShellSettingsRoute
   '/_shell/terminals': typeof ShellTerminalsRoute
   '/_shell/work': typeof ShellWorkRoute
   '/_shell/': typeof ShellIndexRoute
+  '/_shell/home_/daily-close': typeof ShellHomeDailyCloseRoute
+  '/_shell/home_/history': typeof ShellHomeHistoryRoute
+  '/_shell/home_/memory': typeof ShellHomeMemoryRoute
+  '/_shell/home_/open-loops': typeof ShellHomeOpenLoopsRoute
   '/_shell/projects/$projectId': typeof ShellProjectsProjectIdRoute
   '/_shell/sessions/$sessionId': typeof ShellSessionsSessionIdRoute
   '/_shell/projects/$projectId_/settings': typeof ShellProjectsProjectIdSettingsRoute
@@ -102,19 +147,29 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/home'
     | '/settings'
     | '/terminals'
     | '/work'
+    | '/home/daily-close'
+    | '/home/history'
+    | '/home/memory'
+    | '/home/open-loops'
     | '/projects/$projectId'
     | '/sessions/$sessionId'
     | '/projects/$projectId/settings'
     | '/projects/$projectId/sessions/$sessionId'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/home'
     | '/settings'
     | '/terminals'
     | '/work'
     | '/'
+    | '/home/daily-close'
+    | '/home/history'
+    | '/home/memory'
+    | '/home/open-loops'
     | '/projects/$projectId'
     | '/sessions/$sessionId'
     | '/projects/$projectId/settings'
@@ -122,10 +177,15 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_shell'
+    | '/_shell/home'
     | '/_shell/settings'
     | '/_shell/terminals'
     | '/_shell/work'
     | '/_shell/'
+    | '/_shell/home_/daily-close'
+    | '/_shell/home_/history'
+    | '/_shell/home_/memory'
+    | '/_shell/home_/open-loops'
     | '/_shell/projects/$projectId'
     | '/_shell/sessions/$sessionId'
     | '/_shell/projects/$projectId_/settings'
@@ -173,6 +233,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellSettingsRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/home': {
+      id: '/_shell/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof ShellHomeRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/sessions/$sessionId': {
       id: '/_shell/sessions/$sessionId'
       path: '/sessions/$sessionId'
@@ -185,6 +252,34 @@ declare module '@tanstack/react-router' {
       path: '/projects/$projectId'
       fullPath: '/projects/$projectId'
       preLoaderRoute: typeof ShellProjectsProjectIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/home_/open-loops': {
+      id: '/_shell/home_/open-loops'
+      path: '/home/open-loops'
+      fullPath: '/home/open-loops'
+      preLoaderRoute: typeof ShellHomeOpenLoopsRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/home_/memory': {
+      id: '/_shell/home_/memory'
+      path: '/home/memory'
+      fullPath: '/home/memory'
+      preLoaderRoute: typeof ShellHomeMemoryRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/home_/history': {
+      id: '/_shell/home_/history'
+      path: '/home/history'
+      fullPath: '/home/history'
+      preLoaderRoute: typeof ShellHomeHistoryRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/home_/daily-close': {
+      id: '/_shell/home_/daily-close'
+      path: '/home/daily-close'
+      fullPath: '/home/daily-close'
+      preLoaderRoute: typeof ShellHomeDailyCloseRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/projects/$projectId_/settings': {
@@ -205,10 +300,15 @@ declare module '@tanstack/react-router' {
 }
 
 interface ShellRouteChildren {
+  ShellHomeRoute: typeof ShellHomeRoute
   ShellSettingsRoute: typeof ShellSettingsRoute
   ShellTerminalsRoute: typeof ShellTerminalsRoute
   ShellWorkRoute: typeof ShellWorkRoute
   ShellIndexRoute: typeof ShellIndexRoute
+  ShellHomeDailyCloseRoute: typeof ShellHomeDailyCloseRoute
+  ShellHomeHistoryRoute: typeof ShellHomeHistoryRoute
+  ShellHomeMemoryRoute: typeof ShellHomeMemoryRoute
+  ShellHomeOpenLoopsRoute: typeof ShellHomeOpenLoopsRoute
   ShellProjectsProjectIdRoute: typeof ShellProjectsProjectIdRoute
   ShellSessionsSessionIdRoute: typeof ShellSessionsSessionIdRoute
   ShellProjectsProjectIdSettingsRoute: typeof ShellProjectsProjectIdSettingsRoute
@@ -216,10 +316,15 @@ interface ShellRouteChildren {
 }
 
 const ShellRouteChildren: ShellRouteChildren = {
+  ShellHomeRoute: ShellHomeRoute,
   ShellSettingsRoute: ShellSettingsRoute,
   ShellTerminalsRoute: ShellTerminalsRoute,
   ShellWorkRoute: ShellWorkRoute,
   ShellIndexRoute: ShellIndexRoute,
+  ShellHomeDailyCloseRoute: ShellHomeDailyCloseRoute,
+  ShellHomeHistoryRoute: ShellHomeHistoryRoute,
+  ShellHomeMemoryRoute: ShellHomeMemoryRoute,
+  ShellHomeOpenLoopsRoute: ShellHomeOpenLoopsRoute,
   ShellProjectsProjectIdRoute: ShellProjectsProjectIdRoute,
   ShellSessionsSessionIdRoute: ShellSessionsSessionIdRoute,
   ShellProjectsProjectIdSettingsRoute: ShellProjectsProjectIdSettingsRoute,

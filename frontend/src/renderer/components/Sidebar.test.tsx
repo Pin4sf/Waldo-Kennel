@@ -22,11 +22,12 @@ import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { agentsQueryKey } from "../hooks/useAgentsQuery";
 import { useUiStore } from "../stores/ui-store";
 
-const { getMock, navigateMock, mockParams, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
+const { getMock, navigateMock, mockParams, mockPathname, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
 	() => ({
 		getMock: vi.fn(),
 		navigateMock: vi.fn(),
 		mockParams: { projectId: undefined as string | undefined, sessionId: undefined as string | undefined },
+		mockPathname: { current: "/" },
 		renameSessionMock: vi.fn().mockResolvedValue(undefined),
 		spawnMock: vi.fn(),
 		updateStatusMock: vi.fn(),
@@ -48,7 +49,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 		useNavigate: () => navigateMock,
 		useParams: () => ({ ...mockParams }),
 		useRouterState: ({ select }: { select: (state: { location: { pathname: string } }) => unknown }) =>
-			select({ location: { pathname: "/" } }),
+			select({ location: { pathname: mockPathname.current } }),
 	};
 });
 
@@ -256,6 +257,7 @@ beforeEach(() => {
 	updateStatusMock.mockReset().mockResolvedValue({ state: "idle" });
 	mockParams.projectId = undefined;
 	mockParams.sessionId = undefined;
+	mockPathname.current = "/";
 });
 
 afterEach(() => {
@@ -263,6 +265,37 @@ afterEach(() => {
 });
 
 describe("Sidebar", () => {
+	it("leaves the global Home and Work choice to the shell mode control", () => {
+		renderSidebar();
+
+		expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Work (recommended)" })).not.toBeInTheDocument();
+	});
+
+	it("treats beta's Work entry route as an active Work destination", () => {
+		mockPathname.current = "/work";
+		renderSidebar();
+
+		expect(screen.getByRole("button", { name: "Orchestrator board" })).toHaveClass(
+			"group-data-[collapsible=icon]:bg-interactive-active",
+		);
+	});
+
+	it("shows personal destinations without the Work project tree in Home", () => {
+		mockPathname.current = "/home";
+		renderSidebar();
+
+		const navigation = screen.getByRole("navigation", { name: "Home destinations" });
+		expect(within(navigation).getByRole("link", { name: "Today" })).toBeInTheDocument();
+		expect(within(navigation).getByRole("link", { name: "Open Loops" })).toBeInTheDocument();
+		expect(within(navigation).queryByRole("link", { name: "Memory" })).not.toBeInTheDocument();
+		expect(within(navigation).queryByRole("link", { name: "Daily Close" })).not.toBeInTheDocument();
+		expect(within(navigation).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Search" })).not.toBeInTheDocument();
+		expect(screen.queryByText("Projects")).not.toBeInTheDocument();
+		expect(screen.queryByText("Project One")).not.toBeInTheDocument();
+	});
+
 	it("suppresses focus chrome without removing keyboard focusability", () => {
 		renderSidebar();
 

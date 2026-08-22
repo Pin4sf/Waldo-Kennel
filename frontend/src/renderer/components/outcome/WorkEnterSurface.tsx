@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,7 +13,7 @@ import { OutcomeLifecycleShell } from "./OutcomeLifecycleShell";
 // decision, so this stays one named constant rather than provider branching.
 const V0_PROVIDER_ID = "codex";
 
-type EnterDestination = "undecided" | "work" | "home";
+type EnterDestination = "undecided" | "work";
 
 type Project = { id: string; name: string; path: string };
 type AgentInfo = { id: string; name?: string };
@@ -40,6 +41,7 @@ async function fetchAgents(): Promise<AgentInventory> {
  */
 export function WorkEnterSurface() {
 	const { t } = useTranslation();
+	const navigate = useNavigate();
 	const [destination, setDestination] = useState<EnterDestination>("undecided");
 
 	const daemonQuery = useQuery({
@@ -97,17 +99,11 @@ export function WorkEnterSurface() {
 							</Button>
 							{/* Equal alternative: enabled, never gated behind Work, and it
 							    creates nothing until the user explicitly captures something. */}
-							<Button variant="outline" onClick={() => setDestination("home")}>
+							<Button variant="outline" onClick={() => void navigate({ to: "/home" })}>
 								{t("work.enter.setUpHome")}
 							</Button>
 						</div>
 						<p className="text-muted-foreground text-xs">{t("work.enter.recommendationNote")}</p>
-					</div>
-				)}
-
-				{destination === "home" && (
-					<div data-testid="enter-home-chosen" className="rounded-md border border-border p-4">
-						<p className="text-muted-foreground text-sm">{t("work.enter.homeNotReady")}</p>
 					</div>
 				)}
 

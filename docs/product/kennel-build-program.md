@@ -1,7 +1,7 @@
 # Waldo Kennel build program
 
-- **Status:** Architecture and issue planning complete; product implementation not started by this document
-- **Date:** 2026-08-21
+- **Status:** Architecture and issue planning complete; issue-scoped beta implementation is in progress, while this document remains coordination authority rather than implementation authorization
+- **Date:** 2026-08-23
 - **Current base:** refresh `origin/beta` before every implementation issue; historical planning bases are not execution targets
 
 ## Integration branch policy
@@ -56,6 +56,8 @@ AO donor detachment can run beside Work/Home. The destructive donor removal wait
 | Product vocabulary/brand allowlist | AO retirement Task 1 | all lanes |
 
 One PR owns a shared file at a time. Parallel branches do not independently edit DTO registry, route registration, migration numbers, generated API files, or shared RunBrief contracts.
+
+Current route integration convention: `/work` is the Work-first Enter destination, `/home` is the Personal Home Today destination, and the global mode control remembers the last meaningful route within each lane. The inherited `/` orchestration board remains a valid remembered Work route after it has been visited. Generated `routeTree.gen.ts` conflicts are resolved from the route source files and regenerated; neither lane selects its generated side wholesale.
 
 The planning ledger reserves migrations `0099-0102` for Work, `0103-0106` for Home, `0107-0109` for Learning L1, `0110` for L2, and `0111` for L3. These are coordination reservations, not merged schema. If `origin/beta` advances first, the integration owner renumbers the affected unmerged issue before code edits and updates its plan/issue atomically.
 

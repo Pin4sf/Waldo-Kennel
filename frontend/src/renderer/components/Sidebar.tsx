@@ -85,6 +85,8 @@ import { CreateProjectFlow, type CreateProjectInput } from "./CreateProjectFlow"
 import { ResizeHandle } from "./ResizeHandle";
 import { isMacPlatform, isWindowsPlatform } from "../lib/platform";
 import { useCloudSession } from "../lib/cloud-session";
+import { HomeNavigation } from "./home/HomeNavigation";
+import type { HomeDestination } from "../lib/home-fixture";
 
 // macOS paints framed chrome: the fixed TitlebarNav cluster carries the
 // sidebar toggle + history arrows above this surface. Windows hangs the sidebar
@@ -142,11 +144,27 @@ function useSelection() {
 	const openProjectSettings = useUiStore((state) => state.openProjectSettings);
 	const params = useParams({ strict: false }) as { projectId?: string; sessionId?: string };
 	const pathname = useRouterState({ select: (state) => state.location.pathname });
+	const isWork =
+		pathname === "/" ||
+		pathname === "/work" ||
+		/^\/projects\/[^/]+(?:\/sessions\/[^/]+)?$/.test(pathname) ||
+		/^\/sessions\/[^/]+$/.test(pathname);
 	return {
-		isHome: pathname === "/",
+		isWork,
+		isHome: /^\/home(?:\/|$)/.test(pathname),
+		homeDestination: (
+			pathname === "/home"
+				? "today"
+				: pathname === "/home/open-loops"
+					? "open_loops"
+					: pathname === "/home/memory"
+						? "memory"
+						: pathname === "/home/daily-close"
+							? "daily_close"
+							: "history") as HomeDestination,
 		activeProjectId: params.projectId,
 		activeSessionId: params.sessionId,
-		goHome: () => void navigate({ to: "/" }),
+		goWork: () => void navigate({ to: "/" }),
 		// Settings is a modal — open it in place so the current page (session
 		// terminal, board, etc.) stays underneath.
 		goGlobalSettings: () => openGlobalSettings(),
@@ -296,11 +314,11 @@ export function Sidebar({
 								className={cn(
 									"grid h-5.5 w-5.5 shrink-0 place-items-center",
 									"group-data-[collapsible=icon]:size-control-board group-data-[collapsible=icon]:rounded-lg",
-									selection.isHome
+									selection.isWork
 										? "group-data-[collapsible=icon]:bg-interactive-active"
 										: "group-data-[collapsible=icon]:hover:bg-interactive-hover",
 								)}
-								onClick={selection.goHome}
+								onClick={selection.goWork}
 								type="button"
 							>
 								<img src={aoLogo} alt="" aria-hidden="true" className="h-5.5 w-5.5 -translate-y-[3px] rounded-md object-cover" />
@@ -314,11 +332,11 @@ export function Sidebar({
 						<span
 							aria-label={t("shell.orchestratorBoard")}
 							className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-sm font-bold leading-tight tracking-tight-lg text-foreground group-data-[collapsible=icon]:hidden"
-							onClick={selection.goHome}
+							onClick={selection.goWork}
 							onKeyDown={(event: KeyboardEvent<HTMLSpanElement>) => {
 								if (event.key !== "Enter" && event.key !== " ") return;
 								event.preventDefault();
-								selection.goHome();
+								selection.goWork();
 							}}
 							role="button"
 							tabIndex={0}
@@ -338,6 +356,16 @@ export function Sidebar({
 				</div>
 			</SidebarHeader>
 
+			{selection.isHome ? (
+				<SidebarGroup className="shrink-0 px-2 pb-2 pt-0 group-data-[collapsible=icon]:px-1.5">
+					<SidebarGroupContent>
+						<HomeNavigation destination={selection.homeDestination} variant="sidebar" />
+					</SidebarGroupContent>
+				</SidebarGroup>
+			) : null}
+
+			{!selection.isHome ? (
+				<>
 			{/* Keep Search + section chrome fixed; only the project tree scrolls. */}
 			<div className="flex shrink-0 flex-col gap-0 px-2 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
 				{commandPaletteEnabled ? (
@@ -421,6 +449,8 @@ export function Sidebar({
 					</SidebarGroupContent>
 				</SidebarGroup>
 			</SidebarContent>
+				</>
+			) : null}
 
 			{/* Footer — Settings opens the global settings page directly.
 			    Its hairline and row height match the board Archive bar. Bottom
@@ -620,7 +650,7 @@ function ProjectItem({
 		// Teardown can take a while when a project owns several sessions. Leave
 		// the confirmation immediately and move to the route that remains valid
 		// after removal while the sidebar keeps progress/error feedback visible.
-		selection.goHome();
+		selection.goWork();
 		try {
 			await onRemoveProject(workspace.id);
 		} catch (err) {
