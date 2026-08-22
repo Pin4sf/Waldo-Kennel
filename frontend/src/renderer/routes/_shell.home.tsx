@@ -11,8 +11,7 @@ function HomeRoute() {
   const { daemonStatus } = useShell();
   return (
     <HomeShell
-      fixture={homeFixture("today")}
-      state={daemonStatus.state === "ready" ? "empty" : "offline"}
+      fixture={homeFixture("today", daemonStatus.state === "ready" ? "ready" : "offline")}
     />
   );
 }

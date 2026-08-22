@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import type { HomeFixtureState, HomeMode } from "../../lib/home-fixture";
 import { ProvenanceInspector } from "./ProvenanceInspector";
 
@@ -48,9 +49,11 @@ const cards: Record<HomeMode, { title: string; description: string }> = {
 export function HomeScreenFixture({
   fixture,
   mode,
+  scrollContainerRef,
 }: {
   fixture: HomeFixtureState;
   mode: HomeMode;
+  scrollContainerRef: RefObject<HTMLElement | null>;
 }) {
   const card = cards[mode];
   return (
@@ -79,7 +82,7 @@ export function HomeScreenFixture({
           {card.description}
         </p>
         <div className="mt-4">
-          <ProvenanceInspector fixture={fixture} />
+          <ProvenanceInspector fixture={fixture} scrollContainerRef={scrollContainerRef} />
         </div>
       </article>
     </section>

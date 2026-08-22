@@ -86,6 +86,8 @@ import { CreateProjectFlow, type CreateProjectInput } from "./CreateProjectFlow"
 import { ResizeHandle } from "./ResizeHandle";
 import { isMacPlatform, isWindowsPlatform } from "../lib/platform";
 import { useCloudSession } from "../lib/cloud-session";
+import { HomeNavigation } from "./home/HomeNavigation";
+import type { HomeDestination } from "../lib/home-fixture";
 
 // macOS paints framed chrome: the fixed TitlebarNav cluster carries the
 // sidebar toggle + history arrows above this surface. Windows hangs the sidebar
@@ -150,6 +152,16 @@ function useSelection() {
 	return {
 		isWork,
 		isHome: /^\/home(?:\/|$)/.test(pathname),
+		homeDestination: (
+			pathname === "/home"
+				? "today"
+				: pathname === "/home/open-loops"
+					? "open_loops"
+					: pathname === "/home/memory"
+						? "memory"
+						: pathname === "/home/daily-close"
+							? "daily_close"
+							: "history") as HomeDestination,
 		activeProjectId: params.projectId,
 		activeSessionId: params.sessionId,
 		goWork: () => void navigate({ to: "/" }),
@@ -371,6 +383,7 @@ export function Sidebar({
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 					</SidebarMenu>
+					{selection.isHome ? <HomeNavigation destination={selection.homeDestination} variant="sidebar" /> : null}
 				</SidebarGroupContent>
 			</SidebarGroup>
 

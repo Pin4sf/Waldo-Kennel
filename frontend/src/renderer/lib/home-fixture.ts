@@ -11,7 +11,7 @@ export type HomeFixtureState = {
   kind: "preview_fixture";
   sourceLabel: "Architecture preview";
   mode: HomeMode;
-  availability: "ready" | "partial" | "capture_off" | "offline";
+  availability: "ready" | "partial" | "capture_off" | "stale" | "offline";
 };
 
 export function homeFixture(

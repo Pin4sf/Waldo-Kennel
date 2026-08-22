@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CenterPanelShell } from "../CenterPanelShell";
 import {
   homeFixture,
@@ -6,7 +6,6 @@ import {
   type HomeFixtureState,
   type HomeMode,
 } from "../../lib/home-fixture";
-import { HomeNavigation } from "./HomeNavigation";
 import { HomeScreenFixture } from "./HomeScreenFixture";
 
 export type HomeSurfaceState =
@@ -72,15 +71,15 @@ const copy = {
 
 export function HomeShell({
   fixture = homeFixture("today"),
-  state = "empty",
   destination = "today",
 }: {
   fixture?: HomeFixtureState;
-  state?: HomeSurfaceState;
   destination?: HomeDestination;
 }) {
   const [contextualMode, setContextualMode] = useState<HomeMode | null>(null);
-  const [captureOpen, setCaptureOpen] = useState(false);
+  const [captureOpen, setCaptureOpen] = useState(destination === "today");
+  const scrollContainerRef = useRef<HTMLElement>(null);
+  const state: HomeSurfaceState = fixture.availability === "ready" ? "empty" : fixture.availability;
   const content = stateContent[state];
   const mode = contextualMode ?? fixture.mode;
   return (
@@ -88,6 +87,7 @@ export function HomeShell({
       <section
         aria-labelledby="home-heading"
         className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-8 sm:px-10 sm:py-12"
+        ref={scrollContainerRef}
       >
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
           <header className="flex flex-col gap-3 border-b border-border pb-6">
@@ -104,7 +104,6 @@ export function HomeShell({
               {copy.description}
             </p>
           </header>
-          <HomeNavigation destination={destination} />
           <div className="flex flex-wrap items-center gap-3">
             <button
               className="rounded-md bg-interactive-active px-3 py-2 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
@@ -167,7 +166,7 @@ export function HomeShell({
               {copy.workRecommended}
             </a>
           </section>
-          <HomeScreenFixture fixture={fixture} mode={mode} />
+          <HomeScreenFixture fixture={fixture} mode={mode} scrollContainerRef={scrollContainerRef} />
         </div>
       </section>
     </CenterPanelShell>

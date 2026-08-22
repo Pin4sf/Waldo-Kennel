@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { HomeShell } from "./HomeShell";
 import type { HomeFixtureState } from "../../lib/home-fixture";
 
@@ -32,7 +32,7 @@ describe("HomeShell", () => {
   });
 
   it("keeps Home useful when capture is disabled without asking the user to enable it", () => {
-    render(<HomeShell state="capture_disabled" />);
+    render(<HomeShell fixture={{ ...todayFixture, availability: "capture_off" }} />);
 
     expect(screen.getByText("Capture is off.")).toBeInTheDocument();
     expect(
@@ -44,7 +44,7 @@ describe("HomeShell", () => {
   });
 
   it("does not present unavailable Home facts as an empty Home", () => {
-    render(<HomeShell state="offline" />);
+    render(<HomeShell fixture={{ ...todayFixture, availability: "offline" }} />);
 
     expect(
       screen.getByText("Home facts are unavailable right now."),
@@ -76,19 +76,13 @@ describe("HomeShell", () => {
     },
   );
 
-  it("keeps five stable destinations in adaptive navigation and makes Catch Up contextual", async () => {
+  it("keeps Home destinations out of the content panel and makes Catch Up contextual", async () => {
     const user = userEvent.setup();
     render(<HomeShell fixture={todayFixture} />);
 
-    const navigation = screen.getByRole("navigation", {
-      name: "Home destinations",
-    });
-    expect(navigation).toHaveClass("overflow-x-auto");
     expect(
-      screen.getAllByRole("link", {
-        name: /Today|Open Loops|Memory|Daily Close|History/,
-      }),
-    ).toHaveLength(5);
+      screen.queryByRole("navigation", { name: "Home destinations" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Catch Up" }),
     ).not.toBeInTheDocument();
@@ -99,42 +93,16 @@ describe("HomeShell", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps Home destinations reachable by keyboard", async () => {
-    const user = userEvent.setup();
-    render(<HomeShell fixture={todayFixture} />);
-
-    await user.tab();
-    expect(screen.getByRole("link", { name: "Today" })).toHaveFocus();
-    await user.tab();
-    expect(screen.getByRole("link", { name: "Open Loops" })).toHaveFocus();
-  });
-
-  it.each([
-    ["open_loops", "Open Loops"],
-    ["memory", "Memory"],
-    ["daily_close", "Daily Close"],
-    ["history", "History"],
-  ] as const)("selects %s in Home navigation", (destination, label) => {
-    render(
-      <HomeShell
-        destination={destination}
-        fixture={{ ...todayFixture, mode: destination }}
-      />,
-    );
-
-    expect(screen.getByRole("link", { name: label })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-  });
-
   it("opens Quick Capture as a non-persistent architecture-preview fixture", async () => {
     const user = userEvent.setup();
     render(<HomeShell fixture={todayFixture} />);
 
-    await user.click(
-      screen.getByRole("button", { name: "Quick Capture (preview)" }),
-    );
+    expect(
+      screen.getByRole("region", { name: "Quick Capture preview" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Quick Capture (preview)" }));
+    expect(screen.queryByRole("region", { name: "Quick Capture preview" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Quick Capture (preview)" }));
     expect(
       screen.getByText("Quick Capture is a preview. Nothing is saved."),
     ).toBeInTheDocument();
@@ -151,36 +119,30 @@ describe("HomeShell", () => {
   ] as const)("labels %s fixture facts truthfully", (state, expected) => {
     render(
       <HomeShell
-        fixture={{
-          ...todayFixture,
-          availability: state === "capture_off" ? "capture_off" : "partial",
-        }}
-        state={state}
+        fixture={{ ...todayFixture, availability: state }}
       />,
     );
 
     expect(screen.getByText(expected)).toBeInTheDocument();
   });
 
-  it("returns focus and the exact scroll position after inspecting fixture provenance", async () => {
+  it("returns focus and exact panel scroll after inspecting fixture provenance", async () => {
     const user = userEvent.setup();
-    const scrollTo = vi
-      .spyOn(window, "scrollTo")
-      .mockImplementation(() => undefined);
-    Object.defineProperty(window, "scrollY", {
+    render(<HomeShell fixture={todayFixture} />);
+    const panel = screen.getByRole("region", { name: "Home" });
+    Object.defineProperty(panel, "scrollTop", {
       configurable: true,
       value: 248,
+      writable: true,
     });
-    render(<HomeShell fixture={todayFixture} />);
 
     const inspect = screen.getByRole("button", { name: "Inspect provenance" });
     await user.click(inspect);
-    expect(
-      screen.getByRole("dialog", { name: "Fixture provenance" }),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Return to Home" }));
+    const dialog = screen.getByRole("dialog", { name: "Fixture provenance" });
+    expect(dialog).toHaveFocus();
+    await user.keyboard("{Escape}");
 
     expect(inspect).toHaveFocus();
-    expect(scrollTo).toHaveBeenCalledWith({ left: 0, top: 248 });
+    expect(panel.scrollTop).toBe(248);
   });
 });
