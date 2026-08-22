@@ -107,11 +107,11 @@ The next session reads the issue body, latest handoff, approved specification, t
 - Consumes: daemon readiness and Work-first routing
 - Produces: `HomeShell`, five stable Home routes, contextual Catch Up fixture state, shared provenance-inspector fixture, read-only empty/partial/capture-off/offline modes; no persistence
 
-- [ ] **Step 1: Write failing route and truthfulness tests**
+- [x] **Step 1: Write failing route and truthfulness tests**
 
 Assert Home is directly selectable, Work remains recommended, `/home` opens Today, the other four stable routes select the matching navigation item, Catch Up is contextual rather than permanent navigation, and fixture cards say `Architecture preview` rather than pretending to be user data. Cover empty, partial/capture-off, stale, offline, inspector exact-return, keyboard focus, and narrow-width behavior.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 npm --prefix frontend test -- --run home-entry HomeShell
@@ -119,7 +119,7 @@ npm --prefix frontend test -- --run home-entry HomeShell
 
 Expected: FAIL because `/home` and `HomeShell` do not exist.
 
-- [ ] **Step 3: Implement the minimal shell**
+- [x] **Step 3: Implement the minimal shell**
 
 ```ts
 export type HomeDestination = "today" | "open_loops" | "memory" | "daily_close" | "history";
@@ -134,7 +134,7 @@ export type HomeFixtureState = {
 
 Keep the desktop v0 navigation in the adaptive sidebar. Quick Capture is a persistent fixture action with an expanded Today fixture; it must not imply that intake persistence exists. Do not persist fixture state in localStorage or SQLite.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 ```bash
 npm --prefix frontend test -- --run home-entry HomeShell
