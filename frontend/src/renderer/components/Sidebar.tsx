@@ -143,8 +143,12 @@ function useSelection() {
 	const openProjectSettings = useUiStore((state) => state.openProjectSettings);
 	const params = useParams({ strict: false }) as { projectId?: string; sessionId?: string };
 	const pathname = useRouterState({ select: (state) => state.location.pathname });
+	const isWork =
+		pathname === "/" ||
+		/^\/projects\/[^/]+(?:\/sessions\/[^/]+)?$/.test(pathname) ||
+		/^\/sessions\/[^/]+$/.test(pathname);
 	return {
-		isWork: pathname === "/",
+		isWork,
 		isHome: pathname === "/home",
 		activeProjectId: params.projectId,
 		activeSessionId: params.sessionId,

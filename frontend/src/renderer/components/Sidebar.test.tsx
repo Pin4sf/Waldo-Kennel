@@ -283,6 +283,17 @@ describe("Sidebar", () => {
 		expect(screen.getByRole("button", { name: "Work (recommended)" })).toHaveAttribute("data-active", "false");
 	});
 
+	it.each(["/projects/proj-1", "/projects/proj-1/sessions/proj-1-1"])(
+		"keeps Work active on the %s route",
+		(pathname) => {
+			mockPathname.current = pathname;
+			renderSidebar();
+
+			expect(screen.getByRole("button", { name: "Work (recommended)" })).toHaveAttribute("data-active", "true");
+			expect(screen.getByRole("button", { name: "Home" })).toHaveAttribute("data-active", "false");
+		},
+	);
+
 	it("suppresses focus chrome without removing keyboard focusability", () => {
 		renderSidebar();
 
