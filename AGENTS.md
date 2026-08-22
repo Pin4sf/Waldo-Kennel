@@ -52,6 +52,7 @@ When showing or demoing frontend changes, run `kennel preview [url]` from inside
 - `docs/product/kennel-v1-product-architecture.md` — canonical Waldo Kennel product ontology, exact responsibility/execution/evidence lineages, custody, governance, and phase boundaries. Read it before changing Outcome, Home, Work, authority, evidence, verification, acceptance, or continuity semantics.
 - `docs/product/kennel-v0-first-outcome-slice.md` — locked first vertical proof and its falsifiable acceptance/recovery contract.
 - `docs/cli/README.md` — intended CLI shape: thin Cobra client over daemon HTTP, never direct storage/runtime access.
+- `docs/plans/island-app-unification.md` — the implementation record for Kennel Island as a window of the desktop app's single Electron process. Read it before touching `packages/kennel-island/`, Island lifecycle/settings, or session deep-link handling.
 - `CLAUDE.md` — compatibility pointer for Claude Code; it directs agents back to `AGENTS.md`.
 
 For code entry points:

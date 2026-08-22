@@ -8,7 +8,9 @@ const IPC_MEDIA_ACTIVITY_CHANGED = "kennel-island:media-activity-changed";
 const IPC_SEND_MEDIA_COMMAND = "kennel-island:send-media-command";
 const MEDIA_COMMANDS = Object.freeze(["next", "previous", "play-pause"]);
 const IPC_RECENTER = "kennel-island:recenter";
+const IPC_HIDE_ISLAND = "kennel-island:hide-island";
 const IPC_GET_KENNEL_SNAPSHOT = "kennel-island:get-snapshot";
+const IPC_KENNEL_SNAPSHOT_INVALIDATED = "kennel-island:snapshot-invalidated";
 const IPC_GET_KENNEL_CONVERSATION = "kennel-island:get-conversation";
 const IPC_RESOLVE_APPROVAL = "kennel-island:resolve-approval";
 const IPC_RESOLVE_INPUT = "kennel-island:resolve-input";
@@ -190,8 +192,18 @@ const kennelDesktop = Object.freeze({
 	recenter() {
 		return ipcRenderer.invoke(IPC_RECENTER);
 	},
+	hideIsland() {
+		return ipcRenderer.invoke(IPC_HIDE_ISLAND);
+	},
 	getKennelSnapshot() {
 		return ipcRenderer.invoke(IPC_GET_KENNEL_SNAPSHOT);
+	},
+	onKennelSnapshotInvalidated(listener) {
+		if (typeof listener !== "function") return () => {};
+
+		const forward = () => listener();
+		ipcRenderer.on(IPC_KENNEL_SNAPSHOT_INVALIDATED, forward);
+		return () => ipcRenderer.removeListener(IPC_KENNEL_SNAPSHOT_INVALIDATED, forward);
 	},
 	getKennelConversation(input) {
 		return ipcRenderer.invoke(IPC_GET_KENNEL_CONVERSATION, {

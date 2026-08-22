@@ -76,6 +76,18 @@ test("the preload exposes no generic IPC primitive", async () => {
 	assert.equal("ipcRenderer" in api, false);
 });
 
+test("snapshot invalidation is a payload-free subscription that can be released", async () => {
+	const { api, listeners } = await loadPreload();
+	let calls = 0;
+	const unsubscribe = api.onKennelSnapshotInvalidated(() => { calls += 1; });
+
+	assert.equal(listeners.at(-1).channel, "kennel-island:snapshot-invalidated");
+	listeners.at(-1).listener({ sender: "must not cross" }, { injected: true });
+	assert.equal(calls, 1);
+	unsubscribe();
+	assert.equal(listeners.length, 0);
+});
+
 test("interactivity crosses the bridge as a boolean the renderer cannot widen", async () => {
 	const { api, calls } = await loadPreload();
 
@@ -86,6 +98,14 @@ test("interactivity crosses the bridge as a boolean the renderer cannot widen", 
 		["kennel-island:set-interactive", { interactive: false }],
 		["kennel-island:set-interactive", { interactive: true }],
 	]));
+});
+
+test("hiding the island uses one dedicated host action", async () => {
+	const { api, calls } = await loadPreload();
+
+	await api.hideIsland();
+
+	assert.deepEqual(structuredClone(calls), [["kennel-island:hide-island"]]);
 });
 
 test("stage geometry arrives as finite measurements with a known shape", async () => {

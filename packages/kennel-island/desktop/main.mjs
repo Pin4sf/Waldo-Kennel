@@ -43,6 +43,7 @@ const IPC_SEND_MEDIA_COMMAND = "kennel-island:send-media-command";
 const IPC_GET_STAGE_GEOMETRY = "kennel-island:get-stage-geometry";
 const IPC_STAGE_GEOMETRY_CHANGED = "kennel-island:stage-geometry-changed";
 const IPC_RECENTER = "kennel-island:recenter";
+const IPC_HIDE_ISLAND = "kennel-island:hide-island";
 const IPC_GET_KENNEL_SNAPSHOT = "kennel-island:get-snapshot";
 const IPC_GET_KENNEL_CONVERSATION = "kennel-island:get-conversation";
 const IPC_RESOLVE_APPROVAL = "kennel-island:resolve-approval";
@@ -63,6 +64,7 @@ const ISLAND_IPC_CHANNELS = Object.freeze([
 	IPC_SEND_MEDIA_COMMAND,
 	IPC_GET_STAGE_GEOMETRY,
 	IPC_RECENTER,
+	IPC_HIDE_ISLAND,
 	IPC_GET_KENNEL_SNAPSHOT,
 	IPC_GET_KENNEL_CONVERSATION,
 	IPC_RESOLVE_APPROVAL,
@@ -758,6 +760,7 @@ function registerIslandIpc() {
 	ipcMain.handle(IPC_SEND_MEDIA_COMMAND, trustedHandler("media command", (payload) =>
 		runMediaCommand(payload?.command)));
 	ipcMain.handle(IPC_RECENTER, trustedHandler("recenter", () => recenterWindow()));
+	ipcMain.handle(IPC_HIDE_ISLAND, trustedHandler("hide island", () => hideIsland()));
 	ipcMain.handle(IPC_GET_KENNEL_SNAPSHOT, trustedHandler("snapshot", () =>
 		kennelService.getSnapshot({
 			includePendingConversations: true,
@@ -881,6 +884,15 @@ function showIsland({ activate = false } = {}) {
 	islandWindow.showInactive();
 }
 
+function hideIsland() {
+	if (!islandWindow || islandWindow.isDestroyed()) return { visible: false };
+	// A hidden stage must not keep the pointer, or the next show would start by
+	// swallowing clicks over the menu bar.
+	setIslandInteractive(false);
+	islandWindow.hide();
+	return { visible: false };
+}
+
 function toggleIsland() {
 	if (!islandWindow || islandWindow.isDestroyed()) {
 		void createIslandWindow()
@@ -890,10 +902,7 @@ function toggleIsland() {
 	}
 
 	if (islandWindow.isVisible()) {
-		// A hidden stage must not keep the pointer, or the next show would start
-		// by swallowing clicks over the menu bar.
-		setIslandInteractive(false);
-		islandWindow.hide();
+		hideIsland();
 		return;
 	}
 	showIsland({ activate: true });

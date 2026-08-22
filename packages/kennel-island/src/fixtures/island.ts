@@ -552,8 +552,9 @@ function reduceDemoModel(model: IslandModel, action: IslandAction): IslandModel 
     case "retry-connection":
       return compactModel;
     case "open-settings":
+    case "hide-island":
       // The lab has no host window to open, and the island's own state does not
-      // change when the real one does.
+      // change for either host-window action.
       return model;
   }
 }

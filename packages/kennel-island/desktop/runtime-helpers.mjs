@@ -36,17 +36,17 @@ function normalizedAbsolutePath(value) {
 }
 
 /**
- * Select the attach-only Kennel run file. An absolute AO_RUN_FILE wins. A
+ * Select the attach-only Kennel run file. An absolute KENNEL_RUN_FILE wins. A
  * relative or malformed override is deliberately ignored rather than being
  * resolved against Kennel Island's working directory.
  */
 export function resolveKennelRunFilePath({ env = {}, home, dev = false }) {
-	const override = normalizedAbsolutePath(env.AO_RUN_FILE);
+	const override = normalizedAbsolutePath(env.KENNEL_RUN_FILE);
 	if (override) return override;
 
 	const normalizedHome = normalizedAbsolutePath(home);
 	if (!normalizedHome) throw new TypeError("A valid absolute home directory is required");
-	return path.join(normalizedHome, ".ao", ...(dev ? ["dev"] : []), "running.json");
+	return path.join(normalizedHome, ".kennel", ...(dev ? ["dev"] : []), "running.json");
 }
 
 /** The desktop app marker lives beside the run file in every Kennel mode. */

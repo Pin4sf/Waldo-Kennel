@@ -3,21 +3,23 @@
 A native macOS notch companion for Kennel. The Figma file defines the visual language; the shipped
 interface is React/CSS and every production action is backed by Kennel's local daemon.
 
-The app lives beside the Kennel repository on purpose. It attaches to an already-running daemon and
-never starts, stops, or owns Kennel.
+The package lives inside the Kennel repository and is built by the main desktop app as its Island
+renderer. One Kennel process owns the normal workspace window, the notch panel, and the detailed
+Island settings window; the Island never starts, stops, or owns the daemon.
 
-## Run the desktop app
+## Run the visual lab
 
 ```bash
 npm install
-npm run dev:desktop
+npm run dev
 ```
 
-Development discovers `~/.ao/dev/running.json`. Packaged builds discover `~/.ao/running.json`.
-For an isolated daemon or end-to-end fixture, set `AO_RUN_FILE` to an absolute run-file path before
-launching Electron.
+This browser-only lab exposes the visual scenarios and demo data. To run the real Island and Kennel
+together, use `npm run dev` from `frontend/`; the unified main process hands its already-verified
+daemon connection to the Island.
 
-The global summon shortcut is `Command + backquote` on macOS (`Control + backquote` elsewhere).
+The global summon shortcut is `Command + backquote`. A hidden Island can also be restored from the
+main app's Settings or the Kennel Dock menu. This build enables the Island only on notched Macs.
 
 The browser-only visual state lab remains available with `npm run dev`. Browser scenarios are
 explicitly demo data; Electron always uses the live adapter.
@@ -155,7 +157,7 @@ never repeat together.
 
 ## The stage
 
-The app owns one window: a fixed transparent stage pinned flush with the top of the built-in
+The unified app owns one Island stage: a fixed transparent panel pinned flush with the top of the built-in
 display and centred on it, so the notch sits at the centre of the stage. The stage is never resized
 when the island changes surface. An OS-level resize cannot be animated and always trails the content
 that triggered it, so the island morphs inside the stage instead, and the stage stays large enough
@@ -204,11 +206,12 @@ with their size in points; it switches itself off when the settings window close
 
 ## Settings
 
-The island has no dock icon and no menu bar, so settings open from the island itself: expand it, and
-use the gear in the work queue's header. Escape or `Command + W` closes the window.
+Detailed settings stay Island-owned: expand the Island and use the gear in the work queue's header.
+The main app's Settings can also reveal this same detailed window, but does not duplicate its
+notch, hover, media, gesture, or appearance controls. Escape or `Command + W` closes the window.
 
-Preferences live in one JSON file under the app's own support directory
-(`~/Library/Application Support/kennel-island/settings.json`) and are owned by the main process.
+Preferences live under Kennel's canonical `~/.kennel` state directory and are owned by the unified
+main process.
 Both windows read the same copy over IPC and the host pushes every change to both, so a slider moving
 in the settings window reshapes the notch live — there is no apply button and no restart.
 
@@ -247,9 +250,9 @@ a key it did not ask for.
 - Loads provider usage from the selected conversation instead of estimating it.
 - Opens Kennel for workflows the island cannot safely represent inline.
 
-Kennel currently has no external session deep-link contract. The app therefore opens Kennel honestly
-and asks the user to choose the session there; it never claims to have targeted a session when it has
-not.
+Double-clicking a session row focuses the unified app directly on that session. The same validated
+intent is available externally as `kennel-app://session/<projectId>/<sessionId>`; ordinary nested
+approval, input, and steering controls remain single-click actions inside the Island.
 
 ## Security boundary
 

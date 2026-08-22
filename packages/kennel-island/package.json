@@ -5,18 +5,14 @@
   "description": "A native macOS notch companion for live Kennel agent sessions.",
   "author": "Waldo",
   "type": "module",
-  "main": "desktop/main.mjs",
   "scripts": {
     "dev": "vite",
-    "dev:desktop": "concurrently --kill-others --success first \"vite --host 127.0.0.1 --port 5173 --strictPort\" \"wait-on http://127.0.0.1:5173 && VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit --pretty false",
     "test:desktop": "node --test desktop/*.test.mjs",
     "test:renderer": "node --experimental-strip-types --test src/island/*.test.ts",
     "test": "npm run test:desktop && npm run test:renderer",
     "preview": "vite preview",
-    "start:desktop": "npm run build && node scripts/build-helpers.mjs && electron .",
-    "package:mac": "npm run build && node scripts/build-helpers.mjs && node scripts/build-macos-icon.mjs && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir --arm64 --publish never",
     "build:helpers": "node scripts/build-helpers.mjs"
   },
   "devDependencies": {
@@ -24,55 +20,10 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
-    "concurrently": "^9.2.1",
-    "electron": "^43.4.1",
-    "electron-builder": "^26.0.12",
     "motion": "^12.43.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "typescript": "^5.6.0",
-    "vite": "^8.0.16",
-    "wait-on": "^9.0.4"
-  },
-  "build": {
-    "appId": "com.waldo.kennel-island",
-    "productName": "Kennel Island",
-    "asar": true,
-    "afterPack": "scripts/after-pack.mjs",
-    "electronDist": "node_modules/electron/dist",
-    "electronLanguages": [
-      "en-US"
-    ],
-    "npmRebuild": false,
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "desktop/main.mjs",
-      "desktop/preload.cjs",
-      "desktop/haptics.mjs",
-      "desktop/kennel-service.mjs",
-      "desktop/media-artwork.mjs",
-      "desktop/media-activity.mjs",
-      "desktop/notch-geometry.mjs",
-      "desktop/notch-measure.mjs",
-      "desktop/runtime-helpers.mjs",
-      "desktop/settings.mjs",
-      "desktop/helpers/kennel-haptics",
-      "desktop/helpers/kennel-notch",
-      "package.json"
-    ],
-    "mac": {
-      "category": "public.app-category.developer-tools",
-      "icon": "build/icon.icns",
-      "target": [
-        "dir"
-      ],
-      "extendInfo": {
-        "LSUIElement": true,
-        "NSHighResolutionCapable": true
-      }
-    }
+    "vite": "^8.0.16"
   }
 }

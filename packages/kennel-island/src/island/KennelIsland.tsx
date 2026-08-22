@@ -45,6 +45,10 @@ import {
 } from "./peek-layout";
 import { orderPresenceCards } from "./presence";
 import { providerAccent } from "./providers";
+import {
+  openSessionActionForQueueRow,
+  shouldDispatchQueueTaskAction,
+} from "./queue-interactions";
 import { defaultKennelSettings } from "./settings";
 import { useArtworkAccent, usePeekSubject, usePresenceRotation } from "./useIslandStage";
 
@@ -1063,12 +1067,15 @@ function StatusHeader({
       }
       right={
         <>
-          <button aria-label="Kennel activity" className="island-waveform" onClick={toggle} type="button">
-            <FigmaIcon name="compact-waveform.svg" />
-          </button>
+          {isResting ? (
+            <button aria-label="Kennel activity" className="island-waveform" onClick={toggle} type="button">
+              <FigmaIcon name="compact-waveform.svg" />
+            </button>
+          ) : null}
           <button aria-label={countLabel} className="island-count" onClick={toggle} type="button">
             {count}
           </button>
+          {!isResting ? <HideIslandButton onAction={onAction} /> : null}
         </>
       }
     />
@@ -1131,9 +1138,24 @@ function QueueHeader({ model, onAction }: { model: QueueIslandModel; onAction: K
           >
             {model.pendingCount}
           </button>
+          <HideIslandButton onAction={onAction} />
         </>
       }
     />
+  );
+}
+
+function HideIslandButton({ onAction }: { onAction: KennelIslandProps["onAction"] }) {
+  return (
+    <button
+      aria-label="Hide Kennel Island. Press Command and backquote to show it again."
+      className="island-hide-button"
+      onClick={() => runAction(onAction, { type: "hide-island" })}
+      title="Hide Island · ⌘` to show again"
+      type="button"
+    >
+      Hide
+    </button>
   );
 }
 
@@ -1342,7 +1364,12 @@ function QueueEmpty({ model, onAction }: { model: QueueIslandModel; onAction: Ke
 
 function QueueRow({ task, onAction }: { task: IslandTask; onAction: KennelIslandProps["onAction"] }) {
   return (
-    <div className={`queue-row ${task.dimmed ? "is-dimmed" : ""}`} role="listitem">
+    <div
+      className={`queue-row ${task.dimmed ? "is-dimmed" : ""}`}
+      onDoubleClick={() => runAction(onAction, openSessionActionForQueueRow(task))}
+      role="listitem"
+      title={`Double-click to open ${task.title} in Kennel`}
+    >
       <span className={`queue-row__tone queue-row__tone--${task.tone}`} />
       <FigmaIcon
         className="queue-row__agent"
@@ -1353,15 +1380,13 @@ function QueueRow({ task, onAction }: { task: IslandTask; onAction: KennelIsland
         <span>{task.project}</span>
         <span className="branch-chip__branch">{task.branch}</span>
       </span>
-      <button
+      <span
         className="queue-row__target"
-        onClick={() => runAction(onAction, { type: "open-session", sessionId: task.sessionId, projectId: task.projectId })}
         title={task.target}
-        type="button"
       >
         <FigmaIcon className="queue-row__link" name="icon-link.svg" />
         <span>{task.target}</span>
-      </button>
+      </span>
       <FigmaIcon
         className="queue-row__progress"
         name={task.activity === "active" || task.activity === "waiting_input" ? "progress-active.svg" : "progress-idle.svg"}
@@ -1370,7 +1395,14 @@ function QueueRow({ task, onAction }: { task: IslandTask; onAction: KennelIsland
       <button
         className="queue-row__action"
         disabled={task.disabled}
-        onClick={() => runAction(onAction, { type: "task-action", taskId: task.id, label: task.actionLabel })}
+        onClick={(event) => {
+          if (!shouldDispatchQueueTaskAction(event.detail)) return;
+          runAction(onAction, { type: "task-action", taskId: task.id, label: task.actionLabel });
+        }}
+        onDoubleClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         type="button"
       >
         {task.actionLabel}

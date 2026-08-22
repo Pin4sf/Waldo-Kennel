@@ -132,16 +132,19 @@ export function SettingsLinkRow({
 	icon,
 	label,
 	onClick,
+	disabled = false,
 }: {
 	icon?: LucideIcon;
 	label: string;
 	onClick: () => void;
+	disabled?: boolean;
 }) {
 	return (
 		<button
 			type="button"
 			onClick={onClick}
-			className="settings-row-bar settings-link-row w-full text-left transition-colors hover:bg-settings-menu-selected focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+			disabled={disabled}
+			className="settings-row-bar settings-link-row w-full text-left transition-colors hover:bg-settings-menu-selected focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
 		>
 			<SettingsRowLabel icon={icon} label={label} />
 			<ChevronRight className="size-icon-base shrink-0 text-settings-muted" aria-hidden="true" />

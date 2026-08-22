@@ -113,7 +113,9 @@ function createDesktopMock(
     onMediaActivity: () => () => {},
     sendMediaCommand: async () => ({ sent: false }),
     recenter: () => undefined,
+    hideIsland: async () => ({ visible: false }),
     getKennelSnapshot: async () => snapshotWith(),
+    onKennelSnapshotInvalidated: () => () => {},
     getKennelConversation: async ({ sessionId }) => emptyConversation(sessionId),
     resolveApproval: async () => undefined,
     resolveInput: async () => undefined,
@@ -296,6 +298,31 @@ test("missing daemon stays honestly offline and retry reconnects", { concurrency
     assert.equal(reconnected.connection, "connected");
     assert.equal(reconnected.taskId, "session-real-42");
     assert.equal(reconnected.title, "Implement the live island");
+  });
+});
+
+test("hiding delegates to the host without changing the expanded island state", { concurrency: false }, async () => {
+  let hideCalls = 0;
+  const desktop = createDesktopMock({
+    getKennelSnapshot: async () => liveSessionSnapshot(),
+    hideIsland: async () => {
+      hideCalls += 1;
+      return { visible: false };
+    },
+  });
+
+  await withAdapter(desktop, async (adapter) => {
+    await waitFor(
+      () => hasConnection(adapter.getSnapshot(), "connected"),
+      "the connected snapshot before hiding",
+    );
+    await adapter.dispatch({ type: "expand" });
+    const expanded = adapter.getSnapshot();
+
+    await adapter.dispatch({ type: "hide-island" });
+
+    assert.equal(hideCalls, 1);
+    assert.strictEqual(adapter.getSnapshot(), expanded);
   });
 });
 

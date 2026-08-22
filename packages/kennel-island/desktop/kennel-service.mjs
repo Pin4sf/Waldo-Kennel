@@ -2,7 +2,8 @@ import * as nodeFs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-const DAEMON_SERVICE_NAME = "agent-orchestrator-daemon";
+// Keep in sync with frontend/src/shared/daemon-attach.ts.
+const DAEMON_SERVICE_NAME = "kennel-daemon";
 const DEFAULT_TIMEOUT_MS = 2_000;
 const MAX_RUN_FILE_BYTES = 64 * 1024;
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
@@ -102,6 +103,34 @@ function parseRunFile(contents) {
 		pid: raw.pid,
 		port: raw.port,
 		startedAt,
+		owner: typeof raw.owner === "string" ? raw.owner : null,
+	};
+}
+
+function normalizeInjectedConnection(value) {
+	if (value === null || value === undefined) {
+		fail("DAEMON_NOT_RUNNING", "Kennel daemon is not running", { retryable: true });
+	}
+	const raw = typeof value === "number" ? { port: value } : value;
+	if (!isRecord(raw)) {
+		fail("DAEMON_CONNECTION_INVALID", "Injected Kennel daemon connection is invalid");
+	}
+	if (raw.state !== undefined && raw.state !== "ready") {
+		fail("DAEMON_NOT_READY", "Kennel daemon is not ready", { retryable: true });
+	}
+	if (!Number.isInteger(raw.port) || raw.port < 1 || raw.port > 65_535) {
+		fail("DAEMON_CONNECTION_INVALID", "Injected Kennel daemon connection has an invalid port");
+	}
+	if (raw.pid !== undefined && (!Number.isInteger(raw.pid) || raw.pid <= 0)) {
+		fail("DAEMON_CONNECTION_INVALID", "Injected Kennel daemon connection has an invalid pid");
+	}
+
+	return {
+		port: raw.port,
+		pid: raw.pid,
+		startedAt: typeof raw.startedAt === "string" && Number.isFinite(Date.parse(raw.startedAt))
+			? raw.startedAt
+			: null,
 		owner: typeof raw.owner === "string" ? raw.owner : null,
 	};
 }
@@ -416,23 +445,31 @@ function normalizeSteerText(value) {
  * Attach-only client for an already-running local Kennel daemon.
  *
  * There is deliberately no generic request method and no daemon lifecycle API.
- * `fs`, `fetch`, `home`, and an absolute `runFilePath` are injectable so the
- * boundary can be tested without reading the real home directory or contacting
- * a process. The default path remains ~/.ao/running.json.
+ * Standalone mode discovers the daemon from an injected/standard run file.
+ * Unified-app mode injects `getConnection`; that path never resolves a home or
+ * reads the filesystem, and accepts only a loopback port (plus optional trusted
+ * metadata). Both modes independently verify `/readyz` before any API request.
  */
 export function createKennelService(options = {}) {
-	const fs = options.fs ?? nodeFs;
+	const getConnection = options.getConnection;
+	if (getConnection !== undefined && typeof getConnection !== "function") {
+		throw new TypeError("getConnection must be a function");
+	}
+	const fs = getConnection ? null : options.fs ?? nodeFs;
 	const fetchImpl = options.fetch ?? globalThis.fetch;
 	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-	if (!fs || typeof fs.readFile !== "function") throw new TypeError("fs.readFile is required");
+	if (!getConnection && (!fs || typeof fs.readFile !== "function")) throw new TypeError("fs.readFile is required");
 	if (typeof fetchImpl !== "function") throw new TypeError("fetch is required");
 	if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30_000) {
 		throw new TypeError("timeoutMs must be an integer between 1 and 30000");
 	}
 
-	let runFilePath;
-	if (options.runFilePath !== undefined) {
+	let runFilePath = null;
+	if (getConnection) {
+		// Deliberately bypass every run-file/home option in unified-app mode. The
+		// supervisor already owns daemon discovery and is the only trusted source.
+	} else if (options.runFilePath !== undefined) {
 		if (
 			typeof options.runFilePath !== "string" ||
 			options.runFilePath.includes("\0") ||
@@ -445,7 +482,7 @@ export function createKennelService(options = {}) {
 		const injectedHome = options.home ?? os.homedir;
 		const home = typeof injectedHome === "function" ? injectedHome() : injectedHome;
 		if (typeof home !== "string" || home.length === 0) throw new TypeError("home is required");
-		runFilePath = path.join(home, ".ao", "running.json");
+		runFilePath = path.join(home, ".kennel", "running.json");
 	}
 
 	async function requestJSON(connection, route, requestOptions = {}) {
@@ -487,7 +524,23 @@ export function createKennelService(options = {}) {
 		return payload;
 	}
 
-	async function attachDaemon() {
+	async function discoverConnection() {
+		if (getConnection) {
+			let injected;
+			try {
+				injected = await getConnection();
+			} catch (cause) {
+				fail("DAEMON_NOT_RUNNING", "Kennel daemon connection is unavailable", { cause, retryable: true });
+			}
+			const connection = normalizeInjectedConnection(injected);
+			return {
+				...connection,
+				// Never accept a host/base URL from the callback. The local control plane
+				// remains pinned to IPv4 loopback even if extra fields are supplied.
+				baseUrl: `http://127.0.0.1:${connection.port}`,
+			};
+		}
+
 		let contents;
 		try {
 			contents = await fs.readFile(runFilePath, "utf8");
@@ -499,11 +552,15 @@ export function createKennelService(options = {}) {
 		}
 
 		const runInfo = parseRunFile(contents);
-		const connection = {
+		return {
 			...runInfo,
 			// Never accept a host from disk. Kennel's local control plane is loopback-only.
 			baseUrl: `http://127.0.0.1:${runInfo.port}`,
 		};
+	}
+
+	async function attachDaemon() {
+		const connection = await discoverConnection();
 
 		let probe;
 		try {
@@ -518,13 +575,19 @@ export function createKennelService(options = {}) {
 			}
 			throw error;
 		}
-		if (!isRecord(probe) || probe.service !== DAEMON_SERVICE_NAME || probe.pid !== runInfo.pid) {
-			fail("DAEMON_IDENTITY_MISMATCH", "running.json does not identify the daemon answering on this port");
+		if (
+			!isRecord(probe) ||
+			probe.service !== DAEMON_SERVICE_NAME ||
+			!Number.isInteger(probe.pid) ||
+			probe.pid <= 0 ||
+			(connection.pid !== undefined && probe.pid !== connection.pid)
+		) {
+			fail("DAEMON_IDENTITY_MISMATCH", "The trusted connection does not identify the daemon answering on this port");
 		}
 		if (probe.status !== "ready") {
 			fail("DAEMON_NOT_READY", "Kennel daemon is not ready", { retryable: true });
 		}
-		return connection;
+		return { ...connection, pid: probe.pid };
 	}
 
 	async function loadConversation(connection, rawSessionId) {

@@ -11,34 +11,34 @@ import {
 test("run-file discovery honors only an absolute override and keeps dev state isolated", () => {
 	assert.equal(
 		resolveKennelRunFilePath({
-			env: { AO_RUN_FILE: "/private/tmp/ao/running.json" },
+			env: { KENNEL_RUN_FILE: "/private/tmp/kennel/running.json" },
 			home: "/Users/tester",
 			dev: true,
 		}),
-		"/private/tmp/ao/running.json",
+		"/private/tmp/kennel/running.json",
 	);
 	assert.equal(
 		resolveKennelRunFilePath({ env: {}, home: "/Users/tester", dev: true }),
-		"/Users/tester/.ao/dev/running.json",
+		"/Users/tester/.kennel/dev/running.json",
 	);
 	assert.equal(
 		resolveKennelRunFilePath({ env: {}, home: "/Users/tester", dev: false }),
-		"/Users/tester/.ao/running.json",
+		"/Users/tester/.kennel/running.json",
 	);
 	assert.equal(
 		resolveKennelRunFilePath({
-			env: { AO_RUN_FILE: "relative/running.json" },
+			env: { KENNEL_RUN_FILE: "relative/running.json" },
 			home: "/Users/tester",
 			dev: false,
 		}),
-		"/Users/tester/.ao/running.json",
+		"/Users/tester/.kennel/running.json",
 	);
 });
 
 test("the Kennel app marker is always resolved beside the selected run file", () => {
 	assert.equal(
-		appStatePathForRunFile("/Users/tester/.ao/dev/running.json"),
-		"/Users/tester/.ao/dev/app-state.json",
+		appStatePathForRunFile("/Users/tester/.kennel/dev/running.json"),
+		"/Users/tester/.kennel/dev/app-state.json",
 	);
 	assert.throws(() => appStatePathForRunFile("running.json"), /absolute run file/);
 });
@@ -62,13 +62,13 @@ test("a macOS app marker resolves only to an existing local application bundle",
 
 	const appPath = await resolveKennelAppPath({
 		fs,
-		appStatePath: "/Users/tester/.ao/app-state.json",
+		appStatePath: "/Users/tester/.kennel/app-state.json",
 		platform: "darwin",
 	});
 
 	assert.equal(appPath, "/Applications/Kennel.app");
 	assert.deepEqual(calls, [
-		["readFile", "/Users/tester/.ao/app-state.json", "utf8"],
+		["readFile", "/Users/tester/.kennel/app-state.json", "utf8"],
 		["realpath", "/Applications/Kennel.app"],
 		["stat", "/Applications/Kennel.app"],
 	]);
@@ -79,7 +79,7 @@ test("an invalid, stale, or non-app marker returns one safe launch error", async
 		await assert.rejects(
 			resolveKennelAppPath({
 				fs,
-				appStatePath: "/Users/secret/.ao/app-state.json",
+				appStatePath: "/Users/secret/.kennel/app-state.json",
 				platform: "darwin",
 			}),
 			(error) => {
@@ -125,7 +125,7 @@ test("non-macOS markers must resolve to a file rather than a directory", async (
 	assert.equal(
 		await resolveKennelAppPath({
 			fs,
-			appStatePath: "/Users/tester/.ao/app-state.json",
+			appStatePath: "/Users/tester/.kennel/app-state.json",
 			platform: "linux",
 		}),
 		"/opt/kennel/kennel",

@@ -850,6 +850,32 @@ textarea:focus-visible {
   background: transparent;
 }
 
+.island-hide-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 8px;
+  border: 0.5px solid var(--island-border);
+  border-radius: 7px;
+  background: var(--island-surface);
+  color: var(--island-muted);
+  cursor: pointer;
+  font-size: var(--fs-micro);
+  font-weight: 580;
+  transition: color 120ms ease, background 120ms ease, transform 120ms ease-out;
+}
+
+.island-hide-button:hover {
+  background: var(--island-surface-raised);
+  color: var(--island-text);
+}
+
+.island-hide-button:active {
+  transform: scale(0.97);
+}
+
 .island-header__cluster--right .island-count {
   margin-left: 4px;
 }
@@ -1145,7 +1171,6 @@ textarea:focus-visible {
   border: 0;
   background: transparent;
   color: var(--island-muted);
-  cursor: pointer;
   font-size: var(--fs-meta);
 }
 
@@ -1861,6 +1886,7 @@ textarea:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .island-tab,
+  .island-hide-button,
   .island-ticker,
   .queue-row,
   .queue-row__action,

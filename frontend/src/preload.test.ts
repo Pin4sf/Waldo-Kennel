@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CLOSE_SHELL_TERMINAL_SHORTCUT_CHANNEL, FOCUS_TERMINAL_SHORTCUT_CHANNEL, KEYBOARD_SHORTCUTS_HELP_CHANNEL, NEXT_SESSION_SHORTCUT_CHANNEL, NEXT_TAB_SHORTCUT_CHANNEL, NEW_SESSION_SHORTCUT_CHANNEL, NEW_SHELL_TERMINAL_SHORTCUT_CHANNEL, OPEN_SETTINGS_SHORTCUT_CHANNEL, PREVIOUS_SESSION_SHORTCUT_CHANNEL, PREVIOUS_TAB_SHORTCUT_CHANNEL, SET_CLOSE_SHELL_TERMINAL_SHORTCUT_ENABLED_CHANNEL } from "./shared/shortcuts";
+import {
+	ISLAND_GET_STATE_CHANNEL,
+	ISLAND_OPEN_SETTINGS_CHANNEL,
+	ISLAND_SET_VISIBLE_CHANNEL,
+	ISLAND_STATE_CHANNEL,
+	type IslandVisibilityState,
+} from "./shared/island";
 import type { AoBridge } from "./preload";
 
 const electronMocks = vi.hoisted(() => {
@@ -124,5 +131,43 @@ describe("preload uiSettings bridge", () => {
 
 		expect(electronMocks.invoke).toHaveBeenNthCalledWith(1, "uiSettings:get");
 		expect(electronMocks.invoke).toHaveBeenNthCalledWith(2, "uiSettings:set", { locale: "zh-CN" });
+	});
+});
+
+describe("preload Island bridge", () => {
+	it("invokes the visibility and settings IPC handlers", async () => {
+		const state: IslandVisibilityState = {
+			supported: true,
+			enabled: true,
+			visible: true,
+			shortcut: "⌘`",
+		};
+		electronMocks.invoke.mockResolvedValueOnce(state).mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined);
+
+		await expect(exposedBridge().island.getState()).resolves.toEqual(state);
+		await exposedBridge().island.setVisible(false);
+		await exposedBridge().island.openSettings();
+
+		expect(electronMocks.invoke).toHaveBeenNthCalledWith(1, ISLAND_GET_STATE_CHANNEL);
+		expect(electronMocks.invoke).toHaveBeenNthCalledWith(2, ISLAND_SET_VISIBLE_CHANNEL, false);
+		expect(electronMocks.invoke).toHaveBeenNthCalledWith(3, ISLAND_OPEN_SETTINGS_CHANNEL);
+	});
+
+	it("delivers state changes and removes the exact wrapped listener", () => {
+		const listener = vi.fn();
+		const dispose = exposedBridge().island.onState(listener);
+		const wrapped = electronMocks.listeners.get(ISLAND_STATE_CHANNEL);
+		const state: IslandVisibilityState = {
+			supported: true,
+			enabled: false,
+			visible: false,
+			shortcut: "⌘`",
+		};
+
+		wrapped?.({}, state);
+		expect(listener).toHaveBeenCalledWith(state);
+
+		dispose();
+		expect(electronMocks.off).toHaveBeenCalledWith(ISLAND_STATE_CHANNEL, wrapped);
 	});
 });

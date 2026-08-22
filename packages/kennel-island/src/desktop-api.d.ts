@@ -110,7 +110,9 @@ declare global {
     onMediaActivity: (listener: (activity: KennelMediaActivity) => void) => () => void;
     sendMediaCommand: (command: KennelMediaCommand) => Promise<{ sent: boolean }>;
     recenter: () => void | Promise<void>;
+    hideIsland: () => Promise<{ visible: false }>;
     getKennelSnapshot: () => Promise<KennelDesktopSnapshot>;
+    onKennelSnapshotInvalidated?: (listener: () => void) => () => void;
     getKennelConversation: (input: KennelConversationRequest) => Promise<KennelConversationState>;
     resolveApproval: (input: KennelApprovalResolution) => Promise<unknown>;
     resolveInput: (input: KennelInputResolution) => Promise<unknown>;

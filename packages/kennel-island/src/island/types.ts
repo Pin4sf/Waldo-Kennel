@@ -224,7 +224,8 @@ export type IslandAction =
   | { type: "open-session"; sessionId?: string; projectId?: string }
   | { type: "retry-connection" }
   | { type: "open-usage" }
-  | { type: "open-settings" };
+  | { type: "open-settings" }
+  | { type: "hide-island" };
 
 export interface KennelIslandAdapter {
   getSnapshot: () => IslandModel;

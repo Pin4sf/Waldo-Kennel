@@ -32,7 +32,9 @@ import type {
 import { orderPresenceCards } from "./presence.ts";
 import { providerFromHarness } from "./providers.ts";
 
-const REFRESH_INTERVAL_MS = 5_000;
+// The unified desktop host pushes daemon SSE invalidations immediately. This
+// interval is only recovery for a dropped event stream or the browser lab.
+const REFRESH_INTERVAL_MS = 30_000;
 const MAX_INLINE_OPTIONS = 4;
 const MAX_TEXT_LENGTH = 180;
 const MAX_AUTHORITY_ID_LENGTH = 512;
@@ -942,6 +944,7 @@ export function createLiveKennelIslandAdapter(
   let disposed = false;
   let started = false;
   let interval: number | undefined;
+  let unsubscribeSnapshotInvalidation: (() => void) | undefined;
   let refreshPromise: Promise<void> | null = null;
   let mutationPending = false;
   let usageRequest = 0;
@@ -1306,6 +1309,17 @@ export function createLiveKennelIslandAdapter(
     }
   }
 
+  /** Hiding is a host-window action; it never changes or disposes island state. */
+  async function hideIsland() {
+    if (typeof desktop.hideIsland !== "function") return;
+    try {
+      await desktop.hideIsland();
+    } catch {
+      // If the host cannot hide the window, the visible Island is already the
+      // safest fallback and there is no hidden surface on which to show an error.
+    }
+  }
+
   const showUsage = async () => {
     if (!snapshot) return;
     const currentSnapshot = snapshot;
@@ -1375,6 +1389,10 @@ export function createLiveKennelIslandAdapter(
   };
 
   const dispatch = async (action: IslandAction): Promise<void> => {
+    if (action.type === "hide-island") {
+      await hideIsland();
+      return;
+    }
     if (mutationPending) return;
     switch (action.type) {
       case "expand":
@@ -1437,6 +1455,9 @@ export function createLiveKennelIslandAdapter(
     started = true;
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibility);
+    if (typeof desktop.onKennelSnapshotInvalidated === "function") {
+      unsubscribeSnapshotInvalidation = desktop.onKennelSnapshotInvalidated(() => { void refresh(); });
+    }
     interval = window.setInterval(() => { void refresh(); }, refreshIntervalMs);
     queueMicrotask(() => {
       if (started && !disposed) void refresh();
@@ -1450,6 +1471,8 @@ export function createLiveKennelIslandAdapter(
     interval = undefined;
     window.removeEventListener("focus", handleFocus);
     document.removeEventListener("visibilitychange", handleVisibility);
+    unsubscribeSnapshotInvalidation?.();
+    unsubscribeSnapshotInvalidation = undefined;
   };
 
   return {

@@ -7,10 +7,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const LOOPBACK = "127.0.0.1";
-const SERVICE_NAME = "agent-orchestrator-daemon";
+const SERVICE_NAME = "kennel-daemon";
 const MAX_BODY_BYTES = 64 * 1024;
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
+const scriptPath = fileURLToPath(import.meta.url);
 
 function fixtureTimestamp(offsetSeconds = 0) {
 	return new Date(Date.now() + offsetSeconds * 1_000).toISOString();
@@ -432,10 +433,19 @@ function logMutation(kind, detail) {
 	process.stdout.write(`KENNEL_FIXTURE_MUTATION ${JSON.stringify({ kind, ...detail })}\n`);
 }
 
-async function handleRequest(request, response, state) {
+export async function handleRequest(request, response, state) {
 	const requestUrl = new URL(request.url ?? "/", `http://${LOOPBACK}`);
 	const method = request.method ?? "GET";
 	const pathname = requestUrl.pathname;
+
+	if (method === "GET" && pathname === "/healthz") {
+		sendJson(response, 200, {
+			status: "ok",
+			service: SERVICE_NAME,
+			pid: process.pid,
+		});
+		return;
+	}
 
 	if (method === "GET" && pathname === "/readyz") {
 		sendJson(response, 200, {
@@ -614,8 +624,20 @@ async function handleRequest(request, response, state) {
 	sendError(response, 404, "FIXTURE_ROUTE_NOT_FOUND", `${method} ${pathname} is not implemented by the fixture`);
 }
 
-async function firstExistingAppPath() {
-	const requested = process.env.KENNEL_FIXTURE_APP_PATH;
+export function defaultAppPathCandidates(root = projectRoot) {
+	return [
+		path.resolve(root, "../../frontend/out/Kennel-darwin-arm64/Kennel.app"),
+		path.resolve(root, "../../frontend/node_modules/electron/dist/Electron.app"),
+		// Keep the original sibling checkout layout usable for anyone running the
+		// fixture outside the unified Waldo-Kennel repository.
+		path.resolve(root, "../Waldo-Kennel/frontend/out/Kennel-darwin-arm64/Kennel.app"),
+		path.resolve(root, "../Waldo-Kennel/frontend/node_modules/electron/dist/Electron.app"),
+		path.resolve(root, "node_modules/electron/dist/Electron.app"),
+	];
+}
+
+export async function firstExistingAppPath({ env = process.env, fsModule = fs, root = projectRoot } = {}) {
+	const requested = env.KENNEL_FIXTURE_APP_PATH;
 	if (requested !== undefined) {
 		if (!path.isAbsolute(requested)) {
 			throw new Error("KENNEL_FIXTURE_APP_PATH must be an absolute path");
@@ -623,19 +645,14 @@ async function firstExistingAppPath() {
 		if (path.extname(requested).toLowerCase() !== ".app") {
 			throw new Error("KENNEL_FIXTURE_APP_PATH must identify a macOS .app bundle");
 		}
-		const info = await fs.stat(requested);
+		const info = await fsModule.stat(requested);
 		if (!info.isDirectory()) throw new Error("KENNEL_FIXTURE_APP_PATH must identify a macOS app directory");
 		return path.normalize(requested);
 	}
 
-	const candidates = [
-		path.resolve(projectRoot, "../Waldo-Kennel/frontend/out/Kennel-darwin-arm64/Kennel.app"),
-		path.resolve(projectRoot, "../Waldo-Kennel/frontend/node_modules/electron/dist/Electron.app"),
-		path.resolve(projectRoot, "node_modules/electron/dist/Electron.app"),
-	];
-	for (const candidate of candidates) {
+	for (const candidate of defaultAppPathCandidates(root)) {
 		try {
-			const info = await fs.stat(candidate);
+			const info = await fsModule.stat(candidate);
 			if (info.isDirectory()) return candidate;
 		} catch (error) {
 			if (error?.code !== "ENOENT") throw error;
@@ -715,7 +732,9 @@ async function main() {
 	}
 }
 
-main().catch((error) => {
-	process.stderr.write(`${error?.stack ?? error}\n`);
-	process.exitCode = 1;
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {
+	main().catch((error) => {
+		process.stderr.write(`${error?.stack ?? error}\n`);
+		process.exitCode = 1;
+	});
+}

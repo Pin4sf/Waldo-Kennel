@@ -10,7 +10,7 @@
 // no haptics at all.
 
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,6 +31,16 @@ function swiftAvailable() {
 	}
 }
 
+function isUniversalBinary(file) {
+	if (!existsSync(file)) return false;
+	try {
+		const architectures = String(execFileSync("/usr/bin/lipo", ["-archs", file])).trim().split(/\s+/);
+		return architectures.includes("arm64") && architectures.includes("x86_64");
+	} catch {
+		return false;
+	}
+}
+
 if (process.platform !== "darwin") {
 	process.stdout.write("Skipping helpers: macOS only.\n");
 } else if (!swiftAvailable()) {
@@ -44,19 +54,30 @@ if (process.platform !== "darwin") {
 		const sourcePath = path.join(helpers, source);
 		const outputPath = path.join(helpers, output);
 
-		if (existsSync(outputPath) && statSync(outputPath).mtimeMs >= statSync(sourcePath).mtimeMs) {
+		if (
+			isUniversalBinary(outputPath) &&
+			statSync(outputPath).mtimeMs >= statSync(sourcePath).mtimeMs
+		) {
 			process.stdout.write(`${output} is up to date.\n`);
 			continue;
 		}
 
-		execFileSync("/usr/bin/xcrun", [
-			"swiftc",
-			"-O",
-			"-target", "arm64-apple-macos12.0",
-			sourcePath,
-			"-o", outputPath,
-		], { stdio: "inherit" });
-		chmodSync(outputPath, 0o755);
-		process.stdout.write(`Wrote desktop/helpers/${output}.\n`);
+		const slices = ["arm64", "x86_64"].map((architecture) => `${outputPath}.${architecture}`);
+		try {
+			for (const [index, architecture] of ["arm64", "x86_64"].entries()) {
+				execFileSync("/usr/bin/xcrun", [
+					"swiftc",
+					"-O",
+					"-target", `${architecture}-apple-macos12.0`,
+					sourcePath,
+					"-o", slices[index],
+				], { stdio: "inherit" });
+			}
+			execFileSync("/usr/bin/lipo", ["-create", ...slices, "-output", outputPath], { stdio: "inherit" });
+			chmodSync(outputPath, 0o755);
+			process.stdout.write(`Wrote universal desktop/helpers/${output}.\n`);
+		} finally {
+			for (const slice of slices) rmSync(slice, { force: true });
+		}
 	}
 }

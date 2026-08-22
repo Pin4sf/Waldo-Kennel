@@ -24,7 +24,7 @@ function noContentResponse() {
 function readyResponse(overrides = {}) {
 	return jsonResponse({
 		status: "ready",
-		service: "agent-orchestrator-daemon",
+		service: "kennel-daemon",
 		pid: RUN_INFO.pid,
 		...overrides,
 	});
@@ -85,7 +85,7 @@ async function expectServiceError(promise, code) {
 	});
 }
 
-test("attach reads ~/.ao/running.json and verifies the exact loopback daemon identity", async () => {
+test("attach reads ~/.kennel/running.json and verifies the exact loopback daemon identity", async () => {
 	const fixture = harness(withReady());
 
 	const daemon = await fixture.service.attach();
@@ -97,11 +97,130 @@ test("attach reads ~/.ao/running.json and verifies the exact loopback daemon ide
 		owner: "persistent",
 	});
 	assert.deepEqual(fixture.reads, [
-		{ file: "/Users/tester/.ao/running.json", encoding: "utf8" },
+		{ file: "/Users/tester/.kennel/running.json", encoding: "utf8" },
 	]);
 	assert.equal(fixture.calls.length, 1);
 	assert.equal(fixture.calls[0].url, "http://127.0.0.1:4317/readyz");
 	assert.equal(fixture.calls[0].init.redirect, "error");
+});
+
+test("an injected connection bypasses run-file discovery and remains pinned to loopback", async () => {
+	const calls = [];
+	let connectionReads = 0;
+	const fetch = async (url, init = {}) => {
+		const parsed = new URL(url);
+		const method = init.method ?? "GET";
+		const key = `${method} ${parsed.pathname}${parsed.search}`;
+		calls.push({ url, key, init });
+		if (key === "GET /readyz") return readyResponse();
+		if (key === "GET /api/v1/sessions/worker-1/conversation") {
+			return conversationResponse("worker-1");
+		}
+		throw new Error(`Unexpected request: ${key}`);
+	};
+	const service = createKennelService({
+		getConnection() {
+			connectionReads += 1;
+			return {
+				state: "ready",
+				port: 4317,
+				// Extra URL-like fields are never trusted or used.
+				baseUrl: "https://example.invalid",
+			};
+		},
+		fs: { readFile: assert.fail },
+		home: assert.fail,
+		runFilePath: "relative-path-is-ignored-in-injected-mode",
+		fetch,
+	});
+
+	assert.equal(service.runFilePath, null);
+	assert.deepEqual(await service.attach(), {
+		pid: 42,
+		port: 4317,
+		startedAt: null,
+		owner: null,
+	});
+	assert.deepEqual(await service.getConversation("worker-1"), {
+		conversation: { sessionId: "worker-1", controller: "ready", turns: [] },
+		pending: { approvals: [], inputs: [] },
+	});
+	assert.equal(connectionReads, 2);
+	assert.deepEqual(calls.map((call) => call.url), [
+		"http://127.0.0.1:4317/readyz",
+		"http://127.0.0.1:4317/readyz",
+		"http://127.0.0.1:4317/api/v1/sessions/worker-1/conversation",
+	]);
+});
+
+test("injected connections validate supervisor state, port, pid, and live daemon identity", async (t) => {
+	const serviceFor = (getConnection, fetch = assert.fail) => createKennelService({
+		getConnection,
+		fs: { readFile: assert.fail },
+		home: assert.fail,
+		fetch,
+	});
+
+	await t.test("missing connection", async () => {
+		await expectServiceError(serviceFor(() => null).attach(), "DAEMON_NOT_RUNNING");
+	});
+
+	await t.test("supervisor not ready", async () => {
+		await expectServiceError(
+			serviceFor(() => ({ state: "starting", port: 4317 })).attach(),
+			"DAEMON_NOT_READY",
+		);
+	});
+
+	for (const candidate of [
+		{ state: "ready", port: 0 },
+		{ state: "ready", port: 65_536 },
+		{ state: "ready", port: 4317.5 },
+		{ state: "ready", port: 4317, pid: 0 },
+	]) {
+		await t.test(`invalid injected connection ${JSON.stringify(candidate)}`, async () => {
+			await expectServiceError(serviceFor(() => candidate).attach(), "DAEMON_CONNECTION_INVALID");
+		});
+	}
+
+	await t.test("callback failure", async () => {
+		const cause = new Error("status unavailable");
+		await assert.rejects(serviceFor(() => {
+			throw cause;
+		}).attach(), (error) => {
+			assert.ok(error instanceof KennelServiceError);
+			assert.equal(error.code, "DAEMON_NOT_RUNNING");
+			assert.equal(error.retryable, true);
+			assert.equal(error.cause, cause);
+			return true;
+		});
+	});
+
+	await t.test("wrong service on trusted port", async () => {
+		const service = serviceFor(
+			() => ({ state: "ready", port: 4317 }),
+			async () => readyResponse({ service: "not-kennel" }),
+		);
+		await expectServiceError(service.attach(), "DAEMON_IDENTITY_MISMATCH");
+	});
+
+	await t.test("trusted pid disagrees with ready daemon", async () => {
+		const service = serviceFor(
+			() => ({ state: "ready", port: 4317, pid: 99 }),
+			async () => readyResponse({ pid: 42 }),
+		);
+		await expectServiceError(service.attach(), "DAEMON_IDENTITY_MISMATCH");
+	});
+
+	await t.test("numeric port shorthand still verifies ready identity", async () => {
+		const service = serviceFor(() => 4317, async () => readyResponse());
+		assert.deepEqual(await service.attach(), {
+			pid: 42,
+			port: 4317,
+			startedAt: null,
+			owner: null,
+		});
+	});
 });
 
 test("an injected runFilePath must be absolute and overrides only daemon discovery", async () => {
@@ -116,16 +235,16 @@ test("an injected runFilePath must be absolute and overrides only daemon discove
 	const service = createKennelService({
 		fs,
 		fetch,
-		runFilePath: "/Users/tester/.ao/dev/running.json",
+		runFilePath: "/Users/tester/.kennel/dev/running.json",
 	});
 
 	await service.attach();
-	assert.equal(service.runFilePath, "/Users/tester/.ao/dev/running.json");
+	assert.equal(service.runFilePath, "/Users/tester/.kennel/dev/running.json");
 	assert.deepEqual(reads, [
-		{ file: "/Users/tester/.ao/dev/running.json", encoding: "utf8" },
+		{ file: "/Users/tester/.kennel/dev/running.json", encoding: "utf8" },
 	]);
 	assert.throws(
-		() => createKennelService({ fs, fetch, runFilePath: ".ao/dev/running.json" }),
+		() => createKennelService({ fs, fetch, runFilePath: ".kennel/dev/running.json" }),
 		/runFilePath must be an absolute path/,
 	);
 });
