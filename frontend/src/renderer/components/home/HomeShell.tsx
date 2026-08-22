@@ -1,6 +1,6 @@
 import { CenterPanelShell } from "../CenterPanelShell";
 import { useTranslation } from "react-i18next";
-import type { HomeFixtureState } from "../../lib/home-fixture";
+import type { HomeFixtureState, HomeMode } from "../../lib/home-fixture";
 
 export type HomeSurfaceState = "empty" | "capture_disabled" | "offline";
 
@@ -26,11 +26,26 @@ export function HomeShell({
 			description: t("home.state.offline.description"),
 		},
 	};
-	const fixtureCards = [
-		{ title: t("home.fixture.today.title"), description: t("home.fixture.today.description") },
-		{ title: t("home.fixture.catchUp.title"), description: t("home.fixture.catchUp.description") },
-	];
+	const fixtureCards: Record<HomeMode, { title: string; description: string }> = {
+		today: {
+			title: t("home.fixture.today.title"),
+			description: t("home.fixture.today.description"),
+		},
+		catch_up: {
+			title: t("home.fixture.catchUp.title"),
+			description: t("home.fixture.catchUp.description"),
+		},
+		open_loop: {
+			title: t("home.fixture.openLoop.title"),
+			description: t("home.fixture.openLoop.description"),
+		},
+		ready_to_close: {
+			title: t("home.fixture.readyToClose.title"),
+			description: t("home.fixture.readyToClose.description"),
+		},
+	};
 	const content = stateContent[state];
+	const fixtureCard = fixture ? fixtureCards[fixture.mode] : null;
 
 	return (
 		<CenterPanelShell titlebarAlign={false}>
@@ -63,14 +78,14 @@ export function HomeShell({
 								</span>
 							</div>
 							<p className="text-sm text-muted-foreground">{t("home.previewDisclosure")}</p>
-							<div className="grid gap-3 sm:grid-cols-2">
-								{fixtureCards.map((card) => (
-									<article className="rounded-xl border border-border bg-surface p-5" key={card.title}>
+							<div className="grid gap-3">
+								{fixtureCard ? (
+									<article className="rounded-xl border border-border bg-surface p-5">
 										<span className="text-xs font-medium text-muted-foreground">{fixture.sourceLabel}</span>
-										<h3 className="mt-3 text-sm font-semibold text-foreground">{card.title}</h3>
-										<p className="mt-1 text-sm leading-relaxed text-muted-foreground">{card.description}</p>
+										<h3 className="mt-3 text-sm font-semibold text-foreground">{fixtureCard.title}</h3>
+										<p className="mt-1 text-sm leading-relaxed text-muted-foreground">{fixtureCard.description}</p>
 									</article>
-								))}
+								) : null}
 							</div>
 						</section>
 					) : null}

@@ -8,6 +8,7 @@ import {
 	ChevronRight,
 	Folder,
 	FolderOpen,
+	LayoutDashboard,
 	LogIn,
 	LogOut,
 	MoreVertical,
@@ -143,10 +144,12 @@ function useSelection() {
 	const params = useParams({ strict: false }) as { projectId?: string; sessionId?: string };
 	const pathname = useRouterState({ select: (state) => state.location.pathname });
 	return {
-		isHome: pathname === "/",
+		isWork: pathname === "/",
+		isHome: pathname === "/home",
 		activeProjectId: params.projectId,
 		activeSessionId: params.sessionId,
-		goHome: () => void navigate({ to: "/" }),
+		goWork: () => void navigate({ to: "/" }),
+		goHome: () => void navigate({ to: "/home" }),
 		// Settings is a modal — open it in place so the current page (session
 		// terminal, board, etc.) stays underneath.
 		goGlobalSettings: () => openGlobalSettings(),
@@ -296,11 +299,11 @@ export function Sidebar({
 								className={cn(
 									"grid h-5.5 w-5.5 shrink-0 place-items-center",
 									"group-data-[collapsible=icon]:size-control-board group-data-[collapsible=icon]:rounded-lg",
-									selection.isHome
+									selection.isWork
 										? "group-data-[collapsible=icon]:bg-interactive-active"
 										: "group-data-[collapsible=icon]:hover:bg-interactive-hover",
 								)}
-								onClick={selection.goHome}
+								onClick={selection.goWork}
 								type="button"
 							>
 								<img src={aoLogo} alt="" aria-hidden="true" className="h-5.5 w-5.5 -translate-y-[3px] rounded-md object-cover" />
@@ -314,11 +317,11 @@ export function Sidebar({
 						<span
 							aria-label={t("shell.orchestratorBoard")}
 							className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-sm font-bold leading-tight tracking-tight-lg text-foreground group-data-[collapsible=icon]:hidden"
-							onClick={selection.goHome}
+							onClick={selection.goWork}
 							onKeyDown={(event: KeyboardEvent<HTMLSpanElement>) => {
 								if (event.key !== "Enter" && event.key !== " ") return;
 								event.preventDefault();
-								selection.goHome();
+								selection.goWork();
 							}}
 							role="button"
 							tabIndex={0}
@@ -337,6 +340,35 @@ export function Sidebar({
 					)}
 				</div>
 			</SidebarHeader>
+
+			<SidebarGroup className="shrink-0 px-2 pb-2 pt-0 group-data-[collapsible=icon]:px-1.5">
+				<SidebarGroupContent>
+					<SidebarMenu className="gap-0.5 group-data-[collapsible=icon]:gap-1">
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								className={NAV_ROW_CLASS}
+								isActive={selection.isHome}
+								onClick={selection.goHome}
+								tooltip={t("home.navHome")}
+							>
+								<User aria-hidden="true" />
+								<span>{t("home.navHome")}</span>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								className={NAV_ROW_CLASS}
+								isActive={selection.isWork}
+								onClick={selection.goWork}
+								tooltip={t("home.navWorkRecommended")}
+							>
+								<LayoutDashboard aria-hidden="true" />
+								<span>{t("home.navWorkRecommended")}</span>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+					</SidebarMenu>
+				</SidebarGroupContent>
+			</SidebarGroup>
 
 			{/* Keep Search + section chrome fixed; only the project tree scrolls. */}
 			<div className="flex shrink-0 flex-col gap-0 px-2 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
@@ -620,7 +652,7 @@ function ProjectItem({
 		// Teardown can take a while when a project owns several sessions. Leave
 		// the confirmation immediately and move to the route that remains valid
 		// after removal while the sidebar keeps progress/error feedback visible.
-		selection.goHome();
+		selection.goWork();
 		try {
 			await onRemoveProject(workspace.id);
 		} catch (err) {

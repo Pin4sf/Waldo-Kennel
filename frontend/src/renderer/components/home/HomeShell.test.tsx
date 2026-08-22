@@ -33,12 +33,18 @@ describe("HomeShell", () => {
 		expect(screen.queryByText("Nothing is held here yet.")).not.toBeInTheDocument();
 	});
 
-	it("marks projected cards as Architecture preview rather than personal data", () => {
-		render(<HomeShell fixture={todayFixture} />);
+	it.each([
+		["today", "Today"],
+		["catch_up", "Catch Up"],
+		["open_loop", "Open Loop"],
+		["ready_to_close", "Ready to Close"],
+	] as const)("renders only the selected %s architecture-preview mode", (mode, title) => {
+		const fixture: HomeFixtureState = { ...todayFixture, mode };
+		render(<HomeShell fixture={fixture} />);
 
-		for (const card of screen.getAllByRole("article")) {
-			expect(card).toHaveTextContent("Architecture preview");
-		}
+		expect(screen.getAllByRole("article")).toHaveLength(1);
+		expect(screen.getByRole("article")).toHaveTextContent("Architecture preview");
+		expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
 		expect(screen.getByText("These are example projections, not your data.")).toBeInTheDocument();
 	});
 });

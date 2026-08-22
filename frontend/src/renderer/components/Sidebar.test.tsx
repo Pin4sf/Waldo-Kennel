@@ -22,11 +22,12 @@ import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { agentsQueryKey } from "../hooks/useAgentsQuery";
 import { useUiStore } from "../stores/ui-store";
 
-const { getMock, navigateMock, mockParams, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
+const { getMock, navigateMock, mockParams, mockPathname, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
 	() => ({
 		getMock: vi.fn(),
 		navigateMock: vi.fn(),
 		mockParams: { projectId: undefined as string | undefined, sessionId: undefined as string | undefined },
+		mockPathname: { current: "/" },
 		renameSessionMock: vi.fn().mockResolvedValue(undefined),
 		spawnMock: vi.fn(),
 		updateStatusMock: vi.fn(),
@@ -48,7 +49,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 		useNavigate: () => navigateMock,
 		useParams: () => ({ ...mockParams }),
 		useRouterState: ({ select }: { select: (state: { location: { pathname: string } }) => unknown }) =>
-			select({ location: { pathname: "/" } }),
+			select({ location: { pathname: mockPathname.current } }),
 	};
 });
 
@@ -256,6 +257,7 @@ beforeEach(() => {
 	updateStatusMock.mockReset().mockResolvedValue({ state: "idle" });
 	mockParams.projectId = undefined;
 	mockParams.sessionId = undefined;
+	mockPathname.current = "/";
 });
 
 afterEach(() => {
@@ -263,6 +265,24 @@ afterEach(() => {
 });
 
 describe("Sidebar", () => {
+	it("selects Home from the peer destination navigation while keeping Work recommended", async () => {
+		const user = userEvent.setup();
+		renderSidebar();
+
+		expect(screen.getByRole("button", { name: "Work (recommended)" })).toHaveAttribute("data-active", "true");
+		await user.click(screen.getByRole("button", { name: "Home" }));
+
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/home" });
+	});
+
+	it("derives the active destination from the Home route", () => {
+		mockPathname.current = "/home";
+		renderSidebar();
+
+		expect(screen.getByRole("button", { name: "Home" })).toHaveAttribute("data-active", "true");
+		expect(screen.getByRole("button", { name: "Work (recommended)" })).toHaveAttribute("data-active", "false");
+	});
+
 	it("suppresses focus chrome without removing keyboard focusability", () => {
 		renderSidebar();
 
