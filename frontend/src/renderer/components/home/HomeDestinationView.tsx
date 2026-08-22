@@ -1,4 +1,5 @@
 import type { HomeDestination, HomeFixtureState } from "../../lib/home-fixture";
+import { HomeOpenLoops } from "./HomeOpenLoops";
 
 const sectionTitleClass = "text-xl font-semibold tracking-tight text-foreground";
 const eyebrowClass =
@@ -59,47 +60,7 @@ export function HomeDestinationView({
   fixture: HomeFixtureState;
 }) {
   if (destination === "open_loops") {
-    return (
-      <section aria-labelledby="open-loops-heading">
-        <p className={eyebrowClass}>{copy.confirmedResponsibility}</p>
-        <h2 className={`mt-2 ${sectionTitleClass}`} id="open-loops-heading">
-          {copy.openLoops}
-        </h2>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          {copy.openLoopsDescription}
-        </p>
-        <div className="mt-7 divide-y divide-border border-y border-border">
-          {fixture.openLoops.map((loop) => (
-            <article aria-label={loop.label} className="py-5" key={loop.id}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="text-sm font-medium text-foreground">{loop.label}</h3>
-                  <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                    {loop.meaning}
-                  </p>
-                </div>
-                <span className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground">
-                  {copy.active}
-                </span>
-              </div>
-              <dl className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-                <div><dt className="sr-only">{copy.owner}</dt><dd>{copy.ownerPrefix} {loop.owner}</dd></div>
-                <div><dt className="sr-only">{copy.recheck}</dt><dd>{loop.recheck}</dd></div>
-                <div><dt className="sr-only">{copy.sourceStrength}</dt><dd>{loop.sourceStrength}</dd></div>
-              </dl>
-              <div className="mt-4 flex flex-wrap gap-4 text-xs font-medium">
-                <button className="text-foreground underline underline-offset-4" type="button">
-                  {copy.addContext}
-                </button>
-                <button className="text-foreground underline underline-offset-4" type="button">
-                  {copy.continueInWork}
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-    );
+    return <HomeOpenLoops fixture={fixture} />;
   }
 
   if (destination === "memory") {

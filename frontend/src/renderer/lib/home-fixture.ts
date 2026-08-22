@@ -38,16 +38,19 @@ export type HomeAttentionItem = {
   sourceGap: string;
 };
 
+export type HomeOpenLoopState = "attention" | "waiting" | "ready_to_close";
+
 export type HomeOpenLoopFixture = {
   id: string;
   label: string;
   meaning: string;
   owner: string;
-  state: "attention" | "waiting" | "ready_to_close";
+  state: HomeOpenLoopState;
   trigger: string;
   recheck: string;
   sourceStrength: string;
   sourceSummary: string;
+  sourceGap?: string;
   lastConfirmedAt: string;
 };
 
@@ -171,8 +174,41 @@ const deckOpenLoop: HomeOpenLoopFixture = {
   recheck: "Recheck tomorrow morning",
   sourceStrength: "User-confirmed",
   sourceSummary: "Meeting note · corrected by you · 3:31 PM",
+  sourceGap: "Meeting audio unavailable from 3:10–3:24 PM",
   lastConfirmedAt: "Confirmed today at 3:31 PM",
 };
+
+const vendorOpenLoop: HomeOpenLoopFixture = {
+  id: "vendor-response",
+  label: "Vendor response",
+  meaning: "Wait for the revised security terms before comparing the shortlist.",
+  owner: "Aditi",
+  state: "waiting",
+  trigger: "Return when the vendor sends the revised terms",
+  recheck: "Recheck Monday afternoon",
+  sourceStrength: "Confirmed in email",
+  sourceSummary: "Email thread · Aditi and vendor · Friday at 5:42 PM",
+  lastConfirmedAt: "Confirmed Friday at 5:42 PM",
+};
+
+const workshopOpenLoop: HomeOpenLoopFixture = {
+  id: "pricing-workshop-note",
+  label: "Pricing workshop note",
+  meaning: "The packaging decision is ready to be acknowledged and released from Home.",
+  owner: "You",
+  state: "ready_to_close",
+  trigger: "Close after you confirm the decision note reflects the workshop",
+  recheck: "Ready to review now",
+  sourceStrength: "User-confirmed",
+  sourceSummary: "Decision note · confirmed by you · 5:18 PM",
+  lastConfirmedAt: "Confirmed today at 5:18 PM",
+};
+
+const openLoops: HomeOpenLoopFixture[] = [
+  deckOpenLoop,
+  vendorOpenLoop,
+  workshopOpenLoop,
+];
 
 const phaseBriefs: Record<
   HomeDayPhase,
@@ -266,9 +302,9 @@ export function homeFixture(
     todos: phase.todos,
     suggestions: phase.suggestions,
     attention: contextFlow === "quiet_focus" ? [] : [deckAttention],
-    waiting: 2,
-    readyToClose: 1,
-    openLoops: [deckOpenLoop],
+    waiting: openLoops.filter((loop) => loop.state === "waiting").length,
+    readyToClose: openLoops.filter((loop) => loop.state === "ready_to_close").length,
+    openLoops,
     continuity: [
       {
         id: "correction",

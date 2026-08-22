@@ -534,6 +534,42 @@
 	background-color: color-mix(in oklch, var(--color-bg-primary) 88%, var(--color-bg-sidebar));
 }
 
+.home-open-loops-desk {
+	display: grid;
+	grid-template-columns: minmax(14rem, 0.78fr) minmax(0, 1.5fr);
+	gap: 2rem;
+	margin-top: 1.75rem;
+}
+
+.home-open-loops-detail {
+	border-left: 1px solid var(--color-border);
+	padding-left: 2rem;
+}
+
+.home-open-loops-back {
+	display: none;
+}
+
+@container center-panel (max-width: 700px) {
+	.home-open-loops-desk {
+		display: block;
+	}
+
+	.home-open-loops-detail {
+		border-left: 0;
+		padding-left: 0;
+	}
+
+	.home-open-loops-back {
+		display: inline-flex;
+	}
+
+	.home-open-loops-desk[data-mobile-view="index"] .home-open-loops-detail,
+	.home-open-loops-desk[data-mobile-view="detail"] .home-open-loops-index {
+		display: none;
+	}
+}
+
 @container center-panel (min-width: 960px) {
 	.home-today-layout {
 		display: grid;
