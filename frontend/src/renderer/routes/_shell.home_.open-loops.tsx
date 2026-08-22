@@ -3,15 +3,16 @@ import { HomeShell } from "../components/home/HomeShell";
 import { homeFixture } from "../lib/home-fixture";
 import { useShell } from "../lib/shell-context";
 
-export const Route = createFileRoute("/_shell/home")({
-  component: HomeRoute,
+export const Route = createFileRoute("/_shell/home_/open-loops")({
+  component: OpenLoopsRoute,
 });
 
-function HomeRoute() {
+function OpenLoopsRoute() {
   const { daemonStatus } = useShell();
   return (
     <HomeShell
-      fixture={homeFixture("today")}
+      destination="open_loops"
+      fixture={homeFixture("open_loops")}
       state={daemonStatus.state === "ready" ? "empty" : "offline"}
     />
   );

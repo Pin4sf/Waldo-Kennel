@@ -4,47 +4,68 @@ import { describe, expect, it, vi } from "vitest";
 import { ShellProvider, type ShellContextValue } from "../../lib/shell-context";
 
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@tanstack/react-router")>()),
-	createFileRoute: (id: string) => (options: unknown) => ({ id, options }),
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  createFileRoute: (id: string) => (options: unknown) => ({ id, options }),
 }));
 
 import { Route } from "../../routes/_shell.home";
+import { Route as OpenLoopsRouteDefinition } from "../../routes/_shell.home_.open-loops";
+import { Route as MemoryRouteDefinition } from "../../routes/_shell.home_.memory";
+import { Route as DailyCloseRouteDefinition } from "../../routes/_shell.home_.daily-close";
+import { Route as HistoryRouteDefinition } from "../../routes/_shell.home_.history";
 
 function shellContext(state: "ready" | "stopped" | "error"): ShellContextValue {
-	return {
-		daemonStatus: { state } as ShellContextValue["daemonStatus"],
-		workspaceStartupState: "ready",
-		createProject: async () => undefined,
-		initializeProjectRepository: async () => undefined,
-	};
+  return {
+    daemonStatus: { state } as ShellContextValue["daemonStatus"],
+    workspaceStartupState: "ready",
+    createProject: async () => undefined,
+    initializeProjectRepository: async () => undefined,
+  };
 }
 
 async function renderHomeRoute(state: "ready" | "stopped" | "error") {
-	const Component = Route.options.component as ComponentType;
-	await act(async () => {
-		render(
-			<ShellProvider value={shellContext(state)}>
-				<Component />
-			</ShellProvider>,
-		);
-	});
+  const Component = Route.options.component as ComponentType;
+  await act(async () => {
+    render(
+      <ShellProvider value={shellContext(state)}>
+        <Component />
+      </ShellProvider>,
+    );
+  });
 }
 
 describe("Home entry route", () => {
-	it("registers Home as a directly selectable destination", () => {
-		expect(Route.id).toBe("/_shell/home");
-	});
+  it("registers Home as a directly selectable destination", () => {
+    expect(Route.id).toBe("/_shell/home");
+  });
 
-	it("renders the empty Home shell only when the daemon is ready", async () => {
-		await renderHomeRoute("ready");
-		expect(await screen.findByRole("heading", { name: "Home" })).toBeInTheDocument();
-		expect(screen.getByText("Nothing is held here yet.")).toBeInTheDocument();
-	});
+  it("keeps Today and the four Home destinations on stable routes", () => {
+    expect(Route.id).toBe("/_shell/home");
+    expect(OpenLoopsRouteDefinition.id).toBe("/_shell/home_/open-loops");
+    expect(MemoryRouteDefinition.id).toBe("/_shell/home_/memory");
+    expect(DailyCloseRouteDefinition.id).toBe("/_shell/home_/daily-close");
+    expect(HistoryRouteDefinition.id).toBe("/_shell/home_/history");
+  });
 
-	it.each(["stopped", "error"] as const)("renders Home unavailable when the daemon is %s", async (state) => {
-		await renderHomeRoute(state);
+  it("renders the empty Home shell only when the daemon is ready", async () => {
+    await renderHomeRoute("ready");
+    expect(
+      await screen.findByRole("heading", { name: "Home" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Nothing is held here yet.")).toBeInTheDocument();
+  });
 
-		expect(await screen.findByText("Home facts are unavailable right now.")).toBeInTheDocument();
-		expect(screen.queryByText("Nothing is held here yet.")).not.toBeInTheDocument();
-	});
+  it.each(["stopped", "error"] as const)(
+    "renders Home unavailable when the daemon is %s",
+    async (state) => {
+      await renderHomeRoute(state);
+
+      expect(
+        await screen.findByText("Home facts are unavailable right now."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Nothing is held here yet."),
+      ).not.toBeInTheDocument();
+    },
+  );
 });

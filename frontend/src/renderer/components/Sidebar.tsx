@@ -149,7 +149,7 @@ function useSelection() {
 		/^\/sessions\/[^/]+$/.test(pathname);
 	return {
 		isWork,
-		isHome: pathname === "/home",
+		isHome: /^\/home(?:\/|$)/.test(pathname),
 		activeProjectId: params.projectId,
 		activeSessionId: params.sessionId,
 		goWork: () => void navigate({ to: "/" }),
