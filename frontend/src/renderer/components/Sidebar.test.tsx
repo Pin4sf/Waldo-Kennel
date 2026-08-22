@@ -265,34 +265,24 @@ afterEach(() => {
 });
 
 describe("Sidebar", () => {
-	it("selects Home from the peer destination navigation while keeping Work recommended", async () => {
-		const user = userEvent.setup();
+	it("leaves the global Home and Work choice to the shell mode control", () => {
 		renderSidebar();
 
-		expect(screen.getByRole("button", { name: "Work (recommended)" })).toHaveAttribute("data-active", "true");
-		await user.click(screen.getByRole("button", { name: "Home" }));
-
-		expect(navigateMock).toHaveBeenCalledWith({ to: "/home" });
+		expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Work (recommended)" })).not.toBeInTheDocument();
 	});
 
-	it("derives the active destination from the Home route", () => {
+	it("shows only Today and Open Loops as primary Home destinations", () => {
 		mockPathname.current = "/home";
 		renderSidebar();
 
-		expect(screen.getByRole("button", { name: "Home" })).toHaveAttribute("data-active", "true");
-		expect(screen.getByRole("button", { name: "Work (recommended)" })).toHaveAttribute("data-active", "false");
+		const navigation = screen.getByRole("navigation", { name: "Home destinations" });
+		expect(within(navigation).getByRole("link", { name: "Today" })).toBeInTheDocument();
+		expect(within(navigation).getByRole("link", { name: "Open Loops" })).toBeInTheDocument();
+		expect(within(navigation).queryByRole("link", { name: "Memory" })).not.toBeInTheDocument();
+		expect(within(navigation).queryByRole("link", { name: "Daily Close" })).not.toBeInTheDocument();
+		expect(within(navigation).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
 	});
-
-	it.each(["/projects/proj-1", "/projects/proj-1/sessions/proj-1-1"])(
-		"keeps Work active on the %s route",
-		(pathname) => {
-			mockPathname.current = pathname;
-			renderSidebar();
-
-			expect(screen.getByRole("button", { name: "Work (recommended)" })).toHaveAttribute("data-active", "true");
-			expect(screen.getByRole("button", { name: "Home" })).toHaveAttribute("data-active", "false");
-		},
-	);
 
 	it("suppresses focus chrome without removing keyboard focusability", () => {
 		renderSidebar();

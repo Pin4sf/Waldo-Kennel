@@ -8,7 +8,6 @@ import {
 	ChevronRight,
 	Folder,
 	FolderOpen,
-	LayoutDashboard,
 	LogIn,
 	LogOut,
 	MoreVertical,
@@ -165,7 +164,6 @@ function useSelection() {
 		activeProjectId: params.projectId,
 		activeSessionId: params.sessionId,
 		goWork: () => void navigate({ to: "/" }),
-		goHome: () => void navigate({ to: "/home" }),
 		// Settings is a modal — open it in place so the current page (session
 		// terminal, board, etc.) stays underneath.
 		goGlobalSettings: () => openGlobalSettings(),
@@ -357,35 +355,13 @@ export function Sidebar({
 				</div>
 			</SidebarHeader>
 
-			<SidebarGroup className="shrink-0 px-2 pb-2 pt-0 group-data-[collapsible=icon]:px-1.5">
-				<SidebarGroupContent>
-					<SidebarMenu className="gap-0.5 group-data-[collapsible=icon]:gap-1">
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								className={NAV_ROW_CLASS}
-								isActive={selection.isHome}
-								onClick={selection.goHome}
-								tooltip={t("home.navHome")}
-							>
-								<User aria-hidden="true" />
-								<span>{t("home.navHome")}</span>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								className={NAV_ROW_CLASS}
-								isActive={selection.isWork}
-								onClick={selection.goWork}
-								tooltip={t("home.navWorkRecommended")}
-							>
-								<LayoutDashboard aria-hidden="true" />
-								<span>{t("home.navWorkRecommended")}</span>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-					</SidebarMenu>
-					{selection.isHome ? <HomeNavigation destination={selection.homeDestination} variant="sidebar" /> : null}
-				</SidebarGroupContent>
-			</SidebarGroup>
+			{selection.isHome ? (
+				<SidebarGroup className="shrink-0 px-2 pb-2 pt-0 group-data-[collapsible=icon]:px-1.5">
+					<SidebarGroupContent>
+						<HomeNavigation destination={selection.homeDestination} variant="sidebar" />
+					</SidebarGroupContent>
+				</SidebarGroup>
+			) : null}
 
 			{/* Keep Search + section chrome fixed; only the project tree scrolls. */}
 			<div className="flex shrink-0 flex-col gap-0 px-2 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">

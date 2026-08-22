@@ -8,13 +8,6 @@ const destinations: Array<{
 }> = [
   { destination: "today", label: "Today", href: "#/home" },
   { destination: "open_loops", label: "Open Loops", href: "#/home/open-loops" },
-  { destination: "memory", label: "Memory", href: "#/home/memory" },
-  {
-    destination: "daily_close",
-    label: "Daily Close",
-    href: "#/home/daily-close",
-  },
-  { destination: "history", label: "History", href: "#/home/history" },
 ];
 const navigationLabel = "Home destinations";
 
