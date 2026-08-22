@@ -12,8 +12,8 @@
 
 ## Global Constraints
 
-- Start each issue from current `origin/main` in its own worktree.
-- Coordinate migration numbers before editing. Names below reserve Work `0099-0102` and Home `0103-0106`; if main advances, the integration owner renumbers the affected unmerged issue before its first commit.
+- Start each issue from current `origin/beta` in its own worktree and open the issue PR back to `beta`; promotion to `main` is a separate tested maintainer action.
+- Coordinate migration numbers before editing. Names below reserve Work `0099-0102` and Home `0103-0106`; if `beta` advances, the integration owner renumbers the affected unmerged issue before its first commit.
 - Work owns Outcome through Acceptance. Home never writes Work lifecycle facts or infers Acceptance.
 - Implement shared intake once in `backend/internal/service/intake`; Home and Work cannot create private Q&A systems.
 - SQLite triggers write `change_log`; services do not emit parallel CDC.

@@ -17,13 +17,13 @@
 - **Locked:** the five-stage product contract, Work-first/non-blocking-Home entry, first Focus Ledger fixture, provider-neutral core with v0 Codex admission, separate Acceptance authority, local effect ceiling, recovery invariants, and evaluation/falsification rules.
 - **Observed:** the dated PR/SHA facts below and the current donor/code paths inspected at commit `5a38593f`; refresh them before execution because repository and PR state can change.
 - **Inference:** five stage-aligned end-to-end PRs are the smallest review boundaries that preserve user-visible truth while avoiding horizontal schema/UI ownership.
-- **Proposed implementation detail:** filenames, Go interfaces, route/component names, migration numbers, and exact PR cuts below. The implementing agent must reconcile them with current `origin/main` and may narrow them without changing the locked contract.
-- **Unknown until execution evidence:** implementation effort, exact issue-sized Work file ownership after reconciling current `main`, and whether the first-slice trials justify integrating or revising shared Work/Home contracts. Home may begin separately under ADR 0004.
+- **Proposed implementation detail:** filenames, Go interfaces, route/component names, migration numbers, and exact PR cuts below. The implementing agent must reconcile them with current `origin/beta` and may narrow them without changing the locked contract.
+- **Unknown until execution evidence:** implementation effort, exact issue-sized Work file ownership after reconciling current `beta`, and whether the first-slice trials justify integrating or revising shared Work/Home contracts. Home may begin separately under ADR 0004.
 
 ## Global constraints
 
 - This plan does not authorize implementation, branch mutation outside a new worktree, push, merge, deploy, publish, or release.
-- Start every implementation branch from current `origin/main`, never from this docs branch or historical PR branches.
+- Start every implementation branch from current `origin/beta`, open its PR back to `beta`, and never start from this docs branch or historical PR branches. Promotion to `main` is a separate tested maintainer PR.
 - PR #11 is closed unmerged and remains a donor record only. Never cherry-pick or merge it wholesale.
 - One issue, one branch, one stage-aligned review boundary per PR.
 - The renderer uses the generated daemon API and never writes SQLite or provider state directly.
@@ -48,7 +48,7 @@ Read-only refresh on 2026-08-21:
 | PR #11 | Closed unmerged on 2026-08-21 as a superseded donor; its Outcome store/schema and locale deletion remain rejected. |
 | `origin/main` at this handoff refresh | `25fec2c5347a002436ab2b58b8ac4414266e6ce9`. |
 
-Refresh `origin/main` at execution time and use its current SHA as the base. The historical merge SHAs above are provenance, not branch targets.
+The `origin/main` row above is the historical handoff snapshot. Refresh `origin/beta` at execution time and use its current SHA as the implementation base; the historical merge SHAs are provenance, not branch targets.
 
 ---
 
@@ -463,9 +463,9 @@ Do not include Gmail, governed capture, durable Memory, Health, Relationship, ph
 ## New-session start checklist
 
 1. Read `AGENTS.md`, the canonical architecture, first-slice spec, this handoff, and `docs/STATUS.md` completely.
-2. Fetch and record the current `origin/main` SHA; confirm PRs #1 and #12-#15 remain ancestors and PR #11 remains closed unmerged.
+2. Fetch and record the current `origin/beta` SHA; confirm PRs #1 and #12-#15 remain ancestors and PR #11 remains closed unmerged.
 3. Obtain explicit user authority for exactly one issue/PR task.
-4. Create a fresh `codex/` worktree from current `origin/main`.
+4. Create a fresh `codex/` worktree from current `origin/beta` and target the issue PR back to `beta`.
 5. State claimed files, dependencies, acceptance, falsifier, verification commands, rollback, and worktree disposition before editing.
 6. Run the task's failing test first, implement only that boundary, run focused then full gates, and stop for review.
 
