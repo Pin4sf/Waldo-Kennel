@@ -14,14 +14,14 @@ export function HomeQuickCapture() {
   const [draft, setDraft] = useState(sessionDraft);
 
   return (
-    <section aria-labelledby="quick-capture-heading" className="pt-1">
+    <section aria-labelledby="quick-capture-heading" className="pt-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-medium text-foreground" id="quick-capture-heading">
           {copy.heading}
         </h2>
         <span className="text-xs text-muted-foreground">{copy.placement}</span>
       </div>
-      <label className="mt-3 flex min-h-12 items-center rounded-xl border border-border bg-surface px-4 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-ring/50">
+      <label className="mt-3 flex min-h-12 items-center rounded-md border border-border bg-background/30 px-4 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-ring/50">
         <span className="sr-only">{copy.label}</span>
         <input
           aria-label={copy.label}

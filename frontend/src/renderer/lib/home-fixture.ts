@@ -46,6 +46,11 @@ export type HomeContinuityEvent = {
   detail: string;
 };
 
+export type HomeBriefItem = {
+  id: string;
+  label: string;
+};
+
 export type HomeFixtureState = {
   kind: "preview_fixture";
   sourceLabel: "Architecture preview";
@@ -58,6 +63,8 @@ export type HomeFixtureState = {
     detail: string;
   };
   brief: string[];
+  todos: HomeBriefItem[];
+  suggestions: HomeBriefItem[];
   attention: HomeAttentionItem[];
   waiting: number;
   readyToClose: number;
@@ -109,6 +116,16 @@ export function homeFixture(
       "One proposed commitment needs your judgment before it becomes a responsibility.",
       "The pitch-deck work remains separate until you explicitly continue it in Work.",
       "Two confirmed items are waiting; neither needs action right now.",
+    ],
+    todos: [
+      { id: "prepare-deck", label: "Prepare the revised deck" },
+      { id: "review-meeting-note", label: "Review the meeting decision" },
+      { id: "confirm-follow-up", label: "Confirm tomorrow's follow-up" },
+    ],
+    suggestions: [
+      { id: "draft-reply", label: "Draft a reply to Ashish" },
+      { id: "collect-evidence", label: "Collect the latest deck evidence" },
+      { id: "prepare-work-link", label: "Prepare a Work handoff" },
     ],
     attention: [deckAttention],
     waiting: 2,

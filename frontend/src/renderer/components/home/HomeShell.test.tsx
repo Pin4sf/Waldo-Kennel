@@ -5,15 +5,20 @@ import { homeFixture } from "../../lib/home-fixture";
 import { HomeShell } from "./HomeShell";
 
 describe("HomeShell", () => {
-  it("opens on an adaptive brief with one contextual Quick Capture field", () => {
+  it("opens Today as a morning brief beside a persistent Catch Up workspace", () => {
     render(<HomeShell fixture={homeFixture("today")} />);
 
     expect(screen.getByRole("heading", { name: "Home" })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "What matters now" }),
+      screen.getByRole("heading", { name: "Good morning, Shivansh." }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Prepare the revised deck; do not send it yet."),
+      screen.getByRole("heading", { name: "Morning brief" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Catch Up" })).toBeInTheDocument();
+    expect(screen.getByText("Preview context — not live data")).toBeInTheDocument();
+    expect(
+      screen.getByText("Prepare the revised deck for Ashish; do not send it."),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Meeting audio unavailable from 3:10–3:24 PM"),
@@ -24,6 +29,17 @@ describe("HomeShell", () => {
     expect(
       screen.queryByRole("link", { name: /Work \(recommended\)/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps inferred work visibly separate from proposed Waldo suggestions", () => {
+    render(<HomeShell fixture={homeFixture("today")} />);
+
+    const todo = screen.getByRole("list", { name: "To do" });
+    const suggestions = screen.getByRole("list", { name: "Waldo suggests" });
+
+    expect(within(todo).getByText("Prepare the revised deck")).toBeInTheDocument();
+    expect(within(suggestions).getByText("Draft a reply to Ashish")).toBeInTheDocument();
+    expect(screen.getByText("Proposed, not added")).toBeInTheDocument();
   });
 
   it("keeps Home useful when capture is off without pressuring activation", () => {
@@ -61,7 +77,7 @@ describe("HomeShell", () => {
     ).toHaveTextContent(expected);
   });
 
-  it("opens Catch Up from the meaningful Needs You item", async () => {
+  it("moves focus into the persistent Catch Up workspace from the meaningful item", async () => {
     const user = userEvent.setup();
     render(<HomeShell fixture={homeFixture("today")} />);
 
@@ -69,7 +85,7 @@ describe("HomeShell", () => {
       screen.getByRole("button", { name: "Review the deck follow-up" }),
     );
 
-    expect(screen.getByRole("heading", { name: "Catch Up" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Catch Up" })).toHaveFocus();
     expect(
       screen.getByText("I'll send Ashish the revised deck tomorrow."),
     ).toBeInTheDocument();
@@ -99,7 +115,7 @@ describe("HomeShell", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps an unsaved Quick Capture draft through contextual review", async () => {
+  it("keeps an unsaved Quick Capture draft while reviewing Catch Up", async () => {
     const user = userEvent.setup();
     render(<HomeShell fixture={homeFixture("today")} />);
 
@@ -110,36 +126,9 @@ describe("HomeShell", () => {
     await user.click(
       screen.getByRole("button", { name: "Review the deck follow-up" }),
     );
-    expect(
-      screen.queryByRole("textbox", { name: "Quick Capture" }),
-    ).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Back to Today" }));
     expect(screen.getByRole("textbox", { name: "Quick Capture" })).toHaveValue(
       "Call Mum after dinner",
     );
-  });
-
-  it("returns exact focus and panel scroll from contextual Catch Up", async () => {
-    const user = userEvent.setup();
-    render(<HomeShell fixture={homeFixture("today")} />);
-    const panel = screen.getByRole("region", { name: "Home" });
-    Object.defineProperty(panel, "scrollTop", {
-      configurable: true,
-      value: 144,
-      writable: true,
-    });
-    const review = screen.getByRole("button", {
-      name: "Review the deck follow-up",
-    });
-
-    await user.click(review);
-    await user.click(screen.getByRole("button", { name: "Back to Today" }));
-
-    expect(
-      screen.getByRole("button", { name: "Review the deck follow-up" }),
-    ).toHaveFocus();
-    expect(panel.scrollTop).toBe(144);
   });
 
   it("returns focus and exact panel scroll after inspecting provenance", async () => {
@@ -152,9 +141,6 @@ describe("HomeShell", () => {
       writable: true,
     });
 
-    await user.click(
-      screen.getByRole("button", { name: "Review the deck follow-up" }),
-    );
     const inspect = screen.getByRole("button", { name: "Inspect source" });
     await user.click(inspect);
     const dialog = screen.getByRole("dialog", { name: "Source provenance" });

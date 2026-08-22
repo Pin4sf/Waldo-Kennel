@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { CenterPanelShell } from "../CenterPanelShell";
 import {
   homeFixture,
@@ -78,64 +78,25 @@ export function HomeShell({
   fixture?: HomeFixtureState;
   destination?: HomeDestination;
 }) {
-  const [contextualMode, setContextualMode] = useState<"catch_up" | null>(null);
   const scrollContainerRef = useRef<HTMLElement>(null);
   const reviewRef = useRef<HTMLButtonElement>(null);
-  const returnScrollTop = useRef(0);
-  const restoreTodayContext = useRef(false);
-
-  useLayoutEffect(() => {
-    if (contextualMode !== null || !restoreTodayContext.current) return;
-
-    restoreTodayContext.current = false;
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = returnScrollTop.current;
-    }
-    reviewRef.current?.focus({ preventScroll: true });
-  }, [contextualMode]);
-
-  const openCatchUp = () => {
-    returnScrollTop.current = scrollContainerRef.current?.scrollTop ?? 0;
-    setContextualMode("catch_up");
-  };
-
-  const returnToToday = () => {
-    restoreTodayContext.current = true;
-    setContextualMode(null);
-  };
-
-  const showToday = destination === "today" && contextualMode === null;
-  const showCatchUp = destination === "today" && contextualMode === "catch_up";
+  const catchUpHeadingRef = useRef<HTMLHeadingElement>(null);
+  const showToday = destination === "today";
   const offlineToday = showToday && fixture.availability === "offline";
+  const focusCatchUp = () => catchUpHeadingRef.current?.focus({ preventScroll: true });
 
   return (
     <CenterPanelShell titlebarAlign={false}>
       <section
         aria-labelledby="home-heading"
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-10 pt-14 sm:px-9 sm:pb-12 sm:pt-16"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto"
         ref={scrollContainerRef}
       >
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-7">
-          <header className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                {copy.personalAgency}
-              </p>
-              <h1
-                className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground"
-                id="home-heading"
-              >
-                {copy.home}
-              </h1>
-            </div>
-            <p className="max-w-sm text-right text-xs leading-relaxed text-muted-foreground">
-              {copy.description}
-            </p>
-          </header>
+        <h1 className="sr-only" id="home-heading">{copy.home}</h1>
 
-          <HomeAvailabilityStatus fixture={fixture} />
-
-          {offlineToday ? (
+        {offlineToday ? (
+          <div className="mx-auto w-full max-w-5xl px-5 pb-10 pt-14 sm:px-9 sm:pb-12 sm:pt-16">
+            <HomeAvailabilityStatus fixture={fixture} />
             <section className="py-8" aria-labelledby="offline-heading">
               <h2 className="text-lg font-semibold text-foreground" id="offline-heading">
                 {copy.offlineTitle}
@@ -147,31 +108,55 @@ export function HomeShell({
                 <HomeQuickCapture />
               </div>
             </section>
-          ) : null}
+          </div>
+        ) : null}
 
-          {showToday && !offlineToday ? (
-            <>
-              <HomeBrief
+        {showToday && !offlineToday ? (
+          <div className="home-today-layout">
+            <div className="home-today-brief-pane px-5 pb-8 pt-14 sm:px-9 sm:pb-10 sm:pt-16">
+              <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col">
+                <HomeAvailabilityStatus fixture={fixture} />
+                <div className="mt-7">
+                  <HomeBrief
+                    fixture={fixture}
+                    onReview={focusCatchUp}
+                    reviewRef={reviewRef}
+                  />
+                </div>
+                <div className="mt-auto pt-10">
+                  <HomeQuickCapture />
+                </div>
+              </div>
+            </div>
+            <aside className="home-today-catch-up-pane border-t border-border sm:min-h-[34rem]">
+              <HomeCatchUp
                 fixture={fixture}
-                onReview={openCatchUp}
-                reviewRef={reviewRef}
+                headingRef={catchUpHeadingRef}
+                scrollContainerRef={scrollContainerRef}
               />
-              <HomeQuickCapture />
-            </>
-          ) : null}
+            </aside>
+          </div>
+        ) : null}
 
-          {showCatchUp ? (
-            <HomeCatchUp
-              fixture={fixture}
-              onReturn={returnToToday}
-              scrollContainerRef={scrollContainerRef}
-            />
-          ) : null}
-
-          {destination !== "today" ? (
+        {destination !== "today" ? (
+          <div className="mx-auto flex w-full max-w-5xl flex-col gap-7 px-5 pb-10 pt-14 sm:px-9 sm:pb-12 sm:pt-16">
+            <header className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                  {copy.personalAgency}
+                </p>
+                <p className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground">
+                  {copy.home}
+                </p>
+              </div>
+              <p className="max-w-sm text-right text-xs leading-relaxed text-muted-foreground">
+                {copy.description}
+              </p>
+            </header>
+            <HomeAvailabilityStatus fixture={fixture} />
             <HomeDestinationView destination={destination} fixture={fixture} />
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </section>
     </CenterPanelShell>
   );

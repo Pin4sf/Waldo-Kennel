@@ -50,7 +50,8 @@ export function HomeWorkModeSwitch() {
   return (
     <nav
       aria-label={copy.modeLabel}
-      className="pointer-events-auto inline-flex h-7 items-center rounded-full border border-border bg-raised/92 p-0.5 shadow-sm backdrop-blur-md"
+      className="pointer-events-auto inline-flex h-8 items-center rounded-lg border border-border bg-raised/92 p-0.5 shadow-sm backdrop-blur-md"
+      data-slot="home-work-mode-switch"
       style={noDragStyle}
     >
       {(["home", "work"] as const).map((item) => {
@@ -60,7 +61,7 @@ export function HomeWorkModeSwitch() {
           <button
             aria-pressed={selected}
             className={cn(
-              "h-5.5 rounded-full px-3 text-xs font-medium transition-[background-color,color,box-shadow] duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 motion-reduce:transition-none",
+              "h-7 rounded-md px-4 text-xs font-medium transition-[background-color,color,box-shadow] duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 motion-reduce:transition-none",
               selected
                 ? "bg-card text-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground",

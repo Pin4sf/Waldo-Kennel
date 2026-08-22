@@ -47,14 +47,15 @@ describe("Home entry route", () => {
     expect(HistoryRouteDefinition.id).toBe("/_shell/home_/history");
   });
 
-  it("renders the adaptive Home brief when the daemon is ready", async () => {
-    await renderHomeRoute("ready");
-    expect(
-      await screen.findByRole("heading", { name: "Home" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "What matters now" }),
-    ).toBeInTheDocument();
+	it("renders the split Today brief and Catch Up workspace when the daemon is ready", async () => {
+		await renderHomeRoute("ready");
+		expect(
+			await screen.findByRole("heading", { name: "Home" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: "Good morning, Shivansh." }),
+		).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "Catch Up" })).toBeInTheDocument();
     expect(
       screen.getByRole("textbox", { name: "Quick Capture" }),
     ).toBeInTheDocument();
