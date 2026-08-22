@@ -41,12 +41,10 @@ const availabilityContent: Record<
 
 const copy = {
   availability: "Home availability",
-  description: "What needs judgment, what can wait, and where to resume.",
   home: "Home",
   offlineDescription:
     "Explicit Quick Capture remains available, but this preview will not invent a brief or attention state from missing facts.",
   offlineTitle: "Confirmed Home context is not available right now",
-  personalAgency: "Personal agency",
 };
 
 function HomeAvailabilityStatus({ fixture }: { fixture: HomeFixtureState }) {
@@ -139,22 +137,12 @@ export function HomeShell({
         ) : null}
 
         {destination !== "today" ? (
-          <div className="mx-auto flex w-full max-w-5xl flex-col gap-7 px-5 pb-10 pt-14 sm:px-9 sm:pb-12 sm:pt-16">
-            <header className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                  {copy.personalAgency}
-                </p>
-                <p className="mt-1.5 text-2xl font-semibold tracking-tight text-foreground">
-                  {copy.home}
-                </p>
-              </div>
-              <p className="max-w-sm text-right text-xs leading-relaxed text-muted-foreground">
-                {copy.description}
-              </p>
-            </header>
-            <HomeAvailabilityStatus fixture={fixture} />
-            <HomeDestinationView destination={destination} fixture={fixture} />
+          <div className="home-destination-surface flex min-h-full flex-1 px-5 pb-10 pt-14 sm:px-9 sm:pb-12 sm:pt-16">
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-7">
+              <HomeAvailabilityStatus fixture={fixture} />
+              <p className="text-xs text-muted-foreground">{fixture.localDateLabel}</p>
+              <HomeDestinationView destination={destination} fixture={fixture} />
+            </div>
           </div>
         ) : null}
       </section>

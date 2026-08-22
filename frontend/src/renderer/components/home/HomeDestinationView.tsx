@@ -1,4 +1,5 @@
 import type { HomeDestination, HomeFixtureState } from "../../lib/home-fixture";
+import { HomeDailyClose } from "./HomeDailyClose";
 import { HomeOpenLoops } from "./HomeOpenLoops";
 
 const sectionTitleClass = "text-xl font-semibold tracking-tight text-foreground";
@@ -94,55 +95,7 @@ export function HomeDestinationView({
   }
 
   if (destination === "daily_close") {
-    return (
-      <section aria-labelledby="daily-close-heading">
-        <p className={eyebrowClass}>{copy.reviewInterval}</p>
-        <h2 className={`mt-2 ${sectionTitleClass}`} id="daily-close-heading">
-          {copy.dailyClose}
-        </h2>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          {copy.closeDescription}
-        </p>
-        <div className="mt-7 grid gap-0 border-y border-border sm:grid-cols-2">
-          <section className="py-5 pr-0 sm:pr-6" aria-labelledby="became-true-heading">
-            <h3 className="text-sm font-medium text-foreground" id="became-true-heading">
-              {copy.whatBecameTrue}
-            </h3>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {copy.deckCorrection}
-            </p>
-          </section>
-          <section className="border-t border-border py-5 sm:border-l sm:border-t-0 sm:pl-6" aria-labelledby="remains-heading">
-            <h3 className="text-sm font-medium text-foreground" id="remains-heading">
-              {copy.whatRemains}
-            </h3>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {copy.remainsOpen}
-            </p>
-          </section>
-        </div>
-        <div className="mt-6 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3">
-          <p className="text-xs font-medium text-warning">{copy.knownGap}</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            {copy.sourceGap}
-          </p>
-        </div>
-        <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
-          {copy.closeBoundary}
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {copy.closeActions.map((label) => (
-            <button
-              className="rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-interactive-hover"
-              key={label}
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
-    );
+    return <HomeDailyClose fixture={fixture} />;
   }
 
   return (
