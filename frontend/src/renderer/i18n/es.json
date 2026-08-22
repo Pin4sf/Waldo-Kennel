@@ -1284,5 +1284,22 @@
 	"onboarding.layout.shortcut.toggleSidebar": "mostrar u ocultar la barra lateral",
 	"onboarding.layout.shortcut.openSettings": "abrir ajustes",
 	"settings.welcomeTour": "Repetir el tour de bienvenida",
-	"onboarding.close": "Cerrar la configuración"
+	"onboarding.close": "Cerrar la configuración",
+	"outcome.lifecycle.label": "Ciclo de vida del Outcome",
+	"outcome.stage.enter": "Entrar",
+	"outcome.stage.understand": "Comprender",
+	"outcome.stage.decideAuthorize": "Decidir y autorizar",
+	"outcome.stage.actObserve": "Actuar y observar",
+	"outcome.stage.proveClose": "Probar y cerrar",
+	"work.enter.chooseTitle": "¿Qué quieres asumir?",
+	"work.enter.startWithWork": "Empezar con Work",
+	"work.enter.setUpHome": "Configurar Home",
+	"work.enter.recommendationNote": "Work es el punto de partida recomendado mientras Kennel está en dogfood local. Home sigue disponible y nunca se crea por ti.",
+	"work.enter.homeNotReady": "Home aún no forma parte de este hito. No se creó nada y puedes volver a Work cuando quieras.",
+	"work.enter.selectProject": "Selecciona un proyecto",
+	"work.enter.addProject": "Añadir un proyecto",
+	"work.enter.daemonOffline.title": "El daemon de Kennel no está disponible",
+	"work.enter.daemonOffline.body": "Los proyectos y el estado provienen del daemon local. Nada aquí está actualizado hasta que vuelva a ejecutarse.",
+	"work.enter.providerActionRequired.title": "Inicia sesión en Codex para ejecutar trabajo",
+	"work.enter.providerActionRequired.body": "Esta comprobación local es orientativa, así que aún puedes elegir un proyecto. La ejecución requiere un Codex autorizado."
 }

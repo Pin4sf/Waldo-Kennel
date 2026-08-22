@@ -1284,5 +1284,22 @@
 	"onboarding.layout.shortcut.toggleSidebar": "afficher ou masquer la barre latérale",
 	"onboarding.layout.shortcut.openSettings": "ouvrir les réglages",
 	"settings.welcomeTour": "Revoir la visite de bienvenue",
-	"onboarding.close": "Fermer la configuration"
+	"onboarding.close": "Fermer la configuration",
+	"outcome.lifecycle.label": "Cycle de vie de l'Outcome",
+	"outcome.stage.enter": "Entrer",
+	"outcome.stage.understand": "Comprendre",
+	"outcome.stage.decideAuthorize": "Décider et autoriser",
+	"outcome.stage.actObserve": "Agir et observer",
+	"outcome.stage.proveClose": "Prouver et clore",
+	"work.enter.chooseTitle": "Que souhaitez-vous prendre en charge ?",
+	"work.enter.startWithWork": "Commencer par Work",
+	"work.enter.setUpHome": "Configurer Home",
+	"work.enter.recommendationNote": "Work est le point de départ recommandé pendant le dogfood local de Kennel. Home reste disponible et n'est jamais créé à votre place.",
+	"work.enter.homeNotReady": "Home ne fait pas encore partie de ce jalon. Rien n'a été créé et vous pouvez revenir à Work à tout moment.",
+	"work.enter.selectProject": "Sélectionner un projet",
+	"work.enter.addProject": "Ajouter un projet",
+	"work.enter.daemonOffline.title": "Le démon Kennel est indisponible",
+	"work.enter.daemonOffline.body": "Les projets et l'état proviennent du démon local. Rien ici n'est à jour tant qu'il n'a pas redémarré.",
+	"work.enter.providerActionRequired.title": "Connectez-vous à Codex pour exécuter le travail",
+	"work.enter.providerActionRequired.body": "Cette vérification locale est indicative : vous pouvez encore choisir un projet. L'exécution requiert un Codex autorisé."
 }

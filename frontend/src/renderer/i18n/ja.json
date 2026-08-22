@@ -1268,5 +1268,22 @@
 	"onboarding.layout.shortcut.toggleSidebar": "サイドバーの表示切り替え",
 	"onboarding.layout.shortcut.openSettings": "設定を開く",
 	"settings.welcomeTour": "ようこそツアーをもう一度見る",
-	"onboarding.close": "セットアップを閉じる"
+	"onboarding.close": "セットアップを閉じる",
+	"outcome.lifecycle.label": "アウトカムのライフサイクル",
+	"outcome.stage.enter": "開始",
+	"outcome.stage.understand": "理解",
+	"outcome.stage.decideAuthorize": "決定と承認",
+	"outcome.stage.actObserve": "実行と観察",
+	"outcome.stage.proveClose": "証明と完了",
+	"work.enter.chooseTitle": "何に取り組みますか?",
+	"work.enter.startWithWork": "Work から始める",
+	"work.enter.setUpHome": "Home を設定",
+	"work.enter.recommendationNote": "Kennel がローカル dogfood の間は Work が推奨の開始点です。Home はいつでも利用でき、自動的に作成されることはありません。",
+	"work.enter.homeNotReady": "Home はまだこのマイルストーンに含まれていません。何も作成されておらず、いつでも Work に戻れます。",
+	"work.enter.selectProject": "プロジェクトを選択",
+	"work.enter.addProject": "プロジェクトを追加",
+	"work.enter.daemonOffline.title": "Kennel デーモンを利用できません",
+	"work.enter.daemonOffline.body": "プロジェクトと準備状況はローカルデーモンから取得します。再起動するまで、ここの情報は最新ではありません。",
+	"work.enter.providerActionRequired.title": "作業を実行するには Codex にサインインしてください",
+	"work.enter.providerActionRequired.body": "このローカル確認は参考情報のため、プロジェクトの選択は可能です。実行には認可済みの Codex が必要です。"
 }

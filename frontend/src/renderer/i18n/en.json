@@ -1250,5 +1250,22 @@
 	"onboarding.layout.shortcut.toggleSidebar": "show or hide the sidebar",
 	"onboarding.layout.shortcut.openSettings": "open settings",
 	"settings.welcomeTour": "Replay welcome tour",
-	"onboarding.close": "Close setup"
+	"onboarding.close": "Close setup",
+	"outcome.lifecycle.label": "Outcome lifecycle",
+	"outcome.stage.enter": "Enter",
+	"outcome.stage.understand": "Understand",
+	"outcome.stage.decideAuthorize": "Decide & Authorize",
+	"outcome.stage.actObserve": "Act & Observe",
+	"outcome.stage.proveClose": "Prove & Close",
+	"work.enter.chooseTitle": "What would you like to take on?",
+	"work.enter.startWithWork": "Start with Work",
+	"work.enter.setUpHome": "Set up Home",
+	"work.enter.recommendationNote": "Work is the recommended starting point while Kennel is in local dogfood. Home stays available and is never created for you.",
+	"work.enter.homeNotReady": "Home is not part of this milestone yet. Nothing was created, and you can return to Work at any time.",
+	"work.enter.selectProject": "Select a project",
+	"work.enter.addProject": "Add a project",
+	"work.enter.daemonOffline.title": "Kennel daemon is unavailable",
+	"work.enter.daemonOffline.body": "Projects and readiness come from the local daemon. Nothing here is current until it is running again.",
+	"work.enter.providerActionRequired.title": "Sign in to Codex to run work",
+	"work.enter.providerActionRequired.body": "This local check is advisory, so you can still choose a project. Execution needs an authorized Codex."
 }

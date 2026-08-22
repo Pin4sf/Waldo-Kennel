@@ -1250,5 +1250,22 @@
 	"onboarding.layout.shortcut.toggleSidebar": "显示或隐藏侧边栏",
 	"onboarding.layout.shortcut.openSettings": "打开设置",
 	"settings.welcomeTour": "重新观看欢迎引导",
-	"onboarding.close": "关闭设置引导"
+	"onboarding.close": "关闭设置引导",
+	"outcome.lifecycle.label": "成果生命周期",
+	"outcome.stage.enter": "进入",
+	"outcome.stage.understand": "理解",
+	"outcome.stage.decideAuthorize": "决策与授权",
+	"outcome.stage.actObserve": "执行与观察",
+	"outcome.stage.proveClose": "验证与关闭",
+	"work.enter.chooseTitle": "您想承担什么?",
+	"work.enter.startWithWork": "从 Work 开始",
+	"work.enter.setUpHome": "设置 Home",
+	"work.enter.recommendationNote": "在 Kennel 处于本地内测期间,建议从 Work 开始。Home 始终可用,且不会自动为您创建。",
+	"work.enter.homeNotReady": "Home 尚未纳入本阶段。系统未创建任何内容,您可以随时返回 Work。",
+	"work.enter.selectProject": "选择项目",
+	"work.enter.addProject": "添加项目",
+	"work.enter.daemonOffline.title": "Kennel 守护进程不可用",
+	"work.enter.daemonOffline.body": "项目与就绪状态来自本地守护进程。在其重新运行之前,此处的信息并非最新。",
+	"work.enter.providerActionRequired.title": "登录 Codex 以执行工作",
+	"work.enter.providerActionRequired.body": "此本地检查仅供参考,您仍可选择项目。执行需要已授权的 Codex。"
 }

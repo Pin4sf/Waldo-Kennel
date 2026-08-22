@@ -1268,5 +1268,22 @@
 	"onboarding.layout.shortcut.toggleSidebar": "사이드바 표시/숨기기",
 	"onboarding.layout.shortcut.openSettings": "설정 열기",
 	"settings.welcomeTour": "환영 둘러보기 다시 보기",
-	"onboarding.close": "설정 닫기"
+	"onboarding.close": "설정 닫기",
+	"outcome.lifecycle.label": "아웃컴 라이프사이클",
+	"outcome.stage.enter": "진입",
+	"outcome.stage.understand": "이해",
+	"outcome.stage.decideAuthorize": "결정 및 승인",
+	"outcome.stage.actObserve": "실행 및 관찰",
+	"outcome.stage.proveClose": "증명 및 종료",
+	"work.enter.chooseTitle": "무엇을 맡으시겠습니까?",
+	"work.enter.startWithWork": "Work로 시작",
+	"work.enter.setUpHome": "Home 설정",
+	"work.enter.recommendationNote": "Kennel이 로컬 도그푸드 단계인 동안에는 Work가 권장 시작점입니다. Home은 계속 사용할 수 있으며 자동으로 생성되지 않습니다.",
+	"work.enter.homeNotReady": "Home은 아직 이번 마일스톤에 포함되지 않았습니다. 아무것도 생성되지 않았으며 언제든 Work로 돌아갈 수 있습니다.",
+	"work.enter.selectProject": "프로젝트 선택",
+	"work.enter.addProject": "프로젝트 추가",
+	"work.enter.daemonOffline.title": "Kennel 데몬을 사용할 수 없습니다",
+	"work.enter.daemonOffline.body": "프로젝트와 준비 상태는 로컬 데몬에서 가져옵니다. 데몬이 다시 실행될 때까지 이 정보는 최신이 아닙니다.",
+	"work.enter.providerActionRequired.title": "작업을 실행하려면 Codex에 로그인하세요",
+	"work.enter.providerActionRequired.body": "이 로컬 확인은 참고용이므로 프로젝트를 선택할 수 있습니다. 실행하려면 승인된 Codex가 필요합니다."
 }
