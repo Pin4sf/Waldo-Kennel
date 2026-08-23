@@ -159,6 +159,12 @@ func migrate(db *sql.DB) error {
 	if err := goose.Up(db, "migrations", goose.WithAllowMissing()); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
+	// Migration 0099 rebuilds the checked change_log relation and detaches the
+	// inherited CDC writers; restore them (and heal degraded profiles whose
+	// subject tables arrive through repairs) before anything reads the stream.
+	if err := restoreChangeLogWriters(db); err != nil {
+		return fmt.Errorf("restore change log writers: %w", err)
+	}
 	if err := reconcileProjectChatProjection(db); err != nil {
 		return fmt.Errorf("reconcile project chat projection: %w", err)
 	}
