@@ -584,6 +584,118 @@
 	);
 }
 
+.home-chat-workspace {
+	position: relative;
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+	flex: 1 1 0%;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.home-chat-compact-trigger,
+.home-chat-compact-layer {
+	display: none;
+}
+
+.home-chat-grid {
+	display: grid;
+	grid-template-columns: minmax(12.5rem, 14rem) minmax(25rem, 1fr) minmax(16rem, 18rem);
+	overflow: hidden;
+}
+
+.home-chat-side-rail,
+.home-chat-inspector {
+	min-width: 0;
+	min-height: 0;
+	overflow-y: auto;
+	background: color-mix(in oklch, var(--color-bg-sidebar) 52%, var(--color-bg-primary));
+}
+
+.home-chat-side-rail {
+	border-right: 1px solid var(--color-border);
+}
+
+.home-chat-inspector {
+	border-left: 1px solid var(--color-border);
+}
+
+.home-chat-primary {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+	flex-direction: column;
+	background: var(--color-bg-primary);
+}
+
+.home-chat-transcript {
+	min-width: 0;
+	min-height: 0;
+	flex: 1 1 0%;
+	overflow-y: auto;
+}
+
+.home-chat-source {
+	display: inline-flex;
+	min-height: 1.75rem;
+	align-items: center;
+	gap: 0.375rem;
+	border: 1px solid var(--color-border);
+	border-radius: 0.5rem;
+	padding: 0.25rem 0.5rem;
+	font-size: var(--text-xs);
+	font-weight: 500;
+	color: var(--color-fg-primary);
+}
+
+.home-chat-source:hover {
+	background: var(--color-bg-interactive-hover);
+}
+
+@media (max-width: 1240px) {
+	.home-chat-grid {
+		grid-template-columns: minmax(12.5rem, 14rem) minmax(0, 1fr);
+	}
+
+	.home-chat-inspector {
+		display: none;
+	}
+
+	.home-chat-compact-trigger {
+		display: inline-flex;
+	}
+
+	.home-chat-compact-layer {
+		position: absolute;
+		inset: 0;
+		z-index: var(--z-index-overlay);
+		display: flex;
+		width: auto;
+		max-width: none;
+		min-height: 0;
+		padding: 0;
+		flex-direction: column;
+		gap: 0;
+		border: 0;
+		border-radius: 0;
+		background: var(--color-bg-primary);
+		box-shadow: none;
+		transform: none;
+	}
+}
+
+@media (max-width: 860px) {
+	.home-chat-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.home-chat-side-rail {
+		display: none;
+	}
+}
+
 .waldo-home-layer {
 	position: absolute;
 	inset: 0 0 0 auto;
@@ -620,7 +732,7 @@
  * Waldo is shell-owned. Reserve one fixed launcher lane so both remain fully
  * visible and independently clickable. */
 .waldo-launcher-reserved .workspace-topbar-container {
-	padding-right: calc(var(--space-2) + var(--size-topbar-control) + var(--space-2));
+	padding-right: calc(var(--space-2) + var(--size-topbar-control) + var(--space-3));
 }
 
 .waldo-rail-back-label {
@@ -890,10 +1002,6 @@
 	border-radius: 0;
 }
 
-.figma-board-shell [data-testid="board"] > .workspace-topbar-container {
-	display: none;
-}
-
 .figma-board-sidebar {
 	border: 0 !important;
 }
@@ -1086,6 +1194,15 @@
 .workspace-topbar-container {
 	container-name: workspace-topbar;
 	container-type: inline-size;
+}
+
+/* At compact desktop widths the Work topbar needs the full center-pane width
+ * for terminal and agent controls. Give the global Home/Work switch its own
+ * window-level lane instead of allowing an overlay to steal those clicks. */
+@media (max-width: 1100px) {
+	.global-mode-switch-responsive-main {
+		padding-top: var(--size-inspector-tabs);
+	}
 }
 
 /* When the sidebar is off-canvas, clear only the fixed navigation cluster.

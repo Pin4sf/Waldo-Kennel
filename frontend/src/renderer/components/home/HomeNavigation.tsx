@@ -12,6 +12,7 @@ export function HomeNavigation({
   const { t } = useTranslation();
   const primaryDestinations: Array<{ destination: HomeDestination; label: string; href: string }> = [
     { destination: "today", label: t("home.visual.navigation.today"), href: "#/home" },
+    { destination: "chat", label: t("home.visual.navigation.chat"), href: "#/home/chat" },
     { destination: "open_loops", label: t("home.visual.openLoops.title"), href: "#/home/open-loops" },
   ];
   const continuityDestinations: Array<{ destination: HomeDestination; label: string; href: string }> = [

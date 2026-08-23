@@ -90,6 +90,35 @@ test("Activity exposes one bounded delegated run under Waldo", async ({ page }) 
   await expect(activity).not.toContainText("Verified outcome");
 });
 
+test("Activity previews a governed specialist without creating or running one", async ({ page }) => {
+  await page.goto("/#/work");
+  await page.getByRole("button", { name: "Open Waldo" }).click();
+  await expect(page.getByRole("button", { name: "Create specialist" })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Activity" }).click();
+  await page.getByRole("button", { name: "Create specialist" }).click();
+
+  const builder = page.getByRole("region", { name: "Specialist preview builder" });
+  await expect(builder.getByLabel("Authority ceiling")).toHaveValue(
+    "Read and draft only; no outward action",
+  );
+  await expect(builder.getByLabel("Waldo return destination")).toHaveValue("Work");
+  await builder.getByRole("button", { name: "Preview specialist" }).click();
+
+  const specialist = page.getByRole("article", { name: "Research brief specialist" });
+  await expect(specialist).toContainText("Ready · preview only");
+  await expect(specialist).toContainText("Nothing was created, connected, run, or saved");
+  await specialist.getByRole("button", { name: "Pause specialist" }).click();
+  await expect(specialist).toContainText("Paused · preview only");
+  await specialist.getByRole("button", { name: "Revoke specialist" }).click();
+  await expect(specialist).toContainText("Revoked · preview only");
+  await page.setViewportSize({ width: 960, height: 760 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+});
+
 test("wide Home constrains Waldo to the context region and keeps its body scrollable", async ({ page }) => {
   await page.goto("/#/home");
   await page.getByRole("button", { name: "Open Waldo" }).click();
@@ -125,8 +154,31 @@ test("Home exposes completed continuity screens without promoting them to primar
 
   await page.getByRole("link", { name: "Memory Review" }).click();
   await expect(page.getByRole("heading", { name: "Memory Review" })).toBeVisible();
-  await page.getByRole("link", { name: "History" }).click();
-  await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
+  await page.getByRole("link", { name: "Insights" }).click();
+  await expect(page.getByRole("heading", { name: "Insights" })).toBeVisible();
+});
+
+test("Insights keeps interpretation review separate from inspectable Records", async ({ page }) => {
+  await page.goto("/#/home/history");
+
+  await expect(page.getByRole("status", { name: "Insights preview boundary" })).toContainText(
+    "deterministic local examples",
+  );
+  await page.getByRole("button", { name: "Why this?" }).click();
+  await expect(
+    page.getByText(/use the open block for the deck revision/i),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByText("Confirmed", { exact: true })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Records" }).click();
+  await expect(page.getByRole("region", { name: "Records" })).toContainText(
+    "inspectable evidence",
+  );
+  await expect(page.getByRole("tab", { name: "Continuity" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 });
 
 test("narrow Waldo becomes a full-content layer with a visible Back action", async ({ page }) => {

@@ -34,3 +34,15 @@ test("Work reserves a separate topbar lane for notifications and Waldo", async (
 	expect(waldoBox).not.toBeNull();
 	expect(notificationBox!.x + notificationBox!.width).toBeLessThanOrEqual(waldoBox!.x - 6);
 });
+
+test("the centered mode control leaves New terminal pointer-reachable", async ({ page }) => {
+	await page.goto("/#/projects/ao-demo/sessions/demo-working");
+
+	const modeControl = page.getByRole("navigation", { name: "Waldo mode" });
+	const newTerminal = page.getByRole("button", { name: "New terminal" });
+	await expect(modeControl).toBeVisible();
+	await expect(newTerminal).toBeVisible();
+
+	await newTerminal.click();
+	await expect(page.getByRole("button", { name: /Close terminal/ }).last()).toBeVisible();
+});

@@ -1116,7 +1116,7 @@ describe("SessionView", () => {
 		window.localStorage.setItem("kennel.inspector.widthPx", "240");
 		act(() => useUiStore.getState().setInspectorOpen("sess-1", true));
 		render(<SessionView sessionId="sess-1" />);
-		expect(document.documentElement.style.getPropertyValue("--ao-inspector-w")).toBe("280px");
+		expect(document.documentElement.style.getPropertyValue("--ao-inspector-w")).toBe("350px");
 	});
 
 	it("mounts the inspector in sync when navigating from an orchestrator session", () => {

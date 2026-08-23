@@ -23,10 +23,15 @@ test("opens, selects, and closes standalone shell terminals from the tab strip",
 	// title attribute falls back to the label once the strip truncates it.
 	// Scoped to the terminal panel: the sidebar carries the same session name.
 	const sessionTab = page
-		.getByTestId("terminal")
+		.getByTestId("session-workspace-topbar")
 		.getByRole("tab", { name: /^Build screenshot-ready dashboard data/ });
 	await sessionTab.click();
 	await expect(sessionTab).toHaveAttribute("aria-selected", "true");
+
+	// Inactive terminal tabs reveal their close affordance on hover. Stabilize
+	// that intended pointer state before clicking the animated control.
+	await closeButtons.last().locator("..").hover();
+	await expect(closeButtons.last()).toBeVisible();
 
 	// Closing a shell removes exactly its own tab.
 	await closeButtons.last().click();

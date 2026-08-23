@@ -57,7 +57,7 @@ import { matchesRendererShortcut } from "../stores/keybindings-store";
 import { useResolvedTheme, useUiStore, type InspectorView } from "../stores/ui-store";
 
 const INSPECTOR_DEFAULT_PX = 360;
-const INSPECTOR_MIN_PX = 280;
+const INSPECTOR_MIN_PX = 350;
 const INSPECTOR_MAX_PERCENT = 50;
 const INSPECTOR_SEPARATOR_RESERVE_PX = 8;
 // The inspector tab labels respond to the tablist's remaining width. The
@@ -235,7 +235,7 @@ function SessionInspectorRail({
 // The inspector uses the same Motion spring as the left sidebar (gap width +
 // x-transform). Dragging is useResizable and clamps at the responsive minimum;
 // only the explicit controls (topbar button / ⌘⇧B) collapse it. The preferred
-// 280px floor is clamped to the 50% maximum on narrow session splits, where
+// 350px floor is clamped to the 50% maximum on narrow session splits, where
 // the inspector tabs compact to icons.
 export function SessionView({ sessionId }: SessionViewProps) {
 	const { t } = useTranslation();
@@ -818,7 +818,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 					data-panel=""
 					id="terminal"
 				>
-					<div className="relative flex h-full min-h-0 flex-col">
+					<div className="relative flex h-full min-h-0 flex-col overflow-hidden">
 						<SessionTopbarHost
 							className="relative z-chrome flex h-inspector-tabs w-full shrink-0 overflow-hidden"
 							data-testid="session-topbar-host"

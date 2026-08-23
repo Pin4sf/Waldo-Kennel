@@ -13,7 +13,10 @@ async function dragPointer(page: Page, from: { x: number; y: number }, to: { x: 
 }
 
 test("sidebar drag stops at its minimum width instead of collapsing", async ({ page }) => {
-	await page.goto("/");
+	// Populated board routes intentionally use the fixed 271px Figma sidebar;
+	// standard session routes retain the user-resizable sidebar contract.
+	await page.goto("/#/projects/ao-demo/sessions/demo-working");
+	await expect(page.getByTestId("session-detail")).toBeVisible();
 
 	const sidebar = page.locator('[data-slot="sidebar"]');
 	await expect(sidebar).toHaveAttribute("data-state", "expanded");

@@ -51,6 +51,7 @@ import {
 	sessionsBoardLabels,
 } from "./SessionsBoardAdapters";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { NewShellTerminalButton } from "./NewShellTerminalButton";
 
 type SessionsBoardProps = {
 	/** When set, the board shows only this project's sessions. */
@@ -280,6 +281,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 				</TooltipTrigger>
 				<TooltipContent side="bottom">{t("shell.newTask")}</TooltipContent>
 			</Tooltip>
+			<NewShellTerminalButton />
 			{orchestrator ? <Tooltip>
 				<TooltipTrigger asChild>
 					<span className="inline-flex">

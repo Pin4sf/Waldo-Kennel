@@ -1,10 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-// Regression guard for #366 (macOS): the sidebar's "Kennel" brand
-// must never sit under the TitlebarNav cluster, and the wordmark must stay
-// readable. TitlebarNav now lives in the sidebar header below the traffic
-// lights (in-flow), so the brand is the next row — these tests lock that the
-// two boxes never overlap and the wordmark is not clipped.
+// Regression guard for #366 (macOS): the sidebar's "Kennel" brand must stay
+// readable in both chrome systems. Populated board routes use the Figma shell
+// without TitlebarNav; standard routes keep the navigation cluster.
 //
 // macOS-only: TitlebarNav (and the bug) gate on navigator.userAgent looking like
 // a Mac, read once at module load. Force a Mac UA so this is deterministic
@@ -29,7 +27,7 @@ async function isTruncated(span: Locator) {
 }
 
 async function expectBrandClearsCluster(page: Page) {
-	const cluster = page.locator(".titlebar-nav");
+	const cluster = page.locator('[data-slot="titlebar-nav"]');
 	await expect(cluster).toBeVisible();
 	const span = brand(page);
 	await expect(span).toBeVisible();
@@ -43,10 +41,17 @@ async function expectBrandClearsCluster(page: Page) {
 	expect(await isTruncated(span)).toBe(false);
 }
 
+async function expectFigmaBoardBrand(page: Page) {
+	await expect(page.locator('[data-slot="titlebar-nav"]')).toHaveCount(0);
+	const span = brand(page);
+	await expect(span).toBeVisible();
+	expect(await isTruncated(span)).toBe(false);
+}
+
 test("home board route: brand clears the macOS titlebar cluster and stays readable", async ({ page }) => {
 	await page.goto("/");
 	await expect(page.getByText("Projects")).toBeVisible();
-	await expectBrandClearsCluster(page);
+	await expectFigmaBoardBrand(page);
 });
 
 test("project board route: brand clears the macOS titlebar cluster and stays readable", async ({ page }) => {
@@ -54,27 +59,20 @@ test("project board route: brand clears the macOS titlebar cluster and stays rea
 	await expect(page.getByText("Projects")).toBeVisible();
 
 	// In-app nav to /projects/:id (a hard load boots the router at the board).
-	await page.locator('[data-sidebar="menu-button"]').filter({ hasText: "api-gateway" }).first().click();
+	await page.locator('[data-sidebar="menu-button"]').filter({ hasText: "ao-demo" }).first().click();
 	// The active project row marks itself aria-current=page once navigation lands.
 	await expect(page.locator('[aria-current="page"]')).toBeVisible();
 
-	await expectBrandClearsCluster(page);
+	await expectFigmaBoardBrand(page);
 });
 
-test("brand stays put and readable when navigating board → session", async ({ page }) => {
+test("brand stays readable when navigating from Figma board to standard session chrome", async ({ page }) => {
 	await page.goto("/");
 	await expect(page.getByText("Projects")).toBeVisible();
+	await expectFigmaBoardBrand(page);
 
-	const boardBrandBox = await brand(page).boundingBox();
-	expect(boardBrandBox).not.toBeNull();
+	await page.getByRole("button", { name: "Open Build screenshot-ready dashboard data" }).click();
+	await expect(page.getByTestId("session-detail")).toBeVisible();
 
-	await page.getByRole("button", { name: "Open Split terminal mux responsibilities" }).click();
-	await expect(page.getByRole("button", { name: "Open Kanban" })).toBeVisible();
-
-	const sessionBrandBox = await brand(page).boundingBox();
-	expect(sessionBrandBox).not.toBeNull();
-	// Persistent shell element: no vertical/horizontal jump across the transition.
-	expect(Math.abs(sessionBrandBox!.x - boardBrandBox!.x)).toBeLessThanOrEqual(1);
-	expect(Math.abs(sessionBrandBox!.y - boardBrandBox!.y)).toBeLessThanOrEqual(1);
 	await expectBrandClearsCluster(page);
 });

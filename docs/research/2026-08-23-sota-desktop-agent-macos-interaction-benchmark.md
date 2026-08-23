@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-23  
 **Status:** product and interaction research only; no implementation authority  
-**Scope:** OpenAI ChatGPT/Codex desktop, Anthropic Claude Desktop/Claude Code Desktop, Cursor, Raycast, Linear, Windsurf, Dayflow, and Apple macOS interaction guidance  
+**Scope:** OpenAI ChatGPT/Codex desktop, Anthropic Claude Desktop/Claude Code Desktop, Cursor, Raycast, Linear, Windsurf, Dayflow, Dimension, Omi, installed Grok Bot/Hermes, and Apple macOS interaction guidance
 **Question:** Which current agent utilities and mature macOS conventions should Waldo Kennel adopt, adapt, or reject before the Personal Agency surface is considered complete?
 
 ## Executive finding
@@ -46,7 +46,76 @@ Labels:
 
 Official marketing establishes the operator's claim, not independent reliability. Open-source code establishes implementation at a revision, not deployment or production quality. Screenshots establish a visible state, not accessibility, responsive behavior, or durable semantics.
 
-The names “Hermes” and “Grokbot” were not mapped to one unambiguous official product identity from the material supplied. They are therefore unresolved references, not evidence used in this comparison. A product URL or exact package is required before claiming parity or copying its information architecture.
+The originally ambiguous names are now resolved for this local comparison by the installed packages the user named: `/Applications/Grok Bot.app` (`com.anysphere.sand`, version `0.24.0`) and the running Hermes desktop app (`com.nousresearch.hermes`; the installed setup wrapper is `com.nousresearch.hermes.setup`, version `0.0.1`). This identifies the inspected local builds; it is not proof of feature parity with a public product or a newer release.
+
+## Local installed-application audit
+
+**Method:** Read-only public UI and macOS accessibility interaction on 2026-08-23. No application-support database, credential store, private API, DevTools, hidden state, provider token, or network payload was inspected. Grok Bot opened on an existing saved conversation; user-specific transcript content was excluded from the evidence below and is not reproduced. No message was sent, profile/bot/channel was created, plugin was added, credential was entered, setting was changed, or paid flow was accepted.
+
+### Grok Bot 0.24.0 — primary specialist benchmark
+
+**Observed:**
+
+- The default shell is a resizable left `Bots` sidebar plus one conversation surface. The sidebar exposes Search, a `New Bot or Channel` menu with `New Bot` and `New Channel`, compact bot rows, Plugins, account access, and a draggable sidebar splitter.
+- Conversation chrome exposes the selected bot, `View conversation details`, `Grok Bot's Computer`, a saved/offline freshness banner, a transcript, file attachment, voice input, and plan availability at the composer boundary.
+- Transcript items expose native per-message reaction, reply, and more-action controls. Questions and consequential connection steps can appear as structured cards rather than plain transcript text.
+- Credential collection is presented in a dedicated secure field with a separate save action and explicit custody copy instead of asking for a token in ordinary chat. The field was not used.
+- Plugins open as a dedicated overlay with Close, `Your plugins`, search, category filters, featured/team/category sections, plugin detail entry points, and explicit `Add` versus `Added` state.
+
+**Inference / limit:** The bot list makes named specialists highly discoverable, but the visible shell gives each bot peer identity and does not expose a Waldo-compatible purpose/scope/authority/budget/evidence/return contract in the list itself. The inspected saved state showed conversational narration around connector work, but no separate Activity timeline, verification lineage, or recovery boundary was visible. Creating a bot/channel, running work, approvals, secondary-click behavior, minimum-width recomposition, VoiceOver order, and Reduce Motion were not exercised because doing so would create state, require a live entitlement, or exceed the read-only audit boundary.
+
+**Waldo decision:** **Adopt** compact specialist discovery, structured in-conversation cards, item actions, a dedicated capability library, and credential entry outside ordinary chat. **Adapt** `New Bot` into explicit preview-only specialist creation with purpose, sources/tools, authority ceiling, budget, pause/revoke, evidence, and return path under Waldo Activity. **Reject** a Home roster of peer bot identities, connector success as evidence, or a secure-looking renderer field before Keychain-backed custody exists.
+
+### Hermes desktop — secondary specialist benchmark
+
+**Observed:**
+
+- The desktop shell exposes collapsible/swappable sidebars, layout editing, HUD mode, settings, an optional right sidebar, sessions and projects, `Capabilities`, `Messaging`, `Artifacts`, and `Kanban`, plus a main draft/terminal tab group.
+- The draft composer visibly separates context attachment, model selection, text entry, dictation, spoken replies, wake word, and voice conversation. The empty draft explicitly says nothing has been sent.
+- `Capabilities` separates Skills, Tools, MCP, and Hub discovery. Individual capabilities have category labels and enabled switches, a detail pane, and copy stating changes apply to new sessions.
+- Profiles are explicit independent Hermes environments with separate configuration, skills, and `SOUL.md`. Creation asks for a name, clone source, and optional persona/system prompt; import and management are separate actions.
+- Safety settings expose approval mode, approval timeout, MCP-reload confirmation, command allowlist, secret redaction, private-URL policy, and file checkpoints.
+- Memory/context settings expose persistent memory, a compact user profile, budgets, provider choice, compression strategy, thresholds, and protected recent messages.
+- The shortcut browser makes queue/steer/cancel, profile switching, session navigation, command palette, settings, review pane, terminals, find, layout, and other commands discoverable and rebindable.
+
+**Inference / limit:** Hermes provides the richer configuration grammar for specialist environments and operator control, while Grok Bot provides the cleaner conversational/card presentation. Hermes' visible profile contract is still identity/persona- and configuration-led; purpose, completion condition, authority ceiling, budget, evidence, and native return destination are not one coherent profile summary. Persistent memory and user-profile behavior are configurable but are not evidence of Waldo's required admission/correction/provenance lifecycle. Live runs, approval cards, artifacts, messaging, Kanban recovery, pointer context menus, minimum-width behavior, VoiceOver order, and Reduce Motion remain unverified.
+
+**Waldo decision:** **Adopt** searchable capabilities, explicit profile creation, session-scoped capability changes, safety policy, queue/steer/cancel grammar, and shortcut discoverability. **Adapt** profiles into scoped workers coordinated by Waldo and require governance fields before creation/pinning. **Reject** automatic durable memory, persona as the primary specialist contract, provider/model selection as Home IA, and profile switching as switching the user's personal agent.
+
+### Combined product consequence
+
+Grok Bot should lead Waldo's compact specialist discovery and conversational card behavior; Hermes should lead capability/profile configuration and operator-control coverage. Neither establishes Waldo's responsibility, evidence, verification, acceptance, or memory-admission semantics. The resulting Waldo surface therefore keeps specialists subordinate under Activity, keeps Home Chat the same Waldo relationship as the rail, and requires an inspectable profile/run contract before showing a created or pinned specialist.
+
+## Dimension and Omi relationship-surface audit
+
+The user-named “Dimensions” benchmark resolves to **Dimension** at [dimension.dev](https://dimension.dev/). Its first-party [closure notice](https://dimension.dev/winding-down) says the service wound down on May 20, 2026. The still-live product pages and docs are therefore archival first-party design evidence, not proof of a currently available product runtime. Omi evidence comes from [omi.me](https://www.omi.me/), its official Help Center, public app store, and the official `BasedHardware/omi` repository pinned at `6f7c57ac1545c1931c806a01605646405d398198`.
+
+### Dimension — daily orientation and bounded decisions
+
+**Observed:** Dimension makes Morning Briefing the Home orientation surface, combining a schedule, items needing attention, and narrative summary rather than a generic metrics dashboard ([Morning Briefing](https://dimension.dev/morning-briefing); [proactive features](https://docs.dimension.dev/proactive-features)). Chat remains the primary agent interaction; threads are searchable, renameable, deletable, and retain their own context ([Chat](https://docs.dimension.dev/chat)). Catch Up keeps original sources beneath summaries, background Skills can be invoked explicitly or selected by the agent, and sensitive chat actions expose `Accept`, `Reject`, `Edit`, and `Respond` ([Search](https://dimension.dev/search); [Skills](https://docs.dimension.dev/skills); [Workflows](https://docs.dimension.dev/workflows)).
+
+**Inference / limit:** Dimension is the stronger finite Home-rhythm benchmark, but its post-closure pages cannot establish runtime availability, accessibility, responsive behavior, or current reliability. Its public material also does not establish Waldo's responsibility or evidence lineage.
+
+**Waldo decision:** **Adopt** finite briefing, searchable topics, summary-plus-original review, and explicit approval choices. **Adapt** Skills into scoped delegated specialists under Waldo Activity. **Reject** automatic approval bypass, archival marketing as runtime proof, and any briefing claim without source/freshness/gap disclosure.
+
+### Omi — conversational continuity and typed source lineage
+
+**Observed:** Omi models a recording as a Conversation containing transcript, summary, insights, and detected tasks; Memories are derived facts, and Chat uses Conversations, Memories, and Tasks as context ([Conversations, Memories and chats](https://help.omi.me/en/articles/13153612-conversations-memories-and-chats)). Memories can return to their originating Conversation ([First steps](https://help.omi.me/en/articles/13135362-first-steps)). Current macOS source makes Home the single search/chat destination and defines typed, openable citations for Conversation, Memory, Task, Goal, Rewind screenshot, Web, and unavailable sources ([QueryShellHome](https://github.com/BasedHardware/omi/blob/6f7c57ac1545c1931c806a01605646405d398198/desktop/macos/Desktop/Sources/MainWindow/QueryShell/QueryShellHome.swift); [ChatCitation](https://github.com/BasedHardware/omi/blob/6f7c57ac1545c1931c806a01605646405d398198/desktop/macos/Desktop/Sources/Chat/ChatCitation.swift)). Its macOS top bar uses `ViewThatFits` to replace the full navigation row with a compact menu when space is constrained ([DesktopTopBar](https://github.com/BasedHardware/omi/blob/6f7c57ac1545c1931c806a01605646405d398198/desktop/macos/Desktop/Sources/MainWindow/DesktopTopBar.swift)). Omi Apps are specialized chats/personas, integrations, memory processors, or automations with disclosed data/accounts/permissions ([Omi Apps](https://help.omi.me/en/articles/13153599-omi-apps)).
+
+**Inference / limit:** Omi is the stronger `episode -> derived record -> source backlink` reference. Its app selector can replace the visible persona, which conflicts with Waldo's one-relationship invariant. Its approval document is explicitly design-only, so it does not establish a shipped approval queue. Distributed Mac-build parity and physical accessibility/responsive behavior remain unknown.
+
+**Waldo decision:** **Adopt** one query surface, typed citations, source return, inline lifecycle cards, and compact navigation fallback. **Adapt** Apps into capabilities of specialists coordinated by Waldo. **Reject** persona switching as personal-agent identity, automatically accepted tasks/memories, and design-only approval work as shipped evidence.
+
+### Four-surface synthesis
+
+| Waldo surface | Primary benchmark contribution | Required Waldo boundary |
+| --- | --- | --- |
+| Today | Dimension Morning Briefing | finite orientation; no invented urgency, productivity score, or unsourced claim |
+| Chat | Omi one-query surface + Dimension threads | same Waldo state as the quick rail; typed sources, freshness, gaps, correction, and deterministic preview disclosure |
+| Insights / Records | Omi Conversation-derived lineage + Dayflow correction | every derived candidate returns to source and stays unadmitted until user confirmation |
+| Activity → Agents | Grok Bot discovery/cards + Hermes governance | specialists remain scoped workers under Waldo with authority, evidence, recovery, and a return destination |
+
+The resulting acceptance flow is one connected responsibility story rather than four demos: ask what changed in the pricing workshop and what still needs the user; inspect typed sources; correct or detach context; approve only a bounded proposal; follow the delegated specialist in Activity; inspect evidence and unknowns; then return to the originating Home or Work responsibility. No provider completion, specialist status, task extraction, or memory extraction accepts an Outcome.
 
 ## Product benchmark
 
@@ -309,5 +378,5 @@ Define daemon-owned conversation, context, Insight, run, approval, evidence, and
 - Public product docs do not establish complete VoiceOver reading order, Full Keyboard Access coverage, contrast conformance, reduced-motion behavior, minimum supported widths, exact pane-collapse rules, scroll chaining, or hit-target compliance for the benchmark products. Waldo must specify and test these itself.
 - No inspected product establishes Waldo's required semantic lineage from observation to responsibility to execution to evidence to verification to acceptance.
 - Dayflow's real-world synthesis accuracy and deletion behavior across every external provider are not proven by its UI or repository.
-- The exact “Hermes” and “Grokbot” products intended by the earlier comparison remain unresolved without primary URLs.
+- The exact installed Grok Bot and Hermes packages are now resolved and locally inspected, but their live-run, complete accessibility, minimum-width, reduced-motion, and recovery behavior remains unverified under the read-only audit boundary.
 - SOTA here means a current first-party pattern benchmark, not a completeness ranking, endorsement, or evidence that every documented feature ships reliably to every account.

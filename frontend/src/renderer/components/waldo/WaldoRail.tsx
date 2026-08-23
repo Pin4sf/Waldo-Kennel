@@ -16,16 +16,19 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import waldoMark from "../../../../assets/waldo-mark.svg";
 import { cn } from "../../lib/utils";
+import {
+  useWaldoRail,
+  type WaldoPreviewEpisode,
+  type WaldoPreviewMode,
+} from "./WaldoRailContext";
 
 type WaldoRailProps = {
   contextLabel: string;
-  onClose: () => void;
+  onClose?: () => void;
   onReturnToInspector?: () => void;
+  presentation?: "destination" | "rail";
   previewEnabled: boolean;
 };
-
-type PreviewMode = "conversation" | "activity";
-type PreviewEpisode = "fresh" | "contextual" | "returning";
 
 const previewStepStates = ["evidenced", "evidenced", "active", "blocked"] as const;
 
@@ -33,32 +36,48 @@ export function WaldoRail({
   contextLabel,
   onClose,
   onReturnToInspector,
+  presentation = "rail",
   previewEnabled,
 }: WaldoRailProps) {
   const { t } = useTranslation();
-  const [mode, setMode] = useState<PreviewMode>("conversation");
-  const [episode, setEpisode] = useState<PreviewEpisode>("contextual");
-  const [contextDetached, setContextDetached] = useState(false);
+  const sharedConversation = useWaldoRail().conversation;
+  const [localMode, setLocalMode] = useState<WaldoPreviewMode>("conversation");
+  const [localEpisode, setLocalEpisode] = useState<WaldoPreviewEpisode>("contextual");
+  const [localContextDetached, setLocalContextDetached] = useState(false);
+  const [localDraft, setLocalDraft] = useState("");
   const [proposalReviewed, setProposalReviewed] = useState(false);
   const [resultExpanded, setResultExpanded] = useState(false);
+  const mode = sharedConversation?.mode ?? localMode;
+  const setMode = sharedConversation?.setMode ?? setLocalMode;
+  const episode = sharedConversation?.episode ?? localEpisode;
+  const contextDetached = sharedConversation?.contextDetached ?? localContextDetached;
+  const setContextDetached = sharedConversation?.setContextDetached ?? setLocalContextDetached;
+  const draft = sharedConversation?.draft ?? localDraft;
+  const setDraft = sharedConversation?.setDraft ?? setLocalDraft;
+  const submittedQuestion = sharedConversation?.submittedQuestions[episode];
   const previewSteps = [
     t("waldo.rail.activity.step.context"),
     t("waldo.rail.activity.step.sources"),
     t("waldo.rail.activity.step.prepare"),
     t("waldo.rail.activity.step.wait"),
   ];
-  const episodeTitles: Record<PreviewEpisode, string> = {
+  const episodeTitles: Record<WaldoPreviewEpisode, string> = {
     fresh: t("waldo.rail.episode.fresh"),
     contextual: t("waldo.rail.episode.contextual"),
     returning: t("waldo.rail.episode.returning"),
   };
-  const entryStateLabels: Record<PreviewEpisode, string> = {
+  const entryStateLabels: Record<WaldoPreviewEpisode, string> = {
     fresh: t("waldo.rail.entry.fresh"),
     contextual: t("waldo.rail.entry.contextual"),
     returning: t("waldo.rail.entry.returning"),
   };
-  const selectEpisode = (nextEpisode: PreviewEpisode) => {
-    setEpisode(nextEpisode);
+  const selectEpisode = (nextEpisode: WaldoPreviewEpisode) => {
+    if (sharedConversation) {
+      sharedConversation.selectEpisode(nextEpisode);
+    } else {
+      setLocalEpisode(nextEpisode);
+      setLocalContextDetached(false);
+    }
     setContextDetached(false);
     setResultExpanded(false);
   };
@@ -66,7 +85,10 @@ export function WaldoRail({
   return (
     <section
       aria-label={t("waldo.rail.aria")}
-      className="waldo-rail flex min-h-0 min-w-0 flex-1 flex-col bg-background"
+      className={cn(
+        "waldo-rail flex min-h-0 min-w-0 flex-1 flex-col bg-background",
+        presentation === "destination" && "rounded-2xl border border-border shadow-xs",
+      )}
       id="waldo-rail"
     >
       <header className="shrink-0 border-b border-border px-4 pb-3 pt-3.5">
@@ -106,15 +128,17 @@ export function WaldoRail({
               {t("waldo.rail.relationship")}
             </p>
           </div>
-          <button
-            aria-label={t("waldo.rail.close")}
-            className="waldo-rail-close inline-flex size-8 shrink-0 items-center justify-center gap-1.5 rounded-lg text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-            onClick={onClose}
-            type="button"
-          >
-            <span className="waldo-rail-back-label">{t("waldo.rail.back")}</span>
-            <X aria-hidden="true" className="size-4" />
-          </button>
+          {presentation === "rail" && onClose ? (
+            <button
+              aria-label={t("waldo.rail.close")}
+              className="waldo-rail-close inline-flex size-8 shrink-0 items-center justify-center gap-1.5 rounded-lg text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+              onClick={onClose}
+              type="button"
+            >
+              <span className="waldo-rail-back-label">{t("waldo.rail.back")}</span>
+              <X aria-hidden="true" className="size-4" />
+            </button>
+          ) : null}
         </div>
         {!previewEnabled ? (
           <div className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-raised px-2.5 py-1 text-xs text-muted-foreground">
@@ -178,8 +202,8 @@ export function WaldoRail({
                     event.preventDefault();
                     const nextMode = previewMode === "conversation" ? "activity" : "conversation";
                     setMode(nextMode);
-                    document
-                      .querySelector<HTMLButtonElement>(`[data-waldo-mode="${nextMode}"]`)
+                    event.currentTarget.parentElement
+                      ?.querySelector<HTMLButtonElement>(`[data-waldo-mode="${nextMode}"]`)
                       ?.focus();
                   }}
                   onClick={() => setMode(previewMode)}
@@ -256,9 +280,10 @@ export function WaldoRail({
                 resultExpanded={resultExpanded}
                 setProposalReviewed={setProposalReviewed}
                 setResultExpanded={setResultExpanded}
+                submittedQuestion={submittedQuestion}
               />
             ) : (
-              <ActivityPreview previewSteps={previewSteps} />
+              <ActivityPreview contextLabel={contextLabel} previewSteps={previewSteps} />
             )}
           </div>
         )}
@@ -269,8 +294,9 @@ export function WaldoRail({
           <textarea
             aria-label={t("waldo.rail.composerLabel")}
             className="min-h-16 w-full resize-none rounded-xl border border-border bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground"
-            disabled
+            onChange={(event) => setDraft(event.target.value)}
             placeholder={t("waldo.rail.composerPlaceholder")}
+            value={draft}
           />
           <p className="mt-2 text-micro leading-4 text-muted-foreground">{t("waldo.rail.composerBoundary")}</p>
         </footer>
@@ -285,12 +311,14 @@ function ConversationPreview({
   resultExpanded,
   setProposalReviewed,
   setResultExpanded,
+  submittedQuestion,
 }: {
-  episode: PreviewEpisode;
+  episode: WaldoPreviewEpisode;
   proposalReviewed: boolean;
   resultExpanded: boolean;
   setProposalReviewed: (reviewed: boolean) => void;
   setResultExpanded: (expanded: boolean) => void;
+  submittedQuestion?: string;
 }) {
   const { t } = useTranslation();
 
@@ -350,7 +378,7 @@ function ConversationPreview({
     <div className="space-y-4">
       <div className="space-y-2.5" aria-label={t("waldo.rail.conversation")}>
         <div className="ml-8 rounded-2xl rounded-br-md bg-foreground px-3.5 py-3 text-sm leading-5 text-background">
-          {t("waldo.rail.previewRequest")}
+          {submittedQuestion ?? t("waldo.rail.previewRequest")}
         </div>
         <div className="mr-5 rounded-2xl rounded-bl-md border border-border bg-raised px-3.5 py-3 text-sm leading-5 text-foreground">
           {t("waldo.rail.previewResponse")}
@@ -407,14 +435,36 @@ function ConversationPreview({
   );
 }
 
-function ActivityPreview({ previewSteps }: { previewSteps: string[] }) {
+type SpecialistStatus = "Ready" | "Paused" | "Revoked";
+
+const specialistDefaults = {
+  purpose: "Research the open questions for the pricing workshop",
+  scope: "This pricing workshop only",
+  sources: "Calendar, decision note, current Work context",
+  authority: "Read and draft only; no outward action",
+  budget: "20 minutes",
+  completion: "Return a source-linked brief with unresolved questions",
+  evidence: "Cite each claim and distinguish observation from inference",
+};
+
+function ActivityPreview({
+  contextLabel,
+  previewSteps,
+}: {
+  contextLabel: string;
+  previewSteps: string[];
+}) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [specialist, setSpecialist] = useState<typeof specialistDefaults | null>(null);
+  const [specialistStatus, setSpecialistStatus] = useState<SpecialistStatus>("Ready");
   return (
-    <section
-      aria-label={t("waldo.rail.activityLabel")}
-      className="rounded-2xl border border-border bg-card p-4 shadow-xs"
-    >
+    <div className="space-y-4">
+      <section
+        aria-label={t("waldo.rail.activityLabel")}
+        className="rounded-2xl border border-border bg-card p-4 shadow-xs"
+      >
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-muted-foreground">{t("waldo.rail.activityEyebrow")}</p>
@@ -498,6 +548,151 @@ function ActivityPreview({ previewSteps }: { previewSteps: string[] }) {
           </p>
         </div>
       ) : null}
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-xs">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">{t("waldo.rail.specialist.sectionTitle")}</p>
+            <h3 className="mt-1 text-sm font-semibold text-foreground">{t("waldo.rail.specialist.delegateTitle")}</h3>
+          </div>
+          <span className="rounded-full border border-border px-2 py-1 text-micro font-semibold text-muted-foreground">
+            {t("waldo.rail.specialist.previewOnly")}
+          </span>
+        </div>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+          {t("waldo.rail.specialist.description")}
+        </p>
+        <button
+          aria-expanded={builderOpen}
+          className="mt-3 inline-flex h-8 items-center rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+          onClick={() => setBuilderOpen(!builderOpen)}
+          type="button"
+        >
+          {builderOpen ? t("waldo.rail.specialist.hideBuilder") : t("waldo.rail.specialist.create")}
+        </button>
+
+        {builderOpen ? (
+          <SpecialistBuilder
+            contextLabel={contextLabel}
+            onPreview={(nextSpecialist) => {
+              setSpecialist(nextSpecialist);
+              setSpecialistStatus("Ready");
+            }}
+          />
+        ) : null}
+
+        {specialist ? (
+          <article
+            aria-label={t("waldo.rail.specialist.profileTitle")}
+            className="mt-4 rounded-xl border border-border bg-raised p-3.5"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-micro font-semibold uppercase tracking-[0.1em] text-muted-foreground">{t("waldo.rail.specialist.underWaldo")}</p>
+                <h4 className="mt-1 text-sm font-semibold text-foreground">{t("waldo.rail.specialist.profileTitle")}</h4>
+              </div>
+              <span className="rounded-full bg-muted px-2 py-1 text-micro font-semibold text-foreground">
+                {t("waldo.rail.specialist.status", { status: specialistStatus })}
+              </span>
+            </div>
+            <dl className="mt-4 grid gap-3 text-xs">
+              <RunDetail label={t("waldo.rail.specialist.purpose")} value={specialist.purpose} />
+              <RunDetail label={t("waldo.rail.specialist.scope")} value={specialist.scope} />
+              <RunDetail label={t("waldo.rail.specialist.sources")} value={specialist.sources} />
+              <RunDetail label={t("waldo.rail.specialist.authority")} value={specialist.authority} />
+              <RunDetail label={t("waldo.rail.specialist.budget")} value={specialist.budget} />
+              <RunDetail label={t("waldo.rail.specialist.completion")} value={specialist.completion} />
+              <RunDetail label={t("waldo.rail.specialist.evidence")} value={specialist.evidence} />
+              <RunDetail label={t("waldo.rail.specialist.returnDestination")} value={t("waldo.rail.specialist.returnsTo", { destination: contextLabel })} />
+            </dl>
+            <p className="mt-4 rounded-lg border border-dashed border-border px-3 py-2 text-micro leading-4 text-muted-foreground">
+              {t("waldo.rail.specialist.profileBoundary")}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground disabled:opacity-40"
+                disabled={specialistStatus === "Revoked"}
+                onClick={() => setSpecialistStatus(specialistStatus === "Paused" ? "Ready" : "Paused")}
+                type="button"
+              >
+                {specialistStatus === "Paused" ? t("waldo.rail.specialist.resume") : t("waldo.rail.specialist.pause")}
+              </button>
+              <button
+                className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-destructive disabled:opacity-40"
+                disabled={specialistStatus === "Revoked"}
+                onClick={() => setSpecialistStatus("Revoked")}
+                type="button"
+              >
+                {t("waldo.rail.specialist.revoke")}
+              </button>
+            </div>
+          </article>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function SpecialistBuilder({
+  contextLabel,
+  onPreview,
+}: {
+  contextLabel: string;
+  onPreview: (specialist: typeof specialistDefaults) => void;
+}) {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState(specialistDefaults);
+  const fields = [
+    ["purpose", t("waldo.rail.specialist.purpose")],
+    ["scope", t("waldo.rail.specialist.scope")],
+    ["sources", t("waldo.rail.specialist.sources")],
+    ["authority", t("waldo.rail.specialist.authority")],
+    ["budget", t("waldo.rail.specialist.budget")],
+    ["completion", t("waldo.rail.specialist.completion")],
+    ["evidence", t("waldo.rail.specialist.evidence")],
+  ] as const;
+
+  return (
+    <section aria-label={t("waldo.rail.specialist.builderAria")} className="mt-4 border-t border-border pt-4">
+      <p className="text-micro font-semibold uppercase tracking-[0.1em] text-muted-foreground">{t("waldo.rail.specialist.previewOnly")}</p>
+      <form
+        className="mt-3 grid gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onPreview(draft);
+        }}
+      >
+        {fields.map(([key, label]) => (
+          <label className="grid gap-1.5 text-xs font-medium text-foreground" key={key}>
+            {label}
+            <input
+              aria-label={label}
+              className="h-9 min-w-0 rounded-lg border border-border bg-background px-3 text-xs font-normal text-foreground"
+              onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
+              value={draft[key]}
+            />
+          </label>
+        ))}
+        <label className="grid gap-1.5 text-xs font-medium text-foreground">
+          {t("waldo.rail.specialist.returnDestination")}
+          <input
+            aria-label={t("waldo.rail.specialist.returnDestination")}
+            className="h-9 min-w-0 rounded-lg border border-border bg-muted px-3 text-xs font-normal text-muted-foreground"
+            readOnly
+            value={contextLabel}
+          />
+        </label>
+        <button
+          className="mt-1 inline-flex h-8 w-fit items-center rounded-lg bg-foreground px-3 text-xs font-medium text-background"
+          type="submit"
+        >
+          {t("waldo.rail.specialist.previewAction")}
+        </button>
+        <p className="text-micro leading-4 text-muted-foreground">
+          {t("waldo.rail.specialist.builderBoundary")}
+        </p>
+      </form>
     </section>
   );
 }

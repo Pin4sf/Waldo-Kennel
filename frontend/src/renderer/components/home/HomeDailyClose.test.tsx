@@ -48,7 +48,7 @@ describe("HomeDailyClose", () => {
     expect(screen.getByText("Resume from the corrected deck follow-up")).toBeInTheDocument();
     expect(screen.getByText("Open the latest deck first.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Return to Today" })).toHaveAttribute("href", "#/home");
-    expect(screen.getByRole("link", { name: "Inspect History" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Inspect Insights" })).toHaveAttribute(
       "href",
       "#/home/history",
     );
