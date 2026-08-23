@@ -63,10 +63,12 @@ function HomeAvailabilityStatus({ fixture }: { fixture: HomeFixtureState }) {
 export function HomeShell({
   fixture = homeFixture("today"),
   destination = "today",
+  initialRecordId,
   previewEnabled = usesWaldoUiPreview,
 }: {
   fixture?: HomeFixtureState;
   destination?: HomeDestination;
+  initialRecordId?: string;
   previewEnabled?: boolean;
 }) {
   const { t } = useTranslation();
@@ -153,7 +155,7 @@ export function HomeShell({
             <div className="mx-auto flex w-full max-w-5xl flex-col gap-7">
               <HomeAvailabilityStatus fixture={fixture} />
               <p className="text-xs text-muted-foreground">{fixture.localDateLabel}</p>
-              <HomeDestinationView destination={destination} fixture={fixture} previewEnabled={previewEnabled} />
+              <HomeDestinationView destination={destination} fixture={fixture} initialRecordId={initialRecordId} previewEnabled={previewEnabled} />
             </div>
             {waldo.isOpen ? (
               <div className="waldo-home-layer">

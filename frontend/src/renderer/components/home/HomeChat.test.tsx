@@ -52,8 +52,14 @@ describe("HomeChat", () => {
     expect(screen.getAllByText("What changed in the pricing workshop and what still needs me?").length).toBeGreaterThan(0);
     expect(composer).toHaveValue("");
     expect(screen.getByText(/Two decisions changed/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Pricing decision note" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Workshop calendar event" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Pricing decision note" })).toHaveAttribute(
+      "href",
+      "#/home/history?record=pricing-decision-note",
+    );
+    expect(screen.getByRole("link", { name: "Workshop calendar event" })).toHaveAttribute(
+      "href",
+      "#/home/history?record=pricing-workshop-calendar",
+    );
     expect(screen.getByText("Local fixture only · no model, provider, send, or save")).toBeInTheDocument();
   });
 
@@ -81,10 +87,13 @@ describe("HomeChat", () => {
       </WaldoRailProvider>,
     );
 
-    await user.click(screen.getByRole("button", { name: "Open context details" }));
+    const contextTrigger = screen.getByRole("button", { name: "Open context details" });
+    await user.click(contextTrigger);
     expect(screen.getByRole("dialog", { name: "Conversation context details" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Back to conversation" }));
+    expect(screen.getByRole("button", { name: "Back to conversation" })).toHaveFocus();
+    await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Conversation context details" })).not.toBeInTheDocument();
+    expect(contextTrigger).toHaveFocus();
 
     await user.click(screen.getByRole("tab", { name: "Activity" }));
     await user.click(screen.getByRole("button", { name: "Open run details" }));
@@ -109,6 +118,34 @@ describe("HomeChat", () => {
     expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Respond" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create specialist" })).toBeDisabled();
+  });
+
+  it("keeps specialist approval, pause, stop, recovery, and return transitions coherent", async () => {
+    const user = userEvent.setup();
+    render(
+      <WaldoRailProvider>
+        <HomeChat contextLabel="Home · Chat" previewEnabled />
+      </WaldoRailProvider>,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Activity" }));
+    await user.click(screen.getByRole("button", { name: "Accept" }));
+    expect(screen.getAllByText("Approved locally").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Pause specialist" }));
+    expect(screen.getAllByText("Paused").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: "Resume specialist" }));
+    expect(screen.getAllByText("Approved locally").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Stop" }));
+    expect(screen.getAllByText("Stopped").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Pause specialist" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Retry preview" }));
+    expect(screen.getAllByText("Waiting for approval").length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: "Return to responsibility" }));
+    expect(screen.getByRole("tab", { name: "Conversation" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("presents the same Waldo mode, episode, context, and local draft as the rail", async () => {
@@ -125,6 +162,38 @@ describe("HomeChat", () => {
 
     await user.click(screen.getByRole("tab", { name: "Conversation" }));
     expect(screen.getByRole("textbox", { name: "Message Waldo" })).toHaveValue("Hold this thought");
+  });
+
+  it("keeps the submitted preview exchange in the shared Waldo conversation", async () => {
+    const user = userEvent.setup();
+    render(<SharedPresentationHarness />);
+
+    const question = "What changed in the pricing workshop?";
+    await user.type(screen.getByRole("textbox", { name: "Message Waldo" }), question);
+    await user.click(screen.getByRole("button", { name: "Send preview" }));
+    await user.click(screen.getByRole("button", { name: "Switch presentation" }));
+    expect(screen.getByText(question)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Switch presentation" }));
+    expect(screen.getByText(question)).toBeInTheDocument();
+  });
+
+  it("uses roving focus and arrow keys for Conversation and Activity", async () => {
+    const user = userEvent.setup();
+    render(
+      <WaldoRailProvider>
+        <HomeChat contextLabel="Home · Chat" previewEnabled />
+      </WaldoRailProvider>,
+    );
+
+    const conversation = screen.getByRole("tab", { name: "Conversation" });
+    const activity = screen.getByRole("tab", { name: "Activity" });
+    expect(conversation).toHaveAttribute("tabindex", "0");
+    expect(activity).toHaveAttribute("tabindex", "-1");
+    conversation.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(activity).toHaveFocus();
+    expect(activity).toHaveAttribute("aria-selected", "true");
   });
 
   it("keeps canonical unconfigured Chat free of plausible transcript and actions", () => {

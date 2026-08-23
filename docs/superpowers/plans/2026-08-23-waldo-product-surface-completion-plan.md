@@ -4,7 +4,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-23-waldo-product-surface-completion-checkpoint.md`
 
-**Baseline:** local branch from `origin/beta` at `917dbe65c`; PR #52 is landed. Keep every checkpoint local. Do not push, update/open a PR, merge, deploy, publish, or introduce provider/backend/persistence work.
+**Baseline:** feature branch rebased onto `origin/beta` at `0ae292745`; PR #52 and PR #54 are landed. The user has authorized pushing this feature branch and opening a PR against `beta`; merge, release, deployment, provider/backend wiring, and persistence remain unauthorized.
 
 ## Phase 0 — Restore the interaction and regression foundation
 
@@ -14,7 +14,7 @@
 2. Classify each of the 35 reported failures as product/source regression, fixture or daemon precondition, stale product assumption, or cascading failure. Do not weaken an assertion merely to make the gate green.
 3. Restore the broad gate or document every remaining non-product precondition with a focused reproducible command and owner. The product-surface work is not complete while a source regression is hidden in the baseline.
 
-**Local checkpoint (2026-08-23): complete.** The landed 33 pass / 35 fail baseline was restored to 69 pass / 0 fail before new destinations; the completed preview surface now runs 74 pass / 0 fail. Source fixes cover mode-switch hit testing/layout, the 350px Inspector contract, chat overflow containment, and board New terminal routing. Harness fixes cover the renamed public preload bridge, onboarding state, agent-catalog routes, and mux/replay readiness. Obsolete demo routes, fixture names, roles, labels, and exact preview-state assumptions were updated after product inspection. Retained-terminal tests now wait for actual mux/replay readiness; the bounded reveal sequence permits at most four Chromium scroll events while still proving one open writer, no parked resize, and a final viewport at the latest output.
+**Local checkpoint (2026-08-23): complete.** The landed 33 pass / 35 fail baseline was restored to 69 pass / 0 fail before new destinations; the completed preview surface now runs 75 pass / 0 fail. Source fixes cover mode-switch hit testing/layout, the 350px Inspector contract, chat overflow containment, and board New terminal routing. Harness fixes cover the renamed public preload bridge, onboarding state, agent-catalog routes, and mux/replay readiness. Obsolete demo routes, fixture names, roles, labels, and exact preview-state assumptions were updated after product inspection. Retained-terminal tests now wait for actual mux/replay readiness; the bounded reveal sequence permits at most four Chromium scroll events while still proving one open writer, no parked resize, and a final viewport at the latest output.
 
 ### 0B — Pointer, pane width, and responsive composition (TDD)
 
@@ -29,6 +29,8 @@
 2. Test pointer secondary-click menus for meaningful Home/Waldo objects, browser-style Back/Forward including standard mouse/trackpad navigation events, and draft-safe navigation that never silently loses unsent text.
 3. Test deterministic focus entry/order/restoration, visible focus, inactive-window legibility, accessible names/status announcements, Full Keyboard Access, VoiceOver reading order, and `prefers-reduced-motion` behavior.
 4. Preserve native browser/text-edit behavior where it already provides the correct macOS contract; do not shadow it with renderer-only imitation.
+
+**Status (2026-08-23): open beyond the automated renderer subset.** Browser-style titlebar history, draft-safe shared state, roving tab focus, compact-layer focus entry/Escape/restoration, pointer reachability, and Reduce Motion CSS have automated coverage. Native Home/Waldo app-menu commands, secondary-click object menus, standard mouse/trackpad navigation events, Full Keyboard Access, VoiceOver reading/announcements, and inactive-window inspection are not implemented or physically verified in this checkpoint and must not be represented as complete.
 
 ### 0D — Gate and checkpoint
 
@@ -56,7 +58,7 @@ Extract a shared thin Waldo conversation presentation/state contract from the ex
 
 Run Today-to-Chat, rail-to-Chat, Work return, keyboard, focus, canonical-truth, responsive, full Playwright, typecheck, build, and physical Electron checks. Commit locally.
 
-**Local checkpoint (2026-08-23): complete for the local preview boundary.** `Chat` is a primary Home destination backed by the same `WaldoRailContext` conversation state as the global rail. Wide presentation now separates resumable topics, the readable transcript/composer, and source/freshness/gap context; medium and narrow presentation collapse optional context behind an explicit details layer. The deterministic `Send preview` fixture clears the composer, reveals the latest answer, retains typed source links, and can route a bounded review to Activity. Canonical mode still exposes no plausible transcript, Send action, provider, message transport, or persistence.
+**Local checkpoint (2026-08-23): complete for the local preview boundary.** `Chat` is a primary Home destination backed by the same `WaldoRailContext` conversation state as the global rail, including the mounted preview exchange rather than only mode/draft metadata. Wide presentation now separates resumable topics, the readable transcript/composer, and source/freshness/gap context; medium and narrow presentation collapse optional context behind an accessible details dialog with focus entry, Escape, trapping, and trigger restoration. The deterministic `Send preview` fixture clears the composer, reveals the latest answer, opens its exact local source Record, and can route a bounded review to Activity. Canonical mode still exposes no plausible transcript, Send action, provider, message transport, or persistence.
 
 ## Phase 2 — Replace History with evidence-backed Insights plus Records
 
@@ -99,13 +101,13 @@ Expose compact specialist creation under Waldo Activity and make the selected sp
 
 Run profile contract, Activity, Home non-roster, canonical-truth, accessibility, responsive, full Playwright, typecheck, build, and physical Electron checks. Commit locally.
 
-**Local checkpoint (2026-08-23): complete for the local preview boundary.** Waldo Activity alone exposes Waldo as coordinator, a compact specialist rail, the selected run timeline, inline `Accept / Edit / Reject / Respond` review, and the source/authority/evidence inspector. The Research specialist names purpose, explicit scope, permitted sources/tools, authority ceiling, budget, completion condition, evidence expectation, and Waldo return destination. Pause, resume, stop, retry, recovery, revoke, and return controls mutate mounted fixture state only; explicit copy states that nothing was created, connected, run, or saved.
+**Local checkpoint (2026-08-23): complete for the local preview boundary.** Waldo Activity alone exposes Waldo as coordinator, a compact specialist rail, the selected run timeline, inline `Accept / Edit / Reject / Respond` review, and the source/authority/evidence inspector. The Research specialist names purpose, explicit scope, permitted sources/tools, authority ceiling, budget, completion condition, evidence expectation, and Waldo return destination. Accept, pause, resume, stop, retry/recovery, and return now follow one coherent mounted-preview state path; unavailable Home creation is disabled and truthfully described. The fuller creation/pause/revoke profile remains in the global Waldo Activity preview. Nothing is connected, run, or saved.
 
 ## Verification checkpoint — 2026-08-23
 
-- unit: 211 files, 2624 passed, 6 skipped;
+- unit: 211 files, 2632 passed, 6 skipped;
 - typecheck and typecheck:e2e: pass;
-- full Playwright: 74 passed, 0 failed;
+- full Playwright: 75 passed, 0 failed;
 - build and package identity: pass for `in.heywaldo.kennel`;
 - physical Electron: the local preview renderer and daemon launched successfully. Public UI/accessibility inspection covered the wide three-region Chat, deterministic send/source flow, Activity specialist/run/authority composition, medium-width inspector collapse, and the final 960px-minimum `Open context details` layer with its `Back to conversation` return. The first inspection exposed missing compact details access and weak submit/scroll feedback; both were corrected before the final narrow pass. Standard pointer and accessibility-tree behavior were inspected without accessing credentials or private app state. System-level VoiceOver, Full Keyboard Access, inactive-window, trackpad gesture, and Reduce Motion toggles remain explicitly open;
 
@@ -147,4 +149,4 @@ Actual Electron must then be inspected at short, minimum supported, medium, wide
 
 ## Integration boundary
 
-All work remains local on the current beta-derived branch. Do not push, open or update a PR, merge, deploy, publish, migrate, or connect a provider/backend. Do not rebase or refresh from remote without explicit user authorization.
+This branch is rebased onto current `origin/beta`, and the user has explicitly authorized pushing it and opening a PR against `beta`. Do not merge, deploy, publish, migrate, release, or connect a provider/backend without new authorization.

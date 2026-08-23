@@ -672,9 +672,17 @@
 		inset: 0;
 		z-index: var(--z-index-overlay);
 		display: flex;
+		width: auto;
+		max-width: none;
 		min-height: 0;
+		padding: 0;
 		flex-direction: column;
+		gap: 0;
+		border: 0;
+		border-radius: 0;
 		background: var(--color-bg-primary);
+		box-shadow: none;
+		transform: none;
 	}
 }
 
@@ -724,7 +732,7 @@
  * Waldo is shell-owned. Reserve one fixed launcher lane so both remain fully
  * visible and independently clickable. */
 .waldo-launcher-reserved .workspace-topbar-container {
-	padding-right: calc(var(--space-2) + var(--size-topbar-control) + var(--space-2));
+	padding-right: calc(var(--space-2) + var(--size-topbar-control) + var(--space-3));
 }
 
 .waldo-rail-back-label {
@@ -992,10 +1000,6 @@
 .figma-board-shell .center-panel-shell--figma-board > .center-panel-surface {
 	border: 0;
 	border-radius: 0;
-}
-
-.figma-board-shell [data-testid="board"] > .workspace-topbar-container {
-	display: none;
 }
 
 .figma-board-sidebar {

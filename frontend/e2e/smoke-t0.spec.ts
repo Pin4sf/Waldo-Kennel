@@ -162,11 +162,11 @@ test("renderer: board renders all status columns @T0 @BRD", async ({ page }) => 
 	await page.goto("/");
 	const columns = page.getByTestId("board-column");
 	await expect(columns).toHaveCount(4);
-	// Left→right flow: work → needs-you → review → merge.
-	await expect(page.locator('[data-testid="board-column"][data-column="working"]')).toContainText("Working");
-	await expect(page.locator('[data-testid="board-column"][data-column="action"]')).toContainText("Needs you");
-	await expect(page.locator('[data-testid="board-column"][data-column="pending"]')).toContainText("In review");
-	await expect(page.locator('[data-testid="board-column"][data-column="merge"]')).toContainText("Ready/Merged");
+	// Left→right flow in the landed Figma board vocabulary.
+	await expect(page.locator('[data-testid="board-column"][data-column="working"]')).toContainText("Running");
+	await expect(page.locator('[data-testid="board-column"][data-column="action"]')).toContainText("Needs Choice");
+	await expect(page.locator('[data-testid="board-column"][data-column="pending"]')).toContainText("Needs Input");
+	await expect(page.locator('[data-testid="board-column"][data-column="merge"]')).toContainText("Ready");
 });
 
 // #2483 BRD-012.

@@ -48,6 +48,27 @@ describe("HomeHistory", () => {
     expect(screen.queryByText(/hours tracked/i)).not.toBeInTheDocument();
   });
 
+  it("uses roving focus and arrow keys for insight and record layers", async () => {
+    const user = userEvent.setup();
+    render(<HomeShell destination="history" fixture={homeFixture("history")} previewEnabled />);
+
+    const insights = screen.getByRole("tab", { name: "Insights" });
+    const records = screen.getByRole("tab", { name: "Records" });
+    expect(insights).toHaveAttribute("tabindex", "0");
+    expect(records).toHaveAttribute("tabindex", "-1");
+    insights.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(records).toHaveFocus();
+    expect(records).toHaveAttribute("aria-selected", "true");
+
+    const continuity = screen.getByRole("tab", { name: "Continuity" });
+    const activity = screen.getByRole("tab", { name: "Supporting activity" });
+    continuity.focus();
+    await user.keyboard("{ArrowLeft}");
+    expect(activity).toHaveFocus();
+    expect(activity).toHaveAttribute("aria-selected", "true");
+  });
+
   it("keeps a local correction visible after applying it", async () => {
     const user = userEvent.setup();
     render(<HomeShell destination="history" fixture={homeFixture("history")} previewEnabled />);

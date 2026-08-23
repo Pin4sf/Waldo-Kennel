@@ -9,10 +9,12 @@ import { useTranslation } from "react-i18next";
 export function HomeDestinationView({
   destination,
   fixture,
+  initialRecordId,
   previewEnabled,
 }: {
   destination: Exclude<HomeDestination, "today">;
   fixture: HomeFixtureState;
+  initialRecordId?: string;
   previewEnabled: boolean;
 }) {
   const { t } = useTranslation();
@@ -37,5 +39,5 @@ export function HomeDestinationView({
     return <HomeDailyClose fixture={fixture} />;
   }
 
-  return <HomeHistory fixture={fixture} previewEnabled={previewEnabled} />;
+  return <HomeHistory fixture={fixture} initialRecordId={initialRecordId} previewEnabled={previewEnabled} />;
 }

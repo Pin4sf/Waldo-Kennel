@@ -54,6 +54,7 @@ export function WaldoRail({
   const setContextDetached = sharedConversation?.setContextDetached ?? setLocalContextDetached;
   const draft = sharedConversation?.draft ?? localDraft;
   const setDraft = sharedConversation?.setDraft ?? setLocalDraft;
+  const submittedQuestion = sharedConversation?.submittedQuestions[episode];
   const previewSteps = [
     t("waldo.rail.activity.step.context"),
     t("waldo.rail.activity.step.sources"),
@@ -201,8 +202,8 @@ export function WaldoRail({
                     event.preventDefault();
                     const nextMode = previewMode === "conversation" ? "activity" : "conversation";
                     setMode(nextMode);
-                    document
-                      .querySelector<HTMLButtonElement>(`[data-waldo-mode="${nextMode}"]`)
+                    event.currentTarget.parentElement
+                      ?.querySelector<HTMLButtonElement>(`[data-waldo-mode="${nextMode}"]`)
                       ?.focus();
                   }}
                   onClick={() => setMode(previewMode)}
@@ -279,6 +280,7 @@ export function WaldoRail({
                 resultExpanded={resultExpanded}
                 setProposalReviewed={setProposalReviewed}
                 setResultExpanded={setResultExpanded}
+                submittedQuestion={submittedQuestion}
               />
             ) : (
               <ActivityPreview contextLabel={contextLabel} previewSteps={previewSteps} />
@@ -309,12 +311,14 @@ function ConversationPreview({
   resultExpanded,
   setProposalReviewed,
   setResultExpanded,
+  submittedQuestion,
 }: {
   episode: WaldoPreviewEpisode;
   proposalReviewed: boolean;
   resultExpanded: boolean;
   setProposalReviewed: (reviewed: boolean) => void;
   setResultExpanded: (expanded: boolean) => void;
+  submittedQuestion?: string;
 }) {
   const { t } = useTranslation();
 
@@ -374,7 +378,7 @@ function ConversationPreview({
     <div className="space-y-4">
       <div className="space-y-2.5" aria-label={t("waldo.rail.conversation")}>
         <div className="ml-8 rounded-2xl rounded-br-md bg-foreground px-3.5 py-3 text-sm leading-5 text-background">
-          {t("waldo.rail.previewRequest")}
+          {submittedQuestion ?? t("waldo.rail.previewRequest")}
         </div>
         <div className="mr-5 rounded-2xl rounded-bl-md border border-border bg-raised px-3.5 py-3 text-sm leading-5 text-foreground">
           {t("waldo.rail.previewResponse")}

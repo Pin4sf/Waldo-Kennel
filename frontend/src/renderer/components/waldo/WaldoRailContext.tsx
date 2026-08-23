@@ -24,6 +24,8 @@ export type WaldoConversationState = {
   setContextDetached: (detached: boolean) => void;
   setDraft: (draft: string) => void;
   setMode: (mode: WaldoPreviewMode) => void;
+  setSubmittedQuestion: (episode: WaldoPreviewEpisode, question: string) => void;
+  submittedQuestions: Partial<Record<WaldoPreviewEpisode, string>>;
 };
 
 type WaldoRailContextValue = {
@@ -60,6 +62,9 @@ export function WaldoRailProvider({ children }: { children: ReactNode }) {
   const [episode, setEpisode] = useState<WaldoPreviewEpisode>("contextual");
   const [contextDetached, setContextDetached] = useState(false);
   const [draft, setDraft] = useState("");
+  const [submittedQuestions, setSubmittedQuestions] = useState<
+    Partial<Record<WaldoPreviewEpisode, string>>
+  >({});
   const invocationOriginRef = useRef<HTMLElement | null>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
 
@@ -96,6 +101,13 @@ export function WaldoRailProvider({ children }: { children: ReactNode }) {
     setContextDetached(false);
   }, []);
 
+  const setSubmittedQuestion = useCallback(
+    (targetEpisode: WaldoPreviewEpisode, question: string) => {
+      setSubmittedQuestions((current) => ({ ...current, [targetEpisode]: question }));
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -120,6 +132,8 @@ export function WaldoRailProvider({ children }: { children: ReactNode }) {
         setContextDetached,
         setDraft,
         setMode,
+        setSubmittedQuestion,
+        submittedQuestions,
       },
       isOpen,
       launcherRef,
@@ -127,7 +141,20 @@ export function WaldoRailProvider({ children }: { children: ReactNode }) {
       setApprovalActive,
       toggle,
     }),
-    [approvalActive, close, contextDetached, draft, episode, isOpen, mode, open, selectEpisode, toggle],
+    [
+      approvalActive,
+      close,
+      contextDetached,
+      draft,
+      episode,
+      isOpen,
+      mode,
+      open,
+      selectEpisode,
+      setSubmittedQuestion,
+      submittedQuestions,
+      toggle,
+    ],
   );
 
   return <WaldoRailContext.Provider value={value}>{children}</WaldoRailContext.Provider>;

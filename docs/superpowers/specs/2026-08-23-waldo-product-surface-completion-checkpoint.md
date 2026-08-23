@@ -2,9 +2,9 @@
 
 **Date:** 2026-08-23
 
-**Status:** Approved incremental completion boundary after the Personal Agency rail checkpoint; implementation remains local
+**Status:** Approved incremental renderer checkpoint prepared for beta review; native macOS completion remains open
 
-**Landed baseline:** `origin/beta` at `917dbe65c` (PR #52 squash merge; tree `795b9cf8d9fcd648b3957164bf87e518a5ab9f86`)
+**Landed baseline:** `origin/beta` at `0ae292745` (includes PR #52 and the later Figma/Kennel Island update in PR #54)
 
 **Scope:** Kennel desktop renderer, product information architecture, and truthful preview seams
 
@@ -12,7 +12,7 @@
 
 The stacked renderer now has a global Waldo relationship across Home and Work, a Home/Work switch, Home Today and continuity destinations, Conversation and Activity rail modes, contextual episodes, detachable context, structured semantic cards, bounded-run inspection, responsive behavior, keyboard access, and canonical no-preview honesty.
 
-That checkpoint landed with a broken broad regression foundation: the fresh beta baseline had 33 passing and 35 failing Playwright cases despite the unit, typecheck, build, and package-identity gates passing. Local P0 diagnosis and TDD repair first restored all 69 existing Playwright cases; the completed preview surfaces now produce 74 passing cases. Source regressions were the centered Home/Work switch intercepting Work titlebar controls, the Inspector's 280px clamp violating the established 350px contract, chat-pane horizontal overflow, and the board's missing New terminal action. Harness regressions were the obsolete `window.ao` bridge key, missing onboarding completion, unserved agent-catalog requests, and terminal tests racing terminal-mux attach/replay. The remaining clusters were stale routes, fixture names, accessible roles, labels, or exact state assumptions; those assertions were updated only after the rendered product contract was inspected. Terminal retention also needed its lifecycle waits restored and its finite Chromium scroll-event ceiling clarified. The same full gate is now green. Physical public-UI/accessibility inspection now covers the wide Chat, preview send/source flow, Activity specialist workspace, and responsive inspector collapse; system-level VoiceOver, Full Keyboard Access, inactive-window, trackpad gesture, and Reduce Motion toggles remain an explicit follow-up rather than a claimed pass.
+That checkpoint landed with a broken broad regression foundation: the fresh beta baseline had 33 passing and 35 failing Playwright cases despite the unit, typecheck, build, and package-identity gates passing. Local P0 diagnosis and TDD repair first restored all 69 existing Playwright cases; the completed preview surfaces now produce 75 passing cases. Source regressions were the centered Home/Work switch intercepting Work titlebar controls, the Inspector's 280px clamp violating the established 350px contract, chat-pane horizontal overflow, and the board's missing New terminal action. Harness regressions were the obsolete `window.ao` bridge key, missing onboarding completion, unserved agent-catalog requests, and terminal tests racing terminal-mux attach/replay. The remaining clusters were stale routes, fixture names, accessible roles, labels, or exact state assumptions; those assertions were updated only after the rendered product contract was inspected. Terminal retention also needed its lifecycle waits restored and its finite Chromium scroll-event ceiling clarified. The same full gate is now green. Physical public-UI/accessibility inspection now covers the wide Chat, preview send/source flow, Activity specialist workspace, and responsive inspector collapse; system-level VoiceOver, Full Keyboard Access, inactive-window, trackpad gesture, and Reduce Motion toggles remain an explicit follow-up rather than a claimed pass.
 
 The remaining surface is split across two partially reconciled models:
 
@@ -112,6 +112,8 @@ The local 2026-08-23 public-UI/accessibility audit of `/Applications/Grok Bot.ap
 
 ## Completion criteria
 
+These remain the acceptance target. Automated renderer items may be green while the explicitly listed native macOS interaction and physical-verification items remain open.
+
 1. The desktop shows Waldo product branding and Kennel harness wording; no user-visible AO asset or copy remains.
 2. One development launch produces one main Electron app process. Auxiliary Island renderers and the daemon are labeled and diagnosed as parts of that app, not separate builds.
 3. `Insights` replaces `History` in Home navigation and renders source-backed, correctable preview candidates; continuity records remain available underneath it.
@@ -127,16 +129,17 @@ The deterministic preview acceptance story is: ask “What changed in the pricin
 
 ## Gaps
 
-- **Regression foundation:** the landed 33/35 gate is classified and restored; the completed local surface runs 73/0. The remaining P0 work is physical macOS interaction verification and any source issue that evidence reveals there.
+- **Regression foundation:** the landed 33/35 gate is classified and restored; the completed local surface runs 75/0 after rebasing onto PR #54 and restoring its hidden board action surface. The remaining P0 work is physical macOS interaction verification and any source issue that evidence reveals there.
 - **macOS interaction grammar:** automated coverage now proves browser-style Back/Forward, draft-safe navigation, focus restoration, keyboard tab switching, pointer reachability, internal scrolling, responsive overflow, and Reduce Motion rendering. Native menus, secondary click, trackpad gestures, Full Keyboard Access, VoiceOver order/announcements, and inactive-window legibility still need physical verification after the desktop session is unlocked.
 - **Responsive composition:** Playwright proves the supported 960px minimum and 1512px wide layouts for Home, Chat, Waldo Activity, Insights/Records, specialist creation, Work controls, Inspector width, scrolling, and horizontal overflow. Short, medium, and ultrawide physical window inspection remains outstanding.
 - **Brand layer:** Figma mark, launcher, sidebar, startup, app, and tray assets are being reconciled; visible AO copy requires a catalog/runtime sweep.
 - **Insights:** the local preview now supplies source-window candidates, observation/inference boundaries, known gaps, an explicit deterministic-fixture/no-provider disclosure, Confirm/Correct/Dismiss/Why review, an honest unconfigured state, and nested Records. No durable synthesis contract exists.
-- **Chat:** Home now has a dedicated destination sharing Waldo mode, episode, attached-context state, and unsent draft with the global rail. No message transport or durable transcript exists.
+- **Chat:** Home now has a dedicated destination sharing Waldo mode, episode, attached-context state, unsent draft, and mounted preview exchange with the global rail. Typed preview sources open the corresponding selected local Record. No message transport or durable transcript exists.
 - **Specialists:** Waldo Activity now has one preview-only governed creation/profile surface with purpose, explicit scope, sources/tools, authority ceiling, budget, completion, evidence, return destination, pause, and revoke. No durable `AgentProfile`, capability connection, execution, or pinning exists.
 - **Runtime truth:** preview controls cannot send, save, approve, execute, or verify.
 - **Persistence:** conversation episodes, attached context, insights, responsibilities, runs, approvals, evidence, and outcomes have no durable Personal Agency storage/API.
 - **Connection:** there is no provider-neutral secure connection flow or Keychain-backed credential boundary.
+- **Localization:** the preview copy is present in every supported catalog so coverage is deterministic, but the new specialist/Chat strings still mirror English outside the English catalog; a real translation pass remains open.
 
 ## Anti-criterion
 

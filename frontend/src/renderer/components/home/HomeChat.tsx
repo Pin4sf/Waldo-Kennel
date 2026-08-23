@@ -18,6 +18,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import waldoMark from "../../../../assets/waldo-mark.svg";
 import { cn } from "../../lib/utils";
+import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import {
   useWaldoRail,
   type WaldoPreviewEpisode,
@@ -40,12 +41,16 @@ export function HomeChat({
   const [localEpisode, setLocalEpisode] = useState<WaldoPreviewEpisode>("contextual");
   const [localDetached, setLocalDetached] = useState(false);
   const [localDraft, setLocalDraft] = useState("");
-  const [submittedQuestion, setSubmittedQuestion] = useState<string | null>(null);
+  const [localSubmittedQuestions, setLocalSubmittedQuestions] = useState<
+    Partial<Record<WaldoPreviewEpisode, string>>
+  >({});
   const [correctionApplied, setCorrectionApplied] = useState(false);
   const [runState, setRunState] = useState<RunState>("waiting");
   const [approvalResponse, setApprovalResponse] = useState<ApprovalAction | null>(null);
   const [detailsLayer, setDetailsLayer] = useState<"context" | "run" | null>(null);
+  const detailsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
 
   const mode = shared?.mode ?? localMode;
   const episode = shared?.episode ?? localEpisode;
@@ -54,13 +59,20 @@ export function HomeChat({
   const setMode = shared?.setMode ?? setLocalMode;
   const setContextDetached = shared?.setContextDetached ?? setLocalDetached;
   const setDraft = shared?.setDraft ?? setLocalDraft;
+  const submittedQuestion =
+    shared?.submittedQuestions[episode] ?? localSubmittedQuestions[episode] ?? null;
+  const setSubmittedQuestion = (question: string) => {
+    if (shared) shared.setSubmittedQuestion(episode, question);
+    else {
+      setLocalSubmittedQuestions((current) => ({ ...current, [episode]: question }));
+    }
+  };
   const selectEpisode = (next: WaldoPreviewEpisode) => {
     if (shared) shared.selectEpisode(next);
     else {
       setLocalEpisode(next);
       setLocalDetached(false);
     }
-    setSubmittedQuestion(null);
     setCorrectionApplied(false);
   };
 
@@ -101,7 +113,7 @@ export function HomeChat({
   }
 
   return (
-    <section aria-label={t("waldo.rail.aria")} className="home-chat-workspace rounded-2xl border border-border bg-background shadow-xs">
+    <section aria-label={t("waldo.rail.aria")} className="home-chat-workspace rounded-2xl border border-border bg-background shadow-xs" ref={workspaceRef}>
       <WaldoHeader mode={mode} previewEnabled setMode={setMode} />
       {mode === "conversation" ? (
         <div className="home-chat-grid min-h-0 flex-1">
@@ -122,7 +134,14 @@ export function HomeChat({
                   <span className="rounded-full border border-border px-2.5 py-1 text-micro font-medium text-muted-foreground">
                     {t("home.chat.localEpisode")}
                   </span>
-                  <button className="home-chat-compact-trigger rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground" onClick={() => setDetailsLayer("context")} type="button">
+                  <button
+                    className="home-chat-compact-trigger rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground"
+                    onClick={(event) => {
+                      detailsTriggerRef.current = event.currentTarget;
+                      setDetailsLayer("context");
+                    }}
+                    type="button"
+                  >
                     {t("home.chat.openContext")}
                   </button>
                 </div>
@@ -163,11 +182,11 @@ export function HomeChat({
                           <p className="text-xs font-semibold text-foreground">{t("waldo.rail.identity")}</p>
                           <p className="text-sm leading-6 text-foreground">{t("home.chat.previewAnswer")}</p>
                           <div className="flex flex-wrap gap-2">
-                            <a className="home-chat-source" href="#/home/history">
+                            <a className="home-chat-source" href="#/home/history?record=pricing-decision-note">
                               <FileText aria-hidden="true" className="size-3.5" />
                               {t("home.chat.sourceDecision")}
                             </a>
-                            <a className="home-chat-source" href="#/home/history">
+                            <a className="home-chat-source" href="#/home/history?record=pricing-workshop-calendar">
                               <Link2 aria-hidden="true" className="size-3.5" />
                               {t("home.chat.sourceCalendar")}
                             </a>
@@ -244,46 +263,94 @@ export function HomeChat({
         <ActivityWorkspace
           approvalResponse={approvalResponse}
           contextLabel={contextLabel}
-          onApproval={setApprovalResponse}
-          onOpenInspector={() => setDetailsLayer("run")}
+          onApproval={(response) => {
+            setApprovalResponse(response);
+            setRunState(
+              response === "accept"
+                ? "approved"
+                : response === "reject"
+                  ? "stopped"
+                  : "waiting",
+            );
+          }}
+          onOpenInspector={(origin) => {
+            detailsTriggerRef.current = origin;
+            setDetailsLayer("run");
+          }}
+          onReturn={() => {
+            setDetailsLayer(null);
+            setMode("conversation");
+          }}
           onRunState={setRunState}
           runState={runState}
         />
       )}
-      {detailsLayer ? (
-        <section
-          aria-label={detailsLayer === "context" ? t("home.chat.contextLayerAria") : t("home.chat.runLayerAria")}
-          aria-modal="true"
-          className="home-chat-compact-layer"
-          role="dialog"
-        >
-          <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
-            <button className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-foreground hover:bg-interactive-hover" onClick={() => setDetailsLayer(null)} type="button">
-              <ArrowLeft aria-hidden="true" className="size-3.5" />
-              {t("home.chat.backToConversation")}
-            </button>
-          </header>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {detailsLayer === "context" ? (
-              <ContextInspector
-                contextDetached={contextDetached}
-                contextLabel={contextLabel}
-                correctionApplied={correctionApplied}
-                onCorrect={() => setCorrectionApplied(true)}
-                onDetach={() => setContextDetached(true)}
-                onReattach={() => setContextDetached(false)}
-              />
-            ) : (
-              <RunInspectorContent contextLabel={contextLabel} onRunState={setRunState} />
-            )}
-          </div>
-        </section>
-      ) : null}
+      <Dialog open={detailsLayer !== null} onOpenChange={(open) => !open && setDetailsLayer(null)}>
+        {detailsLayer ? (
+          <DialogContent
+            aria-describedby={undefined}
+            aria-label={detailsLayer === "context" ? t("home.chat.contextLayerAria") : t("home.chat.runLayerAria")}
+            className="home-chat-compact-layer"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              detailsTriggerRef.current?.focus({ preventScroll: true });
+            }}
+            overlay={false}
+            portalContainer={workspaceRef.current}
+            showCloseButton={false}
+          >
+            <DialogTitle className="sr-only">
+              {detailsLayer === "context"
+                ? t("home.chat.contextLayerAria")
+                : t("home.chat.runLayerAria")}
+            </DialogTitle>
+            <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
+              <button
+                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-foreground hover:bg-interactive-hover"
+                onClick={() => setDetailsLayer(null)}
+                type="button"
+              >
+                <ArrowLeft aria-hidden="true" className="size-3.5" />
+                {t("home.chat.backToConversation")}
+              </button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {detailsLayer === "context" ? (
+                <ContextInspector
+                  contextDetached={contextDetached}
+                  contextLabel={contextLabel}
+                  correctionApplied={correctionApplied}
+                  onCorrect={() => setCorrectionApplied(true)}
+                  onDetach={() => setContextDetached(true)}
+                  onReattach={() => setContextDetached(false)}
+                />
+              ) : (
+                <RunInspectorContent
+                  contextLabel={contextLabel}
+                  onReturn={() => {
+                    setDetailsLayer(null);
+                    setMode("conversation");
+                  }}
+                  onRunState={setRunState}
+                />
+              )}
+            </div>
+          </DialogContent>
+        ) : null}
+      </Dialog>
     </section>
   );
 }
 
-function WaldoHeader({ mode, previewEnabled, setMode }: { mode: WaldoPreviewMode; previewEnabled: boolean; setMode: (mode: WaldoPreviewMode) => void }) {
+function WaldoHeader({
+  mode,
+  previewEnabled,
+  setMode,
+}: {
+  mode: WaldoPreviewMode;
+  previewEnabled: boolean;
+  setMode: (mode: WaldoPreviewMode) => void;
+}) {
   const { t } = useTranslation();
   return (
     <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-border px-5 py-3.5">
@@ -308,8 +375,19 @@ function WaldoHeader({ mode, previewEnabled, setMode }: { mode: WaldoPreviewMode
               aria-selected={mode === item}
               className={cn("inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-medium text-muted-foreground", mode === item && "bg-background text-foreground shadow-xs")}
               key={item}
+              data-home-chat-mode={item}
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                event.preventDefault();
+                const nextMode = item === "conversation" ? "activity" : "conversation";
+                setMode(nextMode);
+                event.currentTarget.parentElement
+                  ?.querySelector<HTMLButtonElement>(`[data-home-chat-mode="${nextMode}"]`)
+                  ?.focus();
+              }}
               onClick={() => setMode(item)}
               role="tab"
+              tabIndex={mode === item ? 0 : -1}
               type="button"
             >
               {item === "conversation" ? <MessageCircle aria-hidden="true" className="size-3.5" /> : <Sparkles aria-hidden="true" className="size-3.5" />}
@@ -399,16 +477,38 @@ function ContextInspector({ contextDetached, contextLabel, correctionApplied, on
   );
 }
 
-function ActivityWorkspace({ approvalResponse, contextLabel, onApproval, onOpenInspector, onRunState, runState }: { approvalResponse: ApprovalAction | null; contextLabel: string; onApproval: (response: ApprovalAction) => void; onOpenInspector: () => void; onRunState: (state: RunState) => void; runState: RunState }) {
+function ActivityWorkspace({
+  approvalResponse,
+  contextLabel,
+  onApproval,
+  onOpenInspector,
+  onReturn,
+  onRunState,
+  runState,
+}: {
+  approvalResponse: ApprovalAction | null;
+  contextLabel: string;
+  onApproval: (response: ApprovalAction) => void;
+  onOpenInspector: (origin: HTMLButtonElement) => void;
+  onReturn: () => void;
+  onRunState: (state: RunState) => void;
+  runState: RunState;
+}) {
   const { t } = useTranslation();
   return (
     <div className="home-chat-grid min-h-0 flex-1">
       <nav aria-label={t("home.chat.specialistsAria")} className="home-chat-side-rail">
         <div className="border-b border-border p-3">
-          <button className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground" type="button">
+          <button
+            aria-describedby="home-chat-specialist-create-boundary"
+            className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-xs font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+            disabled
+            type="button"
+          >
             <Plus aria-hidden="true" className="size-3.5" />
             {t("waldo.rail.specialist.create")}
           </button>
+          <p className="sr-only" id="home-chat-specialist-create-boundary">{t("home.chat.runBoundary")}</p>
         </div>
         <p className="px-4 pb-2 pt-4 text-micro font-semibold uppercase tracking-[0.12em] text-muted-foreground">{t("home.chat.coordinator")}</p>
         <div className="mx-2 rounded-xl bg-interactive-active px-3 py-2.5">
@@ -438,7 +538,7 @@ function ActivityWorkspace({ approvalResponse, contextLabel, onApproval, onOpenI
             </div>
             <div className="flex items-center gap-2">
               <span className="rounded-full bg-warning-subtle px-2.5 py-1 text-micro font-semibold text-warning-foreground">{t(`home.chat.runState.${runState}`)}</span>
-              <button className="home-chat-compact-trigger rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground" onClick={onOpenInspector} type="button">
+              <button className="home-chat-compact-trigger rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground" onClick={(event) => onOpenInspector(event.currentTarget)} type="button">
                 {t("home.chat.openRunInspector")}
               </button>
             </div>
@@ -452,7 +552,9 @@ function ActivityWorkspace({ approvalResponse, contextLabel, onApproval, onOpenI
             <section className="rounded-2xl border border-border bg-card p-4 shadow-xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-foreground">{t("home.chat.approvalTitle")}</p>
-                <span className="rounded-full bg-warning-subtle px-2 py-1 text-micro font-semibold text-warning-foreground">{t("waldo.rail.approvalRequired")}</span>
+                <span className="rounded-full bg-warning-subtle px-2 py-1 text-micro font-semibold text-warning-foreground">
+                  {runState === "waiting" ? t("waldo.rail.approvalRequired") : t(`home.chat.runState.${runState}`)}
+                </span>
               </div>
               <p className="mt-2 text-sm leading-6 text-foreground">{t("home.chat.approvalDetail")}</p>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">{t("home.chat.approvalConsequence")}</p>
@@ -470,11 +572,16 @@ function ActivityWorkspace({ approvalResponse, contextLabel, onApproval, onOpenI
         <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3.5">
           <p className="text-micro text-muted-foreground">{t("home.chat.runBoundary")}</p>
           <div className="flex flex-wrap gap-2">
-            <button className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground" onClick={() => onRunState(runState === "paused" ? "waiting" : "paused")} type="button">
+            <button
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={runState !== "approved" && runState !== "paused"}
+              onClick={() => onRunState(runState === "paused" ? "approved" : "paused")}
+              type="button"
+            >
               <CirclePause aria-hidden="true" className="size-3.5" />
               {runState === "paused" ? t("waldo.rail.specialist.resume") : t("waldo.rail.specialist.pause")}
             </button>
-            <button className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-destructive" onClick={() => onRunState("stopped")} type="button">
+            <button className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-destructive disabled:cursor-not-allowed disabled:opacity-45" disabled={runState === "stopped"} onClick={() => onRunState("stopped")} type="button">
               <Square aria-hidden="true" className="size-3.5" />
               {t("home.chat.stop")}
             </button>
@@ -483,13 +590,13 @@ function ActivityWorkspace({ approvalResponse, contextLabel, onApproval, onOpenI
       </main>
 
       <aside aria-label={t("home.chat.runInspectorAria")} className="home-chat-inspector">
-        <RunInspectorContent contextLabel={contextLabel} onRunState={onRunState} />
+        <RunInspectorContent contextLabel={contextLabel} onReturn={onReturn} onRunState={onRunState} />
       </aside>
     </div>
   );
 }
 
-function RunInspectorContent({ contextLabel, onRunState }: { contextLabel: string; onRunState: (state: RunState) => void }) {
+function RunInspectorContent({ contextLabel, onReturn, onRunState }: { contextLabel: string; onReturn: () => void; onRunState: (state: RunState) => void }) {
   const { t } = useTranslation();
   return (
     <div className="space-y-5 p-4">
@@ -511,7 +618,7 @@ function RunInspectorContent({ contextLabel, onRunState }: { contextLabel: strin
       </section>
       <div className="grid gap-2">
         <button className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-foreground" onClick={() => onRunState("waiting")} type="button"><RotateCcw aria-hidden="true" className="size-3.5" />{t("home.chat.retry")}</button>
-        <button className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-foreground" type="button"><ArrowLeft aria-hidden="true" className="size-3.5" />{t("home.chat.return")}</button>
+        <button className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-foreground" onClick={onReturn} type="button"><ArrowLeft aria-hidden="true" className="size-3.5" />{t("home.chat.return")}</button>
       </div>
       <p className="border-t border-border pt-4 text-micro leading-4 text-muted-foreground">{t("home.chat.runInspectorBoundary")}</p>
     </div>

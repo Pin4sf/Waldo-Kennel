@@ -796,6 +796,7 @@ function ShellLayout() {
 							{/* Board/session routes render inside the same inset box the welcome board and settings paint for themselves, so every screen sits within the app's outer boundary. */}
 							{isFigmaBoardRoute ? (
 								<CenterPanelShell className="center-panel-shell--figma-board">
+									{hideShellTopbar ? null : <ShellTopbar />}
 									<div className="flex min-h-0 flex-1 flex-col">
 										<Outlet />
 									</div>

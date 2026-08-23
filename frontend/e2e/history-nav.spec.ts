@@ -1,14 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-// Repro for the titlebar history arrows: navigate home → project → back,
-// then the forward arrow must be enabled and actually traverse forward.
+// Board routes intentionally use the Figma shell without titlebar history
+// chrome. Exercise the persistent arrows between two standard session routes.
 test("titlebar back/forward arrows traverse history", async ({ page }) => {
-	await page.goto("/");
-	await expect(page.getByText("Projects")).toBeVisible();
-
-	// Navigate: home → session view (in-app push).
-	await page.getByRole("button", { name: "Open Build screenshot-ready dashboard data" }).click();
+	await page.goto("/#/projects/ao-demo/sessions/demo-working");
 	await expect(page).toHaveURL(/sessions\/demo-working/);
+
+	await page.getByRole("button", { name: "Open Merge README screenshot asset update" }).click();
+	await expect(page).toHaveURL(/sessions\/demo-ready/);
 
 	const back = page.getByRole("button", { name: "Go back" });
 	const forward = page.getByRole("button", { name: "Go forward" });
@@ -17,9 +16,9 @@ test("titlebar back/forward arrows traverse history", async ({ page }) => {
 	await expect(back).toBeEnabled();
 
 	await back.click();
-	await expect(page).not.toHaveURL(/sessions\/demo-working/);
+	await expect(page).toHaveURL(/sessions\/demo-working/);
 
 	await expect(forward).toBeEnabled();
 	await forward.click();
-	await expect(page).toHaveURL(/sessions\/demo-working/);
+	await expect(page).toHaveURL(/sessions\/demo-ready/);
 });

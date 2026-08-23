@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   HomeContinuityEvent,
@@ -10,6 +10,21 @@ import type {
 type InsightLayer = "insights" | "records";
 type RecordsLayer = "continuity" | "activity";
 type InsightStatus = "Candidate" | "Confirmed" | "Corrected" | "Dismissed";
+
+function moveTab<T extends string>(
+  event: KeyboardEvent<HTMLButtonElement>,
+  order: readonly T[],
+  current: T,
+  onSelect: (next: T) => void,
+) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  const offset = event.key === "ArrowRight" ? 1 : -1;
+  const next = order[(order.indexOf(current) + offset + order.length) % order.length];
+  const tablist = event.currentTarget.parentElement;
+  tablist?.querySelector<HTMLButtonElement>(`[data-home-layer="${next}"]`)?.focus();
+  onSelect(next);
+}
 
 function InsightCard({ candidate }: { candidate: HomeInsightCandidate }) {
   const { t } = useTranslation();
@@ -255,11 +270,16 @@ function EventDetail({
   );
 }
 
-function RecordsView({ fixture }: { fixture: HomeFixtureState }) {
+function RecordsView({ fixture, initialRecordId }: { fixture: HomeFixtureState; initialRecordId?: string }) {
   const { t } = useTranslation();
   const [layer, setLayer] = useState<RecordsLayer>("continuity");
-  const [selectedId, setSelectedId] = useState(fixture.continuity[0]?.id ?? "");
-  const [mobileView, setMobileView] = useState<"index" | "detail">("index");
+  const selectedFromRoute = fixture.continuity.some((event) => event.id === initialRecordId)
+    ? initialRecordId
+    : undefined;
+  const [selectedId, setSelectedId] = useState(selectedFromRoute ?? fixture.continuity[0]?.id ?? "");
+  const [mobileView, setMobileView] = useState<"index" | "detail">(
+    selectedFromRoute ? "detail" : "index",
+  );
   const selectedRowRef = useRef<HTMLButtonElement | null>(null);
   const selected =
     fixture.continuity.find((event) => event.id === selectedId) ??
@@ -285,8 +305,11 @@ function RecordsView({ fixture }: { fixture: HomeFixtureState }) {
         <button
           aria-selected={layer === "continuity"}
           className="border-b-2 border-transparent px-3 pb-3 pt-1 text-xs text-muted-foreground aria-selected:border-foreground aria-selected:text-foreground"
+          data-home-layer="continuity"
+          onKeyDown={(event) => moveTab(event, ["continuity", "activity"], "continuity", setLayer)}
           onClick={() => setLayer("continuity")}
           role="tab"
+          tabIndex={layer === "continuity" ? 0 : -1}
           type="button"
         >
           {t("home.visual.insights.continuity")}
@@ -294,8 +317,11 @@ function RecordsView({ fixture }: { fixture: HomeFixtureState }) {
         <button
           aria-selected={layer === "activity"}
           className="border-b-2 border-transparent px-3 pb-3 pt-1 text-xs text-muted-foreground aria-selected:border-foreground aria-selected:text-foreground"
+          data-home-layer="activity"
+          onKeyDown={(event) => moveTab(event, ["continuity", "activity"], "activity", setLayer)}
           onClick={() => setLayer("activity")}
           role="tab"
+          tabIndex={layer === "activity" ? 0 : -1}
           type="button"
         >
           {t("home.visual.history.supportingActivity")}
@@ -398,13 +424,15 @@ function RecordsView({ fixture }: { fixture: HomeFixtureState }) {
 
 export function HomeHistory({
   fixture,
+  initialRecordId,
   previewEnabled = true,
 }: {
   fixture: HomeFixtureState;
+  initialRecordId?: string;
   previewEnabled?: boolean;
 }) {
   const { t } = useTranslation();
-  const [layer, setLayer] = useState<InsightLayer>("insights");
+  const [layer, setLayer] = useState<InsightLayer>(initialRecordId ? "records" : "insights");
   return (
     <section aria-labelledby="history-heading">
       <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
@@ -438,8 +466,11 @@ export function HomeHistory({
             <button
               aria-selected={layer === "insights"}
               className="border-b-2 border-transparent px-3 pb-3 pt-1 text-xs text-muted-foreground aria-selected:border-foreground aria-selected:text-foreground"
+              data-home-layer="insights"
+              onKeyDown={(event) => moveTab(event, ["insights", "records"], "insights", setLayer)}
               onClick={() => setLayer("insights")}
               role="tab"
+              tabIndex={layer === "insights" ? 0 : -1}
               type="button"
             >
               {t("home.visual.insights.insights")}
@@ -447,8 +478,11 @@ export function HomeHistory({
             <button
               aria-selected={layer === "records"}
               className="border-b-2 border-transparent px-3 pb-3 pt-1 text-xs text-muted-foreground aria-selected:border-foreground aria-selected:text-foreground"
+              data-home-layer="records"
+              onKeyDown={(event) => moveTab(event, ["insights", "records"], "records", setLayer)}
               onClick={() => setLayer("records")}
               role="tab"
+              tabIndex={layer === "records" ? 0 : -1}
               type="button"
             >
               {t("home.visual.insights.records")}
@@ -473,7 +507,7 @@ export function HomeHistory({
               ))}
             </div>
           ) : (
-            <RecordsView fixture={fixture} />
+            <RecordsView fixture={fixture} initialRecordId={initialRecordId} />
           )}
         </>
       )}

@@ -7,10 +7,13 @@ export const Route = createFileRoute("/_shell/home_/history")({
 });
 
 function HistoryRoute() {
+  const query = window.location.hash.split("?", 2)[1];
+  const initialRecordId = query ? new URLSearchParams(query).get("record") ?? undefined : undefined;
   return (
     <HomeShell
       destination="history"
       fixture={homeFixture("history", "offline")}
+      initialRecordId={initialRecordId}
     />
   );
 }

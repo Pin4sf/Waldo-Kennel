@@ -343,6 +343,15 @@ export function homeFixture(
     openLoops,
     continuity: [
       {
+        id: "pricing-workshop-calendar",
+        kind: "observation",
+        time: "2:41 PM",
+        title: "Workshop calendar event",
+        detail: "The organizer moved the pricing workshop from 3:30 PM to 4:30 PM.",
+        sourceSummary: "Calendar update · local fixture",
+        boundary: "This event is deterministic preview evidence; no calendar account is connected.",
+      },
+      {
         id: "correction",
         kind: "correction",
         time: "3:31 PM",
@@ -359,6 +368,15 @@ export function homeFixture(
         detail: "Pitch-deck Project · no Outcome created in this preview.",
         sourceSummary: "Waldo proposal · architecture preview",
         boundary: "No Work Outcome or responsibility link exists.",
+      },
+      {
+        id: "pricing-decision-note",
+        kind: "observation",
+        time: "5:18 PM",
+        title: "Pricing decision note",
+        detail: "The annual plan moved to a review-first launch, and discount exceptions still need an owner.",
+        sourceSummary: "Pricing workshop note · local fixture",
+        boundary: "This note is deterministic preview evidence; no durable decision record was written.",
       },
       {
         id: "reentry",
