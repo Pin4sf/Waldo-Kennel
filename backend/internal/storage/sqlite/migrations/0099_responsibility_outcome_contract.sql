@@ -30,9 +30,16 @@ CREATE TABLE outcomes (
     space_id                TEXT NOT NULL REFERENCES responsibility_spaces (id),
     title                   TEXT NOT NULL,
     current_revision_number INTEGER NOT NULL DEFAULT 0 CHECK (current_revision_number >= 0),
+    -- Client-supplied create idempotency key. Replay of a delivered request
+    -- resolves to the original Outcome instead of a duplicate row.
+    idempotency_key         TEXT,
     created_at              TIMESTAMP NOT NULL DEFAULT (datetime('now')),
     updated_at              TIMESTAMP NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE UNIQUE INDEX idx_outcomes_idempotency_key
+    ON outcomes (idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
 
 CREATE INDEX idx_outcomes_space ON outcomes (space_id, created_at);
 
