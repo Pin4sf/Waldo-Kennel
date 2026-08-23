@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-23  
 **Status:** product and interaction research only; no implementation authority  
-**Scope:** OpenAI ChatGPT/Codex desktop, Anthropic Claude Desktop/Claude Code Desktop, Cursor, Raycast, Linear, Windsurf, Dayflow, and Apple macOS interaction guidance  
+**Scope:** OpenAI ChatGPT/Codex desktop, Anthropic Claude Desktop/Claude Code Desktop, Cursor, Raycast, Linear, Windsurf, Dayflow, Dimension, Omi, installed Grok Bot/Hermes, and Apple macOS interaction guidance
 **Question:** Which current agent utilities and mature macOS conventions should Waldo Kennel adopt, adapt, or reject before the Personal Agency surface is considered complete?
 
 ## Executive finding
@@ -85,6 +85,37 @@ The originally ambiguous names are now resolved for this local comparison by the
 ### Combined product consequence
 
 Grok Bot should lead Waldo's compact specialist discovery and conversational card behavior; Hermes should lead capability/profile configuration and operator-control coverage. Neither establishes Waldo's responsibility, evidence, verification, acceptance, or memory-admission semantics. The resulting Waldo surface therefore keeps specialists subordinate under Activity, keeps Home Chat the same Waldo relationship as the rail, and requires an inspectable profile/run contract before showing a created or pinned specialist.
+
+## Dimension and Omi relationship-surface audit
+
+The user-named “Dimensions” benchmark resolves to **Dimension** at [dimension.dev](https://dimension.dev/). Its first-party [closure notice](https://dimension.dev/winding-down) says the service wound down on May 20, 2026. The still-live product pages and docs are therefore archival first-party design evidence, not proof of a currently available product runtime. Omi evidence comes from [omi.me](https://www.omi.me/), its official Help Center, public app store, and the official `BasedHardware/omi` repository pinned at `6f7c57ac1545c1931c806a01605646405d398198`.
+
+### Dimension — daily orientation and bounded decisions
+
+**Observed:** Dimension makes Morning Briefing the Home orientation surface, combining a schedule, items needing attention, and narrative summary rather than a generic metrics dashboard ([Morning Briefing](https://dimension.dev/morning-briefing); [proactive features](https://docs.dimension.dev/proactive-features)). Chat remains the primary agent interaction; threads are searchable, renameable, deletable, and retain their own context ([Chat](https://docs.dimension.dev/chat)). Catch Up keeps original sources beneath summaries, background Skills can be invoked explicitly or selected by the agent, and sensitive chat actions expose `Accept`, `Reject`, `Edit`, and `Respond` ([Search](https://dimension.dev/search); [Skills](https://docs.dimension.dev/skills); [Workflows](https://docs.dimension.dev/workflows)).
+
+**Inference / limit:** Dimension is the stronger finite Home-rhythm benchmark, but its post-closure pages cannot establish runtime availability, accessibility, responsive behavior, or current reliability. Its public material also does not establish Waldo's responsibility or evidence lineage.
+
+**Waldo decision:** **Adopt** finite briefing, searchable topics, summary-plus-original review, and explicit approval choices. **Adapt** Skills into scoped delegated specialists under Waldo Activity. **Reject** automatic approval bypass, archival marketing as runtime proof, and any briefing claim without source/freshness/gap disclosure.
+
+### Omi — conversational continuity and typed source lineage
+
+**Observed:** Omi models a recording as a Conversation containing transcript, summary, insights, and detected tasks; Memories are derived facts, and Chat uses Conversations, Memories, and Tasks as context ([Conversations, Memories and chats](https://help.omi.me/en/articles/13153612-conversations-memories-and-chats)). Memories can return to their originating Conversation ([First steps](https://help.omi.me/en/articles/13135362-first-steps)). Current macOS source makes Home the single search/chat destination and defines typed, openable citations for Conversation, Memory, Task, Goal, Rewind screenshot, Web, and unavailable sources ([QueryShellHome](https://github.com/BasedHardware/omi/blob/6f7c57ac1545c1931c806a01605646405d398198/desktop/macos/Desktop/Sources/MainWindow/QueryShell/QueryShellHome.swift); [ChatCitation](https://github.com/BasedHardware/omi/blob/6f7c57ac1545c1931c806a01605646405d398198/desktop/macos/Desktop/Sources/Chat/ChatCitation.swift)). Its macOS top bar uses `ViewThatFits` to replace the full navigation row with a compact menu when space is constrained ([DesktopTopBar](https://github.com/BasedHardware/omi/blob/6f7c57ac1545c1931c806a01605646405d398198/desktop/macos/Desktop/Sources/MainWindow/DesktopTopBar.swift)). Omi Apps are specialized chats/personas, integrations, memory processors, or automations with disclosed data/accounts/permissions ([Omi Apps](https://help.omi.me/en/articles/13153599-omi-apps)).
+
+**Inference / limit:** Omi is the stronger `episode -> derived record -> source backlink` reference. Its app selector can replace the visible persona, which conflicts with Waldo's one-relationship invariant. Its approval document is explicitly design-only, so it does not establish a shipped approval queue. Distributed Mac-build parity and physical accessibility/responsive behavior remain unknown.
+
+**Waldo decision:** **Adopt** one query surface, typed citations, source return, inline lifecycle cards, and compact navigation fallback. **Adapt** Apps into capabilities of specialists coordinated by Waldo. **Reject** persona switching as personal-agent identity, automatically accepted tasks/memories, and design-only approval work as shipped evidence.
+
+### Four-surface synthesis
+
+| Waldo surface | Primary benchmark contribution | Required Waldo boundary |
+| --- | --- | --- |
+| Today | Dimension Morning Briefing | finite orientation; no invented urgency, productivity score, or unsourced claim |
+| Chat | Omi one-query surface + Dimension threads | same Waldo state as the quick rail; typed sources, freshness, gaps, correction, and deterministic preview disclosure |
+| Insights / Records | Omi Conversation-derived lineage + Dayflow correction | every derived candidate returns to source and stays unadmitted until user confirmation |
+| Activity → Agents | Grok Bot discovery/cards + Hermes governance | specialists remain scoped workers under Waldo with authority, evidence, recovery, and a return destination |
+
+The resulting acceptance flow is one connected responsibility story rather than four demos: ask what changed in the pricing workshop and what still needs the user; inspect typed sources; correct or detach context; approve only a bounded proposal; follow the delegated specialist in Activity; inspect evidence and unknowns; then return to the originating Home or Work responsibility. No provider completion, specialist status, task extraction, or memory extraction accepts an Outcome.
 
 ## Product benchmark
 

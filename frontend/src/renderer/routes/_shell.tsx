@@ -783,7 +783,7 @@ function ShellLayout() {
 						workspaces={workspaces}
 					/>
 					<main
-					className={cn(
+						className={cn(
 							"global-mode-switch-responsive-main relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
 							// The Figma board routes paint their own full-bleed shell, so the
 							// collapsed-sidebar inset that every other route needs would double

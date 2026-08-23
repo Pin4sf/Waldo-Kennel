@@ -14,7 +14,7 @@
 2. Classify each of the 35 reported failures as product/source regression, fixture or daemon precondition, stale product assumption, or cascading failure. Do not weaken an assertion merely to make the gate green.
 3. Restore the broad gate or document every remaining non-product precondition with a focused reproducible command and owner. The product-surface work is not complete while a source regression is hidden in the baseline.
 
-**Local checkpoint (2026-08-23): complete.** The landed 33 pass / 35 fail baseline was restored to 69 pass / 0 fail before new destinations; the completed preview surface now runs 73 pass / 0 fail. Source fixes cover mode-switch hit testing/layout, the 350px Inspector contract, chat overflow containment, and board New terminal routing. Harness fixes cover the renamed public preload bridge, onboarding state, agent-catalog routes, and mux/replay readiness. Obsolete demo routes, fixture names, roles, labels, and exact preview-state assumptions were updated after product inspection. Retained-terminal tests now wait for actual mux/replay readiness; the bounded reveal sequence permits at most four Chromium scroll events while still proving one open writer, no parked resize, and a final viewport at the latest output.
+**Local checkpoint (2026-08-23): complete.** The landed 33 pass / 35 fail baseline was restored to 69 pass / 0 fail before new destinations; the completed preview surface now runs 74 pass / 0 fail. Source fixes cover mode-switch hit testing/layout, the 350px Inspector contract, chat overflow containment, and board New terminal routing. Harness fixes cover the renamed public preload bridge, onboarding state, agent-catalog routes, and mux/replay readiness. Obsolete demo routes, fixture names, roles, labels, and exact preview-state assumptions were updated after product inspection. Retained-terminal tests now wait for actual mux/replay readiness; the bounded reveal sequence permits at most four Chromium scroll events while still proving one open writer, no parked resize, and a final viewport at the latest output.
 
 ### 0B — Pointer, pane width, and responsive composition (TDD)
 
@@ -44,16 +44,19 @@ Prove Home exposes `Chat` and that:
 - rail-to-Chat and Chat-to-rail transitions preserve topic ownership and restore focus;
 - canonical unconfigured mode contains no plausible transcript or successful action;
 - Work return, narrow navigation, keyboard access, and draft-safe Back behavior remain correct.
+- the destination has distinct episode, conversation, and source/context regions at wide width, then collapses optional context before degrading the conversation at medium/narrow widths;
+- the deterministic preview question “What changed in the pricing workshop and what still needs me?” produces one local-fixture reply with typed source links and an explicit no-provider/no-save disclosure;
+- correcting or detaching context is visible and reversible locally, and no preview decision creates a responsibility, memory, effect, run, or accepted outcome.
 
 ### GREEN
 
-Extract a shared thin Waldo conversation presentation/state contract from the existing rail. Home may provide more reading room, but it must not create a second message store, a second Waldo identity, a provider client, or runtime authority.
+Extract a shared thin Waldo conversation presentation/state contract from the existing rail. Home gets a dedicated responsive composition: episode rail, readable transcript, source-aware composer, and optional context/evidence inspector. Home may provide more reading room, but it must not create a second message store, a second Waldo identity, a provider client, or runtime authority.
 
 ### VERIFY
 
 Run Today-to-Chat, rail-to-Chat, Work return, keyboard, focus, canonical-truth, responsive, full Playwright, typecheck, build, and physical Electron checks. Commit locally.
 
-**Local checkpoint (2026-08-23): automated complete.** `Chat` is a primary Home destination backed by the same `WaldoRailContext` conversation state as the global rail. The deterministic composer keeps a shared unsent draft and exposes no Send action, provider, message transport, or persistence. Focused unit and wide/narrow Playwright coverage pass; the full gate includes both Chat cases.
+**Local checkpoint (2026-08-23): complete for the local preview boundary.** `Chat` is a primary Home destination backed by the same `WaldoRailContext` conversation state as the global rail. Wide presentation now separates resumable topics, the readable transcript/composer, and source/freshness/gap context; medium and narrow presentation collapse optional context behind an explicit details layer. The deterministic `Send preview` fixture clears the composer, reveals the latest answer, retains typed source links, and can route a bounded review to Activity. Canonical mode still exposes no plausible transcript, Send action, provider, message transport, or persistence.
 
 ## Phase 2 — Replace History with evidence-backed Insights plus Records
 
@@ -86,24 +89,25 @@ This preview-only phase is approved after Phases 0–2. Grok Bot is the primary 
 
 Prove Activity can open a preview-only specialist profile/creation surface with purpose, explicit scope, sources/tools, authority ceiling, budget, completion condition, pause/revoke, evidence expectation, and Waldo return destination. Prove no specialist becomes another Waldo, no default roster is fabricated, canonical mode stays empty/unconfigured, and no UI action executes, connects, saves, or persists.
 
+Also prove the preview Activity → Agents workspace has a compact specialist rail, selected run timeline, and evidence/authority inspector; Waldo remains labelled as coordinator; approvals offer `Accept`, `Edit`, `Reject`, and `Respond`; and pause, resume, stop, retry, recovery, revoke, and return controls change only deterministic local preview state.
+
 ### GREEN
 
-Expose compact specialist creation under Waldo Activity. Use one structured governed card; do not introduce a default roster, Home shortcut, or fake searchable capability catalog. Keep Skills/Tools/MCP, provider, model, and persona unavailable until a truthful native source exists. Any future run remains bounded delegation returned through Waldo—not a second personal-agent transcript.
+Expose compact specialist creation under Waldo Activity and make the selected specialist/run legible in a dedicated responsive workspace. Use structured governed cards; do not introduce a Home roster or fake searchable capability catalog. A deterministic preview specialist may appear only behind the visible preview seam to prove selection, run, evidence, and recovery behavior. Keep Skills/Tools/MCP, provider, model, and persona unavailable until a truthful native source exists. Any future run remains bounded delegation returned through Waldo—not a second personal-agent transcript.
 
 ### VERIFY
 
 Run profile contract, Activity, Home non-roster, canonical-truth, accessibility, responsive, full Playwright, typecheck, build, and physical Electron checks. Commit locally.
 
-**Local checkpoint (2026-08-23): automated complete.** Waldo Activity alone exposes the preview builder and one structured profile with purpose, explicit scope, permitted sources/tools, authority ceiling, budget, completion condition, evidence expectation, Waldo return destination, pause, and revoke. All controls mutate mounted UI state only; explicit copy states that nothing was created, connected, run, or saved. Unit and Playwright lifecycle coverage pass at wide and 960px minimum width.
+**Local checkpoint (2026-08-23): complete for the local preview boundary.** Waldo Activity alone exposes Waldo as coordinator, a compact specialist rail, the selected run timeline, inline `Accept / Edit / Reject / Respond` review, and the source/authority/evidence inspector. The Research specialist names purpose, explicit scope, permitted sources/tools, authority ceiling, budget, completion condition, evidence expectation, and Waldo return destination. Pause, resume, stop, retry, recovery, revoke, and return controls mutate mounted fixture state only; explicit copy states that nothing was created, connected, run, or saved.
 
 ## Verification checkpoint — 2026-08-23
 
-- unit: 211 files, 2619 passed, 6 skipped;
+- unit: 211 files, 2624 passed, 6 skipped;
 - typecheck and typecheck:e2e: pass;
-- full Playwright: 73 passed, 0 failed;
+- full Playwright: 74 passed, 0 failed;
 - build and package identity: pass for `in.heywaldo.kennel`;
-- physical Electron: launch reached the local dev renderer and daemon, but the desktop was at the macOS lock screen. No unlock, credential, or private-state interaction was attempted. Wide/narrow pointer, trackpad, native menu, Full Keyboard Access, VoiceOver, inactive-window, and physical Reduce Motion checks remain open;
-- shutdown: local Electron, Vite, and daemon listeners were stopped after the blocked inspection.
+- physical Electron: the local preview renderer and daemon launched successfully. Public UI/accessibility inspection covered the wide three-region Chat, deterministic send/source flow, Activity specialist/run/authority composition, medium-width inspector collapse, and the final 960px-minimum `Open context details` layer with its `Back to conversation` return. The first inspection exposed missing compact details access and weak submit/scroll feedback; both were corrected before the final narrow pass. Standard pointer and accessibility-tree behavior were inspected without accessing credentials or private app state. System-level VoiceOver, Full Keyboard Access, inactive-window, trackpad gesture, and Reduce Motion toggles remain explicitly open;
 
 ## Phase 4 — Establish the real Personal Agency backend boundary
 

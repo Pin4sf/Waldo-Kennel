@@ -12,7 +12,7 @@
 
 The stacked renderer now has a global Waldo relationship across Home and Work, a Home/Work switch, Home Today and continuity destinations, Conversation and Activity rail modes, contextual episodes, detachable context, structured semantic cards, bounded-run inspection, responsive behavior, keyboard access, and canonical no-preview honesty.
 
-That checkpoint landed with a broken broad regression foundation: the fresh beta baseline had 33 passing and 35 failing Playwright cases despite the unit, typecheck, build, and package-identity gates passing. Local P0 diagnosis and TDD repair first restored all 69 existing Playwright cases; the completed preview surfaces now produce 73 passing cases. Source regressions were the centered Home/Work switch intercepting Work titlebar controls, the Inspector's 280px clamp violating the established 350px contract, chat-pane horizontal overflow, and the board's missing New terminal action. Harness regressions were the obsolete `window.ao` bridge key, missing onboarding completion, unserved agent-catalog requests, and terminal tests racing terminal-mux attach/replay. The remaining clusters were stale routes, fixture names, accessible roles, labels, or exact state assumptions; those assertions were updated only after the rendered product contract was inspected. Terminal retention also needed its lifecycle waits restored and its finite Chromium scroll-event ceiling clarified. The same full gate is now green; physical macOS verification remains outstanding because the current desktop session is locked and no credential or unlock interaction is authorized.
+That checkpoint landed with a broken broad regression foundation: the fresh beta baseline had 33 passing and 35 failing Playwright cases despite the unit, typecheck, build, and package-identity gates passing. Local P0 diagnosis and TDD repair first restored all 69 existing Playwright cases; the completed preview surfaces now produce 74 passing cases. Source regressions were the centered Home/Work switch intercepting Work titlebar controls, the Inspector's 280px clamp violating the established 350px contract, chat-pane horizontal overflow, and the board's missing New terminal action. Harness regressions were the obsolete `window.ao` bridge key, missing onboarding completion, unserved agent-catalog requests, and terminal tests racing terminal-mux attach/replay. The remaining clusters were stale routes, fixture names, accessible roles, labels, or exact state assumptions; those assertions were updated only after the rendered product contract was inspected. Terminal retention also needed its lifecycle waits restored and its finite Chromium scroll-event ceiling clarified. The same full gate is now green. Physical public-UI/accessibility inspection now covers the wide Chat, preview send/source flow, Activity specialist workspace, and responsive inspector collapse; system-level VoiceOver, Full Keyboard Access, inactive-window, trackpad gesture, and Reduce Motion toggles remain an explicit follow-up rather than a claimed pass.
 
 The remaining surface is split across two partially reconciled models:
 
@@ -21,6 +21,8 @@ The remaining surface is split across two partially reconciled models:
 - `History` is a continuity and supporting-evidence ledger, not a daily synthesis surface.
 - Work can host multiple runtime agents, but Home does not yet explain how user-created specialists relate to Waldo.
 - inherited AO presentation assets and copy remain in parts of the desktop even though Waldo is the product relationship and Kennel is its desktop harness.
+
+The first local completion pass technically added Home Chat and a specialist builder, but the full-page Chat destination still reused the narrow Waldo rail as its entire layout. That made the route available without making it a legible place to resume a relationship, inspect the sources behind an answer, or hand bounded work to Activity. The specialist contract existed below Activity, but not yet as the Grok Bot-like selection, run, and evidence workspace the user approved. These are product-surface gaps, not backend gaps.
 
 ## Ideal
 
@@ -72,6 +74,32 @@ No Insight may infer mood, personality, health status, commitment, or outcome fr
 
 Specialists are subordinate, explicit profiles with a purpose, permitted sources/tools, authority ceiling, and revoke path. They appear in Work, Settings, and bounded Waldo delegation cards. A compact Home shortcut may be added only after the user creates or pins one. Waldo remains responsible for coordination and return-path presentation.
 
+The approved full Chat composition has three responsive regions:
+
+1. a compact episode rail for starting, finding, pinning, and resuming Waldo topics;
+2. the primary conversation with a short statement of purpose, source-linked answers, inline proposals/approvals, and an attachment/voice-aware composer;
+3. an optional context inspector showing attached sources, freshness, gaps, artifacts, and the consequence of detaching context.
+
+At medium widths the optional inspector collapses before the transcript becomes cramped. At narrow widths the episode rail and inspector become labelled layers reached from the conversation; they never remain squeezed into three columns.
+
+The approved Activity → Agents composition is not a second chat product. A compact specialist rail sits beside a selected run timeline and an optional evidence/authority inspector. Waldo is fixed as coordinator. Every specialist and run names its purpose, scope, sources/tools, authority, budget, completion condition, evidence expectation, current state, and return destination. Pause, resume, stop, revoke, retry, and recovery are explicit preview controls; none implies execution in this renderer-only phase.
+
+### Dimension and Omi product consequence
+
+The live first-party evidence resolves the requested “Dimensions” reference to **Dimension** (singular). Dimension officially wound down on May 20, 2026, so its still-live product pages are archival design evidence rather than proof of an available runtime. Dimension contributes the finite Morning Briefing rhythm, one primary agent relationship, searchable chat threads, source-retaining Catch Up, background Skills, and the inline `Accept / Reject / Edit / Respond` decision grammar.
+
+Omi contributes the stronger continuity lineage: one conversation can ground a transcript, summary, insight, task candidate, and memory candidate; typed citations can return to Conversation, Memory, Task, Goal, screenshot, web, or an explicitly unavailable source. Omi's current macOS source also collapses its primary navigation when the full row cannot fit. Its specialist Apps can replace the visible chat persona, so Waldo adapts their capability disclosure but rejects persona switching as the relationship model.
+
+Together with the installed-app benchmark, the approved synthesis is:
+
+- **Today:** a finite Dimension-like orientation, not a dashboard score;
+- **Chat:** an Omi-like query and continuity surface, but always the same Waldo relationship;
+- **Insights / Records:** typed, openable lineage from source episode to correctable derived candidate;
+- **Activity → Agents:** Grok Bot-like specialist discovery and conversation cards, governed by the Waldo purpose/authority/evidence/return contract;
+- **Work:** execution, artifacts, evidence, verification, and acceptance lineage rather than a duplicate personal chat.
+
+Omi-extracted tasks and memories remain candidates until the user confirms them. Dimension-style approvals cannot be globally disabled for consequential effects. Neither benchmark changes the renderer-only, no-provider, no-persistence boundary.
+
 ## Installed specialist benchmark decision
 
 The local 2026-08-23 public-UI/accessibility audit of `/Applications/Grok Bot.app` is the primary specialist benchmark; the running Hermes desktop app is secondary. No application database, credentials, provider state, private API, network payload, DevTools state, message send, creation flow, or setting mutation was used.
@@ -92,6 +120,10 @@ The local 2026-08-23 public-UI/accessibility audit of `/Applications/Grok Bot.ap
 6. Wide and narrow layouts preserve internal scrolling, no horizontal overflow, Back behavior, Work Inspector return, keyboard access, focus restoration, pointer reachability, context-menu actions, and reduced-motion behavior.
 7. Without an explicit preview seam, canonical desktop shows no plausible messages, insights, runs, progress, or outcomes.
 8. Renderer controls remain thin and local until durable API, persistence, provider, approval, run, evidence, and verification contracts exist.
+9. Home Chat is usable as a destination: episodes, transcript, composer, and source/context inspection have a clear hierarchy at wide and narrow widths.
+10. Activity → Agents shows specialist selection, bounded run state, authority, evidence, recovery, and return path while keeping Waldo visibly responsible for coordination.
+
+The deterministic preview acceptance story is: ask “What changed in the pricing workshop and what still needs me?”, inspect a concise answer with source lineage, correct or detach context, approve only a bounded next step, follow the specialist in Activity, inspect evidence, and return to the original responsibility. In canonical mode the same route must disclose that no provider or durable transcript is connected and render no plausible answer or run.
 
 ## Gaps
 
