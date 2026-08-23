@@ -121,11 +121,20 @@ export function WorkEnterSurface() {
 						<ul className="flex flex-col gap-1">
 							{(projectsQuery.data ?? []).map((project) => (
 								<li key={project.id}>
-									<span className="text-sm">{project.name}</span>
-									<span className="text-muted-foreground ml-2 text-xs">{project.path}</span>
+									{/* Selecting a project advances Enter -> Understand on the
+									    same /work route; the daemon owns everything else. */}
+									<button
+										className="flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-card"
+										onClick={() => void navigate({ to: "/work", search: { project: project.id } })}
+										type="button"
+									>
+										<span className="text-sm">{project.name}</span>
+										<span className="ml-auto min-w-0 truncate text-muted-foreground text-xs">{project.path}</span>
+									</button>
 								</li>
 							))}
 						</ul>
+						<p className="text-muted-foreground text-xs">{t("work.enter.pickProjectHint")}</p>
 
 						<CreateProjectFlow
 							idleLabel={t("work.enter.addProject")}
