@@ -34,6 +34,19 @@ type Manager interface {
 
 	// Get reads the Outcome view: canonical facts plus full revision history.
 	Get(ctx context.Context, id domain.OutcomeID) (OutcomeView, error)
+
+	// ProposePlan deterministically derives the smallest-sufficient direct
+	// Work Unit from the Outcome's current contract revision, freezes it into
+	// a RunBrief core digest, and records it as a proposed PlanRevision.
+	ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) (PlanView, error)
+
+	// ApprovePlan authorizes a proposed plan after re-checking that it still
+	// binds the current contract revision and that every capability grant
+	// survives all authority layers.
+	ApprovePlan(ctx context.Context, outcomeID domain.OutcomeID, in ApprovePlanInput) (AuthorizedPlanView, error)
+
+	// GetLatestPlan reads the newest plan of any status for re-entry.
+	GetLatestPlan(ctx context.Context, outcomeID domain.OutcomeID) (PlanView, error)
 }
 
 // CreateInput carries one user-authored Understand statement. RequestKey is the
@@ -74,6 +87,11 @@ type OutcomeView struct {
 type Service struct {
 	store ports.OutcomeStore
 	clock func() time.Time
+
+	// PolicyLayers optionally narrows the authority ceiling for tests and
+	// constrained environments. Empty means the v0 default: the worktree-local
+	// capability trio. Authorization intersects every layer and fails closed.
+	PolicyLayers [][]string
 }
 
 // New builds the service. clock may be nil for wall-clock time.
