@@ -265,7 +265,7 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 							{/* Pairing details — expand/collapse with the enable toggle. */}
 							<div
 								className={cn(
-									"grid transition-[grid-template-rows] duration-300 ease-out",
+									"grid transition-[grid-template-rows] duration-slow ease-out",
 									enabled ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
 								)}
 								aria-hidden={!enabled}
@@ -273,7 +273,7 @@ export function ConnectMobileModal({ open, onOpenChange }: ConnectMobileModalPro
 					<div className="overflow-hidden">
 									<div
 										className={cn(
-											"mt-4 flex flex-col items-center transition-opacity duration-300 ease-out",
+											"mt-4 flex flex-col items-center transition-opacity duration-slow ease-out",
 											enabled ? "opacity-100" : "opacity-0",
 										)}
 									>

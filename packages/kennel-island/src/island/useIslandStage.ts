@@ -198,6 +198,24 @@ export function useSettingsWriter() {
 }
 
 /**
+ * Brings the application currently playing to the front.
+ *
+ * The island names nobody: the host knows who holds the audio assertion, so
+ * "focus the player" is the whole request. That is also why this works for a
+ * browser, which will not answer any other question about its playback.
+ */
+export function useMediaFocus() {
+  return useCallback(() => {
+    const desktop = window.kennelDesktop;
+    if (typeof desktop?.focusMediaApp !== "function") return;
+    void desktop.focusMediaApp().catch(() => {
+      // Nothing to report: the app either came forward or it had already quit,
+      // and the next activity poll tells the truth either way.
+    });
+  }, []);
+}
+
+/**
  * Force Touch feedback.
  *
  * Returns a stable function that never throws and never reports anything: the
@@ -422,7 +440,7 @@ export function useArtworkAccent(artwork: string | undefined): string | null {
   return accent;
 }
 
-const SILENT_MEDIA: KennelMediaActivity = { playing: false, track: null };
+const SILENT_MEDIA: KennelMediaActivity = { playing: false, owner: null, track: null };
 
 /**
  * Media activity from the desktop host.
@@ -504,17 +522,16 @@ export function useIslandGestures(
   }, [onGesture]);
 
   useEffect(() => {
-    const element = islandRef.current;
-    if (!element) return;
-
     const recognizer = createGestureRecognizer();
 
     const handleWheel = (event: WheelEvent) => {
+      const island = islandRef.current;
+
       // A scrollable panel under the pointer answers first. Closing the island
       // instead of scrolling its list would put half the queue out of reach.
       const target = event.target;
-      if (target instanceof Element) {
-        for (let node: Element | null = target; node && element.contains(node); node = node.parentElement) {
+      if (island && target instanceof Element && island.contains(target)) {
+        for (let node: Element | null = target; node && island.contains(node); node = node.parentElement) {
           const metrics = {
             overflowY: window.getComputedStyle(node).overflowY,
             scrollTop: node.scrollTop,
@@ -542,12 +559,43 @@ export function useIslandGestures(
             .webkitDirectionInvertedFromDevice === true,
         timeStamp: event.timeStamp,
       });
+      traceGesture(gesture ? `recognised ${gesture}` : "wheel", event.deltaX, event.deltaY);
       if (gesture) latest.current(gesture);
     };
 
-    element.addEventListener("wheel", handleWheel, { passive: false });
-    return () => element.removeEventListener("wheel", handleWheel);
+    // Bound on the window, in the capture phase, rather than on the island
+    // element.
+    //
+    // The stage only receives wheel events at all while it has taken the
+    // pointer back from the desktop, and it only does that while the pointer is
+    // on the island — so every wheel event that arrives here was made over the
+    // island, whatever element happens to be under the cursor. Hanging the
+    // listener off the island box instead made the gesture depend on hitting a
+    // child of it: a swipe over a fillet, over the transparent gap beside a
+    // chip, or over the peek as it animated in reached the document and was
+    // dropped. Capture, so nothing inside can stop it first.
+    window.addEventListener("wheel", handleWheel, { passive: false, capture: true });
+    return () => window.removeEventListener("wheel", handleWheel, { capture: true });
   }, [islandRef]);
+}
+
+/**
+ * Gesture tracing, off unless the host turned it on.
+ *
+ * Trackpad input cannot be reproduced from a test or a screenshot, so when a
+ * swipe does not land the only way to tell "no events arrived" apart from
+ * "events arrived and were rejected" is to watch them. Runs through the host so
+ * the line lands in the app's own log rather than in a devtools console nobody
+ * has open.
+ */
+let gestureTracing: boolean | null = null;
+
+function traceGesture(what: string, deltaX: number, deltaY: number) {
+  if (gestureTracing === null) {
+    gestureTracing = new URLSearchParams(window.location.search).has("traceGestures");
+  }
+  if (!gestureTracing) return;
+  console.info(`[island gesture] ${what} dx=${deltaX.toFixed(1)} dy=${deltaY.toFixed(1)}`);
 }
 
 /**
@@ -566,4 +614,103 @@ export function useMediaTransport() {
       // is nothing to report: the next activity poll tells the truth anyway.
     });
   }, []);
+}
+
+/* --------------------------------------------------------------------------
+   Playhead
+   -------------------------------------------------------------------------- */
+
+/** How often the interpolated position is recomputed while a bar is on screen. */
+export const PROGRESS_TICK_MS = 250;
+
+/**
+ * Where the playhead is now, in seconds.
+ *
+ * The host samples the player on a track change and not on a clock: asking
+ * Spotify for its position four times a second would be four Apple events a
+ * second for a number that advances at a known rate. So the sample carries the
+ * moment it was true, and this runs the clock forward from it locally. A pause
+ * stops the clock rather than freezing a stale number, and the next real sample
+ * corrects any drift.
+ *
+ * Returns null when the source never reported a position, which is every
+ * browser — a bar with nothing to fill should not be drawn at all.
+ */
+export function useMediaProgress(
+  track: KennelMediaTrack | null | undefined,
+  playing: boolean,
+): { position: number; duration: number; seekable: boolean } | null {
+  const duration = track?.durationSeconds ?? 0;
+  const sampled = track?.positionSeconds ?? 0;
+  const sampledAt = track?.sampledAt ?? 0;
+  const hasProgress = duration > 0 && sampledAt > 0;
+
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!hasProgress || !playing) return;
+    const id = window.setInterval(() => setNow(Date.now()), PROGRESS_TICK_MS);
+    return () => window.clearInterval(id);
+  }, [hasProgress, playing]);
+
+  // Re-anchor on every fresh sample so a seek made in the player itself snaps
+  // the bar rather than waiting for the next tick to notice.
+  useEffect(() => {
+    if (hasProgress) setNow(Date.now());
+  }, [hasProgress, sampledAt, sampled]);
+
+  if (!hasProgress) return null;
+
+  const elapsed = playing ? Math.max(0, (now - sampledAt) / 1000) : 0;
+  return {
+    position: Math.min(duration, sampled + elapsed),
+    duration,
+    seekable: track?.seekable === true,
+  };
+}
+
+/** Moves the playhead. Errors are swallowed: the next sample tells the truth. */
+export function useMediaSeek() {
+  return useCallback((positionSeconds: number) => {
+    const desktop = window.kennelDesktop;
+    if (typeof desktop?.seekMedia !== "function") return;
+    void desktop.seekMedia(positionSeconds).catch(() => {});
+  }, []);
+}
+
+/** How long a stopped player stays on the island before it collapses. */
+export const MEDIA_LINGER_MS = 4_000;
+
+/**
+ * Media state that outlives the audio by a few seconds.
+ *
+ * A pause should read as a pause — the bars stop, the cover stays, the island
+ * holds its shape — and only then as an absence. Collapsing the instant the
+ * audio assertion drops makes every pause look like a crash, and makes the
+ * island flicker through a track gap on an album.
+ *
+ * `playing` is the truth about the audio; `present` is the truth about whether
+ * the island should still be showing it.
+ */
+export function useMediaLinger(media: KennelMediaActivity): {
+  media: KennelMediaActivity;
+  present: boolean;
+  paused: boolean;
+} {
+  const [held, setHeld] = useState<KennelMediaActivity | null>(null);
+
+  useEffect(() => {
+    if (media.playing) {
+      setHeld(media);
+      return;
+    }
+    if (!held) return;
+
+    const id = window.setTimeout(() => setHeld(null), MEDIA_LINGER_MS);
+    return () => window.clearTimeout(id);
+  }, [held, media]);
+
+  if (media.playing) return { media, present: true, paused: false };
+  if (!held) return { media, present: false, paused: false };
+  return { media: { ...held, playing: false }, present: true, paused: true };
 }

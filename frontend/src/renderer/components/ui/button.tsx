@@ -8,7 +8,7 @@ import { cn } from "../../lib/utils";
 // dark canvas); secondary is the raised chip plane. Footer variants keep the
 // settings/modal action chrome tokens. See DESIGN.md → Design system.
 const buttonVariants = cva(
-	"group/button inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md hairline border-transparent bg-clip-padding text-sm font-medium transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-[100ms] ease-out outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 active:not-aria-[haspopup]:scale-[0.97] active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+	"group/button inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md hairline border-transparent bg-clip-padding text-sm font-medium transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-fast ease-out outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 active:not-aria-[haspopup]:scale-[0.97] active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 	{
 		variants: {
 			variant: {

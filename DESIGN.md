@@ -353,9 +353,34 @@ mirrors the reference exactly. Launching from a project row pre-fills the Projec
 - **Approach:** minimal-functional. The one expressive exception: a status dot/spinner
   pulse on active/working sessions (opacity breathe) so "alive" is glanceable. Never
   animate text or layout.
-- **Easing:** enter `ease-out`, exit `ease-in`, move `ease-in-out`.
-- **Duration:** micro 80ms · short 160ms · medium 240ms · status pulse 1.8s loop ·
-  modal enter ~150ms fade+zoom-95.
+- **Easing:** enter `ease-out`, exit `ease-in`, move `ease-in-out`. The CSS keywords are
+  too soft to read as deliberate, so each is pinned to a curve in `renderer/styles.css`
+  and referenced by name — never spelled inline:
+  `--ease-out: cubic-bezier(0.23, 1, 0.32, 1)` · `--ease-in: cubic-bezier(0.4, 0, 1, 1)` ·
+  `--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1)` ·
+  `--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1)` for panels that travel an edge.
+  `frontend/src/site-theme/tokens.css` mirrors the same three for the marketing site.
+- **Duration:** the tokens are `--duration-fast: 120ms` · `--duration-normal: 150ms` ·
+  `--duration-slow: 240ms` (`tokens.css`), surfaced as `duration-fast|normal|slow`
+  utilities. Nothing in the product should exceed 240ms. Status pulse is the one
+  loop, at 1.8s.
+- **Exits are shorter than entries** — the system is responding, not deciding:
+  overlay 80/60ms · modal 120/70ms · popover 150/100ms · tooltip 125/90ms ·
+  sheet 240/150ms.
+- **Anchored surfaces scale from their trigger,** not from their own centre: popover,
+  dropdown, context menu, select and tooltip all set `transform-origin` from the Radix
+  content variable. Modals are the exception and stay centred — they are not anchored
+  to anything. Nothing enters from `scale(0)`; modals start at `0.95`, popovers at `0.98`.
+- **Pressables take `--scale-press` (0.97) on `:active`.** A control that does not move
+  under the press gives the user nothing confirming the click landed. This applies to
+  buttons, switches, menu items and the island's controls alike.
+- **Keyboard-initiated surfaces do not animate.** The command palette is summoned by ⌘K
+  dozens of times a session; an entrance on the panel reads as latency between the
+  keypress and a usable caret. Its scrim still fades so the context change is not a hard
+  cut. This is a deliberate exception to the modal enter rule above.
+- **Only `transform` and `opacity`.** Meters and progress fills are full-size elements
+  scaled with `scaleX()` from a left origin, never elements whose `width` is animated —
+  width relayouts its row on every frame.
 
 ## Implementation notes
 
@@ -379,3 +404,6 @@ mirrors the reference exactly. Launching from a project row pre-fills the Projec
 | 2026-06-09 | Removed **Library** from the rail footer                               | User direction; footer is Search + Settings only.                                                  |
 | 2026-06-09 | Topbar right = PR/CI pill + view toggles + ⋯ menu (worker)             | Surfaces the actionable PR/CI state from the daemon; desktop-tool precedent.                       |
 | 2026-06-09 | Spawn modal mirrors the reference's Create Task                        | Consistency with the reference; mapped to `ao spawn` params.                                       |
+| 2026-08-22 | Motion curves and durations become named tokens, used everywhere       | `duration-fast` compiled to nothing (Tailwind has no `--duration-*` namespace) and Sheet's animation classes did not exist at all; naming the values makes the gaps visible instead of silent. |
+| 2026-08-22 | Command palette opens with no entrance animation                       | Keyboard-summoned surfaces are opened dozens of times a session; any entrance reads as latency. Raycast precedent. Deviates from the modal enter rule by design. |
+| 2026-08-22 | Landing site gates every `hover:` behind `(hover: hover)`              | Touch devices synthesise hover on tap and leave it stuck; the marketing site is the only surface with touch users. |

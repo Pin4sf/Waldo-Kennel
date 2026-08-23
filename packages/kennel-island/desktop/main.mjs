@@ -19,7 +19,13 @@ import { pathToFileURL } from "node:url";
 import { createHaptics, hapticsHelperPath } from "./haptics.mjs";
 import { createKennelService, KennelServiceError } from "./kennel-service.mjs";
 import { readArtwork, sameTrack } from "./media-artwork.mjs";
-import { isMediaCommand, readMediaActivity, sendMediaCommand } from "./media-activity.mjs";
+import {
+	focusApplication,
+	isMediaCommand,
+	readMediaActivity,
+	seekMedia,
+	sendMediaCommand,
+} from "./media-activity.mjs";
 import { measureNotch, notchHelperPath } from "./notch-measure.mjs";
 import { notchGeometryFor, notchOptionsFromSettings } from "./notch-geometry.mjs";
 import { createSettingsStore, defaultSettings } from "./settings.mjs";
@@ -37,9 +43,12 @@ const APP_HOST = "island";
 const TOGGLE_ACCELERATOR = "CommandOrControl+`";
 
 const IPC_SET_INTERACTIVE = "kennel-island:set-interactive";
+const IPC_SET_FOCUSABLE = "kennel-island:set-focusable";
 const IPC_GET_MEDIA_ACTIVITY = "kennel-island:get-media-activity";
 const IPC_MEDIA_ACTIVITY_CHANGED = "kennel-island:media-activity-changed";
 const IPC_SEND_MEDIA_COMMAND = "kennel-island:send-media-command";
+const IPC_FOCUS_MEDIA_APP = "kennel-island:focus-media-app";
+const IPC_SEEK_MEDIA = "kennel-island:seek-media";
 const IPC_GET_STAGE_GEOMETRY = "kennel-island:get-stage-geometry";
 const IPC_STAGE_GEOMETRY_CHANGED = "kennel-island:stage-geometry-changed";
 const IPC_RECENTER = "kennel-island:recenter";
@@ -60,8 +69,11 @@ const IPC_CLOSE_SETTINGS = "kennel-island:close-settings";
 const IPC_PERFORM_HAPTIC = "kennel-island:perform-haptic";
 const ISLAND_IPC_CHANNELS = Object.freeze([
 	IPC_SET_INTERACTIVE,
+	IPC_SET_FOCUSABLE,
 	IPC_GET_MEDIA_ACTIVITY,
 	IPC_SEND_MEDIA_COMMAND,
+	IPC_FOCUS_MEDIA_APP,
+	IPC_SEEK_MEDIA,
 	IPC_GET_STAGE_GEOMETRY,
 	IPC_RECENTER,
 	IPC_HIDE_ISLAND,
@@ -107,6 +119,10 @@ let settingsWindow = null;
 let isQuitting = false;
 let islandIpcRegistered = false;
 let islandInteractive = false;
+// Tracks what setIslandFocusable last granted, so the defensive `focus`
+// listener below can tell "the steer composer legitimately asked for a caret"
+// apart from "the OS handed us key status we never wanted".
+let islandFocusable = false;
 
 // Settings are only reachable once `app.getPath("userData")` is, which is after
 // readiness. Until then the defaults stand in, so anything that reads settings
@@ -151,7 +167,7 @@ async function refreshNotchMeasurement() {
 // first bar of a song, slow enough that a `pmset` read every few seconds costs
 // nothing measurable.
 const MEDIA_POLL_INTERVAL_MS = 2_500;
-let mediaActivity = { playing: false, track: null };
+let mediaActivity = { playing: false, owner: null, track: null };
 let mediaPollTimer = null;
 
 function validatedDevServerUrl(rawValue) {
@@ -364,9 +380,24 @@ function setIslandInteractive(interactive) {
 	return { interactive: islandInteractive };
 }
 
+/**
+ * Lets the island take the key window, or takes that ability away again.
+ *
+ * Dropping focusability alone leaves an already-key window key, so the caret
+ * would stay stranded here. Blurring hands it back to the app that had it.
+ */
+function setIslandFocusable(focusable) {
+	islandFocusable = focusable;
+	if (!islandWindow || islandWindow.isDestroyed()) return { focusable: false };
+	islandWindow.setFocusable(focusable);
+	if (!focusable && islandWindow.isFocused()) islandWindow.blur();
+	return { focusable };
+}
+
 function sameMediaActivity(left, right) {
 	return (
 		left.playing === right.playing &&
+		left.owner === right.owner &&
 		sameTrack(left.track, right.track) &&
 		(left.track?.artwork ?? null) === (right.track?.artwork ?? null)
 	);
@@ -395,6 +426,35 @@ async function resolveArtwork(activity) {
 	return { ...activity, track: { ...activity.track, artwork } };
 }
 
+/**
+ * Brings whatever is playing to the front.
+ *
+ * The application comes from this process's own last sample, never from the
+ * renderer: the island asks to focus "the player", and letting it name one
+ * would turn this into a way to launch anything.
+ */
+/** Drags the playhead, then re-samples so the bar lands where it was dropped. */
+async function runSeek(positionSeconds) {
+	try {
+		const result = await seekMedia(positionSeconds, { execFile });
+		if (result.sought) void sampleMediaActivity();
+		return { sought: result.sought === true };
+	} catch {
+		return { sought: false };
+	}
+}
+
+async function focusMediaApp() {
+	const owner = mediaActivity.owner;
+	if (!owner) return { focused: false };
+	try {
+		const result = await focusApplication(owner, { execFile });
+		return { focused: result.focused === true };
+	} catch {
+		return { focused: false };
+	}
+}
+
 async function sampleMediaActivity() {
 	let next;
 	try {
@@ -402,7 +462,7 @@ async function sampleMediaActivity() {
 	} catch {
 		// A failed sample means "we do not know", and the honest rendering of
 		// not knowing is silence rather than a stuck waveform.
-		next = { playing: false, track: null };
+		next = { playing: false, owner: null, track: null };
 	}
 
 	// Artwork survives a poll that found the same track, so a repeat sample
@@ -759,6 +819,11 @@ function registerIslandIpc() {
 	ipcMain.handle(IPC_GET_MEDIA_ACTIVITY, trustedHandler("media activity", () => mediaActivity));
 	ipcMain.handle(IPC_SEND_MEDIA_COMMAND, trustedHandler("media command", (payload) =>
 		runMediaCommand(payload?.command)));
+	ipcMain.handle(IPC_FOCUS_MEDIA_APP, trustedHandler("focus media app", () => focusMediaApp()));
+	ipcMain.handle(IPC_SEEK_MEDIA, trustedHandler("seek media", (payload) =>
+		runSeek(payload?.positionSeconds)));
+	ipcMain.handle(IPC_SET_FOCUSABLE, trustedHandler("set focusable", (payload) =>
+		setIslandFocusable(payload?.focusable === true)));
 	ipcMain.handle(IPC_RECENTER, trustedHandler("recenter", () => recenterWindow()));
 	ipcMain.handle(IPC_HIDE_ISLAND, trustedHandler("hide island", () => hideIsland()));
 	ipcMain.handle(IPC_GET_KENNEL_SNAPSHOT, trustedHandler("snapshot", () =>
@@ -810,6 +875,10 @@ async function createIslandWindow() {
 	islandWindow = new BrowserWindow({
 		...initialBounds,
 		acceptFirstMouse: true,
+		// A heads-up display, not an app you switch to: clicking a chip must
+		// never take the key window away from whatever is being typed in. The
+		// steer composer asks for focus while it is open.
+		focusable: false,
 		alwaysOnTop: true,
 		backgroundColor: "#00000000",
 		frame: false,
@@ -851,6 +920,17 @@ async function createIslandWindow() {
 	islandWindow.setHiddenInMissionControl(true);
 	islandWindow.setMenuBarVisibility(false);
 	if (process.platform === "darwin") islandWindow.setWindowButtonVisibility(false);
+	// `focusable: false` at construction is the documented way to make a panel
+	// non-activating on macOS, but AppKit can still hand a window key status on
+	// click regardless of the constructor option on some Electron builds — the
+	// moment that happens, whatever the user was typing into resigns key and
+	// the caret goes with it. Re-asserting after creation covers builds where
+	// the constructor option alone does not stick; the `focus` listener is the
+	// backstop, surrendering key status in the same tick it is granted.
+	islandWindow.setFocusable(false);
+	islandWindow.on("focus", () => {
+		if (!islandWindow.isDestroyed() && !islandFocusable) islandWindow.blur();
+	});
 
 	islandWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
 	islandWindow.webContents.on("will-navigate", (event, targetUrl) => {

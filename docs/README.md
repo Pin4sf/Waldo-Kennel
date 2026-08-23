@@ -38,6 +38,12 @@ Kennel currently consists of an AO-derived Go daemon and Electron supervisor plu
 | [Learning Experiment/Evaluation plan](superpowers/plans/2026-08-21-learning-experiment-evaluation.md) | L2 immutable campaigns, isolated variants, hidden held-out/no-regression evaluation, budgets, and review. |
 | [Learning Skill Registry plan](superpowers/plans/2026-08-21-learning-skill-registry.md) | L3 daemon registry, Project-scoped provisional promotion, RunBrief binding, receipts, monitoring, rollback, revoke, and deletion. |
 
+## Interaction and platform research
+
+| Document | Purpose |
+| --- | --- |
+| [Dynamic Island and Live Activities reference](research/2026-08-22-dynamic-island-live-activities-reference.md) | Source-backed catalog of familiar Apple and third-party activities—recording, calls, media, timers, directions, deliveries, rides, flights, sports, focus, workouts, charging, cameras, weather, and smart-home automations—plus the fixed local reference gallery implemented in Kennel Island. It is not production vendor-integration authorization. |
+
 ## Personal Agent, memory, and learning research
 
 | Document | Purpose |

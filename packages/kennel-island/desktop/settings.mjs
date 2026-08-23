@@ -16,7 +16,39 @@
 import path from "node:path";
 
 /** Bump when a stored shape can no longer be migrated field-by-field. */
-export const SETTINGS_VERSION = 1;
+export const SETTINGS_VERSION = 2;
+
+/**
+ * Values that were a default and became a different default.
+ *
+ * A stored file wins over a fallback, which is right for a preference and wrong
+ * for a measurement. The content padding shipped at 12 and was corrected to 8
+ * after the chips were measured against a real housing — every install that had
+ * merely run the app was carrying the old number as if it had been chosen. A
+ * value still equal to the superseded default is not a choice, so it is
+ * retired; anything else the user actually moved is left alone.
+ */
+const RETIRED_DEFAULTS = Object.freeze([
+	{ upTo: 1, section: "notch", field: "contentPadding", was: 12 },
+]);
+
+/** Drops stored values that were only ever the previous build's default. */
+export function retireSupersededDefaults(input) {
+	const source = input && typeof input === "object" ? input : {};
+	const storedVersion = Number(source.version);
+	if (!Number.isFinite(storedVersion) || storedVersion >= SETTINGS_VERSION) return source;
+
+	const next = { ...source };
+	for (const retired of RETIRED_DEFAULTS) {
+		if (storedVersion > retired.upTo) continue;
+		const section = next[retired.section];
+		if (!section || typeof section !== "object") continue;
+		if (section[retired.field] !== retired.was) continue;
+		next[retired.section] = { ...section };
+		delete next[retired.section][retired.field];
+	}
+	return next;
+}
 
 const boolean = (fallback) => ({ kind: "boolean", fallback });
 const integer = (fallback, min, max) => ({ kind: "integer", fallback, min, max });
@@ -36,7 +68,7 @@ export const SETTINGS_SCHEMA = Object.freeze({
 		/** Points added to the derived notch height. */
 		heightOffset: integer(0, -12, 24),
 		/** Horizontal breathing room between the housing and the clusters. */
-		contentPadding: integer(12, 0, 32),
+		contentPadding: integer(8, 0, 32),
 	}),
 	hover: Object.freeze({
 		/** The dormant notch swells slightly under the pointer before it opens. */
@@ -128,7 +160,7 @@ function plainObject(value) {
  * cannot smuggle a key past validation.
  */
 export function normalizeSettings(input) {
-	const source = plainObject(input);
+	const source = plainObject(retireSupersededDefaults(input));
 	const settings = { version: SETTINGS_VERSION };
 
 	for (const section of SECTIONS) {

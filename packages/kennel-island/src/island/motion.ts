@@ -88,3 +88,56 @@ export function islandPanelExitTransition(reducedMotion: boolean): Transition {
   if (reducedMotion) return { duration: 0 };
   return { ...islandCloseSpring, opacity: exit, filter: exit };
 }
+
+/* --------------------------------------------------------------------------
+   Album art
+   --------------------------------------------------------------------------
+   Artwork arrives late and unpredictably: the track changes on the poll, and
+   the JPEG is exported or fetched after that, so the cover can land a second
+   behind the title. A cover that simply appeared in that gap would read as a
+   glitch, so it turns in instead — a quarter-rotation about the vertical axis,
+   blurred at the edges of the arc and sharp at the face, which is the same
+   trick the content cross-fade uses and for the same reason: a blurred image
+   has no edge left to judge the distortion by.
+
+   The rotation is small on purpose. A full flip is a card trick; 70° reads as
+   a physical object turning to face you and is over before it draws attention
+   to itself.
+   -------------------------------------------------------------------------- */
+
+/** How far the plate turns as it arrives and leaves, in degrees. */
+export const ARTWORK_FLIP_DEGREES = 70;
+
+/** How far out of focus the plate is at the extremes of the arc. */
+export const ARTWORK_FLIP_BLUR = 5;
+
+export const artworkFlipHidden = {
+  opacity: 0,
+  rotateY: ARTWORK_FLIP_DEGREES,
+  scale: 0.86,
+  filter: `blur(${ARTWORK_FLIP_BLUR}px)`,
+};
+
+export const artworkFlipVisible = {
+  opacity: 1,
+  rotateY: 0,
+  scale: 1,
+  filter: "blur(0px)",
+};
+
+/** Leaves the other way, so a swap reads as one plate turning rather than two. */
+export const artworkFlipExit = {
+  opacity: 0,
+  rotateY: -ARTWORK_FLIP_DEGREES,
+  scale: 0.86,
+  filter: `blur(${ARTWORK_FLIP_BLUR}px)`,
+};
+
+export const artworkFlipTransition: Transition = {
+  type: "spring",
+  stiffness: 320,
+  damping: 28,
+  mass: 0.9,
+  opacity: { duration: 0.18, ease: [0.22, 0.61, 0.36, 1] },
+  filter: { duration: 0.22, ease: [0.22, 0.61, 0.36, 1] },
+};

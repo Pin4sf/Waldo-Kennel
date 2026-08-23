@@ -199,7 +199,10 @@ export function KennelIsland({
   // spring is what makes them read as one piece of hardware.
   const cards = orderPresenceCards(resting ? model.presence : []);
   const card = usePresenceRotation(cards, hovered);
-  const showsMedia = media.playing;
+  // A named track keeps the island awake whether or not it is currently
+  // playing: a paused song is still "what's on the island", the same way the
+  // Dynamic Island keeps showing paused artwork instead of collapsing.
+  const showsMedia = Boolean(media.track);
   const awake = cards.length > 0 || showsMedia || settings.appearance.demoMode;
 
   // The peek is the dormant island's answer to the pointer. It is gated on the
@@ -527,8 +530,13 @@ function RestingHeader({
       }
       right={
         <>
-          {media.playing ? (
-            <span aria-label="Media is playing" className="island-waveform" data-peek="media" role="img">
+          {media.track ? (
+            <span
+              aria-label={media.playing ? "Media is playing" : "Media is paused"}
+              className="island-waveform"
+              data-peek="media"
+              role="img"
+            >
               <Waveform playing={media.playing} />
             </span>
           ) : null}
@@ -674,7 +682,7 @@ function PeekBar({
 
   const label = subject === "media"
     ? media.track
-      ? `Now playing. ${media.track.title}`
+      ? `${media.playing ? "Now playing" : "Paused"}. ${media.track.title}`
       : "Now playing"
     : card
       ? `Open work queue. ${card.title}`
@@ -1066,7 +1074,7 @@ function StatusHeader({
       right={
         <>
           <button aria-label="Kennel activity" className="island-waveform" onClick={toggle} type="button">
-            <FigmaIcon name="compact-waveform.svg" />
+            <FigmaIcon className="island-waveform__icon" name="compact-waveform.svg" />
           </button>
           <button aria-label={countLabel} className="island-count" onClick={toggle} type="button">
             {count}
@@ -1626,7 +1634,7 @@ function UsageView({ model, onAction }: { model: UsageIslandModel; onAction: Ken
               <span className="usage-limit__reset">{limit.resetLabel}</span>
             </div>
             <div className="usage-limit__track">
-              <span style={{ width: `${Math.max(0, Math.min(100, limit.percent))}%` }} />
+              <span style={{ transform: `scaleX(${Math.max(0, Math.min(100, limit.percent)) / 100})` }} />
             </div>
           </div>
         ))}

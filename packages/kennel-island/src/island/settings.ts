@@ -16,7 +16,7 @@ export const defaultKennelSettings: KennelSettings = {
   notch: {
     widthOffset: 0,
     heightOffset: 0,
-    contentPadding: 12,
+    contentPadding: 8,
   },
   hover: {
     peek: true,

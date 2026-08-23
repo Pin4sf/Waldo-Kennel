@@ -6,13 +6,29 @@ import type {
   IslandAction,
   IslandModel,
   IslandTask,
+  LiveActivityReference,
   PermissionIslandModel,
   QueueIslandModel,
   UsageIslandModel,
 } from "../island/types";
-import { createMemoryIslandAdapter, type MutableIslandAdapter } from "../island/adapter";
+// Explicit extensions keep the reference fixtures directly testable under
+// Node's TypeScript stripper as well as through Vite.
+import { createMemoryIslandAdapter, type MutableIslandAdapter } from "../island/adapter.ts";
+import {
+  applyLiveActivityDemoAction,
+  liveActivityReferences,
+  liveActivityScenarioIds,
+  type LiveActivityDemoScenario,
+} from "./live-activities.ts";
 
-export type DemoScenario = "quiet" | "compact" | "queue" | "choice" | "permission" | "usage";
+export type DemoScenario =
+  | "quiet"
+  | "compact"
+  | "queue"
+  | "choice"
+  | "permission"
+  | "usage"
+  | LiveActivityDemoScenario;
 
 function demoCard(
   presence: IslandPresenceCard["presence"],
@@ -241,6 +257,40 @@ const usageModel: UsageIslandModel = {
   ],
 };
 
+export function compactForLiveActivity(activity: LiveActivityReference): CompactIslandModel {
+  const tone = activity.state === "attention"
+    ? "action"
+    : activity.state === "complete"
+      ? "ready"
+      : activity.state === "paused" || activity.state === "ended"
+        ? "muted"
+        : "working";
+
+  return {
+    surface: "compact",
+    taskId: `live-activity-${activity.id}`,
+    title: activity.title,
+    project: "Live Activity reference",
+    branch: activity.pattern,
+    agent: "waldo",
+    tone,
+    phase: activity.state === "complete"
+      ? "complete"
+      : activity.state === "paused" || activity.state === "ended"
+        ? "idle"
+        : "working",
+    presence: [],
+    liveActivity: activity,
+  };
+}
+
+const liveActivityDemoModels = Object.fromEntries(
+  liveActivityScenarioIds.map((scenario) => [
+    scenario,
+    compactForLiveActivity(liveActivityReferences[scenario]),
+  ]),
+) as Record<LiveActivityDemoScenario, CompactIslandModel>;
+
 export const demoScenarios: Record<DemoScenario, IslandModel> = {
   quiet: quietModel,
   compact: compactModel,
@@ -248,6 +298,7 @@ export const demoScenarios: Record<DemoScenario, IslandModel> = {
   choice: choiceModel,
   permission: permissionModel,
   usage: usageModel,
+  ...liveActivityDemoModels,
 };
 
 function compactUpdate(
@@ -482,7 +533,9 @@ function compactAfterPermission(action: Extract<IslandAction, { type: "resolve-p
 function reduceDemoModel(model: IslandModel, action: IslandAction): IslandModel {
   switch (action.type) {
     case "expand":
+      if (model.surface === "activity") return model;
       if (model.surface !== "compact") return queueModel;
+      if (model.liveActivity) return { surface: "activity", activity: model.liveActivity };
       if (model.taskId.startsWith("create-des-4-question-")) {
         return choiceModelFor(Number(model.taskId.at(-1)) || 1);
       }
@@ -491,8 +544,10 @@ function reduceDemoModel(model: IslandModel, action: IslandAction): IslandModel 
       }
       return queueForCompact(model);
     case "collapse":
+      if (model.surface === "activity") return compactForLiveActivity(model.activity);
       return model.surface === "usage" ? queueModel : compactModel;
     case "dismiss":
+      if (model.surface === "activity") return compactForLiveActivity(model.activity);
       if (model.surface === "choice") return choiceAttention(model.questionIndex);
       if (model.surface === "permission") return permissionAttention(model.questionIndex);
       return compactModel;
@@ -551,6 +606,12 @@ function reduceDemoModel(model: IslandModel, action: IslandAction): IslandModel 
       });
     case "retry-connection":
       return compactModel;
+    case "activity-action":
+      if (model.surface !== "activity" || model.activity.id !== action.activityId) return model;
+      return {
+        surface: "activity",
+        activity: applyLiveActivityDemoAction(model.activity, action.actionId),
+      };
     case "open-settings":
     case "hide-island":
       // The lab has no host window to open, and the island's own state does not

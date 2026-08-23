@@ -190,6 +190,7 @@
 
 	--duration-fast: var(--duration-fast);
 	--duration-normal: var(--duration-normal);
+	--duration-slow: var(--duration-slow);
 
 	/* Motion — press-feedback scale for interactive elements */
 	--scale-press: 0.97;
@@ -297,17 +298,54 @@
 	--color-interactive-hover: var(--bridge-interactive-hover);
 	--color-interactive-active: var(--bridge-interactive-active);
 
+	/* DESIGN.md → Motion: enter ease-out, exit ease-in, move ease-in-out. The
+	   built-in CSS keywords are too soft to read as intentional, so each one is
+	   pinned to an explicit curve here and referenced by name everywhere else. */
 	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ease-in: cubic-bezier(0.4, 0, 1, 1);
 	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+	/* Panels that travel an edge settle differently from panels that scale in
+	   place; this is the iOS drawer curve (long tail, no overshoot). */
+	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
-	--animate-status-pulse: status-pulse 1.8s ease-in-out infinite;
+	--animate-status-pulse: status-pulse 1.8s var(--ease-in-out) infinite;
 	--animate-overlay-in: overlay-in 80ms var(--ease-out);
 	--animate-modal-in: modal-in 120ms var(--ease-out);
 	--animate-popover-in: popover-in 150ms var(--ease-out);
+	/* A tooltip is smaller and cheaper than a popover, so it gets there sooner. */
+	--animate-tooltip-in: popover-in 125ms var(--ease-out);
 	/* Exits are shorter than entries: the system is responding, not deciding. */
-	--animate-overlay-out: overlay-out 60ms ease-in;
-	--animate-modal-out: modal-out 70ms cubic-bezier(0.4, 0, 1, 1);
-	--animate-popover-out: popover-out 100ms cubic-bezier(0.4, 0, 1, 1);
+	--animate-overlay-out: overlay-out 60ms var(--ease-in);
+	--animate-modal-out: modal-out 70ms var(--ease-in);
+	--animate-popover-out: popover-out 100ms var(--ease-in);
+	--animate-tooltip-out: popover-out 90ms var(--ease-in);
+
+	/* Sheets travel a full edge, so they run on the slow token and the drawer
+	   curve rather than the modal's scale timing. */
+	--animate-sheet-in-right: sheet-in-right var(--duration-slow) var(--ease-drawer);
+	--animate-sheet-out-right: sheet-out-right var(--duration-normal) var(--ease-in);
+	--animate-sheet-in-left: sheet-in-left var(--duration-slow) var(--ease-drawer);
+	--animate-sheet-out-left: sheet-out-left var(--duration-normal) var(--ease-in);
+	--animate-sheet-in-top: sheet-in-top var(--duration-slow) var(--ease-drawer);
+	--animate-sheet-out-top: sheet-out-top var(--duration-normal) var(--ease-in);
+	--animate-sheet-in-bottom: sheet-in-bottom var(--duration-slow) var(--ease-drawer);
+	--animate-sheet-out-bottom: sheet-out-bottom var(--duration-normal) var(--ease-in);
+}
+
+/*
+ * Duration utilities. Tailwind's `duration-*` reads bare numbers only — it has
+ * no `--duration-*` theme namespace — so `duration-fast` in markup silently
+ * compiled to nothing. These bind the utility names to the motion tokens so a
+ * component never has to spell a millisecond value inline.
+ */
+@utility duration-fast {
+	transition-duration: var(--duration-fast);
+}
+@utility duration-normal {
+	transition-duration: var(--duration-normal);
+}
+@utility duration-slow {
+	transition-duration: var(--duration-slow);
 }
 
 /* Full-viewport modal/sheet scrim — dim + blur everything behind pop panels. */
@@ -837,6 +875,163 @@
 		border-top: 0;
 		border-left: 1px solid var(--color-border);
 	}
+}
+
+/* Figma Board/List desktop shell (nodes 2948:15618, 2960:16130, 2996:1945).
+ * This is deliberately route-scoped: sessions, settings, terminals and the
+ * first-run importer keep the standard resizable/framed application chrome. */
+.figma-board-shell .center-panel-shell.center-panel-shell--figma-board {
+	padding: 0;
+	background: var(--color-bg-primary);
+}
+
+.figma-board-shell .center-panel-shell--figma-board > .center-panel-surface {
+	border: 0;
+	border-radius: 0;
+}
+
+.figma-board-shell [data-testid="board"] > .workspace-topbar-container {
+	display: none;
+}
+
+.figma-board-sidebar {
+	border: 0 !important;
+}
+
+.figma-board-sidebar [data-sidebar="sidebar"] {
+	background: #161616;
+}
+
+.figma-board-sidebar__header {
+	flex: 0 0 auto;
+	padding: 51px 19px 13px;
+}
+
+.figma-board-sidebar__brand {
+	width: fit-content;
+	color: #f4f4f3;
+	font-size: 18px;
+	font-weight: 600;
+	letter-spacing: -0.2px;
+	line-height: 22px;
+	text-align: left;
+}
+
+.figma-board-sidebar__section-heading {
+	display: flex;
+	height: 28px;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 19px;
+	color: #8c8c89;
+	font-size: 14px;
+	font-weight: 400;
+	line-height: 20px;
+}
+
+.figma-board-sidebar__section-icons {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+}
+
+.figma-board-sidebar__section-icons svg {
+	width: 12px;
+	height: 12px;
+	stroke-width: 1.5;
+}
+
+.figma-board-sidebar__content {
+	padding: 0 12px;
+}
+
+.figma-board-sidebar__tree {
+	gap: 1px;
+	border-radius: 0;
+}
+
+.figma-board-sidebar__project-row {
+	height: 28px;
+	gap: 6px;
+	border: 0;
+	border-radius: 6px;
+	padding: 0 7px;
+	color: #8f8f8c;
+	font-size: 14px;
+	font-weight: 400;
+	line-height: 20px;
+	box-shadow: none;
+}
+
+.figma-board-sidebar__project-row:hover,
+.figma-board-sidebar__project-row:active {
+	background: #222221;
+}
+
+.figma-board-sidebar__project-row[data-active="true"] {
+	background: #292927;
+	color: #a8a8a5;
+	box-shadow: none;
+}
+
+.figma-board-sidebar__project-row [data-project-label] {
+	transform: none;
+}
+
+.figma-board-sidebar__folder {
+	width: 14px !important;
+	height: 14px !important;
+	flex: 0 0 auto;
+}
+
+.figma-board-sidebar__project-chevron {
+	width: 12px !important;
+	height: 12px !important;
+	flex: 0 0 auto;
+	transition: transform 140ms ease-out;
+}
+
+.figma-board-sidebar__sessions {
+	gap: 0;
+	padding: 1px 0 4px;
+}
+
+.figma-board-sidebar__session-item {
+	padding: 0;
+}
+
+.figma-board-sidebar__session-item [data-session-row] {
+	height: 26px;
+	border-radius: 6px;
+}
+
+.figma-board-sidebar__session-item [data-session-row] > div:first-child > button {
+	height: 26px;
+	gap: 0;
+	padding: 0 0 0 27px;
+	font-size: 14px;
+	line-height: 20px;
+}
+
+.figma-board-sidebar__session-item [data-session-row] > div:first-child > button > span {
+	gap: 0;
+}
+
+.figma-board-sidebar__show-more {
+	display: flex;
+	height: 25px;
+	width: 100%;
+	align-items: center;
+	padding-left: 27px;
+	color: #646461;
+	font-size: 12px;
+	line-height: 16px;
+	text-align: left;
+}
+
+.figma-board-sidebar__show-more:hover {
+	color: #92928f;
 }
 
 /* A fully hidden sidebar no longer contributes a left layout gutter. Restore
@@ -2111,6 +2306,76 @@ textarea,
 	to {
 		opacity: 0;
 		scale: 0.98;
+	}
+}
+
+/*
+ * Sheets. Percentage translates are relative to the element's own box, so one
+ * keyframe per edge covers every sheet width we ship — no size-coupled pixel
+ * offsets to keep in sync with the `w-3/4 sm:max-w-sm` content rules.
+ */
+@keyframes sheet-in-right {
+	from {
+		transform: translateX(100%);
+	}
+	to {
+		transform: translateX(0);
+	}
+}
+@keyframes sheet-out-right {
+	from {
+		transform: translateX(0);
+	}
+	to {
+		transform: translateX(100%);
+	}
+}
+@keyframes sheet-in-left {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(0);
+	}
+}
+@keyframes sheet-out-left {
+	from {
+		transform: translateX(0);
+	}
+	to {
+		transform: translateX(-100%);
+	}
+}
+@keyframes sheet-in-top {
+	from {
+		transform: translateY(-100%);
+	}
+	to {
+		transform: translateY(0);
+	}
+}
+@keyframes sheet-out-top {
+	from {
+		transform: translateY(0);
+	}
+	to {
+		transform: translateY(-100%);
+	}
+}
+@keyframes sheet-in-bottom {
+	from {
+		transform: translateY(100%);
+	}
+	to {
+		transform: translateY(0);
+	}
+}
+@keyframes sheet-out-bottom {
+	from {
+		transform: translateY(0);
+	}
+	to {
+		transform: translateY(100%);
 	}
 }
 

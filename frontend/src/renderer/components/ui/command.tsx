@@ -47,8 +47,12 @@ function CommandDialog({
 					data-slot="command-dialog-content"
 					aria-label={title}
 					{...contentProps}
+					// No entrance on the panel itself. The palette is summoned by ⌘K
+					// dozens of times a session, and an animation on a keyboard action
+					// reads as latency between the keypress and the caret being ready.
+					// The scrim still fades so the change of context isn't a hard cut.
 					className={cn(
-						"fixed left-1/2 top-command-palette z-overlay w-command-palette -translate-x-1/2 overflow-hidden rounded-[var(--radius-command-palette)] border border-[var(--color-border-command-palette)] bg-[var(--color-bg-command-palette)] text-[var(--color-text-command-item)] shadow-[var(--shadow-command-palette)] outline-none data-[state=open]:animate-modal-in data-[state=closed]:animate-modal-out motion-reduce:animate-none",
+						"fixed left-1/2 top-command-palette z-overlay w-command-palette -translate-x-1/2 overflow-hidden rounded-[var(--radius-command-palette)] border border-[var(--color-border-command-palette)] bg-[var(--color-bg-command-palette)] text-[var(--color-text-command-item)] shadow-[var(--shadow-command-palette)] outline-none",
 						className,
 					)}
 				>

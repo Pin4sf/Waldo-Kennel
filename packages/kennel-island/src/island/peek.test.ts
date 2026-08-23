@@ -19,7 +19,7 @@ const stage = {
 };
 
 function metrics(overrides: Partial<RestingMetricsInput>) {
-  return restingMetricsFor({ ...stage, shape: "dormant", clusterItems: 0, ...overrides });
+  return restingMetricsFor({ ...stage, shape: "dormant", hovered: false, clusterItems: 0, ...overrides });
 }
 
 test("a quiet island is exactly the camera housing", () => {
@@ -45,7 +45,23 @@ test("an awake strip pads both sides equally around the housing", () => {
   const strip = metrics({ shape: "strip", clusterItems: 2 });
 
   assert.equal(strip.width, 220 + 2 * clusterWidth(2) + 2 * 12);
-  assert.equal(strip.height, ISLAND_HEADER_HEIGHT);
+});
+
+test("an untouched strip is exactly as tall as the housing, awake or not", () => {
+  // The whole illusion is that nothing was added to the bezel. A strip taller
+  // than the housing hangs a black lip below the hardware the moment a song
+  // starts, which is the one thing a quiet machine must never do.
+  assert.equal(metrics({ shape: "strip", clusterItems: 2 }).height, 38);
+  assert.equal(metrics({ shape: "dormant" }).height, 38);
+});
+
+test("a hovered strip may take the header's height, because a pointer asked", () => {
+  assert.equal(metrics({ shape: "strip", clusterItems: 2, hovered: true }).height, ISLAND_HEADER_HEIGHT);
+});
+
+test("a fine-tuned housing taller than the header still wins", () => {
+  const tall = metrics({ shape: "strip", clusterItems: 2, hovered: true, notchHeight: 60, menuBarHeight: 38 });
+  assert.equal(tall.height, 60);
 });
 
 test("an empty strip carries no padding it has nothing to pad", () => {
@@ -60,8 +76,13 @@ test("a strip is never shorter than the housing it straddles", () => {
 });
 
 test("a strip still clears a short menu bar on a scaled resolution", () => {
-  const strip = metrics({ shape: "strip", clusterItems: 1, menuBarHeight: 33, notchHeight: 33 });
-  assert.equal(strip.height, ISLAND_HEADER_HEIGHT);
+  const stripped = { shape: "strip", clusterItems: 1, menuBarHeight: 33, notchHeight: 33 } as const;
+
+  // Untouched it matches the shorter housing exactly — covering the bar is the
+  // job, growing past it is not.
+  assert.equal(metrics(stripped).height, 33);
+  // Hovered, the header's own height is what the chips need to breathe.
+  assert.equal(metrics({ ...stripped, hovered: true }).height, ISLAND_HEADER_HEIGHT);
 });
 
 test("cluster width counts the gaps between items, not after them", () => {

@@ -5,7 +5,9 @@ import {
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import {
+	ChevronDown,
 	ChevronRight,
+	Filter,
 	Folder,
 	FolderOpen,
 	LogIn,
@@ -121,6 +123,8 @@ export const SIDEBAR_MIN_WIDTH = 200;
 export const SIDEBAR_MAX_WIDTH = 420;
 
 type SidebarProps = {
+	/** Use the literal Figma Board/List desktop rail instead of the generic app sidebar chrome. */
+	figmaBoard?: boolean;
 	/** Hide the sidebar's right edge stroke on the welcome board inset chrome. */
 	hideEdgeBorder?: boolean;
 	/** Render the expanded sidebar over content without reserving layout width. */
@@ -193,6 +197,7 @@ function SessionStatusDot({ session }: { session: WorkspaceSession }) {
 // Collapsed sidebars move fully off-canvas; previews return as overlays without
 // reserving layout width.
 export function Sidebar({
+	figmaBoard = false,
 	hideEdgeBorder = false,
 	isOverlay = false,
 	underTopbar = true,
@@ -281,11 +286,13 @@ export function Sidebar({
 		<SidebarRoot
 			collapsible="offcanvas"
 			data-expanded-chrome={expandedChromeVisible ? "visible" : "hidden"}
+			data-figma-board={figmaBoard ? "true" : undefined}
 			data-topbar-offset={underTopbar ? topbarOffset : undefined}
 			onPointerLeave={onPreviewLeave}
 			overlay={isOverlay}
 			className={cn(
 				"sidebar-focusless",
+				figmaBoard && "figma-board-sidebar",
 				hideEdgeBorder ? "border-transparent" : "border-r-0 group-data-[side=left]:border-r-0",
 				isOverlay && "z-sidebar-preview shadow-2xl",
 				isOverlay || !underTopbar
@@ -295,11 +302,24 @@ export function Sidebar({
 		>
 			<SidebarHeader
 				className={cn(
-					"gap-0 p-0 px-3 pt-2 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:pt-2",
+					figmaBoard
+						? "figma-board-sidebar__header"
+						: "gap-0 p-0 px-3 pt-2 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:pt-2",
 					isOverlay && underTopbar && "pt-(--sidebar-chrome-offset)!",
 				)}
 			>
-				{/* Brand (project-sidebar__brand); in the icon rail it becomes the old
+				{figmaBoard ? (
+					<button
+						aria-label={t("shell.orchestratorBoard")}
+						className="figma-board-sidebar__brand"
+						onClick={selection.goWork}
+						style={noDragStyle}
+						type="button"
+					>
+						Kennel
+					</button>
+				) : (
+				<>{/* Brand (project-sidebar__brand); in the icon rail it becomes the old
             36px board button wrapping the 22px accent mark. */}
 				<div
 					className={cn(
@@ -361,6 +381,8 @@ export function Sidebar({
 						</span>
 					)}
 				</div>
+				</>
+				)}
 			</SidebarHeader>
 
 			{selection.isHome ? (
@@ -374,6 +396,15 @@ export function Sidebar({
 			{!selection.isHome ? (
 				<>
 			{/* Keep Search + section chrome fixed; only the project tree scrolls. */}
+			{figmaBoard ? (
+				<div className="figma-board-sidebar__section-heading">
+					<span>{t("shell.projects")}</span>
+					<span aria-hidden="true" className="figma-board-sidebar__section-icons">
+						<ChevronDown />
+						<Filter />
+					</span>
+				</div>
+			) : (
 			<div className="flex shrink-0 flex-col gap-0 px-2 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
 				{commandPaletteEnabled ? (
 					<SidebarGroup className="p-0 pb-4">
@@ -428,8 +459,14 @@ export function Sidebar({
 					/>
 				</div>
 			</div>
+			)}
 
-			<SidebarContent className="project-sidebar-scrollbar gap-0 px-2 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
+			<SidebarContent
+				className={cn(
+					"project-sidebar-scrollbar gap-0 group-data-[collapsible=icon]:items-center",
+					figmaBoard ? "figma-board-sidebar__content" : "px-2 group-data-[collapsible=icon]:px-1.5",
+				)}
+			>
 				<SidebarGroup className="p-0">
 					{/* Tree (project-sidebar__tree) */}
 					<SidebarGroupContent>
@@ -439,9 +476,15 @@ export function Sidebar({
 								<p className="mt-1 text-caption text-passive">{workspaceError}</p>
 							</div>
 						) : workspaces.length === 0 ? null : (
-							<SidebarMenu className="gap-0.5 rounded-lg overflow-hidden group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:rounded-none group-data-[collapsible=icon]:overflow-visible">
+							<SidebarMenu
+								className={cn(
+									"overflow-hidden group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:rounded-none group-data-[collapsible=icon]:overflow-visible",
+									figmaBoard ? "figma-board-sidebar__tree" : "gap-0.5 rounded-lg",
+								)}
+							>
 								{workspaces.map((workspace) => (
 									<ProjectItem
+										figmaBoard={figmaBoard}
 										key={workspace.id}
 										workspace={workspace}
 										expanded={!collapsedIds.has(workspace.id)}
@@ -459,11 +502,18 @@ export function Sidebar({
 				</>
 			) : null}
 
+			{figmaBoard && daemonStatus ? (
+				<span aria-hidden="true" className="sr-only" data-testid="daemon-status" data-state={daemonStatus.state}>
+					daemon {daemonStatus.state}
+				</span>
+			) : null}
+
 			{/* Footer — Settings opens the global settings page directly.
 			    Its hairline and row height match the board Archive bar. Bottom
 			    margin matches the framed center-panel inset plus the 1px surface
 			    border so the two hairlines meet. Native fullscreen drops the
 			    mac inset, so the footer collapses to the 1px surface border. */}
+			{figmaBoard ? null : (
 			<SidebarFooter
 				className={cn(
 					"relative mt-auto gap-0 overflow-hidden border-t border-border-strong px-2 !py-2 transition-[padding] duration-200 ease-linear group-data-[collapsible=icon]:min-h-16 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:!pb-0 group-data-[collapsible=icon]:!pt-1.5",
@@ -521,20 +571,25 @@ export function Sidebar({
 					</Tooltip>
 				</div>
 			</SidebarFooter>
+			)}
 
-			<ResizeHandle
-				className="group-data-[state=collapsed]:hidden"
-				onDoubleClick={onResizeDoubleClick}
-				onPointerDown={onResizePointerDown}
-				side="right"
-				style={noDragStyle}
-			/>
-			<SidebarRail
-				aria-label={t("shell.expandSidebar")}
-				className="group-data-[state=expanded]:hidden hover:after:bg-transparent"
-				onClick={() => setOpen(true)}
-				onPointerDown={onCollapsedResizePointerDown}
-			/>
+			{figmaBoard ? null : (
+				<>
+					<ResizeHandle
+						className="group-data-[state=collapsed]:hidden"
+						onDoubleClick={onResizeDoubleClick}
+						onPointerDown={onResizePointerDown}
+						side="right"
+						style={noDragStyle}
+					/>
+					<SidebarRail
+						aria-label={t("shell.expandSidebar")}
+						className="group-data-[state=expanded]:hidden hover:after:bg-transparent"
+						onClick={() => setOpen(true)}
+						onPointerDown={onCollapsedResizePointerDown}
+					/>
+				</>
+			)}
 		</SidebarRoot>
 	);
 }
@@ -542,12 +597,14 @@ export function Sidebar({
 type Selection = ReturnType<typeof useSelection>;
 
 function ProjectItem({
+	figmaBoard,
 	workspace,
 	expanded,
 	selection,
 	onToggle,
 	onRemoveProject,
 }: {
+	figmaBoard: boolean;
 	workspace: WorkspaceSummary;
 	expanded: boolean;
 	selection: Selection;
@@ -571,6 +628,7 @@ function ProjectItem({
 	const [isSpawning, setIsSpawning] = useState(false);
 	const [projectPressed, setProjectPressed] = useState(false);
 	const [rowHovered, setRowHovered] = useState(false);
+	const [showAllSessions, setShowAllSessions] = useState(false);
 	// Skip enter animation on first mount — sessions arrive async and we don't
 	// want them to slide in on every sidebar load. Only animate on subsequent
 	// expand/collapse toggles.
@@ -586,6 +644,7 @@ function ProjectItem({
 	// Only termination removes a worker from the sidebar; archived sessions stay
 	// reachable through SessionsBoard.
 	const sessions = sortedWorkerSessions(workspace.sessions).filter((session) => session.isTerminated !== true);
+	const visibleSessions = figmaBoard && !showAllSessions ? sessions.slice(0, 3) : sessions;
 	// The project's live orchestrator (if any) backs the hover Orchestrator
 	// button: navigate to it when present, otherwise spawn one first.
 	const orchestrator = newestActiveOrchestrator(workspace.sessions);
@@ -702,13 +761,22 @@ function ProjectItem({
 			NAV_ROW_CLASS,
 			// gap-2 matches SectionDisclosure so project icons/labels share the
 			// Projects header's left edge (NAV_ROW defaults to gap-2.5).
-			"gap-2 pr-sidebar-project-actions [&_svg]:size-icon-md",
+			figmaBoard
+				? "figma-board-sidebar__project-row"
+				: "gap-2 pr-sidebar-project-actions [&_svg]:size-icon-md",
 			"group-data-[collapsible=icon]:size-control-board! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:font-semibold",
 		)}
 	>
 		{/* Expanded sidebar: visual folder/chevron icon (decorative — toggle button is a sibling).
 		    size-icon-md matches the Projects section row; an 18px centered box was
 		    optically indenting these icons relative to the header. */}
+		{figmaBoard ? (
+			<Folder
+				aria-hidden="true"
+				className="figma-board-sidebar__folder"
+				strokeWidth={1.5}
+			/>
+		) : (
 		<span
 			aria-hidden="true"
 			className="relative inline-flex size-icon-md shrink-0 translate-y-px items-center justify-center text-muted-foreground group-data-[collapsible=icon]:hidden"
@@ -729,6 +797,7 @@ function ProjectItem({
 				<Folder strokeWidth={1.75} />
 			)}
 		</span>
+		)}
 		{/* Collapsed icon rail: folder icon */}
 		<span
 			aria-hidden="true"
@@ -746,13 +815,23 @@ function ProjectItem({
 		>
 			{workspace.name}
 		</span>
+		{figmaBoard ? (
+			<ChevronDown
+				aria-hidden="true"
+				className={cn("figma-board-sidebar__project-chevron", !expanded && "-rotate-90")}
+				strokeWidth={1.5}
+			/>
+		) : null}
 	</SidebarMenuButton>
 	{/* Folder disclosure toggle: sibling of the nav button, absolutely positioned over
 	    the icon area so it intercepts clicks there without nesting buttons. */}
 	<button
 		aria-label={t("shell.toggleProject", { name: workspace.name })}
 		aria-expanded={expanded}
-		className="absolute inset-y-0 left-0 z-10 w-9 group-data-[collapsible=icon]:hidden focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
+		className={cn(
+			"absolute inset-y-0 z-10 w-9 group-data-[collapsible=icon]:hidden focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm",
+			figmaBoard ? "right-0" : "left-0",
+		)}
 		data-project-folder=""
 		onClick={onFolderClick}
 		type="button"
@@ -761,6 +840,7 @@ function ProjectItem({
 		{/* Per-project actions: orchestrator and kebab menu. Inside the scaled visual
 		row, but outside its navigation surface so their own presses stay independent.
 		Always visible (not hover-gated) to avoid CSS :hover group propagation in Chromium. */}
+		{figmaBoard ? null : (
 		<div
 			className={cn(
 				"sidebar-expanded-chrome absolute top-0 right-0.5 z-chrome flex h-control-form items-center gap-px",
@@ -825,6 +905,7 @@ function ProjectItem({
 				</DropdownMenuContent>
 			</DropdownMenu>
 		</div>
+		)}
 		</div>{/* end outer relative */}
 		{isRemoving ? (
 			<div className="sidebar-expanded-chrome px-5 py-1 text-2xs text-muted-foreground" role="status">
@@ -854,15 +935,30 @@ function ProjectItem({
 						exit={{ y: -12, opacity: 0 }}
 						transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.14, ease: [0.25, 0.46, 0.45, 0.94] }}
 					>
-						<SidebarMenuSub className="mx-0 ml-3.5 translate-x-0 gap-px border-l-0 px-0 py-1">
-							{sessions.map((session) => (
+						<SidebarMenuSub
+							className={cn(
+								"mx-0 translate-x-0 border-l-0 px-0",
+								figmaBoard ? "figma-board-sidebar__sessions" : "ml-3.5 gap-px py-1",
+							)}
+						>
+							{visibleSessions.map((session) => (
 								<SessionRow
 									key={session.id}
 									session={session}
 									active={selection.activeSessionId === session.id}
+									figmaBoard={figmaBoard}
 									onOpen={() => selection.goSession(workspace.id, session.id)}
 								/>
 							))}
+							{figmaBoard && sessions.length > 3 ? (
+								<button
+									className="figma-board-sidebar__show-more"
+									onClick={() => setShowAllSessions((visible) => !visible)}
+									type="button"
+								>
+									{t(showAllSessions ? "inspector.showLess" : "inspector.showMore")}
+								</button>
+							) : null}
 						</SidebarMenuSub>
 					</motion.div>
 				</motion.div>
@@ -916,11 +1012,13 @@ function ProjectItem({
 function SessionRow({
 	session,
 	active,
+	figmaBoard = false,
 	indented = true,
 	onOpen,
 }: {
 	session: WorkspaceSession;
 	active: boolean;
+	figmaBoard?: boolean;
 	indented?: boolean;
 	onOpen: () => void;
 }) {
@@ -965,9 +1063,9 @@ function SessionRow({
 
 	if (isEditing) {
 		return (
-			<SidebarMenuSubItem className={cn(indented && "pl-4.5")}>
+			<SidebarMenuSubItem className={cn(figmaBoard ? "figma-board-sidebar__session-item" : indented && "pl-4.5")}>
 				<div className="relative flex h-7 w-full items-center gap-1.25 rounded-md px-1.75 py-0">
-					<SessionStatusDot session={session} />
+					{figmaBoard ? null : <SessionStatusDot session={session} />}
 					<input
 						aria-label={t("shell.renameSession", { title: session.title })}
 						autoFocus
@@ -994,7 +1092,7 @@ function SessionRow({
 	}
 
 	return (
-		<SidebarMenuSubItem className={cn(indented && "pl-4.5")}>
+		<SidebarMenuSubItem className={cn(figmaBoard ? "figma-board-sidebar__session-item" : indented && "pl-4.5")}>
 			<div
 				className={cn(
 					"group/session-row flex h-7 w-full items-center rounded-md transition-[background-color,color]",
@@ -1007,13 +1105,13 @@ function SessionRow({
 				<div className="flex min-w-0 flex-1 transition-[transform] duration-[100ms] ease-out active:scale-[0.97]">
 					<button
 						aria-current={active ? "page" : undefined}
-						aria-describedby={switchLabel ? switchStatusId : undefined}
+						aria-describedby={!figmaBoard && switchLabel ? switchStatusId : undefined}
 						aria-label={t("shell.openSession", { title: session.title })}
 						className="flex h-7 min-w-0 flex-1 items-center gap-1.25 rounded-md px-1.75 py-0 text-left text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
 						onClick={onOpen}
 						type="button"
 					>
-						<SessionStatusDot session={session} />
+						{figmaBoard ? null : <SessionStatusDot session={session} />}
 						<span className="flex min-w-0 flex-1 items-center gap-1.5">
 							<span
 								className={cn(
@@ -1023,7 +1121,7 @@ function SessionRow({
 							>
 								{session.title}
 							</span>
-							{switchLabel ? (
+							{!figmaBoard && switchLabel ? (
 								<span id={switchStatusId} className="max-w-28 shrink-0 truncate text-2xs text-muted-foreground">
 									{switchLabel}
 								</span>

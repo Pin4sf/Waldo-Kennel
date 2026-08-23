@@ -65,7 +65,7 @@ import {
 	sessionsBoardLabels,
 } from "./SessionsBoardAdapters";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { OutcomeIntakePanel } from "./OutcomeIntakePanel";
+import { OutcomeIntakePanel, OutcomeQuestionOverlay } from "./OutcomeIntakePanel";
 
 type SessionsBoardProps = {
 	/** When set, the board shows only this project's sessions. */
@@ -196,6 +196,14 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	// the active Outcome intake/review surface when no work is currently running.
 	const showProjectEmpty =
 		projectId !== undefined && isLoaded && workspaces.length > 0 && activeSessions.length === 0;
+	const activeOutcomeQuestionSet =
+		!showProjectEmpty &&
+		projectId !== undefined &&
+		outcomeDefinition &&
+		orchestrator?.mode === "chat" &&
+		outcomeCoordination.stage === "questions"
+			? outcomeCoordination.questionSet
+			: undefined;
 	const hasArchive = archived.length > 0;
 	const terminateSession = useTerminateSession();
 	const activeProjectIdRef = useRef(projectId);
@@ -512,6 +520,16 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 					</div>
 				)}
 			</div>
+
+			{activeOutcomeQuestionSet && outcomeDefinition ? (
+				<OutcomeQuestionOverlay
+					busy={isSendingOutcomeResponse}
+					error={outcomeResponseError}
+					onSubmit={(answers) => sendOutcomeResponse(buildOutcomeAnswersMessage(answers))}
+					questionSet={activeOutcomeQuestionSet}
+					supportingText={outcomeDefinition}
+				/>
+			) : null}
 
 			{hasArchive ? (
 				<BoardArchivePanel

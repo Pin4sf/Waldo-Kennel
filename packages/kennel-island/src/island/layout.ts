@@ -26,6 +26,7 @@ export const defaultStageGeometry: KennelStageGeometry = {
  */
 export const islandWidths: Record<IslandSurface, number> = {
   compact: 440,
+  activity: 440,
   queue: 680,
   choice: 400,
   permission: 400,
@@ -36,6 +37,7 @@ export const islandWidths: Record<IslandSurface, number> = {
 /** Corner radius of the island body's bottom edge, in points. */
 export const islandRadius: Record<IslandSurface, number> = {
   compact: 20,
+  activity: 24,
   queue: 26,
   choice: 24,
   permission: 24,

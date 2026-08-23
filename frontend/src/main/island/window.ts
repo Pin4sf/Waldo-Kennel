@@ -36,7 +36,7 @@ import { createKennelService } from "../../../../packages/kennel-island/desktop/
 // @ts-expect-error Canonical Island desktop modules are JavaScript packages.
 import { readArtwork, sameTrack } from "../../../../packages/kennel-island/desktop/media-artwork.mjs";
 // @ts-expect-error Canonical Island desktop modules are JavaScript packages.
-import { isMediaCommand, readMediaActivity, sendMediaCommand } from "../../../../packages/kennel-island/desktop/media-activity.mjs";
+import { focusApplication, isMediaCommand, readMediaActivity, seekMedia, sendMediaCommand } from "../../../../packages/kennel-island/desktop/media-activity.mjs";
 // @ts-expect-error Canonical Island desktop modules are JavaScript packages.
 import { measureNotch } from "../../../../packages/kennel-island/desktop/notch-measure.mjs";
 // @ts-expect-error Canonical Island desktop modules are JavaScript packages.
@@ -50,9 +50,12 @@ const TOGGLE_ACCELERATOR = "CommandOrControl+`";
 const SHORTCUT_LABEL = "Command+`";
 
 const IPC_SET_INTERACTIVE = "kennel-island:set-interactive";
+const IPC_SET_FOCUSABLE = "kennel-island:set-focusable";
 const IPC_GET_MEDIA_ACTIVITY = "kennel-island:get-media-activity";
 const IPC_MEDIA_ACTIVITY_CHANGED = "kennel-island:media-activity-changed";
 const IPC_SEND_MEDIA_COMMAND = "kennel-island:send-media-command";
+const IPC_FOCUS_MEDIA_APP = "kennel-island:focus-media-app";
+const IPC_SEEK_MEDIA = "kennel-island:seek-media";
 const IPC_GET_STAGE_GEOMETRY = "kennel-island:get-stage-geometry";
 const IPC_STAGE_GEOMETRY_CHANGED = "kennel-island:stage-geometry-changed";
 const IPC_RECENTER = "kennel-island:recenter";
@@ -104,8 +107,18 @@ export type IslandController = {
 };
 
 type MeasuredNotch = { hasNotch: boolean; notchWidth?: number; notchHeight?: number } | null;
-type MediaTrack = { title: string; artist: string; source?: string; artwork?: string };
-type MediaActivity = { playing: boolean; track: MediaTrack | null };
+type MediaTrack = {
+	title: string;
+	artist: string;
+	source?: string;
+	artwork?: string;
+	/** Playhead, for the players that answer. See KennelMediaTrack for why. */
+	positionSeconds?: number;
+	durationSeconds?: number;
+	sampledAt?: number;
+	seekable?: boolean;
+};
+type MediaActivity = { playing: boolean; owner: string | null; track: MediaTrack | null };
 type DetailedSettings = {
 	notch: { widthOffset: number; heightOffset: number };
 	hover: { haptics: boolean };
@@ -210,12 +223,16 @@ export async function createIslandController(options: IslandControllerOptions): 
 	let islandWindow: BrowserWindow | null = null;
 	let settingsWindow: BrowserWindow | null = null;
 	let islandInteractive = false;
+	// Tracks what setIslandFocusable last granted, so the defensive `focus`
+	// listener created below can tell "the steer composer legitimately asked
+	// for a caret" apart from "the OS handed us key status we never wanted".
+	let islandFocusable = false;
 	let measuredNotch: MeasuredNotch = null;
 	let enabled = await readVisibilityPreference();
 	let supported = false;
 	let disposed = false;
 	let mediaPollTimer: NodeJS.Timeout | null = null;
-	let mediaActivity: MediaActivity = { playing: false, track: null };
+	let mediaActivity: MediaActivity = { playing: false, owner: null, track: null };
 	let daemonConnection: KennelConnection | null = null;
 	let shortcutRegistered = false;
 	let displayRefresh: Promise<void> | null = null;
@@ -403,7 +420,8 @@ export async function createIslandController(options: IslandControllerOptions): 
 	}
 
 	function sameMediaActivity(left: MediaActivity, right: MediaActivity): boolean {
-		return left.playing === right.playing && sameTrack(left.track, right.track) &&
+		return left.playing === right.playing && left.owner === right.owner &&
+			sameTrack(left.track, right.track) &&
 			(left.track?.artwork ?? null) === (right.track?.artwork ?? null);
 	}
 
@@ -412,7 +430,7 @@ export async function createIslandController(options: IslandControllerOptions): 
 		try {
 			next = await readMediaActivity({ execFile, platform: process.platform });
 		} catch {
-			next = { playing: false, track: null };
+			next = { playing: false, owner: null, track: null };
 		}
 		if (sameTrack(next.track, mediaActivity.track) && mediaActivity.track?.artwork && next.track) {
 			next = { ...next, track: { ...next.track, artwork: mediaActivity.track.artwork } };
@@ -438,6 +456,52 @@ export async function createIslandController(options: IslandControllerOptions): 
 		}
 	}
 
+	/**
+	 * Brings whatever is playing to the front.
+	 *
+	 * The application is taken from the host's own last sample rather than
+	 * from the renderer: the island asks to focus "the player", and naming one
+	 * across the bridge would turn this into a way to launch anything.
+	 */
+	/** Drags the playhead, then re-samples so the bar lands where it was dropped. */
+	async function runSeek(positionSeconds: unknown): Promise<{ sought: boolean }> {
+		try {
+			const result = await seekMedia(positionSeconds, { execFile, platform: process.platform });
+			if (result.sought) void sampleMediaActivity();
+			return { sought: result.sought === true };
+		} catch {
+			return { sought: false };
+		}
+	}
+
+	async function focusMediaApp(): Promise<{ focused: boolean }> {
+		const owner = mediaActivity.owner;
+		if (!owner) return { focused: false };
+		try {
+			const result = await focusApplication(owner, { execFile, platform: process.platform });
+			return { focused: result.focused === true };
+		} catch {
+			return { focused: false };
+		}
+	}
+
+	/**
+	 * Lets the island take the key window, or takes that ability away again.
+	 *
+	 * Dropping focusability is not enough on its own: a window that is already
+	 * key stays key, so the caret would remain stranded here until the user
+	 * clicked elsewhere. Blurring hands the key window back to whatever had it
+	 * before, which is the app the person was actually working in.
+	 */
+	function setIslandFocusable(focusable: boolean): { focusable: boolean } {
+		islandFocusable = focusable;
+		const window = islandWindow;
+		if (!window || window.isDestroyed()) return { focusable: false };
+		window.setFocusable(focusable);
+		if (!focusable && window.isFocused()) window.blur();
+		return { focusable };
+	}
+
 	function startMediaPolling(): void {
 		if (mediaPollTimer || !supported) return;
 		void sampleMediaActivity();
@@ -458,6 +522,12 @@ export async function createIslandController(options: IslandControllerOptions): 
 			...stageBounds(),
 			acceptFirstMouse: true,
 			alwaysOnTop: true,
+			// The island is a heads-up display, not an app you switch to. A
+			// focusable overlay takes the key window on the first click, which
+			// drops the caret out of whatever was being typed in and leaves the
+			// user clicking back into their own chat box. The steer composer
+			// turns this on for as long as it is open and off again after.
+			focusable: false,
 			backgroundColor: "#00000000",
 			closable: false,
 			frame: false,
@@ -497,6 +567,24 @@ export async function createIslandController(options: IslandControllerOptions): 
 		created.setHiddenInMissionControl(true);
 		created.setMenuBarVisibility(false);
 		created.setWindowButtonVisibility(false);
+		// `focusable: false` at construction is the documented way to make an
+		// Electron panel non-activating on macOS, but it is not the only lever:
+		// AppKit can still hand the window key status on a click in some Electron
+		// builds regardless of the constructor option, and the moment that
+		// happens the previously-key window (whatever the user was typing into)
+		// resigns key and the caret goes with it — which is exactly the friction
+		// reported (clicking the island drops focus out of another app's text
+		// field). `setFocusable(false)` again after creation covers builds where
+		// the constructor option alone does not stick, and the `focus` listener
+		// is the belt-and-suspenders backstop: if key status is granted despite
+		// both of those, it is surrendered in the same tick, before a person
+		// could perceive the island as focused at all. `blur()` does not need to
+		// know what to hand key status back to — the window server does that on
+		// its own, returning it to whatever was key immediately before.
+		created.setFocusable(false);
+		created.on("focus", () => {
+			if (!created.isDestroyed() && !islandFocusable) created.blur();
+		});
 		secureWindow(created);
 		created.once("ready-to-show", () => {
 			if (created.isDestroyed() || !enabled || !supported) return;
@@ -731,6 +819,11 @@ export async function createIslandController(options: IslandControllerOptions): 
 		handle(IPC_GET_STAGE_GEOMETRY, () => [islandWindow], () => stageGeometry());
 		handle(IPC_GET_MEDIA_ACTIVITY, () => [islandWindow], () => mediaActivity);
 		handle(IPC_SEND_MEDIA_COMMAND, () => [islandWindow], (payload) => runMediaCommand(isRecord(payload) ? payload.command : undefined));
+		handle(IPC_FOCUS_MEDIA_APP, () => [islandWindow], () => focusMediaApp());
+		handle(IPC_SEEK_MEDIA, () => [islandWindow], (payload) =>
+			runSeek(isRecord(payload) ? payload.positionSeconds : undefined));
+		handle(IPC_SET_FOCUSABLE, () => [islandWindow], (payload) =>
+			setIslandFocusable(isRecord(payload) && payload.focusable === true));
 		handle(IPC_RECENTER, () => [islandWindow], () => recenterWindow());
 		handle(IPC_GET_KENNEL_SNAPSHOT, () => [islandWindow], () => service.getSnapshot({
 			includePendingConversations: true,

@@ -8,6 +8,7 @@ import type { IslandModel } from "./types";
  * panel are browsing, and browsing ends when you look away.
  */
 export const POINTER_HELD_SURFACES: ReadonlySet<IslandModel["surface"]> = new Set([
+  "activity",
   "queue",
   "usage",
 ]);

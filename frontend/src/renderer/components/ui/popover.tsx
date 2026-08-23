@@ -15,7 +15,7 @@ export function PopoverContent({
 				className={cn(
 					"z-overlay rounded-panel hairline border-border bg-popover text-popover-foreground outline-none",
 					"origin-(--radix-popover-content-transform-origin)",
-					"data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out",
+					"data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out motion-reduce:animate-none",
 					className,
 				)}
 				sideOffset={sideOffset}

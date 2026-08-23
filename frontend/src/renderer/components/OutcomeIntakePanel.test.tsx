@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { OutcomePlan } from "../lib/outcome-coordination";
-import { OutcomeIntakePanel } from "./OutcomeIntakePanel";
+import { OutcomeIntakePanel, OutcomeQuestionOverlay } from "./OutcomeIntakePanel";
 
 const plan: OutcomePlan = {
 	summary: "Improve conversation reliability without breaking the public API.",
@@ -63,16 +63,48 @@ describe("OutcomeIntakePanel", () => {
 			/>,
 		);
 
-		expect(screen.getByText("1 of 2")).toBeInTheDocument();
+		expect(screen.getByText("1 / 2")).toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: /Impact-first/ }));
-		await user.click(screen.getAllByRole("button", { name: "Next question" }).at(-1)!);
-		await user.type(screen.getByPlaceholderText("Give your own answer or add context…"), "macOS first, then Windows");
+		await user.click(screen.getByRole("button", { name: "Next question" }));
+		await user.type(screen.getByPlaceholderText("Type / speak your own response here…"), "macOS first, then Windows");
 		await user.click(screen.getByRole("button", { name: "Submit answers" }));
 
 		expect(onSubmitAnswers).toHaveBeenCalledWith({
 			priority: "Impact-first",
 			platform: "macOS first, then Windows",
 		});
+	});
+
+	it("renders the structured questions as the Figma list overlay", () => {
+		render(
+			<OutcomeQuestionOverlay
+				busy={false}
+				onSubmit={vi.fn()}
+				questionSet={{
+					questions: [
+						{
+							id: "scope",
+							prompt: "Wants to create DES-4 now in team design, project Island Design Revamp?",
+							description: "Waldo's insight on what is happening inside the session, what tasks were run, what decisions were made, etc…",
+							options: [
+								{ id: "yes", label: "Yes, Create it", description: "Create it now", recommended: true },
+								{ id: "wait", label: "Hold off", description: "Wait for now" },
+								{ id: "check", label: "Do a full check first", description: "Review first" },
+							],
+						},
+					],
+				}}
+				supportingText="Fallback description"
+			/>,
+		);
+
+		const dialog = screen.getByRole("dialog", { name: /Wants to create DES-4/ });
+		expect(dialog).toHaveClass("bg-[rgb(21_21_21/60%)]", "pt-[15.1vh]");
+		expect(screen.getByTestId("outcome-questions")).toHaveClass("w-[386.4px]", "rounded-[19.2px]");
+		expect(screen.getByText("1 / 1")).toBeInTheDocument();
+		expect(screen.getByText("Recommended")).toBeInTheDocument();
+		expect(screen.getByPlaceholderText("Type / speak your own response here…")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument();
 	});
 
 	it("shows deliverables, checks, agents, revision input, and explicit approval", async () => {

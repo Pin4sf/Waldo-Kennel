@@ -215,6 +215,9 @@
 	/* Motion */
 	--duration-fast: 120ms;
 	--duration-normal: 150ms;
+	/* Panels that travel a full edge need longer than panels that scale in
+	   place; a 150ms sheet reads as a jump cut. */
+	--duration-slow: 240ms;
 
 	/* ═══════════════════════════════════════════════════════════════
 	   SPACING — 4px base (audit: 4/6/8/10/12/14/16/18 most common)

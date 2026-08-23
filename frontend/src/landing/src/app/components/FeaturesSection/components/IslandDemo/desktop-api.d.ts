@@ -74,6 +74,15 @@ declare global {
     verticalOpenClose: boolean;
     horizontalMedia: boolean;
     invertMedia: boolean;
+    /**
+     * Swap which vertical direction opens. Chromium's wheel event never
+     * reports whether natural scrolling is on (the flag it exposes is
+     * hardcoded false — a known Blink bug, unlike Safari/WebKit), so the
+     * island cannot detect the setting and assumes the near-universal
+     * default (natural scrolling on) instead. This is the escape hatch for
+     * the minority who turned it off.
+     */
+    invertVertical: boolean;
   }
 
   interface KennelAppearanceSettings {

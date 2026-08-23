@@ -21,7 +21,46 @@ import { HEADER_ITEM } from "./peek.ts";
    -------------------------------------------------------------------------- */
 
 /** Horizontal padding inside the peek, per side. */
-export const PEEK_TEXT_PADDING = 12;
+export const PEEK_TEXT_PADDING = 14;
+
+/* --------------------------------------------------------------------------
+   Peek silhouette
+   --------------------------------------------------------------------------
+   The bar's outline is not a rounded rectangle with corner fillets any more —
+   it is one continuous shape (`public/figma/peek-shape.svg`, the reference
+   from Figma): full width where it meets the strip, tapering on both sides
+   through a single curve to a narrower flat base where the text sits. Applied
+   as a CSS mask stretched to whatever box the bar ends up being
+   (`preserveAspectRatio="none"`, `mask-size: 100% 100%`), so the RATIO between
+   the shape's top and base is what has to be constant, not any absolute pixel
+   width — the reference is one fixed-size export, and the bar is drawn at
+   every width a track title happens to need.
+   -------------------------------------------------------------------------- */
+
+/** The reference export's own dimensions, for the ratio below. */
+const PEEK_SHAPE_TOP_WIDTH = 326.497;
+const PEEK_SHAPE_BASE_WIDTH = 270.997 - 55.5001;
+
+/**
+ * How much wider the shape's top is than its flat base.
+ *
+ * The base is where the button's content actually sits, so the OUTER box has
+ * to be wider than the content by this factor — an outer box sized to exactly
+ * fit the content would mask away its own edges, clipping the very text the
+ * bar exists to show.
+ */
+export const PEEK_SHAPE_FLARE_RATIO = PEEK_SHAPE_TOP_WIDTH / PEEK_SHAPE_BASE_WIDTH;
+
+/**
+ * Outer box width for a peek holding content of the given width.
+ *
+ * The result is guaranteed at least as wide as `contentWidth`: the flare only
+ * adds room on top of it, and rounding always rounds up, so the shape's base
+ * never lands a fraction of a pixel narrower than what has to fit inside it.
+ */
+export function peekOuterWidthFor(contentWidth: number): number {
+  return Math.ceil(Math.max(0, contentWidth) * PEEK_SHAPE_FLARE_RATIO);
+}
 
 /**
  * Narrowest the peek is allowed to get.

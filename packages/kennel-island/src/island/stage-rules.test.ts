@@ -27,6 +27,7 @@ test("a queue the pointer never reached is not collapsed under it", () => {
 test("a queue collapses once the pointer that was on it leaves", () => {
   assert.equal(shouldCollapseOnPointerLeave("queue", true, false), true);
   assert.equal(shouldCollapseOnPointerLeave("usage", true, false), true);
+  assert.equal(shouldCollapseOnPointerLeave("activity", true, false), true);
 });
 
 test("a pointer still on the island collapses nothing", () => {

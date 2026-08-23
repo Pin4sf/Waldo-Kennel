@@ -10,6 +10,7 @@ const questions = {
 		{
 			id: "priority",
 			prompt: "Which priority should guide the work?",
+			description: "Choose the tradeoff that should shape the plan.",
 			options: [
 				{ id: "impact", label: "Impact-first", description: "Prioritize user impact", recommended: true },
 				{ id: "risk", label: "Risk-first", description: "Retire technical risk" },

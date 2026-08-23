@@ -15,7 +15,10 @@ export function ContextMenuContent({
 			<ContextMenuPrimitive.Content
 				className={cn(
 					"z-overlay min-w-[10rem] overflow-hidden rounded-panel hairline border-border bg-popover p-1 text-popover-foreground shadow-md",
-					"data-[state=open]:animate-overlay-in",
+					// A context menu is a popover, not a scrim: it scales from the point
+					// that summoned it and it animates back out on close.
+					"origin-(--radix-context-menu-content-transform-origin)",
+					"data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out motion-reduce:animate-none",
 					className,
 				)}
 				{...props}

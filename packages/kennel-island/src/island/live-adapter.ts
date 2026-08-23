@@ -1437,6 +1437,10 @@ export function createLiveKennelIslandAdapter(
         if (!snapshot) publish(connectingCompact());
         await refresh();
         return;
+      case "activity-action":
+        // Reference activities exist only in the browser lab. The live adapter
+        // never forwards their controls to the daemon or an external app.
+        return;
       case "open-settings":
         // Settings are a host window, not a Kennel surface, so the island stays
         // exactly as it was rather than collapsing behind the form.

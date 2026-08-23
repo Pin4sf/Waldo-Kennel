@@ -492,16 +492,31 @@ export function usePresenceRotation(
  * anywhere else on the stage is somebody else's. Nothing arrives until the
  * stage has taken the pointer back, which is exactly the condition the
  * gestures are supposed to have: the cursor is on the island.
+ *
+ * `naturalScrolling` tells the recognizer which way a finger's physical
+ * motion maps to `deltaY`'s sign. It cannot be read off the event: Chromium's
+ * `webkitDirectionInvertedFromDevice` — the flag WebKit uses for exactly this
+ * — is hardcoded `false` in Blink regardless of the system setting (a known
+ * Blink bug; Safari reports it correctly). Detecting it from inside a wheel
+ * handler is therefore not possible, so the caller passes the assumption in —
+ * defaulting to "on", since that has been macOS's default since 10.7 — and a
+ * settings toggle lets the minority who turned it off correct it.
  */
 export function useIslandGestures(
   islandRef: RefObject<HTMLElement | null>,
   onGesture: (gesture: IslandGesture) => void,
+  naturalScrolling: boolean,
 ) {
   const latest = useRef(onGesture);
+  const natural = useRef(naturalScrolling);
 
   useEffect(() => {
     latest.current = onGesture;
   }, [onGesture]);
+
+  useEffect(() => {
+    natural.current = naturalScrolling;
+  }, [naturalScrolling]);
 
   useEffect(() => {
     const element = islandRef.current;
@@ -535,11 +550,7 @@ export function useIslandGestures(
       const gesture = recognizer.read({
         deltaX: event.deltaX,
         deltaY: event.deltaY,
-        // Only Chromium reports this, and only on macOS — which is the only
-        // place this app runs. Absent, an unflipped trackpad is assumed.
-        inverted:
-          (event as WheelEvent & { webkitDirectionInvertedFromDevice?: boolean })
-            .webkitDirectionInvertedFromDevice === true,
+        inverted: natural.current,
         timeStamp: event.timeStamp,
       });
       if (gesture) latest.current(gesture);

@@ -201,9 +201,17 @@ function ContextReadout({ usage }: { usage: ConversationUsage }) {
 					aria-label="Context window used"
 				>
 					<div className="h-1.5 w-16 overflow-hidden rounded-full bg-border">
+						{/*
+						 * The fill is a full-width bar scaled down, not a bar whose width
+						 * is animated: scaleX composites, width relayouts the row on every
+						 * frame while tokens are streaming in.
+						 */}
 						<div
-							className={cn("h-full rounded-full transition-[width] duration-300", FILL[severity])}
-							style={{ width: `${Math.max(fraction * 100, 2)}%` }}
+							className={cn(
+								"h-full w-full origin-left rounded-full transition-transform duration-normal ease-out motion-reduce:transition-none",
+								FILL[severity],
+							)}
+							style={{ transform: `scaleX(${Math.max(fraction, 0.02)})` }}
 						/>
 					</div>
 					<span className={cn("tabular-nums text-[11px]", TEXT[severity])}>{percent}%</span>
