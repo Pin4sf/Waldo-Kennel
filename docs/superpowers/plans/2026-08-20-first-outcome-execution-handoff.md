@@ -143,6 +143,8 @@ Expected: each PR is independently green and contains no Outcome schema or UI li
 
 ### Task 3: PR A — Enter surface and Work-first shell
 
+> **Shipped:** beta via PR #46 (`8ebddf3` Work-first Outcome lifecycle shell); issue tracking folded into the lane epic.
+
 **Files:**
 - Create: `frontend/src/renderer/components/outcome/OutcomeLifecycleShell.tsx`
 - Create: `frontend/src/renderer/components/outcome/OutcomeLifecycleShell.test.tsx`
@@ -156,11 +158,11 @@ Expected: each PR is independently green and contains no Outcome schema or UI li
 - Consumes: existing Project list/add/readiness APIs and provider admission projection
 - Produces: `OutcomeLifecycleShell({stage, projectId, outcomeId?, children})` and a Work-first Enter surface; no Outcome mutation yet
 
-- [ ] **Step 1: Write failing Work-first entry tests**
+- [x] **Step 1: Write failing Work-first entry tests**
 
 Assert that first run offers `Start with Work` as the v0 dogfood recommendation and `Set up Home` as an equal non-blocking alternative; selecting Work opens Project selection/readiness; no Home record is created; invalid folder, daemon offline, and Codex action-required states are distinct.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 npm --prefix frontend test -- --run work-first-entry OutcomeLifecycleShell
@@ -168,7 +170,7 @@ npm --prefix frontend test -- --run work-first-entry OutcomeLifecycleShell
 
 Expected: FAIL because the five-stage shell and Work route do not exist.
 
-- [ ] **Step 3: Implement the minimal shell**
+- [x] **Step 3: Implement the minimal shell**
 
 Use exactly five stage keys:
 
@@ -178,7 +180,7 @@ export type OutcomeStage = "enter" | "understand" | "decide_authorize" | "act_ob
 
 Home, Work, and Settings remain destinations outside this stage enum. Settings opens control; it is not a sixth lifecycle stage.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 ```bash
 npm --prefix frontend test -- --run work-first-entry OutcomeLifecycleShell
@@ -188,6 +190,8 @@ git commit -m "feat: add Work-first Outcome lifecycle shell"
 ```
 
 ### Task 4: PR B — Understand surface and immutable contract
+
+> **Shipped:** backend via PR #51 (squash `2042ceb7`, migration 0099) and renderer + marker-flow retirement via PR #55 (squash `5d6f85bb`); issue #21 closed.
 
 **Files:**
 - Replace: `backend/internal/domain/outcome.go`
@@ -219,18 +223,18 @@ git commit -m "feat: add Work-first Outcome lifecycle shell"
 - Consumes: `ProjectID`, Work-first shell
 - Produces: `CreateOutcome`, `ReviseOutcomeContract`, `GetOutcome`; immutable `ContractRevision`; current stage derived from durable facts
 
-- [ ] **Step 1: Write failing domain/store/controller tests**
+- [x] **Step 1: Write failing domain/store/controller tests**
 
 Cover required Goal/Success/Review, local-midnight clarification, immutable revision numbering, idempotency key replay, stale expected-revision conflict, restart persistence, and trigger-emitted CDC. Assert `completed` is not a valid Outcome state.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 ```bash
 cd backend
 go test ./internal/domain ./internal/service/outcome ./internal/storage/sqlite/store ./internal/httpd/controllers -run 'Outcome|ContractRevision' -count=1
 ```
 
-- [ ] **Step 3: Implement the minimum model**
+- [x] **Step 3: Implement the minimum model**
 
 The public service contract is:
 
@@ -244,11 +248,11 @@ type Manager interface {
 
 Persist facts and revision IDs; derive `enter`/`understand` presentation. Do not persist screen labels.
 
-- [ ] **Step 4: Implement the Understand UI and retire marker authority**
+- [x] **Step 4: Implement the Understand UI and retire marker authority**
 
 Use generated API types for Goal, Success, Review, constraints, non-goals, and one material clarification. Remove `OutcomeIntakePanel`, `OutcomeOrchestrationGraph`, and marker parsing only when every call site in `SessionsBoard.tsx`/`TaskComposer.tsx` is replaced; do not leave two Outcome authorities.
 
-- [ ] **Step 5: Regenerate, verify, and commit**
+- [x] **Step 5: Regenerate, verify, and commit**
 
 ```bash
 npm run sqlc
@@ -260,6 +264,8 @@ git commit -m "feat: add immutable Outcome contract"
 ```
 
 ### Task 5: PR C — Decide & Authorize surface
+
+> **Shipped:** PR #58 (squash `a58df29b`); migration 0100 consumed; issue #26 closed. Deterministic proposer is the substrate the Orchestration Advisor v2 plugs into.
 
 **Files:**
 - Create: `backend/internal/domain/outcome_plan.go`
@@ -280,11 +286,11 @@ git commit -m "feat: add immutable Outcome contract"
 - Consumes: immutable ContractRevision and provider capability profile
 - Produces: immutable PlanRevision, one WorkUnit, scoped CapabilityGrant, provider-neutral RunBrief core/compiled digests
 
-- [ ] **Step 1: Write failing policy tests**
+- [x] **Step 1: Write failing policy tests**
 
 Prove one direct Work Unit is chosen for Focus Ledger, optional capabilities only remove dependent routes, required capability absence fails closed, authority is the intersection of all layers, a lower layer cannot widen, and any material contract/authority/worktree/provider change requires a new RunBrief/Attempt.
 
-- [ ] **Step 2: Implement deterministic validation around model proposals**
+- [x] **Step 2: Implement deterministic validation around model proposals**
 
 Expose service methods:
 
@@ -295,7 +301,7 @@ ApprovePlan(ctx context.Context, outcomeID domain.OutcomeID, in ApprovePlanInput
 
 The model may propose; deterministic code validates dependency shape, capability/effect envelope, Project/worktree placement, Evidence/Verification requirements, budget, stop, and recovery.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 ```bash
 npm run sqlc

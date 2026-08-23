@@ -30,7 +30,7 @@ As of `main` after PRs #1 and #12-#14 on 2026-08-21, Kennel has a working AO-der
 
 ## Beta integration work, not shipped on `main`
 
-- `beta` adds the Work-first `/work` Enter surface as the recommended local-dogfood starting point. It is an entry and readiness shell, not the complete Outcome lifecycle.
+- `beta` now carries the first three Outcome lifecycle stages on canonical lineage: Enter (PR #46), Understand with immutable ContractRevisions and marker-parsed intake retired (PRs #51, #55), and Decide & Authorize with immutable PlanRevision, one direct WorkUnit, scoped capability grants, RunBrief core digest, and owner-gated approval failing closed on stale contracts or narrowed authority (PR #58; migrations 0099–0100). Execution (#31), proof/close (#35), and evaluation (#38) remain open.
 - Issue #18 adds the peer `/home` destination and contextual Home routes for Today, Open Loops, Daily Close, Memory Review, and History. These screens use deterministic renderer fixtures and local preview interactions; they do not persist a `PersonalHome`, admit Memory, create Work Outcomes, close responsibilities, or run a Personal Agent.
 - The global Home/Work mode control treats `/work` as the initial Work destination, remembers an already-visited Work project/session/board route, and remembers the last Home route independently. Work project/session navigation is not rendered inside Home.
 - The Work-first “Set up Home” choice navigates to the real `/home` surface without creating either responsibility space. Onboarding default persistence remains deferred to a later preferences/daemon contract.
