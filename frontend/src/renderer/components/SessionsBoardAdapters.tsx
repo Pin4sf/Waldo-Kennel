@@ -31,10 +31,12 @@ import {
 	useTerminateSessionState,
 } from "../hooks/useTerminateSession";
 import { cn } from "../lib/utils";
-import { AgentAvatar } from "./AgentAvatar";
 import { ProductExternalLink } from "./ProductExternalLink";
 import { SessionTerminationPopover } from "./SessionTerminationPopover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import waldoAgentMarkUrl from "../../../../packages/kennel-island/public/figma/agent-waldo.svg";
+import artifactLinkIconUrl from "../../../../packages/kennel-island/public/figma/icon-link.svg";
+import artifactProgressUrl from "../../../../packages/kennel-island/public/figma/progress-active.svg";
 
 export function toBoardSessionPresentation(
 	session: WorkspaceSession,
@@ -56,6 +58,7 @@ export function toBoardSessionPresentation(
 						label: t(switchPresentation.compactLabelKey, switchPresentation.values),
 					}
 				: undefined,
+		summary: sessionSummary(session),
 		title: session.title,
 		trackerIssueId: canonicalTrackerIssueId(session.issueId),
 		updatedAt: session.updatedAt,
@@ -131,26 +134,30 @@ export function BoardSessionRowAdapter({
 }) {
 	const { t } = useTranslation();
 	const summaries = sessionPRDisplaySummaries(session, useSessionScmSummary(session.id).data);
+	const prLabels = pullRequestLabels(t);
+	const artifact = sessionArtifact(session, summaries, onOpen, prLabels, t);
 	const termination = useTerminateSessionState(session.id);
 	const translate: ProductUITranslator = (key, values) => t(key as MessageKey, values);
 	return (
 		<SessionRowView
+			action={<OpenSessionButton sessionTitle={session.title} onOpen={onOpen} />}
+			artifact={artifact}
 			branchIcon={<GitBranch aria-hidden="true" className="size-icon-2xs shrink-0" />}
 			error={termination.error ?? undefined}
 			externalLink={ProductExternalLink}
 			labels={{
 				formatTime: formatTimeCompact,
 				intakeIssue: (id) => t("shell.intakeIssue", { id }),
-				pr: pullRequestLabels(t),
+				pr: prLabels,
 				updatedAt: (time) => t("shell.updatedAt", { time }),
 			}}
 			onOpen={onOpen}
-			prs={summaries.map((pr) => ({
+			prs={(artifact ? [] : summaries).map((pr) => ({
 				number: pr.number,
 				state: pr.state,
 				url: prBrowserUrl(pr),
 			}))}
-			renderAvatar={(provider) => <AgentAvatar provider={provider} />}
+			renderAvatar={(provider) => <WaldoAgentMark provider={provider} />}
 			renderUsage={(presentation) => <DesktopUsageMetric usage={presentation} />}
 			session={toBoardSessionPresentation(session, t)}
 			translate={translate}
@@ -217,6 +224,10 @@ function DesktopSessionCard({
 	const queryClient = useQueryClient();
 	const [confirmOpen, setConfirmOpen] = useState(false);
 	const summaries = sessionPRDisplaySummaries(session, useSessionScmSummary(session.id).data);
+	const prLabels = pullRequestLabels(t);
+	// The Figma artifact treatment belongs to the live board/list. Archived
+	// cards retain their explicit PR lifecycle history and restore affordance.
+	const artifact = interactive ? sessionArtifact(session, summaries, onOpen, prLabels, t) : undefined;
 	const termination = useTerminateSessionState(session.id);
 	const showTerminate = interactive && session.isTerminated !== true && onTerminate;
 	const keepTerminateVisible = session.status === "merged";
@@ -266,6 +277,8 @@ function DesktopSessionCard({
 	return (
 		<SessionCardView
 			action={action}
+			actions={cardActions(session, summaries, t, onOpen)}
+			artifact={artifact}
 			branchAction={branchAction}
 			branchIcon={<GitBranch aria-hidden="true" className="size-icon-2xs shrink-0" />}
 			error={termination.error ?? undefined}
@@ -275,22 +288,151 @@ function DesktopSessionCard({
 			labels={{
 				formatTime: formatTimeCompact,
 				intakeIssue: (id) => t("shell.intakeIssue", { id }),
-				pr: pullRequestLabels(t),
+				pr: prLabels,
 				updatedAt: (time) => t("shell.updatedAt", { time }),
 			}}
 			onOpen={onOpen}
 			overlay={terminationOverlay}
-			prs={summaries.map((pr) => ({
+			prs={(artifact ? [] : summaries).map((pr) => ({
 				number: pr.number,
 				state: pr.state,
 				url: prBrowserUrl(pr),
 			}))}
-			renderAvatar={(provider) => <AgentAvatar className="mt-0.5" provider={provider} />}
+			renderAvatar={(provider) => <WaldoAgentMark className="mt-0.5" provider={provider} />}
 			renderUsage={(presentation) => <DesktopUsageMetric usage={presentation} />}
 			session={toBoardSessionPresentation(session, t)}
 			translate={translate}
 			usage={usagePresentation}
 		/>
+	);
+}
+
+type SessionArtifactPR = ReturnType<typeof sessionPRDisplaySummaries>[number];
+
+function sessionSummary(session: WorkspaceSession): string | undefined {
+	const commit = session.commitMessage?.trim();
+	const changedCount = session.changedFiles?.length ?? 0;
+	if (commit) {
+		const sentence = `${commit.charAt(0).toUpperCase()}${commit.slice(1)}`.replace(/[.\s]+$/, "");
+		return changedCount > 0
+			? `${sentence}. ${changedCount} ${changedCount === 1 ? "file" : "files"} changed in this session.`
+			: `${sentence}.`;
+	}
+	if (changedCount > 0) {
+		return `${changedCount} ${changedCount === 1 ? "file is" : "files are"} ready to review.`;
+	}
+	return undefined;
+}
+
+function WaldoAgentMark({ provider, className }: { provider: string; className?: string }) {
+	const { t } = useTranslation();
+	return (
+		<span
+			aria-label={t("shell.agentAria", { provider })}
+			className={cn("inline-flex h-7 w-[30px] shrink-0 items-center justify-center", className)}
+			role="img"
+		>
+			<img alt="" aria-hidden="true" className="block h-7 w-[30px]" src={waldoAgentMarkUrl} />
+		</span>
+	);
+}
+
+function sessionArtifact(
+	session: WorkspaceSession,
+	summaries: SessionArtifactPR[],
+	onOpen?: () => void,
+	prLabels?: BoardPullRequestLabels,
+	t?: TFunction,
+): ReactNode | undefined {
+	const primaryPR = summaries[0];
+	if (primaryPR) {
+		const label =
+			primaryPR.title.trim() && primaryPR.title.trim() !== session.title.trim()
+				? primaryPR.title.trim()
+				: `Pull request #${primaryPR.number}`;
+		return (
+			<ProductExternalLink
+				ariaLabel={prLabels ? `#${primaryPR.number} ${prLabels.states[primaryPR.state]}` : undefined}
+				className="relative z-10 inline-flex max-w-full items-center gap-2 text-brand font-medium text-foreground"
+				href={prBrowserUrl(primaryPR)}
+				stopPropagation
+			>
+				<img alt="" aria-hidden="true" className="size-[13.6px] shrink-0" src={artifactLinkIconUrl} />
+				<span className="min-w-0 truncate underline decoration-link underline-offset-2">{label}</span>
+				<img alt="" aria-hidden="true" className="size-[24.3px] shrink-0" src={artifactProgressUrl} />
+			</ProductExternalLink>
+		);
+	}
+
+	const changedPath = session.changedFiles?.[0]?.path;
+	if (!changedPath) return undefined;
+	const label = changedPath.split("/").at(-1) || changedPath;
+	return (
+		<button
+			aria-label={t?.("shell.openArtifactInSession", { artifact: label, title: session.title })}
+			className="relative z-10 inline-flex max-w-full items-center gap-2 text-brand font-medium text-foreground"
+			onClick={(event) => {
+				event.stopPropagation();
+				onOpen?.();
+			}}
+			type="button"
+		>
+			<img alt="" aria-hidden="true" className="size-[13.6px] shrink-0" src={artifactLinkIconUrl} />
+			<span className="min-w-0 truncate underline decoration-link underline-offset-2">{label}</span>
+			<img alt="" aria-hidden="true" className="size-[24.3px] shrink-0" src={artifactProgressUrl} />
+		</button>
+	);
+}
+
+function OpenSessionButton({ onOpen, sessionTitle }: { onOpen: () => void; sessionTitle: string }) {
+	const { t } = useTranslation();
+	return (
+		<button
+			aria-label={t("shell.chooseSession", { title: sessionTitle })}
+			className="relative z-10 inline-flex h-[30px] min-w-[72px] items-center justify-center rounded-md border border-border-strong bg-popover px-2.5 text-brand font-medium text-foreground transition-colors hover:bg-white/10"
+			onClick={(event) => {
+				event.stopPropagation();
+				onOpen();
+			}}
+			type="button"
+		>
+			{t("shell.choose")}
+		</button>
+	);
+}
+
+function cardActions(
+	session: WorkspaceSession,
+	summaries: SessionArtifactPR[],
+	t: TFunction,
+	onOpen?: () => void,
+): ReactNode | undefined {
+	if (session.status !== "approved" && session.status !== "mergeable") return undefined;
+	const primaryPR = summaries[0];
+	return (
+		<>
+			{onOpen ? (
+				<button
+					className="relative z-10 inline-flex h-7 items-center justify-center rounded-md bg-foreground px-2.5 text-xs font-medium text-card transition-opacity hover:opacity-90"
+					onClick={(event) => {
+						event.stopPropagation();
+						onOpen();
+					}}
+					type="button"
+				>
+					{t("shell.instruct")}
+				</button>
+			) : null}
+			{primaryPR ? (
+				<ProductExternalLink
+					className="relative z-10 inline-flex h-7 items-center justify-center rounded-md border border-border-strong bg-popover px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-white/10"
+					href={prBrowserUrl(primaryPR)}
+					stopPropagation
+				>
+					{t("pr.merge.action")}
+				</ProductExternalLink>
+			) : null}
+		</>
 	);
 }
 

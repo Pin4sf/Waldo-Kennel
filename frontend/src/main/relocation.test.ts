@@ -6,6 +6,7 @@ import path from "node:path";
 import {
 	decideRelocation,
 	installedBundlePath,
+	readBundleIdentifier,
 	readBundleVersion,
 	type RelocationInputs,
 } from "./relocation";
@@ -13,7 +14,9 @@ import {
 const BASE: RelocationInputs = {
 	inApplicationsFolder: false,
 	installedPresent: true,
+	installedBundleIdentifier: "in.heywaldo.kennel",
 	installedVersion: "0.11.2-nightly.202608050602",
+	runningBundleIdentifier: "in.heywaldo.kennel",
 	runningVersion: "0.10.3",
 };
 
@@ -28,6 +31,20 @@ describe("decideRelocation", () => {
 		expect(
 			decideRelocation({ ...BASE, installedVersion: "0.10.3" }),
 		).toBe("handoff");
+	});
+
+	it("never hands off to the same-named legacy Agent Orchestrator bundle", () => {
+		expect(
+			decideRelocation({
+				...BASE,
+				installedBundleIdentifier: "dev.agent-orchestrator.desktop",
+				installedVersion: "0.10.3",
+			}),
+		).toBe("stay");
+	});
+
+	it("stays put when the installed bundle identity is unreadable", () => {
+		expect(decideRelocation({ ...BASE, installedBundleIdentifier: null })).toBe("stay");
 	});
 
 	it("relocates when /Applications is empty", () => {
@@ -119,6 +136,8 @@ describe("readBundleVersion", () => {
   <dict>
     <key>CFBundleDisplayName</key>
     <string>Kennel</string>
+	<key>CFBundleIdentifier</key>
+	<string>in.heywaldo.kennel</string>
     <key>CFBundleShortVersionString</key>
     <string>0.11.2-nightly.202608050602</string>
     <key>CFBundleVersion</key>
@@ -127,6 +146,7 @@ describe("readBundleVersion", () => {
 </plist>
 `);
 		expect(readBundleVersion(bundle)).toBe("0.11.2-nightly.202608050602");
+		expect(readBundleIdentifier(bundle)).toBe("in.heywaldo.kennel");
 	});
 
 	it("returns null when the key is missing", async () => {

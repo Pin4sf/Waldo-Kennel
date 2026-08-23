@@ -2,8 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
 	parseAudioOutputActivity,
+	parsePlaybackOwner,
+	parseTabTitle,
+	parseProgressReply,
 	parseTrackReply,
 	readMediaActivity,
+	seekMedia,
+	sourceForOwner,
 	trackSourceApplications,
 } from "./media-activity.mjs";
 
@@ -134,7 +139,7 @@ test("silence skips the Apple event probe entirely", async () => {
 		runningApplications: ["Spotify", "Music"],
 	});
 
-	assert.deepEqual(activity, { playing: false, track: null });
+	assert.deepEqual(activity, { playing: false, owner: null, track: null });
 	assert.deepEqual(calls, [["pmset", "-g", "assertions"]]);
 });
 
@@ -157,12 +162,99 @@ test("non-macOS hosts report silence without shelling out", async () => {
 	const { execFile, calls } = execFileStub({ pmset: SPEAKER_PLAYBACK });
 
 	assert.deepEqual(await readMediaActivity({ execFile, platform: "linux" }), {
+		owner: null,
 		playing: false,
 		track: null,
 	});
 	assert.deepEqual(calls, []);
 });
 
-test("only Music and Spotify are ever addressed", () => {
-	assert.deepEqual(trackSourceApplications(), ["Music", "Spotify"]);
+test("only named players and browsers are ever addressed", () => {
+	const applications = trackSourceApplications();
+	assert.ok(applications.includes("Music"));
+	assert.ok(applications.includes("Spotify"));
+	assert.ok(applications.includes("Safari"));
+	assert.ok(applications.includes("Google Chrome"));
+	// Firefox ships no Apple event vocabulary, so there is nothing to ask it.
+	assert.equal(applications.includes("Firefox"), false);
+	assert.equal(new Set(applications).size, applications.length);
+});
+
+test("the browser holding the playback assertion is the owner", () => {
+	assert.equal(parsePlaybackOwner(BROWSER_PLAYBACK), "Safari");
+});
+
+test("the audio system is nobody, so the owner stays unknown", () => {
+	assert.equal(parsePlaybackOwner(SPEAKER_PLAYBACK), null);
+	assert.equal(parsePlaybackOwner(""), null);
+	assert.equal(parsePlaybackOwner(null), null);
+});
+
+test("an owner we know maps to the source that can be asked", () => {
+	assert.equal(sourceForOwner("Safari")?.kind, "browser");
+	assert.equal(sourceForOwner("Spotify")?.kind, "player");
+	assert.equal(sourceForOwner("Firefox"), null);
+	assert.equal(sourceForOwner(null), null);
+});
+
+test("a tab title loses its site name and its unread badge", () => {
+	assert.deepEqual(parseTabTitle("(3) Mannequin Challenge - YouTube", "Google Chrome"), {
+		title: "Mannequin Challenge",
+		artist: "",
+	});
+	assert.deepEqual(parseTabTitle("Live set — SoundCloud", "Safari"), {
+		title: "Live set",
+		artist: "",
+	});
+});
+
+test("a tab still named after its browser is not a track", () => {
+	assert.equal(parseTabTitle("Safari", "Safari"), null);
+	assert.equal(parseTabTitle("- YouTube", "Google Chrome"), null);
+	assert.equal(parseTabTitle("", "Safari"), null);
+});
+
+test("a browser tab that names itself becomes the track", async () => {
+	const { execFile, calls } = execFileStub({
+		pmset: BROWSER_PLAYBACK,
+		Safari: "Mannequin Challenge - YouTube\n",
+	});
+
+	const activity = await readMediaActivity({ execFile, platform: "darwin" });
+
+	assert.equal(activity.playing, true);
+	assert.equal(activity.owner, "Safari");
+	assert.equal(activity.track.title, "Mannequin Challenge");
+	// The owner is asked and nobody else: a paused Spotify in the background
+	// must not label a video playing in Safari.
+	assert.equal(calls.some((call) => call.join(" ").includes("Spotify")), false);
+});
+
+test("position and duration are read from the same reply as the title", () => {
+	assert.deepEqual(parseProgressReply("Song\nArtist\n61.5\n245.0"), {
+		positionSeconds: 61.5,
+		durationSeconds: 245,
+	});
+});
+
+test("Spotify's milliseconds become seconds, Music's do not", () => {
+	assert.equal(parseProgressReply("Song\nArtist\n61\n245000", "ms")?.durationSeconds, 245);
+	assert.equal(parseProgressReply("Song\nArtist\n61\n245", "s")?.durationSeconds, 245);
+});
+
+test("a reply missing either number has no progress to draw", () => {
+	assert.equal(parseProgressReply("Song\nArtist"), null);
+	assert.equal(parseProgressReply("Song\nArtist\n61\n0"), null);
+	assert.equal(parseProgressReply("Song\nArtist\nmissing\n245"), null);
+});
+
+test("a position past the end is clamped rather than overrunning the bar", () => {
+	assert.equal(parseProgressReply("Song\nArtist\n900\n245")?.positionSeconds, 245);
+});
+
+test("seeking refuses a position no track could have", async () => {
+	const { execFile, calls } = execFileStub({ Music: "" });
+	assert.deepEqual(await seekMedia(Number.NaN, { execFile, platform: "darwin" }), { sought: false });
+	assert.deepEqual(await seekMedia(-4, { execFile, platform: "darwin" }), { sought: false });
+	assert.deepEqual(calls, []);
 });

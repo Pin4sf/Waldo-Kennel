@@ -14,14 +14,14 @@ export function ChangelogCard({ entry }: ChangelogCardProps) {
 
 	return (
 		<Link href={entry.url} className="block group">
-			<article className="border border-border bg-background transition-all hover:bg-muted/50 hover:border-foreground/20">
+			<article className="border border-border bg-background transition-[background-color,border-color] duration-normal ease-out group-active:border-foreground/30 hover:bg-muted/50 hover:border-foreground/20">
 				{entry.image && (
 					<div className="relative aspect-video border-b border-border overflow-hidden">
 						<Image
 							src={entry.image}
 							alt={entry.title}
 							fill
-							className="object-cover transition-transform group-hover:scale-[1.02]"
+							className="object-cover transition-transform duration-slow ease-out group-hover:scale-[1.02]"
 						/>
 					</div>
 				)}

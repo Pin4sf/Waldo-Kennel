@@ -45,11 +45,11 @@ test("natural scrolling does not reverse what a finger meant", () => {
   assert.deepEqual(natural, plain);
 });
 
-test("a finger moving left takes the next track, right the previous", () => {
-  assert.deepEqual(swipe(createGestureRecognizer(), { x: -(GESTURE_TRACK_THRESHOLD + 2) }), [
+test("fingers moving right take the next track, left the previous", () => {
+  assert.deepEqual(swipe(createGestureRecognizer(), { x: GESTURE_TRACK_THRESHOLD + 2 }), [
     "next-track",
   ]);
-  assert.deepEqual(swipe(createGestureRecognizer(), { x: GESTURE_TRACK_THRESHOLD + 2 }), [
+  assert.deepEqual(swipe(createGestureRecognizer(), { x: -(GESTURE_TRACK_THRESHOLD + 2) }), [
     "previous-track",
   ]);
 });
@@ -61,16 +61,16 @@ test("a swipe short of the threshold is not a gesture", () => {
 
 test("one long swipe fires once, however far it runs", () => {
   const recognizer = createGestureRecognizer();
-  assert.deepEqual(swipe(recognizer, { x: -GESTURE_TRACK_THRESHOLD * 6, steps: 60 }), [
+  assert.deepEqual(swipe(recognizer, { x: GESTURE_TRACK_THRESHOLD * 6, steps: 60 }), [
     "next-track",
   ]);
 });
 
 test("fingers lifting between swipes lets the next one fire", () => {
   const recognizer = createGestureRecognizer();
-  assert.deepEqual(swipe(recognizer, { x: -(GESTURE_TRACK_THRESHOLD + 2) }), ["next-track"]);
+  assert.deepEqual(swipe(recognizer, { x: GESTURE_TRACK_THRESHOLD + 2 }), ["next-track"]);
   const second = swipe(recognizer, {
-    x: -(GESTURE_TRACK_THRESHOLD + 2),
+    x: GESTURE_TRACK_THRESHOLD + 2,
     from: 1000 + GESTURE_IDLE_MS,
   });
   assert.deepEqual(second, ["next-track"]);

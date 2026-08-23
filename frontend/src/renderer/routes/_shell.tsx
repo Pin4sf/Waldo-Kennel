@@ -217,12 +217,18 @@ function ShellLayout() {
 				}
 			});
 	}, [queryClient, scopedProjectId]);
+	const isRootBoardRoute = Boolean(matchRoute({ to: "/" }));
+	const isProjectBoardRoute = Boolean(matchRoute({ to: "/projects/$projectId" }));
 	// First-launch root board only (no projects in scope).
 	const isWelcomeBoard =
-		Boolean(matchRoute({ to: "/" })) &&
+		isRootBoardRoute &&
 		workspaceStartupState === "ready" &&
 		workspaceQuery.isSuccess &&
 		workspaces.length === 0;
+	// The referenced Figma frames are the populated Board/List surfaces. Keep
+	// the first-run importer self-framed, but give every populated board route
+	// the dedicated 271px desktop shell.
+	const isFigmaBoardRoute = (isRootBoardRoute || isProjectBoardRoute) && !isWelcomeBoard;
 	const isSettingsRoute =
 		Boolean(matchRoute({ to: "/settings", fuzzy: true })) ||
 		Boolean(matchRoute({ to: "/projects/$projectId/settings", fuzzy: true }));
@@ -722,6 +728,7 @@ function ShellLayout() {
 			<div
 				className={cn(
 					"flex h-screen min-h-0 flex-col bg-sidebar text-foreground",
+					isFigmaBoardRoute && "figma-board-shell",
 					isWindows && "platform-windows",
 					isLinux && "platform-linux",
 					isFullScreen && "native-fullscreen",
@@ -732,7 +739,7 @@ function ShellLayout() {
             macOS/Linux. */}
 				<WindowTitlebar onSidebarPreviewEnter={previewSidebar} />
 				{/* App routes render their topbar inside the framed panel, matching the board chrome across platforms while leaving OS titlebars native. */}
-				{!framedAppTopbar && !hideShellTopbar && !routeParams.sessionId ? <ShellTopbar /> : null}
+				{!isFigmaBoardRoute && !framedAppTopbar && !hideShellTopbar && !routeParams.sessionId ? <ShellTopbar /> : null}
 				{/* Controlled by the ui-store so TitlebarNav / Topbar toggles (which
             call the store directly) stay in sync. --sidebar-width chains to
             the drag-resizable --ao-sidebar-w set on :root by useResizable. */}
@@ -744,10 +751,12 @@ function ShellLayout() {
 						setIsSidebarPeekOpen(false);
 						if (open !== isSidebarOpen) toggleSidebar();
 					}}
-					open={!isStartupLoading && (isSidebarOpen || isSidebarPeekOpen)}
+					open={!isStartupLoading && (isFigmaBoardRoute || isSidebarOpen || isSidebarPeekOpen)}
 					style={
 						{
-							"--sidebar-width": "var(--ao-sidebar-w, var(--size-sidebar-default))",
+							"--sidebar-width": isFigmaBoardRoute
+								? "271px"
+								: "var(--ao-sidebar-w, var(--size-sidebar-default))",
 							"--sidebar-width-icon": "var(--size-sidebar-icon)",
 						} as CSSProperties
 					}
@@ -757,10 +766,11 @@ function ShellLayout() {
               cluster above a full-height sidebar; Windows hangs the sidebar
               below its custom titlebar. */}
 				<Sidebar
-					hideEdgeBorder={isWelcomeBoard}
+					figmaBoard={isFigmaBoardRoute}
+					hideEdgeBorder={isWelcomeBoard || isFigmaBoardRoute}
 					isOverlay={isSidebarPeekOpen && !isSidebarOpen}
 					onPreviewLeave={scheduleSidebarPeekClose}
-					underTopbar={isMac || isWindows || isLinux}
+					underTopbar={!isFigmaBoardRoute && (isMac || isWindows || isLinux)}
 					topbarOffset={isWindows ? "titlebar" : hideShellTopbar ? "trafficLights" : "toolbar"}
 						onCreateProject={createProject}
 						onInitializeProject={initializeProjectRepository}
@@ -771,13 +781,22 @@ function ShellLayout() {
 					<main
 						className={cn(
 							"relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
-							!isSidebarOpen && "sidebar-hidden",
+							// The Figma board routes paint their own full-bleed shell, so the
+							// collapsed-sidebar inset that every other route needs would double
+							// up on them — hence the route guard alongside beta's launcher pad.
+							!isFigmaBoardRoute && !isSidebarOpen && "sidebar-hidden",
 							!isHomeRoute && "waldo-launcher-reserved",
 						)}
 					>
 						<div className="min-h-0 flex-1 overflow-x-hidden">
 							{/* Board/session routes render inside the same inset box the welcome board and settings paint for themselves, so every screen sits within the app's outer boundary. */}
-							{hideShellTopbar ? (
+							{isFigmaBoardRoute ? (
+								<CenterPanelShell className="center-panel-shell--figma-board">
+									<div className="flex min-h-0 flex-1 flex-col">
+										<Outlet />
+									</div>
+								</CenterPanelShell>
+							) : hideShellTopbar ? (
 								selfFramedCenterPanel ? (
 									<Outlet />
 								) : (
@@ -832,7 +851,7 @@ function ShellLayout() {
 						<div
 							aria-hidden="true"
 							className={cn(
-								"fixed top-0 left-0 z-chrome w-(--ao-sidebar-w,var(--size-sidebar-default)) transition-[height] duration-200 ease-out motion-reduce:transition-none",
+								"fixed top-0 left-0 z-chrome w-(--sidebar-width) transition-[height] duration-200 ease-out motion-reduce:transition-none",
 								isFullScreen ? "pointer-events-none h-0" : "h-traffic-light-clearance",
 							)}
 							style={trafficLightDragActive ? ({ WebkitAppRegion: "drag" } as CSSProperties) : undefined}
@@ -848,12 +867,14 @@ function ShellLayout() {
               survive if they're processed after the drag strips they overlap.
               Rendered first, real clicks get swallowed by window-drag even
               though DOM hit-testing looks correct. */}
-					<TitlebarNav
-						hasSessionTopbar={Boolean(routeParams.sessionId)}
-						historyLocked={isWelcomeBoard}
-						isFullScreen={isFullScreen}
-						onSidebarPreviewEnter={previewSidebar}
-					/>
+					{isFigmaBoardRoute ? null : (
+						<TitlebarNav
+							hasSessionTopbar={Boolean(routeParams.sessionId)}
+							historyLocked={isWelcomeBoard}
+							isFullScreen={isFullScreen}
+							onSidebarPreviewEnter={previewSidebar}
+						/>
+					)}
 				</SidebarProvider>
 				<OrchestratorReplacementDialog
 					error={replacementErrorProjectId ? orchestratorReplacementErrors[replacementErrorProjectId] : undefined}

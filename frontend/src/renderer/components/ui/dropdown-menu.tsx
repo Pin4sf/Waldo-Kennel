@@ -22,7 +22,7 @@ export function DropdownMenuContent({
 					"z-overlay min-w-[10rem] overflow-hidden rounded-panel hairline border-border bg-popover p-1 text-popover-foreground",
 					"flex flex-col gap-px",
 					"origin-(--radix-dropdown-menu-content-transform-origin)",
-					"data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out",
+					"data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out motion-reduce:animate-none",
 					className,
 				)}
 				{...props}
