@@ -1019,6 +1019,167 @@ paths:
       summary: Read one Outcome with its full revision history
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/plan:
+    get:
+      operationId: getLatestOutcomePlan
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read the newest plan of any status for this Outcome
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/plans:
+    post:
+      operationId: proposeOutcomePlan
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposePlanRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Propose the direct Work Unit plan bound to the current contract revision
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/plans/{planId}/approval:
+    post:
+      operationId: approveOutcomePlan
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Plan revision identifier, e.g. plan-<uuid>.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan revision identifier, e.g. plan-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovePlanRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Authorize a proposed plan (owner authority gate; fails closed on narrowed
+        authority)
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/revisions:
     post:
       operationId: reviseOutcomeContract
@@ -5331,6 +5492,14 @@ components:
       required:
       - switch
       type: object
+    ApprovePlanRequest:
+      properties:
+        expectedContractRevision:
+          format: int64
+          type: integer
+      required:
+      - expectedContractRevision
+      type: object
     AttachmentInput:
       properties:
         data:
@@ -5405,6 +5574,19 @@ components:
       required:
       - ok
       - sessionId
+      type: object
+    CapabilityGrantResponse:
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        scope:
+          type: string
+      required:
+      - id
+      - name
+      - scope
       type: object
     ClaimPRRequest:
       properties:
@@ -7038,6 +7220,89 @@ components:
       - targetSha
       - status
       type: object
+    PlanEnvelope:
+      properties:
+        plan:
+          $ref: '#/components/schemas/PlanRevisionResponse'
+      required:
+      - plan
+      type: object
+    PlanRevisionResponse:
+      properties:
+        contractRevisionNumber:
+          format: int64
+          type: integer
+        createdAt:
+          format: date-time
+          type: string
+        grants:
+          items:
+            $ref: '#/components/schemas/CapabilityGrantResponse'
+          type: array
+        id:
+          type: string
+        number:
+          format: int64
+          type: integer
+        outcomeId:
+          type: string
+        runBriefCompiledDigest:
+          type: string
+        runBriefCoreDigest:
+          type: string
+        status:
+          type: string
+        summary:
+          type: string
+        workUnits:
+          items:
+            $ref: '#/components/schemas/PlanWorkUnitResponse'
+          type: array
+      required:
+      - id
+      - outcomeId
+      - number
+      - contractRevisionNumber
+      - status
+      - summary
+      - workUnits
+      - grants
+      - runBriefCoreDigest
+      - createdAt
+      type: object
+    PlanWorkUnitResponse:
+      properties:
+        contractRevisionNumber:
+          format: int64
+          type: integer
+        evidenceChecks:
+          items:
+            type: string
+          type: array
+        id:
+          type: string
+        kind:
+          type: string
+        outputSummary:
+          type: string
+        stopConditions:
+          items:
+            type: string
+          type: array
+        title:
+          type: string
+        verificationRequirement:
+          type: string
+      required:
+      - id
+      - kind
+      - title
+      - contractRevisionNumber
+      - outputSummary
+      - evidenceChecks
+      - verificationRequirement
+      - stopConditions
+      type: object
     PreviewServerStatusResponse:
       properties:
         configuration:
@@ -7225,6 +7490,14 @@ components:
       - sourceTurnId
       - providerTurnId
       - activityId
+      type: object
+    ProposePlanRequest:
+      properties:
+        expectedContractRevision:
+          format: int64
+          type: integer
+      required:
+      - expectedContractRevision
       type: object
     PushDeviceEnvelope:
       properties:
