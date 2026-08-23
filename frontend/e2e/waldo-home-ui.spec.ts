@@ -35,23 +35,59 @@ test("the configured shortcut opens the same global Waldo rail", async ({ page }
   );
 });
 
-test("the Dimension-inspired activity trace remains an explicit local preview", async ({ page }) => {
+test("Conversation episodes preserve context and semantic boundaries", async ({ page }) => {
   await page.goto("/#/home");
   await page.getByRole("button", { name: "Open Waldo" }).click();
 
   await expect(page.getByRole("status", { name: "Waldo preview boundary" })).toContainText(
     "No model or agent is running",
   );
-  const activity = page.getByRole("region", { name: "Agent activity preview" });
-  await expect(activity).toContainText("Completion condition");
-  await expect(activity).toContainText("Calendar, decision note, current Work context");
-  await expect(activity).toContainText("Approval required");
-  await expect(activity).toContainText("Returns to Work · no Outcome created");
-
+  await expect(page.getByRole("tab", { name: "Conversation" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByText("Contextual", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Observation preview" })).toContainText(
+    "Candidate",
+  );
+  await expect(page.getByRole("region", { name: "Proposal preview" })).toContainText(
+    "Approval required",
+  );
   await page.getByRole("button", { name: "Review proposed command" }).click();
   await expect(page.getByRole("status", { name: "Proposal preview status" })).toContainText(
     "Nothing was created, sent, or saved",
   );
+
+  await page.getByRole("button", { name: "Detach context" }).click();
+  await expect(page.getByText("No attached context")).toBeVisible();
+
+  await page.getByRole("button", { name: "Launch readiness" }).click();
+  const result = page.getByRole("region", { name: "Result preview" });
+  await expect(result).toContainText("Result ready");
+  await expect(result).toContainText("Outcome · Unknown");
+  await page.getByRole("button", { name: "Show result detail" }).click();
+  await expect(result).toContainText("No verification or AcceptanceDecision exists");
+});
+
+test("Activity exposes one bounded delegated run under Waldo", async ({ page }) => {
+  await page.goto("/#/home");
+  await page.getByRole("button", { name: "Open Waldo" }).click();
+
+  const conversationTab = page.getByRole("tab", { name: "Conversation" });
+  await conversationTab.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "Activity" })).toBeFocused();
+
+  const activity = page.getByRole("region", { name: "Agent activity preview" });
+  await expect(activity).toContainText("Running");
+  await expect(activity).toContainText("Current step");
+  await page.getByRole("button", { name: "Inspect run" }).click();
+  await expect(activity).toContainText("Bounded research specialist");
+  await expect(activity).toContainText("No external messages, mutations, or acceptance");
+  await expect(activity).toContainText("Calendar, decision note, current Work context");
+  await expect(activity).toContainText("Returns to Work · no Outcome created");
+  await expect(activity).toContainText("Result ready · Outcome · Unknown");
+  await expect(activity).not.toContainText("Verified outcome");
 });
 
 test("Home exposes completed continuity screens without promoting them to primary", async ({ page }) => {
