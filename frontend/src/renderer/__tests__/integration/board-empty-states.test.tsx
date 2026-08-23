@@ -242,20 +242,23 @@ describe("project board with no sessions", () => {
 		expect(columnCount()).toBe(0);
 	});
 
-	it("shows codebase exploration while the Chat orchestrator is working", async () => {
+	it("shows codebase exploration while the orchestrator session is active", async () => {
+		// Exploration is derived from the session's durable activity state only —
+		// the board never polls a transcript to decide what it is showing.
 		respondWith(
 			[project],
 			[{ ...orchestratorSession, harness: "codex", mode: "chat", activity: { state: "active", lastActivityAt: "2026-07-04T10:00:00Z" } }],
-			{ controller: "busy", messages: [] },
 		);
 		renderBoard(<SessionsBoard projectId="proj-1" />);
 
 		expect(await screen.findByText("Exploring codebase")).toBeInTheDocument();
-		expect(screen.getByText(/Codex is building a high-level understanding/)).toBeInTheDocument();
+		expect(screen.getByText(/Orchestrator is building a high-level understanding/)).toBeInTheDocument();
 		expect(columnCount()).toBe(0);
 	});
 
-	it("shows completed suggestions and opens a prefilled Outcome", async () => {
+	it("never turns transcript markers into Outcome suggestions", async () => {
+		// The marker flow is retired: Understand owns Outcome intake through the
+		// daemon contract, so suggestion markers in a transcript are inert text.
 		respondWith(
 			[project],
 			[{ ...orchestratorSession, harness: "codex", mode: "chat" }],
@@ -266,38 +269,21 @@ describe("project board with no sessions", () => {
 		);
 		renderBoard(<SessionsBoard projectId="proj-1" />);
 
-		await userEvent.click(await screen.findByRole("button", { name: "Add resilient offline recovery" }));
-		expect(useUiStore.getState().newTaskRequest).toMatchObject({
-			projectId: "proj-1",
-			initialPrompt: "Add resilient offline recovery",
-		});
+		await screen.findByText("Start by defining an outcome");
+		expect(screen.queryByRole("button", { name: "Add resilient offline recovery" })).not.toBeInTheDocument();
+		expect(useUiStore.getState().newTaskRequest).toBeNull();
 	});
 
-	it("replaces the empty board with structured clarifying questions", async () => {
+	it("never renders clarifying questions from transcript markers", async () => {
+		// Structured questions come from the Understand stage over the daemon
+		// API now; a KENNEL_OUTCOME_QUESTIONS_JSON marker must not resurrect the
+		// retired intake panel here.
 		respondWith(
 			[project],
-			[
-				{
-					...workerSession,
-					id: "archived-worker",
-					status: "terminated",
-					isTerminated: true,
-				},
-				{
-					...orchestratorSession,
-					displayName: "Outcome: Ship reliable offline mode",
-					harness: "codex",
-					mode: "chat",
-					activity: { state: "active", lastActivityAt: "2026-07-04T10:00:00Z" },
-				},
-			],
+			[{ ...orchestratorSession, harness: "codex", mode: "chat" }],
 			{
 				controller: "ready",
 				messages: [
-					{
-						role: "user",
-						text: "KENNEL OUTCOME INTAKE\n\nThe user wants this outcome:\nShip reliable offline mode\n\nDo not spawn workers or begin implementation yet.",
-					},
 					{
 						role: "assistant",
 						text: 'KENNEL_OUTCOME_QUESTIONS_JSON: {"questions":[{"id":"scope","prompt":"Which offline scope should ship first?","options":[{"id":"read","label":"Read-only cache","description":"Lower risk","recommended":true},{"id":"full","label":"Full offline editing","description":"Broader capability"}]}]}',
@@ -307,9 +293,9 @@ describe("project board with no sessions", () => {
 		);
 		renderBoard(<SessionsBoard projectId="proj-1" />);
 
-		expect(await screen.findByText("Which offline scope should ship first?")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: /Read-only cache/ })).toBeInTheDocument();
-		expect(screen.queryByText("Outcome sent to Codex")).not.toBeInTheDocument();
+		await screen.findByText("Start by defining an outcome");
+		expect(screen.queryByText("Which offline scope should ship first?")).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /Read-only cache/ })).not.toBeInTheDocument();
 	});
 
 	it.skip("legacy orchestrator spawner surfaces daemon failures", async () => {
