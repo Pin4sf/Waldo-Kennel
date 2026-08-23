@@ -141,3 +141,18 @@ test("a burst of patches lands as one consistent file", async (t) => {
 	const reopened = createSettingsStore({ fs: nodeFs, userDataPath });
 	assert.equal((await reopened.load()).notch.widthOffset, 10);
 });
+
+test("a padding left at the old default is retired, not carried forward", () => {
+	const stored = { version: 1, notch: { widthOffset: 0, heightOffset: 0, contentPadding: 12 } };
+	assert.equal(normalizeSettings(stored).notch.contentPadding, 8);
+});
+
+test("a padding the user actually moved survives the migration", () => {
+	const stored = { version: 1, notch: { widthOffset: 0, heightOffset: 0, contentPadding: 20 } };
+	assert.equal(normalizeSettings(stored).notch.contentPadding, 20);
+});
+
+test("a file already on the current version is left alone", () => {
+	const stored = { version: 2, notch: { widthOffset: 0, heightOffset: 0, contentPadding: 12 } };
+	assert.equal(normalizeSettings(stored).notch.contentPadding, 12);
+});

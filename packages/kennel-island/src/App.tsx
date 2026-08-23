@@ -12,6 +12,8 @@ import {
   useIslandGestures,
   useKennelSettings,
   useMediaActivity,
+  useMediaFocus,
+  useMediaLinger,
   useMediaTransport,
   usePointerDwell,
   useStageGeometry,
@@ -21,13 +23,35 @@ import { SettingsApp } from "./settings/SettingsApp";
 import type { IslandGesture } from "./island/gestures";
 import type { IslandModel, KennelIslandAdapter, QueueIslandModel } from "./island/types";
 
-const scenarioLabels: Array<{ id: DemoScenario; label: string; detail: string }> = [
+interface ScenarioLabel {
+  id: DemoScenario;
+  label: string;
+  detail: string;
+}
+
+const kennelScenarioLabels: ScenarioLabel[] = [
   { id: "quiet", label: "Quiet", detail: "nothing running" },
   { id: "compact", label: "Resting", detail: "presence rotation" },
   { id: "queue", label: "Work", detail: "session queue" },
   { id: "choice", label: "Choice", detail: "structured input" },
   { id: "permission", label: "Permission", detail: "approval" },
   { id: "usage", label: "Usage", detail: "limits" },
+];
+
+const activityScenarioLabels: ScenarioLabel[] = [
+  { id: "activity-recording", label: "Voice recording", detail: "elapsed + controls" },
+  { id: "activity-delivery", label: "Food delivery", detail: "phase + ETA" },
+  { id: "activity-ride", label: "Ride pickup", detail: "arrival + next action" },
+  { id: "activity-transit", label: "Transit", detail: "next stop" },
+  { id: "activity-flight", label: "Flight", detail: "gate exception" },
+  { id: "activity-sports", label: "Sports score", detail: "score + event stream" },
+  { id: "activity-focus", label: "Focus timer", detail: "countdown" },
+  { id: "activity-workout", label: "Workout", detail: "set + live metric" },
+  { id: "activity-charging", label: "EV charging", detail: "progress + ETA" },
+  { id: "activity-camera", label: "Camera recording", detail: "elapsed + warning" },
+  { id: "activity-weather", label: "Weather", detail: "rain exception" },
+  { id: "activity-home", label: "Smart home", detail: "automation beta" },
+  { id: "activity-concurrent", label: "Concurrent", detail: "two live activities" },
 ];
 
 const query = new URLSearchParams(window.location.search);
@@ -113,9 +137,13 @@ function DesktopIslandApp({ adapter }: { adapter: KennelIslandAdapter }) {
   const { model, dispatch } = useKennelIsland(adapter);
   const islandRef = useRef<HTMLDivElement | null>(null);
   const stage = useStageGeometry();
-  const media = useMediaActivity();
+  // The audio's own truth, and the island's: a pause holds the strip for a few
+  // seconds with the bars stopped before anything collapses.
+  const liveMedia = useMediaActivity();
+  const { media, present: mediaPresent } = useMediaLinger(liveMedia);
   const hovered = useStageInteractivity(islandRef);
   const sendMediaCommand = useMediaTransport();
+  const focusMediaApp = useMediaFocus();
   const settings = useKennelSettings();
   const performHaptic = useHaptics();
 
@@ -125,34 +153,57 @@ function DesktopIslandApp({ adapter }: { adapter: KennelIslandAdapter }) {
   const settled = usePointerDwell(hovered === true, settings.hover.peekDelayMs);
 
   // Two-finger swipes over the island, matching what the pointer already does:
-  // down opens, up closes, across steps the track. The horizontal pair is gated
-  // on something actually playing, so a stray sideways swipe over a quiet
-  // island cannot reach a paused player in the background.
+  // down opens, up closes, across steps the track.
+  //
+  // The stage is click-through except while the pointer is on the island, so a
+  // wheel event reaching this window is already proof the swipe was made over
+  // the island — there is no second hover test to make, and making one against
+  // React state only ever dropped gestures that should have landed. The
+  // horizontal pair is still gated on something actually playing, so a sideways
+  // swipe over a quiet island cannot reach a paused background player.
+  //
+  // Each recognised gesture taps the trackpad. The hand is on the device by
+  // definition — it just made the gesture — so this is the one place feedback
+  // is certain to be felt rather than fired at an empty desk.
   const handleGesture = useCallback(
     (gesture: IslandGesture) => {
       if (!settings.gestures.enabled) return;
 
       switch (gesture) {
         case "open":
-          if (settings.gestures.verticalOpenClose && model.surface === "compact") {
-            dispatch({ type: "expand" });
-          }
+          if (!settings.gestures.verticalOpenClose || model.surface !== "compact") return;
+          performHaptic("level");
+          dispatch({ type: "expand" });
           return;
         case "close":
-          if (settings.gestures.verticalOpenClose && model.surface !== "compact") {
-            dispatch({ type: "dismiss" });
-          }
+          if (!settings.gestures.verticalOpenClose || model.surface === "compact") return;
+          performHaptic("level");
+          dispatch({ type: "dismiss" });
           return;
         case "next-track":
         case "previous-track": {
           if (!settings.gestures.horizontalMedia || !media.playing) return;
-          const forward = gesture === "next-track";
-          sendMediaCommand(forward === settings.gestures.invertMedia ? "previous" : "next");
+          // Left to right takes the next track. `invertMedia` swaps that for
+          // someone who reads the gesture as dragging the strip rather than
+          // stepping the queue.
+          const forward = (gesture === "next-track") !== settings.gestures.invertMedia;
+          performHaptic("generic");
+          sendMediaCommand(forward ? "next" : "previous");
         }
       }
     },
-    [dispatch, media.playing, model.surface, sendMediaCommand, settings.gestures],
+    [dispatch, media.playing, model.surface, performHaptic, sendMediaCommand, settings.gestures],
   );
+
+  // A tap the moment the pointer arrives, so the island announces that it has
+  // taken the cursor before anything on it has had time to move.
+  const wasHoveredForHaptic = useRef(false);
+  useEffect(() => {
+    const isHovered = hovered === true;
+    const entered = isHovered && !wasHoveredForHaptic.current;
+    wasHoveredForHaptic.current = isHovered;
+    if (entered) performHaptic("alignment");
+  }, [hovered, performHaptic]);
 
   useIslandGestures(islandRef, handleGesture);
 
@@ -166,6 +217,18 @@ function DesktopIslandApp({ adapter }: { adapter: KennelIslandAdapter }) {
     document.documentElement.classList.add("is-desktop-island");
     return () => document.documentElement.classList.remove("is-desktop-island");
   }, []);
+
+  // The island is a heads-up display, not an app you switch to. Its window is
+  // created non-focusable so clicking a chip never takes the key window away
+  // from whatever was being typed in — the caret stays in the chat box, the
+  // editor, the terminal. The one surface that needs a caret of its own asks
+  // for focus while it is open and gives it straight back on close.
+  const needsTextEntry = model.surface === "steer";
+  useEffect(() => {
+    const desktop = window.kennelDesktop;
+    if (typeof desktop?.setFocusable !== "function") return;
+    void desktop.setFocusable(needsTextEntry).catch(() => {});
+  }, [needsTextEntry]);
 
   // "Open on hover" skips the peek entirely: the settled pointer opens the
   // panel rather than swelling the housing.
@@ -194,11 +257,13 @@ function DesktopIslandApp({ adapter }: { adapter: KennelIslandAdapter }) {
         <KennelIsland
           hovered={hovered === true}
           media={media}
+          mediaPresent={mediaPresent}
           model={model}
           settings={settings}
           settled={settled}
           stage={stage}
           onAction={dispatch}
+          onFocusMedia={focusMediaApp}
           onHaptic={performHaptic}
         />
       </div>
@@ -210,19 +275,44 @@ function DesktopIslandApp({ adapter }: { adapter: KennelIslandAdapter }) {
 // pointer hover comes from the DOM, and media from a switch.
 const LAB_TRACK: KennelMediaActivity = {
   playing: true,
-  track: { title: "Challenge (feat. Juice WRLD)", artist: "Young Thug" },
+  owner: "Music",
+  track: {
+    title: "Challenge (feat. Juice WRLD)",
+    artist: "Young Thug",
+    // A real playhead so the scrubber face is reachable in the lab, where there
+    // is no player to ask.
+    positionSeconds: 92,
+    durationSeconds: 205,
+    sampledAt: Date.now(),
+    seekable: true,
+  },
 };
-const LAB_SILENCE: KennelMediaActivity = { playing: false, track: null };
+// The third media state the lab has to be able to show: something is playing
+// and will not say what, which is every Firefox tab and every game.
+const LAB_UNKNOWN_AUDIO: KennelMediaActivity = { playing: true, owner: "Firefox", track: null };
+const LAB_SILENCE: KennelMediaActivity = { playing: false, owner: null, track: null };
+
+const LAB_MEDIA_STATES = [
+  { label: "Play media", media: LAB_SILENCE },
+  { label: "Play unattributed audio", media: LAB_TRACK },
+  { label: "Stop media", media: LAB_UNKNOWN_AUDIO },
+] as const;
 
 function PrototypeLab({ adapter }: { adapter: ReturnType<typeof createDemoIslandAdapter> }) {
   const { model, dispatch } = useKennelIsland(adapter);
   const [hovered, setHovered] = useState(false);
-  const [playing, setPlaying] = useState(false);
+  const [mediaState, setMediaState] = useState<0 | 1 | 2>(0);
+  const [selectedScenario, setSelectedScenario] = useState<DemoScenario>("compact");
   // The lab has no host, so `useKennelSettings` returns the defaults — which is
   // exactly what the lab wants, and is what lets the peek be exercised here
   // rather than only on a quiet Mac with a real notch.
   const settings = useKennelSettings();
   const settled = usePointerDwell(hovered, settings.hover.peekDelayMs);
+
+  const selectScenario = (scenario: DemoScenario) => {
+    setSelectedScenario(scenario);
+    adapter.setScenario(scenario);
+  };
 
   return (
     <main className="prototype-shell">
@@ -235,7 +325,8 @@ function PrototypeLab({ adapter }: { adapter: ReturnType<typeof createDemoIsland
         >
           <KennelIsland
             hovered={hovered}
-            media={playing ? LAB_TRACK : LAB_SILENCE}
+            media={LAB_MEDIA_STATES[mediaState].media}
+            mediaPresent={LAB_MEDIA_STATES[mediaState].media.playing}
             model={model}
             settings={settings}
             settled={settled}
@@ -244,10 +335,10 @@ function PrototypeLab({ adapter }: { adapter: ReturnType<typeof createDemoIsland
         </div>
         <button
           className="desktop-stage__media-toggle"
-          onClick={() => setPlaying((current) => !current)}
+          onClick={() => setMediaState((current) => ((current + 1) % LAB_MEDIA_STATES.length) as 0 | 1 | 2)}
           type="button"
         >
-          {playing ? "Stop media" : "Play media"}
+          {LAB_MEDIA_STATES[mediaState].label}
         </button>
         <p className="desktop-stage__hint">⌘~ to summon Kennel</p>
         <div className="desktop-stage__caption">
@@ -259,33 +350,66 @@ function PrototypeLab({ adapter }: { adapter: ReturnType<typeof createDemoIsland
       <section className="state-lab" aria-label="Prototype states">
         <div className="state-lab__intro">
           <div>
-            <p className="state-lab__eyebrow">Kennel island</p>
-            <h1>Figma state lab</h1>
+            <p className="state-lab__eyebrow">Kennel Island research prototype</p>
+            <h1>Dynamic Island activity lab</h1>
           </div>
           <p>
-            The visuals are isolated from data access. These controls swap mock adapter snapshots;
-            the same component can receive daemon-backed snapshots later.
+            Compare familiar iPhone ongoing-activity patterns in Kennel&apos;s notch. Every example is
+            a fixed local fixture—not a connection to Apple, Uber, Domino&apos;s, or another vendor.
           </p>
         </div>
-        <div className="scenario-picker">
-          {scenarioLabels.map((scenario) => (
+        <ScenarioGroup
+          label="iPhone Live Activity references"
+          scenarios={activityScenarioLabels}
+          selected={selectedScenario}
+          onSelect={selectScenario}
+        />
+        <ScenarioGroup
+          label="Existing Kennel surfaces"
+          scenarios={kennelScenarioLabels}
+          selected={selectedScenario}
+          onSelect={selectScenario}
+        />
+        <p className="state-lab__tip">
+          Click the compact activity to expand it. Hover for the glanceable state; Escape closes an
+          open panel. Demo controls only update the local fixture.
+        </p>
+      </section>
+    </main>
+  );
+}
+
+function ScenarioGroup({
+  label,
+  scenarios,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  scenarios: ScenarioLabel[];
+  selected: DemoScenario;
+  onSelect: (scenario: DemoScenario) => void;
+}) {
+  return (
+    <div className="scenario-group">
+      <h2>{label}</h2>
+      <div className="scenario-picker">
+        {scenarios.map((scenario) => {
+          const active = selected === scenario.id;
+          return (
             <button
-              aria-pressed={model.surface === scenario.id}
-              className={model.surface === scenario.id ? "scenario-card is-active" : "scenario-card"}
+              aria-pressed={active}
+              className={active ? "scenario-card is-active" : "scenario-card"}
               key={scenario.id}
-              onClick={() => adapter.setScenario(scenario.id)}
+              onClick={() => onSelect(scenario.id)}
               type="button"
             >
               <span>{scenario.label}</span>
               <small>{scenario.detail}</small>
             </button>
-          ))}
-        </div>
-        <p className="state-lab__tip">
-          Tip: click the compact island to expand. Escape closes an open panel; keys 1–4 answer the
-          choice prompt.
-        </p>
-      </section>
-    </main>
+          );
+        })}
+      </div>
+    </div>
   );
 }

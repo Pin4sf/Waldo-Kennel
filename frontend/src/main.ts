@@ -2112,6 +2112,7 @@ app.whenReady().then(async () => {
 		const bundlePath = resolveBundlePath();
 		const action = decideRelocation({
 			inApplicationsFolder: app.isInApplicationsFolder(),
+			runningBundleIdentifier: APP_ID,
 			runningVersion: app.getVersion(),
 			...inspectInstalledBundle(bundlePath),
 		});

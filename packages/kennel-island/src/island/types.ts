@@ -111,6 +111,100 @@ export interface CompactIslandModel {
   detail?: string;
   additions?: number;
   deletions?: number;
+  /**
+   * A prototype-only reference for an iPhone-style ongoing activity. These
+   * fixtures exercise the Island's information hierarchy; they do not imply
+   * an integration with the named ecosystem example.
+   */
+  liveActivity?: LiveActivityReference;
+}
+
+export type LiveActivityKind =
+  | "voice-recording"
+  | "delivery"
+  | "ride"
+  | "transit"
+  | "flight"
+  | "sports"
+  | "focus"
+  | "workout"
+  | "charging"
+  | "camera"
+  | "weather"
+  | "home"
+  | "multiple";
+
+export type LiveActivityState = "live" | "paused" | "attention" | "complete" | "ended";
+
+export interface LiveActivityStep {
+  id: string;
+  label: string;
+  state: "complete" | "current" | "upcoming" | "attention";
+}
+
+export interface LiveActivityMetric {
+  id: string;
+  label: string;
+  value: string;
+  detail?: string;
+}
+
+export interface LiveActivityEvent {
+  id: string;
+  label: string;
+  detail?: string;
+  timeLabel?: string;
+}
+
+export interface LiveActivityCompanion {
+  id: string;
+  kind: Exclude<LiveActivityKind, "multiple">;
+  title: string;
+  status: string;
+  value: string;
+}
+
+export interface LiveActivityAction {
+  id: string;
+  label: string;
+  role?: "primary" | "secondary" | "destructive";
+}
+
+/**
+ * Neutral presentation data shared by every reference activity in the lab.
+ * It deliberately describes what is visible, rather than any vendor API.
+ */
+export interface LiveActivityReference {
+  id: string;
+  kind: LiveActivityKind;
+  mechanism: "system" | "activitykit" | "beta";
+  source: string;
+  pattern: string;
+  title: string;
+  context: string;
+  status: string;
+  state: LiveActivityState;
+  compactValue: string;
+  primaryValue: string;
+  primaryLabel: string;
+  timeLabel?: string;
+  progress?: number;
+  progressLabel?: string;
+  steps?: LiveActivityStep[];
+  metrics?: LiveActivityMetric[];
+  events?: LiveActivityEvent[];
+  companions?: LiveActivityCompanion[];
+  alert?: {
+    title: string;
+    detail: string;
+  };
+  actions?: LiveActivityAction[];
+  feedback?: string;
+}
+
+export interface LiveActivityIslandModel {
+  surface: "activity";
+  activity: LiveActivityReference;
 }
 
 export interface QueueIslandModel {
@@ -204,6 +298,7 @@ export interface UsageIslandModel {
 
 export type IslandModel =
   | CompactIslandModel
+  | LiveActivityIslandModel
   | QueueIslandModel
   | ChoiceIslandModel
   | PermissionIslandModel
@@ -223,6 +318,7 @@ export type IslandAction =
   | { type: "submit-steer"; sessionId: string; text: string }
   | { type: "open-session"; sessionId?: string; projectId?: string }
   | { type: "retry-connection" }
+  | { type: "activity-action"; activityId: string; actionId: string }
   | { type: "open-usage" }
   | { type: "open-settings" }
   | { type: "hide-island" };

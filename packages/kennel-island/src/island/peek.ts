@@ -54,6 +54,8 @@ export function restingShapeFor({ awake, peeking }: RestingShapeInput): RestingS
 
 export interface RestingMetricsInput {
   shape: RestingShape;
+  /** The pointer is on the island. Only then may the strip grow past the housing. */
+  hovered: boolean;
   notchWidth: number;
   notchHeight: number;
   menuBarHeight: number;
@@ -75,14 +77,21 @@ export interface RestingMetrics {
 /**
  * Outer size of the resting island, in points.
  *
- * The strip's height takes the notch height as a floor as well as the menu bar
- * height. They are usually the same, but a user who has fine-tuned the housing
- * taller has told us the hardware is bigger than the menu bar implies, and a
- * strip shorter than that would leave a black step above a black bar.
+ * Every untouched shape — dormant, and the awake strip alike — is exactly the
+ * housing's height. Growing downward is something the island does in answer to
+ * a pointer and never in answer to its own state: a machine that got taller
+ * because a song started is a machine that is announcing itself, which is the
+ * opposite of the thing this is pretending to be.
+ *
+ * The notch height is a floor alongside the menu bar height. They are usually
+ * the same, but a user who has fine-tuned the housing taller has told us the
+ * hardware is bigger than the menu bar implies, and a strip shorter than that
+ * would leave a black step above a black bar.
  */
 export function restingMetricsFor(input: RestingMetricsInput): RestingMetrics {
   const {
     shape,
+    hovered,
     notchWidth,
     notchHeight,
     menuBarHeight,
@@ -96,7 +105,14 @@ export function restingMetricsFor(input: RestingMetricsInput): RestingMetrics {
     const cluster = clusterWidth(clusterItems);
     return {
       width: notchWidth + 2 * cluster + (cluster > 0 ? 2 * contentPadding : 0),
-      height: Math.max(ISLAND_HEADER_HEIGHT, menuBarHeight, notchHeight),
+      // Untouched, the strip is exactly as tall as the housing — the same
+      // height the dormant island has, and for the same reason: anything taller
+      // hangs a black lip below the hardware and the illusion is over. An awake
+      // machine is not a reason to grow; only a pointer is. The header's
+      // preferred height is therefore a hover-only floor.
+      height: hovered
+        ? Math.max(ISLAND_HEADER_HEIGHT, menuBarHeight, notchHeight)
+        : Math.max(menuBarHeight, notchHeight),
     };
   }
 

@@ -74,6 +74,19 @@ type ChangeLog struct {
 	CreatedAt time.Time
 }
 
+type ContractRevision struct {
+	ID              domain.ContractRevisionID
+	OutcomeID       domain.OutcomeID
+	Number          int64
+	Goal            string
+	SuccessCriteria string
+	Review          string
+	Constraints     string
+	NonGoals        string
+	Clarification   string
+	CreatedAt       time.Time
+}
+
 type Conversation struct {
 	ID                         string
 	Scope                      domain.ConversationScope
@@ -218,6 +231,16 @@ type Notification struct {
 	ResolvedAt sql.NullTime
 }
 
+type Outcome struct {
+	ID                    domain.OutcomeID
+	SpaceID               domain.ResponsibilitySpaceID
+	Title                 string
+	CurrentRevisionNumber int64
+	IdempotencyKey        sql.NullString
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
 type PR struct {
 	URL                      string
 	SessionID                domain.SessionID
@@ -328,6 +351,13 @@ type Project struct {
 	ArchivedAt    sql.NullTime
 	Config        sql.NullString
 	Kind          string
+}
+
+type ResponsibilitySpace struct {
+	ID        domain.ResponsibilitySpaceID
+	Kind      domain.ResponsibilitySpaceKind
+	ProjectID domain.ProjectID
+	CreatedAt time.Time
 }
 
 type Review struct {

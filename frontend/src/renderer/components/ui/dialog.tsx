@@ -28,7 +28,7 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
 		<DialogPrimitive.Overlay
 			data-slot="dialog-overlay"
 			className={cn(
-				"dialog-overlay data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
+				"dialog-overlay data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out motion-reduce:animate-none",
 				className,
 			)}
 			{...props}

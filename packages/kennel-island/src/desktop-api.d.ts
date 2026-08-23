@@ -32,11 +32,35 @@ declare global {
      * sampled from it.
      */
     artwork?: string;
+    /**
+     * Where the playhead was, and when that was true.
+     *
+     * Present only for the players that answer the question — Music, Spotify,
+     * Swinsian. A browser tab has a title and nothing else, so the island
+     * shows a name and no scrubber rather than a bar it cannot fill.
+     *
+     * `sampledAt` is `Date.now()` at the moment of the read, so the island can
+     * carry the position forward between polls instead of stepping it every
+     * couple of seconds.
+     */
+    positionSeconds?: number;
+    durationSeconds?: number;
+    sampledAt?: number;
+    /** The player will also take a position back, so the bar can be dragged. */
+    seekable?: boolean;
   }
 
   interface KennelMediaActivity {
     playing: boolean;
-    /** Null whenever the source will not name itself, which is every browser. */
+    /**
+     * The application making the noise, when the power assertion named one.
+     *
+     * This is what the island shows and focuses for a source that will not
+     * hand over a title — a Firefox tab, a game, an app without Automation
+     * access. Null only when even the owner is unknown.
+     */
+    owner: string | null;
+    /** Null whenever the source will not name what it is playing. */
     track: KennelMediaTrack | null;
   }
 
@@ -109,6 +133,16 @@ declare global {
     getMediaActivity: () => Promise<KennelMediaActivity>;
     onMediaActivity: (listener: (activity: KennelMediaActivity) => void) => () => void;
     sendMediaCommand: (command: KennelMediaCommand) => Promise<{ sent: boolean }>;
+    /**
+     * Lets the island window become key, for the one surface that needs a
+     * caret. Off at every other moment so a click never steals the text cursor
+     * from the app underneath.
+     */
+    setFocusable: (focusable: boolean) => Promise<{ focusable: boolean }>;
+    /** Moves the playhead, in seconds from the start of the track. */
+    seekMedia: (positionSeconds: number) => Promise<{ sought: boolean }>;
+    /** Brings the application currently playing to the front. */
+    focusMediaApp: () => Promise<{ focused: boolean }>;
     recenter: () => void | Promise<void>;
     hideIsland: () => Promise<{ visible: false }>;
     getKennelSnapshot: () => Promise<KennelDesktopSnapshot>;

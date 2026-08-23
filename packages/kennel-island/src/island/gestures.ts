@@ -116,13 +116,14 @@ export function createGestureRecognizer(): GestureRecognizer {
         return null;
       }
 
-      // A finger moving left pulls the next track into view, the same way it
-      // pulls the next photo in, which is the direction the gesture reads as.
-      if (travelX <= -GESTURE_TRACK_THRESHOLD) {
+      // Fingers travelling left to right advance the queue, and right to left
+      // walks back through it — the transport buttons' own direction, which is
+      // what a hand reaches for on a bar that already reads left to right.
+      if (travelX >= GESTURE_TRACK_THRESHOLD) {
         latched = true;
         return "next-track";
       }
-      if (travelX >= GESTURE_TRACK_THRESHOLD) {
+      if (travelX <= -GESTURE_TRACK_THRESHOLD) {
         latched = true;
         return "previous-track";
       }

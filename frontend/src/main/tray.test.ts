@@ -100,8 +100,8 @@ describe("createTrayController", () => {
 		expect(tray.tooltip).toBe("2 sessions need attention");
 		const labels = tray.template.map((i) => i.label);
 		expect(labels).toContain("Ready");
-		expect(labels).toContain("Needs you");
-		expect(labels.indexOf("Ready")).toBeLessThan(labels.indexOf("Needs you"));
+		expect(labels).toContain("Needs Choice");
+		expect(labels.indexOf("Ready")).toBeLessThan(labels.indexOf("Needs Choice"));
 		expect(sessionItems(tray).map((i) => i.label)).toEqual(["ready  ·  note-tauri", "needs you  ·  note-tauri"]);
 	});
 
@@ -144,11 +144,11 @@ describe("createTrayController", () => {
 	it("relocalizes menu labels when setLocale is called", () => {
 		const { controller, tray } = setup();
 		controller.setState({ sessions: [entry({ sessionId: "s1", zone: "action" })] });
-		expect(tray.template.some((i) => i.label === "Needs you")).toBe(true);
+		expect(tray.template.some((i) => i.label === "Needs Choice")).toBe(true);
 
 		controller.setLocale("zh-CN");
 		expect(tray.tooltip).toBe("1 个会话需要关注");
-		expect(tray.template.some((i) => i.label === "需要你处理")).toBe(true);
+		expect(tray.template.some((i) => i.label === "需要选择")).toBe(true);
 		expect(tray.template.some((i) => i.label === "显示 Kennel")).toBe(true);
 	});
 });

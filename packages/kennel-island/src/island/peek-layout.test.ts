@@ -4,11 +4,13 @@ import { HEADER_ITEM } from "./peek.ts";
 import {
   otherSubject,
   peekMaxWidthFor,
+  peekOuterWidthFor,
   peekSubjectFor,
   peekWidthFor,
   peekZonesFor,
   pointerHasMoved,
   PEEK_MIN_WIDTH,
+  PEEK_SHAPE_FLARE_RATIO,
   PEEK_TEXT_PADDING,
   zoneAt,
   type HeaderItemBox,
@@ -183,4 +185,18 @@ test("a pointer that drifts a point or two is still parked", () => {
   // Nothing to compare against is a move, so the timer starts rather than
   // treating an unknown position as parked.
   assert.equal(pointerHasMoved(null, { x: 100, y: 20 }), true);
+});
+
+test("the outer box is exactly as much wider than content as the reference flares", () => {
+	assert.equal(Math.round(PEEK_SHAPE_FLARE_RATIO * 100), 152);
+});
+
+test("the outer width never lands narrower than the content it holds", () => {
+	assert.ok(peekOuterWidthFor(140) >= 140);
+	assert.ok(peekOuterWidthFor(1) >= 1);
+	assert.equal(peekOuterWidthFor(0), 0);
+});
+
+test("negative content cannot produce a negative outer width", () => {
+	assert.equal(peekOuterWidthFor(-40), 0);
 });

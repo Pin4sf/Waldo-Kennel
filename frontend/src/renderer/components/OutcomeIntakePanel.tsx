@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, Loader2, PencilLine } from "lucide-react";
+import { ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, Loader2, PencilLine } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { OutcomeCoordinationState, OutcomePlan, OutcomeQuestionSet } from "../lib/outcome-coordination";
@@ -35,6 +35,7 @@ export function OutcomeIntakePanel({
 					error={error}
 					onSubmit={onSubmitAnswers}
 					questionSet={state.questionSet}
+					supportingText={outcomeDefinition}
 				/>
 			) : state.stage === "plan" ? (
 				<OutcomePlanReview
@@ -49,6 +50,38 @@ export function OutcomeIntakePanel({
 			) : (
 				<OutcomeThinking agentLabel={agentLabel} approved={state.stage === "approved"} />
 			)}
+		</div>
+	);
+}
+
+export function OutcomeQuestionOverlay({
+	busy,
+	error,
+	onSubmit,
+	questionSet,
+	supportingText,
+}: {
+	busy: boolean;
+	error?: string;
+	onSubmit: (answers: Record<string, string>) => Promise<void>;
+	questionSet: OutcomeQuestionSet;
+	supportingText: string;
+}) {
+	return (
+		<div
+			aria-labelledby="outcome-question-title"
+			aria-modal="true"
+			className="fixed inset-0 z-overlay flex items-start justify-center overflow-y-auto bg-[rgb(21_21_21/60%)] px-4 pb-4 pt-[15.1vh]"
+			data-testid="outcome-question-overlay"
+			role="dialog"
+		>
+			<OutcomeQuestions
+				busy={busy}
+				error={error}
+				onSubmit={onSubmit}
+				questionSet={questionSet}
+				supportingText={supportingText}
+			/>
 		</div>
 	);
 }
@@ -75,11 +108,13 @@ function OutcomeQuestions({
 	error,
 	onSubmit,
 	questionSet,
+	supportingText,
 }: {
 	busy: boolean;
 	error?: string;
 	onSubmit: (answers: Record<string, string>) => Promise<void>;
 	questionSet: OutcomeQuestionSet;
+	supportingText: string;
 }) {
 	const { t } = useTranslation();
 	const [index, setIndex] = useState(0);
@@ -114,35 +149,67 @@ function OutcomeQuestions({
 		}
 		await onSubmit(nextAnswers);
 	};
+	const skipFlow = async () => {
+		const nextAnswers = { ...answers, [question.id]: "Skipped by user" };
+		if (!isLast) {
+			setAnswers(nextAnswers);
+			setCustomAnswers((current) => ({ ...current, [question.id]: "" }));
+			setIndex((current) => current + 1);
+			return;
+		}
+		await onSubmit(nextAnswers);
+	};
 
-	// The question is the only thing on screen blocked on a person, so it carries
-	// the attention hue; everything around it stays neutral.
 	return (
-		<div className="w-full max-w-3xl overflow-hidden rounded-panel hairline border-border bg-popover shadow-xl" data-testid="outcome-questions">
-			<div className="flex items-start justify-between gap-6 px-3.5 pb-2.5 pt-3">
-				<h2 className="max-w-2xl text-sm font-medium leading-snug text-status-needs-you">{question.prompt}</h2>
-				<div className="flex shrink-0 items-center gap-1 text-2xs text-foreground/60">
-					<button type="button" aria-label={t("board.outcome.previousQuestion")} className="rounded-sm p-0.75 hover:bg-card disabled:opacity-30" disabled={index === 0 || busy} onClick={() => setIndex((current) => current - 1)}>
-						<ChevronLeft className="size-icon-sm" aria-hidden="true" />
-					</button>
-					<span className="font-medium">{t("board.outcome.questionProgress", { current: index + 1, total: questionSet.questions.length })}</span>
-					<button type="button" aria-label={t("board.outcome.nextQuestion")} className="rounded-sm p-0.75 hover:bg-card disabled:opacity-30" disabled={isLast || !canContinue || busy} onClick={() => void continueFlow()}>
-						<ChevronRight className="size-icon-sm" aria-hidden="true" />
-					</button>
+		<div
+			className="flex w-[386.4px] max-w-[calc(100vw-32px)] flex-col gap-[14.4px] rounded-[19.2px] border-[0.72px] border-white/8 bg-popover px-[16.8px] py-[14.4px] shadow-xl"
+			data-testid="outcome-questions"
+		>
+			<div className="flex flex-col gap-[4.8px]">
+				<div className="flex items-start justify-between gap-[9.6px]">
+					<h2 id="outcome-question-title" className="min-w-0 flex-1 text-[14.4px] font-medium leading-snug text-status-needs-you">
+						{question.prompt}
+					</h2>
+					<div className="flex shrink-0 items-center gap-[2.4px] pt-[1.2px] text-[10.8px] leading-none text-foreground/60">
+						<button
+							type="button"
+							aria-label={t("board.outcome.previousQuestion")}
+							className="grid size-[16.8px] place-items-center rounded-xs hover:bg-white/5 disabled:opacity-30"
+							disabled={index === 0 || busy}
+							onClick={() => setIndex((current) => current - 1)}
+						>
+							<ChevronLeft className="size-[10.8px]" aria-hidden="true" />
+						</button>
+						<span className="whitespace-nowrap font-medium">{index + 1} / {questionSet.questions.length}</span>
+						<button
+							type="button"
+							aria-label={isLast ? t("board.outcome.submitAnswers") : t("board.outcome.nextQuestion")}
+							className="grid size-[16.8px] place-items-center rounded-xs hover:bg-white/5 disabled:opacity-30"
+							disabled={!canContinue || busy}
+							onClick={() => void continueFlow()}
+						>
+							<ChevronRight className="size-[10.8px]" aria-hidden="true" />
+						</button>
+					</div>
 				</div>
+				<p className="text-[12px] leading-body text-foreground/60">
+					{question.description || supportingText}
+				</p>
 			</div>
 
-			<div className="flex flex-col gap-px px-3.5 pb-3">
+			<div className="flex flex-col gap-[1.2px]">
 				{question.options.map((option, optionIndex) => {
 					const selected = answer === option.label && !custom.trim();
+					const highlighted = selected || (!answer && !custom.trim() && optionIndex === 0);
 					return (
 						<button
 							key={option.id}
 							type="button"
 							aria-pressed={selected}
+							title={option.description || undefined}
 							className={cn(
-								"group flex w-full items-center justify-between gap-2 rounded-md py-0.75 pl-0.75 pr-2 text-left transition-colors",
-								selected ? "bg-card" : "hover:bg-card/60",
+								"group flex h-[27.6px] w-full items-center gap-[7.2px] rounded-[7.2px] px-[2.4px] text-left transition-colors",
+								highlighted ? "bg-white/5 text-foreground" : "text-foreground/60 hover:bg-white/5 hover:text-foreground",
 							)}
 							disabled={busy}
 							onClick={() => {
@@ -150,45 +217,47 @@ function OutcomeQuestions({
 								setCustomAnswers((current) => ({ ...current, [question.id]: "" }));
 							}}
 						>
-							<span className="flex min-w-0 items-center gap-2">
-								{/* A numbered chip, not a radio: options are addressable by
-								    position and the number is the shortcut. */}
-								<span className={cn("grid size-control-xs shrink-0 place-items-center rounded-xs hairline border-border-strong text-2xs font-medium", selected ? "bg-card text-foreground" : "bg-popover text-foreground/60")}>
-									{selected ? <Check className="size-icon-2xs" aria-hidden="true" /> : optionIndex + 1}
-								</span>
-								<span className="flex min-w-0 items-center gap-1.5">
-									<span className={cn("truncate text-xs", selected ? "text-foreground" : "text-foreground/60")}>{option.label}</span>
-									{option.recommended ? <span className="shrink-0 rounded-md hairline border-border bg-popover px-1.25 py-0.5 text-2xs text-foreground/60">{t("board.outcome.recommended")}</span> : null}
-									{option.description ? <span className="truncate text-2xs text-muted-foreground">{option.description}</span> : null}
-								</span>
+							<span className="grid size-[19.2px] shrink-0 place-items-center rounded-[5.4px] border-[0.6px] border-white/8 bg-white/5 text-[9.6px] font-medium text-foreground/60">
+								{optionIndex + 1}
 							</span>
-							<ArrowRight className={cn("size-icon-sm shrink-0 text-foreground transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover:opacity-60")} aria-hidden="true" />
+							<span className="min-w-0 flex-1 truncate text-[12px] font-medium">{option.label}</span>
+							{option.recommended ? (
+								<span className="shrink-0 rounded-[5.4px] bg-white/5 px-[6px] py-[2.4px] text-[8.4px] font-medium text-foreground/60">
+									{t("board.outcome.recommended")}
+								</span>
+							) : null}
+							<ArrowRight className={cn("size-[14.4px] shrink-0 text-foreground transition-opacity", highlighted ? "opacity-100" : "opacity-0 group-hover:opacity-60")} aria-hidden="true" />
 						</button>
 					);
 				})}
-				<label className={cn("mt-1 flex items-start gap-2 rounded-md py-0.75 pl-0.75 pr-2 transition-colors", custom.trim() ? "bg-card" : "focus-within:bg-card")}>
-					<PencilLine className="mt-0.5 size-icon-sm shrink-0 text-foreground/60" aria-hidden="true" />
-					<span className="sr-only">{t("board.outcome.ownAnswer")}</span>
-					<textarea
-						className="min-h-10 flex-1 resize-none bg-transparent text-xs leading-body text-foreground outline-none placeholder:text-foreground/30"
+				<div className={cn("flex h-[27.6px] items-center gap-[7.2px] rounded-[7.2px] px-[2.4px] transition-colors focus-within:bg-white/5", custom.trim() && "bg-white/5")}>
+					<span className="grid size-[19.2px] shrink-0 place-items-center rounded-[5.4px] border-[0.6px] border-white/8 bg-white/5 text-[9.6px] font-medium text-foreground/60">
+						{question.options.length + 1}
+					</span>
+					<label className="min-w-0 flex-1">
+						<span className="sr-only">{t("board.outcome.ownAnswer")}</span>
+						<input
+							className="h-full w-full bg-transparent text-[10.8px] leading-none text-foreground outline-none placeholder:text-foreground/30"
+							disabled={busy}
+							placeholder={t("board.outcome.ownAnswerPlaceholder")}
+							value={custom}
+							onChange={(event) => recordCustom(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === "Enter" && canContinue) void continueFlow();
+							}}
+						/>
+					</label>
+					<button
+						type="button"
+						className="shrink-0 rounded-[5.4px] border-[0.6px] border-white/8 bg-white/5 px-[6px] py-[3.6px] text-[9.6px] font-medium leading-none text-foreground/70 hover:text-foreground disabled:opacity-40"
 						disabled={busy}
-						placeholder={t("board.outcome.ownAnswerPlaceholder")}
-						value={custom}
-						onChange={(event) => recordCustom(event.target.value)}
-					/>
-				</label>
+						onClick={() => void skipFlow()}
+					>
+						{t("migration.skip")}
+					</button>
+				</div>
 			</div>
-
-			<div className="flex items-center justify-between border-t border-border px-3.5 py-2.5">
-				<button type="button" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40" disabled={index === 0 || busy} onClick={() => setIndex((current) => current - 1)}>
-					<ArrowLeft className="size-3.5" aria-hidden="true" /> {t("board.outcome.back")}
-				</button>
-				<TopbarButton disabled={!canContinue || busy} onClick={() => void continueFlow()} variant="primary">
-					{busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
-					{isLast ? t("board.outcome.submitAnswers") : t("board.outcome.nextQuestion")}
-				</TopbarButton>
-			</div>
-			{error ? <p className="border-t border-error/20 bg-error/5 px-4 py-2 text-xs text-error" role="alert">{error}</p> : null}
+			{error ? <p className="text-[10.8px] leading-body text-error" role="alert">{error}</p> : null}
 		</div>
 	);
 }

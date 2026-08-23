@@ -77,7 +77,6 @@ function ListLaneView<TSession extends BoardSessionPresentation>({
 	renderSessionRow: (session: TSession) => ReactNode;
 	sessions: TSession[];
 }) {
-	if (sessions.length === 0) return null;
 	return (
 		<section
 			aria-label={labels.columnAria(column.label)}
@@ -95,25 +94,38 @@ function ListLaneView<TSession extends BoardSessionPresentation>({
 						/>
 						<span className="truncate text-sm font-medium text-foreground">{column.label}</span>
 					</div>
-					<span className="inline-flex size-control-chip shrink-0 items-center justify-center rounded-md border border-border-strong bg-shell text-sm font-semibold leading-none text-foreground">
+					<span
+						aria-label={labels.countSessions(sessions.length, column.label)}
+						className="inline-flex size-control-chip shrink-0 items-center justify-center rounded-md border border-border-strong bg-shell text-sm font-semibold leading-none text-foreground"
+					>
 						{sessions.length}
 					</span>
 				</div>
-				<span aria-hidden="true" className="size-control-chip shrink-0" />
+				<span aria-hidden="true" className="inline-flex size-control-chip shrink-0 items-center justify-center">
+					<span className="flex w-2.5 flex-col gap-0.5">
+						<span className="h-px w-full bg-passive" />
+						<span className="h-px w-full bg-passive" />
+						<span className="h-px w-full bg-passive" />
+					</span>
+				</span>
 			</div>
 			{/* One plate for the whole lane, not one per row: the rows are a table,
 			    and a table has a single edge. */}
-			<div className="overflow-hidden rounded-panel hairline border-border bg-card">
-				{sessions.map((session) => (
-					<Fragment key={session.id}>{renderSessionRow(session)}</Fragment>
-				))}
-			</div>
+			{sessions.length > 0 ? (
+				<div className="overflow-hidden rounded-panel hairline border-border bg-card">
+					{sessions.map((session) => (
+						<Fragment key={session.id}>{renderSessionRow(session)}</Fragment>
+					))}
+				</div>
+			) : null}
 		</section>
 	);
 }
 
 export type SessionRowViewProps = {
 	action?: ReactNode;
+	/** Optional primary work artifact shown in the artifact column. */
+	artifact?: ReactNode;
 	branchIcon?: ReactNode;
 	error?: string;
 	externalLink: ExternalLinkComponent;
@@ -140,6 +152,7 @@ export type SessionRowViewProps = {
  */
 export function SessionRowView({
 	action,
+	artifact,
 	branchIcon,
 	error,
 	externalLink,
@@ -164,7 +177,7 @@ export function SessionRowView({
 	return (
 		<div
 			className={cn(
-				"group/row relative flex min-h-row-list w-full items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors",
+				"group/row relative flex min-h-row-list w-full items-center gap-2.5 px-2.5 py-1 text-left transition-colors",
 				interactive && "cursor-pointer hover:bg-popover focus-within:bg-popover",
 			)}
 			data-session-id={session.id}
@@ -178,16 +191,16 @@ export function SessionRowView({
 
 			<span className="shrink-0">{renderAvatar(session.provider)}</span>
 
-			<ListCell className="basis-[28%]">
+			<ListCell className="basis-[16.25rem]">
 				<span className="whitespace-nowrap text-brand font-medium text-foreground" title={session.title}>
 					{session.title}
 				</span>
 			</ListCell>
 
-			<ListCell className="basis-[26%]">
+			<ListCell className="basis-[13.5rem]">
 				<span
 					className={cn(
-						"whitespace-nowrap text-sm font-medium underline underline-offset-2",
+						"whitespace-nowrap text-brand font-medium underline underline-offset-2",
 						statusPresentation?.className ?? badge.className,
 					)}
 					style={!statusPresentation && showLiveActivity ? { color: activity.tone } : undefined}
@@ -196,7 +209,7 @@ export function SessionRowView({
 				</span>
 			</ListCell>
 
-			<ListCell className="basis-[18%]">
+			<ListCell className="basis-[8.5rem]">
 				{showBranch ? (
 					<span
 						className="inline-flex items-center gap-1.25 whitespace-nowrap rounded-md hairline border-border-strong bg-popover px-2 py-0.5 text-xs text-foreground"
@@ -208,33 +221,37 @@ export function SessionRowView({
 				) : null}
 			</ListCell>
 
-			<ListCell className="basis-[16%]">
-				{prGroups.length > 0 ? (
-					<span className="flex items-center gap-1.5 whitespace-nowrap text-xs text-passive">
-						{prGroups.map((group) => (
-							<Fragment key={group.state}>
-								{group.prs.map((pr) => {
-									const ExternalLink = externalLink;
-									return (
-										<ExternalLink
-											className="text-foreground underline decoration-link underline-offset-2 transition-colors hover:text-link"
-											href={pr.url}
-											key={pr.url || pr.number}
-											stopPropagation
-										>
-											{labels.pr.short}
-											{pr.number}
-										</ExternalLink>
-									);
-								})}
-							</Fragment>
-						))}
-					</span>
-				) : session.trackerIssueId ? (
-					<span className="whitespace-nowrap text-xs text-passive" title={labels.intakeIssue(session.trackerIssueId)}>
-						{session.trackerIssueId}
-					</span>
-				) : null}
+			<ListCell className="basis-[11rem]">
+				{artifact ??
+					(prGroups.length > 0 ? (
+						<span className="flex items-center gap-1.5 whitespace-nowrap text-xs text-passive">
+							{prGroups.map((group) => (
+								<Fragment key={group.state}>
+									{group.prs.map((pr) => {
+										const ExternalLink = externalLink;
+										return (
+											<ExternalLink
+												className="text-foreground underline decoration-link underline-offset-2 transition-colors hover:text-link"
+												href={pr.url}
+												key={pr.url || pr.number}
+												stopPropagation
+											>
+												{labels.pr.short}
+												{pr.number}
+											</ExternalLink>
+										);
+									})}
+								</Fragment>
+							))}
+						</span>
+					) : session.trackerIssueId ? (
+						<span
+							className="whitespace-nowrap text-xs text-passive"
+							title={labels.intakeIssue(session.trackerIssueId)}
+						>
+							{session.trackerIssueId}
+						</span>
+					) : null)}
 			</ListCell>
 
 			{usage && renderUsage ? <span className="shrink-0">{renderUsage(usage)}</span> : null}
@@ -267,7 +284,7 @@ export function SessionRowView({
  */
 function ListCell({ children, className }: { children: ReactNode; className?: string }) {
 	return (
-		<span className={cn("relative min-w-0 grow overflow-hidden", className)}>
+		<span className={cn("relative min-w-0 shrink grow-0 overflow-hidden", className)}>
 			<span className="block overflow-hidden">{children}</span>
 			<span
 				aria-hidden="true"

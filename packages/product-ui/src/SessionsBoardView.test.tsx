@@ -11,6 +11,7 @@ import {
 	type BoardSessionPresentation,
 	type BoardSplitLaneLabels,
 } from "./SessionsBoardView";
+import { SessionRowView, SessionsListView } from "./SessionsListView";
 import {
 	boardAttentionZoneOrder,
 	getAttentionZoneViewForZone,
@@ -75,7 +76,7 @@ describe("SessionsBoardView", () => {
 		lastArchiveMotionTransition.current = undefined;
 	});
 
-	it("renders portable split lanes with one shared scroller", () => {
+	it("renders four unsplit lanes with aggregate counts and the exact board gutter", () => {
 		const sessions: BoardSessionPresentation[] = [
 			baseSession,
 			{ ...baseSession, id: "working", status: "working", title: "working task" },
@@ -91,15 +92,66 @@ describe("SessionsBoardView", () => {
 			/>,
 		);
 
-		const workLane = screen.getByRole("region", { name: "Idle / Working sessions" });
-		expect(within(workLane).getByRole("region", { name: "Idle sessions" })).toHaveTextContent("portable task");
-		expect(within(workLane).getByRole("region", { name: "Working sessions" })).toHaveTextContent("working task");
+		const workLane = screen.getByRole("region", { name: "Running sessions" });
+		expect(workLane).toHaveTextContent("portable task");
+		expect(workLane).toHaveTextContent("working task");
+		expect(within(workLane).getByLabelText("2 Running sessions")).toHaveTextContent("2");
 		expect(workLane.querySelectorAll(".overflow-y-auto")).toHaveLength(1);
 
-		const mergeLane = screen.getByRole("region", { name: "Ready / Merged sessions" });
-		expect(within(mergeLane).getByLabelText("1 ready session")).toHaveTextContent("1");
-		expect(within(mergeLane).getByLabelText("1 merged session")).toHaveTextContent("1");
-		expect(screen.getByTestId("board-horizontal-scroll")).toHaveClass("board-horizontal-scrollbar");
+		const mergeLane = screen.getByRole("region", { name: "Ready sessions" });
+		expect(mergeLane).toHaveTextContent("ready task");
+		expect(mergeLane).toHaveTextContent("merged task");
+		expect(within(mergeLane).getByLabelText("2 Ready sessions")).toHaveTextContent("2");
+
+		const scroller = screen.getByTestId("board-horizontal-scroll");
+		expect(scroller).toHaveClass("board-horizontal-scrollbar");
+		expect(scroller.firstElementChild).toHaveClass("min-w-[74rem]", "grid-cols-4", "gap-2", "px-2.5");
+		expect(screen.getAllByTestId("board-column")).toHaveLength(4);
+	});
+
+	it("keeps all four list lanes visible and aligns rows to the reference columns", () => {
+		const sessions: BoardSessionPresentation[] = [
+			{ ...baseSession, id: "ready", status: "mergeable", title: "ready task" },
+			{ ...baseSession, id: "merged", status: "merged", title: "merged task" },
+		];
+		render(
+			<SessionsListView
+				columns={boardAttentionZoneOrder.map((zone) => getAttentionZoneViewForZone(zone))}
+				labels={splitLabels}
+				renderSessionRow={(session) => (
+					<SessionRowView
+						artifact={<a href="https://example.com/artifact">Investor Memo</a>}
+						externalLink={ExternalLink}
+						interactive={false}
+						labels={{
+							formatTime: () => "6m ago",
+							intakeIssue: (id) => `Issue ${id}`,
+							pr: {
+								short: "PR",
+								states: { closed: "closed", draft: "draft", merged: "merged", open: "open" },
+							},
+							updatedAt: (timestamp) => `Updated ${timestamp}`,
+						}}
+						renderAvatar={(provider) => <span aria-label={provider}>C</span>}
+						session={session}
+					/>
+				)}
+				sessions={sessions}
+			/>,
+		);
+
+		expect(screen.getAllByTestId("board-list-lane")).toHaveLength(4);
+		expect(screen.getByRole("region", { name: "Needs Choice sessions" })).toHaveTextContent("0");
+		const readyLane = screen.getByRole("region", { name: "Ready sessions" });
+		expect(within(readyLane).getByLabelText("2 Ready sessions")).toHaveTextContent("2");
+		expect(within(readyLane).getAllByText("Investor Memo")).toHaveLength(2);
+		const row = within(readyLane).getAllByTestId("board-session-row")[0];
+		expect(row).toHaveClass("min-h-row-list", "gap-2.5", "px-2.5", "py-1");
+		const cells = row.querySelectorAll(".grow-0");
+		expect(cells[0]).toHaveClass("basis-[16.25rem]");
+		expect(cells[1]).toHaveClass("basis-[13.5rem]");
+		expect(cells[2]).toHaveClass("basis-[8.5rem]");
+		expect(cells[3]).toHaveClass("basis-[11rem]");
 	});
 
 	it("renders a neutral card with grouped multi-PR, usage, and action presentation", () => {

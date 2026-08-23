@@ -32,6 +32,7 @@ export const defaultKennelSettings: KennelSettings = {
     verticalOpenClose: true,
     horizontalMedia: true,
     invertMedia: false,
+    invertVertical: false,
   },
   media: {
     artwork: true,
@@ -318,6 +319,13 @@ export const settingsTabs: readonly SettingsTab[] = [
             section: "gestures",
             field: "invertMedia",
             label: "Invert track direction",
+          },
+          {
+            kind: "toggle",
+            section: "gestures",
+            field: "invertVertical",
+            label: "Invert open/close direction",
+            hint: "Turn this on if swiping down closes the island instead of opening it — usually because natural scrolling is off.",
           },
         ],
       },

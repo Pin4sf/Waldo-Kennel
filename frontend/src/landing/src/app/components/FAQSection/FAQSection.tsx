@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 import { HiPlus } from "react-icons/hi2";
 import type { FAQItem } from "./constants";
@@ -20,32 +19,39 @@ function FAQAccordionItem({
       <button
         type="button"
         onClick={onToggle}
-        className="group flex w-full items-center justify-between py-6 text-left transition-all outline-none"
+        className="group flex w-full items-center justify-between py-6 text-left outline-none"
       >
         <span className="text-base sm:text-lg font-medium text-foreground pr-4">
           {item.question}
         </span>
         <HiPlus
-          className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 ${
+          className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-normal ease-out ${
             isOpen ? "rotate-45" : ""
           }`}
         />
       </button>
-      <AnimatePresence initial={false}>
-        {isOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="overflow-hidden"
+      {/*
+       * A grid whose single row animates between 0fr and 1fr, rather than a
+       * JS height:auto animation. The row track is composited by the browser
+       * off the main thread, so the answer still opens smoothly while the
+       * page is loading images below it, and the panel stays in the DOM so
+       * search and in-page find can reach a collapsed answer.
+       */}
+      <div
+        className="grid transition-[grid-template-rows] duration-slow ease-out motion-reduce:transition-none"
+        style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
+      >
+        <div className="overflow-hidden">
+          <p
+            aria-hidden={!isOpen}
+            className={`pb-6 text-base text-muted-foreground leading-relaxed pr-12 transition-opacity duration-normal ease-out motion-reduce:transition-none ${
+              isOpen ? "opacity-100" : "opacity-0"
+            }`}
           >
-            <p className="pb-6 text-base text-muted-foreground leading-relaxed pr-12">
-              {item.answer}
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            {item.answer}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

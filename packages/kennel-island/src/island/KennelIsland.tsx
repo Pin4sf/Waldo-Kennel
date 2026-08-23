@@ -18,6 +18,9 @@ import type {
   IslandAction,
   IslandModel,
   IslandTask,
+  LiveActivityIslandModel,
+  LiveActivityKind,
+  LiveActivityReference,
   PermissionIslandModel,
   QueueIslandModel,
   SteerIslandModel,
@@ -30,6 +33,10 @@ import {
   ISLAND_HEADER_HEIGHT,
 } from "./layout";
 import {
+  artworkFlipExit,
+  artworkFlipHidden,
+  artworkFlipTransition,
+  artworkFlipVisible,
   ISLAND_CONTENT_BLUR,
   islandContentEnter,
   islandContentVariants,
@@ -40,6 +47,7 @@ import {
 import { restingMetricsFor, restingShapeFor, shouldTapFor, type RestingShape } from "./peek";
 import {
   peekMaxWidthFor,
+  peekOuterWidthFor,
   peekWidthFor,
   type PeekSubject,
 } from "./peek-layout";
@@ -50,7 +58,13 @@ import {
   shouldDispatchQueueTaskAction,
 } from "./queue-interactions";
 import { defaultKennelSettings } from "./settings";
-import { useArtworkAccent, usePeekSubject, usePresenceRotation } from "./useIslandStage";
+import {
+  useArtworkAccent,
+  useMediaProgress,
+  useMediaSeek,
+  usePeekSubject,
+  usePresenceRotation,
+} from "./useIslandStage";
 
 const FIGMA_ASSET_ROOT = `${import.meta.env.BASE_URL}figma`;
 
@@ -60,6 +74,15 @@ interface KennelIslandProps {
   stage?: KennelStageGeometry;
   /** Host media state. Drives the waveform and the media ticker. */
   media?: KennelMediaActivity;
+  /**
+   * Media is still on the island even though the audio has stopped.
+   *
+   * A pause has to read as a pause: the bars stop, the cover stays, the shape
+   * holds. Collapsing the moment the audio assertion drops makes every pause
+   * look like a crash and makes the island flicker through the gap between two
+   * tracks on an album.
+   */
+  mediaPresent?: boolean;
   /** The pointer is on the island: reveal the ticker and hold the rotation. */
   hovered?: boolean;
   /**
@@ -71,16 +94,53 @@ interface KennelIslandProps {
   settings?: KennelSettings;
   /** Force Touch feedback, when the shape changes under the pointer. */
   onHaptic?: (pattern: KennelHapticPattern) => void;
+  /**
+   * Bring the application currently playing to the front.
+   *
+   * Separate from `onAction` because it is not an island action: the artwork
+   * and the waveform are a window into another app, and clicking a window into
+   * something is a request for that thing, not for a bigger window.
+   */
+  onFocusMedia?: () => void;
   className?: string;
 }
 
-const SILENT_MEDIA: KennelMediaActivity = { playing: false, track: null };
+const SILENT_MEDIA: KennelMediaActivity = { playing: false, owner: null, track: null };
 
 const presenceAccent: Record<IslandPresence, string> = {
   blocked: "var(--island-orange)",
   paused: "var(--island-yellow)",
   running: "var(--island-blue)",
 };
+
+const liveActivityAccent: Record<LiveActivityKind, string> = {
+  "voice-recording": "var(--island-delete)",
+  delivery: "var(--island-orange)",
+  ride: "var(--island-blue)",
+  transit: "var(--island-success)",
+  flight: "var(--island-blue)",
+  sports: "var(--island-yellow)",
+  focus: "var(--island-purple)",
+  workout: "var(--island-success)",
+  charging: "var(--island-success)",
+  camera: "var(--island-delete)",
+  weather: "#55c7ff",
+  home: "var(--island-orange)",
+  multiple: "var(--island-purple)",
+};
+
+/**
+ * The last non-null value this saw, held through the null that follows it.
+ *
+ * Exit animations outlive the state that started them: a value read live is
+ * already gone by the time the thing it described finishes leaving. Holding it
+ * lets the outgoing frame keep the identity it was drawn with.
+ */
+function useLastDefined<T>(value: T | null): T | null {
+  const held = useRef<T | null>(value);
+  if (value !== null) held.current = value;
+  return value ?? held.current;
+}
 
 /**
  * Taps the trackpad the first time the island settles into a shape that
@@ -142,10 +202,12 @@ export function KennelIsland({
   onAction,
   stage = defaultStageGeometry,
   media = SILENT_MEDIA,
+  mediaPresent = false,
   hovered = false,
   settled = false,
   settings = defaultKennelSettings,
   onHaptic,
+  onFocusMedia,
   className = "",
 }: KennelIslandProps) {
   const reducedMotion = useReducedMotion();
@@ -201,8 +263,9 @@ export function KennelIsland({
   // spring is what makes them read as one piece of hardware.
   const cards = orderPresenceCards(resting ? model.presence : []);
   const card = usePresenceRotation(cards, hovered);
-  const showsMedia = media.playing;
-  const awake = cards.length > 0 || showsMedia || settings.appearance.demoMode;
+  const liveActivity = resting ? model.liveActivity : undefined;
+  const showsMedia = media.playing || mediaPresent;
+  const awake = cards.length > 0 || Boolean(liveActivity) || showsMedia || settings.appearance.demoMode;
 
   // The peek is the dormant island's answer to the pointer. It is gated on the
   // dwell rather than on hover, so a cursor travelling to the menu bar passes
@@ -213,12 +276,17 @@ export function KennelIsland({
 
   // Both clusters are given the same width so the notch cut-out stays centred
   // on the housing even when one side holds more than the other.
-  const clusterItems = Math.max(
-    (card ? 1 : 0) + (awake ? 1 : 0),
-    (showsMedia ? 1 : 0) + (card ? 1 : 0),
-  );
+  const clusterItems = liveActivity
+    // Reserve enough room for one compact fact such as "Rain · 12m" or
+    // "B12 · 18m"; ordinary Kennel chips remain the measured 24pt items.
+    ? 3 + (showsMedia ? 1 : 0)
+    : Math.max(
+        (card ? 1 : 0) + (awake ? 1 : 0),
+        (showsMedia ? 1 : 0) + (card ? 1 : 0),
+      );
   const restingMetrics = restingMetricsFor({
     shape,
+    hovered,
     notchWidth,
     notchHeight: stage.notchHeight,
     menuBarHeight: stage.menuBarHeight,
@@ -243,7 +311,7 @@ export function KennelIsland({
     headerRef,
     hovered: hovered && resting,
     hasMedia: showsMedia,
-    hasSession: Boolean(card),
+    hasSession: Boolean(card || liveActivity),
   });
   const peekSubject = hovered && resting && awake ? subject : null;
 
@@ -283,7 +351,9 @@ export function KennelIsland({
             peekSubject={peekSubject}
             reducedMotion={Boolean(reducedMotion)}
             shape={shape}
+            showsMedia={showsMedia}
             onAction={onAction}
+            onFocusMedia={onFocusMedia}
           />
         ) : (
           <ExpandedIsland
@@ -384,7 +454,10 @@ interface RestingIslandProps {
   /** Midline to midline, the widest the peek may grow. */
   peekMaxWidth: number;
   reducedMotion: boolean;
+  /** Media is on the island; the audio may be paused. */
+  showsMedia: boolean;
   onAction: KennelIslandProps["onAction"];
+  onFocusMedia?: KennelIslandProps["onFocusMedia"];
 }
 
 /**
@@ -407,15 +480,24 @@ function RestingIsland({
   peekSubject,
   peekMaxWidth,
   reducedMotion,
+  showsMedia,
   onAction,
+  onFocusMedia,
 }: RestingIslandProps) {
   const awake = shape === "strip";
   const headerGrowing = useGrowing(height);
 
-  // The accent follows whatever the peek is currently talking about, so the
-  // colour under the bar always belongs to the thing named in it.
-  const accent = peekSubject === "media"
+  // The accent follows whatever the peek is talking about — but it follows the
+  // *last* thing it was talking about, not the live value. `peekSubject` drops
+  // to null the instant the pointer leaves, while the bar it coloured is still
+  // on screen fading out for another few frames. Reading the live value there
+  // recolours the outgoing bar to whichever subject the fallback chain lands
+  // on, which is the one-frame flash of the wrong colour on mouse-out.
+  const colouredSubject = useLastDefined(peekSubject);
+  const accent = colouredSubject === "media"
     ? "var(--island-artwork, var(--island-media))"
+    : model.liveActivity
+      ? liveActivityAccent[model.liveActivity.kind]
     : card
       ? providerAccent(card.provider ?? "unknown").solid
       : presenceAccent.running;
@@ -452,7 +534,14 @@ function RestingIsland({
         <span aria-hidden="true" className="island-fillet island-fillet--left" />
         <span aria-hidden="true" className="island-fillet island-fillet--right" />
         {awake ? (
-          <RestingHeader card={card} media={media} onActivate={expand} />
+          <RestingHeader
+            activity={model.liveActivity}
+            card={card}
+            media={media}
+            showsMedia={showsMedia}
+            onActivate={expand}
+            onFocusMedia={onFocusMedia}
+          />
         ) : (
           <button
             aria-label="Expand Kennel island"
@@ -486,14 +575,92 @@ function RestingIsland({
 }
 
 function RestingHeader({
+  activity,
   card,
   media,
+  showsMedia,
   onActivate,
+  onFocusMedia,
 }: {
+  activity?: LiveActivityReference;
   card: IslandPresenceCard | null;
   media: KennelMediaActivity;
+  /** Media is on the island; the audio may be paused. */
+  showsMedia: boolean;
   onActivate: () => void;
+  onFocusMedia?: () => void;
 }) {
+  // The two media chips reveal the app that owns them rather than the island's
+  // own panel. Without a host to ask they fall back to expanding, so the lab
+  // and a failed bridge still have a reachable control rather than a dead one.
+  const revealPlayer = onFocusMedia ?? onActivate;
+  const playing = media.playing;
+  const playerLabel = media.owner ? `Bring ${media.owner} to the front` : "Bring the player to the front";
+  if (activity) {
+    const activityLabel = `Open ${activity.title}. ${activity.status}. ${activity.compactValue}`;
+    const activityStyle = {
+      "--live-activity-accent": liveActivityAccent[activity.kind],
+    } as CSSProperties;
+
+    return (
+      <IslandHeader
+        notchLabel={`Expand ${activity.title}`}
+        onNotchActivate={onActivate}
+        left={
+          <>
+            <button
+              aria-label={activityLabel}
+              className="live-activity-compact__icon"
+              data-kind={activity.kind}
+              data-peek="session"
+              data-state={activity.state}
+              onClick={onActivate}
+              style={activityStyle}
+              type="button"
+            >
+              <ActivityGlyph kind={activity.kind} />
+            </button>
+            {showsMedia ? (
+              <button
+                aria-label={playerLabel}
+                className="island-pet"
+                data-peek="media"
+                onClick={revealPlayer}
+                type="button"
+              >
+                <MediaArtwork media={media} />
+              </button>
+            ) : null}
+          </>
+        }
+        right={
+          <>
+            {showsMedia ? (
+              <button
+                aria-label={playerLabel}
+                className="island-waveform"
+                data-peek="media"
+                onClick={revealPlayer}
+                type="button"
+              >
+                <Waveform playing={playing} sourced={Boolean(media.track)} />
+              </button>
+            ) : null}
+            <button
+              aria-label={activityLabel}
+              className="live-activity-compact__value"
+              data-peek="session"
+              onClick={onActivate}
+              type="button"
+            >
+              {activity.compactValue}
+            </button>
+          </>
+        }
+      />
+    );
+  }
+
   const countLabel = card
     ? `Open Kennel work queue. ${card.count} ${card.count === 1 ? "session" : "sessions"} ${card.detail.toLowerCase()}`
     : "Open Kennel work queue";
@@ -517,10 +684,10 @@ function RestingHeader({
             </button>
           ) : null}
           <button
-            aria-label="Open Kennel"
+            aria-label={showsMedia ? playerLabel : "Open Kennel"}
             className="island-pet"
             data-peek="media"
-            onClick={onActivate}
+            onClick={showsMedia ? revealPlayer : onActivate}
             type="button"
           >
             <MediaArtwork media={media} />
@@ -529,10 +696,16 @@ function RestingHeader({
       }
       right={
         <>
-          {media.playing ? (
-            <span aria-label="Media is playing" className="island-waveform" data-peek="media" role="img">
-              <Waveform playing={media.playing} />
-            </span>
+          {showsMedia ? (
+            <button
+              aria-label={playerLabel}
+              className="island-waveform"
+              data-peek="media"
+              onClick={revealPlayer}
+              type="button"
+            >
+              <Waveform playing={playing} sourced={Boolean(media.track)} />
+            </button>
           ) : null}
           {card ? (
             <button
@@ -571,31 +744,68 @@ function providerChipStyle(card: IslandPresenceCard): CSSProperties {
 /**
  * The album art of whatever is playing.
  *
- * Falls back to the Figma mark when the source will not hand over artwork,
- * which is every browser and every player that is not Music or Spotify. The
- * fallback is deliberately the same size and shape, so the strip does not
- * resize when a track that has art follows one that does not.
+ * Three faces, and which one shows is a statement about how much the island
+ * knows: the artwork when the player handed it over, a plain plate when
+ * something is playing that will not identify itself, and the Kennel mark when
+ * nothing is playing at all. The plate matters — carrying the last track's
+ * cover into an unrelated browser tab is the island claiming to know something
+ * it does not, which is worse than admitting the gap.
+ *
+ * Every face is the same size, so the strip never resizes on a swap.
  */
 function MediaArtwork({ media }: { media: KennelMediaActivity }) {
+  const reducedMotion = useReducedMotion();
   const artwork = media.track?.artwork;
-
-  if (!artwork) return <FigmaIcon className="island-pet__art" name="compact-pet.png" />;
+  const face = artwork ? "artwork" : media.playing ? "unknown" : "idle";
+  // Keyed on the artwork so a track change flips the card; the two artless
+  // faces key on themselves so they do not re-flip on every poll.
+  const key = artwork ? artwork.slice(0, 64) : face;
 
   return (
-    <img
-      alt=""
-      className="island-pet__art"
-      draggable={false}
-      // Artwork arrives as a data URI, so there is no request and no cache to
-      // bust; keying on the source is enough to swap it on a track change.
-      key={artwork.slice(0, 64)}
-      src={artwork}
-    />
+    // `mode="popLayout"` keeps the outgoing face out of flow while it leaves,
+    // so the incoming one occupies the slot from its first frame and the plate
+    // never doubles in width mid-flip.
+    <AnimatePresence initial={false} mode="popLayout">
+      <motion.span
+        animate={artworkFlipVisible}
+        className="island-pet__face"
+        exit={artworkFlipExit}
+        initial={artworkFlipHidden}
+        key={key}
+        transition={reducedMotion ? { duration: 0 } : artworkFlipTransition}
+      >
+        {artwork ? (
+          <img
+            alt=""
+            className="island-pet__art"
+            draggable={false}
+            // Artwork arrives as a data URI, so there is no request and no
+            // cache to bust; keying on the source is enough to swap it.
+            src={artwork}
+          />
+        ) : face === "unknown" ? (
+          <span aria-hidden="true" className="island-pet__art island-pet__art--unknown" />
+        ) : (
+          <FigmaIcon className="island-pet__art" name="compact-pet.png" />
+        )}
+      </motion.span>
+    </AnimatePresence>
   );
 }
 
 /** Bars in the waveform. Enough to read as a waveform, few enough to stay crisp. */
 const WAVEFORM_BARS = 4;
+
+/**
+ * The peek's drop-shadow, as a `filter` fragment.
+ *
+ * `drop-shadow` and not `box-shadow`: the bar is masked to a shape that is no
+ * longer a rectangle, and `box-shadow` draws against the element's geometric
+ * box regardless of what the mask hid, which would put a rectangular shadow
+ * under a shape that visibly is not one. `drop-shadow` reads the actual
+ * rendered alpha, so the shadow follows the flare.
+ */
+const ISLAND_PEEK_SHADOW = "drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55))";
 
 /**
  * The waveform beside the housing.
@@ -607,9 +817,12 @@ const WAVEFORM_BARS = 4;
  * different lengths, which never repeat together and read as sound without
  * claiming to be it.
  */
-function Waveform({ playing }: { playing: boolean }) {
+function Waveform({ playing, sourced = true }: { playing: boolean; sourced?: boolean }) {
   return (
-    <span className="waveform" data-playing={playing}>
+    // `data-sourced` carries the same admission the artwork plate makes: a
+    // named track gets the album's colour, and audio from a source that will
+    // not identify itself gets the neutral ramp. The gradient is the tell.
+    <span className="waveform" data-playing={playing} data-sourced={sourced}>
       {Array.from({ length: WAVEFORM_BARS }, (_, index) => (
         <span
           className="waveform__bar"
@@ -629,6 +842,112 @@ function PresenceGlyph({ presence }: { presence: IslandPresence }) {
     return <FigmaIcon className="island-status__pause" name="icon-pause.svg" />;
   }
   return <span>?</span>;
+}
+
+/** Small code-native symbols for reference activities; no vendor artwork. */
+function ActivityGlyph({ kind }: { kind: LiveActivityKind }) {
+  const common = {
+    "aria-hidden": true,
+    className: "live-activity-glyph",
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    strokeWidth: 1.8,
+    viewBox: "0 0 24 24",
+  };
+
+  switch (kind) {
+    case "voice-recording":
+      return (
+        <svg {...common}>
+          <rect height="11" rx="4" width="8" x="8" y="3" />
+          <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6" />
+        </svg>
+      );
+    case "delivery":
+      return (
+        <svg {...common}>
+          <path d="M5 8.5h14l-1 11H6l-1-11Z" />
+          <path d="M9 9V7a3 3 0 0 1 6 0v2" />
+        </svg>
+      );
+    case "ride":
+      return (
+        <svg {...common}>
+          <path d="m5 15 1.4-5h11.2l1.4 5v4H5v-4Z" />
+          <path d="m8 10 1.3-3h5.4l1.3 3M7.5 15h.01M16.5 15h.01" />
+        </svg>
+      );
+    case "transit":
+      return (
+        <svg {...common}>
+          <rect height="15" rx="3" width="14" x="5" y="3" />
+          <path d="M8 7h8M8 18l-1 3M16 18l1 3M8 14h.01M16 14h.01" />
+        </svg>
+      );
+    case "flight":
+      return (
+        <svg {...common}>
+          <path d="m3 13 8-2V4.5a1.5 1.5 0 0 1 3 0V10l6-1.5v3L14 14v4l2 1v2l-3.5-1L9 21v-2l2-1v-4l-8 2v-3Z" />
+        </svg>
+      );
+    case "sports":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M7 5.2c2.3 2 3.4 4.3 3.2 6.8M17 18.8c-2.3-2-3.4-4.3-3.2-6.8M5.2 17c2-2.3 4.3-3.4 6.8-3.2M18.8 7c-2 2.3-4.3 3.4-6.8 3.2" />
+        </svg>
+      );
+    case "focus":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="13" r="8" />
+          <path d="M12 13V8M12 13l3 2M9 3h6" />
+        </svg>
+      );
+    case "workout":
+      return (
+        <svg {...common}>
+          <path d="M4 13h3l1.5-4 3 8 2.2-6 1.3 2h5" />
+          <path d="M12 20C5 16 3.5 12 5 8.5 6.7 4.8 10.6 6 12 8c1.4-2 5.3-3.2 7 0.5 1.5 3.5 0 7.5-7 11.5Z" opacity=".45" />
+        </svg>
+      );
+    case "charging":
+      return (
+        <svg {...common}>
+          <path d="M14 2 6.5 13H12l-2 9 7.5-12H12l2-8Z" />
+        </svg>
+      );
+    case "camera":
+      return (
+        <svg {...common}>
+          <rect height="13" rx="3" width="18" x="3" y="6" />
+          <circle cx="12" cy="12.5" r="3.5" />
+          <path d="m8 6 1.3-2h5.4L16 6" />
+        </svg>
+      );
+    case "weather":
+      return (
+        <svg {...common}>
+          <path d="M6.5 16h10a4 4 0 0 0 .2-8A5.5 5.5 0 0 0 6.2 9.5 3.3 3.3 0 0 0 6.5 16Z" />
+          <path d="m8 19-1 2M13 19l-1 2M18 19l-1 2" />
+        </svg>
+      );
+    case "home":
+      return (
+        <svg {...common}>
+          <path d="m3.5 11 8.5-7 8.5 7M6 10v10h12V10M10 20v-6h4v6" />
+        </svg>
+      );
+    case "multiple":
+      return (
+        <svg {...common}>
+          <circle cx="9" cy="10" r="5" />
+          <circle cx="15" cy="14" r="5" />
+        </svg>
+      );
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -672,50 +991,92 @@ function PeekBar({
     hasItems: false,
     contentWidth: contentWidth ?? 0,
   });
-  const growing = useGrowing(width);
+  // The shape's own base — where the text actually sits — reads narrower than
+  // its top by a fixed ratio. `width` above is sized for the content; the box
+  // rendered on screen has to be wider than that by the same ratio, or the
+  // mask clips its own text along the sides.
+  const outerWidth = peekOuterWidthFor(width);
+  const growing = useGrowing(outerWidth);
+
+  // The media subject has two faces that take turns: the name answers "what is
+  // this", the scrubber answers "where am I in it". Resolved here rather than
+  // inside the media content because the presence key is keyed on it — a face
+  // change has to swap the child, not mutate it, or the cross-fade never runs.
+  const progress = useMediaProgress(media.track, media.playing);
+  const seek = useMediaSeek();
+  const showProgress = useAlternatingFace(subject === "media" && progress !== null);
+  const face: "name" | "progress" = showProgress ? "progress" : "name";
 
   const label = subject === "media"
     ? media.track
       ? `Now playing. ${media.track.title}`
-      : "Now playing"
+      : media.owner
+        ? `Audio playing in ${media.owner}`
+        : "Audio playing"
+    : model.liveActivity
+      ? `Open ${model.liveActivity.title}. ${model.liveActivity.status}. ${model.liveActivity.compactValue}`
     : card
       ? `Open work queue. ${card.title}`
       : "Open work queue";
 
   return (
+    // No fillet spans here any more. The shape's whole outline — including the
+    // curves that used to be drawn by those two corner pieces — is one CSS
+    // mask on this element (see `.island-peek` in app.css), so there is
+    // nothing left for a separate corner piece to draw.
+    //
+    // The drop-shadow rides in the same `filter` value as the entrance blur
+    // rather than living in the stylesheet: Motion writes `filter` as an
+    // inline style for every frame it animates, including the settled one, and
+    // an inline style beats any CSS rule regardless of specificity — a
+    // stylesheet `filter: drop-shadow(...)` on this element would be silently
+    // dead the instant Motion touched it. Chaining both functions into one
+    // string keeps the shadow present through the blur transition instead of
+    // popping in only once Motion let go.
     <motion.div
-      animate={{ width, opacity: 1, y: 0, filter: "blur(0px)" }}
+      animate={{ width: outerWidth, opacity: 1, y: 0, filter: `blur(0px) ${ISLAND_PEEK_SHADOW}` }}
       className="island-peek"
       data-subject={subject}
-      exit={{ opacity: 0, y: -8, filter: `blur(${ISLAND_CONTENT_BLUR}px)` }}
-      initial={{ width, opacity: 0, y: -8, filter: `blur(${ISLAND_CONTENT_BLUR}px)` }}
+      exit={{ opacity: 0, y: -8, filter: `blur(${ISLAND_CONTENT_BLUR}px) ${ISLAND_PEEK_SHADOW}` }}
+      initial={{
+        width: outerWidth,
+        opacity: 0,
+        y: -8,
+        filter: `blur(${ISLAND_CONTENT_BLUR}px) ${ISLAND_PEEK_SHADOW}`,
+      }}
       transition={
         reducedMotion
           ? { duration: 0 }
           : { ...islandSizeSpring(growing, false), opacity: islandContentEnter, filter: islandContentEnter }
       }
     >
-      <span aria-hidden="true" className="island-fillet island-fillet--left" />
-      <span aria-hidden="true" className="island-fillet island-fillet--right" />
       <button aria-label={label} className="peek" onClick={onActivate} type="button">
-        {/* `mode="wait"` so the outgoing subject is gone before the incoming
-            one is measured: two sets of content mounted at once would report a
-            combined width, and the bar would flare to fit both. */}
+        {/* `mode="wait"` so the outgoing face is gone before the incoming one
+            is measured: two sets of content mounted at once would report a
+            combined width, and the bar would flare to fit both.
+
+            The key carries the face as well as the subject. The media subject
+            has two of them and they swap on a timer, so keying on the subject
+            alone would mutate the bar's contents in place — the scrubber would
+            appear where the title was with no transition at all, which is the
+            one moment the blur is there for. */}
         <AnimatePresence initial={false} mode="wait">
           <motion.span
             animate="visible"
             className="peek__content"
             exit="hidden"
             initial="hidden"
-            key={subject}
+            key={`${subject}:${face}`}
             transition={reducedMotion ? { duration: 0 } : undefined}
             variants={islandContentVariants}
           >
-            {subject === "session" ? (
-              <SessionPeek card={card} contentRef={contentRef} model={model} scrolls={scrolls} />
-            ) : (
-              <MediaPeek contentRef={contentRef} scrolls={scrolls} track={media.track} />
-            )}
+          {subject === "session" ? (
+            <SessionPeek card={card} contentRef={contentRef} model={model} scrolls={scrolls} />
+          ) : face === "progress" && progress ? (
+            <MediaScrubber contentRef={contentRef} onSeek={seek} progress={progress} />
+          ) : (
+            <MediaName contentRef={contentRef} media={media} scrolls={scrolls} />
+          )}
           </motion.span>
         </AnimatePresence>
       </button>
@@ -759,15 +1120,16 @@ function useContentWidth<T extends HTMLElement>() {
  * diff has to stay put — it is a number you glance at — but a track's artist
  * means nothing without the title beside it, so the pair travels together.
  */
-function MediaPeek({
-  track,
+function MediaName({
+  media,
   scrolls,
   contentRef,
 }: {
-  track: KennelMediaTrack | null;
+  media: KennelMediaActivity;
   scrolls: boolean;
   contentRef: RefObject<HTMLSpanElement | null>;
 }) {
+  const track = media.track;
   return (
     <PeekRail contentRef={contentRef} scrolls={scrolls}>
       {track ? (
@@ -776,11 +1138,103 @@ function MediaPeek({
           {track.artist ? <span className="peek__artist">{track.artist}</span> : null}
         </>
       ) : (
-        // Browser audio identifies nothing about itself, and the island does
-        // not invent a title it was never told.
-        <span className="peek__title peek__title--muted">Audio playing</span>
+        // A source that will not name its track still has a name of its own,
+        // and "Audio playing · Firefox" is the most the island honestly knows.
+        // It never invents a title it was not told.
+        <>
+          <span className="peek__title peek__title--muted">Audio playing</span>
+          {media.owner ? <span className="peek__artist">{media.owner}</span> : null}
+        </>
       )}
     </PeekRail>
+  );
+}
+
+/** How long each face of the media peek holds the bar before the other takes it. */
+export const PEEK_FACE_INTERVAL_MS = 5_000;
+
+/**
+ * Flips between the two media faces on a timer.
+ *
+ * Starts on the name every time the bar opens rather than resuming wherever the
+ * last hover left off: the first thing a person wants from a bar they just
+ * summoned is what is playing, and arriving mid-cycle on a progress bar makes
+ * them wait five seconds to find out.
+ */
+function useAlternatingFace(enabled: boolean): boolean {
+  const [second, setSecond] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) {
+      setSecond(false);
+      return;
+    }
+    const id = window.setInterval(() => setSecond((current) => !current), PEEK_FACE_INTERVAL_MS);
+    return () => {
+      window.clearInterval(id);
+      setSecond(false);
+    };
+  }, [enabled]);
+
+  return enabled && second;
+}
+
+/** `-1:13` — what is left, not what has gone, because that is what you plan around. */
+function remainingLabel(position: number, duration: number): string {
+  const left = Math.max(0, Math.round(duration - position));
+  const minutes = Math.floor(left / 60);
+  const seconds = left % 60;
+  return `-${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+/**
+ * The playhead, dragged.
+ *
+ * A native range input rather than a hand-rolled track: it is draggable with a
+ * pointer, steppable with the arrow keys, and reachable by assistive technology
+ * without any of that being reimplemented. Everything visual is the thumb and
+ * the two halves of the track, which CSS can style directly.
+ *
+ * While the thumb is held the input owns the value — reading the live playhead
+ * mid-drag would fight the finger, snapping the handle back a quarter-second at
+ * a time.
+ */
+function MediaScrubber({
+  progress,
+  onSeek,
+  contentRef,
+}: {
+  progress: { position: number; duration: number; seekable: boolean };
+  onSeek: (positionSeconds: number) => void;
+  contentRef: RefObject<HTMLSpanElement | null>;
+}) {
+  const [dragging, setDragging] = useState<number | null>(null);
+  const position = dragging ?? progress.position;
+  const fraction = progress.duration > 0 ? Math.min(1, position / progress.duration) : 0;
+
+  const commit = (value: number) => {
+    setDragging(null);
+    if (progress.seekable) onSeek(value);
+  };
+
+  return (
+    <span className="peek__progress" ref={contentRef}>
+      <input
+        aria-label="Playback position"
+        className="peek__scrubber"
+        disabled={!progress.seekable}
+        max={Math.round(progress.duration)}
+        min={0}
+        onChange={(event) => setDragging(Number(event.target.value))}
+        onKeyUp={(event) => commit(Number(event.currentTarget.value))}
+        onPointerUp={(event) => commit(Number(event.currentTarget.value))}
+        step={1}
+        style={{ "--scrubber-fill": `${(fraction * 100).toFixed(2)}%` } as CSSProperties}
+        type="range"
+        value={Math.round(position)}
+      />
+      <span className="peek__remaining">{remainingLabel(position, progress.duration)}</span>
+    </span>
   );
 }
 
@@ -805,6 +1259,25 @@ function SessionPeek({
   scrolls: boolean;
   contentRef: RefObject<HTMLSpanElement | null>;
 }) {
+  if (model.liveActivity) {
+    return (
+      <>
+        <span
+          aria-hidden="true"
+          className="peek__agent live-activity-peek__icon"
+          style={{ "--live-activity-accent": liveActivityAccent[model.liveActivity.kind] } as CSSProperties}
+        >
+          <ActivityGlyph kind={model.liveActivity.kind} />
+        </span>
+        <PeekRail contentRef={contentRef} scrolls={scrolls}>
+          <span className="peek__title">{model.liveActivity.title}</span>
+          <span className="peek__phase">{model.liveActivity.status}</span>
+          <span className="live-activity-peek__value">{model.liveActivity.compactValue}</span>
+        </PeekRail>
+      </>
+    );
+  }
+
   const hasDiff = model.additions !== undefined || model.deletions !== undefined;
   const showsDiff = hasDiff && card?.presence !== "blocked";
   const showsTick = card?.presence === "paused" && model.phase === "complete";
@@ -863,37 +1336,54 @@ function PeekRail({
   scrolls: boolean;
   contentRef: RefObject<HTMLSpanElement | null>;
 }) {
-  const railRef = useRef<HTMLSpanElement | null>(null);
-  const [shift, setShift] = useState(0);
+  const [copyWidth, setCopyWidth] = useState(0);
 
   useLayoutEffect(() => {
-    const rail = railRef.current;
-    const track = contentRef.current;
-    if (!rail || !track || !scrolls) {
-      setShift(0);
+    const copy = contentRef.current;
+    if (!copy || !scrolls) {
+      setCopyWidth(0);
       return;
     }
 
-    const overflow = Math.round(track.scrollWidth - rail.clientWidth);
-    setShift((current) => (current === Math.max(0, overflow) ? current : Math.max(0, overflow)));
+    const measured = Math.max(0, Math.round(copy.scrollWidth));
+    setCopyWidth((current) => (current === measured ? current : measured));
   });
 
-  const style = shift
+  // One loop is exactly one copy plus the gap after it. Landing there puts the
+  // second copy where the first started, so the reset is invisible and the line
+  // reads as one continuous run rather than a rail that snaps back.
+  const travel = copyWidth + PEEK_MARQUEE_GAP;
+  const style = copyWidth
     ? ({
-        "--marquee-shift": `${-shift}px`,
-        // Roughly 28pt a second: readable at a glance, not a news crawl.
-        "--marquee-duration": `${Math.max(4, shift / 28 + 2)}s`,
+        "--marquee-shift": `${-travel}px`,
+        // Roughly 34pt a second: readable at a glance, not a news crawl.
+        "--marquee-duration": `${Math.max(5, travel / 34)}s`,
       } as CSSProperties)
     : undefined;
 
   return (
-    <span className="peek__rail" ref={railRef}>
-      <span className="peek__track" data-scrolling={shift > 0} ref={contentRef} style={style}>
-        {children}
+    <span className="peek__rail" data-scrolling={copyWidth > 0}>
+      <span className="peek__track" data-scrolling={copyWidth > 0} style={style}>
+        {/* The measured copy. Its width decides both the bar's size and the
+            loop's travel, so there is exactly one of it and the duplicate
+            below is never measured. */}
+        <span className="peek__copy" ref={contentRef}>
+          {children}
+        </span>
+        {copyWidth > 0 ? (
+          // The trailing copy is what makes the loop seamless: it occupies the
+          // space the first one is vacating, so nothing is ever blank.
+          <span aria-hidden="true" className="peek__copy">
+            {children}
+          </span>
+        ) : null}
       </span>
     </span>
   );
 }
+
+/** Points between the two copies of a travelling line. */
+const PEEK_MARQUEE_GAP = 36;
 
 /* -------------------------------------------------------------------------- */
 /* Ticker                                                                      */
@@ -946,6 +1436,8 @@ function ExpandedIsland({
       <div className="island-body__measure" ref={contentRef}>
         {model.surface === "queue" ? (
           <QueueHeader model={model} onAction={onAction} />
+        ) : model.surface === "activity" ? (
+          <ActivityHeader model={model} onAction={onAction} />
         ) : (
           <StatusHeader model={model} onAction={onAction} />
         )}
@@ -959,6 +1451,7 @@ function ExpandedIsland({
           variants={islandContentVariants}
         >
           {model.surface === "queue" ? <QueueBody model={model} onAction={onAction} /> : null}
+          {model.surface === "activity" ? <LiveActivityView model={model} onAction={onAction} /> : null}
           {model.surface === "choice" ? (
             <PromptBody model={model} onAction={onAction}>
               <ChoiceView model={model} onAction={onAction} />
@@ -1019,10 +1512,13 @@ interface StatusHeaderModel {
   count: number;
 }
 
-function statusHeaderModel(model: Exclude<IslandModel, QueueIslandModel>): StatusHeaderModel {
+type StatusPanelModel = Exclude<
+  IslandModel,
+  QueueIslandModel | CompactIslandModel | LiveActivityIslandModel
+>;
+
+function statusHeaderModel(model: StatusPanelModel): StatusHeaderModel {
   switch (model.surface) {
-    case "compact":
-      return { tone: model.tone, phase: model.phase, count: model.attentionCount ?? 0 };
     case "steer":
       return { tone: "working", phase: "working", count: 1 };
     case "usage":
@@ -1036,24 +1532,21 @@ function StatusHeader({
   model,
   onAction,
 }: {
-  model: Exclude<IslandModel, QueueIslandModel>;
+  model: StatusPanelModel;
   onAction: KennelIslandProps["onAction"];
 }) {
   const { tone, phase, count } = statusHeaderModel(model);
-  const isResting = model.surface === "compact";
-  const toggle = () => runAction(onAction, { type: isResting ? "expand" : "dismiss" });
-  const countLabel = isResting
-    ? `Open Kennel work queue. ${attentionSummary(count)}`
-    : `Close this panel. ${count} ${count === 1 ? "item is" : "items are"} open`;
+  const toggle = () => runAction(onAction, { type: "dismiss" });
+  const countLabel = `Close this panel. ${count} ${count === 1 ? "item is" : "items are"} open`;
 
   return (
     <IslandHeader
-      notchLabel={isResting ? "Expand Kennel island" : "Collapse Kennel island"}
+      notchLabel="Collapse Kennel island"
       onNotchActivate={toggle}
       left={
         <>
           <button
-            aria-label={isResting ? "Open Kennel work queue" : "Close this panel"}
+            aria-label="Close this panel"
             className={`island-status island-status--${tone}`}
             onClick={toggle}
             type="button"
@@ -1067,16 +1560,55 @@ function StatusHeader({
       }
       right={
         <>
-          {isResting ? (
-            <button aria-label="Kennel activity" className="island-waveform" onClick={toggle} type="button">
-              <FigmaIcon name="compact-waveform.svg" />
-            </button>
-          ) : null}
           <button aria-label={countLabel} className="island-count" onClick={toggle} type="button">
             {count}
           </button>
-          {!isResting ? <HideIslandButton onAction={onAction} /> : null}
+          <HideIslandButton onAction={onAction} />
         </>
+      }
+    />
+  );
+}
+
+function ActivityHeader({
+  model,
+  onAction,
+}: {
+  model: LiveActivityIslandModel;
+  onAction: KennelIslandProps["onAction"];
+}) {
+  const { activity } = model;
+  const collapse = () => runAction(onAction, { type: "collapse" });
+  const style = {
+    "--live-activity-accent": liveActivityAccent[activity.kind],
+  } as CSSProperties;
+
+  return (
+    <IslandHeader
+      notchLabel={`Collapse ${activity.title}`}
+      onNotchActivate={collapse}
+      left={
+        <button
+          aria-label={`Collapse ${activity.title}`}
+          className="live-activity-header__identity"
+          data-state={activity.state}
+          onClick={collapse}
+          style={style}
+          type="button"
+        >
+          <span className="live-activity-header__glyph"><ActivityGlyph kind={activity.kind} /></span>
+          <span>{activity.status}</span>
+        </button>
+      }
+      right={
+        <button
+          aria-label={`Collapse ${activity.title}. ${activity.compactValue}`}
+          className="live-activity-header__value"
+          onClick={collapse}
+          type="button"
+        >
+          {activity.compactValue}
+        </button>
       }
     />
   );
@@ -1237,6 +1769,190 @@ function CompactTicker({
         </span>
       )}
     </button>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Live Activity reference                                                     */
+/* -------------------------------------------------------------------------- */
+
+function activityMechanismLabel(activity: LiveActivityReference) {
+  if (activity.mechanism === "system") return "System-owned experience";
+  if (activity.mechanism === "beta") return "Beta reference";
+  return "ActivityKit Live Activity";
+}
+
+function LiveActivityView({
+  model,
+  onAction,
+}: {
+  model: LiveActivityIslandModel;
+  onAction: KennelIslandProps["onAction"];
+}) {
+  const { activity } = model;
+  const progress = activity.progress === undefined
+    ? undefined
+    : Math.max(0, Math.min(1, activity.progress));
+  const style = {
+    "--live-activity-accent": liveActivityAccent[activity.kind],
+  } as CSSProperties;
+
+  return (
+    <div
+      className="live-activity-view"
+      data-kind={activity.kind}
+      data-state={activity.state}
+      style={style}
+    >
+      <div className="live-activity-identity">
+        <span aria-hidden="true" className="live-activity-identity__glyph">
+          <ActivityGlyph kind={activity.kind} />
+        </span>
+        <div className="live-activity-identity__copy">
+          <p className="live-activity-identity__source">
+            {activity.source} · {activityMechanismLabel(activity)}
+          </p>
+          <h2>{activity.title}</h2>
+          <p>{activity.context}</p>
+        </div>
+        <span className="live-activity-state">
+          <span aria-hidden="true" />
+          {activity.status}
+        </span>
+      </div>
+
+      {activity.alert ? (
+        <div className="live-activity-alert" role="status">
+          <span aria-hidden="true">!</span>
+          <div>
+            <strong>{activity.alert.title}</strong>
+            <p>{activity.alert.detail}</p>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="live-activity-primary">
+        <div>
+          <span
+            aria-label={activity.timeLabel ?? `${activity.primaryLabel}: ${activity.primaryValue}`}
+            className="live-activity-primary__value"
+          >
+            {activity.primaryValue}
+          </span>
+          <span className="live-activity-primary__label">{activity.primaryLabel}</span>
+        </div>
+        <span className="live-activity-pattern">{activity.pattern}</span>
+      </div>
+
+      {progress !== undefined ? (
+        <div className="live-activity-progress">
+          <div className="live-activity-progress__copy">
+            <span>{activity.progressLabel ?? "In progress"}</span>
+            <span>{Math.round(progress * 100)}%</span>
+          </div>
+          <div
+            aria-label={activity.progressLabel ?? "Activity progress"}
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={Math.round(progress * 100)}
+            className="live-activity-progress__track"
+            role="progressbar"
+          >
+            <span style={{ width: `${progress * 100}%` }} />
+          </div>
+        </div>
+      ) : null}
+
+      {activity.steps?.length ? (
+        <ol aria-label="Activity phases" className="live-activity-steps">
+          {activity.steps.map((step) => (
+            <li data-step-state={step.state} key={step.id}>
+              <span aria-hidden="true" className="live-activity-step__dot">
+                {step.state === "complete" ? "✓" : step.state === "attention" ? "!" : ""}
+              </span>
+              <span>{step.label}</span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+
+      {activity.metrics?.length ? (
+        <dl className="live-activity-metrics">
+          {activity.metrics.map((metric) => (
+            <div key={metric.id}>
+              <dt>{metric.label}</dt>
+              <dd>{metric.value}</dd>
+              {metric.detail ? <span>{metric.detail}</span> : null}
+            </div>
+          ))}
+        </dl>
+      ) : null}
+
+      {activity.companions?.length ? (
+        <ul aria-label="Concurrent activities" className="live-activity-companions">
+          {activity.companions.map((companion) => (
+            <li key={companion.id}>
+              <span
+                aria-hidden="true"
+                className="live-activity-companions__glyph"
+                style={{ "--companion-accent": liveActivityAccent[companion.kind] } as CSSProperties}
+              >
+                <ActivityGlyph kind={companion.kind} />
+              </span>
+              <div>
+                <strong>{companion.title}</strong>
+                <small>{companion.status}</small>
+              </div>
+              <span className="live-activity-companions__value">{companion.value}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {activity.events?.length ? (
+        <div className="live-activity-events">
+          <p>Latest activity</p>
+          <ol>
+            {activity.events.map((event) => (
+              <li key={event.id}>
+                <span aria-hidden="true" />
+                <div>
+                  <strong>{event.label}</strong>
+                  {event.detail ? <small>{event.detail}</small> : null}
+                </div>
+                {event.timeLabel ? <time>{event.timeLabel}</time> : null}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+
+      {activity.feedback ? (
+        <p className="live-activity-feedback" role="status">{activity.feedback}</p>
+      ) : null}
+
+      <div className="live-activity-footer">
+        <span>Local reference fixture · no vendor connection</span>
+        {activity.actions?.length ? (
+          <div className="live-activity-actions">
+            {activity.actions.slice(0, 2).map((action) => (
+              <button
+                className={`live-activity-action live-activity-action--${action.role ?? "secondary"}`}
+                key={action.id}
+                onClick={() => runAction(onAction, {
+                  type: "activity-action",
+                  activityId: activity.id,
+                  actionId: action.id,
+                })}
+                type="button"
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

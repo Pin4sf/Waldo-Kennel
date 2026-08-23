@@ -16,6 +16,7 @@ export type OutcomeQuestionOption = {
 export type OutcomeQuestion = {
 	id: string;
 	prompt: string;
+	description?: string;
 	options: OutcomeQuestionOption[];
 };
 
@@ -89,7 +90,7 @@ function parseQuestionSet(value: unknown): OutcomeQuestionSet | undefined {
 	const questions: OutcomeQuestion[] = [];
 	for (const rawQuestion of rawQuestions) {
 		if (!rawQuestion || typeof rawQuestion !== "object") return undefined;
-		const question = rawQuestion as { id?: unknown; prompt?: unknown; options?: unknown };
+		const question = rawQuestion as { id?: unknown; prompt?: unknown; description?: unknown; options?: unknown };
 		if (!Array.isArray(question.options) || question.options.length < 2) return undefined;
 		const options: OutcomeQuestionOption[] = [];
 		for (const rawOption of question.options) {
@@ -108,7 +109,8 @@ function parseQuestionSet(value: unknown): OutcomeQuestionSet | undefined {
 		const id = stringValue(question.id);
 		const prompt = stringValue(question.prompt);
 		if (!id || !prompt) return undefined;
-		questions.push({ id, prompt, options });
+		const description = stringValue(question.description);
+		questions.push({ id, prompt, ...(description ? { description } : {}), options });
 	}
 	return { questions };
 }
