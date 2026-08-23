@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import aoLogo from "../../../assets/ao-logo.svg";
+import waldoMark from "../../../assets/waldo-mark.svg";
 
 const STARTUP_PHRASE_KEYS = [
 	"startup.startingServices",
@@ -35,7 +35,13 @@ export function DaemonStartupLoader() {
 		>
 			<div className="ao-startup-content flex -translate-y-[3vh] flex-col items-center text-center">
 				<div className="grid h-28 w-32 place-items-center" aria-hidden="true">
-					<img className="ao-startup-logo h-22 w-25 object-contain" src={aoLogo} alt="" />
+					<img
+						alt=""
+						className="ao-startup-logo h-22 w-25 object-contain"
+						data-brand="waldo"
+						data-testid="waldo-brand-mark"
+						src={waldoMark}
+					/>
 				</div>
 				<p className="mt-5 text-base font-semibold tracking-tight text-foreground">Kennel</p>
 				<p className="mt-2 min-h-5 text-md-sm text-muted-foreground">

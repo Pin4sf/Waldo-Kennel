@@ -182,6 +182,11 @@ function renderSidebar({
 	return onRemoveProject;
 }
 
+it("uses the Waldo brand mark in the desktop sidebar", () => {
+	renderSidebar();
+	expect(screen.getByTestId("waldo-sidebar-mark")).toHaveAttribute("data-brand", "waldo");
+});
+
 /** Projects render collapsed; open one to list all of its sessions. */
 
 async function chooseOption(trigger: HTMLElement, optionName: string) {
@@ -289,8 +294,10 @@ describe("Sidebar", () => {
 		expect(within(navigation).getByRole("link", { name: "Today" })).toBeInTheDocument();
 		expect(within(navigation).getByRole("link", { name: "Open Loops" })).toBeInTheDocument();
 		expect(within(navigation).queryByRole("link", { name: "Memory" })).not.toBeInTheDocument();
-		expect(within(navigation).queryByRole("link", { name: "Daily Close" })).not.toBeInTheDocument();
-		expect(within(navigation).queryByRole("link", { name: "History" })).not.toBeInTheDocument();
+		const continuity = within(navigation).getByRole("group", { name: "Review and continuity" });
+		expect(within(continuity).getByRole("link", { name: "Daily Close" })).toBeInTheDocument();
+		expect(within(continuity).getByRole("link", { name: "Memory Review" })).toBeInTheDocument();
+		expect(within(continuity).getByRole("link", { name: "History" })).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Search" })).not.toBeInTheDocument();
 		expect(screen.queryByText("Projects")).not.toBeInTheDocument();
 		expect(screen.queryByText("Project One")).not.toBeInTheDocument();
@@ -743,7 +750,7 @@ describe("Sidebar", () => {
 			path: "/repo/parent/universe",
 			repos: [],
 			setupWarning:
-				"Selected folder is inside an existing Git repository at /repo/parent. AO will initialize this folder as a separate repository.",
+				"Selected folder is inside an existing Git repository at /repo/parent. Kennel will initialize this folder as a separate repository.",
 		});
 		renderSidebar({ onCreateProject, onInitializeProject });
 
@@ -994,7 +1001,7 @@ describe("Sidebar", () => {
 		window.kennel!.app.checkAncestorRepo = vi
 			.fn()
 			.mockResolvedValue(
-				"Selected folder is inside an existing Git repository at /repo. AO will initialize this folder as a separate repository.",
+				"Selected folder is inside an existing Git repository at /repo. Kennel will initialize this folder as a separate repository.",
 			);
 		renderSidebar({ onCreateProject, onInitializeProject });
 
@@ -1003,12 +1010,12 @@ describe("Sidebar", () => {
 		await screen.findByRole("dialog", { name: "Workspace agents" });
 		expect(
 			screen.getByText(
-				"Selected folder is inside an existing Git repository at /repo. AO will initialize this folder as a separate repository.",
+				"Selected folder is inside an existing Git repository at /repo. Kennel will initialize this folder as a separate repository.",
 			),
 		).toBeInTheDocument();
 		expect(
 			screen.getByText(
-				"If this folder needs Git setup, AO will initialize it and create the first commit before starting.",
+				"If this folder needs Git setup, Kennel will initialize it and create the first commit before starting.",
 			),
 		).toBeInTheDocument();
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");

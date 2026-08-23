@@ -94,7 +94,7 @@ describe("MobileDevicesSection", () => {
 		renderSection();
 
 		expect(await screen.findByText(/Device registry unavailable/i)).toBeInTheDocument();
-		expect(screen.getByText(/AO could not read your saved devices/i)).toBeInTheDocument();
+		expect(screen.getByText(/Kennel could not read your saved devices/i)).toBeInTheDocument();
 		expect(screen.queryByText(/No devices paired yet/i)).not.toBeInTheDocument();
 	});
 

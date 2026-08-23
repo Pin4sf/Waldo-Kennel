@@ -79,7 +79,7 @@ describe("worker-scoped agent-browser CDP bridge", () => {
 			expect(blockedNavigation.error?.message).toContain("Navigation scheme is not permitted");
 
 			const sibling = await rpc(socket, 4, "Target.attachToTarget", { targetId: "other-worker" });
-			expect(sibling.error?.message).toContain("outside this AO worker");
+			expect(sibling.error?.message).toContain("outside this Kennel worker");
 
 			const close = await rpc(socket, 5, "Browser.close");
 			expect(close.error?.message).toContain("not permitted");

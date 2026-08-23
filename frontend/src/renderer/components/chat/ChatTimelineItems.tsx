@@ -552,7 +552,7 @@ function TerminalInput({ text, truncated }: { text: string; truncated?: boolean 
 			</pre>
 			{truncated ? (
 				<p className="text-[10px] text-muted-foreground/70">
-					AO stopped recording keystrokes at its cap; more were sent.
+					Kennel stopped recording keystrokes at its cap; more were sent.
 				</p>
 			) : null}
 		</div>
@@ -611,7 +611,7 @@ function CommandOutput({ activity }: { activity: ConversationActivity }) {
 			</pre>
 			{detail?.outputTruncated ? (
 				<p className="text-[10px] leading-relaxed text-warning">
-					This command printed more than AO stores, so the output above stops early. Open a shell in
+					This command printed more than Kennel stores, so the output above stops early. Open a shell in
 					the worktree to see the rest.
 				</p>
 			) : detail?.outputMayBePartial ? (
@@ -834,7 +834,7 @@ function Patch({ patch, truncated }: { patch: string; truncated?: boolean }) {
 			</pre>
 			{truncated ? (
 				<p className="border-t border-border px-2.5 py-1.5 text-[10px] leading-relaxed text-warning">
-					This patch is longer than AO stores, so it stops early. The whole change is in the
+					This patch is longer than Kennel stores, so it stops early. The whole change is in the
 					worktree and in the turn&rsquo;s diff.
 				</p>
 			) : null}
@@ -883,7 +883,7 @@ function ReasoningBlock({ activity }: { activity: ConversationActivity }) {
 				<ChatMarkdown text={text} streaming={streaming} muted />
 				{activity.detail?.textTruncated ? (
 					<p className="mt-1 text-[10px] text-muted-foreground/70">
-						This summary is longer than AO stores, so it stops early.
+						This summary is longer than Kennel stores, so it stops early.
 					</p>
 				) : null}
 			</div>
@@ -1045,7 +1045,7 @@ function truncationNote(value: unknown): string | undefined {
 	const record = value as { truncated?: unknown; bytes?: unknown; note?: unknown };
 	if (record.truncated !== true) return undefined;
 	const bytes = typeof record.bytes === "number" ? ` (${formatBytes(record.bytes)})` : "";
-	return `This payload${bytes} was larger than AO stores, so it was not kept.`;
+	return `This payload${bytes} was larger than Kennel stores, so it was not kept.`;
 }
 
 function formatBytes(bytes: number): string {
@@ -1496,7 +1496,7 @@ export function ApprovalCard({
 						))}
 						{decisions.length === 0 ? (
 							<p className="text-[11px] text-warning">
-								The agent offered no decisions AO can present. Open diagnostics.
+								The agent offered no decisions Kennel can present. Open diagnostics.
 							</p>
 						) : null}
 					</div>
@@ -1659,7 +1659,7 @@ export function TurnChangedFiles({ diff, live }: { diff: TurnDiff; live?: boolea
 					})}
 					{diff.truncated ? (
 						<li className="px-3.5 py-2 text-[10px] leading-relaxed text-warning">
-							This turn changed more files than AO lists here. Use the Diff tab for the whole change.
+							This turn changed more files than Kennel lists here. Use the Diff tab for the whole change.
 						</li>
 					) : null}
 				</ul>

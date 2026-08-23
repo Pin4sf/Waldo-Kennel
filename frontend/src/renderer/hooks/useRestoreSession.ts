@@ -30,7 +30,7 @@ export function useRestoreSession(): (sessionId: string) => Promise<RestoreSessi
 						.show({
 							id: `restore-fallback:${sessionId}:${Date.now()}`,
 							title: "Started from saved prompt",
-							body: "AO could not resume the native agent session, so it started a new conversation from the saved prompt.",
+							body: "Kennel could not resume the native agent session, so it started a new conversation from the saved prompt.",
 						})
 						.catch((err) => {
 							console.warn("Unable to show restore fallback notification", err);

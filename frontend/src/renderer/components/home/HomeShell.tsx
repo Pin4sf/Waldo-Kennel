@@ -1,6 +1,8 @@
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { CenterPanelShell } from "../CenterPanelShell";
+import { WaldoRail } from "../waldo/WaldoRail";
+import { useWaldoRail } from "../waldo/WaldoRailContext";
 import {
   homeFixture,
   type HomeAvailability,
@@ -11,6 +13,7 @@ import { HomeBrief } from "./HomeBrief";
 import { HomeContextPanel } from "./HomeContextPanel";
 import { HomeDestinationView } from "./HomeDestinationView";
 import { HomeQuickCapture } from "./HomeQuickCapture";
+import { usesWaldoUiPreview } from "../../lib/preview-mode";
 
 function HomeAvailabilityStatus({ fixture }: { fixture: HomeFixtureState }) {
   const { t } = useTranslation();
@@ -65,12 +68,21 @@ export function HomeShell({
   destination?: HomeDestination;
 }) {
   const { t } = useTranslation();
+  const waldo = useWaldoRail();
   const scrollContainerRef = useRef<HTMLElement>(null);
   const reviewRef = useRef<HTMLButtonElement>(null);
   const contextHeadingRef = useRef<HTMLHeadingElement>(null);
   const showToday = destination === "today";
   const offlineToday = showToday && fixture.availability === "offline";
   const focusContext = () => contextHeadingRef.current?.focus({ preventScroll: true });
+  const destinationLabel: Record<HomeDestination, string> = {
+    today: t("home.visual.navigation.today"),
+    open_loops: t("home.visual.openLoops.title"),
+    daily_close: t("home.visual.dailyClose.title"),
+    memory: t("home.visual.memory.title"),
+    history: t("home.visual.history.title"),
+  };
+  const waldoContextLabel = `${t("home.visual.title")} · ${destinationLabel[destination]}`;
 
   return (
     <CenterPanelShell titlebarAlign={false}>
@@ -116,11 +128,19 @@ export function HomeShell({
               </div>
             </div>
             <aside className="home-today-catch-up-pane home-today-context-pane border-t border-border sm:min-h-[34rem]">
-              <HomeContextPanel
-                fixture={fixture}
-                headingRef={contextHeadingRef}
-                scrollContainerRef={scrollContainerRef}
-              />
+              {waldo.isOpen ? (
+                <WaldoRail
+                  contextLabel={waldoContextLabel}
+                  onClose={waldo.close}
+                  previewEnabled={usesWaldoUiPreview}
+                />
+              ) : (
+                <HomeContextPanel
+                  fixture={fixture}
+                  headingRef={contextHeadingRef}
+                  scrollContainerRef={scrollContainerRef}
+                />
+              )}
             </aside>
           </div>
         ) : null}
@@ -132,6 +152,15 @@ export function HomeShell({
               <p className="text-xs text-muted-foreground">{fixture.localDateLabel}</p>
               <HomeDestinationView destination={destination} fixture={fixture} />
             </div>
+            {waldo.isOpen ? (
+              <div className="waldo-home-layer">
+                <WaldoRail
+                  contextLabel={waldoContextLabel}
+                  onClose={waldo.close}
+                  previewEnabled={usesWaldoUiPreview}
+                />
+              </div>
+            ) : null}
           </div>
         ) : null}
       </section>

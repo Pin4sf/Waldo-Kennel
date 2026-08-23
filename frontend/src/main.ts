@@ -816,12 +816,12 @@ function daemonIdentityError(launch: DaemonLaunchSpec, probe: DaemonProbe): stri
 			: false;
 		const executableMatches = probe.executablePath ? pathInside(probe.executablePath, launch.cwd) : false;
 		if (!probe.workingDirectory && !probe.startupWorkingDirectory && !probe.executablePath) {
-			return "An older AO daemon is already running, but it does not report its checkout identity. Stop it and restart this app.";
+			return "An older Kennel daemon is already running, but it does not report its checkout identity. Stop it and restart this app.";
 		}
 		if (!cwdMatches && !startupCwdMatches && !executableMatches) {
 			const actual =
 				probe.startupWorkingDirectory ?? probe.workingDirectory ?? probe.executablePath ?? "an unknown location";
-			return `Another AO daemon is already running from ${actual}; expected this checkout at ${launch.cwd}. Stop the other daemon before using this checkout.`;
+			return `Another Kennel daemon is already running from ${actual}; expected this checkout at ${launch.cwd}. Stop the other daemon before using this checkout.`;
 		}
 		return null;
 	}
@@ -980,7 +980,7 @@ async function refreshDaemonStatus(): Promise<DaemonStatus> {
 	) {
 		setDaemonStatus({
 			state: "stopped",
-			message: "AO daemon is no longer reachable.",
+			message: "Kennel daemon is no longer reachable.",
 			code: "daemon_unreachable",
 		});
 	}
@@ -1150,7 +1150,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	// may still be holding the port. The only reachable case here is a hung/wedged
 	// holder whose run-file PID is still alive but is not answering /healthz (e.g.
 	// our own daemon that bound the port and then deadlocked). Two cases are
-	// intentionally NOT handled: an identity-mismatched but healthy AO daemon is
+	// intentionally NOT handled: an identity-mismatched but healthy Kennel daemon is
 	// already surfaced as an error status upstream by resolveDaemonFromPort (not
 	// killed here), and a foreign non-AO process holding the port with a dead
 	// run-file PID is not replaced (out of scope). When no holder is detectable,
@@ -1208,7 +1208,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	if (launch.source === "bundled" && !existsSync(launch.command)) {
 		setDaemonStatus({
 			state: "error",
-			message: `Bundled AO daemon binary was not found at ${launch.command}. Rebuild the desktop package.`,
+			message: `Bundled Kennel daemon binary was not found at ${launch.command}. Rebuild the desktop package.`,
 			code: "binary_missing",
 		});
 		return daemonStatus;
@@ -1226,7 +1226,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 			// and leave the UI stuck on "starting". Report it as a failure instead.
 			setDaemonStatus({
 				state: "error",
-				message: `Could not create the AO data directory at ${launch.cwd}: ${(err as Error).message}`,
+				message: `Could not create the Kennel data directory at ${launch.cwd}: ${(err as Error).message}`,
 				code: "datadir_unwritable",
 			});
 			return daemonStatus;
@@ -1402,7 +1402,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 		fallbackTimer = undefined;
 		setDaemonStatus({
 			state: "error",
-			message: "AO daemon did not finish starting within 30 seconds.",
+			message: "Kennel daemon did not finish starting within 30 seconds.",
 			details:
 				daemonOutput.trim() ||
 				[
@@ -1545,7 +1545,7 @@ async function restartDaemon(): Promise<DaemonStatus> {
 		// a replacement instead of collapsing back to a code-less stopped state.
 		setDaemonStatus({
 			state: "error",
-			message: "AO daemon is still stopping. It will restart automatically when shutdown completes.",
+			message: "Kennel daemon is still stopping. It will restart automatically when shutdown completes.",
 			details: daemonOutput.trim() || undefined,
 			code: "not_ready",
 		});

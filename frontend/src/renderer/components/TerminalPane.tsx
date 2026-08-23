@@ -855,7 +855,7 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 function reviewerPreviewLines(session: WorkspaceSession | undefined): string[] {
 	return [
 		"$ ao review submit --session " + (session?.id ?? "demo-session"),
-		"Reviewing PR #319: browser preview rail renders inside AO",
+		"Reviewing PR #319: browser preview rail renders inside Kennel",
 		"PASS implementation matches the requested README screenshot flow",
 		"Reviewing PR #320: stacked PR review rows",
 		"WARN keep multiple review rows visible before taking the screenshot",

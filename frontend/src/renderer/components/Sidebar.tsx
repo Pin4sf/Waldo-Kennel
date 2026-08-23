@@ -76,7 +76,7 @@ import {
 } from "./ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { OrchestratorIcon } from "./icons";
-import aoLogo from "../../../assets/ao-logo.svg";
+import waldoMark from "../../../assets/waldo-mark.svg";
 import { cn } from "../lib/utils";
 import { useUiStore } from "../stores/ui-store"
 import { useKeybindingsStore } from "../stores/keybindings-store";
@@ -321,7 +321,14 @@ export function Sidebar({
 								onClick={selection.goWork}
 								type="button"
 							>
-								<img src={aoLogo} alt="" aria-hidden="true" className="h-5.5 w-5.5 -translate-y-[3px] rounded-md object-cover" />
+								<img
+									alt=""
+									aria-hidden="true"
+									className="h-5.5 w-5.5 object-contain"
+									data-brand="waldo"
+									data-testid="waldo-sidebar-mark"
+									src={waldoMark}
+								/>
 							</button>
 						</TooltipTrigger>
 						<TooltipContent side="right" hidden={state !== "collapsed"}>
@@ -1117,7 +1124,7 @@ function CloudAccountRow({ tabIndex }: { tabIndex: number }) {
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<button
-					aria-label={t("shell.signedInAs", { email: session?.user.email ?? "AO Cloud" })}
+					aria-label={t("shell.signedInAs", { email: session?.user.email ?? "Waldo Cloud" })}
 					className={cn(
 						NAV_ROW_CLASS,
 						"flex h-9 w-full items-center text-left [&_svg]:size-icon-md [&_svg]:shrink-0",
@@ -1127,7 +1134,7 @@ function CloudAccountRow({ tabIndex }: { tabIndex: number }) {
 				>
 					<User aria-hidden="true" />
 					<span className="min-w-0 flex-1 truncate tracking-tight">
-						{session?.user.email ?? "AO Cloud"}
+						{session?.user.email ?? "Waldo Cloud"}
 					</span>
 				</button>
 			</DropdownMenuTrigger>
@@ -1173,7 +1180,7 @@ function CloudAccountRailButton({ tabIndex }: { tabIndex: number }) {
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<button
-					aria-label={t("shell.signedInAs", { email: session?.user.email ?? "AO Cloud" })}
+					aria-label={t("shell.signedInAs", { email: session?.user.email ?? "Waldo Cloud" })}
 					className="grid size-control-board place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground [&_svg]:size-icon-base"
 					onClick={() => void signOut()}
 					tabIndex={tabIndex}
@@ -1183,7 +1190,7 @@ function CloudAccountRailButton({ tabIndex }: { tabIndex: number }) {
 				</button>
 			</TooltipTrigger>
 			<TooltipContent side="right">
-				{t("shell.signOutWithEmail", { email: session?.user.email ?? "AO Cloud" })}
+				{t("shell.signOutWithEmail", { email: session?.user.email ?? "Waldo Cloud" })}
 			</TooltipContent>
 		</Tooltip>
 	);

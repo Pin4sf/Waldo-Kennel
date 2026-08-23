@@ -425,7 +425,7 @@ describe("GlobalSettingsForm", () => {
 		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
 		const copied = writeText.mock.calls[0][0] as string;
 		expect(copied).toContain("Create project fails");
-		expect(copied).toContain("AO version: 9.9.9-test");
+		expect(copied).toContain("Kennel version: 9.9.9-test");
 		expect(copied).toContain("Daemon: ready");
 		expect(copied).toContain("[redacted-local-path]");
 		expect(copied).toContain("[redacted-local-url]");
@@ -458,7 +458,7 @@ describe("GlobalSettingsForm", () => {
 		expect(screen.queryByRole("button", { name: /copy & open email/i })).not.toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: /copy & open discord/i }));
 		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-		expect(writeText.mock.calls[0][0]).toContain("**AO feedback**");
+		expect(writeText.mock.calls[0][0]).toContain("**Waldo feedback**");
 		expect(screen.getByText("Discord draft copied.")).toBeInTheDocument();
 		expect(screen.getByLabelText("Title")).toHaveValue("");
 		expect(screen.getByLabelText("What happened?")).toHaveValue("");
@@ -475,7 +475,7 @@ describe("GlobalSettingsForm", () => {
 		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
 		expect(writeText.mock.calls[0][0]).toContain("Daemon: unknown");
 		expect(writeText.mock.calls[1][0]).toContain("To: prateek@untrivial.ai");
-		expect(writeText.mock.calls[1][0]).toContain("AO feedback");
+		expect(writeText.mock.calls[1][0]).toContain("Waldo feedback");
 		expect(openExternal).toHaveBeenCalledWith("https://discord.com/invite/UZv7JjxbwG");
 		expect(openExternal).toHaveBeenCalledWith(expect.stringContaining("mailto:prateek@untrivial.ai"));
 		expect(open).not.toHaveBeenCalled();

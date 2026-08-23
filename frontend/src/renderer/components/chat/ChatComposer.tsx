@@ -206,7 +206,7 @@ export function ChatComposer({
 				name: "compact",
 				displayName: "compact",
 				description: "Summarize earlier history to reclaim context",
-				source: "AO",
+				source: "Kennel",
 			},
 			...skills.filter((skill) => skill.name !== "compact"),
 		];

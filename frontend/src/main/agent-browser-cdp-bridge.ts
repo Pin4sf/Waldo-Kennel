@@ -93,7 +93,7 @@ export class AgentBrowserCDPBridge {
 
 	async close(): Promise<void> {
 		for (const sessionId of [...this.attached.keys()]) this.detachTarget(sessionId);
-		for (const socket of this.server.clients) socket.close(1001, "AO browser session closed");
+		for (const socket of this.server.clients) socket.close(1001, "Kennel browser session closed");
 		await new Promise<void>((resolve) => this.server.close(() => resolve()));
 		this.physical.clear();
 		this.endpoint = "";
@@ -228,7 +228,7 @@ export class AgentBrowserCDPBridge {
 			case "Schema.getDomains":
 				return { domains: [] };
 			case "Browser.close":
-				throw new Error("Browser.close is not permitted for AO-owned previews");
+				throw new Error("Browser.close is not permitted for Kennel-owned previews");
 			default:
 				throw new Error(`Unsupported browser-level CDP method: ${request.method}`);
 		}
@@ -312,11 +312,11 @@ export class AgentBrowserCDPBridge {
 			for (const client of physical.clients.values()) {
 				this.send(client.connection.socket, {
 					method: "Inspector.detached",
-					params: { reason: "AO page debugger was released" },
+					params: { reason: "Kennel page debugger was released" },
 					...(client.protocolSessionId ? { sessionId: client.protocolSessionId } : {}),
 				});
 				if (client.protocolSessionId) this.attached.delete(client.protocolSessionId);
-				client.connection.socket.close(1012, "AO page debugger was released");
+				client.connection.socket.close(1012, "Kennel page debugger was released");
 			}
 			physical.clients.clear();
 			this.physical.delete(target.id);
@@ -334,7 +334,7 @@ export class AgentBrowserCDPBridge {
 	private requireTarget(targetId: string | undefined): AgentBrowserTarget {
 		if (!targetId) throw new Error("targetId is required");
 		const target = this.listTargets().find((candidate) => candidate.id === targetId);
-		if (!target) throw new Error("Target is outside this AO worker");
+		if (!target) throw new Error("Target is outside this Kennel worker");
 		return target;
 	}
 
@@ -395,7 +395,7 @@ function assertSafeTargetMethod(method: string, params: Record<string, unknown> 
 		method === "Network.setCookies" ||
 		method === "Network.clearBrowserCookies"
 	) {
-		throw new Error(`CDP method is not permitted by AO: ${method}`);
+		throw new Error(`CDP method is not permitted by Kennel: ${method}`);
 	}
 }
 

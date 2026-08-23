@@ -75,7 +75,7 @@ describe("TurnChangedFiles", () => {
 	it("says the list was cut rather than presenting it as the whole change", async () => {
 		render(<TurnChangedFiles diff={diff({ truncated: true })} />);
 		await userEvent.click(screen.getByRole("button"));
-		expect(screen.getByText(/changed more files than AO lists/i)).toBeInTheDocument();
+		expect(screen.getByText(/changed more files than Kennel lists/i)).toBeInTheDocument();
 	});
 
 	it("marks a running turn's diff as still growing", () => {
@@ -146,7 +146,7 @@ describe("ActivityRow command output", () => {
 			/>,
 		);
 		await userEvent.click(screen.getByRole("button"));
-		expect(screen.getByText(/printed more than AO stores/i)).toBeInTheDocument();
+		expect(screen.getByText(/printed more than Kennel stores/i)).toBeInTheDocument();
 	});
 
 	it("keeps a finished command collapsed so the timeline stays readable", () => {

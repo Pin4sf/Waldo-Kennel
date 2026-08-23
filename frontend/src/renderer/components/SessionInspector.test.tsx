@@ -658,7 +658,7 @@ describe("SessionInspector PR section", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: "When disabled, AO keeps this session open after all pull requests merge.",
+        name: "When disabled, Kennel keeps this session open after all pull requests merge.",
       }),
     ).toBeInTheDocument();
 

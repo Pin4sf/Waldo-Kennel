@@ -11,6 +11,7 @@ export const shortcutLabelKeys: Record<AppShortcutId, MessageKey> = {
 	"command-palette": "shortcut.command-palette",
 	"open-settings": "shortcut.open-settings",
 	"toggle-sidebar": "shortcut.toggle-sidebar",
+	"toggle-waldo": "shortcut.toggle-waldo",
 	"open-project": "shortcut.open-project",
 	"previous-session": "shortcut.previous-session",
 	"next-session": "shortcut.next-session",

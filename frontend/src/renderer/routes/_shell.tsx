@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, useMatchRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { isCancelledError, useQueryClient } from "@tanstack/react-query";
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CommandPalette } from "../components/CommandPalette";
 import { CenterPanelShell } from "../components/CenterPanelShell";
 import { DaemonFailureBanner } from "../components/DaemonFailureBanner";
@@ -9,6 +10,13 @@ import { OnboardingTour } from "../components/OnboardingTour";
 import { TrayRuntime } from "../components/TrayRuntime";
 import { GlobalNewTaskDialog } from "../components/GlobalNewTaskDialog";
 import { HomeWorkModeSwitch } from "../components/HomeWorkModeSwitch";
+import { WaldoLauncher } from "../components/waldo/WaldoLauncher";
+import {
+	WaldoRailProvider,
+	WaldoShortcutRuntime,
+	useWaldoRail,
+} from "../components/waldo/WaldoRailContext";
+import { WaldoShellRail } from "../components/waldo/WaldoShellRail";
 import { SettingsDialog } from "../components/SettingsDialog";
 import { KeyboardShortcutsDialog } from "../components/KeyboardShortcutsDialog";
 import { KeyboardShortcutsSettingsDialog } from "../components/settings/KeyboardShortcutsSettingsDialog";
@@ -28,7 +36,7 @@ import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { useWorkspaceQuery, workspaceQueryKey, workspaceQueryOptions } from "../hooks/useWorkspaceQuery";
 import { apiClient, apiErrorCode, apiErrorMessage, hasTrustedApiBaseUrl } from "../lib/api-client";
 import { refreshDaemonStatus } from "../lib/daemon-status";
-import { usesPreviewWorkspaceData } from "../lib/preview-mode";
+import { usesPreviewWorkspaceData, usesWaldoUiPreview } from "../lib/preview-mode";
 import { addRendererExceptionStep, captureRendererEvent, captureRendererException } from "../lib/telemetry";
 import { ShellProvider } from "../lib/shell-context";
 import { restartProjectOrchestrator } from "../lib/restart-orchestrator";
@@ -59,8 +67,16 @@ export const Route = createFileRoute("/_shell")({
 		if (!usesPreviewWorkspaceData && !hasTrustedApiBaseUrl()) return;
 		return context.queryClient.ensureQueryData(workspaceQueryOptions);
 	},
-	component: ShellLayout,
+	component: ShellRoute,
 });
+
+function ShellRoute() {
+	return (
+		<WaldoRailProvider>
+			<ShellLayout />
+		</WaldoRailProvider>
+	);
+}
 
 function errorMessage(error: unknown) {
 	return error instanceof Error ? error.message : "Could not load projects";
@@ -91,6 +107,8 @@ const shellTopbarHiddenByPlatform = hidesShellTopbar();
 // the old single <App>, with selection now owned by the router (route params)
 // instead of Zustand. The daemon-status effect runs here exactly once.
 function ShellLayout() {
+	const { t } = useTranslation();
+	const waldo = useWaldoRail();
 	// Reports how many agents this install has available, once per launch.
 	useAgentInventoryTelemetry();
 	const navigate = useNavigate();
@@ -143,6 +161,24 @@ function ShellLayout() {
 	const [isSidebarPeekOpen, setIsSidebarPeekOpen] = useState(false);
 	const sidebarPeekCloseTimerRef = useRef<number | undefined>(undefined);
 	const routeParams = useParams({ strict: false }) as { projectId?: string; sessionId?: string };
+	const setInspectorOpen = useUiStore((state) => state.setInspectorOpen);
+	const suppressedInspectorRef = useRef<{ sessionId: string; wasOpen: boolean } | null>(null);
+	useEffect(() => {
+		const sessionId = routeParams.sessionId;
+		const suppressed = suppressedInspectorRef.current;
+		if (!waldo.isOpen || !sessionId) {
+			if (suppressed?.wasOpen) setInspectorOpen(suppressed.sessionId, true);
+			suppressedInspectorRef.current = null;
+			return;
+		}
+
+		if (suppressed?.sessionId === sessionId) return;
+		if (suppressed?.wasOpen) setInspectorOpen(suppressed.sessionId, true);
+		const current = useUiStore.getState().inspectorSessions[sessionId];
+		const wasOpen = current?.isOpen ?? true;
+		suppressedInspectorRef.current = { sessionId, wasOpen };
+		if (wasOpen) setInspectorOpen(sessionId, false);
+	}, [routeParams.sessionId, setInspectorOpen, waldo.isOpen]);
 	useEffect(() => {
 		document.addEventListener("click", handleModifierLinkClick);
 		return () => document.removeEventListener("click", handleModifierLinkClick);
@@ -191,6 +227,9 @@ function ShellLayout() {
 		Boolean(matchRoute({ to: "/settings", fuzzy: true })) ||
 		Boolean(matchRoute({ to: "/projects/$projectId/settings", fuzzy: true }));
 	const isHomeRoute = Boolean(matchRoute({ to: "/home", fuzzy: true }));
+	const waldoWorkContext = routeParams.sessionId
+		? t("waldo.rail.workSessionContext")
+		: t("waldo.rail.workContext");
 	// Welcome/settings always self-frame. Platforms that hide the shell-owned
 	// topbar (macOS) use the same full-height inset; session actions mount
 	// inside SessionView.
@@ -273,7 +312,7 @@ function ShellLayout() {
 			void captureRendererEvent("kennel.renderer.project_add_requested");
 			const status = await refreshDaemonStatus();
 			if (status.state !== "ready" || !status.port) {
-				throw new Error(status.message || "AO daemon is not ready.");
+				throw new Error(status.message || "Kennel daemon is not ready.");
 			}
 			const { data, error } = await apiClient.POST("/api/v1/projects", {
 				body: {
@@ -659,6 +698,7 @@ function ShellLayout() {
 		<ShellProvider value={{ daemonStatus, workspaceStartupState, createProject, initializeProjectRepository }}>
 			<SessionTopbarProvider>
 				<NotificationRuntime />
+				<WaldoShortcutRuntime />
 				<OnboardingTour daemonReady={daemonStatus.state === "ready"} />
 				<TrayRuntime />
 				<GlobalNewTaskDialog />
@@ -732,7 +772,13 @@ function ShellLayout() {
 						workspaceError={workspaceQuery.isError ? errorMessage(workspaceQuery.error) : undefined}
 						workspaces={workspaces}
 					/>
-					<main className={cn("relative flex min-w-0 flex-1 flex-col overflow-x-hidden", !isSidebarOpen && "sidebar-hidden")}>
+					<main
+						className={cn(
+							"relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
+							!isSidebarOpen && "sidebar-hidden",
+							!isHomeRoute && "waldo-launcher-reserved",
+						)}
+					>
 						<div className="min-h-0 flex-1 overflow-x-hidden">
 							{/* Board/session routes render inside the same inset box the welcome board and settings paint for themselves, so every screen sits within the app's outer boundary. */}
 							{hideShellTopbar ? (
@@ -768,6 +814,18 @@ function ShellLayout() {
 						<div className="pointer-events-none absolute left-1/2 top-1.5 z-titlebar -translate-x-1/2">
 							<HomeWorkModeSwitch />
 						</div>
+						<div className="pointer-events-none absolute right-2 top-1.5 z-titlebar">
+							<WaldoLauncher className="pointer-events-auto" />
+						</div>
+						{!isHomeRoute ? (
+							<WaldoShellRail
+								contextLabel={waldoWorkContext}
+								onReturnToInspector={routeParams.sessionId
+									? () => setInspectorOpen(routeParams.sessionId!, true)
+									: undefined}
+								previewEnabled={usesWaldoUiPreview}
+							/>
+						) : null}
 					</main>
 					</div>
 					<DaemonFailureBanner status={daemonStatus} />
