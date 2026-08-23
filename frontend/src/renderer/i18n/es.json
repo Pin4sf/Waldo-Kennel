@@ -943,6 +943,7 @@
 	"shortcut.restoredDefaults": "Atajos de teclado restaurados a los valores predeterminados",
 	"shortcut.searchPlaceholder": "Buscar comandos o combinaciones de teclas",
 	"shortcut.toggle-inspector": "Alternar inspector",
+	"shortcut.toggle-waldo": "Abrir Waldo",
 	"shortcut.toggle-sidebar": "Alternar barra lateral",
 	"shortcut.tryReopen": "Intenta reabrir los ajustes de atajos de teclado.",
 	"shortcut.unassigned": "Sin asignar",

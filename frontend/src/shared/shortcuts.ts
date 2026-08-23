@@ -30,7 +30,7 @@ export function terminalFontSizeDelta(chord: ShortcutChord, isMac: boolean): -1 
 }
 
 export type AppShortcutId =
-	"new-session" | "new-shell-terminal" | "close-shell-terminal" | "keyboard-shortcuts" | "toggle-sidebar" | "open-project" | "toggle-inspector" | "command-palette" | "open-settings" | "previous-session" | "next-session" | "previous-tab" | "next-tab" | "focus-terminal" | "toggle-browser-devtools";
+	"new-session" | "new-shell-terminal" | "close-shell-terminal" | "keyboard-shortcuts" | "toggle-sidebar" | "open-project" | "toggle-inspector" | "toggle-waldo" | "command-palette" | "open-settings" | "previous-session" | "next-session" | "previous-tab" | "next-tab" | "focus-terminal" | "toggle-browser-devtools";
 
 export type ShortcutCategory = "General" | "Navigation" | "Session";
 
@@ -91,6 +91,11 @@ export const APP_SHORTCUTS: readonly ShortcutDefinition[] = [
 	{
 		id: "toggle-sidebar",
 		label: "Toggle sidebar",
+		category: "General",
+	},
+	{
+		id: "toggle-waldo",
+		label: "Open Waldo",
 		category: "General",
 	},
 	{
@@ -160,6 +165,12 @@ export function defaultShortcutBindings(id: AppShortcutId, isMac: boolean): read
 			return [isMac ? binding("/", { meta: true }) : binding("/", { ctrl: true })];
 		case "toggle-sidebar":
 			return [isMac ? binding("b", { meta: true }) : binding("b", { ctrl: true })];
+		case "toggle-waldo":
+			return [
+				isMac
+					? binding(" ", { code: "Space", meta: true, shift: true })
+					: binding(" ", { code: "Space", ctrl: true, shift: true }),
+			];
 		case "open-project":
 			return [isMac ? binding("1-9", { meta: true }) : binding("1-9", { ctrl: true })];
 		case "toggle-inspector":

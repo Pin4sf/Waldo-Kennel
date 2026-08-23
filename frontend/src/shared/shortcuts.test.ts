@@ -80,6 +80,40 @@ describe("matchesKeyboardShortcutsHelpShortcut", () => {
 });
 
 describe("additional application shortcuts", () => {
+	it("opens Waldo with Command-Shift-Space or Control-Shift-Space", () => {
+		expect(
+			matchesAppShortcut(
+				"toggle-waldo",
+				chord({ key: " ", code: "Space", meta: true, shift: true }),
+				true,
+			),
+		).toBe(true);
+		expect(
+			matchesAppShortcut(
+				"toggle-waldo",
+				chord({ key: " ", code: "Space", ctrl: true, shift: true }),
+				false,
+			),
+		).toBe(true);
+	});
+
+	it("does not reuse Island or terminal shortcuts for Waldo", () => {
+		expect(
+			matchesAppShortcut(
+				"toggle-waldo",
+				chord({ key: "`", code: "Backquote", meta: true }),
+				true,
+			),
+		).toBe(false);
+		expect(
+			matchesAppShortcut(
+				"toggle-waldo",
+				chord({ key: "t", meta: true, shift: true }),
+				true,
+			),
+		).toBe(false);
+	});
+
 	it("matches settings on each platform and rejects extra modifiers", () => {
 		expect(matchesOpenSettingsShortcut(chord({ key: ",", meta: true }), true)).toBe(true);
 		expect(matchesOpenSettingsShortcut(chord({ key: ",", ctrl: true }), false)).toBe(true);
@@ -118,6 +152,14 @@ describe("additional application shortcuts", () => {
 });
 
 describe("shortcut catalog", () => {
+	it("lists Waldo as a customizable general shortcut", () => {
+		expect(APP_SHORTCUTS).toContainEqual({
+			id: "toggle-waldo",
+			label: "Open Waldo",
+			category: "General",
+		});
+	});
+
 	it("provides runtime defaults for every shortcut on each platform", () => {
 		for (const shortcut of APP_SHORTCUTS) {
 			expect(defaultShortcutBindings(shortcut.id, true).length).toBeGreaterThan(0);

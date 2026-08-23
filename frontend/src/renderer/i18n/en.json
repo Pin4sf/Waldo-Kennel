@@ -941,6 +941,7 @@
 	"shortcut.restoredDefaults": "Keyboard shortcuts restored to defaults",
 	"shortcut.searchPlaceholder": "Search commands or key combinations",
 	"shortcut.toggle-inspector": "Toggle inspector",
+	"shortcut.toggle-waldo": "Open Waldo",
 	"shortcut.toggle-sidebar": "Toggle sidebar",
 	"shortcut.tryReopen": "Try reopening keyboard shortcut settings.",
 	"shortcut.unassigned": "Unassigned",
