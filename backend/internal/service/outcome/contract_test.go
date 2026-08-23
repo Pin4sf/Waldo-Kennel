@@ -278,3 +278,25 @@ func TestTrimmedInputsPersistTrimmed(t *testing.T) {
 		t.Fatalf("title stored untrimmed: %q", view.Outcome.Title)
 	}
 }
+
+// Plan methods are exercised by the plan service tests; the contract fake
+// only needs to satisfy the widened OutcomeStore interface.
+func (f *fakeStore) AppendPlanRevision(_ context.Context, _ domain.OutcomeID, plan domain.PlanRevision) (domain.PlanRevision, error) {
+	return plan, nil
+}
+
+func (f *fakeStore) LatestProposedPlanRevision(_ context.Context, _ domain.OutcomeID, _ int64) (domain.PlanRevision, bool, error) {
+	return domain.PlanRevision{}, false, nil
+}
+
+func (f *fakeStore) GetPlanRevision(_ context.Context, _ domain.OutcomeID, id domain.PlanRevisionID) (domain.PlanRevision, bool, error) {
+	return domain.PlanRevision{}, false, nil
+}
+
+func (f *fakeStore) GetLatestPlanRevision(_ context.Context, _ domain.OutcomeID) (domain.PlanRevision, bool, error) {
+	return domain.PlanRevision{}, false, nil
+}
+
+func (f *fakeStore) ApprovePlanRevision(_ context.Context, _ domain.OutcomeID, id domain.PlanRevisionID) (domain.PlanRevision, bool, error) {
+	return domain.PlanRevision{ID: id, Status: domain.PlanStatusApproved}, true, nil
+}
