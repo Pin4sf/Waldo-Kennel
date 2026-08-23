@@ -753,7 +753,21 @@ test("request deadlines normalize to a retryable timeout", async () => {
 		home: "/Users/tester",
 		timeoutMs: 5,
 		fetch: async (_url, { signal }) => new Promise((_resolve, reject) => {
+			// Stands in for the socket a real fetch holds open. The service unrefs
+			// its deadline timer on purpose — the island is a background panel and
+			// must never be the reason the process stays alive — so in production
+			// the in-flight request is what keeps the loop alive while that timer
+			// runs. A fake that holds nothing leaves the unref'd timer as the only
+			// scheduled work, and Node 22's test runner cancels the test when the
+			// loop drains with this promise still pending.
+			// It also fails loudly rather than hanging if the service's deadline
+			// ever stops firing, so this stand-in cannot mask the regression the
+			// test exists to catch.
+			const inFlight = setTimeout(() => {
+				reject(new Error("fetch was never aborted: the service request deadline did not fire"));
+			}, 1_000);
 			signal.addEventListener("abort", () => {
+				clearTimeout(inFlight);
 				const error = new Error("aborted");
 				error.name = "AbortError";
 				reject(error);
@@ -761,6 +775,8 @@ test("request deadlines normalize to a retryable timeout", async () => {
 		}),
 	});
 
+	// The service's own unref'd deadline is still what aborts the request; the
+	// stand-in socket above only stops the loop emptying underneath it.
 	await assert.rejects(service.attach(), (error) => {
 		assert.ok(error instanceof KennelServiceError);
 		assert.equal(error.code, "DAEMON_TIMEOUT");
