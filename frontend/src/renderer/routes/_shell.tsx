@@ -772,7 +772,13 @@ function ShellLayout() {
 						workspaceError={workspaceQuery.isError ? errorMessage(workspaceQuery.error) : undefined}
 						workspaces={workspaces}
 					/>
-					<main className={cn("relative flex min-w-0 flex-1 flex-col overflow-x-hidden", !isSidebarOpen && "sidebar-hidden")}>
+					<main
+						className={cn(
+							"relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
+							!isSidebarOpen && "sidebar-hidden",
+							!isHomeRoute && "waldo-launcher-reserved",
+						)}
+					>
 						<div className="min-h-0 flex-1 overflow-x-hidden">
 							{/* Board/session routes render inside the same inset box the welcome board and settings paint for themselves, so every screen sits within the app's outer boundary. */}
 							{hideShellTopbar ? (
