@@ -21,7 +21,7 @@ export function WaldoShellRail({
     : undefined;
 
   return (
-    <div className="waldo-shell-rail">
+    <div className="waldo-native-interactive waldo-shell-rail" data-testid="waldo-shell-rail">
       <WaldoRail
         contextLabel={contextLabel}
         onClose={waldo.close}

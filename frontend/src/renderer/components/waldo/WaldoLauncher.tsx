@@ -18,7 +18,7 @@ export function WaldoLauncher({ className }: { className?: string }) {
       aria-expanded={waldo.isOpen}
       aria-label={t("shortcut.toggle-waldo")}
       className={cn(
-        "grid size-8 place-items-center rounded-lg border border-border bg-raised/92 text-muted-foreground shadow-sm backdrop-blur-md transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 motion-reduce:transition-none",
+        "waldo-native-interactive grid size-8 place-items-center rounded-lg border border-border bg-raised/92 text-muted-foreground shadow-sm backdrop-blur-md transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 motion-reduce:transition-none",
         waldo.isOpen && "bg-interactive-active text-foreground",
         className,
       )}

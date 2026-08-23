@@ -566,6 +566,13 @@
 	animation: waldo-rail-enter 160ms ease-out both;
 }
 
+/* Waldo overlaps Work's native draggable topbar. Explicitly subtract both the
+ * launcher and the open rail so Electron delivers pointer input to their
+ * controls instead of initiating a window drag. */
+.waldo-native-interactive {
+	-webkit-app-region: no-drag;
+}
+
 /* Work owns actions and notifications inside its route-level topbars while
  * Waldo is shell-owned. Reserve one fixed launcher lane so both remain fully
  * visible and independently clickable. */
