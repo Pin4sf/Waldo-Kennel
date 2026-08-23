@@ -117,7 +117,7 @@ describe("app i18next instance", () => {
 		expect(chinese.t("inspector.open")).toBe("打开");
 		expect(chinese.t("inspector.openTerminal")).toBe("打开终端");
 		expect(chinese.t("createProject.gitSetupNotice")).toBe(
-			"如果此文件夹需要设置 Git，AO 会先初始化仓库并创建首次提交，然后再启动。",
+			"如果此文件夹需要设置 Git，Kennel 会先初始化仓库并创建首次提交，然后再启动。",
 		);
 		expect(chinese.t("settings.updates.currentVersion", { version: "v1.2.3" })).toBe("当前版本 - v1.2.3");
 		expect(chinese.t("settings.updates.updateTo", { version: "v1.2.3" })).toBe("更新至 v1.2.3");
@@ -169,6 +169,14 @@ describe("app i18next instance", () => {
 				expect(variables(catalog[key]), `${locale} placeholder mismatch for ${key}`).toEqual(
 					variables(enMessages[key]),
 				);
+			}
+		}
+	});
+
+	it("does not expose the inherited AO brand in user-facing locale catalogs", () => {
+		for (const locale of APP_LOCALES) {
+			for (const [key, message] of Object.entries(allCatalogs[locale])) {
+				expect(String(message), `${locale}.${key} still exposes AO`).not.toMatch(/\bAO\b/);
 			}
 		}
 	});

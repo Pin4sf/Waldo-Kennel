@@ -107,7 +107,7 @@ describe("SwitchAgentDialog", () => {
 		expect(backdrop).toHaveClass("agent-switch-terminal-scrim");
 		expect(
 			within(dialog).getByText(
-				"Move this session from Claude Code to another agent. AO will preserve the current native session and hand off the work.",
+				"Move this session from Claude Code to another agent. Kennel will preserve the current native session and hand off the work.",
 			),
 		).toBeInTheDocument();
 		expect(within(dialog).getByRole("button", { name: "Target agent" })).toBeInTheDocument();

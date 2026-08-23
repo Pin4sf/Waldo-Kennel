@@ -3,7 +3,6 @@ import {
   Check,
   ChevronDown,
   Circle,
-  Dog,
   Eye,
   LoaderCircle,
   LockKeyhole,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import waldoMark from "../../../../assets/waldo-mark.svg";
 import { cn } from "../../lib/utils";
 
 type WaldoRailProps = {
@@ -66,7 +66,7 @@ export function WaldoRail({
   return (
     <section
       aria-label={t("waldo.rail.aria")}
-      className="waldo-rail flex min-h-0 flex-1 flex-col bg-background"
+      className="waldo-rail flex min-h-0 min-w-0 flex-1 flex-col bg-background"
       id="waldo-rail"
     >
       <header className="shrink-0 border-b border-border px-4 pb-3 pt-3.5">
@@ -93,7 +93,7 @@ export function WaldoRail({
         ) : null}
         <div className="flex items-start gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-border bg-raised text-foreground shadow-xs">
-            <Dog aria-hidden="true" className="size-4.5" />
+            <img alt="" aria-hidden="true" className="size-4.5 object-contain" data-brand="waldo" src={waldoMark} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
@@ -125,7 +125,7 @@ export function WaldoRail({
         ) : null}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5" data-testid="waldo-rail-body">
         {!previewEnabled ? (
           <div className="flex min-h-full flex-col justify-between gap-10">
             <div>

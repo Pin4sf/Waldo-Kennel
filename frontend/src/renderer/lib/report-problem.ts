@@ -81,7 +81,7 @@ export function formatReportProblemDraft(
 
 	if (output === "discord") {
 		return [
-			"**AO feedback**",
+			"**Waldo feedback**",
 			`Summary: ${fields.summary}`,
 			`Details: ${fields.details}`,
 			"",
@@ -93,14 +93,14 @@ export function formatReportProblemDraft(
 	if (output === "email") {
 		return [
 			`To: ${SUPPORT_EMAIL}`,
-			`Subject: AO feedback: ${fields.summary}`,
+			`Subject: Waldo feedback: ${fields.summary}`,
 			"",
 			formatEmailBody(fields, diagnosticsBlock),
 		].join("\n");
 	}
 
 	return [
-		`# ${fields.summary === "Not provided" ? "AO feedback" : fields.summary}`,
+		`# ${fields.summary === "Not provided" ? "Waldo feedback" : fields.summary}`,
 		"",
 		"## Summary",
 		fields.summary,
@@ -121,7 +121,7 @@ export function reportProblemDestinationUrl(
 	if (output === "discord") return DISCORD_INVITE_URL;
 	if (output === "email") {
 		const url = new URL(`mailto:${SUPPORT_EMAIL}`);
-		url.searchParams.set("subject", `AO feedback: ${reportTitle(input)}`);
+		url.searchParams.set("subject", `Waldo feedback: ${reportTitle(input)}`);
 		url.searchParams.set("body", formatEmailBody(normalizeInput(input), formatDiagnostics(diagnostics)));
 		return url.toString();
 	}
@@ -144,7 +144,7 @@ function normalizeInput(input: ReportProblemInput) {
 
 function formatEmailBody(fields: ReturnType<typeof normalizeInput>, diagnosticsBlock: string): string {
 	return [
-		"AO feedback",
+		"Waldo feedback",
 		"",
 		`Summary: ${fields.summary}`,
 		"",
@@ -158,7 +158,7 @@ function formatEmailBody(fields: ReturnType<typeof normalizeInput>, diagnosticsB
 
 function reportTitle(input: ReportProblemInput): string {
 	const summary = valueOrPlaceholder(input.summary);
-	return summary === "Not provided" ? "AO feedback" : summary;
+	return summary === "Not provided" ? "Waldo feedback" : summary;
 }
 
 function valueOrPlaceholder(value: string): string {
@@ -168,7 +168,7 @@ function valueOrPlaceholder(value: string): string {
 
 function formatDiagnostics(diagnostics: ReportProblemDiagnostics): string {
 	const lines = [
-		`AO version: ${sanitizeReportText(diagnostics.appVersion) || "unknown"}`,
+		`Kennel version: ${sanitizeReportText(diagnostics.appVersion) || "unknown"}`,
 		`Build mode: ${sanitizeReportText(diagnostics.buildMode) || "unknown"}`,
 		`Platform: ${sanitizeReportText(diagnostics.platform) || "unknown"}`,
 		`Route surface: ${sanitizeReportText(diagnostics.routeSurface) || "unknown"}`,

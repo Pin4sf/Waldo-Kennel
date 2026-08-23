@@ -54,10 +54,10 @@ describe("ReauthBanner", () => {
 });
 
 describe("ThreadStateBanner", () => {
-	it("reports a provider-side fault as the provider's, not AO's connection", () => {
+	it("reports a provider-side fault as the provider's, not Kennel's connection", () => {
 		render(<ThreadStateBanner threadState={{ status: "system_error" }} />);
 		expect(screen.getByText(/thread hit an internal error/i)).toBeInTheDocument();
-		expect(screen.getByText(/not in AO's connection to it/)).toBeInTheDocument();
+		expect(screen.getByText(/not in Kennel's connection to it/)).toBeInTheDocument();
 	});
 
 	it("reports a closed thread as history AO kept and the agent did not", () => {

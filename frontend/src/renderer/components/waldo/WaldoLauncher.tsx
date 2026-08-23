@@ -1,5 +1,5 @@
-import { Dog } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import waldoMark from "../../../../assets/waldo-mark.svg";
 import { isMacPlatform } from "../../lib/platform";
 import { cn } from "../../lib/utils";
 import { currentShortcutBindings } from "../../stores/keybindings-store";
@@ -27,7 +27,7 @@ export function WaldoLauncher({ className }: { className?: string }) {
       title={`${t("shortcut.toggle-waldo")} · ${shortcutLabel}`}
       type="button"
     >
-      <Dog aria-hidden="true" className="size-4" />
+      <img alt="" aria-hidden="true" className="size-4 object-contain" data-brand="waldo" src={waldoMark} />
     </button>
   );
 }

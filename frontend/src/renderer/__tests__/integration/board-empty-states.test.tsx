@@ -147,6 +147,7 @@ describe("global board first launch", () => {
 		);
 
 		expect(await screen.findByTestId("daemon-startup-loader")).toHaveClass("ao-startup-screen");
+		expect(screen.getByTestId("waldo-brand-mark")).toHaveAttribute("data-brand", "waldo");
 		expect(screen.getByRole("status", { name: "Kennel is starting" })).toBeInTheDocument();
 		expect(screen.getByText("Kennel")).toBeInTheDocument();
 		expect(screen.getByText("Starting local services")).toHaveAttribute("aria-hidden", "true");

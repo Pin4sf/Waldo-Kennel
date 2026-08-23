@@ -376,8 +376,8 @@ function signInFailureDetail(error: unknown): string {
 export async function showCloudSignInFailure(error: unknown): Promise<void> {
   await dialog.showMessageBox({
     type: "error",
-    title: "AO Cloud sign-in failed",
-    message: "Unable to sign in to AO Cloud",
+    title: "Waldo Cloud sign-in failed",
+    message: "Unable to sign in to Waldo Cloud",
     detail: signInFailureDetail(error),
   });
 }

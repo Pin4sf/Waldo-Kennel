@@ -32,7 +32,7 @@ import primeAgentLogo from "../assets/agents/prime-agent.png";
 import qwenLogo from "../assets/agents/qwen.png";
 import vibeLogo from "../assets/agents/vibe.png";
 
-// Real brand logos keyed by the harness name AO stores on session.provider.
+// Real brand logos keyed by the harness name Kennel stores on session.provider.
 // Agents without an asset fall back to a lettered tile (fake).
 const LOGOS: AgentLogoSources = {
 	codex: codexLogo,

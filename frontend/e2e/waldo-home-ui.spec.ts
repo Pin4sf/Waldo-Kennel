@@ -90,6 +90,27 @@ test("Activity exposes one bounded delegated run under Waldo", async ({ page }) 
   await expect(activity).not.toContainText("Verified outcome");
 });
 
+test("wide Home constrains Waldo to the context region and keeps its body scrollable", async ({ page }) => {
+  await page.goto("/#/home");
+  await page.getByRole("button", { name: "Open Waldo" }).click();
+  await page.getByRole("tab", { name: "Activity" }).click();
+  await page.getByRole("button", { name: "Inspect run" }).click();
+
+  const rail = page.getByRole("region", { name: "Waldo" });
+  const activity = rail.getByRole("region", { name: "Agent activity preview" });
+  const railBox = await rail.boundingBox();
+  const centerBox = await page.locator(".center-panel-surface").boundingBox();
+  expect(railBox).not.toBeNull();
+  expect(centerBox).not.toBeNull();
+  expect(railBox!.width).toBeLessThanOrEqual(442);
+  expect(railBox!.y + railBox!.height).toBeLessThanOrEqual(centerBox!.y + centerBox!.height + 1);
+
+  const body = rail.getByTestId("waldo-rail-body");
+  await expect.poll(() => body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  await body.evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
+  await expect(activity.getByText("Result ready · Outcome · Unknown")).toBeVisible();
+});
+
 test("Home exposes completed continuity screens without promoting them to primary", async ({ page }) => {
   await page.goto("/#/home");
 

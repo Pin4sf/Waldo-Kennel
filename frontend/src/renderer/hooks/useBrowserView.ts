@@ -563,7 +563,7 @@ export function useBrowserView({
 				setNavState((current) => ({
 					...current,
 					url: normalized,
-					title: normalized ? "AO preview" : "",
+					title: normalized ? "Kennel preview" : "",
 					isLoading: false,
 				}));
 				return Promise.resolve();

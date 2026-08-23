@@ -23,7 +23,7 @@ describe("DaemonFailureBanner", () => {
 			/>,
 		);
 
-		expect(screen.getByRole("alert")).toHaveTextContent("AO daemon failed to start");
+		expect(screen.getByRole("alert")).toHaveTextContent("Kennel daemon failed to start");
 		expect(screen.getByRole("alert")).toHaveTextContent("AO daemon exited with code 1");
 		expect(screen.getByText("exited")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Restart daemon" })).toBeInTheDocument();
@@ -73,7 +73,7 @@ describe("DaemonFailureBanner", () => {
 		await act(() => appI18n.changeLanguage("zh-CN"));
 
 		expect(screen.getByRole("button", { name: "重启守护进程" })).toBeInTheDocument();
-		expect(screen.getByRole("alert")).toHaveTextContent("AO 守护进程尚未就绪");
+		expect(screen.getByRole("alert")).toHaveTextContent("Kennel 守护进程尚未就绪");
 	});
 
 	it("restarts a daemon that timed out during startup", async () => {

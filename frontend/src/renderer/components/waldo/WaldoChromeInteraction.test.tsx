@@ -17,6 +17,7 @@ describe("Waldo macOS chrome interaction", () => {
 
     const launcher = screen.getByRole("button", { name: "Open Waldo" });
     expect(launcher).toHaveClass("waldo-native-interactive");
+    expect(launcher.querySelector("img")).toHaveAttribute("data-brand", "waldo");
     await user.click(launcher);
     expect(screen.getByTestId("waldo-shell-rail")).toHaveClass("waldo-native-interactive");
   });

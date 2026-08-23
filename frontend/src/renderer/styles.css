@@ -522,6 +522,11 @@
 	flex-direction: column;
 }
 
+.home-today-context-pane:has(.waldo-rail) {
+	display: flex;
+	min-height: 0;
+}
+
 .home-today-brief-pane {
 	background-color: color-mix(in oklch, var(--color-bg-primary) 91%, var(--color-status-working));
 	background-image: radial-gradient(
@@ -629,6 +634,17 @@
 		min-height: 0;
 		border-top: 0;
 		background: var(--color-bg-primary);
+	}
+
+	.home-today-context-pane .waldo-rail-close {
+		width: auto;
+		padding-inline: 0.5rem;
+	}
+
+	.home-today-context-pane .waldo-rail-back-label {
+		display: inline;
+		font-size: var(--text-xs);
+		font-weight: 500;
 	}
 
 	.waldo-home-layer {
@@ -806,7 +822,7 @@
 @container center-panel (min-width: 960px) {
 	.home-today-layout {
 		display: grid;
-		grid-template-columns: minmax(0, 3fr) minmax(22rem, 2fr);
+		grid-template-columns: minmax(0, 1fr) minmax(0, 27.5rem);
 		overflow: hidden;
 	}
 
