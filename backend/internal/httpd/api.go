@@ -32,6 +32,7 @@ type APIDeps struct {
 	Reviews            reviewsvc.Manager
 	Notifications      controllers.NotificationService
 	NotificationStream controllers.NotificationStream
+	Outcomes           controllers.OutcomeService
 	Push               controllers.PushRegistry
 	ShellTerminals     controllers.ShellTerminalService
 	// Conversations is nil until a Chat driver is wired; the controller then
@@ -96,6 +97,7 @@ type API struct {
 	prs           *controllers.PRsController
 	reviews       *controllers.ReviewsController
 	notifications *controllers.NotificationsController
+	outcomes      *controllers.OutcomesController
 	push          *controllers.PushController
 	shellTerms    *controllers.ShellTerminalsController
 	conversations *controllers.ConversationsController
@@ -130,6 +132,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		prs:           &controllers.PRsController{Svc: deps.PRs},
 		reviews:       &controllers.ReviewsController{Svc: deps.Reviews},
 		notifications: &controllers.NotificationsController{Svc: deps.Notifications, Stream: deps.NotificationStream},
+		outcomes:      &controllers.OutcomesController{Svc: deps.Outcomes},
 		push:          &controllers.PushController{Registry: deps.Push},
 		shellTerms:    &controllers.ShellTerminalsController{Svc: deps.ShellTerminals},
 		conversations: &controllers.ConversationsController{Svc: deps.Conversations},
@@ -161,6 +164,7 @@ func (a *API) Register(root chi.Router) {
 			a.prs.Register(r)
 			a.reviews.Register(r)
 			a.notifications.Register(r)
+			a.outcomes.Register(r)
 			a.push.Register(r)
 			a.shellTerms.Register(r)
 			a.conversations.Register(r)

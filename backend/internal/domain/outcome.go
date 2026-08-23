@@ -6,103 +6,114 @@ import (
 	"time"
 )
 
-// Outcome is a durable, human-defined result that may require several worker
-// sessions. It deliberately sits above provider sessions: a worker is evidence
-// and execution activity for an outcome, never the outcome's identity.
+// OutcomeID identifies one Outcome inside its ResponsibilitySpace.
+type OutcomeID string
+
+// IsZero reports whether the id is unset or blank.
+func (id OutcomeID) IsZero() bool {
+	return strings.TrimSpace(string(id)) == ""
+}
+
+// String returns the raw identifier value.
+func (id OutcomeID) String() string {
+	return string(id)
+}
+
+// ContractRevisionID identifies one immutable contract revision of an Outcome.
+type ContractRevisionID string
+
+// IsZero reports whether the id is unset or blank.
+func (id ContractRevisionID) IsZero() bool {
+	return strings.TrimSpace(string(id)) == ""
+}
+
+// String returns the raw identifier value.
+func (id ContractRevisionID) String() string {
+	return string(id)
+}
+
+// Outcome is a durable, human-owned result recorded in one ResponsibilitySpace.
+//
+// An Outcome deliberately carries no lifecycle status field: provider
+// completion, session exit, checks, or commits can never advance or close it.
+// Its current stage is derived at read time from durable facts (current
+// ContractRevision, PlanRevisions, Attempts, Evidence, Verification), and only
+// an explicit owner AcceptanceDecision (#35) may conclude it. Zero
+// CurrentRevisionNumber means the contract has not been created yet — never a
+// terminal state.
 type Outcome struct {
-	ID                 string
-	ProjectID          ProjectID
-	Title              string
-	Definition         string
-	AcceptanceCriteria []string
-	Status             OutcomeStatus
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                    OutcomeID
+	SpaceID               ResponsibilitySpaceID
+	Title                 string
+	CurrentRevisionNumber int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
-// OutcomeStatus is the durable lifecycle of an outcome. UI state such as
-// "workers running" remains derived from its tasks and sessions.
-type OutcomeStatus string
-
-const (
-	// OutcomeStatusDraft is an outcome that has not entered planning.
-	OutcomeStatusDraft OutcomeStatus = "draft"
-	// OutcomeStatusPlanning is an outcome whose execution plan is being defined.
-	OutcomeStatusPlanning OutcomeStatus = "planning"
-	// OutcomeStatusInProgress is an outcome with active execution work.
-	OutcomeStatusInProgress OutcomeStatus = "in_progress"
-	// OutcomeStatusBlocked is an outcome that requires an input or dependency.
-	OutcomeStatusBlocked OutcomeStatus = "blocked"
-	// OutcomeStatusCompleted is an outcome whose acceptance contract is satisfied.
-	OutcomeStatusCompleted OutcomeStatus = "completed"
-)
-
-// Valid reports whether s is a recognized durable outcome lifecycle value.
-func (s OutcomeStatus) Valid() bool {
-	switch s {
-	case OutcomeStatusDraft, OutcomeStatusPlanning, OutcomeStatusInProgress, OutcomeStatusBlocked, OutcomeStatusCompleted:
-		return true
-	default:
-		return false
-	}
-}
-
-// OutcomeTask is the provider-neutral work contract created from an outcome
-// plan. SessionID is assigned only after AO has successfully created a worker.
-type OutcomeTask struct {
-	ID               string
-	OutcomeID        string
-	Title            string
-	Brief            string
-	DependsOn        []string
-	RequestedHarness AgentHarness
-	AssignedHarness  AgentHarness
-	SessionID        SessionID
-	Status           OutcomeTaskStatus
-}
-
-// OutcomeTaskStatus is the durable execution state of one outcome task.
-type OutcomeTaskStatus string
-
-const (
-	// OutcomeTaskStatusPlanned is a task that has not begun execution.
-	OutcomeTaskStatusPlanned OutcomeTaskStatus = "planned"
-	// OutcomeTaskStatusRunning is a task with active execution work.
-	OutcomeTaskStatusRunning OutcomeTaskStatus = "running"
-	// OutcomeTaskStatusBlocked is a task waiting on an input or dependency.
-	OutcomeTaskStatusBlocked OutcomeTaskStatus = "blocked"
-	// OutcomeTaskStatusDone is a task whose work has finished.
-	OutcomeTaskStatusDone OutcomeTaskStatus = "done"
-)
-
-// Valid reports whether s is a recognized durable outcome-task state.
-func (s OutcomeTaskStatus) Valid() bool {
-	switch s {
-	case OutcomeTaskStatusPlanned, OutcomeTaskStatusRunning, OutcomeTaskStatusBlocked, OutcomeTaskStatusDone:
-		return true
-	default:
-		return false
-	}
-}
-
-// Validate checks only intrinsic outcome invariants. Dependency and harness
-// placement validation belongs to the planning service, where the whole task
-// graph and runtime availability are visible.
+// Validate checks intrinsic outcome invariants.
 func (o Outcome) Validate() error {
-	if strings.TrimSpace(o.ID) == "" {
+	if o.ID.IsZero() {
 		return fmt.Errorf("outcome id is required")
 	}
-	if strings.TrimSpace(string(o.ProjectID)) == "" {
-		return fmt.Errorf("outcome project id is required")
+	if o.SpaceID.IsZero() {
+		return fmt.Errorf("outcome responsibility space id is required")
 	}
 	if strings.TrimSpace(o.Title) == "" {
 		return fmt.Errorf("outcome title is required")
 	}
-	if strings.TrimSpace(o.Definition) == "" {
-		return fmt.Errorf("outcome definition is required")
+	if o.CurrentRevisionNumber < 0 {
+		return fmt.Errorf("outcome current revision number must not be negative")
 	}
-	if !o.Status.Valid() {
-		return fmt.Errorf("invalid outcome status %q", o.Status)
+	return nil
+}
+
+// ContractRevision is one immutable statement of what an Outcome means: its
+// goal, the success criteria that later bind Evidence and Verification, how the
+// result will be reviewed, and optional constraints/non-goals plus the single
+// material clarification captured during Understand in v0.
+//
+// Revisions are append-only. A new revision supersedes its predecessor and
+// invalidates plans, grants, Evidence, and Verification bound to earlier
+// revisions; prior revisions remain readable history and are never updated in
+// place.
+type ContractRevision struct {
+	ID              ContractRevisionID
+	OutcomeID       OutcomeID
+	Number          int64
+	Goal            string
+	SuccessCriteria []string
+	Review          string
+	Constraints     []string
+	NonGoals        []string
+	Clarification   string
+	CreatedAt       time.Time
+}
+
+// Validate checks intrinsic revision invariants. Revision-number uniqueness
+// per Outcome is enforced by storage alongside immutability.
+func (r ContractRevision) Validate() error {
+	if r.ID.IsZero() {
+		return fmt.Errorf("contract revision id is required")
+	}
+	if r.OutcomeID.IsZero() {
+		return fmt.Errorf("contract revision outcome id is required")
+	}
+	if r.Number < 1 {
+		return fmt.Errorf("contract revision number must be at least 1")
+	}
+	if strings.TrimSpace(r.Goal) == "" {
+		return fmt.Errorf("contract revision goal is required")
+	}
+	if len(r.SuccessCriteria) == 0 {
+		return fmt.Errorf("contract revision requires at least one success criterion")
+	}
+	for i, criterion := range r.SuccessCriteria {
+		if strings.TrimSpace(criterion) == "" {
+			return fmt.Errorf("success criterion %d is blank", i+1)
+		}
+	}
+	if strings.TrimSpace(r.Review) == "" {
+		return fmt.Errorf("contract revision review is required")
 	}
 	return nil
 }

@@ -12,6 +12,8 @@ import (
 	agentsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/agent"
 	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
 	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
+
+	outcomevc "github.com/aoagents/agent-orchestrator/backend/internal/service/outcome"
 )
 
 // HTTP response envelopes for the projects surface — the SINGLE definition of
@@ -1862,4 +1864,100 @@ type MuteDeviceRequest struct {
 // routes.
 type InstallIDParam struct {
 	InstallID string `path:"installId" description:"The device's stable install id."`
+}
+
+// OutcomeIDParam is the {outcomeId} path parameter shared by the /outcomes routes.
+type OutcomeIDParam struct {
+	OutcomeID string `path:"outcomeId" description:"Outcome identifier, e.g. out-<uuid>."`
+}
+
+// CreateOutcomeRequest is the body for POST /projects/{id}/outcomes.
+type CreateOutcomeRequest struct {
+	Title           string   `json:"title"`
+	Goal            string   `json:"goal"`
+	SuccessCriteria []string `json:"successCriteria"`
+	Review          string   `json:"review"`
+	Constraints     []string `json:"constraints,omitempty"`
+	NonGoals        []string `json:"nonGoals,omitempty"`
+	Clarification   string   `json:"clarification,omitempty"`
+	RequestKey      string   `json:"requestKey"`
+}
+
+// ReviseOutcomeContractRequest is the body for POST
+// /outcomes/{outcomeId}/revisions. ExpectedRevision must name the current
+// contract revision; anything else is a 409 conflict.
+type ReviseOutcomeContractRequest struct {
+	ExpectedRevision int64    `json:"expectedRevision"`
+	Goal             string   `json:"goal"`
+	SuccessCriteria  []string `json:"successCriteria"`
+	Review           string   `json:"review"`
+	Constraints      []string `json:"constraints,omitempty"`
+	NonGoals         []string `json:"nonGoals,omitempty"`
+	Clarification    string   `json:"clarification,omitempty"`
+}
+
+// ContractRevisionResponse is one immutable contract revision.
+type ContractRevisionResponse struct {
+	ID              string    `json:"id"`
+	Number          int64     `json:"number"`
+	Goal            string    `json:"goal"`
+	SuccessCriteria []string  `json:"successCriteria"`
+	Review          string    `json:"review"`
+	Constraints     []string  `json:"constraints"`
+	NonGoals        []string  `json:"nonGoals"`
+	Clarification   string    `json:"clarification,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
+// OutcomeResponse is the canonical Outcome read model: durable facts plus the
+// full immutable revision history. Stage labels are derived by callers.
+type OutcomeResponse struct {
+	ID                    string                     `json:"id"`
+	SpaceID               string                     `json:"spaceId"`
+	Title                 string                     `json:"title"`
+	CurrentRevisionNumber int64                      `json:"currentRevisionNumber"`
+	Current               ContractRevisionResponse   `json:"currentRevision"`
+	History               []ContractRevisionResponse `json:"history"`
+	CreatedAt             time.Time                  `json:"createdAt"`
+	UpdatedAt             time.Time                  `json:"updatedAt"`
+}
+
+// OutcomeEnvelope is the { outcome } response body for Outcome reads and writes.
+type OutcomeEnvelope struct {
+	Outcome OutcomeResponse `json:"outcome"`
+}
+
+func contractRevisionResponse(rev domain.ContractRevision) ContractRevisionResponse {
+	return ContractRevisionResponse{
+		ID:              string(rev.ID),
+		Number:          rev.Number,
+		Goal:            rev.Goal,
+		SuccessCriteria: rev.SuccessCriteria,
+		Review:          rev.Review,
+		Constraints:     rev.Constraints,
+		NonGoals:        rev.NonGoals,
+		Clarification:   rev.Clarification,
+		CreatedAt:       rev.CreatedAt,
+	}
+}
+
+func outcomeResponse(view outcomevc.OutcomeView) OutcomeResponse {
+	history := make([]ContractRevisionResponse, 0, len(view.History))
+	for _, rev := range view.History {
+		history = append(history, contractRevisionResponse(rev))
+	}
+	resp := OutcomeResponse{
+		ID:                    string(view.Outcome.ID),
+		SpaceID:               string(view.Outcome.SpaceID),
+		Title:                 view.Outcome.Title,
+		CurrentRevisionNumber: view.Outcome.CurrentRevisionNumber,
+		Current:               contractRevisionResponse(view.Current),
+		History:               history,
+		CreatedAt:             view.Outcome.CreatedAt,
+		UpdatedAt:             view.Outcome.UpdatedAt,
+	}
+	if resp.History == nil {
+		resp.History = []ContractRevisionResponse{}
+	}
+	return resp
 }
