@@ -1542,6 +1542,8 @@
 	"home.visual.catchUp.userStatement": "User statement",
 	"home.visual.keep": "Keep",
 	"home.visual.navigation.label": "Home destinations",
+	"home.visual.navigation.continuity": "Review and continuity",
+	"home.visual.navigation.primary": "Primary Home destinations",
 	"home.visual.navigation.today": "Today",
 	"home.visual.offline.description": "Explicit Quick Capture remains available, but this preview will not invent a brief or attention state from missing facts.",
 	"home.visual.offline.title": "Confirmed Home context is not available right now",
