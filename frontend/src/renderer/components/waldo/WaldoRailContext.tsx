@@ -12,6 +12,20 @@ import {
 } from "react";
 import { matchesRendererShortcut } from "../../stores/keybindings-store";
 
+export type WaldoPreviewMode = "conversation" | "activity";
+export type WaldoPreviewEpisode = "fresh" | "contextual" | "returning";
+
+export type WaldoConversationState = {
+  contextDetached: boolean;
+  draft: string;
+  episode: WaldoPreviewEpisode;
+  mode: WaldoPreviewMode;
+  selectEpisode: (episode: WaldoPreviewEpisode) => void;
+  setContextDetached: (detached: boolean) => void;
+  setDraft: (draft: string) => void;
+  setMode: (mode: WaldoPreviewMode) => void;
+};
+
 type WaldoRailContextValue = {
   isOpen: boolean;
   launcherRef: RefObject<HTMLButtonElement | null>;
@@ -20,6 +34,9 @@ type WaldoRailContextValue = {
   toggle: (origin?: HTMLElement | null) => void;
   approvalActive: boolean;
   setApprovalActive: (active: boolean) => void;
+  /** Shared relationship state. Presentation components may fall back to local
+   * state when rendered outside the shell provider in isolated tests. */
+  conversation?: WaldoConversationState;
 };
 
 const fallbackLauncherRef = createRef<HTMLButtonElement>();
@@ -39,6 +56,10 @@ const WaldoRailContext = createContext<WaldoRailContextValue>(fallbackValue);
 export function WaldoRailProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [approvalActive, setApprovalActive] = useState(false);
+  const [mode, setMode] = useState<WaldoPreviewMode>("conversation");
+  const [episode, setEpisode] = useState<WaldoPreviewEpisode>("contextual");
+  const [contextDetached, setContextDetached] = useState(false);
+  const [draft, setDraft] = useState("");
   const invocationOriginRef = useRef<HTMLElement | null>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
 
@@ -70,6 +91,11 @@ export function WaldoRailProvider({ children }: { children: ReactNode }) {
     [close, isOpen, open],
   );
 
+  const selectEpisode = useCallback((nextEpisode: WaldoPreviewEpisode) => {
+    setEpisode(nextEpisode);
+    setContextDetached(false);
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -85,13 +111,23 @@ export function WaldoRailProvider({ children }: { children: ReactNode }) {
     () => ({
       approvalActive,
       close,
+      conversation: {
+        contextDetached,
+        draft,
+        episode,
+        mode,
+        selectEpisode,
+        setContextDetached,
+        setDraft,
+        setMode,
+      },
       isOpen,
       launcherRef,
       open,
       setApprovalActive,
       toggle,
     }),
-    [approvalActive, close, isOpen, open, toggle],
+    [approvalActive, close, contextDetached, draft, episode, isOpen, mode, open, selectEpisode, toggle],
   );
 
   return <WaldoRailContext.Provider value={value}>{children}</WaldoRailContext.Provider>;

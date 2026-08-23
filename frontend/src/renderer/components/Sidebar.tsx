@@ -159,13 +159,15 @@ function useSelection() {
 		homeDestination: (
 			pathname === "/home"
 				? "today"
-				: pathname === "/home/open-loops"
-					? "open_loops"
-					: pathname === "/home/memory"
-						? "memory"
-						: pathname === "/home/daily-close"
-							? "daily_close"
-							: "history") as HomeDestination,
+				: pathname === "/home/chat"
+					? "chat"
+					: pathname === "/home/open-loops"
+						? "open_loops"
+						: pathname === "/home/memory"
+							? "memory"
+							: pathname === "/home/daily-close"
+								? "daily_close"
+								: "history") as HomeDestination,
 		activeProjectId: params.projectId,
 		activeSessionId: params.sessionId,
 		goWork: () => void navigate({ to: "/" }),

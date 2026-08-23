@@ -765,7 +765,7 @@ function ShellLayout() {
 						} as CSSProperties
 					}
 				>
-				<div className="flex min-h-0 w-full flex-1 overflow-x-hidden" data-testid="shell-content-row">
+				<div className="relative flex min-h-0 w-full flex-1 overflow-x-hidden" data-testid="shell-content-row">
 				{/* macOS + Linux reserve a titlebar band for the fixed TitlebarNav
               cluster above a full-height sidebar; Windows hangs the sidebar
               below its custom titlebar. */}
@@ -783,8 +783,8 @@ function ShellLayout() {
 						workspaces={workspaces}
 					/>
 					<main
-						className={cn(
-							"relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
+					className={cn(
+							"global-mode-switch-responsive-main relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
 							// The Figma board routes paint their own full-bleed shell, so the
 							// collapsed-sidebar inset that every other route needs would double
 							// up on them — hence the route guard alongside beta's launcher pad.
@@ -828,11 +828,6 @@ function ShellLayout() {
 						</CenterPanelShell>
 							)}
 						</div>
-						{/* Electron composes drag/no-drag regions in DOM order. This control
-						    must follow route-owned titlebars so Work cannot swallow its clicks. */}
-						<div className="pointer-events-none absolute left-1/2 top-1.5 z-titlebar -translate-x-1/2">
-							<HomeWorkModeSwitch />
-						</div>
 						<div className="pointer-events-none absolute right-2 top-1.5 z-titlebar">
 							<WaldoLauncher className="pointer-events-auto" />
 						</div>
@@ -846,6 +841,13 @@ function ShellLayout() {
 							/>
 						) : null}
 					</main>
+					{/* Center the global mode control in the whole app window, not the
+					    Work center pane. Keeping it outside <main> prevents it from landing
+					    directly over session-tab actions such as New terminal. It still
+					    follows route-owned drag strips so Electron retains its no-drag holes. */}
+					<div className="pointer-events-none absolute left-1/2 top-1.5 z-titlebar -translate-x-1/2">
+						<HomeWorkModeSwitch />
+					</div>
 					</div>
 					<DaemonFailureBanner status={daemonStatus} />
 					{/* When ShellTopbar is hidden, keep a macOS window-drag strip over

@@ -297,7 +297,7 @@ describe("Sidebar", () => {
 		const continuity = within(navigation).getByRole("group", { name: "Review and continuity" });
 		expect(within(continuity).getByRole("link", { name: "Daily Close" })).toBeInTheDocument();
 		expect(within(continuity).getByRole("link", { name: "Memory Review" })).toBeInTheDocument();
-		expect(within(continuity).getByRole("link", { name: "History" })).toBeInTheDocument();
+		expect(within(continuity).getByRole("link", { name: "Insights" })).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Search" })).not.toBeInTheDocument();
 		expect(screen.queryByText("Projects")).not.toBeInTheDocument();
 		expect(screen.queryByText("Project One")).not.toBeInTheDocument();

@@ -8,6 +8,7 @@ import {
 
 export type HomeDestination =
   | "today"
+  | "chat"
   | "open_loops"
   | "memory"
   | "daily_close"
@@ -69,6 +70,19 @@ export type HomeContinuityEvent = {
   detail: string;
   sourceSummary: string;
   boundary: string;
+};
+
+export type HomeInsightCandidate = {
+  id: string;
+  title: string;
+  observation: string;
+  sourceWindow: string;
+  freshness: string;
+  gaps: string;
+  whyItMayMatter: string;
+  inferenceBoundary: string;
+  providerDisclosure: string;
+  suggestedJudgment: string;
 };
 
 export type HomeBriefItem = {
@@ -150,6 +164,7 @@ export type HomeFixtureState = {
   readyToClose: number;
   openLoops: HomeOpenLoopFixture[];
   continuity: HomeContinuityEvent[];
+  insights: HomeInsightCandidate[];
   nextThing: HomeNextThingFixture;
   planChange: HomePlanChangeFixture;
   closureReview: HomeClosureReview;
@@ -209,6 +224,26 @@ const openLoops: HomeOpenLoopFixture[] = [
   deckOpenLoop,
   vendorOpenLoop,
   workshopOpenLoop,
+];
+
+const insightCandidates: HomeInsightCandidate[] = [
+  {
+    id: "protect-focus-before-workshop",
+    title: "A short focus block may be worth protecting before the workshop",
+    observation:
+      "The calendar moved the pricing workshop to 4:30 PM, and the corrected deck responsibility remains open.",
+    sourceWindow: "Calendar change and user-corrected meeting note · today, 3:31–3:42 PM",
+    freshness: "Observed today · source window complete",
+    gaps:
+      "No direct evidence says how the open block should be used or whether uninterrupted focus is available.",
+    whyItMayMatter:
+      "This may help you decide whether to use the open block for the deck revision or leave it intentionally uncommitted.",
+    inferenceBoundary:
+      "Waldo observed schedule and responsibility facts. It did not infer focus, mood, intent, productivity, or a new commitment.",
+    providerDisclosure:
+      "Synthesized by a deterministic Waldo UI fixture · no model or provider invoked.",
+    suggestedJudgment: "Decide whether this is useful context for Today; do not create a responsibility automatically.",
+  },
 ];
 
 const phaseBriefs: Record<
@@ -335,6 +370,7 @@ export function homeFixture(
         boundary: "The re-entry is not saved outside this preview.",
       },
     ],
+    insights: insightCandidates,
     nextThing: {
       title: "Pricing workshop",
       startsAt: "4:30 PM · in 52 minutes",

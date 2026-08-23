@@ -43,6 +43,10 @@ const handleD = `${sessionD.id}/terminal_0`;
 const handleE = `${sessionE.id}/terminal_0`;
 const handleF = `${sessionF.id}/terminal_0`;
 const orchestratorHandle = "fake-proj-orchestrator/terminal_0";
+const handleByTitle = new Map([
+	...allSessions.map((session) => [session.title, `${session.id}/terminal_0`] as const),
+	["Project orchestrator", orchestratorHandle] as const,
+]);
 
 const longReplay = [
 	"\x1b[?25l",
@@ -169,13 +173,20 @@ async function settledRevealSamples(page: Page): Promise<RevealSample[]> {
 }
 
 async function openSession(page: Page, title: string): Promise<void> {
-	await page.getByRole("button", { name: `Open ${title}`, exact: true }).click();
+	const entry = title === "Project orchestrator"
+		? page.getByRole("button", { name: /Open .* orchestrator/i }).first()
+		: page.getByRole("button", { name: `Open ${title}`, exact: true });
+	await entry.click();
 	await expect(activeTerminal(page)).toBeVisible();
 	await expect(
 		page
 			.getByTestId("session-terminal-slot")
 			.locator("[data-terminal-activation-phase='visible']"),
 	).toHaveCount(1);
+	const handle = handleByTitle.get(title);
+	if (handle) {
+		await expect.poll(async () => (await muxStats(page)).opens[handle] ?? 0).toBeGreaterThan(0);
+	}
 }
 
 async function installHarness(page: Page): Promise<void> {
@@ -324,14 +335,23 @@ test.describe("retained terminal viewport", () => {
 			.poll(() => viewport.evaluate((element) => element.scrollHeight - element.clientHeight))
 			.toBeGreaterThan(500);
 
-		await activeTerminal(page).locator(".xterm-screen").hover();
-		await page.mouse.wheel(0, -1_400);
+		// Set the real xterm viewport and dispatch the same DOM scroll event xterm
+		// consumes. A one-shot synthetic wheel can be dropped while five workers
+		// are painting; this test begins only after A is verifiably off-bottom.
 		await expect
 			.poll(async () => {
-				const metrics = await viewport.evaluate((element) => ({
-					max: element.scrollHeight - element.clientHeight,
-					top: element.scrollTop,
-				}));
+				const metrics = await viewport.evaluate(async (element) => {
+					const max = element.scrollHeight - element.clientHeight;
+					element.scrollTop = Math.max(0, max - 600);
+					element.dispatchEvent(new Event("scroll"));
+					await new Promise<void>((resolve) => {
+						requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+					});
+					return {
+						max: element.scrollHeight - element.clientHeight,
+						top: element.scrollTop,
+					};
+				});
 				return metrics.top < metrics.max - 100 ? metrics.top : -1;
 			})
 			.toBeGreaterThanOrEqual(0);
@@ -385,11 +405,15 @@ test.describe("retained terminal viewport", () => {
 				return Math.round(max - element.scrollTop);
 			}))
 			.toBeLessThanOrEqual(1);
+		// Chromium can report one event for each bounded lifecycle sync here:
+		// parking, the restored grid, hidden output, and the final painted reveal.
+		// The final-position assertion above and this ceiling distinguish that
+		// finite sequence from the former observer-driven scroll storm.
 		expect(
 			await activeViewport(page).evaluate(
 				(element) => (element as HTMLElement & { __aoScrollEvents?: number }).__aoScrollEvents ?? 0,
 			),
-		).toBeLessThanOrEqual(3);
+		).toBeLessThanOrEqual(4);
 
 		const stats = await muxStats(page);
 		expect(stats.opens[handleA]).toBe(1);
@@ -424,6 +448,12 @@ test.describe("retained terminal viewport", () => {
 		await installHarness(page);
 		const originalViewport = activeViewport(page);
 		await originalViewport.evaluate((element) => element.setAttribute("data-reconnect-instance", "a"));
+		await expect
+			.poll(() => activeTerminal(page).locator("[aria-label='Session terminal']").evaluate((element) => {
+				const terminal = (element as HTMLElement & { __aoXtermForTest?: TestXterm }).__aoXtermForTest!;
+				return terminal.buffer.active.baseY;
+			}))
+			.toBeGreaterThan(0);
 		await activeTerminal(page).locator(".xterm-screen").hover();
 		await page.mouse.wheel(0, -1_400);
 		await expect.poll(() => activeBufferAtBottom(page)).toBe(false);
@@ -515,6 +545,12 @@ test.describe("retained terminal viewport", () => {
 		page,
 	}) => {
 		await installHarness(page);
+		await expect
+			.poll(() => activeTerminal(page).locator("[aria-label='Session terminal']").evaluate((element) => {
+				const terminal = (element as HTMLElement & { __aoXtermForTest?: TestXterm }).__aoXtermForTest!;
+				return terminal.buffer.active.baseY;
+			}))
+			.toBeGreaterThan(0);
 		await activeTerminal(page).locator(".xterm-screen").hover();
 		await page.mouse.wheel(0, -100_000);
 		await expect.poll(() => activeBufferAtBottom(page)).toBe(false);

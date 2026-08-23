@@ -2,13 +2,17 @@
 
 **Date:** 2026-08-23
 
-**Status:** Proposed completion boundary after the Personal Agency rail checkpoint
+**Status:** Approved incremental completion boundary after the Personal Agency rail checkpoint; implementation remains local
+
+**Landed baseline:** `origin/beta` at `917dbe65c` (PR #52 squash merge; tree `795b9cf8d9fcd648b3957164bf87e518a5ab9f86`)
 
 **Scope:** Kennel desktop renderer, product information architecture, and truthful preview seams
 
 ## Current
 
 The stacked renderer now has a global Waldo relationship across Home and Work, a Home/Work switch, Home Today and continuity destinations, Conversation and Activity rail modes, contextual episodes, detachable context, structured semantic cards, bounded-run inspection, responsive behavior, keyboard access, and canonical no-preview honesty.
+
+That checkpoint landed with a broken broad regression foundation: the fresh beta baseline had 33 passing and 35 failing Playwright cases despite the unit, typecheck, build, and package-identity gates passing. Local P0 diagnosis and TDD repair first restored all 69 existing Playwright cases; the completed preview surfaces now produce 73 passing cases. Source regressions were the centered Home/Work switch intercepting Work titlebar controls, the Inspector's 280px clamp violating the established 350px contract, chat-pane horizontal overflow, and the board's missing New terminal action. Harness regressions were the obsolete `window.ao` bridge key, missing onboarding completion, unserved agent-catalog requests, and terminal tests racing terminal-mux attach/replay. The remaining clusters were stale routes, fixture names, accessible roles, labels, or exact state assumptions; those assertions were updated only after the rendered product contract was inspected. Terminal retention also needed its lifecycle waits restored and its finite Chromium scroll-event ceiling clarified. The same full gate is now green; physical macOS verification remains outstanding because the current desktop session is locked and no credential or unlock interaction is authorized.
 
 The remaining surface is split across two partially reconciled models:
 
@@ -55,6 +59,7 @@ Each item exposes:
 - source events and their freshness;
 - whether the statement is `Noticed`, `Candidate`, `Confirmed`, `Corrected`, or `Dismissed`;
 - what is directly observed versus inferred;
+- known gaps and the synthesis/provider route;
 - `Confirm`, `Correct`, `Dismiss`, and `Why this?` controls in preview;
 - optional routing to an Open Loop, Memory proposal, or bounded experiment;
 - the underlying continuity/evidence record.
@@ -67,6 +72,16 @@ No Insight may infer mood, personality, health status, commitment, or outcome fr
 
 Specialists are subordinate, explicit profiles with a purpose, permitted sources/tools, authority ceiling, and revoke path. They appear in Work, Settings, and bounded Waldo delegation cards. A compact Home shortcut may be added only after the user creates or pins one. Waldo remains responsible for coordination and return-path presentation.
 
+## Installed specialist benchmark decision
+
+The local 2026-08-23 public-UI/accessibility audit of `/Applications/Grok Bot.app` is the primary specialist benchmark; the running Hermes desktop app is secondary. No application database, credentials, provider state, private API, network payload, DevTools state, message send, creation flow, or setting mutation was used.
+
+- **Adopt from Grok Bot:** compact specialist discovery, explicit `New Bot` versus `New Channel`, cross-surface search, structured conversation cards, stale/offline recovery, attachment/voice affordances, and an inspectable computer/evidence entry.
+- **Adapt from Grok Bot:** a bot becomes a preview-only scoped specialist under Waldo Activity; approvals must name action, scope, consequence, and recovery; secure connection input remains unavailable until native custody exists.
+- **Adopt from Hermes:** explicit profile/session boundaries, searchable capability configuration, lifecycle copy such as “applies to new sessions,” safety controls, queue/steer/cancel grammar, and discoverable shortcuts.
+- **Adapt from Hermes:** profiles require purpose, scope, authority ceiling, budget, evidence, revoke/pause, completion condition, and return destination. Skills, Tools, MCP, provider, model, and persona vocabulary remain inspectable configuration rather than Home navigation.
+- **Reject from both:** peer personal-agent identities, plugin/capability sprawl as the everyday product, automatic durable memory, unlabeled progress counters, and configuration success presented as verified work.
+
 ## Completion criteria
 
 1. The desktop shows Waldo product branding and Kennel harness wording; no user-visible AO asset or copy remains.
@@ -74,16 +89,19 @@ Specialists are subordinate, explicit profiles with a purpose, permitted sources
 3. `Insights` replaces `History` in Home navigation and renders source-backed, correctable preview candidates; continuity records remain available underneath it.
 4. `Chat` is an explicit Home destination that shares the global Waldo relationship and does not fork conversation state.
 5. Specialists are user-created scoped profiles coordinated by Waldo, not a peer personal-agent roster.
-6. Wide and narrow layouts preserve internal scrolling, no horizontal overflow, Back behavior, Work Inspector return, keyboard access, and focus restoration.
+6. Wide and narrow layouts preserve internal scrolling, no horizontal overflow, Back behavior, Work Inspector return, keyboard access, focus restoration, pointer reachability, context-menu actions, and reduced-motion behavior.
 7. Without an explicit preview seam, canonical desktop shows no plausible messages, insights, runs, progress, or outcomes.
 8. Renderer controls remain thin and local until durable API, persistence, provider, approval, run, evidence, and verification contracts exist.
 
 ## Gaps
 
+- **Regression foundation:** the landed 33/35 gate is classified and restored; the completed local surface runs 73/0. The remaining P0 work is physical macOS interaction verification and any source issue that evidence reveals there.
+- **macOS interaction grammar:** automated coverage now proves browser-style Back/Forward, draft-safe navigation, focus restoration, keyboard tab switching, pointer reachability, internal scrolling, responsive overflow, and Reduce Motion rendering. Native menus, secondary click, trackpad gestures, Full Keyboard Access, VoiceOver order/announcements, and inactive-window legibility still need physical verification after the desktop session is unlocked.
+- **Responsive composition:** Playwright proves the supported 960px minimum and 1512px wide layouts for Home, Chat, Waldo Activity, Insights/Records, specialist creation, Work controls, Inspector width, scrolling, and horizontal overflow. Short, medium, and ultrawide physical window inspection remains outstanding.
 - **Brand layer:** Figma mark, launcher, sidebar, startup, app, and tray assets are being reconciled; visible AO copy requires a catalog/runtime sweep.
-- **Insights:** current History implementation stores evidence but has no synthesis candidate model, source window, correction workflow, or honest empty state.
-- **Chat:** the rail exists, but Home has no dedicated reading destination or shared presentation contract.
-- **Specialists:** Work has provider/runtime agents, but there is no Personal Agency `AgentProfile` contract, creation flow, authority ceiling, or revoke lifecycle.
+- **Insights:** the local preview now supplies source-window candidates, observation/inference boundaries, known gaps, an explicit deterministic-fixture/no-provider disclosure, Confirm/Correct/Dismiss/Why review, an honest unconfigured state, and nested Records. No durable synthesis contract exists.
+- **Chat:** Home now has a dedicated destination sharing Waldo mode, episode, attached-context state, and unsent draft with the global rail. No message transport or durable transcript exists.
+- **Specialists:** Waldo Activity now has one preview-only governed creation/profile surface with purpose, explicit scope, sources/tools, authority ceiling, budget, completion, evidence, return destination, pause, and revoke. No durable `AgentProfile`, capability connection, execution, or pinning exists.
 - **Runtime truth:** preview controls cannot send, save, approve, execute, or verify.
 - **Persistence:** conversation episodes, attached context, insights, responsibilities, runs, approvals, evidence, and outcomes have no durable Personal Agency storage/API.
 - **Connection:** there is no provider-neutral secure connection flow or Keychain-backed credential boundary.
@@ -94,4 +112,4 @@ The product surface is not complete if it merely looks populated: no plausible d
 
 ## Product decision
 
-Adopt the requested dedicated Home Chat and specialist capability with one adjustment: specialists are coordinated workers under Waldo, not a competing sidebar of personal-agent identities. This preserves the approved one-Waldo relationship while supporting Hermes/Grokbot-style custom capability profiles.
+Proceed in this approved order: restore the responsive/macOS interaction foundation and broad regression gate; add dedicated Home Chat using the same Waldo relationship; replace visible History with truthful preview Insights plus Records; then add Grok Bot-informed, Hermes-governed preview specialists under Waldo Activity. Specialists are coordinated workers under Waldo, not a competing sidebar of personal-agent identities.

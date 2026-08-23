@@ -29,7 +29,7 @@ test("afternoon Today recalibrates before the next commitment", async ({ page })
 	await expect(page.getByPlaceholder("Note what changed…")).toBeVisible();
 });
 
-test("evening Today reaches a truthful Daily Close receipt and History", async ({ page }) => {
+test("evening Today reaches a truthful Daily Close receipt and Insights", async ({ page }) => {
 	await page.goto("/#/home?homePhase=evening&homeContext=evening_review");
 
 	await expect(page.getByRole("heading", { name: "Good evening, Shivansh." })).toBeVisible();
@@ -38,8 +38,8 @@ test("evening Today reaches a truthful Daily Close receipt and History", async (
 	await page.getByRole("button", { name: "Review complete — preview Daily Close" }).click();
 	await expect(page.getByRole("heading", { name: "Daily Close preview" })).toBeVisible();
 	await expect(page.getByText("Preview receipt — nothing was saved or closed")).toBeVisible();
-	await page.getByRole("link", { name: "Inspect History" }).click();
-	await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
+	await page.getByRole("link", { name: "Inspect Insights" }).click();
+	await expect(page.getByRole("heading", { name: "Insights" })).toBeVisible();
 });
 
 test("Open Loops explains responsibility and keeps Work handoff preview-only", async ({ page }) => {

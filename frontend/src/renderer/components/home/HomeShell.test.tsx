@@ -70,7 +70,7 @@ describe("HomeShell", () => {
     await user.click(screen.getByRole("button", { name: "Open Waldo" }));
 
     expect(screen.getByRole("region", { name: "Waldo" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "History" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Insights" })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Quick Capture" })).not.toBeInTheDocument();
   });
 
@@ -287,7 +287,7 @@ describe("HomeShell", () => {
     ["open_loops", "Open Loops"],
     ["memory", "Memory Review"],
     ["daily_close", "Daily Close"],
-    ["history", "History"],
+    ["history", "Insights"],
   ] as const)(
     "renders the %s destination without repeating Quick Capture",
     (destination, heading) => {
@@ -334,14 +334,17 @@ describe("HomeShell", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders History as continuity decisions rather than activity scoring", () => {
+  it("keeps continuity Records underneath Insights rather than activity scoring", async () => {
+    const user = userEvent.setup();
     render(
       <HomeShell
         destination="history"
         fixture={homeFixture("history")}
+        previewEnabled
       />,
     );
 
+    await user.click(screen.getByRole("tab", { name: "Records" }));
     const history = screen.getByRole("list", { name: "Continuity history" });
     expect(within(history).getByText("User correction recorded")).toBeInTheDocument();
     expect(within(history).getByText("Work link proposed")).toBeInTheDocument();

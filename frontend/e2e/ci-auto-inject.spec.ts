@@ -13,11 +13,13 @@ test("CI auto-injection policy is visible before a PR exists", async ({ page }) 
 	await expect(toggle).not.toBeChecked();
 });
 
-test("a failing PR captured with injection disabled keeps its checks visible", async ({ page }) => {
+test("a failing PR captured with injection disabled keeps its failure summary and policy visible", async ({ page }) => {
 	await page.goto("/#/projects/ao-demo/sessions/demo-ci-failed");
 
 	const inspector = page.locator("#inspector");
 	await expect(inspector.getByRole("switch", { name: "Automatically send CI failures" })).not.toBeChecked();
-	await expect(inspector.getByText("CI failures not injected")).toBeVisible();
-	await expect(inspector.getByText("renderer smoke", { exact: true })).toBeVisible();
+	await expect(inspector.getByRole("link", { name: "Checks failing" })).toBeVisible();
+	await expect(
+		inspector.getByRole("button", { name: /When disabled, CI failures are not sent/ }),
+	).toBeVisible();
 });

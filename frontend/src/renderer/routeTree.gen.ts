@@ -21,6 +21,7 @@ import { Route as ShellHomeOpenLoopsRouteImport } from './routes/_shell.home_.op
 import { Route as ShellHomeMemoryRouteImport } from './routes/_shell.home_.memory'
 import { Route as ShellHomeHistoryRouteImport } from './routes/_shell.home_.history'
 import { Route as ShellHomeDailyCloseRouteImport } from './routes/_shell.home_.daily-close'
+import { Route as ShellHomeChatRouteImport } from './routes/_shell.home_.chat'
 import { Route as ShellProjectsProjectIdSettingsRouteImport } from './routes/_shell.projects.$projectId_.settings'
 import { Route as ShellProjectsProjectIdSessionsSessionIdRouteImport } from './routes/_shell.projects.$projectId_.sessions.$sessionId'
 
@@ -83,6 +84,11 @@ const ShellHomeDailyCloseRoute = ShellHomeDailyCloseRouteImport.update({
   path: '/home/daily-close',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellHomeChatRoute = ShellHomeChatRouteImport.update({
+  id: '/home_/chat',
+  path: '/home/chat',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellProjectsProjectIdSettingsRoute =
   ShellProjectsProjectIdSettingsRouteImport.update({
     id: '/projects/$projectId_/settings',
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof ShellSettingsRoute
   '/terminals': typeof ShellTerminalsRoute
   '/work': typeof ShellWorkRoute
+  '/home/chat': typeof ShellHomeChatRoute
   '/home/daily-close': typeof ShellHomeDailyCloseRoute
   '/home/history': typeof ShellHomeHistoryRoute
   '/home/memory': typeof ShellHomeMemoryRoute
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/terminals': typeof ShellTerminalsRoute
   '/work': typeof ShellWorkRoute
   '/': typeof ShellIndexRoute
+  '/home/chat': typeof ShellHomeChatRoute
   '/home/daily-close': typeof ShellHomeDailyCloseRoute
   '/home/history': typeof ShellHomeHistoryRoute
   '/home/memory': typeof ShellHomeMemoryRoute
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/_shell/terminals': typeof ShellTerminalsRoute
   '/_shell/work': typeof ShellWorkRoute
   '/_shell/': typeof ShellIndexRoute
+  '/_shell/home_/chat': typeof ShellHomeChatRoute
   '/_shell/home_/daily-close': typeof ShellHomeDailyCloseRoute
   '/_shell/home_/history': typeof ShellHomeHistoryRoute
   '/_shell/home_/memory': typeof ShellHomeMemoryRoute
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terminals'
     | '/work'
+    | '/home/chat'
     | '/home/daily-close'
     | '/home/history'
     | '/home/memory'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/terminals'
     | '/work'
     | '/'
+    | '/home/chat'
     | '/home/daily-close'
     | '/home/history'
     | '/home/memory'
@@ -182,6 +193,7 @@ export interface FileRouteTypes {
     | '/_shell/terminals'
     | '/_shell/work'
     | '/_shell/'
+    | '/_shell/home_/chat'
     | '/_shell/home_/daily-close'
     | '/_shell/home_/history'
     | '/_shell/home_/memory'
@@ -282,6 +294,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellHomeDailyCloseRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/home_/chat': {
+      id: '/_shell/home_/chat'
+      path: '/home/chat'
+      fullPath: '/home/chat'
+      preLoaderRoute: typeof ShellHomeChatRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/projects/$projectId_/settings': {
       id: '/_shell/projects/$projectId_/settings'
       path: '/projects/$projectId/settings'
@@ -305,6 +324,7 @@ interface ShellRouteChildren {
   ShellTerminalsRoute: typeof ShellTerminalsRoute
   ShellWorkRoute: typeof ShellWorkRoute
   ShellIndexRoute: typeof ShellIndexRoute
+  ShellHomeChatRoute: typeof ShellHomeChatRoute
   ShellHomeDailyCloseRoute: typeof ShellHomeDailyCloseRoute
   ShellHomeHistoryRoute: typeof ShellHomeHistoryRoute
   ShellHomeMemoryRoute: typeof ShellHomeMemoryRoute
@@ -321,6 +341,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellTerminalsRoute: ShellTerminalsRoute,
   ShellWorkRoute: ShellWorkRoute,
   ShellIndexRoute: ShellIndexRoute,
+  ShellHomeChatRoute: ShellHomeChatRoute,
   ShellHomeDailyCloseRoute: ShellHomeDailyCloseRoute,
   ShellHomeHistoryRoute: ShellHomeHistoryRoute,
   ShellHomeMemoryRoute: ShellHomeMemoryRoute,

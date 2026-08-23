@@ -1,44 +1,22 @@
 import { expect, test } from "@playwright/test";
 
-// dev:web (VITE_NO_ELECTRON=1) serves lib/mock-data.ts, whose "stacked-auth"
-// session ("auth stack") owns three PRs — so the inspector's Reviews tab is
-// enabled. The tab fetches review runs and project config straight from the
-// daemon; dev:web has no daemon, so we stub those two routes to drive the
-// reviewer panel and prove it renders a real reviewer card (not the empty
-// "no PR yet" placeholder) once a session owns a PR.
+// dev:web (VITE_NO_ELECTRON=1) serves lib/mock-data.ts, whose "demo-review-stack"
+// session owns three PRs — so the inspector's Reviews tab is
+// enabled. Preview mode supplies deterministic review runs while the project
+// config still comes from the daemon, so we stub only that route and prove the
+// panel renders a real reviewer card (not the empty "no PR yet" placeholder).
 
 test("the Reviews tab renders the reviewer panel for a session that owns PRs", async ({ page }) => {
-	await page.route("**/api/v1/sessions/stacked-auth/reviews", (route) =>
-		route.fulfill({
-			json: {
-				reviewerHandleId: "reviewer-pane",
-				reviews: [
-					{
-						id: "run-1",
-						reviewId: "review-1",
-						sessionId: "stacked-auth",
-						harness: "codex",
-						status: "complete",
-						verdict: "approved",
-						body: "Looks good.",
-						prUrl: "https://github.com/me/api-gateway/pull/41",
-						targetSha: "abc123",
-						createdAt: new Date().toISOString(),
-					},
-				],
-			},
-		}),
-	);
-	await page.route("**/api/v1/projects/api-gateway", (route) =>
+	await page.route("**/api/v1/projects/ao-demo", (route) =>
 		route.fulfill({
 			json: {
 				status: "ok",
 				project: {
-					id: "api-gateway",
+					id: "ao-demo",
 					kind: "git",
-					name: "api-gateway",
-					path: "/Users/me/api-gateway",
-					repo: "api-gateway",
+					name: "ao-demo",
+					path: "/demo/ao-demo",
+					repo: "ao-demo",
 					defaultBranch: "main",
 					config: { reviewers: [{ harness: "codex" }] },
 				},
@@ -47,27 +25,31 @@ test("the Reviews tab renders the reviewer panel for a session that owns PRs", a
 	);
 
 	await page.goto("/");
-	await page.getByRole("button", { name: "Open auth stack" }).click();
-	await expect(page).toHaveURL(/sessions\/stacked-auth/);
+	await page.getByRole("button", { name: "Open Review stacked browser preview flow" }).click();
+	await expect(page).toHaveURL(/sessions\/demo-review-stack/);
 
 	const inspector = page.locator("#inspector");
 	await expect(inspector).toBeVisible();
 
 	await inspector.getByRole("tab", { name: "Reviews" }).click();
+	const prToggle = inspector.getByRole("button", { name: /Browser preview rail renders inside Kennel #319/ });
+	await prToggle.click();
+	const prCard = inspector.locator("article").filter({ hasText: "#319" });
 
-	// The reviewer card surfaces the harness, its approved verdict, and the rerun
-	// action — never the empty state, since this session owns a PR.
+	// The preview #319 review surfaces its harness, verdict, body, and
+	// rerun action — never the empty state, since this session owns a PR.
 	await expect(inspector.getByText("No pull request opened yet.")).toHaveCount(0);
-	await expect(inspector.getByText("codex")).toBeVisible();
-	await expect(inspector.getByText("Approved")).toBeVisible();
-	await expect(inspector.getByRole("button", { name: "Re-run review" })).toBeVisible();
+	await expect(prCard.getByText("codex", { exact: true })).toBeVisible();
+	await expect(prCard.getByText("Changes requested")).toBeVisible();
+	await expect(prCard.getByText(/Earlier codex pass asked for tests/)).toBeVisible();
+	await expect(inspector.getByRole("button", { name: "Review latest commit" })).toBeVisible();
 	await expect(inspector.getByRole("button", { name: "Open terminal" })).toHaveCount(0);
 });
 
 test("the Reviews tab shows the empty state for a session with no PRs", async ({ page }) => {
 	await page.goto("/");
-	await page.getByRole("button", { name: "Open Split terminal mux responsibilities" }).click();
-	await expect(page).toHaveURL(/sessions\/refactor-mux/);
+	await page.getByRole("button", { name: "Open Build screenshot-ready dashboard data" }).click();
+	await expect(page).toHaveURL(/sessions\/demo-working/);
 
 	const inspector = page.locator("#inspector");
 	await expect(inspector).toBeVisible();

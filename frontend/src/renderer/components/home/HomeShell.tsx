@@ -63,9 +63,11 @@ function HomeAvailabilityStatus({ fixture }: { fixture: HomeFixtureState }) {
 export function HomeShell({
   fixture = homeFixture("today"),
   destination = "today",
+  previewEnabled = usesWaldoUiPreview,
 }: {
   fixture?: HomeFixtureState;
   destination?: HomeDestination;
+  previewEnabled?: boolean;
 }) {
   const { t } = useTranslation();
   const waldo = useWaldoRail();
@@ -77,6 +79,7 @@ export function HomeShell({
   const focusContext = () => contextHeadingRef.current?.focus({ preventScroll: true });
   const destinationLabel: Record<HomeDestination, string> = {
     today: t("home.visual.navigation.today"),
+    chat: t("home.visual.navigation.chat"),
     open_loops: t("home.visual.openLoops.title"),
     daily_close: t("home.visual.dailyClose.title"),
     memory: t("home.visual.memory.title"),
@@ -132,7 +135,7 @@ export function HomeShell({
                 <WaldoRail
                   contextLabel={waldoContextLabel}
                   onClose={waldo.close}
-                  previewEnabled={usesWaldoUiPreview}
+                  previewEnabled={previewEnabled}
                 />
               ) : (
                 <HomeContextPanel
@@ -150,14 +153,14 @@ export function HomeShell({
             <div className="mx-auto flex w-full max-w-5xl flex-col gap-7">
               <HomeAvailabilityStatus fixture={fixture} />
               <p className="text-xs text-muted-foreground">{fixture.localDateLabel}</p>
-              <HomeDestinationView destination={destination} fixture={fixture} />
+              <HomeDestinationView destination={destination} fixture={fixture} previewEnabled={previewEnabled} />
             </div>
             {waldo.isOpen ? (
               <div className="waldo-home-layer">
                 <WaldoRail
                   contextLabel={waldoContextLabel}
                   onClose={waldo.close}
-                  previewEnabled={usesWaldoUiPreview}
+                  previewEnabled={previewEnabled}
                 />
               </div>
             ) : null}

@@ -166,7 +166,7 @@ test("renderer: board renders all status columns @T0 @BRD", async ({ page }) => 
 	await expect(page.locator('[data-testid="board-column"][data-column="working"]')).toContainText("Working");
 	await expect(page.locator('[data-testid="board-column"][data-column="action"]')).toContainText("Needs you");
 	await expect(page.locator('[data-testid="board-column"][data-column="pending"]')).toContainText("In review");
-	await expect(page.locator('[data-testid="board-column"][data-column="merge"]')).toContainText("Ready to merge");
+	await expect(page.locator('[data-testid="board-column"][data-column="merge"]')).toContainText("Ready/Merged");
 });
 
 // #2483 BRD-012.

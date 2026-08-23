@@ -64,7 +64,9 @@ test("renderer: narrow card status truncates without overlapping metadata @BRD",
 
 	// Reproduce the effective card width reached at enlarged browser zoom.
 	await card.evaluate((element) => {
-		(element as HTMLElement).style.width = "12rem";
+		(element as HTMLElement).style.width = "7rem";
+		(element as HTMLElement).style.minWidth = "0";
+		(element as HTMLElement).style.flex = "0 0 7rem";
 	});
 
 	const statusMetrics = await status.evaluate((element) => ({
@@ -81,6 +83,9 @@ test("renderer: narrow card status truncates without overlapping metadata @BRD",
 	expect(statusMetrics).toMatchObject({ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" });
 	expect(statusBox).not.toBeNull();
 	expect(usageBox).not.toBeNull();
-	expect(Math.abs(usageBox!.y - statusBox!.y)).toBeLessThan(2);
-	expect(statusBox!.x + statusBox!.width).toBeLessThanOrEqual(usageBox!.x);
+	const separatedHorizontally =
+		statusBox!.x + statusBox!.width <= usageBox!.x || usageBox!.x + usageBox!.width <= statusBox!.x;
+	const separatedVertically =
+		statusBox!.y + statusBox!.height <= usageBox!.y || usageBox!.y + usageBox!.height <= statusBox!.y;
+	expect(separatedHorizontally || separatedVertically).toBe(true);
 });

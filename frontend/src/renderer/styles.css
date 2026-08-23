@@ -1088,6 +1088,15 @@
 	container-type: inline-size;
 }
 
+/* At compact desktop widths the Work topbar needs the full center-pane width
+ * for terminal and agent controls. Give the global Home/Work switch its own
+ * window-level lane instead of allowing an overlay to steal those clicks. */
+@media (max-width: 1100px) {
+	.global-mode-switch-responsive-main {
+		padding-top: var(--size-inspector-tabs);
+	}
+}
+
 /* When the sidebar is off-canvas, clear only the fixed navigation cluster.
  * Native macOS fullscreen removes the traffic lights, so the cluster moves to
  * the compact panel inset instead of retaining the windowed 79px reserve. */

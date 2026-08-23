@@ -3,23 +3,27 @@ import { installFakeAgent } from "./support/fake-bridge";
 
 const projectId = "model-scroll-proj";
 const models = Array.from({ length: 30 }, (_, index) => ({
-	id: `opencode-go/model-${index + 1}`,
-	label: `opencode-go/model-${index + 1}`,
-	provider: "opencode-go",
+	id: `codex/model-${index + 1}`,
+	label: `codex/model-${index + 1}`,
+	provider: "codex",
 	isDefault: index === 0,
 }));
 
 test("renderer: hidden model-menu scrollbar keeps wheel scrolling functional @T0", async ({ page }) => {
-	await installFakeAgent(page, { projectId, projectName: projectId });
+	await installFakeAgent(page, {
+		projectId,
+		projectName: projectId,
+		workers: [{ id: "model-worker", title: "Model selection worker" }],
+	});
 	await page.route("http://127.0.0.1:8080/api/v1/**", async (route) => {
 		const request = route.request();
 		const pathname = new URL(request.url()).pathname;
 		if (pathname === "/api/v1/agents" || pathname === "/api/v1/agents/refresh") {
 			await route.fulfill({
 				json: {
-					supported: [{ id: "opencode", label: "OpenCode" }],
-					installed: [{ id: "opencode", label: "OpenCode", authStatus: "authorized" }],
-					authorized: [{ id: "opencode", label: "OpenCode", authStatus: "authorized" }],
+					supported: [{ id: "codex", label: "Codex" }],
+					installed: [{ id: "codex", label: "Codex", authStatus: "authorized" }],
+					authorized: [{ id: "codex", label: "Codex", authStatus: "authorized" }],
 				},
 			});
 			return;
@@ -30,17 +34,17 @@ test("renderer: hidden model-menu scrollbar keeps wheel scrolling functional @T0
 					status: "ok",
 					project: {
 						id: projectId,
-						agent: "opencode",
-						config: { worker: { agent: "opencode" } },
+						agent: "codex",
+						config: { worker: { agent: "codex" } },
 					},
 				},
 			});
 			return;
 		}
-		if (pathname === "/api/v1/agents/opencode/models") {
+		if (pathname === "/api/v1/agents/codex/models") {
 			await route.fulfill({
 				json: {
-					agent: "opencode",
+					agent: "codex",
 					selectionMode: "catalog",
 					models,
 					allowCustom: true,
@@ -53,8 +57,8 @@ test("renderer: hidden model-menu scrollbar keeps wheel scrolling functional @T0
 	});
 
 	await page.goto(`/#/projects/${projectId}`);
-	await page.getByRole("button", { name: "New task" }).first().click();
-	const dialog = page.getByRole("dialog", { name: "New task" });
+	await page.getByRole("button", { name: "Define outcome" }).first().click();
+	const dialog = page.getByRole("dialog", { name: "Define an outcome" });
 	await expect(dialog).toBeVisible();
 	await dialog.getByRole("button", { name: "Model" }).click();
 
