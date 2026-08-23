@@ -16,6 +16,7 @@ describe("WaldoRail", () => {
     expect(
       screen.getByRole("heading", { name: "Waldo isn't connected yet" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Back")).toBeInTheDocument();
     expect(
       screen.getByText("Home and Work remain available without a model connection."),
     ).toBeInTheDocument();

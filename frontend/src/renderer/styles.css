@@ -515,6 +515,7 @@
  * continuous surface. The cool field gives the brief identity without turning
  * the page into a stack of cards; the right pane stays on the neutral app ramp. */
 .home-today-layout {
+	position: relative;
 	display: flex;
 	min-height: 0;
 	flex: 1 1 0%;
@@ -531,12 +532,97 @@
 }
 
 .home-destination-surface {
+	position: relative;
 	background-color: color-mix(in oklch, var(--color-bg-primary) 94%, var(--color-status-working));
 	background-image: radial-gradient(
 		circle at 16% 4%,
 		color-mix(in oklch, var(--color-status-working) 9%, transparent),
 		transparent 48%
 	);
+}
+
+.waldo-home-layer {
+	position: absolute;
+	inset: 0 0 0 auto;
+	z-index: var(--z-index-overlay);
+	display: flex;
+	width: min(27.5rem, 100%);
+	min-height: 0;
+	border-left: 1px solid var(--color-border);
+	background: var(--color-bg-primary);
+	box-shadow: -1rem 0 2.5rem color-mix(in oklch, var(--color-bg-primary) 65%, transparent);
+}
+
+.waldo-shell-rail {
+	position: absolute;
+	inset: 0 0 0 auto;
+	z-index: var(--z-index-overlay);
+	display: flex;
+	width: min(27.5rem, 100%);
+	min-height: 0;
+	border-left: 1px solid var(--color-border);
+	background: var(--color-bg-primary);
+	box-shadow: -1rem 0 2.5rem color-mix(in oklch, var(--color-bg-primary) 65%, transparent);
+	animation: waldo-rail-enter 160ms ease-out both;
+}
+
+.waldo-rail-back-label {
+	display: none;
+}
+
+@keyframes waldo-rail-enter {
+	from {
+		opacity: 0;
+		transform: translateX(0.75rem);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+@media (max-width: 959px) {
+	.waldo-shell-rail {
+		inset: 0;
+		width: 100%;
+		border-left: 0;
+		box-shadow: none;
+	}
+
+	.waldo-rail-close {
+		width: auto;
+		padding-inline: 0.5rem;
+	}
+
+	.waldo-rail-back-label {
+		display: inline;
+		font-size: var(--text-xs);
+		font-weight: 500;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.waldo-shell-rail {
+		animation: none;
+	}
+}
+
+@container center-panel (max-width: 959px) {
+	.home-today-context-pane:has(.waldo-rail) {
+		position: absolute;
+		inset: 0;
+		z-index: var(--z-index-overlay);
+		min-height: 0;
+		border-top: 0;
+		background: var(--color-bg-primary);
+	}
+
+	.waldo-home-layer {
+		inset: 0;
+		width: 100%;
+		border-left: 0;
+		box-shadow: none;
+	}
 }
 
 .home-today-catch-up-pane {

@@ -1,7 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { homeFixture } from "../../lib/home-fixture";
+import { WaldoLauncher } from "../waldo/WaldoLauncher";
+import { WaldoRailProvider } from "../waldo/WaldoRailContext";
 import { HomeShell } from "./HomeShell";
 
 describe("HomeShell", () => {
@@ -29,6 +31,47 @@ describe("HomeShell", () => {
     expect(
       screen.queryByRole("link", { name: /Work \(recommended\)/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("temporarily gives Waldo the Today context region and restores Catch Up", async () => {
+    const user = userEvent.setup();
+    render(
+      <WaldoRailProvider>
+        <WaldoLauncher />
+        <HomeShell fixture={homeFixture("today")} />
+      </WaldoRailProvider>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Catch Up" })).toBeInTheDocument();
+    const launcher = screen.getByRole("button", { name: "Open Waldo" });
+    await user.click(launcher);
+
+    expect(screen.getByRole("region", { name: "Waldo" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Catch Up" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("textbox", { name: "Quick Capture" })).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "Close Waldo" }));
+    expect(screen.getByRole("heading", { name: "Catch Up" })).toBeInTheDocument();
+    await waitFor(() => expect(launcher).toHaveFocus());
+  });
+
+  it("opens Waldo as a layer without unmounting supporting Home screens", async () => {
+    const user = userEvent.setup();
+    render(
+      <WaldoRailProvider>
+        <WaldoLauncher />
+        <HomeShell
+          destination="history"
+          fixture={homeFixture("history")}
+        />
+      </WaldoRailProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open Waldo" }));
+
+    expect(screen.getByRole("region", { name: "Waldo" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "History" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Quick Capture" })).not.toBeInTheDocument();
   });
 
   it("keeps inferred work visibly separate from proposed Waldo suggestions", () => {

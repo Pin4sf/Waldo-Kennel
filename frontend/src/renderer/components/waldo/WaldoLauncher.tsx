@@ -1,0 +1,33 @@
+import { Dog } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { isMacPlatform } from "../../lib/platform";
+import { cn } from "../../lib/utils";
+import { currentShortcutBindings } from "../../stores/keybindings-store";
+import { shortcutBindingLabel } from "../../../shared/shortcuts";
+import { useWaldoRail } from "./WaldoRailContext";
+
+export function WaldoLauncher({ className }: { className?: string }) {
+  const { t } = useTranslation();
+  const waldo = useWaldoRail();
+  const shortcut = currentShortcutBindings("toggle-waldo")[0];
+  const shortcutLabel = shortcut ? shortcutBindingLabel(shortcut, isMacPlatform()) : "";
+
+  return (
+    <button
+      aria-controls="waldo-rail"
+      aria-expanded={waldo.isOpen}
+      aria-label={t("shortcut.toggle-waldo")}
+      className={cn(
+        "grid size-8 place-items-center rounded-lg border border-border bg-raised/92 text-muted-foreground shadow-sm backdrop-blur-md transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 motion-reduce:transition-none",
+        waldo.isOpen && "bg-interactive-active text-foreground",
+        className,
+      )}
+      onClick={(event) => waldo.toggle(event.currentTarget)}
+      ref={waldo.launcherRef}
+      title={`${t("shortcut.toggle-waldo")} · ${shortcutLabel}`}
+      type="button"
+    >
+      <Dog aria-hidden="true" className="size-4" />
+    </button>
+  );
+}

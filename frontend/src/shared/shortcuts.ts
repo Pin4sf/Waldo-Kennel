@@ -288,6 +288,7 @@ export function shortcutBindingKeys(binding: ShortcutBinding, isMac: boolean): r
 		PageUp: "PageUp",
 		PageDown: "PageDown",
 		Backquote: "`",
+		Space: "Space",
 	};
 	keys.push(labels[binding.code ?? binding.key] ?? binding.key.toUpperCase());
 	return keys;

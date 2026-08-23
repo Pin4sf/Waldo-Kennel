@@ -13,6 +13,7 @@ import {
 	matchesPreviousTabShortcut,
 	defaultShortcutBindings,
 	matchesShortcutBinding,
+	shortcutBindingLabel,
 	shortcutBindingValidationError,
 	type ShortcutChord,
 } from "./shortcuts";
@@ -112,6 +113,15 @@ describe("additional application shortcuts", () => {
 				true,
 			),
 		).toBe(false);
+	});
+
+	it("labels the Waldo shortcut with a visible Space key", () => {
+		expect(
+			shortcutBindingLabel(defaultShortcutBindings("toggle-waldo", true)[0], true),
+		).toBe("⌘ShiftSpace");
+		expect(
+			shortcutBindingLabel(defaultShortcutBindings("toggle-waldo", false)[0], false),
+		).toBe("Ctrl+Shift+Space");
 	});
 
 	it("matches settings on each platform and rejects extra modifiers", () => {

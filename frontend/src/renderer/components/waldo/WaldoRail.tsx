@@ -72,10 +72,11 @@ export function WaldoRail({
           </div>
           <button
             aria-label={t("waldo.rail.close")}
-            className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+            className="waldo-rail-close inline-flex size-8 shrink-0 items-center justify-center gap-1.5 rounded-lg text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
             onClick={onClose}
             type="button"
           >
+            <span className="waldo-rail-back-label">{t("waldo.rail.back")}</span>
             <X aria-hidden="true" className="size-4" />
           </button>
         </div>
