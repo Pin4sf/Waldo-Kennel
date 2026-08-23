@@ -67,6 +67,8 @@ func Build() ([]byte, error) {
 			"Code-review runs and findings"),
 		*(&openapi31.Tag{Name: "notifications"}).WithDescription(
 			"Durable dashboard notifications"),
+		*(&openapi31.Tag{Name: "outcomes"}).WithDescription(
+			"Canonical Work Outcome contracts and immutable revisions"),
 		*(&openapi31.Tag{Name: "usage"}).WithDescription(
 			"Token usage telemetry for AO sessions"),
 		*(&openapi31.Tag{Name: "push"}).WithDescription(
@@ -282,6 +284,12 @@ var schemaNames = map[string]string{
 	"ControllersNotificationTarget":                       "NotificationTarget",
 	"ControllersNotificationResponse":                     "NotificationResponse",
 	"ControllersListNotificationsResponse":                "ListNotificationsResponse",
+	"ControllersCreateOutcomeRequest":                     "CreateOutcomeRequest",
+	"ControllersReviseOutcomeContractRequest":             "ReviseOutcomeContractRequest",
+	"ControllersOutcomeEnvelope":                          "OutcomeEnvelope",
+	"ControllersOutcomeResponse":                          "OutcomeResponse",
+	"ControllersContractRevisionResponse":                 "ContractRevisionResponse",
+	"ControllersOutcomeIDParam":                           "OutcomeIDParam",
 	"ControllersMarkNotificationReadRequest":              "MarkNotificationReadRequest",
 	"ControllersNotificationEnvelope":                     "NotificationEnvelope",
 	"ControllersMarkAllNotificationsReadRequest":          "MarkAllNotificationsReadRequest",
@@ -1018,6 +1026,44 @@ func notificationOperations() []operation {
 			resps: []respUnit{
 				{http.StatusOK, controllers.MarkAllNotificationsReadResponse{}},
 				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/outcomes", id: "createOutcome", tag: "outcomes",
+			summary:    "Create an Outcome with its first immutable contract revision",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			reqBody:    controllers.CreateOutcomeRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.OutcomeEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}", id: "getOutcome", tag: "outcomes",
+			summary:    "Read one Outcome with its full revision history",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/revisions", id: "reviseOutcomeContract", tag: "outcomes",
+			summary:    "Append an immutable contract revision (optimistic concurrency)",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.ReviseOutcomeContractRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},

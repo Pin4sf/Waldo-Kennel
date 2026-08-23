@@ -980,6 +980,102 @@ paths:
       summary: Start a worker task and ask the orchestrator to title it
       tags:
       - sessions
+  /api/v1/outcomes/{outcomeId}:
+    get:
+      operationId: getOutcome
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutcomeEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read one Outcome with its full revision history
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/revisions:
+    post:
+      operationId: reviseOutcomeContract
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviseOutcomeContractRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutcomeEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Append an immutable contract revision (optimistic concurrency)
+      tags:
+      - outcomes
   /api/v1/projects:
     get:
       operationId: listProjects
@@ -1195,6 +1291,57 @@ paths:
       summary: Replace a project's per-project config
       tags:
       - projects
+  /api/v1/projects/{id}/outcomes:
+    post:
+      operationId: createOutcome
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOutcomeRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutcomeEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Create an Outcome with its first immutable contract revision
+      tags:
+      - outcomes
   /api/v1/projects/initialize:
     post:
       operationId: initializeProjectRepository
@@ -5350,6 +5497,44 @@ components:
         disabled:
           type: boolean
       type: object
+    ContractRevisionResponse:
+      properties:
+        clarification:
+          type: string
+        constraints:
+          items:
+            type: string
+          type: array
+        createdAt:
+          format: date-time
+          type: string
+        goal:
+          type: string
+        id:
+          type: string
+        nonGoals:
+          items:
+            type: string
+          type: array
+        number:
+          format: int64
+          type: integer
+        review:
+          type: string
+        successCriteria:
+          items:
+            type: string
+          type: array
+      required:
+      - id
+      - number
+      - goal
+      - successCriteria
+      - review
+      - constraints
+      - nonGoals
+      - createdAt
+      type: object
     ControllersRequestRereviewRequest:
       properties:
         pullRequestUrl:
@@ -6159,6 +6344,37 @@ components:
       - cachedTokens
       - totalTokens
       type: object
+    CreateOutcomeRequest:
+      properties:
+        clarification:
+          type: string
+        constraints:
+          items:
+            type: string
+          type: array
+        goal:
+          type: string
+        nonGoals:
+          items:
+            type: string
+          type: array
+        requestKey:
+          type: string
+        review:
+          type: string
+        successCriteria:
+          items:
+            type: string
+          type: array
+        title:
+          type: string
+      required:
+      - title
+      - goal
+      - successCriteria
+      - review
+      - requestKey
+      type: object
     DegradedProject:
       properties:
         id:
@@ -6753,6 +6969,46 @@ components:
       - id
       - projectId
       type: object
+    OutcomeEnvelope:
+      properties:
+        outcome:
+          $ref: '#/components/schemas/OutcomeResponse'
+      required:
+      - outcome
+      type: object
+    OutcomeResponse:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        currentRevision:
+          $ref: '#/components/schemas/ContractRevisionResponse'
+        currentRevisionNumber:
+          format: int64
+          type: integer
+        history:
+          items:
+            $ref: '#/components/schemas/ContractRevisionResponse'
+          type: array
+        id:
+          type: string
+        spaceId:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - id
+      - spaceId
+      - title
+      - currentRevisionNumber
+      - currentRevision
+      - history
+      - createdAt
+      - updatedAt
+      type: object
     PRReviewState:
       properties:
         latestRun:
@@ -7215,6 +7471,35 @@ components:
       - review
       - reviews
       - reviewerHandleId
+      type: object
+    ReviseOutcomeContractRequest:
+      properties:
+        clarification:
+          type: string
+        constraints:
+          items:
+            type: string
+          type: array
+        expectedRevision:
+          format: int64
+          type: integer
+        goal:
+          type: string
+        nonGoals:
+          items:
+            type: string
+          type: array
+        review:
+          type: string
+        successCriteria:
+          items:
+            type: string
+          type: array
+      required:
+      - expectedRevision
+      - goal
+      - successCriteria
+      - review
       type: object
     RoleOverride:
       properties:
@@ -8450,6 +8735,8 @@ tags:
   name: reviews
 - description: Durable dashboard notifications
   name: notifications
+- description: Canonical Work Outcome contracts and immutable revisions
+  name: outcomes
 - description: Token usage telemetry for AO sessions
   name: usage
 - description: Mobile push-device registration for OS push notifications

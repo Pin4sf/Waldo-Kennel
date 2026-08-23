@@ -40,6 +40,7 @@ import (
 	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
 	devimportsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/devimport"
 	notificationsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/notification"
+	outcomevc "github.com/aoagents/agent-orchestrator/backend/internal/service/outcome"
 	prsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/pr"
 	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
 	settingssvc "github.com/aoagents/agent-orchestrator/backend/internal/service/settings"
@@ -403,6 +404,7 @@ func Run() error {
 		PRs:                prActions,
 		Reviews:            reviewSvc,
 		Notifications:      notifier,
+		Outcomes:           outcomevc.New(store, nil),
 		NotificationStream: notificationHub,
 		Push:               pushRegistry,
 		Presence:           presenceTracker,

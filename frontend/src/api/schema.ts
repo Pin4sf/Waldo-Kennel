@@ -397,6 +397,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one Outcome with its full revision history */
+        get: operations["getOutcome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Append an immutable contract revision (optimistic concurrency) */
+        post: operations["reviseOutcomeContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -445,6 +479,23 @@ export interface paths {
         /** Replace a project's per-project config */
         put: operations["setProjectConfig"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/outcomes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an Outcome with its first immutable contract revision */
+        post: operations["createOutcome"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1785,6 +1836,19 @@ export interface components {
         ContainerReapConfig: {
             disabled?: boolean;
         };
+        ContractRevisionResponse: {
+            clarification?: string;
+            constraints: string[];
+            /** Format: date-time */
+            createdAt: string;
+            goal: string;
+            id: string;
+            nonGoals: string[];
+            /** Format: int64 */
+            number: number;
+            review: string;
+            successCriteria: string[];
+        };
         ControllersRequestRereviewRequest: {
             /** @description Tracked pull request URL. Required when the session has multiple PRs. */
             pullRequestUrl?: string;
@@ -2084,6 +2148,16 @@ export interface components {
             /** Format: int64 */
             totalTokens: number;
         };
+        CreateOutcomeRequest: {
+            clarification?: string;
+            constraints?: string[];
+            goal: string;
+            nonGoals?: string[];
+            requestKey: string;
+            review: string;
+            successCriteria: string[];
+            title: string;
+        };
         DegradedProject: {
             id: string;
             /** @enum {string} */
@@ -2317,6 +2391,22 @@ export interface components {
             projectId: string;
             projectName?: string;
         };
+        OutcomeEnvelope: {
+            outcome: components["schemas"]["OutcomeResponse"];
+        };
+        OutcomeResponse: {
+            /** Format: date-time */
+            createdAt: string;
+            currentRevision: components["schemas"]["ContractRevisionResponse"];
+            /** Format: int64 */
+            currentRevisionNumber: number;
+            history: components["schemas"]["ContractRevisionResponse"][];
+            id: string;
+            spaceId: string;
+            title: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         PRReviewState: {
             latestRun?: components["schemas"]["ReviewRun"];
             prNumber: number;
@@ -2498,6 +2588,16 @@ export interface components {
             review: components["schemas"]["ReviewRun"];
             reviewerHandleId: string;
             reviews: components["schemas"]["ReviewRun"][];
+        };
+        ReviseOutcomeContractRequest: {
+            clarification?: string;
+            constraints?: string[];
+            /** Format: int64 */
+            expectedRevision: number;
+            goal: string;
+            nonGoals?: string[];
+            review: string;
+            successCriteria: string[];
         };
         RoleOverride: {
             agent?: string;
@@ -4264,6 +4364,128 @@ export interface operations {
             };
         };
     };
+    getOutcome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutcomeEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    reviseOutcomeContract: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviseOutcomeContractRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutcomeEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     listProjects: {
         parameters: {
             query?: never;
@@ -4534,6 +4756,69 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    createOutcome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateOutcomeRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutcomeEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
                 headers: {
                     [name: string]: unknown;
                 };

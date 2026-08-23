@@ -247,9 +247,9 @@ func TestReviseStaleExpectationConflictsWithoutPersisting(t *testing.T) {
 		SuccessCriteria:  []string{"c"},
 		Review:           "r",
 	})
-	var conflict *ports.OutcomeConflictError
-	if !errors.As(err, &conflict) {
-		t.Fatalf("err = %v, want OutcomeConflictError", err)
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "OUTCOME_CONTRACT_CONFLICT" {
+		t.Fatalf("err = %v, want OUTCOME_CONTRACT_CONFLICT", err)
 	}
 	history, _ := store.ListContractRevisions(ctx, view.Outcome.ID)
 	if len(history) != 1 {

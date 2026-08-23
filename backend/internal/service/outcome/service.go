@@ -8,7 +8,9 @@ package outcome
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -147,7 +149,14 @@ func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in Re
 		return OutcomeView{}, err
 	}
 
+	if _, ok, err := s.store.GetOutcome(ctx, id); err != nil {
+		return OutcomeView{}, err
+	} else if !ok {
+		return OutcomeView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
+	}
+
 	next := domain.ContractRevision{
+		ID:              domain.ContractRevisionID("cr-" + uuid.NewString()),
 		OutcomeID:       id,
 		Goal:            content.goal,
 		SuccessCriteria: content.criteria,
@@ -157,9 +166,22 @@ func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in Re
 		Clarification:   content.clarification,
 		CreatedAt:       s.clock(),
 	}
-	if _, err := s.store.AppendContractRevision(ctx, id, in.ExpectedRevision, next); err != nil {
+	number, err := s.store.AppendContractRevision(ctx, id, in.ExpectedRevision, next)
+	if err != nil {
+		var conflict *ports.OutcomeConflictError
+		if errors.As(err, &conflict) {
+			return OutcomeView{}, apierr.New(apierr.KindConflict, "OUTCOME_CONTRACT_CONFLICT",
+				fmt.Sprintf("Contract moved to revision %s; reload and retry against it",
+					strconv.FormatInt(conflict.CurrentRevisionNum, 10)),
+				map[string]any{
+					"outcomeId":        string(id),
+					"expectedRevision": conflict.ExpectedRevisionNum,
+					"currentRevision":  conflict.CurrentRevisionNum,
+				})
+		}
 		return OutcomeView{}, err
 	}
+	_ = number
 	return s.Get(ctx, id)
 }
 

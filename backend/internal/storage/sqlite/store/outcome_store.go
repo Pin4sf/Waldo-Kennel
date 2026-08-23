@@ -104,7 +104,7 @@ func (s *Store) CreateOutcomeWithContract(ctx context.Context, outcome domain.Ou
 
 	rows, err := txq.AdvanceOutcomeCurrentRevision(ctx, gen.AdvanceOutcomeCurrentRevisionParams{
 		CurrentRevisionNumber:   number,
-		UpdatedAt:               outcome.CreatedAt,
+		UpdatedAt:               first.CreatedAt,
 		ID:                      outcome.ID,
 		CurrentRevisionNumber_2: 0,
 	})
