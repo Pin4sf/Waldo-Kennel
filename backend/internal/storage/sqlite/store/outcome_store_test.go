@@ -41,17 +41,35 @@ func TestOutcomeStore_EnsureWorkResponsibilitySpaceIsIdempotent(t *testing.T) {
 	}
 }
 
-func outcomeFixture(spaceID domain.ResponsibilitySpaceID) domain.Outcome {
-	return domain.Outcome{
-		ID:        domain.OutcomeID("out-" + spaceID + "-1"),
+func TestOutcomeStore_EnsureWorkSpaceRejectsUnknownProject(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	if _, err := s.EnsureWorkResponsibilitySpace(ctx, "ghost"); err == nil {
+		t.Fatal("space for unknown project must violate the projects foreign key")
+	}
+}
+
+func focusLedgerContract(spaceID domain.ResponsibilitySpaceID, suffix string) (domain.Outcome, domain.ContractRevision) {
+	outcome := domain.Outcome{
+		ID:        domain.OutcomeID("out-" + suffix),
 		SpaceID:   spaceID,
 		Title:     "Local Focus Ledger",
 		CreatedAt: time.Date(2026, 8, 23, 10, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 8, 23, 10, 0, 0, 0, time.UTC),
 	}
+	first := domain.ContractRevision{
+		ID:              domain.ContractRevisionID("cr-" + suffix),
+		OutcomeID:       outcome.ID,
+		Goal:            "A user can record and review today's protected focus time locally.",
+		SuccessCriteria: []string{"Entering positive whole minutes creates one focus block."},
+		Review:          "Deterministic checks plus owner walkthrough.",
+		Constraints:     []string{"Local only."},
+		CreatedAt:       outcome.CreatedAt,
+	}
+	return outcome, first
 }
 
-func TestOutcomeStore_CreateGetAndIdempotentReplay(t *testing.T) {
+func TestOutcomeStore_CreateOutcomeWithContractIsAtomic(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	seedProject(t, s, "mer")
@@ -60,44 +78,47 @@ func TestOutcomeStore_CreateGetAndIdempotentReplay(t *testing.T) {
 		t.Fatalf("ensure space: %v", err)
 	}
 
-	outcome := outcomeFixture(space.ID)
+	outcome, first := focusLedgerContract(space.ID, "1")
 	const requestKey = "req-abc-123"
-	if err := s.CreateOutcome(ctx, outcome, requestKey); err != nil {
-		t.Fatalf("create outcome: %v", err)
+	if err := s.CreateOutcomeWithContract(ctx, outcome, first, requestKey); err != nil {
+		t.Fatalf("create outcome with contract: %v", err)
 	}
 
 	got, ok, err := s.GetOutcome(ctx, outcome.ID)
 	if err != nil || !ok {
 		t.Fatalf("get outcome ok=%v err=%v", ok, err)
 	}
-	if got.ID != outcome.ID || got.SpaceID != space.ID || got.Title != outcome.Title {
-		t.Fatalf("round-trip mismatch: %+v", got)
+	if got.CurrentRevisionNumber != 1 {
+		t.Fatalf("pointer = %d, want 1 after first contract", got.CurrentRevisionNumber)
 	}
-	if got.CurrentRevisionNumber != 0 {
-		t.Fatalf("fresh outcome revision pointer = %d, want 0", got.CurrentRevisionNumber)
+	history, err := s.ListContractRevisions(ctx, outcome.ID)
+	if err != nil || len(history) != 1 {
+		t.Fatalf("history len=%d err=%v, want exactly one immutable revision", len(history), err)
+	}
+	if history[0].Number != 1 || history[0].Goal != first.Goal {
+		t.Fatalf("revision 1 = %+v", history[0])
 	}
 
 	replayed, ok, err := s.FindOutcomeByIdempotencyKey(ctx, requestKey)
-	if err != nil || !ok {
-		t.Fatalf("find by idempotency key ok=%v err=%v", ok, err)
+	if err != nil || !ok || replayed.ID != outcome.ID {
+		t.Fatalf("replay ok=%v id=%s err=%v", ok, replayed.ID, err)
 	}
-	if replayed.ID != outcome.ID {
-		t.Fatalf("replay resolved %s, want original %s", replayed.ID, outcome.ID)
-	}
-
 	if _, ok, err := s.FindOutcomeByIdempotencyKey(ctx, "req-never-seen"); err != nil || ok {
 		t.Fatalf("unknown key ok=%v err=%v", ok, err)
 	}
 
-	// A second create with the same client key must be impossible.
-	dup := outcome
-	dup.ID = domain.OutcomeID("out-duplicate")
-	if err := s.CreateOutcome(ctx, dup, requestKey); err == nil {
+	// A second create with the same client key is impossible.
+	dupOutcome, dupFirst := focusLedgerContract(space.ID, "duplicate")
+	if err := s.CreateOutcomeWithContract(ctx, dupOutcome, dupFirst, requestKey); err == nil {
 		t.Fatal("duplicate idempotency key must violate the unique index")
+	}
+	// And nothing partial was written for the rejected duplicate.
+	if _, ok, _ := s.GetOutcome(ctx, dupOutcome.ID); ok {
+		t.Fatal("rejected duplicate must not persist an outcome row")
 	}
 }
 
-func TestOutcomeStore_ContractRevisionAppendOnlyHistory(t *testing.T) {
+func TestOutcomeStore_AppendContractRevisionHistoryAndConflictRollback(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	seedProject(t, s, "mer")
@@ -105,41 +126,32 @@ func TestOutcomeStore_ContractRevisionAppendOnlyHistory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ensure space: %v", err)
 	}
-	outcome := outcomeFixture(space.ID)
-	if err := s.CreateOutcome(ctx, outcome, ""); err != nil {
-		t.Fatalf("create outcome: %v", err)
+	outcome, first := focusLedgerContract(space.ID, "h")
+	if err := s.CreateOutcomeWithContract(ctx, outcome, first, ""); err != nil {
+		t.Fatalf("create outcome with contract: %v", err)
 	}
 
-	rev1 := domain.ContractRevision{
-		ID:              domain.ContractRevisionID("cr-1"),
+	rev2 := domain.ContractRevision{
+		ID:              domain.ContractRevisionID("cr-h-2"),
 		OutcomeID:       outcome.ID,
-		Goal:            "Record focus locally.",
-		SuccessCriteria: []string{"Positive minutes create one block."},
+		Goal:            "Revised goal.",
+		SuccessCriteria: []string{"Criterion A.", "Criterion B."},
 		Review:          "Deterministic checks.",
-		CreatedAt:       time.Date(2026, 8, 23, 10, 1, 0, 0, time.UTC),
+		NonGoals:        []string{"No timers."},
+		Clarification:   "today means local calendar day",
+		CreatedAt:       first.CreatedAt.Add(time.Minute),
 	}
-	num, err := s.NextContractRevisionNumber(ctx, outcome.ID)
-	if err != nil || num != 1 {
-		t.Fatalf("first revision number = %d err=%v, want 1", num, err)
-	}
-	rev1.Number = num
-	if err := s.CreateContractRevision(ctx, rev1); err != nil {
-		t.Fatalf("create revision 1: %v", err)
+	number, err := s.AppendContractRevision(ctx, outcome.ID, 1, rev2)
+	if err != nil || number != 2 {
+		t.Fatalf("append revision number=%d err=%v, want 2", number, err)
 	}
 
-	rev2 := rev1
-	rev2.ID = domain.ContractRevisionID("cr-2")
-	rev2.Goal = "Revised goal."
-	rev2.Constraints = []string{"Local only."}
-	rev2.NonGoals = []string{"No timers."}
-	rev2.Clarification = "today means local calendar day"
-	rev2.CreatedAt = rev1.CreatedAt.Add(time.Minute)
-	if num, err = s.NextContractRevisionNumber(ctx, outcome.ID); err != nil || num != 2 {
-		t.Fatalf("second revision number = %d err=%v, want 2", num, err)
+	got, _, err := s.GetOutcome(ctx, outcome.ID)
+	if err != nil {
+		t.Fatalf("reload outcome: %v", err)
 	}
-	rev2.Number = num
-	if err := s.CreateContractRevision(ctx, rev2); err != nil {
-		t.Fatalf("create revision 2: %v", err)
+	if got.CurrentRevisionNumber != 2 {
+		t.Fatalf("pointer = %d, want 2", got.CurrentRevisionNumber)
 	}
 
 	history, err := s.ListContractRevisions(ctx, outcome.ID)
@@ -149,67 +161,34 @@ func TestOutcomeStore_ContractRevisionAppendOnlyHistory(t *testing.T) {
 	if len(history) != 2 || history[0].Number != 1 || history[1].Number != 2 {
 		t.Fatalf("history = %+v", history)
 	}
-	if history[0].Goal != rev1.Goal || history[1].Goal != rev2.Goal {
-		t.Fatal("revision content drifted from what was written")
+	if history[0].Goal != first.Goal {
+		t.Fatal("revision 1 content drifted")
 	}
-	if len(history[1].Constraints) != 1 || history[1].Constraints[0] != "Local only." ||
+	if len(history[1].SuccessCriteria) != 2 ||
 		len(history[1].NonGoals) != 1 || history[1].NonGoals[0] != "No timers." ||
 		history[1].Clarification != "today means local calendar day" {
-		t.Fatalf("optional fields round-trip failed: %+v", history[1])
+		t.Fatalf("revision 2 optional fields round-trip failed: %+v", history[1])
 	}
 
-	// Duplicate numbers are rejected by storage even if handed out wrong.
-	dupNumber := rev1
-	dupNumber.ID = domain.ContractRevisionID("cr-dup")
-	if err := s.CreateContractRevision(ctx, dupNumber); err == nil {
-		t.Fatal("duplicate revision number must be rejected")
-	}
-}
-
-func TestOutcomeStore_AdvanceContractCASConflicts(t *testing.T) {
-	s := newTestStore(t)
-	ctx := context.Background()
-	seedProject(t, s, "mer")
-	space, err := s.EnsureWorkResponsibilitySpace(ctx, "mer")
-	if err != nil {
-		t.Fatalf("ensure space: %v", err)
-	}
-	outcome := outcomeFixture(space.ID)
-	if err := s.CreateOutcome(ctx, outcome, ""); err != nil {
-		t.Fatalf("create outcome: %v", err)
-	}
-	at := time.Date(2026, 8, 23, 10, 2, 0, 0, time.UTC)
-
-	// Stale CAS against revision 3 while current is 0 conflicts.
-	err = s.AdvanceOutcomeContract(ctx, outcome.ID, 3, 4, at)
+	// A stale expected pointer conflicts AND persists nothing: the append-only
+	// history must be identical after the rejected attempt.
+	stale := rev2
+	stale.ID = domain.ContractRevisionID("cr-h-stale")
+	_, err = s.AppendContractRevision(ctx, outcome.ID, 1, stale)
 	var conflict *ports.OutcomeConflictError
 	if !errors.As(err, &conflict) {
-		t.Fatalf("stale advance err = %v, want OutcomeConflictError", err)
+		t.Fatalf("stale append err = %v, want OutcomeConflictError", err)
 	}
-	if conflict.CurrentRevisionNum != 0 || conflict.ExpectedRevisionNum != 3 {
+	if conflict.CurrentRevisionNum != 2 || conflict.ExpectedRevisionNum != 1 {
 		t.Fatalf("conflict detail = %+v", conflict)
 	}
-
-	if err := s.AdvanceOutcomeContract(ctx, outcome.ID, 0, 1, at); err != nil {
-		t.Fatalf("advance 0 -> 1: %v", err)
+	historyAfter, err := s.ListContractRevisions(ctx, outcome.ID)
+	if err != nil || len(historyAfter) != 2 {
+		t.Fatalf("rejected append changed history: len=%d err=%v", len(historyAfter), err)
 	}
-	got, _, err := s.GetOutcome(ctx, outcome.ID)
-	if err != nil {
-		t.Fatalf("reload outcome: %v", err)
-	}
-	if got.CurrentRevisionNumber != 1 {
-		t.Fatalf("pointer = %d, want 1", got.CurrentRevisionNumber)
-	}
-
-	// Replaying the same swap now conflicts with the new pointer.
-	err = s.AdvanceOutcomeContract(ctx, outcome.ID, 0, 1, at)
-	if !errors.As(err, &conflict) {
-		t.Fatalf("replayed advance err = %v, want OutcomeConflictError", err)
-	}
-
-	// Advancing an unknown outcome also conflicts rather than silently passing.
-	err = s.AdvanceOutcomeContract(ctx, domain.OutcomeID("out-missing"), 0, 1, at)
-	if !errors.As(err, &conflict) {
-		t.Fatalf("unknown-outcome advance err = %v, want OutcomeConflictError", err)
+	for _, rev := range historyAfter {
+		if rev.ID == stale.ID {
+			t.Fatal("rolled-back revision leaked into history")
+		}
 	}
 }

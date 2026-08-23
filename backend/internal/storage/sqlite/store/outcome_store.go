@@ -63,28 +63,104 @@ func (s *Store) FindOutcomeByIdempotencyKey(ctx context.Context, key string) (do
 	return outcomeFromRow(row), true, nil
 }
 
-// CreateOutcome persists a new Outcome row. Duplicate idempotency keys surface
-// as unique-constraint errors; callers resolve replays beforehand.
-func (s *Store) CreateOutcome(ctx context.Context, outcome domain.Outcome, idempotencyKey string) error {
+// CreateOutcomeWithContract atomically persists the Outcome with its first
+// contract revision and points current at it.
+func (s *Store) CreateOutcomeWithContract(ctx context.Context, outcome domain.Outcome, first domain.ContractRevision, requestKey string) error {
 	if err := outcome.Validate(); err != nil {
 		return err
 	}
+
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	var key sql.NullString
-	if idempotencyKey != "" {
-		key = sql.NullString{String: idempotencyKey, Valid: true}
+
+	tx, err := s.writeDB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin create outcome %s: %w", outcome.ID, err)
 	}
-	if err := s.qw.CreateOutcome(ctx, gen.CreateOutcomeParams{
-		ID:                    outcome.ID,
-		SpaceID:               outcome.SpaceID,
-		Title:                 outcome.Title,
-		CurrentRevisionNumber: outcome.CurrentRevisionNumber,
-		IdempotencyKey:        key,
+	defer func() { _ = tx.Rollback() }()
+	txq := s.qw.WithTx(tx)
+
+	var key sql.NullString
+	if requestKey != "" {
+		key = sql.NullString{String: requestKey, Valid: true}
+	}
+	if err := txq.CreateOutcome(ctx, gen.CreateOutcomeParams{
+		ID:             outcome.ID,
+		SpaceID:        outcome.SpaceID,
+		Title:          outcome.Title,
+		IdempotencyKey: key,
 	}); err != nil {
 		return fmt.Errorf("create outcome %s: %w", outcome.ID, err)
 	}
-	return nil
+
+	number, err := nextRevisionNumber(ctx, txq, outcome.ID)
+	if err != nil {
+		return err
+	}
+	first.Number = number
+	if err := insertContractRevision(ctx, txq, first); err != nil {
+		return err
+	}
+
+	rows, err := txq.AdvanceOutcomeCurrentRevision(ctx, gen.AdvanceOutcomeCurrentRevisionParams{
+		CurrentRevisionNumber:   number,
+		UpdatedAt:               outcome.CreatedAt,
+		ID:                      outcome.ID,
+		CurrentRevisionNumber_2: 0,
+	})
+	if err != nil {
+		return fmt.Errorf("point outcome %s at revision 1: %w", outcome.ID, err)
+	}
+	if rows != 1 {
+		return fmt.Errorf("point outcome %s at revision 1: pointer moved concurrently", outcome.ID)
+	}
+	return tx.Commit()
+}
+
+// AppendContractRevision atomically appends one immutable revision and swings
+// the current-revision pointer from expected to it. A stale expected rolls the
+// whole transaction back and reports the conflict.
+func (s *Store) AppendContractRevision(ctx context.Context, id domain.OutcomeID, expectedCurrent int64, revision domain.ContractRevision) (int64, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
+	tx, err := s.writeDB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin append revision for %s: %w", id, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	txq := s.qw.WithTx(tx)
+
+	number, err := nextRevisionNumber(ctx, txq, id)
+	if err != nil {
+		return 0, err
+	}
+	revision.Number = number
+	if err := insertContractRevision(ctx, txq, revision); err != nil {
+		return 0, err
+	}
+
+	rows, err := txq.AdvanceOutcomeCurrentRevision(ctx, gen.AdvanceOutcomeCurrentRevisionParams{
+		CurrentRevisionNumber:   number,
+		UpdatedAt:               time.Now().UTC(),
+		ID:                      id,
+		CurrentRevisionNumber_2: expectedCurrent,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("advance outcome %s to revision %d: %w", id, number, err)
+	}
+	if rows == 0 {
+		currentNum := int64(-1)
+		row, getErr := txq.GetOutcome(ctx, id)
+		if getErr == nil {
+			currentNum = row.CurrentRevisionNumber
+		}
+		return 0, &ports.OutcomeConflictError{OutcomeID: id, ExpectedRevisionNum: expectedCurrent, CurrentRevisionNum: currentNum}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit append revision for %s: %w", id, err)
+	}
+	return number, nil
 }
 
 // GetOutcome reads one Outcome by id; ok=false when absent.
@@ -97,86 +173,6 @@ func (s *Store) GetOutcome(ctx context.Context, id domain.OutcomeID) (domain.Out
 		return domain.Outcome{}, false, fmt.Errorf("get outcome %s: %w", id, err)
 	}
 	return outcomeFromRow(row), true, nil
-}
-
-// NextContractRevisionNumber hands out the next append-only revision number.
-func (s *Store) NextContractRevisionNumber(ctx context.Context, id domain.OutcomeID) (int64, error) {
-	maxNum, err := s.qr.MaxContractRevisionNumber(ctx, id)
-	if err != nil {
-		return 0, fmt.Errorf("max revision number for %s: %w", id, err)
-	}
-	switch v := maxNum.(type) {
-	case int64:
-		return v + 1, nil
-	default:
-		return 0, fmt.Errorf("max revision number for %s: unexpected type %T", id, maxNum)
-	}
-}
-
-// CreateContractRevision appends one immutable revision row.
-func (s *Store) CreateContractRevision(ctx context.Context, revision domain.ContractRevision) error {
-	if err := revision.Validate(); err != nil {
-		return err
-	}
-	criteria, err := marshalJSONStrings(revision.SuccessCriteria)
-	if err != nil {
-		return fmt.Errorf("revision %s criteria: %w", revision.ID, err)
-	}
-	constraints, err := marshalJSONStrings(revision.Constraints)
-	if err != nil {
-		return fmt.Errorf("revision %s constraints: %w", revision.ID, err)
-	}
-	nonGoals, err := marshalJSONStrings(revision.NonGoals)
-	if err != nil {
-		return fmt.Errorf("revision %s non-goals: %w", revision.ID, err)
-	}
-
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-	if err := s.qw.CreateContractRevision(ctx, gen.CreateContractRevisionParams{
-		ID:              revision.ID,
-		OutcomeID:       revision.OutcomeID,
-		Number:          revision.Number,
-		Goal:            revision.Goal,
-		SuccessCriteria: criteria,
-		Review:          revision.Review,
-		Constraints:     constraints,
-		NonGoals:        nonGoals,
-		Clarification:   revision.Clarification,
-	}); err != nil {
-		return fmt.Errorf("create contract revision %s: %w", revision.ID, err)
-	}
-	return nil
-}
-
-// AdvanceOutcomeContract compare-and-swaps the current-revision pointer.
-// rows-affected 0 means the expected pointer is stale — either another writer
-// advanced first or the pointer never matched.
-func (s *Store) AdvanceOutcomeContract(ctx context.Context, id domain.OutcomeID, expected, next int64, at time.Time) error {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-
-	rows, err := s.qw.AdvanceOutcomeCurrentRevision(ctx, gen.AdvanceOutcomeCurrentRevisionParams{
-		CurrentRevisionNumber:   next,
-		UpdatedAt:               at,
-		ID:                      id,
-		CurrentRevisionNumber_2: expected,
-	})
-	if err != nil {
-		return fmt.Errorf("advance outcome %s contract: %w", id, err)
-	}
-	if rows == 0 {
-		current, ok, err := s.unlockedOutcome(ctx, id)
-		if err != nil {
-			return err
-		}
-		currentNum := int64(-1)
-		if ok {
-			currentNum = current.CurrentRevisionNumber
-		}
-		return &ports.OutcomeConflictError{OutcomeID: id, ExpectedRevisionNum: expected, CurrentRevisionNum: currentNum}
-	}
-	return nil
 }
 
 // ListContractRevisions returns full immutable history ordered by number.
@@ -196,16 +192,49 @@ func (s *Store) ListContractRevisions(ctx context.Context, id domain.OutcomeID) 
 	return out, nil
 }
 
-// unlockedOutcome reads through the writer connection while holding writeMu.
-func (s *Store) unlockedOutcome(ctx context.Context, id domain.OutcomeID) (domain.Outcome, bool, error) {
-	row, err := s.qw.GetOutcome(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Outcome{}, false, nil
-	}
+func nextRevisionNumber(ctx context.Context, q *gen.Queries, id domain.OutcomeID) (int64, error) {
+	maxNum, err := q.MaxContractRevisionNumber(ctx, id)
 	if err != nil {
-		return domain.Outcome{}, false, fmt.Errorf("get outcome %s: %w", id, err)
+		return 0, fmt.Errorf("max revision number for %s: %w", id, err)
 	}
-	return outcomeFromRow(row), true, nil
+	switch v := maxNum.(type) {
+	case int64:
+		return v + 1, nil
+	default:
+		return 0, fmt.Errorf("max revision number for %s: unexpected type %T", id, maxNum)
+	}
+}
+
+func insertContractRevision(ctx context.Context, q *gen.Queries, revision domain.ContractRevision) error {
+	criteria, err := marshalJSONStrings(revision.SuccessCriteria)
+	if err != nil {
+		return fmt.Errorf("revision criteria: %w", err)
+	}
+	constraints, err := marshalJSONStrings(revision.Constraints)
+	if err != nil {
+		return fmt.Errorf("revision constraints: %w", err)
+	}
+	nonGoals, err := marshalJSONStrings(revision.NonGoals)
+	if err != nil {
+		return fmt.Errorf("revision non-goals: %w", err)
+	}
+	if err := revision.Validate(); err != nil {
+		return err
+	}
+	if err := q.CreateContractRevision(ctx, gen.CreateContractRevisionParams{
+		ID:              revision.ID,
+		OutcomeID:       revision.OutcomeID,
+		Number:          revision.Number,
+		Goal:            revision.Goal,
+		SuccessCriteria: criteria,
+		Review:          revision.Review,
+		Constraints:     constraints,
+		NonGoals:        nonGoals,
+		Clarification:   revision.Clarification,
+	}); err != nil {
+		return fmt.Errorf("create contract revision %s: %w", revision.ID, err)
+	}
+	return nil
 }
 
 func outcomeFromRow(row gen.Outcome) domain.Outcome {
