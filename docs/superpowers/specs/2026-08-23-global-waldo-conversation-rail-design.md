@@ -157,6 +157,24 @@ Persistent specialists belong in Work or Settings, not as a roster competing wit
 
 No specialist may silently mutate personal truth, responsibility state, memory admission, or another agent's authority.
 
+### Dimension-inspired agent activity surface
+
+Waldo may use the strongest part of Dimension's agent presentation—a legible path from request to plan to cross-source activity to result—without copying its identity, layout, or authority shortcuts.
+
+An agent activity card inside the Waldo rail should show:
+
+1. the user's exact request and attached Home or Work context;
+2. the bounded task and completion condition Waldo understood;
+3. sources and tools the run is permitted to use;
+4. a short ordered trace of pending, active, blocked, and evidenced steps;
+5. any approval required before an external effect;
+6. artifacts or evidence produced so far; and
+7. the exact native Home or Work object to which the result will return.
+
+The surface must distinguish `working`, `waiting for approval`, `interrupted`, `unknown outcome`, and `result ready`. It must not use provider completion as proof that the user's Outcome is complete, collapse multiple agents into personality avatars, or imply that a preview trace is a live run.
+
+The activity surface remains subordinate to the conversation and the owning Work object. It is a compact execution explanation, not a separate agent dashboard.
+
 ## Provider and runtime boundary
 
 The product should model connections by the capability they provide rather than embedding a provider's identity into Waldo.
