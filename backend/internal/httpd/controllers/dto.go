@@ -1961,3 +1961,106 @@ func outcomeResponse(view outcomevc.OutcomeView) OutcomeResponse {
 	}
 	return resp
 }
+
+// PlanIDParam is the {planId} path parameter shared by the plan approval route.
+type PlanIDParam struct {
+	PlanID string `path:"planId" description:"Plan revision identifier, e.g. plan-<uuid>."`
+}
+
+// ProposePlanRequest is the body for POST /outcomes/{outcomeId}/plans.
+// ExpectedContractRevision must name the current revision the plan executes.
+type ProposePlanRequest struct {
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+}
+
+// ApprovePlanRequest is the body for POST
+// /outcomes/{outcomeId}/plans/{planId}/approval. ExpectedContractRevision
+// guards against approving while the contract moved ahead unseen.
+type ApprovePlanRequest struct {
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+}
+
+// PlanWorkUnitResponse is the single planned unit inside a PlanRevision.
+type PlanWorkUnitResponse struct {
+	ID                      string   `json:"id"`
+	Kind                    string   `json:"kind"`
+	Title                   string   `json:"title"`
+	ContractRevisionNumber  int64    `json:"contractRevisionNumber"`
+	OutputSummary           string   `json:"outputSummary"`
+	EvidenceChecks          []string `json:"evidenceChecks"`
+	VerificationRequirement string   `json:"verificationRequirement"`
+	StopConditions          []string `json:"stopConditions"`
+}
+
+// CapabilityGrantResponse is one scoped capability the plan authorizes.
+type CapabilityGrantResponse struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Scope string `json:"scope"`
+}
+
+// PlanRevisionResponse is the canonical Decide & Authorize read model: the
+// frozen Work Unit, active-on-approval grants, and the RunBrief core digest.
+type PlanRevisionResponse struct {
+	ID                     string                    `json:"id"`
+	OutcomeID              string                    `json:"outcomeId"`
+	Number                 int64                     `json:"number"`
+	ContractRevisionNumber int64                     `json:"contractRevisionNumber"`
+	Status                 string                    `json:"status"`
+	Summary                string                    `json:"summary"`
+	WorkUnits              []PlanWorkUnitResponse    `json:"workUnits"`
+	Grants                 []CapabilityGrantResponse `json:"grants"`
+	RunBriefCoreDigest     string                    `json:"runBriefCoreDigest"`
+	RunBriefCompiledDigest string                    `json:"runBriefCompiledDigest,omitempty"`
+	CreatedAt              time.Time                 `json:"createdAt"`
+}
+
+// PlanEnvelope is the { plan } response body for plan reads and writes.
+type PlanEnvelope struct {
+	Plan PlanRevisionResponse `json:"plan"`
+}
+
+func workUnitResponse(unit domain.WorkUnit) PlanWorkUnitResponse {
+	return PlanWorkUnitResponse{
+		ID:                      string(unit.ID),
+		Kind:                    string(unit.Kind),
+		Title:                   unit.Title,
+		ContractRevisionNumber:  unit.ContractRevisionNumber,
+		OutputSummary:           unit.OutputSummary,
+		EvidenceChecks:          unit.EvidenceChecks,
+		VerificationRequirement: unit.VerificationRequirement,
+		StopConditions:          unit.StopConditions,
+	}
+}
+
+func capabilityGrantResponse(grant domain.CapabilityGrant) CapabilityGrantResponse {
+	return CapabilityGrantResponse{
+		ID:    string(grant.ID),
+		Name:  grant.Name,
+		Scope: grant.Scope,
+	}
+}
+
+func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
+	units := make([]PlanWorkUnitResponse, 0, len(plan.WorkUnits))
+	for _, unit := range plan.WorkUnits {
+		units = append(units, workUnitResponse(unit))
+	}
+	grants := make([]CapabilityGrantResponse, 0, len(plan.Grants))
+	for _, grant := range plan.Grants {
+		grants = append(grants, capabilityGrantResponse(grant))
+	}
+	return PlanRevisionResponse{
+		ID:                     string(plan.ID),
+		OutcomeID:              string(plan.OutcomeID),
+		Number:                 plan.Number,
+		ContractRevisionNumber: plan.ContractRevisionNumber,
+		Status:                 string(plan.Status),
+		Summary:                plan.Summary,
+		WorkUnits:              units,
+		Grants:                 grants,
+		RunBriefCoreDigest:     plan.RunBriefCoreDigest,
+		RunBriefCompiledDigest: plan.RunBriefCompiledDigest,
+		CreatedAt:              plan.CreatedAt,
+	}
+}

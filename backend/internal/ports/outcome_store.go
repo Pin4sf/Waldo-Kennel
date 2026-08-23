@@ -60,4 +60,27 @@ type OutcomeStore interface {
 	// ListContractRevisions returns the full immutable history ordered by
 	// ascending revision number.
 	ListContractRevisions(ctx context.Context, id domain.OutcomeID) ([]domain.ContractRevision, error)
+
+	// AppendPlanRevision atomically persists one proposed plan together with
+	// its single Work Unit and capability grants, assigning the plan number
+	// inside the transaction and returning the plan with that number.
+	AppendPlanRevision(ctx context.Context, outcomeID domain.OutcomeID, plan domain.PlanRevision) (domain.PlanRevision, error)
+
+	// LatestProposedPlanRevision resolves the highest-numbered proposed plan
+	// bound to the named contract revision; ok=false when none exists. Create
+	// replays resolve through it so re-proposing never stacks duplicates.
+	LatestProposedPlanRevision(ctx context.Context, outcomeID domain.OutcomeID, contractRevision int64) (domain.PlanRevision, bool, error)
+
+	// GetPlanRevision reads one plan with its work unit and grants; ok=false
+	// when absent for this Outcome.
+	GetPlanRevision(ctx context.Context, outcomeID domain.OutcomeID, planID domain.PlanRevisionID) (domain.PlanRevision, bool, error)
+
+	// GetLatestPlanRevision returns the newest plan of any status; ok=false
+	// when the Outcome has no plans yet.
+	GetLatestPlanRevision(ctx context.Context, outcomeID domain.OutcomeID) (domain.PlanRevision, bool, error)
+
+	// ApprovePlanRevision moves a plan from proposed to approved under an
+	// optimistic guard and activates its grants. Re-approving an already
+	// approved plan is idempotent; found=false means no such plan.
+	ApprovePlanRevision(ctx context.Context, outcomeID domain.OutcomeID, planID domain.PlanRevisionID) (domain.PlanRevision, bool, error)
 }

@@ -22,6 +22,8 @@ type OutcomeUnderstandSurfaceProps = {
 	projectId: string;
 	/** Present when re-entering Understand for a known Outcome; absent on first contract. */
 	outcomeId?: string;
+	/** Fires after the daemon confirms ContractRevision 1, so hosts can advance stages. */
+	onContractSaved?: (outcome: OutcomeRecord) => void;
 };
 
 type ClarificationChoice = "local-day" | "rolling-24" | "custom";
@@ -60,7 +62,7 @@ function fingerprintOf(draft: Draft, choice: ClarificationChoice, custom: string
  * before the daemon's response: until then the form is an explicit unsaved
  * draft.
  */
-export function OutcomeUnderstandSurface({ projectId, outcomeId }: OutcomeUnderstandSurfaceProps) {
+export function OutcomeUnderstandSurface({ projectId, outcomeId, onContractSaved }: OutcomeUnderstandSurfaceProps) {
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
 
@@ -147,6 +149,7 @@ export function OutcomeUnderstandSurface({ projectId, outcomeId }: OutcomeUnders
 			nonGoals: trimmedList(draft.nonGoals),
 			clarification: resolveClarification(),
 		};
+		const wasPersisted = Boolean(persisted)
 		try {
 			const saved = persisted
 				? await revise.save({ ...contract, expectedRevision: persisted.currentRevisionNumber })
@@ -160,6 +163,7 @@ export function OutcomeUnderstandSurface({ projectId, outcomeId }: OutcomeUnders
 			// daemon accepted, so typing during the request correctly reads as
 			// unsaved.
 			setSavedFingerprint(fingerprint);
+			if (!wasPersisted) onContractSaved?.(saved);
 		} catch {
 			// Failure state is derived from the mutation's typed error; nothing to add.
 		}

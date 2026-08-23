@@ -17,9 +17,14 @@ import (
 // burned/skipped-migration profiles alike. Bodies must be kept verbatim with
 // their defining migration.
 var changeLogWriters = []struct {
-	name  string
+	name string
+	// table is the writer's direct subject table.
 	table string
-	sql   string
+	// deps lists every additional table the trigger body touches. The writer
+	// is restored only when the subject table and every dependency physically
+	// exist, so partially migrated profiles never carry half-built triggers.
+	deps []string
+	sql  string
 }{
 	{
 		name:  "agent_switches_cdc_insert",
@@ -136,6 +141,41 @@ var changeLogWriters = []struct {
 		table: "usage_sources",
 		sql:   "CREATE TRIGGER usage_sources_cdc_update AFTER UPDATE ON usage_sources\nWHEN OLD.anomaly_count IS NOT NEW.anomaly_count\n  OR OLD.last_error_code IS NOT NEW.last_error_code\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    SELECT s.project_id, ub.session_id, 'session_updated', json_object('id', ub.session_id), NEW.updated_at\n    FROM usage_bindings ub JOIN sessions s ON s.id = ub.session_id WHERE ub.id = NEW.binding_id;\nEND;",
 	},
+	// Outcome contract writers introduced by 0099. Migration 0100 also
+	// rebuilds change_log and detaches these; like every writer above they are
+	// restored here — never inside migration SQL — because skipped-migration
+	// profiles may not have the subject tables when a later rebuild runs.
+	{
+		name:  "responsibility_outcomes_cdc_insert",
+		table: "outcomes",
+		deps:  []string{"responsibility_spaces"},
+		sql:   "CREATE TRIGGER responsibility_outcomes_cdc_insert\nAFTER INSERT ON outcomes\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT project_id FROM responsibility_spaces WHERE id = NEW.space_id),\n        NULL,\n        'outcome_created',\n        json_object(\n            'id', NEW.id,\n            'spaceId', NEW.space_id,\n            'title', NEW.title,\n            'currentRevisionNumber', NEW.current_revision_number\n        ),\n        NEW.created_at);\nEND;",
+	},
+	{
+		name:  "responsibility_outcomes_cdc_update",
+		table: "outcomes",
+		deps:  []string{"responsibility_spaces"},
+		sql:   "CREATE TRIGGER responsibility_outcomes_cdc_update\nAFTER UPDATE ON outcomes\nWHEN OLD.title <> NEW.title\n     OR OLD.current_revision_number <> NEW.current_revision_number\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT project_id FROM responsibility_spaces WHERE id = NEW.space_id),\n        NULL,\n        'outcome_updated',\n        json_object(\n            'id', NEW.id,\n            'spaceId', NEW.space_id,\n            'title', NEW.title,\n            'previousRevisionNumber', OLD.current_revision_number,\n            'currentRevisionNumber', NEW.current_revision_number\n        ),\n        NEW.updated_at);\nEND;",
+	},
+	{
+		name:  "responsibility_contract_revisions_cdc_insert",
+		table: "contract_revisions",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER responsibility_contract_revisions_cdc_insert\nAFTER INSERT ON contract_revisions\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id\n           FROM outcomes o\n           JOIN responsibility_spaces s ON s.id = o.space_id\n          WHERE o.id = NEW.outcome_id),\n        NULL,\n        'outcome_contract_revised',\n        json_object(\n            'revisionId', NEW.id,\n            'outcomeId', NEW.outcome_id,\n            'number', NEW.number,\n            'goal', NEW.goal\n        ),\n        NEW.created_at);\nEND;",
+	},
+	// Plan authority writers introduced by 0100.
+	{
+		name:  "outcome_plans_cdc_insert",
+		table: "plan_revisions",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER outcome_plans_cdc_insert\nAFTER INSERT ON plan_revisions\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id\n           FROM outcomes o\n           JOIN responsibility_spaces s ON s.id = o.space_id\n          WHERE o.id = NEW.outcome_id),\n        NULL,\n        'outcome_plan_proposed',\n        json_object(\n            'planId', NEW.id,\n            'outcomeId', NEW.outcome_id,\n            'number', NEW.number,\n            'contractRevisionNumber', NEW.contract_revision_number,\n            'runBriefCoreDigest', NEW.run_brief_core_digest\n        ),\n        NEW.created_at);\nEND;",
+	},
+	{
+		name:  "outcome_plans_cdc_update",
+		table: "plan_revisions",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER outcome_plans_cdc_update\nAFTER UPDATE ON plan_revisions\nWHEN OLD.status <> NEW.status\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id\n           FROM outcomes o\n           JOIN responsibility_spaces s ON s.id = o.space_id\n          WHERE o.id = NEW.outcome_id),\n        NULL,\n        'outcome_plan_approved',\n        json_object(\n            'planId', NEW.id,\n            'outcomeId', NEW.outcome_id,\n            'number', NEW.number,\n            'previousStatus', OLD.status,\n            'status', NEW.status\n        ),\n        datetime('now'));\nEND;",
+	},
 }
 
 // restoreChangeLogWriters recreates any missing change_log-writing trigger
@@ -161,6 +201,24 @@ func restoreChangeLogWriters(db *sql.DB) error {
 		if t == 0 {
 			// Degraded profile: the subject table arrives through a later
 			// schema repair together with its writer.
+			continue
+		}
+		ready := true
+		for _, dep := range w.deps {
+			var d int
+			if err := db.QueryRow(
+				"SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", dep,
+			).Scan(&d); err != nil {
+				return fmt.Errorf("inspect dependency %s of %s: %w", dep, w.name, err)
+			}
+			if d == 0 {
+				ready = false
+				break
+			}
+		}
+		if !ready {
+			// A trigger body that joins an absent table would abort every
+			// future write to its subject; defer until dependencies land.
 			continue
 		}
 		if _, err := db.Exec(w.sql); err != nil {

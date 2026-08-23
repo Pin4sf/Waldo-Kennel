@@ -3,6 +3,7 @@ package store_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -189,6 +190,161 @@ func TestOutcomeStore_AppendContractRevisionHistoryAndConflictRollback(t *testin
 	for _, rev := range historyAfter {
 		if rev.ID == stale.ID {
 			t.Fatal("rolled-back revision leaked into history")
+		}
+	}
+}
+
+func focusLedgerPlan(outcomeID domain.OutcomeID, revision domain.ContractRevision, number int64) domain.PlanRevision {
+	// The fixture revision arrives pre-numbering (store assigns 1 on create);
+	// brief freezing describes the contract as it exists at approval time.
+	if revision.Number < 1 {
+		revision.Number = 1
+	}
+	unit := domain.WorkUnit{
+		ID:                      domain.WorkUnitID("wu-" + fmt.Sprintf("%d", number)),
+		Kind:                    domain.WorkUnitDirect,
+		Title:                   "Build and prove Local Focus Ledger",
+		ContractRevisionNumber:  revision.Number,
+		OutputSummary:           "Working local feature retained in the isolated worktree",
+		EvidenceChecks:          []string{"validation, date boundary, aggregation, persistence checks pass"},
+		VerificationRequirement: "deterministic verification outside the producer session plus owner walkthrough",
+		StopConditions:          []string{"stop before unapproved dependencies, remote effects, or writes outside the worktree"},
+	}
+	grants := []domain.CapabilityGrant{
+		{ID: domain.CapabilityGrantID("cg-read-" + fmt.Sprintf("%d", number)), Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
+		{ID: domain.CapabilityGrantID("cg-write-" + fmt.Sprintf("%d", number)), Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"},
+		{ID: domain.CapabilityGrantID("cg-exec-" + fmt.Sprintf("%d", number)), Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"},
+	}
+	digest, err := domain.ComputeRunBriefCoreDigest(revision, unit, grants)
+	if err != nil {
+		panic(err)
+	}
+	return domain.PlanRevision{
+		ID:                     domain.PlanRevisionID(fmt.Sprintf("plan-%d", number)),
+		OutcomeID:              outcomeID,
+		ContractRevisionNumber: revision.Number,
+		Status:                 domain.PlanStatusProposed,
+		Summary:                "One direct Work Unit",
+		WorkUnits:              []domain.WorkUnit{unit},
+		Grants:                 grants,
+		RunBriefCoreDigest:     digest,
+	}
+}
+
+func TestOutcomeStore_AppendApproveAndReadBackPlans(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "mer")
+	space, err := s.EnsureWorkResponsibilitySpace(ctx, "mer")
+	if err != nil {
+		t.Fatalf("ensure space: %v", err)
+	}
+	outcome, first := focusLedgerContract(space.ID, "p1")
+	if err := s.CreateOutcomeWithContract(ctx, outcome, first, "req-plan-1"); err != nil {
+		t.Fatalf("create outcome: %v", err)
+	}
+
+	planIn := focusLedgerPlan(outcome.ID, first, 1)
+	saved, err := s.AppendPlanRevision(ctx, outcome.ID, planIn)
+	if err != nil {
+		t.Fatalf("append plan: %v", err)
+	}
+	if saved.Number != 1 {
+		t.Fatalf("plan number = %d, want store-assigned 1", saved.Number)
+	}
+
+	got, ok, err := s.GetPlanRevision(ctx, outcome.ID, saved.ID)
+	if err != nil || !ok {
+		t.Fatalf("get plan ok=%v err=%v", ok, err)
+	}
+	if got.Status != domain.PlanStatusProposed {
+		t.Fatalf("status = %s, want proposed", got.Status)
+	}
+	if len(got.WorkUnits) != 1 || got.WorkUnits[0].Title != planIn.WorkUnits[0].Title {
+		t.Fatalf("work unit readback = %+v", got.WorkUnits)
+	}
+	if len(got.Grants) != 3 {
+		t.Fatalf("grants = %+v, want the v0 trio", got.Grants)
+	}
+	if got.RunBriefCoreDigest != planIn.RunBriefCoreDigest {
+		t.Fatal("run brief core digest did not survive the round trip")
+	}
+
+	// Replay lookup binds both proposal status and contract revision.
+	if _, ok, err := s.LatestProposedPlanRevision(ctx, outcome.ID, 1); err != nil || !ok {
+		t.Fatalf("latest proposed at r1 ok=%v err=%v", ok, err)
+	}
+	if _, ok, _ := s.LatestProposedPlanRevision(ctx, outcome.ID, 2); ok {
+		t.Fatal("no proposed plan may exist for a future contract revision")
+	}
+
+	approved, found, err := s.ApprovePlanRevision(ctx, outcome.ID, saved.ID)
+	if err != nil || !found {
+		t.Fatalf("approve found=%v err=%v", found, err)
+	}
+	if approved.Status != domain.PlanStatusApproved {
+		t.Fatalf("status after approve = %s, want approved", approved.Status)
+	}
+
+	again, found, err := s.ApprovePlanRevision(ctx, outcome.ID, saved.ID)
+	if err != nil || !found || again.Status != domain.PlanStatusApproved {
+		t.Fatalf("re-approve found=%v status=%s err=%v, want idempotent approval", found, again.Status, err)
+	}
+
+	if missing, found, err := s.ApprovePlanRevision(ctx, outcome.ID, "plan-ghost"); found || err != nil {
+		t.Fatalf("unknown plan found=%v err=%v, want quiet miss", found, err)
+	} else {
+		_ = missing
+	}
+
+	if latest, ok, _ := s.GetLatestPlanRevision(ctx, outcome.ID); !ok || latest.Number != 1 || latest.Status != domain.PlanStatusApproved {
+		t.Fatalf("latest plan = %+v ok=%v, want approved r1", latest, ok)
+	}
+}
+
+func TestOutcomeStore_AppendPlanRequiresProposedStatus(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "mer")
+	space, err := s.EnsureWorkResponsibilitySpace(ctx, "mer")
+	if err != nil {
+		t.Fatalf("ensure space: %v", err)
+	}
+	outcome, first := focusLedgerContract(space.ID, "p2")
+	if err := s.CreateOutcomeWithContract(ctx, outcome, first, "req-plan-2"); err != nil {
+		t.Fatalf("create outcome: %v", err)
+	}
+
+	plan := focusLedgerPlan(outcome.ID, first, 1)
+	plan.Status = domain.PlanStatusApproved
+	if _, err := s.AppendPlanRevision(ctx, outcome.ID, plan); err == nil {
+		t.Fatal("plans must only be created proposed; approve is a separate owner decision")
+	}
+}
+
+func TestOutcomeStore_PlanNumbersSerializePerOutcome(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "mer")
+	space, err := s.EnsureWorkResponsibilitySpace(ctx, "mer")
+	if err != nil {
+		t.Fatalf("ensure space: %v", err)
+	}
+	outcome, first := focusLedgerContract(space.ID, "p3")
+	if err := s.CreateOutcomeWithContract(ctx, outcome, first, "req-plan-3"); err != nil {
+		t.Fatalf("create outcome: %v", err)
+	}
+
+	for want := int64(1); want <= 3; want++ {
+		// Each proposal supersedes nothing: they stack as history because the
+		// service layer decides staleness; storage only guarantees numbering.
+		proposal := focusLedgerPlan(outcome.ID, first, want)
+		saved, err := s.AppendPlanRevision(ctx, outcome.ID, proposal)
+		if err != nil {
+			t.Fatalf("append plan %d: %v", want, err)
+		}
+		if saved.Number != want {
+			t.Fatalf("plan number = %d, want %d", saved.Number, want)
 		}
 	}
 }

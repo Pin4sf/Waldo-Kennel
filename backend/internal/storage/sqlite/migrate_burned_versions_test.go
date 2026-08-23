@@ -103,6 +103,7 @@ var shippedMigrations = map[int64]string{
 	97: "0097_pr_provider_identity.sql",
 	98: "0098_project_chat_assistant_projection.sql",
 	99: "0099_responsibility_outcome_contract.sql",
+	100: "0100_outcome_plan_authority.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

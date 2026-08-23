@@ -414,6 +414,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the newest plan of any status for this Outcome */
+        get: operations["getLatestOutcomePlan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Propose the direct Work Unit plan bound to the current contract revision */
+        post: operations["proposeOutcomePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/plans/{planId}/approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Authorize a proposed plan (owner authority gate; fails closed on narrowed authority) */
+        post: operations["approveOutcomePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/revisions": {
         parameters: {
             query?: never;
@@ -1769,6 +1820,10 @@ export interface components {
         AgentSwitchResponse: {
             switch: components["schemas"]["AgentSwitch"];
         };
+        ApprovePlanRequest: {
+            /** Format: int64 */
+            expectedContractRevision: number;
+        };
         AttachmentInput: {
             data: string;
             mimeType?: string;
@@ -1800,6 +1855,11 @@ export interface components {
         CancelSessionInterfaceTransitionResponse: {
             ok: boolean;
             sessionId: string;
+        };
+        CapabilityGrantResponse: {
+            id: string;
+            name: string;
+            scope: string;
         };
         ClaimPRRequest: {
             allowTakeover?: null | boolean;
@@ -2417,6 +2477,36 @@ export interface components {
             targetSha: string;
             title: string;
         };
+        PlanEnvelope: {
+            plan: components["schemas"]["PlanRevisionResponse"];
+        };
+        PlanRevisionResponse: {
+            /** Format: int64 */
+            contractRevisionNumber: number;
+            /** Format: date-time */
+            createdAt: string;
+            grants: components["schemas"]["CapabilityGrantResponse"][];
+            id: string;
+            /** Format: int64 */
+            number: number;
+            outcomeId: string;
+            runBriefCompiledDigest?: string;
+            runBriefCoreDigest: string;
+            status: string;
+            summary: string;
+            workUnits: components["schemas"]["PlanWorkUnitResponse"][];
+        };
+        PlanWorkUnitResponse: {
+            /** Format: int64 */
+            contractRevisionNumber: number;
+            evidenceChecks: string[];
+            id: string;
+            kind: string;
+            outputSummary: string;
+            stopConditions: string[];
+            title: string;
+            verificationRequirement: string;
+        };
         PreviewServerStatusResponse: {
             configuration?: string;
             error?: string;
@@ -2489,6 +2579,10 @@ export interface components {
             activityId: string;
             providerTurnId: string;
             sourceTurnId: string;
+        };
+        ProposePlanRequest: {
+            /** Format: int64 */
+            expectedContractRevision: number;
         };
         PushDeviceEnvelope: {
             device: components["schemas"]["PushDeviceResponse"];
@@ -4387,6 +4481,202 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getLatestOutcomePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    proposeOutcomePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposePlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    approveOutcomePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+                /** @description Plan revision identifier, e.g. plan-<uuid>. */
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApprovePlanRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -2,6 +2,7 @@ package controllers_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,8 +15,8 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
 	outcomevc "github.com/aoagents/agent-orchestrator/backend/internal/service/outcome"
+	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
 )
 
 type fakeOutcomeService struct {
@@ -24,6 +25,18 @@ type fakeOutcomeService struct {
 	get    func(context.Context, domain.OutcomeID) (outcomevc.OutcomeView, error)
 
 	lastInput outcomevc.CreateInput
+}
+
+func (f *fakeOutcomeService) ProposePlan(_ context.Context, _ domain.OutcomeID, _ int64) (outcomevc.PlanView, error) {
+	return outcomevc.PlanView{}, apierr.NotFound("PLAN_NOT_FOUND", "not implemented in fake")
+}
+
+func (f *fakeOutcomeService) ApprovePlan(_ context.Context, _ domain.OutcomeID, _ outcomevc.ApprovePlanInput) (outcomevc.AuthorizedPlanView, error) {
+	return outcomevc.AuthorizedPlanView{}, apierr.NotFound("PLAN_NOT_FOUND", "not implemented in fake")
+}
+
+func (f *fakeOutcomeService) GetLatestPlan(_ context.Context, _ domain.OutcomeID) (outcomevc.PlanView, error) {
+	return outcomevc.PlanView{}, apierr.NotFound("PLAN_NOT_FOUND", "not implemented in fake")
 }
 
 func (f *fakeOutcomeService) Create(ctx context.Context, in outcomevc.CreateInput) (outcomevc.OutcomeView, error) {
@@ -198,4 +211,114 @@ func extractOutcomeID(t *testing.T, body []byte) string {
 		t.Fatalf("malformed id in body: %s", s)
 	}
 	return "out-" + rest[:j]
+}
+
+func TestOutcomePlanRoutesFunctionalThroughRealStore(t *testing.T) {
+	storeHandle := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	if err := storeHandle.UpsertProject(ctx, domain.ProjectRecord{
+		ID: "mer", Path: "/tmp/kennel-plan-fixture", RegisteredAt: time.Now().UTC(),
+		Kind: domain.ProjectKindSingleRepo,
+	}); err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+	svc := outcomevc.New(storeHandle, nil)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{
+		Outcomes: svc,
+	}, httpd.ControlDeps{}))
+	defer srv.Close()
+
+	const createBody = `{"title":"Local Focus Ledger","goal":"Record focus locally.","successCriteria":["Positive minutes create one block."],"review":"Deterministic checks.","requestKey":"req-plan-e2e"}`
+	respBytes, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/projects/mer/outcomes", createBody)
+	if status != http.StatusCreated {
+		t.Fatalf("create = %d: %s", status, respBytes)
+	}
+	id := extractOutcomeID(t, respBytes)
+
+	// 1) Propose against revision 1 lands an immutable proposed plan.
+	proposeBody := `{"expectedContractRevision":1}`
+	planBytes, pStatus, _ := doRequest(t, srv, http.MethodPost, "/api/v1/outcomes/"+id+"/plans", proposeBody)
+	if pStatus != http.StatusCreated {
+		t.Fatalf("propose = %d: %s", pStatus, planBytes)
+	}
+	if !strings.Contains(string(planBytes), `"status":"proposed"`) ||
+		!strings.Contains(string(planBytes), `"number":1`) ||
+		len(strings.Split(string(planBytes), `"scope":"worktree/*"`)) != 4 {
+		t.Fatalf("proposal payload unexpected: %s", planBytes)
+	}
+	var envelope struct {
+		Plan struct {
+			ID                     string `json:"id"`
+			RunBriefCoreDigest     string `json:"runBriefCoreDigest"`
+			WorkUnits              []map[string]any
+			EvidenceBindsCriterion bool `json:"-"`
+		} `json:"plan"`
+	}
+	if err := json.Unmarshal(planBytes, &envelope); err != nil {
+		t.Fatalf("decode proposal: %v", err)
+	}
+	if len(envelope.Plan.RunBriefCoreDigest) != 64 {
+		t.Fatalf("run brief core digest missing: %s", planBytes)
+	}
+
+	// 2) Re-proposing the same revision replays the identical plan.
+	replayBytes, replayStatus, _ := doRequest(t, srv, http.MethodPost, "/api/v1/outcomes/"+id+"/plans", proposeBody)
+	if replayStatus != http.StatusCreated || !strings.Contains(string(replayBytes), envelope.Plan.ID) {
+		t.Fatalf("replay = %d want same plan %s: %s", replayStatus, envelope.Plan.ID, replayBytes)
+	}
+
+	// 3) Owner approval activates the plan exactly once.
+	const approveBody = `{"expectedContractRevision":1}`
+	approveBytes, aStatus, _ := doRequest(t, srv, http.MethodPost,
+		"/api/v1/outcomes/"+id+"/plans/"+envelope.Plan.ID+"/approval", approveBody)
+	if aStatus != http.StatusOK || !strings.Contains(string(approveBytes), `"status":"approved"`) {
+		t.Fatalf("approve = %d: %s", aStatus, approveBytes)
+	}
+	reApproveBytes, reStatus, _ := doRequest(t, srv, http.MethodPost,
+		"/api/v1/outcomes/"+id+"/plans/"+envelope.Plan.ID+"/approval", approveBody)
+	if reStatus != http.StatusOK || !strings.Contains(string(reApproveBytes), `"status":"approved"`) {
+		t.Fatalf("re-approve must be idempotent: %d %s", reStatus, reApproveBytes)
+	}
+
+	// 4) Material change: r2 makes the r1-bound plan unapprovable and forces
+	//    a fresh brief on the next proposal.
+	revBody := `{"expectedRevision":1,"goal":"Record focus locally with notes.","successCriteria":["Blocks","Notes"],"review":"checks"}`
+	revBytes, revStatus, _ := doRequest(t, srv, http.MethodPost, "/api/v1/outcomes/"+id+"/revisions", revBody)
+	if revStatus != http.StatusOK {
+		t.Fatalf("revise = %d: %s", revStatus, revBytes)
+	}
+	staleBytes, staleStatus, _ := doRequest(t, srv, http.MethodPost,
+		"/api/v1/outcomes/"+id+"/plans/"+envelope.Plan.ID+"/approval",
+		`{"expectedContractRevision":2}`)
+	if staleStatus != http.StatusConflict || !strings.Contains(string(staleBytes), "PLAN_CONTRACT_STALE") {
+		t.Fatalf("stale approval = %d want 409 PLAN_CONTRACT_STALE: %s", staleStatus, staleBytes)
+	}
+
+	nextBytes, nextStatus, _ := doRequest(t, srv, http.MethodPost, "/api/v1/outcomes/"+id+"/plans", `{"expectedContractRevision":2}`)
+	if nextStatus != http.StatusCreated || !strings.Contains(string(nextBytes), `"contractRevisionNumber":2`) {
+		t.Fatalf("r2 proposal = %d: %s", nextStatus, nextBytes)
+	}
+	var nextEnvelope struct {
+		Plan struct {
+			ID                 string `json:"id"`
+			RunBriefCoreDigest string `json:"runBriefCoreDigest"`
+		} `json:"plan"`
+	}
+	if err := json.Unmarshal(nextBytes, &nextEnvelope); err != nil {
+		t.Fatalf("decode r2 proposal: %v", err)
+	}
+	if nextEnvelope.Plan.RunBriefCoreDigest == envelope.Plan.RunBriefCoreDigest {
+		t.Fatal("material contract change must produce a fresh RunBrief core digest")
+	}
+
+	latestBytes, latestStatus, _ := doRequest(t, srv, http.MethodGet, "/api/v1/outcomes/"+id+"/plan", "")
+	if latestStatus != http.StatusOK || !strings.Contains(string(latestBytes), nextEnvelope.Plan.ID) {
+		t.Fatalf("latest plan = %d want r2 plan: %s", latestStatus, latestBytes)
+	}
+
+	// 5) Unknown outcomes refuse plans.
+	if _, missStatus, _ := doRequest(t, srv, http.MethodPost, "/api/v1/outcomes/out-ghost/plans", proposeBody); missStatus != http.StatusNotFound {
+		t.Fatalf("unknown outcome propose = %d, want 404", missStatus)
+	}
 }
