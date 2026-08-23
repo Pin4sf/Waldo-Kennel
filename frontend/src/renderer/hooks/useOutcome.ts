@@ -46,6 +46,8 @@ const PERMANENT_CODES = new Set([
 	"OUTCOME_GOAL_REQUIRED",
 	"OUTCOME_CRITERIA_REQUIRED",
 	"OUTCOME_REVIEW_REQUIRED",
+	"PLAN_ID_REQUIRED",
+	"PLAN_CAPABILITY_MISSING",
 ]);
 
 /**
@@ -223,4 +225,120 @@ export function useReviseOutcomeContract(outcomeId: string | undefined) {
 		if (error) throw error;
 		return (data as OutcomeEnvelope).outcome;
 	});
+}
+
+/* ----------------------------- Plans (#26) ------------------------------ */
+
+export type PlanRecord = components["schemas"]["PlanRevisionResponse"];
+type PlanEnvelope = components["schemas"]["PlanEnvelope"];
+
+export const PLAN_NOT_FOUND = "PLAN_NOT_FOUND";
+/** The plan binds a superseded contract revision: a fresh brief is required. */
+export const PLAN_CONTRACT_STALE = "PLAN_CONTRACT_STALE";
+/** Authority layers no longer allow every capability the plan freezes. */
+export const PLAN_CAPABILITY_UNAUTHORIZED = "PLAN_CAPABILITY_UNAUTHORIZED";
+
+function planQueryKey(outcomeId: string | undefined) {
+	return ["outcome-plan", outcomeId ?? ""] as const;
+}
+
+async function fetchLatestPlan(outcomeId: string): Promise<PlanRecord> {
+	const { data, error } = await apiClient.GET("/api/v1/outcomes/{outcomeId}/plan", {
+		params: { path: { outcomeId } },
+	});
+	if (error) throw error;
+	return (data as PlanEnvelope).plan;
+}
+
+export interface OutcomePlanQueryResult {
+	/** Undefined when no plan exists yet — absence is an answer, not an error. */
+	plan?: PlanRecord;
+	isLoading: boolean;
+	failure?: OutcomeFailure;
+	refetch: () => void;
+}
+
+/**
+ * The newest plan of any status for one Outcome.
+ */
+export function useOutcomePlan(outcomeId: string | undefined): OutcomePlanQueryResult {
+	const query = useQuery({
+		queryKey: planQueryKey(outcomeId),
+		enabled: Boolean(outcomeId),
+		queryFn: () => fetchLatestPlan(outcomeId as string),
+		retry: (attempt, error) => {
+			const code = apiErrorCode(error);
+			if (code === PLAN_NOT_FOUND || code === OUTCOME_NOT_FOUND) return false;
+			return attempt < 2;
+		},
+	});
+
+	if (query.error) {
+		if (apiErrorCode(query.error) === PLAN_NOT_FOUND) {
+			return { isLoading: false, refetch: () => void query.refetch() };
+		}
+		return { isLoading: query.isLoading, failure: classifyOutcomeFailure(query.error), refetch: () => void query.refetch() };
+	}
+	return { plan: query.data, isLoading: query.isLoading, refetch: () => void query.refetch() };
+}
+
+export interface ProposePlanState {
+	pending: boolean;
+	failure?: OutcomeFailure;
+	reset: () => void;
+	propose: (input: { expectedContractRevision: number }) => Promise<PlanRecord>;
+}
+
+/** Deterministic proposal for one contract revision; replays server-side. */
+export function useProposeOutcomePlan(outcomeId: string | undefined): ProposePlanState {
+	const queryClient = useQueryClient();
+	const mutation = useMutation({
+		mutationFn: async (input: { expectedContractRevision: number }) => {
+			const { data, error } = await apiClient.POST("/api/v1/outcomes/{outcomeId}/plans", {
+				params: { path: { outcomeId: outcomeId as string } },
+				body: { expectedContractRevision: input.expectedContractRevision },
+			});
+			if (error) throw error;
+			return (data as PlanEnvelope).plan;
+		},
+		onSuccess: (plan) => queryClient.setQueryData(planQueryKey(outcomeId), plan),
+	});
+	return {
+		pending: mutation.isPending,
+		failure: mutation.error ? classifyOutcomeFailure(mutation.error) : undefined,
+		reset: () => mutation.reset(),
+		propose: mutation.mutateAsync,
+	};
+}
+
+export interface ApprovePlanState {
+	pending: boolean;
+	failure?: OutcomeFailure;
+	reset: () => void;
+	approve: (input: { planId: string; expectedContractRevision: number }) => Promise<PlanRecord>;
+}
+
+/** Owner approval against the revision the approver was looking at. */
+export function useApproveOutcomePlan(outcomeId: string | undefined): ApprovePlanState {
+	const queryClient = useQueryClient();
+	const mutation = useMutation({
+		mutationFn: async (input: { planId: string; expectedContractRevision: number }) => {
+			const { data, error } = await apiClient.POST(
+				"/api/v1/outcomes/{outcomeId}/plans/{planId}/approval",
+				{
+					params: { path: { outcomeId: outcomeId as string, planId: input.planId } },
+					body: { expectedContractRevision: input.expectedContractRevision },
+				},
+			);
+			if (error) throw error;
+			return (data as PlanEnvelope).plan;
+		},
+		onSuccess: (plan) => queryClient.setQueryData(planQueryKey(outcomeId), plan),
+	});
+	return {
+		pending: mutation.isPending,
+		failure: mutation.error ? classifyOutcomeFailure(mutation.error) : undefined,
+		reset: () => mutation.reset(),
+		approve: mutation.mutateAsync,
+	};
 }
