@@ -357,10 +357,8 @@ function ShellLayout() {
 					project_id: workspace.id,
 					source: "project_add",
 				});
-				const { data: settingsData } = await apiClient.GET("/api/v1/settings");
-				const orientationMode = settingsData?.chatHarnesses?.includes(input.orchestratorAgent)
-					? "chat"
-					: undefined;
+				// No seeding prompt: Outcome shaping belongs to the Understand stage
+				// over the daemon contract, not to a transcript-marker orientation.
 				const {
 					data: spawnData,
 					error: spawnError,
@@ -370,8 +368,6 @@ function ShellLayout() {
 						projectId: workspace.id,
 						kind: "orchestrator",
 						harness: input.orchestratorAgent as components["schemas"]["SpawnSessionRequest"]["harness"],
-						mode: orientationMode,
-						prompt: "Perform Kennel's read-only high-level codebase orientation now. Do not change files or spawn workers. Return 2-4 useful outcome ideas, each on its own line prefixed exactly KENNEL_OUTCOME_SUGGESTION:.",
 					},
 				});
 				if (spawnError || !spawnData?.session?.id) {
