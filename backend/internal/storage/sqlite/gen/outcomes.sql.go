@@ -39,6 +39,46 @@ func (q *Queries) AdvanceOutcomeCurrentRevision(ctx context.Context, arg Advance
 	return result.RowsAffected()
 }
 
+const approvePlanRevision = `-- name: ApprovePlanRevision :execrows
+UPDATE plan_revisions SET status = 'approved'
+WHERE id = ? AND outcome_id = ? AND status = 'proposed'
+`
+
+type ApprovePlanRevisionParams struct {
+	ID        domain.PlanRevisionID
+	OutcomeID domain.OutcomeID
+}
+
+func (q *Queries) ApprovePlanRevision(ctx context.Context, arg ApprovePlanRevisionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, approvePlanRevision, arg.ID, arg.OutcomeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const createCapabilityGrant = `-- name: CreateCapabilityGrant :exec
+INSERT INTO capability_grants (id, plan_revision_id, name, scope)
+VALUES (?, ?, ?, ?)
+`
+
+type CreateCapabilityGrantParams struct {
+	ID             domain.CapabilityGrantID
+	PlanRevisionID domain.PlanRevisionID
+	Name           string
+	Scope          string
+}
+
+func (q *Queries) CreateCapabilityGrant(ctx context.Context, arg CreateCapabilityGrantParams) error {
+	_, err := q.db.ExecContext(ctx, createCapabilityGrant,
+		arg.ID,
+		arg.PlanRevisionID,
+		arg.Name,
+		arg.Scope,
+	)
+	return err
+}
+
 const createContractRevision = `-- name: CreateContractRevision :exec
 INSERT INTO contract_revisions (id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -95,6 +135,37 @@ func (q *Queries) CreateOutcome(ctx context.Context, arg CreateOutcomeParams) er
 	return err
 }
 
+const createPlanRevision = `-- name: CreatePlanRevision :exec
+
+INSERT INTO plan_revisions (id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest)
+VALUES (?, ?, ?, ?, ?, ?, ?, '')
+`
+
+type CreatePlanRevisionParams struct {
+	ID                     domain.PlanRevisionID
+	OutcomeID              domain.OutcomeID
+	Number                 int64
+	ContractRevisionNumber int64
+	Status                 string
+	Summary                string
+	RunBriefCoreDigest     string
+}
+
+// Canonical Decide & Authorize (#26): Outcome -> immutable PlanRevision with
+// exactly one direct WorkUnit and scoped CapabilityGrants.
+func (q *Queries) CreatePlanRevision(ctx context.Context, arg CreatePlanRevisionParams) error {
+	_, err := q.db.ExecContext(ctx, createPlanRevision,
+		arg.ID,
+		arg.OutcomeID,
+		arg.Number,
+		arg.ContractRevisionNumber,
+		arg.Status,
+		arg.Summary,
+		arg.RunBriefCoreDigest,
+	)
+	return err
+}
+
 const createResponsibilitySpace = `-- name: CreateResponsibilitySpace :exec
 INSERT INTO responsibility_spaces (id, kind, project_id)
 VALUES (?, 'WorkProject', ?)
@@ -107,6 +178,38 @@ type CreateResponsibilitySpaceParams struct {
 
 func (q *Queries) CreateResponsibilitySpace(ctx context.Context, arg CreateResponsibilitySpaceParams) error {
 	_, err := q.db.ExecContext(ctx, createResponsibilitySpace, arg.ID, arg.ProjectID)
+	return err
+}
+
+const createWorkUnit = `-- name: CreateWorkUnit :exec
+INSERT INTO work_units (id, plan_revision_id, kind, title, contract_revision_number, output_summary, evidence_checks, verification_requirement, stop_conditions)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateWorkUnitParams struct {
+	ID                      domain.WorkUnitID
+	PlanRevisionID          domain.PlanRevisionID
+	Kind                    string
+	Title                   string
+	ContractRevisionNumber  int64
+	OutputSummary           string
+	EvidenceChecks          string
+	VerificationRequirement string
+	StopConditions          string
+}
+
+func (q *Queries) CreateWorkUnit(ctx context.Context, arg CreateWorkUnitParams) error {
+	_, err := q.db.ExecContext(ctx, createWorkUnit,
+		arg.ID,
+		arg.PlanRevisionID,
+		arg.Kind,
+		arg.Title,
+		arg.ContractRevisionNumber,
+		arg.OutputSummary,
+		arg.EvidenceChecks,
+		arg.VerificationRequirement,
+		arg.StopConditions,
+	)
 	return err
 }
 
@@ -175,6 +278,28 @@ func (q *Queries) GetContractRevisionByNumber(ctx context.Context, arg GetContra
 	return i, err
 }
 
+const getLatestPlanRevision = `-- name: GetLatestPlanRevision :one
+SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at
+FROM plan_revisions WHERE outcome_id = ? ORDER BY number DESC LIMIT 1
+`
+
+func (q *Queries) GetLatestPlanRevision(ctx context.Context, outcomeID domain.OutcomeID) (PlanRevision, error) {
+	row := q.db.QueryRowContext(ctx, getLatestPlanRevision, outcomeID)
+	var i PlanRevision
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Number,
+		&i.ContractRevisionNumber,
+		&i.Status,
+		&i.Summary,
+		&i.RunBriefCoreDigest,
+		&i.RunBriefCompiledDigest,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getOutcome = `-- name: GetOutcome :one
 SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at
 FROM outcomes WHERE id = ?
@@ -191,6 +316,33 @@ func (q *Queries) GetOutcome(ctx context.Context, id domain.OutcomeID) (Outcome,
 		&i.IdempotencyKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPlanRevision = `-- name: GetPlanRevision :one
+SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at
+FROM plan_revisions WHERE id = ? AND outcome_id = ?
+`
+
+type GetPlanRevisionParams struct {
+	ID        domain.PlanRevisionID
+	OutcomeID domain.OutcomeID
+}
+
+func (q *Queries) GetPlanRevision(ctx context.Context, arg GetPlanRevisionParams) (PlanRevision, error) {
+	row := q.db.QueryRowContext(ctx, getPlanRevision, arg.ID, arg.OutcomeID)
+	var i PlanRevision
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Number,
+		&i.ContractRevisionNumber,
+		&i.Status,
+		&i.Summary,
+		&i.RunBriefCoreDigest,
+		&i.RunBriefCompiledDigest,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -213,6 +365,67 @@ func (q *Queries) GetResponsibilitySpace(ctx context.Context, id domain.Responsi
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const latestProposedPlanRevision = `-- name: LatestProposedPlanRevision :one
+SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at
+FROM plan_revisions WHERE outcome_id = ? AND contract_revision_number = ? AND status = 'proposed'
+ORDER BY number DESC LIMIT 1
+`
+
+type LatestProposedPlanRevisionParams struct {
+	OutcomeID              domain.OutcomeID
+	ContractRevisionNumber int64
+}
+
+func (q *Queries) LatestProposedPlanRevision(ctx context.Context, arg LatestProposedPlanRevisionParams) (PlanRevision, error) {
+	row := q.db.QueryRowContext(ctx, latestProposedPlanRevision, arg.OutcomeID, arg.ContractRevisionNumber)
+	var i PlanRevision
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Number,
+		&i.ContractRevisionNumber,
+		&i.Status,
+		&i.Summary,
+		&i.RunBriefCoreDigest,
+		&i.RunBriefCompiledDigest,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listCapabilityGrantsForPlan = `-- name: ListCapabilityGrantsForPlan :many
+SELECT id, plan_revision_id, name, scope
+FROM capability_grants WHERE plan_revision_id = ?
+`
+
+func (q *Queries) ListCapabilityGrantsForPlan(ctx context.Context, planRevisionID domain.PlanRevisionID) ([]CapabilityGrant, error) {
+	rows, err := q.db.QueryContext(ctx, listCapabilityGrantsForPlan, planRevisionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CapabilityGrant{}
+	for rows.Next() {
+		var i CapabilityGrant
+		if err := rows.Scan(
+			&i.ID,
+			&i.PlanRevisionID,
+			&i.Name,
+			&i.Scope,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listContractRevisions = `-- name: ListContractRevisions :many
@@ -254,12 +467,61 @@ func (q *Queries) ListContractRevisions(ctx context.Context, outcomeID domain.Ou
 	return items, nil
 }
 
+const listWorkUnitsForPlan = `-- name: ListWorkUnitsForPlan :many
+SELECT id, plan_revision_id, kind, title, contract_revision_number, output_summary, evidence_checks, verification_requirement, stop_conditions
+FROM work_units WHERE plan_revision_id = ?
+`
+
+func (q *Queries) ListWorkUnitsForPlan(ctx context.Context, planRevisionID domain.PlanRevisionID) ([]WorkUnit, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkUnitsForPlan, planRevisionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkUnit{}
+	for rows.Next() {
+		var i WorkUnit
+		if err := rows.Scan(
+			&i.ID,
+			&i.PlanRevisionID,
+			&i.Kind,
+			&i.Title,
+			&i.ContractRevisionNumber,
+			&i.OutputSummary,
+			&i.EvidenceChecks,
+			&i.VerificationRequirement,
+			&i.StopConditions,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const maxContractRevisionNumber = `-- name: MaxContractRevisionNumber :one
 SELECT COALESCE(MAX(number), 0) FROM contract_revisions WHERE outcome_id = ?
 `
 
 func (q *Queries) MaxContractRevisionNumber(ctx context.Context, outcomeID domain.OutcomeID) (interface{}, error) {
 	row := q.db.QueryRowContext(ctx, maxContractRevisionNumber, outcomeID)
+	var coalesce interface{}
+	err := row.Scan(&coalesce)
+	return coalesce, err
+}
+
+const maxPlanRevisionNumber = `-- name: MaxPlanRevisionNumber :one
+SELECT COALESCE(MAX(number), 0) FROM plan_revisions WHERE outcome_id = ?
+`
+
+func (q *Queries) MaxPlanRevisionNumber(ctx context.Context, outcomeID domain.OutcomeID) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, maxPlanRevisionNumber, outcomeID)
 	var coalesce interface{}
 	err := row.Scan(&coalesce)
 	return coalesce, err

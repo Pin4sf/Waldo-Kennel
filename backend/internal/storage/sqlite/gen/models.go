@@ -65,6 +65,13 @@ type AppSetting struct {
 	UpdatedAt          time.Time
 }
 
+type CapabilityGrant struct {
+	ID             domain.CapabilityGrantID
+	PlanRevisionID domain.PlanRevisionID
+	Name           string
+	Scope          string
+}
+
 type ChangeLog struct {
 	Seq       int64
 	ProjectID domain.ProjectID
@@ -342,6 +349,18 @@ type PRURLAlias struct {
 	CanonicalURL string
 }
 
+type PlanRevision struct {
+	ID                     domain.PlanRevisionID
+	OutcomeID              domain.OutcomeID
+	Number                 int64
+	ContractRevisionNumber int64
+	Status                 string
+	Summary                string
+	RunBriefCoreDigest     string
+	RunBriefCompiledDigest string
+	CreatedAt              time.Time
+}
+
 type Project struct {
 	ID            domain.ProjectID
 	Path          string
@@ -546,6 +565,18 @@ type UsageSource struct {
 	NextRetryAt     sql.NullTime
 	LastErrorCode   string
 	UpdatedAt       time.Time
+}
+
+type WorkUnit struct {
+	ID                      domain.WorkUnitID
+	PlanRevisionID          domain.PlanRevisionID
+	Kind                    string
+	Title                   string
+	ContractRevisionNumber  int64
+	OutputSummary           string
+	EvidenceChecks          string
+	VerificationRequirement string
+	StopConditions          string
 }
 
 type WorkspaceRepo struct {
