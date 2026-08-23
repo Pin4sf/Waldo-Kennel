@@ -104,6 +104,18 @@ describe("Work-first Enter surface", () => {
 		expect(await screen.findByText("my-app")).toBeInTheDocument();
 	});
 
+	it("routes a selected project to Understand on the same Work route", async () => {
+		respondWith([{ id: "proj-1", name: "my-app", path: "/repo/my-app" }]);
+		renderSurface();
+
+		await userEvent.click(await screen.findByRole("button", { name: /start with work/i }));
+		await userEvent.click(await screen.findByRole("button", { name: /my-app/ }));
+
+		// The Understand stage shares the /work route; only the project context
+		// changes, so Home/Work mode memory keeps working.
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/work", search: { project: "proj-1" } });
+	});
+
 	it("never creates a Home record while entering through Work", async () => {
 		renderSurface();
 		await userEvent.click(await screen.findByRole("button", { name: /start with work/i }));

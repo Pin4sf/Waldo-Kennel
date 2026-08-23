@@ -111,7 +111,10 @@ beforeEach(() => {
 });
 
 describe("SessionsBoard", () => {
-	it("shows structured outcome questions over the active board without hiding its lanes", async () => {
+	it("never renders outcome questions from transcript markers over the active board", async () => {
+		// The marker intake is retired: Understand owns Outcome questions over
+		// the daemon contract, so marker text in an orchestrator transcript must
+		// not spawn an overlay here — the lanes stay exactly as they are.
 		const questionSet = {
 			questions: [
 				{
@@ -159,8 +162,8 @@ describe("SessionsBoard", () => {
 
 		renderBoard("p1");
 
-		const dialog = await screen.findByRole("dialog", { name: /Wants to create DES-4/ });
-		expect(dialog).toHaveClass("bg-[rgb(21_21_21/60%)]");
+		await screen.findByText("Work already in progress");
+		expect(screen.queryByRole("dialog", { name: /Wants to create DES-4/ })).not.toBeInTheDocument();
 		expect(screen.getByRole("region", { name: "Running sessions" })).toHaveTextContent(
 			"Work already in progress",
 		);

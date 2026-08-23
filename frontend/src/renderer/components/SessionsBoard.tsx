@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	SessionsArchiveView,
@@ -40,20 +40,6 @@ import { restartProjectOrchestrator } from "../lib/restart-orchestrator";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { isLinuxPlatform, isMacPlatform, usesBoardActionsInPanel } from "../lib/platform";
 import { cn } from "../lib/utils";
-import { agentLabel } from "../lib/agent-options";
-import {
-	extractLatestSubmittedOutcome,
-	extractOutcomeFromSessionTitle,
-	extractOutcomeSuggestions,
-} from "../lib/outcome-suggestions";
-import {
-	buildOutcomeAnswersMessage,
-	buildOutcomePlanApprovalMessage,
-	buildOutcomePlanRevisionMessage,
-	deriveOutcomeCoordinationState,
-	type OutcomePlan,
-} from "../lib/outcome-coordination";
-import { apiClient, apiErrorMessage } from "../lib/api-client";
 import { useUiStore } from "../stores/ui-store";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { DaemonStartupLoader } from "./DaemonStartupLoader";
@@ -65,7 +51,6 @@ import {
 	sessionsBoardLabels,
 } from "./SessionsBoardAdapters";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { OutcomeIntakePanel, OutcomeQuestionOverlay } from "./OutcomeIntakePanel";
 import { NewShellTerminalButton } from "./NewShellTerminalButton";
 
 type SessionsBoardProps = {
@@ -105,40 +90,17 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const boardLabel = t("shell.board");
 	const sessions = workspaces.flatMap((workspace) => workerSessions(workspace.sessions));
 	const orchestrator = projectId ? newestActiveOrchestrator(workspaces[0]?.sessions ?? []) : undefined;
-	const outcomeConversation = useQuery({
-		queryKey: ["outcome-suggestions", orchestrator?.id],
-		enabled: Boolean(orchestrator?.id && orchestrator.mode === "chat"),
-		refetchInterval: 2_000,
-		queryFn: async () => {
-			const { data, error } = await apiClient.GET("/api/v1/sessions/{sessionId}/conversation", {
-				params: { path: { sessionId: orchestrator?.id ?? "" } },
-			});
-			if (error) throw new Error(apiErrorMessage(error));
-			return data;
-		},
-	});
-	const outcomeMessages = outcomeConversation.data?.messages ?? [];
-	const outcomeSuggestions = extractOutcomeSuggestions(outcomeMessages);
-	const outcomeDefinition =
-		extractLatestSubmittedOutcome(outcomeMessages) ??
-		(orchestrator ? extractOutcomeFromSessionTitle(orchestrator.title) : undefined);
-	const outcomeCoordination = deriveOutcomeCoordinationState(outcomeMessages);
-	const orchestratorBusy =
-		orchestrator?.activity?.state === "active" ||
-		outcomeConversation.data?.controller === "busy" ||
-		outcomeConversation.data?.controller === "connecting" ||
-		outcomeConversation.data?.controller === "recovering";
-	const isExploringCodebase = Boolean(
-		orchestrator && !outcomeDefinition && outcomeSuggestions.length === 0 && (orchestratorBusy || outcomeConversation.isLoading),
-	);
+	// Outcome shaping no longer lives on this board: the Understand stage owns it
+	// through the daemon contract, so the board derives only what its own durable
+	// facts say — an active orchestrator session — and never parses transcripts.
+	const orchestratorBusy = orchestrator?.activity?.state === "active";
+	const isExploringCodebase = Boolean(orchestrator && orchestratorBusy);
 	const [isSpawning, setIsSpawning] = useState(false);
 	const [spawnError, setSpawnError] = useState<string | null>(null);
 	const [canCreateAsTui, setCanCreateAsTui] = useState(false);
 	const [canInstallTmux, setCanInstallTmux] = useState(false);
 	const [isInstallingTmux, setIsInstallingTmux] = useState(false);
 	const [tmuxInstallMessage, setTmuxInstallMessage] = useState<string | null>(null);
-	const [isSendingOutcomeResponse, setIsSendingOutcomeResponse] = useState(false);
-	const [outcomeResponseError, setOutcomeResponseError] = useState<string | undefined>();
 	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
 	const orchestratorStartupError = useUiStore((state) =>
 		projectId ? (state.orchestratorStartupErrors[projectId] ?? null) : null,
@@ -197,45 +159,10 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	// the active Outcome intake/review surface when no work is currently running.
 	const showProjectEmpty =
 		projectId !== undefined && isLoaded && workspaces.length > 0 && activeSessions.length === 0;
-	const activeOutcomeQuestionSet =
-		!showProjectEmpty &&
-		projectId !== undefined &&
-		outcomeDefinition &&
-		orchestrator?.mode === "chat" &&
-		outcomeCoordination.stage === "questions"
-			? outcomeCoordination.questionSet
-			: undefined;
 	const hasArchive = archived.length > 0;
 	const terminateSession = useTerminateSession();
 	const activeProjectIdRef = useRef(projectId);
 	activeProjectIdRef.current = projectId;
-
-	const sendOutcomeResponse = async (text: string) => {
-		if (!orchestrator || orchestrator.mode !== "chat" || isSendingOutcomeResponse) return;
-		setIsSendingOutcomeResponse(true);
-		setOutcomeResponseError(undefined);
-		try {
-			const { error } = await apiClient.POST("/api/v1/sessions/{sessionId}/conversation/messages", {
-				params: { path: { sessionId: orchestrator.id } },
-				body: { text },
-			});
-			if (error) throw new Error(apiErrorMessage(error));
-			await outcomeConversation.refetch();
-			await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
-		} catch (error) {
-			setOutcomeResponseError(error instanceof Error ? error.message : "Could not send the response");
-		} finally {
-			setIsSendingOutcomeResponse(false);
-		}
-	};
-
-	useEffect(() => {
-		if (outcomeCoordination.stage !== "approved" || activeSessions.length > 0) return;
-		const timer = window.setInterval(() => {
-			void queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
-		}, 2_000);
-		return () => window.clearInterval(timer);
-	}, [activeSessions.length, outcomeCoordination.stage, queryClient]);
 
 	const openSession = (session: WorkspaceSession) =>
 		void navigate({
@@ -444,31 +371,14 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 					<p className="py-10 text-center text-xs text-passive">{t("shell.couldNotLoadSessions")}</p>
 				) : showWelcome ? (
 					<BoardWelcome />
-				) : showProjectEmpty && outcomeDefinition && orchestrator?.mode === "chat" ? (
-					<OutcomeIntakePanel
-						agentLabel={agentLabel(orchestrator.provider)}
-						busy={isSendingOutcomeResponse}
-						error={outcomeResponseError}
-						onApprove={(plan: OutcomePlan) => sendOutcomeResponse(buildOutcomePlanApprovalMessage(plan))}
-						onRequestRevision={(instructions) => sendOutcomeResponse(buildOutcomePlanRevisionMessage(instructions))}
-						onSubmitAnswers={(answers) => sendOutcomeResponse(buildOutcomeAnswersMessage(answers))}
-						outcomeDefinition={outcomeDefinition}
-						state={outcomeCoordination}
-					/>
 				) : showProjectEmpty ? (
 					<ProjectBoardEmpty
 						isExploring={isExploringCodebase}
 						isSpawning={isSpawning}
 						isInstallingTmux={isInstallingTmux}
-						isOutcomeWaiting={Boolean(outcomeDefinition && orchestratorBusy)}
 						isProjectRestarting={isProjectRestarting}
 						onNewTask={() => projectId && requestNewTask(projectId)}
-						onOpenOrchestrator={orchestrator ? () => void openOrchestrator() : undefined}
-						onSuggestion={(suggestion) => projectId && requestNewTask(projectId, suggestion)}
 						onInstallTmux={canInstallTmux && isMacPlatform() ? () => void installTmuxAndRetry() : undefined}
-						orchestratorLabel={orchestrator ? agentLabel(orchestrator.provider) : undefined}
-						outcomeDefinition={outcomeDefinition}
-						outcomeSuggestions={outcomeSuggestions}
 						tmuxInstallMessage={tmuxInstallMessage}
 						spawnError={visibleSpawnError}
 					/>
@@ -522,16 +432,6 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 					</div>
 				)}
 			</div>
-
-			{activeOutcomeQuestionSet && outcomeDefinition ? (
-				<OutcomeQuestionOverlay
-					busy={isSendingOutcomeResponse}
-					error={outcomeResponseError}
-					onSubmit={(answers) => sendOutcomeResponse(buildOutcomeAnswersMessage(answers))}
-					questionSet={activeOutcomeQuestionSet}
-					supportingText={outcomeDefinition}
-				/>
-			) : null}
 
 			{hasArchive ? (
 				<BoardArchivePanel

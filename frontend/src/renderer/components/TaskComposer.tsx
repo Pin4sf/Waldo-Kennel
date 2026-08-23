@@ -5,7 +5,7 @@ import {
 	type TaskComposerModelCatalog,
 	type TaskComposerModelControl,
 } from "@pin4sf/kennel-product-ui";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { RequiredAgentField } from "./CreateProjectAgentSheet";
@@ -24,7 +24,6 @@ import { cn } from "../lib/utils";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { findProjectOrchestrator } from "../types/workspace";
 import { aoBridge } from "../lib/bridge";
-import { extractOutcomeSuggestions } from "../lib/outcome-suggestions";
 import { AgentModelCombobox } from "./settings/AgentModelCombobox";
 import { SettingsOptionMenu } from "./settings/SettingsOptionMenu";
 
@@ -90,31 +89,6 @@ export function TaskComposer({
 	const workspaces = useWorkspaceQuery().data ?? [];
 	const orchestrator = projectId ? findProjectOrchestrator(workspaces, projectId) : undefined;
 	const { settings } = useSettings();
-	const suggestionsQuery = useQuery({
-		queryKey: ["outcome-suggestions", orchestrator?.id],
-		enabled: Boolean(orchestrator?.id && orchestrator.mode === "chat"),
-		refetchInterval: 2_000,
-		queryFn: async () => {
-			const { data, error: apiError } = await apiClient.GET("/api/v1/sessions/{sessionId}/conversation", {
-				params: { path: { sessionId: orchestrator?.id ?? "" } },
-			});
-			if (apiError) throw new Error(apiErrorMessage(apiError));
-			return data;
-		},
-	});
-	const orientationRequestedFor = useRef<string | null>(null);
-	useEffect(() => {
-		if (!orchestrator || orchestrator.mode !== "chat" || suggestionsQuery.data?.controller !== "ready") return;
-		if ((suggestionsQuery.data.messages ?? []).length > 0 || orientationRequestedFor.current === orchestrator.id) return;
-		orientationRequestedFor.current = orchestrator.id;
-		void apiClient.POST("/api/v1/sessions/{sessionId}/conversation/messages", {
-			params: { path: { sessionId: orchestrator.id } },
-			body: {
-				text: "Perform Kennel's read-only high-level codebase orientation now. Do not change files or spawn workers. Return 2-4 useful outcome ideas, each on its own line prefixed exactly KENNEL_OUTCOME_SUGGESTION:.",
-			},
-		});
-	}, [orchestrator, suggestionsQuery.data]);
-	const outcomeSuggestions = extractOutcomeSuggestions(suggestionsQuery.data?.messages ?? []);
 	const {
 		attachments,
 		error: attachmentError,
@@ -345,25 +319,7 @@ export function TaskComposer({
 	return (
 		<div>
 			<div className="px-4 pb-1 text-xs text-muted-foreground">
-				{outcomeSuggestions.length > 0 ? (
-					<>
-						<p className="mb-2 font-medium text-foreground">{t("newTask.suggestionsTitle")}</p>
-						<div className="flex flex-wrap gap-2">
-							{outcomeSuggestions.map((suggestion) => (
-								<button key={suggestion} type="button" className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-left hover:bg-muted" onClick={() => setPrompt(suggestion)}>
-									{suggestion}
-								</button>
-							))}
-						</div>
-					</>
-				) : orchestrator?.mode === "chat" ? (
-					<p className="flex items-center gap-2" role="status">
-						<Loader2 className="size-3.5 animate-spin text-accent" aria-hidden="true" />
-						{t("newTask.exploringCodebase")}
-					</p>
-				) : (
-					<p role="status">{t("newTask.suggestionsRequireChat")}</p>
-				)}
+				<p role="status">{t("newTask.description")}</p>
 			</div>
 			{canInstallTmux ? (
 				<div className="mx-4 mb-2 flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2 text-xs">
