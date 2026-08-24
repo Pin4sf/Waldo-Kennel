@@ -295,13 +295,21 @@ func TestInventoryExposesOnlyHarnessesSelectableForNewWork(t *testing.T) {
 	}
 }
 
-func TestDefaultCatalogExposesCodexForNewWork(t *testing.T) {
+func TestDefaultCatalogExposesAdmittedHarnessesForNewWork(t *testing.T) {
 	got, err := New().List(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Supported) != 1 || got.Supported[0].ID != "codex" || got.Supported[0].Label != "Codex" {
-		t.Fatalf("default supported = %#v, want only Codex", got.Supported)
+	// Registration order: Codex first (the v0 dogfood default), DeepSeek
+	// Harness admitted alongside it through the same fail-closed checks.
+	wantIDs := []string{"codex", "deepseek-harness"}
+	if len(got.Supported) != len(wantIDs) {
+		t.Fatalf("default supported = %#v, want %v", got.Supported, wantIDs)
+	}
+	for i, wantID := range wantIDs {
+		if got.Supported[i].ID != wantID {
+			t.Fatalf("default supported[%d] = %#v, want id %q", i, got.Supported[i], wantID)
+		}
 	}
 }
 

@@ -11,7 +11,7 @@ As of `main` after PRs #1 and #12-#14 on 2026-08-21, Kennel has a working AO-der
 - A thin `kennel` Cobra CLI that uses daemon HTTP rather than opening storage or adapters directly.
 - A deliberately narrow root help surface; advanced/runtime commands remain directly callable for operators and compatibility.
 - Project and session lifecycle, native chat and terminal interfaces, worktree management, recovery, PR/check/review observation, terminal mux, browser preview/control, and a broad inherited provider-adapter catalog.
-- Codex-only admission for fresh v0 work/reviews/delegation/switch targets, with historical provider identities and recovery reads preserved.
+- Codex-first admission for fresh v0 work/delegation/switch targets, now joined by the DeepSeek Harness (`dsh`) adapter for worker sessions; reviewer targets stay Codex-only, and historical provider identities and recovery reads are preserved.
 - Generated OpenAPI and frontend TypeScript contracts with drift checks.
 
 ### Desktop supervisor

@@ -2228,7 +2228,7 @@ export interface components {
         };
         DelegateTaskRequest: {
             /** @enum {string} */
-            agent?: "codex";
+            agent?: "codex" | "deepseek-harness";
             attachments?: components["schemas"]["AttachmentInput"][];
             brief: string;
             /** @enum {string} */
@@ -3000,7 +3000,7 @@ export interface components {
             branch?: string;
             displayName?: string;
             /** @enum {string} */
-            harness?: "codex";
+            harness?: "codex" | "deepseek-harness";
             issueId?: string;
             /** @enum {string} */
             kind?: "worker" | "orchestrator";
@@ -3083,7 +3083,7 @@ export interface components {
              * @description Agent harness to continue the logical AO session with.
              * @enum {string}
              */
-            targetHarness: "codex";
+            targetHarness: "codex" | "deepseek-harness";
         };
         TrackerIntakeConfig: {
             assignee?: string;

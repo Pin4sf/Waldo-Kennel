@@ -2,6 +2,7 @@ package specgen_test
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -25,7 +26,11 @@ func TestBuild_MatchesEmbedded(t *testing.T) {
 	}
 }
 
-func TestBuild_FreshWriteHarnessEnumsAreCodexOnly(t *testing.T) {
+// TestBuild_HarnessEnumsMatchAdmissionPolicy pins the wire enums to the
+// domain admission policy: fresh worker, delegation, and switch targets admit
+// Codex and DeepSeek Harness, while reviewer surfaces stay Codex-only until a
+// DeepSeek reviewer adapter exists.
+func TestBuild_HarnessEnumsMatchAdmissionPolicy(t *testing.T) {
 	got, err := specgen.Build()
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -42,16 +47,23 @@ func TestBuild_FreshWriteHarnessEnumsAreCodexOnly(t *testing.T) {
 	if err := yaml.Unmarshal(got, &doc); err != nil {
 		t.Fatalf("parse generated OpenAPI: %v", err)
 	}
-	for schema, property := range map[string]string{
-		"SpawnSessionRequest":       "harness",
-		"SwitchAgentRequest":        "targetHarness",
-		"SetSessionReviewerRequest": "harness",
-		"DelegateTaskRequest":       "agent",
-		"TriggerReviewRequest":      "harness",
+	for schema, wantEnum := range map[string][]string{
+		"SpawnSessionRequest":       {"codex", "deepseek-harness"},
+		"SwitchAgentRequest":        {"codex", "deepseek-harness"},
+		"DelegateTaskRequest":       {"codex", "deepseek-harness"},
+		"SetSessionReviewerRequest": {"codex"},
+		"TriggerReviewRequest":      {"codex"},
 	} {
-		got := doc.Components.Schemas[schema].Properties[property].Enum
-		if len(got) != 1 || got[0] != "codex" {
-			t.Fatalf("%s.%s enum = %v, want [codex]", schema, property, got)
+		field := map[string]string{
+			"SpawnSessionRequest":       "harness",
+			"SwitchAgentRequest":        "targetHarness",
+			"SetSessionReviewerRequest": "harness",
+			"DelegateTaskRequest":       "agent",
+			"TriggerReviewRequest":      "harness",
+		}[schema]
+		gotEnum := doc.Components.Schemas[schema].Properties[field].Enum
+		if !reflect.DeepEqual(gotEnum, wantEnum) {
+			t.Fatalf("%s.%s enum = %v, want %v", schema, field, gotEnum, wantEnum)
 		}
 	}
 }

@@ -12,7 +12,7 @@
    either inventing glyphs or refusing colours.
    -------------------------------------------------------------------------- */
 
-export type IslandProvider = "claude" | "codex" | "gemini" | "copilot" | "unknown";
+export type IslandProvider = "claude" | "codex" | "gemini" | "copilot" | "deepseek" | "unknown";
 
 interface ProviderAccent {
   /** One colour, for a chip, a ring, or a border. */
@@ -37,6 +37,7 @@ const HARNESS_PATTERNS: ReadonlyArray<readonly [IslandProvider, RegExp]> = [
   ["codex", /codex|chatgpt|openai|gpt/i],
   ["gemini", /gemini|bard|google/i],
   ["copilot", /copilot/i],
+  ["deepseek", /deepseek|\bdsh\b/i],
 ];
 
 /** The provider behind a harness name, or `unknown` when it names none. */
@@ -68,6 +69,10 @@ export const providerAccents: Record<IslandProvider, ProviderAccent> = {
     solid: "#8957e5",
     gradient: "linear-gradient(90deg, #8957e5, #6e40c9)",
   },
+  deepseek: {
+    solid: "#4d6bfe",
+    gradient: "linear-gradient(90deg, #4d6bfe, #3a5af0)",
+  },
   unknown: {
     solid: "var(--island-blue)",
     gradient: "linear-gradient(90deg, var(--island-blue), var(--island-purple))",
@@ -84,5 +89,6 @@ export const providerNames: Record<IslandProvider, string> = {
   codex: "Codex",
   gemini: "Gemini",
   copilot: "Copilot",
+  deepseek: "DeepSeek",
   unknown: "Agent",
 };

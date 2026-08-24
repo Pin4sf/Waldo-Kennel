@@ -6585,6 +6585,7 @@ components:
         agent:
           enum:
           - codex
+          - deepseek-harness
           type: string
         attachments:
           items:
@@ -8549,6 +8550,7 @@ components:
         harness:
           enum:
           - codex
+          - deepseek-harness
           type: string
         issueId:
           type: string
@@ -8727,6 +8729,7 @@ components:
           description: Agent harness to continue the logical AO session with.
           enum:
           - codex
+          - deepseek-harness
           type: string
       required:
       - targetHarness

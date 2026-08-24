@@ -3,6 +3,7 @@ import type { AgentProfile } from "./agent-capabilities";
 export const AGENT_OPTIONS = [
 	"claude-code",
 	"codex",
+	"deepseek-harness",
 	"aider",
 	"opencode",
 	"grok",
@@ -41,6 +42,7 @@ export type AgentIdentity = Pick<AgentProfile, "id" | "label"> & {
 export const AGENT_LABELS: Record<AgentId, string> = {
 	"claude-code": "Claude Code",
 	codex: "Codex",
+	"deepseek-harness": "DeepSeek Harness",
 	aider: "Aider",
 	opencode: "OpenCode",
 	grok: "Grok",

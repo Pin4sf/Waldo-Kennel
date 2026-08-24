@@ -10,6 +10,7 @@ func TestHarnessAdmissionPredicates(t *testing.T) {
 		wantSelectableForNew bool
 	}{
 		{name: "codex", harness: HarnessCodex, wantRecognized: true, wantSelectableForNew: true},
+		{name: "deepseek harness", harness: HarnessDeepSeekHarness, wantRecognized: true, wantSelectableForNew: true},
 		{name: "historical claude", harness: HarnessClaudeCode, wantRecognized: true, wantSelectableForNew: false},
 		{name: "historical prime agent", harness: HarnessPrimeAgent, wantRecognized: true, wantSelectableForNew: false},
 		{name: "historical fake", harness: HarnessFake, wantRecognized: true, wantSelectableForNew: false},
@@ -50,6 +51,25 @@ func TestReviewerHarnessAdmissionPredicates(t *testing.T) {
 				t.Fatalf("IsSelectableForNewWork() = %v, want %v", got, tt.wantSelectableForNew)
 			}
 		})
+	}
+}
+
+func TestDeepSeekHarnessIsKnown(t *testing.T) {
+	if HarnessDeepSeekHarness != AgentHarness("deepseek-harness") {
+		t.Fatalf("HarnessDeepSeekHarness = %q, want deepseek-harness", HarnessDeepSeekHarness)
+	}
+	if !HarnessDeepSeekHarness.IsKnown() {
+		t.Fatal("HarnessDeepSeekHarness.IsKnown() = false, want true")
+	}
+	found := false
+	for _, harness := range AllHarnesses {
+		if harness == HarnessDeepSeekHarness {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("AllHarnesses does not contain HarnessDeepSeekHarness")
 	}
 }
 

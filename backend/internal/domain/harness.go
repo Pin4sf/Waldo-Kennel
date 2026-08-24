@@ -32,6 +32,8 @@ const (
 	HarnessPrimeAgent AgentHarness = "prime-agent"
 	HarnessAutohand   AgentHarness = "autohand"
 	HarnessOMP        AgentHarness = "omp"
+	// HarnessDeepSeekHarness is the DeepSeek Harness CLI ("dsh").
+	HarnessDeepSeekHarness AgentHarness = "deepseek-harness"
 	// HarnessFake is retained for existing test fixtures and historical session
 	// rows, but is not user-selectable.
 	HarnessFake AgentHarness = "fake"
@@ -46,6 +48,7 @@ var AllHarnesses = []AgentHarness{
 	HarnessCline, HarnessKimi, HarnessMuse, HarnessKiro, HarnessKilocode, HarnessVibe, HarnessPi,
 	HarnessKimchi, HarnessPrimeAgent, HarnessAutohand,
 	HarnessOMP,
+	HarnessDeepSeekHarness,
 }
 
 // IsRecognizedPersisted reports whether h is an identity that existing durable
@@ -63,8 +66,11 @@ func (h AgentHarness) IsRecognizedPersisted() bool {
 }
 
 // IsSelectableForNewWork reports whether h may start new work in this build.
+// Codex remains the v0 dogfood default; DeepSeek Harness is admitted alongside
+// it through the same fail-closed adapter admission (a missing dsh binary is
+// "not ready", never silently skipped).
 func (h AgentHarness) IsSelectableForNewWork() bool {
-	return h == HarnessCodex
+	return h == HarnessCodex || h == HarnessDeepSeekHarness
 }
 
 // IsKnown is retained as a compatibility alias for persisted identity checks.
