@@ -25,7 +25,7 @@ function viewProps(overrides: Partial<TaskComposerViewProps> = {}): TaskComposer
 			label: "Agent",
 			placeholder: "Select agent",
 			disabled: false,
-			supported: [{ id: "codex", label: "Codex" }],
+			supported: [{ id: "codex", label: "Codex", roles: { worker: true, coordinator: true, switchTarget: true } }],
 			onChange: vi.fn(),
 		},
 		model: {
