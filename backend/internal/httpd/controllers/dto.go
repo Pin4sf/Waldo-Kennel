@@ -1871,6 +1871,11 @@ type OutcomeIDParam struct {
 	OutcomeID string `path:"outcomeId" description:"Outcome identifier, e.g. out-<uuid>."`
 }
 
+// AttemptIDParam is the {attemptId} path parameter shared by the attempt routes.
+type AttemptIDParam struct {
+	AttemptID string `path:"attemptId" description:"Attempt identifier, e.g. att-<uuid>."`
+}
+
 // CreateOutcomeRequest is the body for POST /projects/{id}/outcomes.
 type CreateOutcomeRequest struct {
 	Title           string   `json:"title"`
@@ -2063,4 +2068,198 @@ func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
 		RunBriefCompiledDigest: plan.RunBriefCompiledDigest,
 		CreatedAt:              plan.CreatedAt,
 	}
+}
+
+// StartOutcomeAttemptRequest is the body for POST
+// /outcomes/{outcomeId}/attempts. RequestKey makes admission exactly-once:
+// replaying a delivered key resolves the original attempt. Harness is the
+// optional worker provider; empty uses the daemon's v0 default (Codex-first)
+// so provider naming stays a server-side policy.
+type StartOutcomeAttemptRequest struct {
+	PlanRevisionID string `json:"planRevisionId"`
+	Harness        string `json:"harness,omitempty"`
+	RequestKey     string `json:"requestKey"`
+}
+
+// RecordObservationRequest is the body for POST
+// /outcomes/{outcomeId}/attempts/{attemptId}/observations.
+type RecordObservationRequest struct {
+	Kind    string `json:"kind"`
+	Payload string `json:"payload,omitempty" description:"Optional JSON object with observation detail."`
+}
+
+// AttemptRecoveryRequest is the body for POST
+// /outcomes/{outcomeId}/attempts/{attemptId}/recovery.
+type AttemptRecoveryRequest struct {
+	Action string `json:"action" description:"One of contain, reconcile, resume, replace, attention." enum:"contain,reconcile,resume,replace,attention"`
+}
+
+// AttemptPresentationResponse is the DERIVED read-time truth about an
+// attempt: phase, whether liveness is unproven, and whether it ended without
+// a result classification. Never stored; always computed from durable facts.
+type AttemptPresentationResponse struct {
+	Phase             string `json:"phase"`
+	Unconfirmed       bool   `json:"unconfirmed"`
+	EndedUnclassified bool   `json:"endedUnclassified"`
+	NextAction        string `json:"nextAction"`
+}
+
+// AttemptSessionRefResponse is one immutable provider-session binding.
+type AttemptSessionRefResponse struct {
+	ID                     string    `json:"id"`
+	Seq                    int64     `json:"seq"`
+	SessionID              string    `json:"sessionId"`
+	Harness                string    `json:"harness"`
+	Mode                   string    `json:"mode,omitempty"`
+	RunBriefCoreDigest     string    `json:"runBriefCoreDigest"`
+	RunBriefCompiledDigest string    `json:"runBriefCompiledDigest,omitempty"`
+	BoundAt                time.Time `json:"boundAt"`
+}
+
+// AttemptObservationResponse is one ordered, append-only observation.
+type AttemptObservationResponse struct {
+	ID        string    `json:"id"`
+	Seq       int64     `json:"seq"`
+	Kind      string    `json:"kind"`
+	Payload   string    `json:"payload,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// RecoveryReceiptResponse records one reconcile verdict.
+type RecoveryReceiptResponse struct {
+	ID                   string    `json:"id"`
+	Resolution           string    `json:"resolution" description:"resumed | replacement_attempt | needs_attention." enum:"resumed,replacement_attempt,needs_attention"`
+	ReplacementAttemptID string    `json:"replacementAttemptId,omitempty"`
+	CreatedAt            time.Time `json:"createdAt"`
+}
+
+// AttemptFenceResponse is the custody lock over one worktree subject while it
+// is open for this attempt.
+type AttemptFenceResponse struct {
+	ID         string     `json:"id"`
+	Subject    string     `json:"subject"`
+	IssuedAt   time.Time  `json:"issuedAt"`
+	ReleasedAt *time.Time `json:"releasedAt,omitempty"`
+}
+
+// AttemptResponse is the Act & Observe read model: durable lineage plus
+// derived presentation. Provider completion is never presented as success.
+type AttemptResponse struct {
+	ID                     string                       `json:"id"`
+	OutcomeID              string                       `json:"outcomeId"`
+	PlanRevisionID         string                       `json:"planRevisionId"`
+	WorkUnitID             string                       `json:"workUnitId"`
+	Number                 int64                        `json:"number"`
+	Status                 string                       `json:"status" enum:"queued,running,paused,succeeded,failed,cancelled,lost,reconciled"`
+	ContractRevisionNumber int64                        `json:"contractRevisionNumber"`
+	Sessions               []AttemptSessionRefResponse  `json:"sessions"`
+	Observations           []AttemptObservationResponse `json:"observations"`
+	Receipts               []RecoveryReceiptResponse    `json:"receipts"`
+	Fence                  *AttemptFenceResponse        `json:"fence,omitempty"`
+	Presentation           AttemptPresentationResponse  `json:"presentation"`
+	CreatedAt              time.Time                    `json:"createdAt"`
+	UpdatedAt              time.Time                    `json:"updatedAt"`
+}
+
+// AttemptEnvelope is the { attempt } response body.
+type AttemptEnvelope struct {
+	Attempt AttemptResponse `json:"attempt"`
+}
+
+// AttemptListEnvelope is the { attempts } response body.
+type AttemptListEnvelope struct {
+	Attempts []AttemptResponse `json:"attempts"`
+}
+
+// ObservationEnvelope is the { observation } response body.
+type ObservationEnvelope struct {
+	Observation AttemptObservationResponse `json:"observation"`
+}
+
+// AttemptRecoveryEnvelope pairs the post-recovery attempt with its verdict
+// receipt when one was recorded.
+type AttemptRecoveryEnvelope struct {
+	Attempt AttemptResponse          `json:"attempt"`
+	Receipt *RecoveryReceiptResponse `json:"receipt,omitempty"`
+}
+
+func attemptSessionRefResponse(ref domain.AttemptSessionRef) AttemptSessionRefResponse {
+	return AttemptSessionRefResponse{
+		ID:                     string(ref.ID),
+		Seq:                    ref.Seq,
+		SessionID:              ref.SessionID,
+		Harness:                string(ref.Harness),
+		Mode:                   string(ref.Mode),
+		RunBriefCoreDigest:     ref.RunBriefCoreDigest,
+		RunBriefCompiledDigest: ref.RunBriefCompiledDigest,
+		BoundAt:                ref.BoundAt,
+	}
+}
+
+func attemptObservationResponse(obs domain.AttemptObservation) AttemptObservationResponse {
+	return AttemptObservationResponse{
+		ID:        obs.ID,
+		Seq:       obs.Seq,
+		Kind:      obs.Kind,
+		Payload:   obs.Payload,
+		CreatedAt: obs.CreatedAt,
+	}
+}
+
+func recoveryReceiptResponse(receipt domain.AttemptRecoveryReceipt) RecoveryReceiptResponse {
+	return RecoveryReceiptResponse{
+		ID:                   receipt.ID,
+		Resolution:           string(receipt.Resolution),
+		ReplacementAttemptID: string(receipt.ReplacementAttemptID),
+		CreatedAt:            receipt.CreatedAt,
+	}
+}
+
+func attemptResponse(view outcomevc.AttemptView) AttemptResponse {
+	sessions := make([]AttemptSessionRefResponse, 0, len(view.Sessions))
+	for _, ref := range view.Sessions {
+		sessions = append(sessions, attemptSessionRefResponse(ref))
+	}
+	observations := make([]AttemptObservationResponse, 0, len(view.Observations))
+	for _, obs := range view.Observations {
+		observations = append(observations, attemptObservationResponse(obs))
+	}
+	receipts := make([]RecoveryReceiptResponse, 0, len(view.Receipts))
+	for _, receipt := range view.Receipts {
+		receipts = append(receipts, recoveryReceiptResponse(receipt))
+	}
+	resp := AttemptResponse{
+		ID:                     string(view.Attempt.ID),
+		OutcomeID:              string(view.Attempt.OutcomeID),
+		PlanRevisionID:         string(view.Attempt.PlanRevisionID),
+		WorkUnitID:             string(view.Attempt.WorkUnitID),
+		Number:                 view.Attempt.Number,
+		Status:                 string(view.Attempt.Status),
+		ContractRevisionNumber: view.Attempt.ContractRevisionNumber,
+		Sessions:               sessions,
+		Observations:           observations,
+		Receipts:               receipts,
+		Presentation: AttemptPresentationResponse{
+			Phase:             view.Presentation.Phase,
+			Unconfirmed:       view.Presentation.Unconfirmed,
+			EndedUnclassified: view.Presentation.EndedUnclassified,
+			NextAction:        view.Presentation.NextAction,
+		},
+		CreatedAt: view.Attempt.CreatedAt,
+		UpdatedAt: view.Attempt.UpdatedAt,
+	}
+	if view.Fence != nil {
+		var releasedAt *time.Time
+		if !view.Fence.ReleasedAt.IsZero() {
+			released := view.Fence.ReleasedAt
+			releasedAt = &released
+		}
+		resp.Fence = &AttemptFenceResponse{
+			ID:         view.Fence.ID,
+			Subject:    view.Fence.Subject,
+			IssuedAt:   view.Fence.IssuedAt,
+			ReleasedAt: releasedAt,
+		}
+	}
+	return resp
 }

@@ -397,6 +397,14 @@ func Run() error {
 		go dispatcher.Run(ctx)
 	}
 
+	// Act & Observe (#31): the attempt service rides the existing session
+	// spawn path (readiness probed with the same checker/config spawn uses)
+	// and the store doubles as the heartbeat-facts source. The liveness hook
+	// runs on the daemon's reconcile cadence and stops with ctx.
+	attemptSvc := outcomevc.NewWithExecution(store, nil,
+		attemptSpawner{sessions: sessionSvc, projects: store, agents: agents}, store)
+	go runAttemptLivenessLoop(ctx, attemptSvc, log)
+
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
 		Projects:           projectSvc,
 		Agents:             agentSvc,
@@ -405,6 +413,7 @@ func Run() error {
 		Reviews:            reviewSvc,
 		Notifications:      notifier,
 		Outcomes:           outcomevc.New(store, nil),
+		Attempts:           attemptSvc,
 		NotificationStream: notificationHub,
 		Push:               pushRegistry,
 		Presence:           presenceTracker,
