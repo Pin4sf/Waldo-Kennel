@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
@@ -51,12 +53,15 @@ func TestLifecycleMissingBinaryFailsClosedBeforeRuntime(t *testing.T) {
 	fakePATH(t, t.TempDir())
 
 	plugin := &Plugin{}
-	if _, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{Prompt: "hello"}); !errors.Is(err, ports.ErrAgentBinaryNotFound) {
+	if _, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
+		Prompt: "hello",
+		Config: ports.AgentConfig{Mode: "tui"},
+	}); !errors.Is(err, ports.ErrAgentBinaryNotFound) {
 		t.Fatalf("GetLaunchCommand err = %v, want ErrAgentBinaryNotFound", err)
 	}
-	status, err := plugin.AuthStatus(context.Background())
-	if err == nil || status != ports.AgentAuthStatusUnknown {
-		t.Fatalf("AuthStatus = (%q, %v), want unknown with error", status, err)
+	// The readiness probe surfaces the same truth rather than a verdict.
+	if _, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Mode: "tui"}); !errors.Is(err, ports.ErrAgentBinaryNotFound) {
+		t.Fatalf("ProfileReadiness err = %v, want ErrAgentBinaryNotFound", err)
 	}
 }
 
@@ -72,12 +77,14 @@ func TestLifecycleFakeBinaryIsResolvedAndLaunched(t *testing.T) {
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Prompt:      "record one focus block",
 		Permissions: ports.PermissionModeBypassPermissions,
+		Config:      ports.AgentConfig{Mode: "tui"},
 	})
 	if err != nil {
 		t.Fatalf("GetLaunchCommand err: %v", err)
 	}
-	if len(cmd) != 1 || filepath.Base(cmd[0]) != "dsh" {
-		t.Fatalf("cmd = %#v, want the resolved fake dsh only", cmd)
+	want := []string{cmd[0], "--profile", "tui"}
+	if !reflect.DeepEqual(cmd, want) {
+		t.Fatalf("cmd = %#v, want %#v (resolved fake + profile flag only)", cmd, want)
 	}
 	if output, err := execCommandOutput(cmd[0]); err != nil || output != "" {
 		t.Fatalf("launch argv run = (%q, %v)", output, err)
@@ -102,6 +109,72 @@ func TestLifecycleCrashingBinaryStillResolves(t *testing.T) {
 	}
 	if filepath.Base(binary) != "dsh" {
 		t.Fatalf("resolved %q, want the crashing fake dsh", binary)
+	}
+}
+
+// Profile readiness composes the configured profile via the verified
+// `--dump-config` contract: exit 0 means launchable.
+func TestReadinessComposesConfiguredProfile(t *testing.T) {
+	dir := t.TempDir()
+	writeFakeDSH(t, dir, "dsh", `echo composed`)
+	fakePATH(t, dir)
+
+	plugin := &Plugin{}
+	readiness, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Mode: "tui"})
+	if err != nil {
+		t.Fatalf("ProfileReadiness err: %v", err)
+	}
+	if !readiness.Ready {
+		t.Fatalf("readiness = %+v, want ready", readiness)
+	}
+}
+
+func TestReadinessReportsInvalidProfileTruthfully(t *testing.T) {
+	dir := t.TempDir()
+	writeFakeDSH(t, dir, "dsh", `echo 'profile "broken" does not exist' >&2; exit 1`)
+	fakePATH(t, dir)
+
+	plugin := &Plugin{}
+	readiness, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Mode: "broken"})
+	if err != nil {
+		t.Fatalf("ProfileReadiness err: %v", err)
+	}
+	if readiness.Ready {
+		t.Fatalf("readiness = %+v, want not ready", readiness)
+	}
+	if !strings.Contains(readiness.Detail, "does not exist") {
+		t.Fatalf("detail = %q, want the CLI's own failure text", readiness.Detail)
+	}
+}
+
+// An unselected profile is not-ready with guidance, never a silent pass —
+// bare `dsh` cannot launch on the published contract anyway.
+func TestReadinessWithoutProfileIsNotReady(t *testing.T) {
+	dir := t.TempDir()
+	writeFakeDSH(t, dir, "dsh", "exit 0")
+	fakePATH(t, dir)
+
+	plugin := &Plugin{}
+	readiness, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{})
+	if err != nil {
+		t.Fatalf("ProfileReadiness err: %v", err)
+	}
+	if readiness.Ready {
+		t.Fatal("readiness = ready, want not ready without a selected profile")
+	}
+	if !strings.Contains(readiness.Detail, "no dsh profile selected") {
+		t.Fatalf("detail = %q, want selection guidance", readiness.Detail)
+	}
+}
+
+// A binary that disappears entirely between resolution and probing surfaces
+// the missing-binary truth rather than a fabricated readiness verdict.
+func TestReadinessMissingBinaryFailsClosed(t *testing.T) {
+	fakePATH(t, t.TempDir())
+
+	plugin := &Plugin{}
+	if _, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Mode: "tui"}); !errors.Is(err, ports.ErrAgentBinaryNotFound) {
+		t.Fatalf("err = %v, want ErrAgentBinaryNotFound", err)
 	}
 }
 

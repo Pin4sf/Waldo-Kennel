@@ -66,6 +66,12 @@ type Info struct {
 	ID         string                `json:"id"`
 	Label      string                `json:"label"`
 	AuthStatus ports.AgentAuthStatus `json:"authStatus,omitempty" enum:"authorized,unauthorized,unknown" description:"Advisory local auth probe result. authorized means a recent local probe passed; spawn remains the authoritative validation point."`
+	// Ready is the advisory profile-readiness probe for adapters whose launch
+	// depends on user-selected configuration beyond a resolved binary. Absent
+	// means the probe does not apply to this adapter. Spawn remains the
+	// authoritative validation point.
+	Ready       *bool  `json:"ready,omitempty" description:"Advisory profile-readiness probe for adapters whose launch needs more than an installed binary. Absent means the probe does not apply."`
+	ReadyDetail string `json:"readyDetail,omitempty" description:"Adapter-explained readiness context: what was verified or what is missing."`
 }
 
 // Inventory describes all daemon-supported agents and best-effort local probe
@@ -511,6 +517,18 @@ func (s *Service) probeAgent(ctx context.Context, item agentregistry.HarnessAgen
 	authCtx, authCancel := context.WithTimeout(ctx, agentAuthProbeTimeout)
 	defer authCancel()
 	info.AuthStatus = authStatus(authCtx, item.Agent)
+	// Profile readiness is advisory and probed with an empty config: it can
+	// only describe the no-selection baseline ("what is missing"). A project's
+	// configured profile is validated authoritatively at spawn.
+	if checker, ok := item.Agent.(ports.AgentProfileReadinessChecker); ok {
+		readinessCtx, readinessCancel := context.WithTimeout(ctx, agentInstallProbeTimeout)
+		defer readinessCancel()
+		if readiness, err := checker.ProfileReadiness(readinessCtx, ports.AgentConfig{}); err == nil {
+			ready := readiness.Ready
+			info.Ready = &ready
+			info.ReadyDetail = readiness.Detail
+		}
+	}
 	return probeResult{info: info, installed: true, authorized: info.AuthStatus == ports.AgentAuthStatusAuthorized}
 }
 

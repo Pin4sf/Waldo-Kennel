@@ -1773,6 +1773,10 @@ export interface components {
             authStatus?: "authorized" | "unauthorized" | "unknown";
             id: string;
             label: string;
+            /** @description Advisory profile-readiness probe for adapters whose launch needs more than an installed binary. Absent means the probe does not apply. */
+            ready?: null | boolean;
+            /** @description Adapter-explained readiness context: what was verified or what is missing. */
+            readyDetail?: string;
         };
         AgentModelInfo: {
             id: string;

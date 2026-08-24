@@ -66,11 +66,22 @@ func (h AgentHarness) IsRecognizedPersisted() bool {
 }
 
 // IsSelectableForNewWork reports whether h may start new work in this build.
-// Codex remains the v0 dogfood default; DeepSeek Harness is admitted alongside
-// it through the same fail-closed adapter admission (a missing dsh binary is
+// Codex remains the recommended zero-configuration default; DeepSeek Harness
+// is admitted alongside it as a worker once its profile-readiness checks pass,
+// through the same fail-closed adapter admission (a missing dsh binary is
 // "not ready", never silently skipped).
 func (h AgentHarness) IsSelectableForNewWork() bool {
 	return h == HarnessCodex || h == HarnessDeepSeekHarness
+}
+
+// IsSelectableAsCoordinator reports whether h may run as a project
+// orchestrator — the Mission coordinator role. This is capability-gated, not a
+// permanent provider allowlist: coordinating requires verified stable session
+// identity, structured chat, and recovery support, which DeepSeek Harness has
+// not demonstrated yet. When those capabilities pass their own admission, this
+// predicate widens without touching the worker admission above.
+func (h AgentHarness) IsSelectableAsCoordinator() bool {
+	return h == HarnessCodex
 }
 
 // IsKnown is retained as a compatibility alias for persisted identity checks.

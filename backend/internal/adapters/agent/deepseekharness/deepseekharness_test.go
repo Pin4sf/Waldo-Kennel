@@ -82,11 +82,11 @@ func TestGetLaunchCommandBareArgvUnderAnyPermissionMode(t *testing.T) {
 			Prompt:      "do the thing",
 			Permissions: mode,
 		})
-		if err != nil {
-			t.Fatalf("mode %v err: %v", mode, err)
+		if err == nil {
+			t.Fatalf("mode %v: expected missing-profile failure, got cmd %#v", mode, cmd)
 		}
-		if want := []string{"dsh"}; !reflect.DeepEqual(cmd, want) {
-			t.Fatalf("mode %v cmd = %#v, want %#v", mode, cmd, want)
+		if !strings.Contains(err.Error(), "no dsh profile configured") {
+			t.Fatalf("mode %v err = %v, want a no-profile explanation", mode, err)
 		}
 	}
 }
@@ -107,7 +107,7 @@ func TestGetLaunchCommandRejectsModelOverride(t *testing.T) {
 }
 
 // A configured mode selects the dsh profile to boot via the one verified
-// launcher flag; empty mode defers to dsh's own default.
+// launcher flag.
 func TestGetLaunchCommandAppendsProfileFlag(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "dsh"}
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
@@ -186,18 +186,6 @@ func TestGetAgentHooksInstallsNothing(t *testing.T) {
 	}
 	if err := plugin.UninstallHooks(context.Background(), ws); err != nil {
 		t.Fatalf("UninstallHooks err: %v", err)
-	}
-}
-
-func TestAuthStatusEnvKeyIsAdvisoryAuthorized(t *testing.T) {
-	plugin := &Plugin{resolvedBinary: "dsh"}
-	t.Setenv("DEEPSEEK_API_KEY", "test-key")
-	status, err := plugin.AuthStatus(context.Background())
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if status != ports.AgentAuthStatusAuthorized {
-		t.Fatalf("status = %q, want authorized", status)
 	}
 }
 

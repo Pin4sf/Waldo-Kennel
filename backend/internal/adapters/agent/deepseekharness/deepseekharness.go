@@ -1,11 +1,13 @@
 // Package deepseekharness implements the DeepSeek Harness agent adapter.
 //
 // DeepSeek Harness ("dsh") boots named profiles — ordered stacks of
-// plugin-bundle patch layers (verified against `dsh --help`, v0.1.1-rc.2).
-// This first cut is deliberately narrow and truthful about what is verified
+// plugin-bundle patch layers (verified against `dsh --help`, v0.1.1-rc.2,
+// whose contract requires `--profile <name>`: bare `dsh` exits with an
+// error). This cut is deliberately narrow and truthful about what is verified
 // versus pending:
 //
-//   - Launch builds `dsh [--profile <name>]` and nothing more. Kennel
+//   - Launch builds `dsh --profile <name>` and nothing more. A profile is
+//     REQUIRED and validated ahead of spawn by ProfileReadiness; Kennel
 //     delivers the worker's initial task through the terminal after startup
 //     (after_start delivery), so no prompt-flag mapping is required.
 //   - The adapter exposes one config key, "mode": the dsh profile to boot.
@@ -79,8 +81,9 @@ func (p *Plugin) Manifest() adapters.Manifest {
 // GetConfigSpec reports dsh's one verified configuration seam: the profile
 // to boot. Profiles are user-built plugin stacks (see `dsh plugin --profile
 // <name> add <package>`), so the field is free text rather than a closed
-// enum. There is no model field because no model flag has been verified; a
-// stored model override fails closed in GetLaunchCommand instead.
+// enum. A profile is required for launch. There is no model field because no
+// model flag has been verified; a stored model override fails closed in
+// GetLaunchCommand instead.
 func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 	if err := ctx.Err(); err != nil {
 		return ports.ConfigSpec{}, err
@@ -88,15 +91,18 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 	return ports.ConfigSpec{Fields: []ports.ConfigField{{
 		Key:         "mode",
 		Type:        ports.ConfigFieldString,
-		Description: "dsh profile to boot (created via `dsh plugin --profile <name> add <package>`). Empty boots dsh's default.",
+		Description: "Required dsh profile to boot (created via `dsh plugin --profile <name> add <package>`).",
 	}}}, nil
 }
 
-// GetLaunchCommand builds `dsh [--profile <name>]` and nothing else. The
-// prompt and any standing instructions arrive through after-start terminal
-// delivery. A configured model override is refused rather than guessed at;
-// permission modes stay untranslated because no dsh permission flag is
-// documented (same reasoning as the Amp adapter).
+// GetLaunchCommand builds `dsh --profile <name>` and nothing else. A profile
+// is REQUIRED — bare `dsh` exits with "--profile <name> is required" on the
+// published contract — so an unselected mode fails closed here with an
+// actionable message instead of surfacing as a spawn failure. The prompt and
+// any standing instructions arrive through after-start terminal delivery. A
+// configured model override is refused rather than guessed at; permission
+// modes stay untranslated because no dsh permission flag is documented (same
+// reasoning as the Amp adapter).
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -104,16 +110,16 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	if model := strings.TrimSpace(cfg.Config.Model); model != "" {
 		return nil, fmt.Errorf("deepseek-harness: model override %q is not supported until the dsh CLI flag contract is pinned", model)
 	}
+	profile := strings.TrimSpace(cfg.Config.Mode)
+	if profile == "" {
+		return nil, fmt.Errorf("deepseek-harness: no dsh profile configured — create one ('dsh plugin --profile <name> add <package>') and select it as this agent's mode")
+	}
 
 	binary, err := p.dshBinary(ctx)
 	if err != nil {
 		return nil, err
 	}
-	cmd := []string{binary}
-	if profile := strings.TrimSpace(cfg.Config.Mode); profile != "" {
-		cmd = append(cmd, "--profile", profile)
-	}
-	return cmd, nil
+	return []string{binary, "--profile", profile}, nil
 }
 
 // GetPromptDeliveryStrategy reports that Kennel injects prompted tasks into

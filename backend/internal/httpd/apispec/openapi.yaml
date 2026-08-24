@@ -5344,6 +5344,16 @@ components:
           type: string
         label:
           type: string
+        ready:
+          description: Advisory profile-readiness probe for adapters whose launch
+            needs more than an installed binary. Absent means the probe does not apply.
+          type:
+          - "null"
+          - boolean
+        readyDetail:
+          description: 'Adapter-explained readiness context: what was verified or
+            what is missing.'
+          type: string
       required:
       - id
       - label

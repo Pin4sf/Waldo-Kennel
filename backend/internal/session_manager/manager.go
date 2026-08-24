@@ -683,6 +683,13 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	if !cfg.Harness.IsSelectableForNewWork() {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: harness %q is not selectable for new work", cfg.Harness)
 	}
+	// Coordinator admission is capability-gated separately from worker
+	// admission: DeepSeek Harness may execute Work Units before it has
+	// demonstrated the stable session identity, structured chat, and recovery
+	// support that coordinating a project requires.
+	if cfg.Kind == domain.KindOrchestrator && !cfg.Harness.IsSelectableAsCoordinator() {
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: harness %q is not admitted as an orchestrator coordinator", cfg.Harness)
+	}
 
 	// Reject an unknown harness before any durable state is created. Doing this
 	// after CreateSession would leave a terminated orphan row and waste a

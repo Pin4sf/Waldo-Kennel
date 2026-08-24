@@ -169,21 +169,28 @@ export function TaskComposer({
 			if (next) queryClient.setQueryData(agentsQueryKey, next);
 		});
 	}, [queryClient]);
+	const agentCatalog = agentsQuery.data;
 	// The composer preselects the agent and model a spawn would actually use
 	// instead of parking the controls on a "default" label the user has to
 	// remember. Both resolved values remain directly editable.
 	const projectWorkerAgent = projectQuery.data?.config?.worker?.agent ?? "";
-	// Project/global defaults can be historical persisted identities. They remain
-	// display/history data, never a fresh task selection.
-	const defaultWorkerAgent: string = "codex";
-	const selectedAgent = agent === "codex" ? agent : defaultWorkerAgent;
+	// An explicit user selection always wins: Kennel never silently falls back
+	// to Codex after the user picked another admitted worker. Defaults resolve
+	// to the project's configured worker when that identity is in the daemon's
+	// supported inventory (persisted historical identities never preselect),
+	// and to Codex otherwise — Codex stays the recommended zero-configuration
+	// default, not a permanent preference.
+	const supportedAgentIds = new Set((agentCatalog?.supported ?? []).map((item) => item.id));
+	const configuredDefaultWorker = supportedAgentIds.has(projectWorkerAgent) ? projectWorkerAgent : "";
+	const defaultWorkerAgent: string = configuredDefaultWorker || "codex";
+	const selectedAgent = agent === "" ? defaultWorkerAgent : agent;
 	const defaultWorkerModel =
 		projectQuery.data?.config?.worker?.agentConfig?.model ?? projectQuery.data?.config?.agentConfig?.model ?? "";
 	const defaultWorkerMode =
 		projectQuery.data?.config?.worker?.agentConfig?.mode ?? projectQuery.data?.config?.agentConfig?.mode ?? "";
-	const projectModelForSelectedAgent = selectedAgent === "codex" && projectWorkerAgent === "codex" ? defaultWorkerModel : "";
-	const projectModeForSelectedAgent = selectedAgent === "codex" && projectWorkerAgent === "codex" ? defaultWorkerMode : "";
-	const agentCatalog = agentsQuery.data;
+	const selectedMatchesProjectWorker = projectWorkerAgent !== "" && selectedAgent === projectWorkerAgent;
+	const projectModelForSelectedAgent = selectedMatchesProjectWorker ? defaultWorkerModel : "";
+	const projectModeForSelectedAgent = selectedMatchesProjectWorker ? defaultWorkerMode : "";
 
 	// Shares the picker's query key, so this is the same fetch, not a second one.
 	const modelCatalogQuery = useQuery(agentModelsQueryOptions(selectedAgent, projectId ?? ""));
