@@ -46,11 +46,12 @@ function requestBody() {
 }
 
 const agentInventory = {
+	// Mirrors the real daemon: `supported` contains only harnesses admitted for
+	// fresh work (codex + deepseek-harness), never historical identities like
+	// claude-code, which remain readable but are not selectable defaults.
 	supported: [
 		{ id: "codex", label: "Codex" },
-		{ id: "claude-code", label: "Claude Code" },
-		{ id: "cursor", label: "Cursor" },
-		{ id: "kiro", label: "Kiro" },
+		{ id: "deepseek-harness", label: "DeepSeek Harness" },
 	],
 	installed: [
 		{ id: "codex", label: "Codex", authStatus: "authorized" },
