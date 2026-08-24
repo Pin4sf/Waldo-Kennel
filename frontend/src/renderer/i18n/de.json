@@ -390,7 +390,7 @@
 	"newTask.image": "Bild {{number}}",
 	"newTask.noSession": "Aufgabenerstellung hat keine Sitzung zurückgegeben",
 	"newTask.optional": "optional",
-	"newTask.profileRequired": "DeepSeek Harness benötigt ein dsh-Profil. Lege es unter Projekteinstellungen → Worker-Modus fest.",
+	"newTask.profileRequired": "DeepSeek Harness benötigt ein dsh-Profil. Lege es unter Projekteinstellungen → Worker-Profil fest.",
 	"newTask.projectDefault": "Projektdefault",
 	"newTask.refreshAgents": "Agenten aktualisieren",
 	"newTask.refreshModels": "Refresh models",

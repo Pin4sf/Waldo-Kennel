@@ -392,7 +392,7 @@
 	"newTask.image": "Image {{number}}",
 	"newTask.noSession": "La création de la tâche n'a renvoyé aucune session",
 	"newTask.optional": "facultatif",
-	"newTask.profileRequired": "DeepSeek Harness requiert un profil dsh. Définissez-le dans Paramètres du projet → Worker → Mode.",
+	"newTask.profileRequired": "DeepSeek Harness requiert un profil dsh. Définissez-le dans Paramètres du projet → Worker → Profil.",
 	"newTask.projectDefault": "Valeur par défaut du projet",
 	"newTask.refreshAgents": "Actualiser les agents",
 	"newTask.refreshModels": "Refresh models",

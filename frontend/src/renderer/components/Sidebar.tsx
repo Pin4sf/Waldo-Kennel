@@ -410,9 +410,13 @@ export function Sidebar({
 			{figmaBoard ? (
 				<div className="figma-board-sidebar__section-heading">
 					<span>{t("shell.projects")}</span>
-					<span aria-hidden="true" className="figma-board-sidebar__section-icons">
-						<ChevronDown />
-						<Filter />
+					<span className="figma-board-sidebar__section-icons">
+						<ChevronDown aria-hidden="true" />
+						<Filter aria-hidden="true" />
+						<CreateProjectButton
+							onCreateProject={onCreateProject}
+							onInitializeProject={onInitializeProject}
+						/>
 					</span>
 				</div>
 			) : (

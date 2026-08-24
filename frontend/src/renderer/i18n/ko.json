@@ -390,7 +390,7 @@
 	"newTask.image": "이미지 {{number}}",
 	"newTask.noSession": "작업 생성에서 세션이 반환되지 않았습니다",
 	"newTask.optional": "선택 사항",
-	"newTask.profileRequired": "DeepSeek Harness에는 dsh 프로필이 필요합니다. 프로젝트 설정 → 워커 → 모드에서 설정하세요.",
+	"newTask.profileRequired": "DeepSeek Harness에는 dsh 프로필이 필요합니다. 프로젝트 설정 → 워커 → 프로필에서 설정하세요.",
 	"newTask.projectDefault": "프로젝트 기본값",
 	"newTask.refreshAgents": "에이전트 새로고침",
 	"newTask.refreshModels": "Refresh models",

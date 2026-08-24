@@ -143,6 +143,7 @@ function renderSidebar({
 	onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler,
 	onInitializeProject = vi.fn().mockResolvedValue(undefined) as InitializeProjectHandler,
 	onRemoveProject = vi.fn().mockResolvedValue(undefined) as RemoveProjectHandler,
+	figmaBoard = false,
 	seedAgents = true,
 	workspaces = [workspace],
 	initialOpen = true,
@@ -150,6 +151,7 @@ function renderSidebar({
 	onCreateProject?: CreateProjectHandler;
 	onInitializeProject?: InitializeProjectHandler;
 	onRemoveProject?: RemoveProjectHandler;
+	figmaBoard?: boolean;
 	seedAgents?: boolean;
 	workspaces?: WorkspaceSummary[];
 	initialOpen?: boolean;
@@ -181,6 +183,7 @@ function renderSidebar({
 		<QueryClientProvider client={queryClient}>
 			<SidebarProvider defaultOpen={initialOpen}>
 				<Sidebar
+					figmaBoard={figmaBoard}
 					onCreateProject={onCreateProject}
 					onInitializeProject={onInitializeProject}
 					onRemoveProject={onRemoveProject}
@@ -286,6 +289,18 @@ afterEach(() => {
 });
 
 describe("Sidebar", () => {
+	it("keeps keyboard-accessible Add Project available in the Figma Work sidebar", async () => {
+		const user = userEvent.setup();
+		renderSidebar({ figmaBoard: true });
+
+		const newProject = screen.getByRole("button", { name: "New project" });
+		act(() => newProject.focus());
+		expect(newProject).toHaveFocus();
+		await user.keyboard("{Enter}");
+
+		expect(await screen.findByRole("dialog", { name: "Import to Kennel" })).toBeInTheDocument();
+	});
+
 	it("leaves the global Home and Work choice to the shell mode control", () => {
 		renderSidebar();
 
