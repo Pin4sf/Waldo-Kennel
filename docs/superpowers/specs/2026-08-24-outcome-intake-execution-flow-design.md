@@ -1,6 +1,6 @@
 # Natural-language Outcome intake to session execution
 
-- **Status:** Approved in conversation; awaiting written specification review
+- **Status:** Approved written specification; implementation planning pending
 - **Date:** 2026-08-24
 - **Scope:** Codex-first Work flow from natural-language intent through contextual contract, orchestration proposal, authorization, and linked session execution
 - **Implementation status:** Not shipped; this document does not authorize merge, push, release, or deployment
