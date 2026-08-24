@@ -74,4 +74,15 @@ describe("HomeWorkModeSwitch", () => {
     await user.click(screen.getByRole("button", { name: "Work" }));
     expect(historyPush).toHaveBeenLastCalledWith("/projects/proj-1");
   });
+
+  it("opens the Work entry destination when Work is selected on a project Board", async () => {
+    const user = userEvent.setup();
+    mockPathname.current = "/projects/scratch";
+    render(<HomeWorkModeSwitch />);
+    const workButton = screen.getByRole("button", { name: "Work" });
+
+    await user.click(workButton);
+
+    expect(historyPush).toHaveBeenCalledWith("/work");
+  });
 });

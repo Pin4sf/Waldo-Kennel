@@ -31,7 +31,7 @@ import {
 	newestActiveOrchestrator,
 	type WorkspaceSession,
 	type WorkspaceSummary,
-	sortedWorkerSessions,
+	sortedProjectSessions,
 	workerSessions,
 } from "../types/workspace";
 import { getAgentActivityView } from "../lib/session-presentation";
@@ -642,10 +642,10 @@ function ProjectItem({
 	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
 	const isProjectRestarting = restartingProjectIds.has(workspace.id);
 	const requestNewTask = useUiStore((state) => state.requestNewTask);
-	// Keep completed PR sessions reachable while their runtime still exists.
-	// Only termination removes a worker from the sidebar; archived sessions stay
-	// reachable through SessionsBoard.
-	const sessions = sortedWorkerSessions(workspace.sessions).filter((session) => session.isTerminated !== true);
+	// Keep the full live project tree reachable. The orchestrator is a real
+	// daemon-backed session too; excluding it left an expanded project empty
+	// even while the Outcome conversation was waiting for the user.
+	const sessions = sortedProjectSessions(workspace.sessions).filter((session) => session.isTerminated !== true);
 	const visibleSessions = figmaBoard && !showAllSessions ? sessions.slice(0, 3) : sessions;
 	// The project's live orchestrator (if any) backs the hover Orchestrator
 	// button: navigate to it when present, otherwise spawn one first.

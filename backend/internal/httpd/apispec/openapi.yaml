@@ -1772,6 +1772,44 @@ paths:
       tags:
       - projects
   /api/v1/projects/{id}/outcomes:
+    get:
+      operationId: listProjectOutcomes
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutcomesEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: List canonical Outcomes and current contracts for one Project
+      tags:
+      - outcomes
     post:
       operationId: createOutcome
       parameters:
@@ -7756,6 +7794,15 @@ components:
       - history
       - createdAt
       - updatedAt
+      type: object
+    OutcomesEnvelope:
+      properties:
+        outcomes:
+          items:
+            $ref: '#/components/schemas/OutcomeResponse'
+          type: array
+      required:
+      - outcomes
       type: object
     PRReviewState:
       properties:

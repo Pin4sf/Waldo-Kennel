@@ -43,7 +43,11 @@ export function HomeWorkModeSwitch() {
 
   const selectMode = (nextMode: "home" | "work") => {
     const target =
-      nextMode === "home" ? lastHomePath.current : lastWorkPath.current;
+      nextMode === "home"
+        ? lastHomePath.current
+        : isWorkPath(pathname) && pathname !== "/work"
+          ? "/work"
+          : lastWorkPath.current;
     if (target === pathname) return;
     router.history.push(target);
   };
@@ -69,6 +73,7 @@ export function HomeWorkModeSwitch() {
             )}
             key={item}
             onClick={() => selectMode(item)}
+            style={noDragStyle}
             type="button"
           >
             {label}

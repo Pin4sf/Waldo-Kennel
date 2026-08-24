@@ -1810,5 +1810,9 @@
 	"waldo.rail.specialist.revoke": "Revoke specialist",
 	"waldo.rail.specialist.builderAria": "Specialist preview builder",
 	"waldo.rail.specialist.previewAction": "Preview specialist",
-	"waldo.rail.specialist.builderBoundary": "This profile is local UI state. No provider, tool, credential, budget, or durable record is connected."
+	"waldo.rail.specialist.builderBoundary": "This profile is local UI state. No provider, tool, credential, budget, or durable record is connected.",
+	"outcome.dashboard.heading": "성과",
+	"outcome.dashboard.continueAria": "{{title}} 계속하기",
+	"outcome.dashboard.contractRevision": "계약 개정 {{revision}}",
+	"outcome.dashboard.loadFailed": "이 프로젝트의 성과를 불러올 수 없습니다."
 }

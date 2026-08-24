@@ -52,6 +52,11 @@ type OutcomeStore interface {
 	// GetOutcome reads one Outcome by id; ok=false when absent.
 	GetOutcome(ctx context.Context, id domain.OutcomeID) (domain.Outcome, bool, error)
 
+	// ListOutcomesByProject returns canonical Outcomes belonging to the
+	// project's Work responsibility space in stable creation order. A project
+	// without a Work space or Outcomes returns an empty list.
+	ListOutcomesByProject(ctx context.Context, projectID domain.ProjectID) ([]domain.Outcome, error)
+
 	// AppendContractRevision atomically appends one immutable revision and
 	// swaps the current-revision pointer from expected to the newly assigned
 	// number, which it returns. When expected no longer names the current

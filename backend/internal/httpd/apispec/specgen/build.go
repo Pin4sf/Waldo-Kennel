@@ -287,6 +287,7 @@ var schemaNames = map[string]string{
 	"ControllersCreateOutcomeRequest":                     "CreateOutcomeRequest",
 	"ControllersReviseOutcomeContractRequest":             "ReviseOutcomeContractRequest",
 	"ControllersOutcomeEnvelope":                          "OutcomeEnvelope",
+	"ControllersOutcomesEnvelope":                         "OutcomesEnvelope",
 	"ControllersOutcomeResponse":                          "OutcomeResponse",
 	"ControllersPlanEnvelope":                             "PlanEnvelope",
 	"ControllersPlanRevisionResponse":                     "PlanRevisionResponse",
@@ -1045,6 +1046,17 @@ func notificationOperations() []operation {
 			reqBody: controllers.MarkAllNotificationsReadRequest{},
 			resps: []respUnit{
 				{http.StatusOK, controllers.MarkAllNotificationsReadResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/outcomes", id: "listProjectOutcomes", tag: "outcomes",
+			summary:    "List canonical Outcomes and current contracts for one Project",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomesEnvelope{}},
 				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},

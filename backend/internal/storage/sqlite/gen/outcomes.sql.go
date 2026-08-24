@@ -467,6 +467,45 @@ func (q *Queries) ListContractRevisions(ctx context.Context, outcomeID domain.Ou
 	return items, nil
 }
 
+const listOutcomesByProject = `-- name: ListOutcomesByProject :many
+SELECT o.id, o.space_id, o.title, o.current_revision_number, o.idempotency_key, o.created_at, o.updated_at
+FROM outcomes o
+JOIN responsibility_spaces rs ON rs.id = o.space_id
+WHERE rs.project_id = ? AND rs.kind = 'WorkProject'
+ORDER BY o.created_at, o.id
+`
+
+func (q *Queries) ListOutcomesByProject(ctx context.Context, projectID domain.ProjectID) ([]Outcome, error) {
+	rows, err := q.db.QueryContext(ctx, listOutcomesByProject, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Outcome{}
+	for rows.Next() {
+		var i Outcome
+		if err := rows.Scan(
+			&i.ID,
+			&i.SpaceID,
+			&i.Title,
+			&i.CurrentRevisionNumber,
+			&i.IdempotencyKey,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkUnitsForPlan = `-- name: ListWorkUnitsForPlan :many
 SELECT id, plan_revision_id, kind, title, contract_revision_number, output_summary, evidence_checks, verification_requirement, stop_conditions
 FROM work_units WHERE plan_revision_id = ?

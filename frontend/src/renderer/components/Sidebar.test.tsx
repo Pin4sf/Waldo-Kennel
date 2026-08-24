@@ -598,6 +598,7 @@ describe("Sidebar", () => {
 			workspaces: [{ ...workspace, sessions: [orchestrator, session] }],
 		});
 
+		expect(screen.getByLabelText("Open Orchestrator")).toBeInTheDocument();
 		expect(screen.getByLabelText("Open fix login")).toBeInTheDocument();
 
 		await user.click(screen.getByText("Project One"));

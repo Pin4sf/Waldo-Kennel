@@ -1932,6 +1932,13 @@ type OutcomeEnvelope struct {
 	Outcome OutcomeResponse `json:"outcome"`
 }
 
+// OutcomesEnvelope is the stable project-scoped collection response. Each
+// entry carries its current immutable contract so dashboard re-entry never
+// depends on provider transcripts.
+type OutcomesEnvelope struct {
+	Outcomes []OutcomeResponse `json:"outcomes"`
+}
+
 func contractRevisionResponse(rev domain.ContractRevision) ContractRevisionResponse {
 	return ContractRevisionResponse{
 		ID:              string(rev.ID),

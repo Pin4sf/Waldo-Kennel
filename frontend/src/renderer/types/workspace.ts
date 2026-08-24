@@ -249,6 +249,13 @@ export function sortedWorkerSessions(sessions: WorkspaceSession[]): WorkspaceSes
 	);
 }
 
+/** Every project session ordered by agent activity, newest first. */
+export function sortedProjectSessions(sessions: WorkspaceSession[]): WorkspaceSession[] {
+	return [...sessions].sort((a, b) =>
+		sessionLastActiveNewer(b, a) ? 1 : sessionLastActiveNewer(a, b) ? -1 : 0,
+	);
+}
+
 export function sessionIsActive(session: WorkspaceSession): boolean {
 	return session.isTerminated !== true && session.status !== "terminated";
 }

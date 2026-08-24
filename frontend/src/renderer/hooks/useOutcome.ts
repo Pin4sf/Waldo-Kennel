@@ -13,6 +13,7 @@ import { useRef } from "react";
 
 import type { components } from "../../api/schema";
 import { apiClient, apiErrorCode, apiErrorMessage } from "../lib/api-client";
+import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 
 export type OutcomeRecord = components["schemas"]["OutcomeResponse"];
 export type ContractRevisionRecord = components["schemas"]["ContractRevisionResponse"];
@@ -20,10 +21,15 @@ export type CreateOutcomeRequest = components["schemas"]["CreateOutcomeRequest"]
 export type ReviseOutcomeContractRequest = components["schemas"]["ReviseOutcomeContractRequest"];
 
 type OutcomeEnvelope = components["schemas"]["OutcomeEnvelope"];
+type OutcomesEnvelope = components["schemas"]["OutcomesEnvelope"];
 type ApiErrorBody = components["schemas"]["APIError"];
 
 export function outcomeQueryKey(outcomeId: string | undefined) {
 	return ["outcome", outcomeId ?? ""] as const;
+}
+
+export function projectOutcomesQueryKey(projectId: string | undefined) {
+	return ["project-outcomes", projectId ?? ""] as const;
 }
 
 /** The daemon's typed refusal when the Outcome does not exist. */
@@ -164,6 +170,41 @@ export function useOutcome(outcomeId: string | undefined): OutcomeQueryResult {
 	};
 }
 
+export interface ProjectOutcomesQueryResult {
+	outcomes: OutcomeRecord[];
+	isLoading: boolean;
+	failure?: OutcomeFailure;
+	refetch: () => void;
+}
+
+/** Durable Outcomes owned by one WorkProject responsibility space. */
+export function useProjectOutcomes(projectId: string | undefined): ProjectOutcomesQueryResult {
+	const query = useQuery({
+		queryKey: projectOutcomesQueryKey(projectId),
+		enabled: Boolean(projectId),
+		queryFn: async () => {
+			if (usesPreviewWorkspaceData) return [];
+			const { data, error } = await apiClient.GET("/api/v1/projects/{id}/outcomes", {
+				params: { path: { id: projectId as string } },
+			});
+			if (error) throw error;
+			return (data as OutcomesEnvelope).outcomes;
+		},
+		retry: (attempt, error) => {
+			const code = apiErrorCode(error);
+			if (code && PERMANENT_CODES.has(code)) return false;
+			return attempt < 2;
+		},
+	});
+
+	return {
+		outcomes: query.data ?? [],
+		isLoading: query.isLoading,
+		failure: query.error ? classifyOutcomeFailure(query.error) : undefined,
+		refetch: () => void query.refetch(),
+	};
+}
+
 export interface OutcomeWriteState<TInput> {
 	/** The daemon has accepted the write and returned the authoritative Outcome. */
 	succeeded: boolean;
@@ -202,7 +243,8 @@ function useOutcomeWrite<TInput>(mutationFn: (input: TInput) => Promise<OutcomeR
  * twice, which is why retries must reuse the key rather than mint a new one.
  */
 export function useCreateOutcome(projectId: string | undefined) {
-	return useOutcomeWrite(async (input: CreateOutcomeRequest) => {
+	const queryClient = useQueryClient();
+	const write = useOutcomeWrite(async (input: CreateOutcomeRequest) => {
 		const { data, error } = await apiClient.POST("/api/v1/projects/{id}/outcomes", {
 			params: { path: { id: projectId as string } },
 			body: input,
@@ -210,6 +252,17 @@ export function useCreateOutcome(projectId: string | undefined) {
 		if (error) throw error;
 		return (data as OutcomeEnvelope).outcome;
 	});
+
+	return {
+		...write,
+		save: async (input: CreateOutcomeRequest) => {
+			const outcome = await write.save(input);
+			// A successful canonical write must stay successful even if the
+			// dashboard refresh is temporarily unavailable.
+			void queryClient.invalidateQueries({ queryKey: projectOutcomesQueryKey(projectId) });
+			return outcome;
+		},
+	};
 }
 
 /**

@@ -22,6 +22,7 @@ type fakeStore struct {
 	outcomes map[domain.OutcomeID]domain.Outcome
 	revs     map[domain.OutcomeID][]domain.ContractRevision
 	keys     map[string]domain.OutcomeID
+	order    []domain.OutcomeID
 	writes   int
 }
 
@@ -69,6 +70,7 @@ func (f *fakeStore) CreateOutcomeWithContract(_ context.Context, o domain.Outcom
 	o.CurrentRevisionNumber = 1
 	f.outcomes[o.ID] = o
 	f.revs[o.ID] = []domain.ContractRevision{first}
+	f.order = append(f.order, o.ID)
 	if requestKey != "" {
 		f.keys[requestKey] = o.ID
 	}
@@ -81,6 +83,22 @@ func (f *fakeStore) GetOutcome(_ context.Context, id domain.OutcomeID) (domain.O
 	defer f.mu.Unlock()
 	o, ok := f.outcomes[id]
 	return o, ok, nil
+}
+
+func (f *fakeStore) ListOutcomesByProject(_ context.Context, projectID domain.ProjectID) ([]domain.Outcome, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	space, ok := f.spaces[projectID]
+	if !ok {
+		return []domain.Outcome{}, nil
+	}
+	out := make([]domain.Outcome, 0)
+	for _, id := range f.order {
+		if candidate := f.outcomes[id]; candidate.SpaceID == space.ID {
+			out = append(out, candidate)
+		}
+	}
+	return out, nil
 }
 
 func (f *fakeStore) AppendContractRevision(_ context.Context, id domain.OutcomeID, expectedCurrent int64, rev domain.ContractRevision) (int64, error) {
@@ -118,6 +136,40 @@ func validCreateInput() outcome.CreateInput {
 		SuccessCriteria: []string{"Entering positive whole minutes creates one focus block."},
 		Review:          "Deterministic checks plus owner walkthrough.",
 		RequestKey:      "req-create-1",
+	}
+}
+
+func TestListByProjectReturnsCanonicalOutcomeViews(t *testing.T) {
+	svc, _ := newService()
+	ctx := context.Background()
+	first := validCreateInput()
+	if _, err := svc.Create(ctx, first); err != nil {
+		t.Fatalf("create first: %v", err)
+	}
+	second := first
+	second.Title = "Second Outcome"
+	second.RequestKey = "req-create-2"
+	if _, err := svc.Create(ctx, second); err != nil {
+		t.Fatalf("create second: %v", err)
+	}
+	other := first
+	other.ProjectID = "other"
+	other.RequestKey = "req-create-other"
+	if _, err := svc.Create(ctx, other); err != nil {
+		t.Fatalf("create other: %v", err)
+	}
+
+	views, err := svc.ListByProject(ctx, "mer")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(views) != 2 || views[0].Outcome.Title != first.Title || views[1].Outcome.Title != second.Title {
+		t.Fatalf("views = %+v", views)
+	}
+	for _, view := range views {
+		if view.Current.Number != 1 || len(view.History) != 1 {
+			t.Fatalf("listed view lost contract: %+v", view)
+		}
 	}
 }
 

@@ -190,6 +190,7 @@ describe("normalizeApiOperation", () => {
 		expect(normalizeApiOperation("get", "/api/v1/projects/my project id")).toBe("GET /api/v1/projects/:id");
 		expect(normalizeApiOperation("POST", "/api/v1/sessions/ao-42/kill")).toBe("POST /api/v1/sessions/:id/kill");
 		expect(normalizeApiOperation("PUT", "/api/v1/projects/p1/config")).toBe("PUT /api/v1/projects/:id/config");
+		expect(normalizeApiOperation("GET", "/api/v1/projects/p1/outcomes")).toBe("GET /api/v1/projects/:id/outcomes");
 		expect(normalizeApiOperation("GET", "/api/v1/agents/claude-code/models")).toBe(
 			"GET /api/v1/agents/:id/models",
 		);

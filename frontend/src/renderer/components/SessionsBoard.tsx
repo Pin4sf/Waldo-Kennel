@@ -15,7 +15,6 @@ import {
 	hasConfiguredOrchestratorAgent,
 	newestActiveOrchestrator,
 	orchestratorHealth,
-	workerSessions,
 } from "../types/workspace";
 import {
 	boardAttentionZoneOrder,
@@ -26,6 +25,7 @@ import {
 	useSessionUsageSummaries,
 	type SessionUsageSummary,
 } from "../hooks/useSessionUsageSummaries";
+import { useProjectOutcomes, type OutcomeRecord } from "../hooks/useOutcome";
 import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useTerminateSession } from "../hooks/useTerminateSession";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
@@ -79,6 +79,8 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const workspaceQuery = useWorkspaceQuery();
 	const shell = useShellMaybe();
 	const usageBySession = useSessionUsageSummaries(projectId).data ?? emptyUsageBySession;
+	const projectOutcomesQuery = useProjectOutcomes(projectId);
+	const projectOutcomes = projectOutcomesQuery.outcomes;
 	// Evaluated at render so platform mocks in tests can flip the in-panel chrome.
 	const boardActionsInPanel = usesBoardActionsInPanel();
 	/** Bell lives in the board action row when the shell topbar does not host it. */
@@ -88,7 +90,10 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const workspace = projectId ? workspaces[0] : undefined;
 	// Board chrome stays route-oriented; project context remains in the sidebar.
 	const boardLabel = t("shell.board");
-	const sessions = workspaces.flatMap((workspace) => workerSessions(workspace.sessions));
+	// The board is the project's operational projection, so every live Kennel
+	// session belongs here. Orchestrators are not Outcome truth, but hiding them
+	// made an active, waiting Outcome look empty and removed the Board/List switch.
+	const sessions = workspaces.flatMap((workspace) => workspace.sessions);
 	const orchestrator = projectId ? newestActiveOrchestrator(workspaces[0]?.sessions ?? []) : undefined;
 	// Outcome shaping no longer lives on this board: the Understand stage owns it
 	// through the daemon contract, so the board derives only what its own durable
@@ -108,7 +113,6 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const setProjectRestarting = useUiStore((state) => state.setProjectRestarting);
 	const setOrchestratorReplacementError = useUiStore((state) => state.setOrchestratorReplacementError);
 	const setOrchestratorStartupError = useUiStore((state) => state.setOrchestratorStartupError);
-	const requestNewTask = useUiStore((state) => state.requestNewTask);
 	const sessionsViewMode = useUiStore((state) => state.sessionsViewMode);
 	const setSessionsViewMode = useUiStore((state) => state.setSessionsViewMode);
 	const isProjectRestarting = projectId ? restartingProjectIds.has(projectId) : false;
@@ -155,10 +159,16 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 		!daemonHasFailed &&
 		(!isDaemonReady || workspaceStartupState === "loading" || (!workspaceQuery.isSuccess && !workspaceQuery.isError));
 	const showWelcome = !projectId && isLoaded && all.length === 0;
-	// Archived workers remain available below the board, but they must not hide
+	// Archived sessions remain available below the board, but they must not hide
 	// the active Outcome intake/review surface when no work is currently running.
 	const showProjectEmpty =
-		projectId !== undefined && isLoaded && workspaces.length > 0 && activeSessions.length === 0;
+		projectId !== undefined &&
+		isLoaded &&
+		workspaces.length > 0 &&
+		activeSessions.length === 0 &&
+		projectOutcomes.length === 0 &&
+		!projectOutcomesQuery.isLoading &&
+		!projectOutcomesQuery.failure;
 	const hasArchive = archived.length > 0;
 	const terminateSession = useTerminateSession();
 	const activeProjectIdRef = useRef(projectId);
@@ -169,6 +179,17 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 			to: "/projects/$projectId/sessions/$sessionId",
 			params: { projectId: session.workspaceId, sessionId: session.id },
 		});
+	const openOutcomeUnderstand = () => {
+		if (!projectId) return;
+		void navigate({ to: "/work", search: { project: projectId } });
+	};
+	const continueOutcome = (outcome: OutcomeRecord) => {
+		if (!projectId) return;
+		void navigate({
+			to: "/work",
+			search: { project: projectId, stage: "decide_authorize", outcome: outcome.id },
+		});
+	};
 
 	const openOrchestrator = async (mode?: "tui") => {
 		if (!projectId || isProjectRestarting) return;
@@ -271,7 +292,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 							className="topbar-control--labeled outcome-primary-action"
 							data-priority="primary"
 							disabled={isProjectRestarting}
-							onClick={() => projectId && requestNewTask(projectId)}
+							onClick={openOutcomeUnderstand}
 							variant="primary"
 						>
 							<Plus className="size-icon-md" aria-hidden="true" />
@@ -377,13 +398,48 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 						isSpawning={isSpawning}
 						isInstallingTmux={isInstallingTmux}
 						isProjectRestarting={isProjectRestarting}
-						onNewTask={() => projectId && requestNewTask(projectId)}
+						onNewTask={openOutcomeUnderstand}
 						onInstallTmux={canInstallTmux && isMacPlatform() ? () => void installTmuxAndRetry() : undefined}
 						tmuxInstallMessage={tmuxInstallMessage}
 						spawnError={visibleSpawnError}
 					/>
 				) : (
 					<div className="flex h-full min-h-0 flex-col">
+						{projectOutcomesQuery.failure ? (
+							<div className="mx-2.5 mt-2.5 flex shrink-0 items-center gap-3 rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground" role="alert">
+								<span className="min-w-0 flex-1">{t("outcome.dashboard.loadFailed")}</span>
+								<button className="font-medium text-foreground hover:underline" onClick={projectOutcomesQuery.refetch} type="button">
+									{t("outcome.understand.retry")}
+								</button>
+							</div>
+						) : null}
+						{projectOutcomes.length > 0 ? (
+							<section
+								aria-label={t("outcome.dashboard.heading")}
+								className="mx-2.5 mt-2.5 shrink-0 rounded-lg border border-border bg-card px-3 py-2.5"
+							>
+								<div className="mb-2 flex items-center justify-between gap-3">
+									<h2 className="text-sm font-semibold text-foreground">{t("outcome.dashboard.heading")}</h2>
+									<span className="text-xs text-muted-foreground">{projectOutcomes.length}</span>
+								</div>
+								<div className="flex gap-2 overflow-x-auto pb-0.5">
+									{projectOutcomes.map((outcome) => (
+										<button
+											aria-label={t("outcome.dashboard.continueAria", { title: outcome.title })}
+											className="min-w-56 rounded-md border border-border bg-background px-3 py-2 text-left transition-colors hover:border-border-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+											key={outcome.id}
+											onClick={() => continueOutcome(outcome)}
+											type="button"
+										>
+											<span className="block truncate text-sm font-medium text-foreground">{outcome.title}</span>
+											<span className="mt-0.5 block text-xs text-muted-foreground">
+												{t("outcome.dashboard.contractRevision", { revision: outcome.currentRevisionNumber })}
+											</span>
+										</button>
+									))}
+								</div>
+							</section>
+						) : null}
 						{/* The view switch heads the lanes rather than the window: it
 						    changes what is below it, so it belongs to that region. */}
 						<div className="flex shrink-0 items-center gap-2 px-2.5 pb-2.5 pt-2.5">

@@ -219,16 +219,21 @@ function ShellLayout() {
 	}, [queryClient, scopedProjectId]);
 	const isRootBoardRoute = Boolean(matchRoute({ to: "/" }));
 	const isProjectBoardRoute = Boolean(matchRoute({ to: "/projects/$projectId" }));
+	const isProjectSessionRoute = Boolean(matchRoute({ to: "/projects/$projectId/sessions/$sessionId" }));
+	const isOutcomeWorkRoute = Boolean(matchRoute({ to: "/work" }));
 	// First-launch root board only (no projects in scope).
 	const isWelcomeBoard =
 		isRootBoardRoute &&
 		workspaceStartupState === "ready" &&
 		workspaceQuery.isSuccess &&
 		workspaces.length === 0;
-	// The referenced Figma frames are the populated Board/List surfaces. Keep
-	// the first-run importer self-framed, but give every populated board route
-	// the dedicated 271px desktop shell.
-	const isFigmaBoardRoute = (isRootBoardRoute || isProjectBoardRoute) && !isWelcomeBoard;
+	// Board, the Outcome lifecycle, and project sessions are one Work flow. Keep
+	// their project tree and shell stable while the center surface changes; the
+	// prior route-only switch made the sidebar change design mid-Outcome.
+	const isFigmaBoardRoute =
+		((isRootBoardRoute || isProjectBoardRoute) && !isWelcomeBoard) ||
+		isProjectSessionRoute ||
+		isOutcomeWorkRoute;
 	const isSettingsRoute =
 		Boolean(matchRoute({ to: "/settings", fuzzy: true })) ||
 		Boolean(matchRoute({ to: "/projects/$projectId/settings", fuzzy: true }));

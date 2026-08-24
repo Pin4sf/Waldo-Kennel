@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { appI18n } from "../i18n";
+import { useUiStore } from "../stores/ui-store";
 
 // Instant motion updates so height tweens do not leave tests waiting on timers.
 vi.mock("motion/react", async (importOriginal) => {
@@ -21,6 +22,7 @@ const {
 	postMock,
 	workspaceQueryMock,
 	usageQueryMock,
+	projectOutcomesQueryMock,
 	boardActionsInPanelMock,
 } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
@@ -29,6 +31,7 @@ const {
 	postMock: vi.fn(),
 	workspaceQueryMock: vi.fn(),
 	usageQueryMock: vi.fn(),
+	projectOutcomesQueryMock: vi.fn(),
 	boardActionsInPanelMock: vi.fn(() => false),
 }));
 
@@ -43,6 +46,10 @@ vi.mock("../hooks/useWorkspaceQuery", () => ({
 
 vi.mock("../hooks/useSessionUsageSummaries", () => ({
 	useSessionUsageSummaries: usageQueryMock,
+}));
+
+vi.mock("../hooks/useOutcome", () => ({
+	useProjectOutcomes: projectOutcomesQueryMock,
 }));
 
 vi.mock("../lib/api-client", () => ({
@@ -106,11 +113,71 @@ beforeEach(() => {
 	postMock.mockReset().mockResolvedValue({ data: {} });
 	workspaceQueryMock.mockReset().mockReturnValue({ data: [], isError: false });
 	usageQueryMock.mockReset().mockReturnValue({ data: new Map() });
+	projectOutcomesQueryMock.mockReset().mockReturnValue({ outcomes: [], isLoading: false });
 	window.localStorage.removeItem("kennel.board.archive.layout");
+	window.localStorage.removeItem("kennel.sessions.viewMode");
+	useUiStore.setState({ sessionsViewMode: "board" });
 	boardActionsInPanelMock.mockReset().mockReturnValue(false);
 });
 
 describe("SessionsBoard", () => {
+	it("shows saved Outcome contracts and continues them in Decide & Authorize", async () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [workspaceWithSessions([])],
+			isError: false,
+			isSuccess: true,
+		});
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [
+				{
+					id: "outcome-1",
+					title: "Explain Waldo clearly",
+					currentRevisionNumber: 1,
+				},
+			],
+			isLoading: false,
+		});
+
+		renderBoard("p1");
+
+		expect(screen.getByText("Explain Waldo clearly")).toBeInTheDocument();
+		expect(screen.getByText("Contract revision 1")).toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Continue Explain Waldo clearly" }));
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "p1", stage: "decide_authorize", outcome: "outcome-1" },
+		});
+		expect(screen.getByRole("tablist", { name: "Session view" })).toBeInTheDocument();
+	});
+
+	it("shows a live orchestrator as project activity and switches it between Board and List", async () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({
+						id: "orch-needs-input",
+						title: "Outcome: explain Waldo",
+						kind: "orchestrator",
+						status: "needs_input",
+						activity: { state: "idle", lastActivityAt: "2026-08-24T10:00:00Z" },
+					}),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		expect(screen.getByText("Outcome: explain Waldo")).toBeInTheDocument();
+		expect(screen.getByRole("tablist", { name: "Session view" })).toBeInTheDocument();
+		expect(screen.queryByText("Start by defining an outcome")).not.toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole("tab", { name: "List" }));
+		expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true");
+		expect(screen.getByText("Outcome: explain Waldo")).toBeInTheDocument();
+	});
+
 	it("never renders outcome questions from transcript markers over the active board", async () => {
 		// The marker intake is retired: Understand owns Outcome questions over
 		// the daemon contract, so marker text in an orchestrator transcript must

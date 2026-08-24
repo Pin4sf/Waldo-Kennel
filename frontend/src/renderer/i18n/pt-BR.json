@@ -1826,5 +1826,9 @@
 	"waldo.rail.specialist.revoke": "Revoke specialist",
 	"waldo.rail.specialist.builderAria": "Specialist preview builder",
 	"waldo.rail.specialist.previewAction": "Preview specialist",
-	"waldo.rail.specialist.builderBoundary": "This profile is local UI state. No provider, tool, credential, budget, or durable record is connected."
+	"waldo.rail.specialist.builderBoundary": "This profile is local UI state. No provider, tool, credential, budget, or durable record is connected.",
+	"outcome.dashboard.heading": "Resultados",
+	"outcome.dashboard.continueAria": "Continuar {{title}}",
+	"outcome.dashboard.contractRevision": "Revisão do contrato {{revision}}",
+	"outcome.dashboard.loadFailed": "O Kennel não conseguiu carregar os resultados deste projeto."
 }

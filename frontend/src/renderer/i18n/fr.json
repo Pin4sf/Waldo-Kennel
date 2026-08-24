@@ -1826,5 +1826,9 @@
 	"waldo.rail.specialist.revoke": "Revoke specialist",
 	"waldo.rail.specialist.builderAria": "Specialist preview builder",
 	"waldo.rail.specialist.previewAction": "Preview specialist",
-	"waldo.rail.specialist.builderBoundary": "This profile is local UI state. No provider, tool, credential, budget, or durable record is connected."
+	"waldo.rail.specialist.builderBoundary": "This profile is local UI state. No provider, tool, credential, budget, or durable record is connected.",
+	"outcome.dashboard.heading": "Résultats",
+	"outcome.dashboard.continueAria": "Continuer {{title}}",
+	"outcome.dashboard.contractRevision": "Révision du contrat {{revision}}",
+	"outcome.dashboard.loadFailed": "Kennel n’a pas pu charger les résultats de ce projet."
 }
