@@ -63,6 +63,10 @@ func TestEveryHarnessReportsAuthStatus(t *testing.T) {
 	authCheckerExempt := map[string]string{
 		"continue":    "Continue auth probes require sending a model prompt, so catalog refresh must not run them",
 		"prime-agent": "Prime Agent has no documented non-interactive local auth probe; spawn remains authoritative",
+		// An API key cannot establish that an arbitrary dsh profile — possibly
+		// pointed at a different provider — is launchable, so credential-based
+		// probes would overclaim. ProfileReadiness is the verified probe.
+		"deepseek-harness": "dsh auth depends on the selected profile; profile readiness is the truthful signal",
 	}
 	for _, ha := range Harnessed() {
 		if reason, exempt := authCheckerExempt[string(ha.Harness)]; exempt {
@@ -74,6 +78,23 @@ func TestEveryHarnessReportsAuthStatus(t *testing.T) {
 		if _, ok := ha.Agent.(ports.AgentAuthChecker); !ok {
 			t.Errorf("%s does not implement ports.AgentAuthChecker", ha.Harness)
 		}
+	}
+}
+
+// TestDeepSeekHarnessAdmitsThroughProfileReadiness pins the replacement
+// admission capability: DeepSeek Harness must implement the readiness probe
+// its exemption above relies on.
+func TestDeepSeekHarnessAdmitsThroughProfileReadiness(t *testing.T) {
+	reg, err := Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, ok := reg.Get("deepseek-harness")
+	if !ok {
+		t.Fatal("registry does not contain deepseek-harness")
+	}
+	if _, ok := adapter.(ports.AgentProfileReadinessChecker); !ok {
+		t.Fatal("deepseek-harness does not implement ports.AgentProfileReadinessChecker")
 	}
 }
 
