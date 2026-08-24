@@ -140,6 +140,7 @@ function renderSidebar({
 	seedAgents = true,
 	workspaces = [workspace],
 	initialOpen = true,
+	figmaBoard = false,
 }: {
 	onCreateProject?: CreateProjectHandler;
 	onInitializeProject?: InitializeProjectHandler;
@@ -147,6 +148,7 @@ function renderSidebar({
 	seedAgents?: boolean;
 	workspaces?: WorkspaceSummary[];
 	initialOpen?: boolean;
+	figmaBoard?: boolean;
 } = {}) {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -171,6 +173,7 @@ function renderSidebar({
 		<QueryClientProvider client={queryClient}>
 			<SidebarProvider defaultOpen={initialOpen}>
 				<Sidebar
+					figmaBoard={figmaBoard}
 					onCreateProject={onCreateProject}
 					onInitializeProject={onInitializeProject}
 					onRemoveProject={onRemoveProject}
@@ -185,6 +188,24 @@ function renderSidebar({
 it("uses the Waldo brand mark in the desktop sidebar", () => {
 	renderSidebar();
 	expect(screen.getByTestId("waldo-sidebar-mark")).toHaveAttribute("data-brand", "waldo");
+});
+
+// Regression (PR #54): the Figma Board variation replaced the functional
+// Projects header with decorative icons, dropping the only visible
+// project-create control on that route. The heading must keep the same
+// interactive "+" as the classic sidebar, with first-run ownership intact.
+it("keeps the interactive project-create control on the Figma Board sidebar", () => {
+	renderSidebar({ figmaBoard: true });
+	const heading = screen.getByTestId("figma-board-projects-heading");
+	expect(within(heading).getByRole("button", { name: /new project/i })).toBeInTheDocument();
+});
+
+it("hides the Figma create control with zero workspaces so BoardWelcome owns first run", () => {
+	renderSidebar({ figmaBoard: true, workspaces: [] });
+	const heading = screen.getByTestId("figma-board-projects-heading");
+	// The trigger stays mounted (it owns ⌘N) but is CSS-hidden, mirroring the
+	// classic header's empty-start behavior.
+	expect(within(heading).getByRole("button", { name: /new project/i })).toHaveClass("hidden");
 });
 
 /** Projects render collapsed; open one to list all of its sessions. */

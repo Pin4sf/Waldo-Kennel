@@ -399,8 +399,20 @@ export function Sidebar({
 				<>
 			{/* Keep Search + section chrome fixed; only the project tree scrolls. */}
 			{figmaBoard ? (
-				<div className="figma-board-sidebar__section-heading">
-					<span>{t("shell.projects")}</span>
+				<div className="figma-board-sidebar__section-heading" data-testid="figma-board-projects-heading">
+					<div className="min-w-0 flex-1">
+						<SectionDisclosure
+							label={t("shell.projects")}
+							collapsible={false}
+							trailing={
+								<CreateProjectButton
+									hideTrigger={workspaces.length === 0}
+									onCreateProject={onCreateProject}
+									onInitializeProject={onInitializeProject}
+								/>
+							}
+						/>
+					</div>
 					<span aria-hidden="true" className="figma-board-sidebar__section-icons">
 						<ChevronDown />
 						<Filter />
