@@ -105,6 +105,7 @@ var shippedMigrations = map[int64]string{
 	99:  "0099_responsibility_outcome_contract.sql",
 	100: "0100_outcome_plan_authority.sql",
 	101: "0101_allow_deepseek_harness.sql",
+	102: "0102_work_attempt_execution.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

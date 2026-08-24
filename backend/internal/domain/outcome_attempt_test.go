@@ -133,12 +133,13 @@ func TestDeriveAttemptPresentation(t *testing.T) {
 // enforces before any row exists.
 func TestAttemptRecordValidation(t *testing.T) {
 	valid := Attempt{
-		ID:             "att-1",
-		OutcomeID:      "out-1",
-		PlanRevisionID: "plan-1",
-		WorkUnitID:     "wu-1",
-		Number:         1,
-		Status:         AttemptQueued,
+		ID:                     "att-1",
+		OutcomeID:              "out-1",
+		PlanRevisionID:         "plan-1",
+		WorkUnitID:             "wu-1",
+		Number:                 1,
+		Status:                 AttemptQueued,
+		ContractRevisionNumber: 1,
 	}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("valid attempt rejected: %v", err)

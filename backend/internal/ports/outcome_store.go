@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
@@ -83,4 +84,83 @@ type OutcomeStore interface {
 	// optimistic guard and activates its grants. Re-approving an already
 	// approved plan is idempotent; found=false means no such plan.
 	ApprovePlanRevision(ctx context.Context, outcomeID domain.OutcomeID, planID domain.PlanRevisionID) (domain.PlanRevision, bool, error)
+
+	// GetOutcomeProjectID resolves the project backing an Outcome through its
+	// responsibility space; ok=false when the Outcome does not exist. Act &
+	// Observe needs it to admit worker sessions onto the right project.
+	GetOutcomeProjectID(ctx context.Context, outcomeID domain.OutcomeID) (domain.ProjectID, bool, error)
+
+	// FindAttemptByIdempotencyKey resolves a previously delivered start
+	// request by its client-supplied key; ok=false when unknown.
+	FindAttemptByIdempotencyKey(ctx context.Context, key string) (domain.Attempt, bool, error)
+
+	// CreateAttemptWithFence atomically persists one queued attempt together
+	// with the open custody fence over the named worktree subject. The
+	// attempt number is assigned inside the transaction. When another open
+	// fence already holds the subject it returns *AttemptFenceHeldError with
+	// NOTHING persisted: replacement inherits custody only through reconcile
+	// releasing the old fence first.
+	CreateAttemptWithFence(ctx context.Context, outcomeID domain.OutcomeID, plan domain.PlanRevision, requestKey string, subject string, at time.Time) (domain.Attempt, error)
+
+	// GetAttempt reads one attempt of an Outcome; ok=false when absent.
+	GetAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (domain.Attempt, bool, error)
+
+	// ListAttempts returns the Outcome's attempts in ascending attempt order.
+	ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) ([]domain.Attempt, error)
+
+	// TransitionAttemptStatus applies one stored-status transition under an
+	// optimistic guard on the expected current status. rows=0 means the
+	// attempt was absent or no longer held the expected status.
+	TransitionAttemptStatus(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, expected, next domain.AttemptStatus, at time.Time) (int64, error)
+
+	// ListAttemptsByStatus returns every attempt currently in the given
+	// stored status; the liveness reconcile loop walks running attempts.
+	ListAttemptsByStatus(ctx context.Context, status domain.AttemptStatus) ([]domain.Attempt, error)
+
+	// BindAttemptSession appends one immutable provider-session ref to the
+	// attempt, assigning seq inside the transaction.
+	BindAttemptSession(ctx context.Context, ref domain.AttemptSessionRef) (domain.AttemptSessionRef, error)
+
+	// LatestAttemptSessionRef resolves the most recent session binding;
+	// ok=false when the attempt has none.
+	LatestAttemptSessionRef(ctx context.Context, attemptID domain.AttemptID) (domain.AttemptSessionRef, bool, error)
+
+	// ListAttemptSessionRefs returns every binding in ascending seq order.
+	ListAttemptSessionRefs(ctx context.Context, attemptID domain.AttemptID) ([]domain.AttemptSessionRef, error)
+
+	// AppendAttemptObservation appends one ordered observation to the
+	// attempt. Insertable for ANY attempt state — stale observations stay
+	// inspectable after replacement — but they never mutate current truth.
+	AppendAttemptObservation(ctx context.Context, attemptID domain.AttemptID, kind string, payload string, at time.Time) (domain.AttemptObservation, error)
+
+	// ListAttemptObservations returns the attempt's ordered observation log.
+	ListAttemptObservations(ctx context.Context, attemptID domain.AttemptID) ([]domain.AttemptObservation, error)
+
+	// OpenFenceForSubject resolves the open custody fence over a worktree
+	// subject; ok=false when the subject is free.
+	OpenFenceForSubject(ctx context.Context, subject string) (domain.AttemptFence, bool, error)
+
+	// ReleaseFenceForAttempt releases the attempt's open fence with a reason.
+	// rows=0 means no open fence was held by this attempt.
+	ReleaseFenceForAttempt(ctx context.Context, attemptID domain.AttemptID, reason string, at time.Time) (int64, error)
+
+	// CreateRecoveryReceipt appends one immutable recovery receipt.
+	CreateRecoveryReceipt(ctx context.Context, receipt domain.AttemptRecoveryReceipt) error
+
+	// ListRecoveryReceipts returns the attempt's receipts in emission order.
+	ListRecoveryReceipts(ctx context.Context, attemptID domain.AttemptID) ([]domain.AttemptRecoveryReceipt, error)
+}
+
+// AttemptFenceHeldError reports that a worktree subject is already under the
+// custody of another open attempt fence. Start admission fails closed with
+// nothing persisted; the safe path is reconcile -> release(old) -> new
+// attempt.
+type AttemptFenceHeldError struct {
+	Subject   string
+	Holder    domain.AttemptID
+	OutcomeID domain.OutcomeID
+}
+
+func (e *AttemptFenceHeldError) Error() string {
+	return fmt.Sprintf("worktree subject %s is fenced by attempt %s", e.Subject, e.Holder)
 }

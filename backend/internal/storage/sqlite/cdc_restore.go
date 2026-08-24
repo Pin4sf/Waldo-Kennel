@@ -176,6 +176,40 @@ var changeLogWriters = []struct {
 		deps:  []string{"outcomes", "responsibility_spaces"},
 		sql:   "CREATE TRIGGER outcome_plans_cdc_update\nAFTER UPDATE ON plan_revisions\nWHEN OLD.status <> NEW.status\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id\n           FROM outcomes o\n           JOIN responsibility_spaces s ON s.id = o.space_id\n          WHERE o.id = NEW.outcome_id),\n        NULL,\n        'outcome_plan_approved',\n        json_object(\n            'planId', NEW.id,\n            'outcomeId', NEW.outcome_id,\n            'number', NEW.number,\n            'previousStatus', OLD.status,\n            'status', NEW.status\n        ),\n        datetime('now'));\nEND;",
 	},
+	// Work attempt writers introduced by 0102 (#31). Migration 0102 rebuilds
+	// change_log and detaches every writer; like all the above these are
+	// restored here — never inside migration SQL — because skipped-migration
+	// profiles may not have the outcomes tables their bodies join through.
+	{
+		name:  "attempts_cdc_insert",
+		table: "attempts",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER attempts_cdc_insert\nAFTER INSERT ON attempts\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id\n           FROM outcomes o\n           JOIN responsibility_spaces s ON s.id = o.space_id\n          WHERE o.id = NEW.outcome_id),\n        NULL,\n        'outcome_attempt_started',\n        json_object(\n            'attemptId', NEW.id,\n            'outcomeId', NEW.outcome_id,\n            'planId', NEW.plan_revision_id,\n            'workUnitId', NEW.work_unit_id,\n            'number', NEW.number,\n            'contractRevisionNumber', NEW.contract_revision_number,\n            'status', NEW.status\n        ),\n        NEW.created_at);\nEND;",
+	},
+	{
+		name:  "attempts_cdc_update",
+		table: "attempts",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER attempts_cdc_update\nAFTER UPDATE ON attempts\nWHEN OLD.status <> NEW.status\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id\n           FROM outcomes o\n           JOIN responsibility_spaces s ON s.id = o.space_id\n          WHERE o.id = NEW.outcome_id),\n        NULL,\n        'outcome_attempt_updated',\n        json_object(\n            'attemptId', NEW.id,\n            'outcomeId', NEW.outcome_id,\n            'number', NEW.number,\n            'previousStatus', OLD.status,\n            'status', NEW.status\n        ),\n        datetime('now'));\nEND;",
+	},
+	{
+		name:  "attempt_sessions_cdc_insert",
+		table: "attempt_sessions",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER attempt_sessions_cdc_insert\nAFTER INSERT ON attempt_sessions\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id\n           FROM attempts a\n           JOIN outcomes o ON o.id = a.outcome_id\n           JOIN responsibility_spaces s ON s.id = o.space_id\n          WHERE a.id = NEW.attempt_id),\n        NULL,\n        'outcome_attempt_session_bound',\n        json_object(\n            'attemptId', NEW.attempt_id,\n            'sessionId', NEW.session_id,\n            'seq', NEW.seq,\n            'harness', NEW.harness,\n            'mode', NEW.mode,\n            'runBriefCoreDigest', NEW.run_brief_core_digest,\n            'runBriefCompiledDigest', NEW.run_brief_compiled_digest\n        ),\n        NEW.bound_at);\nEND;",
+	},
+	{
+		name:  "attempt_observations_cdc_insert",
+		table: "attempt_observations",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER attempt_observations_cdc_insert\nAFTER INSERT ON attempt_observations\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id\n           FROM attempts a\n           JOIN outcomes o ON o.id = a.outcome_id\n           JOIN responsibility_spaces s ON s.id = o.space_id\n          WHERE a.id = NEW.attempt_id),\n        NULL,\n        'outcome_attempt_observed',\n        json_object(\n            'attemptId', NEW.attempt_id,\n            'seq', NEW.seq,\n            'kind', NEW.kind\n        ),\n        NEW.created_at);\nEND;",
+	},
+	{
+		name:  "attempt_recovery_receipts_cdc_insert",
+		table: "attempt_recovery_receipts",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER attempt_recovery_receipts_cdc_insert\nAFTER INSERT ON attempt_recovery_receipts\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id\n           FROM attempts a\n           JOIN outcomes o ON o.id = a.outcome_id\n           JOIN responsibility_spaces s ON s.id = o.space_id\n          WHERE a.id = NEW.attempt_id),\n        NULL,\n        'outcome_attempt_recovered',\n        json_object(\n            'attemptId', NEW.attempt_id,\n            'resolution', NEW.resolution,\n            'replacementAttemptId', NEW.replacement_attempt_id\n        ),\n        NEW.created_at);\nEND;",
+	},
 }
 
 // restoreChangeLogWriters recreates any missing change_log-writing trigger

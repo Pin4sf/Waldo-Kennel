@@ -113,11 +113,15 @@ type Attempt struct {
 	OutcomeID      OutcomeID
 	PlanRevisionID PlanRevisionID
 	WorkUnitID     WorkUnitID
-	Number         int64
-	Status         AttemptStatus
-	RequestKey     string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	// Number is the attempt's 1-based position in the Outcome's lineage.
+	Number int64
+	Status AttemptStatus
+	// ContractRevisionNumber snapshots which contract revision the executing
+	// plan bound at admission; immutable for the attempt's life.
+	ContractRevisionNumber int64
+	RequestKey             string
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 }
 
 // Validate checks intrinsic attempt invariants. Number uniqueness per Outcome,
@@ -137,6 +141,9 @@ func (a Attempt) Validate() error {
 	}
 	if a.Number < 1 {
 		return fmt.Errorf("attempt number must be at least 1")
+	}
+	if a.ContractRevisionNumber < 1 {
+		return fmt.Errorf("attempt contract revision number must be at least 1")
 	}
 	if !a.Status.Valid() {
 		return fmt.Errorf("unsupported attempt status %q", a.Status)

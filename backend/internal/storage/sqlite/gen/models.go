@@ -65,6 +65,59 @@ type AppSetting struct {
 	UpdatedAt          time.Time
 }
 
+type Attempt struct {
+	ID                     domain.AttemptID
+	OutcomeID              domain.OutcomeID
+	PlanRevisionID         domain.PlanRevisionID
+	WorkUnitID             domain.WorkUnitID
+	Number                 int64
+	Status                 domain.AttemptStatus
+	ContractRevisionNumber int64
+	RequestKey             sql.NullString
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+type AttemptFence struct {
+	ID            string
+	Subject       string
+	AttemptID     domain.AttemptID
+	IssuedAt      time.Time
+	ReleasedAt    sql.NullTime
+	ReleaseReason string
+}
+
+type AttemptObservation struct {
+	ID        string
+	AttemptID domain.AttemptID
+	Seq       int64
+	Kind      string
+	Payload   string
+	CreatedAt time.Time
+}
+
+type AttemptRecoveryReceipt struct {
+	ID                   string
+	AttemptID            domain.AttemptID
+	Resolution           string
+	ReplacementAttemptID string
+	Detail               string
+	CreatedAt            time.Time
+}
+
+type AttemptSession struct {
+	ID                     string
+	AttemptID              domain.AttemptID
+	Seq                    int64
+	SessionID              string
+	Harness                domain.AgentHarness
+	Mode                   domain.SessionMode
+	RunBriefCoreDigest     string
+	RunBriefCompiledDigest string
+	AdmissionSnapshot      string
+	BoundAt                time.Time
+}
+
 type CapabilityGrant struct {
 	ID             domain.CapabilityGrantID
 	PlanRevisionID domain.PlanRevisionID
