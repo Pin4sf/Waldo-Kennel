@@ -1,0 +1,27 @@
+# Binding foundation gate. Local-first CI: scripts/test-foundation.sh remains the
+# authoritative gate run locally (`npm run bootstrap && npm run test:foundation`);
+# this workflow mirrors it for when hosted Actions are re-enabled for the account.
+name: foundation
+
+on:
+  push:
+    branches: [beta]
+  pull_request:
+    branches: [beta]
+
+jobs:
+  foundation:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+      - name: Bootstrap dependencies
+        run: npm run bootstrap
+      - name: Foundation gate
+        run: npm run test:foundation
