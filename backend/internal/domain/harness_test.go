@@ -109,3 +109,15 @@ func TestOMPHarnessIsKnown(t *testing.T) {
 		t.Fatal("AllHarnesses does not contain HarnessOMP")
 	}
 }
+
+func TestRoleGatedPredicatesExcludeDeepSeek(t *testing.T) {
+	if HarnessDeepSeekHarness.IsSelectableAsCoordinator() {
+		t.Fatal("deepseek-harness must not be coordinator-admitted yet")
+	}
+	if HarnessDeepSeekHarness.IsSelectableAsSwitchTarget() {
+		t.Fatal("deepseek-harness must not be switch-target-admitted yet: no continuation identity")
+	}
+	if !HarnessCodex.IsSelectableAsCoordinator() || !HarnessCodex.IsSelectableAsSwitchTarget() {
+		t.Fatal("codex must keep coordinator and switch-target admission")
+	}
+}

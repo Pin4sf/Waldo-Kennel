@@ -7,6 +7,7 @@ import {
 	ProjectSettingsSection,
 	ProjectWorkflowSettingsView,
 	validateProjectSettings,
+	COORDINATOR_CAPABLE_AGENTS,
 } from "@pin4sf/kennel-product-ui";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -461,6 +462,7 @@ function SettingsBody({
 						orchestratorArea={
 							<RequiredAgentField
 								id="orchestratorAgent"
+								selectableIds={COORDINATOR_CAPABLE_AGENTS}
 								variant="settings-row"
 								value={form.orchestratorAgent}
 								placeholder={t("settings.project.selectOrchestrator")}

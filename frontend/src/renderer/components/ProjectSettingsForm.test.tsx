@@ -123,16 +123,12 @@ function submitSettings() {
 
 const agentCatalogResponse = {
 	data: {
+		// Mirrors the real daemon: `supported` contains only harnesses admitted
+		// for fresh work (codex + deepseek-harness); historical identities below
+		// remain readable in installed/authorized but are never offered.
 		supported: [
-			{ id: "claude-code", label: "Claude Code" },
 			{ id: "codex", label: "Codex" },
-			{ id: "copilot", label: "GitHub Copilot" },
-			{ id: "cursor", label: "Cursor" },
-			{ id: "goose", label: "Goose" },
-			{ id: "kilocode", label: "Kilo Code" },
-			{ id: "kiro", label: "Kiro" },
-			{ id: "opencode", label: "OpenCode" },
-			{ id: "pi", label: "Pi" },
+			{ id: "deepseek-harness", label: "DeepSeek Harness" },
 		],
 		installed: [
 			{ id: "claude-code", label: "Claude Code", authStatus: "authorized" },
@@ -953,7 +949,7 @@ describe("ProjectSettingsForm", () => {
 		expect(screen.getByRole("menuitem", { name: /Codex/ })).toBeInTheDocument();
 	});
 
-	it("shows only Codex as selectable in project settings", async () => {
+	it("shows only admitted agents as selectable in project settings", async () => {
 		mockProject({
 			id: "proj-1",
 			name: "Project One",
@@ -972,7 +968,10 @@ describe("ProjectSettingsForm", () => {
 		const workerAgent = await screen.findByRole("button", { name: "Default worker agent" });
 		await userEvent.click(workerAgent);
 		const options = await screen.findAllByRole("menuitem");
-		expect(options.map((option) => option.textContent)).toEqual(["Codex"]);
+		expect(options.map((option) => option.textContent)).toEqual([
+			"Codex",
+			"DDeepSeek HarnessNeeds install",
+		]);
 		expect(options[0]).not.toHaveAttribute("aria-disabled", "true");
 	});
 

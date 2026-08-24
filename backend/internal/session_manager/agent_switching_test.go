@@ -1425,6 +1425,37 @@ func TestSwitchAgentRejectsHistoricalTargetBeforeMutation(t *testing.T) {
 	}
 }
 
+// DeepSeek Harness is admitted for fresh worker spawns, but a switch continues
+// a prior conversation and its restore path cannot verify continuation identity
+// yet. Worker admission must not leak into the switch-target gate: targeting it
+// is refused with ErrUnsupportedSwitchHarness before any mutation.
+func TestSwitchAgentRejectsDeepSeekHarnessTargetBeforeMutation(t *testing.T) {
+	if !domain.HarnessDeepSeekHarness.IsSelectableForNewWork() {
+		t.Fatal("precondition: deepseek-harness must be selectable for new work; otherwise this test pins nothing")
+	}
+	runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
+	manager, store, _ := newSwitchTestManager(t, runtime)
+	rec := store.sessions["proj-1"]
+	rec.Harness = domain.HarnessCodex
+	store.sessions[rec.ID] = rec
+
+	_, err := switchAgentSynchronously(context.Background(), manager, rec.ID, SwitchAgentConfig{
+		TargetHarness: domain.HarnessDeepSeekHarness, IdempotencyKey: "deepseek-switch-target",
+	})
+	if !errors.Is(err, ErrUnsupportedSwitchHarness) {
+		t.Fatalf("SwitchAgent error = %v, want ErrUnsupportedSwitchHarness", err)
+	}
+	if !strings.Contains(err.Error(), "target must support session continuation") {
+		t.Fatalf("SwitchAgent error = %v, want the continuation-capability wording", err)
+	}
+	if runtime.created != 0 || runtime.destroyed != 0 || len(store.switches) != 0 {
+		t.Fatalf("rejected switch mutated runtime/saga: created=%d destroyed=%d switches=%d", runtime.created, runtime.destroyed, len(store.switches))
+	}
+	if got := store.sessions[rec.ID].Harness; got != domain.HarnessCodex {
+		t.Fatalf("source harness changed = %q, want codex", got)
+	}
+}
+
 func TestSwitchAgentFreshPreservesAOIdentityAndDeliversArtifact(t *testing.T) {
 	runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
 	manager, store, _ := newSwitchTestManager(t, runtime)

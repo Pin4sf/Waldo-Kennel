@@ -84,6 +84,17 @@ func (h AgentHarness) IsSelectableAsCoordinator() bool {
 	return h == HarnessCodex
 }
 
+// IsSelectableAsSwitchTarget reports whether h may be the destination of an
+// agent switch on an existing logical session. Switching continues a prior
+// conversation, so it requires verified continuation identity (native resume)
+// and prompt-delivery support from the target adapter. DeepSeek Harness has
+// neither yet — its restore path reports ok=false pending the dsh hook
+// contract — so admitting it here would advertise switches that can only fail.
+// Worker spawns are unaffected: they start fresh by design.
+func (h AgentHarness) IsSelectableAsSwitchTarget() bool {
+	return h == HarnessCodex
+}
+
 // IsKnown is retained as a compatibility alias for persisted identity checks.
 func (h AgentHarness) IsKnown() bool {
 	return h.IsRecognizedPersisted()

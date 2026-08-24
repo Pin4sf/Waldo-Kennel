@@ -6,7 +6,7 @@
 - Canonical source: [desktop launch product architecture](kennel-v1-product-architecture.md)
 - Implementation status: prerequisite foundation/provider/CLI cleanup is on `main`; accepted product ontology remains unimplemented
 
-This packet is the shareable review view of the accepted Waldo Kennel local v0 dogfood. It combines the Kennel Work loop with a parallel local Personal Home lane, confirmed Open Loops, Daily Snapshot, required governed desktop screen/audio capture capabilities, candidate-memory foundations, and a bounded Gmail Communication Loops beta. Capture capability is required; activation remains explicit per user and modality. Codex-only execution is locked only for local v0 testing; v1 provider selection is Unknown/TBD and must use provider-neutral adapters. It is not a claim that the current prototype Outcome overlay implements these decisions.
+This packet is the shareable review view of the accepted Waldo Kennel local v0 dogfood. It combines the Kennel Work loop with a parallel local Personal Home lane, confirmed Open Loops, Daily Snapshot, required governed desktop screen/audio capture capabilities, candidate-memory foundations, and a bounded Gmail Communication Loops beta. Capture capability is required; activation remains explicit per user and modality. Execution admission is capability-based for local v0 testing — Codex is the recommended ready-by-default provider, with DeepSeek Harness admitted for worker sessions after profile readiness; v1 provider selection is Unknown/TBD and must use provider-neutral adapters. It is not a claim that the current prototype Outcome overlay implements these decisions.
 
 Companion artifacts:
 

@@ -3,6 +3,7 @@ import {
 	canSubmitProjectSetup,
 	ProjectSetupFormView,
 	ProjectSetupHeaderView,
+	COORDINATOR_CAPABLE_AGENTS,
 } from "@pin4sf/kennel-product-ui";
 import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -210,6 +211,7 @@ export function CreateProjectAgentSheet({
 							orchestrator: (
 								<RequiredAgentField
 									id="newProjectOrchestratorAgent"
+									selectableIds={COORDINATOR_CAPABLE_AGENTS}
 									label={t("createProject.orchestratorAgent")}
 									placeholder={t("createProject.selectOrchestrator")}
 									value={orchestratorAgent}
@@ -328,6 +330,7 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	onChange,
 	placeholder,
 	supported,
+	selectableIds,
 	triggerClassName,
 	labelClassName,
 	contentClassName,
@@ -351,13 +354,22 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	contentClassName?: string;
 	value: string;
 	variant?: "stacked" | "settings-row" | "chip";
+	/** Restrict offered options to these harness ids (role-gated fields). */
+	selectableIds?: ReadonlySet<string>;
 }) {
 	const fallbackAgents: AgentInfo[] = [{ id: "codex", label: "Codex" }];
-	const selectableSupported = (supported ?? fallbackAgents).filter((agent) => agent.id === "codex");
+	// The daemon only returns capability-admitted harnesses in `supported`, so
+	// every entry is offered here with its real auth state. Callers narrow the
+	// set for role-gated fields (e.g. the orchestrator picker passes
+	// COORDINATOR_CAPABLE_AGENTS). Codex remains the preferred default via
+	// defaultAuthorizedAgent/preferredDefaultAgent below.
+	const admittedAgents = selectableIds
+		? (supported ?? fallbackAgents).filter((agent) => selectableIds.has(agent.id))
+		: (supported ?? fallbackAgents);
 	const options = buildRankedAgentOptions({
-		supported: selectableSupported.length > 0 ? selectableSupported : fallbackAgents,
-		installed: installed?.filter((agent) => agent.id === "codex"),
-		authorized: authorized?.filter((agent) => agent.id === "codex"),
+		supported: admittedAgents.length > 0 ? admittedAgents : fallbackAgents,
+		installed,
+		authorized,
 		priorityRank: DEFAULT_AGENT_PRIORITY_RANK,
 		fallbackAgents,
 	});

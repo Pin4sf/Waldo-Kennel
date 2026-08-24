@@ -8736,10 +8736,11 @@ components:
           maxLength: 256
           type: string
         targetHarness:
-          description: Agent harness to continue the logical AO session with.
+          description: Agent harness to continue the logical AO session with. Only
+            continuation-capable harnesses are admitted; worker-only harnesses fail
+            closed.
           enum:
           - codex
-          - deepseek-harness
           type: string
       required:
       - targetHarness

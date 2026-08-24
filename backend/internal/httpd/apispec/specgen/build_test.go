@@ -48,8 +48,10 @@ func TestBuild_HarnessEnumsMatchAdmissionPolicy(t *testing.T) {
 		t.Fatalf("parse generated OpenAPI: %v", err)
 	}
 	for schema, wantEnum := range map[string][]string{
-		"SpawnSessionRequest":       {"codex", "deepseek-harness"},
-		"SwitchAgentRequest":        {"codex", "deepseek-harness"},
+		"SpawnSessionRequest": {"codex", "deepseek-harness"},
+		// Switch targets require verified continuation identity, so only Codex
+		// is admitted there even though DeepSeek is a selectable worker.
+		"SwitchAgentRequest":        {"codex"},
 		"DelegateTaskRequest":       {"codex", "deepseek-harness"},
 		"SetSessionReviewerRequest": {"codex"},
 		"TriggerReviewRequest":      {"codex"},

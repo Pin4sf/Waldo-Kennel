@@ -390,6 +390,7 @@
 	"newTask.image": "画像 {{number}}",
 	"newTask.noSession": "タスク作成でセッションが返されませんでした",
 	"newTask.optional": "任意",
+	"newTask.profileRequired": "DeepSeek Harness には dsh プロファイルが必要です。「プロジェクト設定」→「ワーカーモード」で設定してください。",
 	"newTask.projectDefault": "プロジェクトのデフォルト",
 	"newTask.refreshAgents": "エージェントを更新",
 	"newTask.refreshModels": "Refresh models",

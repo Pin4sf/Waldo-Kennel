@@ -6,7 +6,7 @@
 - Launch proof: useful Outcomes and commitments reach conscious closure with lower coordination and supervision cost
 - Current implementation status: prerequisite foundation, legacy-import removal, Codex admission, and CLI reduction are on `main`; the accepted Outcome/Home/continuity model is not implemented by the existing overlay
 
-This is the canonical product, ontology, lineage, governance, state, and surface definition for Waldo Kennel's local v0 dogfood. It consolidates the accepted Kennel Work loop with the approved local Personal Home, required governed desktop screen/audio capture capabilities, and Gmail Communication Loops beta. Codex-only execution is a v0 testing constraint, not a locked v1 provider decision: v1's provider set is **Unknown/TBD** and its orchestration core must remain provider-neutral. Home, Work, and Settings are destinations; **Enter -> Understand -> Decide & Authorize -> Act & Observe -> Prove & Close** is the common lifecycle spine inside them. Work and Home/Personal Agent implementation may proceed in parallel through the ownership rules in [ADR 0004](../adr/0004-parallel-home-personal-agent-and-required-capture.md) and the [Home/Personal Agent design](../superpowers/specs/2026-08-21-home-personal-agent-memory-design.md). This document is a contract for separately authorized implementation slices; it does not itself ship a feature, release, or hosted deployment.
+This is the canonical product, ontology, lineage, governance, state, and surface definition for Waldo Kennel's local v0 dogfood. It consolidates the accepted Kennel Work loop with the approved local Personal Home, required governed desktop screen/audio capture capabilities, and Gmail Communication Loops beta. Provider admission is capability-based — Codex is the recommended ready-by-default provider and DeepSeek Harness is admitted for worker sessions after profile readiness — which limits v0 testing variability without making a locked v1 provider decision: v1's provider set is **Unknown/TBD** and its orchestration core must remain provider-neutral. Home, Work, and Settings are destinations; **Enter -> Understand -> Decide & Authorize -> Act & Observe -> Prove & Close** is the common lifecycle spine inside them. Work and Home/Personal Agent implementation may proceed in parallel through the ownership rules in [ADR 0004](../adr/0004-parallel-home-personal-agent-and-required-capture.md) and the [Home/Personal Agent design](../superpowers/specs/2026-08-21-home-personal-agent-memory-design.md). This document is a contract for separately authorized implementation slices; it does not itself ship a feature, release, or hosted deployment.
 
 ## Evidence boundaries
 
@@ -434,7 +434,7 @@ The RunBrief is grounded in this precedence order: current user-approved Contrac
 
 - Deterministic verification outside the producing session is preferred. Producer self-checks are useful Evidence but are not independent verification.
 - A fresh read-only review Attempt receives the criteria and subject through a verifier-focused RunBrief, without the implementer's conclusions or raw transcript by default. It cannot modify the subject; rework receives a separate write Attempt.
-- In v0 Codex-only dogfood, a separate Codex session is labeled **separate-session review**, never provider-independent; deterministic tools and owner walkthroughs remain explicit. When multiple adapters are admitted, Waldo may recommend another provider or model when that reduces correlated failure and satisfies the verifier capability profile.
+- In v0 dogfood a separate session on the same provider is labeled **separate-session review**, never provider-independent; deterministic tools and owner walkthroughs remain explicit. Once multiple providers are admitted, Waldo may recommend another admitted provider or model when that reduces correlated failure and satisfies the verifier capability profile.
 - Only the user accepts an Outcome. Every result states its actual independence class; the v1 provider set remains Unknown/TBD, but this tiered evaluator policy is provider-neutral and locked.
 
 ### Locked launch defaults
@@ -570,7 +570,7 @@ Open-source code may only be copied after a source-pinned license, dependency, p
 ### Parallel launch-core lanes: required
 
 - local-first Home, Work, and Settings destinations;
-- Responsibility Spaces, Project readiness, v0 Codex-only admission, provider-neutral adapter/conformance seam, and historical provider readability;
+- Responsibility Spaces, Project readiness, capability-based v0 provider admission, provider-neutral adapter/conformance seam, and historical provider readability;
 - guided Outcome contract, optional Mission Map, RunBrief, Work Units, grants, fenced Attempts, recovery;
 - Needs You, Action Required, Waiting, Evidence, Verification, explicit Acceptance, Adaptive Close, and Re-entry;
 - confirmed Open Loops, LoopDisposition, explicit Quick Capture, and Home-to-Work ResponsibilityLink;
@@ -642,7 +642,7 @@ The wedge is falsified or paused if supervision cost is not lower, false readine
 
 ### Resolved for implementation planning
 
-1. v0 Codex-only admission plus provider-neutral adapter/conformance seam and immutable historical provider identity. The v1 provider set remains **Unknown/TBD**.
+1. Capability-based v0 provider admission (Codex recommended default; DeepSeek Harness for workers after profile readiness) plus provider-neutral adapter/conformance seam and immutable historical provider identity. The v1 provider set remains **Unknown/TBD**.
 2. Grounded provider-neutral RunBrief core/compiled form; recommendation-first hybrid orchestration; autonomy-preserving leases/fences; intersected capability/effect admission; isolated-worktree concurrency; multidimensional budgets; no silent provider fallback; and truthfully labeled evaluator independence.
 3. Redacted causal Outcome Trace with private content excluded by default.
 4. Objective dogfood measures, thresholds, failure injections, and falsifiers.

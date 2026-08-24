@@ -3084,10 +3084,10 @@ export interface components {
             /** @description Optional model override for the target agent launch or resume. */
             model?: string;
             /**
-             * @description Agent harness to continue the logical AO session with.
+             * @description Agent harness to continue the logical AO session with. Only continuation-capable harnesses are admitted; worker-only harnesses fail closed.
              * @enum {string}
              */
-            targetHarness: "codex" | "deepseek-harness";
+            targetHarness: "codex";
         };
         TrackerIntakeConfig: {
             assignee?: string;

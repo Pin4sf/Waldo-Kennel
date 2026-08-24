@@ -694,8 +694,27 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	// Reject an unknown harness before any durable state is created. Doing this
 	// after CreateSession would leave a terminated orphan row and waste a
 	// worktree on a spawn that can never launch.
-	if _, ok := m.agents.Agent(cfg.Harness); !ok {
+	agent, ok := m.agents.Agent(cfg.Harness)
+	if !ok {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: %q", ErrUnknownHarness, cfg.Harness)
+	}
+
+	// Profile readiness is enforced here, before any session row, worktree, or
+	// runtime exists — the same fail-early reasoning as the harness checks
+	// above. The probe uses exactly the config the launch would use (project
+	// role defaults plus explicit request overrides), so "ready" here means
+	// "launchable", not merely installed. Spawn remains the authoritative
+	// validation point; this preflight only moves the truthful failure earlier.
+	if checker, ok := agent.(ports.AgentProfileReadinessChecker); ok {
+		probeConfig := freshAgentConfig(cfg.Kind, cfg.Harness, project.Config)
+		probeConfig = applySpawnAgentConfig(probeConfig, cfg.AgentConfig)
+		readiness, err := checker.ProfileReadiness(ctx, probeConfig)
+		if err != nil {
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %s readiness: %w", cfg.Harness, err)
+		}
+		if !readiness.Ready {
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %s is not ready: %s", cfg.Harness, readiness.Detail)
+		}
 	}
 
 	// Resolve the controller mode here, before anything durable is created, for
@@ -799,8 +818,9 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return rec, promptBytes, systemPromptBytes, nil
 	}
 
-	agent, ok := m.agents.Agent(cfg.Harness)
-	if !ok {
+	// Defensive re-lookup: the adapter resolved before any durable state was
+	// created above; this guards against registry churn during provisioning.
+	if _, ok := m.agents.Agent(cfg.Harness); !ok {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: no agent adapter for harness %q", id, cfg.Harness)
 	}

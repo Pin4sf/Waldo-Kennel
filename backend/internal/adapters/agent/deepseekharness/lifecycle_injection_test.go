@@ -6,10 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
@@ -175,6 +176,59 @@ func TestReadinessMissingBinaryFailsClosed(t *testing.T) {
 	plugin := &Plugin{}
 	if _, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Mode: "tui"}); !errors.Is(err, ports.ErrAgentBinaryNotFound) {
 		t.Fatalf("err = %v, want ErrAgentBinaryNotFound", err)
+	}
+}
+
+// A probe that outlives its own budget must answer "not ready" with truthful
+// timeout wording: a stuck `dsh --dump-config` can never be claimed launchable,
+// and the kill is not dressed up as an ordinary exit-status failure.
+func TestReadinessProbeTimeoutReportsNotReady(t *testing.T) {
+	dir := t.TempDir()
+	writeFakeDSH(t, dir, "dsh", "sleep 30")
+	fakePATH(t, dir)
+
+	original := profileProbeTimeout
+	profileProbeTimeout = 50 * time.Millisecond
+	defer func() { profileProbeTimeout = original }()
+
+	plugin := &Plugin{}
+	readiness, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Mode: "stuck"})
+	if err != nil {
+		t.Fatalf("ProfileReadiness err: %v", err)
+	}
+	if readiness.Ready {
+		t.Fatalf("readiness = %+v, want not ready when the probe exceeds its budget", readiness)
+	}
+	if !strings.Contains(readiness.Detail, "timed out") {
+		t.Fatalf("detail = %q, want truthful timeout wording", readiness.Detail)
+	}
+}
+
+// Binary presence never implied run success: the crashing fake still resolves
+// and GetLaunchCommand still produces argv, but executing that argv returns an
+// exec error carrying the binary's own exit status. Run-state truth stays with
+// Attempt observation in the session manager, never with resolution.
+func TestLifecycleResolvedLaunchArgvStillSurfacesExecFailure(t *testing.T) {
+	dir := t.TempDir()
+	writeFakeDSH(t, dir, "dsh", "echo boom >&2\nexit 7")
+	fakePATH(t, dir)
+
+	plugin := &Plugin{}
+	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
+		Prompt: "record one focus block",
+		Config: ports.AgentConfig{Mode: "tui"},
+	})
+	if err != nil {
+		t.Fatalf("GetLaunchCommand err: %v", err)
+	}
+
+	_, runErr := execCommandOutput(cmd[0])
+	var exitErr *exec.ExitError
+	if !errors.As(runErr, &exitErr) {
+		t.Fatalf("launch argv run err = %v, want an exec error from the exiting binary", runErr)
+	}
+	if code := exitErr.ExitCode(); code != 7 {
+		t.Fatalf("exit code = %d, want the fake's own status 7", code)
 	}
 }
 

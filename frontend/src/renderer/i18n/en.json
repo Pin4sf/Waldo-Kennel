@@ -390,6 +390,7 @@
 	"newTask.image": "Image {{number}}",
 	"newTask.noSession": "Outcome intake returned no coordinating session",
 	"newTask.optional": "optional",
+	"newTask.profileRequired": "DeepSeek Harness needs a dsh profile. Set Project Settings → Worker → Mode.",
 	"newTask.projectDefault": "Project default",
 	"newTask.refreshAgents": "Refresh agents",
 	"newTask.refreshModels": "Refresh models",

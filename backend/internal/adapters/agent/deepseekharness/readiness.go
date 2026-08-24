@@ -2,21 +2,24 @@ package deepseekharness
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"strings"
 	"time"
 
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
 )
 
 var _ ports.AgentProfileReadinessChecker = (*Plugin)(nil)
 
-// readinessTimeout bounds the profile-composition probe. `dsh --profile <name>
-// --dump-config` prints the composed profile tree and exits (verified
+// profileProbeTimeout bounds the profile-composition probe. `dsh --profile
+// <name> --dump-config` prints the composed profile tree and exits (verified
 // launcher contract), so a healthy probe is fast; anything slower means the
-// CLI or the profile is stuck and the honest answer is "not ready".
-const readinessTimeout = 10 * time.Second
+// CLI or the profile is stuck and the honest answer is "not ready". A var
+// rather than a const so tests can shrink the budget instead of waiting on a
+// genuinely stuck child.
+var profileProbeTimeout = 10 * time.Second
 
 // ProfileReadiness reports whether the configured dsh profile can actually be
 // composed. This replaces any credential-based claim: an API key in the
@@ -40,10 +43,19 @@ func (p *Plugin) ProfileReadiness(ctx context.Context, cfg ports.AgentConfig) (p
 		return ports.AgentProfileReadiness{}, err
 	}
 
-	probeCtx, cancel := context.WithTimeout(ctx, readinessTimeout)
+	probeCtx, cancel := context.WithTimeout(ctx, profileProbeTimeout)
 	defer cancel()
 	output, err := aoprocess.CommandContext(probeCtx, binary, "--profile", profile, "--dump-config").CombinedOutput()
 	if err != nil {
+		// A probe killed by its own budget is a distinct truth from a CLI that
+		// failed: report the timeout instead of dressing the kill up as an
+		// exit-status failure.
+		if probeCtx.Err() != nil {
+			return ports.AgentProfileReadiness{
+				Ready:  false,
+				Detail: fmt.Sprintf("dsh --profile %s --dump-config timed out after %s", profile, profileProbeTimeout),
+			}, nil
+		}
 		detail := strings.TrimSpace(string(output))
 		if exitErr, ok := err.(*exec.ExitError); ok && detail == "" {
 			detail = "profile composition failed with exit status " + exitErr.Error()
