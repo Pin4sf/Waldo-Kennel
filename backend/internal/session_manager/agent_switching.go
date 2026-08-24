@@ -246,8 +246,11 @@ func (m *Manager) admitAgentSwitch(ctx context.Context, id domain.SessionID, cfg
 	if rec.Metadata.WorkspacePath == "" || rec.Metadata.RuntimeHandleID == "" {
 		return domain.AgentSwitch{}, nil, fmt.Errorf("switch agent %s: %w", id, ErrIncompleteHandle)
 	}
-	if !switchHarnessSupported(rec.Harness) || !cfg.TargetHarness.IsSelectableForNewWork() {
-		return domain.AgentSwitch{}, nil, fmt.Errorf("switch agent %s: %w: source must be a recoverable historical harness and target must be selectable for new work", id, ErrUnsupportedSwitchHarness)
+	// Switch targets are capability-gated beyond plain worker admission:
+	// continuing a prior conversation needs verified continuation identity and
+	// prompt delivery, which only admitted switch-capable harnesses have.
+	if !switchHarnessSupported(rec.Harness) || !cfg.TargetHarness.IsSelectableAsSwitchTarget() {
+		return domain.AgentSwitch{}, nil, fmt.Errorf("switch agent %s: %w: %w: source must be a recoverable historical harness and target must support session continuation", id, ErrUnsupportedSwitchHarness, ErrNotSwitchAdmitted)
 	}
 	if rec.Harness == cfg.TargetHarness {
 		return domain.AgentSwitch{}, nil, fmt.Errorf("switch agent %s: %w: %s", id, ErrAlreadyUsingHarness, cfg.TargetHarness)

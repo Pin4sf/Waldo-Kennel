@@ -25,7 +25,7 @@ function viewProps(overrides: Partial<TaskComposerViewProps> = {}): TaskComposer
 			label: "Agent",
 			placeholder: "Select agent",
 			disabled: false,
-			supported: [{ id: "codex", label: "Codex" }],
+			supported: [{ id: "codex", label: "Codex", roles: { worker: true, coordinator: true, switchTarget: true } }],
 			onChange: vi.fn(),
 		},
 		model: {
@@ -140,6 +140,16 @@ describe("TaskComposerView", () => {
 			dataTransfer: { files: [file] },
 		});
 		expect(onAddFiles).toHaveBeenLastCalledWith([file]);
+	});
+
+	it("shows an inline profile hint under the run controls only when provided", () => {
+		const hint = "DeepSeek Harness needs a dsh profile. Set Project Settings → Worker → Mode.";
+		const { rerender } = render(<TaskComposerView {...viewProps({ profileHint: hint })} />);
+
+		expect(screen.getByText(hint)).toBeInTheDocument();
+
+		rerender(<TaskComposerView {...viewProps()} />);
+		expect(screen.queryByText(hint)).not.toBeInTheDocument();
 	});
 
 	it("shows attachment and submission errors with the TUI retry", () => {

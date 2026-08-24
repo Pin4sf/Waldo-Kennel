@@ -155,7 +155,11 @@ function renderSidebar({
 		queryClient.setQueryData(agentsQueryKey, {
 			supported: [
 				{ id: "claude-code", label: "Claude Code" },
-				{ id: "codex", label: "Codex" },
+				{
+					id: "codex",
+					label: "Codex",
+					roles: { worker: true, coordinator: true, switchTarget: true },
+				},
 			],
 			installed: [
 				{ id: "claude-code", label: "Claude Code" },
@@ -243,7 +247,11 @@ beforeEach(() => {
 		data: {
 			supported: [
 				{ id: "claude-code", label: "Claude Code" },
-				{ id: "codex", label: "Codex" },
+				{
+					id: "codex",
+					label: "Codex",
+					roles: { worker: true, coordinator: true, switchTarget: true },
+				},
 			],
 			installed: [
 				{ id: "claude-code", label: "Claude Code" },
@@ -670,19 +678,24 @@ describe("Sidebar", () => {
 		);
 	});
 
-	it("uses Codex for a new project when the catalog retains historical agents", async () => {
+	it("defaults a new project to Codex when the catalog includes DeepSeek Harness", async () => {
 		const user = userEvent.setup();
 		const onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler;
 		window.kennel!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
 		getMock.mockResolvedValueOnce({
 			data: {
 				supported: [
-					{ id: "codex", label: "Codex" },
-					{ id: "goose", label: "Goose" },
-					{ id: "devin", label: "Devin" },
-					{ id: "aider", label: "Aider" },
-					{ id: "opencode", label: "OpenCode" },
-					{ id: "cursor", label: "Cursor" },
+					{
+						id: "codex",
+						label: "Codex",
+						roles: { worker: true, coordinator: true, switchTarget: true },
+					},
+					{
+						id: "deepseek-harness",
+						label: "DeepSeek Harness",
+						requiresProfile: true,
+						roles: { worker: true, coordinator: false, switchTarget: false },
+					},
 				],
 				installed: [
 					{ id: "codex", label: "Codex", authStatus: "authorized" },
@@ -712,8 +725,11 @@ describe("Sidebar", () => {
 		expect(screen.getByRole("combobox", { name: "Orchestrator agent" })).toHaveTextContent("Codex");
 
 		await user.click(screen.getByRole("combobox", { name: "Worker agent" }));
+		// Codex stays the default; the admitted worker appears with its real
+		// needs-install state (avatar-initial fallback, no logo asset yet).
 		expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
 			"Codex",
+			"DDeepSeek HarnessNeeds install",
 		]);
 		await user.keyboard("{Escape}");
 
@@ -1045,15 +1061,21 @@ describe("Sidebar", () => {
 		getMock.mockResolvedValueOnce({
 			data: {
 				supported: [
-					{ id: "codex", label: "Codex" },
-					{ id: "claude-code", label: "Claude Code" },
-					{ id: "cursor", label: "Cursor" },
-					{ id: "aider", label: "Aider" },
+					{
+						id: "codex",
+						label: "Codex",
+						roles: { worker: true, coordinator: true, switchTarget: true },
+					},
+					{
+						id: "deepseek-harness",
+						label: "DeepSeek Harness",
+						requiresProfile: true,
+						roles: { worker: true, coordinator: false, switchTarget: false },
+					},
 				],
 				installed: [
 					{ id: "codex", label: "Codex", authStatus: "authorized" },
-					{ id: "claude-code", label: "Claude Code", authStatus: "authorized" },
-					{ id: "cursor", label: "Cursor", authStatus: "unauthorized" },
+					{ id: "deepseek-harness", label: "DeepSeek Harness", authStatus: "unauthorized" },
 				],
 				authorized: [{ id: "codex", label: "Codex", authStatus: "authorized" }],
 			},
@@ -1084,7 +1106,11 @@ describe("Sidebar", () => {
 		window.kennel!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
 		let resolveAgents!: (value: {
 			data: {
-				supported: { id: string; label: string }[];
+				supported: {
+					id: string;
+					label: string;
+					roles?: { worker: boolean; coordinator: boolean; switchTarget: boolean };
+				}[];
 				installed: { id: string; label: string }[];
 				authorized: { id: string; label: string; authStatus: "authorized" }[];
 			};
@@ -1106,7 +1132,11 @@ describe("Sidebar", () => {
 			data: {
 				supported: [
 					{ id: "claude-code", label: "Claude Code" },
-					{ id: "codex", label: "Codex" },
+					{
+						id: "codex",
+						label: "Codex",
+						roles: { worker: true, coordinator: true, switchTarget: true },
+					},
 				],
 				installed: [
 					{ id: "claude-code", label: "Claude Code" },

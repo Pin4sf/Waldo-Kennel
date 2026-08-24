@@ -5321,6 +5321,19 @@ components:
       required:
       - path
       type: object
+    AgentAgentRoles:
+      properties:
+        coordinator:
+          type: boolean
+        switchTarget:
+          type: boolean
+        worker:
+          type: boolean
+      required:
+      - worker
+      - coordinator
+      - switchTarget
+      type: object
     AgentConfig:
       properties:
         mode:
@@ -5344,9 +5357,28 @@ components:
           type: string
         label:
           type: string
+        ready:
+          description: Advisory profile-readiness probe for adapters whose launch
+            needs more than an installed binary. Absent means the probe does not apply.
+          type:
+          - "null"
+          - boolean
+        readyDetail:
+          description: 'Adapter-explained readiness context: what was verified or
+            what is missing.'
+          type: string
+        requiresProfile:
+          description: Launch requires user-selected profile configuration beyond
+            an installed binary.
+          type: boolean
+        roles:
+          $ref: '#/components/schemas/AgentAgentRoles'
+          description: Role admission derived from daemon policy. Clients must not
+            re-derive it from provider names.
       required:
       - id
       - label
+      - roles
       type: object
     AgentModelInfo:
       properties:
@@ -6585,6 +6617,7 @@ components:
         agent:
           enum:
           - codex
+          - deepseek-harness
           type: string
         attachments:
           items:
@@ -8549,6 +8582,7 @@ components:
         harness:
           enum:
           - codex
+          - deepseek-harness
           type: string
         issueId:
           type: string
@@ -8724,7 +8758,9 @@ components:
           maxLength: 256
           type: string
         targetHarness:
-          description: Agent harness to continue the logical AO session with.
+          description: Agent harness to continue the logical AO session with. Only
+            continuation-capable harnesses are admitted; worker-only harnesses fail
+            closed.
           enum:
           - codex
           type: string

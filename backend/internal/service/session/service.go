@@ -937,6 +937,12 @@ func toAPIError(err error) error {
 			"This session has no saved agent session or prompt to resume from", nil)
 	case errors.Is(err, sessionmanager.ErrProjectNotResolvable):
 		return apierr.Invalid("PROJECT_NOT_RESOLVABLE", "Project is not registered or has no repo. Register it with `kennel project add`", nil)
+	case errors.Is(err, sessionmanager.ErrAgentProfileNotReady):
+		return apierr.Invalid("AGENT_PROFILE_NOT_READY", err.Error(), nil)
+	case errors.Is(err, sessionmanager.ErrNotCoordinatorAdmitted):
+		return apierr.Invalid("COORDINATOR_NOT_ADMITTED", err.Error(), nil)
+	case errors.Is(err, sessionmanager.ErrNotSwitchAdmitted):
+		return apierr.Invalid("SWITCH_TARGET_NOT_ADMITTED", err.Error(), nil)
 	case errors.Is(err, sessionmanager.ErrUnknownHarness):
 		return apierr.Invalid("UNKNOWN_HARNESS", err.Error(), nil)
 	case errors.Is(err, sessionmanager.ErrMissingHarness):

@@ -32,6 +32,8 @@ const (
 	HarnessPrimeAgent AgentHarness = "prime-agent"
 	HarnessAutohand   AgentHarness = "autohand"
 	HarnessOMP        AgentHarness = "omp"
+	// HarnessDeepSeekHarness is the DeepSeek Harness CLI ("dsh").
+	HarnessDeepSeekHarness AgentHarness = "deepseek-harness"
 	// HarnessFake is retained for existing test fixtures and historical session
 	// rows, but is not user-selectable.
 	HarnessFake AgentHarness = "fake"
@@ -46,6 +48,7 @@ var AllHarnesses = []AgentHarness{
 	HarnessCline, HarnessKimi, HarnessMuse, HarnessKiro, HarnessKilocode, HarnessVibe, HarnessPi,
 	HarnessKimchi, HarnessPrimeAgent, HarnessAutohand,
 	HarnessOMP,
+	HarnessDeepSeekHarness,
 }
 
 // IsRecognizedPersisted reports whether h is an identity that existing durable
@@ -63,7 +66,32 @@ func (h AgentHarness) IsRecognizedPersisted() bool {
 }
 
 // IsSelectableForNewWork reports whether h may start new work in this build.
+// Codex remains the recommended zero-configuration default; DeepSeek Harness
+// is admitted alongside it as a worker once its profile-readiness checks pass,
+// through the same fail-closed adapter admission (a missing dsh binary is
+// "not ready", never silently skipped).
 func (h AgentHarness) IsSelectableForNewWork() bool {
+	return h == HarnessCodex || h == HarnessDeepSeekHarness
+}
+
+// IsSelectableAsCoordinator reports whether h may run as a project
+// orchestrator — the Mission coordinator role. This is capability-gated, not a
+// permanent provider allowlist: coordinating requires verified stable session
+// identity, structured chat, and recovery support, which DeepSeek Harness has
+// not demonstrated yet. When those capabilities pass their own admission, this
+// predicate widens without touching the worker admission above.
+func (h AgentHarness) IsSelectableAsCoordinator() bool {
+	return h == HarnessCodex
+}
+
+// IsSelectableAsSwitchTarget reports whether h may be the destination of an
+// agent switch on an existing logical session. Switching continues a prior
+// conversation, so it requires verified continuation identity (native resume)
+// and prompt-delivery support from the target adapter. DeepSeek Harness has
+// neither yet — its restore path reports ok=false pending the dsh hook
+// contract — so admitting it here would advertise switches that can only fail.
+// Worker spawns are unaffected: they start fresh by design.
+func (h AgentHarness) IsSelectableAsSwitchTarget() bool {
 	return h == HarnessCodex
 }
 

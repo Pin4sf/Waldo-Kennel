@@ -65,6 +65,26 @@ type AgentAuthChecker interface {
 	AuthStatus(ctx context.Context) (AgentAuthStatus, error)
 }
 
+// AgentProfileReadiness is the advisory result of an adapter's profile-level
+// readiness probe: whether the agent's own configuration beyond binary
+// presence is sufficient to attempt a launch. Spawn remains the authoritative
+// validation point.
+type AgentProfileReadiness struct {
+	// Ready reports whether the probed configuration looks launchable.
+	Ready bool `json:"ready"`
+	// Detail explains what is missing or what was verified, in the adapter's
+	// own words. It is display context, never a machine contract.
+	Detail string `json:"detail,omitempty"`
+}
+
+// AgentProfileReadinessChecker is the optional capability for adapters whose
+// launch depends on user-selected configuration (a profile, a workspace
+// login target) beyond a resolved binary. Probes must be cheap, read-only,
+// and side-effect free.
+type AgentProfileReadinessChecker interface {
+	ProfileReadiness(ctx context.Context, cfg AgentConfig) (AgentProfileReadiness, error)
+}
+
 // AgentBinaryResolver is the optional capability adapters expose when their
 // binary can be checked without constructing a real session launch command.
 type AgentBinaryResolver interface {

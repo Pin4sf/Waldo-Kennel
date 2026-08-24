@@ -1760,6 +1760,11 @@ export interface components {
             path: string;
             projectId?: null | string;
         };
+        AgentAgentRoles: {
+            coordinator: boolean;
+            switchTarget: boolean;
+            worker: boolean;
+        };
         AgentConfig: {
             mode?: string;
             model?: string;
@@ -1773,6 +1778,14 @@ export interface components {
             authStatus?: "authorized" | "unauthorized" | "unknown";
             id: string;
             label: string;
+            /** @description Advisory profile-readiness probe for adapters whose launch needs more than an installed binary. Absent means the probe does not apply. */
+            ready?: null | boolean;
+            /** @description Adapter-explained readiness context: what was verified or what is missing. */
+            readyDetail?: string;
+            /** @description Launch requires user-selected profile configuration beyond an installed binary. */
+            requiresProfile?: boolean;
+            /** @description Role admission derived from daemon policy. Clients must not re-derive it from provider names. */
+            roles: components["schemas"]["AgentAgentRoles"];
         };
         AgentModelInfo: {
             id: string;
@@ -2228,7 +2241,7 @@ export interface components {
         };
         DelegateTaskRequest: {
             /** @enum {string} */
-            agent?: "codex";
+            agent?: "codex" | "deepseek-harness";
             attachments?: components["schemas"]["AttachmentInput"][];
             brief: string;
             /** @enum {string} */
@@ -3000,7 +3013,7 @@ export interface components {
             branch?: string;
             displayName?: string;
             /** @enum {string} */
-            harness?: "codex";
+            harness?: "codex" | "deepseek-harness";
             issueId?: string;
             /** @enum {string} */
             kind?: "worker" | "orchestrator";
@@ -3080,7 +3093,7 @@ export interface components {
             /** @description Optional model override for the target agent launch or resume. */
             model?: string;
             /**
-             * @description Agent harness to continue the logical AO session with.
+             * @description Agent harness to continue the logical AO session with. Only continuation-capable harnesses are admitted; worker-only harnesses fail closed.
              * @enum {string}
              */
             targetHarness: "codex";

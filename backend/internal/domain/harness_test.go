@@ -10,6 +10,7 @@ func TestHarnessAdmissionPredicates(t *testing.T) {
 		wantSelectableForNew bool
 	}{
 		{name: "codex", harness: HarnessCodex, wantRecognized: true, wantSelectableForNew: true},
+		{name: "deepseek harness", harness: HarnessDeepSeekHarness, wantRecognized: true, wantSelectableForNew: true},
 		{name: "historical claude", harness: HarnessClaudeCode, wantRecognized: true, wantSelectableForNew: false},
 		{name: "historical prime agent", harness: HarnessPrimeAgent, wantRecognized: true, wantSelectableForNew: false},
 		{name: "historical fake", harness: HarnessFake, wantRecognized: true, wantSelectableForNew: false},
@@ -53,6 +54,25 @@ func TestReviewerHarnessAdmissionPredicates(t *testing.T) {
 	}
 }
 
+func TestDeepSeekHarnessIsKnown(t *testing.T) {
+	if HarnessDeepSeekHarness != AgentHarness("deepseek-harness") {
+		t.Fatalf("HarnessDeepSeekHarness = %q, want deepseek-harness", HarnessDeepSeekHarness)
+	}
+	if !HarnessDeepSeekHarness.IsKnown() {
+		t.Fatal("HarnessDeepSeekHarness.IsKnown() = false, want true")
+	}
+	found := false
+	for _, harness := range AllHarnesses {
+		if harness == HarnessDeepSeekHarness {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("AllHarnesses does not contain HarnessDeepSeekHarness")
+	}
+}
+
 func TestPrimeAgentHarnessIsKnown(t *testing.T) {
 	if HarnessPrimeAgent != AgentHarness("prime-agent") {
 		t.Fatalf("HarnessPrimeAgent = %q, want prime-agent", HarnessPrimeAgent)
@@ -87,5 +107,17 @@ func TestOMPHarnessIsKnown(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("AllHarnesses does not contain HarnessOMP")
+	}
+}
+
+func TestRoleGatedPredicatesExcludeDeepSeek(t *testing.T) {
+	if HarnessDeepSeekHarness.IsSelectableAsCoordinator() {
+		t.Fatal("deepseek-harness must not be coordinator-admitted yet")
+	}
+	if HarnessDeepSeekHarness.IsSelectableAsSwitchTarget() {
+		t.Fatal("deepseek-harness must not be switch-target-admitted yet: no continuation identity")
+	}
+	if !HarnessCodex.IsSelectableAsCoordinator() || !HarnessCodex.IsSelectableAsSwitchTarget() {
+		t.Fatal("codex must keep coordinator and switch-target admission")
 	}
 }

@@ -172,6 +172,12 @@ func (c ProjectConfig) Validate() error {
 		if ro.Harness != "" && !ro.Harness.IsSelectableForNewWork() {
 			return fmt.Errorf("%s.agent: harness %q is not selectable for new work", role, ro.Harness)
 		}
+		// Coordinating is capability-gated beyond plain worker admission: a
+		// harness that cannot yet coordinate (see IsSelectableAsCoordinator)
+		// must not be persisted as a project's orchestrator default either.
+		if role == "orchestrator" && ro.Harness != "" && !ro.Harness.IsSelectableAsCoordinator() {
+			return fmt.Errorf("%s.agent: harness %q is not admitted as an orchestrator coordinator", role, ro.Harness)
+		}
 		if err := ro.AgentConfig.Validate(); err != nil {
 			return fmt.Errorf("%s.%w", role, err)
 		}

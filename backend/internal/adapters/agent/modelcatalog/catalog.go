@@ -93,6 +93,19 @@ func Base(agentID string) ports.AgentModelCatalog {
 		)
 		c.SelectionMode = ports.ModelSelectionModeList
 		return c
+	case "deepseek-harness":
+		// The dsh launcher contract has no verified model flag yet and the
+		// adapter refuses model overrides at launch. Offering no models and no
+		// custom entry keeps the picker from suggesting overrides that can
+		// never launch.
+		return ports.AgentModelCatalog{
+			AgentID:       agentID,
+			SelectionMode: ports.ModelSelectionCatalog,
+			Models:        []ports.AgentModelInfo{},
+			AllowCustom:   false,
+			Source:        "adapter",
+			FetchedAt:     now,
+		}
 	default:
 		if hasDiscoverySource(agentID) {
 			return ports.AgentModelCatalog{

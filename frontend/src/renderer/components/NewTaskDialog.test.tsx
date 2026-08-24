@@ -46,11 +46,22 @@ function requestBody() {
 }
 
 const agentInventory = {
+	// Mirrors the real daemon: `supported` contains only harnesses admitted for
+	// fresh work (codex + deepseek-harness), never historical identities like
+	// claude-code, which remain readable but are not selectable defaults. Role
+	// admission and profile requirements come straight from the inventory.
 	supported: [
-		{ id: "codex", label: "Codex" },
-		{ id: "claude-code", label: "Claude Code" },
-		{ id: "cursor", label: "Cursor" },
-		{ id: "kiro", label: "Kiro" },
+		{
+			id: "codex",
+			label: "Codex",
+			roles: { worker: true, coordinator: true, switchTarget: true },
+		},
+		{
+			id: "deepseek-harness",
+			label: "DeepSeek Harness",
+			requiresProfile: true,
+			roles: { worker: true, coordinator: false, switchTarget: false },
+		},
 	],
 	installed: [
 		{ id: "codex", label: "Codex", authStatus: "authorized" },
@@ -175,7 +186,7 @@ describe("NewTaskDialog", () => {
 		expect(onCreated).toHaveBeenCalledWith("worker-tui");
 	});
 
-	it("offers only Codex when the catalog includes retired agents", async () => {
+	it("offers only admitted agents when the catalog includes retired agents", async () => {
 		renderDialog();
 		const user = userEvent.setup();
 		await waitForAgentCatalog();
@@ -183,7 +194,12 @@ describe("NewTaskDialog", () => {
 		await user.type(screen.getByLabelText("Outcome"), "B");
 
 		await user.click(screen.getByRole("button", { name: "Agent" }));
-		expect((await screen.findAllByRole("menuitem")).map((option) => option.textContent)).toEqual(["Codex"]);
+		// Retired identities stay out; the admitted worker appears with its
+		// needs-install state (avatar-initial fallback, no logo asset yet).
+		expect((await screen.findAllByRole("menuitem")).map((option) => option.textContent)).toEqual([
+			"Codex",
+			"DDeepSeek HarnessNeeds install",
+		]);
 		await user.click(screen.getByRole("menuitem", { name: "Codex" }));
 
 		await user.click(screen.getByRole("button", { name: "Define outcome" }));
@@ -215,7 +231,10 @@ describe("NewTaskDialog", () => {
 
 		await user.click(screen.getByRole("button", { name: "Agent" }));
 		const options = await screen.findAllByRole("menuitem");
-		expect(options.map((option) => option.textContent)).toEqual(["CodexAuth unknown"]);
+		expect(options.map((option) => option.textContent)).toEqual([
+			"CodexAuth unknown",
+			"DDeepSeek HarnessNeeds install",
+		]);
 		expect(options[0]).not.toHaveAttribute("aria-disabled", "true");
 		await user.click(options[0]);
 
@@ -224,6 +243,34 @@ describe("NewTaskDialog", () => {
 
 		await waitFor(() => expect(requestBody).not.toThrow());
 		expect(requestBody().agent).toBe("codex");
+	});
+
+	it("blocks Define outcome and explains the missing dsh profile when DeepSeek Harness is selected without a mode", async () => {
+		getMock.mockImplementation(async (path: string) => {
+			if (path === "/api/v1/agents") {
+				return { data: agentInventory, error: undefined };
+			}
+			return {
+				data: { status: "ok", project: { id: "proj-1", config: { worker: { agent: "deepseek-harness" } } } },
+				error: undefined,
+			};
+		});
+		renderDialog();
+		const user = userEvent.setup();
+
+		await user.type(screen.getByLabelText("Outcome"), "Ship the recovery slice");
+
+		// The project's worker resolves to the admitted DeepSeek Harness, but with
+		// no worker mode configured there is no dsh profile to launch. The composer
+		// says so inline and keeps the Define outcome action disabled instead of
+		// failing at daemon spawn time.
+		expect(
+			await screen.findByText("DeepSeek Harness needs a dsh profile. Set Project Settings → Worker → Mode."),
+		).toBeInTheDocument();
+		const start = screen.getByRole("button", { name: "Define outcome" });
+		expect(start).toBeDisabled();
+		await user.click(start);
+		expect(postMock).not.toHaveBeenCalledWith("/api/v1/orchestrators/delegate", expect.anything());
 	});
 
 	it("requires an outcome before delegation", async () => {
@@ -242,7 +289,11 @@ describe("NewTaskDialog", () => {
 				return {
 					data: {
 						supported: [
-							{ id: "codex", label: "Codex" },
+							{
+								id: "codex",
+								label: "Codex",
+								roles: { worker: true, coordinator: true, switchTarget: true },
+							},
 							{ id: "claude-code", label: "Claude Code" },
 						],
 						installed: [{ id: "codex", label: "Codex", authStatus: "authorized" }],

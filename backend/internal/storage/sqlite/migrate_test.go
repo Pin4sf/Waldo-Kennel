@@ -197,6 +197,39 @@ func TestMigrateAllowsEveryShippedHarness(t *testing.T) {
 	}
 }
 
+// TestMigrateDeepSeekHarnessSessionRoundTrip proves migration 0101 actually
+// widened the live sessions.harness CHECK rather than silently no-opping:
+// a durable row with harness 'deepseek-harness' persists against the migrated
+// schema, while the same constraint still rejects a bogus harness value.
+func TestMigrateDeepSeekHarnessSessionRoundTrip(t *testing.T) {
+	db := openMigratedTestDB(t)
+
+	if _, err := db.Exec(`
+INSERT INTO projects (id, path, registered_at, config)
+VALUES ('agent-orchestrator', '/repo/agent-orchestrator', ?, '{}');
+INSERT INTO sessions (id, project_id, num, harness, activity_last_at, created_at, updated_at)
+VALUES ('agent-orchestrator-1', 'agent-orchestrator', 1, 'deepseek-harness', ?, ?, ?);
+`, time.Unix(100, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC()); err != nil {
+		t.Fatalf("insert deepseek-harness session after migrations: %v", err)
+	}
+	var persisted int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE harness = 'deepseek-harness'`).Scan(&persisted); err != nil {
+		t.Fatalf("count deepseek-harness sessions: %v", err)
+	}
+	if persisted != 1 {
+		t.Fatalf("deepseek-harness session rows = %d, want 1", persisted)
+	}
+
+	// Widening the CHECK must not have removed it: an unknown identity stays
+	// unwritable exactly as before.
+	if _, err := db.Exec(`
+INSERT INTO sessions (id, project_id, num, harness, activity_last_at, created_at, updated_at)
+VALUES ('agent-orchestrator-2', 'agent-orchestrator', 2, 'not-a-real-harness', ?, ?, ?);
+`, time.Unix(102, 0).UTC(), time.Unix(103, 0).UTC(), time.Unix(103, 0).UTC()); err == nil {
+		t.Fatal("session insert with bogus harness value succeeded, want a CHECK violation")
+	}
+}
+
 func TestMigrateRepairsSkippedMuseHarnessConstraint(t *testing.T) {
 	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel.db")+pragmas)
 	if err != nil {

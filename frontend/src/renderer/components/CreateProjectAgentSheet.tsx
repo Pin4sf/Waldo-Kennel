@@ -135,6 +135,12 @@ export function CreateProjectAgentSheet({
 	const [orchestratorAgent, setOrchestratorAgent] = useState("");
 	const [workerAgentTouched, setWorkerAgentTouched] = useState(false);
 	const [orchestratorAgentTouched, setOrchestratorAgentTouched] = useState(false);
+	// Coordinator admission comes from the daemon's inventory roles; optional
+	// chaining tolerates stale catalogs. An empty set keeps the picker unfiltered
+	// rather than offering nothing at all.
+	const coordinatorCapable = new Set(
+		supportedAgents.filter((agent) => agent.roles?.coordinator).map((agent) => agent.id),
+	);
 	const isBusy = isCreating || isInitializing;
 	const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
 	const intakeIncomplete = intakeNeedsRule(intake);
@@ -210,6 +216,7 @@ export function CreateProjectAgentSheet({
 							orchestrator: (
 								<RequiredAgentField
 									id="newProjectOrchestratorAgent"
+									selectableIds={coordinatorCapable.size > 0 ? coordinatorCapable : undefined}
 									label={t("createProject.orchestratorAgent")}
 									placeholder={t("createProject.selectOrchestrator")}
 									value={orchestratorAgent}
@@ -328,6 +335,7 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	onChange,
 	placeholder,
 	supported,
+	selectableIds,
 	triggerClassName,
 	labelClassName,
 	contentClassName,
@@ -351,13 +359,28 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	contentClassName?: string;
 	value: string;
 	variant?: "stacked" | "settings-row" | "chip";
+	/** Restrict offered options to these harness ids (role-gated fields). */
+	selectableIds?: ReadonlySet<string>;
 }) {
-	const fallbackAgents: AgentInfo[] = [{ id: "codex", label: "Codex" }];
-	const selectableSupported = (supported ?? fallbackAgents).filter((agent) => agent.id === "codex");
+	const fallbackAgents: AgentInfo[] = [
+		{
+			id: "codex",
+			label: "Codex",
+			roles: { worker: true, coordinator: true, switchTarget: true },
+		},
+	];
+	// The daemon only returns capability-admitted harnesses in `supported`, so
+	// every entry is offered here with its real auth state. Callers narrow the
+	// set for role-gated fields (e.g. the orchestrator picker passes the ids
+	// whose inventory entry admits the coordinator role). Codex remains the
+	// preferred default via defaultAuthorizedAgent/preferredDefaultAgent below.
+	const admittedAgents = selectableIds
+		? (supported ?? fallbackAgents).filter((agent) => selectableIds.has(agent.id))
+		: (supported ?? fallbackAgents);
 	const options = buildRankedAgentOptions({
-		supported: selectableSupported.length > 0 ? selectableSupported : fallbackAgents,
-		installed: installed?.filter((agent) => agent.id === "codex"),
-		authorized: authorized?.filter((agent) => agent.id === "codex"),
+		supported: admittedAgents.length > 0 ? admittedAgents : fallbackAgents,
+		installed,
+		authorized,
 		priorityRank: DEFAULT_AGENT_PRIORITY_RANK,
 		fallbackAgents,
 	});
