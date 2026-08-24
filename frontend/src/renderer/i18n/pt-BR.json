@@ -623,6 +623,7 @@
 	"settings.project.permissionBypass": "Ignorar permissões",
 	"settings.project.permissionDefault": "Padrão",
 	"settings.project.permissionMode": "Modo de permissão",
+	"settings.project.profile": "Perfil",
 	"settings.project.refresh": "Atualizar",
 	"settings.project.refreshAgents": "Atualizar agentes",
 	"settings.project.refreshFailed": "Não foi possível atualizar o catálogo de agentes.",

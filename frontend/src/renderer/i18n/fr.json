@@ -623,6 +623,7 @@
 	"settings.project.permissionBypass": "Contourner les permissions",
 	"settings.project.permissionDefault": "Par défaut",
 	"settings.project.permissionMode": "Mode de permission",
+	"settings.project.profile": "Profil",
 	"settings.project.refresh": "Actualiser",
 	"settings.project.refreshAgents": "Actualiser les agents",
 	"settings.project.refreshFailed": "Impossible d'actualiser le catalogue d'agents.",

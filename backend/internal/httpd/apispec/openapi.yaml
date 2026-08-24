@@ -5321,6 +5321,19 @@ components:
       required:
       - path
       type: object
+    AgentAgentRoles:
+      properties:
+        coordinator:
+          type: boolean
+        switchTarget:
+          type: boolean
+        worker:
+          type: boolean
+      required:
+      - worker
+      - coordinator
+      - switchTarget
+      type: object
     AgentConfig:
       properties:
         mode:
@@ -5354,9 +5367,18 @@ components:
           description: 'Adapter-explained readiness context: what was verified or
             what is missing.'
           type: string
+        requiresProfile:
+          description: Launch requires user-selected profile configuration beyond
+            an installed binary.
+          type: boolean
+        roles:
+          $ref: '#/components/schemas/AgentAgentRoles'
+          description: Role admission derived from daemon policy. Clients must not
+            re-derive it from provider names.
       required:
       - id
       - label
+      - roles
       type: object
     AgentModelInfo:
       properties:

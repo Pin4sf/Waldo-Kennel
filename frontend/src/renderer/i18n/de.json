@@ -614,6 +614,7 @@
 	"settings.project.permissionBypass": "Berechtigungen umgehen",
 	"settings.project.permissionDefault": "Standard",
 	"settings.project.permissionMode": "Berechtigungsmodus",
+	"settings.project.profile": "Profil",
 	"settings.project.refresh": "Aktualisieren",
 	"settings.project.refreshAgents": "Agenten aktualisieren",
 	"settings.project.refreshFailed": "Agentenkatalog konnte nicht aktualisiert werden.",

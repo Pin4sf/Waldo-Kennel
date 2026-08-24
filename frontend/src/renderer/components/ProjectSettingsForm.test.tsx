@@ -125,10 +125,20 @@ const agentCatalogResponse = {
 	data: {
 		// Mirrors the real daemon: `supported` contains only harnesses admitted
 		// for fresh work (codex + deepseek-harness); historical identities below
-		// remain readable in installed/authorized but are never offered.
+		// remain readable in installed/authorized but are never offered. Role
+		// admission and profile requirements mirror the daemon's AgentInfo.
 		supported: [
-			{ id: "codex", label: "Codex" },
-			{ id: "deepseek-harness", label: "DeepSeek Harness" },
+			{
+				id: "codex",
+				label: "Codex",
+				roles: { worker: true, coordinator: true, switchTarget: true },
+			},
+			{
+				id: "deepseek-harness",
+				label: "DeepSeek Harness",
+				requiresProfile: true,
+				roles: { worker: true, coordinator: false, switchTarget: false },
+			},
 		],
 		installed: [
 			{ id: "claude-code", label: "Claude Code", authStatus: "authorized" },
@@ -973,6 +983,86 @@ describe("ProjectSettingsForm", () => {
 			"DDeepSeek HarnessNeeds install",
 		]);
 		expect(options[0]).not.toHaveAttribute("aria-disabled", "true");
+	});
+
+	it("shows the Profile field only while the worker requires a launch profile", async () => {
+		const project = {
+			id: "proj-1",
+			name: "Project One",
+			kind: "single_repo",
+			path: "/repo/project-one",
+			repo: "",
+			defaultBranch: "main",
+			config: {
+				worker: { agent: "codex" },
+				orchestrator: { agent: "codex" },
+			},
+		};
+		const installedDeepSeek = {
+			id: "deepseek-harness",
+			label: "DeepSeek Harness",
+			authStatus: "authorized",
+			requiresProfile: true,
+			roles: { worker: true, coordinator: false, switchTarget: false },
+		};
+		getMock.mockImplementation(async (path: string) => {
+			if (path === "/api/v1/agents") {
+				return {
+					data: {
+						supported: agentCatalogResponse.data.supported,
+						installed: [...agentCatalogResponse.data.installed, installedDeepSeek],
+						authorized: [...agentCatalogResponse.data.authorized, installedDeepSeek],
+					},
+					error: undefined,
+				};
+			}
+			if (path === "/api/v1/agents/{agent}/models") {
+				return {
+					data: {
+						agentId: "test-agent",
+						selectionMode: "text",
+						models: [],
+						allowCustom: true,
+						source: "manual",
+						fetchedAt: "2026-07-31T00:00:00Z",
+						stale: false,
+					},
+					error: undefined,
+				};
+			}
+			return { data: { status: "ok", project }, error: undefined };
+		});
+
+		renderSettings("proj-1", undefined, "agents");
+
+		// Codex launches without extra configuration, so no Profile field.
+		expect(await screen.findByRole("button", { name: "Default worker agent" })).toHaveTextContent("Codex");
+		expect(screen.queryByLabelText("Profile")).not.toBeInTheDocument();
+
+		// Selecting the profile-gated harness reveals the field bound to the
+		// worker's configured mode — the value spawn reads as the dsh profile.
+		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "DeepSeek Harness");
+
+		const profileInput = screen.getByLabelText("Profile");
+		await userEvent.type(profileInput, "dsh-main");
+
+		submitSettings();
+
+		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
+		expect(putMock).toHaveBeenCalledWith(
+			"/api/v1/projects/{id}",
+			expect.objectContaining({
+				body: expect.objectContaining({
+					config: expect.objectContaining({
+						worker: { agent: "deepseek-harness", agentConfig: { mode: "dsh-main" } },
+					}),
+				}),
+			}),
+		);
+
+		// Switching back to a zero-configuration worker hides the field again.
+		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "Codex");
+		expect(screen.queryByLabelText("Profile")).not.toBeInTheDocument();
 	});
 
 	it("saves Codex as the reviewer payload", async () => {

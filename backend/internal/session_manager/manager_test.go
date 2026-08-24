@@ -4664,6 +4664,61 @@ func TestSpawn_RejectsHistoricalHarnessBeforeCreatingStateOrWorkspace(t *testing
 	}
 }
 
+// Resume enforces the same readiness contract as spawn: a harness whose
+// selected profile can no longer launch is refused before any runtime or
+// terminal state is touched, and the failure wraps the stable sentinel so the
+// API maps it to a corrective 422 rather than a 500.
+func TestResumeAgent_ProfileNotReadyFailsBeforeRuntime(t *testing.T) {
+	st := newFakeStore()
+	// The project's worker role belongs to DeepSeek with its own profile, so
+	// freshAgentConfig keeps the mode instead of clearing it at the harness
+	// boundary.
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
+		Worker: domain.RoleOverride{
+			Harness:     domain.HarnessDeepSeekHarness,
+			AgentConfig: domain.AgentConfig{Mode: "tui"},
+		},
+	}}
+	st.sessions["mer-1"] = domain.SessionRecord{
+		ID:      "mer-1",
+		ProjectID: "mer",
+		Kind:    domain.KindWorker,
+		Harness: domain.HarnessDeepSeekHarness,
+		Activity: domain.Activity{State: domain.ActivityExited},
+		Metadata: domain.SessionMetadata{
+			WorkspacePath:   "/ws/mer-1",
+			Branch:          "kennel/mer-1",
+			RuntimeHandleID: "tmux-mer-1",
+			Prompt:          "build the ledger",
+		},
+	}
+	rt := &fakeRuntime{}
+	ws := &fakeWorkspace{}
+	agent := &readinessGateAgent{readiness: ports.AgentProfileReadiness{
+		Ready:  false,
+		Detail: `dsh --profile tui --dump-config failed: profile "tui" does not exist`,
+	}}
+	m := New(Deps{
+		Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: ws, Store: st,
+		Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st},
+		LookPath: func(string) (string, error) { return "/bin/true", nil },
+	})
+
+	_, err := m.ResumeAgentWithMode(ctx, "mer-1")
+	if !errors.Is(err, ErrAgentProfileNotReady) {
+		t.Fatalf("ResumeAgentWithMode() error = %v, want ErrAgentProfileNotReady", err)
+	}
+	if !strings.Contains(err.Error(), "does not exist") {
+		t.Fatalf("error = %v, want the adapter detail surfaced", err)
+	}
+	if agent.lastProbeConfig.Mode != "tui" {
+		t.Fatalf("probe mode = %q, want the project-resolved profile", agent.lastProbeConfig.Mode)
+	}
+	if rt.created != 0 {
+		t.Fatal("runtime must not be created for a not-ready profile")
+	}
+}
+
 // A not-ready profile fails the spawn before any durable state exists — no
 // seed row, no workspace, no runtime — so nothing needs rolling back and no
 // terminated orphan can accumulate behind a spawn that could never launch.

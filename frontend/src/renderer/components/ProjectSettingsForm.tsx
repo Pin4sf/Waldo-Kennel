@@ -7,7 +7,6 @@ import {
 	ProjectSettingsSection,
 	ProjectWorkflowSettingsView,
 	validateProjectSettings,
-	COORDINATOR_CAPABLE_AGENTS,
 } from "@pin4sf/kennel-product-ui";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -196,6 +195,16 @@ function SettingsBody({
 		}));
 	const effectiveIntakeRepo = form.intakeRepo.trim() || deriveGitHubRepo(project.repo);
 	const reviewerWarning = reviewerTrustWarning(form.reviewerHarness);
+
+	// Role admission and profile requirements come from the daemon's agent
+	// inventory; the UI never re-derives them from provider names. Optional
+	// chaining keeps stale catalogs (or old fixtures) from crashing the form.
+	const supportedAgents = agentCatalog?.supported ?? [];
+	const coordinatorCapable = new Set(
+		supportedAgents.filter((agent) => agent.roles?.coordinator).map((agent) => agent.id),
+	);
+	const workerRequiresProfile =
+		supportedAgents.find((agent) => agent.id === form.workerAgent)?.requiresProfile === true;
 
 	const mutation = useMutation({
 		mutationFn: async () => {
@@ -455,6 +464,7 @@ function SettingsBody({
 								projectId={projectId}
 								model={form.workerModel}
 								mode={form.workerMode}
+								requiresProfile={workerRequiresProfile}
 								onModelChange={(workerModel) => setForm((f) => ({ ...f, workerModel }))}
 								onModeChange={(workerMode) => setForm((f) => ({ ...f, workerMode }))}
 							/>
@@ -462,7 +472,7 @@ function SettingsBody({
 						orchestratorArea={
 							<RequiredAgentField
 								id="orchestratorAgent"
-								selectableIds={COORDINATOR_CAPABLE_AGENTS}
+								selectableIds={coordinatorCapable.size > 0 ? coordinatorCapable : undefined}
 								variant="settings-row"
 								value={form.orchestratorAgent}
 								placeholder={t("settings.project.selectOrchestrator")}
@@ -606,6 +616,7 @@ function AgentModelField({
 	projectId,
 	model,
 	mode,
+	requiresProfile = false,
 	onModelChange,
 	onModeChange,
 }: {
@@ -614,6 +625,8 @@ function AgentModelField({
 	projectId: string;
 	model: string;
 	mode: string;
+	/** Daemon-declared launch requirement: this agent boots a user-selected profile carried as the role's mode. */
+	requiresProfile?: boolean;
 	onModelChange: (value: string) => void;
 	onModeChange: (value: string) => void;
 }) {
@@ -690,6 +703,10 @@ function AgentModelField({
 	const hasCatalog = catalog?.selectionMode === "catalog" && (catalog.models?.length ?? 0) > 0;
 	const modelIsInCatalog = catalog?.models?.some((item) => item.id === model) ?? false;
 	const showCustomInput = hasCatalog && (customAgentId === agentId || (model !== "" && !modelIsInCatalog));
+	// Profile-required harnesses (deepseek-harness) carry their launch profile in
+	// the role's mode. Without a mode catalog there is no other mode editor, so
+	// the profile is entered as free text beside the model field.
+	const profileLabel = t("settings.project.profile");
 	const selectCatalogModel = (value: string) => {
 		setCustomAgentId(null);
 		onModelChange(value);
@@ -750,6 +767,18 @@ function AgentModelField({
 					)}
 				</div>
 			</SettingsRow>
+			{requiresProfile && (
+				<SettingsRow label={profileLabel}>
+					<input
+						id={`${role}-profile`}
+						aria-label={profileLabel}
+						className="settings-inline-input settings-model-control"
+						value={mode}
+						disabled={agentId === ""}
+						onChange={(event) => onModeChange(event.target.value)}
+					/>
+				</SettingsRow>
+			)}
 			{warning && <p className="px-1 text-xs leading-row text-warning">{warning}</p>}
 		</>
 	);

@@ -39,19 +39,6 @@ export type AgentIdentity = Pick<AgentProfile, "id" | "label"> & {
 	initial: string;
 };
 
-// Agents that require user-selected configuration before they can launch:
-// DeepSeek Harness boots a user-built dsh profile, selected as the worker's
-// mode via Project Settings → Worker → Mode. The daemon enforces this
-// authoritatively at spawn; this set only powers earlier UI guidance so
-// clients can explain the missing setup before submission fails.
-// Harnesses admitted as project orchestrators (the Mission coordinator role).
-// Mirrors backend/internal/domain/harness.go IsSelectableAsCoordinator — both
-// widen together when DeepSeek demonstrates stable continuation identity,
-// structured chat, and recovery.
-export const COORDINATOR_CAPABLE_AGENTS: ReadonlySet<string> = new Set(["codex"]);
-
-export const PROFILE_REQUIRED_AGENTS: ReadonlySet<string> = new Set(["deepseek-harness"]);
-
 export const AGENT_LABELS: Record<AgentId, string> = {
 	"claude-code": "Claude Code",
 	codex: "Codex",

@@ -61,7 +61,13 @@ export function ReviewerSelect({
 	// Until the daemon's catalog arrives these entries carry the whole menu, so
 	// label them the way the catalog would rather than printing bare ids: without
 	// this the same row reads "claude-code" now and "Claude Code" a moment later.
-	const fallbackAgents: components["schemas"]["AgentInfo"][] = [{ id: "codex", label: agentLabel("codex") }];
+	const fallbackAgents: components["schemas"]["AgentInfo"][] = [
+		{
+			id: "codex",
+			label: agentLabel("codex"),
+			roles: { worker: true, coordinator: true, switchTarget: true },
+		},
+	];
 	const filteredSupported = (supported ?? fallbackAgents).filter((a) => a.id === "codex");
 	const supportedAgents = filteredSupported.length > 0 ? filteredSupported : fallbackAgents;
 	const options = buildRankedAgentOptions({

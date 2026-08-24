@@ -10,7 +10,11 @@ function renderSheet(onSubmit = vi.fn().mockResolvedValue(undefined)) {
 	queryClient.setQueryData(agentsQueryKey, {
 		supported: [
 			{ id: "claude-code", label: "claude-code" },
-			{ id: "codex", label: "codex" },
+			{
+				id: "codex",
+				label: "codex",
+				roles: { worker: true, coordinator: true, switchTarget: true },
+			},
 		],
 		installed: [
 			{ id: "claude-code", label: "claude-code", authStatus: "authorized" },
@@ -46,8 +50,18 @@ describe("CreateProjectAgentSheet", () => {
 	it("chooses the highest-priority authorized default agent", () => {
 		expect(
 			defaultAuthorizedAgent([
-				{ id: "opencode", label: "OpenCode", authStatus: "authorized" },
-				{ id: "codex", label: "Codex", authStatus: "authorized" },
+				{
+					id: "opencode",
+					label: "OpenCode",
+					authStatus: "authorized",
+					roles: { worker: true, coordinator: true, switchTarget: true },
+				},
+				{
+					id: "codex",
+					label: "Codex",
+					authStatus: "authorized",
+					roles: { worker: true, coordinator: true, switchTarget: true },
+				},
 			]),
 		).toBe("codex");
 	});
@@ -55,8 +69,18 @@ describe("CreateProjectAgentSheet", () => {
 	it("does not select a retired authorized agent", () => {
 		expect(
 			defaultAuthorizedAgent([
-				{ id: "goose", label: "Goose", authStatus: "authorized" },
-				{ id: "devin", label: "Devin", authStatus: "authorized" },
+				{
+					id: "goose",
+					label: "Goose",
+					authStatus: "authorized",
+					roles: { worker: true, coordinator: false, switchTarget: false },
+				},
+				{
+					id: "devin",
+					label: "Devin",
+					authStatus: "authorized",
+					roles: { worker: true, coordinator: false, switchTarget: false },
+				},
 			]),
 		).toBe("");
 	});

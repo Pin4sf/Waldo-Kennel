@@ -48,10 +48,20 @@ function requestBody() {
 const agentInventory = {
 	// Mirrors the real daemon: `supported` contains only harnesses admitted for
 	// fresh work (codex + deepseek-harness), never historical identities like
-	// claude-code, which remain readable but are not selectable defaults.
+	// claude-code, which remain readable but are not selectable defaults. Role
+	// admission and profile requirements come straight from the inventory.
 	supported: [
-		{ id: "codex", label: "Codex" },
-		{ id: "deepseek-harness", label: "DeepSeek Harness" },
+		{
+			id: "codex",
+			label: "Codex",
+			roles: { worker: true, coordinator: true, switchTarget: true },
+		},
+		{
+			id: "deepseek-harness",
+			label: "DeepSeek Harness",
+			requiresProfile: true,
+			roles: { worker: true, coordinator: false, switchTarget: false },
+		},
 	],
 	installed: [
 		{ id: "codex", label: "Codex", authStatus: "authorized" },
@@ -279,7 +289,11 @@ describe("NewTaskDialog", () => {
 				return {
 					data: {
 						supported: [
-							{ id: "codex", label: "Codex" },
+							{
+								id: "codex",
+								label: "Codex",
+								roles: { worker: true, coordinator: true, switchTarget: true },
+							},
 							{ id: "claude-code", label: "Claude Code" },
 						],
 						installed: [{ id: "codex", label: "Codex", authStatus: "authorized" }],

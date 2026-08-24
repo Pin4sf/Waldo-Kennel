@@ -155,7 +155,11 @@ function renderSidebar({
 		queryClient.setQueryData(agentsQueryKey, {
 			supported: [
 				{ id: "claude-code", label: "Claude Code" },
-				{ id: "codex", label: "Codex" },
+				{
+					id: "codex",
+					label: "Codex",
+					roles: { worker: true, coordinator: true, switchTarget: true },
+				},
 			],
 			installed: [
 				{ id: "claude-code", label: "Claude Code" },
@@ -243,7 +247,11 @@ beforeEach(() => {
 		data: {
 			supported: [
 				{ id: "claude-code", label: "Claude Code" },
-				{ id: "codex", label: "Codex" },
+				{
+					id: "codex",
+					label: "Codex",
+					roles: { worker: true, coordinator: true, switchTarget: true },
+				},
 			],
 			installed: [
 				{ id: "claude-code", label: "Claude Code" },
@@ -677,8 +685,17 @@ describe("Sidebar", () => {
 		getMock.mockResolvedValueOnce({
 			data: {
 				supported: [
-					{ id: "codex", label: "Codex" },
-					{ id: "deepseek-harness", label: "DeepSeek Harness" },
+					{
+						id: "codex",
+						label: "Codex",
+						roles: { worker: true, coordinator: true, switchTarget: true },
+					},
+					{
+						id: "deepseek-harness",
+						label: "DeepSeek Harness",
+						requiresProfile: true,
+						roles: { worker: true, coordinator: false, switchTarget: false },
+					},
 				],
 				installed: [
 					{ id: "codex", label: "Codex", authStatus: "authorized" },
@@ -1044,8 +1061,17 @@ describe("Sidebar", () => {
 		getMock.mockResolvedValueOnce({
 			data: {
 				supported: [
-					{ id: "codex", label: "Codex" },
-					{ id: "deepseek-harness", label: "DeepSeek Harness" },
+					{
+						id: "codex",
+						label: "Codex",
+						roles: { worker: true, coordinator: true, switchTarget: true },
+					},
+					{
+						id: "deepseek-harness",
+						label: "DeepSeek Harness",
+						requiresProfile: true,
+						roles: { worker: true, coordinator: false, switchTarget: false },
+					},
 				],
 				installed: [
 					{ id: "codex", label: "Codex", authStatus: "authorized" },
@@ -1080,7 +1106,11 @@ describe("Sidebar", () => {
 		window.kennel!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
 		let resolveAgents!: (value: {
 			data: {
-				supported: { id: string; label: string }[];
+				supported: {
+					id: string;
+					label: string;
+					roles?: { worker: boolean; coordinator: boolean; switchTarget: boolean };
+				}[];
 				installed: { id: string; label: string }[];
 				authorized: { id: string; label: string; authStatus: "authorized" }[];
 			};
@@ -1102,7 +1132,11 @@ describe("Sidebar", () => {
 			data: {
 				supported: [
 					{ id: "claude-code", label: "Claude Code" },
-					{ id: "codex", label: "Codex" },
+					{
+						id: "codex",
+						label: "Codex",
+						roles: { worker: true, coordinator: true, switchTarget: true },
+					},
 				],
 				installed: [
 					{ id: "claude-code", label: "Claude Code" },

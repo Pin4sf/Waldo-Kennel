@@ -1,6 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-	PROFILE_REQUIRED_AGENTS,
 	TaskComposerView,
 	type TaskComposerAgentControl,
 	type TaskComposerModelCatalog,
@@ -194,9 +193,12 @@ export function TaskComposer({
 	const projectModeForSelectedAgent = selectedMatchesProjectWorker ? defaultWorkerMode : "";
 	// Profile-required agents (deepseek-harness) launch only through a
 	// user-selected dsh profile, carried as the worker's configured mode. The
-	// daemon rejects profile-less spawns, so block the Define outcome action
-	// early and explain the missing setup instead of failing after submit.
-	const selectedAgentRequiresProfile = PROFILE_REQUIRED_AGENTS.has(selectedAgent);
+	// daemon's inventory flags this authoritatively via `requiresProfile` and
+	// rejects profile-less spawns at request time, so block the Define outcome
+	// action early and explain the missing setup instead of failing after
+	// submit.
+	const selectedAgentRequiresProfile =
+		agentCatalog?.supported?.find((item) => item.id === selectedAgent)?.requiresProfile === true;
 	const profileMissing = selectedAgentRequiresProfile && projectModeForSelectedAgent === "";
 
 	// Shares the picker's query key, so this is the same fetch, not a second one.

@@ -72,6 +72,20 @@ type Info struct {
 	// authoritative validation point.
 	Ready       *bool  `json:"ready,omitempty" description:"Advisory profile-readiness probe for adapters whose launch needs more than an installed binary. Absent means the probe does not apply."`
 	ReadyDetail string `json:"readyDetail,omitempty" description:"Adapter-explained readiness context: what was verified or what is missing."`
+	// RequiresProfile mirrors the adapter's readiness capability: launch depends
+	// on user-selected configuration (e.g. a dsh profile), so UIs must collect
+	// it before offering this agent. The daemon enforces the same check at
+	// spawn; this flag exists so clients never duplicate that policy.
+	RequiresProfile bool `json:"requiresProfile,omitempty" description:"Launch requires user-selected profile configuration beyond an installed binary."`
+	// Roles are the daemon's authoritative role admission for this harness.
+	Roles AgentRoles `json:"roles" description:"Role admission derived from daemon policy. Clients must not re-derive it from provider names."`
+}
+
+// AgentRoles reports which responsibilities a harness is admitted for.
+type AgentRoles struct {
+	Worker       bool `json:"worker"`
+	Coordinator  bool `json:"coordinator"`
+	SwitchTarget bool `json:"switchTarget"`
 }
 
 // Inventory describes all daemon-supported agents and best-effort local probe
@@ -502,6 +516,10 @@ func (s *Service) probeAgent(ctx context.Context, item agentregistry.HarnessAgen
 	if info.Label == "" {
 		info.Label = info.ID
 	}
+	info.Roles = agentRoles(item.Harness)
+	if _, ok := item.Agent.(ports.AgentProfileReadinessChecker); ok {
+		info.RequiresProfile = true
+	}
 	probeCtx, cancel := context.WithTimeout(ctx, agentInstallProbeTimeout)
 	defer cancel()
 	resolver, ok := item.Agent.(ports.AgentBinaryResolver)
@@ -530,6 +548,16 @@ func (s *Service) probeAgent(ctx context.Context, item agentregistry.HarnessAgen
 		}
 	}
 	return probeResult{info: info, installed: true, authorized: info.AuthStatus == ports.AgentAuthStatusAuthorized}
+}
+
+// agentRoles derives the authoritative role admission for a harness from the
+// domain predicates, so API consumers never re-implement provider policy.
+func agentRoles(harness domain.AgentHarness) AgentRoles {
+	return AgentRoles{
+		Worker:       harness.IsSelectableForNewWork(),
+		Coordinator:  harness.IsSelectableAsCoordinator(),
+		SwitchTarget: harness.IsSelectableAsSwitchTarget(),
+	}
 }
 
 func authStatus(ctx context.Context, a ports.Agent) ports.AgentAuthStatus {

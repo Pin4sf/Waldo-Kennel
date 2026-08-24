@@ -3,7 +3,6 @@ import {
 	canSubmitProjectSetup,
 	ProjectSetupFormView,
 	ProjectSetupHeaderView,
-	COORDINATOR_CAPABLE_AGENTS,
 } from "@pin4sf/kennel-product-ui";
 import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -136,6 +135,12 @@ export function CreateProjectAgentSheet({
 	const [orchestratorAgent, setOrchestratorAgent] = useState("");
 	const [workerAgentTouched, setWorkerAgentTouched] = useState(false);
 	const [orchestratorAgentTouched, setOrchestratorAgentTouched] = useState(false);
+	// Coordinator admission comes from the daemon's inventory roles; optional
+	// chaining tolerates stale catalogs. An empty set keeps the picker unfiltered
+	// rather than offering nothing at all.
+	const coordinatorCapable = new Set(
+		supportedAgents.filter((agent) => agent.roles?.coordinator).map((agent) => agent.id),
+	);
 	const isBusy = isCreating || isInitializing;
 	const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
 	const intakeIncomplete = intakeNeedsRule(intake);
@@ -211,7 +216,7 @@ export function CreateProjectAgentSheet({
 							orchestrator: (
 								<RequiredAgentField
 									id="newProjectOrchestratorAgent"
-									selectableIds={COORDINATOR_CAPABLE_AGENTS}
+									selectableIds={coordinatorCapable.size > 0 ? coordinatorCapable : undefined}
 									label={t("createProject.orchestratorAgent")}
 									placeholder={t("createProject.selectOrchestrator")}
 									value={orchestratorAgent}
@@ -357,12 +362,18 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	/** Restrict offered options to these harness ids (role-gated fields). */
 	selectableIds?: ReadonlySet<string>;
 }) {
-	const fallbackAgents: AgentInfo[] = [{ id: "codex", label: "Codex" }];
+	const fallbackAgents: AgentInfo[] = [
+		{
+			id: "codex",
+			label: "Codex",
+			roles: { worker: true, coordinator: true, switchTarget: true },
+		},
+	];
 	// The daemon only returns capability-admitted harnesses in `supported`, so
 	// every entry is offered here with its real auth state. Callers narrow the
-	// set for role-gated fields (e.g. the orchestrator picker passes
-	// COORDINATOR_CAPABLE_AGENTS). Codex remains the preferred default via
-	// defaultAuthorizedAgent/preferredDefaultAgent below.
+	// set for role-gated fields (e.g. the orchestrator picker passes the ids
+	// whose inventory entry admits the coordinator role). Codex remains the
+	// preferred default via defaultAuthorizedAgent/preferredDefaultAgent below.
 	const admittedAgents = selectableIds
 		? (supported ?? fallbackAgents).filter((agent) => selectableIds.has(agent.id))
 		: (supported ?? fallbackAgents);

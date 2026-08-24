@@ -1760,6 +1760,11 @@ export interface components {
             path: string;
             projectId?: null | string;
         };
+        AgentAgentRoles: {
+            coordinator: boolean;
+            switchTarget: boolean;
+            worker: boolean;
+        };
         AgentConfig: {
             mode?: string;
             model?: string;
@@ -1777,6 +1782,10 @@ export interface components {
             ready?: null | boolean;
             /** @description Adapter-explained readiness context: what was verified or what is missing. */
             readyDetail?: string;
+            /** @description Launch requires user-selected profile configuration beyond an installed binary. */
+            requiresProfile?: boolean;
+            /** @description Role admission derived from daemon policy. Clients must not re-derive it from provider names. */
+            roles: components["schemas"]["AgentAgentRoles"];
         };
         AgentModelInfo: {
             id: string;

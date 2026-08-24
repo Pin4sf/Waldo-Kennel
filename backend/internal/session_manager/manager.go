@@ -49,6 +49,14 @@ var (
 	// ErrScratchBranchUnsupported means a caller tried to force git branch
 	// semantics onto a scratch project.
 	ErrScratchBranchUnsupported = errors.New("session: scratch projects do not support branches")
+	// ErrAgentProfileNotReady wraps an adapter's readiness detail: the harness
+	// is admitted, but its user-selected configuration (e.g. a dsh profile)
+	// cannot launch right now. Surfaces as a corrective 422, never a 500.
+	ErrAgentProfileNotReady = errors.New("agent profile is not ready")
+	// ErrNotCoordinatorAdmitted means the harness is worker-admitted only.
+	ErrNotCoordinatorAdmitted = errors.New("harness is not admitted as an orchestrator coordinator")
+	// ErrNotSwitchAdmitted means the target harness lacks continuation support.
+	ErrNotSwitchAdmitted = errors.New("harness is not admitted as a switch target")
 	// ErrNotResumable means a terminated session cannot be relaunched: its adapter
 	// cannot natively resume it AND it has no prompt to fresh-launch from, and it is
 	// not an orchestrator (orchestrators are promptless by design and relaunch fresh
@@ -688,7 +696,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	// demonstrated the stable session identity, structured chat, and recovery
 	// support that coordinating a project requires.
 	if cfg.Kind == domain.KindOrchestrator && !cfg.Harness.IsSelectableAsCoordinator() {
-		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: harness %q is not admitted as an orchestrator coordinator", cfg.Harness)
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: %q", ErrNotCoordinatorAdmitted, cfg.Harness)
 	}
 
 	// Reject an unknown harness before any durable state is created. Doing this
@@ -713,7 +721,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %s readiness: %w", cfg.Harness, err)
 		}
 		if !readiness.Ready {
-			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %s is not ready: %s", cfg.Harness, readiness.Detail)
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: %s", ErrAgentProfileNotReady, readiness.Detail)
 		}
 	}
 
@@ -1722,6 +1730,18 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	agent, ok := m.agents.Agent(rec.Harness)
 	if !ok {
 		return RestoreResult{}, fmt.Errorf("%s %s: no agent adapter for harness %q", operation, rec.ID, rec.Harness)
+	}
+	// Resume/relaunch enforces the same profile-readiness contract as spawn:
+	// an admitted harness whose selected configuration can no longer launch
+	// fails closed here, before any runtime or terminal state is touched.
+	if checker, ok := agent.(ports.AgentProfileReadinessChecker); ok {
+		readiness, err := checker.ProfileReadiness(ctx, freshAgentConfig(rec.Kind, rec.Harness, project.Config))
+		if err != nil {
+			return RestoreResult{}, fmt.Errorf("%s %s: %s readiness: %w", operation, rec.ID, rec.Harness, err)
+		}
+		if !readiness.Ready {
+			return RestoreResult{}, fmt.Errorf("%s %s: %w: %s", operation, rec.ID, ErrAgentProfileNotReady, readiness.Detail)
+		}
 	}
 	// Recompute standing instructions, then reapply the durable finalized inbound
 	// handoff for this exact native conversation when one exists.

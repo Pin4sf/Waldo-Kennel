@@ -614,6 +614,7 @@
 	"settings.project.permissionBypass": "권한 우회",
 	"settings.project.permissionDefault": "기본값",
 	"settings.project.permissionMode": "권한 모드",
+	"settings.project.profile": "프로필",
 	"settings.project.refresh": "새로고침",
 	"settings.project.refreshAgents": "에이전트 새로고침",
 	"settings.project.refreshFailed": "에이전트 카탈로그를 새로고침할 수 없습니다.",

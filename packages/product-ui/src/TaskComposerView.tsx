@@ -14,10 +14,15 @@ import {
 	XIcon as X,
 } from "./icons";
 
+/** Mirrors the daemon's AgentInfo DTO; keep in sync when the API schema changes. */
 export type TaskComposerAgentOption = {
 	authStatus?: "authorized" | "unauthorized" | "unknown";
 	id: string;
 	label: string;
+	ready?: boolean | null;
+	readyDetail?: string;
+	requiresProfile?: boolean;
+	roles: { coordinator: boolean; switchTarget: boolean; worker: boolean };
 };
 
 export type TaskComposerAgentControl = {

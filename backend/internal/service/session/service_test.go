@@ -2144,6 +2144,10 @@ func TestToAPIErrorMapsWorkspaceBranchSentinels(t *testing.T) {
 		{"chat driver unavailable", fmt.Errorf("spawn: %w", ports.ErrChatDriverUnavailable), apierr.KindConflict, "CHAT_DRIVER_UNAVAILABLE"},
 		{"chat driver incompatible", fmt.Errorf("spawn: %w", ports.ErrChatDriverIncompatible), apierr.KindConflict, "CHAT_DRIVER_INCOMPATIBLE"},
 		{"chat auth required", fmt.Errorf("spawn: %w", ports.ErrChatAuthRequired), apierr.KindConflict, "CHAT_AUTH_REQUIRED"},
+		{"profile not ready", fmt.Errorf("spawn: %w: no such profile", sessionmanager.ErrAgentProfileNotReady), apierr.KindInvalid, "AGENT_PROFILE_NOT_READY"},
+		{"coordinator not admitted", fmt.Errorf("spawn: %w: %q", sessionmanager.ErrNotCoordinatorAdmitted, "deepseek-harness"), apierr.KindInvalid, "COORDINATOR_NOT_ADMITTED"},
+		{"switch target not admitted", fmt.Errorf("switch: %w: %w", sessionmanager.ErrUnsupportedSwitchHarness, sessionmanager.ErrNotSwitchAdmitted), apierr.KindInvalid, "SWITCH_TARGET_NOT_ADMITTED"},
+		{"binary not found", fmt.Errorf("spawn: %s readiness: %w", "deepseek-harness", ports.ErrAgentBinaryNotFound), apierr.KindInvalid, "AGENT_BINARY_NOT_FOUND"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -3391,3 +3395,4 @@ func sameStrings(got, want []string) bool {
 	}
 	return true
 }
+

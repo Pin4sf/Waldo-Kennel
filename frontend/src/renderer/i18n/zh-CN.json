@@ -596,6 +596,7 @@
 	"settings.project.permissionBypass": "绕过权限",
 	"settings.project.permissionDefault": "默认",
 	"settings.project.permissionMode": "权限模式",
+	"settings.project.profile": "配置文件",
 	"settings.project.refresh": "刷新",
 	"settings.project.refreshAgents": "刷新代理列表",
 	"settings.project.refreshFailed": "无法刷新代理目录。",
