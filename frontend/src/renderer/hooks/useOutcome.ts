@@ -9,6 +9,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 
 import type { components } from "../../api/schema";
 import { apiClient, apiErrorCode, apiErrorMessage } from "../lib/api-client";
@@ -342,3 +343,210 @@ export function useApproveOutcomePlan(outcomeId: string | undefined): ApprovePla
 		approve: mutation.mutateAsync,
 	};
 }
+
+/* --------------------------- Attempts (#31) ----------------------------- */
+
+export type AttemptRecord = components["schemas"]["AttemptResponse"];
+export type AttemptPresentationRecord = components["schemas"]["AttemptPresentationResponse"];
+export type AttemptObservationRecord = components["schemas"]["AttemptObservationResponse"];
+export type RecoveryReceiptRecord = components["schemas"]["RecoveryReceiptResponse"];
+
+type AttemptEnvelope = components["schemas"]["AttemptEnvelope"];
+type AttemptListEnvelope = components["schemas"]["AttemptListEnvelope"];
+type AttemptRecoveryEnvelope = components["schemas"]["AttemptRecoveryEnvelope"];
+
+/** The daemon's typed refusal for an unknown attempt. */
+export const ATTEMPT_NOT_FOUND = "ATTEMPT_NOT_FOUND";
+/** Another attempt still holds worktree custody; reconcile before replacing. */
+export const ATTEMPT_FENCE_HELD = "ATTEMPT_FENCE_HELD";
+export const ATTEMPT_LIVENESS_UNPROVEN = "ATTEMPT_LIVENESS_UNPROVEN";
+export const PLAN_NOT_APPROVED = "PLAN_NOT_APPROVED";
+export const PLAN_BRIEF_INVALIDATED = "PLAN_BRIEF_INVALIDATED";
+
+// The refusal codes specific to starting an attempt join the shared permanent
+// set so a stale surface reports them instead of spinning.
+const ATTEMPT_PERMANENT_CODES = new Set([
+	...PERMANENT_CODES,
+	ATTEMPT_NOT_FOUND,
+	PLAN_NOT_APPROVED,
+	PLAN_BRIEF_INVALIDATED,
+	"OBSERVATION_KIND_REQUIRED",
+	"RECOVERY_ACTION_INVALID",
+]);
+
+function attemptsQueryKey(outcomeId: string | undefined) {
+	return ["outcome-attempts", outcomeId ?? ""] as const;
+}
+
+async function fetchOutcomeAttempts(outcomeId: string): Promise<AttemptRecord[]> {
+	const { data, error } = await apiClient.GET("/api/v1/outcomes/{outcomeId}/attempts", {
+		params: { path: { outcomeId } },
+	});
+	if (error) throw error;
+	return (data as AttemptListEnvelope).attempts;
+}
+
+export interface OutcomeAttemptsQueryResult {
+	/**
+	 * The full attempt lineage in ascending order. Undefined while loading;
+	 * an EMPTY array means no attempt has ever been admitted.
+	 */
+	attempts?: AttemptRecord[];
+	isLoading: boolean;
+	failure?: OutcomeFailure;
+	refetch: () => void;
+}
+
+/**
+ * Read one Outcome's attempt lineage with its derived presentation. The
+ * renderer never derives attempt state locally: `unconfirmed`,
+ * `endedUnclassified`, and every next-action hint arrive computed by the
+ * daemon from durable facts.
+ */
+export function useOutcomeAttempts(outcomeId: string | undefined): OutcomeAttemptsQueryResult {
+	const query = useQuery({
+		queryKey: attemptsQueryKey(outcomeId),
+		enabled: Boolean(outcomeId),
+		queryFn: () => fetchOutcomeAttempts(outcomeId as string),
+		retry: (attempt, error) => {
+			const code = apiErrorCode(error);
+			if (code && ATTEMPT_PERMANENT_CODES.has(code)) return false;
+			return attempt < 2;
+		},
+	});
+
+	if (query.error) {
+		return {
+			isLoading: query.isLoading,
+			failure: classifyOutcomeFailure(query.error),
+			refetch: () => void query.refetch(),
+		};
+	}
+	return {
+		attempts: query.data,
+		isLoading: query.isLoading,
+		refetch: () => void query.refetch(),
+	};
+}
+
+export interface StartAttemptState {
+	pending: boolean;
+	failure?: OutcomeFailure;
+	reset: () => void;
+	/**
+	 * Admit the authorized plan. The idempotency key is minted HERE and held
+	 * for the retry so an ambiguous network answer replays the same request
+	 * instead of admitting twice.
+	 */
+	start: (input: { planRevisionId: string }) => Promise<AttemptRecord>;
+}
+
+export function useStartOutcomeAttempt(outcomeId: string | undefined): StartAttemptState {
+	const queryClient = useQueryClient();
+	const requestKeyRef = useRef<string | undefined>(undefined);
+	const mutation = useMutation({
+		mutationFn: async (input: { planRevisionId: string }) => {
+			if (!requestKeyRef.current) {
+				requestKeyRef.current = crypto.randomUUID();
+			}
+			const requestKey = requestKeyRef.current;
+			const { data, error } = await apiClient.POST("/api/v1/outcomes/{outcomeId}/attempts", {
+				params: { path: { outcomeId: outcomeId as string } },
+				body: {
+					planRevisionId: input.planRevisionId,
+					requestKey,
+				},
+			});
+			if (error) throw error;
+			return (data as AttemptEnvelope).attempt;
+		},
+		onSuccess: () => {
+			requestKeyRef.current = undefined;
+			void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) });
+		},
+	});
+	return {
+		pending: mutation.isPending,
+		failure: mutation.error ? classifyOutcomeFailure(mutation.error) : undefined,
+		reset: () => mutation.reset(),
+		start: (input) => mutation.mutateAsync(input),
+	};
+}
+
+export type AttemptAction = "pause" | "resume" | "cancel";
+
+export interface AttemptActionState {
+	pending: boolean;
+	failure?: OutcomeFailure;
+	reset: () => void;
+	act: (attemptId: string, action: AttemptAction) => Promise<AttemptRecord>;
+}
+
+/** Owner controls over one active attempt. */
+export function useAttemptAction(outcomeId: string | undefined): AttemptActionState {
+	const queryClient = useQueryClient();
+	const mutation = useMutation({
+		mutationFn: async ({ attemptId, action }: { attemptId: string; action: AttemptAction }) => {
+			const path = `/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/${action}` as const;
+			const { data, error } = await apiClient.POST(path, {
+				params: { path: { outcomeId: outcomeId as string, attemptId } },
+			});
+			if (error) throw error;
+			return (data as AttemptEnvelope).attempt;
+		},
+		onSuccess: () => void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) }),
+	});
+	return {
+		pending: mutation.isPending,
+		failure: mutation.error ? classifyOutcomeFailure(mutation.error) : undefined,
+		reset: () => mutation.reset(),
+		act: (attemptId, action) =>
+			mutation.mutateAsync({ attemptId, action }),
+	};
+}
+
+export type AttemptRecoveryAction = "contain" | "reconcile" | "resume" | "replace" | "attention";
+
+export interface AttemptRecoveryState {
+	pending: boolean;
+	failure?: OutcomeFailure;
+	reset: () => void;
+	recover: (
+		attemptId: string,
+		action: AttemptRecoveryAction,
+	) => Promise<{ attempt: AttemptRecord; receipt?: RecoveryReceiptRecord }>;
+}
+
+/** Custody-safe recovery verbs over one attempt. */
+export function useAttemptRecovery(outcomeId: string | undefined): AttemptRecoveryState {
+	const queryClient = useQueryClient();
+	const mutation = useMutation({
+		mutationFn: async ({
+			attemptId,
+			action,
+		}: {
+			attemptId: string;
+			action: AttemptRecoveryAction;
+		}) => {
+			const { data, error } = await apiClient.POST(
+				"/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/recovery",
+				{
+					params: { path: { outcomeId: outcomeId as string, attemptId } },
+					body: { action },
+				},
+			);
+			if (error) throw error;
+			const envelope = data as AttemptRecoveryEnvelope;
+			return { attempt: envelope.attempt, receipt: envelope.receipt };
+		},
+		onSuccess: () => void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) }),
+	});
+	return {
+		pending: mutation.isPending,
+		failure: mutation.error ? classifyOutcomeFailure(mutation.error) : undefined,
+		reset: () => mutation.reset(),
+		recover: (attemptId, action) => mutation.mutateAsync({ attemptId, action }),
+	};
+}
+
+export { attemptsQueryKey as outcomeAttemptsQueryKey };
