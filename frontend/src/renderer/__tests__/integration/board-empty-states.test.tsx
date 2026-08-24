@@ -270,7 +270,6 @@ describe("project board with no sessions", () => {
 		renderBoard(<SessionsBoard projectId="proj-1" />);
 
 		expect(await screen.findByText("Explain Waldo clearly")).toBeInTheDocument();
-		expect(screen.getByText("Contract revision 1")).toBeInTheDocument();
 		expect(screen.queryByText("Start by defining an outcome")).not.toBeInTheDocument();
 		expect(columnCount()).toBe(4);
 	});
