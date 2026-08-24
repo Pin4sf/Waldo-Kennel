@@ -92,6 +92,13 @@ type Service struct {
 	// constrained environments. Empty means the v0 default: the worktree-local
 	// capability trio. Authorization intersects every layer and fails closed.
 	PolicyLayers [][]string
+
+	// Act & Observe seams (#31). spawner adapts the real session spawn path;
+	// heartbeats resolves bound-session facts for derived presentation. A nil
+	// spawner keeps every attempt admission refused (the controller answers
+	// 501) rather than half-wired.
+	spawner    ports.AttemptSessionSpawner
+	heartbeats heartbeatSource
 }
 
 // New builds the service. clock may be nil for wall-clock time.
