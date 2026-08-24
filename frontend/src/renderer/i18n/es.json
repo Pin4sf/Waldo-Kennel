@@ -1830,5 +1830,13 @@
 	"outcome.dashboard.heading": "Resultados",
 	"outcome.dashboard.continueAria": "Continuar {{title}}",
 	"outcome.dashboard.contractRevision": "Revisión del contrato {{revision}}",
-	"outcome.dashboard.loadFailed": "Kennel no pudo cargar los resultados de este proyecto."
+	"outcome.dashboard.loadFailed": "Kennel no pudo cargar los resultados de este proyecto.",
+	"outcome.dashboard.contractSaved": "Contrato guardado",
+	"outcome.dashboard.planProposed": "Plan pendiente de autorización",
+	"outcome.dashboard.executionNotConnected": "Ejecución no conectada",
+	"outcome.dashboard.authorizedStage": "Autorizado",
+	"outcome.dashboard.reviewPlan": "Revisar el plan y los permisos",
+	"outcome.dashboard.reviewAuthorization": "Revisar y autorizar",
+	"outcome.dashboard.openProjectSessions": "Abrir sesiones del proyecto",
+	"shell.sessions": "Sesiones"
 }

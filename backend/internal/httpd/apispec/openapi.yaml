@@ -7778,6 +7778,8 @@ components:
           type: array
         id:
           type: string
+        latestPlan:
+          $ref: '#/components/schemas/PlanRevisionResponse'
         spaceId:
           type: string
         title:

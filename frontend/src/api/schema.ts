@@ -2644,6 +2644,7 @@ export interface components {
             currentRevisionNumber: number;
             history: components["schemas"]["ContractRevisionResponse"][];
             id: string;
+            latestPlan?: components["schemas"]["PlanRevisionResponse"];
             spaceId: string;
             title: string;
             /** Format: date-time */

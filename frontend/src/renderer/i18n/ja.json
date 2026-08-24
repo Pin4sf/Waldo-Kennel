@@ -1814,5 +1814,13 @@
 	"outcome.dashboard.heading": "成果",
 	"outcome.dashboard.continueAria": "{{title}} を続ける",
 	"outcome.dashboard.contractRevision": "契約リビジョン {{revision}}",
-	"outcome.dashboard.loadFailed": "このプロジェクトの成果を読み込めませんでした。"
+	"outcome.dashboard.loadFailed": "このプロジェクトの成果を読み込めませんでした。",
+	"outcome.dashboard.contractSaved": "契約を保存済み",
+	"outcome.dashboard.planProposed": "計画は承認待ちです",
+	"outcome.dashboard.executionNotConnected": "実行は未接続です",
+	"outcome.dashboard.authorizedStage": "承認済み",
+	"outcome.dashboard.reviewPlan": "計画と権限を確認",
+	"outcome.dashboard.reviewAuthorization": "確認して承認",
+	"outcome.dashboard.openProjectSessions": "プロジェクトセッションを開く",
+	"shell.sessions": "セッション"
 }

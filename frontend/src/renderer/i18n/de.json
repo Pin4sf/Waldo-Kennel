@@ -1814,5 +1814,13 @@
 	"outcome.dashboard.heading": "Ergebnisse",
 	"outcome.dashboard.continueAria": "{{title}} fortsetzen",
 	"outcome.dashboard.contractRevision": "Vertragsrevision {{revision}}",
-	"outcome.dashboard.loadFailed": "Kennel konnte die Ergebnisse dieses Projekts nicht laden."
+	"outcome.dashboard.loadFailed": "Kennel konnte die Ergebnisse dieses Projekts nicht laden.",
+	"outcome.dashboard.contractSaved": "Vertrag gespeichert",
+	"outcome.dashboard.planProposed": "Plan wartet auf Autorisierung",
+	"outcome.dashboard.executionNotConnected": "Ausführung nicht verbunden",
+	"outcome.dashboard.authorizedStage": "Autorisiert",
+	"outcome.dashboard.reviewPlan": "Plan und Berechtigungen prüfen",
+	"outcome.dashboard.reviewAuthorization": "Prüfen und autorisieren",
+	"outcome.dashboard.openProjectSessions": "Projektsitzungen öffnen",
+	"shell.sessions": "Sitzungen"
 }

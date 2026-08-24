@@ -22,6 +22,7 @@ type fakeStore struct {
 	outcomes map[domain.OutcomeID]domain.Outcome
 	revs     map[domain.OutcomeID][]domain.ContractRevision
 	keys     map[string]domain.OutcomeID
+	plans    map[domain.OutcomeID]domain.PlanRevision
 	order    []domain.OutcomeID
 	writes   int
 }
@@ -32,6 +33,7 @@ func newFakeStore() *fakeStore {
 		outcomes: map[domain.OutcomeID]domain.Outcome{},
 		revs:     map[domain.OutcomeID][]domain.ContractRevision{},
 		keys:     map[string]domain.OutcomeID{},
+		plans:    map[domain.OutcomeID]domain.PlanRevision{},
 	}
 }
 
@@ -140,7 +142,7 @@ func validCreateInput() outcome.CreateInput {
 }
 
 func TestListByProjectReturnsCanonicalOutcomeViews(t *testing.T) {
-	svc, _ := newService()
+	svc, store := newService()
 	ctx := context.Background()
 	first := validCreateInput()
 	if _, err := svc.Create(ctx, first); err != nil {
@@ -151,6 +153,10 @@ func TestListByProjectReturnsCanonicalOutcomeViews(t *testing.T) {
 	second.RequestKey = "req-create-2"
 	if _, err := svc.Create(ctx, second); err != nil {
 		t.Fatalf("create second: %v", err)
+	}
+	store.plans[store.order[1]] = domain.PlanRevision{
+		ID: "plan-second", OutcomeID: store.order[1], Number: 1,
+		ContractRevisionNumber: 1, Status: domain.PlanStatusApproved,
 	}
 	other := first
 	other.ProjectID = "other"
@@ -170,6 +176,18 @@ func TestListByProjectReturnsCanonicalOutcomeViews(t *testing.T) {
 		if view.Current.Number != 1 || len(view.History) != 1 {
 			t.Fatalf("listed view lost contract: %+v", view)
 		}
+	}
+	if views[0].LatestPlan != nil || views[1].LatestPlan == nil || views[1].LatestPlan.Status != domain.PlanStatusApproved {
+		t.Fatalf("latest durable plan facts = %+v, %+v", views[0].LatestPlan, views[1].LatestPlan)
+	}
+}
+
+func TestListByProjectRejectsMissingProject(t *testing.T) {
+	svc, _ := newService()
+	_, err := svc.ListByProject(context.Background(), "  ")
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "PROJECT_REQUIRED" {
+		t.Fatalf("err = %v, want PROJECT_REQUIRED", err)
 	}
 }
 
@@ -345,8 +363,9 @@ func (f *fakeStore) GetPlanRevision(_ context.Context, _ domain.OutcomeID, id do
 	return domain.PlanRevision{}, false, nil
 }
 
-func (f *fakeStore) GetLatestPlanRevision(_ context.Context, _ domain.OutcomeID) (domain.PlanRevision, bool, error) {
-	return domain.PlanRevision{}, false, nil
+func (f *fakeStore) GetLatestPlanRevision(_ context.Context, outcomeID domain.OutcomeID) (domain.PlanRevision, bool, error) {
+	plan, ok := f.plans[outcomeID]
+	return plan, ok, nil
 }
 
 func (f *fakeStore) ApprovePlanRevision(_ context.Context, _ domain.OutcomeID, id domain.PlanRevisionID) (domain.PlanRevision, bool, error) {

@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HomeWorkModeSwitch } from "./HomeWorkModeSwitch";
 
-const { historyPush, mockPathname } = vi.hoisted(() => ({
+const { historyPush, mockLocation } = vi.hoisted(() => ({
   historyPush: vi.fn(),
-  mockPathname: { current: "/home" },
+  mockLocation: { current: { href: "/home", pathname: "/home" } },
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -16,15 +16,15 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
     useRouterState: ({
       select,
     }: {
-      select: (state: { location: { pathname: string } }) => unknown;
-    }) => select({ location: { pathname: mockPathname.current } }),
+      select: (state: { location: { href: string; pathname: string } }) => unknown;
+    }) => select({ location: mockLocation.current }),
   };
 });
 
 describe("HomeWorkModeSwitch", () => {
   beforeEach(() => {
     historyPush.mockReset();
-    mockPathname.current = "/home";
+    mockLocation.current = { href: "/home", pathname: "/home" };
   });
 
   it("presents Home and Work as one labelled horizontal mode control", async () => {
@@ -49,10 +49,10 @@ describe("HomeWorkModeSwitch", () => {
 
   it("remembers beta's Work entry route as a meaningful Work destination", async () => {
     const user = userEvent.setup();
-    mockPathname.current = "/work";
+    mockLocation.current = { href: "/work", pathname: "/work" };
     const { rerender } = render(<HomeWorkModeSwitch />);
 
-    mockPathname.current = "/home";
+    mockLocation.current = { href: "/home", pathname: "/home" };
     rerender(<HomeWorkModeSwitch />);
     await user.click(screen.getByRole("button", { name: "Work" }));
 
@@ -61,28 +61,34 @@ describe("HomeWorkModeSwitch", () => {
 
   it("returns to the last meaningful path in each mode", async () => {
     const user = userEvent.setup();
-    mockPathname.current = "/home/open-loops";
+    mockLocation.current = { href: "/home/open-loops", pathname: "/home/open-loops" };
     const { rerender } = render(<HomeWorkModeSwitch />);
 
-    mockPathname.current = "/projects/proj-1";
+    mockLocation.current = { href: "/projects/proj-1", pathname: "/projects/proj-1" };
     rerender(<HomeWorkModeSwitch />);
     await user.click(screen.getByRole("button", { name: "Home" }));
     expect(historyPush).toHaveBeenLastCalledWith("/home/open-loops");
 
-    mockPathname.current = "/home";
+    mockLocation.current = { href: "/home", pathname: "/home" };
     rerender(<HomeWorkModeSwitch />);
     await user.click(screen.getByRole("button", { name: "Work" }));
     expect(historyPush).toHaveBeenLastCalledWith("/projects/proj-1");
   });
 
-  it("opens the Work entry destination when Work is selected on a project Board", async () => {
+  it("returns to the selected project and Outcome search context", async () => {
     const user = userEvent.setup();
-    mockPathname.current = "/projects/scratch";
-    render(<HomeWorkModeSwitch />);
-    const workButton = screen.getByRole("button", { name: "Work" });
+    mockLocation.current = {
+      href: "/work?project=proj-1&stage=decide_authorize&outcome=out-1",
+      pathname: "/work",
+    };
+    const { rerender } = render(<HomeWorkModeSwitch />);
 
-    await user.click(workButton);
+    mockLocation.current = { href: "/home", pathname: "/home" };
+    rerender(<HomeWorkModeSwitch />);
+    await user.click(screen.getByRole("button", { name: "Work" }));
 
-    expect(historyPush).toHaveBeenCalledWith("/work");
+    expect(historyPush).toHaveBeenCalledWith(
+      "/work?project=proj-1&stage=decide_authorize&outcome=out-1",
+    );
   });
 });

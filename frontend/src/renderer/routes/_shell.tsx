@@ -230,7 +230,7 @@ function ShellLayout() {
 	// Board, the Outcome lifecycle, and project sessions are one Work flow. Keep
 	// their project tree and shell stable while the center surface changes; the
 	// prior route-only switch made the sidebar change design mid-Outcome.
-	const isFigmaBoardRoute =
+	const usesWorkProjectShell =
 		((isRootBoardRoute || isProjectBoardRoute) && !isWelcomeBoard) ||
 		isProjectSessionRoute ||
 		isOutcomeWorkRoute;
@@ -733,7 +733,7 @@ function ShellLayout() {
 			<div
 				className={cn(
 					"flex h-screen min-h-0 flex-col bg-sidebar text-foreground",
-					isFigmaBoardRoute && "figma-board-shell",
+					usesWorkProjectShell && "figma-board-shell",
 					isWindows && "platform-windows",
 					isLinux && "platform-linux",
 					isFullScreen && "native-fullscreen",
@@ -744,7 +744,7 @@ function ShellLayout() {
             macOS/Linux. */}
 				<WindowTitlebar onSidebarPreviewEnter={previewSidebar} />
 				{/* App routes render their topbar inside the framed panel, matching the board chrome across platforms while leaving OS titlebars native. */}
-				{!isFigmaBoardRoute && !framedAppTopbar && !hideShellTopbar && !routeParams.sessionId ? <ShellTopbar /> : null}
+				{!usesWorkProjectShell && !framedAppTopbar && !hideShellTopbar && !routeParams.sessionId ? <ShellTopbar /> : null}
 				{/* Controlled by the ui-store so TitlebarNav / Topbar toggles (which
             call the store directly) stay in sync. --sidebar-width chains to
             the drag-resizable --ao-sidebar-w set on :root by useResizable. */}
@@ -756,10 +756,10 @@ function ShellLayout() {
 						setIsSidebarPeekOpen(false);
 						if (open !== isSidebarOpen) toggleSidebar();
 					}}
-					open={!isStartupLoading && (isFigmaBoardRoute || isSidebarOpen || isSidebarPeekOpen)}
+					open={!isStartupLoading && (usesWorkProjectShell || isSidebarOpen || isSidebarPeekOpen)}
 					style={
 						{
-							"--sidebar-width": isFigmaBoardRoute
+							"--sidebar-width": usesWorkProjectShell
 								? "271px"
 								: "var(--ao-sidebar-w, var(--size-sidebar-default))",
 							"--sidebar-width-icon": "var(--size-sidebar-icon)",
@@ -771,11 +771,11 @@ function ShellLayout() {
               cluster above a full-height sidebar; Windows hangs the sidebar
               below its custom titlebar. */}
 				<Sidebar
-					figmaBoard={isFigmaBoardRoute}
-					hideEdgeBorder={isWelcomeBoard || isFigmaBoardRoute}
+					figmaBoard={usesWorkProjectShell}
+					hideEdgeBorder={isWelcomeBoard || usesWorkProjectShell}
 					isOverlay={isSidebarPeekOpen && !isSidebarOpen}
 					onPreviewLeave={scheduleSidebarPeekClose}
-					underTopbar={!isFigmaBoardRoute && (isMac || isWindows || isLinux)}
+					underTopbar={!usesWorkProjectShell && (isMac || isWindows || isLinux)}
 					topbarOffset={isWindows ? "titlebar" : hideShellTopbar ? "trafficLights" : "toolbar"}
 						onCreateProject={createProject}
 						onInitializeProject={initializeProjectRepository}
@@ -789,13 +789,13 @@ function ShellLayout() {
 							// The Figma board routes paint their own full-bleed shell, so the
 							// collapsed-sidebar inset that every other route needs would double
 							// up on them — hence the route guard alongside beta's launcher pad.
-							!isFigmaBoardRoute && !isSidebarOpen && "sidebar-hidden",
+							!usesWorkProjectShell && !isSidebarOpen && "sidebar-hidden",
 							!isHomeRoute && "waldo-launcher-reserved",
 						)}
 					>
 						<div className="min-h-0 flex-1 overflow-x-hidden">
 							{/* Board/session routes render inside the same inset box the welcome board and settings paint for themselves, so every screen sits within the app's outer boundary. */}
-							{isFigmaBoardRoute ? (
+							{usesWorkProjectShell ? (
 								<CenterPanelShell className="center-panel-shell--figma-board">
 									{hideShellTopbar ? null : <ShellTopbar />}
 									<div className="flex min-h-0 flex-1 flex-col">
@@ -875,7 +875,7 @@ function ShellLayout() {
               survive if they're processed after the drag strips they overlap.
               Rendered first, real clicks get swallowed by window-drag even
               though DOM hit-testing looks correct. */}
-					{isFigmaBoardRoute ? null : (
+					{usesWorkProjectShell ? null : (
 						<TitlebarNav
 							hasSessionTopbar={Boolean(routeParams.sessionId)}
 							historyLocked={isWelcomeBoard}

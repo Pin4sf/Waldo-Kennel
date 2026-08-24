@@ -113,6 +113,10 @@ func TestListProjectOutcomesRoute(t *testing.T) {
 			t.Fatalf("project id = %s, want mer", projectID)
 		}
 		first := sampleOutcomeView()
+		first.LatestPlan = &domain.PlanRevision{
+			ID: "plan-1", OutcomeID: first.Outcome.ID, Number: 1,
+			ContractRevisionNumber: 1, Status: domain.PlanStatusProposed,
+		}
 		second := sampleOutcomeView()
 		second.Outcome.ID = "out-second"
 		second.Outcome.Title = "Second Outcome"
@@ -132,6 +136,10 @@ func TestListProjectOutcomesRoute(t *testing.T) {
 			ID                    string `json:"id"`
 			Title                 string `json:"title"`
 			CurrentRevisionNumber int64  `json:"currentRevisionNumber"`
+			LatestPlan            *struct {
+				ID     string `json:"id"`
+				Status string `json:"status"`
+			} `json:"latestPlan"`
 		} `json:"outcomes"`
 	}
 	if err := json.Unmarshal(respBytes, &body); err != nil {
@@ -142,6 +150,32 @@ func TestListProjectOutcomesRoute(t *testing.T) {
 	}
 	if body.Outcomes[0].CurrentRevisionNumber != 1 {
 		t.Fatalf("list lost current revision: %+v", body.Outcomes[0])
+	}
+	if body.Outcomes[0].LatestPlan == nil || body.Outcomes[0].LatestPlan.ID != "plan-1" || body.Outcomes[0].LatestPlan.Status != "proposed" {
+		t.Fatalf("list lost latest plan facts: %+v", body.Outcomes[0])
+	}
+}
+
+func TestListProjectOutcomesRoutePreservesErrorEnvelope(t *testing.T) {
+	svc := &fakeOutcomeService{}
+	svc.list = func(_ context.Context, _ domain.ProjectID) ([]outcomevc.OutcomeView, error) {
+		return nil, apierr.Invalid("PROJECT_REQUIRED", "Choose a project", nil)
+	}
+	srv := newOutcomesTestServer(t, svc)
+
+	respBytes, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/projects/%20/outcomes", "")
+	if status != http.StatusBadRequest {
+		t.Fatalf("list = %d, want 400: %s", status, respBytes)
+	}
+	var body struct {
+		Code      string `json:"code"`
+		RequestID string `json:"requestId"`
+	}
+	if err := json.Unmarshal(respBytes, &body); err != nil {
+		t.Fatalf("decode error envelope: %v: %s", err, respBytes)
+	}
+	if body.Code != "PROJECT_REQUIRED" || body.RequestID == "" {
+		t.Fatalf("error envelope = %+v", body)
 	}
 }
 

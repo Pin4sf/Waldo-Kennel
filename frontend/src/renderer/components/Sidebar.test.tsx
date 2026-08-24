@@ -22,12 +22,14 @@ import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { agentsQueryKey } from "../hooks/useAgentsQuery";
 import { useUiStore } from "../stores/ui-store";
 
-const { getMock, navigateMock, mockParams, mockPathname, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
+const { getMock, navigateMock, mockParams, mockPathname, mockSearch, projectOutcomesQueryMock, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
 	() => ({
 		getMock: vi.fn(),
 		navigateMock: vi.fn(),
 		mockParams: { projectId: undefined as string | undefined, sessionId: undefined as string | undefined },
 		mockPathname: { current: "/" },
+		mockSearch: { current: {} as Record<string, unknown> },
+		projectOutcomesQueryMock: vi.fn(),
 		renameSessionMock: vi.fn().mockResolvedValue(undefined),
 		spawnMock: vi.fn(),
 		updateStatusMock: vi.fn(),
@@ -42,14 +44,18 @@ vi.mock("../hooks/useCommandPaletteEnabled", () => ({
 	useCommandPaletteEnabled: () => commandPaletteEnabled.current,
 }));
 
+vi.mock("../hooks/useOutcome", () => ({
+	useProjectOutcomes: projectOutcomesQueryMock,
+}));
+
 vi.mock("@tanstack/react-router", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@tanstack/react-router")>();
 	return {
 		...actual,
 		useNavigate: () => navigateMock,
 		useParams: () => ({ ...mockParams }),
-		useRouterState: ({ select }: { select: (state: { location: { pathname: string } }) => unknown }) =>
-			select({ location: { pathname: mockPathname.current } }),
+		useRouterState: ({ select }: { select: (state: { location: { pathname: string; search: Record<string, unknown> } }) => unknown }) =>
+			select({ location: { pathname: mockPathname.current, search: mockSearch.current } }),
 	};
 });
 
@@ -264,6 +270,7 @@ beforeEach(() => {
 		},
 		error: undefined,
 	});
+	projectOutcomesQueryMock.mockReset().mockReturnValue({ outcomes: [], isLoading: false });
 	navigateMock.mockReset();
 	renameSessionMock.mockReset().mockResolvedValue(undefined);
 	spawnMock.mockReset();
@@ -271,6 +278,7 @@ beforeEach(() => {
 	mockParams.projectId = undefined;
 	mockParams.sessionId = undefined;
 	mockPathname.current = "/";
+	mockSearch.current = {};
 });
 
 afterEach(() => {
@@ -292,6 +300,23 @@ describe("Sidebar", () => {
 		expect(screen.getByRole("button", { name: "Orchestrator board" })).toHaveClass(
 			"group-data-[collapsible=icon]:bg-interactive-active",
 		);
+	});
+
+	it("keeps the selected project and Outcome visible during durable Work re-entry", async () => {
+		mockPathname.current = "/work";
+		mockSearch.current = { project: "proj-1", stage: "decide_authorize", outcome: "outcome-1" };
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [{ id: "outcome-1", title: "Explain Waldo clearly", currentRevisionNumber: 1 }],
+			isLoading: false,
+		});
+
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		const outcome = await screen.findByRole("button", { name: "Continue Explain Waldo clearly" });
+		expect(outcome).toHaveAttribute("aria-current", "page");
+		expect(screen.getByText("Project One").closest("button")).toHaveAttribute("data-active", "true");
+		expect(screen.getByText("Outcomes")).toBeInTheDocument();
+		expect(screen.getByText("Sessions")).toBeInTheDocument();
 	});
 
 	it("shows personal destinations without the Work project tree in Home", () => {

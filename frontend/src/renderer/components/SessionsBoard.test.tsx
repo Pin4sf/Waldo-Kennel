@@ -121,7 +121,7 @@ beforeEach(() => {
 });
 
 describe("SessionsBoard", () => {
-	it("shows saved Outcome contracts and continues them in Decide & Authorize", async () => {
+	it("shows saved Outcome stage and next action, then continues from durable facts", async () => {
 		workspaceQueryMock.mockReturnValue({
 			data: [workspaceWithSessions([])],
 			isError: false,
@@ -141,13 +141,43 @@ describe("SessionsBoard", () => {
 		renderBoard("p1");
 
 		expect(screen.getByText("Explain Waldo clearly")).toBeInTheDocument();
-		expect(screen.getByText("Contract revision 1")).toBeInTheDocument();
+		expect(screen.getByText("Decide & Authorize · Contract saved")).toBeInTheDocument();
+		expect(screen.getByText("Review plan and permissions")).toBeInTheDocument();
 		await userEvent.click(screen.getByRole("button", { name: "Continue Explain Waldo clearly" }));
 		expect(navigateMock).toHaveBeenCalledWith({
 			to: "/work",
 			search: { project: "p1", stage: "decide_authorize", outcome: "outcome-1" },
 		});
 		expect(screen.getByRole("tablist", { name: "Session view" })).toBeInTheDocument();
+	});
+
+	it("re-enters an approved Outcome through the project work projection", async () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [workspaceWithSessions([])],
+			isError: false,
+			isSuccess: true,
+		});
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [
+				{
+					id: "outcome-approved",
+					title: "Ship the dashboard",
+					currentRevisionNumber: 1,
+					latestPlan: { contractRevisionNumber: 1, status: "approved" },
+				},
+			],
+			isLoading: false,
+		});
+
+		renderBoard("p1");
+
+		expect(screen.getByText("Authorized · Execution not connected")).toBeInTheDocument();
+		expect(screen.getByText("Open project sessions")).toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Continue Ship the dashboard" }));
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId",
+			params: { projectId: "p1" },
+		});
 	});
 
 	it("shows a live orchestrator as project activity and switches it between Board and List", async () => {

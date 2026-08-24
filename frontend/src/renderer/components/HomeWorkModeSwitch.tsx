@@ -29,26 +29,23 @@ function isWorkPath(pathname: string) {
 
 export function HomeWorkModeSwitch() {
   const router = useRouter();
-  const pathname = useRouterState({
-    select: (state) => state.location.pathname,
+  const location = useRouterState({
+    select: (state) => state.location,
   });
+  const pathname = location.pathname;
   const lastHomePath = useRef("/home");
   const lastWorkPath = useRef("/work");
   const mode = isHomePath(pathname) ? "home" : "work";
 
   useEffect(() => {
-    if (isHomePath(pathname)) lastHomePath.current = pathname;
-    if (isWorkPath(pathname)) lastWorkPath.current = pathname;
-  }, [pathname]);
+    if (isHomePath(pathname)) lastHomePath.current = location.href;
+    if (isWorkPath(pathname)) lastWorkPath.current = location.href;
+  }, [location.href, pathname]);
 
   const selectMode = (nextMode: "home" | "work") => {
     const target =
-      nextMode === "home"
-        ? lastHomePath.current
-        : isWorkPath(pathname) && pathname !== "/work"
-          ? "/work"
-          : lastWorkPath.current;
-    if (target === pathname) return;
+      nextMode === "home" ? lastHomePath.current : lastWorkPath.current;
+    if (target === location.href) return;
     router.history.push(target);
   };
 

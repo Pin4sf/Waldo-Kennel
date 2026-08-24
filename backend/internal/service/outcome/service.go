@@ -80,12 +80,14 @@ type ReviseContractInput struct {
 	Clarification    string
 }
 
-// OutcomeView is the read model over one Outcome's durable facts. Stage labels
-// are derived by callers; nothing here persists presentation.
+// OutcomeView is the read model over one Outcome's durable facts. LatestPlan is
+// populated for project listings so re-entry can derive stage and next action
+// without provider transcripts. Stage labels themselves are never persisted.
 type OutcomeView struct {
-	Outcome domain.Outcome
-	Current domain.ContractRevision
-	History []domain.ContractRevision
+	Outcome    domain.Outcome
+	Current    domain.ContractRevision
+	History    []domain.ContractRevision
+	LatestPlan *domain.PlanRevision
 }
 
 // Service implements Manager over ports.OutcomeStore.
@@ -199,6 +201,13 @@ func (s *Service) ListByProject(ctx context.Context, projectID domain.ProjectID)
 		view, err := s.Get(ctx, record.ID)
 		if err != nil {
 			return nil, err
+		}
+		latestPlan, found, err := s.store.GetLatestPlanRevision(ctx, record.ID)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			view.LatestPlan = &latestPlan
 		}
 		views = append(views, view)
 	}

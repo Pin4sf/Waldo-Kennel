@@ -1915,7 +1915,8 @@ type ContractRevisionResponse struct {
 }
 
 // OutcomeResponse is the canonical Outcome read model: durable facts plus the
-// full immutable revision history. Stage labels are derived by callers.
+// full immutable revision history. Project listings also include the latest
+// durable plan fact so callers can derive stage without transcript inspection.
 type OutcomeResponse struct {
 	ID                    string                     `json:"id"`
 	SpaceID               string                     `json:"spaceId"`
@@ -1923,6 +1924,7 @@ type OutcomeResponse struct {
 	CurrentRevisionNumber int64                      `json:"currentRevisionNumber"`
 	Current               ContractRevisionResponse   `json:"currentRevision"`
 	History               []ContractRevisionResponse `json:"history"`
+	LatestPlan            *PlanRevisionResponse      `json:"latestPlan,omitempty"`
 	CreatedAt             time.Time                  `json:"createdAt"`
 	UpdatedAt             time.Time                  `json:"updatedAt"`
 }
@@ -1970,6 +1972,10 @@ func outcomeResponse(view outcomevc.OutcomeView) OutcomeResponse {
 	}
 	if resp.History == nil {
 		resp.History = []ContractRevisionResponse{}
+	}
+	if view.LatestPlan != nil {
+		plan := planRevisionResponse(*view.LatestPlan)
+		resp.LatestPlan = &plan
 	}
 	return resp
 }

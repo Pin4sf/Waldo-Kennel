@@ -26,6 +26,7 @@ import {
 	type SessionUsageSummary,
 } from "../hooks/useSessionUsageSummaries";
 import { useProjectOutcomes, type OutcomeRecord } from "../hooks/useOutcome";
+import { deriveOutcomeDashboardPresentation } from "../lib/outcome-dashboard-presentation";
 import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useTerminateSession } from "../hooks/useTerminateSession";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
@@ -185,6 +186,11 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	};
 	const continueOutcome = (outcome: OutcomeRecord) => {
 		if (!projectId) return;
+		const presentation = deriveOutcomeDashboardPresentation(outcome);
+		if (presentation.destination === "project") {
+			void navigate({ to: "/projects/$projectId", params: { projectId } });
+			return;
+		}
 		void navigate({
 			to: "/work",
 			search: { project: projectId, stage: "decide_authorize", outcome: outcome.id },
@@ -423,7 +429,9 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 									<span className="text-xs text-muted-foreground">{projectOutcomes.length}</span>
 								</div>
 								<div className="flex gap-2 overflow-x-auto pb-0.5">
-									{projectOutcomes.map((outcome) => (
+									{projectOutcomes.map((outcome) => {
+										const presentation = deriveOutcomeDashboardPresentation(outcome);
+										return (
 										<button
 											aria-label={t("outcome.dashboard.continueAria", { title: outcome.title })}
 											className="min-w-56 rounded-md border border-border bg-background px-3 py-2 text-left transition-colors hover:border-border-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
@@ -433,10 +441,14 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 										>
 											<span className="block truncate text-sm font-medium text-foreground">{outcome.title}</span>
 											<span className="mt-0.5 block text-xs text-muted-foreground">
-												{t("outcome.dashboard.contractRevision", { revision: outcome.currentRevisionNumber })}
+												{t(presentation.stageKey)} · {t(presentation.stateKey)}
+											</span>
+											<span className="mt-1 block text-xs font-medium text-foreground">
+												{t(presentation.nextActionKey)}
 											</span>
 										</button>
-									))}
+										);
+									})}
 								</div>
 							</section>
 						) : null}

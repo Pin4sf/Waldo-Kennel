@@ -1796,5 +1796,13 @@
 	"outcome.dashboard.heading": "Outcomes",
 	"outcome.dashboard.continueAria": "Continue {{title}}",
 	"outcome.dashboard.contractRevision": "Contract revision {{revision}}",
-	"outcome.dashboard.loadFailed": "Kennel could not load this project's Outcomes."
+	"outcome.dashboard.loadFailed": "Kennel could not load this project's Outcomes.",
+	"outcome.dashboard.contractSaved": "Contract saved",
+	"outcome.dashboard.planProposed": "Plan awaiting authorization",
+	"outcome.dashboard.executionNotConnected": "Execution not connected",
+	"outcome.dashboard.authorizedStage": "Authorized",
+	"outcome.dashboard.reviewPlan": "Review plan and permissions",
+	"outcome.dashboard.reviewAuthorization": "Review and authorize",
+	"outcome.dashboard.openProjectSessions": "Open project sessions",
+	"shell.sessions": "Sessions"
 }

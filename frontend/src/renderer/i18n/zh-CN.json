@@ -1796,5 +1796,13 @@
 	"outcome.dashboard.heading": "成果",
 	"outcome.dashboard.continueAria": "继续 {{title}}",
 	"outcome.dashboard.contractRevision": "合同修订版 {{revision}}",
-	"outcome.dashboard.loadFailed": "Kennel 无法加载此项目的成果。"
+	"outcome.dashboard.loadFailed": "Kennel 无法加载此项目的成果。",
+	"outcome.dashboard.contractSaved": "契约已保存",
+	"outcome.dashboard.planProposed": "计划等待授权",
+	"outcome.dashboard.executionNotConnected": "执行尚未连接",
+	"outcome.dashboard.authorizedStage": "已授权",
+	"outcome.dashboard.reviewPlan": "查看计划和权限",
+	"outcome.dashboard.reviewAuthorization": "查看并授权",
+	"outcome.dashboard.openProjectSessions": "打开项目会话",
+	"shell.sessions": "会话"
 }

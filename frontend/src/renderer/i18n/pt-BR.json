@@ -1830,5 +1830,13 @@
 	"outcome.dashboard.heading": "Resultados",
 	"outcome.dashboard.continueAria": "Continuar {{title}}",
 	"outcome.dashboard.contractRevision": "Revisão do contrato {{revision}}",
-	"outcome.dashboard.loadFailed": "O Kennel não conseguiu carregar os resultados deste projeto."
+	"outcome.dashboard.loadFailed": "O Kennel não conseguiu carregar os resultados deste projeto.",
+	"outcome.dashboard.contractSaved": "Contrato salvo",
+	"outcome.dashboard.planProposed": "Plano aguardando autorização",
+	"outcome.dashboard.executionNotConnected": "Execução não conectada",
+	"outcome.dashboard.authorizedStage": "Autorizado",
+	"outcome.dashboard.reviewPlan": "Revisar plano e permissões",
+	"outcome.dashboard.reviewAuthorization": "Revisar e autorizar",
+	"outcome.dashboard.openProjectSessions": "Abrir sessões do projeto",
+	"shell.sessions": "Sessões"
 }
