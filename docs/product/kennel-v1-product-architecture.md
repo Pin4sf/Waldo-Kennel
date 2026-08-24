@@ -441,7 +441,7 @@ The RunBrief is grounded in this precedence order: current user-approved Contrac
 
 - One fenced writer per worktree; the renewable Attempt lease preserves tactical autonomy. Missing heartbeat becomes `unconfirmed`, and fences block only consequential effects and canonical mutations until reconciliation.
 - One direct Attempt is the smallest-sufficient default. Parallel Work Units require isolated worktrees, no overlapping write ownership, and an approved Mission Map.
-- There is no silent provider fallback. In v0, a Codex failure creates a new Codex Attempt, a replan, or human attention. A later provider handoff requires a new Attempt, an admitted adapter, and any required authority/plan review.
+- There is no silent provider fallback. In v0, an admitted worker failure creates a new Attempt on that same provider, a replan, or human attention — never an automatic hop to another provider. A later provider handoff requires a new Attempt, an admitted adapter, and any required authority/plan review.
 - The multidimensional budget governs time, retries, concurrency, storage, disclosed cost when trustworthy, effects, disclosure, and human interruptions without micromanaging tactics.
 - Deterministic, producer self-check, separate-session, cross-provider/model, and owner-walkthrough verification are labeled truthfully. Only the user accepts.
 
