@@ -82,7 +82,10 @@ func (s AttemptStatus) Terminal() bool {
 // database triggers accept. Anything outside this map aborts the write at the
 // SQL layer, so no service bug can invent a lifecycle.
 var LegalAttemptTransitions = map[AttemptStatus][]AttemptStatus{
-	AttemptQueued: {AttemptRunning, AttemptFailed, AttemptCancelled},
+	// Queued attempts may be declared lost when reconcile cannot account for
+	// an admission whose outcome is unknown (vanished start): custody must
+	// resolve without dressing the ambiguity up as a clean failure.
+	AttemptQueued: {AttemptRunning, AttemptFailed, AttemptCancelled, AttemptLost},
 	AttemptPaused: {AttemptRunning, AttemptCancelled, AttemptLost},
 	// Running attempts end through reconcile (lost/reconciled), owner action
 	// (paused/cancelled), or truthful spawn/runner failure. There is no
@@ -243,14 +246,18 @@ func (o AttemptObservation) Validate() error {
 // Observation kinds recorded by the v0 Act & Observe paths. Free-form kinds
 // remain insertable; these are the canonical ones the service emits.
 const (
-	ObservationAttemptContained  = "contained"
-	ObservationAttemptResumed    = "resumed"
-	ObservationProviderExit      = "provider_exit"
-	ObservationAdmissionFailed   = "admission_failed"
-	ObservationOwnerCancel       = "owner_cancelled"
-	ObservationOwnerPause        = "owner_paused"
-	ObservationOwnerResume       = "owner_resumed"
-	ObservationRecoveryAttention = "needs_attention"
+	ObservationAttemptContained = "contained"
+	ObservationAttemptResumed   = "resumed"
+	ObservationProviderExit     = "provider_exit"
+	ObservationAdmissionFailed  = "admission_failed"
+	// ObservationAdmissionAmbiguous marks a start whose outcome is UNKNOWN:
+	// the request may or may not have reached the provider. The attempt stays
+	// queued and derives as unconfirmed until reconcile decides.
+	ObservationAdmissionAmbiguous = "admission_ambiguous"
+	ObservationOwnerCancel        = "owner_cancelled"
+	ObservationOwnerPause         = "owner_paused"
+	ObservationOwnerResume        = "owner_resumed"
+	ObservationRecoveryAttention  = "needs_attention"
 )
 
 // AttemptFence is the custody lock over one worktree subject. At most ONE
@@ -392,10 +399,21 @@ type AttemptPresentation struct {
 //   - missing heartbeat facts are UNCONFIRMED, never dead;
 //   - provider/session termination is an END, never a success — ended
 //     attempts present "ended, result unclassified";
+//   - an admission whose outcome is UNKNOWN (unresolvedAdmission: the start
+//     request may or may not have reached the provider) presents as
+//     unconfirmed too — ambiguous startup is never shown as running, and
+//     never dressed up as a clean failure;
 //   - only stored statuses speak for themselves; nothing here mutates.
-func DeriveAttemptPresentation(status AttemptStatus, facts SessionHeartbeatFacts) AttemptPresentation {
+func DeriveAttemptPresentation(status AttemptStatus, facts SessionHeartbeatFacts, unresolvedAdmission bool) AttemptPresentation {
 	switch status {
 	case AttemptQueued:
+		if unresolvedAdmission {
+			return AttemptPresentation{
+				Phase:       AttemptPhaseUnconfirmed,
+				Unconfirmed: true,
+				NextAction:  "Start outcome is unknown — reconcile before restarting so duplicate writers stay impossible.",
+			}
+		}
 		return AttemptPresentation{
 			Phase:      AttemptPhaseAwaitingStart,
 			NextAction: "Admitting the authorized plan onto a provider session.",

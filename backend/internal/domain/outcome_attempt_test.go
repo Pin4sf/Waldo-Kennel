@@ -15,6 +15,7 @@ func TestAttemptTransitionLegality(t *testing.T) {
 		{AttemptQueued, AttemptRunning},
 		{AttemptQueued, AttemptFailed},
 		{AttemptQueued, AttemptCancelled},
+		{AttemptQueued, AttemptLost},
 		{AttemptRunning, AttemptPaused},
 		{AttemptRunning, AttemptFailed},
 		{AttemptRunning, AttemptCancelled},
@@ -34,7 +35,6 @@ func TestAttemptTransitionLegality(t *testing.T) {
 		// The load-bearing absence: no #31 path ever writes succeeded.
 		{AttemptRunning, AttemptSucceeded},
 		{AttemptQueued, AttemptReconciled},
-		{AttemptQueued, AttemptLost},
 		{AttemptQueued, AttemptPaused},
 		// Terminal states accept nothing.
 		{AttemptFailed, AttemptRunning},
@@ -91,24 +91,26 @@ func TestDeriveAttemptPresentation(t *testing.T) {
 		name             string
 		status           AttemptStatus
 		facts            SessionHeartbeatFacts
+		unresolvedStart  bool
 		wantPhase        string
 		wantUnconfirmed  bool
 		wantUnclassified bool
 	}{
-		{"queued", AttemptQueued, heartbeat(true, signaled, false), AttemptPhaseAwaitingStart, false, false},
-		{"paused", AttemptPaused, heartbeat(true, signaled, false), AttemptPhaseSuspended, false, false},
-		{"healthy run", AttemptRunning, heartbeat(true, signaled, false), AttemptPhaseExecuting, false, false},
-		{"session row gone", AttemptRunning, SessionHeartbeatFacts{}, AttemptPhaseUnconfirmed, true, false},
-		{"never signalled", AttemptRunning, heartbeat(true, time.Time{}, false), AttemptPhaseUnconfirmed, true, false},
-		{"terminated mid-run", AttemptRunning, heartbeat(true, signaled, true), AttemptPhaseEndedUnclassified, false, true},
-		{"failed", AttemptFailed, SessionHeartbeatFacts{}, AttemptPhaseHaltedFailed, false, false},
-		{"cancelled", AttemptCancelled, SessionHeartbeatFacts{}, AttemptPhaseHaltedCancelled, false, false},
-		{"lost", AttemptLost, SessionHeartbeatFacts{}, AttemptPhaseSuspectLost, false, false},
-		{"reconciled", AttemptReconciled, heartbeat(true, signaled, true), AttemptPhaseEndedUnclassified, false, true},
+		{"queued", AttemptQueued, heartbeat(true, signaled, false), false, AttemptPhaseAwaitingStart, false, false},
+		{"queued with unknown start outcome", AttemptQueued, SessionHeartbeatFacts{}, true, AttemptPhaseUnconfirmed, true, false},
+		{"paused", AttemptPaused, heartbeat(true, signaled, false), false, AttemptPhaseSuspended, false, false},
+		{"healthy run", AttemptRunning, heartbeat(true, signaled, false), false, AttemptPhaseExecuting, false, false},
+		{"session row gone", AttemptRunning, SessionHeartbeatFacts{}, false, AttemptPhaseUnconfirmed, true, false},
+		{"never signalled", AttemptRunning, heartbeat(true, time.Time{}, false), false, AttemptPhaseUnconfirmed, true, false},
+		{"terminated mid-run", AttemptRunning, heartbeat(true, signaled, true), false, AttemptPhaseEndedUnclassified, false, true},
+		{"failed", AttemptFailed, SessionHeartbeatFacts{}, false, AttemptPhaseHaltedFailed, false, false},
+		{"cancelled", AttemptCancelled, SessionHeartbeatFacts{}, false, AttemptPhaseHaltedCancelled, false, false},
+		{"lost", AttemptLost, SessionHeartbeatFacts{}, false, AttemptPhaseSuspectLost, false, false},
+		{"reconciled", AttemptReconciled, heartbeat(true, signaled, true), false, AttemptPhaseEndedUnclassified, false, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := DeriveAttemptPresentation(tc.status, tc.facts)
+			got := DeriveAttemptPresentation(tc.status, tc.facts, tc.unresolvedStart)
 			if got.Phase != tc.wantPhase {
 				t.Fatalf("phase = %q, want %q", got.Phase, tc.wantPhase)
 			}
