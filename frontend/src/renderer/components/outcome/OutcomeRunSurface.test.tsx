@@ -100,13 +100,13 @@ function attemptEnvelope(overrides: attemptOverrides = {}) {
 	};
 }
 
-function renderSurface() {
+function renderSurface(props: { onReviewProof?: () => void } = {}) {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
 	});
 	return render(
 		<QueryClientProvider client={queryClient}>
-			<OutcomeRunSurface outcomeId="out-1" />
+			<OutcomeRunSurface onReviewProof={props.onReviewProof} outcomeId="out-1" />
 		</QueryClientProvider>,
 	);
 }
@@ -117,6 +117,26 @@ beforeEach(() => {
 });
 
 describe("OutcomeRunSurface", () => {
+	it("hands an observed attempt into Prove & Close without claiming completion is acceptance", async () => {
+		const user = userEvent.setup();
+		const onReviewProof = vi.fn();
+		getMock.mockImplementation((url: string) => {
+			if (url === "/api/v1/outcomes/{outcomeId}/plan") {
+				return Promise.resolve({ data: planEnvelope("approved"), error: undefined });
+			}
+			if (url === "/api/v1/outcomes/{outcomeId}/attempts") {
+				return Promise.resolve({ data: { attempts: [attemptEnvelope({ status: "succeeded", phase: "succeeded" }).attempt] }, error: undefined });
+			}
+			return Promise.resolve({ data: undefined, error: { code: "NOT_FOUND", message: url } });
+		});
+
+		renderSurface({ onReviewProof });
+		const proofCard = await screen.findByTestId("outcome-run-proof-card");
+		expect(proofCard.textContent).toMatch(/completion is only a fact/i);
+		await user.click(screen.getByTestId("outcome-run-review-proof"));
+		expect(onReviewProof).toHaveBeenCalledOnce();
+	});
+
 	it("shows the waiting-for-plan card when no approved plan exists and never offers start", async () => {
 		getMock.mockImplementation((url: string) => {
 			if (url === "/api/v1/outcomes/{outcomeId}/plan") {

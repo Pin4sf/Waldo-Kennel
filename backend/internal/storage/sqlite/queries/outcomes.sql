@@ -41,6 +41,16 @@ WHERE id = ? AND current_revision_number = ?;
 INSERT INTO contract_revisions (id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
+-- Stable criterion identities added by Work E (#35). The JSON text column on
+-- contract_revisions remains a compatibility projection only.
+-- name: CreateContractCriterion :exec
+INSERT INTO contract_criteria (id, contract_revision_id, position, text)
+VALUES (?, ?, ?, ?);
+
+-- name: ListContractCriteriaForRevision :many
+SELECT id, contract_revision_id, position, text
+FROM contract_criteria WHERE contract_revision_id = ? ORDER BY position;
+
 -- name: GetContractRevisionByNumber :one
 SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at
 FROM contract_revisions WHERE outcome_id = ? AND number = ?;

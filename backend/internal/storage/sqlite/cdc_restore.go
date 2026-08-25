@@ -210,6 +210,31 @@ var changeLogWriters = []struct {
 		deps:  []string{"outcomes", "responsibility_spaces"},
 		sql:   "CREATE TRIGGER attempt_recovery_receipts_cdc_insert\nAFTER INSERT ON attempt_recovery_receipts\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id\n           FROM attempts a\n           JOIN outcomes o ON o.id = a.outcome_id\n           JOIN responsibility_spaces s ON s.id = o.space_id\n          WHERE a.id = NEW.attempt_id),\n        NULL,\n        'outcome_attempt_recovered',\n        json_object(\n            'attemptId', NEW.attempt_id,\n            'resolution', NEW.resolution,\n            'replacementAttemptId', NEW.replacement_attempt_id\n        ),\n        NEW.created_at);\nEND;",
 	},
+	// Proof and explicit owner-decision writers introduced by 0103 (#35).
+	{
+		name:  "evidence_items_cdc_insert",
+		table: "evidence_items",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER evidence_items_cdc_insert\nAFTER INSERT ON evidence_items\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_evidence_recorded',\n        json_object('evidenceId', NEW.id, 'outcomeId', NEW.outcome_id, 'contractRevisionId', NEW.contract_revision_id, 'criterionId', NEW.criterion_id, 'kind', NEW.kind),\n        NEW.created_at);\nEND;",
+	},
+	{
+		name:  "verification_runs_cdc_insert",
+		table: "verification_runs",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER verification_runs_cdc_insert\nAFTER INSERT ON verification_runs\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_verification_recorded',\n        json_object('verificationId', NEW.id, 'outcomeId', NEW.outcome_id, 'contractRevisionId', NEW.contract_revision_id, 'criterionId', NEW.criterion_id, 'independenceClass', NEW.independence_class, 'result', NEW.result),\n        NEW.created_at);\nEND;",
+	},
+	{
+		name:  "acceptance_decisions_cdc_insert",
+		table: "acceptance_decisions",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER acceptance_decisions_cdc_insert\nAFTER INSERT ON acceptance_decisions\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_acceptance_decided',\n        json_object('decisionId', NEW.id, 'outcomeId', NEW.outcome_id, 'contractRevisionId', NEW.contract_revision_id, 'kind', NEW.kind, 'actorType', NEW.actor_type, 'resourceDisposition', NEW.resource_disposition),\n        NEW.created_at);\nEND;",
+	},
+	{
+		name:  "outcome_corrections_cdc_insert",
+		table: "outcome_corrections",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER outcome_corrections_cdc_insert\nAFTER INSERT ON outcome_corrections\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_correction_recorded',\n        json_object('correctionId', NEW.id, 'decisionId', NEW.decision_id, 'outcomeId', NEW.outcome_id, 'contractRevisionId', NEW.contract_revision_id, 'targetType', NEW.target_type, 'targetId', NEW.target_id),\n        NEW.created_at);\nEND;",
+	},
 }
 
 // restoreChangeLogWriters recreates any missing change_log-writing trigger

@@ -12,6 +12,19 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
 
+type AcceptanceDecision struct {
+	ID                  string
+	OutcomeID           string
+	ContractRevisionID  string
+	Kind                string
+	ActorType           string
+	Summary             string
+	ResourceDisposition string
+	RequestKey          string
+	RequestFingerprint  string
+	CreatedAt           time.Time
+}
+
 type AgentModelCatalog struct {
 	AgentID       string
 	ProjectID     string
@@ -133,6 +146,13 @@ type ChangeLog struct {
 	EventType cdc.EventType
 	Payload   string
 	CreatedAt time.Time
+}
+
+type ContractCriterium struct {
+	ID                 string
+	ContractRevisionID string
+	Position           int64
+	Text               string
 }
 
 type ContractRevision struct {
@@ -265,6 +285,26 @@ type ConversationTurn struct {
 	PromotedToTurnID     sql.NullString
 }
 
+type EvidenceItem struct {
+	ID                 string
+	OutcomeID          string
+	ContractRevisionID string
+	CriterionID        string
+	SubjectType        string
+	SubjectID          string
+	SubjectRevision    string
+	Kind               string
+	SourceType         string
+	SourceRef          string
+	ProducerType       string
+	ProducerRef        string
+	Summary            string
+	ContentDigest      string
+	RequestKey         string
+	RequestFingerprint string
+	CreatedAt          time.Time
+}
+
 type ModelUsageEvent struct {
 	ID                  int64
 	BindingID           int64
@@ -300,6 +340,17 @@ type Outcome struct {
 	IdempotencyKey        sql.NullString
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+}
+
+type OutcomeCorrection struct {
+	ID                 string
+	DecisionID         string
+	OutcomeID          string
+	ContractRevisionID string
+	Feedback           string
+	TargetType         string
+	TargetID           string
+	CreatedAt          time.Time
 }
 
 type PR struct {
@@ -619,6 +670,28 @@ type UsageSource struct {
 	NextRetryAt     sql.NullTime
 	LastErrorCode   string
 	UpdatedAt       time.Time
+}
+
+type VerificationRun struct {
+	ID                 string
+	OutcomeID          string
+	ContractRevisionID string
+	CriterionID        string
+	SubjectType        string
+	SubjectID          string
+	SubjectRevision    string
+	EvidenceItemIds    string
+	Method             string
+	IndependenceClass  string
+	Result             string
+	ProducerRef        string
+	VerifierRef        string
+	ProducerProvider   string
+	VerifierProvider   string
+	Detail             string
+	RequestKey         string
+	RequestFingerprint string
+	CreatedAt          time.Time
 }
 
 type WorkUnit struct {

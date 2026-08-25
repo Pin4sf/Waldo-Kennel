@@ -32,6 +32,42 @@ func (id ContractRevisionID) String() string {
 	return string(id)
 }
 
+// CriterionID identifies one success criterion inside one immutable
+// ContractRevision. Its full identity is (ContractRevisionID, CriterionID):
+// the same display text in a later revision is deliberately a different
+// proof target.
+type CriterionID string
+
+// IsZero reports whether the id is unset or blank.
+func (id CriterionID) IsZero() bool {
+	return strings.TrimSpace(string(id)) == ""
+}
+
+// ContractCriterion is one stable, ordered success criterion.
+type ContractCriterion struct {
+	ID                 CriterionID
+	ContractRevisionID ContractRevisionID
+	Position           int64
+	Text               string
+}
+
+// Validate checks the criterion's immutable identity and display content.
+func (c ContractCriterion) Validate() error {
+	if c.ID.IsZero() {
+		return fmt.Errorf("contract criterion id is required")
+	}
+	if c.ContractRevisionID.IsZero() {
+		return fmt.Errorf("contract criterion revision id is required")
+	}
+	if c.Position < 1 {
+		return fmt.Errorf("contract criterion position must be at least 1")
+	}
+	if strings.TrimSpace(c.Text) == "" {
+		return fmt.Errorf("contract criterion text is required")
+	}
+	return nil
+}
+
 // Outcome is a durable, human-owned result recorded in one ResponsibilitySpace.
 //
 // An Outcome deliberately carries no lifecycle status field: provider
@@ -77,10 +113,14 @@ func (o Outcome) Validate() error {
 // revisions; prior revisions remain readable history and are never updated in
 // place.
 type ContractRevision struct {
-	ID              ContractRevisionID
-	OutcomeID       OutcomeID
-	Number          int64
-	Goal            string
+	ID        ContractRevisionID
+	OutcomeID OutcomeID
+	Number    int64
+	Goal      string
+	// Criteria is the canonical stable-identity projection introduced by
+	// Work E. SuccessCriteria remains the compatibility text projection used
+	// by pre-0103 callers and stored JSON; storage writes both atomically.
+	Criteria        []ContractCriterion
 	SuccessCriteria []string
 	Review          string
 	Constraints     []string
@@ -112,8 +152,45 @@ func (r ContractRevision) Validate() error {
 			return fmt.Errorf("success criterion %d is blank", i+1)
 		}
 	}
+	if len(r.Criteria) > 0 {
+		if len(r.Criteria) != len(r.SuccessCriteria) {
+			return fmt.Errorf("contract criterion identity count must match success criteria")
+		}
+		seen := make(map[CriterionID]struct{}, len(r.Criteria))
+		for i, criterion := range r.Criteria {
+			if err := criterion.Validate(); err != nil {
+				return fmt.Errorf("success criterion %d: %w", i+1, err)
+			}
+			if criterion.ContractRevisionID != r.ID {
+				return fmt.Errorf("success criterion %d binds another contract revision", i+1)
+			}
+			if criterion.Position != int64(i+1) {
+				return fmt.Errorf("success criterion %d has unstable position %d", i+1, criterion.Position)
+			}
+			if strings.TrimSpace(criterion.Text) != strings.TrimSpace(r.SuccessCriteria[i]) {
+				return fmt.Errorf("success criterion %d text differs from compatibility projection", i+1)
+			}
+			if _, ok := seen[criterion.ID]; ok {
+				return fmt.Errorf("success criterion %d reuses criterion id %s", i+1, criterion.ID)
+			}
+			seen[criterion.ID] = struct{}{}
+		}
+	}
 	if strings.TrimSpace(r.Review) == "" {
 		return fmt.Errorf("contract revision review is required")
 	}
 	return nil
+}
+
+// CriterionTexts returns the ordered criterion display projection. It prefers
+// the canonical rows and falls back only for pre-0103 in-memory test fixtures.
+func (r ContractRevision) CriterionTexts() []string {
+	if len(r.Criteria) == 0 {
+		return append([]string(nil), r.SuccessCriteria...)
+	}
+	out := make([]string, 0, len(r.Criteria))
+	for _, criterion := range r.Criteria {
+		out = append(out, criterion.Text)
+	}
+	return out
 }

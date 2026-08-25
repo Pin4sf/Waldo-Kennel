@@ -29,10 +29,17 @@ function revisionFromInput(
 		"clarification" | "constraints" | "goal" | "nonGoals" | "review" | "successCriteria"
 	>,
 ): ContractRevisionRecord {
+	const id = nextId("contract");
 	return {
-		id: nextId("contract"),
+		id,
 		number,
 		goal: input.goal,
+		criteria: input.successCriteria.map((text, index) => ({
+			criterionId: `${id}:criterion:${index + 1}`,
+			contractRevisionId: id,
+			position: index + 1,
+			text,
+		})),
 		successCriteria: [...input.successCriteria],
 		review: input.review,
 		constraints: [...(input.constraints ?? [])],

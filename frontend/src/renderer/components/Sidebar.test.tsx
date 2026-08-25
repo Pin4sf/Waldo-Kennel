@@ -530,6 +530,7 @@ describe("Sidebar", () => {
 
 	it("keeps the create-project shortcut available when there are no projects", async () => {
 		renderSidebar({ workspaces: [] });
+		expect(screen.getByRole("button", { name: "New project" })).toBeVisible();
 
 		act(() => {
 			useUiStore.getState().requestCreateProject();

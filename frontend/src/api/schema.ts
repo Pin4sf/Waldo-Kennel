@@ -414,6 +414,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/acceptance-decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Append the user's explicit accept, request-rework, or reopen decision */
+        post: operations["decideOutcomeAcceptance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/attempts": {
         parameters: {
             query?: never;
@@ -500,6 +517,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Append provenance-bearing Evidence to an exact current criterion and subject revision */
+        post: operations["recordOutcomeEvidence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/plan": {
         parameters: {
             query?: never;
@@ -551,6 +585,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read criterion-bound Evidence, Verification, explicit decisions, and derived proof state */
+        get: operations["getOutcomeProof"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/revisions": {
         parameters: {
             query?: never;
@@ -562,6 +613,23 @@ export interface paths {
         put?: never;
         /** Append an immutable contract revision (optimistic concurrency) */
         post: operations["reviseOutcomeContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/verifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Append a Verification result with its actual independence class */
+        post: operations["recordOutcomeVerification"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1837,6 +1905,16 @@ export interface components {
             message: string;
             requestId?: string;
         };
+        AcceptanceDecisionResponse: {
+            actorType: string;
+            contractRevisionId: string;
+            /** Format: date-time */
+            createdAt: string;
+            id: string;
+            kind: string;
+            resourceDisposition: string;
+            summary: string;
+        };
         ActivateConversationBranchResponse: {
             activeBranchId: string;
         };
@@ -2075,11 +2153,19 @@ export interface components {
         ContainerReapConfig: {
             disabled?: boolean;
         };
+        ContractCriterionResponse: {
+            contractRevisionId: string;
+            criterionId: string;
+            /** Format: int64 */
+            position: number;
+            text: string;
+        };
         ContractRevisionResponse: {
             clarification?: string;
             constraints: string[];
             /** Format: date-time */
             createdAt: string;
+            criteria: components["schemas"]["ContractCriterionResponse"][];
             goal: string;
             id: string;
             nonGoals: string[];
@@ -2397,6 +2483,28 @@ export interface components {
             successCriteria: string[];
             title: string;
         };
+        CriterionProofResponse: {
+            contractRevisionId: string;
+            criterionId: string;
+            evidence: components["schemas"]["EvidenceItemResponse"][];
+            gap?: string;
+            /** Format: int64 */
+            position: number;
+            ready: boolean;
+            text: string;
+            verifications: components["schemas"]["VerificationRunResponse"][];
+        };
+        DecideAcceptanceRequest: {
+            contractRevisionId: string;
+            /** Format: int64 */
+            expectedContractRevision: number;
+            kind: string;
+            reentryTargetId?: string;
+            reentryTargetType?: string;
+            requestKey: string;
+            resourceDisposition: string;
+            summary: string;
+        };
         DegradedProject: {
             id: string;
             /** @enum {string} */
@@ -2463,6 +2571,23 @@ export interface components {
             /** @enum {string} */
             state?: "queued" | "running" | "completed" | "interrupted" | "failed";
             turnId?: string;
+        };
+        EvidenceItemResponse: {
+            contentDigest: string;
+            contractRevisionId: string;
+            /** Format: date-time */
+            createdAt: string;
+            criterionId: string;
+            id: string;
+            kind: string;
+            producerRef: string;
+            producerType: string;
+            sourceRef: string;
+            sourceType: string;
+            subjectId: string;
+            subjectRevision: string;
+            subjectType: string;
+            summary: string;
         };
         InitializeRepositoryInput: {
             path: string;
@@ -2633,8 +2758,32 @@ export interface components {
             projectId: string;
             projectName?: string;
         };
+        OutcomeCorrectionResponse: {
+            contractRevisionId: string;
+            /** Format: date-time */
+            createdAt: string;
+            decisionId: string;
+            feedback: string;
+            id: string;
+            targetId: string;
+            targetType: string;
+        };
         OutcomeEnvelope: {
             outcome: components["schemas"]["OutcomeResponse"];
+        };
+        OutcomeProofEnvelope: {
+            proof: components["schemas"]["OutcomeProofResponse"];
+        };
+        OutcomeProofResponse: {
+            contractRevision: components["schemas"]["ContractRevisionResponse"];
+            corrections: components["schemas"]["OutcomeCorrectionResponse"][];
+            criteria: components["schemas"]["CriterionProofResponse"][];
+            decisions: components["schemas"]["AcceptanceDecisionResponse"][];
+            nextAction: string;
+            outcomeId: string;
+            /** Format: date-time */
+            proofHorizon?: null | string;
+            status: string;
         };
         OutcomeResponse: {
             /** Format: date-time */
@@ -2782,10 +2931,46 @@ export interface components {
             platform?: string;
             token?: string;
         };
+        RecordEvidenceRequest: {
+            contentDigest: string;
+            contractRevisionId: string;
+            criterionId: string;
+            /** Format: int64 */
+            expectedContractRevision: number;
+            kind: string;
+            producerRef: string;
+            producerType: string;
+            requestKey: string;
+            sourceRef: string;
+            sourceType: string;
+            subjectId: string;
+            subjectRevision: string;
+            subjectType: string;
+            summary: string;
+        };
         RecordObservationRequest: {
             kind: string;
             /** @description Optional JSON object with observation detail. */
             payload?: string;
+        };
+        RecordVerificationRequest: {
+            contractRevisionId: string;
+            criterionId: string;
+            detail?: string;
+            evidenceItemIds: string[];
+            /** Format: int64 */
+            expectedContractRevision: number;
+            independenceClass: string;
+            method: string;
+            producerProvider?: string;
+            producerRef?: string;
+            requestKey: string;
+            result: string;
+            subjectId: string;
+            subjectRevision: string;
+            subjectType: string;
+            verifierProvider?: string;
+            verifierRef: string;
         };
         RecoveryReceiptResponse: {
             /** Format: date-time */
@@ -3350,6 +3535,26 @@ export interface components {
             outputTokens: null | number;
             reasoningTokens: null | number;
             uncachedInputTokens: null | number;
+        };
+        VerificationRunResponse: {
+            contractRevisionId: string;
+            /** Format: date-time */
+            createdAt: string;
+            criterionId: string;
+            detail?: string;
+            evidenceItemIds: string[];
+            id: string;
+            independenceClass: string;
+            independent: boolean;
+            method: string;
+            producerProvider?: string;
+            producerRef?: string;
+            result: string;
+            subjectId: string;
+            subjectRevision: string;
+            subjectType: string;
+            verifierProvider?: string;
+            verifierRef: string;
         };
         WorkspaceFileResponse: {
             additions: number;
@@ -4715,6 +4920,78 @@ export interface operations {
             };
         };
     };
+    decideOutcomeAcceptance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideAcceptanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutcomeProofEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     listOutcomeAttempts: {
         parameters: {
             query?: never;
@@ -5089,6 +5366,78 @@ export interface operations {
             };
         };
     };
+    recordOutcomeEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordEvidenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutcomeProofEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     getLatestOutcomePlan: {
         parameters: {
             query?: never;
@@ -5285,6 +5634,65 @@ export interface operations {
             };
         };
     };
+    getOutcomeProof: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutcomeProofEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     reviseOutcomeContract: {
         parameters: {
             query?: never;
@@ -5308,6 +5716,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OutcomeEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    recordOutcomeVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordVerificationRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutcomeProofEnvelope"];
                 };
             };
             /** @description Bad Request */

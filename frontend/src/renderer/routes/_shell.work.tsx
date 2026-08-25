@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { OutcomeDecideAuthorizeSurface } from "../components/outcome/OutcomeDecideAuthorizeSurface";
 import { OutcomeLifecycleShell } from "../components/outcome/OutcomeLifecycleShell";
+import { OutcomeProveCloseSurface } from "../components/outcome/OutcomeProveCloseSurface";
 import { OutcomeRunSurface } from "../components/outcome/OutcomeRunSurface";
 import { OutcomeUnderstandSurface } from "../components/outcome/OutcomeUnderstandSurface";
 import { WorkEnterSurface } from "../components/outcome/WorkEnterSurface";
@@ -10,14 +11,16 @@ type WorkSearch = {
 	/** Selected project. Absent renders the Enter surface (stage: enter). */
 	project?: string;
 	/** Lifecycle stage within the Work destination. Defaults to understand. */
-	stage?: "understand" | "decide_authorize" | "act_observe";
+	stage?: "understand" | "decide_authorize" | "act_observe" | "prove_close";
 	/** The Outcome a saved contract produced; required from decide onward. */
 	outcome?: string;
 };
 
 function validateSearch(search: Record<string, unknown>): WorkSearch {
 	const stage =
-		search.stage === "decide_authorize" || search.stage === "act_observe" ? search.stage : undefined;
+		search.stage === "decide_authorize" || search.stage === "act_observe" || search.stage === "prove_close"
+			? search.stage
+			: undefined;
 	return {
 		project: typeof search.project === "string" && search.project !== "" ? search.project : undefined,
 		stage,
@@ -42,6 +45,21 @@ function WorkRoute() {
 		return <WorkEnterSurface />;
 	}
 
+	if (stage === "prove_close") {
+		if (!outcome) {
+			return (
+				<OutcomeLifecycleShell projectId={project} stage="understand">
+					<OutcomeUnderstandSurface projectId={project} />
+				</OutcomeLifecycleShell>
+			);
+		}
+		return (
+			<OutcomeLifecycleShell outcomeId={outcome} projectId={project} stage="prove_close">
+				<OutcomeProveCloseSurface outcomeId={outcome} />
+			</OutcomeLifecycleShell>
+		);
+	}
+
 	if (stage === "act_observe") {
 		if (!outcome) {
 			// A deep link without its Outcome falls back to Understand.
@@ -53,7 +71,12 @@ function WorkRoute() {
 		}
 		return (
 			<OutcomeLifecycleShell outcomeId={outcome} projectId={project} stage="act_observe">
-				<OutcomeRunSurface outcomeId={outcome} />
+				<OutcomeRunSurface
+					onReviewProof={() => {
+						void navigate({ to: "/work", search: { project, stage: "prove_close", outcome } });
+					}}
+					outcomeId={outcome}
+				/>
 			</OutcomeLifecycleShell>
 		);
 	}

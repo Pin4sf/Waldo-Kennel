@@ -476,7 +476,6 @@ export function Sidebar({
 						collapsible={false}
 						trailing={
 							<CreateProjectButton
-								hideTrigger={workspaces.length === 0}
 								onCreateProject={onCreateProject}
 								onInitializeProject={onInitializeProject}
 							/>
@@ -1627,13 +1626,12 @@ function SidebarSearchButton({ onOpen }: { onOpen: () => void }) {
 }
 
 function CreateProjectButton({
-	hideTrigger = false,
 	onCreateProject,
 	onInitializeProject,
-}: Pick<SidebarProps, "onCreateProject" | "onInitializeProject"> & { hideTrigger?: boolean }) {
+}: Pick<SidebarProps, "onCreateProject" | "onInitializeProject">) {
 	const { t } = useTranslation();
 	// Single CreateProjectFlow owner for the sidebar: the header "+" stays mounted
-	// (CSS-hidden when collapsed or on the empty start page) so it can own
+	// so it can own
 	// openSignal for ⌘N on every shell route. The collapsed rail button below
 	// reuses this flow via requestCreateProject().
 	const createProjectNonce = useUiStore((state) => state.createProjectNonce);
@@ -1651,7 +1649,6 @@ function CreateProjectButton({
 							aria-label={t("shell.newProject")}
 							className={cn(
 								"grid size-icon-xl shrink-0 place-items-center rounded-sm text-passive transition-colors hover:bg-interactive-hover hover:text-foreground",
-								hideTrigger && "hidden",
 							)}
 							disabled={disabled}
 							onClick={choosePath}
