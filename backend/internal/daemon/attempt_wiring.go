@@ -67,13 +67,16 @@ func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest
 // Terminate stops the bound provider session through the same authority that
 // spawned it. A missing session row means nothing is left to stop: that is
 // success for custody purposes, not an error.
-func (a attemptSpawner) Terminate(ctx context.Context, _ domain.ProjectID, sessionID string) error {
+func (a attemptSpawner) Terminate(ctx context.Context, _ domain.ProjectID, sessionID string) (bool, error) {
 	freed, err := a.sessions.Kill(ctx, domain.SessionID(sessionID))
 	if err != nil {
-		return err
+		return false, err
 	}
-	_ = freed // false simply means the pane was already gone
-	return nil
+	if !freed {
+		// Absent session row = UNKNOWN runtime outcome, not a durable stop.
+		return false, fmt.Errorf("%w: no live session %q to stop", ports.ErrProviderStopUnproven, sessionID)
+	}
+	return true, nil
 }
 
 // runAttemptLivenessLoop drives the daemon-side reconcile hook for Act &

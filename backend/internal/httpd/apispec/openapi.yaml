@@ -1273,58 +1273,6 @@ paths:
         mutates current truth)
       tags:
       - outcomes
-  /api/v1/outcomes/{outcomeId}/attempts/{attemptId}/pause:
-    post:
-      operationId: pauseOutcomeAttempt
-      parameters:
-      - description: Outcome identifier, e.g. out-<uuid>.
-        in: path
-        name: outcomeId
-        required: true
-        schema:
-          description: Outcome identifier, e.g. out-<uuid>.
-          type: string
-      - description: Attempt identifier, e.g. att-<uuid>.
-        in: path
-        name: attemptId
-        required: true
-        schema:
-          description: Attempt identifier, e.g. att-<uuid>.
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AttemptEnvelope'
-          description: OK
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Found
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Conflict
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Suspend a running attempt
-      tags:
-      - outcomes
   /api/v1/outcomes/{outcomeId}/attempts/{attemptId}/recovery:
     post:
       operationId: recoverOutcomeAttempt
@@ -1388,58 +1336,6 @@ paths:
           description: Not Implemented
       summary: Contain, reconcile, resume, replace, or escalate an attempt (custody-safe
         recovery)
-      tags:
-      - outcomes
-  /api/v1/outcomes/{outcomeId}/attempts/{attemptId}/resume:
-    post:
-      operationId: resumeOutcomeAttempt
-      parameters:
-      - description: Outcome identifier, e.g. out-<uuid>.
-        in: path
-        name: outcomeId
-        required: true
-        schema:
-          description: Outcome identifier, e.g. out-<uuid>.
-          type: string
-      - description: Attempt identifier, e.g. att-<uuid>.
-        in: path
-        name: attemptId
-        required: true
-        schema:
-          description: Attempt identifier, e.g. att-<uuid>.
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AttemptEnvelope'
-          description: OK
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Found
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Conflict
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/APIError'
-          description: Not Implemented
-      summary: Resume a paused attempt after re-enforcing spawn's readiness contract
       tags:
       - outcomes
   /api/v1/outcomes/{outcomeId}/plan:
@@ -6025,11 +5921,27 @@ components:
       type: object
     AttemptPresentationResponse:
       properties:
+        attention:
+          enum:
+          - waiting_input
+          - blocked
+          type: string
         endedUnclassified:
           type: boolean
         nextAction:
           type: string
         phase:
+          enum:
+          - awaiting_start
+          - executing
+          - suspended
+          - unconfirmed
+          - needs_input
+          - ended_unclassified
+          - halted_failed
+          - halted_cancelled
+          - suspect_lost
+          - succeeded
           type: string
         unconfirmed:
           type: boolean

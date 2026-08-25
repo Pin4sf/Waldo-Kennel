@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -66,6 +66,7 @@ type attemptOverrides = {
 	status?: string;
 	unconfirmed?: boolean;
 	phase?: string;
+	attention?: string;
 	nextAction?: string;
 	fence?: Record<string, unknown> | null;
 };
@@ -90,6 +91,7 @@ function attemptEnvelope(overrides: attemptOverrides = {}) {
 				phase,
 				unconfirmed: overrides.unconfirmed ?? false,
 				endedUnclassified: false,
+				attention: overrides.attention,
 				nextAction: overrides.nextAction ?? "Waiting — observe.",
 			},
 			createdAt: "2026-08-24T09:00:00Z",
@@ -282,7 +284,7 @@ describe("OutcomeRunSurface", () => {
 		});
 	});
 
-	it("renders Needs You for waiting_input and a reconcile path for cancelled attempts", async () => {
+	it("renders Needs You with decision-specific copy per attention kind", async () => {
 		getMock.mockImplementation((url: string) => {
 			if (url === "/api/v1/outcomes/{outcomeId}/plan") {
 				return Promise.resolve({ data: planEnvelope("approved"), error: undefined });
@@ -291,7 +293,7 @@ describe("OutcomeRunSurface", () => {
 				return Promise.resolve({
 					data: {
 						attempts: [
-							attemptEnvelope({ status: "running", phase: "needs_input", nextAction: "The provider needs your input." }).attempt,
+							attemptEnvelope({ status: "running", phase: "needs_input", attention: "blocked" }).attempt,
 						],
 					},
 					error: undefined,
@@ -300,9 +302,37 @@ describe("OutcomeRunSurface", () => {
 			return Promise.resolve({ data: undefined, error: { code: "NOT_FOUND", message: url } });
 		});
 		renderSurface();
-		expect(await screen.findByTestId("outcome-run-needs-input")).toBeDefined();
+		const blocked = await screen.findByTestId("outcome-run-needs-input");
+		expect(blocked.textContent).toMatch(/permission|approval|dialog/i);
 		expect(screen.queryByTestId("outcome-run-waiting")).toBeNull();
 
+		getMock.mockImplementation((url: string) => {
+			if (url === "/api/v1/outcomes/{outcomeId}/plan") {
+				return Promise.resolve({ data: planEnvelope("approved"), error: undefined });
+			}
+			if (url === "/api/v1/outcomes/{outcomeId}/attempts") {
+				return Promise.resolve({
+					data: {
+						attempts: [
+							attemptEnvelope({ status: "running", phase: "needs_input", attention: "waiting_input" }).attempt,
+						],
+					},
+					error: undefined,
+				});
+			}
+			return Promise.resolve({ data: undefined, error: { code: "NOT_FOUND", message: url } });
+		});
+		const queryClient2 = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+		const view2 = render(
+			<QueryClientProvider client={queryClient2}>
+				<OutcomeRunSurface outcomeId="out-2" />
+			</QueryClientProvider>,
+		);
+		await within(view2.container).findByTestId("outcome-run-needs-input");
+		expect(within(view2.container).getByTestId("outcome-run-needs-input").textContent).toMatch(/asked for input|question/i);
+	});
+
+	it("gives cancelled attempts a reconcile/confirm custody path", async () => {
 		getMock.mockImplementation((url: string) => {
 			if (url === "/api/v1/outcomes/{outcomeId}/plan") {
 				return Promise.resolve({ data: planEnvelope("approved"), error: undefined });
@@ -322,7 +352,6 @@ describe("OutcomeRunSurface", () => {
 		renderSurface();
 		expect(await screen.findByTestId("outcome-run-replace-confirm")).toBeDefined();
 	});
-
 	it("surfaces the daemon's refusal when admission fails closed instead of spinning", async () => {
 		getMock.mockImplementation((url: string) => {
 			if (url === "/api/v1/outcomes/{outcomeId}/plan") {

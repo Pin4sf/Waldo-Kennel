@@ -174,8 +174,8 @@ func TestDonorOutcomeSemanticsAreRetired(t *testing.T) {
 	}
 
 	roots := map[string]string{
-		"domain":           ".",
-		"service/outcome":  "../service/outcome",
+		"domain":          ".",
+		"service/outcome": "../service/outcome",
 	}
 
 	for label, dir := range roots {

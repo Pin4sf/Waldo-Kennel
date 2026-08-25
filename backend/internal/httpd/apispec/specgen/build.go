@@ -1177,30 +1177,6 @@ func notificationOperations() []operation {
 			},
 		},
 		{
-			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/pause", id: "pauseOutcomeAttempt", tag: "outcomes",
-			summary:    "Suspend a running attempt",
-			pathParams: []any{controllers.OutcomeIDParam{}, controllers.AttemptIDParam{}},
-			resps: []respUnit{
-				{http.StatusOK, controllers.AttemptEnvelope{}},
-				{http.StatusConflict, envelope.APIError{}},
-				{http.StatusNotFound, envelope.APIError{}},
-				{http.StatusInternalServerError, envelope.APIError{}},
-				{http.StatusNotImplemented, envelope.APIError{}},
-			},
-		},
-		{
-			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/resume", id: "resumeOutcomeAttempt", tag: "outcomes",
-			summary:    "Resume a paused attempt after re-enforcing spawn's readiness contract",
-			pathParams: []any{controllers.OutcomeIDParam{}, controllers.AttemptIDParam{}},
-			resps: []respUnit{
-				{http.StatusOK, controllers.AttemptEnvelope{}},
-				{http.StatusConflict, envelope.APIError{}},
-				{http.StatusNotFound, envelope.APIError{}},
-				{http.StatusInternalServerError, envelope.APIError{}},
-				{http.StatusNotImplemented, envelope.APIError{}},
-			},
-		},
-		{
 			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/cancel", id: "cancelOutcomeAttempt", tag: "outcomes",
 			summary:    "Cancel an active attempt by owner decision",
 			pathParams: []any{controllers.OutcomeIDParam{}, controllers.AttemptIDParam{}},

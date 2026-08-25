@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"errors"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
@@ -38,7 +39,13 @@ type AttemptSessionSpawner interface {
 	Spawn(ctx context.Context, req AttemptSpawnRequest) (domain.Session, error)
 
 	// Terminate stops a bound provider session through the same authority
-	// that spawned it. Custody may only be released after a confirmed stop —
-	// this is how cancel/contain turn into durable termination facts.
-	Terminate(ctx context.Context, projectID domain.ProjectID, sessionID string) error
+	// that spawned it. It reports whether the session was actually freed:
+	// freed=false means the runtime outcome is UNKNOWN (e.g. the durable
+	// session row is absent) and callers MUST treat the stop as unproven.
+	Terminate(ctx context.Context, projectID domain.ProjectID, sessionID string) (freed bool, err error)
 }
+
+// ErrProviderStopUnproven reports a terminate whose runtime outcome could not
+// be proven (missing session row, ambiguous kill). Custody law treats this as
+// NOT stopped.
+var ErrProviderStopUnproven = errors.New("provider stop could not be proven")

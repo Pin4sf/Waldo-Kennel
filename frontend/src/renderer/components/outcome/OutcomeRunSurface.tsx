@@ -1,4 +1,4 @@
-import { Loader2, Pause, Play, ShieldAlert, Square } from "lucide-react";
+import { Loader2, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { MessageKey } from "../../i18n/messages";
@@ -85,7 +85,7 @@ export function OutcomeRunSurface({ outcomeId }: OutcomeRunSurfaceProps) {
 		}
 	}
 
-	async function act(actionName: "pause" | "resume" | "cancel") {
+	async function act(actionName: "cancel") {
 		if (!current || pending) return;
 		try {
 			await action.act(current.id, actionName);
@@ -162,7 +162,7 @@ type CurrentAttemptCardProps = {
 	attempt: AttemptRecord;
 	pending: boolean;
 	showReplacementStart: boolean;
-	onAct: (action: "pause" | "resume" | "cancel") => void;
+	onAct: (action: "cancel") => void;
 	onRecover: (action: "contain" | "reconcile" | "replace" | "attention", confirmStopped: boolean) => void;
 	onStartReplacement: () => void;
 };
@@ -201,7 +201,11 @@ function CurrentAttemptCard({
 						<ShieldAlert aria-hidden="true" className="size-3.5" />
 						{t("outcome.run.needsYouTitle")}
 					</h3>
-					<p className="mt-1 text-muted-foreground text-sm">{t("outcome.run.needsInputBody")}</p>
+					<p className="mt-1 text-muted-foreground text-sm">
+						{attempt.presentation.attention === "blocked"
+							? t("outcome.run.blockedBody")
+							: t("outcome.run.waitingInputBody")}
+					</p>
 				</section>
 			)}
 
@@ -297,33 +301,19 @@ function CurrentAttemptCard({
 				</p>
 			)}
 
-			{attempt.status === "paused" && (
-				<div className="flex gap-2" data-testid="outcome-run-paused-actions">
-					<Button disabled={pending} onClick={() => onAct("resume")} size="sm">
-						<Play aria-hidden="true" className="size-3.5" />
-						{t("outcome.run.ctaResume")}
-					</Button>
-					<Button disabled={pending} onClick={() => onAct("cancel")} size="sm" variant="outline">
-						<Square aria-hidden="true" className="size-3.5" />
-						{t("outcome.run.ctaCancel")}
-					</Button>
-				</div>
+			{attempt.status === "running" && phase !== ATTEMPT_PHASES.unconfirmed && (
+				<Button
+					data-testid="outcome-run-cancel"
+					disabled={pending}
+					onClick={() => onAct("cancel")}
+					size="sm"
+					variant="outline"
+				>
+					{t("outcome.run.ctaCancel")}
+				</Button>
 			)}
 
-			{attempt.status === "running" && phase !== "unconfirmed" && (
-				<div>
-					<Button
-						data-testid="outcome-run-pause"
-						disabled={pending}
-						onClick={() => onAct("pause")}
-						size="sm"
-						variant="outline"
-					>
-						<Pause aria-hidden="true" className="size-3.5" />
-						{t("outcome.run.ctaPause")}
-					</Button>
-				</div>
-			)}
+
 
 			{showReplacementStart && attempt.status !== "running" && attempt.status !== "queued" && (
 				<Button data-testid="outcome-run-start" disabled={pending} onClick={onStartReplacement} size="sm">

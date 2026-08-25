@@ -473,7 +473,9 @@ export function useStartOutcomeAttempt(outcomeId: string | undefined): StartAtte
 	};
 }
 
-export type AttemptAction = "pause" | "resume" | "cancel";
+// Cancel is the only owner action that routes to the provider seam today;
+// pause/resume return with a real provider-control contract (ADR 0007).
+export type AttemptAction = "cancel";
 
 export interface AttemptActionState {
 	pending: boolean;
@@ -487,11 +489,14 @@ export function useAttemptAction(outcomeId: string | undefined): AttemptActionSt
 	const queryClient = useQueryClient();
 	const mutation = useMutation({
 		mutationFn: async ({ attemptId, action }: { attemptId: string; action: AttemptAction }) => {
-			const path = `/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/${action}` as const;
-			const { data, error } = await apiClient.POST(path, {
-				params: { path: { outcomeId: outcomeId as string, attemptId } },
-			});
+			const { data, error } = await apiClient.POST(
+				"/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/cancel",
+				{
+					params: { path: { outcomeId: outcomeId as string, attemptId } },
+				},
+			);
 			if (error) throw error;
+			void action; // single-action union today; kept for call-site stability
 			return (data as AttemptEnvelope).attempt;
 		},
 		onSuccess: () => void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) }),
@@ -500,8 +505,7 @@ export function useAttemptAction(outcomeId: string | undefined): AttemptActionSt
 		pending: mutation.isPending,
 		failure: mutation.error ? classifyOutcomeFailure(mutation.error) : undefined,
 		reset: () => mutation.reset(),
-		act: (attemptId, action) =>
-			mutation.mutateAsync({ attemptId, action }),
+		act: (attemptId, action) => mutation.mutateAsync({ attemptId, action }),
 	};
 }
 

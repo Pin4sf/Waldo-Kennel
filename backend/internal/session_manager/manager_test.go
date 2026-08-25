@@ -4680,11 +4680,11 @@ func TestResumeAgent_ProfileNotReadyFailsBeforeRuntime(t *testing.T) {
 		},
 	}}
 	st.sessions["mer-1"] = domain.SessionRecord{
-		ID:      "mer-1",
+		ID:        "mer-1",
 		ProjectID: "mer",
-		Kind:    domain.KindWorker,
-		Harness: domain.HarnessDeepSeekHarness,
-		Activity: domain.Activity{State: domain.ActivityExited},
+		Kind:      domain.KindWorker,
+		Harness:   domain.HarnessDeepSeekHarness,
+		Activity:  domain.Activity{State: domain.ActivityExited},
 		Metadata: domain.SessionMetadata{
 			WorkspacePath:   "/ws/mer-1",
 			Branch:          "kennel/mer-1",

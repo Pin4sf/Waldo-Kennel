@@ -30,8 +30,6 @@ type AttemptManager interface {
 	StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, in outcomevc.StartAttemptInput) (outcomevc.AttemptView, error)
 	GetAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (outcomevc.AttemptView, error)
 	ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) ([]outcomevc.AttemptView, error)
-	PauseAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (outcomevc.AttemptView, error)
-	ResumeAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (outcomevc.AttemptView, error)
 	CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (outcomevc.AttemptView, error)
 	RecordObservation(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, in outcomevc.RecordObservationInput) (domain.AttemptObservation, error)
 	RecoverAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, in outcomevc.RecoveryInput) (outcomevc.RecoveryView, error)
@@ -55,8 +53,6 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Get("/outcomes/{outcomeId}/attempts", c.listAttempts)
 	r.Get("/outcomes/{outcomeId}/attempts/{attemptId}", c.getAttempt)
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/observations", c.recordObservation)
-	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/pause", c.pauseAttempt)
-	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/resume", c.resumeAttempt)
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/cancel", c.cancelAttempt)
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/recovery", c.recoverAttempt)
 }
@@ -254,36 +250,6 @@ func (c *OutcomesController) recordObservation(w http.ResponseWriter, r *http.Re
 		return
 	}
 	envelope.WriteJSON(w, http.StatusCreated, ObservationEnvelope{Observation: attemptObservationResponse(obs)})
-}
-
-func (c *OutcomesController) pauseAttempt(w http.ResponseWriter, r *http.Request) {
-	if c.Attempts == nil {
-		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/pause")
-		return
-	}
-	view, err := c.Attempts.PauseAttempt(r.Context(),
-		domain.OutcomeID(chi.URLParam(r, "outcomeId")),
-		domain.AttemptID(chi.URLParam(r, "attemptId")))
-	if err != nil {
-		envelope.WriteError(w, r, err)
-		return
-	}
-	envelope.WriteJSON(w, http.StatusOK, AttemptEnvelope{Attempt: attemptResponse(view)})
-}
-
-func (c *OutcomesController) resumeAttempt(w http.ResponseWriter, r *http.Request) {
-	if c.Attempts == nil {
-		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/resume")
-		return
-	}
-	view, err := c.Attempts.ResumeAttempt(r.Context(),
-		domain.OutcomeID(chi.URLParam(r, "outcomeId")),
-		domain.AttemptID(chi.URLParam(r, "attemptId")))
-	if err != nil {
-		envelope.WriteError(w, r, err)
-		return
-	}
-	envelope.WriteJSON(w, http.StatusOK, AttemptEnvelope{Attempt: attemptResponse(view)})
 }
 
 func (c *OutcomesController) cancelAttempt(w http.ResponseWriter, r *http.Request) {

@@ -483,8 +483,18 @@ type AttemptPresentation struct {
 	Phase             AttemptPhase `json:"phase"`
 	Unconfirmed       bool         `json:"unconfirmed"`
 	EndedUnclassified bool         `json:"endedUnclassified"`
-	NextAction        string       `json:"nextAction"`
+	// Attention names the durable activity demanding the user when Phase is
+	// needs_input ("waiting_input" | "blocked"); empty otherwise. The exact
+	// decision/problem drives the surface copy.
+	Attention  string `json:"attention,omitempty"`
+	NextAction string `json:"nextAction"`
 }
+
+// Attention kinds for needs_input, mirroring the durable activity states.
+const (
+	AttemptAttentionWaitingInput = "waiting_input"
+	AttemptAttentionBlocked      = "blocked"
+)
 
 // DeriveAttemptPresentation computes the read model from the STORED status,
 // the bound session's heartbeat facts, and any unresolved-start flag. Rules
@@ -518,10 +528,17 @@ func DeriveAttemptPresentation(status AttemptStatus, facts SessionHeartbeatFacts
 			return endedUnclassifiedPresentation("The provider session ended. Completion is not done — classify through Verification.")
 		case !facts.Present || facts.FirstSignalAt.IsZero() || !facts.RecentlyActive(policy):
 			return unconfirmedPresentation("Liveness is unproven — contain and reconcile before replacing. Missing or stale heartbeats are never treated as death.")
-		case facts.ActivityState == ActivityWaitingInput || facts.ActivityState == ActivityBlocked:
+		case facts.ActivityState == ActivityWaitingInput:
 			return AttemptPresentation{
 				Phase:      AttemptPhaseNeedsInput,
-				NextAction: "The provider needs your input — respond in its session.",
+				Attention:  AttemptAttentionWaitingInput,
+				NextAction: "The provider asked for input — respond to its question in its session.",
+			}
+		case facts.ActivityState == ActivityBlocked:
+			return AttemptPresentation{
+				Phase:      AttemptPhaseNeedsInput,
+				Attention:  AttemptAttentionBlocked,
+				NextAction: "A permission/approval dialog blocks the provider — approve or deny it in its session.",
 			}
 		default:
 			return AttemptPresentation{

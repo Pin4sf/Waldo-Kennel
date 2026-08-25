@@ -93,15 +93,17 @@ type custodyProof struct {
 //   - failed status                   -> pre-start by construction, no runtime existed
 //     (post-spawn failures route to activation ambiguity, never `failed`)
 //   - explicit owner assertion        -> accepted and recorded as containment
-func (s *Service) proveProviderStopped(facts attemptFacts, attempt domain.Attempt, ownerConfirmed bool) custodyProof {
+func (s *Service) proveProviderStopped(facts attemptFacts, ownerConfirmed bool) custodyProof {
 	switch {
-	case attempt.Status == domain.AttemptFailed:
-		return custodyProof{reason: "failed before any provider runtime existed", proven: true}
 	case facts.facts.Present && facts.facts.IsTerminated:
 		return custodyProof{reason: "bound session durably terminated", proven: true}
 	case ownerConfirmed:
 		return custodyProof{reason: "owner asserted the provider is stopped", proven: true, byOwner: true}
 	default:
+		// NOTE: stored status alone — including `failed` — is NEVER proof.
+		// A spawn failure's true point-of-failure is not knowable after the
+		// fact, so only termination facts or the owner's recorded assertion
+		// unlock custody.
 		return custodyProof{}
 	}
 }
@@ -154,7 +156,7 @@ func (s *Service) reconcileAttempt(ctx context.Context, in RecoveryInput, attemp
 		}
 		return RecoveryView{Attempt: view, Receipt: receipt}, nil
 	}
-	proof := s.proveProviderStopped(facts, attempt, in.ConfirmProviderStopped)
+	proof := s.proveProviderStopped(facts, in.ConfirmProviderStopped)
 	if !proof.proven {
 		return RecoveryView{}, s.refuseUnprovenCustody(ctx, attempt)
 	}
@@ -253,7 +255,7 @@ func (s *Service) recoveryReplace(ctx context.Context, in RecoveryInput, attempt
 	if fErr != nil {
 		return RecoveryView{}, fErr
 	}
-	proof := s.proveProviderStopped(facts, attempt, in.ConfirmProviderStopped)
+	proof := s.proveProviderStopped(facts, in.ConfirmProviderStopped)
 	if !proof.proven {
 		return RecoveryView{}, s.refuseUnprovenCustody(ctx, attempt)
 	}
@@ -322,15 +324,19 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 	}
 	var failures []error
 	for _, attempt := range running {
-		// Renewable lease: refresh the custodian's fence stamp each pass so a
-		// stale renewal visibly flags custody that may outlive its provider.
-		if _, rErr := s.store.RenewFenceForAttempt(ctx, attempt.ID, s.clock()); rErr != nil {
-			failures = append(failures, fmt.Errorf("renew fence for %s: %w", attempt.ID, rErr))
-		}
 		facts, err := s.heartbeatFacts(ctx, attempt.ID)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("attempt %s: %w", attempt.ID, err))
 			continue
+		}
+		// Health-gated lease: only PROVABLY alive custodians renew their
+		// fence stamp. Unhealthy/unproven attempts keep their OLD stamp — a
+		// stale renewal is exactly how custody that may outlive its provider
+		// becomes visible.
+		if facts.alive() {
+			if _, rErr := s.store.RenewFenceForAttempt(ctx, attempt.ID, s.clock()); rErr != nil {
+				failures = append(failures, fmt.Errorf("renew fence for %s: %w", attempt.ID, rErr))
+			}
 		}
 		if !facts.terminated() {
 			continue

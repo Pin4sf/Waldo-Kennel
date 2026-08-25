@@ -359,14 +359,16 @@ func (f *fakeSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (d
 // Terminate records the request; failures are injectable per scenario. Tests
 // pair a successful Terminate with heartbeats.terminate(...) to mirror the
 // real flow, where Kill flips the durable is_terminated fact.
-func (f *fakeSpawner) Terminate(_ context.Context, _ domain.ProjectID, sessionID string) error {
+// Terminate mirrors the real adapter's honesty: a session the heartbeats
+// table no longer knows is an UNKNOWN outcome (freed=false), not a stop.
+func (f *fakeSpawner) Terminate(_ context.Context, _ domain.ProjectID, sessionID string) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.terminateErr != nil {
-		return f.terminateErr
+		return false, f.terminateErr
 	}
 	f.terminated = append(f.terminated, sessionID)
-	return nil
+	return true, nil
 }
 
 func (f *fakeSpawner) spawnCalls() int {

@@ -286,47 +286,89 @@ func TestStartAttemptReplayIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestSpawnCrashLeavesTruthfulFailedStateAndHeldFence covers D3's crash rule:
-// after the durable row exists, a spawner crash records truthful failed +
-// observation + receipt, keeps the fence HELD, and blocks replacement until
-// reconcile releases custody.
-func TestSpawnCrashLeavesTruthfulFailedStateAndHeldFence(t *testing.T) {
-	svc, store, spawner, _, outcomeID, planID := newAttemptHarness(t)
+// TestAnySpawnRefusalIsAmbiguousNeverFailed pins the round-2 custody law: NO
+// spawn error is classifiable as a clean failure (the adapter may have
+// created the runtime before failing), so every refusal routes to admission
+// ambiguity — queued + unconfirmed + custody held — and `failed` is never
+// written by any #31 path.
+func TestAnySpawnRefusalIsAmbiguousNeverFailed(t *testing.T) {
+	svc, _, spawner, _, outcomeID, planID := newAttemptHarness(t)
 	ctx := context.Background()
-	spawner.failNextSpawn(errors.New("provider process vanished during spawn"))
+	spawner.failNextSpawn(errors.New("worker pane died during launch"))
 
 	_, err := svc.StartAttempt(ctx, outcomeID, startInput(planID))
-	var apiErr *apierr.Error
-	if !errors.As(err, &apiErr) || apiErr.Code != "ATTEMPT_ADMIT_FAILED" {
-		t.Fatalf("err = %v, want ATTEMPT_ADMIT_FAILED", err)
+	if code := requireAPICode(t, err); code != outcome.CodeAttemptStartUnresolved {
+		t.Fatalf("code = %s, want ATTEMPT_START_UNRESOLVED", code)
 	}
-	attempts, listErr := store.ListAttempts(ctx, outcomeID)
+	attempts, listErr := storeList(t, svc, outcomeID)
 	if listErr != nil || len(attempts) != 1 {
-		t.Fatalf("failed attempt must exist durably once, len=%d err=%v", len(attempts), listErr)
+		t.Fatalf("attempts len=%d err=%v", len(attempts), listErr)
 	}
 	stored := attempts[0]
-	if stored.Status != domain.AttemptFailed {
-		t.Fatalf("status = %s, want failed", stored.Status)
+	if stored.Status != domain.AttemptQueued {
+		t.Fatalf("status = %s, want queued — never failed", stored.Status)
 	}
-	fence, held, err := store.OpenFenceForSubject(ctx, domain.FenceSubjectForProject("mer"))
-	if err != nil || !held || fence.AttemptID != stored.ID {
-		t.Fatalf("fence must stay HELD by the failed attempt, held=%v err=%v", held, err)
+	fence, held, ferr := svcGetFence(t, svc, outcomeID)
+	if ferr != nil || !held || fence.AttemptID != stored.ID {
+		t.Fatalf("fence must stay HELD by the ambiguous attempt (held=%v err=%v)", held, ferr)
 	}
-	observations, _ := store.ListAttemptObservations(ctx, stored.ID)
-	if len(observations) == 0 || observations[0].Kind != domain.ObservationAdmissionFailed {
-		t.Fatalf("observations = %+v, want admission_failed first", observations)
+	observations, _ := storeObservations(t, svc, outcomeID, stored.ID)
+	if len(observations) == 0 || observations[0].Kind != domain.ObservationAdmissionAmbiguous {
+		t.Fatalf("observations = %+v, want admission_ambiguous first", observations)
 	}
-	receipts, _ := store.ListRecoveryReceipts(ctx, stored.ID)
+	receipts, _ := storeReceipts(t, svc, outcomeID, stored.ID)
 	if len(receipts) != 1 || receipts[0].Resolution != domain.RecoveryNeedsAttention {
-		t.Fatalf("receipts = %+v, wants_attention", receipts)
+		t.Fatalf("receipts = %+v, want needs_attention", receipts)
 	}
 
-	// Replacement cannot bypass reconcile: custody is still held.
+	// Replacement cannot bypass reconcile while the ambiguity holds custody.
 	if _, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, RequestKey: "rk-replace"}); err == nil {
-		t.Fatal("replacement start must be refused while the failed attempt holds custody")
+		t.Fatal("replacement start must be refused while custody is unresolved")
 	} else if code := requireAPICode(t, err); code != outcome.CodeAttemptFenceHeld {
 		t.Fatalf("code = %s, want ATTEMPT_FENCE_HELD", code)
 	}
+}
+
+func svcGetFence(t *testing.T, svc *outcome.Service, outcomeID domain.OutcomeID) (domain.AttemptFence, bool, error) {
+	t.Helper()
+	views, err := svc.ListAttempts(context.Background(), outcomeID)
+	if err != nil {
+		return domain.AttemptFence{}, false, err
+	}
+	for _, v := range views {
+		if v.Fence != nil {
+			return *v.Fence, true, nil
+		}
+	}
+	return domain.AttemptFence{}, false, nil
+}
+
+func storeObservations(t *testing.T, svc *outcome.Service, outcomeID domain.OutcomeID, attemptID domain.AttemptID) ([]domain.AttemptObservation, error) {
+	t.Helper()
+	views, err := svc.ListAttempts(context.Background(), outcomeID)
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range views {
+		if v.Attempt.ID == attemptID {
+			return v.Observations, nil
+		}
+	}
+	return nil, nil
+}
+
+func storeReceipts(t *testing.T, svc *outcome.Service, outcomeID domain.OutcomeID, attemptID domain.AttemptID) ([]domain.AttemptRecoveryReceipt, error) {
+	t.Helper()
+	views, err := svc.ListAttempts(context.Background(), outcomeID)
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range views {
+		if v.Attempt.ID == attemptID {
+			return v.Receipts, nil
+		}
+	}
+	return nil, nil
 }
 
 // TestContainReconcileReplacementFlow walks the injected-loss path from the
@@ -491,9 +533,11 @@ func TestLivenessLoopClassifiesTerminatedProviderSession(t *testing.T) {
 	}
 }
 
-// TestPauseResumeCancelGuards covers owner controls including resume
-// enforcing the readiness contract.
-func TestPauseResumeCancelGuards(t *testing.T) {
+// TestCancelOwnerControls pins the owner path that remains: cancel requires
+// provider termination through the seam and refuses cleanly on stop failure.
+// Pause/resume endpoints are intentionally absent until a real provider
+// control contract exists (ADR 0007 territory).
+func TestCancelOwnerControls(t *testing.T) {
 	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
 	ctx := context.Background()
 	view, err := svc.StartAttempt(ctx, outcomeID, startInput(planID))
@@ -502,35 +546,19 @@ func TestPauseResumeCancelGuards(t *testing.T) {
 	}
 	heartbeats.signal(domain.SessionID(view.Sessions[0].SessionID))
 
-	paused, err := svc.PauseAttempt(ctx, outcomeID, view.Attempt.ID)
+	spawner.failNextTerminate(errors.New("pane refuses to die"))
+	if _, err := svc.CancelAttempt(ctx, outcomeID, view.Attempt.ID); err == nil {
+		t.Fatal("cancel must refuse while provider stop fails")
+	}
+	reread, err := svc.GetAttempt(ctx, outcomeID, view.Attempt.ID)
 	if err != nil {
-		t.Fatalf("pause: %v", err)
+		t.Fatal(err)
 	}
-	if paused.Attempt.Status != domain.AttemptPaused || paused.Presentation.Phase != domain.AttemptPhaseSuspended {
-		t.Fatalf("paused state = %+v / %+v", paused.Attempt, paused.Presentation)
-	}
-
-	// Resume enforces spawn's readiness contract: degrade the profile and the
-	// resume refuses.
-	spawner.mu.Lock()
-	spawner.readiness = ports.AgentProfileReadiness{Ready: false, Detail: "logged out"}
-	spawner.mu.Unlock()
-	_, err = svc.ResumeAttempt(ctx, outcomeID, view.Attempt.ID)
-	if code := requireAPICode(t, err); code != outcome.CodeAgentProfileNotReady {
-		t.Fatalf("resume code = %s, want AGENT_PROFILE_NOT_READY", code)
-	}
-	spawner.mu.Lock()
-	spawner.readiness = ports.AgentProfileReadiness{Ready: true}
-	spawner.mu.Unlock()
-
-	resumed, err := svc.ResumeAttempt(ctx, outcomeID, view.Attempt.ID)
-	if err != nil {
-		t.Fatalf("resume: %v", err)
-	}
-	if resumed.Attempt.Status != domain.AttemptRunning {
-		t.Fatalf("status = %s, want running", resumed.Attempt.Status)
+	if reread.Attempt.Status != domain.AttemptRunning {
+		t.Fatalf("status = %s after refused cancel, want unchanged running", reread.Attempt.Status)
 	}
 
+	spawner.failNextTerminate(nil)
 	cancelled, err := svc.CancelAttempt(ctx, outcomeID, view.Attempt.ID)
 	if err != nil {
 		t.Fatalf("cancel: %v", err)
@@ -538,10 +566,11 @@ func TestPauseResumeCancelGuards(t *testing.T) {
 	if cancelled.Attempt.Status != domain.AttemptCancelled {
 		t.Fatalf("status = %s, want cancelled", cancelled.Attempt.Status)
 	}
-	// Terminal states accept nothing further.
-	_, err = svc.PauseAttempt(ctx, outcomeID, view.Attempt.ID)
-	if code := requireAPICode(t, err); code != "ATTEMPT_NOT_RUNNING" {
-		t.Fatalf("pause-after-end code = %s, want ATTEMPT_NOT_RUNNING", code)
+	// Terminal states accept nothing further via recovery resume verb.
+	if _, err := svc.RecoverAttempt(ctx, outcomeID, view.Attempt.ID, outcome.RecoveryInput{
+		Action: outcome.RecoveryActionResume, ConfirmProviderStopped: true,
+	}); err == nil {
+		t.Fatal("resume verb on a cancelled attempt must refuse")
 	}
 }
 
@@ -646,15 +675,30 @@ func TestTerminalPredecessorsReleaseCustodyThroughReconcile(t *testing.T) {
 		assertReplacementStartable(t, svc, spawner, outcomeID, planID)
 	})
 
-	t.Run("failed before spawn", func(t *testing.T) {
-		svc, _, spawner, _, outcomeID, planID := newAttemptHarness(t)
-		spawner.failNextSpawn(errors.New("provider binary exploded"))
+	t.Run("failed status alone is not stop-proof", func(t *testing.T) {
+		svc, store, spawner, _, outcomeID, planID := newAttemptHarness(t)
+		spawner.failNextSpawn(errors.New("boom")) // ambiguous queued attempt
 		if _, err := svc.StartAttempt(ctx, outcomeID, startInput(planID)); err == nil {
-			t.Fatal("expected admit failure")
+			t.Fatal("expected unresolved admission")
 		}
 		attempts, _ := storeList(t, svc, outcomeID)
-		if _, err := svc.RecoverAttempt(ctx, outcomeID, attempts[0].ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReconcile}); err != nil {
-			t.Fatalf("reconcile of a failed predecessor must account for it: %v", err)
+		// Force the reserved failed status directly to interrogate the law.
+		if _, err := store.TransitionAttemptStatus(ctx, outcomeID, attempts[0].ID,
+			domain.AttemptQueued, domain.AttemptFailed, time.Now()); err != nil {
+			t.Fatalf("force failed: %v", err)
+		}
+		// Without proof, even a failed record holds custody.
+		if _, err := svc.RecoverAttempt(ctx, outcomeID, attempts[0].ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReplace}); err == nil {
+			t.Fatal("failed status must NOT unlock custody by itself")
+		}
+		verdict, err := svc.RecoverAttempt(ctx, outcomeID, attempts[0].ID, outcome.RecoveryInput{
+			Action: outcome.RecoveryActionReplace, ConfirmProviderStopped: true,
+		})
+		if err != nil {
+			t.Fatalf("owner-confirmed replace: %v", err)
+		}
+		if verdict.Attempt.Attempt.Status != domain.AttemptFailed {
+			t.Fatalf("history rewritten to %s", verdict.Attempt.Attempt.Status)
 		}
 		assertReplacementStartable(t, svc, spawner, outcomeID, planID)
 	})

@@ -2102,10 +2102,12 @@ type AttemptRecoveryRequest struct {
 // attempt: phase, whether liveness is unproven, and whether it ended without
 // a result classification. Never stored; always computed from durable facts.
 type AttemptPresentationResponse struct {
-	Phase             string `json:"phase"`
-	Unconfirmed       bool   `json:"unconfirmed"`
-	EndedUnclassified bool   `json:"endedUnclassified"`
-	NextAction        string `json:"nextAction"`
+	Phase             domain.AttemptPhase `json:"phase" enum:"awaiting_start,executing,suspended,unconfirmed,needs_input,ended_unclassified,halted_failed,halted_cancelled,suspect_lost,succeeded"`
+	Unconfirmed       bool                `json:"unconfirmed"`
+	EndedUnclassified bool                `json:"endedUnclassified"`
+	// Attention names the durable activity behind needs_input.
+	Attention  string `json:"attention,omitempty" enum:"waiting_input,blocked"`
+	NextAction string `json:"nextAction"`
 }
 
 // AttemptSessionRefResponse is one immutable provider-session binding.
@@ -2246,9 +2248,10 @@ func attemptResponse(view outcomevc.AttemptView) AttemptResponse {
 		Observations:           observations,
 		Receipts:               receipts,
 		Presentation: AttemptPresentationResponse{
-			Phase:             string(view.Presentation.Phase),
+			Phase:             view.Presentation.Phase,
 			Unconfirmed:       view.Presentation.Unconfirmed,
 			EndedUnclassified: view.Presentation.EndedUnclassified,
+			Attention:         view.Presentation.Attention,
 			NextAction:        view.Presentation.NextAction,
 		},
 		CreatedAt: view.Attempt.CreatedAt,

@@ -483,23 +483,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/pause": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Suspend a running attempt */
-        post: operations["pauseOutcomeAttempt"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/recovery": {
         parameters: {
             query?: never;
@@ -511,23 +494,6 @@ export interface paths {
         put?: never;
         /** Contain, reconcile, resume, replace, or escalate an attempt (custody-safe recovery) */
         post: operations["recoverOutcomeAttempt"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/resume": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Resume a paused attempt after re-enforcing spawn's readiness contract */
-        post: operations["resumeOutcomeAttempt"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1987,9 +1953,12 @@ export interface components {
             seq: number;
         };
         AttemptPresentationResponse: {
+            /** @enum {string} */
+            attention?: "waiting_input" | "blocked";
             endedUnclassified: boolean;
             nextAction: string;
-            phase: string;
+            /** @enum {string} */
+            phase: "awaiting_start" | "executing" | "suspended" | "unconfirmed" | "needs_input" | "ended_unclassified" | "halted_failed" | "halted_cancelled" | "suspect_lost" | "succeeded";
             unconfirmed: boolean;
         };
         AttemptRecoveryEnvelope: {
@@ -5041,67 +5010,6 @@ export interface operations {
             };
         };
     };
-    pauseOutcomeAttempt: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Outcome identifier, e.g. out-<uuid>. */
-                outcomeId: string;
-                /** @description Attempt identifier, e.g. att-<uuid>. */
-                attemptId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AttemptEnvelope"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
     recoverOutcomeAttempt: {
         parameters: {
             query?: never;
@@ -5136,67 +5044,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Internal Server Error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-            /** @description Not Implemented */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIError"];
-                };
-            };
-        };
-    };
-    resumeOutcomeAttempt: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Outcome identifier, e.g. out-<uuid>. */
-                outcomeId: string;
-                /** @description Attempt identifier, e.g. att-<uuid>. */
-                attemptId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AttemptEnvelope"];
                 };
             };
             /** @description Not Found */

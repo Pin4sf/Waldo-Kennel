@@ -25,8 +25,6 @@ type fakeAttemptManager struct {
 	start   func(context.Context, domain.OutcomeID, outcomevc.StartAttemptInput) (outcomevc.AttemptView, error)
 	get     func(context.Context, domain.OutcomeID, domain.AttemptID) (outcomevc.AttemptView, error)
 	list    func(context.Context, domain.OutcomeID) ([]outcomevc.AttemptView, error)
-	pause   func(context.Context, domain.OutcomeID, domain.AttemptID) (outcomevc.AttemptView, error)
-	resume  func(context.Context, domain.OutcomeID, domain.AttemptID) (outcomevc.AttemptView, error)
 	cancel  func(context.Context, domain.OutcomeID, domain.AttemptID) (outcomevc.AttemptView, error)
 	observe func(context.Context, domain.OutcomeID, domain.AttemptID, outcomevc.RecordObservationInput) (domain.AttemptObservation, error)
 	recover func(context.Context, domain.OutcomeID, domain.AttemptID, outcomevc.RecoveryInput) (outcomevc.RecoveryView, error)
@@ -40,12 +38,6 @@ func (f *fakeAttemptManager) GetAttempt(ctx context.Context, o domain.OutcomeID,
 }
 func (f *fakeAttemptManager) ListAttempts(ctx context.Context, o domain.OutcomeID) ([]outcomevc.AttemptView, error) {
 	return f.list(ctx, o)
-}
-func (f *fakeAttemptManager) PauseAttempt(ctx context.Context, o domain.OutcomeID, a domain.AttemptID) (outcomevc.AttemptView, error) {
-	return f.pause(ctx, o, a)
-}
-func (f *fakeAttemptManager) ResumeAttempt(ctx context.Context, o domain.OutcomeID, a domain.AttemptID) (outcomevc.AttemptView, error) {
-	return f.resume(ctx, o, a)
 }
 func (f *fakeAttemptManager) CancelAttempt(ctx context.Context, o domain.OutcomeID, a domain.AttemptID) (outcomevc.AttemptView, error) {
 	return f.cancel(ctx, o, a)
@@ -105,8 +97,12 @@ func TestAttemptRoutesUnwiredAnswer501(t *testing.T) {
 	if _, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/outcomes/out-fix/attempts/att-1", ""); status != http.StatusNotImplemented {
 		t.Fatalf("get = %d, want 501", status)
 	}
-	if _, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/outcomes/out-fix/attempts/att-1/pause", ""); status != http.StatusNotImplemented {
-		t.Fatalf("pause = %d, want 501", status)
+	// pause/resume are unrouted entirely until provider control exists.
+	for _, gone := range []string{"pause", "resume"} {
+		if _, st, _ := doRequest(t, srv, http.MethodPost,
+			"/api/v1/outcomes/out-fix/attempts/att-1/"+gone, ""); st == http.StatusNotImplemented {
+			t.Fatalf("%s must not be a wired-or-reserved route", gone)
+		}
 	}
 }
 
@@ -131,12 +127,6 @@ func TestAttemptRouteSurface(t *testing.T) {
 	}
 	mgr.list = func(_ context.Context, _ domain.OutcomeID) ([]outcomevc.AttemptView, error) {
 		return []outcomevc.AttemptView{sampleAttemptView(domain.AttemptRunning)}, nil
-	}
-	mgr.pause = func(context.Context, domain.OutcomeID, domain.AttemptID) (outcomevc.AttemptView, error) {
-		return sampleAttemptView(domain.AttemptPaused), nil
-	}
-	mgr.resume = func(context.Context, domain.OutcomeID, domain.AttemptID) (outcomevc.AttemptView, error) {
-		return sampleAttemptView(domain.AttemptRunning), nil
 	}
 	mgr.cancel = func(context.Context, domain.OutcomeID, domain.AttemptID) (outcomevc.AttemptView, error) {
 		return sampleAttemptView(domain.AttemptCancelled), nil
@@ -196,11 +186,16 @@ func TestAttemptRouteSurface(t *testing.T) {
 		t.Fatalf("observation = %d: %s", obsStatus, obsBytes)
 	}
 
-	for _, route := range []string{"pause", "resume", "cancel"} {
-		actionBytes, actionStatus, _ := doRequest(t, srv, http.MethodPost,
-			"/api/v1/outcomes/out-fix/attempts/att-1/"+route, "")
-		if actionStatus != http.StatusOK || !strings.Contains(string(actionBytes), `"attempt":`) {
-			t.Fatalf("%s = %d: %s", route, actionStatus, actionBytes)
+	actionBytes, actionStatus, _ := doRequest(t, srv, http.MethodPost,
+		"/api/v1/outcomes/out-fix/attempts/att-1/cancel", "")
+	if actionStatus != http.StatusOK || !strings.Contains(string(actionBytes), `"attempt":`) {
+		t.Fatalf("cancel = %d: %s", actionStatus, actionBytes)
+	}
+	// Pause/resume are deliberately unrouted until provider control exists.
+	for _, gone := range []string{"pause", "resume"} {
+		if _, st, _ := doRequest(t, srv, http.MethodPost,
+			"/api/v1/outcomes/out-fix/attempts/att-1/"+gone, ""); st == http.StatusOK {
+			t.Fatalf("%s route must not exist", gone)
 		}
 	}
 
@@ -219,7 +214,9 @@ type controllerSpawner struct{}
 func (controllerSpawner) ProfileReadiness(context.Context, domain.ProjectID, domain.AgentHarness) (ports.AgentProfileReadiness, error) {
 	return ports.AgentProfileReadiness{Ready: true, Detail: "test profile ok"}, nil
 }
-func (controllerSpawner) Terminate(_ context.Context, _ domain.ProjectID, _ string) error { return nil }
+func (controllerSpawner) Terminate(_ context.Context, _ domain.ProjectID, _ string) (bool, error) {
+	return true, nil
+}
 
 func (controllerSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (domain.Session, error) {
 	rec := domain.SessionRecord{
