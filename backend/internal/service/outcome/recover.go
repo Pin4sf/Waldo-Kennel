@@ -2,9 +2,9 @@
 //
 // Containment marks suspicion without inventing facts; reconcile decides from
 // durable evidence only. CUSTODY LAW: a fence may be released ONLY once the
-// bound provider's stop is proven — durably terminated, or a pre-start
-// `failed` record (no runtime ever existed), or an explicit owner assertion
-// that is recorded as its own containment observation. Unproven liveness
+// bound provider's stop is proven — a durably terminated session, or an
+// explicit owner assertion that is recorded as its own containment
+// observation. Stored status alone is never proof. Unproven liveness
 // escalates as needs_attention; it NEVER releases custody, so a replacement
 // can never write beside a possibly-live original provider. Stale
 // observations remain inspectable but can never mutate current truth.
@@ -29,14 +29,16 @@ import (
 //   - reconcile: auto-verdict from heartbeat evidence — proven-alive records
 //     `resumed`; otherwise the attempt becomes lost, its fence releases with
 //     a reason, and a replacement_attempt receipt lands.
-//   - resume: like reconcile's proven-alive path, plus paused -> running.
 //   - replace: force the lost+release+receipt verdict so a new attempt may
 //     acquire the fence.
 //   - attention: record needs_attention without deciding custody.
+//
+// There is deliberately no resume verb: nothing in #31 can command a provider
+// to resume, so proving an already-running provider alive is reconcile's job.
 func (s *Service) RecoverAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, in RecoveryInput) (RecoveryView, error) {
 	if !in.Action.Valid() {
 		return RecoveryView{}, apierr.Invalid("RECOVERY_ACTION_INVALID",
-			"Recovery action must be contain, reconcile, resume, replace, or attention", nil)
+			"Recovery action must be contain, reconcile, replace, or attention", nil)
 	}
 	attempt, _, err := s.requireAttempt(ctx, outcomeID, attemptID)
 	if err != nil {
@@ -47,8 +49,6 @@ func (s *Service) RecoverAttempt(ctx context.Context, outcomeID domain.OutcomeID
 		return s.containAttempt(ctx, attempt)
 	case RecoveryActionReconcile:
 		return s.reconcileAttempt(ctx, in, attempt)
-	case RecoveryActionResume:
-		return s.recoveryResume(ctx, outcomeID, attemptID, attempt)
 	case RecoveryActionReplace:
 		return s.recoveryReplace(ctx, in, attempt)
 	case RecoveryActionAttention:
@@ -89,10 +89,12 @@ type custodyProof struct {
 
 // proveProviderStopped resolves the release gate from durable facts:
 //
-//   - terminated bound session        -> machine proof
-//   - failed status                   -> pre-start by construction, no runtime existed
-//     (post-spawn failures route to activation ambiguity, never `failed`)
-//   - explicit owner assertion        -> accepted and recorded as containment
+//   - terminated bound session -> machine proof
+//   - explicit owner assertion -> accepted and recorded as containment
+//
+// Stored status alone — including `failed` — is NEVER proof: a spawn
+// failure's true point-of-failure is not knowable after the fact, so only
+// termination facts or the owner's recorded assertion unlock custody.
 func (s *Service) proveProviderStopped(facts attemptFacts, ownerConfirmed bool) custodyProof {
 	switch {
 	case facts.facts.Present && facts.facts.IsTerminated:
@@ -100,10 +102,6 @@ func (s *Service) proveProviderStopped(facts attemptFacts, ownerConfirmed bool) 
 	case ownerConfirmed:
 		return custodyProof{reason: "owner asserted the provider is stopped", proven: true, byOwner: true}
 	default:
-		// NOTE: stored status alone — including `failed` — is NEVER proof.
-		// A spawn failure's true point-of-failure is not knowable after the
-		// fact, so only termination facts or the owner's recorded assertion
-		// unlock custody.
 		return custodyProof{}
 	}
 }
@@ -186,57 +184,6 @@ func (s *Service) accountTerminalCustody(ctx context.Context, attempt domain.Att
 	receipt, err := s.recordReceipt(ctx, attempt.ID, domain.RecoveryReplacement, map[string]any{
 		"evidence":       "terminal predecessor accounted for (" + reason + "); custody handed to replacement",
 		"previousStatus": string(attempt.Status),
-	})
-	if err != nil {
-		return RecoveryView{}, err
-	}
-	view, err := s.GetAttempt(ctx, attempt.OutcomeID, attempt.ID)
-	if err != nil {
-		return RecoveryView{}, err
-	}
-	return RecoveryView{Attempt: view, Receipt: receipt}, nil
-}
-
-// recoveryResume proves liveness first, then returns the attempt to running.
-func (s *Service) recoveryResume(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, attempt domain.Attempt) (RecoveryView, error) {
-	if attempt.Status != domain.AttemptPaused && attempt.Status != domain.AttemptRunning {
-		return RecoveryView{}, apierr.Conflict(CodeAttemptLivenessUnproven,
-			fmt.Sprintf("A %s attempt cannot be resumed in place", attempt.Status),
-			map[string]any{"status": string(attempt.Status)})
-	}
-	facts, err := s.heartbeatFacts(ctx, attempt.ID)
-	if err != nil {
-		return RecoveryView{}, err
-	}
-	harness := domain.HarnessCodex
-	if ref, ok, err := s.store.LatestAttemptSessionRef(ctx, attemptID); err != nil {
-		return RecoveryView{}, err
-	} else if ok && ref.Harness != "" {
-		harness = ref.Harness
-	}
-	projectID, _, err := s.store.GetOutcomeProjectID(ctx, attempt.OutcomeID)
-	if err != nil {
-		return RecoveryView{}, err
-	}
-	if !facts.alive() {
-		return RecoveryView{}, apierr.Conflict(CodeAttemptLivenessUnproven,
-			"Liveness is unproven — replace the attempt instead of resuming it",
-			map[string]any{"attemptId": string(attemptID)})
-	}
-	if err := s.probeReadiness(ctx, projectID, harness); err != nil {
-		return RecoveryView{}, err
-	}
-	if attempt.Status == domain.AttemptPaused {
-		rows, err := s.store.TransitionAttemptStatus(ctx, outcomeID, attemptID, domain.AttemptPaused, domain.AttemptRunning, s.clock())
-		if err != nil {
-			return RecoveryView{}, err
-		}
-		if rows == 0 {
-			return RecoveryView{}, apierr.Conflict("ATTEMPT_STATUS_MOVED", "The attempt changed state concurrently; reload and retry", nil)
-		}
-	}
-	receipt, err := s.recordReceipt(ctx, attempt.ID, domain.RecoveryResumed, map[string]any{
-		"evidence": "bound session proven alive; readiness re-probed",
 	})
 	if err != nil {
 		return RecoveryView{}, err

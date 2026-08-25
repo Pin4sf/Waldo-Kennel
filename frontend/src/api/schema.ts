@@ -1967,10 +1967,10 @@ export interface components {
         };
         AttemptRecoveryRequest: {
             /**
-             * @description One of contain, reconcile, resume, replace, attention.
+             * @description One of contain, reconcile, replace, attention.
              * @enum {string}
              */
-            action: "contain" | "reconcile" | "resume" | "replace" | "attention";
+            action: "contain" | "reconcile" | "replace" | "attention";
             confirmProviderStopped?: boolean;
         };
         AttemptResponse: {

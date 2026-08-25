@@ -206,7 +206,7 @@ describe("OutcomeRunSurface", () => {
 		renderSurface();
 
 		const needsYou = await screen.findByTestId("outcome-run-needs-you");
-		expect(needsYou.textContent).toMatch(/unproven|unbestätigt|未证实|sin probar|non prouvé|未証明|입증되지|não comprovada/i);
+		expect(needsYou.textContent).toMatch(/Liveness unproven/);
 		await user.click(screen.getByTestId("outcome-run-contain"));
 		await waitFor(() => {
 			expect(postMock).toHaveBeenCalledWith(
@@ -223,6 +223,49 @@ describe("OutcomeRunSurface", () => {
 		});
 		// Unconfirmed is NOT declared dead.
 		expect(screen.queryByTestId("outcome-run-action-required")).toBeNull();
+	});
+
+	it("releases custody only behind an explicit two-step owner-containment assertion", async () => {
+		const user = userEvent.setup();
+		getMock.mockImplementation((url: string) => {
+			if (url === "/api/v1/outcomes/{outcomeId}/plan") {
+				return Promise.resolve({ data: planEnvelope("approved"), error: undefined });
+			}
+			if (url === "/api/v1/outcomes/{outcomeId}/attempts") {
+				return Promise.resolve({
+					data: {
+						attempts: [
+							attemptEnvelope({ unconfirmed: true, phase: "unconfirmed" }).attempt,
+						],
+					},
+					error: undefined,
+				});
+			}
+			return Promise.resolve({ data: undefined, error: { code: "NOT_FOUND", message: url } });
+		});
+		postMock.mockResolvedValue({ data: attemptEnvelope(), error: undefined });
+		renderSurface();
+		await screen.findByTestId("outcome-run-needs-you");
+
+		// The serious action is present but INERT until armed.
+		expect(screen.queryByTestId("outcome-run-owner-stop-confirm")).toBeNull();
+		await user.click(screen.getByTestId("outcome-run-owner-stop"));
+
+		const confirmPanel = await screen.findByTestId("outcome-run-owner-stop-confirm");
+		// Serious copy states the cost: custody releases on the owner's word.
+		expect(confirmPanel.textContent).toMatch(/cannot prove|release custody/i);
+		await user.click(screen.getByTestId("outcome-run-owner-stop-back"));
+		expect(screen.queryByTestId("outcome-run-owner-stop-confirm")).toBeNull();
+
+		await user.click(screen.getByTestId("outcome-run-owner-stop"));
+		await screen.findByTestId("outcome-run-owner-stop-confirm");
+		await user.click(screen.getByTestId("outcome-run-owner-stop-assert"));
+		await waitFor(() => {
+			expect(postMock).toHaveBeenCalledWith(
+				"/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/recovery",
+				expect.objectContaining({ body: { action: "reconcile", confirmProviderStopped: true } }),
+			);
+		});
 	});
 
 	it("presents an ended attempt as result-unclassified, never as success", async () => {
@@ -303,7 +346,9 @@ describe("OutcomeRunSurface", () => {
 		});
 		renderSurface();
 		const blocked = await screen.findByTestId("outcome-run-needs-input");
+		expect(blocked.textContent).toMatch(/Approval required/);
 		expect(blocked.textContent).toMatch(/permission|approval|dialog/i);
+		expect(blocked.textContent).not.toMatch(/Liveness unproven/);
 		expect(screen.queryByTestId("outcome-run-waiting")).toBeNull();
 
 		getMock.mockImplementation((url: string) => {
@@ -329,6 +374,7 @@ describe("OutcomeRunSurface", () => {
 			</QueryClientProvider>,
 		);
 		await within(view2.container).findByTestId("outcome-run-needs-input");
+		expect(within(view2.container).getByTestId("outcome-run-needs-input").textContent).toMatch(/asked you something/);
 		expect(within(view2.container).getByTestId("outcome-run-needs-input").textContent).toMatch(/asked for input|question/i);
 	});
 

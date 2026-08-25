@@ -509,7 +509,10 @@ export function useAttemptAction(outcomeId: string | undefined): AttemptActionSt
 	};
 }
 
-export type AttemptRecoveryAction = "contain" | "reconcile" | "resume" | "replace" | "attention";
+// There is deliberately no "resume": nothing can command a provider to
+// resume yet, so the verb does not exist on the wire (ADR 0007 will own real
+// provider pause/resume). Reconcile proves an already-running provider alive.
+export type AttemptRecoveryAction = "contain" | "reconcile" | "replace" | "attention";
 
 export interface AttemptRecoveryState {
 	pending: boolean;

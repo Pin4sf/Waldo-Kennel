@@ -5963,11 +5963,10 @@ components:
     AttemptRecoveryRequest:
       properties:
         action:
-          description: One of contain, reconcile, resume, replace, attention.
+          description: One of contain, reconcile, replace, attention.
           enum:
           - contain
           - reconcile
-          - resume
           - replace
           - attention
           type: string

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -95,7 +96,7 @@ export function OutcomeRunSurface({ outcomeId }: OutcomeRunSurfaceProps) {
 	}
 
 	async function recover(
-		actionName: "contain" | "reconcile" | "resume" | "replace" | "attention",
+		actionName: "contain" | "reconcile" | "replace" | "attention",
 		confirmStopped = false,
 	) {
 		if (!current || pending) return;
@@ -178,6 +179,9 @@ function CurrentAttemptCard({
 	const { t } = useTranslation();
 	const badgeKey = statusBadgeKey(attempt.status);
 	const phase = attempt.presentation.phase;
+	// The owner-containment assertion is armed in two steps on purpose: the
+	// first click only reveals WHAT will be asserted and what it costs.
+	const [ownerStopArmed, setOwnerStopArmed] = useState(false);
 
 	return (
 		<div className="flex max-w-xl flex-col gap-3 rounded-md border border-border p-4" data-testid={`outcome-run-attempt-${attempt.id}`}>
@@ -199,7 +203,9 @@ function CurrentAttemptCard({
 				>
 					<h3 className="flex items-center gap-1.5 text-sm font-medium">
 						<ShieldAlert aria-hidden="true" className="size-3.5" />
-						{t("outcome.run.needsYouTitle")}
+						{attempt.presentation.attention === "blocked"
+							? t("outcome.run.blockedTitle")
+							: t("outcome.run.waitingInputTitle")}
 					</h3>
 					<p className="mt-1 text-muted-foreground text-sm">
 						{attempt.presentation.attention === "blocked"
@@ -216,7 +222,7 @@ function CurrentAttemptCard({
 				>
 					<h3 className="flex items-center gap-1.5 text-sm font-medium">
 						<ShieldAlert aria-hidden="true" className="size-3.5" />
-						{t("outcome.run.needsYouTitle")}
+						{t("outcome.run.unconfirmedTitle")}
 					</h3>
 					<p className="mt-1 text-muted-foreground text-sm">{t("outcome.run.unconfirmedBody")}</p>
 					<div className="mt-2 flex gap-2">
@@ -237,7 +243,46 @@ function CurrentAttemptCard({
 						>
 							{t("outcome.run.ctaReconcile")}
 						</Button>
+						{!ownerStopArmed && (
+							<Button
+								data-testid="outcome-run-owner-stop"
+								disabled={pending}
+								onClick={() => setOwnerStopArmed(true)}
+								size="sm"
+								variant="outline"
+							>
+								{t("outcome.run.ownerStopCta")}
+							</Button>
+						)}
 					</div>
+					{ownerStopArmed && (
+						<div
+							className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-3"
+							data-testid="outcome-run-owner-stop-confirm"
+						>
+							<h4 className="text-sm font-medium">{t("outcome.run.ownerStopTitle")}</h4>
+							<p className="mt-1 text-muted-foreground text-sm">{t("outcome.run.ownerStopBody")}</p>
+							<div className="mt-2 flex flex-wrap gap-2">
+								<Button
+									data-testid="outcome-run-owner-stop-assert"
+									disabled={pending}
+									onClick={() => onRecover("reconcile", true)}
+									size="sm"
+								>
+									{t("outcome.run.ownerStopAssertCta")}
+								</Button>
+								<Button
+									data-testid="outcome-run-owner-stop-back"
+									disabled={pending}
+									onClick={() => setOwnerStopArmed(false)}
+									size="sm"
+									variant="outline"
+								>
+									{t("outcome.run.ownerStopBackCta")}
+								</Button>
+							</div>
+						</div>
+					)}
 				</section>
 			)}
 

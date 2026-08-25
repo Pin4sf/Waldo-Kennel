@@ -2091,7 +2091,7 @@ type RecordObservationRequest struct {
 // AttemptRecoveryRequest is the body for POST
 // /outcomes/{outcomeId}/attempts/{attemptId}/recovery.
 type AttemptRecoveryRequest struct {
-	Action string `json:"action" description:"One of contain, reconcile, resume, replace, attention." enum:"contain,reconcile,resume,replace,attention"`
+	Action string `json:"action" description:"One of contain, reconcile, replace, attention." enum:"contain,reconcile,replace,attention"`
 	// ConfirmProviderStopped is the owner's explicit assertion that the bound
 	// provider session is stopped. It unlocks custody release without machine
 	// proof and is recorded as an auditable containment observation.

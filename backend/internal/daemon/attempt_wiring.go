@@ -8,7 +8,6 @@ import (
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
 	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
 )
 
@@ -23,13 +22,23 @@ type projectConfigSource interface {
 	GetProject(ctx context.Context, id string) (domain.ProjectRecord, bool, error)
 }
 
+// attemptSessionControl is the narrow slice of the session service the
+// spawner consumes: admission (Spawn), terminal intent (Kill), and the
+// durable record that provider-stop proof is read from afterwards.
+// *sessionsvc.Service satisfies this structurally; tests inject doubles.
+type attemptSessionControl interface {
+	Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Session, int, int, error)
+	Kill(ctx context.Context, id domain.SessionID) (bool, error)
+	Get(ctx context.Context, id domain.SessionID) (domain.Session, error)
+}
+
 // attemptSpawner adapts the EXISTING session spawn path onto the narrow
 // ports.AttemptSessionSpawner seam. It adds no provider knowledge: readiness
 // goes through session_manager.ProfileReadinessForSpawn (the same checker and
 // config merge Spawn enforces), and spawning delegates to service/session.Spawn,
 // which re-probes internally. There is no fallback provider anywhere.
 type attemptSpawner struct {
-	sessions *sessionsvc.Service
+	sessions attemptSessionControl
 	projects projectConfigSource
 	agents   ports.AgentResolver
 }
@@ -65,18 +74,24 @@ func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest
 }
 
 // Terminate stops the bound provider session through the same authority that
-// spawned it. A missing session row means nothing is left to stop: that is
-// success for custody purposes, not an error.
-func (a attemptSpawner) Terminate(ctx context.Context, _ domain.ProjectID, sessionID string) (bool, error) {
+// spawned it. Kill's boolean reports WORKSPACE reclamation, so provider-stop
+// proof is derived separately from the durable session record: only a record
+// that shows the session terminated proves the provider stopped. A preserved
+// dirty worktree therefore still yields a proven stop with WorkspaceFreed=
+// false; an absent or un-terminated record stays unproven — custody law
+// treats UNKNOWN as NOT stopped.
+func (a attemptSpawner) Terminate(ctx context.Context, _ domain.ProjectID, sessionID string) (ports.TerminationResult, error) {
 	freed, err := a.sessions.Kill(ctx, domain.SessionID(sessionID))
 	if err != nil {
-		return false, err
+		return ports.TerminationResult{}, err
 	}
-	if !freed {
-		// Absent session row = UNKNOWN runtime outcome, not a durable stop.
-		return false, fmt.Errorf("%w: no live session %q to stop", ports.ErrProviderStopUnproven, sessionID)
+	rec, err := a.sessions.Get(ctx, domain.SessionID(sessionID))
+	if err != nil || !rec.IsTerminated {
+		// Absent row or a record without the termination fact = UNKNOWN
+		// runtime outcome, never a durable stop.
+		return ports.TerminationResult{}, fmt.Errorf("%w: durable record for %q does not show a terminated session", ports.ErrProviderStopUnproven, sessionID)
 	}
-	return true, nil
+	return ports.TerminationResult{ProviderStopped: true, WorkspaceFreed: freed}, nil
 }
 
 // runAttemptLivenessLoop drives the daemon-side reconcile hook for Act &

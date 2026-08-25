@@ -520,7 +520,7 @@ func DeriveAttemptPresentation(status AttemptStatus, facts SessionHeartbeatFacts
 	case AttemptPaused:
 		return AttemptPresentation{
 			Phase:      AttemptPhaseSuspended,
-			NextAction: "Resume the attempt or cancel it.",
+			NextAction: "Paused awaits the provider-control contract (ADR 0007); custody stays held.",
 		}
 	case AttemptRunning:
 		switch {

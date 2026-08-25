@@ -3,9 +3,11 @@
 // row: approved plan -> current-contract binding -> grants survive the
 // authority intersection -> RunBrief core digest recomputes equal ->
 // profile-readiness probe. Only then do the attempt row, fence, session ref,
-// and running transition land. A spawner crash after the row exists records a
-// truthful `failed` attempt plus a recovery receipt; replacement is always a
-// NEW attempt row.
+// and running transition land. Any failure AFTER admission begins routes to
+// ambiguity — queued + unconfirmed + custody held — because the true
+// point-of-failure is unknowable after the fact; reconcile decides with
+// machine proof or a recorded owner assertion. Replacement is always a NEW
+// attempt row.
 
 package outcome
 
@@ -65,10 +67,13 @@ type RecordObservationInput struct {
 type RecoveryAction string
 
 // Recovery verbs accepted by the recovery route; each maps to one handler.
+// There is deliberately NO resume verb: resuming a paused provider is a
+// provider-control operation that no #31 path can perform, and a database
+// label flip would fake state. Proving an already-running provider alive is
+// reconcile's job; real pause/resume waits for ADR 0007.
 const (
 	RecoveryActionContain   RecoveryAction = "contain"
 	RecoveryActionReconcile RecoveryAction = "reconcile"
-	RecoveryActionResume    RecoveryAction = "resume"
 	RecoveryActionReplace   RecoveryAction = "replace"
 	RecoveryActionAttention RecoveryAction = "attention"
 )
@@ -76,7 +81,7 @@ const (
 // Valid reports whether a is a supported recovery action.
 func (a RecoveryAction) Valid() bool {
 	switch a {
-	case RecoveryActionContain, RecoveryActionReconcile, RecoveryActionResume,
+	case RecoveryActionContain, RecoveryActionReconcile,
 		RecoveryActionReplace, RecoveryActionAttention:
 		return true
 	}
@@ -132,8 +137,8 @@ const (
 	CodeAttemptFenceHeld = "ATTEMPT_FENCE_HELD"
 	// CodeAttemptNotFound reports an unknown attempt under this Outcome.
 	CodeAttemptNotFound = "ATTEMPT_NOT_FOUND"
-	// CodeAttemptLivenessUnproven refuses resume/replace decisions without
-	// provable liveness evidence.
+	// CodeAttemptLivenessUnproven refuses replace decisions without provable
+	// liveness evidence.
 	CodeAttemptLivenessUnproven = "ATTEMPT_LIVENESS_UNPROVEN"
 	// CodeAttemptActivationUnresolved reports a LIVE provider whose running
 	// transition could not be recorded durably.
@@ -392,9 +397,12 @@ func (s *Service) probeReadiness(ctx context.Context, projectID domain.ProjectID
 
 // CancelAttempt ends an active attempt by owner decision AND stops the bound
 // provider through the execution seam: canonical cancellation requires
-// provider authority, not a database status flip. If termination fails the
-// status is left untouched, the fence stays held, and a needs_attention
-// receipt records exactly what could not be stopped.
+// provider authority, not a database status flip. The stop's two facts are
+// recorded separately — ProviderStopped gates the cancellation, and a
+// preserved dirty workspace is noted without pretending the provider lives.
+// If termination fails or stays unproven, the status is left untouched, the
+// fence stays held, and a needs_attention receipt records exactly what could
+// not be stopped.
 func (s *Service) CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (AttemptView, error) {
 	attempt, _, err := s.requireAttempt(ctx, outcomeID, attemptID)
 	if err != nil {
@@ -423,10 +431,10 @@ func (s *Service) CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID,
 			"This start's outcome is unknown — reconcile with a stop confirmation instead of cancelling",
 			map[string]any{"attemptId": string(attemptID)})
 	}
-	var providerStopped bool
+	var termination ports.TerminationResult
 	{
-		freed, termErr := s.spawner.Terminate(ctx, projectID, ref.SessionID)
-		if termErr == nil && !freed {
+		termRes, termErr := s.spawner.Terminate(ctx, projectID, ref.SessionID)
+		if termErr == nil && !termRes.ProviderStopped {
 			termErr = fmt.Errorf("%w: adapter could not prove the session stopped", ports.ErrProviderStopUnproven)
 		}
 		if termErr != nil {
@@ -452,7 +460,7 @@ func (s *Service) CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID,
 			}
 			return AttemptView{}, refused
 		}
-		providerStopped = true
+		termination = termRes
 	}
 	rows, err := s.store.TransitionAttemptStatus(ctx, outcomeID, attemptID, attempt.Status, domain.AttemptCancelled, s.clock())
 	if err != nil {
@@ -461,7 +469,11 @@ func (s *Service) CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID,
 	if rows == 0 {
 		return AttemptView{}, apierr.Conflict("ATTEMPT_STATUS_MOVED", "The attempt changed state concurrently; reload and retry", nil)
 	}
-	payload, _ := json.Marshal(map[string]any{"previousStatus": string(attempt.Status), "providerStopped": providerStopped})
+	payload, _ := json.Marshal(map[string]any{
+		"previousStatus":  string(attempt.Status),
+		"providerStopped": termination.ProviderStopped,
+		"workspaceFreed":  termination.WorkspaceFreed,
+	})
 	if _, err := s.store.AppendAttemptObservation(ctx, attemptID, domain.ObservationOwnerCancel, string(payload), s.clock()); err != nil {
 		return AttemptView{}, err
 	}

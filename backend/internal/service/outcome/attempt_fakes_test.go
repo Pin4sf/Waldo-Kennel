@@ -33,6 +33,11 @@ type attemptFakeStore struct {
 	// dropActivationOnce simulates losing the queued->running promotion race.
 	dropActivationOnce bool
 
+	// failBindOnce simulates losing the durable session-binding write AFTER a
+	// live spawn — the exact post-spawn failure the round-3 review required
+	// be injectable end to end.
+	failBindOnce bool
+
 	// renewals counts fence-lease refreshes the liveness loop performs.
 	renewals int
 }
@@ -199,6 +204,10 @@ func (f *attemptFakeStore) ListAttemptsByStatus(_ context.Context, status domain
 func (f *attemptFakeStore) BindAttemptSession(_ context.Context, ref domain.AttemptSessionRef) (domain.AttemptSessionRef, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.failBindOnce {
+		f.failBindOnce = false
+		return domain.AttemptSessionRef{}, errors.New("injected binding write failure")
+	}
 	ref.Seq = int64(len(f.refs[ref.AttemptID]) + 1)
 	ref.ID = domain.AttemptSessionRefID("asr-" + string(ref.AttemptID) + "-" + strconv.FormatInt(ref.Seq, 10))
 	f.refs[ref.AttemptID] = append(f.refs[ref.AttemptID], ref)
@@ -322,9 +331,14 @@ type fakeSpawner struct {
 	readinessErr error
 	spawnErr     error
 	terminateErr error
-	terminated   []string
-	spawned      []ports.AttemptSpawnRequest
-	sessionN     int
+	// terminateResult shapes the next successful Terminate answer; nil means
+	// a clean proven stop whose workspace was freed. Tests inject the
+	// dirty-preserved shape {ProviderStopped:true, WorkspaceFreed:false} to
+	// prove workspace preservation is not provider liveness.
+	terminateResult *ports.TerminationResult
+	terminated      []string
+	spawned         []ports.AttemptSpawnRequest
+	sessionN        int
 }
 
 func (f *fakeSpawner) ProfileReadiness(_ context.Context, _ domain.ProjectID, harness domain.AgentHarness) (ports.AgentProfileReadiness, error) {
@@ -356,19 +370,20 @@ func (f *fakeSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (d
 	return domain.Session{SessionRecord: rec}, nil
 }
 
-// Terminate records the request; failures are injectable per scenario. Tests
-// pair a successful Terminate with heartbeats.terminate(...) to mirror the
-// real flow, where Kill flips the durable is_terminated fact.
-// Terminate mirrors the real adapter's honesty: a session the heartbeats
-// table no longer knows is an UNKNOWN outcome (freed=false), not a stop.
-func (f *fakeSpawner) Terminate(_ context.Context, _ domain.ProjectID, sessionID string) (bool, error) {
+// Terminate records the request; failures AND result shapes are injectable
+// per scenario. Tests pair a successful Terminate with heartbeats.terminate(...)
+// to mirror the real flow, where Kill writes the durable is_terminated fact.
+func (f *fakeSpawner) Terminate(_ context.Context, _ domain.ProjectID, sessionID string) (ports.TerminationResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.terminateErr != nil {
-		return false, f.terminateErr
+		return ports.TerminationResult{}, f.terminateErr
 	}
 	f.terminated = append(f.terminated, sessionID)
-	return true, nil
+	if f.terminateResult != nil {
+		return *f.terminateResult, nil
+	}
+	return ports.TerminationResult{ProviderStopped: true, WorkspaceFreed: true}, nil
 }
 
 func (f *fakeSpawner) spawnCalls() int {
@@ -387,6 +402,13 @@ func (f *fakeSpawner) failNextTerminate(err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.terminateErr = err
+}
+
+// setTerminateResult injects the two-fact answer a successful stop reports.
+func (f *fakeSpawner) setTerminateResult(res ports.TerminationResult) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.terminateResult = &res
 }
 
 // fakeHeartbeats stands in for the sessions table: tests mutate it to model
@@ -421,6 +443,16 @@ func (f *fakeHeartbeats) terminate(id domain.SessionID) {
 	defer f.mu.Unlock()
 	rec := f.sessions[id]
 	rec.IsTerminated = true
+	f.sessions[id] = rec
+}
+
+// backdate ages the session's durable activity WITHOUT terminating it — the
+// stale-heartbeat shape the lease gate must refuse to renew.
+func (f *fakeHeartbeats) backdate(id domain.SessionID, age time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	rec := f.sessions[id]
+	rec.Activity = domain.Activity{State: domain.ActivityActive, LastActivityAt: time.Now().Add(-age)}
 	f.sessions[id] = rec
 }
 

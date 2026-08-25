@@ -214,8 +214,8 @@ type controllerSpawner struct{}
 func (controllerSpawner) ProfileReadiness(context.Context, domain.ProjectID, domain.AgentHarness) (ports.AgentProfileReadiness, error) {
 	return ports.AgentProfileReadiness{Ready: true, Detail: "test profile ok"}, nil
 }
-func (controllerSpawner) Terminate(_ context.Context, _ domain.ProjectID, _ string) (bool, error) {
-	return true, nil
+func (controllerSpawner) Terminate(_ context.Context, _ domain.ProjectID, _ string) (ports.TerminationResult, error) {
+	return ports.TerminationResult{ProviderStopped: true, WorkspaceFreed: true}, nil
 }
 
 func (controllerSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (domain.Session, error) {
@@ -352,5 +352,14 @@ func TestAttemptRoutesFunctionalThroughRealStore(t *testing.T) {
 		fmt.Sprintf(`{"planRevisionId":%q,"requestKey":"rk-replacement"}`, planEnvelope.Plan.ID))
 	if repStatus != http.StatusCreated || !strings.Contains(string(repBytes), `"number":2`) {
 		t.Fatalf("replacement = %d: %s", repStatus, repBytes)
+	}
+
+	// The public resume verb is GONE: a label-only paused->running flip lies
+	// about provider control, so the route must answer 400, never mutate.
+	resumeBytes, resumeStatus, _ := doRequest(t, srv,
+		http.MethodPost,
+		"/api/v1/outcomes/"+id+"/attempts/"+attemptEnvelope.Attempt.ID+"/recovery", `{"action":"resume"}`)
+	if resumeStatus != http.StatusBadRequest || !strings.Contains(string(resumeBytes), "RECOVERY_ACTION_INVALID") {
+		t.Fatalf("removed resume verb = %d want 400 RECOVERY_ACTION_INVALID: %s", resumeStatus, resumeBytes)
 	}
 }

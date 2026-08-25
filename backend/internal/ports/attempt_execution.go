@@ -39,13 +39,31 @@ type AttemptSessionSpawner interface {
 	Spawn(ctx context.Context, req AttemptSpawnRequest) (domain.Session, error)
 
 	// Terminate stops a bound provider session through the same authority
-	// that spawned it. It reports whether the session was actually freed:
-	// freed=false means the runtime outcome is UNKNOWN (e.g. the durable
-	// session row is absent) and callers MUST treat the stop as unproven.
-	Terminate(ctx context.Context, projectID domain.ProjectID, sessionID string) (freed bool, err error)
+	// that spawned it. It returns TWO independent facts: ProviderStopped is
+	// proven from the durable session record after teardown, and
+	// WorkspaceFreed only mirrors whether the workspace could be reclaimed.
+	// A preserved dirty worktree does NOT make the stop unproven; an absent
+	// or un-terminated durable record DOES — return ErrProviderStopUnproven
+	// in that case and callers MUST treat custody as held.
+	Terminate(ctx context.Context, projectID domain.ProjectID, sessionID string) (TerminationResult, error)
+}
+
+// TerminationResult separates the two facts one stop produces. They are
+// deliberately distinct: "the provider is no longer running" and "the
+// workspace was reclaimed" fail independently (a dirty worktree is preserved
+// while its provider is durably terminated), and conflating them either
+// fakes a live provider or hides kept evidence.
+type TerminationResult struct {
+	// ProviderStopped reports that the provider runtime is durably stopped,
+	// derived from the durable session record — never from a
+	// workspace-reclamation boolean.
+	ProviderStopped bool
+	// WorkspaceFreed reports whether the workspace was reclaimed. False means
+	// it was preserved for inspection; that says nothing about liveness.
+	WorkspaceFreed bool
 }
 
 // ErrProviderStopUnproven reports a terminate whose runtime outcome could not
-// be proven (missing session row, ambiguous kill). Custody law treats this as
-// NOT stopped.
+// be proven (missing session row, record without a termination fact,
+// ambiguous kill). Custody law treats this as NOT stopped.
 var ErrProviderStopUnproven = errors.New("provider stop could not be proven")

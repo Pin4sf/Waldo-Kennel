@@ -406,12 +406,6 @@ func TestContainReconcileReplacementFlow(t *testing.T) {
 		t.Fatalf("last observation = %s, want contained", lastObs.Kind)
 	}
 
-	// Resuming without proof of life refuses closed.
-	_, err = svc.RecoverAttempt(ctx, outcomeID, first.Attempt.ID, outcome.RecoveryInput{Action: outcome.RecoveryActionResume})
-	if code := requireAPICode(t, err); code != outcome.CodeAttemptLivenessUnproven {
-		t.Fatalf("resume code = %s, want ATTEMPT_LIVENESS_UNPROVEN", code)
-	}
-
 	// Reconcile cannot prove liveness OR provider stop: custody stays held
 	// and the refusal escalates as needs_attention (anti-duplicate-writer).
 	_, err = svc.RecoverAttempt(ctx, outcomeID, first.Attempt.ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReconcile})
@@ -565,12 +559,6 @@ func TestCancelOwnerControls(t *testing.T) {
 	}
 	if cancelled.Attempt.Status != domain.AttemptCancelled {
 		t.Fatalf("status = %s, want cancelled", cancelled.Attempt.Status)
-	}
-	// Terminal states accept nothing further via recovery resume verb.
-	if _, err := svc.RecoverAttempt(ctx, outcomeID, view.Attempt.ID, outcome.RecoveryInput{
-		Action: outcome.RecoveryActionResume, ConfirmProviderStopped: true,
-	}); err == nil {
-		t.Fatal("resume verb on a cancelled attempt must refuse")
 	}
 }
 
@@ -764,27 +752,28 @@ func TestActivationUnknownKeepsLiveProviderUnconfirmed(t *testing.T) {
 	svc := outcome.NewWithExecution(store, nil, spawner, heartbeats)
 
 	ctx := context.Background()
-	view, err := svc.Create(ctx, validCreateInput())
+	outcomeView, err := svc.Create(ctx, validCreateInput())
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	planView, err := svc.ProposePlan(ctx, view.Outcome.ID, 1)
+	outcomeID := outcomeView.Outcome.ID
+	planView, err := svc.ProposePlan(ctx, outcomeID, 1)
 	if err != nil {
 		t.Fatalf("propose: %v", err)
 	}
-	if _, err := svc.ApprovePlan(ctx, view.Outcome.ID, outcome.ApprovePlanInput{PlanRevisionID: planView.Plan.ID}); err != nil {
+	if _, err := svc.ApprovePlan(ctx, outcomeID, outcome.ApprovePlanInput{PlanRevisionID: planView.Plan.ID}); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
 
-	_, startErr := svc.StartAttempt(ctx, view.Outcome.ID, startInput(planView.Plan.ID))
+	_, startErr := svc.StartAttempt(ctx, outcomeID, startInput(planView.Plan.ID))
 	if code := requireAPICode(t, startErr); code != outcome.CodeAttemptActivationUnresolved {
 		t.Fatalf("code = %s, want ATTEMPT_ACTIVATION_UNRESOLVED", code)
 	}
-	attempts, _ := storeList(t, svc, view.Outcome.ID)
+	attempts, _ := storeList(t, svc, outcomeID)
 	if len(attempts) != 1 || attempts[0].Status != domain.AttemptQueued {
 		t.Fatalf("attempt = %+v, want queued (live provider must not be failed)", attempts)
 	}
-	got, err := svc.GetAttempt(ctx, view.Outcome.ID, attempts[0].ID)
+	got, err := svc.GetAttempt(ctx, outcomeID, attempts[0].ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -921,4 +910,201 @@ func storeOpenFence(t *testing.T, svc *outcome.Service, outcomeID domain.Outcome
 		}
 	}
 	return outcome.AttemptView{}, false
+}
+
+// TestBindFailureKeepsCustodyUntilOwnerContainment injects the EXACT
+// round-3 P1 regression: a live spawn whose durable binding write fails. The
+// sequence must be ambiguity -> refused reconcile (no proof) -> recorded
+// owner containment -> released fence -> replacement attempt on a NEW row.
+func TestBindFailureKeepsCustodyUntilOwnerContainment(t *testing.T) {
+	store := newAttemptFakeStore()
+	store.failBindOnce = true
+	spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true}}
+	svc := outcome.NewWithExecution(store, nil, spawner, newFakeHeartbeats())
+
+	ctx := context.Background()
+	outcomeView, err := svc.Create(ctx, validCreateInput())
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	outcomeID := outcomeView.Outcome.ID
+	planView, err := svc.ProposePlan(ctx, outcomeID, 1)
+	if err != nil {
+		t.Fatalf("propose: %v", err)
+	}
+	if _, err := svc.ApprovePlan(ctx, outcomeID, outcome.ApprovePlanInput{PlanRevisionID: planView.Plan.ID}); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+
+	// Spawn succeeds, the bind write fails: activation ambiguity, never
+	// failed and never a raw 500.
+	_, startErr := svc.StartAttempt(ctx, outcomeID, startInput(planView.Plan.ID))
+	if code := requireAPICode(t, startErr); code != outcome.CodeAttemptActivationUnresolved {
+		t.Fatalf("code = %s, want ATTEMPT_ACTIVATION_UNRESOLVED", code)
+	}
+	attempts, _ := storeList(t, svc, outcomeID)
+	if len(attempts) != 1 || attempts[0].Status != domain.AttemptQueued {
+		t.Fatalf("attempts = %+v, want exactly one queued row", attempts)
+	}
+	bound, err := svc.GetAttempt(ctx, outcomeID, attempts[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bound.Presentation.Unconfirmed || bound.Presentation.Phase != domain.AttemptPhaseUnconfirmed {
+		t.Fatalf("presentation = %+v, want unconfirmed", bound.Presentation)
+	}
+	lastObs := bound.Observations[len(bound.Observations)-1]
+	if lastObs.Kind != domain.ObservationActivationAmbiguous {
+		t.Fatalf("observation = %s, want activation_ambiguous", lastObs.Kind)
+	}
+	if len(bound.Receipts) != 1 || bound.Receipts[0].Resolution != domain.RecoveryNeedsAttention {
+		t.Fatalf("receipts = %+v, want needs_attention", bound.Receipts)
+	}
+	if bound.Fence == nil || !bound.Fence.Open() {
+		t.Fatal("custody must stay held across the bind failure")
+	}
+
+	// Reconcile WITHOUT proof refuses closed: an unbound attempt can never
+	// obtain machine termination proof by itself.
+	if _, err := svc.RecoverAttempt(ctx, outcomeID, attempts[0].ID,
+		outcome.RecoveryInput{Action: outcome.RecoveryActionReconcile}); err == nil {
+		t.Fatal("unproven reconcile must refuse")
+	} else if code := requireAPICode(t, err); code != outcome.CodeAttemptCustodyUnproven {
+		t.Fatalf("code = %s, want ATTEMPT_CUSTODY_UNPROVEN", code)
+	}
+
+	// The owner asserts containment: recorded as its own observation, the
+	// fence releases, and the verdict is lost + replacement receipt.
+	released, err := svc.RecoverAttempt(ctx, outcomeID, attempts[0].ID, outcome.RecoveryInput{
+		Action: outcome.RecoveryActionReconcile, ConfirmProviderStopped: true,
+	})
+	if err != nil {
+		t.Fatalf("owner-contained reconcile: %v", err)
+	}
+	if released.Attempt.Attempt.Status != domain.AttemptLost || released.Attempt.Fence != nil {
+		t.Fatalf("verdict = %+v fence=%+v, want lost with custody released", released.Attempt.Attempt, released.Attempt.Fence)
+	}
+	if released.Receipt == nil || released.Receipt.Resolution != domain.RecoveryReplacement {
+		t.Fatalf("receipt = %+v, want replacement_attempt", released.Receipt)
+	}
+	containment := released.Attempt.Observations[len(released.Attempt.Observations)-1]
+	if containment.Kind != domain.ObservationOwnerContained {
+		t.Fatalf("last observation = %s, want owner_contained", containment.Kind)
+	}
+
+	// Replacement acquires the freed subject as a NEW attempt row.
+	replacement, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{
+		PlanRevisionID: planView.Plan.ID, RequestKey: "rk-after-bind-failure",
+	})
+	if err != nil {
+		t.Fatalf("replacement start: %v", err)
+	}
+	if replacement.Attempt.Number != 2 || replacement.Attempt.ID == attempts[0].ID {
+		t.Fatalf("replacement = %+v, want NEW attempt #2", replacement.Attempt)
+	}
+	if replacement.Fence == nil || !replacement.Fence.Open() {
+		t.Fatal("replacement must hold fresh custody")
+	}
+	if spawner.spawnCalls() != 2 {
+		t.Fatalf("spawn calls = %d, want one per attempt", spawner.spawnCalls())
+	}
+}
+
+// TestCancelRecordsPreservedWorkspace pins the two-fact stop contract: a
+// dirty worktree preserved during Kill does NOT make the provider look live —
+// cancellation proceeds on ProviderStopped and RECORDS WorkspaceFreed=false.
+func TestCancelRecordsPreservedWorkspace(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	ctx := context.Background()
+	first, err := svc.StartAttempt(ctx, outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	heartbeats.signal(domain.SessionID(first.Sessions[0].SessionID))
+
+	// Dirty preserved worktree: provider durably terminated, workspace kept.
+	spawner.setTerminateResult(ports.TerminationResult{ProviderStopped: true, WorkspaceFreed: false})
+	cancelled, err := svc.CancelAttempt(ctx, outcomeID, first.Attempt.ID)
+	if err != nil {
+		t.Fatalf("cancel with preserved dirty workspace must proceed once the provider stop is proven: %v", err)
+	}
+	if cancelled.Attempt.Status != domain.AttemptCancelled {
+		t.Fatalf("status = %s, want cancelled", cancelled.Attempt.Status)
+	}
+	lastObs := cancelled.Observations[len(cancelled.Observations)-1]
+	if lastObs.Kind != domain.ObservationOwnerCancel {
+		t.Fatalf("observation = %s, want owner_cancelled", lastObs.Kind)
+	}
+	for _, want := range []string{`"providerStopped":true`, `"workspaceFreed":false`} {
+		if !strings.Contains(lastObs.Payload, want) {
+			t.Fatalf("observation payload %s missing %s", lastObs.Payload, want)
+		}
+	}
+}
+
+// TestLeaseRenewalGatesOnProvableLiveness pins the health-gated lease: only
+// PROVABLY alive custodians refresh last_renewed_at; stale, sticky-exempt
+// waiting, and vanished sessions each get exactly the treatment their
+// evidence supports.
+func TestLeaseRenewalGatesOnProvableLiveness(t *testing.T) {
+	svc, store, _, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	ctx := context.Background()
+	first, err := svc.StartAttempt(ctx, outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	sessionID := domain.SessionID(first.Sessions[0].SessionID)
+	heartbeats.signal(sessionID)
+
+	// Provably alive custody RENEWS.
+	if err := svc.EvaluateAttemptLiveness(ctx); err != nil {
+		t.Fatalf("liveness pass 1: %v", err)
+	}
+	renewed, open := storeOpenFence(t, svc, outcomeID)
+	if !open {
+		t.Fatal("expected open fence")
+	}
+	if renewed.Fence.LastRenewedAt.IsZero() || !renewed.Fence.LastRenewedAt.After(renewed.Fence.IssuedAt) {
+		t.Fatalf("alive custodian must renew: issued=%v renewed=%v", renewed.Fence.IssuedAt, renewed.Fence.LastRenewedAt)
+	}
+	stamp := renewed.Fence.LastRenewedAt
+
+	// Stale non-sticky custody keeps its OLD stamp: staleness derives
+	// UNCONFIRMED and never refreshes the lease.
+	heartbeats.backdate(sessionID, 2*domain.DefaultStaleHeartbeatWindow)
+	if err := svc.EvaluateAttemptLiveness(ctx); err != nil {
+		t.Fatalf("liveness pass 2: %v", err)
+	}
+	stale, _ := storeOpenFence(t, svc, outcomeID)
+	if !stale.Fence.LastRenewedAt.Equal(stamp) {
+		t.Fatalf("stale custodian must NOT renew: %v -> %v", stamp, stale.Fence.LastRenewedAt)
+	}
+
+	// Sticky waiting_input IS exempt from staleness: waiting on its user is
+	// provably-alive attention, so the lease refreshes again.
+	heartbeats.mu.Lock()
+	rec := heartbeats.sessions[sessionID]
+	rec.Activity = domain.Activity{State: domain.ActivityWaitingInput, LastActivityAt: time.Now().Add(-time.Hour)}
+	heartbeats.sessions[sessionID] = rec
+	heartbeats.mu.Unlock()
+	if err := svc.EvaluateAttemptLiveness(ctx); err != nil {
+		t.Fatalf("liveness pass 3: %v", err)
+	}
+	waiting, _ := storeOpenFence(t, svc, outcomeID)
+	if waiting.Fence.LastRenewedAt.Before(stamp) {
+		t.Fatalf("sticky waiting_input must renew: %v -> %v", stamp, waiting.Fence.LastRenewedAt)
+	}
+
+	// A session that VANISHED keeps the old stamp too: absence is unknown.
+	heartbeats.forget(sessionID)
+	if err := svc.EvaluateAttemptLiveness(ctx); err != nil {
+		t.Fatalf("liveness pass 4: %v", err)
+	}
+	gone, _ := storeOpenFence(t, svc, outcomeID)
+	if gone.Fence.LastRenewedAt.Before(waiting.Fence.LastRenewedAt) {
+		t.Fatal("vanished session must not rewind or renew the lease")
+	}
+	if store.renewals < 2 {
+		t.Fatalf("renewal count = %d, want >=2 (alive + sticky passes)", store.renewals)
+	}
 }
