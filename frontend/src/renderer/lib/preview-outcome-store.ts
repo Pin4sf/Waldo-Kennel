@@ -10,6 +10,7 @@ const outcomes = new Map<string, OutcomeRecord>();
 const projectOutcomeIds = new Map<string, string[]>();
 const requestOutcomes = new Map<string, string>();
 const plans = new Map<string, PlanRecord>();
+const planNumbers = new Map<string, number>();
 let sequence = 0;
 
 function previewError(code: string, message: string): never {
@@ -46,6 +47,7 @@ export function resetPreviewOutcomeStore(): void {
 	projectOutcomeIds.clear();
 	requestOutcomes.clear();
 	plans.clear();
+	planNumbers.clear();
 	sequence = 0;
 }
 
@@ -117,10 +119,11 @@ export function proposePreviewPlan(outcomeId: string, expectedContractRevision: 
 	const existing = plans.get(outcomeId);
 	if (existing?.contractRevisionNumber === expectedContractRevision) return existing;
 
+	const planNumber = (planNumbers.get(outcomeId) ?? 0) + 1;
 	const plan: PlanRecord = {
 		id: nextId("plan"),
 		outcomeId,
-		number: 1,
+		number: planNumber,
 		contractRevisionNumber: expectedContractRevision,
 		status: "proposed",
 		summary: "One bounded Work Unit prepared from the confirmed Outcome contract.",
@@ -148,6 +151,7 @@ export function proposePreviewPlan(outcomeId: string, expectedContractRevision: 
 		createdAt: new Date().toISOString(),
 	};
 	plans.set(outcomeId, plan);
+	planNumbers.set(outcomeId, planNumber);
 	outcomes.set(outcomeId, { ...outcome, latestPlan: plan, updatedAt: new Date().toISOString() });
 	return plan;
 }

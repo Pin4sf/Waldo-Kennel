@@ -57,6 +57,9 @@ describe("preview outcome lifecycle", () => {
 
 		expect(revised.latestPlan).toBeUndefined();
 		expect(getPreviewPlan(outcome.id)).toBeUndefined();
-		expect(proposePreviewPlan(outcome.id, 2).contractRevisionNumber).toBe(2);
+		expect(proposePreviewPlan(outcome.id, 2)).toMatchObject({
+			contractRevisionNumber: 2,
+			number: 2,
+		});
 	});
 });
