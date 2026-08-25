@@ -35,9 +35,9 @@ type APIDeps struct {
 	Outcomes           controllers.OutcomeService
 	// Attempts is nil until Act & Observe execution is wired; the attempt
 	// routes then answer 501, matching every other optional surface.
-	Attempts          controllers.AttemptManager
-	Push              controllers.PushRegistry
-	ShellTerminals     controllers.ShellTerminalService
+	Attempts       controllers.AttemptManager
+	Push           controllers.PushRegistry
+	ShellTerminals controllers.ShellTerminalService
 	// Conversations is nil until a Chat driver is wired; the controller then
 	// answers 501 rather than panicking, matching the other optional surfaces.
 	Conversations controllers.ConversationService
