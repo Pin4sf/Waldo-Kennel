@@ -279,6 +279,25 @@ Draft -> Contracted -> Active -> Ready for Acceptance -> Accepted
 
 `Completed` is not an Outcome state. Acceptance requires the user's immutable decision.
 
+### Work control-plane composition
+
+The approved [Work control-plane design](../superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md) fixes the user-facing hierarchy without changing the canonical lineage:
+
+```text
+Project Board or List
+  -> Outcome Mission Control
+    -> Work Unit / Attempt
+      -> individual Agent Session Inspector
+```
+
+Board/List cards represent Outcomes and summarize current attention, Work Units, Attempts, provider sessions, and proof. The separate Sessions view is an operational cross-Outcome projection. An Outcome is never called or modeled as a session.
+
+Work exposes one persistent Waldo conversation scoped to the selected Project. Selecting an Outcome adds an explicit context chip and starts bounded conversation/intake episodes; it does not create another Waldo identity or let chat become canonical responsibility. Direct provider chat remains subordinate to an Attempt in Session Inspector. Personal/general conversation belongs in Home and crosses scope only through explicit user-approved context or `ResponsibilityLink` lineage.
+
+Project creation records a ready **Default coding agent** preference, not a permanent LLM process. Kennel's daemon is the always-running control plane. Analyzer, planner, coordinator, executor, integrator, verifier, and recovery are capability-based roles filled by bounded Attempts. Small and medium Outcomes may use separate sessions on one harness; complex Outcomes may use several admitted harnesses when justified and authorized.
+
+Provider context continuity is mechanical only while Project, Outcome, revisions, Work Unit, provider/model/profile, role, authority, budget, worktree, and effect policy remain unchanged and the old session can be fenced. Context pressure, stale material digests, lost identity, non-resumability, role-independence boundaries, source revocation, or failed compaction may trigger a provenance-bearing replacement packet. Material provider, model, role, cost, authority, workspace, or unknown-effect changes require a user decision. Ambiguous replacement is `unconfirmed` and reconciles before retry.
+
 ### Open Loop
 
 ```text

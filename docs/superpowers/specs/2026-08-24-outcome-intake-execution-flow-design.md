@@ -5,6 +5,8 @@
 - **Scope:** Codex-first Work flow from natural-language intent through contextual contract, orchestration proposal, authorization, and linked session execution
 - **Implementation status:** Not shipped; this document does not authorize merge, push, release, or deployment
 
+The approved [Work control plane and canonical user flow](2026-08-25-work-control-plane-canonical-flow-design.md) is the integration authority for board-first navigation, persistent Project conversation, stable-core adaptive Contracts, capability-based Project defaults and Mission roles, bounded session continuation, Mission Control, Session Inspector, and governed Project learning. This document remains the narrower first executable natural-language intake slice.
+
 ## 1. Decision
 
 Kennel will implement one complete Work flow:
@@ -18,7 +20,7 @@ Natural-language intent
   -> session execution
 ```
 
-The first implementation executes through Codex. Its durable contracts remain provider-neutral and collection-shaped so a later separately reviewed change can add multiple agents, multiple Work Units, dependency topology, Claude Code, DeepSeek, and other admitted providers without replacing the Outcome lineage.
+The first implementation may execute through the Project's admitted default harness, with Codex remaining the recommended ready-by-default path. Its durable contracts remain provider-neutral and collection-shaped so later separately reviewed changes can add multiple agents, multiple Work Units, dependency topology, Claude Code, DeepSeek, and other admitted providers without replacing the Outcome lineage. The actual role/provider assignment is shown in the Mission proposal and never silently falls back.
 
 “Keep it simple” applies to the first analyzers and orchestration policy. It does not remove a stage, merge authorization into inference, or return to a session-first task composer.
 
