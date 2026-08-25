@@ -645,6 +645,7 @@ function ProjectItem({
 	const [isSpawning, setIsSpawning] = useState(false);
 	const [projectPressed, setProjectPressed] = useState(false);
 	const [rowHovered, setRowHovered] = useState(false);
+	const [rowFocused, setRowFocused] = useState(false);
 	const [showAllSessions, setShowAllSessions] = useState(false);
 	// Skip enter animation on first mount — sessions arrive async and we don't
 	// want them to slide in on every sidebar load. Only animate on subsequent
@@ -721,6 +722,9 @@ function ProjectItem({
 			search: { project: workspace.id, stage: "decide_authorize", outcome: outcome.id },
 		});
 	};
+	const openNewOutcome = () => {
+		void navigate({ to: "/work", search: { project: workspace.id } });
+	};
 
 	// Folder icon always toggles disclosure, even when another project is
 	// selected — without this, collapsing a non-active project required a
@@ -763,6 +767,10 @@ function ProjectItem({
 		<ContextMenuTrigger asChild>
 		<SidebarMenuItem
 			className="group-data-[collapsible=icon]:mb-0"
+			onBlurCapture={(event) => {
+				if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setRowFocused(false);
+			}}
+			onFocusCapture={() => setRowFocused(true)}
 			onMouseEnter={() => setRowHovered(true)}
 			onMouseLeave={() => setRowHovered(false)}
 		>
@@ -860,15 +868,35 @@ function ProjectItem({
 		aria-label={t("shell.toggleProject", { name: workspace.name })}
 		aria-expanded={expanded}
 		className={cn(
-			"absolute inset-y-0 z-10 w-9 group-data-[collapsible=icon]:hidden focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm",
-			figmaBoard ? "right-0" : "left-0",
+			"absolute inset-y-0 z-10 group-data-[collapsible=icon]:hidden focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm",
+			figmaBoard ? "right-0 w-6" : "left-0 w-9",
 		)}
 		data-project-folder=""
 		onClick={onFolderClick}
 		type="button"
 	/>
+		{figmaBoard ? (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						aria-label={t("outcome.dashboard.newOutcome")}
+						className="figma-board-sidebar__project-new-outcome"
+						disabled={isProjectRestarting}
+						onClick={(event) => {
+							event.stopPropagation();
+							openNewOutcome();
+						}}
+						onPointerDown={(event) => event.stopPropagation()}
+						type="button"
+					>
+						<Plus aria-hidden="true" />
+					</button>
+				</TooltipTrigger>
+				<TooltipContent>{t("outcome.dashboard.newOutcome")}</TooltipContent>
+			</Tooltip>
+		) : null}
 		</div>
-		{/* Per-project actions: orchestrator and kebab menu. Inside the scaled visual
+		{/* Per-project actions: new Outcome, orchestrator, and kebab menu. Inside the scaled visual
 		row, but outside its navigation surface so their own presses stay independent.
 		Always visible (not hover-gated) to avoid CSS :hover group propagation in Chromium. */}
 		{figmaBoard ? null : (
@@ -881,6 +909,24 @@ function ProjectItem({
 			onClick={(event) => event.stopPropagation()}
 			onPointerDown={(event) => event.stopPropagation()}
 		>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						aria-label={t("outcome.dashboard.newOutcome")}
+						className={cn(
+							HOVER_ACTION_CLASS,
+							"pointer-events-none opacity-0 transition-opacity",
+							(rowHovered || rowFocused) && "pointer-events-auto opacity-100",
+						)}
+						disabled={isProjectRestarting}
+						onClick={openNewOutcome}
+						type="button"
+					>
+						<Plus aria-hidden="true" />
+					</button>
+				</TooltipTrigger>
+				<TooltipContent>{t("outcome.dashboard.newOutcome")}</TooltipContent>
+			</Tooltip>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<button

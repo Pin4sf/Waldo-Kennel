@@ -1794,6 +1794,7 @@
 	"outcome.understand.removeNonGoal": "Remove non-goal",
 	"outcome.understand.offlineBody": "Nothing was saved. Check that the daemon is running, then retry.",
 	"outcome.dashboard.heading": "Outcomes",
+	"outcome.dashboard.newOutcome": "New Outcome",
 	"outcome.dashboard.continueAria": "Continue {{title}}",
 	"outcome.dashboard.contractRevision": "Contract revision {{revision}}",
 	"outcome.dashboard.loadFailed": "Kennel could not load this project's Outcomes.",

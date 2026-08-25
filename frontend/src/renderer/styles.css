@@ -1060,11 +1060,12 @@
 }
 
 .figma-board-sidebar__project-row {
+	position: relative;
 	height: 28px;
 	gap: 6px;
 	border: 0;
 	border-radius: 6px;
-	padding: 0 7px;
+	padding: 0 50px 0 7px;
 	color: #8f8f8c;
 	font-size: 14px;
 	font-weight: 400;
@@ -1094,10 +1095,54 @@
 }
 
 .figma-board-sidebar__project-chevron {
+	position: absolute;
+	right: 7px;
 	width: 12px !important;
 	height: 12px !important;
 	flex: 0 0 auto;
 	transition: transform 140ms ease-out;
+}
+
+.figma-board-sidebar__project-new-outcome {
+	position: absolute;
+	top: 4px;
+	right: 26px;
+	z-index: 20;
+	display: grid;
+	width: 20px;
+	height: 20px;
+	place-items: center;
+	border-radius: 4px;
+	color: #8f8f8c;
+	opacity: 0;
+	pointer-events: none;
+	transition:
+		background-color 120ms ease-out,
+		color 120ms ease-out,
+		opacity 120ms ease-out;
+}
+
+[data-project-press]:hover .figma-board-sidebar__project-new-outcome,
+[data-project-press]:focus-within .figma-board-sidebar__project-new-outcome {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.figma-board-sidebar__project-new-outcome:hover,
+.figma-board-sidebar__project-new-outcome:focus-visible {
+	background: #333330;
+	color: #d8d8d4;
+}
+
+.figma-board-sidebar__project-new-outcome:focus-visible {
+	outline: 1px solid var(--ring);
+	outline-offset: 1px;
+}
+
+.figma-board-sidebar__project-new-outcome svg {
+	width: 12px;
+	height: 12px;
+	stroke-width: 1.5;
 }
 
 .figma-board-sidebar__sessions {

@@ -1812,6 +1812,7 @@
 	"waldo.rail.specialist.previewAction": "Preview specialist",
 	"waldo.rail.specialist.builderBoundary": "This profile is local UI state. No provider, tool, credential, budget, or durable record is connected.",
 	"outcome.dashboard.heading": "Ergebnisse",
+	"outcome.dashboard.newOutcome": "Neues Outcome",
 	"outcome.dashboard.continueAria": "{{title}} fortsetzen",
 	"outcome.dashboard.contractRevision": "Vertragsrevision {{revision}}",
 	"outcome.dashboard.loadFailed": "Kennel konnte die Ergebnisse dieses Projekts nicht laden.",

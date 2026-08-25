@@ -1812,6 +1812,7 @@
 	"waldo.rail.specialist.previewAction": "Preview specialist",
 	"waldo.rail.specialist.builderBoundary": "This profile is local UI state. No provider, tool, credential, budget, or durable record is connected.",
 	"outcome.dashboard.heading": "成果",
+	"outcome.dashboard.newOutcome": "新しいOutcome",
 	"outcome.dashboard.continueAria": "{{title}} を続ける",
 	"outcome.dashboard.contractRevision": "契約リビジョン {{revision}}",
 	"outcome.dashboard.loadFailed": "このプロジェクトの成果を読み込めませんでした。",

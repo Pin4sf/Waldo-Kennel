@@ -18,6 +18,7 @@ import {
 	SIDEBAR_DEFAULT_WIDTH,
 	SIDEBAR_MIN_WIDTH,
 } from "./Sidebar";
+import { TooltipProvider } from "./ui/tooltip";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { agentsQueryKey } from "../hooks/useAgentsQuery";
 import { useUiStore } from "../stores/ui-store";
@@ -181,15 +182,17 @@ function renderSidebar({
 	}
 	render(
 		<QueryClientProvider client={queryClient}>
-			<SidebarProvider defaultOpen={initialOpen}>
-				<Sidebar
-					figmaBoard={figmaBoard}
-					onCreateProject={onCreateProject}
-					onInitializeProject={onInitializeProject}
-					onRemoveProject={onRemoveProject}
-					workspaces={workspaces}
-				/>
-			</SidebarProvider>
+			<TooltipProvider delayDuration={0}>
+				<SidebarProvider defaultOpen={initialOpen}>
+					<Sidebar
+						figmaBoard={figmaBoard}
+						onCreateProject={onCreateProject}
+						onInitializeProject={onInitializeProject}
+						onRemoveProject={onRemoveProject}
+						workspaces={workspaces}
+					/>
+				</SidebarProvider>
+			</TooltipProvider>
 		</QueryClientProvider>,
 	);
 	return onRemoveProject;
@@ -535,6 +538,50 @@ describe("Sidebar", () => {
 		expect(screen.queryByLabelText("Open Project One dashboard")).not.toBeInTheDocument();
 		expect(screen.getByLabelText("Spawn Project One orchestrator")).toBeInTheDocument();
 		expect(screen.getByLabelText("Project actions for Project One")).toBeInTheDocument();
+	});
+
+	it("opens project-scoped Outcome intake from the keyboard-accessible project action", async () => {
+		const user = userEvent.setup();
+		renderSidebar({ figmaBoard: true });
+
+		const newOutcome = screen.getByRole("button", { name: "New Outcome" });
+		act(() => newOutcome.focus());
+		expect(newOutcome).toHaveFocus();
+		await user.keyboard("{Enter}");
+
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/work", search: { project: "proj-1" } });
+	});
+
+	it("reveals project-scoped New Outcome on row hover with its specified tooltip", async () => {
+		const user = userEvent.setup();
+		renderSidebar();
+
+		const projectRow = screen.getByText("Project One").closest<HTMLElement>('button, [role="button"]');
+		const newOutcome = screen.getByRole("button", { name: "New Outcome" });
+		if (!projectRow) throw new Error("Project row button not found");
+
+		expect(newOutcome).toHaveClass("pointer-events-none", "opacity-0");
+		await user.hover(projectRow);
+		expect(newOutcome).toHaveClass("pointer-events-auto", "opacity-100");
+		fireEvent.pointerMove(newOutcome, { pointerType: "mouse" });
+		expect(await screen.findByRole("tooltip", { name: "New Outcome" })).toBeInTheDocument();
+	});
+
+	it("reveals standard-sidebar New Outcome on keyboard focus and activates it", async () => {
+		const user = userEvent.setup();
+		renderSidebar();
+
+		const projectRow = screen.getByText("Project One").closest<HTMLElement>('button, [role="button"]');
+		const newOutcome = screen.getByRole("button", { name: "New Outcome" });
+		if (!projectRow) throw new Error("Project row button not found");
+
+		expect(newOutcome).toHaveClass("pointer-events-none", "opacity-0");
+		act(() => projectRow.focus());
+		expect(newOutcome).toHaveClass("pointer-events-auto", "opacity-100");
+		act(() => newOutcome.focus());
+		await user.keyboard("{Enter}");
+
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/work", search: { project: "proj-1" } });
 	});
 
 	it("toggles project sessions from the folder icon without selecting the project first", async () => {
@@ -1287,7 +1334,7 @@ describe("Sidebar", () => {
 		expect(screen.getByLabelText("Open fix login")).toBeInTheDocument();
 	});
 
-	it("always shows action icons and reserves padding for them", () => {
+	it("always shows all three action icons and reserves padding for them", () => {
 		renderSidebar();
 
 		const projectRow = screen.getByText("Project One").closest('button, [role="button"]');
@@ -1297,7 +1344,8 @@ describe("Sidebar", () => {
 		expect(projectRow).toHaveClass("pr-sidebar-project-actions");
 		expect(actionCluster).toHaveAttribute("data-project-actions");
 		expect(actionCluster).toHaveClass("right-0.5", "gap-px");
-		expect(within(actionCluster as HTMLElement).getAllByRole("button")).toHaveLength(2);
+		expect(within(actionCluster as HTMLElement).getAllByRole("button")).toHaveLength(3);
+		expect(screen.getByLabelText("New Outcome")).toHaveClass("opacity-0");
 		expect(screen.getByLabelText("Project actions for Project One")).not.toHaveClass("opacity-0");
 	});
 
