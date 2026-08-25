@@ -1611,3 +1611,58 @@ func TestManager_SetConfigRejectsInadmissibleRolePreference(t *testing.T) {
 	}})
 	wantCode(t, err, "INVALID_PROJECT_CONFIG")
 }
+
+func TestManager_ResolvedMissionRolesDelegatesToInventory(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlitetest.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	resolver := &stubRoleResolver{roles: domain.ResolvedMissionRoles{
+		Worker: domain.ResolvedAgentRole{Harness: domain.HarnessDeepSeekHarness, Source: domain.RoleSourcePreference,
+			Eligible: true, Ready: false, Reason: "profile readiness fails closed"},
+	}}
+	m := project.NewWithDeps(project.Deps{Store: store, Roles: resolver})
+	scratchPath := filepath.Join(t.TempDir(), "scratch", "default")
+	if _, err := m.EnsureDefaultScratchProject(ctx, scratchPath); err != nil {
+		t.Fatalf("EnsureDefaultScratchProject: %v", err)
+	}
+	if _, err := m.SetConfig(ctx, "scratch", project.SetConfigInput{Config: domain.ProjectConfig{
+		AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"},
+	}}); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	roles, err := m.ResolvedMissionRoles(ctx, "scratch")
+	if err != nil {
+		t.Fatalf("ResolvedMissionRoles: %v", err)
+	}
+	if !resolver.called {
+		t.Fatal("inventory resolver was not consulted")
+	}
+	if roles.Worker.Ready || !strings.Contains(strings.ToLower(roles.Worker.Reason), "profile") {
+		t.Fatalf("inventory truth not passed through: %+v", roles.Worker)
+	}
+
+	_, missErr := m.ResolvedMissionRoles(ctx, "missing")
+	if !wantCodeErr(missErr, "PROJECT_NOT_FOUND") {
+		t.Fatalf("unknown project must 404 with PROJECT_NOT_FOUND, got %v", missErr)
+	}
+}
+
+type stubRoleResolver struct {
+	roles  domain.ResolvedMissionRoles
+	called bool
+}
+
+func (s *stubRoleResolver) ResolveMissionRoles(domain.ProjectAgentPreferences) domain.ResolvedMissionRoles {
+	s.called = true
+	return s.roles
+}
+
+func wantCodeErr(err error, code string) bool {
+	var apiErr *apierr.Error
+	return errors.As(err, &apiErr) && apiErr.Code == code
+}
