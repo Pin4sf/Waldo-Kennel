@@ -75,6 +75,18 @@ func (s *Service) containAttempt(ctx context.Context, attempt domain.Attempt) (R
 
 // reconcileAttempt auto-verdicts from durable evidence.
 func (s *Service) reconcileAttempt(ctx context.Context, attempt domain.Attempt) (RecoveryView, error) {
+	switch attempt.Status {
+	case domain.AttemptFailed, domain.AttemptCancelled, domain.AttemptReconciled:
+		// Terminal by truthful record (admission crash / owner cancel /
+		// ended-unclassified): history is final and must NOT be rewritten to
+		// lost. Reconcile accounts for the predecessor and releases its
+		// custody so a replacement can acquire the subject.
+		return s.accountTerminalCustody(ctx, attempt)
+	case domain.AttemptSucceeded:
+		return RecoveryView{}, apierr.Conflict("ATTEMPT_ALREADY_ENDED",
+			fmt.Sprintf("Attempt already ended as %s", attempt.Status),
+			map[string]any{"status": string(attempt.Status)})
+	}
 	facts, err := s.heartbeatFacts(ctx, attempt.ID)
 	if err != nil {
 		return RecoveryView{}, err
@@ -93,6 +105,29 @@ func (s *Service) reconcileAttempt(ctx context.Context, attempt domain.Attempt) 
 		return RecoveryView{Attempt: view, Receipt: receipt}, nil
 	}
 	return s.forceLost(ctx, attempt, domain.RecoveryReplacement, "reconcile could not prove liveness")
+}
+
+// accountTerminalCustody releases the fence a TERMINAL predecessor still
+// holds (failed-before-spawn, owner-cancelled, ended-unclassified) without
+// mutating its immutable record, then stamps the replacement receipt. This is
+// the reconcile -> release(old) -> issue(new) path D4 guarantees; without it a
+// cancelled or failed attempt would hold worktree custody forever.
+func (s *Service) accountTerminalCustody(ctx context.Context, attempt domain.Attempt) (RecoveryView, error) {
+	if err := s.releaseCustody(ctx, attempt.ID, "reconciled_terminal_"+string(attempt.Status)); err != nil {
+		return RecoveryView{}, err
+	}
+	receipt, err := s.recordReceipt(ctx, attempt.ID, domain.RecoveryReplacement, map[string]any{
+		"evidence":       "terminal predecessor accounted for; custody handed to replacement",
+		"previousStatus": string(attempt.Status),
+	})
+	if err != nil {
+		return RecoveryView{}, err
+	}
+	view, err := s.GetAttempt(ctx, attempt.OutcomeID, attempt.ID)
+	if err != nil {
+		return RecoveryView{}, err
+	}
+	return RecoveryView{Attempt: view, Receipt: receipt}, nil
 }
 
 // recoveryResume proves liveness first, then returns the attempt to running.
@@ -152,14 +187,16 @@ func (s *Service) recoveryReplace(ctx context.Context, attempt domain.Attempt) (
 	switch attempt.Status {
 	case domain.AttemptQueued, domain.AttemptRunning, domain.AttemptPaused:
 		return s.forceLost(ctx, attempt, domain.RecoveryReplacement, "owner directed replacement")
-	case domain.AttemptLost:
+	case domain.AttemptLost, domain.AttemptFailed, domain.AttemptCancelled, domain.AttemptReconciled:
 		// Custody may already be released by reconcile; make sure it is, then
-		// stamp the replacement receipt idempotently.
+		// stamp the replacement receipt idempotently. Terminal records are
+		// never rewritten — only their custody moves.
 		if err := s.releaseCustody(ctx, attempt.ID, "replacement_attempt"); err != nil {
 			return RecoveryView{}, err
 		}
 		receipt, err := s.recordReceipt(ctx, attempt.ID, domain.RecoveryReplacement, map[string]any{
-			"evidence": "attempt already lost; custody handed to replacement",
+			"evidence":       "predecessor accounted for; custody handed to replacement",
+			"previousStatus": string(attempt.Status),
 		})
 		if err != nil {
 			return RecoveryView{}, err

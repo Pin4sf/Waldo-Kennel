@@ -164,3 +164,15 @@ type AttemptFenceHeldError struct {
 func (e *AttemptFenceHeldError) Error() string {
 	return fmt.Sprintf("worktree subject %s is fenced by attempt %s", e.Subject, e.Holder)
 }
+
+// AttemptReplayError reports that a start request key was already delivered:
+// the named attempt IS the canonical answer, so the caller must serve it and
+// MUST NOT spawn again. It mirrors OutcomeConflictError as an error carrying
+// its resolution.
+type AttemptReplayError struct {
+	Attempt domain.Attempt
+}
+
+func (e *AttemptReplayError) Error() string {
+	return fmt.Sprintf("attempt %s was already admitted for this request key", e.Attempt.ID)
+}

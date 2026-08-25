@@ -232,6 +232,12 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	now := s.clock()
 	attempt, err := s.store.CreateAttemptWithFence(ctx, outcomeID, plan, strings.TrimSpace(in.RequestKey), domain.FenceSubjectForProject(projectID), now)
 	if err != nil {
+		// A lost same-request-key race serves the WINNER's attempt and never
+		// spawns a second provider session.
+		var replay *ports.AttemptReplayError
+		if errors.As(err, &replay) {
+			return s.GetAttempt(ctx, replay.Attempt.OutcomeID, replay.Attempt.ID)
+		}
 		var held *ports.AttemptFenceHeldError
 		if errors.As(err, &held) {
 			return AttemptView{}, apierr.Conflict(CodeAttemptFenceHeld,
@@ -256,6 +262,13 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		DisplayName: fmt.Sprintf("%s · attempt %d", outcome.Title, attempt.Number),
 	})
 	if err != nil {
+		// An UNKNOWN spawn outcome (deadline/cancellation after the request
+		// was sent) is NOT a clean failure: the provider session may exist.
+		// The attempt stays queued and derives as unconfirmed until reconcile
+		// decides; the held fence already blocks duplicate admission.
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			return AttemptView{}, s.admitUnresolved(ctx, outcomeID, attempt.ID, err)
+		}
 		return AttemptView{}, s.admitFailed(ctx, outcomeID, attempt.ID, err)
 	}
 
@@ -320,6 +333,33 @@ func (s *Service) admitFailed(ctx context.Context, outcomeID domain.OutcomeID, a
 	return apierr.Conflict("ATTEMPT_ADMIT_FAILED",
 		"The provider session could not be started; the attempt is recorded as failed",
 		map[string]any{"attemptId": string(attemptID), "error": detail})
+}
+
+// admitUnresolved records the truthful aftermath of an UNKNOWN start: status
+// stays queued (never failed, never running), an admission_ambiguous
+// observation and a needs_attention receipt land, and the fence stays HELD so
+// no duplicate writer can start before reconcile decides.
+func (s *Service) admitUnresolved(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, cause error) error {
+	detail := ""
+	if cause != nil {
+		detail = cause.Error()
+	}
+	payload, _ := json.Marshal(map[string]any{"error": detail, "unresolved": true})
+	if _, err := s.store.AppendAttemptObservation(ctx, attemptID, domain.ObservationAdmissionAmbiguous, string(payload), s.clock()); err != nil {
+		return fmt.Errorf("record ambiguous admission for %s: %w", attemptID, err)
+	}
+	if err := s.store.CreateRecoveryReceipt(ctx, domain.AttemptRecoveryReceipt{
+		ID:         "rcpt-" + uuid.NewString(),
+		AttemptID:  attemptID,
+		Resolution: domain.RecoveryNeedsAttention,
+		Detail:     string(payload),
+		CreatedAt:  s.clock(),
+	}); err != nil {
+		return fmt.Errorf("record ambiguous admission receipt for %s: %w", attemptID, err)
+	}
+	return apierr.Conflict("ATTEMPT_START_UNRESOLVED",
+		"The start outcome is unknown — the attempt stays unconfirmed until you reconcile it",
+		map[string]any{"attemptId": string(attemptID)})
 }
 
 // PauseAttempt suspends a running attempt.
@@ -532,6 +572,12 @@ func (s *Service) readModel(ctx context.Context, outcome domain.Outcome, attempt
 			}
 		}
 	}
+	unresolvedAdmission := false
+	for _, obs := range observations {
+		if obs.Kind == domain.ObservationAdmissionAmbiguous {
+			unresolvedAdmission = true // latest state wins; kind is only ever appended
+		}
+	}
 	subjectProject, ok, err := s.store.GetOutcomeProjectID(ctx, outcome.ID)
 	if err != nil {
 		return AttemptView{}, err
@@ -551,7 +597,7 @@ func (s *Service) readModel(ctx context.Context, outcome domain.Outcome, attempt
 		Observations: observations,
 		Receipts:     receipts,
 		Fence:        fence,
-		Presentation: domain.DeriveAttemptPresentation(attempt.Status, facts),
+		Presentation: domain.DeriveAttemptPresentation(attempt.Status, facts, unresolvedAdmission),
 	}, nil
 }
 

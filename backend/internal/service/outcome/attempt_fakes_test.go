@@ -93,8 +93,14 @@ func (f *attemptFakeStore) CreateAttemptWithFence(_ context.Context, outcomeID d
 		return domain.Attempt{}, &ports.AttemptFenceHeldError{Subject: subject, Holder: holder.AttemptID, OutcomeID: outcomeID}
 	}
 	if requestKey != "" {
-		if _, taken := f.attemptByKey[requestKey]; taken {
-			return domain.Attempt{}, errors.New("UNIQUE constraint failed: attempts.request_key")
+		if existingKey, taken := f.attemptByKey[requestKey]; taken {
+			for _, list := range f.attempts {
+				for _, prior := range list {
+					if prior.ID == existingKey {
+						return prior, &ports.AttemptReplayError{Attempt: prior}
+					}
+				}
+			}
 		}
 	}
 	fakeAttemptCounter++

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
@@ -97,6 +98,15 @@ func (s *Store) CreateAttemptWithFence(ctx context.Context, outcomeID domain.Out
 		ContractRevisionNumber: attempt.ContractRevisionNumber,
 		RequestKey:             key,
 	}); err != nil {
+		// A lost same-request-key race resolves to the WINNER: the caller
+		// gets the canonical attempt back and must not spawn again.
+		if isSQLiteUnique(err) && requestKey != "" && strings.Contains(err.Error(), "request_key") {
+			row, findErr := txq.FindAttemptByIdempotencyKey(ctx, key)
+			if findErr == nil {
+				winner := attemptFromRow(row)
+				return winner, &ports.AttemptReplayError{Attempt: winner}
+			}
+		}
 		return domain.Attempt{}, fmt.Errorf("create attempt for %s: %w", outcomeID, err)
 	}
 

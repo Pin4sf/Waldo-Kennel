@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
@@ -528,4 +529,145 @@ func TestPauseResumeCancelGuards(t *testing.T) {
 	if code := requireAPICode(t, err); code != "ATTEMPT_NOT_RUNNING" {
 		t.Fatalf("pause-after-end code = %s, want ATTEMPT_NOT_RUNNING", code)
 	}
+}
+
+// TestAmbiguousStartStaysQueuedAndUnconfirmed pins the intake-spec failure
+// row "Provider start outcome unknown": an UNKNOWN spawn outcome never
+// becomes failed or running — the attempt stays queued, derives as
+// unconfirmed, records the ambiguity, holds custody, and reconcile decides.
+func TestAmbiguousStartStaysQueuedAndUnconfirmed(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	ctx := context.Background()
+	spawner.mu.Lock()
+	spawner.spawnErr = context.DeadlineExceeded // outcome UNKNOWN after send
+	spawner.mu.Unlock()
+
+	_, err := svc.StartAttempt(ctx, outcomeID, startInput(planID))
+	if code := requireAPICode(t, err); code != "ATTEMPT_START_UNRESOLVED" {
+		t.Fatalf("code = %s, want ATTEMPT_START_UNRESOLVED", code)
+	}
+	attempts, _ := storeList(t, svc, outcomeID)
+	if len(attempts) != 1 || attempts[0].Status != domain.AttemptQueued {
+		t.Fatalf("attempt = %+v, want queued (never failed on unknown)", attempts)
+	}
+	view, err := svc.GetAttempt(ctx, outcomeID, attempts[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !view.Presentation.Unconfirmed || view.Presentation.Phase != domain.AttemptPhaseUnconfirmed {
+		t.Fatalf("presentation = %+v, want unconfirmed", view.Presentation)
+	}
+	lastObs := view.Observations[len(view.Observations)-1]
+	if lastObs.Kind != domain.ObservationAdmissionAmbiguous {
+		t.Fatalf("observation = %s, want admission_ambiguous", lastObs.Kind)
+	}
+	if len(view.Receipts) != 1 || view.Receipts[0].Resolution != domain.RecoveryNeedsAttention {
+		t.Fatalf("receipts = %+v, want needs_attention", view.Receipts)
+	}
+	if view.Fence == nil || !view.Fence.Open() {
+		t.Fatal("ambiguous start must keep holding custody")
+	}
+
+	// Duplicate start stays disabled while the ambiguous attempt holds the fence.
+	// Then reconcile resolves it: lost + released + replacement receipt.
+	reconciled, err := svc.RecoverAttempt(ctx, outcomeID, attempts[0].ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReconcile})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if reconciled.Attempt.Attempt.Status != domain.AttemptLost || reconciled.Attempt.Fence != nil {
+		t.Fatalf("reconcile verdict = %+v fence=%+v, want lost with custody released", reconciled.Attempt.Attempt, reconciled.Attempt.Fence)
+	}
+	_ = heartbeats
+}
+
+// TestTerminalPredecessorsReleaseCustodyThroughReconcile pins the D4 custody
+// handover for EVERY terminal predecessor: failed-before-spawn,
+// owner-cancelled, and ended-unclassified attempts must be releasable through
+// reconcile/replace without rewriting their immutable history.
+func TestTerminalPredecessorsReleaseCustodyThroughReconcile(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("cancelled", func(t *testing.T) {
+		svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+		first, err := svc.StartAttempt(ctx, outcomeID, startInput(planID))
+		if err != nil {
+			t.Fatalf("start: %v", err)
+		}
+		heartbeats.signal(domain.SessionID(first.Sessions[0].SessionID))
+		if _, err := svc.CancelAttempt(ctx, outcomeID, first.Attempt.ID); err != nil {
+			t.Fatalf("cancel: %v", err)
+		}
+		verdict, err := svc.RecoverAttempt(ctx, outcomeID, first.Attempt.ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReplace})
+		if err != nil {
+			t.Fatalf("replace after cancel must release custody: %v", err)
+		}
+		if verdict.Attempt.Attempt.Status != domain.AttemptCancelled {
+			t.Fatalf("history rewritten to %s", verdict.Attempt.Attempt.Status)
+		}
+		if verdict.Attempt.Fence != nil {
+			t.Fatal("custody must be released")
+		}
+		assertReplacementStartable(t, svc, spawner, outcomeID, planID)
+	})
+
+	t.Run("failed before spawn", func(t *testing.T) {
+		svc, _, spawner, _, outcomeID, planID := newAttemptHarness(t)
+		spawner.failNextSpawn(errors.New("provider binary exploded"))
+		if _, err := svc.StartAttempt(ctx, outcomeID, startInput(planID)); err == nil {
+			t.Fatal("expected admit failure")
+		}
+		attempts, _ := storeList(t, svc, outcomeID)
+		if _, err := svc.RecoverAttempt(ctx, outcomeID, attempts[0].ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReconcile}); err != nil {
+			t.Fatalf("reconcile of a failed predecessor must account for it: %v", err)
+		}
+		assertReplacementStartable(t, svc, spawner, outcomeID, planID)
+	})
+
+	t.Run("reconciled after provider exit", func(t *testing.T) {
+		svc, _, _, heartbeats, outcomeID, planID := newAttemptHarness(t)
+		first, err := svc.StartAttempt(ctx, outcomeID, startInput(planID))
+		if err != nil {
+			t.Fatalf("start: %v", err)
+		}
+		heartbeats.signal(domain.SessionID(first.Sessions[0].SessionID))
+		heartbeats.terminate(domain.SessionID(first.Sessions[0].SessionID))
+		if err := svc.EvaluateAttemptLiveness(ctx); err != nil {
+			t.Fatal(err)
+		}
+		// Rework path: replace the ended-unclassified attempt so rework can run.
+		if _, err := svc.RecoverAttempt(ctx, outcomeID, first.Attempt.ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReplace}); err != nil {
+			t.Fatalf("replace after reconciled must release custody: %v", err)
+		}
+	})
+}
+
+func assertReplacementStartable(t *testing.T, svc *outcome.Service, spawner *fakeSpawner, outcomeID domain.OutcomeID, planID domain.PlanRevisionID) {
+	t.Helper()
+	spawner.mu.Lock()
+	spawner.readiness = ports.AgentProfileReadiness{Ready: true}
+	spawner.spawnErr = nil
+	spawner.mu.Unlock()
+	replacement, err := svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{
+		PlanRevisionID: planID,
+		RequestKey:     "rk-replacement-" + time.Now().String(),
+	})
+	if err != nil {
+		t.Fatalf("replacement start must succeed after custody release: %v", err)
+	}
+	if replacement.Fence == nil || !replacement.Fence.Open() {
+		t.Fatalf("replacement must hold fresh custody: %+v", replacement.Fence)
+	}
+}
+
+func storeList(t *testing.T, svc *outcome.Service, outcomeID domain.OutcomeID) ([]domain.Attempt, error) {
+	t.Helper()
+	views, err := svc.ListAttempts(context.Background(), outcomeID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.Attempt, 0, len(views))
+	for _, v := range views {
+		out = append(out, v.Attempt)
+	}
+	return out, nil
 }

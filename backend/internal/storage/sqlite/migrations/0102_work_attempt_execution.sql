@@ -119,7 +119,7 @@ CREATE TRIGGER attempts_status_transition
 BEFORE UPDATE ON attempts
 WHEN OLD.status <> NEW.status
      AND NOT (
-         (OLD.status = 'queued' AND NEW.status IN ('running', 'failed', 'cancelled'))
+         (OLD.status = 'queued' AND NEW.status IN ('running', 'failed', 'cancelled', 'lost'))
       OR (OLD.status = 'running' AND NEW.status IN ('paused', 'failed', 'cancelled', 'lost', 'reconciled'))
       OR (OLD.status = 'paused' AND NEW.status IN ('running', 'cancelled', 'lost'))
      )

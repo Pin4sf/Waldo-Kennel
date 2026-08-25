@@ -69,6 +69,12 @@ func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest
 // ordered exit observation; silent heartbeats mutate nothing and stay derived
 // as unconfirmed until contain/reconcile decides.
 func runAttemptLivenessLoop(ctx context.Context, attempts attemptLivenessHook, log *slog.Logger) {
+	// Fold exits that happened while the daemon was down immediately, before
+	// the first periodic tick: restart must reconcile ended provider sessions
+	// without waiting a full interval.
+	if err := attempts.EvaluateAttemptLiveness(ctx); err != nil {
+		log.Warn("attempt liveness evaluation on boot", "err", err)
+	}
 	ticker := time.NewTicker(attemptLivenessInterval)
 	defer ticker.Stop()
 	for {
