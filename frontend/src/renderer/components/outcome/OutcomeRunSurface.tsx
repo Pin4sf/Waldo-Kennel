@@ -16,6 +16,7 @@ import { Button } from "../ui/button";
 
 type OutcomeRunSurfaceProps = {
 	outcomeId: string;
+	onReviewProof?: () => void;
 };
 
 /**
@@ -58,7 +59,7 @@ function statusBadgeKey(status: string): MessageKey | undefined {
  * completion is never presented as success, transcripts are never read, and
  * no provider name is treated as a policy.
  */
-export function OutcomeRunSurface({ outcomeId }: OutcomeRunSurfaceProps) {
+export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfaceProps) {
 	const { t } = useTranslation();
 	const planQuery = useOutcomePlan(outcomeId);
 	const attemptsQuery = useOutcomeAttempts(outcomeId);
@@ -145,6 +146,16 @@ export function OutcomeRunSurface({ outcomeId }: OutcomeRunSurfaceProps) {
 				pending={pending}
 				showReplacementStart={canStartNew}
 			/>}
+
+			{current && onReviewProof && (
+				<div className="max-w-xl rounded-md border border-border p-4" data-testid="outcome-run-proof-card">
+					<h3 className="text-sm font-medium">{t("outcome.run.proofTitle")}</h3>
+					<p className="mt-1 text-muted-foreground text-sm">{t("outcome.run.proofBody")}</p>
+					<Button className="mt-3" data-testid="outcome-run-review-proof" onClick={onReviewProof} variant="outline">
+						{t("outcome.run.proofCta")}
+					</Button>
+				</div>
+			)}
 
 			{failure && (
 				<div

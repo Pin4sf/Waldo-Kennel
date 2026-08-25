@@ -36,6 +36,7 @@ type APIDeps struct {
 	// Attempts is nil until Act & Observe execution is wired; the attempt
 	// routes then answer 501, matching every other optional surface.
 	Attempts       controllers.AttemptManager
+	Proof          controllers.ProofManager
 	Push           controllers.PushRegistry
 	ShellTerminals controllers.ShellTerminalService
 	// Conversations is nil until a Chat driver is wired; the controller then
@@ -135,7 +136,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		prs:           &controllers.PRsController{Svc: deps.PRs},
 		reviews:       &controllers.ReviewsController{Svc: deps.Reviews},
 		notifications: &controllers.NotificationsController{Svc: deps.Notifications, Stream: deps.NotificationStream},
-		outcomes:      &controllers.OutcomesController{Svc: deps.Outcomes, Attempts: deps.Attempts},
+		outcomes:      &controllers.OutcomesController{Svc: deps.Outcomes, Attempts: deps.Attempts, Proof: deps.Proof},
 		push:          &controllers.PushController{Registry: deps.Push},
 		shellTerms:    &controllers.ShellTerminalsController{Svc: deps.ShellTerminals},
 		conversations: &controllers.ConversationsController{Svc: deps.Conversations},

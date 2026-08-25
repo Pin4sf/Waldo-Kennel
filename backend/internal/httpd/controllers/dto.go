@@ -1903,15 +1903,25 @@ type ReviseOutcomeContractRequest struct {
 
 // ContractRevisionResponse is one immutable contract revision.
 type ContractRevisionResponse struct {
-	ID              string    `json:"id"`
-	Number          int64     `json:"number"`
-	Goal            string    `json:"goal"`
-	SuccessCriteria []string  `json:"successCriteria"`
-	Review          string    `json:"review"`
-	Constraints     []string  `json:"constraints"`
-	NonGoals        []string  `json:"nonGoals"`
-	Clarification   string    `json:"clarification,omitempty"`
-	CreatedAt       time.Time `json:"createdAt"`
+	ID              string                      `json:"id"`
+	Number          int64                       `json:"number"`
+	Goal            string                      `json:"goal"`
+	Criteria        []ContractCriterionResponse `json:"criteria"`
+	SuccessCriteria []string                    `json:"successCriteria"`
+	Review          string                      `json:"review"`
+	Constraints     []string                    `json:"constraints"`
+	NonGoals        []string                    `json:"nonGoals"`
+	Clarification   string                      `json:"clarification,omitempty"`
+	CreatedAt       time.Time                   `json:"createdAt"`
+}
+
+// ContractCriterionResponse exposes stable criterion identity. Proof binds
+// (contractRevisionId, criterionId), never mutable display text alone.
+type ContractCriterionResponse struct {
+	CriterionID        string `json:"criterionId"`
+	ContractRevisionID string `json:"contractRevisionId"`
+	Position           int64  `json:"position"`
+	Text               string `json:"text"`
 }
 
 // OutcomeResponse is the canonical Outcome read model: durable facts plus the
@@ -1942,16 +1952,236 @@ type OutcomesEnvelope struct {
 }
 
 func contractRevisionResponse(rev domain.ContractRevision) ContractRevisionResponse {
+	criteria := make([]ContractCriterionResponse, 0, len(rev.Criteria))
+	for _, criterion := range rev.Criteria {
+		criteria = append(criteria, contractCriterionResponse(criterion))
+	}
 	return ContractRevisionResponse{
 		ID:              string(rev.ID),
 		Number:          rev.Number,
 		Goal:            rev.Goal,
+		Criteria:        criteria,
 		SuccessCriteria: rev.SuccessCriteria,
 		Review:          rev.Review,
 		Constraints:     rev.Constraints,
 		NonGoals:        rev.NonGoals,
 		Clarification:   rev.Clarification,
 		CreatedAt:       rev.CreatedAt,
+	}
+}
+
+func contractCriterionResponse(criterion domain.ContractCriterion) ContractCriterionResponse {
+	return ContractCriterionResponse{
+		CriterionID: string(criterion.ID), ContractRevisionID: string(criterion.ContractRevisionID),
+		Position: criterion.Position, Text: criterion.Text,
+	}
+}
+
+// RecordEvidenceRequest appends one provenance-bearing fact to an exact
+// current criterion and subject revision.
+type RecordEvidenceRequest struct {
+	ExpectedContractRevision int64  `json:"expectedContractRevision"`
+	ContractRevisionID       string `json:"contractRevisionId"`
+	CriterionID              string `json:"criterionId"`
+	SubjectType              string `json:"subjectType"`
+	SubjectID                string `json:"subjectId"`
+	SubjectRevision          string `json:"subjectRevision"`
+	Kind                     string `json:"kind"`
+	SourceType               string `json:"sourceType"`
+	SourceRef                string `json:"sourceRef"`
+	ProducerType             string `json:"producerType"`
+	ProducerRef              string `json:"producerRef"`
+	Summary                  string `json:"summary"`
+	ContentDigest            string `json:"contentDigest"`
+	RequestKey               string `json:"requestKey"`
+}
+
+// RecordVerificationRequest declares what was checked and the verifier's
+// actual independence from the producer. It cannot accept an Outcome.
+type RecordVerificationRequest struct {
+	ExpectedContractRevision int64    `json:"expectedContractRevision"`
+	ContractRevisionID       string   `json:"contractRevisionId"`
+	CriterionID              string   `json:"criterionId"`
+	SubjectType              string   `json:"subjectType"`
+	SubjectID                string   `json:"subjectId"`
+	SubjectRevision          string   `json:"subjectRevision"`
+	EvidenceItemIDs          []string `json:"evidenceItemIds"`
+	Method                   string   `json:"method"`
+	IndependenceClass        string   `json:"independenceClass"`
+	Result                   string   `json:"result"`
+	ProducerRef              string   `json:"producerRef,omitempty"`
+	VerifierRef              string   `json:"verifierRef"`
+	ProducerProvider         string   `json:"producerProvider,omitempty"`
+	VerifierProvider         string   `json:"verifierProvider,omitempty"`
+	Detail                   string   `json:"detail,omitempty"`
+	RequestKey               string   `json:"requestKey"`
+}
+
+// DecideAcceptanceRequest is the sole API authority that may append a user
+// AcceptanceDecision. Rework/reopen require explicit re-entry lineage.
+type DecideAcceptanceRequest struct {
+	ExpectedContractRevision int64  `json:"expectedContractRevision"`
+	ContractRevisionID       string `json:"contractRevisionId"`
+	Kind                     string `json:"kind"`
+	Summary                  string `json:"summary"`
+	ResourceDisposition      string `json:"resourceDisposition"`
+	ReentryTargetType        string `json:"reentryTargetType,omitempty"`
+	ReentryTargetID          string `json:"reentryTargetId,omitempty"`
+	RequestKey               string `json:"requestKey"`
+}
+
+// EvidenceItemResponse exposes immutable Evidence provenance and binding.
+type EvidenceItemResponse struct {
+	ID                 string    `json:"id"`
+	ContractRevisionID string    `json:"contractRevisionId"`
+	CriterionID        string    `json:"criterionId"`
+	SubjectType        string    `json:"subjectType"`
+	SubjectID          string    `json:"subjectId"`
+	SubjectRevision    string    `json:"subjectRevision"`
+	Kind               string    `json:"kind"`
+	SourceType         string    `json:"sourceType"`
+	SourceRef          string    `json:"sourceRef"`
+	ProducerType       string    `json:"producerType"`
+	ProducerRef        string    `json:"producerRef"`
+	Summary            string    `json:"summary"`
+	ContentDigest      string    `json:"contentDigest"`
+	CreatedAt          time.Time `json:"createdAt"`
+}
+
+// VerificationRunResponse exposes the actual method and independence class.
+type VerificationRunResponse struct {
+	ID                 string    `json:"id"`
+	ContractRevisionID string    `json:"contractRevisionId"`
+	CriterionID        string    `json:"criterionId"`
+	SubjectType        string    `json:"subjectType"`
+	SubjectID          string    `json:"subjectId"`
+	SubjectRevision    string    `json:"subjectRevision"`
+	EvidenceItemIDs    []string  `json:"evidenceItemIds"`
+	Method             string    `json:"method"`
+	IndependenceClass  string    `json:"independenceClass"`
+	Independent        bool      `json:"independent"`
+	Result             string    `json:"result"`
+	ProducerRef        string    `json:"producerRef,omitempty"`
+	VerifierRef        string    `json:"verifierRef"`
+	ProducerProvider   string    `json:"producerProvider,omitempty"`
+	VerifierProvider   string    `json:"verifierProvider,omitempty"`
+	Detail             string    `json:"detail,omitempty"`
+	CreatedAt          time.Time `json:"createdAt"`
+}
+
+// AcceptanceDecisionResponse exposes one explicit user decision.
+type AcceptanceDecisionResponse struct {
+	ID                  string    `json:"id"`
+	ContractRevisionID  string    `json:"contractRevisionId"`
+	Kind                string    `json:"kind"`
+	ActorType           string    `json:"actorType"`
+	Summary             string    `json:"summary"`
+	ResourceDisposition string    `json:"resourceDisposition"`
+	CreatedAt           time.Time `json:"createdAt"`
+}
+
+// OutcomeCorrectionResponse exposes the durable Work re-entry target.
+type OutcomeCorrectionResponse struct {
+	ID                 string    `json:"id"`
+	DecisionID         string    `json:"decisionId"`
+	ContractRevisionID string    `json:"contractRevisionId"`
+	Feedback           string    `json:"feedback"`
+	TargetType         string    `json:"targetType"`
+	TargetID           string    `json:"targetId"`
+	CreatedAt          time.Time `json:"createdAt"`
+}
+
+// CriterionProofResponse groups proof facts for one stable criterion.
+type CriterionProofResponse struct {
+	CriterionID        string                    `json:"criterionId"`
+	ContractRevisionID string                    `json:"contractRevisionId"`
+	Position           int64                     `json:"position"`
+	Text               string                    `json:"text"`
+	Ready              bool                      `json:"ready"`
+	Gap                string                    `json:"gap,omitempty"`
+	Evidence           []EvidenceItemResponse    `json:"evidence"`
+	Verifications      []VerificationRunResponse `json:"verifications"`
+}
+
+// OutcomeProofResponse is the daemon-derived Prove & Close read model.
+type OutcomeProofResponse struct {
+	OutcomeID    string                       `json:"outcomeId"`
+	Contract     ContractRevisionResponse     `json:"contractRevision"`
+	Status       string                       `json:"status"`
+	NextAction   string                       `json:"nextAction"`
+	Criteria     []CriterionProofResponse     `json:"criteria"`
+	Decisions    []AcceptanceDecisionResponse `json:"decisions"`
+	Corrections  []OutcomeCorrectionResponse  `json:"corrections"`
+	ProofHorizon *time.Time                   `json:"proofHorizon,omitempty"`
+}
+
+// OutcomeProofEnvelope wraps the canonical proof response.
+type OutcomeProofEnvelope struct {
+	Proof OutcomeProofResponse `json:"proof"`
+}
+
+func outcomeProofResponse(view outcomevc.ProofView) OutcomeProofResponse {
+	response := OutcomeProofResponse{
+		OutcomeID: string(view.OutcomeID), Contract: contractRevisionResponse(view.Contract),
+		Status: string(view.Status), NextAction: view.NextAction,
+		Criteria:    make([]CriterionProofResponse, 0, len(view.Criteria)),
+		Decisions:   make([]AcceptanceDecisionResponse, 0, len(view.Decisions)),
+		Corrections: make([]OutcomeCorrectionResponse, 0, len(view.Corrections)),
+	}
+	if !view.ProofHorizon.IsZero() {
+		horizon := view.ProofHorizon
+		response.ProofHorizon = &horizon
+	}
+	for _, criterion := range view.Criteria {
+		item := CriterionProofResponse{
+			CriterionID: string(criterion.Criterion.ID), ContractRevisionID: string(criterion.Criterion.ContractRevisionID),
+			Position: criterion.Criterion.Position, Text: criterion.Criterion.Text, Ready: criterion.Ready, Gap: criterion.Gap,
+			Evidence: make([]EvidenceItemResponse, 0, len(criterion.Evidence)), Verifications: make([]VerificationRunResponse, 0, len(criterion.Verifications)),
+		}
+		for _, evidence := range criterion.Evidence {
+			item.Evidence = append(item.Evidence, evidenceItemResponse(evidence))
+		}
+		for _, verification := range criterion.Verifications {
+			item.Verifications = append(item.Verifications, verificationRunResponse(verification))
+		}
+		response.Criteria = append(response.Criteria, item)
+	}
+	for _, decision := range view.Decisions {
+		response.Decisions = append(response.Decisions, AcceptanceDecisionResponse{
+			ID: string(decision.ID), ContractRevisionID: string(decision.ContractRevisionID), Kind: string(decision.Kind), ActorType: string(decision.ActorType),
+			Summary: decision.Summary, ResourceDisposition: string(decision.ResourceDisposition), CreatedAt: decision.CreatedAt,
+		})
+	}
+	for _, correction := range view.Corrections {
+		response.Corrections = append(response.Corrections, OutcomeCorrectionResponse{
+			ID: string(correction.ID), DecisionID: string(correction.DecisionID), ContractRevisionID: string(correction.ContractRevisionID),
+			Feedback: correction.Feedback, TargetType: string(correction.TargetType), TargetID: correction.TargetID, CreatedAt: correction.CreatedAt,
+		})
+	}
+	return response
+}
+
+func evidenceItemResponse(item domain.EvidenceItem) EvidenceItemResponse {
+	return EvidenceItemResponse{
+		ID: string(item.ID), ContractRevisionID: string(item.ContractRevisionID), CriterionID: string(item.CriterionID),
+		SubjectType: string(item.SubjectType), SubjectID: item.SubjectID, SubjectRevision: item.SubjectRevision,
+		Kind: string(item.Kind), SourceType: string(item.SourceType), SourceRef: item.SourceRef,
+		ProducerType: string(item.ProducerType), ProducerRef: item.ProducerRef, Summary: item.Summary,
+		ContentDigest: item.ContentDigest, CreatedAt: item.CreatedAt,
+	}
+}
+
+func verificationRunResponse(run domain.VerificationRun) VerificationRunResponse {
+	ids := make([]string, 0, len(run.EvidenceItemIDs))
+	for _, id := range run.EvidenceItemIDs {
+		ids = append(ids, string(id))
+	}
+	return VerificationRunResponse{
+		ID: string(run.ID), ContractRevisionID: string(run.ContractRevisionID), CriterionID: string(run.CriterionID),
+		SubjectType: string(run.SubjectType), SubjectID: run.SubjectID, SubjectRevision: run.SubjectRevision,
+		EvidenceItemIDs: ids, Method: run.Method, IndependenceClass: string(run.IndependenceClass), Independent: run.IsIndependent(), Result: string(run.Result),
+		ProducerRef: run.ProducerRef, VerifierRef: run.VerifierRef, ProducerProvider: run.ProducerProvider, VerifierProvider: run.VerifierProvider,
+		Detail: run.Detail, CreatedAt: run.CreatedAt,
 	}
 }
 

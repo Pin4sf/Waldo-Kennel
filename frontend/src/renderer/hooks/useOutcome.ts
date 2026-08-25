@@ -662,3 +662,98 @@ export function useAttemptRecovery(outcomeId: string | undefined): AttemptRecove
 }
 
 export { attemptsQueryKey as outcomeAttemptsQueryKey };
+
+/* ------------------------- Prove & Close (#35) ------------------------- */
+
+export type OutcomeProofRecord = components["schemas"]["OutcomeProofResponse"];
+export type RecordEvidenceRequest = components["schemas"]["RecordEvidenceRequest"];
+export type RecordVerificationRequest = components["schemas"]["RecordVerificationRequest"];
+export type DecideAcceptanceRequest = components["schemas"]["DecideAcceptanceRequest"];
+
+type OutcomeProofEnvelope = components["schemas"]["OutcomeProofEnvelope"];
+
+export function outcomeProofQueryKey(outcomeId: string | undefined) {
+	return ["outcome-proof", outcomeId ?? ""] as const;
+}
+
+async function fetchOutcomeProof(outcomeId: string): Promise<OutcomeProofRecord> {
+	if (usesPreviewWorkspaceData) {
+		throw { code: "OUTCOME_PROOF_UNAVAILABLE", message: "Proof is available only from a running Kennel daemon." };
+	}
+	const { data, error } = await apiClient.GET("/api/v1/outcomes/{outcomeId}/proof", {
+		params: { path: { outcomeId } },
+	});
+	if (error) throw error;
+	return (data as OutcomeProofEnvelope).proof;
+}
+
+export function useOutcomeProof(outcomeId: string | undefined) {
+	const query = useQuery({
+		queryKey: outcomeProofQueryKey(outcomeId),
+		enabled: Boolean(outcomeId),
+		queryFn: () => fetchOutcomeProof(outcomeId as string),
+		retry: (attempt, error) => {
+			const code = apiErrorCode(error);
+			if (code === OUTCOME_NOT_FOUND || code === "OUTCOME_PROOF_UNAVAILABLE") return false;
+			return attempt < 2;
+		},
+	});
+	return {
+		proof: query.data,
+		isLoading: query.isLoading,
+		failure: query.error ? classifyOutcomeFailure(query.error) : undefined,
+		refetch: () => void query.refetch(),
+	};
+}
+
+function useProofMutation<TInput>(
+	outcomeId: string | undefined,
+	mutationFn: (outcomeId: string, input: TInput) => Promise<OutcomeProofRecord>,
+) {
+	const queryClient = useQueryClient();
+	const mutation = useMutation({
+		mutationFn: async (input: TInput) => {
+			if (usesPreviewWorkspaceData) {
+				throw { code: "OUTCOME_PROOF_UNAVAILABLE", message: "Proof writes require a running Kennel daemon." };
+			}
+			return mutationFn(outcomeId as string, input);
+		},
+		onSuccess: (proof) => queryClient.setQueryData(outcomeProofQueryKey(outcomeId), proof),
+	});
+	return {
+		pending: mutation.isPending,
+		failure: mutation.error ? classifyOutcomeFailure(mutation.error) : undefined,
+		reset: () => mutation.reset(),
+		submit: mutation.mutateAsync,
+	};
+}
+
+export function useRecordOutcomeEvidence(outcomeId: string | undefined) {
+	return useProofMutation(outcomeId, async (id, input: RecordEvidenceRequest) => {
+		const { data, error } = await apiClient.POST("/api/v1/outcomes/{outcomeId}/evidence", {
+			params: { path: { outcomeId: id } }, body: input,
+		});
+		if (error) throw error;
+		return (data as OutcomeProofEnvelope).proof;
+	});
+}
+
+export function useRecordOutcomeVerification(outcomeId: string | undefined) {
+	return useProofMutation(outcomeId, async (id, input: RecordVerificationRequest) => {
+		const { data, error } = await apiClient.POST("/api/v1/outcomes/{outcomeId}/verifications", {
+			params: { path: { outcomeId: id } }, body: input,
+		});
+		if (error) throw error;
+		return (data as OutcomeProofEnvelope).proof;
+	});
+}
+
+export function useDecideOutcomeAcceptance(outcomeId: string | undefined) {
+	return useProofMutation(outcomeId, async (id, input: DecideAcceptanceRequest) => {
+		const { data, error } = await apiClient.POST("/api/v1/outcomes/{outcomeId}/acceptance-decisions", {
+			params: { path: { outcomeId: id } }, body: input,
+		});
+		if (error) throw error;
+		return (data as OutcomeProofEnvelope).proof;
+	});
+}

@@ -202,6 +202,19 @@ func (s *Store) ListContractRevisions(ctx context.Context, id domain.OutcomeID) 
 		if err != nil {
 			return nil, err
 		}
+		criterionRows, err := s.qr.ListContractCriteriaForRevision(ctx, string(rev.ID))
+		if err != nil {
+			return nil, fmt.Errorf("list stable criteria for revision %s: %w", rev.ID, err)
+		}
+		rev.Criteria = make([]domain.ContractCriterion, 0, len(criterionRows))
+		for _, criterion := range criterionRows {
+			rev.Criteria = append(rev.Criteria, domain.ContractCriterion{
+				ID:                 domain.CriterionID(criterion.ID),
+				ContractRevisionID: domain.ContractRevisionID(criterion.ContractRevisionID),
+				Position:           criterion.Position,
+				Text:               criterion.Text,
+			})
+		}
 		out = append(out, rev)
 	}
 	return out, nil
@@ -221,6 +234,17 @@ func nextRevisionNumber(ctx context.Context, q *gen.Queries, id domain.OutcomeID
 }
 
 func insertContractRevision(ctx context.Context, q *gen.Queries, revision domain.ContractRevision) error {
+	if len(revision.Criteria) == 0 {
+		revision.Criteria = make([]domain.ContractCriterion, 0, len(revision.SuccessCriteria))
+		for i, text := range revision.SuccessCriteria {
+			revision.Criteria = append(revision.Criteria, domain.ContractCriterion{
+				ID:                 domain.CriterionID(fmt.Sprintf("crit-%s-%04d", revision.ID, i+1)),
+				ContractRevisionID: revision.ID,
+				Position:           int64(i + 1),
+				Text:               text,
+			})
+		}
+	}
 	criteria, err := marshalJSONStrings(revision.SuccessCriteria)
 	if err != nil {
 		return fmt.Errorf("revision criteria: %w", err)
@@ -248,6 +272,16 @@ func insertContractRevision(ctx context.Context, q *gen.Queries, revision domain
 		Clarification:   revision.Clarification,
 	}); err != nil {
 		return fmt.Errorf("create contract revision %s: %w", revision.ID, err)
+	}
+	for _, criterion := range revision.Criteria {
+		if err := q.CreateContractCriterion(ctx, gen.CreateContractCriterionParams{
+			ID:                 string(criterion.ID),
+			ContractRevisionID: string(criterion.ContractRevisionID),
+			Position:           criterion.Position,
+			Text:               criterion.Text,
+		}); err != nil {
+			return fmt.Errorf("create contract criterion %s: %w", criterion.ID, err)
+		}
 	}
 	return nil
 }

@@ -1019,6 +1019,63 @@ paths:
       summary: Read one Outcome with its full revision history
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/acceptance-decisions:
+    post:
+      operationId: decideOutcomeAcceptance
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecideAcceptanceRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutcomeProofEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Append the user's explicit accept, request-rework, or reopen decision
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/attempts:
     get:
       operationId: listOutcomeAttempts
@@ -1338,6 +1395,64 @@ paths:
         recovery)
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/evidence:
+    post:
+      operationId: recordOutcomeEvidence
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordEvidenceRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutcomeProofEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Append provenance-bearing Evidence to an exact current criterion and
+        subject revision
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/plan:
     get:
       operationId: getLatestOutcomePlan
@@ -1499,6 +1614,52 @@ paths:
         authority)
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/proof:
+    get:
+      operationId: getOutcomeProof
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutcomeProofEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read criterion-bound Evidence, Verification, explicit decisions, and
+        derived proof state
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/revisions:
     post:
       operationId: reviseOutcomeContract
@@ -1554,6 +1715,63 @@ paths:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
       summary: Append an immutable contract revision (optimistic concurrency)
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/verifications:
+    post:
+      operationId: recordOutcomeVerification
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordVerificationRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutcomeProofEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Append a Verification result with its actual independence class
       tags:
       - outcomes
   /api/v1/projects:
@@ -5652,6 +5870,32 @@ components:
       - code
       - message
       type: object
+    AcceptanceDecisionResponse:
+      properties:
+        actorType:
+          type: string
+        contractRevisionId:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        resourceDisposition:
+          type: string
+        summary:
+          type: string
+      required:
+      - id
+      - contractRevisionId
+      - kind
+      - actorType
+      - summary
+      - resourceDisposition
+      - createdAt
+      type: object
     ActivateConversationBranchResponse:
       properties:
         activeBranchId:
@@ -6275,6 +6519,23 @@ components:
         disabled:
           type: boolean
       type: object
+    ContractCriterionResponse:
+      properties:
+        contractRevisionId:
+          type: string
+        criterionId:
+          type: string
+        position:
+          format: int64
+          type: integer
+        text:
+          type: string
+      required:
+      - criterionId
+      - contractRevisionId
+      - position
+      - text
+      type: object
     ContractRevisionResponse:
       properties:
         clarification:
@@ -6286,6 +6547,10 @@ components:
         createdAt:
           format: date-time
           type: string
+        criteria:
+          items:
+            $ref: '#/components/schemas/ContractCriterionResponse'
+          type: array
         goal:
           type: string
         id:
@@ -6307,6 +6572,7 @@ components:
       - id
       - number
       - goal
+      - criteria
       - successCriteria
       - review
       - constraints
@@ -7153,6 +7419,65 @@ components:
       - review
       - requestKey
       type: object
+    CriterionProofResponse:
+      properties:
+        contractRevisionId:
+          type: string
+        criterionId:
+          type: string
+        evidence:
+          items:
+            $ref: '#/components/schemas/EvidenceItemResponse'
+          type: array
+        gap:
+          type: string
+        position:
+          format: int64
+          type: integer
+        ready:
+          type: boolean
+        text:
+          type: string
+        verifications:
+          items:
+            $ref: '#/components/schemas/VerificationRunResponse'
+          type: array
+      required:
+      - criterionId
+      - contractRevisionId
+      - position
+      - text
+      - ready
+      - evidence
+      - verifications
+      type: object
+    DecideAcceptanceRequest:
+      properties:
+        contractRevisionId:
+          type: string
+        expectedContractRevision:
+          format: int64
+          type: integer
+        kind:
+          type: string
+        reentryTargetId:
+          type: string
+        reentryTargetType:
+          type: string
+        requestKey:
+          type: string
+        resourceDisposition:
+          type: string
+        summary:
+          type: string
+      required:
+      - expectedContractRevision
+      - contractRevisionId
+      - kind
+      - summary
+      - resourceDisposition
+      - requestKey
+      type: object
     DegradedProject:
       properties:
         id:
@@ -7327,6 +7652,53 @@ components:
       required:
       - sourceBranchId
       - activeBranchId
+      type: object
+    EvidenceItemResponse:
+      properties:
+        contentDigest:
+          type: string
+        contractRevisionId:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        criterionId:
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        producerRef:
+          type: string
+        producerType:
+          type: string
+        sourceRef:
+          type: string
+        sourceType:
+          type: string
+        subjectId:
+          type: string
+        subjectRevision:
+          type: string
+        subjectType:
+          type: string
+        summary:
+          type: string
+      required:
+      - id
+      - contractRevisionId
+      - criterionId
+      - subjectType
+      - subjectId
+      - subjectRevision
+      - kind
+      - sourceType
+      - sourceRef
+      - producerType
+      - producerRef
+      - summary
+      - contentDigest
+      - createdAt
       type: object
     InitializeRepositoryInput:
       properties:
@@ -7755,12 +8127,81 @@ components:
       - id
       - projectId
       type: object
+    OutcomeCorrectionResponse:
+      properties:
+        contractRevisionId:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        decisionId:
+          type: string
+        feedback:
+          type: string
+        id:
+          type: string
+        targetId:
+          type: string
+        targetType:
+          type: string
+      required:
+      - id
+      - decisionId
+      - contractRevisionId
+      - feedback
+      - targetType
+      - targetId
+      - createdAt
+      type: object
     OutcomeEnvelope:
       properties:
         outcome:
           $ref: '#/components/schemas/OutcomeResponse'
       required:
       - outcome
+      type: object
+    OutcomeProofEnvelope:
+      properties:
+        proof:
+          $ref: '#/components/schemas/OutcomeProofResponse'
+      required:
+      - proof
+      type: object
+    OutcomeProofResponse:
+      properties:
+        contractRevision:
+          $ref: '#/components/schemas/ContractRevisionResponse'
+        corrections:
+          items:
+            $ref: '#/components/schemas/OutcomeCorrectionResponse'
+          type: array
+        criteria:
+          items:
+            $ref: '#/components/schemas/CriterionProofResponse'
+          type: array
+        decisions:
+          items:
+            $ref: '#/components/schemas/AcceptanceDecisionResponse'
+          type: array
+        nextAction:
+          type: string
+        outcomeId:
+          type: string
+        proofHorizon:
+          format: date-time
+          type:
+          - "null"
+          - string
+        status:
+          type: string
+      required:
+      - outcomeId
+      - contractRevision
+      - status
+      - nextAction
+      - criteria
+      - decisions
+      - corrections
       type: object
     OutcomeResponse:
       properties:
@@ -8139,6 +8580,53 @@ components:
       - createdAt
       - lastSeenAt
       type: object
+    RecordEvidenceRequest:
+      properties:
+        contentDigest:
+          type: string
+        contractRevisionId:
+          type: string
+        criterionId:
+          type: string
+        expectedContractRevision:
+          format: int64
+          type: integer
+        kind:
+          type: string
+        producerRef:
+          type: string
+        producerType:
+          type: string
+        requestKey:
+          type: string
+        sourceRef:
+          type: string
+        sourceType:
+          type: string
+        subjectId:
+          type: string
+        subjectRevision:
+          type: string
+        subjectType:
+          type: string
+        summary:
+          type: string
+      required:
+      - expectedContractRevision
+      - contractRevisionId
+      - criterionId
+      - subjectType
+      - subjectId
+      - subjectRevision
+      - kind
+      - sourceType
+      - sourceRef
+      - producerType
+      - producerRef
+      - summary
+      - contentDigest
+      - requestKey
+      type: object
     RecordObservationRequest:
       properties:
         kind:
@@ -8148,6 +8636,57 @@ components:
           type: string
       required:
       - kind
+      type: object
+    RecordVerificationRequest:
+      properties:
+        contractRevisionId:
+          type: string
+        criterionId:
+          type: string
+        detail:
+          type: string
+        evidenceItemIds:
+          items:
+            type: string
+          type: array
+        expectedContractRevision:
+          format: int64
+          type: integer
+        independenceClass:
+          type: string
+        method:
+          type: string
+        producerProvider:
+          type: string
+        producerRef:
+          type: string
+        requestKey:
+          type: string
+        result:
+          type: string
+        subjectId:
+          type: string
+        subjectRevision:
+          type: string
+        subjectType:
+          type: string
+        verifierProvider:
+          type: string
+        verifierRef:
+          type: string
+      required:
+      - expectedContractRevision
+      - contractRevisionId
+      - criterionId
+      - subjectType
+      - subjectId
+      - subjectRevision
+      - evidenceItemIds
+      - method
+      - independenceClass
+      - result
+      - verifierRef
+      - requestKey
       type: object
     RecoveryReceiptResponse:
       properties:
@@ -9551,6 +10090,60 @@ components:
       - cacheWriteTokens
       - outputTokens
       - reasoningTokens
+      type: object
+    VerificationRunResponse:
+      properties:
+        contractRevisionId:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        criterionId:
+          type: string
+        detail:
+          type: string
+        evidenceItemIds:
+          items:
+            type: string
+          type: array
+        id:
+          type: string
+        independenceClass:
+          type: string
+        independent:
+          type: boolean
+        method:
+          type: string
+        producerProvider:
+          type: string
+        producerRef:
+          type: string
+        result:
+          type: string
+        subjectId:
+          type: string
+        subjectRevision:
+          type: string
+        subjectType:
+          type: string
+        verifierProvider:
+          type: string
+        verifierRef:
+          type: string
+      required:
+      - id
+      - contractRevisionId
+      - criterionId
+      - subjectType
+      - subjectId
+      - subjectRevision
+      - evidenceItemIds
+      - method
+      - independenceClass
+      - independent
+      - result
+      - verifierRef
+      - createdAt
       type: object
     WorkspaceFileResponse:
       properties:

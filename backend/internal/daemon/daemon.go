@@ -405,6 +405,7 @@ func Run() error {
 		attemptSpawner{sessions: sessionSvc, projects: store, agents: agents}, store)
 	go runAttemptLivenessLoop(ctx, attemptSvc, log)
 
+	outcomeSvc := outcomevc.New(store, nil)
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
 		Projects:           projectSvc,
 		Agents:             agentSvc,
@@ -412,8 +413,9 @@ func Run() error {
 		PRs:                prActions,
 		Reviews:            reviewSvc,
 		Notifications:      notifier,
-		Outcomes:           outcomevc.New(store, nil),
+		Outcomes:           outcomeSvc,
 		Attempts:           attemptSvc,
+		Proof:              outcomeSvc,
 		NotificationStream: notificationHub,
 		Push:               pushRegistry,
 		Presence:           presenceTracker,

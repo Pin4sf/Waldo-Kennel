@@ -79,6 +79,30 @@ func (q *Queries) CreateCapabilityGrant(ctx context.Context, arg CreateCapabilit
 	return err
 }
 
+const createContractCriterion = `-- name: CreateContractCriterion :exec
+INSERT INTO contract_criteria (id, contract_revision_id, position, text)
+VALUES (?, ?, ?, ?)
+`
+
+type CreateContractCriterionParams struct {
+	ID                 string
+	ContractRevisionID string
+	Position           int64
+	Text               string
+}
+
+// Stable criterion identities added by Work E (#35). The JSON text column on
+// contract_revisions remains a compatibility projection only.
+func (q *Queries) CreateContractCriterion(ctx context.Context, arg CreateContractCriterionParams) error {
+	_, err := q.db.ExecContext(ctx, createContractCriterion,
+		arg.ID,
+		arg.ContractRevisionID,
+		arg.Position,
+		arg.Text,
+	)
+	return err
+}
+
 const createContractRevision = `-- name: CreateContractRevision :exec
 INSERT INTO contract_revisions (id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -414,6 +438,39 @@ func (q *Queries) ListCapabilityGrantsForPlan(ctx context.Context, planRevisionI
 			&i.PlanRevisionID,
 			&i.Name,
 			&i.Scope,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listContractCriteriaForRevision = `-- name: ListContractCriteriaForRevision :many
+SELECT id, contract_revision_id, position, text
+FROM contract_criteria WHERE contract_revision_id = ? ORDER BY position
+`
+
+func (q *Queries) ListContractCriteriaForRevision(ctx context.Context, contractRevisionID string) ([]ContractCriterium, error) {
+	rows, err := q.db.QueryContext(ctx, listContractCriteriaForRevision, contractRevisionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ContractCriterium{}
+	for rows.Next() {
+		var i ContractCriterium
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContractRevisionID,
+			&i.Position,
+			&i.Text,
 		); err != nil {
 			return nil, err
 		}

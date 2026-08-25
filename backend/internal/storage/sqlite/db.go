@@ -159,6 +159,9 @@ func migrate(db *sql.DB) error {
 	if err := goose.Up(db, "migrations", goose.WithAllowMissing()); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
+	if err := reconcileOutcomeProofSchema(db); err != nil {
+		return fmt.Errorf("reconcile outcome proof schema: %w", err)
+	}
 	// Migration 0099 rebuilds the checked change_log relation and detaches the
 	// inherited CDC writers; restore them (and heal degraded profiles whose
 	// subject tables arrive through repairs) before anything reads the stream.
@@ -169,6 +172,74 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("reconcile project chat projection: %w", err)
 	}
 	return reconcileSchema(db)
+}
+
+// reconcileOutcomeProofSchema performs the one conditional data-copy SQLite
+// migration SQL cannot express safely when a burned 0099 ledger entry leaves
+// contract_revisions absent. On complete profiles it backfills stable
+// criterion identity and installs cross-column lineage guards; on degraded
+// profiles it defers without inventing Outcome state.
+func reconcileOutcomeProofSchema(db *sql.DB) error {
+	for _, table := range []string{"outcomes", "contract_revisions", "contract_criteria", "evidence_items", "verification_runs", "acceptance_decisions", "outcome_corrections"} {
+		var present int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table,
+		).Scan(&present); err != nil {
+			return err
+		}
+		if present == 0 {
+			return nil
+		}
+	}
+
+	_, err := db.Exec(`
+INSERT OR IGNORE INTO contract_criteria (id, contract_revision_id, position, text)
+SELECT 'crit-' || cr.id || '-' || printf('%04d', CAST(j.key AS INTEGER) + 1),
+       cr.id,
+       CAST(j.key AS INTEGER) + 1,
+       CAST(j.value AS TEXT)
+FROM contract_revisions cr, json_each(cr.success_criteria) j
+ORDER BY cr.id, CAST(j.key AS INTEGER);
+
+DROP TRIGGER IF EXISTS evidence_items_contract_lineage;
+CREATE TRIGGER evidence_items_contract_lineage
+BEFORE INSERT ON evidence_items
+WHEN NOT EXISTS (
+    SELECT 1 FROM contract_revisions
+    WHERE id = NEW.contract_revision_id AND outcome_id = NEW.outcome_id
+)
+BEGIN SELECT RAISE(ABORT, 'evidence contract lineage mismatch'); END;
+
+DROP TRIGGER IF EXISTS verification_runs_contract_lineage;
+CREATE TRIGGER verification_runs_contract_lineage
+BEFORE INSERT ON verification_runs
+WHEN NOT EXISTS (
+    SELECT 1 FROM contract_revisions
+    WHERE id = NEW.contract_revision_id AND outcome_id = NEW.outcome_id
+)
+BEGIN SELECT RAISE(ABORT, 'verification contract lineage mismatch'); END;
+
+DROP TRIGGER IF EXISTS acceptance_decisions_contract_lineage;
+CREATE TRIGGER acceptance_decisions_contract_lineage
+BEFORE INSERT ON acceptance_decisions
+WHEN NOT EXISTS (
+    SELECT 1 FROM contract_revisions
+    WHERE id = NEW.contract_revision_id AND outcome_id = NEW.outcome_id
+)
+BEGIN SELECT RAISE(ABORT, 'acceptance contract lineage mismatch'); END;
+
+DROP TRIGGER IF EXISTS outcome_corrections_decision_lineage;
+CREATE TRIGGER outcome_corrections_decision_lineage
+BEFORE INSERT ON outcome_corrections
+WHEN NOT EXISTS (
+    SELECT 1 FROM acceptance_decisions
+    WHERE id = NEW.decision_id
+      AND outcome_id = NEW.outcome_id
+      AND contract_revision_id = NEW.contract_revision_id
+)
+BEGIN SELECT RAISE(ABORT, 'correction decision lineage mismatch'); END;
+`)
+	return err
 }
 
 // reconcileProjectChatProjection repairs the one known cross-repository Goose

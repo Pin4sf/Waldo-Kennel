@@ -93,6 +93,7 @@ type OutcomeView struct {
 // Service implements Manager over ports.OutcomeStore.
 type Service struct {
 	store ports.OutcomeStore
+	proof ports.OutcomeProofStore
 	clock func() time.Time
 
 	// PolicyLayers optionally narrows the authority ceiling for tests and
@@ -127,7 +128,18 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
 	}
-	return &Service{store: store, clock: clock}
+	service := &Service{store: store, clock: clock}
+	if proof, ok := store.(ports.OutcomeProofStore); ok {
+		service.proof = proof
+	}
+	return service
+}
+
+// WithProofStore supplies the append-only Work E proof boundary. Production
+// stores implement it directly; the explicit seam keeps older unit fakes small.
+func (s *Service) WithProofStore(proof ports.OutcomeProofStore) *Service {
+	s.proof = proof
+	return s
 }
 
 var _ Manager = (*Service)(nil)
@@ -177,6 +189,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (OutcomeView, erro
 		Clarification:   content.clarification,
 		CreatedAt:       now,
 	}
+	first.Criteria = stableCriteria(first.ID, first.SuccessCriteria)
 	if err := s.store.CreateOutcomeWithContract(ctx, outcomeRecord, first, content.requestKey); err != nil {
 		// Either a genuine failure or a lost replay race against an identical
 		// request; resolve through the key so both paths serve the winner.
@@ -242,6 +255,7 @@ func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in Re
 		Clarification:   content.clarification,
 		CreatedAt:       s.clock(),
 	}
+	next.Criteria = stableCriteria(next.ID, next.SuccessCriteria)
 	number, err := s.store.AppendContractRevision(ctx, id, in.ExpectedRevision, next)
 	if err != nil {
 		var conflict *ports.OutcomeConflictError
@@ -259,6 +273,19 @@ func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in Re
 	}
 	_ = number
 	return s.Get(ctx, id)
+}
+
+func stableCriteria(revisionID domain.ContractRevisionID, texts []string) []domain.ContractCriterion {
+	criteria := make([]domain.ContractCriterion, 0, len(texts))
+	for i, text := range texts {
+		criteria = append(criteria, domain.ContractCriterion{
+			ID:                 domain.CriterionID("crit-" + uuid.NewString()),
+			ContractRevisionID: revisionID,
+			Position:           int64(i + 1),
+			Text:               text,
+		})
+	}
+	return criteria
 }
 
 // Get reads one Outcome's canonical facts plus full revision history.

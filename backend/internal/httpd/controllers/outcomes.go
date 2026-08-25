@@ -36,10 +36,21 @@ type AttemptManager interface {
 	RecoverAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, in outcomevc.RecoveryInput) (outcomevc.RecoveryView, error)
 }
 
+// ProofManager is the Prove & Close boundary (#35). It remains separate from
+// the earlier Outcome and Attempt interfaces so unwired proof routes fail 501
+// without granting acceptance authority to another surface.
+type ProofManager interface {
+	GetProof(context.Context, domain.OutcomeID) (outcomevc.ProofView, error)
+	RecordEvidence(context.Context, domain.OutcomeID, outcomevc.RecordEvidenceInput) (outcomevc.ProofView, error)
+	RecordVerification(context.Context, domain.OutcomeID, outcomevc.RecordVerificationInput) (outcomevc.ProofView, error)
+	DecideAcceptance(context.Context, domain.OutcomeID, outcomevc.DecideAcceptanceInput) (outcomevc.ProofView, error)
+}
+
 // OutcomesController owns the canonical Outcome contract routes.
 type OutcomesController struct {
 	Svc      OutcomeService
 	Attempts AttemptManager
+	Proof    ProofManager
 }
 
 // Register mounts the Outcome routes on the supplied router.
@@ -57,6 +68,98 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/observations", c.recordObservation)
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/cancel", c.cancelAttempt)
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/recovery", c.recoverAttempt)
+	r.Get("/outcomes/{outcomeId}/proof", c.getProof)
+	r.Post("/outcomes/{outcomeId}/evidence", c.recordEvidence)
+	r.Post("/outcomes/{outcomeId}/verifications", c.recordVerification)
+	r.Post("/outcomes/{outcomeId}/acceptance-decisions", c.decideAcceptance)
+}
+
+func (c *OutcomesController) getProof(w http.ResponseWriter, r *http.Request) {
+	if c.Proof == nil {
+		apispec.NotImplemented(w, r, http.MethodGet, "/api/v1/outcomes/{outcomeId}/proof")
+		return
+	}
+	view, err := c.Proof.GetProof(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, OutcomeProofEnvelope{Proof: outcomeProofResponse(view)})
+}
+
+func (c *OutcomesController) recordEvidence(w http.ResponseWriter, r *http.Request) {
+	if c.Proof == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/evidence")
+		return
+	}
+	var req RecordEvidenceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	view, err := c.Proof.RecordEvidence(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.RecordEvidenceInput{
+		ExpectedContractRevision: req.ExpectedContractRevision, ContractRevisionID: domain.ContractRevisionID(req.ContractRevisionID),
+		CriterionID: domain.CriterionID(req.CriterionID), SubjectType: domain.ProofSubjectType(req.SubjectType), SubjectID: req.SubjectID,
+		SubjectRevision: req.SubjectRevision, Kind: domain.EvidenceKind(req.Kind), SourceType: domain.EvidenceSourceType(req.SourceType),
+		SourceRef: req.SourceRef, ProducerType: domain.EvidenceProducerType(req.ProducerType), ProducerRef: req.ProducerRef,
+		Summary: req.Summary, ContentDigest: req.ContentDigest, RequestKey: req.RequestKey,
+	})
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusCreated, OutcomeProofEnvelope{Proof: outcomeProofResponse(view)})
+}
+
+func (c *OutcomesController) recordVerification(w http.ResponseWriter, r *http.Request) {
+	if c.Proof == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/verifications")
+		return
+	}
+	var req RecordVerificationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	evidenceIDs := make([]domain.EvidenceItemID, 0, len(req.EvidenceItemIDs))
+	for _, id := range req.EvidenceItemIDs {
+		evidenceIDs = append(evidenceIDs, domain.EvidenceItemID(id))
+	}
+	view, err := c.Proof.RecordVerification(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.RecordVerificationInput{
+		ExpectedContractRevision: req.ExpectedContractRevision, ContractRevisionID: domain.ContractRevisionID(req.ContractRevisionID),
+		CriterionID: domain.CriterionID(req.CriterionID), SubjectType: domain.ProofSubjectType(req.SubjectType), SubjectID: req.SubjectID,
+		SubjectRevision: req.SubjectRevision, EvidenceItemIDs: evidenceIDs, Method: req.Method,
+		IndependenceClass: domain.VerificationIndependenceClass(req.IndependenceClass), Result: domain.VerificationResult(req.Result),
+		ProducerRef: req.ProducerRef, VerifierRef: req.VerifierRef, ProducerProvider: req.ProducerProvider,
+		VerifierProvider: req.VerifierProvider, Detail: req.Detail, RequestKey: req.RequestKey,
+	})
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusCreated, OutcomeProofEnvelope{Proof: outcomeProofResponse(view)})
+}
+
+func (c *OutcomesController) decideAcceptance(w http.ResponseWriter, r *http.Request) {
+	if c.Proof == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/acceptance-decisions")
+		return
+	}
+	var req DecideAcceptanceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	view, err := c.Proof.DecideAcceptance(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.DecideAcceptanceInput{
+		ExpectedContractRevision: req.ExpectedContractRevision, ContractRevisionID: domain.ContractRevisionID(req.ContractRevisionID),
+		Kind: domain.AcceptanceDecisionKind(req.Kind), Summary: req.Summary, ResourceDisposition: domain.ResourceDisposition(req.ResourceDisposition),
+		ReentryTargetType: domain.ReentryTargetType(req.ReentryTargetType), ReentryTargetID: req.ReentryTargetID, RequestKey: req.RequestKey,
+	})
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusCreated, OutcomeProofEnvelope{Proof: outcomeProofResponse(view)})
 }
 
 func (c *OutcomesController) list(w http.ResponseWriter, r *http.Request) {
