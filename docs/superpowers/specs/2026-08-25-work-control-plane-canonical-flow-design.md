@@ -7,6 +7,8 @@
 - **Implementation status:** Partly represented by the merged preview and first three Outcome stages; durable conversation, adaptive intake, execution, proof, Mission Control, and learning remain issue-gated
 - **Authority:** This specification records product and architecture decisions. It does not authorize merge, release, deployment, hosted attachment, ambient capture activation, or automatic learning promotion.
 
+The companion [Work Experience Screen and Interaction Specification](2026-08-25-work-experience-screen-interaction-spec.md) translates this control-plane contract into the complete designer/implementation brief: global shell, every screen and form, visible states, transitions, micro-interactions, responsive composition, backend truth requirements, and design-review matrix.
+
 ## 1. Product decision
 
 There is one Waldo identity. Kennel is Waldo's local desktop presence and execution control plane. Codex, DeepSeek Harness, Claude Code, and future providers are replaceable execution capabilities; none owns the Project, Outcome, Mission, Evidence, or acceptance truth.
