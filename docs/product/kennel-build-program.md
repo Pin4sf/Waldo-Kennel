@@ -1,7 +1,7 @@
 # Waldo Kennel build program
 
 - **Status:** Architecture and issue planning complete; issue-scoped beta implementation is in progress, while this document remains coordination authority rather than implementation authorization
-- **Date:** 2026-08-23
+- **Date:** 2026-08-25
 - **Current base:** refresh `origin/beta` before every implementation issue; historical planning bases are not execution targets
 
 ## Integration branch policy
@@ -18,6 +18,7 @@
 | --- | --- | --- | --- |
 | Foundation identity | [AO retirement audit](ao-legacy-retirement-audit.md) | [AO retirement plan](../superpowers/plans/2026-08-21-ao-legacy-retirement.md) | active product vocabulary, donor independence, package identity, provenance preserved |
 | Work | [First Outcome slice](kennel-v0-first-outcome-slice.md) | [First Outcome handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) | one real Focus Ledger Outcome through explicit Acceptance and Re-entry |
+| Work control plane | [Canonical Work flow](../superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md) | [Work control-plane delivery](../superpowers/plans/2026-08-25-work-control-plane-delivery.md) | Board -> Outcome Mission Control -> Session Inspector, durable Project conversation, adaptive Contract, bounded continuation, and one evaluated adaptive Mission |
 | Home/Personal Agent | [Home design](../superpowers/specs/2026-08-21-home-personal-agent-memory-design.md) | [Home foundations plan](../superpowers/plans/2026-08-21-home-personal-agent-foundations.md) | useful Home, explicit closure, governed capture, candidate-only memory, deletion non-resurrection |
 | Learning L1 | [Learning design](../superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md) | [Experience Ledger plan](../superpowers/plans/2026-08-21-learning-experience-ledger.md) | attributable shadow episodes/candidates with no responsibility/proof mutation |
 | Learning L2 | same | [Experiment/Evaluation plan](../superpowers/plans/2026-08-21-learning-experiment-evaluation.md) | locked evaluator, hidden held-out no-regression, isolation and cleanup |
@@ -36,6 +37,8 @@ Work A Enter -> B Contract -> C Plan -> D Attempt -> E Proof/Acceptance
        └─> Home fixture shell
 Home OpenLoop -> Home flows -> Capture/source plane -> MemoryCandidate gate
 Work result facts + Home/source refs -> Learning L1 -> L2 -> L3
+Work D/E + shared Intake + durable Project conversation -> Work Mission Control
+Work Mission Control + first-slice evaluation -> adaptive multi-WorkUnit Mission
 Home durable-memory gate + L3 evidence + attachment/health specs -> ADR 0006 ecosystem work
 ```
 
@@ -51,6 +54,9 @@ AO donor detachment can run beside Work/Home. The destructive donor removal wait
 | Outcome/Attempt/Evidence/Verification/Acceptance facts | Work | Home projection, Learning sources |
 | Source/deletion generations | Home capture/memory | Learning and future attachment |
 | RunBrief skill/context references | Work integration owner | Home retrieval, Learning L3, provider adapters |
+| Project Waldo conversation and continuation receipts | new Conversation Runtime vertical | Work intake, Mission Control, later Home relationship surface |
+| Project default-agent preference and role resolution | new Project role-resolution vertical | Intake analyzer, Mission planner, Session Inspector |
+| Work adaptive intake composition | shared Intake owner #32 plus Work consumer | Outcome Contract and Mission Control |
 | SQLite migration allocation | named integration owner per merge window | every lane |
 | DTO/spec/routes/OpenAPI/generated TS | named integration owner per shared PR | daemon, CLI, desktop |
 | Product vocabulary/brand allowlist | AO retirement Task 1 | all lanes |
@@ -59,7 +65,7 @@ One PR owns a shared file at a time. Parallel branches do not independently edit
 
 Current route integration convention: `/work` is the Work-first Enter destination, `/home` is the Personal Home Today destination, and the global mode control remembers the last meaningful route within each lane. The inherited `/` orchestration board remains a valid remembered Work route after it has been visited. Generated `routeTree.gen.ts` conflicts are resolved from the route source files and regenerated; neither lane selects its generated side wholesale.
 
-The planning ledger reserves migrations `0099-0102` for Work, `0103-0106` for Home, `0107-0109` for Learning L1, `0110` for L2, and `0111` for L3. These are coordination reservations, not merged schema. If `origin/beta` advances first, the integration owner renumbers the affected unmerged issue before code edits and updates its plan/issue atomically.
+Migrations `0099-0102` are present on the 2026-08-25 `beta` baseline. Older numeric reservations for Home and Learning are historical coordination evidence, not live claims. Every unmerged vertical must inspect current `origin/beta`, claim the next unused migration in its issue/PR lease before editing schema, and renumber its own unmerged work when another integration lands first.
 
 ## Milestones
 
@@ -82,6 +88,8 @@ The first four milestones contain issue-sized implementation work. The fifth con
 | Later gates | [#20 durable Memory](https://github.com/Pin4sf/Waldo-Kennel/issues/20), [#24 hosted attachment](https://github.com/Pin4sf/Waldo-Kennel/issues/24), [#28 Health-aware mobile](https://github.com/Pin4sf/Waldo-Kennel/issues/28), [#33 L4 policy learning](https://github.com/Pin4sf/Waldo-Kennel/issues/33) |
 
 Foundation, Work, and Home use one issue per implementation-plan task. Learning uses one issue per gated L1/L2/L3 plan, with that plan's four tasks serving as the issue checklist. The later milestone contains gates, not implementation promises. Closed AO-era issues [#2-#10](https://github.com/Pin4sf/Waldo-Kennel/issues?q=is%3Aissue+is%3Aclosed+number%3A2..10) retain their completion or supersession comments rather than being rewritten.
+
+The 2026-08-25 issue audit found the canonical Outcome and learning lineages covered by the existing issues above. The Work control-plane specification requires separately reviewed vertical issues for durable Project conversation, Project agent-role resolution, adaptive Work intake composition, Outcome Mission Control/Session Inspector, and a later evaluated adaptive multi-WorkUnit Mission. These slices must not be smuggled into #31, #32, or #40 without an explicit issue-scope decision.
 
 ## Completion definition
 

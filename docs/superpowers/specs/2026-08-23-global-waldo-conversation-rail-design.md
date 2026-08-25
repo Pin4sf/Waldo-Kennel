@@ -1,9 +1,11 @@
 # Global Waldo Conversation Rail — Product and UI Design
 
 **Date:** 2026-08-23
-**Status:** Proposed for written review
+**Status:** Approved written specification; durable Conversation Runtime remains unshipped
 **Target baseline:** `origin/beta` at `a9d2d4228ac6aa030720f551f0da10d0d1ca2596` (merged PR #47)
 **Implementation authority:** None. This document authorizes neither product-code edits nor remote actions.
+
+The approved [Work control-plane design](2026-08-25-work-control-plane-canonical-flow-design.md) fixes the Work composition: the rail is a persistent conversation scoped to the selected Project, with an explicit Outcome/Work Unit/session context chip when relevant. Home remains the personal/general conversation scope. They are episodes of one Waldo relationship, not one unbounded provider transcript; cross-scope context moves only through an explicit user-approved change or native responsibility lineage.
 
 ## Decision summary
 
