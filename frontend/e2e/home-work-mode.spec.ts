@@ -17,6 +17,19 @@ test("Home and Work mode control is owned by the sidebar", async ({ page }) => {
 	await expect(page.locator("main").getByRole("navigation", { name: "Waldo mode" })).toHaveCount(0);
 });
 
+test("preview Work entry cannot register a real project", async ({ page }) => {
+	const posts: string[] = [];
+	page.on("request", (request) => {
+		if (request.method() === "POST") posts.push(request.url());
+	});
+
+	await page.goto("/#/work");
+	await page.getByRole("button", { name: "Start with Work" }).click();
+	await expect(page.getByRole("heading", { name: "Select a project" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Add a project" })).toHaveCount(0);
+	expect(posts).toEqual([]);
+});
+
 test("Work reserves a separate topbar lane for notifications and Waldo", async ({ page }) => {
 	await page.goto("/#/projects/kennel-design");
 

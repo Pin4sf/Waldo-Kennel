@@ -53,6 +53,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@tanstack/react-router")>();
 	return {
 		...actual,
+		Link: ({ children, to, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) => (
+			<a href={`#${to}`} {...props}>{children}</a>
+		),
 		useNavigate: () => navigateMock,
 		useParams: () => ({ ...mockParams }),
 		useRouter: () => ({ history: { push: vi.fn() } }),

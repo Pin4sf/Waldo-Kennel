@@ -100,6 +100,7 @@ export function revisePreviewOutcome(outcomeId: string, input: ReviseOutcomeCont
 		updatedAt: new Date().toISOString(),
 	};
 	outcomes.set(outcomeId, updated);
+	plans.delete(outcomeId);
 	return updated;
 }
 

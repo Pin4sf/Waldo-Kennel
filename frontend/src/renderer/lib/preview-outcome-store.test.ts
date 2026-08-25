@@ -4,9 +4,11 @@ import {
 	approvePreviewPlan,
 	createPreviewOutcome,
 	getPreviewOutcome,
+	getPreviewPlan,
 	listPreviewOutcomes,
 	proposePreviewPlan,
 	resetPreviewOutcomeStore,
+	revisePreviewOutcome,
 } from "./preview-outcome-store";
 
 describe("preview outcome lifecycle", () => {
@@ -33,5 +35,28 @@ describe("preview outcome lifecycle", () => {
 		expect(approved.status).toBe("approved");
 		expect(getPreviewOutcome(outcome.id)?.latestPlan?.status).toBe("approved");
 		expect(JSON.stringify(getPreviewOutcome(outcome.id))).not.toMatch(/accepted|complete|closed/i);
+	});
+
+	it("requires a fresh plan after the contract is revised", () => {
+		const outcome = createPreviewOutcome("kennel-design", {
+			title: "Ship the Work tab demo",
+			goal: "Make the approved Work experience demonstrable.",
+			successCriteria: ["List and Board views show the same work."],
+			review: "Owner walkthrough in Electron.",
+			requestKey: "demo-request-revise",
+		});
+		const plan = proposePreviewPlan(outcome.id, 1);
+		approvePreviewPlan(outcome.id, plan.id, 1);
+
+		const revised = revisePreviewOutcome(outcome.id, {
+			expectedRevision: 1,
+			goal: "Make the revised Work experience demonstrable.",
+			successCriteria: ["List and Board views show the same revised work."],
+			review: "Owner walkthrough in Electron.",
+		});
+
+		expect(revised.latestPlan).toBeUndefined();
+		expect(getPreviewPlan(outcome.id)).toBeUndefined();
+		expect(proposePreviewPlan(outcome.id, 2).contractRevisionNumber).toBe(2);
 	});
 });

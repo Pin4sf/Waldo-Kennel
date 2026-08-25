@@ -12,6 +12,30 @@ async function dragPointer(page: Page, from: { x: number; y: number }, to: { x: 
 	await page.mouse.up();
 }
 
+test("Home sidebar drag stops at its minimum width instead of collapsing", async ({ page }) => {
+	await page.goto("/#/home");
+
+	const sidebar = page.locator('[data-slot="sidebar"]');
+	await expect(sidebar).toHaveAttribute("data-state", "expanded");
+	const handle = page.getByTestId("resize-handle");
+	const box = await handle.boundingBox();
+	if (!box) throw new Error("sidebar resize handle not visible");
+
+	await dragPointer(
+		page,
+		{ x: box.x + box.width / 2, y: box.y + box.height / 2 },
+		{ x: 0, y: box.y + box.height / 2 },
+	);
+
+	await expect(sidebar).toHaveAttribute("data-state", "expanded");
+	const width = await page.evaluate(() => document.documentElement.style.getPropertyValue("--ao-sidebar-w"));
+	expect(width).toBe("200px");
+
+	await page.keyboard.press("ControlOrMeta+b");
+	await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+	expect(await page.evaluate(() => window.localStorage.getItem("ao-sidebar-w"))).toBe("200");
+});
+
 test("Work sessions preserve the fixed product sidebar", async ({ page }) => {
 	await page.goto("/#/projects/kennel-design/sessions/demo-working");
 	await expect(page.getByTestId("session-detail")).toBeVisible();

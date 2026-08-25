@@ -286,7 +286,8 @@ export function useCreateOutcome(projectId: string | undefined) {
  * both revision numbers in the details.
  */
 export function useReviseOutcomeContract(outcomeId: string | undefined) {
-	return useOutcomeWrite(async (input: ReviseOutcomeContractRequest) => {
+	const queryClient = useQueryClient();
+	const write = useOutcomeWrite(async (input: ReviseOutcomeContractRequest) => {
 		if (usesPreviewWorkspaceData) return revisePreviewOutcome(outcomeId as string, input);
 		const { data, error } = await apiClient.POST("/api/v1/outcomes/{outcomeId}/revisions", {
 			params: { path: { outcomeId: outcomeId as string } },
@@ -295,6 +296,14 @@ export function useReviseOutcomeContract(outcomeId: string | undefined) {
 		if (error) throw error;
 		return (data as OutcomeEnvelope).outcome;
 	});
+	return {
+		...write,
+		save: async (input: ReviseOutcomeContractRequest) => {
+			const outcome = await write.save(input);
+			if (usesPreviewWorkspaceData) queryClient.removeQueries({ queryKey: planQueryKey(outcomeId) });
+			return outcome;
+		},
+	};
 }
 
 /* ----------------------------- Plans (#26) ------------------------------ */

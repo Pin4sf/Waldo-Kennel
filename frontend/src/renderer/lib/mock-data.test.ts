@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { mockSessionScmSummaries, mockShellTerminals, mockWorkspaces } from "./mock-data";
+import { previewShellWorkingDirectory } from "../hooks/useShellTerminals";
 
 describe("preview workspace identity", () => {
 	it("uses Kennel product naming throughout the public demo fixtures", () => {
@@ -17,5 +18,6 @@ describe("preview workspace identity", () => {
 
 		const publicFixtureText = JSON.stringify({ mockSessionScmSummaries, mockShellTerminals, mockWorkspaces });
 		expect(publicFixtureText).not.toMatch(/ao-demo|Agent Orchestrator|AO preview/i);
+		expect(previewShellWorkingDirectory()).toBe("/Users/demo/Projects/kennel");
 	});
 });

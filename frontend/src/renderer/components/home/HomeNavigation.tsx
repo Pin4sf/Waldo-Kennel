@@ -1,4 +1,5 @@
 import type { HomeDestination } from "../../lib/home-fixture";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
 
@@ -10,21 +11,21 @@ export function HomeNavigation({
   variant?: "panel" | "sidebar";
 }) {
   const { t } = useTranslation();
-  const primaryDestinations: Array<{ destination: HomeDestination; label: string; href: string }> = [
-    { destination: "today", label: t("home.visual.navigation.today"), href: "#/home" },
-    { destination: "chat", label: t("home.visual.navigation.chat"), href: "#/home/chat" },
-    { destination: "open_loops", label: t("home.visual.openLoops.title"), href: "#/home/open-loops" },
+  const primaryDestinations: Array<{ destination: HomeDestination; label: string; to: string }> = [
+    { destination: "today", label: t("home.visual.navigation.today"), to: "/home" },
+    { destination: "chat", label: t("home.visual.navigation.chat"), to: "/home/chat" },
+    { destination: "open_loops", label: t("home.visual.openLoops.title"), to: "/home/open-loops" },
   ];
-  const continuityDestinations: Array<{ destination: HomeDestination; label: string; href: string }> = [
-    { destination: "daily_close", label: t("home.visual.dailyClose.title"), href: "#/home/daily-close" },
-    { destination: "memory", label: t("home.visual.memory.title"), href: "#/home/memory" },
-    { destination: "history", label: t("home.visual.history.title"), href: "#/home/history" },
+  const continuityDestinations: Array<{ destination: HomeDestination; label: string; to: string }> = [
+    { destination: "daily_close", label: t("home.visual.dailyClose.title"), to: "/home/daily-close" },
+    { destination: "memory", label: t("home.visual.memory.title"), to: "/home/memory" },
+    { destination: "history", label: t("home.visual.history.title"), to: "/home/history" },
   ];
   const destinationLink = (
-    item: { destination: HomeDestination; label: string; href: string },
+    item: { destination: HomeDestination; label: string; to: string },
     supporting = false,
   ) => (
-    <a
+    <Link
       aria-current={item.destination === destination ? "page" : undefined}
       className={cn(
         "shrink-0 rounded-lg px-3 py-2 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
@@ -34,11 +35,11 @@ export function HomeNavigation({
           ? "bg-interactive-active text-foreground"
           : "text-muted-foreground hover:bg-interactive-hover hover:text-foreground",
       )}
-      href={item.href}
       key={item.destination}
+      to={item.to}
     >
       {item.label}
-    </a>
+    </Link>
   );
   return (
     <nav

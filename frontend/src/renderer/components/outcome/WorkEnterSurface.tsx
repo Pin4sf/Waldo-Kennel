@@ -145,24 +145,26 @@ export function WorkEnterSurface() {
 						</ul>
 						<p className="text-muted-foreground text-xs">{t("work.enter.pickProjectHint")}</p>
 
-						<CreateProjectFlow
-							idleLabel={t("work.enter.addProject")}
-							onCreateProject={createProject}
-							onInitializeProject={initializeProject}
-						>
-							{({ choosePath, disabled, error, label }) => (
-								<div className="flex flex-col gap-2">
-									<Button variant="outline" disabled={disabled} onClick={choosePath}>
-										{label}
-									</Button>
-									{error && (
-										<p data-testid="enter-error-folder" className="text-destructive text-sm">
-											{error}
-										</p>
-									)}
-								</div>
-							)}
-						</CreateProjectFlow>
+						{!usesPreviewWorkspaceData ? (
+							<CreateProjectFlow
+								idleLabel={t("work.enter.addProject")}
+								onCreateProject={createProject}
+								onInitializeProject={initializeProject}
+							>
+								{({ choosePath, disabled, error, label }) => (
+									<div className="flex flex-col gap-2">
+										<Button variant="outline" disabled={disabled} onClick={choosePath}>
+											{label}
+										</Button>
+										{error && (
+											<p data-testid="enter-error-folder" className="text-destructive text-sm">
+												{error}
+											</p>
+										)}
+									</div>
+								)}
+							</CreateProjectFlow>
+						) : null}
 					</div>
 				)}
 			</div>
