@@ -585,3 +585,97 @@ func sortInfos(infos []Info) {
 		return infos[i].ID < infos[j].ID
 	})
 }
+
+// RoleInventoryFact is the live adapter admission truth for one harness,
+// probed from the same inventory the agents list serves.
+type RoleInventoryFact struct {
+	Installed       bool
+	RequiresProfile bool
+	ProfileReady    *bool
+}
+
+func (s *Service) agentFor(harness domain.AgentHarness) (agentregistry.HarnessAgent, bool) {
+	for _, item := range s.agents {
+		if item.Harness == harness {
+			return item, true
+		}
+	}
+	return agentregistry.HarnessAgent{}, false
+}
+
+// InventoryRoleFacts probes installation and advisory profile readiness for
+// each named harness against the current adapter inventory.
+func (s *Service) InventoryRoleFacts(harnesses []domain.AgentHarness) map[domain.AgentHarness]RoleInventoryFact {
+	out := make(map[domain.AgentHarness]RoleInventoryFact, len(harnesses))
+	for _, harness := range harnesses {
+		fact := RoleInventoryFact{}
+		if item, ok := s.agentFor(harness); ok {
+			if resolver, isResolver := item.Agent.(ports.AgentBinaryResolver); isResolver {
+				ctx, cancel := context.WithTimeout(context.Background(), agentInstallProbeTimeout)
+				_, err := resolver.ResolveBinary(ctx)
+				cancel()
+				fact.Installed = err == nil
+			} else {
+				fact.Installed = true
+			}
+			if checker, isChecker := item.Agent.(ports.AgentProfileReadinessChecker); isChecker {
+				fact.RequiresProfile = true
+				ctx, cancel := context.WithTimeout(context.Background(), agentInstallProbeTimeout)
+				readiness, err := checker.ProfileReadiness(ctx, ports.AgentConfig{})
+				cancel()
+				if err == nil {
+					ready := readiness.Ready
+					fact.ProfileReady = &ready
+				}
+			}
+		}
+		out[harness] = fact
+	}
+	return out
+}
+
+// EnrichMissionRoles layers live inventory truth onto the pure capability
+// proposal. Readiness failures never substitute another harness — they flip
+// Ready to false and name the blocking gate, so callers fail closed instead
+// of silently falling back.
+func EnrichMissionRoles(base domain.ResolvedMissionRoles, facts map[domain.AgentHarness]RoleInventoryFact) domain.ResolvedMissionRoles {
+	enrich := func(role domain.ResolvedAgentRole) domain.ResolvedAgentRole {
+		fact, known := facts[role.Harness]
+		if !known {
+			return role
+		}
+		switch {
+		case !fact.Installed:
+			role.Ready = false
+			role.Reason += "; harness is not installed"
+		case fact.RequiresProfile && (fact.ProfileReady == nil || !*fact.ProfileReady):
+			role.Ready = false
+			role.Reason += "; profile readiness fails closed (no composed profile)"
+		}
+		return role
+	}
+	base.Worker = enrich(base.Worker)
+	base.Analyzer = enrich(base.Analyzer)
+	base.Coordinator = enrich(base.Coordinator)
+	base.Verifier = enrich(base.Verifier)
+	return base
+}
+
+// ResolveMissionRoles combines stored preferences with live inventory truth
+// into one daemon-resolved role proposal. Assignments are proposals for
+// future Missions; historical sessions and approved Plans keep their
+// immutable provider identity regardless of what this returns.
+func (s *Service) ResolveMissionRoles(prefs domain.ProjectAgentPreferences) domain.ResolvedMissionRoles {
+	base := domain.ResolveMissionRoles(prefs)
+	seen := map[domain.AgentHarness]struct{}{
+		base.Analyzer.Harness:    {},
+		base.Coordinator.Harness: {},
+		base.Worker.Harness:      {},
+		base.Verifier.Harness:    {},
+	}
+	names := make([]domain.AgentHarness, 0, len(seen))
+	for harness := range seen {
+		names = append(names, harness)
+	}
+	return EnrichMissionRoles(base, s.InventoryRoleFacts(names))
+}

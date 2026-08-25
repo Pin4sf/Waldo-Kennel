@@ -280,7 +280,12 @@ type ResolvedAgentRole struct {
 	Harness  AgentHarness
 	Source   RoleSource
 	Eligible bool
-	Reason   string
+	// Ready reports live adapter admission layered on by the service layer
+	// (installed binary, authorization, profile readiness). The pure domain
+	// resolution can only speak to capability admission, so it defaults Ready
+	// to true for admissible roles; the inventory enrichment may flip it.
+	Ready  bool
+	Reason string
 }
 
 // ResolvedMissionRoles is the daemon-resolved role proposal for one Project.
@@ -298,15 +303,15 @@ func ResolveMissionRoles(prefs ProjectAgentPreferences) ResolvedMissionRoles {
 	resolve := func(role, value string, eligible func(AgentHarness) bool, fallback AgentHarness) ResolvedAgentRole {
 		harness := AgentHarness(strings.TrimSpace(value))
 		if harness == "" {
-			return ResolvedAgentRole{Harness: fallback, Source: RoleSourceDefault, Eligible: true,
+			return ResolvedAgentRole{Harness: fallback, Source: RoleSourceDefault, Eligible: true, Ready: true,
 				Reason: "no preference recorded; using the capability-admitted default"}
 		}
 		admissible := harness.IsKnown() && eligible(harness)
 		if admissible {
-			return ResolvedAgentRole{Harness: harness, Source: RoleSourcePreference, Eligible: true,
+			return ResolvedAgentRole{Harness: harness, Source: RoleSourcePreference, Eligible: true, Ready: true,
 				Reason: "honors the project preference"}
 		}
-		return ResolvedAgentRole{Harness: fallback, Source: RoleSourceDefault, Eligible: true,
+		return ResolvedAgentRole{Harness: fallback, Source: RoleSourceDefault, Eligible: true, Ready: true,
 			Reason: "preferred harness \"" + value + "\" is not admitted for this role"}
 	}
 	return ResolvedMissionRoles{

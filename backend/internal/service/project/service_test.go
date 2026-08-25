@@ -1559,3 +1559,55 @@ func TestManager_AddWorkspaceRejectsBareParent(t *testing.T) {
 	_, err := m.Add(ctx, project.AddInput{Path: bareParent, ProjectID: ptr("bare"), AsWorkspace: true})
 	wantCode(t, err, "WORKSPACE_PARENT_BARE")
 }
+
+func TestManager_SetConfigPersistsAgentPreferences(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlitetest.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	m := project.NewWithDeps(project.Deps{Store: store})
+	scratchPath := filepath.Join(t.TempDir(), "scratch", "default")
+	if _, err := m.EnsureDefaultScratchProject(ctx, scratchPath); err != nil {
+		t.Fatalf("EnsureDefaultScratchProject: %v", err)
+	}
+
+	proj, err := m.SetConfig(ctx, "scratch", project.SetConfigInput{Config: domain.ProjectConfig{
+		AgentConfig:      domain.AgentConfig{Model: "m"},
+		AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"},
+	}})
+	if err != nil {
+		t.Fatalf("SetConfig with agent preferences: %v", err)
+	}
+	if proj.Config == nil || proj.Config.AgentPreferences.DefaultWorker != "deepseek-harness" {
+		t.Fatalf("preferences not echoed back: %#v", proj.Config)
+	}
+
+	got, err := m.Get(ctx, "scratch")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Project.Config == nil || got.Project.Config.AgentPreferences.DefaultWorker != "deepseek-harness" {
+		t.Fatalf("preferences not persisted: %#v", got.Project.Config)
+	}
+}
+
+func TestManager_SetConfigRejectsInadmissibleRolePreference(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlitetest.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	m := project.NewWithDeps(project.Deps{Store: store})
+	scratchPath := filepath.Join(t.TempDir(), "scratch", "default")
+	if _, err := m.EnsureDefaultScratchProject(ctx, scratchPath); err != nil {
+		t.Fatalf("EnsureDefaultScratchProject: %v", err)
+	}
+
+	_, err = m.SetConfig(ctx, "scratch", project.SetConfigInput{Config: domain.ProjectConfig{
+		AgentPreferences: domain.ProjectAgentPreferences{Coordinator: "deepseek-harness"},
+	}})
+	wantCode(t, err, "INVALID_PROJECT_CONFIG")
+}
