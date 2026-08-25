@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { appI18n } from "../i18n";
+import { useUiStore } from "../stores/ui-store";
 
 // Instant motion updates so height tweens do not leave tests waiting on timers.
 vi.mock("motion/react", async (importOriginal) => {
@@ -21,6 +22,7 @@ const {
 	postMock,
 	workspaceQueryMock,
 	usageQueryMock,
+	projectOutcomesQueryMock,
 	boardActionsInPanelMock,
 } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
@@ -29,6 +31,7 @@ const {
 	postMock: vi.fn(),
 	workspaceQueryMock: vi.fn(),
 	usageQueryMock: vi.fn(),
+	projectOutcomesQueryMock: vi.fn(),
 	boardActionsInPanelMock: vi.fn(() => false),
 }));
 
@@ -43,6 +46,10 @@ vi.mock("../hooks/useWorkspaceQuery", () => ({
 
 vi.mock("../hooks/useSessionUsageSummaries", () => ({
 	useSessionUsageSummaries: usageQueryMock,
+}));
+
+vi.mock("../hooks/useOutcome", () => ({
+	useProjectOutcomes: projectOutcomesQueryMock,
 }));
 
 vi.mock("../lib/api-client", () => ({
@@ -106,11 +113,214 @@ beforeEach(() => {
 	postMock.mockReset().mockResolvedValue({ data: {} });
 	workspaceQueryMock.mockReset().mockReturnValue({ data: [], isError: false });
 	usageQueryMock.mockReset().mockReturnValue({ data: new Map() });
+	projectOutcomesQueryMock.mockReset().mockReturnValue({ outcomes: [], isLoading: false });
 	window.localStorage.removeItem("kennel.board.archive.layout");
+	window.localStorage.removeItem("kennel.sessions.viewMode");
+	useUiStore.setState({ sessionsViewMode: "board" });
 	boardActionsInPanelMock.mockReset().mockReturnValue(false);
 });
 
 describe("SessionsBoard", () => {
+	it("shows saved Outcome stage and next action, then continues from durable facts", async () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [workspaceWithSessions([])],
+			isError: false,
+			isSuccess: true,
+		});
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [
+				{
+					id: "outcome-1",
+					title: "Explain Waldo clearly",
+					currentRevisionNumber: 1,
+				},
+			],
+			isLoading: false,
+		});
+
+		renderBoard("p1");
+
+		expect(screen.getByText("Explain Waldo clearly")).toBeInTheDocument();
+		expect(screen.getByText("Decide & Authorize · Contract saved")).toBeInTheDocument();
+		expect(screen.getByText("Review plan and permissions")).toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Continue Explain Waldo clearly" }));
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "p1", stage: "decide_authorize", outcome: "outcome-1" },
+		});
+		expect(screen.getByRole("tablist", { name: "Session view" })).toBeInTheDocument();
+	});
+
+	it("re-enters an approved Outcome through its exact approved Plan", async () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [workspaceWithSessions([])],
+			isError: false,
+			isSuccess: true,
+		});
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [
+				{
+					id: "outcome-approved",
+					title: "Ship the dashboard",
+					currentRevisionNumber: 1,
+					latestPlan: { contractRevisionNumber: 1, status: "approved" },
+				},
+			],
+			isLoading: false,
+		});
+
+		renderBoard("p1");
+
+		expect(screen.getByText("Authorized · Execution not connected")).toBeInTheDocument();
+		expect(screen.getByText("Review approved plan")).toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Continue Ship the dashboard" }));
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "p1", stage: "decide_authorize", outcome: "outcome-approved" },
+		});
+	});
+
+	it("shows a live orchestrator as project activity and switches it between Board and List", async () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({
+						id: "orch-needs-input",
+						title: "Outcome: explain Waldo",
+						kind: "orchestrator",
+						status: "needs_input",
+						activity: { state: "idle", lastActivityAt: "2026-08-24T10:00:00Z" },
+					}),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+
+		renderBoard("p1");
+
+		expect(screen.getByText("Outcome: explain Waldo")).toBeInTheDocument();
+		expect(screen.getByRole("tablist", { name: "Session view" })).toBeInTheDocument();
+		expect(screen.queryByText("Start by defining an outcome")).not.toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole("tab", { name: "List" }));
+		expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true");
+		expect(screen.getByText("Outcome: explain Waldo")).toBeInTheDocument();
+	});
+
+	it("previews Waldo's review and recommendation from a List row without navigating", async () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [
+				workspaceWithSessions([
+					boardSession({
+						id: "s-review",
+						title: "Resolve reviewer feedback",
+						status: "changes_requested",
+						commitMessage: "polish the terminal review flow",
+						changedFiles: [
+							{ path: "frontend/src/renderer/components/TerminalPane.tsx", additions: 12, deletions: 3 },
+							{ path: "frontend/src/renderer/styles.css", additions: 8, deletions: 1 },
+						],
+					}),
+				]),
+			],
+			isError: false,
+			isSuccess: true,
+		});
+		useUiStore.setState({ sessionsViewMode: "list" });
+
+		renderBoard("p1");
+		const row = screen.getByTestId("board-session-row");
+		await userEvent.hover(row);
+
+		const brief = await screen.findByRole("dialog", { name: "Waldo brief for Resolve reviewer feedback" });
+		expect(brief).toHaveTextContent("Polish the terminal review flow. 2 files changed in this session.");
+		expect(brief).toHaveTextContent("Review the blocker with the agent before any consequential next step.");
+		expect(navigateMock).not.toHaveBeenCalled();
+
+		await userEvent.click(screen.getByRole("button", { name: "Hold off" }));
+		expect(screen.queryByRole("dialog", { name: "Waldo brief for Resolve reviewer feedback" })).not.toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole("button", { name: "Choose Resolve reviewer feedback" }));
+		expect(await screen.findByRole("dialog", { name: "Waldo brief for Resolve reviewer feedback" })).toBeInTheDocument();
+		expect(navigateMock).not.toHaveBeenCalled();
+		await userEvent.click(screen.getByRole("button", { name: "Open session" }));
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "p1", sessionId: "s-review" },
+		});
+		navigateMock.mockClear();
+
+		act(() => screen.getByRole("button", { name: /^Resolve reviewer feedback$/ }).focus());
+		expect(await screen.findByRole("dialog", { name: "Waldo brief for Resolve reviewer feedback" })).toBeInTheDocument();
+		expect(navigateMock).not.toHaveBeenCalled();
+	});
+
+	it("summarizes real daemon SCM facts in the Waldo brief", async () => {
+		getMock.mockImplementation(async (path: string) =>
+			path === "/api/v1/sessions/{sessionId}/pr"
+				? {
+						data: {
+							prs: [
+								{
+									additions: 20,
+									author: "waldo",
+									changedFiles: 2,
+									ci: { autoInjectCI: true, failingChecks: [], state: "passing" },
+									deletions: 4,
+									headSha: "abc123",
+									htmlUrl: "https://github.com/acme/kennel/pull/68",
+									mergeability: { conflictFiles: [], reasons: [], state: "mergeable" },
+									number: 68,
+									provider: "github",
+									repo: "kennel",
+									review: { decision: "changes_requested", hasUnresolvedHumanComments: true, unresolvedBy: [] },
+									sourceBranch: "work/review",
+									state: "open",
+									targetBranch: "beta",
+									title: "polish the terminal review flow",
+									updatedAt: "2026-08-25T12:00:00Z",
+									url: "https://api.github.com/repos/acme/kennel/pulls/68",
+								},
+							],
+						},
+					}
+				: { data: { controller: "ready", messages: [] } },
+		);
+		workspaceQueryMock.mockReturnValue({
+			data: [workspaceWithSessions([boardSession({ id: "s-scm", title: "Resolve reviewer feedback", status: "changes_requested" })])],
+			isError: false,
+			isSuccess: true,
+		});
+		useUiStore.setState({ sessionsViewMode: "list" });
+
+		renderBoard("p1");
+		await userEvent.click(screen.getByRole("button", { name: "Choose Resolve reviewer feedback" }));
+
+		await waitFor(() => {
+			expect(screen.getByRole("dialog", { name: "Waldo brief for Resolve reviewer feedback" })).toHaveTextContent(
+				"Polish the terminal review flow. 2 files changed in this pull request.",
+			);
+		});
+	});
+
+	it("discloses when the Waldo brief has status guidance but no attributed work summary", async () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [workspaceWithSessions([boardSession({ id: "s-status", title: "Wait for direction", status: "needs_input" })])],
+			isError: false,
+			isSuccess: true,
+		});
+		useUiStore.setState({ sessionsViewMode: "list" });
+
+		renderBoard("p1");
+		await userEvent.click(screen.getByRole("button", { name: "Choose Wait for direction" }));
+
+		const brief = await screen.findByRole("dialog", { name: "Waldo brief for Wait for direction" });
+		expect(brief).toHaveTextContent("Current status");
+		expect(brief).toHaveTextContent("No attributed work summary is available yet.");
+		expect(brief).toHaveTextContent("This session needs your judgment before it can move safely.");
+	});
+
 	it("never renders outcome questions from transcript markers over the active board", async () => {
 		// The marker intake is retired: Understand owns Outcome questions over
 		// the daemon contract, so marker text in an orchestrator transcript must

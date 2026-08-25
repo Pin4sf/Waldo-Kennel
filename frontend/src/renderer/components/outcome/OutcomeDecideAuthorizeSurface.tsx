@@ -19,6 +19,8 @@ import { Button } from "../ui/button";
 
 type OutcomeDecideAuthorizeSurfaceProps = {
 	outcomeId: string;
+	/** Returns to observed session activity without claiming an Attempt was started. */
+	onReviewWork?: () => void;
 };
 
 /**
@@ -30,7 +32,7 @@ type OutcomeDecideAuthorizeSurfaceProps = {
  * and a contract that moved ahead forces a fresh brief instead of a silent
  * authority transfer.
  */
-export function OutcomeDecideAuthorizeSurface({ outcomeId }: OutcomeDecideAuthorizeSurfaceProps) {
+export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: OutcomeDecideAuthorizeSurfaceProps) {
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
 
@@ -134,6 +136,15 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId }: OutcomeDecideAuthor
 						{t("outcome.decide.approveCta", { revision: plan.contractRevisionNumber })}
 					</Button>
 					<p className="text-muted-foreground text-xs">{t("outcome.decide.approveNote")}</p>
+				</div>
+			)}
+
+			{plan?.status === "approved" && onReviewWork && (
+				<div className="flex max-w-xl flex-col items-start gap-2">
+					<Button data-testid="outcome-review-work" onClick={onReviewWork} type="button" variant="outline">
+						{t("outcome.decide.reviewWorkCta")}
+					</Button>
+					<p className="text-muted-foreground text-xs">{t("outcome.decide.reviewWorkNote")}</p>
 				</div>
 			)}
 

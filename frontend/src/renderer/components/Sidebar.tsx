@@ -31,7 +31,7 @@ import {
 	newestActiveOrchestrator,
 	type WorkspaceSession,
 	type WorkspaceSummary,
-	sortedWorkerSessions,
+	sortedProjectSessions,
 	workerSessions,
 } from "../types/workspace";
 import { getAgentActivityView } from "../lib/session-presentation";
@@ -39,6 +39,7 @@ import { deriveSessionAgentSwitchPresentation } from "../lib/agent-switch-presen
 import { aoBridge } from "../lib/bridge";
 import { useCommandPaletteEnabled } from "../hooks/useCommandPaletteEnabled";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
+import { useProjectOutcomes, type OutcomeRecord } from "../hooks/useOutcome";
 import { usePinSession, useUnpinSession } from "../hooks/usePinSession";
 import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { renameSession } from "../lib/rename-session";
@@ -89,6 +90,8 @@ import { isMacPlatform, isWindowsPlatform } from "../lib/platform";
 import { useCloudSession } from "../lib/cloud-session";
 import { HomeNavigation } from "./home/HomeNavigation";
 import type { HomeDestination } from "../lib/home-fixture";
+import { deriveOutcomeDashboardPresentation } from "../lib/outcome-dashboard-presentation";
+import { HomeWorkModeSwitch } from "./HomeWorkModeSwitch";
 
 // macOS paints framed chrome: the fixed TitlebarNav cluster carries the
 // sidebar toggle + history arrows above this surface. Windows hangs the sidebar
@@ -147,7 +150,13 @@ function useSelection() {
 	const openGlobalSettings = useUiStore((state) => state.openGlobalSettings);
 	const openProjectSettings = useUiStore((state) => state.openProjectSettings);
 	const params = useParams({ strict: false }) as { projectId?: string; sessionId?: string };
-	const pathname = useRouterState({ select: (state) => state.location.pathname });
+	const location = useRouterState({ select: (state) => state.location });
+	const pathname = location.pathname;
+	const workSearch = location.search as { project?: unknown; outcome?: unknown };
+	const workProjectId =
+		pathname === "/work" && typeof workSearch.project === "string" ? workSearch.project : undefined;
+	const workOutcomeId =
+		pathname === "/work" && typeof workSearch.outcome === "string" ? workSearch.outcome : undefined;
 	const isWork =
 		pathname === "/" ||
 		pathname === "/work" ||
@@ -168,8 +177,9 @@ function useSelection() {
 							: pathname === "/home/daily-close"
 								? "daily_close"
 								: "history") as HomeDestination,
-		activeProjectId: params.projectId,
+		activeProjectId: params.projectId ?? workProjectId,
 		activeSessionId: params.sessionId,
+		activeOutcomeId: workOutcomeId,
 		goWork: () => void navigate({ to: "/" }),
 		// Settings is a modal — open it in place so the current page (session
 		// terminal, board, etc.) stays underneath.
@@ -387,6 +397,15 @@ export function Sidebar({
 				)}
 			</SidebarHeader>
 
+			<div
+				className={cn(
+					"sidebar-expanded-chrome shrink-0 group-data-[collapsible=icon]:hidden",
+					figmaBoard ? "figma-board-sidebar__mode-switch" : "px-2 pb-3",
+				)}
+			>
+				<HomeWorkModeSwitch />
+			</div>
+
 			{selection.isHome ? (
 				<SidebarGroup className="shrink-0 px-2 pb-2 pt-0 group-data-[collapsible=icon]:px-1.5">
 					<SidebarGroupContent>
@@ -401,9 +420,13 @@ export function Sidebar({
 			{figmaBoard ? (
 				<div className="figma-board-sidebar__section-heading">
 					<span>{t("shell.projects")}</span>
-					<span aria-hidden="true" className="figma-board-sidebar__section-icons">
-						<ChevronDown />
-						<Filter />
+					<span className="figma-board-sidebar__section-icons">
+						<ChevronDown aria-hidden="true" />
+						<Filter aria-hidden="true" />
+						<CreateProjectButton
+							onCreateProject={onCreateProject}
+							onInitializeProject={onInitializeProject}
+						/>
 					</span>
 				</div>
 			) : (
@@ -614,15 +637,17 @@ function ProjectItem({
 	onRemoveProject: (projectId: string) => Promise<void>;
 }) {
 	const { t } = useTranslation();
+	const navigate = useNavigate();
 	const prefersReducedMotion = useReducedMotion();
 	const activeProjectMatches = selection.activeProjectId === workspace.id;
-	const dashboardActive = activeProjectMatches && !selection.activeSessionId;
+	const dashboardActive = activeProjectMatches && !selection.activeSessionId && !selection.activeOutcomeId;
+	const outcomeActive = activeProjectMatches && Boolean(selection.activeOutcomeId);
 	const orchestratorActive =
 		activeProjectMatches &&
 		workspace.sessions.some(
 			(session) => session.id === selection.activeSessionId && session.kind === "orchestrator",
 		);
-	const projectActive = dashboardActive || orchestratorActive;
+	const projectActive = dashboardActive || orchestratorActive || outcomeActive;
 	const queryClient = useQueryClient();
 	const [removeError, setRemoveError] = useState<string | null>(null);
 	const [isRemoving, setIsRemoving] = useState(false);
@@ -630,6 +655,7 @@ function ProjectItem({
 	const [isSpawning, setIsSpawning] = useState(false);
 	const [projectPressed, setProjectPressed] = useState(false);
 	const [rowHovered, setRowHovered] = useState(false);
+	const [rowFocused, setRowFocused] = useState(false);
 	const [showAllSessions, setShowAllSessions] = useState(false);
 	// Skip enter animation on first mount — sessions arrive async and we don't
 	// want them to slide in on every sidebar load. Only animate on subsequent
@@ -642,11 +668,13 @@ function ProjectItem({
 	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
 	const isProjectRestarting = restartingProjectIds.has(workspace.id);
 	const requestNewTask = useUiStore((state) => state.requestNewTask);
-	// Keep completed PR sessions reachable while their runtime still exists.
-	// Only termination removes a worker from the sidebar; archived sessions stay
-	// reachable through SessionsBoard.
-	const sessions = sortedWorkerSessions(workspace.sessions).filter((session) => session.isTerminated !== true);
+	// Keep the full live project tree reachable. The orchestrator is a real
+	// daemon-backed session too; excluding it left an expanded project empty
+	// even while the Outcome conversation was waiting for the user.
+	const sessions = sortedProjectSessions(workspace.sessions).filter((session) => session.isTerminated !== true);
 	const visibleSessions = figmaBoard && !showAllSessions ? sessions.slice(0, 3) : sessions;
+	const projectOutcomesQuery = useProjectOutcomes(expanded ? workspace.id : undefined);
+	const outcomes = projectOutcomesQuery.outcomes;
 	// The project's live orchestrator (if any) backs the hover Orchestrator
 	// button: navigate to it when present, otherwise spawn one first.
 	const orchestrator = newestActiveOrchestrator(workspace.sessions);
@@ -693,6 +721,16 @@ function ProjectItem({
 		}
 	};
 
+	const openOutcome = (outcome: OutcomeRecord) => {
+		void navigate({
+			to: "/work",
+			search: { project: workspace.id, stage: "decide_authorize", outcome: outcome.id },
+		});
+	};
+	const openNewOutcome = () => {
+		void navigate({ to: "/work", search: { project: workspace.id } });
+	};
+
 	// Folder icon always toggles disclosure, even when another project is
 	// selected — without this, collapsing a non-active project required a
 	// select click then a second click (felt like a double-click).
@@ -734,6 +772,10 @@ function ProjectItem({
 		<ContextMenuTrigger asChild>
 		<SidebarMenuItem
 			className="group-data-[collapsible=icon]:mb-0"
+			onBlurCapture={(event) => {
+				if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setRowFocused(false);
+			}}
+			onFocusCapture={() => setRowFocused(true)}
 			onMouseEnter={() => setRowHovered(true)}
 			onMouseLeave={() => setRowHovered(false)}
 		>
@@ -831,15 +873,35 @@ function ProjectItem({
 		aria-label={t("shell.toggleProject", { name: workspace.name })}
 		aria-expanded={expanded}
 		className={cn(
-			"absolute inset-y-0 z-10 w-9 group-data-[collapsible=icon]:hidden focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm",
-			figmaBoard ? "right-0" : "left-0",
+			"absolute inset-y-0 z-10 group-data-[collapsible=icon]:hidden focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm",
+			figmaBoard ? "right-0 w-6" : "left-0 w-9",
 		)}
 		data-project-folder=""
 		onClick={onFolderClick}
 		type="button"
 	/>
+		{figmaBoard ? (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						aria-label={t("outcome.dashboard.newOutcome")}
+						className="figma-board-sidebar__project-new-outcome"
+						disabled={isProjectRestarting}
+						onClick={(event) => {
+							event.stopPropagation();
+							openNewOutcome();
+						}}
+						onPointerDown={(event) => event.stopPropagation()}
+						type="button"
+					>
+						<Plus aria-hidden="true" />
+					</button>
+				</TooltipTrigger>
+				<TooltipContent>{t("outcome.dashboard.newOutcome")}</TooltipContent>
+			</Tooltip>
+		) : null}
 		</div>
-		{/* Per-project actions: orchestrator and kebab menu. Inside the scaled visual
+		{/* Per-project actions: new Outcome, orchestrator, and kebab menu. Inside the scaled visual
 		row, but outside its navigation surface so their own presses stay independent.
 		Always visible (not hover-gated) to avoid CSS :hover group propagation in Chromium. */}
 		{figmaBoard ? null : (
@@ -852,6 +914,24 @@ function ProjectItem({
 			onClick={(event) => event.stopPropagation()}
 			onPointerDown={(event) => event.stopPropagation()}
 		>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						aria-label={t("outcome.dashboard.newOutcome")}
+						className={cn(
+							HOVER_ACTION_CLASS,
+							"pointer-events-none opacity-0 transition-opacity",
+							(rowHovered || rowFocused) && "pointer-events-auto opacity-100",
+						)}
+						disabled={isProjectRestarting}
+						onClick={openNewOutcome}
+						type="button"
+					>
+						<Plus aria-hidden="true" />
+					</button>
+				</TooltipTrigger>
+				<TooltipContent>{t("outcome.dashboard.newOutcome")}</TooltipContent>
+			</Tooltip>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<button
@@ -921,7 +1001,7 @@ function ProjectItem({
 		{/* project-sidebar__sessions: indented under the project parent so worker
           sessions read as children without adding a persistent guide rail. */}
 		<AnimatePresence initial={false}>
-			{expanded && sessions.length > 0 && (
+			{expanded && (outcomes.length > 0 || sessions.length > 0 || projectOutcomesQuery.failure) && (
 				<motion.div
 					key="sessions"
 					initial={animReady ? { height: 0 } : false}
@@ -943,6 +1023,30 @@ function ProjectItem({
 								figmaBoard ? "figma-board-sidebar__sessions" : "ml-3.5 gap-px py-1",
 							)}
 						>
+							{projectOutcomesQuery.failure ? (
+								<li className="px-1.75 py-1 text-2xs text-muted-foreground" role="alert">
+									{t("outcome.dashboard.loadFailed")}
+								</li>
+							) : null}
+							{outcomes.length > 0 ? (
+								<li className="px-1.75 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+									{t("outcome.dashboard.heading")}
+								</li>
+							) : null}
+							{outcomes.map((outcome) => (
+								<OutcomeRow
+									active={selection.activeOutcomeId === outcome.id}
+									figmaBoard={figmaBoard}
+									key={outcome.id}
+									onOpen={() => openOutcome(outcome)}
+									outcome={outcome}
+								/>
+							))}
+							{sessions.length > 0 ? (
+								<li className="px-1.75 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+									{t("shell.sessions")}
+								</li>
+							) : null}
 							{visibleSessions.map((session) => (
 								<SessionRow
 									key={session.id}
@@ -1005,6 +1109,39 @@ function ProjectItem({
 			</ContextMenuItem>
 		</ContextMenuContent>
 		</ContextMenu>
+	);
+}
+
+function OutcomeRow({
+	outcome,
+	active,
+	figmaBoard,
+	onOpen,
+}: {
+	outcome: OutcomeRecord;
+	active: boolean;
+	figmaBoard: boolean;
+	onOpen: () => void;
+}) {
+	const { t } = useTranslation();
+	const presentation = deriveOutcomeDashboardPresentation(outcome);
+	return (
+		<SidebarMenuSubItem className={cn(figmaBoard ? "figma-board-sidebar__session-item" : "pl-4.5")}>
+			<button
+				aria-current={active ? "page" : undefined}
+				aria-label={t("outcome.dashboard.continueAria", { title: outcome.title })}
+				className={cn(
+					"group/outcome-row flex h-7 w-full min-w-0 items-center gap-1.25 rounded-md px-1.75 text-left text-sm text-muted-foreground transition-[background-color,color] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+					active && "bg-muted text-foreground",
+				)}
+				onClick={onOpen}
+				title={`${t(presentation.stageKey)} · ${t(presentation.stateKey)}`}
+				type="button"
+			>
+				<span aria-hidden="true" className="size-2 shrink-0 rounded-full border border-current" />
+				<span className="min-w-0 flex-1 truncate">{outcome.title}</span>
+			</button>
+		</SidebarMenuSubItem>
 	);
 }
 

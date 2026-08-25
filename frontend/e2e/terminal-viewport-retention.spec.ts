@@ -173,6 +173,8 @@ async function settledRevealSamples(page: Page): Promise<RevealSample[]> {
 }
 
 async function openSession(page: Page, title: string): Promise<void> {
+	const showMore = page.getByRole("button", { name: "Show more" });
+	if (await showMore.isVisible()) await showMore.click();
 	const entry = title === "Project orchestrator"
 		? page.getByRole("button", { name: /Open .* orchestrator/i }).first()
 		: page.getByRole("button", { name: `Open ${title}`, exact: true });

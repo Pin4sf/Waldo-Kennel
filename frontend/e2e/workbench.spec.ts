@@ -14,7 +14,7 @@ test("renders the current Work project and session shell", async ({ page }) => {
 });
 
 test("deep-links into a worker session", async ({ page }) => {
-	await page.goto("/#/projects/ao-demo/sessions/demo-working");
+	await page.goto("/#/projects/kennel-design/sessions/demo-working");
 	await expect(page.getByTestId("session-detail")).toBeVisible();
 	await expect(page.getByRole("tab", { name: "Summary" })).toBeVisible();
 	await expect(page.getByRole("button", { name: "New terminal" })).toBeVisible();

@@ -23,6 +23,7 @@ type fakeOutcomeService struct {
 	create func(context.Context, outcomevc.CreateInput) (outcomevc.OutcomeView, error)
 	revise func(context.Context, domain.OutcomeID, outcomevc.ReviseContractInput) (outcomevc.OutcomeView, error)
 	get    func(context.Context, domain.OutcomeID) (outcomevc.OutcomeView, error)
+	list   func(context.Context, domain.ProjectID) ([]outcomevc.OutcomeView, error)
 
 	lastInput outcomevc.CreateInput
 }
@@ -50,6 +51,10 @@ func (f *fakeOutcomeService) ReviseContract(ctx context.Context, id domain.Outco
 
 func (f *fakeOutcomeService) Get(ctx context.Context, id domain.OutcomeID) (outcomevc.OutcomeView, error) {
 	return f.get(ctx, id)
+}
+
+func (f *fakeOutcomeService) ListByProject(ctx context.Context, projectID domain.ProjectID) ([]outcomevc.OutcomeView, error) {
+	return f.list(ctx, projectID)
 }
 
 func sampleOutcomeView() outcomevc.OutcomeView {
@@ -98,6 +103,79 @@ func TestCreateOutcomeRoute(t *testing.T) {
 	}
 	if svc.lastInput.ProjectID != "mer" {
 		t.Fatalf("project id not propagated: %+v", svc.lastInput)
+	}
+}
+
+func TestListProjectOutcomesRoute(t *testing.T) {
+	svc := &fakeOutcomeService{}
+	svc.list = func(_ context.Context, projectID domain.ProjectID) ([]outcomevc.OutcomeView, error) {
+		if projectID != "mer" {
+			t.Fatalf("project id = %s, want mer", projectID)
+		}
+		first := sampleOutcomeView()
+		first.LatestPlan = &domain.PlanRevision{
+			ID: "plan-1", OutcomeID: first.Outcome.ID, Number: 1,
+			ContractRevisionNumber: 1, Status: domain.PlanStatusProposed,
+		}
+		second := sampleOutcomeView()
+		second.Outcome.ID = "out-second"
+		second.Outcome.Title = "Second Outcome"
+		second.Current.ID = "cr-second"
+		second.Current.OutcomeID = second.Outcome.ID
+		second.History = []domain.ContractRevision{second.Current}
+		return []outcomevc.OutcomeView{first, second}, nil
+	}
+	srv := newOutcomesTestServer(t, svc)
+
+	respBytes, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/projects/mer/outcomes", "")
+	if status != http.StatusOK {
+		t.Fatalf("list = %d, want 200: %s", status, respBytes)
+	}
+	var body struct {
+		Outcomes []struct {
+			ID                    string `json:"id"`
+			Title                 string `json:"title"`
+			CurrentRevisionNumber int64  `json:"currentRevisionNumber"`
+			LatestPlan            *struct {
+				ID     string `json:"id"`
+				Status string `json:"status"`
+			} `json:"latestPlan"`
+		} `json:"outcomes"`
+	}
+	if err := json.Unmarshal(respBytes, &body); err != nil {
+		t.Fatalf("decode list: %v: %s", err, respBytes)
+	}
+	if len(body.Outcomes) != 2 || body.Outcomes[0].ID != "out-fix" || body.Outcomes[1].ID != "out-second" {
+		t.Fatalf("outcomes = %+v", body.Outcomes)
+	}
+	if body.Outcomes[0].CurrentRevisionNumber != 1 {
+		t.Fatalf("list lost current revision: %+v", body.Outcomes[0])
+	}
+	if body.Outcomes[0].LatestPlan == nil || body.Outcomes[0].LatestPlan.ID != "plan-1" || body.Outcomes[0].LatestPlan.Status != "proposed" {
+		t.Fatalf("list lost latest plan facts: %+v", body.Outcomes[0])
+	}
+}
+
+func TestListProjectOutcomesRoutePreservesErrorEnvelope(t *testing.T) {
+	svc := &fakeOutcomeService{}
+	svc.list = func(_ context.Context, _ domain.ProjectID) ([]outcomevc.OutcomeView, error) {
+		return nil, apierr.Invalid("PROJECT_REQUIRED", "Choose a project", nil)
+	}
+	srv := newOutcomesTestServer(t, svc)
+
+	respBytes, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/projects/%20/outcomes", "")
+	if status != http.StatusBadRequest {
+		t.Fatalf("list = %d, want 400: %s", status, respBytes)
+	}
+	var body struct {
+		Code      string `json:"code"`
+		RequestID string `json:"requestId"`
+	}
+	if err := json.Unmarshal(respBytes, &body); err != nil {
+		t.Fatalf("decode error envelope: %v: %s", err, respBytes)
+	}
+	if body.Code != "PROJECT_REQUIRED" || body.RequestID == "" {
+		t.Fatalf("error envelope = %+v", body)
 	}
 }
 

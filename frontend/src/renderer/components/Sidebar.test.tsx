@@ -18,16 +18,19 @@ import {
 	SIDEBAR_DEFAULT_WIDTH,
 	SIDEBAR_MIN_WIDTH,
 } from "./Sidebar";
+import { TooltipProvider } from "./ui/tooltip";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { agentsQueryKey } from "../hooks/useAgentsQuery";
 import { useUiStore } from "../stores/ui-store";
 
-const { getMock, navigateMock, mockParams, mockPathname, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
+const { getMock, navigateMock, mockParams, mockPathname, mockSearch, projectOutcomesQueryMock, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
 	() => ({
 		getMock: vi.fn(),
 		navigateMock: vi.fn(),
 		mockParams: { projectId: undefined as string | undefined, sessionId: undefined as string | undefined },
 		mockPathname: { current: "/" },
+		mockSearch: { current: {} as Record<string, unknown> },
+		projectOutcomesQueryMock: vi.fn(),
 		renameSessionMock: vi.fn().mockResolvedValue(undefined),
 		spawnMock: vi.fn(),
 		updateStatusMock: vi.fn(),
@@ -42,14 +45,22 @@ vi.mock("../hooks/useCommandPaletteEnabled", () => ({
 	useCommandPaletteEnabled: () => commandPaletteEnabled.current,
 }));
 
+vi.mock("../hooks/useOutcome", () => ({
+	useProjectOutcomes: projectOutcomesQueryMock,
+}));
+
 vi.mock("@tanstack/react-router", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@tanstack/react-router")>();
 	return {
 		...actual,
+		Link: ({ children, to, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) => (
+			<a href={`#${to}`} {...props}>{children}</a>
+		),
 		useNavigate: () => navigateMock,
 		useParams: () => ({ ...mockParams }),
-		useRouterState: ({ select }: { select: (state: { location: { pathname: string } }) => unknown }) =>
-			select({ location: { pathname: mockPathname.current } }),
+		useRouter: () => ({ history: { push: vi.fn() } }),
+		useRouterState: ({ select }: { select: (state: { location: { href: string; pathname: string; search: Record<string, unknown> } }) => unknown }) =>
+			select({ location: { pathname: mockPathname.current, search: mockSearch.current, href: mockPathname.current } }),
 	};
 });
 
@@ -137,6 +148,7 @@ function renderSidebar({
 	onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler,
 	onInitializeProject = vi.fn().mockResolvedValue(undefined) as InitializeProjectHandler,
 	onRemoveProject = vi.fn().mockResolvedValue(undefined) as RemoveProjectHandler,
+	figmaBoard = false,
 	seedAgents = true,
 	workspaces = [workspace],
 	initialOpen = true,
@@ -144,6 +156,7 @@ function renderSidebar({
 	onCreateProject?: CreateProjectHandler;
 	onInitializeProject?: InitializeProjectHandler;
 	onRemoveProject?: RemoveProjectHandler;
+	figmaBoard?: boolean;
 	seedAgents?: boolean;
 	workspaces?: WorkspaceSummary[];
 	initialOpen?: boolean;
@@ -173,14 +186,17 @@ function renderSidebar({
 	}
 	render(
 		<QueryClientProvider client={queryClient}>
-			<SidebarProvider defaultOpen={initialOpen}>
-				<Sidebar
-					onCreateProject={onCreateProject}
-					onInitializeProject={onInitializeProject}
-					onRemoveProject={onRemoveProject}
-					workspaces={workspaces}
-				/>
-			</SidebarProvider>
+			<TooltipProvider delayDuration={0}>
+				<SidebarProvider defaultOpen={initialOpen}>
+					<Sidebar
+						figmaBoard={figmaBoard}
+						onCreateProject={onCreateProject}
+						onInitializeProject={onInitializeProject}
+						onRemoveProject={onRemoveProject}
+						workspaces={workspaces}
+					/>
+				</SidebarProvider>
+			</TooltipProvider>
 		</QueryClientProvider>,
 	);
 	return onRemoveProject;
@@ -264,6 +280,7 @@ beforeEach(() => {
 		},
 		error: undefined,
 	});
+	projectOutcomesQueryMock.mockReset().mockReturnValue({ outcomes: [], isLoading: false });
 	navigateMock.mockReset();
 	renameSessionMock.mockReset().mockResolvedValue(undefined);
 	spawnMock.mockReset();
@@ -271,6 +288,7 @@ beforeEach(() => {
 	mockParams.projectId = undefined;
 	mockParams.sessionId = undefined;
 	mockPathname.current = "/";
+	mockSearch.current = {};
 });
 
 afterEach(() => {
@@ -278,11 +296,25 @@ afterEach(() => {
 });
 
 describe("Sidebar", () => {
-	it("leaves the global Home and Work choice to the shell mode control", () => {
-		renderSidebar();
+	it("keeps keyboard-accessible Add Project available in the Figma Work sidebar", async () => {
+		const user = userEvent.setup();
+		renderSidebar({ figmaBoard: true });
 
-		expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "Work (recommended)" })).not.toBeInTheDocument();
+		const newProject = screen.getByRole("button", { name: "New project" });
+		act(() => newProject.focus());
+		expect(newProject).toHaveFocus();
+		await user.keyboard("{Enter}");
+
+		expect(await screen.findByRole("dialog", { name: "Import to Kennel" })).toBeInTheDocument();
+	});
+
+	it("keeps the global Home and Work choice inside the sidebar", () => {
+		renderSidebar({ figmaBoard: true });
+
+		const modeSwitch = screen.getByRole("navigation", { name: "Waldo mode" });
+		expect(within(modeSwitch).getByRole("button", { name: "Home" })).toBeInTheDocument();
+		expect(within(modeSwitch).getByRole("button", { name: "Work" })).toHaveAttribute("aria-pressed", "true");
+		expect(modeSwitch.closest('[data-slot="sidebar"]')).toBeInTheDocument();
 	});
 
 	it("treats beta's Work entry route as an active Work destination", () => {
@@ -292,6 +324,23 @@ describe("Sidebar", () => {
 		expect(screen.getByRole("button", { name: "Orchestrator board" })).toHaveClass(
 			"group-data-[collapsible=icon]:bg-interactive-active",
 		);
+	});
+
+	it("keeps the selected project and Outcome visible during durable Work re-entry", async () => {
+		mockPathname.current = "/work";
+		mockSearch.current = { project: "proj-1", stage: "decide_authorize", outcome: "outcome-1" };
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [{ id: "outcome-1", title: "Explain Waldo clearly", currentRevisionNumber: 1 }],
+			isLoading: false,
+		});
+
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		const outcome = await screen.findByRole("button", { name: "Continue Explain Waldo clearly" });
+		expect(outcome).toHaveAttribute("aria-current", "page");
+		expect(screen.getByText("Project One").closest("button")).toHaveAttribute("data-active", "true");
+		expect(screen.getByText("Outcomes")).toBeInTheDocument();
+		expect(screen.getByText("Sessions")).toBeInTheDocument();
 	});
 
 	it("shows personal destinations without the Work project tree in Home", () => {
@@ -497,6 +546,50 @@ describe("Sidebar", () => {
 		expect(screen.getByLabelText("Project actions for Project One")).toBeInTheDocument();
 	});
 
+	it("opens project-scoped Outcome intake from the keyboard-accessible project action", async () => {
+		const user = userEvent.setup();
+		renderSidebar({ figmaBoard: true });
+
+		const newOutcome = screen.getByRole("button", { name: "New Outcome" });
+		act(() => newOutcome.focus());
+		expect(newOutcome).toHaveFocus();
+		await user.keyboard("{Enter}");
+
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/work", search: { project: "proj-1" } });
+	});
+
+	it("reveals project-scoped New Outcome on row hover with its specified tooltip", async () => {
+		const user = userEvent.setup();
+		renderSidebar();
+
+		const projectRow = screen.getByText("Project One").closest<HTMLElement>('button, [role="button"]');
+		const newOutcome = screen.getByRole("button", { name: "New Outcome" });
+		if (!projectRow) throw new Error("Project row button not found");
+
+		expect(newOutcome).toHaveClass("pointer-events-none", "opacity-0");
+		await user.hover(projectRow);
+		expect(newOutcome).toHaveClass("pointer-events-auto", "opacity-100");
+		fireEvent.pointerMove(newOutcome, { pointerType: "mouse" });
+		expect(await screen.findByRole("tooltip", { name: "New Outcome" })).toBeInTheDocument();
+	});
+
+	it("reveals standard-sidebar New Outcome on keyboard focus and activates it", async () => {
+		const user = userEvent.setup();
+		renderSidebar();
+
+		const projectRow = screen.getByText("Project One").closest<HTMLElement>('button, [role="button"]');
+		const newOutcome = screen.getByRole("button", { name: "New Outcome" });
+		if (!projectRow) throw new Error("Project row button not found");
+
+		expect(newOutcome).toHaveClass("pointer-events-none", "opacity-0");
+		act(() => projectRow.focus());
+		expect(newOutcome).toHaveClass("pointer-events-auto", "opacity-100");
+		act(() => newOutcome.focus());
+		await user.keyboard("{Enter}");
+
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/work", search: { project: "proj-1" } });
+	});
+
 	it("toggles project sessions from the folder icon without selecting the project first", async () => {
 		const user = userEvent.setup();
 		const other: WorkspaceSummary = {
@@ -598,6 +691,7 @@ describe("Sidebar", () => {
 			workspaces: [{ ...workspace, sessions: [orchestrator, session] }],
 		});
 
+		expect(screen.getByLabelText("Open Orchestrator")).toBeInTheDocument();
 		expect(screen.getByLabelText("Open fix login")).toBeInTheDocument();
 
 		await user.click(screen.getByText("Project One"));
@@ -1246,7 +1340,7 @@ describe("Sidebar", () => {
 		expect(screen.getByLabelText("Open fix login")).toBeInTheDocument();
 	});
 
-	it("always shows action icons and reserves padding for them", () => {
+	it("always shows all three action icons and reserves padding for them", () => {
 		renderSidebar();
 
 		const projectRow = screen.getByText("Project One").closest('button, [role="button"]');
@@ -1256,7 +1350,8 @@ describe("Sidebar", () => {
 		expect(projectRow).toHaveClass("pr-sidebar-project-actions");
 		expect(actionCluster).toHaveAttribute("data-project-actions");
 		expect(actionCluster).toHaveClass("right-0.5", "gap-px");
-		expect(within(actionCluster as HTMLElement).getAllByRole("button")).toHaveLength(2);
+		expect(within(actionCluster as HTMLElement).getAllByRole("button")).toHaveLength(3);
+		expect(screen.getByLabelText("New Outcome")).toHaveClass("opacity-0");
 		expect(screen.getByLabelText("Project actions for Project One")).not.toHaveClass("opacity-0");
 	});
 

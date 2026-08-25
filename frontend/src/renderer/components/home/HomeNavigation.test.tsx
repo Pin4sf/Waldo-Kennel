@@ -1,5 +1,12 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) => (
+    <a href={`#${to}`} {...props}>{children}</a>
+  ),
+}));
+
 import { HomeNavigation } from "./HomeNavigation";
 
 describe("HomeNavigation", () => {

@@ -752,7 +752,7 @@ export function TerminalPane({
 }
 
 function workerPreviewLines(session: WorkspaceSession | undefined, provider: string): string[] {
-	if (session?.id === "ao-demo-orchestrator") {
+	if (session?.id === "kennel-design-orchestrator") {
 		return [
 			"> Go through my Linear backlog and let's plan which tasks to spawn off",
 			"",
@@ -780,7 +780,7 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 			"> yes, spawn all three",
 			"",
 			"Running 3 shell commands…",
-			'└ $ ao spawn --project ao-demo --name "new-task-flake" --agent codex --prompt',
+			'└ $ kennel spawn --project kennel-design --name "new-task-flake" --agent codex --prompt',
 			'  "Fix the flaky NewTaskDialog smoke test: submit is debounced 300ms while the',
 			'  e2e check asserts synchronously. Reproduce, fix, and push to update PR #324."',
 			"PASS 3 sessions spawned — board updated",
@@ -789,9 +789,9 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 	if (session?.id === "demo-review-stack") {
 		return [
 			'$ rg "previewUrl|Browser" frontend/src/renderer',
-			"frontend/src/renderer/components/SessionInspector.tsx: Browser tab selected after ao preview",
+			"frontend/src/renderer/components/SessionInspector.tsx: Browser tab selected after Kennel preview",
 			"frontend/src/renderer/hooks/useBrowserView.ts: preview revision re-navigates the view",
-			"$ ao preview http://localhost:5173",
+			"$ kennel preview http://localhost:5173",
 			"DONE preview target set for demo-review-stack",
 			"$ npm --prefix frontend run typecheck",
 			"PASS TypeScript project references are clean",
@@ -822,7 +822,7 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 			"╭────────────────────────────────────────────╮",
 			"│ >_ OpenAI Codex (v0.133.0)                 │",
 			"│ model:        gpt-5.5 high  /model to change",
-			"│ directory:    ~/ao-demo/demo-new-task-flake",
+			"│ directory:    ~/kennel-design/demo-new-task-flake",
 			"│ permissions:  YOLO mode                    │",
 			"╰────────────────────────────────────────────╯",
 			"",
@@ -832,7 +832,7 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 			"• Ran npm test -- NewTaskDialog",
 			"└ PASS 12 tests passed",
 			"",
-			"▲ ao send · CI failed on PR #324. The failing checks are e2e (NewTaskDialog",
+			"▲ kennel send · CI failed on PR #324. The failing checks are e2e (NewTaskDialog",
 			"  submits with Enter). Investigate and push a fix.",
 			"",
 			'• Ran rg -n "onKeyDown|Enter" src/components/NewTaskDialog.tsx',
@@ -854,7 +854,7 @@ function workerPreviewLines(session: WorkspaceSession | undefined, provider: str
 
 function reviewerPreviewLines(session: WorkspaceSession | undefined): string[] {
 	return [
-		"$ ao review submit --session " + (session?.id ?? "demo-session"),
+		"$ kennel review submit --session " + (session?.id ?? "demo-session"),
 		"Reviewing PR #319: browser preview rail renders inside Kennel",
 		"PASS implementation matches the requested README screenshot flow",
 		"Reviewing PR #320: stacked PR review rows",

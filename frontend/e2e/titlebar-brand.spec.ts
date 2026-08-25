@@ -48,10 +48,10 @@ async function expectFigmaBoardBrand(page: Page) {
 	expect(await isTruncated(span)).toBe(false);
 }
 
-test("home board route: brand clears the macOS titlebar cluster and stays readable", async ({ page }) => {
-	await page.goto("/");
-	await expect(page.getByText("Projects")).toBeVisible();
-	await expectFigmaBoardBrand(page);
+test("Home route: brand clears the macOS titlebar cluster and stays readable", async ({ page }) => {
+	await page.goto("/#/home");
+	await expect(page.getByRole("navigation", { name: "Home destinations" })).toBeVisible();
+	await expectBrandClearsCluster(page);
 });
 
 test("project board route: brand clears the macOS titlebar cluster and stays readable", async ({ page }) => {
@@ -59,20 +59,20 @@ test("project board route: brand clears the macOS titlebar cluster and stays rea
 	await expect(page.getByText("Projects")).toBeVisible();
 
 	// In-app nav to /projects/:id (a hard load boots the router at the board).
-	await page.locator('[data-sidebar="menu-button"]').filter({ hasText: "ao-demo" }).first().click();
+	await page.locator('[data-sidebar="menu-button"]').filter({ hasText: "kennel-design" }).first().click();
 	// The active project row marks itself aria-current=page once navigation lands.
 	await expect(page.locator('[aria-current="page"]')).toBeVisible();
 
 	await expectFigmaBoardBrand(page);
 });
 
-test("brand stays readable when navigating from Figma board to standard session chrome", async ({ page }) => {
-	await page.goto("/");
+test("brand stays readable when navigating from the Work board to a session", async ({ page }) => {
+	await page.goto("/#/projects/kennel-design");
 	await expect(page.getByText("Projects")).toBeVisible();
 	await expectFigmaBoardBrand(page);
 
 	await page.getByRole("button", { name: "Open Build screenshot-ready dashboard data" }).click();
 	await expect(page.getByTestId("session-detail")).toBeVisible();
 
-	await expectBrandClearsCluster(page);
+	await expectFigmaBoardBrand(page);
 });

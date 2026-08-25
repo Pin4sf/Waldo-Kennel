@@ -25,6 +25,13 @@ FROM outcomes WHERE idempotency_key = ?;
 SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at
 FROM outcomes WHERE id = ?;
 
+-- name: ListOutcomesByProject :many
+SELECT o.id, o.space_id, o.title, o.current_revision_number, o.idempotency_key, o.created_at, o.updated_at
+FROM outcomes o
+JOIN responsibility_spaces rs ON rs.id = o.space_id
+WHERE rs.project_id = ? AND rs.kind = 'WorkProject'
+ORDER BY o.created_at, o.id;
+
 -- name: AdvanceOutcomeCurrentRevision :execrows
 UPDATE outcomes
 SET current_revision_number = ?, updated_at = ?

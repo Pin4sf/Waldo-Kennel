@@ -36,6 +36,10 @@ type Manager interface {
 	// Get reads the Outcome view: canonical facts plus full revision history.
 	Get(ctx context.Context, id domain.OutcomeID) (OutcomeView, error)
 
+	// ListByProject returns every canonical Outcome and current immutable
+	// contract belonging to the project's Work responsibility space.
+	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]OutcomeView, error)
+
 	// ProposePlan deterministically derives the smallest-sufficient direct
 	// Work Unit from the Outcome's current contract revision, freezes it into
 	// a RunBrief core digest, and records it as a proposed PlanRevision.
@@ -76,12 +80,14 @@ type ReviseContractInput struct {
 	Clarification    string
 }
 
-// OutcomeView is the read model over one Outcome's durable facts. Stage labels
-// are derived by callers; nothing here persists presentation.
+// OutcomeView is the read model over one Outcome's durable facts. LatestPlan is
+// populated for project listings so re-entry can derive stage and next action
+// without provider transcripts. Stage labels themselves are never persisted.
 type OutcomeView struct {
-	Outcome domain.Outcome
-	Current domain.ContractRevision
-	History []domain.ContractRevision
+	Outcome    domain.Outcome
+	Current    domain.ContractRevision
+	History    []domain.ContractRevision
+	LatestPlan *domain.PlanRevision
 }
 
 // Service implements Manager over ports.OutcomeStore.
@@ -180,6 +186,32 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (OutcomeView, erro
 		return OutcomeView{}, err
 	}
 	return s.Get(ctx, outcomeRecord.ID)
+}
+
+func (s *Service) ListByProject(ctx context.Context, projectID domain.ProjectID) ([]OutcomeView, error) {
+	if strings.TrimSpace(string(projectID)) == "" {
+		return nil, apierr.Invalid("PROJECT_REQUIRED", "Choose the project whose Outcomes should be listed", nil)
+	}
+	records, err := s.store.ListOutcomesByProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	views := make([]OutcomeView, 0, len(records))
+	for _, record := range records {
+		view, err := s.Get(ctx, record.ID)
+		if err != nil {
+			return nil, err
+		}
+		latestPlan, found, err := s.store.GetLatestPlanRevision(ctx, record.ID)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			view.LatestPlan = &latestPlan
+		}
+		views = append(views, view)
+	}
+	return views, nil
 }
 
 // ReviseContract appends the next immutable revision under an optimistic

@@ -176,8 +176,8 @@ test("renderer: route nav home to board to session detail and back @T0 @BRD", as
 	await expect(page.getByTestId("board")).toBeVisible();
 
 	// → project board
-	await page.locator('[data-sidebar="menu-button"]').filter({ hasText: "ao-demo" }).first().click();
-	await expect(page).toHaveURL(/projects\/ao-demo/);
+	await page.locator('[data-sidebar="menu-button"]').filter({ hasText: "kennel-design" }).first().click();
+	await expect(page).toHaveURL(/projects\/kennel-design/);
 	await expect(page.getByTestId("board")).toBeVisible();
 
 	// → session detail (open the first card on the board)
@@ -187,7 +187,7 @@ test("renderer: route nav home to board to session detail and back @T0 @BRD", as
 
 	// ← back to the project board
 	await page.goBack();
-	await expect(page).toHaveURL(/projects\/ao-demo$/);
+	await expect(page).toHaveURL(/projects\/kennel-design$/);
 	await expect(page.getByTestId("board")).toBeVisible();
 });
 

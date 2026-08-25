@@ -119,6 +119,58 @@ func TestOutcomeStore_CreateOutcomeWithContractIsAtomic(t *testing.T) {
 	}
 }
 
+func TestOutcomeStore_ListOutcomesByProjectKeepsResponsibilityBoundaries(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "mer")
+	seedProject(t, s, "other")
+
+	merSpace, err := s.EnsureWorkResponsibilitySpace(ctx, "mer")
+	if err != nil {
+		t.Fatalf("ensure mer space: %v", err)
+	}
+	otherSpace, err := s.EnsureWorkResponsibilitySpace(ctx, "other")
+	if err != nil {
+		t.Fatalf("ensure other space: %v", err)
+	}
+
+	first, firstRevision := focusLedgerContract(merSpace.ID, "list-1")
+	second, secondRevision := focusLedgerContract(merSpace.ID, "list-2")
+	second.Title = "Second Outcome"
+	third, thirdRevision := focusLedgerContract(otherSpace.ID, "list-other")
+	for _, fixture := range []struct {
+		outcome  domain.Outcome
+		revision domain.ContractRevision
+		key      string
+	}{
+		{first, firstRevision, "req-list-1"},
+		{second, secondRevision, "req-list-2"},
+		{third, thirdRevision, "req-list-other"},
+	} {
+		if err := s.CreateOutcomeWithContract(ctx, fixture.outcome, fixture.revision, fixture.key); err != nil {
+			t.Fatalf("create %s: %v", fixture.outcome.ID, err)
+		}
+	}
+
+	got, err := s.ListOutcomesByProject(ctx, "mer")
+	if err != nil {
+		t.Fatalf("list mer outcomes: %v", err)
+	}
+	if len(got) != 2 || got[0].ID != first.ID || got[1].ID != second.ID {
+		t.Fatalf("mer outcomes = %+v, want creation order [%s %s]", got, first.ID, second.ID)
+	}
+	for _, outcome := range got {
+		if outcome.SpaceID != merSpace.ID || outcome.CurrentRevisionNumber != 1 {
+			t.Fatalf("listed outcome crossed space or lost revision pointer: %+v", outcome)
+		}
+	}
+
+	empty, err := s.ListOutcomesByProject(ctx, "missing")
+	if err != nil || len(empty) != 0 {
+		t.Fatalf("missing project list = %+v err=%v, want empty", empty, err)
+	}
+}
+
 func TestOutcomeStore_AppendContractRevisionHistoryAndConflictRollback(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

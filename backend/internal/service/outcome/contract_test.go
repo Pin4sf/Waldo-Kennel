@@ -22,6 +22,8 @@ type fakeStore struct {
 	outcomes map[domain.OutcomeID]domain.Outcome
 	revs     map[domain.OutcomeID][]domain.ContractRevision
 	keys     map[string]domain.OutcomeID
+	plans    map[domain.OutcomeID]domain.PlanRevision
+	order    []domain.OutcomeID
 	writes   int
 }
 
@@ -31,6 +33,7 @@ func newFakeStore() *fakeStore {
 		outcomes: map[domain.OutcomeID]domain.Outcome{},
 		revs:     map[domain.OutcomeID][]domain.ContractRevision{},
 		keys:     map[string]domain.OutcomeID{},
+		plans:    map[domain.OutcomeID]domain.PlanRevision{},
 	}
 }
 
@@ -69,6 +72,7 @@ func (f *fakeStore) CreateOutcomeWithContract(_ context.Context, o domain.Outcom
 	o.CurrentRevisionNumber = 1
 	f.outcomes[o.ID] = o
 	f.revs[o.ID] = []domain.ContractRevision{first}
+	f.order = append(f.order, o.ID)
 	if requestKey != "" {
 		f.keys[requestKey] = o.ID
 	}
@@ -81,6 +85,22 @@ func (f *fakeStore) GetOutcome(_ context.Context, id domain.OutcomeID) (domain.O
 	defer f.mu.Unlock()
 	o, ok := f.outcomes[id]
 	return o, ok, nil
+}
+
+func (f *fakeStore) ListOutcomesByProject(_ context.Context, projectID domain.ProjectID) ([]domain.Outcome, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	space, ok := f.spaces[projectID]
+	if !ok {
+		return []domain.Outcome{}, nil
+	}
+	out := make([]domain.Outcome, 0)
+	for _, id := range f.order {
+		if candidate := f.outcomes[id]; candidate.SpaceID == space.ID {
+			out = append(out, candidate)
+		}
+	}
+	return out, nil
 }
 
 func (f *fakeStore) AppendContractRevision(_ context.Context, id domain.OutcomeID, expectedCurrent int64, rev domain.ContractRevision) (int64, error) {
@@ -118,6 +138,56 @@ func validCreateInput() outcome.CreateInput {
 		SuccessCriteria: []string{"Entering positive whole minutes creates one focus block."},
 		Review:          "Deterministic checks plus owner walkthrough.",
 		RequestKey:      "req-create-1",
+	}
+}
+
+func TestListByProjectReturnsCanonicalOutcomeViews(t *testing.T) {
+	svc, store := newService()
+	ctx := context.Background()
+	first := validCreateInput()
+	if _, err := svc.Create(ctx, first); err != nil {
+		t.Fatalf("create first: %v", err)
+	}
+	second := first
+	second.Title = "Second Outcome"
+	second.RequestKey = "req-create-2"
+	if _, err := svc.Create(ctx, second); err != nil {
+		t.Fatalf("create second: %v", err)
+	}
+	store.plans[store.order[1]] = domain.PlanRevision{
+		ID: "plan-second", OutcomeID: store.order[1], Number: 1,
+		ContractRevisionNumber: 1, Status: domain.PlanStatusApproved,
+	}
+	other := first
+	other.ProjectID = "other"
+	other.RequestKey = "req-create-other"
+	if _, err := svc.Create(ctx, other); err != nil {
+		t.Fatalf("create other: %v", err)
+	}
+
+	views, err := svc.ListByProject(ctx, "mer")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(views) != 2 || views[0].Outcome.Title != first.Title || views[1].Outcome.Title != second.Title {
+		t.Fatalf("views = %+v", views)
+	}
+	for _, view := range views {
+		if view.Current.Number != 1 || len(view.History) != 1 {
+			t.Fatalf("listed view lost contract: %+v", view)
+		}
+	}
+	if views[0].LatestPlan != nil || views[1].LatestPlan == nil || views[1].LatestPlan.Status != domain.PlanStatusApproved {
+		t.Fatalf("latest durable plan facts = %+v, %+v", views[0].LatestPlan, views[1].LatestPlan)
+	}
+}
+
+func TestListByProjectRejectsMissingProject(t *testing.T) {
+	svc, _ := newService()
+	_, err := svc.ListByProject(context.Background(), "  ")
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "PROJECT_REQUIRED" {
+		t.Fatalf("err = %v, want PROJECT_REQUIRED", err)
 	}
 }
 
@@ -293,8 +363,9 @@ func (f *fakeStore) GetPlanRevision(_ context.Context, _ domain.OutcomeID, id do
 	return domain.PlanRevision{}, false, nil
 }
 
-func (f *fakeStore) GetLatestPlanRevision(_ context.Context, _ domain.OutcomeID) (domain.PlanRevision, bool, error) {
-	return domain.PlanRevision{}, false, nil
+func (f *fakeStore) GetLatestPlanRevision(_ context.Context, outcomeID domain.OutcomeID) (domain.PlanRevision, bool, error) {
+	plan, ok := f.plans[outcomeID]
+	return plan, ok, nil
 }
 
 func (f *fakeStore) ApprovePlanRevision(_ context.Context, _ domain.OutcomeID, id domain.PlanRevisionID) (domain.PlanRevision, bool, error) {

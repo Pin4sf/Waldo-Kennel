@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FocusEvent, type MouseEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -12,7 +13,7 @@ import {
 	type BoardUsagePresentation,
 	type ProductUITranslator,
 } from "@pin4sf/kennel-product-ui";
-import { Check, Copy, GitBranch, LoaderCircle, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowRight, Check, Copy, GitBranch, LoaderCircle, RotateCcw, Trash2 } from "lucide-react";
 import type { MessageKey } from "../i18n";
 import { aoBridge } from "../lib/bridge";
 import { formatTimeCompact } from "../lib/format-time";
@@ -31,8 +32,10 @@ import {
 	useTerminateSessionState,
 } from "../hooks/useTerminateSession";
 import { cn } from "../lib/utils";
+import { attentionZone, type AttentionZone } from "../lib/session-presentation";
 import { ProductExternalLink } from "./ProductExternalLink";
 import { SessionTerminationPopover } from "./SessionTerminationPopover";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import waldoAgentMarkUrl from "../../../../packages/kennel-island/public/figma/agent-waldo.svg";
 import artifactLinkIconUrl from "../../../../packages/kennel-island/public/figma/icon-link.svg";
@@ -121,7 +124,7 @@ export function BoardSessionCardAdapter({
 /**
  * The list view's row. It shares the card's data and labels wholesale — the two
  * views must never disagree about what a session says — and differs only in
- * layout and in trading the card's inline actions for a single open affordance.
+ * layout and in using Choose to open a truthful, session-derived Waldo brief.
  */
 export function BoardSessionRowAdapter({
 	onOpen,
@@ -138,31 +141,201 @@ export function BoardSessionRowAdapter({
 	const artifact = sessionArtifact(session, summaries, onOpen, prLabels, t);
 	const termination = useTerminateSessionState(session.id);
 	const translate: ProductUITranslator = (key, values) => t(key as MessageKey, values);
+	const [previewOpen, setPreviewOpen] = useState(false);
+	const [pinnedOpen, setPinnedOpen] = useState(false);
+	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const open = previewOpen || pinnedOpen;
+	const zone = attentionZone(session.status);
+
+	const cancelClose = () => {
+		if (closeTimerRef.current !== null) {
+			clearTimeout(closeTimerRef.current);
+			closeTimerRef.current = null;
+		}
+	};
+	const previewBrief = () => {
+		cancelClose();
+		setPreviewOpen(true);
+	};
+	const schedulePreviewClose = () => {
+		cancelClose();
+		if (pinnedOpen) return;
+		closeTimerRef.current = setTimeout(() => setPreviewOpen(false), 100);
+	};
+	const dismissBrief = () => {
+		cancelClose();
+		setPinnedOpen(false);
+		setPreviewOpen(false);
+	};
+
+	useEffect(
+		() => () => {
+			if (closeTimerRef.current !== null) clearTimeout(closeTimerRef.current);
+		},
+		[],
+	);
+
 	return (
-		<SessionRowView
-			action={<OpenSessionButton sessionTitle={session.title} onOpen={onOpen} />}
-			artifact={artifact}
-			branchIcon={<GitBranch aria-hidden="true" className="size-icon-2xs shrink-0" />}
-			error={termination.error ?? undefined}
-			externalLink={ProductExternalLink}
-			labels={{
-				formatTime: formatTimeCompact,
-				intakeIssue: (id) => t("shell.intakeIssue", { id }),
-				pr: prLabels,
-				updatedAt: (time) => t("shell.updatedAt", { time }),
+		<Popover
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen) dismissBrief();
 			}}
-			onOpen={onOpen}
-			prs={(artifact ? [] : summaries).map((pr) => ({
-				number: pr.number,
-				state: pr.state,
-				url: prBrowserUrl(pr),
-			}))}
-			renderAvatar={(provider) => <WaldoAgentMark provider={provider} />}
-			renderUsage={(presentation) => <DesktopUsageMetric usage={presentation} />}
-			session={toBoardSessionPresentation(session, t)}
-			translate={translate}
-			usage={toUsagePresentation(usage, t)}
-		/>
+			open={open}
+		>
+			{open && typeof document !== "undefined"
+				? createPortal(
+						<div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[49] bg-black/55" data-testid="waldo-brief-backdrop" />,
+						document.body,
+					)
+				: null}
+			<PopoverTrigger asChild>
+				<div
+					className={cn("relative", open && "z-[50]")}
+					onBlurCapture={(event: FocusEvent<HTMLDivElement>) => {
+						if (!event.currentTarget.contains(event.relatedTarget as Node | null)) schedulePreviewClose();
+					}}
+					onFocusCapture={previewBrief}
+					onPointerEnter={previewBrief}
+					onPointerLeave={schedulePreviewClose}
+				>
+					<SessionRowView
+						action={
+							<ChooseSessionButton
+								onChoose={() => {
+									cancelClose();
+									setPinnedOpen(true);
+									setPreviewOpen(true);
+								}}
+								sessionTitle={session.title}
+							/>
+						}
+						artifact={artifact}
+						branchIcon={<GitBranch aria-hidden="true" className="size-icon-2xs shrink-0" />}
+						error={termination.error ?? undefined}
+						externalLink={ProductExternalLink}
+						labels={{
+							formatTime: formatTimeCompact,
+							intakeIssue: (id) => t("shell.intakeIssue", { id }),
+							pr: prLabels,
+							updatedAt: (time) => t("shell.updatedAt", { time }),
+						}}
+						onOpen={onOpen}
+						prs={(artifact ? [] : summaries).map((pr) => ({
+							number: pr.number,
+							state: pr.state,
+							url: prBrowserUrl(pr),
+						}))}
+						renderAvatar={(provider) => <WaldoAgentMark provider={provider} />}
+						renderUsage={(presentation) => <DesktopUsageMetric usage={presentation} />}
+						session={toBoardSessionPresentation(session, t)}
+						translate={translate}
+						usage={toUsagePresentation(usage, t)}
+					/>
+				</div>
+			</PopoverTrigger>
+			<PopoverContent
+				align="center"
+				aria-label={t("shell.waldoBrief.aria", { title: session.title })}
+				className="z-[60] w-[34rem] max-w-[calc(100vw-2rem)] p-4 shadow-2xl"
+				collisionPadding={16}
+				onOpenAutoFocus={(event) => event.preventDefault()}
+				onFocusCapture={previewBrief}
+				onPointerEnter={previewBrief}
+				onPointerLeave={schedulePreviewClose}
+				role="dialog"
+				side="bottom"
+				sideOffset={8}
+			>
+				<WaldoBrief
+					onDismiss={dismissBrief}
+					onOpenSession={() => {
+						dismissBrief();
+						onOpen();
+					}}
+					session={session}
+					summary={sessionSummary(session, summaries)}
+					zone={zone}
+				/>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
+function WaldoBrief({
+	onDismiss,
+	onOpenSession,
+	session,
+	summary,
+	zone,
+}: {
+	onDismiss: () => void;
+	onOpenSession: () => void;
+	session: WorkspaceSession;
+	summary?: string;
+	zone: AttentionZone;
+}) {
+	const { t } = useTranslation();
+	const toneClassName: Record<AttentionZone, string> = {
+		action: "text-status-needs-you",
+		pending: "text-status-in-review",
+		merge: "text-status-ready",
+		working: "text-status-working",
+		done: "text-status-terminated-foreground",
+	};
+	const fallbackSummaryKey: Record<AttentionZone, MessageKey> = {
+		action: "shell.waldoBrief.actionSummary",
+		pending: "shell.waldoBrief.pendingSummary",
+		merge: "shell.waldoBrief.readySummary",
+		working: "shell.waldoBrief.runningSummary",
+		done: "shell.waldoBrief.doneSummary",
+	};
+	const recommendationKey: Record<AttentionZone, MessageKey> = {
+		action: "shell.waldoBrief.actionRecommendation",
+		pending: "shell.waldoBrief.pendingRecommendation",
+		merge: "shell.waldoBrief.readyRecommendation",
+		working: "shell.waldoBrief.runningRecommendation",
+		done: "shell.waldoBrief.doneRecommendation",
+	};
+
+	return (
+		<div className="flex flex-col gap-3">
+			<div>
+				<h3 className={cn("text-base font-semibold leading-snug", toneClassName[zone])}>{session.title}</h3>
+				<p className="mt-1 text-2xs font-medium uppercase tracking-wide text-passive">
+					{t(summary ? "shell.waldoBrief.review" : "shell.waldoBrief.status")}
+				</p>
+				{summary ? null : <p className="mt-1 text-sm leading-5 text-muted-foreground">{t("shell.waldoBrief.noSummary")}</p>}
+				<p className={cn("text-sm leading-5 text-muted-foreground", summary && "mt-1")}>
+					{summary ?? t(fallbackSummaryKey[zone])}
+				</p>
+			</div>
+			<div className="rounded-md border border-border bg-background/45 px-3 py-2.5">
+				<p className="text-2xs font-medium uppercase tracking-wide text-passive">{t("shell.waldoBrief.recommendation")}</p>
+				<p className="mt-1 text-sm leading-5 text-foreground">{t(recommendationKey[zone])}</p>
+			</div>
+			<div className="flex flex-col gap-1">
+				<button
+					aria-label={t("shell.waldoBrief.openSession")}
+					className="group flex min-h-9 w-full items-center gap-2 rounded-md border border-border-strong bg-background px-2.5 text-left text-sm text-foreground transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+					onClick={onOpenSession}
+					type="button"
+				>
+					<span className="inline-flex size-5 items-center justify-center rounded border border-border-strong text-2xs">1</span>
+					<span>{t("shell.waldoBrief.openSession")}</span>
+					<span className="rounded-full bg-muted px-2 py-0.5 text-2xs text-muted-foreground">{t("shell.waldoBrief.recommended")}</span>
+					<ArrowRight aria-hidden="true" className="ml-auto size-4 transition-transform group-hover:translate-x-0.5" />
+				</button>
+				<button
+					aria-label={t("shell.waldoBrief.holdOff")}
+					className="flex min-h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+					onClick={onDismiss}
+					type="button"
+				>
+					<span className="inline-flex size-5 items-center justify-center rounded border border-border text-2xs">2</span>
+					<span>{t("shell.waldoBrief.holdOff")}</span>
+				</button>
+			</div>
+		</div>
 	);
 }
 
@@ -309,11 +482,11 @@ function DesktopSessionCard({
 
 type SessionArtifactPR = ReturnType<typeof sessionPRDisplaySummaries>[number];
 
-function sessionSummary(session: WorkspaceSession): string | undefined {
+function sessionSummary(session: WorkspaceSession, summaries: SessionArtifactPR[] = []): string | undefined {
 	const commit = session.commitMessage?.trim();
 	const changedCount = session.changedFiles?.length ?? 0;
 	if (commit) {
-		const sentence = `${commit.charAt(0).toUpperCase()}${commit.slice(1)}`.replace(/[.\s]+$/, "");
+		const sentence = summarySentence(commit);
 		return changedCount > 0
 			? `${sentence}. ${changedCount} ${changedCount === 1 ? "file" : "files"} changed in this session.`
 			: `${sentence}.`;
@@ -321,7 +494,24 @@ function sessionSummary(session: WorkspaceSession): string | undefined {
 	if (changedCount > 0) {
 		return `${changedCount} ${changedCount === 1 ? "file is" : "files are"} ready to review.`;
 	}
+
+	const primaryPR = summaries[0];
+	const prTitle = primaryPR?.title.trim();
+	const prChangedCount = primaryPR?.changedFiles ?? 0;
+	if (prTitle) {
+		const sentence = summarySentence(prTitle);
+		return prChangedCount > 0
+			? `${sentence}. ${prChangedCount} ${prChangedCount === 1 ? "file" : "files"} changed in this pull request.`
+			: `${sentence}.`;
+	}
+	if (prChangedCount > 0) {
+		return `${prChangedCount} ${prChangedCount === 1 ? "file is" : "files are"} changed in the pull request and ready to review.`;
+	}
 	return undefined;
+}
+
+function summarySentence(value: string): string {
+	return `${value.charAt(0).toUpperCase()}${value.slice(1)}`.replace(/[.\s]+$/, "");
 }
 
 function WaldoAgentMark({ provider, className }: { provider: string; className?: string }) {
@@ -384,7 +574,7 @@ function sessionArtifact(
 	);
 }
 
-function OpenSessionButton({ onOpen, sessionTitle }: { onOpen: () => void; sessionTitle: string }) {
+function ChooseSessionButton({ onChoose, sessionTitle }: { onChoose: () => void; sessionTitle: string }) {
 	const { t } = useTranslation();
 	return (
 		<button
@@ -392,7 +582,7 @@ function OpenSessionButton({ onOpen, sessionTitle }: { onOpen: () => void; sessi
 			className="relative z-10 inline-flex h-[30px] min-w-[72px] items-center justify-center rounded-md border border-border-strong bg-popover px-2.5 text-brand font-medium text-foreground transition-colors hover:bg-white/10"
 			onClick={(event) => {
 				event.stopPropagation();
-				onOpen();
+				onChoose();
 			}}
 			type="button"
 		>

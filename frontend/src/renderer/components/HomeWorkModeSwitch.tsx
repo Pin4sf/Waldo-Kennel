@@ -27,31 +27,35 @@ function isWorkPath(pathname: string) {
   );
 }
 
-export function HomeWorkModeSwitch() {
+export function HomeWorkModeSwitch({ className }: { className?: string }) {
   const router = useRouter();
-  const pathname = useRouterState({
-    select: (state) => state.location.pathname,
+  const location = useRouterState({
+    select: (state) => state.location,
   });
+  const pathname = location.pathname;
   const lastHomePath = useRef("/home");
   const lastWorkPath = useRef("/work");
   const mode = isHomePath(pathname) ? "home" : "work";
 
   useEffect(() => {
-    if (isHomePath(pathname)) lastHomePath.current = pathname;
-    if (isWorkPath(pathname)) lastWorkPath.current = pathname;
-  }, [pathname]);
+    if (isHomePath(pathname)) lastHomePath.current = location.href;
+    if (isWorkPath(pathname)) lastWorkPath.current = location.href;
+  }, [location.href, pathname]);
 
   const selectMode = (nextMode: "home" | "work") => {
     const target =
       nextMode === "home" ? lastHomePath.current : lastWorkPath.current;
-    if (target === pathname) return;
+    if (target === location.href) return;
     router.history.push(target);
   };
 
   return (
     <nav
       aria-label={copy.modeLabel}
-      className="pointer-events-auto inline-flex h-8 items-center rounded-lg border border-border bg-raised/92 p-0.5 shadow-sm backdrop-blur-md"
+      className={cn(
+        "pointer-events-auto flex h-8 w-full items-center rounded-lg border border-border bg-raised/92 p-0.5 shadow-sm backdrop-blur-md",
+        className,
+      )}
       data-slot="home-work-mode-switch"
       style={noDragStyle}
     >
@@ -62,13 +66,14 @@ export function HomeWorkModeSwitch() {
           <button
             aria-pressed={selected}
             className={cn(
-              "h-7 rounded-md px-4 text-xs font-medium transition-[background-color,color,box-shadow] duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 motion-reduce:transition-none",
+              "h-7 flex-1 rounded-md px-4 text-xs font-medium transition-[background-color,color,box-shadow] duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 motion-reduce:transition-none",
               selected
                 ? "bg-card text-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground",
             )}
             key={item}
             onClick={() => selectMode(item)}
+            style={noDragStyle}
             type="button"
           >
             {label}

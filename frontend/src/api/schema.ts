@@ -629,7 +629,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List canonical Outcomes and current contracts for one Project */
+        get: operations["listProjectOutcomes"];
         put?: never;
         /** Create an Outcome with its first immutable contract revision */
         post: operations["createOutcome"];
@@ -2643,10 +2644,14 @@ export interface components {
             currentRevisionNumber: number;
             history: components["schemas"]["ContractRevisionResponse"][];
             id: string;
+            latestPlan?: components["schemas"]["PlanRevisionResponse"];
             spaceId: string;
             title: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        OutcomesEnvelope: {
+            outcomes: components["schemas"]["OutcomeResponse"][];
         };
         PRReviewState: {
             latestRun?: components["schemas"]["ReviewRun"];
@@ -5622,6 +5627,56 @@ export interface operations {
             };
             /** @description Internal Server Error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listProjectOutcomes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutcomesEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
                 headers: {
                     [name: string]: unknown;
                 };

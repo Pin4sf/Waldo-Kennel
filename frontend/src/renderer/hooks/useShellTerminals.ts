@@ -40,6 +40,10 @@ function toShellTerminal(t: components["schemas"]["ShellTerminalResponse"]): She
 let previewShellTerminals: ShellTerminal[] = [...mockShellTerminals];
 let previewShellSeq = 0;
 
+export function previewShellWorkingDirectory(projectId?: string): string {
+	return `/Users/demo/Projects/${projectId ?? "kennel"}`;
+}
+
 async function fetchShellTerminals(): Promise<ShellTerminal[]> {
 	if (usePreviewData) {
 		return previewShellTerminals;
@@ -82,7 +86,7 @@ export function useOpenShellTerminal() {
 					handleId: `shellterm-preview-${previewShellSeq}`,
 					projectId,
 					sessionId,
-					workingDir: `/Users/demo/Projects/${projectId ?? "ao"}`,
+					workingDir: previewShellWorkingDirectory(projectId),
 					title: projectId ?? "shell",
 					createdAt: new Date().toISOString(),
 				};

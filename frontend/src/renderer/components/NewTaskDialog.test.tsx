@@ -245,7 +245,7 @@ describe("NewTaskDialog", () => {
 		expect(requestBody().agent).toBe("codex");
 	});
 
-	it("blocks Define outcome and explains the missing dsh profile when DeepSeek Harness is selected without a mode", async () => {
+	it("blocks Define outcome and explains the missing dsh profile when DeepSeek Harness is selected without a profile", async () => {
 		getMock.mockImplementation(async (path: string) => {
 			if (path === "/api/v1/agents") {
 				return { data: agentInventory, error: undefined };
@@ -261,11 +261,11 @@ describe("NewTaskDialog", () => {
 		await user.type(screen.getByLabelText("Outcome"), "Ship the recovery slice");
 
 		// The project's worker resolves to the admitted DeepSeek Harness, but with
-		// no worker mode configured there is no dsh profile to launch. The composer
+		// no worker profile configured there is no dsh profile to launch. The composer
 		// says so inline and keeps the Define outcome action disabled instead of
 		// failing at daemon spawn time.
 		expect(
-			await screen.findByText("DeepSeek Harness needs a dsh profile. Set Project Settings → Worker → Mode."),
+			await screen.findByText("DeepSeek Harness needs a dsh profile. Set Project Settings → Worker → Profile."),
 		).toBeInTheDocument();
 		const start = screen.getByRole("button", { name: "Define outcome" });
 		expect(start).toBeDisabled();

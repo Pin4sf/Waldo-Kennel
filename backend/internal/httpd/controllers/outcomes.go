@@ -19,6 +19,7 @@ type OutcomeService interface {
 	Create(ctx context.Context, in outcomevc.CreateInput) (outcomevc.OutcomeView, error)
 	ReviseContract(ctx context.Context, id domain.OutcomeID, in outcomevc.ReviseContractInput) (outcomevc.OutcomeView, error)
 	Get(ctx context.Context, id domain.OutcomeID) (outcomevc.OutcomeView, error)
+	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]outcomevc.OutcomeView, error)
 	ProposePlan(ctx context.Context, id domain.OutcomeID, expectedContractRevision int64) (outcomevc.PlanView, error)
 	ApprovePlan(ctx context.Context, id domain.OutcomeID, in outcomevc.ApprovePlanInput) (outcomevc.AuthorizedPlanView, error)
 	GetLatestPlan(ctx context.Context, id domain.OutcomeID) (outcomevc.PlanView, error)
@@ -43,6 +44,7 @@ type OutcomesController struct {
 
 // Register mounts the Outcome routes on the supplied router.
 func (c *OutcomesController) Register(r chi.Router) {
+	r.Get("/projects/{id}/outcomes", c.list)
 	r.Post("/projects/{id}/outcomes", c.create)
 	r.Get("/outcomes/{outcomeId}", c.get)
 	r.Post("/outcomes/{outcomeId}/revisions", c.revise)
@@ -55,6 +57,23 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/observations", c.recordObservation)
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/cancel", c.cancelAttempt)
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/recovery", c.recoverAttempt)
+}
+
+func (c *OutcomesController) list(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodGet, "/api/v1/projects/{id}/outcomes")
+		return
+	}
+	views, err := c.Svc.ListByProject(r.Context(), domain.ProjectID(chi.URLParam(r, "id")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	outcomes := make([]OutcomeResponse, 0, len(views))
+	for _, view := range views {
+		outcomes = append(outcomes, outcomeResponse(view))
+	}
+	envelope.WriteJSON(w, http.StatusOK, OutcomesEnvelope{Outcomes: outcomes})
 }
 
 func (c *OutcomesController) proposePlan(w http.ResponseWriter, r *http.Request) {

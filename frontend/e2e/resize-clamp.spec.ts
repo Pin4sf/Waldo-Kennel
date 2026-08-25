@@ -12,20 +12,15 @@ async function dragPointer(page: Page, from: { x: number; y: number }, to: { x: 
 	await page.mouse.up();
 }
 
-test("sidebar drag stops at its minimum width instead of collapsing", async ({ page }) => {
-	// Populated board routes intentionally use the fixed 271px Figma sidebar;
-	// standard session routes retain the user-resizable sidebar contract.
-	await page.goto("/#/projects/ao-demo/sessions/demo-working");
-	await expect(page.getByTestId("session-detail")).toBeVisible();
+test("Home sidebar drag stops at its minimum width instead of collapsing", async ({ page }) => {
+	await page.goto("/#/home");
 
 	const sidebar = page.locator('[data-slot="sidebar"]');
 	await expect(sidebar).toHaveAttribute("data-state", "expanded");
-
 	const handle = page.getByTestId("resize-handle");
 	const box = await handle.boundingBox();
 	if (!box) throw new Error("sidebar resize handle not visible");
 
-	// Drag far past the 200px floor, all the way to the window edge.
 	await dragPointer(
 		page,
 		{ x: box.x + box.width / 2, y: box.y + box.height / 2 },
@@ -33,20 +28,30 @@ test("sidebar drag stops at its minimum width instead of collapsing", async ({ p
 	);
 
 	await expect(sidebar).toHaveAttribute("data-state", "expanded");
-	const width = await page.evaluate(() =>
-		document.documentElement.style.getPropertyValue("--ao-sidebar-w"),
-	);
+	const width = await page.evaluate(() => document.documentElement.style.getPropertyValue("--ao-sidebar-w"));
 	expect(width).toBe("200px");
 
-	// The explicit toggle still collapses (and the drag-clamped width persisted).
 	await page.keyboard.press("ControlOrMeta+b");
 	await expect(sidebar).toHaveAttribute("data-state", "collapsed");
 	expect(await page.evaluate(() => window.localStorage.getItem("ao-sidebar-w"))).toBe("200");
 });
 
+test("Work sessions preserve the fixed product sidebar", async ({ page }) => {
+	await page.goto("/#/projects/kennel-design/sessions/demo-working");
+	await expect(page.getByTestId("session-detail")).toBeVisible();
+
+	const sidebar = page.locator('[data-slot="sidebar"]');
+	await expect(sidebar).toHaveAttribute("data-state", "expanded");
+	await expect(page.getByTestId("resize-handle")).toHaveCount(0);
+	await expect(sidebar.getByRole("navigation", { name: "Waldo mode" })).toBeVisible();
+	const box = await sidebar.boundingBox();
+	expect(box).not.toBeNull();
+	expect(Math.round(box!.width)).toBe(271);
+});
+
 test("inspector drag stops at minSize instead of collapsing; buttons still toggle", async ({ page }) => {
 	// A worker session from the dev:web mock dataset (lib/mock-data.ts).
-	await page.goto("/#/projects/ao-demo/sessions/demo-working");
+	await page.goto("/#/projects/kennel-design/sessions/demo-working");
 
 	const inspector = page.locator("#inspector");
 	await expect(inspector).toBeVisible();

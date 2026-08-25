@@ -69,7 +69,12 @@ function WorkRoute() {
 		}
 		return (
 			<OutcomeLifecycleShell outcomeId={outcome} projectId={project} stage="decide_authorize">
-				<OutcomeDecideAuthorizeSurface outcomeId={outcome} />
+				<OutcomeDecideAuthorizeSurface
+					onReviewWork={() => {
+						void navigate({ to: "/projects/$projectId", params: { projectId: project } });
+					}}
+					outcomeId={outcome}
+				/>
 			</OutcomeLifecycleShell>
 		);
 	}

@@ -176,6 +176,20 @@ func (s *Store) GetOutcome(ctx context.Context, id domain.OutcomeID) (domain.Out
 	return outcomeFromRow(row), true, nil
 }
 
+// ListOutcomesByProject reads canonical Outcomes through their Work
+// responsibility space. It never creates a space as a side effect of reading.
+func (s *Store) ListOutcomesByProject(ctx context.Context, projectID domain.ProjectID) ([]domain.Outcome, error) {
+	rows, err := s.qr.ListOutcomesByProject(ctx, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("list outcomes for project %s: %w", projectID, err)
+	}
+	out := make([]domain.Outcome, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, outcomeFromRow(row))
+	}
+	return out, nil
+}
+
 // ListContractRevisions returns full immutable history ordered by number.
 func (s *Store) ListContractRevisions(ctx context.Context, id domain.OutcomeID) ([]domain.ContractRevision, error) {
 	rows, err := s.qr.ListContractRevisions(ctx, id)
