@@ -51,6 +51,14 @@ type ContractCriterion struct {
 	Text               string
 }
 
+// ContractEvidenceExpectation preserves the evidence shape proposed for one
+// stable criterion. Evidence is still created later; these are expectations,
+// never proof or acceptance.
+type ContractEvidenceExpectation struct {
+	CriterionID  CriterionID
+	Descriptions []string
+}
+
 // Validate checks the criterion's immutable identity and display content.
 func (c ContractCriterion) Validate() error {
 	if c.ID.IsZero() {
@@ -120,13 +128,18 @@ type ContractRevision struct {
 	// Criteria is the canonical stable-identity projection introduced by
 	// Work E. SuccessCriteria remains the compatibility text projection used
 	// by pre-0103 callers and stored JSON; storage writes both atomically.
-	Criteria        []ContractCriterion
-	SuccessCriteria []string
-	Review          string
-	Constraints     []string
-	NonGoals        []string
-	Clarification   string
-	CreatedAt       time.Time
+	Criteria             []ContractCriterion
+	SuccessCriteria      []string
+	Review               string
+	Constraints          []string
+	NonGoals             []string
+	Clarification        string
+	EvidenceExpectations []ContractEvidenceExpectation
+	AuthorityCeiling     ProposedAuthority
+	StopConditions       []string
+	TemporalCondition    *string
+	Facets               []ContractFacet
+	CreatedAt            time.Time
 }
 
 // Validate checks intrinsic revision invariants. Revision-number uniqueness
@@ -178,6 +191,41 @@ func (r ContractRevision) Validate() error {
 	}
 	if strings.TrimSpace(r.Review) == "" {
 		return fmt.Errorf("contract revision review is required")
+	}
+	criterionIDs := make(map[CriterionID]struct{}, len(r.Criteria))
+	for _, criterion := range r.Criteria {
+		criterionIDs[criterion.ID] = struct{}{}
+	}
+	for i, expectation := range r.EvidenceExpectations {
+		if expectation.CriterionID.IsZero() {
+			return fmt.Errorf("evidence expectation %d criterion id is required", i+1)
+		}
+		if len(r.Criteria) > 0 {
+			if _, ok := criterionIDs[expectation.CriterionID]; !ok {
+				return fmt.Errorf("evidence expectation %d binds an unknown criterion", i+1)
+			}
+		}
+		if len(expectation.Descriptions) == 0 {
+			return fmt.Errorf("evidence expectation %d requires a description", i+1)
+		}
+		for _, description := range expectation.Descriptions {
+			if strings.TrimSpace(description) == "" {
+				return fmt.Errorf("evidence expectation %d contains a blank description", i+1)
+			}
+		}
+	}
+	for _, stop := range r.StopConditions {
+		if strings.TrimSpace(stop) == "" {
+			return fmt.Errorf("contract stop condition is blank")
+		}
+	}
+	if r.TemporalCondition != nil && strings.TrimSpace(*r.TemporalCondition) == "" {
+		return fmt.Errorf("contract temporal condition is blank")
+	}
+	for _, facet := range r.Facets {
+		if err := facet.Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }

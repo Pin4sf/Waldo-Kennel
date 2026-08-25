@@ -39,6 +39,7 @@ import (
 	browsersvc "github.com/aoagents/agent-orchestrator/backend/internal/service/browser"
 	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
 	devimportsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/devimport"
+	intakevc "github.com/aoagents/agent-orchestrator/backend/internal/service/intake"
 	notificationsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/notification"
 	outcomevc "github.com/aoagents/agent-orchestrator/backend/internal/service/outcome"
 	prsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/pr"
@@ -406,31 +407,35 @@ func Run() error {
 	go runAttemptLivenessLoop(ctx, attemptSvc, log)
 
 	outcomeSvc := outcomevc.New(store, nil)
+	intakeSvc := intakevc.New(store, intakevc.NewRuleBasedAnalyzer(), nil)
+	responsibilityLinkSvc := intakevc.NewResponsibilityLinks(store, nil)
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
-		Projects:           projectSvc,
-		Agents:             agentSvc,
-		Sessions:           sessionSvc,
-		PRs:                prActions,
-		Reviews:            reviewSvc,
-		Notifications:      notifier,
-		Outcomes:           outcomeSvc,
-		Attempts:           attemptSvc,
-		Proof:              outcomeSvc,
-		NotificationStream: notificationHub,
-		Push:               pushRegistry,
-		Presence:           presenceTracker,
-		DeviceRoster:       deviceRoster,
-		DeviceLive:         presenceTracker,
-		ShellTerminals:     shellTermSvc,
-		Conversations:      chatSvc,
-		Settings:           settingsSvc,
-		CDC:                store,
-		Events:             cdcPipe.Broadcaster,
-		Activity:           lcStack.LCM,
-		UsageHooks:         usageCollector,
-		UsageSummary:       usagesvc.NewSummaryReader(store),
-		Telemetry:          telemetrySink,
-		Mobile:             mc,
+		Projects:            projectSvc,
+		Agents:              agentSvc,
+		Sessions:            sessionSvc,
+		PRs:                 prActions,
+		Reviews:             reviewSvc,
+		Notifications:       notifier,
+		Outcomes:            outcomeSvc,
+		Intakes:             intakeSvc,
+		ResponsibilityLinks: responsibilityLinkSvc,
+		Attempts:            attemptSvc,
+		Proof:               outcomeSvc,
+		NotificationStream:  notificationHub,
+		Push:                pushRegistry,
+		Presence:            presenceTracker,
+		DeviceRoster:        deviceRoster,
+		DeviceLive:          presenceTracker,
+		ShellTerminals:      shellTermSvc,
+		Conversations:       chatSvc,
+		Settings:            settingsSvc,
+		CDC:                 store,
+		Events:              cdcPipe.Broadcaster,
+		Activity:            lcStack.LCM,
+		UsageHooks:          usageCollector,
+		UsageSummary:        usagesvc.NewSummaryReader(store),
+		Telemetry:           telemetrySink,
+		Mobile:              mc,
 		DevImport: devimportsvc.New(devimportsvc.Deps{
 			Store:         store,
 			TargetDataDir: cfg.DataDir,

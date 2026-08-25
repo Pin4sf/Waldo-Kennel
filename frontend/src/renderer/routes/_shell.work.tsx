@@ -4,7 +4,7 @@ import { OutcomeDecideAuthorizeSurface } from "../components/outcome/OutcomeDeci
 import { OutcomeLifecycleShell } from "../components/outcome/OutcomeLifecycleShell";
 import { OutcomeProveCloseSurface } from "../components/outcome/OutcomeProveCloseSurface";
 import { OutcomeRunSurface } from "../components/outcome/OutcomeRunSurface";
-import { OutcomeUnderstandSurface } from "../components/outcome/OutcomeUnderstandSurface";
+import { AdaptiveIntakeSurface } from "../components/outcome/AdaptiveIntakeSurface";
 import { WorkEnterSurface } from "../components/outcome/WorkEnterSurface";
 
 type WorkSearch = {
@@ -14,6 +14,8 @@ type WorkSearch = {
 	stage?: "understand" | "decide_authorize" | "act_observe" | "prove_close";
 	/** The Outcome a saved contract produced; required from decide onward. */
 	outcome?: string;
+	/** Shared durable intake being reviewed before an Outcome exists. */
+	intake?: string;
 };
 
 function validateSearch(search: Record<string, unknown>): WorkSearch {
@@ -25,6 +27,7 @@ function validateSearch(search: Record<string, unknown>): WorkSearch {
 		project: typeof search.project === "string" && search.project !== "" ? search.project : undefined,
 		stage,
 		outcome: typeof search.outcome === "string" && search.outcome !== "" ? search.outcome : undefined,
+		intake: typeof search.intake === "string" && search.intake !== "" && search.intake !== "new" ? search.intake : undefined,
 	};
 }
 
@@ -38,7 +41,7 @@ export const Route = createFileRoute("/_shell/work")({
 });
 
 function WorkRoute() {
-	const { project, stage, outcome } = Route.useSearch();
+	const { project, stage, outcome, intake } = Route.useSearch();
 	const navigate = useNavigate();
 
 	if (!project) {
@@ -49,7 +52,7 @@ function WorkRoute() {
 		if (!outcome) {
 			return (
 				<OutcomeLifecycleShell projectId={project} stage="understand">
-					<OutcomeUnderstandSurface projectId={project} />
+					<AdaptiveIntakeSurface projectId={project} intakeId={intake} />
 				</OutcomeLifecycleShell>
 			);
 		}
@@ -65,7 +68,7 @@ function WorkRoute() {
 			// A deep link without its Outcome falls back to Understand.
 			return (
 				<OutcomeLifecycleShell projectId={project} stage="understand">
-					<OutcomeUnderstandSurface projectId={project} />
+					<AdaptiveIntakeSurface projectId={project} intakeId={intake} />
 				</OutcomeLifecycleShell>
 			);
 		}
@@ -86,7 +89,7 @@ function WorkRoute() {
 			// A deep link without its Outcome falls back to Understand.
 			return (
 				<OutcomeLifecycleShell projectId={project} stage="understand">
-					<OutcomeUnderstandSurface projectId={project} />
+					<AdaptiveIntakeSurface projectId={project} intakeId={intake} />
 				</OutcomeLifecycleShell>
 			);
 		}
@@ -104,12 +107,7 @@ function WorkRoute() {
 
 	return (
 		<OutcomeLifecycleShell projectId={project} stage="understand">
-			<OutcomeUnderstandSurface
-				onContractSaved={(saved) => {
-					void navigate({ to: "/work", search: { project, stage: "decide_authorize", outcome: saved.id } });
-				}}
-				projectId={project}
-			/>
+			<AdaptiveIntakeSurface projectId={project} intakeId={intake} />
 		</OutcomeLifecycleShell>
 	);
 }
