@@ -1012,7 +1012,7 @@
 
 .figma-board-sidebar__header {
 	flex: 0 0 auto;
-	padding: 51px 19px 13px;
+	padding: 51px 19px 11px;
 }
 
 .figma-board-sidebar__brand {
@@ -1023,6 +1023,17 @@
 	letter-spacing: -0.2px;
 	line-height: 22px;
 	text-align: left;
+}
+
+.figma-board-sidebar__mode-switch {
+	padding: 0 12px 15px;
+}
+
+.figma-board-sidebar__mode-switch [data-slot="home-work-mode-switch"] {
+	height: 32px;
+	border-color: #2f2f2d;
+	background: #1a1a19;
+	box-shadow: none;
 }
 
 .figma-board-sidebar__section-heading {
@@ -1239,15 +1250,6 @@
 .workspace-topbar-container {
 	container-name: workspace-topbar;
 	container-type: inline-size;
-}
-
-/* At compact desktop widths the Work topbar needs the full center-pane width
- * for terminal and agent controls. Give the global Home/Work switch its own
- * window-level lane instead of allowing an overlay to steal those clicks. */
-@media (max-width: 1100px) {
-	.global-mode-switch-responsive-main {
-		padding-top: var(--size-inspector-tabs);
-	}
 }
 
 /* When the sidebar is off-canvas, clear only the fixed navigation cluster.

@@ -507,7 +507,7 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 			const navState = (viewId: string, url = "", error?: string) => ({
 				viewId,
 				url,
-				title: url ? "AO preview" : "",
+				title: url ? "Kennel preview" : "",
 				canGoBack: false,
 				canGoForward: false,
 				isLoading: false,

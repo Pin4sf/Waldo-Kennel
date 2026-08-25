@@ -9,7 +9,6 @@ import { NotificationRuntime } from "../components/NotificationCenter";
 import { OnboardingTour } from "../components/OnboardingTour";
 import { TrayRuntime } from "../components/TrayRuntime";
 import { GlobalNewTaskDialog } from "../components/GlobalNewTaskDialog";
-import { HomeWorkModeSwitch } from "../components/HomeWorkModeSwitch";
 import { WaldoLauncher } from "../components/waldo/WaldoLauncher";
 import {
 	WaldoRailProvider,
@@ -785,7 +784,7 @@ function ShellLayout() {
 					/>
 					<main
 						className={cn(
-							"global-mode-switch-responsive-main relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
+							"relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
 							// The Figma board routes paint their own full-bleed shell, so the
 							// collapsed-sidebar inset that every other route needs would double
 							// up on them — hence the route guard alongside beta's launcher pad.
@@ -843,13 +842,6 @@ function ShellLayout() {
 							/>
 						) : null}
 					</main>
-					{/* Center the global mode control in the whole app window, not the
-					    Work center pane. Keeping it outside <main> prevents it from landing
-					    directly over session-tab actions such as New terminal. It still
-					    follows route-owned drag strips so Electron retains its no-drag holes. */}
-					<div className="pointer-events-none absolute left-1/2 top-1.5 z-titlebar -translate-x-1/2">
-						<HomeWorkModeSwitch />
-					</div>
 					</div>
 					<DaemonFailureBanner status={daemonStatus} />
 					{/* When ShellTopbar is hidden, keep a macOS window-drag strip over

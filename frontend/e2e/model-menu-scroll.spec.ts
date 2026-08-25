@@ -57,7 +57,8 @@ test("renderer: hidden model-menu scrollbar keeps wheel scrolling functional @T0
 	});
 
 	await page.goto(`/#/projects/${projectId}`);
-	await page.getByRole("button", { name: "Define outcome" }).first().click();
+	await page.getByRole("button", { name: projectId, exact: true }).click({ button: "right" });
+	await page.getByRole("menuitem", { name: "New session" }).click();
 	const dialog = page.getByRole("dialog", { name: "Define an outcome" });
 	await expect(dialog).toBeVisible();
 	await dialog.getByRole("button", { name: "Model" }).click();

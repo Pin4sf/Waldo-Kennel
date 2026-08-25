@@ -55,8 +55,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 		...actual,
 		useNavigate: () => navigateMock,
 		useParams: () => ({ ...mockParams }),
-		useRouterState: ({ select }: { select: (state: { location: { pathname: string; search: Record<string, unknown> } }) => unknown }) =>
-			select({ location: { pathname: mockPathname.current, search: mockSearch.current } }),
+		useRouter: () => ({ history: { push: vi.fn() } }),
+		useRouterState: ({ select }: { select: (state: { location: { href: string; pathname: string; search: Record<string, unknown> } }) => unknown }) =>
+			select({ location: { pathname: mockPathname.current, search: mockSearch.current, href: mockPathname.current } }),
 	};
 });
 
@@ -304,11 +305,13 @@ describe("Sidebar", () => {
 		expect(await screen.findByRole("dialog", { name: "Import to Kennel" })).toBeInTheDocument();
 	});
 
-	it("leaves the global Home and Work choice to the shell mode control", () => {
-		renderSidebar();
+	it("keeps the global Home and Work choice inside the sidebar", () => {
+		renderSidebar({ figmaBoard: true });
 
-		expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "Work (recommended)" })).not.toBeInTheDocument();
+		const modeSwitch = screen.getByRole("navigation", { name: "Waldo mode" });
+		expect(within(modeSwitch).getByRole("button", { name: "Home" })).toBeInTheDocument();
+		expect(within(modeSwitch).getByRole("button", { name: "Work" })).toHaveAttribute("aria-pressed", "true");
+		expect(modeSwitch.closest('[data-slot="sidebar"]')).toBeInTheDocument();
 	});
 
 	it("treats beta's Work entry route as an active Work destination", () => {

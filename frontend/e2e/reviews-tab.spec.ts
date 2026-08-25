@@ -7,16 +7,16 @@ import { expect, test } from "@playwright/test";
 // panel renders a real reviewer card (not the empty "no PR yet" placeholder).
 
 test("the Reviews tab renders the reviewer panel for a session that owns PRs", async ({ page }) => {
-	await page.route("**/api/v1/projects/ao-demo", (route) =>
+	await page.route("**/api/v1/projects/kennel-design", (route) =>
 		route.fulfill({
 			json: {
 				status: "ok",
 				project: {
-					id: "ao-demo",
+					id: "kennel-design",
 					kind: "git",
-					name: "ao-demo",
-					path: "/demo/ao-demo",
-					repo: "ao-demo",
+					name: "kennel-design",
+					path: "/demo/kennel-design",
+					repo: "kennel-design",
 					defaultBranch: "main",
 					config: { reviewers: [{ harness: "codex" }] },
 				},
@@ -24,7 +24,8 @@ test("the Reviews tab renders the reviewer panel for a session that owns PRs", a
 		}),
 	);
 
-	await page.goto("/");
+	await page.goto("/#/projects/kennel-design");
+	await page.getByRole("button", { name: "Show more" }).first().click();
 	await page.getByRole("button", { name: "Open Review stacked browser preview flow" }).click();
 	await expect(page).toHaveURL(/sessions\/demo-review-stack/);
 
@@ -47,7 +48,7 @@ test("the Reviews tab renders the reviewer panel for a session that owns PRs", a
 });
 
 test("the Reviews tab shows the empty state for a session with no PRs", async ({ page }) => {
-	await page.goto("/");
+	await page.goto("/#/projects/kennel-design");
 	await page.getByRole("button", { name: "Open Build screenshot-ready dashboard data" }).click();
 	await expect(page).toHaveURL(/sessions\/demo-working/);
 

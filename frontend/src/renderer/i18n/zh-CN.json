@@ -1511,6 +1511,8 @@
 	"outcome.decide.proposeCta": "起草计划",
 	"outcome.decide.approveCta": "授权此计划",
 	"outcome.decide.approveNote": "批准只会在此 Outcome 的隔离工作树内激活这些能力授权。执行将在下一阶段开始。",
+	"outcome.decide.reviewWorkCta": "查看 Work 看板",
+	"outcome.decide.reviewWorkNote": "这会返回已观测的会话。在 Act & Observe 集成完成前，已授权计划不会关联到 Attempt。",
 	"outcome.decide.staleTitle": "契约已向前推进",
 	"outcome.decide.staleBody": "此计划绑定的还是旧修订。请加载当前信息，然后重新起草计划。",
 	"outcome.decide.reloadCta": "加载当前信息",

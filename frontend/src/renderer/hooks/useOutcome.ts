@@ -14,6 +14,15 @@ import { useRef } from "react";
 import type { components } from "../../api/schema";
 import { apiClient, apiErrorCode, apiErrorMessage } from "../lib/api-client";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
+import {
+	approvePreviewPlan,
+	createPreviewOutcome,
+	getPreviewOutcome,
+	getPreviewPlan,
+	listPreviewOutcomes,
+	proposePreviewPlan,
+	revisePreviewOutcome,
+} from "../lib/preview-outcome-store";
 
 export type OutcomeRecord = components["schemas"]["OutcomeResponse"];
 export type ContractRevisionRecord = components["schemas"]["ContractRevisionResponse"];
@@ -116,6 +125,11 @@ export interface OutcomeQueryResult {
 }
 
 async function fetchOutcomeRecord(outcomeId: string): Promise<OutcomeRecord> {
+	if (usesPreviewWorkspaceData) {
+		const outcome = getPreviewOutcome(outcomeId);
+		if (!outcome) throw { code: OUTCOME_NOT_FOUND, message: "The preview Outcome does not exist." };
+		return outcome;
+	}
 	const { data, error } = await apiClient.GET("/api/v1/outcomes/{outcomeId}", {
 		params: { path: { outcomeId } },
 	});
@@ -183,7 +197,7 @@ export function useProjectOutcomes(projectId: string | undefined): ProjectOutcom
 		queryKey: projectOutcomesQueryKey(projectId),
 		enabled: Boolean(projectId),
 		queryFn: async () => {
-			if (usesPreviewWorkspaceData) return [];
+			if (usesPreviewWorkspaceData) return listPreviewOutcomes(projectId as string);
 			const { data, error } = await apiClient.GET("/api/v1/projects/{id}/outcomes", {
 				params: { path: { id: projectId as string } },
 			});
@@ -245,6 +259,7 @@ function useOutcomeWrite<TInput>(mutationFn: (input: TInput) => Promise<OutcomeR
 export function useCreateOutcome(projectId: string | undefined) {
 	const queryClient = useQueryClient();
 	const write = useOutcomeWrite(async (input: CreateOutcomeRequest) => {
+		if (usesPreviewWorkspaceData) return createPreviewOutcome(projectId as string, input);
 		const { data, error } = await apiClient.POST("/api/v1/projects/{id}/outcomes", {
 			params: { path: { id: projectId as string } },
 			body: input,
@@ -272,6 +287,7 @@ export function useCreateOutcome(projectId: string | undefined) {
  */
 export function useReviseOutcomeContract(outcomeId: string | undefined) {
 	return useOutcomeWrite(async (input: ReviseOutcomeContractRequest) => {
+		if (usesPreviewWorkspaceData) return revisePreviewOutcome(outcomeId as string, input);
 		const { data, error } = await apiClient.POST("/api/v1/outcomes/{outcomeId}/revisions", {
 			params: { path: { outcomeId: outcomeId as string } },
 			body: input,
@@ -297,6 +313,11 @@ function planQueryKey(outcomeId: string | undefined) {
 }
 
 async function fetchLatestPlan(outcomeId: string): Promise<PlanRecord> {
+	if (usesPreviewWorkspaceData) {
+		const plan = getPreviewPlan(outcomeId);
+		if (!plan) throw { code: PLAN_NOT_FOUND, message: "No preview plan exists yet." };
+		return plan;
+	}
 	const { data, error } = await apiClient.GET("/api/v1/outcomes/{outcomeId}/plan", {
 		params: { path: { outcomeId } },
 	});
@@ -348,6 +369,9 @@ export function useProposeOutcomePlan(outcomeId: string | undefined): ProposePla
 	const queryClient = useQueryClient();
 	const mutation = useMutation({
 		mutationFn: async (input: { expectedContractRevision: number }) => {
+			if (usesPreviewWorkspaceData) {
+				return proposePreviewPlan(outcomeId as string, input.expectedContractRevision);
+			}
 			const { data, error } = await apiClient.POST("/api/v1/outcomes/{outcomeId}/plans", {
 				params: { path: { outcomeId: outcomeId as string } },
 				body: { expectedContractRevision: input.expectedContractRevision },
@@ -355,7 +379,13 @@ export function useProposeOutcomePlan(outcomeId: string | undefined): ProposePla
 			if (error) throw error;
 			return (data as PlanEnvelope).plan;
 		},
-		onSuccess: (plan) => queryClient.setQueryData(planQueryKey(outcomeId), plan),
+		onSuccess: (plan) => {
+			queryClient.setQueryData(planQueryKey(outcomeId), plan);
+			if (usesPreviewWorkspaceData) {
+				queryClient.setQueryData(outcomeQueryKey(outcomeId), getPreviewOutcome(outcomeId as string));
+				void queryClient.invalidateQueries({ queryKey: ["project-outcomes"] });
+			}
+		},
 	});
 	return {
 		pending: mutation.isPending,
@@ -377,6 +407,9 @@ export function useApproveOutcomePlan(outcomeId: string | undefined): ApprovePla
 	const queryClient = useQueryClient();
 	const mutation = useMutation({
 		mutationFn: async (input: { planId: string; expectedContractRevision: number }) => {
+			if (usesPreviewWorkspaceData) {
+				return approvePreviewPlan(outcomeId as string, input.planId, input.expectedContractRevision);
+			}
 			const { data, error } = await apiClient.POST(
 				"/api/v1/outcomes/{outcomeId}/plans/{planId}/approval",
 				{
@@ -387,7 +420,13 @@ export function useApproveOutcomePlan(outcomeId: string | undefined): ApprovePla
 			if (error) throw error;
 			return (data as PlanEnvelope).plan;
 		},
-		onSuccess: (plan) => queryClient.setQueryData(planQueryKey(outcomeId), plan),
+		onSuccess: (plan) => {
+			queryClient.setQueryData(planQueryKey(outcomeId), plan);
+			if (usesPreviewWorkspaceData) {
+				queryClient.setQueryData(outcomeQueryKey(outcomeId), getPreviewOutcome(outcomeId as string));
+				void queryClient.invalidateQueries({ queryKey: ["project-outcomes"] });
+			}
+		},
 	});
 	return {
 		pending: mutation.isPending,

@@ -1545,6 +1545,8 @@
 	"outcome.decide.proposeCta": "Redigir o plano",
 	"outcome.decide.approveCta": "Autorizar este plano",
 	"outcome.decide.approveNote": "A aprovação ativa estas permissões apenas dentro da árvore de trabalho isolada deste outcome. A execução começa na próxima etapa.",
+	"outcome.decide.reviewWorkCta": "Revisar o quadro do Work",
+	"outcome.decide.reviewWorkNote": "Isso volta às sessões observadas. O plano autorizado não é vinculado a um Attempt até a integração de Act & Observe.",
 	"outcome.decide.staleTitle": "O contrato avançou",
 	"outcome.decide.staleBody": "Este plano está vinculado a uma revisão anterior. Carregue os dados atuais e redija um novo plano.",
 	"outcome.decide.reloadCta": "Carregar dados atuais",

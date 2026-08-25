@@ -1545,6 +1545,8 @@
 	"outcome.decide.proposeCta": "Rédiger le plan",
 	"outcome.decide.approveCta": "Autoriser ce plan",
 	"outcome.decide.approveNote": "L'approbation n'active ces autorisations que dans l'arboresance de travail isolée de ce outcome. L'exécution commence à l'étape suivante.",
+	"outcome.decide.reviewWorkCta": "Consulter le tableau Work",
+	"outcome.decide.reviewWorkNote": "Cela revient aux sessions observées. Le plan autorisé n'est pas lié à un Attempt avant l'intégration Act & Observe.",
 	"outcome.decide.staleTitle": "Le contrat a progressé",
 	"outcome.decide.staleBody": "Ce plan est lié à une révision antérieure. Chargez les données actuelles, puis rédigez un nouveau plan.",
 	"outcome.decide.reloadCta": "Charger les données actuelles",

@@ -89,11 +89,11 @@ function planEnvelope(overrides: Record<string, unknown> = {}) {
 	};
 }
 
-function renderSurface() {
+function renderSurface(props: { onReviewWork?: () => void } = {}) {
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	return render(
 		<QueryClientProvider client={queryClient}>
-			<OutcomeDecideAuthorizeSurface outcomeId="out-1" />
+			<OutcomeDecideAuthorizeSurface outcomeId="out-1" {...props} />
 		</QueryClientProvider>,
 	);
 }
@@ -234,6 +234,7 @@ describe("OutcomeDecideAuthorizeSurface", () => {
 	});
 
 	it("shows an already-authorized plan without proposal or approval controls", async () => {
+		const onReviewWork = vi.fn();
 		getMock.mockImplementation(async (url: string) => {
 			if (url === "/api/v1/outcomes/{outcomeId}") return { data: outcomeEnvelope(1), error: undefined };
 			if (url === "/api/v1/outcomes/{outcomeId}/plan") {
@@ -241,11 +242,13 @@ describe("OutcomeDecideAuthorizeSurface", () => {
 			}
 			return { data: undefined, error: undefined };
 		});
-		renderSurface();
+		renderSurface({ onReviewWork });
 
 		const card = await screen.findByTestId("outcome-plan-card");
 		expect(card).toHaveTextContent(/authorized/i);
 		expect(screen.queryByTestId("outcome-propose-plan")).not.toBeInTheDocument();
 		expect(screen.queryByTestId("outcome-approve-plan")).not.toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: /review the Work board/i }));
+		expect(onReviewWork).toHaveBeenCalledOnce();
 	});
 });

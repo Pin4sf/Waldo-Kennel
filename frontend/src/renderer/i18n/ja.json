@@ -1529,6 +1529,8 @@
 	"outcome.decide.proposeCta": "計画を草案する",
 	"outcome.decide.approveCta": "この計画を承認",
 	"outcome.decide.approveNote": "承認すると、これらの機能許可はこの Outcome の隔離ワークツリー内でのみ有効になります。実行は次のステージで始まります。",
+	"outcome.decide.reviewWorkCta": "Work ボードを確認",
+	"outcome.decide.reviewWorkNote": "観測済みのセッションに戻ります。Act & Observe の統合が完了するまで、承認済みプランは Attempt に紐づきません。",
 	"outcome.decide.staleTitle": "契約が先に進んでいます",
 	"outcome.decide.staleBody": "この計画は古いリビジョンに紐づいています。現在の情報を読み込み、計画を起草し直してください。",
 	"outcome.decide.reloadCta": "現在の情報を再読み込み",

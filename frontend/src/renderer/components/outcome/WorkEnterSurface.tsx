@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 
 import { apiClient, apiErrorMessage } from "../../lib/api-client";
 import { aoBridge } from "../../lib/bridge";
+import { mockWorkspaces } from "../../lib/mock-data";
+import { usesPreviewWorkspaceData } from "../../lib/preview-mode";
 import { CreateProjectFlow, type CreateProjectInput } from "../CreateProjectFlow";
 import { Button } from "../ui/button";
 import { OutcomeLifecycleShell } from "./OutcomeLifecycleShell";
@@ -47,21 +49,28 @@ export function WorkEnterSurface() {
 	const daemonQuery = useQuery({
 		queryKey: ["daemon-status", "enter"],
 		queryFn: () => aoBridge.daemon.getStatus(),
+		enabled: !usesPreviewWorkspaceData,
 	});
 	const projectsQuery = useQuery({
 		queryKey: ["projects", "enter"],
-		queryFn: fetchProjects,
+		queryFn: () =>
+			usesPreviewWorkspaceData
+				? Promise.resolve(mockWorkspaces.map(({ id, name, path }) => ({ id, name, path })))
+				: fetchProjects(),
 		enabled: destination === "work",
 	});
 	const agentsQuery = useQuery({
 		queryKey: ["agents", "enter"],
-		queryFn: fetchAgents,
+		queryFn: () =>
+			usesPreviewWorkspaceData
+				? Promise.resolve({ authorized: [{ id: V0_PROVIDER_ID, name: "Codex" }] })
+				: fetchAgents(),
 		enabled: destination === "work",
 	});
 
 	// The daemon owns every canonical fact this surface would act on, so an
 	// unavailable daemon is stated plainly rather than rendered as an empty list.
-	const daemonReady = daemonQuery.data?.state === "ready";
+	const daemonReady = usesPreviewWorkspaceData || daemonQuery.data?.state === "ready";
 
 	// Catalog readiness is an advisory local probe, never a spawn precheck. An
 	// unauthorized provider is therefore Action Required — an exact human-only

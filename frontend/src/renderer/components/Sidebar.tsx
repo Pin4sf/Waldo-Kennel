@@ -91,6 +91,7 @@ import { useCloudSession } from "../lib/cloud-session";
 import { HomeNavigation } from "./home/HomeNavigation";
 import type { HomeDestination } from "../lib/home-fixture";
 import { deriveOutcomeDashboardPresentation } from "../lib/outcome-dashboard-presentation";
+import { HomeWorkModeSwitch } from "./HomeWorkModeSwitch";
 
 // macOS paints framed chrome: the fixed TitlebarNav cluster carries the
 // sidebar toggle + history arrows above this surface. Windows hangs the sidebar
@@ -395,6 +396,15 @@ export function Sidebar({
 				</>
 				)}
 			</SidebarHeader>
+
+			<div
+				className={cn(
+					"sidebar-expanded-chrome shrink-0 group-data-[collapsible=icon]:hidden",
+					figmaBoard ? "figma-board-sidebar__mode-switch" : "px-2 pb-3",
+				)}
+			>
+				<HomeWorkModeSwitch />
+			</div>
 
 			{selection.isHome ? (
 				<SidebarGroup className="shrink-0 px-2 pb-2 pt-0 group-data-[collapsible=icon]:px-1.5">

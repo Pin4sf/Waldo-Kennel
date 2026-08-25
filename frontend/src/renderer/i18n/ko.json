@@ -1529,6 +1529,8 @@
 	"outcome.decide.proposeCta": "계획 초안 작성",
 	"outcome.decide.approveCta": "이 계획 승인",
 	"outcome.decide.approveNote": "승인하면 이 기능 허용들은 이 Outcome의 격리 작업 트리 안에서만 활성화됩니다. 실행은 다음 단계에서 시작됩니다.",
+	"outcome.decide.reviewWorkCta": "Work 보드 검토",
+	"outcome.decide.reviewWorkNote": "관찰된 세션으로 돌아갑니다. Act & Observe 통합 전까지 승인된 계획은 Attempt에 연결되지 않습니다.",
 	"outcome.decide.staleTitle": "계약이 앞서 진행되었습니다",
 	"outcome.decide.staleBody": "이 계획은 이전 리비전에 묶여 있습니다. 현재 정보를 불러온 뒤 계획을 다시 작성하세요.",
 	"outcome.decide.reloadCta": "현재 정보 불러오기",
