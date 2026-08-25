@@ -772,6 +772,8 @@
 	"shell.chooseSession": "Choose {{title}}",
 	"shell.waldoBrief.aria": "Waldo brief for {{title}}",
 	"shell.waldoBrief.review": "Waldo's review",
+	"shell.waldoBrief.status": "Current status",
+	"shell.waldoBrief.noSummary": "No attributed work summary is available yet.",
 	"shell.waldoBrief.recommendation": "Recommendation",
 	"shell.waldoBrief.openSession": "Open session",
 	"shell.waldoBrief.recommended": "Recommended",
@@ -1821,5 +1823,6 @@
 	"outcome.dashboard.reviewPlan": "Review plan and permissions",
 	"outcome.dashboard.reviewAuthorization": "Review and authorize",
 	"outcome.dashboard.openProjectSessions": "Open project sessions",
+	"outcome.dashboard.reviewApprovedPlan": "Review approved plan",
 	"shell.sessions": "Sessions"
 }

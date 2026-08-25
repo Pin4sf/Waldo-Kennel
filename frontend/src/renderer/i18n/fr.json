@@ -775,6 +775,8 @@
 	"shell.chooseSession": "Choisir {{title}}",
 	"shell.waldoBrief.aria": "Résumé Waldo pour {{title}}",
 	"shell.waldoBrief.review": "Avis de Waldo",
+	"shell.waldoBrief.status": "État actuel",
+	"shell.waldoBrief.noSummary": "Aucun résumé de travail attribuable n’est encore disponible.",
 	"shell.waldoBrief.recommendation": "Recommandation",
 	"shell.waldoBrief.openSession": "Ouvrir la session",
 	"shell.waldoBrief.recommended": "Recommandé",
@@ -1855,5 +1857,6 @@
 	"outcome.dashboard.reviewPlan": "Vérifier le plan et les permissions",
 	"outcome.dashboard.reviewAuthorization": "Vérifier et autoriser",
 	"outcome.dashboard.openProjectSessions": "Ouvrir les sessions du projet",
+	"outcome.dashboard.reviewApprovedPlan": "Examiner le plan approuvé",
 	"shell.sessions": "Sessions"
 }

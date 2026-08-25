@@ -186,11 +186,6 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	};
 	const continueOutcome = (outcome: OutcomeRecord) => {
 		if (!projectId) return;
-		const presentation = deriveOutcomeDashboardPresentation(outcome);
-		if (presentation.destination === "project") {
-			void navigate({ to: "/projects/$projectId", params: { projectId } });
-			return;
-		}
 		void navigate({
 			to: "/work",
 			search: { project: projectId, stage: "decide_authorize", outcome: outcome.id },

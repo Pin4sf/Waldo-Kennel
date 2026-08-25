@@ -151,7 +151,7 @@ describe("SessionsBoard", () => {
 		expect(screen.getByRole("tablist", { name: "Session view" })).toBeInTheDocument();
 	});
 
-	it("re-enters an approved Outcome through the project work projection", async () => {
+	it("re-enters an approved Outcome through its exact approved Plan", async () => {
 		workspaceQueryMock.mockReturnValue({
 			data: [workspaceWithSessions([])],
 			isError: false,
@@ -172,11 +172,11 @@ describe("SessionsBoard", () => {
 		renderBoard("p1");
 
 		expect(screen.getByText("Authorized · Execution not connected")).toBeInTheDocument();
-		expect(screen.getByText("Open project sessions")).toBeInTheDocument();
+		expect(screen.getByText("Review approved plan")).toBeInTheDocument();
 		await userEvent.click(screen.getByRole("button", { name: "Continue Ship the dashboard" }));
 		expect(navigateMock).toHaveBeenCalledWith({
-			to: "/projects/$projectId",
-			params: { projectId: "p1" },
+			to: "/work",
+			search: { project: "p1", stage: "decide_authorize", outcome: "outcome-approved" },
 		});
 	});
 
@@ -302,6 +302,23 @@ describe("SessionsBoard", () => {
 				"Polish the terminal review flow. 2 files changed in this pull request.",
 			);
 		});
+	});
+
+	it("discloses when the Waldo brief has status guidance but no attributed work summary", async () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [workspaceWithSessions([boardSession({ id: "s-status", title: "Wait for direction", status: "needs_input" })])],
+			isError: false,
+			isSuccess: true,
+		});
+		useUiStore.setState({ sessionsViewMode: "list" });
+
+		renderBoard("p1");
+		await userEvent.click(screen.getByRole("button", { name: "Choose Wait for direction" }));
+
+		const brief = await screen.findByRole("dialog", { name: "Waldo brief for Wait for direction" });
+		expect(brief).toHaveTextContent("Current status");
+		expect(brief).toHaveTextContent("No attributed work summary is available yet.");
+		expect(brief).toHaveTextContent("This session needs your judgment before it can move safely.");
 	});
 
 	it("never renders outcome questions from transcript markers over the active board", async () => {

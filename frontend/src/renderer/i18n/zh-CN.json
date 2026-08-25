@@ -750,6 +750,8 @@
 	"shell.chooseSession": "选择{{title}}",
 	"shell.waldoBrief.aria": "{{title}} 的 Waldo 简报",
 	"shell.waldoBrief.review": "Waldo 的审阅",
+	"shell.waldoBrief.status": "当前状态",
+	"shell.waldoBrief.noSummary": "目前还没有可归属的工作摘要。",
 	"shell.waldoBrief.recommendation": "建议",
 	"shell.waldoBrief.openSession": "打开会话",
 	"shell.waldoBrief.recommended": "推荐",
@@ -1821,5 +1823,6 @@
 	"outcome.dashboard.reviewPlan": "查看计划和权限",
 	"outcome.dashboard.reviewAuthorization": "查看并授权",
 	"outcome.dashboard.openProjectSessions": "打开项目会话",
+	"outcome.dashboard.reviewApprovedPlan": "审阅已批准的计划",
 	"shell.sessions": "会话"
 }

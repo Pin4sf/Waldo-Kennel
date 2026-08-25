@@ -712,11 +712,6 @@ function ProjectItem({
 	};
 
 	const openOutcome = (outcome: OutcomeRecord) => {
-		const presentation = deriveOutcomeDashboardPresentation(outcome);
-		if (presentation.destination === "project") {
-			selection.goProject(workspace.id);
-			return;
-		}
 		void navigate({
 			to: "/work",
 			search: { project: workspace.id, stage: "decide_authorize", outcome: outcome.id },

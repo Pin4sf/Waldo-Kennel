@@ -766,6 +766,8 @@
 	"shell.chooseSession": "{{title}} auswählen",
 	"shell.waldoBrief.aria": "Waldo-Kurzinfo für {{title}}",
 	"shell.waldoBrief.review": "Waldos Einschätzung",
+	"shell.waldoBrief.status": "Aktueller Status",
+	"shell.waldoBrief.noSummary": "Noch ist keine zuordenbare Arbeitszusammenfassung verfügbar.",
 	"shell.waldoBrief.recommendation": "Empfehlung",
 	"shell.waldoBrief.openSession": "Sitzung öffnen",
 	"shell.waldoBrief.recommended": "Empfohlen",
@@ -1839,5 +1841,6 @@
 	"outcome.dashboard.reviewPlan": "Plan und Berechtigungen prüfen",
 	"outcome.dashboard.reviewAuthorization": "Prüfen und autorisieren",
 	"outcome.dashboard.openProjectSessions": "Projektsitzungen öffnen",
+	"outcome.dashboard.reviewApprovedPlan": "Genehmigten Plan prüfen",
 	"shell.sessions": "Sitzungen"
 }

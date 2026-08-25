@@ -301,8 +301,13 @@ function WaldoBrief({
 		<div className="flex flex-col gap-3">
 			<div>
 				<h3 className={cn("text-base font-semibold leading-snug", toneClassName[zone])}>{session.title}</h3>
-				<p className="mt-1 text-2xs font-medium uppercase tracking-wide text-passive">{t("shell.waldoBrief.review")}</p>
-				<p className="mt-1 text-sm leading-5 text-muted-foreground">{summary ?? t(fallbackSummaryKey[zone])}</p>
+				<p className="mt-1 text-2xs font-medium uppercase tracking-wide text-passive">
+					{t(summary ? "shell.waldoBrief.review" : "shell.waldoBrief.status")}
+				</p>
+				{summary ? null : <p className="mt-1 text-sm leading-5 text-muted-foreground">{t("shell.waldoBrief.noSummary")}</p>}
+				<p className={cn("text-sm leading-5 text-muted-foreground", summary && "mt-1")}>
+					{summary ?? t(fallbackSummaryKey[zone])}
+				</p>
 			</div>
 			<div className="rounded-md border border-border bg-background/45 px-3 py-2.5">
 				<p className="text-2xs font-medium uppercase tracking-wide text-passive">{t("shell.waldoBrief.recommendation")}</p>

@@ -766,6 +766,8 @@
 	"shell.chooseSession": "{{title}} 선택",
 	"shell.waldoBrief.aria": "{{title}}에 대한 Waldo 브리프",
 	"shell.waldoBrief.review": "Waldo의 검토",
+	"shell.waldoBrief.status": "현재 상태",
+	"shell.waldoBrief.noSummary": "출처를 확인할 수 있는 작업 요약이 아직 없습니다.",
 	"shell.waldoBrief.recommendation": "권장 사항",
 	"shell.waldoBrief.openSession": "세션 열기",
 	"shell.waldoBrief.recommended": "권장",
@@ -1839,5 +1841,6 @@
 	"outcome.dashboard.reviewPlan": "계획 및 권한 검토",
 	"outcome.dashboard.reviewAuthorization": "검토 및 승인",
 	"outcome.dashboard.openProjectSessions": "프로젝트 세션 열기",
+	"outcome.dashboard.reviewApprovedPlan": "승인된 계획 검토",
 	"shell.sessions": "세션"
 }

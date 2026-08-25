@@ -766,6 +766,8 @@
 	"shell.chooseSession": "{{title}} を選択",
 	"shell.waldoBrief.aria": "{{title}} のWaldoブリーフ",
 	"shell.waldoBrief.review": "Waldoのレビュー",
+	"shell.waldoBrief.status": "現在の状態",
+	"shell.waldoBrief.noSummary": "出所を確認できる作業概要はまだありません。",
 	"shell.waldoBrief.recommendation": "推奨",
 	"shell.waldoBrief.openSession": "セッションを開く",
 	"shell.waldoBrief.recommended": "おすすめ",
@@ -1839,5 +1841,6 @@
 	"outcome.dashboard.reviewPlan": "計画と権限を確認",
 	"outcome.dashboard.reviewAuthorization": "確認して承認",
 	"outcome.dashboard.openProjectSessions": "プロジェクトセッションを開く",
+	"outcome.dashboard.reviewApprovedPlan": "承認済みプランを確認",
 	"shell.sessions": "セッション"
 }
