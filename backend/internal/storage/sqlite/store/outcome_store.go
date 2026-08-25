@@ -8,10 +8,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/gen"
-	"github.com/google/uuid"
 )
 
 // EnsureWorkResponsibilitySpace resolves the project-backed Work space,
@@ -377,10 +378,10 @@ func (s *Store) AppendPlanRevision(ctx context.Context, outcomeID domain.Outcome
 	}
 	for _, grant := range plan.Grants {
 		if err := txq.CreateCapabilityGrant(ctx, gen.CreateCapabilityGrantParams{
-			ID:              grant.ID,
-			PlanRevisionID:  plan.ID,
-			Name:            grant.Name,
-			Scope:           grant.Scope,
+			ID:             grant.ID,
+			PlanRevisionID: plan.ID,
+			Name:           grant.Name,
+			Scope:          grant.Scope,
 		}); err != nil {
 			return domain.PlanRevision{}, fmt.Errorf("create capability grant %s: %w", grant.ID, err)
 		}

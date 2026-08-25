@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { OutcomeDecideAuthorizeSurface } from "../components/outcome/OutcomeDecideAuthorizeSurface";
 import { OutcomeLifecycleShell } from "../components/outcome/OutcomeLifecycleShell";
+import { OutcomeRunSurface } from "../components/outcome/OutcomeRunSurface";
 import { OutcomeUnderstandSurface } from "../components/outcome/OutcomeUnderstandSurface";
 import { WorkEnterSurface } from "../components/outcome/WorkEnterSurface";
 
@@ -9,13 +10,14 @@ type WorkSearch = {
 	/** Selected project. Absent renders the Enter surface (stage: enter). */
 	project?: string;
 	/** Lifecycle stage within the Work destination. Defaults to understand. */
-	stage?: "understand" | "decide_authorize";
+	stage?: "understand" | "decide_authorize" | "act_observe";
 	/** The Outcome a saved contract produced; required from decide onward. */
 	outcome?: string;
 };
 
 function validateSearch(search: Record<string, unknown>): WorkSearch {
-	const stage = search.stage === "decide_authorize" ? search.stage : undefined;
+	const stage =
+		search.stage === "decide_authorize" || search.stage === "act_observe" ? search.stage : undefined;
 	return {
 		project: typeof search.project === "string" && search.project !== "" ? search.project : undefined,
 		stage,
@@ -23,10 +25,10 @@ function validateSearch(search: Record<string, unknown>): WorkSearch {
 	};
 }
 
-// Work is a destination, not a lifecycle stage. Enter, Understand, and
-// Decide & Authorize share this one route so the spine stays one surface set;
-// context rides in search params so refreshes keep it, and Home/Work mode
-// memory (pathname-only) keeps working.
+// Work is a destination, not a lifecycle stage. Enter, Understand, Decide &
+// Authorize, and Act & Observe share this one route so the spine stays one
+// surface set; context rides in search params so refreshes keep it, and
+// Home/Work mode memory (pathname-only) keeps working.
 export const Route = createFileRoute("/_shell/work")({
 	validateSearch,
 	component: WorkRoute,
@@ -38,6 +40,22 @@ function WorkRoute() {
 
 	if (!project) {
 		return <WorkEnterSurface />;
+	}
+
+	if (stage === "act_observe") {
+		if (!outcome) {
+			// A deep link without its Outcome falls back to Understand.
+			return (
+				<OutcomeLifecycleShell projectId={project} stage="understand">
+					<OutcomeUnderstandSurface projectId={project} />
+				</OutcomeLifecycleShell>
+			);
+		}
+		return (
+			<OutcomeLifecycleShell outcomeId={outcome} projectId={project} stage="act_observe">
+				<OutcomeRunSurface outcomeId={outcome} />
+			</OutcomeLifecycleShell>
+		);
 	}
 
 	if (stage === "decide_authorize") {

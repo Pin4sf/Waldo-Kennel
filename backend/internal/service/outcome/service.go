@@ -14,10 +14,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/google/uuid"
 )
 
 // Manager is the controller-facing boundary for the Outcome contract.
@@ -92,6 +93,27 @@ type Service struct {
 	// constrained environments. Empty means the v0 default: the worktree-local
 	// capability trio. Authorization intersects every layer and fails closed.
 	PolicyLayers [][]string
+
+	// Act & Observe seams (#31). spawner adapts the real session spawn path;
+	// heartbeats resolves bound-session facts for derived presentation. A nil
+	// spawner keeps every attempt admission refused (the controller answers
+	// 501) rather than half-wired.
+	spawner    ports.AttemptSessionSpawner
+	heartbeats heartbeatSource
+
+	// staleHeartbeat bounds how long a non-sticky running session may stay
+	// without activity before deriving unconfirmed. Zero uses the domain
+	// default; tests shrink it.
+	staleHeartbeat time.Duration
+}
+
+// WithStaleHeartbeat overrides the recency window used to derive unconfirmed
+// liveness. Positive durations only.
+func (s *Service) WithStaleHeartbeat(d time.Duration) *Service {
+	if d > 0 {
+		s.staleHeartbeat = d
+	}
+	return s
 }
 
 // New builds the service. clock may be nil for wall-clock time.
@@ -104,6 +126,8 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 
 var _ Manager = (*Service)(nil)
 
+// Create records a new Outcome with ContractRevision 1, resolving replays by
+// request key.
 func (s *Service) Create(ctx context.Context, in CreateInput) (OutcomeView, error) {
 	if strings.TrimSpace(string(in.ProjectID)) == "" {
 		return OutcomeView{}, apierr.Invalid("PROJECT_REQUIRED", "Choose the project this Outcome belongs to", nil)
@@ -158,6 +182,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (OutcomeView, erro
 	return s.Get(ctx, outcomeRecord.ID)
 }
 
+// ReviseContract appends the next immutable revision under an optimistic
+// pointer guard.
 func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in ReviseContractInput) (OutcomeView, error) {
 	if in.ExpectedRevision < 1 {
 		return OutcomeView{}, apierr.Invalid("EXPECTED_REVISION_REQUIRED", "State which contract revision this edit supersedes", nil)
@@ -203,6 +229,7 @@ func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in Re
 	return s.Get(ctx, id)
 }
 
+// Get reads one Outcome's canonical facts plus full revision history.
 func (s *Service) Get(ctx context.Context, id domain.OutcomeID) (OutcomeView, error) {
 	record, ok, err := s.store.GetOutcome(ctx, id)
 	if err != nil {

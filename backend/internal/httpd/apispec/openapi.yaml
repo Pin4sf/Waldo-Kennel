@@ -1019,6 +1019,325 @@ paths:
       summary: Read one Outcome with its full revision history
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/attempts:
+    get:
+      operationId: listOutcomeAttempts
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptListEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read the Outcome's attempt lineage with derived presentation
+      tags:
+      - outcomes
+    post:
+      operationId: startOutcomeAttempt
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartOutcomeAttemptRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Admit an approved plan onto a real provider session (fail-closed; idempotent
+        by requestKey)
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/attempts/{attemptId}:
+    get:
+      operationId: getOutcomeAttempt
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Attempt identifier, e.g. att-<uuid>.
+        in: path
+        name: attemptId
+        required: true
+        schema:
+          description: Attempt identifier, e.g. att-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: 'Read one attempt: lineage, observations, receipts, custody, derived
+        state'
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/attempts/{attemptId}/cancel:
+    post:
+      operationId: cancelOutcomeAttempt
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Attempt identifier, e.g. att-<uuid>.
+        in: path
+        name: attemptId
+        required: true
+        schema:
+          description: Attempt identifier, e.g. att-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Cancel an active attempt by owner decision
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/attempts/{attemptId}/observations:
+    post:
+      operationId: recordOutcomeAttemptObservation
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Attempt identifier, e.g. att-<uuid>.
+        in: path
+        name: attemptId
+        required: true
+        schema:
+          description: Attempt identifier, e.g. att-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordObservationRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservationEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Append one ordered observation (insertable on any attempt state; never
+        mutates current truth)
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/attempts/{attemptId}/recovery:
+    post:
+      operationId: recoverOutcomeAttempt
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Attempt identifier, e.g. att-<uuid>.
+        in: path
+        name: attemptId
+        required: true
+        schema:
+          description: Attempt identifier, e.g. att-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttemptRecoveryRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptRecoveryEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Contain, reconcile, resume, replace, or escalate an attempt (custody-safe
+        recovery)
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/plan:
     get:
       operationId: getLatestOutcomePlan
@@ -5541,6 +5860,213 @@ components:
       required:
       - data
       type: object
+    AttemptEnvelope:
+      properties:
+        attempt:
+          $ref: '#/components/schemas/AttemptResponse'
+      required:
+      - attempt
+      type: object
+    AttemptFenceResponse:
+      properties:
+        id:
+          type: string
+        issuedAt:
+          format: date-time
+          type: string
+        lastRenewedAt:
+          format: date-time
+          type: string
+        releasedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        subject:
+          type: string
+      required:
+      - id
+      - subject
+      - issuedAt
+      - lastRenewedAt
+      type: object
+    AttemptListEnvelope:
+      properties:
+        attempts:
+          items:
+            $ref: '#/components/schemas/AttemptResponse'
+          type: array
+      required:
+      - attempts
+      type: object
+    AttemptObservationResponse:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        kind:
+          type: string
+        payload:
+          type: string
+        seq:
+          format: int64
+          type: integer
+      required:
+      - id
+      - seq
+      - kind
+      - createdAt
+      type: object
+    AttemptPresentationResponse:
+      properties:
+        attention:
+          enum:
+          - waiting_input
+          - blocked
+          type: string
+        endedUnclassified:
+          type: boolean
+        nextAction:
+          type: string
+        phase:
+          enum:
+          - awaiting_start
+          - executing
+          - suspended
+          - unconfirmed
+          - needs_input
+          - ended_unclassified
+          - halted_failed
+          - halted_cancelled
+          - suspect_lost
+          - succeeded
+          type: string
+        unconfirmed:
+          type: boolean
+      required:
+      - phase
+      - unconfirmed
+      - endedUnclassified
+      - nextAction
+      type: object
+    AttemptRecoveryEnvelope:
+      properties:
+        attempt:
+          $ref: '#/components/schemas/AttemptResponse'
+        receipt:
+          $ref: '#/components/schemas/RecoveryReceiptResponse'
+      required:
+      - attempt
+      type: object
+    AttemptRecoveryRequest:
+      properties:
+        action:
+          description: One of contain, reconcile, replace, attention.
+          enum:
+          - contain
+          - reconcile
+          - replace
+          - attention
+          type: string
+        confirmProviderStopped:
+          type: boolean
+      required:
+      - action
+      type: object
+    AttemptResponse:
+      properties:
+        contractRevisionNumber:
+          format: int64
+          type: integer
+        createdAt:
+          format: date-time
+          type: string
+        fence:
+          $ref: '#/components/schemas/AttemptFenceResponse'
+        id:
+          type: string
+        number:
+          format: int64
+          type: integer
+        observations:
+          items:
+            $ref: '#/components/schemas/AttemptObservationResponse'
+          type: array
+        outcomeId:
+          type: string
+        planRevisionId:
+          type: string
+        presentation:
+          $ref: '#/components/schemas/AttemptPresentationResponse'
+        receipts:
+          items:
+            $ref: '#/components/schemas/RecoveryReceiptResponse'
+          type: array
+        sessions:
+          items:
+            $ref: '#/components/schemas/AttemptSessionRefResponse'
+          type: array
+        status:
+          enum:
+          - queued
+          - running
+          - paused
+          - succeeded
+          - failed
+          - cancelled
+          - lost
+          - reconciled
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        workUnitId:
+          type: string
+      required:
+      - id
+      - outcomeId
+      - planRevisionId
+      - workUnitId
+      - number
+      - status
+      - contractRevisionNumber
+      - sessions
+      - observations
+      - receipts
+      - presentation
+      - createdAt
+      - updatedAt
+      type: object
+    AttemptSessionRefResponse:
+      properties:
+        boundAt:
+          format: date-time
+          type: string
+        harness:
+          type: string
+        id:
+          type: string
+        mode:
+          type: string
+        runBriefCompiledDigest:
+          type: string
+        runBriefCoreDigest:
+          type: string
+        seq:
+          format: int64
+          type: integer
+        sessionId:
+          type: string
+      required:
+      - id
+      - seq
+      - sessionId
+      - harness
+      - runBriefCoreDigest
+      - boundAt
+      type: object
     BrowserCommandRequest:
       properties:
         action:
@@ -7161,6 +7687,13 @@ components:
       - kind
       - sessionId
       type: object
+    ObservationEnvelope:
+      properties:
+        observation:
+          $ref: '#/components/schemas/AttemptObservationResponse'
+      required:
+      - observation
+      type: object
     OpenShellTerminalRequest:
       properties:
         projectId:
@@ -7556,6 +8089,37 @@ components:
       required:
       - createdAt
       - lastSeenAt
+      type: object
+    RecordObservationRequest:
+      properties:
+        kind:
+          type: string
+        payload:
+          description: Optional JSON object with observation detail.
+          type: string
+      required:
+      - kind
+      type: object
+    RecoveryReceiptResponse:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        replacementAttemptId:
+          type: string
+        resolution:
+          description: resumed | replacement_attempt | needs_attention.
+          enum:
+          - resumed
+          - replacement_attempt
+          - needs_attention
+          type: string
+      required:
+      - id
+      - resolution
+      - createdAt
       type: object
     RegisterPushDeviceRequest:
       properties:
@@ -8642,6 +9206,18 @@ components:
       required:
       - sessionId
       - paths
+      type: object
+    StartOutcomeAttemptRequest:
+      properties:
+        harness:
+          type: string
+        planRevisionId:
+          type: string
+        requestKey:
+          type: string
+      required:
+      - planRevisionId
+      - requestKey
       type: object
     StartPreviewServerRequest:
       properties:

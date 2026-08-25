@@ -6,9 +6,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/google/uuid"
 )
 
 // PlanView is the read model over one plan revision together with the Outcome
