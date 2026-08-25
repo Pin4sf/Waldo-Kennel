@@ -56,8 +56,12 @@ INSERT INTO attempt_fences (id, subject, attempt_id)
 VALUES (?, ?, ?);
 
 -- name: FindOpenFenceBySubject :one
-SELECT id, subject, attempt_id, issued_at, released_at, release_reason
+SELECT id, subject, attempt_id, issued_at, last_renewed_at, released_at, release_reason
 FROM attempt_fences WHERE subject = ? AND released_at IS NULL;
+
+-- name: RenewAttemptFence :execrows
+UPDATE attempt_fences SET last_renewed_at = ?
+WHERE attempt_id = ? AND released_at IS NULL;
 
 -- name: ReleaseAttemptFence :execrows
 UPDATE attempt_fences SET released_at = ?, release_reason = ?

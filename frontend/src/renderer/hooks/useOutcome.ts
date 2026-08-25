@@ -514,6 +514,7 @@ export interface AttemptRecoveryState {
 	recover: (
 		attemptId: string,
 		action: AttemptRecoveryAction,
+		options?: { confirmProviderStopped?: boolean },
 	) => Promise<{ attempt: AttemptRecord; receipt?: RecoveryReceiptRecord }>;
 }
 
@@ -524,15 +525,17 @@ export function useAttemptRecovery(outcomeId: string | undefined): AttemptRecove
 		mutationFn: async ({
 			attemptId,
 			action,
+			...options
 		}: {
 			attemptId: string;
 			action: AttemptRecoveryAction;
+			confirmProviderStopped?: boolean;
 		}) => {
 			const { data, error } = await apiClient.POST(
 				"/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/recovery",
 				{
 					params: { path: { outcomeId: outcomeId as string, attemptId } },
-					body: { action },
+					body: { action, confirmProviderStopped: options?.confirmProviderStopped ?? false },
 				},
 			);
 			if (error) throw error;
@@ -545,7 +548,8 @@ export function useAttemptRecovery(outcomeId: string | undefined): AttemptRecove
 		pending: mutation.isPending,
 		failure: mutation.error ? classifyOutcomeFailure(mutation.error) : undefined,
 		reset: () => mutation.reset(),
-		recover: (attemptId, action) => mutation.mutateAsync({ attemptId, action }),
+		recover: (attemptId, action, options) =>
+			mutation.mutateAsync({ attemptId, action, ...options }),
 	};
 }
 

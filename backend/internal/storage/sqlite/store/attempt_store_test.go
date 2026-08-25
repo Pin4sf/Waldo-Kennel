@@ -279,3 +279,36 @@ func TestAttemptStore_ReconcileReleasesCustodyForReplacement(t *testing.T) {
 		t.Fatalf("lineage must hold both attempts, got %d", len(all))
 	}
 }
+
+// TestAttemptStore_FenceLeaseRenewal pins the renewable-lease facts: renewal
+// refreshes only OPEN fences for the custodian, and a released fence freezes
+// forever (trigger-refused).
+func TestAttemptStore_FenceLeaseRenewal(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "mer")
+	subject := domain.FenceSubjectForProject("mer")
+	at, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "rk-lease", subject, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	t0 := time.Now().UTC().Add(-time.Hour)
+	if rows, err := s.RenewFenceForAttempt(ctx, at.ID, t0); err != nil || rows != 1 {
+		t.Fatalf("renew rows=%d err=%v", rows, err)
+	}
+	fence, ok, err := s.OpenFenceForSubject(ctx, subject)
+	if err != nil || !ok {
+		t.Fatalf("fence ok=%v err=%v", ok, err)
+	}
+	if !fence.LastRenewedAt.Equal(t0.Truncate(time.Second)) && fence.LastRenewedAt.Sub(t0).Abs() > time.Second {
+		t.Fatalf("lastRenewedAt = %v, want ~%v", fence.LastRenewedAt, t0)
+	}
+
+	if _, err := s.ReleaseFenceForAttempt(ctx, at.ID, "replacement_attempt", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if rows, err := s.RenewFenceForAttempt(ctx, at.ID, time.Now()); err != nil || rows != 0 {
+		t.Fatalf("post-release renewal rows=%d err=%v, want 0", rows, err)
+	}
+}

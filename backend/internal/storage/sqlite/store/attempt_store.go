@@ -9,10 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/gen"
-	"github.com/google/uuid"
 )
 
 // GetOutcomeProjectID resolves the project backing an Outcome.
@@ -43,7 +44,7 @@ func (s *Store) FindAttemptByIdempotencyKey(ctx context.Context, key string) (do
 // its custody fence. The partial unique index on open fences backstops the
 // check; a conflict rolls EVERYTHING back so a failed admission leaves zero
 // durable rows.
-func (s *Store) CreateAttemptWithFence(ctx context.Context, outcomeID domain.OutcomeID, plan domain.PlanRevision, requestKey string, subject string, at time.Time) (domain.Attempt, error) {
+func (s *Store) CreateAttemptWithFence(ctx context.Context, outcomeID domain.OutcomeID, plan domain.PlanRevision, requestKey, subject string, at time.Time) (domain.Attempt, error) {
 	if len(plan.WorkUnits) != 1 {
 		return domain.Attempt{}, fmt.Errorf("create attempt for %s: plan must carry exactly one work unit", plan.ID)
 	}
@@ -62,12 +63,11 @@ func (s *Store) CreateAttemptWithFence(ctx context.Context, outcomeID domain.Out
 	if err != nil {
 		return domain.Attempt{}, fmt.Errorf("max attempt number for %s: %w", outcomeID, err)
 	}
-	number := int64(1)
-	if v, ok := maxNum.(int64); ok {
-		number = v + 1
-	} else {
+	priorCount, ok := maxNum.(int64)
+	if !ok {
 		return domain.Attempt{}, fmt.Errorf("max attempt number for %s: unexpected type %T", outcomeID, maxNum)
 	}
+	number := priorCount + 1
 
 	var key sql.NullString
 	if requestKey != "" {
@@ -271,7 +271,7 @@ func (s *Store) ListAttemptSessionRefs(ctx context.Context, attemptID domain.Att
 // AppendAttemptObservation appends one ordered observation with the next seq.
 // Observations are insertable for any attempt state (D5): inspection stays
 // possible after replacement; nothing here touches current truth.
-func (s *Store) AppendAttemptObservation(ctx context.Context, attemptID domain.AttemptID, kind string, payload string, at time.Time) (domain.AttemptObservation, error) {
+func (s *Store) AppendAttemptObservation(ctx context.Context, attemptID domain.AttemptID, kind, payload string, at time.Time) (domain.AttemptObservation, error) {
 	if payload == "" {
 		payload = "{}"
 	}
@@ -371,6 +371,22 @@ func (s *Store) ReleaseFenceForAttempt(ctx context.Context, attemptID domain.Att
 	return rows, nil
 }
 
+// RenewFenceForAttempt refreshes the open fence's lease timestamp; the
+// liveness loop calls this so a stale renewal exposes custody that may
+// outlive its provider. rows=0 when no open fence is held.
+func (s *Store) RenewFenceForAttempt(ctx context.Context, attemptID domain.AttemptID, at time.Time) (int64, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.RenewAttemptFence(ctx, gen.RenewAttemptFenceParams{
+		LastRenewedAt: at,
+		AttemptID:     attemptID,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("renew fence for %s: %w", attemptID, err)
+	}
+	return rows, nil
+}
+
 // CreateRecoveryReceipt appends one immutable recovery receipt.
 func (s *Store) CreateRecoveryReceipt(ctx context.Context, receipt domain.AttemptRecoveryReceipt) error {
 	if receipt.ID == "" {
@@ -459,6 +475,7 @@ func attemptFenceFromRow(row gen.AttemptFence) domain.AttemptFence {
 		Subject:       row.Subject,
 		AttemptID:     row.AttemptID,
 		IssuedAt:      row.IssuedAt,
+		LastRenewedAt: row.LastRenewedAt,
 		ReleasedAt:    row.ReleasedAt.Time,
 		ReleaseReason: row.ReleaseReason,
 	}

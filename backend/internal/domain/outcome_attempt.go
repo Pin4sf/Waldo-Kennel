@@ -254,10 +254,21 @@ const (
 	// the request may or may not have reached the provider. The attempt stays
 	// queued and derives as unconfirmed until reconcile decides.
 	ObservationAdmissionAmbiguous = "admission_ambiguous"
-	ObservationOwnerCancel        = "owner_cancelled"
-	ObservationOwnerPause         = "owner_paused"
-	ObservationOwnerResume        = "owner_resumed"
-	ObservationRecoveryAttention  = "needs_attention"
+	// ObservationActivationAmbiguous marks a LIVE provider session whose
+	// durable promotion to running could not be recorded. Same unconfirmed
+	// contract as admission ambiguity; custody stays held.
+	ObservationActivationAmbiguous = "activation_ambiguous"
+	// ObservationProviderStopFailed records a failed terminate through the
+	// execution seam; cancellation was refused, not silently dropped.
+	ObservationProviderStopFailed = "provider_stop_failed"
+	// ObservationOwnerContained records the OWNER's explicit assertion that
+	// the bound provider is stopped — the auditable basis for releasing
+	// custody without machine proof (invariant 5: user edits outrank).
+	ObservationOwnerContained    = "owner_contained"
+	ObservationOwnerCancel       = "owner_cancelled"
+	ObservationOwnerPause        = "owner_paused"
+	ObservationOwnerResume       = "owner_resumed"
+	ObservationRecoveryAttention = "needs_attention"
 )
 
 // AttemptFence is the custody lock over one worktree subject. At most ONE
@@ -265,10 +276,15 @@ const (
 // NULL); replacement inherits custody only through reconcile releasing the
 // old fence before the new attempt issues its own.
 type AttemptFence struct {
-	ID            string
-	Subject       string
-	AttemptID     AttemptID
-	IssuedAt      time.Time
+	ID string
+	// Subject names the guarded worktree (v0: "project:<id>").
+	Subject   string
+	AttemptID AttemptID
+	IssuedAt  time.Time
+	// LastRenewedAt is the renewable lease stamp: refreshed by the liveness
+	// loop while the custodian runs; staleness here flags custody that may
+	// outlive its provider.
+	LastRenewedAt time.Time
 	ReleasedAt    time.Time
 	ReleaseReason string
 }
@@ -365,54 +381,127 @@ type SessionHeartbeatFacts struct {
 	// FirstSignalAt is when the first agent hook signal arrived; zero means
 	// the session has never signalled.
 	FirstSignalAt time.Time
+	// LastActivityAt is when the session last showed durable activity; zero
+	// inherits FirstSignalAt for recency purposes.
+	LastActivityAt time.Time
 	// IsTerminated mirrors sessions.is_terminated.
 	IsTerminated bool
 }
 
-// Derived attempt phases. These are presentation vocabulary computed at read
-// time by DeriveAttemptPresentation — never stored.
+// RecentlyActive reports durable activity inside the policy window. Sticky
+// states are always recent: waiting on the USER cannot go stale.
+func (f SessionHeartbeatFacts) RecentlyActive(policy LivenessPolicy) bool {
+	if f.ActivityState.IsSticky() {
+		return true
+	}
+	ref := f.LastActivityAt
+	if ref.IsZero() {
+		ref = f.FirstSignalAt
+	}
+	if ref.IsZero() {
+		return false
+	}
+	return policy.now().Sub(ref) <= policy.window()
+}
+
+// AttemptPhase is the derived read-time phase vocabulary. Phases cross the
+// API as these exact strings; the renderer keys controls off the constants,
+// never off repeated literals.
+type AttemptPhase string
+
 const (
-	AttemptPhaseAwaitingStart     = "awaiting_start"
-	AttemptPhaseExecuting         = "executing"
-	AttemptPhaseSuspended         = "suspended"
-	AttemptPhaseUnconfirmed       = "unconfirmed"
-	AttemptPhaseEndedUnclassified = "ended_unclassified"
-	AttemptPhaseHaltedFailed      = "halted_failed"
-	AttemptPhaseHaltedCancelled   = "halted_cancelled"
-	AttemptPhaseSuspectLost       = "suspect_lost"
-	AttemptPhaseSucceeded         = "succeeded"
+	// AttemptPhaseAwaitingStart marks an admitted-but-not-yet-running attempt.
+	AttemptPhaseAwaitingStart AttemptPhase = "awaiting_start"
+	// AttemptPhaseExecuting marks a proven-alive running attempt.
+	AttemptPhaseExecuting AttemptPhase = "executing"
+	// AttemptPhaseSuspended marks an owner-paused attempt.
+	AttemptPhaseSuspended AttemptPhase = "suspended"
+	// AttemptPhaseUnconfirmed marks liveness as unproven (missing heartbeat,
+	// never signalled, stale activity, or an unknown start/activation outcome).
+	AttemptPhaseUnconfirmed AttemptPhase = "unconfirmed"
+	// AttemptPhaseNeedsInput marks a live session blocked on its user —
+	// waiting_input or blocked activity. This is Needs You, not Waiting.
+	AttemptPhaseNeedsInput AttemptPhase = "needs_input"
+	// AttemptPhaseEndedUnclassified marks an ended attempt whose result awaits
+	// Verification classification (#35).
+	AttemptPhaseEndedUnclassified AttemptPhase = "ended_unclassified"
+	// AttemptPhaseHaltedFailed marks a truthful pre-start failure.
+	AttemptPhaseHaltedFailed AttemptPhase = "halted_failed"
+	// AttemptPhaseHaltedCancelled marks an owner-cancelled attempt whose
+	// custody may still need reconcile.
+	AttemptPhaseHaltedCancelled AttemptPhase = "halted_cancelled"
+	// AttemptPhaseSuspectLost marks an attempt custody could not account for.
+	AttemptPhaseSuspectLost AttemptPhase = "suspect_lost"
+	// AttemptPhaseSucceeded is reserved for #35 verification binding.
+	AttemptPhaseSucceeded AttemptPhase = "succeeded"
 )
+
+// Valid reports whether p is a supported derived phase.
+func (p AttemptPhase) Valid() bool {
+	switch p {
+	case AttemptPhaseAwaitingStart, AttemptPhaseExecuting, AttemptPhaseSuspended,
+		AttemptPhaseUnconfirmed, AttemptPhaseNeedsInput, AttemptPhaseEndedUnclassified,
+		AttemptPhaseHaltedFailed, AttemptPhaseHaltedCancelled, AttemptPhaseSuspectLost,
+		AttemptPhaseSucceeded:
+		return true
+	}
+	return false
+}
+
+// DefaultStaleHeartbeatWindow bounds how long a non-sticky running session may
+// go without durable activity before its liveness downgrades to unconfirmed.
+// Sticky states (waiting_input/blocked) are exempt: an agent waiting hours for
+// its user is healthy by definition. Stale means UNPROVEN, never dead.
+const DefaultStaleHeartbeatWindow = 15 * time.Minute
+
+// LivenessPolicy carries the clock inputs derivation needs so staleness stays
+// deterministic under test. Zero Now falls back to wall clock.
+type LivenessPolicy struct {
+	Now time.Time
+	// StaleHeartbeatAfter overrides DefaultStaleHeartbeatWindow when positive.
+	StaleHeartbeatAfter time.Duration
+}
+
+func (p LivenessPolicy) now() time.Time {
+	if p.Now.IsZero() {
+		return time.Now().UTC()
+	}
+	return p.Now
+}
+
+func (p LivenessPolicy) window() time.Duration {
+	if p.StaleHeartbeatAfter > 0 {
+		return p.StaleHeartbeatAfter
+	}
+	return DefaultStaleHeartbeatWindow
+}
 
 // AttemptPresentation is the derived read-time truth about an attempt: what
 // phase it is really in, whether its liveness is unproven, whether it ended
 // without a result classification, and the safe next action for the owner.
 type AttemptPresentation struct {
-	Phase             string `json:"phase"`
-	Unconfirmed       bool   `json:"unconfirmed"`
-	EndedUnclassified bool   `json:"endedUnclassified"`
-	NextAction        string `json:"nextAction"`
+	Phase             AttemptPhase `json:"phase"`
+	Unconfirmed       bool         `json:"unconfirmed"`
+	EndedUnclassified bool         `json:"endedUnclassified"`
+	NextAction        string       `json:"nextAction"`
 }
 
-// DeriveAttemptPresentation computes the read model from the STORED status
-// plus the bound session's heartbeat facts. Rules pinned here:
+// DeriveAttemptPresentation computes the read model from the STORED status,
+// the bound session's heartbeat facts, and any unresolved-start flag. Rules
+// pinned here:
 //
-//   - missing heartbeat facts are UNCONFIRMED, never dead;
+//   - missing/stale heartbeat facts are UNCONFIRMED, never dead;
 //   - provider/session termination is an END, never a success — ended
 //     attempts present "ended, result unclassified";
-//   - an admission whose outcome is UNKNOWN (unresolvedAdmission: the start
-//     request may or may not have reached the provider) presents as
-//     unconfirmed too — ambiguous startup is never shown as running, and
-//     never dressed up as a clean failure;
+//   - waiting_input/blocked activity IS durable attention: Needs You, not
+//     Waiting, and exempt from staleness;
+//   - an unknown start/activation outcome presents as unconfirmed too;
 //   - only stored statuses speak for themselves; nothing here mutates.
-func DeriveAttemptPresentation(status AttemptStatus, facts SessionHeartbeatFacts, unresolvedAdmission bool) AttemptPresentation {
+func DeriveAttemptPresentation(status AttemptStatus, facts SessionHeartbeatFacts, unresolvedAdmission bool, policy LivenessPolicy) AttemptPresentation {
 	switch status {
 	case AttemptQueued:
 		if unresolvedAdmission {
-			return AttemptPresentation{
-				Phase:       AttemptPhaseUnconfirmed,
-				Unconfirmed: true,
-				NextAction:  "Start outcome is unknown — reconcile before restarting so duplicate writers stay impossible.",
-			}
+			return unconfirmedPresentation("Start outcome is unknown — reconcile before restarting so duplicate writers stay impossible.")
 		}
 		return AttemptPresentation{
 			Phase:      AttemptPhaseAwaitingStart,
@@ -425,19 +514,14 @@ func DeriveAttemptPresentation(status AttemptStatus, facts SessionHeartbeatFacts
 		}
 	case AttemptRunning:
 		switch {
-		case !facts.Present || facts.FirstSignalAt.IsZero():
-			// Missing heartbeat = unconfirmed, not dead. Contain before any
-			// replacement so duplicate effects stay impossible.
-			return AttemptPresentation{
-				Phase:       AttemptPhaseUnconfirmed,
-				Unconfirmed: true,
-				NextAction:  "Liveness is unproven — contain and reconcile before replacing.",
-			}
 		case facts.IsTerminated:
+			return endedUnclassifiedPresentation("The provider session ended. Completion is not done — classify through Verification.")
+		case !facts.Present || facts.FirstSignalAt.IsZero() || !facts.RecentlyActive(policy):
+			return unconfirmedPresentation("Liveness is unproven — contain and reconcile before replacing. Missing or stale heartbeats are never treated as death.")
+		case facts.ActivityState == ActivityWaitingInput || facts.ActivityState == ActivityBlocked:
 			return AttemptPresentation{
-				Phase:             AttemptPhaseEndedUnclassified,
-				EndedUnclassified: true,
-				NextAction:        "The provider session ended. Completion is not done — classify through Verification.",
+				Phase:      AttemptPhaseNeedsInput,
+				NextAction: "The provider needs your input — respond in its session.",
 			}
 		default:
 			return AttemptPresentation{
@@ -453,7 +537,7 @@ func DeriveAttemptPresentation(status AttemptStatus, facts SessionHeartbeatFacts
 	case AttemptCancelled:
 		return AttemptPresentation{
 			Phase:      AttemptPhaseHaltedCancelled,
-			NextAction: "Start a replacement attempt if the Outcome stays active.",
+			NextAction: "Custody stays held until reconcile confirms the provider stopped — then replace if needed.",
 		}
 	case AttemptLost:
 		return AttemptPresentation{
@@ -472,10 +556,14 @@ func DeriveAttemptPresentation(status AttemptStatus, facts SessionHeartbeatFacts
 			NextAction: "Proceed to Prove & Close.",
 		}
 	default:
-		return AttemptPresentation{
-			Phase:       AttemptPhaseUnconfirmed,
-			Unconfirmed: true,
-			NextAction:  "Unknown stored state — treat as unconfirmed and reconcile.",
-		}
+		return unconfirmedPresentation("Unknown stored state — treat as unconfirmed and reconcile.")
 	}
+}
+
+func unconfirmedPresentation(next string) AttemptPresentation {
+	return AttemptPresentation{Phase: AttemptPhaseUnconfirmed, Unconfirmed: true, NextAction: next}
+}
+
+func endedUnclassifiedPresentation(next string) AttemptPresentation {
+	return AttemptPresentation{Phase: AttemptPhaseEndedUnclassified, EndedUnclassified: true, NextAction: next}
 }

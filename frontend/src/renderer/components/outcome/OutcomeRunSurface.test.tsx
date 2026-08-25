@@ -209,14 +209,14 @@ describe("OutcomeRunSurface", () => {
 		await waitFor(() => {
 			expect(postMock).toHaveBeenCalledWith(
 				"/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/recovery",
-				expect.objectContaining({ body: { action: "contain" } }),
+				expect.objectContaining({ body: { action: "contain", confirmProviderStopped: false } }),
 			);
 		});
 		await user.click(await screen.findByTestId("outcome-run-reconcile"));
 		await waitFor(() => {
 			expect(postMock).toHaveBeenCalledWith(
 				"/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/recovery",
-				expect.objectContaining({ body: { action: "reconcile" } }),
+				expect.objectContaining({ body: { action: "reconcile", confirmProviderStopped: false } }),
 			);
 		});
 		// Unconfirmed is NOT declared dead.
@@ -273,13 +273,54 @@ describe("OutcomeRunSurface", () => {
 		renderSurface();
 
 		await screen.findByTestId("outcome-run-attempt-att-lost");
-		await user.click(screen.getByTestId("outcome-run-replace"));
+		await user.click(screen.getByTestId("outcome-run-replace-confirm"));
 		await waitFor(() => {
 			expect(postMock).toHaveBeenCalledWith(
 				"/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/recovery",
-				expect.objectContaining({ body: { action: "replace" } }),
+				expect.objectContaining({ body: { action: "replace", confirmProviderStopped: true } }),
 			);
 		});
+	});
+
+	it("renders Needs You for waiting_input and a reconcile path for cancelled attempts", async () => {
+		getMock.mockImplementation((url: string) => {
+			if (url === "/api/v1/outcomes/{outcomeId}/plan") {
+				return Promise.resolve({ data: planEnvelope("approved"), error: undefined });
+			}
+			if (url === "/api/v1/outcomes/{outcomeId}/attempts") {
+				return Promise.resolve({
+					data: {
+						attempts: [
+							attemptEnvelope({ status: "running", phase: "needs_input", nextAction: "The provider needs your input." }).attempt,
+						],
+					},
+					error: undefined,
+				});
+			}
+			return Promise.resolve({ data: undefined, error: { code: "NOT_FOUND", message: url } });
+		});
+		renderSurface();
+		expect(await screen.findByTestId("outcome-run-needs-input")).toBeDefined();
+		expect(screen.queryByTestId("outcome-run-waiting")).toBeNull();
+
+		getMock.mockImplementation((url: string) => {
+			if (url === "/api/v1/outcomes/{outcomeId}/plan") {
+				return Promise.resolve({ data: planEnvelope("approved"), error: undefined });
+			}
+			if (url === "/api/v1/outcomes/{outcomeId}/attempts") {
+				return Promise.resolve({
+					data: {
+						attempts: [
+							attemptEnvelope({ status: "cancelled", phase: "halted_cancelled" }).attempt,
+						],
+					},
+					error: undefined,
+				});
+			}
+			return Promise.resolve({ data: undefined, error: { code: "NOT_FOUND", message: url } });
+		});
+		renderSurface();
+		expect(await screen.findByTestId("outcome-run-replace-confirm")).toBeDefined();
 	});
 
 	it("surfaces the daemon's refusal when admission fails closed instead of spinning", async () => {

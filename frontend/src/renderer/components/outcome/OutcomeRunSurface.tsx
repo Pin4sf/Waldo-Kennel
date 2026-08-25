@@ -17,6 +17,23 @@ type OutcomeRunSurfaceProps = {
 	outcomeId: string;
 };
 
+/**
+ * The daemon's derived phase vocabulary, mirrored as constants so controls
+ * never key off scattered literals. Source of truth: AttemptPresentationResponse.
+ */
+export const ATTEMPT_PHASES = {
+	awaitingStart: "awaiting_start",
+	executing: "executing",
+	suspended: "suspended",
+	unconfirmed: "unconfirmed",
+	needsInput: "needs_input",
+	endedUnclassified: "ended_unclassified",
+	haltedFailed: "halted_failed",
+	haltedCancelled: "halted_cancelled",
+	suspectLost: "suspect_lost",
+	succeeded: "succeeded",
+} as const;
+
 const STATUS_BADGE_KEYS: Record<string, MessageKey> = {
 	queued: "outcome.run.badgeQueued",
 	running: "outcome.run.badgeRunning",
@@ -77,10 +94,13 @@ export function OutcomeRunSurface({ outcomeId }: OutcomeRunSurfaceProps) {
 		}
 	}
 
-	async function recover(actionName: "contain" | "reconcile" | "resume" | "replace" | "attention") {
+	async function recover(
+		actionName: "contain" | "reconcile" | "resume" | "replace" | "attention",
+		confirmStopped = false,
+	) {
 		if (!current || pending) return;
 		try {
-			await recovery.recover(current.id, actionName);
+			await recovery.recover(current.id, actionName, { confirmProviderStopped: confirmStopped });
 		} catch {
 			// Failure state derives from the mutation's typed error.
 		}
@@ -119,8 +139,7 @@ export function OutcomeRunSurface({ outcomeId }: OutcomeRunSurfaceProps) {
 			{current && <CurrentAttemptCard
 				attempt={current}
 				onAct={(name) => void act(name)}
-				onRecover={(name) => void recover(name)}
-				onReplace={() => void recover("replace")}
+				onRecover={(name, confirmStopped) => void recover(name, confirmStopped)}
 				onStartReplacement={() => void startAttempt()}
 				pending={pending}
 				showReplacementStart={canStartNew}
@@ -144,8 +163,7 @@ type CurrentAttemptCardProps = {
 	pending: boolean;
 	showReplacementStart: boolean;
 	onAct: (action: "pause" | "resume" | "cancel") => void;
-	onRecover: (action: "contain" | "reconcile" | "replace" | "attention") => void;
-	onReplace: () => void;
+	onRecover: (action: "contain" | "reconcile" | "replace" | "attention", confirmStopped: boolean) => void;
 	onStartReplacement: () => void;
 };
 
@@ -155,7 +173,6 @@ function CurrentAttemptCard({
 	showReplacementStart,
 	onAct,
 	onRecover,
-	onReplace,
 	onStartReplacement,
 }: CurrentAttemptCardProps) {
 	const { t } = useTranslation();
@@ -175,7 +192,20 @@ function CurrentAttemptCard({
 				</span>
 			</div>
 
-			{phase === "unconfirmed" && (
+			{phase === ATTEMPT_PHASES.needsInput && (
+				<section
+					className="rounded-md border border-warning/40 bg-warning/5 p-3"
+					data-testid="outcome-run-needs-input"
+				>
+					<h3 className="flex items-center gap-1.5 text-sm font-medium">
+						<ShieldAlert aria-hidden="true" className="size-3.5" />
+						{t("outcome.run.needsYouTitle")}
+					</h3>
+					<p className="mt-1 text-muted-foreground text-sm">{t("outcome.run.needsInputBody")}</p>
+				</section>
+			)}
+
+			{phase === ATTEMPT_PHASES.unconfirmed && (
 				<section
 					className="rounded-md border border-warning/40 bg-warning/5 p-3"
 					data-testid="outcome-run-needs-you"
@@ -189,7 +219,7 @@ function CurrentAttemptCard({
 						<Button
 							data-testid="outcome-run-contain"
 							disabled={pending}
-							onClick={() => onRecover("contain")}
+							onClick={() => onRecover("contain", false)}
 							size="sm"
 							variant="outline"
 						>
@@ -198,7 +228,7 @@ function CurrentAttemptCard({
 						<Button
 							data-testid="outcome-run-reconcile"
 							disabled={pending}
-							onClick={() => onRecover("reconcile")}
+							onClick={() => onRecover("reconcile", false)}
 							size="sm"
 						>
 							{t("outcome.run.ctaReconcile")}
@@ -207,7 +237,7 @@ function CurrentAttemptCard({
 				</section>
 			)}
 
-			{phase === "ended_unclassified" && (
+			{phase === ATTEMPT_PHASES.endedUnclassified && (
 				<section
 					className="rounded-md border border-border p-3"
 					data-testid="outcome-run-ended-unclassified"
@@ -219,7 +249,7 @@ function CurrentAttemptCard({
 							className="mt-2"
 							data-testid="outcome-run-reconcile"
 							disabled={pending}
-							onClick={() => onRecover("reconcile")}
+							onClick={() => onRecover("reconcile", false)}
 							size="sm"
 						>
 							{t("outcome.run.ctaReconcile")}
@@ -228,26 +258,40 @@ function CurrentAttemptCard({
 				</section>
 			)}
 
-			{(phase === "halted_failed" || phase === "suspect_lost") && (
+			{(phase === ATTEMPT_PHASES.haltedFailed || phase === ATTEMPT_PHASES.suspectLost || phase === ATTEMPT_PHASES.haltedCancelled) && (
 				<section
 					className="rounded-md border border-destructive/40 bg-destructive/5 p-3"
 					data-testid="outcome-run-action-required"
 				>
 					<h3 className="text-sm font-medium">{t("outcome.run.actionRequiredTitle")}</h3>
-					<p className="mt-1 text-muted-foreground text-sm">{t("outcome.run.actionRequiredBody")}</p>
-					<Button
-						className="mt-2"
-						data-testid="outcome-run-replace"
-						disabled={pending}
-						onClick={onReplace}
-						size="sm"
-					>
-						{t("outcome.run.ctaReplace")}
-					</Button>
+					<p className="mt-1 text-muted-foreground text-sm">
+						{phase === ATTEMPT_PHASES.haltedCancelled
+							? t("outcome.run.cancelledBody")
+							: t("outcome.run.actionRequiredBody")}
+					</p>
+					<div className="mt-2 flex flex-wrap gap-2">
+						<Button
+							data-testid="outcome-run-replace"
+							disabled={pending}
+							onClick={() => onRecover("replace", false)}
+							size="sm"
+						>
+							{t("outcome.run.ctaReplace")}
+						</Button>
+						<Button
+							data-testid="outcome-run-replace-confirm"
+							disabled={pending}
+							onClick={() => onRecover("replace", true)}
+							size="sm"
+							variant="outline"
+						>
+							{t("outcome.run.confirmStoppedCta")}
+						</Button>
+					</div>
 				</section>
 			)}
 
-			{phase === "executing" && (
+			{phase === ATTEMPT_PHASES.executing && (
 				<p className="text-muted-foreground text-sm" data-testid="outcome-run-waiting">
 					{t("outcome.run.waitingBody")}
 				</p>

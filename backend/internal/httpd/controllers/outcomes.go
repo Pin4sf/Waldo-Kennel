@@ -314,7 +314,7 @@ func (c *OutcomesController) recoverAttempt(w http.ResponseWriter, r *http.Reque
 	view, err := c.Attempts.RecoverAttempt(r.Context(),
 		domain.OutcomeID(chi.URLParam(r, "outcomeId")),
 		domain.AttemptID(chi.URLParam(r, "attemptId")),
-		outcomevc.RecoveryInput{Action: outcomevc.RecoveryAction(req.Action)})
+		outcomevc.RecoveryInput{Action: outcomevc.RecoveryAction(req.Action), ConfirmProviderStopped: req.ConfirmProviderStopped})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return

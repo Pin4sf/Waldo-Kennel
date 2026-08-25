@@ -87,12 +87,12 @@ func TestMigration0100PlanAuthorityLifecycle(t *testing.T) {
 
 	// Content mutations are refused by the database itself.
 	for name, stmt := range map[string]string{
-		"plan rebinding":       `UPDATE plan_revisions SET contract_revision_number = 2 WHERE id = 'plan_1'`,
-		"digest rewrite":       `UPDATE plan_revisions SET run_brief_core_digest = '` + strings.Repeat("cd", 32) + `' WHERE id = 'plan_1'`,
-		"work unit edit":       `UPDATE work_units SET title = 'Rewritten' WHERE id = 'wu_1'`,
-		"grant widening":       `UPDATE capability_grants SET scope = 'repo/*' WHERE id = 'cg_read'`,
-		"proposal deletion":    `DELETE FROM plan_revisions WHERE id = 'plan_1'`,
-		"capability deletion":  `DELETE FROM capability_grants WHERE id = 'cg_read'`,
+		"plan rebinding":      `UPDATE plan_revisions SET contract_revision_number = 2 WHERE id = 'plan_1'`,
+		"digest rewrite":      `UPDATE plan_revisions SET run_brief_core_digest = '` + strings.Repeat("cd", 32) + `' WHERE id = 'plan_1'`,
+		"work unit edit":      `UPDATE work_units SET title = 'Rewritten' WHERE id = 'wu_1'`,
+		"grant widening":      `UPDATE capability_grants SET scope = 'repo/*' WHERE id = 'cg_read'`,
+		"proposal deletion":   `DELETE FROM plan_revisions WHERE id = 'plan_1'`,
+		"capability deletion": `DELETE FROM capability_grants WHERE id = 'cg_read'`,
 	} {
 		if _, err := db.Exec(stmt); err == nil {
 			t.Fatalf("%s must be rejected by an immutability trigger", name)

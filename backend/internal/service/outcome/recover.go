@@ -1,21 +1,26 @@
 // Recovery and liveness for Act & Observe (#31).
 //
 // Containment marks suspicion without inventing facts; reconcile decides from
-// durable evidence only: a bound session that is present, never terminated,
-// and has signalled proves the attempt alive (resumed); anything else cannot
-// prove aliveness, so custody is released through reconcile and replacement
-// happens on a NEW attempt row. Stale observations remain inspectable but can
-// never mutate current truth.
+// durable evidence only. CUSTODY LAW: a fence may be released ONLY once the
+// bound provider's stop is proven — durably terminated, or a pre-start
+// `failed` record (no runtime ever existed), or an explicit owner assertion
+// that is recorded as its own containment observation. Unproven liveness
+// escalates as needs_attention; it NEVER releases custody, so a replacement
+// can never write beside a possibly-live original provider. Stale
+// observations remain inspectable but can never mutate current truth.
 package outcome
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/google/uuid"
 )
 
 // RecoverAttempt applies one owner-directed recovery verb:
@@ -41,11 +46,11 @@ func (s *Service) RecoverAttempt(ctx context.Context, outcomeID domain.OutcomeID
 	case RecoveryActionContain:
 		return s.containAttempt(ctx, attempt)
 	case RecoveryActionReconcile:
-		return s.reconcileAttempt(ctx, attempt)
+		return s.reconcileAttempt(ctx, in, attempt)
 	case RecoveryActionResume:
 		return s.recoveryResume(ctx, outcomeID, attemptID, attempt)
 	case RecoveryActionReplace:
-		return s.recoveryReplace(ctx, attempt)
+		return s.recoveryReplace(ctx, in, attempt)
 	case RecoveryActionAttention:
 		return s.recoveryAttention(ctx, attempt)
 	}
@@ -73,16 +78,61 @@ func (s *Service) containAttempt(ctx context.Context, attempt domain.Attempt) (R
 	return RecoveryView{Attempt: view}, nil
 }
 
-// reconcileAttempt auto-verdicts from durable evidence.
-func (s *Service) reconcileAttempt(ctx context.Context, attempt domain.Attempt) (RecoveryView, error) {
-	switch attempt.Status {
-	case domain.AttemptFailed, domain.AttemptCancelled, domain.AttemptReconciled:
-		// Terminal by truthful record (admission crash / owner cancel /
-		// ended-unclassified): history is final and must NOT be rewritten to
-		// lost. Reconcile accounts for the predecessor and releases its
-		// custody so a replacement can acquire the subject.
-		return s.accountTerminalCustody(ctx, attempt)
-	case domain.AttemptSucceeded:
+// custodyProof states WHY releasing a fence is safe. Custody may move only
+// once the bound provider's stop is proven — the anti-duplicate-writer
+// contract — or when the owner explicitly asserts containment (invariant 5).
+type custodyProof struct {
+	reason  string
+	proven  bool
+	byOwner bool
+}
+
+// proveProviderStopped resolves the release gate from durable facts:
+//
+//   - terminated bound session        -> machine proof
+//   - failed status                   -> pre-start by construction, no runtime existed
+//     (post-spawn failures route to activation ambiguity, never `failed`)
+//   - explicit owner assertion        -> accepted and recorded as containment
+func (s *Service) proveProviderStopped(facts attemptFacts, attempt domain.Attempt, ownerConfirmed bool) custodyProof {
+	switch {
+	case attempt.Status == domain.AttemptFailed:
+		return custodyProof{reason: "failed before any provider runtime existed", proven: true}
+	case facts.facts.Present && facts.facts.IsTerminated:
+		return custodyProof{reason: "bound session durably terminated", proven: true}
+	case ownerConfirmed:
+		return custodyProof{reason: "owner asserted the provider is stopped", proven: true, byOwner: true}
+	default:
+		return custodyProof{}
+	}
+}
+
+// refuseUnprovenCustody records the escalation receipt and refuses release.
+func (s *Service) refuseUnprovenCustody(ctx context.Context, attempt domain.Attempt) error {
+	receipt, rErr := s.recordReceipt(ctx, attempt.ID, domain.RecoveryNeedsAttention, map[string]any{
+		"evidence": "cannot prove the bound provider stopped — terminate it or confirm containment",
+	})
+	if rErr != nil {
+		return fmt.Errorf("record unproven-custody receipt for %s: %w", attempt.ID, rErr)
+	}
+	return apierr.Conflict(CodeAttemptCustodyUnproven,
+		"Custody stays held: the bound provider's stop is not proven. Terminate it, then reconcile — or replace with explicit confirmation",
+		map[string]any{"attemptId": string(attempt.ID), "receiptId": receipt.ID})
+}
+
+// maybeRecordOwnerContainment makes an owner stop-assertion inspectable.
+func (s *Service) maybeRecordOwnerContainment(ctx context.Context, attempt domain.Attempt, proof custodyProof) error {
+	if !proof.byOwner {
+		return nil
+	}
+	payload := mustJSON(map[string]any{"assertion": "owner asserts the bound provider is stopped"})
+	_, err := s.store.AppendAttemptObservation(ctx, attempt.ID, domain.ObservationOwnerContained, payload, s.clock())
+	return err
+}
+
+// reconcileAttempt auto-verdicts from durable evidence. Every custody release
+// requires proved provider stop; anything else escalates without deciding.
+func (s *Service) reconcileAttempt(ctx context.Context, in RecoveryInput, attempt domain.Attempt) (RecoveryView, error) {
+	if attempt.Status == domain.AttemptSucceeded {
 		return RecoveryView{}, apierr.Conflict("ATTEMPT_ALREADY_ENDED",
 			fmt.Sprintf("Attempt already ended as %s", attempt.Status),
 			map[string]any{"status": string(attempt.Status)})
@@ -104,7 +154,22 @@ func (s *Service) reconcileAttempt(ctx context.Context, attempt domain.Attempt) 
 		}
 		return RecoveryView{Attempt: view, Receipt: receipt}, nil
 	}
-	return s.forceLost(ctx, attempt, domain.RecoveryReplacement, "reconcile could not prove liveness")
+	proof := s.proveProviderStopped(facts, attempt, in.ConfirmProviderStopped)
+	if !proof.proven {
+		return RecoveryView{}, s.refuseUnprovenCustody(ctx, attempt)
+	}
+	if err := s.maybeRecordOwnerContainment(ctx, attempt, proof); err != nil {
+		return RecoveryView{}, err
+	}
+	switch attempt.Status {
+	case domain.AttemptFailed, domain.AttemptCancelled, domain.AttemptReconciled:
+		// Terminal by truthful record: never rewrite to lost. Account for the
+		// predecessor and hand custody to the replacement lineage.
+		return s.accountTerminalCustody(ctx, attempt, proof.reason)
+	default:
+		return s.forceLost(ctx, attempt, domain.RecoveryReplacement,
+			"reconcile could not prove liveness; provider stop "+proof.reason)
+	}
 }
 
 // accountTerminalCustody releases the fence a TERMINAL predecessor still
@@ -112,12 +177,12 @@ func (s *Service) reconcileAttempt(ctx context.Context, attempt domain.Attempt) 
 // mutating its immutable record, then stamps the replacement receipt. This is
 // the reconcile -> release(old) -> issue(new) path D4 guarantees; without it a
 // cancelled or failed attempt would hold worktree custody forever.
-func (s *Service) accountTerminalCustody(ctx context.Context, attempt domain.Attempt) (RecoveryView, error) {
+func (s *Service) accountTerminalCustody(ctx context.Context, attempt domain.Attempt, reason string) (RecoveryView, error) {
 	if err := s.releaseCustody(ctx, attempt.ID, "reconciled_terminal_"+string(attempt.Status)); err != nil {
 		return RecoveryView{}, err
 	}
 	receipt, err := s.recordReceipt(ctx, attempt.ID, domain.RecoveryReplacement, map[string]any{
-		"evidence":       "terminal predecessor accounted for; custody handed to replacement",
+		"evidence":       "terminal predecessor accounted for (" + reason + "); custody handed to replacement",
 		"previousStatus": string(attempt.Status),
 	})
 	if err != nil {
@@ -183,10 +248,22 @@ func (s *Service) recoveryResume(ctx context.Context, outcomeID domain.OutcomeID
 
 // recoveryReplace forces the lost verdict and hands custody back so the next
 // StartAttempt may issue a fresh fence. Replacement is always a NEW row.
-func (s *Service) recoveryReplace(ctx context.Context, attempt domain.Attempt) (RecoveryView, error) {
+func (s *Service) recoveryReplace(ctx context.Context, in RecoveryInput, attempt domain.Attempt) (RecoveryView, error) {
+	facts, fErr := s.heartbeatFacts(ctx, attempt.ID)
+	if fErr != nil {
+		return RecoveryView{}, fErr
+	}
+	proof := s.proveProviderStopped(facts, attempt, in.ConfirmProviderStopped)
+	if !proof.proven {
+		return RecoveryView{}, s.refuseUnprovenCustody(ctx, attempt)
+	}
+	if err := s.maybeRecordOwnerContainment(ctx, attempt, proof); err != nil {
+		return RecoveryView{}, err
+	}
 	switch attempt.Status {
 	case domain.AttemptQueued, domain.AttemptRunning, domain.AttemptPaused:
-		return s.forceLost(ctx, attempt, domain.RecoveryReplacement, "owner directed replacement")
+		return s.forceLost(ctx, attempt, domain.RecoveryReplacement,
+			"owner directed replacement; provider stop "+proof.reason)
 	case domain.AttemptLost, domain.AttemptFailed, domain.AttemptCancelled, domain.AttemptReconciled:
 		// Custody may already be released by reconcile; make sure it is, then
 		// stamp the replacement receipt idempotently. Terminal records are
@@ -195,7 +272,7 @@ func (s *Service) recoveryReplace(ctx context.Context, attempt domain.Attempt) (
 			return RecoveryView{}, err
 		}
 		receipt, err := s.recordReceipt(ctx, attempt.ID, domain.RecoveryReplacement, map[string]any{
-			"evidence":       "predecessor accounted for; custody handed to replacement",
+			"evidence":       "predecessor accounted for (" + proof.reason + "); custody handed to replacement",
 			"previousStatus": string(attempt.Status),
 		})
 		if err != nil {
@@ -245,6 +322,11 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 	}
 	var failures []error
 	for _, attempt := range running {
+		// Renewable lease: refresh the custodian's fence stamp each pass so a
+		// stale renewal visibly flags custody that may outlive its provider.
+		if _, rErr := s.store.RenewFenceForAttempt(ctx, attempt.ID, s.clock()); rErr != nil {
+			failures = append(failures, fmt.Errorf("renew fence for %s: %w", attempt.ID, rErr))
+		}
 		facts, err := s.heartbeatFacts(ctx, attempt.ID)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("attempt %s: %w", attempt.ID, err))
@@ -276,7 +358,7 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 	case 1:
 		return failures[0]
 	default:
-		return fmt.Errorf("attempt liveness evaluation: %d failures: %v", len(failures), failures[0])
+		return fmt.Errorf("attempt liveness evaluation: %d failures: %w", len(failures), errors.Join(failures...))
 	}
 }
 
@@ -286,10 +368,17 @@ type attemptFacts struct {
 	facts     domain.SessionHeartbeatFacts
 }
 
-// alive reports provable liveness: a present session row that has signalled
-// and is NOT terminated. Missing heartbeat = unconfirmed, never dead.
+// alive reports PROVABLE current liveness: present, signalled, not
+// terminated, and durably active inside the staleness window (sticky states
+// exempt). A session that vanished long ago is NOT alive forever.
 func (f attemptFacts) alive() bool {
-	return f.facts.Present && !f.facts.IsTerminated && !f.facts.FirstSignalAt.IsZero()
+	if !f.facts.Present || f.facts.IsTerminated || f.facts.FirstSignalAt.IsZero() {
+		return false
+	}
+	return f.facts.RecentlyActive(domain.LivenessPolicy{
+		Now:                 time.Now().UTC(),
+		StaleHeartbeatAfter: domain.DefaultStaleHeartbeatWindow,
+	})
 }
 
 func (f attemptFacts) terminated() bool {
@@ -315,10 +404,11 @@ func (s *Service) heartbeatFacts(ctx context.Context, attemptID domain.AttemptID
 	return attemptFacts{
 		sessionID: ref.SessionID,
 		facts: domain.SessionHeartbeatFacts{
-			Present:       true,
-			ActivityState: rec.Activity.State,
-			FirstSignalAt: rec.FirstSignalAt,
-			IsTerminated:  rec.IsTerminated,
+			Present:        true,
+			ActivityState:  rec.Activity.State,
+			FirstSignalAt:  rec.FirstSignalAt,
+			LastActivityAt: rec.Activity.LastActivityAt,
+			IsTerminated:   rec.IsTerminated,
 		},
 	}, nil
 }

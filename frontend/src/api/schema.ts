@@ -1969,6 +1969,8 @@ export interface components {
             /** Format: date-time */
             issuedAt: string;
             /** Format: date-time */
+            lastRenewedAt: string;
+            /** Format: date-time */
             releasedAt?: null | string;
             subject: string;
         };
@@ -2000,6 +2002,7 @@ export interface components {
              * @enum {string}
              */
             action: "contain" | "reconcile" | "resume" | "replace" | "attention";
+            confirmProviderStopped?: boolean;
         };
         AttemptResponse: {
             /** Format: int64 */

@@ -2092,6 +2092,10 @@ type RecordObservationRequest struct {
 // /outcomes/{outcomeId}/attempts/{attemptId}/recovery.
 type AttemptRecoveryRequest struct {
 	Action string `json:"action" description:"One of contain, reconcile, resume, replace, attention." enum:"contain,reconcile,resume,replace,attention"`
+	// ConfirmProviderStopped is the owner's explicit assertion that the bound
+	// provider session is stopped. It unlocks custody release without machine
+	// proof and is recorded as an auditable containment observation.
+	ConfirmProviderStopped bool `json:"confirmProviderStopped,omitempty"`
 }
 
 // AttemptPresentationResponse is the DERIVED read-time truth about an
@@ -2134,12 +2138,14 @@ type RecoveryReceiptResponse struct {
 }
 
 // AttemptFenceResponse is the custody lock over one worktree subject while it
-// is open for this attempt.
+// is open for this attempt. lastRenewedAt is the renewable lease stamp: a
+// stale renewal flags custody that may outlive its provider.
 type AttemptFenceResponse struct {
-	ID         string     `json:"id"`
-	Subject    string     `json:"subject"`
-	IssuedAt   time.Time  `json:"issuedAt"`
-	ReleasedAt *time.Time `json:"releasedAt,omitempty"`
+	ID            string     `json:"id"`
+	Subject       string     `json:"subject"`
+	IssuedAt      time.Time  `json:"issuedAt"`
+	LastRenewedAt time.Time  `json:"lastRenewedAt"`
+	ReleasedAt    *time.Time `json:"releasedAt,omitempty"`
 }
 
 // AttemptResponse is the Act & Observe read model: durable lineage plus
@@ -2240,7 +2246,7 @@ func attemptResponse(view outcomevc.AttemptView) AttemptResponse {
 		Observations:           observations,
 		Receipts:               receipts,
 		Presentation: AttemptPresentationResponse{
-			Phase:             view.Presentation.Phase,
+			Phase:             string(view.Presentation.Phase),
 			Unconfirmed:       view.Presentation.Unconfirmed,
 			EndedUnclassified: view.Presentation.EndedUnclassified,
 			NextAction:        view.Presentation.NextAction,
@@ -2255,10 +2261,11 @@ func attemptResponse(view outcomevc.AttemptView) AttemptResponse {
 			releasedAt = &released
 		}
 		resp.Fence = &AttemptFenceResponse{
-			ID:         view.Fence.ID,
-			Subject:    view.Fence.Subject,
-			IssuedAt:   view.Fence.IssuedAt,
-			ReleasedAt: releasedAt,
+			ID:            view.Fence.ID,
+			Subject:       view.Fence.Subject,
+			IssuedAt:      view.Fence.IssuedAt,
+			LastRenewedAt: view.Fence.LastRenewedAt,
+			ReleasedAt:    releasedAt,
 		}
 	}
 	return resp

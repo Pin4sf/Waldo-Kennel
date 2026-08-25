@@ -370,9 +370,23 @@ func TestContainReconcileReplacementFlow(t *testing.T) {
 		t.Fatalf("resume code = %s, want ATTEMPT_LIVENESS_UNPROVEN", code)
 	}
 
-	// Reconcile cannot prove liveness: lost verdict + released custody +
-	// replacement receipt.
-	reconciled, err := svc.RecoverAttempt(ctx, outcomeID, first.Attempt.ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReconcile})
+	// Reconcile cannot prove liveness OR provider stop: custody stays held
+	// and the refusal escalates as needs_attention (anti-duplicate-writer).
+	_, err = svc.RecoverAttempt(ctx, outcomeID, first.Attempt.ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReconcile})
+	if code := requireAPICode(t, err); code != outcome.CodeAttemptCustodyUnproven {
+		t.Fatalf("unproven reconcile code = %s, want ATTEMPT_CUSTODY_UNPROVEN", code)
+	}
+	held, err := svc.GetAttempt(ctx, outcomeID, first.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if held.Fence == nil || !held.Fence.Open() {
+		t.Fatal("fence must stay held while the provider stop is unproven")
+	}
+	// Owner-asserted containment then drives lost + release + receipt.
+	reconciled, err := svc.RecoverAttempt(ctx, outcomeID, first.Attempt.ID, outcome.RecoveryInput{
+		Action: outcome.RecoveryActionReconcile, ConfirmProviderStopped: true,
+	})
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
@@ -568,14 +582,33 @@ func TestAmbiguousStartStaysQueuedAndUnconfirmed(t *testing.T) {
 		t.Fatal("ambiguous start must keep holding custody")
 	}
 
-	// Duplicate start stays disabled while the ambiguous attempt holds the fence.
-	// Then reconcile resolves it: lost + released + replacement receipt.
-	reconciled, err := svc.RecoverAttempt(ctx, outcomeID, attempts[0].ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReconcile})
-	if err != nil {
-		t.Fatalf("reconcile: %v", err)
+	// Duplicate start stays disabled while the ambiguous attempt holds the
+	// fence. Reconcile WITHOUT stop-proof refuses and escalates; the fence
+	// stays held (anti-duplicate-writer contract).
+	_, err = svc.RecoverAttempt(ctx, outcomeID, attempts[0].ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReconcile})
+	if code := requireAPICode(t, err); code != outcome.CodeAttemptCustodyUnproven {
+		t.Fatalf("unproven reconcile code = %s, want ATTEMPT_CUSTODY_UNPROVEN", code)
+	}
+	held, heldErr := svc.GetAttempt(ctx, outcomeID, attempts[0].ID)
+	if heldErr != nil {
+		t.Fatal(heldErr)
+	}
+	if held.Fence == nil || !held.Fence.Open() {
+		t.Fatal("fence must stay held while the provider stop is unproven")
+	}
+	// Owner-asserted containment unlocks the release and is recorded.
+	reconciled, recErr := svc.RecoverAttempt(ctx, outcomeID, attempts[0].ID, outcome.RecoveryInput{
+		Action: outcome.RecoveryActionReconcile, ConfirmProviderStopped: true,
+	})
+	if recErr != nil {
+		t.Fatalf("confirmed reconcile: %v", recErr)
 	}
 	if reconciled.Attempt.Attempt.Status != domain.AttemptLost || reconciled.Attempt.Fence != nil {
 		t.Fatalf("reconcile verdict = %+v fence=%+v, want lost with custody released", reconciled.Attempt.Attempt, reconciled.Attempt.Fence)
+	}
+	containedObs := reconciled.Attempt.Observations[len(reconciled.Attempt.Observations)-1]
+	if containedObs.Kind != domain.ObservationOwnerContained {
+		t.Fatalf("owner containment observation missing, got %s", containedObs.Kind)
 	}
 	_ = heartbeats
 }
@@ -597,6 +630,9 @@ func TestTerminalPredecessorsReleaseCustodyThroughReconcile(t *testing.T) {
 		if _, err := svc.CancelAttempt(ctx, outcomeID, first.Attempt.ID); err != nil {
 			t.Fatalf("cancel: %v", err)
 		}
+		// Cancel terminated the provider through the seam; mirror the durable
+		// is_terminated fact the real Kill writes before recovering.
+		heartbeats.terminate(domain.SessionID(first.Sessions[0].SessionID))
 		verdict, err := svc.RecoverAttempt(ctx, outcomeID, first.Attempt.ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReplace})
 		if err != nil {
 			t.Fatalf("replace after cancel must release custody: %v", err)
@@ -670,4 +706,175 @@ func storeList(t *testing.T, svc *outcome.Service, outcomeID domain.OutcomeID) (
 		out = append(out, v.Attempt)
 	}
 	return out, nil
+}
+
+// TestActivationUnknownKeepsLiveProviderUnconfirmed pins the P1 fix: a lost
+// queued->running promotion AFTER a successful spawn never surfaces as a raw
+// 500 or as a silent queued row — it records activation ambiguity, derives
+// unconfirmed, keeps custody, and returns a typed refusal.
+func TestActivationUnknownKeepsLiveProviderUnconfirmed(t *testing.T) {
+	store := newAttemptFakeStore()
+	store.dropActivationOnce = true
+	spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true}}
+	heartbeats := newFakeHeartbeats()
+	svc := outcome.NewWithExecution(store, nil, spawner, heartbeats)
+
+	ctx := context.Background()
+	view, err := svc.Create(ctx, validCreateInput())
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	planView, err := svc.ProposePlan(ctx, view.Outcome.ID, 1)
+	if err != nil {
+		t.Fatalf("propose: %v", err)
+	}
+	if _, err := svc.ApprovePlan(ctx, view.Outcome.ID, outcome.ApprovePlanInput{PlanRevisionID: planView.Plan.ID}); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+
+	_, startErr := svc.StartAttempt(ctx, view.Outcome.ID, startInput(planView.Plan.ID))
+	if code := requireAPICode(t, startErr); code != outcome.CodeAttemptActivationUnresolved {
+		t.Fatalf("code = %s, want ATTEMPT_ACTIVATION_UNRESOLVED", code)
+	}
+	attempts, _ := storeList(t, svc, view.Outcome.ID)
+	if len(attempts) != 1 || attempts[0].Status != domain.AttemptQueued {
+		t.Fatalf("attempt = %+v, want queued (live provider must not be failed)", attempts)
+	}
+	got, err := svc.GetAttempt(ctx, view.Outcome.ID, attempts[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Presentation.Unconfirmed || got.Presentation.Phase != domain.AttemptPhaseUnconfirmed {
+		t.Fatalf("presentation = %+v, want unconfirmed for the live provider", got.Presentation)
+	}
+	lastObs := got.Observations[len(got.Observations)-1]
+	if lastObs.Kind != domain.ObservationActivationAmbiguous {
+		t.Fatalf("observation = %s, want activation_ambiguous", lastObs.Kind)
+	}
+	if got.Fence == nil || !got.Fence.Open() {
+		t.Fatal("fence must stay held")
+	}
+}
+
+// TestCancelControlsTheProvider pins provider authority on cancellation: the
+// bound session is terminated through the execution seam BEFORE the status
+// moves; termination failure refuses cancellation entirely.
+func TestCancelControlsTheProvider(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	ctx := context.Background()
+	first, err := svc.StartAttempt(ctx, outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	sessionID := domain.SessionID(first.Sessions[0].SessionID)
+	heartbeats.signal(sessionID)
+
+	spawner.failNextTerminate(errors.New("pane refuses to die"))
+	_, err = svc.CancelAttempt(ctx, outcomeID, first.Attempt.ID)
+	if code := requireAPICode(t, err); code != outcome.CodeAttemptProviderStopFailed {
+		t.Fatalf("code = %s, want ATTEMPT_PROVIDER_STOP_FAILED", code)
+	}
+	reread, err := svc.GetAttempt(ctx, outcomeID, first.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reread.Attempt.Status != domain.AttemptRunning {
+		t.Fatalf("status = %s after refused cancel, want unchanged running", reread.Attempt.Status)
+	}
+	if reread.Fence == nil || !reread.Fence.Open() {
+		t.Fatal("refused cancel must keep custody held")
+	}
+	lastObs := reread.Observations[len(reread.Observations)-1]
+	if lastObs.Kind != domain.ObservationProviderStopFailed {
+		t.Fatalf("observation = %s, want provider_stop_failed", lastObs.Kind)
+	}
+
+	spawner.failNextTerminate(nil)
+	if _, err := svc.CancelAttempt(ctx, outcomeID, first.Attempt.ID); err != nil {
+		t.Fatalf("cancel after stop works: %v", err)
+	}
+	if len(spawner.terminated) == 0 || spawner.terminated[0] != string(sessionID) {
+		t.Fatalf("terminate calls = %v, want the bound session", spawner.terminated)
+	}
+	// Mirror the durable is_terminated fact real Kill writes.
+	heartbeats.terminate(sessionID)
+	stopped, err := svc.GetAttempt(ctx, outcomeID, first.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.Presentation.Phase != domain.AttemptPhaseHaltedCancelled {
+		t.Fatalf("phase = %s after cancelled+terminated provider, want halted_cancelled", stopped.Presentation.Phase)
+	}
+	// Machine-proved stop: replace releases WITHOUT owner confirmation.
+	if _, err := svc.RecoverAttempt(ctx, outcomeID, first.Attempt.ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReplace}); err != nil {
+		t.Fatalf("replace after proved stop: %v", err)
+	}
+}
+
+// TestStaleHeartbeatDerivesUnconfirmedAndNeedsInput pins the renewable
+// liveness contract: recency gates aliveness (sticky states exempt), and
+// waiting_input/blocked surface as Needs You rather than generic Waiting.
+func TestStaleHeartbeatDerivesUnconfirmedAndNeedsInput(t *testing.T) {
+	svc, _, _, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	svc.WithStaleHeartbeat(time.Millisecond)
+	ctx := context.Background()
+
+	first, err := svc.StartAttempt(ctx, outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	ref := first.Sessions[0]
+	heartbeats.signal(domain.SessionID(ref.SessionID))
+	time.Sleep(2 * time.Millisecond)
+
+	stale, err := svc.GetAttempt(ctx, outcomeID, first.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stale.Presentation.Unconfirmed {
+		t.Fatalf("stale active session derived %+v, want unconfirmed", stale.Presentation)
+	}
+
+	// Sticky waiting_input is exempt from staleness and demands attention.
+	heartbeats.mu.Lock()
+	rec := heartbeats.sessions[domain.SessionID(ref.SessionID)]
+	rec.Activity = domain.Activity{
+		State:          domain.ActivityWaitingInput,
+		LastActivityAt: time.Now().Add(-time.Hour),
+	}
+	heartbeats.sessions[domain.SessionID(ref.SessionID)] = rec
+	heartbeats.mu.Unlock()
+
+	waiting, err := svc.GetAttempt(ctx, outcomeID, first.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if waiting.Presentation.Phase != domain.AttemptPhaseNeedsInput {
+		t.Fatalf("phase = %s, want needs_input", waiting.Presentation.Phase)
+	}
+	if waiting.Presentation.Unconfirmed {
+		t.Fatal("waiting_input must not derive unconfirmed")
+	}
+
+	// The liveness loop renews the custodian's lease each pass.
+	if _, open := storeOpenFence(t, svc, outcomeID); !open {
+		t.Fatal("expected open fence")
+	}
+	if err := svc.EvaluateAttemptLiveness(ctx); err != nil {
+		t.Fatalf("liveness pass with needs-input attempt: %v", err)
+	}
+}
+
+func storeOpenFence(t *testing.T, svc *outcome.Service, outcomeID domain.OutcomeID) (view outcome.AttemptView, open bool) {
+	t.Helper()
+	views, err := svc.ListAttempts(context.Background(), outcomeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range views {
+		if v.Fence != nil && v.Fence.Open() {
+			return v, true
+		}
+	}
+	return outcome.AttemptView{}, false
 }

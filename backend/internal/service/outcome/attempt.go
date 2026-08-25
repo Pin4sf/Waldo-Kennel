@@ -19,10 +19,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/google/uuid"
 )
 
 // heartbeatSource resolves bound-session heartbeat facts for derived
@@ -65,6 +66,7 @@ type RecordObservationInput struct {
 // RecoveryAction enumerates the owner-directed recovery verbs.
 type RecoveryAction string
 
+// Recovery verbs accepted by the recovery route; each maps to one handler.
 const (
 	RecoveryActionContain   RecoveryAction = "contain"
 	RecoveryActionReconcile RecoveryAction = "reconcile"
@@ -86,6 +88,11 @@ func (a RecoveryAction) Valid() bool {
 // RecoveryInput directs containment/reconciliation for one attempt.
 type RecoveryInput struct {
 	Action RecoveryAction
+	// ConfirmProviderStopped is the OWNER's explicit assertion that the bound
+	// provider session is no longer running. Owner authority (invariant 5)
+	// permits custody release without machine proof, but the assertion is
+	// recorded as its own containment observation so it stays auditable.
+	ConfirmProviderStopped bool
 }
 
 // AttemptView is the Act & Observe read model: durable lineage plus DERIVED
@@ -130,6 +137,15 @@ const (
 	// CodeAttemptLivenessUnproven refuses resume/replace decisions without
 	// provable liveness evidence.
 	CodeAttemptLivenessUnproven = "ATTEMPT_LIVENESS_UNPROVEN"
+	// CodeAttemptActivationUnresolved reports a LIVE provider whose running
+	// transition could not be recorded durably.
+	CodeAttemptActivationUnresolved = "ATTEMPT_ACTIVATION_UNRESOLVED"
+	// CodeAttemptCustodyUnproven refuses custody release while the bound
+	// provider's stop is unproven — the anti-duplicate-writer gate.
+	CodeAttemptCustodyUnproven = "ATTEMPT_CUSTODY_UNPROVEN"
+	// CodeAttemptProviderStopFailed reports the terminate call failed; status
+	// is unchanged and custody stays held.
+	CodeAttemptProviderStopFailed = "ATTEMPT_PROVIDER_STOP_FAILED"
 )
 
 // NewWithExecution builds the service with the Act & Observe seams wired.
@@ -137,6 +153,7 @@ func NewWithExecution(store ports.OutcomeStore, clock func() time.Time, spawner 
 	svc := New(store, clock)
 	svc.spawner = spawner
 	svc.heartbeats = heartbeats
+	svc.staleHeartbeat = domain.DefaultStaleHeartbeatWindow
 	return svc
 }
 
@@ -267,7 +284,7 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		// The attempt stays queued and derives as unconfirmed until reconcile
 		// decides; the held fence already blocks duplicate admission.
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			return AttemptView{}, s.admitUnresolved(ctx, outcomeID, attempt.ID, err)
+			return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationAdmissionAmbiguous, err)
 		}
 		return AttemptView{}, s.admitFailed(ctx, outcomeID, attempt.ID, err)
 	}
@@ -300,9 +317,50 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	}
 	rows, err := s.store.TransitionAttemptStatus(ctx, outcomeID, attempt.ID, domain.AttemptQueued, domain.AttemptRunning, s.clock())
 	if err != nil || rows != 1 {
-		return AttemptView{}, fmt.Errorf("activate attempt %s: rows=%d err=%w", attempt.ID, rows, err)
+		// The provider session IS LIVE here; only the durable promotion
+		// failed. Never a raw 500: record actionable ambiguity, keep the
+		// fence, and let reconcile decide.
+		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous,
+			fmt.Errorf("activation not recorded (rows=%d): %w", rows, err))
 	}
 	return s.GetAttempt(ctx, outcomeID, attempt.ID)
+}
+
+// admitUnresolved records an UNKNOWN admission/activation outcome: status
+// stays queued (never failed, never silently running), an ambiguous
+// observation and a needs_attention receipt land, and the fence stays HELD so
+// no duplicate writer can start before reconcile decides. Internal recording
+// failures are joined into the returned error instead of being dropped.
+func (s *Service) admitUnresolved(ctx context.Context, attemptID domain.AttemptID, kind string, cause error) error {
+	detail := ""
+	if cause != nil {
+		detail = cause.Error()
+	}
+	payload, _ := json.Marshal(map[string]any{"error": detail, "unresolved": true})
+	var errs []error
+	if _, err := s.store.AppendAttemptObservation(ctx, attemptID, kind, string(payload), s.clock()); err != nil {
+		errs = append(errs, fmt.Errorf("record ambiguous start (%s) for %s: %w", kind, attemptID, err))
+	}
+	if err := s.store.CreateRecoveryReceipt(ctx, domain.AttemptRecoveryReceipt{
+		ID:         "rcpt-" + uuid.NewString(),
+		AttemptID:  attemptID,
+		Resolution: domain.RecoveryNeedsAttention,
+		Detail:     string(payload),
+		CreatedAt:  s.clock(),
+	}); err != nil {
+		errs = append(errs, fmt.Errorf("record ambiguous activation receipt for %s: %w", attemptID, err))
+	}
+	code, headline := CodeAttemptActivationUnresolved, "The activation outcome is unknown"
+	if kind == domain.ObservationAdmissionAmbiguous {
+		code, headline = "ATTEMPT_START_UNRESOLVED", "The start outcome is unknown"
+	}
+	unresolved := apierr.Conflict(code,
+		headline+" — the attempt stays unconfirmed until you reconcile it",
+		map[string]any{"attemptId": string(attemptID)})
+	if len(errs) > 0 {
+		return errors.Join(append(errs, unresolved)...)
+	}
+	return unresolved
 }
 
 // admitFailed records the truthful aftermath of a spawn/bind crash after the
@@ -314,39 +372,15 @@ func (s *Service) admitFailed(ctx context.Context, outcomeID domain.OutcomeID, a
 	if cause != nil {
 		detail = cause.Error()
 	}
-	_, _ = s.store.TransitionAttemptStatus(ctx, outcomeID, attemptID, domain.AttemptQueued, domain.AttemptFailed, s.clock())
+	var errs []error
+	if rows, err := s.store.TransitionAttemptStatus(ctx, outcomeID, attemptID, domain.AttemptQueued, domain.AttemptFailed, s.clock()); err != nil {
+		errs = append(errs, fmt.Errorf("record failed status for %s: %w", attemptID, err))
+	} else if rows != 1 {
+		errs = append(errs, fmt.Errorf("record failed status for %s: status moved concurrently", attemptID))
+	}
 	payload, _ := json.Marshal(map[string]any{"error": detail})
-	_, _ = s.store.AppendAttemptObservation(ctx, attemptID, domain.ObservationAdmissionFailed, string(payload), s.clock())
-	receiptErr := s.store.CreateRecoveryReceipt(ctx, domain.AttemptRecoveryReceipt{
-		ID:         "rcpt-" + uuid.NewString(),
-		AttemptID:  attemptID,
-		Resolution: domain.RecoveryNeedsAttention,
-		Detail:     string(payload),
-		CreatedAt:  s.clock(),
-	})
-	if receiptErr != nil {
-		return fmt.Errorf("record admission failure for %s: %v (cause: %w)", attemptID, receiptErr, cause)
-	}
-	if apiErr := (*apierr.Error)(nil); errors.As(cause, &apiErr) {
-		return cause
-	}
-	return apierr.Conflict("ATTEMPT_ADMIT_FAILED",
-		"The provider session could not be started; the attempt is recorded as failed",
-		map[string]any{"attemptId": string(attemptID), "error": detail})
-}
-
-// admitUnresolved records the truthful aftermath of an UNKNOWN start: status
-// stays queued (never failed, never running), an admission_ambiguous
-// observation and a needs_attention receipt land, and the fence stays HELD so
-// no duplicate writer can start before reconcile decides.
-func (s *Service) admitUnresolved(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, cause error) error {
-	detail := ""
-	if cause != nil {
-		detail = cause.Error()
-	}
-	payload, _ := json.Marshal(map[string]any{"error": detail, "unresolved": true})
-	if _, err := s.store.AppendAttemptObservation(ctx, attemptID, domain.ObservationAdmissionAmbiguous, string(payload), s.clock()); err != nil {
-		return fmt.Errorf("record ambiguous admission for %s: %w", attemptID, err)
+	if _, err := s.store.AppendAttemptObservation(ctx, attemptID, domain.ObservationAdmissionFailed, string(payload), s.clock()); err != nil {
+		errs = append(errs, fmt.Errorf("record admission-failure observation for %s: %w", attemptID, err))
 	}
 	if err := s.store.CreateRecoveryReceipt(ctx, domain.AttemptRecoveryReceipt{
 		ID:         "rcpt-" + uuid.NewString(),
@@ -355,11 +389,21 @@ func (s *Service) admitUnresolved(ctx context.Context, outcomeID domain.OutcomeI
 		Detail:     string(payload),
 		CreatedAt:  s.clock(),
 	}); err != nil {
-		return fmt.Errorf("record ambiguous admission receipt for %s: %w", attemptID, err)
+		errs = append(errs, fmt.Errorf("record admission-failure receipt for %s: %w", attemptID, err))
 	}
-	return apierr.Conflict("ATTEMPT_START_UNRESOLVED",
-		"The start outcome is unknown — the attempt stays unconfirmed until you reconcile it",
-		map[string]any{"attemptId": string(attemptID)})
+	admitted := cause
+	if admitted == nil {
+		admitted = fmt.Errorf("unknown admission failure")
+	}
+	if apiErr := (*apierr.Error)(nil); !errors.As(admitted, &apiErr) {
+		admitted = apierr.Conflict("ATTEMPT_ADMIT_FAILED",
+			"The provider session could not be started; the attempt is recorded as failed",
+			map[string]any{"attemptId": string(attemptID), "error": detail})
+	}
+	if len(errs) > 0 {
+		return errors.Join(append(errs, admitted)...)
+	}
+	return admitted
 }
 
 // PauseAttempt suspends a running attempt.
@@ -443,7 +487,11 @@ func (s *Service) probeReadiness(ctx context.Context, projectID domain.ProjectID
 	return nil
 }
 
-// CancelAttempt ends an active attempt by owner decision.
+// CancelAttempt ends an active attempt by owner decision AND stops the bound
+// provider through the execution seam: canonical cancellation requires
+// provider authority, not a database status flip. If termination fails the
+// status is left untouched, the fence stays held, and a needs_attention
+// receipt records exactly what could not be stopped.
 func (s *Service) CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (AttemptView, error) {
 	attempt, _, err := s.requireAttempt(ctx, outcomeID, attemptID)
 	if err != nil {
@@ -456,6 +504,41 @@ func (s *Service) CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID,
 			fmt.Sprintf("Attempt already ended as %s", attempt.Status),
 			map[string]any{"status": string(attempt.Status)})
 	}
+	ref, bound, err := s.store.LatestAttemptSessionRef(ctx, attemptID)
+	if err != nil {
+		return AttemptView{}, err
+	}
+	projectID, _, err := s.store.GetOutcomeProjectID(ctx, outcomeID)
+	if err != nil {
+		return AttemptView{}, err
+	}
+	providerStopped := false
+	if bound {
+		if termErr := s.spawner.Terminate(ctx, projectID, ref.SessionID); termErr != nil {
+			payload := mustJSON(map[string]any{"error": termErr.Error(), "sessionId": ref.SessionID})
+			var errs []error
+			if _, obsErr := s.store.AppendAttemptObservation(ctx, attemptID, domain.ObservationProviderStopFailed, payload, s.clock()); obsErr != nil {
+				errs = append(errs, fmt.Errorf("record stop-failure observation for %s: %w", attemptID, obsErr))
+			}
+			if rcptErr := s.store.CreateRecoveryReceipt(ctx, domain.AttemptRecoveryReceipt{
+				ID:         "rcpt-" + uuid.NewString(),
+				AttemptID:  attemptID,
+				Resolution: domain.RecoveryNeedsAttention,
+				Detail:     payload,
+				CreatedAt:  s.clock(),
+			}); rcptErr != nil {
+				errs = append(errs, fmt.Errorf("record stop-failure receipt for %s: %w", attemptID, rcptErr))
+			}
+			refused := apierr.Conflict(CodeAttemptProviderStopFailed,
+				"The provider session could not be stopped — cancel was NOT recorded; stop it and retry",
+				map[string]any{"attemptId": string(attemptID), "sessionId": ref.SessionID})
+			if len(errs) > 0 {
+				return AttemptView{}, errors.Join(append(errs, refused)...)
+			}
+			return AttemptView{}, refused
+		}
+		providerStopped = true
+	}
 	rows, err := s.store.TransitionAttemptStatus(ctx, outcomeID, attemptID, attempt.Status, domain.AttemptCancelled, s.clock())
 	if err != nil {
 		return AttemptView{}, err
@@ -463,7 +546,7 @@ func (s *Service) CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID,
 	if rows == 0 {
 		return AttemptView{}, apierr.Conflict("ATTEMPT_STATUS_MOVED", "The attempt changed state concurrently; reload and retry", nil)
 	}
-	payload, _ := json.Marshal(map[string]any{"previousStatus": string(attempt.Status)})
+	payload, _ := json.Marshal(map[string]any{"previousStatus": string(attempt.Status), "providerStopped": providerStopped})
 	if _, err := s.store.AppendAttemptObservation(ctx, attemptID, domain.ObservationOwnerCancel, string(payload), s.clock()); err != nil {
 		return AttemptView{}, err
 	}
@@ -565,17 +648,18 @@ func (s *Service) readModel(ctx context.Context, outcome domain.Outcome, attempt
 			return AttemptView{}, err
 		} else if present {
 			facts = domain.SessionHeartbeatFacts{
-				Present:       true,
-				ActivityState: rec.Activity.State,
-				FirstSignalAt: rec.FirstSignalAt,
-				IsTerminated:  rec.IsTerminated,
+				Present:        true,
+				ActivityState:  rec.Activity.State,
+				FirstSignalAt:  rec.FirstSignalAt,
+				LastActivityAt: rec.Activity.LastActivityAt,
+				IsTerminated:   rec.IsTerminated,
 			}
 		}
 	}
 	unresolvedAdmission := false
 	for _, obs := range observations {
-		if obs.Kind == domain.ObservationAdmissionAmbiguous {
-			unresolvedAdmission = true // latest state wins; kind is only ever appended
+		if obs.Kind == domain.ObservationAdmissionAmbiguous || obs.Kind == domain.ObservationActivationAmbiguous {
+			unresolvedAdmission = true // kinds are only ever appended
 		}
 	}
 	subjectProject, ok, err := s.store.GetOutcomeProjectID(ctx, outcome.ID)
@@ -597,7 +681,8 @@ func (s *Service) readModel(ctx context.Context, outcome domain.Outcome, attempt
 		Observations: observations,
 		Receipts:     receipts,
 		Fence:        fence,
-		Presentation: domain.DeriveAttemptPresentation(attempt.Status, facts, unresolvedAdmission),
+		Presentation: domain.DeriveAttemptPresentation(attempt.Status, facts, unresolvedAdmission,
+			domain.LivenessPolicy{Now: s.clock(), StaleHeartbeatAfter: s.staleHeartbeat}),
 	}, nil
 }
 

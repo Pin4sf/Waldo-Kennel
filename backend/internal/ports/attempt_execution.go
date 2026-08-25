@@ -36,4 +36,9 @@ type AttemptSessionSpawner interface {
 	// path, which re-probes readiness internally exactly like every other
 	// worker spawn.
 	Spawn(ctx context.Context, req AttemptSpawnRequest) (domain.Session, error)
+
+	// Terminate stops a bound provider session through the same authority
+	// that spawned it. Custody may only be released after a confirmed stop —
+	// this is how cancel/contain turn into durable termination facts.
+	Terminate(ctx context.Context, projectID domain.ProjectID, sessionID string) error
 }

@@ -29,6 +29,12 @@ type attemptFakeStore struct {
 	refs           map[domain.AttemptID][]domain.AttemptSessionRef
 	obs            map[domain.AttemptID][]domain.AttemptObservation
 	receipts       map[domain.AttemptID][]domain.AttemptRecoveryReceipt
+
+	// dropActivationOnce simulates losing the queued->running promotion race.
+	dropActivationOnce bool
+
+	// renewals counts fence-lease refreshes the liveness loop performs.
+	renewals int
 }
 
 func newAttemptFakeStore() *attemptFakeStore {
@@ -158,6 +164,10 @@ func (f *attemptFakeStore) ListAttempts(_ context.Context, outcomeID domain.Outc
 func (f *attemptFakeStore) TransitionAttemptStatus(_ context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, expected, next domain.AttemptStatus, at time.Time) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.dropActivationOnce && next == domain.AttemptRunning {
+		f.dropActivationOnce = false
+		return 0, nil // simulate losing the promotion race
+	}
 	for i, attempt := range f.attempts[outcomeID] {
 		if attempt.ID != attemptID || attempt.Status != expected {
 			continue
@@ -264,6 +274,21 @@ func (f *attemptFakeStore) ReleaseFenceForAttempt(_ context.Context, attemptID d
 	return 0, nil
 }
 
+func (f *attemptFakeStore) RenewFenceForAttempt(_ context.Context, attemptID domain.AttemptID, at time.Time) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for subject, history := range f.fences {
+		for i, fence := range history {
+			if fence.AttemptID == attemptID && fence.Open() {
+				f.fences[subject][i].LastRenewedAt = at
+				f.renewals++
+				return 1, nil
+			}
+		}
+	}
+	return 0, nil
+}
+
 func (f *attemptFakeStore) CreateRecoveryReceipt(_ context.Context, receipt domain.AttemptRecoveryReceipt) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -296,6 +321,8 @@ type fakeSpawner struct {
 	readiness    ports.AgentProfileReadiness
 	readinessErr error
 	spawnErr     error
+	terminateErr error
+	terminated   []string
 	spawned      []ports.AttemptSpawnRequest
 	sessionN     int
 }
@@ -329,6 +356,19 @@ func (f *fakeSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (d
 	return domain.Session{SessionRecord: rec}, nil
 }
 
+// Terminate records the request; failures are injectable per scenario. Tests
+// pair a successful Terminate with heartbeats.terminate(...) to mirror the
+// real flow, where Kill flips the durable is_terminated fact.
+func (f *fakeSpawner) Terminate(_ context.Context, _ domain.ProjectID, sessionID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.terminateErr != nil {
+		return f.terminateErr
+	}
+	f.terminated = append(f.terminated, sessionID)
+	return nil
+}
+
 func (f *fakeSpawner) spawnCalls() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -339,6 +379,12 @@ func (f *fakeSpawner) failNextSpawn(err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.spawnErr = err
+}
+
+func (f *fakeSpawner) failNextTerminate(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.terminateErr = err
 }
 
 // fakeHeartbeats stands in for the sessions table: tests mutate it to model
@@ -432,4 +478,8 @@ func (f *fakeStore) CreateRecoveryReceipt(context.Context, domain.AttemptRecover
 }
 func (f *fakeStore) ListRecoveryReceipts(context.Context, domain.AttemptID) ([]domain.AttemptRecoveryReceipt, error) {
 	return nil, nil
+}
+
+func (f *fakeStore) RenewFenceForAttempt(context.Context, domain.AttemptID, time.Time) (int64, error) {
+	return 0, nil
 }

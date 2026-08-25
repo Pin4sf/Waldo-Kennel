@@ -144,6 +144,11 @@ type OutcomeStore interface {
 	// rows=0 means no open fence was held by this attempt.
 	ReleaseFenceForAttempt(ctx context.Context, attemptID domain.AttemptID, reason string, at time.Time) (int64, error)
 
+	// RenewFenceForAttempt refreshes the open fence's lease timestamp so a
+	// stale renewal exposes custody that may outlive its provider. rows=0
+	// means no open fence is held by this attempt.
+	RenewFenceForAttempt(ctx context.Context, attemptID domain.AttemptID, at time.Time) (int64, error)
+
 	// CreateRecoveryReceipt appends one immutable recovery receipt.
 	CreateRecoveryReceipt(ctx context.Context, receipt domain.AttemptRecoveryReceipt) error
 

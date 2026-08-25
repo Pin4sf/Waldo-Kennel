@@ -73,12 +73,16 @@ CREATE UNIQUE INDEX idx_attempt_observations_attempt_seq
     ON attempt_observations (attempt_id, seq);
 
 CREATE TABLE attempt_fences (
-    id             TEXT PRIMARY KEY,
-    subject        TEXT NOT NULL,
-    attempt_id     TEXT NOT NULL REFERENCES attempts (id),
-    issued_at      TIMESTAMP NOT NULL DEFAULT (datetime('now')),
-    released_at    TIMESTAMP,
-    release_reason TEXT NOT NULL DEFAULT ''
+    id              TEXT PRIMARY KEY,
+    subject         TEXT NOT NULL,
+    attempt_id      TEXT NOT NULL REFERENCES attempts (id),
+    issued_at       TIMESTAMP NOT NULL DEFAULT (datetime('now')),
+    -- Renewable-lease fact: the liveness loop renews this for every running
+    -- custodian; a stale renewal surfaces custody that may outlive its
+    -- provider. Release stays final; only this column may move afterwards.
+    last_renewed_at TIMESTAMP NOT NULL DEFAULT (datetime('now')),
+    released_at     TIMESTAMP,
+    release_reason  TEXT NOT NULL DEFAULT ''
 );
 
 -- D4: exactly one open fence per worktree subject. Released fences stay as
@@ -171,6 +175,17 @@ WHEN OLD.id <> NEW.id
      OR OLD.issued_at <> NEW.issued_at
 BEGIN
     SELECT RAISE(ABORT, 'attempt fence identity is immutable');
+END;
+
+-- Lease renewal is the only mutation allowed while custody is open, and it
+-- freezes forever once the fence releases.
+DROP TRIGGER IF EXISTS attempt_fences_renewal_guard;
+CREATE TRIGGER attempt_fences_renewal_guard
+BEFORE UPDATE ON attempt_fences
+WHEN OLD.released_at IS NOT NULL
+     AND OLD.last_renewed_at IS NOT NEW.last_renewed_at
+BEGIN
+    SELECT RAISE(ABORT, 'attempt fence lease is final');
 END;
 
 -- A fence may be released exactly once, and only with a reason. Once
@@ -358,6 +373,7 @@ DROP TABLE change_log;
 ALTER TABLE change_log_down RENAME TO change_log;
 CREATE INDEX idx_change_log_project ON change_log (project_id, seq);
 
+DROP TRIGGER IF EXISTS attempt_fences_renewal_guard;
 DROP TABLE IF EXISTS attempt_recovery_receipts;
 DROP TABLE IF EXISTS attempt_fences;
 DROP TABLE IF EXISTS attempt_observations;

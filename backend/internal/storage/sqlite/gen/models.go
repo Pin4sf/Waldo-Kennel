@@ -83,6 +83,7 @@ type AttemptFence struct {
 	Subject       string
 	AttemptID     domain.AttemptID
 	IssuedAt      time.Time
+	LastRenewedAt time.Time
 	ReleasedAt    sql.NullTime
 	ReleaseReason string
 }

@@ -219,6 +219,8 @@ type controllerSpawner struct{}
 func (controllerSpawner) ProfileReadiness(context.Context, domain.ProjectID, domain.AgentHarness) (ports.AgentProfileReadiness, error) {
 	return ports.AgentProfileReadiness{Ready: true, Detail: "test profile ok"}, nil
 }
+func (controllerSpawner) Terminate(_ context.Context, _ domain.ProjectID, _ string) error { return nil }
+
 func (controllerSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (domain.Session, error) {
 	rec := domain.SessionRecord{
 		ID:      domain.SessionID("sess-func-" + req.Harness),
@@ -339,7 +341,13 @@ func TestAttemptRoutesFunctionalThroughRealStore(t *testing.T) {
 	// Recovery reconcile cannot prove liveness for the never-signalled fake:
 	// lost verdict + replacement receipt, then a replacement may start.
 	recBytes, recStatus, _ := doRequest(t, srv, http.MethodPost,
+		"/api/v1/outcomes/"+id+"/attempts/"+attemptEnvelope.Attempt.ID+"/recovery",
+		`{"action":"replace","confirmProviderStopped":true}`)
+	unprovenBytes, unprovenStatus, _ := doRequest(t, srv, http.MethodPost,
 		"/api/v1/outcomes/"+id+"/attempts/"+attemptEnvelope.Attempt.ID+"/recovery", `{"action":"replace"}`)
+	if unprovenStatus != http.StatusConflict || !strings.Contains(string(unprovenBytes), "ATTEMPT_CUSTODY_UNPROVEN") {
+		t.Fatalf("unproven replace = %d want 409: %s", unprovenStatus, unprovenBytes)
+	}
 	if recStatus != http.StatusOK || !strings.Contains(string(recBytes), `"status":"lost"`) {
 		t.Fatalf("recover = %d: %s", recStatus, recBytes)
 	}

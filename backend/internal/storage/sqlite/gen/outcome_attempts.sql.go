@@ -150,7 +150,7 @@ func (q *Queries) FindAttemptByIdempotencyKey(ctx context.Context, requestKey sq
 }
 
 const findOpenFenceBySubject = `-- name: FindOpenFenceBySubject :one
-SELECT id, subject, attempt_id, issued_at, released_at, release_reason
+SELECT id, subject, attempt_id, issued_at, last_renewed_at, released_at, release_reason
 FROM attempt_fences WHERE subject = ? AND released_at IS NULL
 `
 
@@ -162,6 +162,7 @@ func (q *Queries) FindOpenFenceBySubject(ctx context.Context, subject string) (A
 		&i.Subject,
 		&i.AttemptID,
 		&i.IssuedAt,
+		&i.LastRenewedAt,
 		&i.ReleasedAt,
 		&i.ReleaseReason,
 	)
@@ -473,6 +474,24 @@ type ReleaseAttemptFenceParams struct {
 
 func (q *Queries) ReleaseAttemptFence(ctx context.Context, arg ReleaseAttemptFenceParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, releaseAttemptFence, arg.ReleasedAt, arg.ReleaseReason, arg.AttemptID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const renewAttemptFence = `-- name: RenewAttemptFence :execrows
+UPDATE attempt_fences SET last_renewed_at = ?
+WHERE attempt_id = ? AND released_at IS NULL
+`
+
+type RenewAttemptFenceParams struct {
+	LastRenewedAt time.Time
+	AttemptID     domain.AttemptID
+}
+
+func (q *Queries) RenewAttemptFence(ctx context.Context, arg RenewAttemptFenceParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, renewAttemptFence, arg.LastRenewedAt, arg.AttemptID)
 	if err != nil {
 		return 0, err
 	}

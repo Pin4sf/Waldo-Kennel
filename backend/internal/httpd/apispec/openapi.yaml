@@ -5978,6 +5978,9 @@ components:
         issuedAt:
           format: date-time
           type: string
+        lastRenewedAt:
+          format: date-time
+          type: string
         releasedAt:
           format: date-time
           type:
@@ -5989,6 +5992,7 @@ components:
       - id
       - subject
       - issuedAt
+      - lastRenewedAt
       type: object
     AttemptListEnvelope:
       properties:
@@ -6055,6 +6059,8 @@ components:
           - replace
           - attention
           type: string
+        confirmProviderStopped:
+          type: boolean
       required:
       - action
       type: object

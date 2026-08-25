@@ -92,7 +92,7 @@ func TestDeriveAttemptPresentation(t *testing.T) {
 		status           AttemptStatus
 		facts            SessionHeartbeatFacts
 		unresolvedStart  bool
-		wantPhase        string
+		wantPhase        AttemptPhase
 		wantUnconfirmed  bool
 		wantUnclassified bool
 	}{
@@ -110,7 +110,7 @@ func TestDeriveAttemptPresentation(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := DeriveAttemptPresentation(tc.status, tc.facts, tc.unresolvedStart)
+			got := DeriveAttemptPresentation(tc.status, tc.facts, tc.unresolvedStart, LivenessPolicy{Now: signaled.Add(time.Minute)})
 			if got.Phase != tc.wantPhase {
 				t.Fatalf("phase = %q, want %q", got.Phase, tc.wantPhase)
 			}

@@ -9,7 +9,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
-	"github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
+	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
 )
 
 // attemptLivenessInterval is how often the daemon reconcile hook re-evaluates
@@ -62,6 +62,18 @@ func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest
 		DisplayName: req.DisplayName,
 	})
 	return sess, err
+}
+
+// Terminate stops the bound provider session through the same authority that
+// spawned it. A missing session row means nothing is left to stop: that is
+// success for custody purposes, not an error.
+func (a attemptSpawner) Terminate(ctx context.Context, _ domain.ProjectID, sessionID string) error {
+	freed, err := a.sessions.Kill(ctx, domain.SessionID(sessionID))
+	if err != nil {
+		return err
+	}
+	_ = freed // false simply means the pane was already gone
+	return nil
 }
 
 // runAttemptLivenessLoop drives the daemon-side reconcile hook for Act &
