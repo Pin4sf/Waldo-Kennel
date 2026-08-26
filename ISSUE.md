@@ -19,6 +19,12 @@ These observations are already covered by [#40 Integrate Work with Home through 
 - An unconfirmed `IntakeSession` is durable and readable after a daemon restart, but the Work board does not yet discover and resume it automatically.
 - `ResponsibilityLink` accepts the Home source responsibility as an opaque identifier. Resolving and presenting the canonical Home-side responsibility belongs to the separate Work/Home consumption layer.
 
+## Security-triage escalation
+
+- During the branch push, GitHub reported unresolved Dependabot alerts on the default branch, including critical and high-severity alerts.
+- These alerts predate issue #32 and were not introduced by this branch.
+- Triage belongs in the repository's maintainer-only [Dependabot security dashboard](https://github.com/Pin4sf/Waldo-Kennel/security/dependabot). Do not copy untriaged vulnerability details into a public GitHub issue; open a scoped public issue only after maintainers determine that disclosure is safe.
+
 ## Closed by issue #32
 
 - Offline capture failure now keeps the entered statement visible and explicitly marks it unsaved.
