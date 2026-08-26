@@ -810,8 +810,41 @@ type WaldoContextAttachment struct {
 	DetachRequestFingerprint string
 }
 
+type WaldoContinuationOperation struct {
+	ID                           string
+	ConversationID               string
+	ProjectID                    string
+	FromEpisodeID                string
+	FromAgentSessionRefID        string
+	ExpectedConversationRevision int64
+	State                        string
+	Reason                       string
+	ReasonDetail                 string
+	TriggerEvidenceKind          string
+	TriggerEvidenceRef           string
+	MaterialChange               int64
+	ChangedFields                string
+	ContextDigest                string
+	ContextRefs                  string
+	PreviousBindings             string
+	ReplacementBindings          string
+	EffectsKnown                 int64
+	LostMaterialContext          int64
+	SourceRevoked                int64
+	FreshVerifier                int64
+	TriggerConfirmed             int64
+	FenceReceiptRef              string
+	ReconciliationRef            string
+	NeedsUserReason              string
+	RequestKey                   string
+	RequestFingerprint           string
+	CreatedAt                    time.Time
+	UpdatedAt                    time.Time
+}
+
 type WaldoContinuationReceipt struct {
 	ID                           string
+	OperationID                  string
 	ConversationID               string
 	ProjectID                    string
 	FromEpisodeID                string
@@ -821,6 +854,8 @@ type WaldoContinuationReceipt struct {
 	Action                       string
 	Reason                       string
 	ReasonDetail                 string
+	TriggerEvidenceKind          string
+	TriggerEvidenceRef           string
 	MaterialChange               int64
 	ChangedFields                string
 	ContextDigest                string

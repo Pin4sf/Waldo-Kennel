@@ -478,6 +478,45 @@ func (reason ContinuationReason) Valid() bool {
 	}
 }
 
+// ContinuationTriggerEvidenceKind identifies the canonical fact that caused a
+// bounded rollover decision; prose alone never authorizes automation.
+type ContinuationTriggerEvidenceKind string
+
+// Continuation trigger evidence kinds map one-to-one onto exact reasons.
+const (
+	ContinuationEvidenceProviderContextMeter  ContinuationTriggerEvidenceKind = "provider_context_meter"
+	ContinuationEvidenceAdapterThreshold      ContinuationTriggerEvidenceKind = "adapter_conservative_threshold"
+	ContinuationEvidenceMaterialContextDigest ContinuationTriggerEvidenceKind = "material_context_digest"
+	ContinuationEvidenceProviderIdentityLoss  ContinuationTriggerEvidenceKind = "provider_identity_loss"
+	ContinuationEvidenceSourceRevocation      ContinuationTriggerEvidenceKind = "source_revocation"
+	ContinuationEvidenceVerifierBoundary      ContinuationTriggerEvidenceKind = "verifier_boundary"
+	ContinuationEvidenceOwnerRequest          ContinuationTriggerEvidenceKind = "owner_request"
+)
+
+// ContinuationTriggerEvidence is an identifier-only reference to daemon-owned
+// meter, adapter, digest, identity, revocation, verifier, or owner-command truth.
+type ContinuationTriggerEvidence struct {
+	Kind      ContinuationTriggerEvidenceKind
+	Reference string
+}
+
+// ValidateForReason prevents reason/flag contradictions and missing meter proof.
+func (evidence ContinuationTriggerEvidence) ValidateForReason(reason ContinuationReason) error {
+	want := map[ContinuationReason]ContinuationTriggerEvidenceKind{
+		ContinuationReasonContextReserve:        ContinuationEvidenceProviderContextMeter,
+		ContinuationReasonConservativeThreshold: ContinuationEvidenceAdapterThreshold,
+		ContinuationReasonMaterialDigestChange:  ContinuationEvidenceMaterialContextDigest,
+		ContinuationReasonIdentityLost:          ContinuationEvidenceProviderIdentityLoss,
+		ContinuationReasonSourceRevoked:         ContinuationEvidenceSourceRevocation,
+		ContinuationReasonFreshVerifier:         ContinuationEvidenceVerifierBoundary,
+		ContinuationReasonUserRequested:         ContinuationEvidenceOwnerRequest,
+	}[reason]
+	if want == "" || evidence.Kind != want || strings.TrimSpace(evidence.Reference) == "" {
+		return fmt.Errorf("continuation reason %s requires %s evidence", reason, want)
+	}
+	return nil
+}
+
 // ContinuationAction is the durable policy decision, not a display status.
 type ContinuationAction string
 
@@ -493,10 +532,134 @@ func (action ContinuationAction) Valid() bool {
 	return action == ContinuationAutomatic || action == ContinuationNeedsYou || action == ContinuationUnconfirmed
 }
 
+// WaldoContinuationOperationState is durable pre-effect continuation truth.
+// It is a policy lifecycle, not a derived/display session status.
+type WaldoContinuationOperationState string
+
+// Continuation operation states make every external-effect boundary explicit.
+const (
+	WaldoContinuationPrepared  WaldoContinuationOperationState = "prepared"
+	WaldoContinuationFencing   WaldoContinuationOperationState = "fencing"
+	WaldoContinuationFenced    WaldoContinuationOperationState = "fenced"
+	WaldoContinuationStarting  WaldoContinuationOperationState = "starting"
+	WaldoContinuationCompleted WaldoContinuationOperationState = "completed"
+)
+
+// Valid reports whether state is part of the durable continuation lifecycle.
+func (state WaldoContinuationOperationState) Valid() bool {
+	switch state {
+	case WaldoContinuationPrepared, WaldoContinuationFencing, WaldoContinuationFenced,
+		WaldoContinuationStarting, WaldoContinuationCompleted:
+		return true
+	default:
+		return false
+	}
+}
+
+// CanTransitionTo enforces the monotonic continuation effect lifecycle.
+func (state WaldoContinuationOperationState) CanTransitionTo(next WaldoContinuationOperationState) bool {
+	switch state {
+	case WaldoContinuationPrepared:
+		return next == WaldoContinuationFencing || next == WaldoContinuationCompleted
+	case WaldoContinuationFencing:
+		return next == WaldoContinuationFenced || next == WaldoContinuationCompleted
+	case WaldoContinuationFenced:
+		return next == WaldoContinuationStarting || next == WaldoContinuationCompleted
+	case WaldoContinuationStarting:
+		return next == WaldoContinuationCompleted
+	default:
+		return false
+	}
+}
+
+// WaldoContinuationOperation is the durable idempotency/effect claim written
+// before fencing or starting a provider. It contains only canonical bindings,
+// identifier-only context, and recovery facts.
+type WaldoContinuationOperation struct {
+	ID                           string
+	ConversationID               WaldoConversationID
+	ProjectID                    ProjectID
+	FromEpisodeID                WaldoConversationEpisodeID
+	FromAgentSessionRef          AttemptSessionRefID
+	ExpectedConversationRevision int64
+	State                        WaldoContinuationOperationState
+	Reason                       ContinuationReason
+	ReasonDetail                 string
+	TriggerEvidence              ContinuationTriggerEvidence
+	MaterialChange               bool
+	ChangedFields                []string
+	ContextDigest                string
+	ContextRefs                  []WaldoContextRef
+	PreviousBindings             ContinuationBindings
+	ReplacementBindings          ContinuationBindings
+	EffectsKnown                 bool
+	LostMaterialContext          bool
+	SourceRevoked                bool
+	FreshVerifier                bool
+	TriggerConfirmed             bool
+	FenceReceiptRef              string
+	ReconciliationRef            string
+	NeedsUserReason              string
+	RequestKey                   string
+	RequestFingerprint           string
+	CreatedAt                    time.Time
+	UpdatedAt                    time.Time
+}
+
+// Validate enforces a complete pre-effect claim that can be recovered exactly.
+func (operation WaldoContinuationOperation) Validate() error {
+	if strings.TrimSpace(operation.ID) == "" || operation.ConversationID.IsZero() ||
+		strings.TrimSpace(string(operation.ProjectID)) == "" || operation.FromEpisodeID.IsZero() ||
+		operation.FromAgentSessionRef.IsZero() {
+		return fmt.Errorf("continuation operation identity is required")
+	}
+	if operation.ExpectedConversationRevision < 1 || !operation.State.Valid() {
+		return fmt.Errorf("continuation operation revision and state are required")
+	}
+	if !operation.Reason.Valid() || strings.TrimSpace(operation.ReasonDetail) == "" ||
+		!validDigest(operation.ContextDigest) {
+		return fmt.Errorf("continuation operation reason and context digest are required")
+	}
+	if err := operation.TriggerEvidence.ValidateForReason(operation.Reason); err != nil {
+		return err
+	}
+	for index, ref := range operation.ContextRefs {
+		if err := ref.Validate(); err != nil {
+			return fmt.Errorf("continuation operation context %d: %w", index+1, err)
+		}
+	}
+	if err := operation.PreviousBindings.Validate(); err != nil {
+		return err
+	}
+	if err := operation.ReplacementBindings.Validate(); err != nil {
+		return err
+	}
+	if operation.PreviousBindings.ProjectID != operation.ProjectID {
+		return fmt.Errorf("continuation operation predecessor bindings must match Project")
+	}
+	materialChange := len(operation.ChangedFields) > 0 || operation.LostMaterialContext ||
+		operation.SourceRevoked || operation.Reason == ContinuationReasonMaterialDigestChange
+	if operation.MaterialChange != materialChange {
+		return fmt.Errorf("continuation operation material-change truth is inconsistent")
+	}
+	if strings.TrimSpace(operation.RequestKey) == "" || strings.TrimSpace(operation.RequestFingerprint) == "" {
+		return fmt.Errorf("continuation operation idempotency claim is required")
+	}
+	if operation.CreatedAt.IsZero() || operation.UpdatedAt.IsZero() || operation.UpdatedAt.Before(operation.CreatedAt) {
+		return fmt.Errorf("continuation operation timestamps are invalid")
+	}
+	if operation.State == WaldoContinuationPrepared &&
+		(strings.TrimSpace(operation.FenceReceiptRef) != "" || strings.TrimSpace(operation.ReconciliationRef) != "") {
+		return fmt.Errorf("prepared continuation cannot claim fencing facts")
+	}
+	return nil
+}
+
 // ContinuationReceipt is the append-only lineage and policy receipt between
 // an old AgentSessionRef and either a confirmed replacement or a durable stop.
 type ContinuationReceipt struct {
 	ID                           string
+	OperationID                  string
 	ConversationID               WaldoConversationID
 	ProjectID                    ProjectID
 	FromEpisodeID                WaldoConversationEpisodeID
@@ -506,6 +669,7 @@ type ContinuationReceipt struct {
 	Action                       ContinuationAction
 	Reason                       ContinuationReason
 	ReasonDetail                 string
+	TriggerEvidence              ContinuationTriggerEvidence
 	MaterialChange               bool
 	ChangedFields                []string
 	ContextDigest                string
@@ -523,7 +687,8 @@ type ContinuationReceipt struct {
 
 // Validate enforces fail-closed continuation lineage and replacement truth.
 func (receipt ContinuationReceipt) Validate() error {
-	if strings.TrimSpace(receipt.ID) == "" || receipt.ConversationID.IsZero() || receipt.FromEpisodeID.IsZero() ||
+	if strings.TrimSpace(receipt.ID) == "" || strings.TrimSpace(receipt.OperationID) == "" ||
+		receipt.ConversationID.IsZero() || receipt.FromEpisodeID.IsZero() ||
 		strings.TrimSpace(string(receipt.ProjectID)) == "" || receipt.FromAgentSessionRef.IsZero() {
 		return fmt.Errorf("continuation receipt identity is required")
 	}
@@ -532,6 +697,9 @@ func (receipt ContinuationReceipt) Validate() error {
 	}
 	if strings.TrimSpace(receipt.ReasonDetail) == "" || !validDigest(receipt.ContextDigest) {
 		return fmt.Errorf("continuation reason detail and context digest are required")
+	}
+	if err := receipt.TriggerEvidence.ValidateForReason(receipt.Reason); err != nil {
+		return err
 	}
 	for index, ref := range receipt.ContextRefs {
 		if err := ref.Validate(); err != nil {
@@ -554,6 +722,9 @@ func (receipt ContinuationReceipt) Validate() error {
 	case ContinuationAutomatic:
 		if receipt.MaterialChange || len(receipt.ChangedFields) != 0 || !receipt.PreviousBindings.Equal(receipt.ReplacementBindings) {
 			return fmt.Errorf("automatic continuation cannot change material bindings")
+		}
+		if strings.TrimSpace(receipt.PreviousBindings.Model) == "" || strings.TrimSpace(receipt.PreviousBindings.Profile) == "" {
+			return fmt.Errorf("automatic continuation requires confirmed model and profile bindings")
 		}
 		if !receipt.EffectsKnown || !receipt.OldSessionFenced || !receipt.ReplacementIdentityConfirmed {
 			return fmt.Errorf("automatic continuation requires known effects, safe fencing, and confirmed identity")

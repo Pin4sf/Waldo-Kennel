@@ -302,6 +302,16 @@ var changeLogWriters = []struct {
 		sql:   "CREATE TRIGGER waldo_context_attachments_cdc_update\nAFTER UPDATE ON waldo_context_attachments\nWHEN OLD.detached_at IS NULL AND NEW.detached_at IS NOT NULL\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'waldo_conversation_context_detached', json_object('conversationId', NEW.conversation_id, 'attachmentId', NEW.id), NEW.detached_at);\nEND;",
 	},
 	{
+		name:  "waldo_continuation_operations_cdc_insert",
+		table: "waldo_continuation_operations",
+		sql:   "CREATE TRIGGER waldo_continuation_operations_cdc_insert\nAFTER INSERT ON waldo_continuation_operations\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'waldo_conversation_continuation_prepared', json_object('conversationId', NEW.conversation_id, 'operationId', NEW.id, 'fromEpisodeId', NEW.from_episode_id, 'state', NEW.state, 'reason', NEW.reason), NEW.created_at);\nEND;",
+	},
+	{
+		name:  "waldo_continuation_operations_cdc_update",
+		table: "waldo_continuation_operations",
+		sql:   "CREATE TRIGGER waldo_continuation_operations_cdc_update\nAFTER UPDATE ON waldo_continuation_operations\nWHEN OLD.state <> NEW.state\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'waldo_conversation_continuation_progressed', json_object('conversationId', NEW.conversation_id, 'operationId', NEW.id, 'fromState', OLD.state, 'toState', NEW.state), NEW.updated_at);\nEND;",
+	},
+	{
 		name:  "waldo_continuation_receipts_cdc_insert",
 		table: "waldo_continuation_receipts",
 		sql:   "CREATE TRIGGER waldo_continuation_receipts_cdc_insert\nAFTER INSERT ON waldo_continuation_receipts\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'waldo_conversation_continuation_recorded', json_object('conversationId', NEW.conversation_id, 'receiptId', NEW.id, 'fromEpisodeId', NEW.from_episode_id, 'toEpisodeId', COALESCE(NEW.to_episode_id, ''), 'action', NEW.action, 'reason', NEW.reason, 'materialChange', json(CASE WHEN NEW.material_change THEN 'true' ELSE 'false' END)), NEW.created_at);\nEND;",

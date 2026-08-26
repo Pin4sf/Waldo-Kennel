@@ -65,6 +65,10 @@ type WaldoConversationStore interface {
 	ResolveWaldoContextRef(context.Context, domain.ProjectID, domain.WaldoContextRef) (domain.WaldoContextRef, bool, error)
 	AttachWaldoContext(context.Context, domain.WaldoContextAttachment, WaldoIdempotency, int64) (WaldoConversationSnapshot, error)
 	DetachWaldoContext(context.Context, domain.WaldoConversationID, domain.WaldoContextAttachmentID, string, WaldoIdempotency, int64, time.Time) (WaldoConversationSnapshot, error)
+	ClaimWaldoContinuationOperation(context.Context, domain.WaldoContinuationOperation) (domain.WaldoContinuationOperation, bool, error)
+	FindWaldoContinuationOperationByRequestKey(context.Context, string) (domain.WaldoContinuationOperation, bool, error)
+	AdvanceWaldoContinuationOperation(context.Context, string, domain.WaldoContinuationOperationState, domain.WaldoContinuationOperationState, string, string, string, time.Time) (domain.WaldoContinuationOperation, error)
+	ListPendingWaldoContinuationOperations(context.Context) ([]domain.WaldoContinuationOperation, error)
 	FindContinuationReceiptByRequestKey(context.Context, string) (domain.ContinuationReceipt, string, bool, error)
 	RecordContinuationReceipt(context.Context, domain.ContinuationReceipt, *domain.WaldoConversationEpisode, WaldoIdempotency) (domain.ContinuationReceipt, error)
 }
@@ -79,6 +83,7 @@ type ContinuationFenceResult struct {
 
 // ContinuationStartRequest carries only frozen bindings and identifier-only context.
 type ContinuationStartRequest struct {
+	RequestKey          string
 	FromAgentSessionRef domain.AttemptSessionRefID
 	Bindings            domain.ContinuationBindings
 	ContextDigest       string
@@ -92,6 +97,43 @@ type ContinuationStartResult struct {
 	SessionRef        domain.AttemptSessionRefID
 	ReconciliationRef string
 	Detail            string
+}
+
+// WaldoContinuationFactsRequest carries proposed input to the canonical facts
+// resolver. Proposals are not authority; the resolver returns daemon truth.
+type WaldoContinuationFactsRequest struct {
+	ProjectID           domain.ProjectID
+	FromAgentSessionRef domain.AttemptSessionRefID
+	Reason              domain.ContinuationReason
+	TriggerEvidence     domain.ContinuationTriggerEvidence
+	PreviousBindings    domain.ContinuationBindings
+	ReplacementBindings domain.ContinuationBindings
+	EffectsKnown        bool
+	LostMaterialContext bool
+	SourceRevoked       bool
+	FreshVerifier       bool
+	ContextDigest       string
+	ContextRefs         []domain.WaldoContextRef
+}
+
+// WaldoContinuationFacts is canonical policy truth resolved from daemon-owned
+// session/admission/effect/config records.
+type WaldoContinuationFacts struct {
+	PreviousBindings    domain.ContinuationBindings
+	ReplacementBindings domain.ContinuationBindings
+	EffectsKnown        bool
+	LostMaterialContext bool
+	SourceRevoked       bool
+	FreshVerifier       bool
+	TriggerConfirmed    bool
+	TriggerEvidence     domain.ContinuationTriggerEvidence
+}
+
+// WaldoContinuationFactsResolver prevents controller/caller input from
+// authorizing provider effects and rechecks the bound replacement identity.
+type WaldoContinuationFactsResolver interface {
+	ResolveWaldoContinuationFacts(context.Context, WaldoContinuationFactsRequest) (WaldoContinuationFacts, error)
+	ConfirmWaldoReplacementBindings(context.Context, domain.ProjectID, domain.AttemptSessionRefID, domain.ContinuationBindings) (domain.ContinuationBindings, bool, error)
 }
 
 // WaldoContinuationExecutor is the provider/runtime leaf beneath daemon policy.

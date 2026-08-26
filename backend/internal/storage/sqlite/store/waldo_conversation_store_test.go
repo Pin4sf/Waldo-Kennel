@@ -147,7 +147,7 @@ func TestWaldoConversationStoreResolvesCanonicalRevisionAndPersistsContinuationL
 		Kind: domain.WaldoContextOutcome, ObjectID: outcomeID.String(), Revision: "stale",
 		Provenance: domain.WaldoContextProvenance{Kind: domain.WaldoProvenanceCanonical, SourceID: "outcome-read"},
 	})
-	if err != nil || !found || resolved.Revision != "1" {
+	if err != nil || !found || !strings.HasPrefix(resolved.Revision, "1:") {
 		t.Fatalf("resolve canonical outcome=%+v found=%v err=%v", resolved, found, err)
 	}
 	if _, found, err := s.ResolveWaldoContextRef(ctx, "another-project", resolved); err != nil || found {
@@ -168,22 +168,24 @@ func TestWaldoConversationStoreResolvesCanonicalRevisionAndPersistsContinuationL
 		Ref: staleRef, AttachedRevision: 2, CreatedAt: now,
 	}, ports.WaldoIdempotency{Key: "stale-context", Fingerprint: "stale-context-fp"}, 1)
 	var contextConflict *ports.WaldoContextRevisionConflictError
-	if !errors.As(err, &contextConflict) || contextConflict.CurrentRevision != "1" {
+	if !errors.As(err, &contextConflict) || contextConflict.CurrentRevision != resolved.Revision {
 		t.Fatalf("stale canonical attachment error=%v", err)
 	}
 	bindings := continuationBindings("waldo-continuation", outcomeID, plan, attempt.ID)
 	replacement := domain.WaldoConversationEpisode{ID: "waldo-continuation-new", ConversationID: conversation.ID, ProjectID: conversation.ProjectID, Ordinal: 2, State: domain.WaldoEpisodeActive, CreatedAt: now.Add(time.Minute)}
 	receipt := domain.ContinuationReceipt{
-		ID: "waldo-continuation-receipt", ConversationID: conversation.ID, ProjectID: conversation.ProjectID,
+		ID: "waldo-continuation-receipt", OperationID: "waldo-continuation-operation", ConversationID: conversation.ID, ProjectID: conversation.ProjectID,
 		FromEpisodeID: oldEpisode.ID, ToEpisodeID: replacement.ID,
 		FromAgentSessionRef: fromRef.ID, ToAgentSessionRef: toRef.ID,
 		Action: domain.ContinuationAutomatic, Reason: domain.ContinuationReasonContextReserve,
 		ReasonDetail: "Provider reported a trustworthy reserve threshold.", ContextDigest: strings.Repeat("a", 64),
-		ContextRefs: []domain.WaldoContextRef{resolved}, PreviousBindings: bindings, ReplacementBindings: bindings,
+		TriggerEvidence: domain.ContinuationTriggerEvidence{Kind: domain.ContinuationEvidenceProviderContextMeter, Reference: "usage-fact-1"},
+		ContextRefs:     []domain.WaldoContextRef{resolved}, PreviousBindings: bindings, ReplacementBindings: bindings,
 		EffectsKnown: true, OldSessionFenced: true, ReplacementIdentityConfirmed: true,
 		FenceReceiptRef: "fence-receipt-1", ReconciliationRef: "reconcile-1", CreatedAt: now.Add(time.Minute),
 	}
 	request := ports.WaldoIdempotency{Key: "continue-request", Fingerprint: "continue-fp"}
+	claimContinuationOperation(t, s, receipt, request, 1, now)
 	stored, err := s.RecordContinuationReceipt(ctx, receipt, &replacement, request)
 	if err != nil || stored.ID != receipt.ID {
 		t.Fatalf("record continuation=%+v err=%v", stored, err)
@@ -244,16 +246,32 @@ func TestWaldoConversationStorePersistsUnconfirmedWithoutPlausibleReplacementAcr
 	}
 	bindings := continuationBindings("waldo-ambiguous", outcomeID, plan, attempt.ID)
 	receipt := domain.ContinuationReceipt{
-		ID: "waldo-ambiguous-receipt", ConversationID: conversation.ID, ProjectID: conversation.ProjectID,
+		ID: "waldo-ambiguous-receipt", OperationID: "waldo-ambiguous-operation", ConversationID: conversation.ID, ProjectID: conversation.ProjectID,
 		FromEpisodeID: episode.ID, FromAgentSessionRef: fromRef.ID,
 		Action: domain.ContinuationUnconfirmed, Reason: domain.ContinuationReasonConservativeThreshold,
-		ReasonDetail:  "The replacement call timed out after the predecessor was fenced.",
-		ContextDigest: strings.Repeat("a", 64), PreviousBindings: bindings, ReplacementBindings: bindings,
+		ReasonDetail:    "The replacement call timed out after the predecessor was fenced.",
+		TriggerEvidence: domain.ContinuationTriggerEvidence{Kind: domain.ContinuationEvidenceAdapterThreshold, Reference: "adapter-threshold-1"},
+		ContextDigest:   strings.Repeat("a", 64), PreviousBindings: bindings, ReplacementBindings: bindings,
 		EffectsKnown: true, OldSessionFenced: true, FenceReceiptRef: "ambiguous-fence",
 		ReconciliationRef: "ambiguous-reconcile", NeedsUserReason: "Replacement identity is ambiguous; reconcile before any retry.",
 		CreatedAt: now.Add(time.Minute),
 	}
 	request := ports.WaldoIdempotency{Key: "ambiguous-continuation", Fingerprint: "ambiguous-continuation-fp"}
+	claimContinuationOperation(t, s, receipt, request, 1, now)
+	if _, err := s.AdvanceWaldoContinuationOperation(ctx, receipt.OperationID,
+		domain.WaldoContinuationPrepared, domain.WaldoContinuationFencing, "", "", "", now); err != nil {
+		t.Fatalf("advance to fencing: %v", err)
+	}
+	if _, err := s.AdvanceWaldoContinuationOperation(ctx, receipt.OperationID,
+		domain.WaldoContinuationFencing, domain.WaldoContinuationFenced,
+		receipt.FenceReceiptRef, receipt.ReconciliationRef, "", now); err != nil {
+		t.Fatalf("advance to fenced: %v", err)
+	}
+	if _, err := s.AdvanceWaldoContinuationOperation(ctx, receipt.OperationID,
+		domain.WaldoContinuationFenced, domain.WaldoContinuationStarting,
+		receipt.FenceReceiptRef, receipt.ReconciliationRef, "", now); err != nil {
+		t.Fatalf("advance to starting: %v", err)
+	}
 	if _, err := s.RecordContinuationReceipt(ctx, receipt, nil, request); err != nil {
 		t.Fatalf("record unconfirmed: %v", err)
 	}
@@ -301,18 +319,18 @@ func TestWaldoConversationStoreResolvesEveryTypedProjectContextReference(t *test
 		t.Fatalf("create intake: %v", err)
 	}
 	tests := []struct {
-		kind     domain.WaldoContextRefKind
-		objectID string
-		revision string
+		kind           domain.WaldoContextRefKind
+		objectID       string
+		revisionPrefix string
 	}{
 		{domain.WaldoContextProject, projectID, ""},
-		{domain.WaldoContextOutcome, outcomeID.String(), "1"},
+		{domain.WaldoContextOutcome, outcomeID.String(), "1:"},
 		{domain.WaldoContextContractRevision, "cr-" + projectID, "1"},
-		{domain.WaldoContextPlanRevision, plan.ID.String(), "1"},
-		{domain.WaldoContextWorkUnit, plan.WorkUnits[0].ID.String(), "1"},
-		{domain.WaldoContextAttempt, attempt.ID.String(), "1"},
-		{domain.WaldoContextAgentSessionRef, sessionRef.ID.String(), "1"},
-		{domain.WaldoContextIntakeSession, intake.ID.String(), "0"},
+		{domain.WaldoContextPlanRevision, plan.ID.String(), "1:approved:"},
+		{domain.WaldoContextWorkUnit, plan.WorkUnits[0].ID.String(), "1:approved:"},
+		{domain.WaldoContextAttempt, attempt.ID.String(), "1:queued:"},
+		{domain.WaldoContextAgentSessionRef, sessionRef.ID.String(), "1:queued:"},
+		{domain.WaldoContextIntakeSession, intake.ID.String(), "0:captured:"},
 	}
 	for _, test := range tests {
 		t.Run(string(test.kind), func(t *testing.T) {
@@ -324,10 +342,138 @@ func TestWaldoConversationStoreResolvesEveryTypedProjectContextReference(t *test
 				Kind: test.kind, ObjectID: test.objectID, Revision: requestedRevision,
 				Provenance: domain.WaldoContextProvenance{Kind: domain.WaldoProvenanceCanonical, SourceID: "typed-context-test"},
 			})
-			if err != nil || !found || resolved.ObjectID != test.objectID || resolved.Revision != test.revision {
+			if err != nil || !found || resolved.ObjectID != test.objectID || !strings.HasPrefix(resolved.Revision, test.revisionPrefix) {
 				t.Fatalf("resolved=%+v found=%v err=%v", resolved, found, err)
 			}
 		})
+	}
+}
+
+func TestWaldoAttemptContextRevisionChangesWithLifecycleTruth(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	projectID := domain.ProjectID("waldo-attempt-lifecycle")
+	plan, outcomeID := seedApprovedPlan(t, s, string(projectID))
+	now := time.Date(2026, 8, 26, 10, 0, 0, 0, time.UTC)
+	attempt, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "attempt-lifecycle", domain.FenceSubjectForProject(projectID), now)
+	if err != nil {
+		t.Fatalf("create attempt: %v", err)
+	}
+	ref := domain.WaldoContextRef{
+		Kind: domain.WaldoContextAttempt, ObjectID: attempt.ID.String(), Revision: "requested",
+		Provenance: domain.WaldoContextProvenance{Kind: domain.WaldoProvenanceCanonical, SourceID: "attempt-lifecycle-test"},
+	}
+	before, found, err := s.ResolveWaldoContextRef(ctx, projectID, ref)
+	if err != nil || !found {
+		t.Fatalf("resolve queued attempt found=%v err=%v", found, err)
+	}
+	rows, err := s.TransitionAttemptStatus(ctx, outcomeID, attempt.ID, domain.AttemptQueued, domain.AttemptRunning, now.Add(time.Minute))
+	if err != nil || rows != 1 {
+		t.Fatalf("transition attempt rows=%d err=%v", rows, err)
+	}
+	after, found, err := s.ResolveWaldoContextRef(ctx, projectID, ref)
+	if err != nil || !found {
+		t.Fatalf("resolve running attempt found=%v err=%v", found, err)
+	}
+	if before.Revision == after.Revision || !strings.Contains(before.Revision, ":queued:") || !strings.Contains(after.Revision, ":running:") {
+		t.Fatalf("attempt lifecycle revisions before=%q after=%q", before.Revision, after.Revision)
+	}
+}
+
+func TestWaldoContinuationOperationClaimIsDurableAndIdempotentBeforeEffects(t *testing.T) {
+	dataDir := t.TempDir()
+	s, err := sqlitetest.Open(dataDir)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	ctx := context.Background()
+	projectID := domain.ProjectID("waldo-continuation-claim")
+	plan, outcomeID := seedApprovedPlan(t, s, string(projectID))
+	now := time.Date(2026, 8, 26, 10, 30, 0, 0, time.UTC)
+	attempt, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "claim-attempt", domain.FenceSubjectForProject(projectID), now)
+	if err != nil {
+		t.Fatalf("create attempt: %v", err)
+	}
+	source, err := s.BindAttemptSession(ctx, attemptSession(attempt.ID, "claim-source"))
+	if err != nil {
+		t.Fatalf("bind source: %v", err)
+	}
+	conversation := domain.WaldoConversation{ID: "waldo-claim-conversation", ProjectID: projectID, CreatedAt: now, UpdatedAt: now}
+	if _, err := s.EnsureWaldoConversation(ctx, conversation); err != nil {
+		t.Fatalf("ensure conversation: %v", err)
+	}
+	episode := domain.WaldoConversationEpisode{ID: "waldo-claim-episode", ConversationID: conversation.ID, ProjectID: projectID, Ordinal: 1, State: domain.WaldoEpisodeActive, CreatedAt: now}
+	if _, err := s.OpenWaldoEpisode(ctx, episode, ports.WaldoIdempotency{Key: "claim-episode", Fingerprint: "claim-episode-fp"}, 0); err != nil {
+		t.Fatalf("open episode: %v", err)
+	}
+	bindings := continuationBindings(string(projectID), outcomeID, plan, attempt.ID)
+	operation := domain.WaldoContinuationOperation{
+		ID: "waldo-operation-1", ConversationID: conversation.ID, ProjectID: projectID,
+		FromEpisodeID: episode.ID, FromAgentSessionRef: source.ID,
+		ExpectedConversationRevision: 1, State: domain.WaldoContinuationPrepared,
+		Reason: domain.ContinuationReasonContextReserve, ReasonDetail: "Trustworthy provider reserve crossed.",
+		TriggerEvidence: domain.ContinuationTriggerEvidence{Kind: domain.ContinuationEvidenceProviderContextMeter, Reference: "usage-fact-claim"},
+		MaterialChange:  true, LostMaterialContext: true,
+		ContextDigest: strings.Repeat("a", 64), PreviousBindings: bindings, ReplacementBindings: bindings,
+		EffectsKnown: true, TriggerConfirmed: true,
+		RequestKey: "continuation-claim", RequestFingerprint: "continuation-claim-fp",
+		CreatedAt: now, UpdatedAt: now,
+	}
+	otherPlan, otherOutcomeID := seedApprovedPlan(t, s, "waldo-continuation-other")
+	otherAttempt, err := s.CreateAttemptWithFence(ctx, otherOutcomeID, otherPlan, "other-attempt", domain.FenceSubjectForProject("waldo-continuation-other"), now)
+	if err != nil {
+		t.Fatalf("create other attempt: %v", err)
+	}
+	otherSource, err := s.BindAttemptSession(ctx, attemptSession(otherAttempt.ID, "other-source"))
+	if err != nil {
+		t.Fatalf("bind other source: %v", err)
+	}
+	crossProject := operation
+	crossProject.ID = "waldo-operation-cross-project"
+	crossProject.FromAgentSessionRef = otherSource.ID
+	crossProject.RequestKey = "continuation-cross-project"
+	crossProject.RequestFingerprint = "continuation-cross-project-fp"
+	if _, _, err := s.ClaimWaldoContinuationOperation(ctx, crossProject); err == nil {
+		t.Fatal("cross-Project source session was accepted for continuation")
+	}
+	first, claimed, err := s.ClaimWaldoContinuationOperation(ctx, operation)
+	if err != nil || !claimed || first.ID != operation.ID || first.State != domain.WaldoContinuationPrepared {
+		t.Fatalf("first claim=%+v claimed=%v err=%v", first, claimed, err)
+	}
+	replay, claimed, err := s.ClaimWaldoContinuationOperation(ctx, operation)
+	if err != nil || claimed || replay.ID != first.ID {
+		t.Fatalf("replay claim=%+v claimed=%v err=%v", replay, claimed, err)
+	}
+	changed := operation
+	changed.RequestFingerprint = "different-input"
+	if _, _, err := s.ClaimWaldoContinuationOperation(ctx, changed); err == nil {
+		t.Fatal("same continuation key with changed fingerprint did not conflict")
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("close store: %v", err)
+	}
+	reopened, err := sqlite.Open(dataDir)
+	if err != nil {
+		t.Fatalf("reopen store: %v", err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	restored, found, err := reopened.FindWaldoContinuationOperationByRequestKey(ctx, operation.RequestKey)
+	if err != nil || !found || restored.ID != operation.ID || restored.State != domain.WaldoContinuationPrepared ||
+		!restored.LostMaterialContext || restored.SourceRevoked || restored.FreshVerifier || !restored.TriggerConfirmed {
+		t.Fatalf("restored operation=%+v found=%v err=%v", restored, found, err)
+	}
+	events, err := reopened.EventsAfter(ctx, 0, 100)
+	if err != nil {
+		t.Fatalf("read CDC: %v", err)
+	}
+	seenPrepared := false
+	for _, event := range events {
+		if event.Type == "waldo_conversation_continuation_prepared" {
+			seenPrepared = true
+		}
+	}
+	if !seenPrepared {
+		t.Fatal("trigger CDC did not record durable continuation preparation")
 	}
 }
 
@@ -347,5 +493,22 @@ func continuationBindings(projectID string, outcomeID domain.OutcomeID, plan dom
 		Model: "gpt-5", Profile: "balanced", Role: "implementer",
 		AuthorityDigest: strings.Repeat("d", 64), BudgetDigest: strings.Repeat("e", 64),
 		WorkspaceOwner: "waldo", EffectPolicyDigest: strings.Repeat("f", 64),
+	}
+}
+
+func claimContinuationOperation(t *testing.T, s *sqlite.Store, receipt domain.ContinuationReceipt, request ports.WaldoIdempotency, expectedRevision int64, at time.Time) {
+	t.Helper()
+	operation := domain.WaldoContinuationOperation{
+		ID: receipt.OperationID, ConversationID: receipt.ConversationID, ProjectID: receipt.ProjectID,
+		FromEpisodeID: receipt.FromEpisodeID, FromAgentSessionRef: receipt.FromAgentSessionRef,
+		ExpectedConversationRevision: expectedRevision, State: domain.WaldoContinuationPrepared,
+		Reason: receipt.Reason, ReasonDetail: receipt.ReasonDetail, TriggerEvidence: receipt.TriggerEvidence, MaterialChange: receipt.MaterialChange,
+		ChangedFields: receipt.ChangedFields, ContextDigest: receipt.ContextDigest, ContextRefs: receipt.ContextRefs,
+		PreviousBindings: receipt.PreviousBindings, ReplacementBindings: receipt.ReplacementBindings,
+		EffectsKnown: receipt.EffectsKnown, RequestKey: request.Key, RequestFingerprint: request.Fingerprint,
+		CreatedAt: at, UpdatedAt: at,
+	}
+	if _, claimed, err := s.ClaimWaldoContinuationOperation(context.Background(), operation); err != nil || !claimed {
+		t.Fatalf("claim continuation operation claimed=%v err=%v", claimed, err)
 	}
 }

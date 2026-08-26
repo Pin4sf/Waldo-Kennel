@@ -89,12 +89,13 @@ func TestAutomaticContinuationReceiptRequiresUnchangedBindingsAndSafeFacts(t *te
 		EffectPolicyDigest: digestOf('c'),
 	}
 	receipt := ContinuationReceipt{
-		ID: "continuation-1", ConversationID: "waldo-conversation-1", ProjectID: "project-1",
+		ID: "continuation-1", OperationID: "operation-1", ConversationID: "waldo-conversation-1", ProjectID: "project-1",
 		FromEpisodeID: "episode-1", ToEpisodeID: "episode-2",
 		FromAgentSessionRef: "session-ref-1", ToAgentSessionRef: "session-ref-2",
 		Action: ContinuationAutomatic, Reason: ContinuationReasonContextReserve,
-		ReasonDetail:   "Provider reported insufficient trustworthy reserve.",
-		MaterialChange: false, ContextDigest: digestOf('d'), PreviousBindings: bindings,
+		ReasonDetail:    "Provider reported insufficient trustworthy reserve.",
+		TriggerEvidence: ContinuationTriggerEvidence{Kind: ContinuationEvidenceProviderContextMeter, Reference: "usage-fact-1"},
+		MaterialChange:  false, ContextDigest: digestOf('d'), PreviousBindings: bindings,
 		ReplacementBindings: bindings, EffectsKnown: true, OldSessionFenced: true,
 		ReplacementIdentityConfirmed: true, FenceReceiptRef: "fence-1",
 		ReconciliationRef: "reconcile-1", CreatedAt: waldoConversationTestTime,
@@ -104,10 +105,17 @@ func TestAutomaticContinuationReceiptRequiresUnchangedBindingsAndSafeFacts(t *te
 	}
 
 	for name, mutate := range map[string]func(*ContinuationReceipt){
-		"unknown effect":      func(value *ContinuationReceipt) { value.EffectsKnown = false },
-		"unsafe fence":        func(value *ContinuationReceipt) { value.OldSessionFenced = false },
-		"ambiguous identity":  func(value *ContinuationReceipt) { value.ReplacementIdentityConfirmed = false },
-		"changed provider":    func(value *ContinuationReceipt) { value.ReplacementBindings.Provider = "deepseek-harness" },
+		"unknown effect":     func(value *ContinuationReceipt) { value.EffectsKnown = false },
+		"unsafe fence":       func(value *ContinuationReceipt) { value.OldSessionFenced = false },
+		"ambiguous identity": func(value *ContinuationReceipt) { value.ReplacementIdentityConfirmed = false },
+		"changed provider":   func(value *ContinuationReceipt) { value.ReplacementBindings.Provider = "deepseek-harness" },
+		"unknown model": func(value *ContinuationReceipt) {
+			value.PreviousBindings.Model, value.ReplacementBindings.Model = "", ""
+		},
+		"unknown profile": func(value *ContinuationReceipt) {
+			value.PreviousBindings.Profile, value.ReplacementBindings.Profile = "", ""
+		},
+		"wrong trigger proof": func(value *ContinuationReceipt) { value.TriggerEvidence.Kind = ContinuationEvidenceOwnerRequest },
 		"missing replacement": func(value *ContinuationReceipt) { value.ToAgentSessionRef = "" },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -131,11 +139,12 @@ func TestNeedsYouContinuationReceiptPreservesMaterialChangeWithoutReplacement(t 
 	after := before
 	after.Role = "verifier"
 	receipt := ContinuationReceipt{
-		ID: "continuation-needs-you", ConversationID: "waldo-conversation-1", ProjectID: "project-1",
+		ID: "continuation-needs-you", OperationID: "operation-needs-you", ConversationID: "waldo-conversation-1", ProjectID: "project-1",
 		FromEpisodeID:       "episode-1",
 		FromAgentSessionRef: "session-ref-1", Action: ContinuationNeedsYou,
 		Reason: ContinuationReasonFreshVerifier, ReasonDetail: "Verification requires an independent context.",
-		MaterialChange: true, ChangedFields: []string{"role"}, ContextDigest: digestOf('d'),
+		TriggerEvidence: ContinuationTriggerEvidence{Kind: ContinuationEvidenceVerifierBoundary, Reference: "verification-run-1"},
+		MaterialChange:  true, ChangedFields: []string{"role"}, ContextDigest: digestOf('d'),
 		PreviousBindings: before, ReplacementBindings: after, EffectsKnown: true,
 		NeedsUserReason: "Start a fresh verifier Attempt without implementer conclusions.",
 		CreatedAt:       waldoConversationTestTime,

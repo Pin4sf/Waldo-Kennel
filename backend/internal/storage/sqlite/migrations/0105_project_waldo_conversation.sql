@@ -103,8 +103,64 @@ CREATE TABLE waldo_turn_context_refs (
     UNIQUE (turn_id, attachment_id)
 );
 
+CREATE TABLE waldo_continuation_operations (
+    id                             TEXT PRIMARY KEY,
+    conversation_id                TEXT NOT NULL REFERENCES waldo_conversations (id),
+    project_id                     TEXT NOT NULL REFERENCES projects (id),
+    from_episode_id                TEXT NOT NULL REFERENCES waldo_conversation_episodes (id),
+    from_agent_session_ref_id      TEXT NOT NULL REFERENCES attempt_sessions (id),
+    expected_conversation_revision INTEGER NOT NULL CHECK (expected_conversation_revision >= 1),
+    state                          TEXT NOT NULL CHECK (state IN (
+                                       'prepared', 'fencing', 'fenced', 'starting', 'completed')),
+    reason                         TEXT NOT NULL CHECK (reason IN (
+                                       'context_reserve', 'conservative_threshold',
+                                       'material_digest_change', 'identity_lost',
+                                       'source_revoked', 'fresh_verifier', 'user_requested')),
+    reason_detail                  TEXT NOT NULL CHECK (length(trim(reason_detail)) > 0),
+    trigger_evidence_kind          TEXT NOT NULL CHECK (trigger_evidence_kind IN (
+                                       'provider_context_meter', 'adapter_conservative_threshold',
+                                       'material_context_digest', 'provider_identity_loss',
+                                       'source_revocation', 'verifier_boundary', 'owner_request')),
+    trigger_evidence_ref           TEXT NOT NULL CHECK (length(trim(trigger_evidence_ref)) > 0),
+    material_change                INTEGER NOT NULL CHECK (material_change IN (0, 1)),
+    changed_fields                 TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(changed_fields)),
+    context_digest                 TEXT NOT NULL CHECK (length(context_digest) = 64),
+    context_refs                   TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(context_refs)),
+    previous_bindings              TEXT NOT NULL CHECK (json_valid(previous_bindings)),
+    replacement_bindings           TEXT NOT NULL CHECK (json_valid(replacement_bindings)),
+    effects_known                  INTEGER NOT NULL CHECK (effects_known IN (0, 1)),
+    lost_material_context          INTEGER NOT NULL CHECK (lost_material_context IN (0, 1)),
+    source_revoked                 INTEGER NOT NULL CHECK (source_revoked IN (0, 1)),
+    fresh_verifier                 INTEGER NOT NULL CHECK (fresh_verifier IN (0, 1)),
+    trigger_confirmed              INTEGER NOT NULL CHECK (trigger_confirmed IN (0, 1)),
+    fence_receipt_ref              TEXT NOT NULL DEFAULT '',
+    reconciliation_ref             TEXT NOT NULL DEFAULT '',
+    needs_user_reason              TEXT NOT NULL DEFAULT '',
+    request_key                    TEXT NOT NULL UNIQUE,
+    request_fingerprint            TEXT NOT NULL CHECK (length(trim(request_fingerprint)) > 0),
+    created_at                     TIMESTAMP NOT NULL DEFAULT (datetime('now')),
+    updated_at                     TIMESTAMP NOT NULL DEFAULT (datetime('now')),
+    CHECK ((reason = 'context_reserve' AND trigger_evidence_kind = 'provider_context_meter') OR
+           (reason = 'conservative_threshold' AND trigger_evidence_kind = 'adapter_conservative_threshold') OR
+           (reason = 'material_digest_change' AND trigger_evidence_kind = 'material_context_digest') OR
+           (reason = 'identity_lost' AND trigger_evidence_kind = 'provider_identity_loss') OR
+           (reason = 'source_revoked' AND trigger_evidence_kind = 'source_revocation') OR
+           (reason = 'fresh_verifier' AND trigger_evidence_kind = 'verifier_boundary') OR
+           (reason = 'user_requested' AND trigger_evidence_kind = 'owner_request')),
+    CHECK (material_change = CASE WHEN
+           json_array_length(changed_fields) > 0 OR lost_material_context = 1 OR
+           source_revoked = 1 OR reason = 'material_digest_change'
+           THEN 1 ELSE 0 END),
+    CHECK (state <> 'prepared' OR (fence_receipt_ref = '' AND reconciliation_ref = '')),
+    CHECK (state NOT IN ('fenced', 'starting') OR length(trim(fence_receipt_ref)) > 0)
+);
+
+CREATE UNIQUE INDEX idx_waldo_continuation_operations_active
+    ON waldo_continuation_operations (conversation_id) WHERE state <> 'completed';
+
 CREATE TABLE waldo_continuation_receipts (
     id                             TEXT PRIMARY KEY,
+    operation_id                   TEXT NOT NULL UNIQUE REFERENCES waldo_continuation_operations (id),
     conversation_id                TEXT NOT NULL REFERENCES waldo_conversations (id),
     project_id                     TEXT NOT NULL REFERENCES projects (id),
     from_episode_id                TEXT NOT NULL REFERENCES waldo_conversation_episodes (id),
@@ -117,6 +173,11 @@ CREATE TABLE waldo_continuation_receipts (
                                        'material_digest_change', 'identity_lost',
                                        'source_revoked', 'fresh_verifier', 'user_requested')),
     reason_detail                  TEXT NOT NULL CHECK (length(trim(reason_detail)) > 0),
+    trigger_evidence_kind          TEXT NOT NULL CHECK (trigger_evidence_kind IN (
+                                       'provider_context_meter', 'adapter_conservative_threshold',
+                                       'material_context_digest', 'provider_identity_loss',
+                                       'source_revocation', 'verifier_boundary', 'owner_request')),
+    trigger_evidence_ref           TEXT NOT NULL CHECK (length(trim(trigger_evidence_ref)) > 0),
     material_change                INTEGER NOT NULL CHECK (material_change IN (0, 1)),
     changed_fields                 TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(changed_fields)),
     context_digest                 TEXT NOT NULL CHECK (length(context_digest) = 64),
@@ -132,6 +193,13 @@ CREATE TABLE waldo_continuation_receipts (
     request_key                    TEXT NOT NULL UNIQUE,
     request_fingerprint            TEXT NOT NULL CHECK (length(trim(request_fingerprint)) > 0),
     created_at                     TIMESTAMP NOT NULL DEFAULT (datetime('now')),
+    CHECK ((reason = 'context_reserve' AND trigger_evidence_kind = 'provider_context_meter') OR
+           (reason = 'conservative_threshold' AND trigger_evidence_kind = 'adapter_conservative_threshold') OR
+           (reason = 'material_digest_change' AND trigger_evidence_kind = 'material_context_digest') OR
+           (reason = 'identity_lost' AND trigger_evidence_kind = 'provider_identity_loss') OR
+           (reason = 'source_revoked' AND trigger_evidence_kind = 'source_revocation') OR
+           (reason = 'fresh_verifier' AND trigger_evidence_kind = 'verifier_boundary') OR
+           (reason = 'user_requested' AND trigger_evidence_kind = 'owner_request')),
     CHECK (
         (action = 'automatic' AND material_change = 0 AND effects_known = 1 AND
          old_session_fenced = 1 AND replacement_identity_confirmed = 1 AND
@@ -155,6 +223,8 @@ WHEN OLD.id <> NEW.id OR OLD.project_id <> NEW.project_id OR OLD.created_at <> N
   OR NEW.revision <> OLD.revision + 1
   OR NEW.latest_turn_sequence < OLD.latest_turn_sequence
   OR NEW.latest_turn_sequence > OLD.latest_turn_sequence + 1
+  OR EXISTS (SELECT 1 FROM waldo_continuation_operations operation
+             WHERE operation.conversation_id = OLD.id AND operation.state <> 'completed')
 BEGIN SELECT RAISE(ABORT, 'Waldo conversation revision/order conflict'); END;
 CREATE TRIGGER waldo_conversations_immutable_delete BEFORE DELETE ON waldo_conversations
 BEGIN SELECT RAISE(ABORT, 'Waldo conversations are durable'); END;
@@ -223,12 +293,49 @@ BEGIN SELECT RAISE(ABORT, 'Waldo turn context refs are append-only'); END;
 CREATE TRIGGER waldo_turn_context_immutable_delete BEFORE DELETE ON waldo_turn_context_refs
 BEGIN SELECT RAISE(ABORT, 'Waldo turn context refs are append-only'); END;
 
+CREATE TRIGGER waldo_continuation_operation_binding BEFORE INSERT ON waldo_continuation_operations
+WHEN NOT EXISTS (
+    SELECT 1 FROM waldo_conversation_episodes source
+    JOIN waldo_conversations c ON c.id = source.conversation_id
+    JOIN attempt_sessions session_ref ON session_ref.id = NEW.from_agent_session_ref_id
+    WHERE source.id = NEW.from_episode_id AND source.conversation_id = NEW.conversation_id
+      AND source.project_id = NEW.project_id AND source.state = 'active'
+      AND c.project_id = NEW.project_id AND c.revision = NEW.expected_conversation_revision
+      AND length(trim(session_ref.attempt_id)) > 0)
+BEGIN SELECT RAISE(ABORT, 'Waldo continuation operation binding conflict'); END;
+CREATE TRIGGER waldo_continuation_operation_transition BEFORE UPDATE ON waldo_continuation_operations
+WHEN OLD.id <> NEW.id OR OLD.conversation_id <> NEW.conversation_id OR OLD.project_id <> NEW.project_id
+  OR OLD.from_episode_id <> NEW.from_episode_id
+  OR OLD.from_agent_session_ref_id <> NEW.from_agent_session_ref_id
+  OR OLD.expected_conversation_revision <> NEW.expected_conversation_revision
+  OR OLD.reason <> NEW.reason OR OLD.reason_detail <> NEW.reason_detail
+  OR OLD.trigger_evidence_kind <> NEW.trigger_evidence_kind
+  OR OLD.trigger_evidence_ref <> NEW.trigger_evidence_ref
+  OR OLD.material_change <> NEW.material_change OR OLD.changed_fields <> NEW.changed_fields
+  OR OLD.context_digest <> NEW.context_digest OR OLD.context_refs <> NEW.context_refs
+  OR OLD.previous_bindings <> NEW.previous_bindings
+  OR OLD.replacement_bindings <> NEW.replacement_bindings OR OLD.effects_known <> NEW.effects_known
+  OR OLD.request_key <> NEW.request_key OR OLD.request_fingerprint <> NEW.request_fingerprint
+  OR OLD.created_at <> NEW.created_at OR NEW.updated_at < OLD.updated_at
+  OR NOT ((OLD.state = 'prepared' AND NEW.state IN ('fencing', 'completed'))
+       OR (OLD.state = 'fencing' AND NEW.state IN ('fenced', 'completed'))
+       OR (OLD.state = 'fenced' AND NEW.state IN ('starting', 'completed'))
+       OR (OLD.state = 'starting' AND NEW.state = 'completed'))
+BEGIN SELECT RAISE(ABORT, 'Waldo continuation operation transition conflict'); END;
+CREATE TRIGGER waldo_continuation_operation_immutable_delete BEFORE DELETE ON waldo_continuation_operations
+BEGIN SELECT RAISE(ABORT, 'Waldo continuation operations are durable'); END;
+
 CREATE TRIGGER waldo_continuation_binding BEFORE INSERT ON waldo_continuation_receipts
 WHEN NOT EXISTS (
     SELECT 1 FROM waldo_conversation_episodes source
     JOIN waldo_conversations c ON c.id = source.conversation_id
     WHERE source.id = NEW.from_episode_id AND source.conversation_id = NEW.conversation_id
       AND source.project_id = NEW.project_id AND c.project_id = NEW.project_id)
+  OR NOT EXISTS (
+    SELECT 1 FROM waldo_continuation_operations operation
+    WHERE operation.id = NEW.operation_id AND operation.conversation_id = NEW.conversation_id
+      AND operation.project_id = NEW.project_id AND operation.from_episode_id = NEW.from_episode_id
+      AND operation.from_agent_session_ref_id = NEW.from_agent_session_ref_id)
   OR (NEW.to_episode_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM waldo_conversation_episodes replacement
     WHERE replacement.id = NEW.to_episode_id AND replacement.conversation_id = NEW.conversation_id
@@ -304,6 +411,7 @@ CREATE TABLE change_log_new (
         'waldo_conversation_created', 'waldo_conversation_episode_opened',
         'waldo_conversation_episode_sealed', 'waldo_conversation_turn_appended',
         'waldo_conversation_context_attached', 'waldo_conversation_context_detached',
+        'waldo_conversation_continuation_prepared', 'waldo_conversation_continuation_progressed',
         'waldo_conversation_continuation_recorded')),
     payload TEXT NOT NULL CHECK (json_valid(payload)),
     created_at TIMESTAMP NOT NULL DEFAULT (datetime('now'))
@@ -367,9 +475,12 @@ DROP TRIGGER IF EXISTS waldo_conversation_episodes_cdc_update;
 DROP TRIGGER IF EXISTS waldo_conversation_turns_cdc_insert;
 DROP TRIGGER IF EXISTS waldo_context_attachments_cdc_insert;
 DROP TRIGGER IF EXISTS waldo_context_attachments_cdc_update;
+DROP TRIGGER IF EXISTS waldo_continuation_operations_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_continuation_operations_cdc_update;
 DROP TRIGGER IF EXISTS waldo_continuation_receipts_cdc_insert;
 
 DROP TABLE waldo_continuation_receipts;
+DROP TABLE waldo_continuation_operations;
 DROP TABLE waldo_turn_context_refs;
 DROP TABLE waldo_context_attachments;
 DROP TABLE waldo_conversation_turns;

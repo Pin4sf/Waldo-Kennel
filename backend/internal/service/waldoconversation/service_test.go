@@ -3,6 +3,7 @@ package waldoconversation
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -105,6 +106,10 @@ func (store *memoryWaldoStore) ResolveWaldoContextRef(_ context.Context, project
 	if ref.Kind == domain.WaldoContextProject && ref.ObjectID == string(projectID) {
 		return current, true, nil
 	}
+	if ref.Kind == domain.WaldoContextPlanRevision && ref.ObjectID == "plan-proposed" {
+		current.Revision = "1:proposed"
+		return current, true, nil
+	}
 	return domain.WaldoContextRef{}, false, nil
 }
 
@@ -179,16 +184,119 @@ type fakeContinuationExecutor struct {
 	startErr    error
 	fenceCalls  int
 	startCalls  int
+	beforeFence func()
+	beforeStart func(ports.ContinuationStartRequest)
 }
 
 func (executor *fakeContinuationExecutor) FenceForContinuation(context.Context, domain.AttemptSessionRefID) (ports.ContinuationFenceResult, error) {
 	executor.fenceCalls++
+	if executor.beforeFence != nil {
+		executor.beforeFence()
+	}
 	return executor.fenceResult, executor.fenceErr
 }
 
-func (executor *fakeContinuationExecutor) StartContinuation(context.Context, ports.ContinuationStartRequest) (ports.ContinuationStartResult, error) {
+func (executor *fakeContinuationExecutor) StartContinuation(_ context.Context, request ports.ContinuationStartRequest) (ports.ContinuationStartResult, error) {
 	executor.startCalls++
+	if executor.beforeStart != nil {
+		executor.beforeStart(request)
+	}
 	return executor.startResult, executor.startErr
+}
+
+type claimingMemoryStore struct {
+	*memoryWaldoStore
+	operations map[string]domain.WaldoContinuationOperation
+}
+
+type fakeContinuationFactsResolver struct {
+	facts            ports.WaldoContinuationFacts
+	replacement      domain.ContinuationBindings
+	replacementFound bool
+	replacementErr   error
+}
+
+type echoContinuationFactsResolver struct{}
+
+func (echoContinuationFactsResolver) ResolveWaldoContinuationFacts(_ context.Context, request ports.WaldoContinuationFactsRequest) (ports.WaldoContinuationFacts, error) {
+	return ports.WaldoContinuationFacts{
+		PreviousBindings: request.PreviousBindings, ReplacementBindings: request.ReplacementBindings,
+		EffectsKnown: request.EffectsKnown, LostMaterialContext: request.LostMaterialContext,
+		SourceRevoked: request.SourceRevoked, FreshVerifier: request.FreshVerifier,
+		TriggerConfirmed: true,
+		TriggerEvidence:  request.TriggerEvidence,
+	}, nil
+}
+
+func (echoContinuationFactsResolver) ConfirmWaldoReplacementBindings(_ context.Context, _ domain.ProjectID, _ domain.AttemptSessionRefID, expected domain.ContinuationBindings) (domain.ContinuationBindings, bool, error) {
+	return expected, true, nil
+}
+
+func (resolver *fakeContinuationFactsResolver) ResolveWaldoContinuationFacts(context.Context, ports.WaldoContinuationFactsRequest) (ports.WaldoContinuationFacts, error) {
+	return resolver.facts, nil
+}
+
+func (resolver *fakeContinuationFactsResolver) ConfirmWaldoReplacementBindings(context.Context, domain.ProjectID, domain.AttemptSessionRefID, domain.ContinuationBindings) (domain.ContinuationBindings, bool, error) {
+	return resolver.replacement, resolver.replacementFound, resolver.replacementErr
+}
+
+func (store *claimingMemoryStore) ClaimWaldoContinuationOperation(_ context.Context, operation domain.WaldoContinuationOperation) (domain.WaldoContinuationOperation, bool, error) {
+	if store.operations == nil {
+		store.operations = map[string]domain.WaldoContinuationOperation{}
+	}
+	if replay, found := store.operations[operation.RequestKey]; found {
+		if replay.RequestFingerprint != operation.RequestFingerprint {
+			return domain.WaldoContinuationOperation{}, false, &ports.WaldoIdempotencyConflictError{Key: operation.RequestKey}
+		}
+		return replay, false, nil
+	}
+	store.operations[operation.RequestKey] = operation
+	return operation, true, nil
+}
+
+func (store *claimingMemoryStore) FindWaldoContinuationOperationByRequestKey(_ context.Context, requestKey string) (domain.WaldoContinuationOperation, bool, error) {
+	operation, found := store.operations[requestKey]
+	return operation, found, nil
+}
+
+func (store *claimingMemoryStore) AdvanceWaldoContinuationOperation(_ context.Context, id string, expected, next domain.WaldoContinuationOperationState, fenceRef, reconciliationRef, needsUserReason string, at time.Time) (domain.WaldoContinuationOperation, error) {
+	for key, operation := range store.operations {
+		if operation.ID != id || operation.State != expected {
+			continue
+		}
+		operation.State = next
+		operation.FenceReceiptRef = fenceRef
+		operation.ReconciliationRef = reconciliationRef
+		operation.NeedsUserReason = needsUserReason
+		operation.UpdatedAt = at
+		store.operations[key] = operation
+		return operation, nil
+	}
+	return domain.WaldoContinuationOperation{}, errors.New("continuation operation state conflict")
+}
+
+func (store *claimingMemoryStore) ListPendingWaldoContinuationOperations(context.Context) ([]domain.WaldoContinuationOperation, error) {
+	var pending []domain.WaldoContinuationOperation
+	for _, operation := range store.operations {
+		if operation.State != domain.WaldoContinuationCompleted {
+			pending = append(pending, operation)
+		}
+	}
+	return pending, nil
+}
+
+func (store *claimingMemoryStore) RecordContinuationReceipt(ctx context.Context, receipt domain.ContinuationReceipt, replacement *domain.WaldoConversationEpisode, request ports.WaldoIdempotency) (domain.ContinuationReceipt, error) {
+	for key, operation := range store.operations {
+		if operation.ID == receipt.OperationID {
+			operation.State = domain.WaldoContinuationCompleted
+			operation.FenceReceiptRef = receipt.FenceReceiptRef
+			operation.ReconciliationRef = receipt.ReconciliationRef
+			operation.NeedsUserReason = receipt.NeedsUserReason
+			operation.UpdatedAt = receipt.CreatedAt
+			store.operations[key] = operation
+		}
+	}
+	return store.memoryWaldoStore.RecordContinuationReceipt(ctx, receipt, replacement, request)
 }
 
 func TestAppendTurnIsOrderedIdempotentAndUsesOnlyExplicitActiveContext(t *testing.T) {
@@ -272,7 +380,7 @@ func TestCompileContextKeepsIntentAndCurrentCanonicalRevisionAheadOfLowerSources
 		CurrentIntent: "Use the current approved Outcome revision.", MaxReferences: 3,
 		Candidates: []ContextCandidate{
 			{Tier: ContextTierPriorSummary, Ref: domain.WaldoContextRef{Kind: domain.WaldoContextOutcome, ObjectID: "outcome-1", Revision: "2", Provenance: domain.WaldoContextProvenance{Kind: domain.WaldoProvenanceProvider, SourceID: "summary-old"}}},
-			{Tier: ContextTierModelOutput, Ref: domain.WaldoContextRef{Kind: domain.WaldoContextPlanRevision, ObjectID: "plan-proposed", Revision: "1", Provenance: domain.WaldoContextProvenance{Kind: domain.WaldoProvenanceProvider, SourceID: "model-turn"}}},
+			{Tier: ContextTierModelOutput, Ref: domain.WaldoContextRef{Kind: domain.WaldoContextPlanRevision, ObjectID: "plan-proposed", Revision: "1:proposed", Provenance: domain.WaldoContextProvenance{Kind: domain.WaldoProvenanceProvider, SourceID: "model-turn"}}},
 		},
 	})
 	if err != nil {
@@ -314,6 +422,42 @@ func TestCompileContextFailsClosedWhenAttachedCanonicalSourceDisappears(t *testi
 	}
 }
 
+func TestCompileContextRejectsStaleLowerTierCandidate(t *testing.T) {
+	store := conversationServiceFixture()
+	service := New(store, nil, func() time.Time { return serviceTestTime })
+	_, err := service.CompileContext(context.Background(), "project-1", CompileContextInput{
+		CurrentIntent: "Do not let stale retrieved context outrank canonical truth.",
+		Candidates: []ContextCandidate{{
+			Tier: ContextTierRetrieved,
+			Ref: domain.WaldoContextRef{
+				Kind: domain.WaldoContextPlanRevision, ObjectID: "plan-proposed", Revision: "1:approved",
+				Provenance: domain.WaldoContextProvenance{Kind: domain.WaldoProvenanceRetrieval, SourceID: "retrieval-1"},
+			},
+		}},
+	})
+	if apiErrorCode(err) != CodeContextRevision {
+		t.Fatalf("stale lower-tier candidate error = %v", err)
+	}
+}
+
+func TestProviderBoundConversationTextIsByteBounded(t *testing.T) {
+	store := conversationServiceFixture()
+	service := New(store, nil, func() time.Time { return serviceTestTime })
+	_, err := service.CompileContext(context.Background(), "project-1", CompileContextInput{
+		CurrentIntent: strings.Repeat("x", MaxWaldoCurrentIntentBytes+1),
+	})
+	if apiErrorCode(err) != "WALDO_CONTEXT_TOO_LARGE" {
+		t.Fatalf("oversized current intent error = %v", err)
+	}
+	_, err = service.AppendTurn(context.Background(), "project-1", AppendTurnInput{
+		ExpectedRevision: 2, EpisodeID: "episode-1", Role: domain.WaldoTurnRoleUser,
+		Message: strings.Repeat("x", MaxWaldoTurnMessageBytes+1), RequestKey: "oversized-turn",
+	})
+	if apiErrorCode(err) != "WALDO_TURN_TOO_LARGE" || len(store.snapshot.Turns) != 0 {
+		t.Fatalf("oversized turn error=%v persisted=%d", err, len(store.snapshot.Turns))
+	}
+}
+
 func TestContinuationPolicyAutomaticallyStartsOnlySafeSameAuthorityReplacement(t *testing.T) {
 	for _, reason := range []domain.ContinuationReason{
 		domain.ContinuationReasonContextReserve,
@@ -325,9 +469,10 @@ func TestContinuationPolicyAutomaticallyStartsOnlySafeSameAuthorityReplacement(t
 				fenceResult: ports.ContinuationFenceResult{Fenced: true, FenceReceiptRef: "fence-1", ReconciliationRef: "reconcile-old"},
 				startResult: ports.ContinuationStartResult{OutcomeKnown: true, IdentityConfirmed: true, SessionRef: "session-ref-2", ReconciliationRef: "reconcile-new"},
 			}
-			service := New(store, executor, func() time.Time { return serviceTestTime })
+			service := newTestContinuationService(store, executor)
 			input := safeContinuationInput()
 			input.Reason = reason
+			input.TriggerEvidence = triggerEvidenceFor(reason)
 			input.RequestKey += "-" + string(reason)
 
 			receipt, err := service.Continue(context.Background(), "project-1", input)
@@ -372,18 +517,20 @@ func TestContinuationPolicyCreatesDurableNeedsYouWithoutStartingMaterialReplacem
 		"source revoked": func(input *ContinuationInput) {
 			input.SourceRevoked = true
 			input.Reason = domain.ContinuationReasonSourceRevoked
+			input.TriggerEvidence = triggerEvidenceFor(input.Reason)
 		},
 		"fresh verifier": func(input *ContinuationInput) {
 			input.FreshVerifier = true
 			input.ReplacementBindings.Role = "verifier"
 			input.Reason = domain.ContinuationReasonFreshVerifier
+			input.TriggerEvidence = triggerEvidenceFor(input.Reason)
 		},
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
 			store := conversationServiceFixture()
 			executor := &fakeContinuationExecutor{}
-			service := New(store, executor, func() time.Time { return serviceTestTime })
+			service := newTestContinuationService(store, executor)
 			input := base
 			input.RequestKey = "continuation-" + name
 			mutate(&input)
@@ -398,11 +545,215 @@ func TestContinuationPolicyCreatesDurableNeedsYouWithoutStartingMaterialReplacem
 	}
 }
 
+func TestContinuationReasonIntrinsicallyStopsAutomaticReplacement(t *testing.T) {
+	for _, reason := range []domain.ContinuationReason{
+		domain.ContinuationReasonMaterialDigestChange,
+		domain.ContinuationReasonIdentityLost,
+		domain.ContinuationReasonSourceRevoked,
+		domain.ContinuationReasonFreshVerifier,
+		domain.ContinuationReasonUserRequested,
+	} {
+		t.Run(string(reason), func(t *testing.T) {
+			store := conversationServiceFixture()
+			executor := &fakeContinuationExecutor{}
+			service := newTestContinuationService(store, executor)
+			input := safeContinuationInput()
+			input.Reason = reason
+			input.TriggerEvidence = triggerEvidenceFor(reason)
+			input.RequestKey = "reason-" + string(reason)
+
+			receipt, err := service.Continue(context.Background(), "project-1", input)
+			if err != nil {
+				t.Fatalf("Continue() error = %v", err)
+			}
+			if receipt.Action != domain.ContinuationNeedsYou || executor.fenceCalls != 0 || executor.startCalls != 0 {
+				t.Fatalf("reason %s produced receipt=%+v fence=%d start=%d", reason, receipt, executor.fenceCalls, executor.startCalls)
+			}
+		})
+	}
+}
+
+func TestUnknownEffectsNeedOwnerWithoutInventingMaterialChange(t *testing.T) {
+	store := conversationServiceFixture()
+	service := newTestContinuationService(store, &fakeContinuationExecutor{})
+	input := safeContinuationInput()
+	input.EffectsKnown = false
+	input.RequestKey = "unknown-effects-material-truth"
+
+	receipt, err := service.Continue(context.Background(), "project-1", input)
+	if err != nil {
+		t.Fatalf("Continue() error = %v", err)
+	}
+	if receipt.Action != domain.ContinuationNeedsYou || receipt.MaterialChange || len(receipt.ChangedFields) != 0 {
+		t.Fatalf("unknown effects receipt = %+v", receipt)
+	}
+}
+
+func TestContinuationPersistsEveryEffectBoundaryBeforeExecutorCalls(t *testing.T) {
+	store := conversationServiceFixture()
+	var boundaryErrors []string
+	executor := &fakeContinuationExecutor{
+		fenceResult: ports.ContinuationFenceResult{Fenced: true, FenceReceiptRef: "fence-1", ReconciliationRef: "reconcile-old"},
+		startResult: ports.ContinuationStartResult{OutcomeKnown: true, IdentityConfirmed: true, SessionRef: "session-ref-2", ReconciliationRef: "reconcile-new"},
+		beforeFence: func() {
+			operation := store.operations["continuation-safe"]
+			if operation.State != domain.WaldoContinuationFencing {
+				boundaryErrors = append(boundaryErrors, "fence called before durable fencing state")
+			}
+		},
+		beforeStart: func(request ports.ContinuationStartRequest) {
+			operation := store.operations["continuation-safe"]
+			if operation.State != domain.WaldoContinuationStarting {
+				boundaryErrors = append(boundaryErrors, "start called before durable starting state")
+			}
+			if request.RequestKey != "continuation-safe" {
+				boundaryErrors = append(boundaryErrors, "executor did not receive the durable idempotency key")
+			}
+		},
+	}
+	service := newTestContinuationService(store, executor)
+	if _, err := service.Continue(context.Background(), "project-1", safeContinuationInput()); err != nil {
+		t.Fatalf("Continue() error = %v", err)
+	}
+	if len(boundaryErrors) != 0 {
+		t.Fatalf("effect boundary errors = %v", boundaryErrors)
+	}
+}
+
+func TestContinuationDoesNotRestartDurableStartingOperation(t *testing.T) {
+	store := conversationServiceFixture()
+	input := safeContinuationInput()
+	store.operations[input.RequestKey] = continuationOperationFixture(input, domain.WaldoContinuationStarting)
+	executor := &fakeContinuationExecutor{}
+	service := newTestContinuationService(store, executor)
+	_, err := service.Continue(context.Background(), "project-1", input)
+	if apiErrorCode(err) != "WALDO_CONTINUATION_IN_PROGRESS" || executor.fenceCalls != 0 || executor.startCalls != 0 {
+		t.Fatalf("pending continuation error=%v fence=%d start=%d", err, executor.fenceCalls, executor.startCalls)
+	}
+}
+
+func TestContinuationRejectsStaleContextBeforeClaimOrEffects(t *testing.T) {
+	store := conversationServiceFixture()
+	executor := &fakeContinuationExecutor{}
+	service := newTestContinuationService(store, executor)
+	input := safeContinuationInput()
+	input.ContextRefs = []domain.WaldoContextRef{{
+		Kind: domain.WaldoContextPlanRevision, ObjectID: "plan-proposed", Revision: "1:approved",
+		Provenance: domain.WaldoContextProvenance{Kind: domain.WaldoProvenanceCanonical, SourceID: "continuation-packet"},
+	}}
+	input.RequestKey = "continuation-stale-context"
+	_, err := service.Continue(context.Background(), "project-1", input)
+	if apiErrorCode(err) != CodeContextRevision || len(store.operations) != 0 || executor.fenceCalls != 0 || executor.startCalls != 0 {
+		t.Fatalf("stale continuation context error=%v operations=%d fence=%d start=%d", err, len(store.operations), executor.fenceCalls, executor.startCalls)
+	}
+}
+
+func TestContinuationUsesCanonicalFactsInsteadOfCallerAuthority(t *testing.T) {
+	store := conversationServiceFixture()
+	input := safeContinuationInput()
+	canonical := input.PreviousBindings
+	canonical.AuthorityDigest = digest('f')
+	resolver := &fakeContinuationFactsResolver{facts: ports.WaldoContinuationFacts{
+		PreviousBindings: canonical, ReplacementBindings: input.ReplacementBindings,
+		EffectsKnown: true, TriggerConfirmed: true, TriggerEvidence: input.TriggerEvidence,
+	}}
+	executor := &fakeContinuationExecutor{}
+	service := NewWithContinuationFacts(store, executor, resolver, func() time.Time { return serviceTestTime })
+	input.RequestKey = "canonical-authority-change"
+	receipt, err := service.Continue(context.Background(), "project-1", input)
+	if err != nil {
+		t.Fatalf("Continue() error = %v", err)
+	}
+	if receipt.Action != domain.ContinuationNeedsYou || !receipt.MaterialChange ||
+		len(receipt.ChangedFields) != 1 || receipt.ChangedFields[0] != "authority" ||
+		executor.fenceCalls != 0 || executor.startCalls != 0 {
+		t.Fatalf("canonical authority receipt=%+v fence=%d start=%d", receipt, executor.fenceCalls, executor.startCalls)
+	}
+}
+
+func TestContinuationUnknownCanonicalModelOrProfileStopsBeforeEffects(t *testing.T) {
+	for _, field := range []string{"model", "profile"} {
+		t.Run(field, func(t *testing.T) {
+			store := conversationServiceFixture()
+			input := safeContinuationInput()
+			canonical := input.PreviousBindings
+			if field == "model" {
+				canonical.Model = ""
+			} else {
+				canonical.Profile = ""
+			}
+			resolver := &fakeContinuationFactsResolver{facts: ports.WaldoContinuationFacts{
+				PreviousBindings: canonical, ReplacementBindings: canonical,
+				EffectsKnown: true, TriggerConfirmed: true, TriggerEvidence: input.TriggerEvidence,
+			}}
+			executor := &fakeContinuationExecutor{}
+			service := NewWithContinuationFacts(store, executor, resolver, func() time.Time { return serviceTestTime })
+			input.RequestKey = "unknown-canonical-" + field
+			receipt, err := service.Continue(context.Background(), "project-1", input)
+			if err != nil {
+				t.Fatalf("Continue() error = %v", err)
+			}
+			if receipt.Action != domain.ContinuationNeedsYou || receipt.MaterialChange || executor.fenceCalls != 0 || executor.startCalls != 0 {
+				t.Fatalf("unknown %s receipt=%+v fence=%d start=%d", field, receipt, executor.fenceCalls, executor.startCalls)
+			}
+		})
+	}
+}
+
+func TestContinuationUnwiredExecutorDoesNotLeavePendingClaim(t *testing.T) {
+	store := conversationServiceFixture()
+	service := NewWithContinuationFacts(store, nil, echoContinuationFactsResolver{}, func() time.Time { return serviceTestTime })
+	_, err := service.Continue(context.Background(), "project-1", safeContinuationInput())
+	if apiErrorCode(err) != CodeContinuationUnwired || len(store.operations) != 0 {
+		t.Fatalf("unwired continuation error=%v pending=%d", err, len(store.operations))
+	}
+}
+
+func TestContinuationRequiresCanonicalReplacementBindingConfirmation(t *testing.T) {
+	store := conversationServiceFixture()
+	input := safeContinuationInput()
+	resolver := &fakeContinuationFactsResolver{facts: ports.WaldoContinuationFacts{
+		PreviousBindings: input.PreviousBindings, ReplacementBindings: input.ReplacementBindings,
+		EffectsKnown: true, TriggerConfirmed: true, TriggerEvidence: input.TriggerEvidence,
+	}}
+	executor := &fakeContinuationExecutor{
+		fenceResult: ports.ContinuationFenceResult{Fenced: true, FenceReceiptRef: "fence-1", ReconciliationRef: "reconcile-old"},
+		startResult: ports.ContinuationStartResult{OutcomeKnown: true, IdentityConfirmed: true, SessionRef: "session-ref-unverified", ReconciliationRef: "reconcile-new"},
+	}
+	service := NewWithContinuationFacts(store, executor, resolver, func() time.Time { return serviceTestTime })
+	input.RequestKey = "canonical-replacement-unverified"
+	receipt, err := service.Continue(context.Background(), "project-1", input)
+	if err != nil {
+		t.Fatalf("Continue() error = %v", err)
+	}
+	if receipt.Action != domain.ContinuationUnconfirmed || receipt.ReplacementIdentityConfirmed || !receipt.ToAgentSessionRef.IsZero() {
+		t.Fatalf("unverified replacement receipt = %+v", receipt)
+	}
+}
+
+func TestRecoverPendingContinuationNeverRestartsAmbiguousProviderStart(t *testing.T) {
+	store := conversationServiceFixture()
+	input := safeContinuationInput()
+	operation := continuationOperationFixture(input, domain.WaldoContinuationStarting)
+	store.operations[input.RequestKey] = operation
+	executor := &fakeContinuationExecutor{}
+	service := newTestContinuationService(store, executor)
+	receipts, err := service.RecoverPendingContinuations(context.Background())
+	if err != nil {
+		t.Fatalf("RecoverPendingContinuations() error = %v", err)
+	}
+	if len(receipts) != 1 || receipts[0].Action != domain.ContinuationUnconfirmed ||
+		executor.fenceCalls != 0 || executor.startCalls != 0 ||
+		store.operations[input.RequestKey].State != domain.WaldoContinuationCompleted {
+		t.Fatalf("recovery receipts=%+v operation=%+v fence=%d start=%d", receipts, store.operations[input.RequestKey], executor.fenceCalls, executor.startCalls)
+	}
+}
+
 func TestContinuationPolicyFailsClosedForUnsafeFenceAndAmbiguousReplacement(t *testing.T) {
 	t.Run("unsafe fence", func(t *testing.T) {
 		store := conversationServiceFixture()
 		executor := &fakeContinuationExecutor{fenceResult: ports.ContinuationFenceResult{Fenced: false}}
-		service := New(store, executor, func() time.Time { return serviceTestTime })
+		service := newTestContinuationService(store, executor)
 		receipt, err := service.Continue(context.Background(), "project-1", safeContinuationInput())
 		if err != nil {
 			t.Fatalf("Continue() error = %v", err)
@@ -418,7 +769,7 @@ func TestContinuationPolicyFailsClosedForUnsafeFenceAndAmbiguousReplacement(t *t
 			fenceResult: ports.ContinuationFenceResult{Fenced: true, FenceReceiptRef: "fence-1", ReconciliationRef: "reconcile-old"},
 			startResult: ports.ContinuationStartResult{OutcomeKnown: false, IdentityConfirmed: false, Detail: "provider start timed out"},
 		}
-		service := New(store, executor, func() time.Time { return serviceTestTime })
+		service := newTestContinuationService(store, executor)
 		receipt, err := service.Continue(context.Background(), "project-1", safeContinuationInput())
 		if err != nil {
 			t.Fatalf("Continue() error = %v", err)
@@ -429,7 +780,7 @@ func TestContinuationPolicyFailsClosedForUnsafeFenceAndAmbiguousReplacement(t *t
 	})
 }
 
-func conversationServiceFixture() *memoryWaldoStore {
+func conversationServiceFixture() *claimingMemoryStore {
 	active := domain.WaldoContextAttachment{
 		ID: "attachment-active", ConversationID: "conversation-1", ProjectID: "project-1",
 		Ref:              domain.WaldoContextRef{Kind: domain.WaldoContextOutcome, ObjectID: "outcome-1", Revision: "4", Provenance: domain.WaldoContextProvenance{Kind: domain.WaldoProvenanceCanonical, SourceID: "contract-4"}},
@@ -441,14 +792,14 @@ func conversationServiceFixture() *memoryWaldoStore {
 		Ref:              domain.WaldoContextRef{Kind: domain.WaldoContextPlanRevision, ObjectID: "plan-old", Revision: "1", Provenance: domain.WaldoContextProvenance{Kind: domain.WaldoProvenanceCanonical, SourceID: "plan-1"}},
 		AttachedRevision: 1, DetachedRevision: 2, CreatedAt: serviceTestTime.Add(-time.Hour), DetachedAt: &detachedAt, DetachReason: "Superseded",
 	}
-	return &memoryWaldoStore{
+	return &claimingMemoryStore{memoryWaldoStore: &memoryWaldoStore{
 		project: domain.ProjectRecord{ID: "project-1"},
 		snapshot: ports.WaldoConversationSnapshot{
 			Conversation:       domain.WaldoConversation{ID: "conversation-1", ProjectID: "project-1", Revision: 2, CreatedAt: serviceTestTime, UpdatedAt: serviceTestTime},
 			Episodes:           []domain.WaldoConversationEpisode{{ID: "episode-1", ConversationID: "conversation-1", ProjectID: "project-1", Ordinal: 1, State: domain.WaldoEpisodeActive, CreatedAt: serviceTestTime}},
 			ContextAttachments: []domain.WaldoContextAttachment{active, detached},
 		},
-	}
+	}, operations: map[string]domain.WaldoContinuationOperation{}}
 }
 
 func safeContinuationInput() ContinuationInput {
@@ -461,8 +812,30 @@ func safeContinuationInput() ContinuationInput {
 	return ContinuationInput{
 		FromAgentSessionRef: "session-ref-1", Reason: domain.ContinuationReasonContextReserve,
 		ReasonDetail: "Provider reported insufficient trustworthy reserve.", ContextDigest: digest('d'),
+		TriggerEvidence:  triggerEvidenceFor(domain.ContinuationReasonContextReserve),
 		PreviousBindings: bindings, ReplacementBindings: bindings, EffectsKnown: true,
 		RequestKey: "continuation-safe",
+	}
+}
+
+func newTestContinuationService(store ports.WaldoConversationStore, executor ports.WaldoContinuationExecutor) *Service {
+	return NewWithContinuationFacts(store, executor, echoContinuationFactsResolver{}, func() time.Time { return serviceTestTime })
+}
+
+func continuationOperationFixture(input ContinuationInput, state domain.WaldoContinuationOperationState) domain.WaldoContinuationOperation {
+	return domain.WaldoContinuationOperation{
+		ID: "operation-" + input.RequestKey, ConversationID: "conversation-1", ProjectID: "project-1",
+		FromEpisodeID: "episode-1", FromAgentSessionRef: input.FromAgentSessionRef,
+		ExpectedConversationRevision: 2, State: state, Reason: input.Reason, ReasonDetail: input.ReasonDetail,
+		TriggerEvidence: input.TriggerEvidence,
+		MaterialChange:  continuationMaterialChange(input, input.PreviousBindings.Changed(input.ReplacementBindings)),
+		ContextDigest:   input.ContextDigest, ContextRefs: input.ContextRefs,
+		PreviousBindings: input.PreviousBindings, ReplacementBindings: input.ReplacementBindings,
+		EffectsKnown: input.EffectsKnown, LostMaterialContext: input.LostMaterialContext,
+		SourceRevoked: input.SourceRevoked, FreshVerifier: input.FreshVerifier, TriggerConfirmed: true,
+		FenceReceiptRef: "fence-1", ReconciliationRef: "reconcile-1",
+		RequestKey: input.RequestKey, RequestFingerprint: continuationFingerprint("project-1", input),
+		CreatedAt: serviceTestTime, UpdatedAt: serviceTestTime,
 	}
 }
 
@@ -472,6 +845,19 @@ func digest(value byte) string {
 		result[index] = value
 	}
 	return string(result)
+}
+
+func triggerEvidenceFor(reason domain.ContinuationReason) domain.ContinuationTriggerEvidence {
+	kinds := map[domain.ContinuationReason]domain.ContinuationTriggerEvidenceKind{
+		domain.ContinuationReasonContextReserve:        domain.ContinuationEvidenceProviderContextMeter,
+		domain.ContinuationReasonConservativeThreshold: domain.ContinuationEvidenceAdapterThreshold,
+		domain.ContinuationReasonMaterialDigestChange:  domain.ContinuationEvidenceMaterialContextDigest,
+		domain.ContinuationReasonIdentityLost:          domain.ContinuationEvidenceProviderIdentityLoss,
+		domain.ContinuationReasonSourceRevoked:         domain.ContinuationEvidenceSourceRevocation,
+		domain.ContinuationReasonFreshVerifier:         domain.ContinuationEvidenceVerifierBoundary,
+		domain.ContinuationReasonUserRequested:         domain.ContinuationEvidenceOwnerRequest,
+	}
+	return domain.ContinuationTriggerEvidence{Kind: kinds[reason], Reference: "trigger-" + string(reason)}
 }
 
 func apiErrorCode(err error) string {

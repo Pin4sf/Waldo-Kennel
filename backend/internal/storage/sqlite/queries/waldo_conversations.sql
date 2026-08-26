@@ -93,15 +93,56 @@ JOIN waldo_conversation_turns t ON t.id = r.turn_id
 WHERE t.conversation_id = ?
 ORDER BY t.sequence, r.position;
 
+-- name: CreateWaldoContinuationOperation :exec
+INSERT INTO waldo_continuation_operations (
+    id, conversation_id, project_id, from_episode_id, from_agent_session_ref_id,
+    expected_conversation_revision, state, reason, reason_detail,
+    trigger_evidence_kind, trigger_evidence_ref, material_change,
+    changed_fields, context_digest, context_refs, previous_bindings,
+    replacement_bindings, effects_known, lost_material_context, source_revoked,
+    fresh_verifier, trigger_confirmed, fence_receipt_ref, reconciliation_ref,
+    needs_user_reason, request_key, request_fingerprint, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: FindWaldoContinuationOperationByRequestKey :one
+SELECT * FROM waldo_continuation_operations WHERE request_key = ?;
+
+-- name: GetWaldoContinuationOperation :one
+SELECT * FROM waldo_continuation_operations WHERE id = ?;
+
+-- name: ListPendingWaldoContinuationOperations :many
+SELECT * FROM waldo_continuation_operations
+WHERE state <> 'completed' ORDER BY created_at, id;
+
+-- name: ResolveWaldoContinuationSessionLineage :one
+SELECT session_ref.id AS session_ref_id, session_ref.attempt_id,
+       a.outcome_id, cr.id AS contract_revision_id, a.plan_revision_id,
+       a.work_unit_id, space.project_id, session_ref.harness,
+       session_ref.mode, session_ref.admission_snapshot
+FROM attempt_sessions session_ref
+JOIN attempts a ON a.id = session_ref.attempt_id
+JOIN contract_revisions cr ON cr.outcome_id = a.outcome_id
+    AND cr.number = a.contract_revision_number
+JOIN outcomes o ON o.id = a.outcome_id
+JOIN responsibility_spaces space ON space.id = o.space_id
+WHERE session_ref.id = ?;
+
+-- name: AdvanceWaldoContinuationOperation :execrows
+UPDATE waldo_continuation_operations
+SET state = ?, fence_receipt_ref = ?, reconciliation_ref = ?,
+    needs_user_reason = ?, updated_at = ?
+WHERE id = ? AND state = ?;
+
 -- name: CreateWaldoContinuationReceipt :exec
 INSERT INTO waldo_continuation_receipts (
-    id, conversation_id, project_id, from_episode_id, to_episode_id,
+    id, operation_id, conversation_id, project_id, from_episode_id, to_episode_id,
     from_agent_session_ref_id, to_agent_session_ref_id, action, reason, reason_detail,
+    trigger_evidence_kind, trigger_evidence_ref,
     material_change, changed_fields, context_digest, context_refs,
     previous_bindings, replacement_bindings, effects_known, old_session_fenced,
     replacement_identity_confirmed, fence_receipt_ref, reconciliation_ref,
     needs_user_reason, request_key, request_fingerprint, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: FindWaldoContinuationReceiptByRequestKey :one
 SELECT * FROM waldo_continuation_receipts WHERE request_key = ?;
@@ -115,8 +156,8 @@ SELECT id AS object_id, '' AS object_revision, id AS project_id
 FROM projects WHERE id = ?;
 
 -- name: ResolveWaldoOutcomeContext :one
-SELECT o.id AS object_id, CAST(o.current_revision_number AS TEXT) AS object_revision,
-       s.project_id AS project_id
+SELECT o.id AS object_id, o.current_revision_number AS revision_number,
+       o.updated_at AS lifecycle_updated_at, s.project_id AS project_id
 FROM outcomes o
 JOIN responsibility_spaces s ON s.id = o.space_id
 WHERE o.id = ?;
@@ -130,16 +171,18 @@ JOIN responsibility_spaces s ON s.id = o.space_id
 WHERE cr.id = ?;
 
 -- name: ResolveWaldoPlanRevisionContext :one
-SELECT pr.id AS object_id, CAST(pr.number AS TEXT) AS object_revision,
-       s.project_id AS project_id
+SELECT pr.id AS object_id, pr.number AS revision_number,
+       pr.status AS lifecycle_state, pr.run_brief_core_digest,
+       pr.run_brief_compiled_digest, s.project_id AS project_id
 FROM plan_revisions pr
 JOIN outcomes o ON o.id = pr.outcome_id
 JOIN responsibility_spaces s ON s.id = o.space_id
 WHERE pr.id = ?;
 
 -- name: ResolveWaldoWorkUnitContext :one
-SELECT wu.id AS object_id, CAST(pr.number AS TEXT) AS object_revision,
-       s.project_id AS project_id
+SELECT wu.id AS object_id, pr.number AS revision_number,
+       pr.status AS lifecycle_state, pr.run_brief_core_digest,
+       pr.run_brief_compiled_digest, s.project_id AS project_id
 FROM work_units wu
 JOIN plan_revisions pr ON pr.id = wu.plan_revision_id
 JOIN outcomes o ON o.id = pr.outcome_id
@@ -147,7 +190,8 @@ JOIN responsibility_spaces s ON s.id = o.space_id
 WHERE wu.id = ?;
 
 -- name: ResolveWaldoAttemptContext :one
-SELECT a.id AS object_id, CAST(a.number AS TEXT) AS object_revision,
+SELECT a.id AS object_id, a.number AS revision_number,
+       a.status AS lifecycle_state, a.updated_at AS lifecycle_updated_at,
        s.project_id AS project_id
 FROM attempts a
 JOIN outcomes o ON o.id = a.outcome_id
@@ -155,7 +199,8 @@ JOIN responsibility_spaces s ON s.id = o.space_id
 WHERE a.id = ?;
 
 -- name: ResolveWaldoAgentSessionContext :one
-SELECT session_ref.id AS object_id, CAST(session_ref.seq AS TEXT) AS object_revision,
+SELECT session_ref.id AS object_id, session_ref.seq AS revision_number,
+       a.status AS lifecycle_state, a.updated_at AS lifecycle_updated_at,
        s.project_id AS project_id
 FROM attempt_sessions session_ref
 JOIN attempts a ON a.id = session_ref.attempt_id
@@ -164,7 +209,8 @@ JOIN responsibility_spaces s ON s.id = o.space_id
 WHERE session_ref.id = ?;
 
 -- name: ResolveWaldoIntakeSessionContext :one
-SELECT i.id AS object_id, CAST(i.current_proposal_revision AS TEXT) AS object_revision,
+SELECT i.id AS object_id, i.current_proposal_revision AS revision_number,
+       i.status AS lifecycle_state, i.updated_at AS lifecycle_updated_at,
        i.project_id AS project_id
 FROM intake_sessions i
 WHERE i.id = ? AND i.project_id IS NOT NULL;

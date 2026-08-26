@@ -237,7 +237,7 @@ func (s *Store) ResolveWaldoContextRef(ctx context.Context, projectID domain.Pro
 	case domain.WaldoContextOutcome:
 		var row gen.ResolveWaldoOutcomeContextRow
 		row, err = s.qr.ResolveWaldoOutcomeContext(ctx, domain.OutcomeID(ref.ObjectID))
-		value = resolved{id: row.ObjectID.String(), revision: row.ObjectRevision, projectID: row.ProjectID}
+		value = resolved{id: row.ObjectID.String(), revision: outcomeLifecycleRevision(row.RevisionNumber, row.LifecycleUpdatedAt), projectID: row.ProjectID}
 	case domain.WaldoContextContractRevision:
 		var row gen.ResolveWaldoContractRevisionContextRow
 		row, err = s.qr.ResolveWaldoContractRevisionContext(ctx, domain.ContractRevisionID(ref.ObjectID))
@@ -245,23 +245,23 @@ func (s *Store) ResolveWaldoContextRef(ctx context.Context, projectID domain.Pro
 	case domain.WaldoContextPlanRevision:
 		var row gen.ResolveWaldoPlanRevisionContextRow
 		row, err = s.qr.ResolveWaldoPlanRevisionContext(ctx, domain.PlanRevisionID(ref.ObjectID))
-		value = resolved{id: row.ObjectID.String(), revision: row.ObjectRevision, projectID: row.ProjectID}
+		value = resolved{id: row.ObjectID.String(), revision: planLifecycleRevision(row.RevisionNumber, row.LifecycleState, row.RunBriefCoreDigest, row.RunBriefCompiledDigest), projectID: row.ProjectID}
 	case domain.WaldoContextWorkUnit:
 		var row gen.ResolveWaldoWorkUnitContextRow
 		row, err = s.qr.ResolveWaldoWorkUnitContext(ctx, domain.WorkUnitID(ref.ObjectID))
-		value = resolved{id: row.ObjectID.String(), revision: row.ObjectRevision, projectID: row.ProjectID}
+		value = resolved{id: row.ObjectID.String(), revision: planLifecycleRevision(row.RevisionNumber, row.LifecycleState, row.RunBriefCoreDigest, row.RunBriefCompiledDigest), projectID: row.ProjectID}
 	case domain.WaldoContextAttempt:
 		var row gen.ResolveWaldoAttemptContextRow
 		row, err = s.qr.ResolveWaldoAttemptContext(ctx, domain.AttemptID(ref.ObjectID))
-		value = resolved{id: row.ObjectID.String(), revision: row.ObjectRevision, projectID: row.ProjectID}
+		value = resolved{id: row.ObjectID.String(), revision: mutableLifecycleRevision(row.RevisionNumber, string(row.LifecycleState), row.LifecycleUpdatedAt), projectID: row.ProjectID}
 	case domain.WaldoContextAgentSessionRef:
 		var row gen.ResolveWaldoAgentSessionContextRow
 		row, err = s.qr.ResolveWaldoAgentSessionContext(ctx, ref.ObjectID)
-		value = resolved{id: row.ObjectID, revision: row.ObjectRevision, projectID: row.ProjectID}
+		value = resolved{id: row.ObjectID, revision: mutableLifecycleRevision(row.RevisionNumber, string(row.LifecycleState), row.LifecycleUpdatedAt), projectID: row.ProjectID}
 	case domain.WaldoContextIntakeSession:
 		var row gen.ResolveWaldoIntakeSessionContextRow
 		row, err = s.qr.ResolveWaldoIntakeSessionContext(ctx, ref.ObjectID)
-		value = resolved{id: row.ObjectID, revision: row.ObjectRevision, projectID: domain.ProjectID(row.ProjectID.String)}
+		value = resolved{id: row.ObjectID, revision: mutableLifecycleRevision(row.RevisionNumber, row.LifecycleState, row.LifecycleUpdatedAt), projectID: domain.ProjectID(row.ProjectID.String)}
 	default:
 		return domain.WaldoContextRef{}, false, fmt.Errorf("unsupported Waldo context kind %q", ref.Kind)
 	}
@@ -273,6 +273,18 @@ func (s *Store) ResolveWaldoContextRef(ctx context.Context, projectID domain.Pro
 	}
 	ref.ObjectID, ref.Revision = value.id, value.revision
 	return ref, true, nil
+}
+
+func outcomeLifecycleRevision(number int64, updatedAt time.Time) string {
+	return fmt.Sprintf("%d:%s", number, updatedAt.UTC().Format(time.RFC3339Nano))
+}
+
+func planLifecycleRevision(number int64, state, coreDigest, compiledDigest string) string {
+	return fmt.Sprintf("%d:%s:%s:%s", number, state, coreDigest, compiledDigest)
+}
+
+func mutableLifecycleRevision(number int64, state string, updatedAt time.Time) string {
+	return fmt.Sprintf("%d:%s:%s", number, state, updatedAt.UTC().Format(time.RFC3339Nano))
 }
 
 // AttachWaldoContext appends one explicit provenance-bearing attachment.
@@ -394,6 +406,94 @@ func (s *Store) DetachWaldoContext(ctx context.Context, conversationID domain.Wa
 	return s.waldoConversationSnapshot(ctx, s.qw, conversation)
 }
 
+// ClaimWaldoContinuationOperation atomically claims the active source episode
+// before any fencing or provider-start effect. claimed=false is a same-input replay.
+func (s *Store) ClaimWaldoContinuationOperation(ctx context.Context, operation domain.WaldoContinuationOperation) (domain.WaldoContinuationOperation, bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if replay, err := s.qw.FindWaldoContinuationOperationByRequestKey(ctx, operation.RequestKey); err == nil {
+		if replay.RequestFingerprint != operation.RequestFingerprint {
+			return domain.WaldoContinuationOperation{}, false, &ports.WaldoIdempotencyConflictError{Key: operation.RequestKey}
+		}
+		stored, err := waldoContinuationOperationFromRow(replay)
+		return stored, false, err
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return domain.WaldoContinuationOperation{}, false, fmt.Errorf("find Waldo continuation operation replay: %w", err)
+	}
+	if operation.State != domain.WaldoContinuationPrepared {
+		return domain.WaldoContinuationOperation{}, false, fmt.Errorf("new continuation operation must be prepared")
+	}
+	if err := operation.Validate(); err != nil {
+		return domain.WaldoContinuationOperation{}, false, err
+	}
+	if err := validateWaldoContinuationSessionLineage(ctx, s.qr, operation.FromAgentSessionRef, operation.PreviousBindings); err != nil {
+		return domain.WaldoContinuationOperation{}, false, err
+	}
+	params, err := waldoContinuationOperationInsert(operation)
+	if err != nil {
+		return domain.WaldoContinuationOperation{}, false, err
+	}
+	if err := s.qw.CreateWaldoContinuationOperation(ctx, params); err != nil {
+		return domain.WaldoContinuationOperation{}, false, fmt.Errorf("claim Waldo continuation operation: %w", err)
+	}
+	return operation, true, nil
+}
+
+// FindWaldoContinuationOperationByRequestKey restores durable pre-effect truth.
+func (s *Store) FindWaldoContinuationOperationByRequestKey(ctx context.Context, requestKey string) (domain.WaldoContinuationOperation, bool, error) {
+	row, err := s.qr.FindWaldoContinuationOperationByRequestKey(ctx, requestKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.WaldoContinuationOperation{}, false, nil
+	}
+	if err != nil {
+		return domain.WaldoContinuationOperation{}, false, fmt.Errorf("find Waldo continuation operation: %w", err)
+	}
+	operation, err := waldoContinuationOperationFromRow(row)
+	return operation, err == nil, err
+}
+
+// AdvanceWaldoContinuationOperation records a lifecycle boundary before or
+// after its corresponding external effect.
+func (s *Store) AdvanceWaldoContinuationOperation(ctx context.Context, id string, expected, next domain.WaldoContinuationOperationState, fenceRef, reconciliationRef, needsUserReason string, at time.Time) (domain.WaldoContinuationOperation, error) {
+	if !expected.CanTransitionTo(next) {
+		return domain.WaldoContinuationOperation{}, fmt.Errorf("illegal continuation operation transition %s -> %s", expected, next)
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.AdvanceWaldoContinuationOperation(ctx, gen.AdvanceWaldoContinuationOperationParams{
+		State: string(next), FenceReceiptRef: fenceRef, ReconciliationRef: reconciliationRef,
+		NeedsUserReason: needsUserReason, UpdatedAt: at, ID: id, State_2: string(expected),
+	})
+	if err != nil {
+		return domain.WaldoContinuationOperation{}, fmt.Errorf("advance Waldo continuation operation: %w", err)
+	}
+	if rows != 1 {
+		return domain.WaldoContinuationOperation{}, fmt.Errorf("continuation operation %s is not in state %s", id, expected)
+	}
+	row, err := s.qw.GetWaldoContinuationOperation(ctx, id)
+	if err != nil {
+		return domain.WaldoContinuationOperation{}, err
+	}
+	return waldoContinuationOperationFromRow(row)
+}
+
+// ListPendingWaldoContinuationOperations returns every restart-recovery claim.
+func (s *Store) ListPendingWaldoContinuationOperations(ctx context.Context) ([]domain.WaldoContinuationOperation, error) {
+	rows, err := s.qr.ListPendingWaldoContinuationOperations(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list pending Waldo continuation operations: %w", err)
+	}
+	operations := make([]domain.WaldoContinuationOperation, 0, len(rows))
+	for _, row := range rows {
+		operation, err := waldoContinuationOperationFromRow(row)
+		if err != nil {
+			return nil, err
+		}
+		operations = append(operations, operation)
+	}
+	return operations, nil
+}
+
 // FindContinuationReceiptByRequestKey performs the pre-effect idempotency check.
 func (s *Store) FindContinuationReceiptByRequestKey(ctx context.Context, requestKey string) (domain.ContinuationReceipt, string, bool, error) {
 	row, err := s.qr.FindWaldoContinuationReceiptByRequestKey(ctx, requestKey)
@@ -423,6 +523,20 @@ func (s *Store) RecordContinuationReceipt(ctx context.Context, receipt domain.Co
 	if err := receipt.Validate(); err != nil {
 		return domain.ContinuationReceipt{}, err
 	}
+	operationRow, err := s.qw.GetWaldoContinuationOperation(ctx, receipt.OperationID)
+	if err != nil {
+		return domain.ContinuationReceipt{}, fmt.Errorf("load Waldo continuation operation: %w", err)
+	}
+	operation, err := waldoContinuationOperationFromRow(operationRow)
+	if err != nil {
+		return domain.ContinuationReceipt{}, err
+	}
+	if !operation.State.CanTransitionTo(domain.WaldoContinuationCompleted) ||
+		operation.RequestKey != request.Key || operation.RequestFingerprint != request.Fingerprint ||
+		operation.ConversationID != receipt.ConversationID || operation.ProjectID != receipt.ProjectID ||
+		operation.FromEpisodeID != receipt.FromEpisodeID || operation.FromAgentSessionRef != receipt.FromAgentSessionRef {
+		return domain.ContinuationReceipt{}, fmt.Errorf("continuation receipt does not match its durable operation claim")
+	}
 	if receipt.Action == domain.ContinuationAutomatic {
 		if replacement == nil {
 			return domain.ContinuationReceipt{}, fmt.Errorf("automatic continuation requires a replacement episode")
@@ -432,6 +546,9 @@ func (s *Store) RecordContinuationReceipt(ctx context.Context, receipt domain.Co
 		}
 		if replacement.ID != receipt.ToEpisodeID {
 			return domain.ContinuationReceipt{}, fmt.Errorf("continuation replacement episode does not match receipt")
+		}
+		if err := validateWaldoContinuationSessionLineage(ctx, s.qr, receipt.ToAgentSessionRef, receipt.ReplacementBindings); err != nil {
+			return domain.ContinuationReceipt{}, err
 		}
 	} else if replacement != nil {
 		return domain.ContinuationReceipt{}, fmt.Errorf("non-automatic continuation cannot open a replacement episode")
@@ -465,7 +582,18 @@ func (s *Store) RecordContinuationReceipt(ctx context.Context, receipt domain.Co
 		if err := q.CreateWaldoContinuationReceipt(ctx, params); err != nil {
 			return err
 		}
-		rows, err := q.AdvanceWaldoConversationRevision(ctx, gen.AdvanceWaldoConversationRevisionParams{
+		rows, err := q.AdvanceWaldoContinuationOperation(ctx, gen.AdvanceWaldoContinuationOperationParams{
+			State: string(domain.WaldoContinuationCompleted), FenceReceiptRef: receipt.FenceReceiptRef,
+			ReconciliationRef: receipt.ReconciliationRef, NeedsUserReason: receipt.NeedsUserReason,
+			UpdatedAt: receipt.CreatedAt, ID: receipt.OperationID, State_2: string(operation.State),
+		})
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return fmt.Errorf("continuation operation %s completion conflict", receipt.OperationID)
+		}
+		rows, err = q.AdvanceWaldoConversationRevision(ctx, gen.AdvanceWaldoConversationRevisionParams{
 			UpdatedAt: receipt.CreatedAt, ID: receipt.ConversationID.String(), Revision: conversation.Revision,
 		})
 		if err != nil {
@@ -480,6 +608,23 @@ func (s *Store) RecordContinuationReceipt(ctx context.Context, receipt domain.Co
 		return domain.ContinuationReceipt{}, err
 	}
 	return receipt, nil
+}
+
+func validateWaldoContinuationSessionLineage(ctx context.Context, q *gen.Queries, sessionRef domain.AttemptSessionRefID, bindings domain.ContinuationBindings) error {
+	row, err := q.ResolveWaldoContinuationSessionLineage(ctx, sessionRef.String())
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("continuation session ref %s has no canonical lineage", sessionRef)
+	}
+	if err != nil {
+		return fmt.Errorf("resolve continuation session lineage %s: %w", sessionRef, err)
+	}
+	if row.ProjectID != bindings.ProjectID || row.OutcomeID != bindings.OutcomeID ||
+		row.ContractRevisionID != bindings.ContractRevisionID || row.PlanRevisionID != bindings.PlanRevisionID ||
+		row.WorkUnitID != bindings.WorkUnitID || row.AttemptID != bindings.AttemptID ||
+		row.Harness != bindings.Provider {
+		return fmt.Errorf("continuation session ref %s does not match canonical Project/Attempt/provider bindings", sessionRef)
+	}
+	return nil
 }
 
 func (s *Store) waldoConversationSnapshot(ctx context.Context, q *gen.Queries, conversation gen.WaldoConversation) (ports.WaldoConversationSnapshot, error) {
@@ -655,6 +800,69 @@ func waldoContextRefFromRow(row gen.WaldoContextAttachment) domain.WaldoContextR
 	}
 }
 
+func waldoContinuationOperationInsert(operation domain.WaldoContinuationOperation) (gen.CreateWaldoContinuationOperationParams, error) {
+	changed, err := json.Marshal(operation.ChangedFields)
+	if err != nil {
+		return gen.CreateWaldoContinuationOperationParams{}, err
+	}
+	refs, err := json.Marshal(operation.ContextRefs)
+	if err != nil {
+		return gen.CreateWaldoContinuationOperationParams{}, err
+	}
+	previous, err := json.Marshal(operation.PreviousBindings)
+	if err != nil {
+		return gen.CreateWaldoContinuationOperationParams{}, err
+	}
+	replacement, err := json.Marshal(operation.ReplacementBindings)
+	if err != nil {
+		return gen.CreateWaldoContinuationOperationParams{}, err
+	}
+	return gen.CreateWaldoContinuationOperationParams{
+		ID: operation.ID, ConversationID: operation.ConversationID.String(), ProjectID: string(operation.ProjectID),
+		FromEpisodeID: operation.FromEpisodeID.String(), FromAgentSessionRefID: operation.FromAgentSessionRef.String(),
+		ExpectedConversationRevision: operation.ExpectedConversationRevision, State: string(operation.State),
+		Reason: string(operation.Reason), ReasonDetail: operation.ReasonDetail,
+		TriggerEvidenceKind: string(operation.TriggerEvidence.Kind), TriggerEvidenceRef: operation.TriggerEvidence.Reference,
+		MaterialChange: boolInt(operation.MaterialChange), ChangedFields: string(changed),
+		ContextDigest: operation.ContextDigest, ContextRefs: string(refs), PreviousBindings: string(previous),
+		ReplacementBindings: string(replacement), EffectsKnown: boolInt(operation.EffectsKnown),
+		LostMaterialContext: boolInt(operation.LostMaterialContext), SourceRevoked: boolInt(operation.SourceRevoked),
+		FreshVerifier: boolInt(operation.FreshVerifier), TriggerConfirmed: boolInt(operation.TriggerConfirmed),
+		FenceReceiptRef: operation.FenceReceiptRef, ReconciliationRef: operation.ReconciliationRef,
+		NeedsUserReason: operation.NeedsUserReason, RequestKey: operation.RequestKey,
+		RequestFingerprint: operation.RequestFingerprint, CreatedAt: operation.CreatedAt, UpdatedAt: operation.UpdatedAt,
+	}, nil
+}
+
+func waldoContinuationOperationFromRow(row gen.WaldoContinuationOperation) (domain.WaldoContinuationOperation, error) {
+	operation := domain.WaldoContinuationOperation{
+		ID: row.ID, ConversationID: domain.WaldoConversationID(row.ConversationID), ProjectID: domain.ProjectID(row.ProjectID),
+		FromEpisodeID: domain.WaldoConversationEpisodeID(row.FromEpisodeID), FromAgentSessionRef: domain.AttemptSessionRefID(row.FromAgentSessionRefID),
+		ExpectedConversationRevision: row.ExpectedConversationRevision, State: domain.WaldoContinuationOperationState(row.State),
+		Reason: domain.ContinuationReason(row.Reason), ReasonDetail: row.ReasonDetail,
+		TriggerEvidence: domain.ContinuationTriggerEvidence{Kind: domain.ContinuationTriggerEvidenceKind(row.TriggerEvidenceKind), Reference: row.TriggerEvidenceRef},
+		MaterialChange:  row.MaterialChange != 0, ContextDigest: row.ContextDigest, EffectsKnown: row.EffectsKnown != 0,
+		LostMaterialContext: row.LostMaterialContext != 0, SourceRevoked: row.SourceRevoked != 0,
+		FreshVerifier: row.FreshVerifier != 0, TriggerConfirmed: row.TriggerConfirmed != 0,
+		FenceReceiptRef: row.FenceReceiptRef, ReconciliationRef: row.ReconciliationRef,
+		NeedsUserReason: row.NeedsUserReason, RequestKey: row.RequestKey, RequestFingerprint: row.RequestFingerprint,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}
+	if err := json.Unmarshal([]byte(row.ChangedFields), &operation.ChangedFields); err != nil {
+		return domain.WaldoContinuationOperation{}, fmt.Errorf("decode Waldo continuation operation changed fields: %w", err)
+	}
+	if err := json.Unmarshal([]byte(row.ContextRefs), &operation.ContextRefs); err != nil {
+		return domain.WaldoContinuationOperation{}, fmt.Errorf("decode Waldo continuation operation context refs: %w", err)
+	}
+	if err := json.Unmarshal([]byte(row.PreviousBindings), &operation.PreviousBindings); err != nil {
+		return domain.WaldoContinuationOperation{}, fmt.Errorf("decode Waldo continuation operation previous bindings: %w", err)
+	}
+	if err := json.Unmarshal([]byte(row.ReplacementBindings), &operation.ReplacementBindings); err != nil {
+		return domain.WaldoContinuationOperation{}, fmt.Errorf("decode Waldo continuation operation replacement bindings: %w", err)
+	}
+	return operation, nil
+}
+
 func waldoContinuationInsert(receipt domain.ContinuationReceipt, request ports.WaldoIdempotency) (gen.CreateWaldoContinuationReceiptParams, error) {
 	changed, err := json.Marshal(receipt.ChangedFields)
 	if err != nil {
@@ -673,10 +881,11 @@ func waldoContinuationInsert(receipt domain.ContinuationReceipt, request ports.W
 		return gen.CreateWaldoContinuationReceiptParams{}, err
 	}
 	return gen.CreateWaldoContinuationReceiptParams{
-		ID: receipt.ID, ConversationID: receipt.ConversationID.String(), ProjectID: string(receipt.ProjectID),
+		ID: receipt.ID, OperationID: receipt.OperationID, ConversationID: receipt.ConversationID.String(), ProjectID: string(receipt.ProjectID),
 		FromEpisodeID: receipt.FromEpisodeID.String(), ToEpisodeID: nullString(receipt.ToEpisodeID.String()),
 		FromAgentSessionRefID: receipt.FromAgentSessionRef.String(), ToAgentSessionRefID: nullString(receipt.ToAgentSessionRef.String()),
 		Action: string(receipt.Action), Reason: string(receipt.Reason), ReasonDetail: receipt.ReasonDetail,
+		TriggerEvidenceKind: string(receipt.TriggerEvidence.Kind), TriggerEvidenceRef: receipt.TriggerEvidence.Reference,
 		MaterialChange: boolInt(receipt.MaterialChange), ChangedFields: string(changed), ContextDigest: receipt.ContextDigest,
 		ContextRefs: string(refs), PreviousBindings: string(previous), ReplacementBindings: string(replacement),
 		EffectsKnown: boolInt(receipt.EffectsKnown), OldSessionFenced: boolInt(receipt.OldSessionFenced),
@@ -688,11 +897,12 @@ func waldoContinuationInsert(receipt domain.ContinuationReceipt, request ports.W
 
 func waldoContinuationFromRow(row gen.WaldoContinuationReceipt) (domain.ContinuationReceipt, error) {
 	receipt := domain.ContinuationReceipt{
-		ID: row.ID, ConversationID: domain.WaldoConversationID(row.ConversationID), ProjectID: domain.ProjectID(row.ProjectID),
+		ID: row.ID, OperationID: row.OperationID, ConversationID: domain.WaldoConversationID(row.ConversationID), ProjectID: domain.ProjectID(row.ProjectID),
 		FromEpisodeID: domain.WaldoConversationEpisodeID(row.FromEpisodeID), ToEpisodeID: domain.WaldoConversationEpisodeID(row.ToEpisodeID.String),
 		FromAgentSessionRef: domain.AttemptSessionRefID(row.FromAgentSessionRefID), ToAgentSessionRef: domain.AttemptSessionRefID(row.ToAgentSessionRefID.String),
 		Action: domain.ContinuationAction(row.Action), Reason: domain.ContinuationReason(row.Reason), ReasonDetail: row.ReasonDetail,
-		MaterialChange: row.MaterialChange != 0, ContextDigest: row.ContextDigest, EffectsKnown: row.EffectsKnown != 0,
+		TriggerEvidence: domain.ContinuationTriggerEvidence{Kind: domain.ContinuationTriggerEvidenceKind(row.TriggerEvidenceKind), Reference: row.TriggerEvidenceRef},
+		MaterialChange:  row.MaterialChange != 0, ContextDigest: row.ContextDigest, EffectsKnown: row.EffectsKnown != 0,
 		OldSessionFenced: row.OldSessionFenced != 0, ReplacementIdentityConfirmed: row.ReplacementIdentityConfirmed != 0,
 		FenceReceiptRef: row.FenceReceiptRef, ReconciliationRef: row.ReconciliationRef,
 		NeedsUserReason: row.NeedsUserReason, CreatedAt: row.CreatedAt,

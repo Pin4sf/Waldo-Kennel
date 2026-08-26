@@ -29,6 +29,17 @@ const (
 	CodeContextNotActive         = "WALDO_CONTEXT_NOT_ACTIVE"
 	CodeContinuationUnwired      = "WALDO_CONTINUATION_UNWIRED"
 	CodeContinuationInputInvalid = "WALDO_CONTINUATION_INVALID"
+	CodeContinuationInProgress   = "WALDO_CONTINUATION_IN_PROGRESS"
+	CodeContinuationFactsUnwired = "WALDO_CONTINUATION_FACTS_UNWIRED"
+)
+
+// Provider-bound payload limits keep one durable Project conversation from
+// becoming an unbounded in-memory or provider request.
+const (
+	MaxWaldoTurnMessageBytes   = 64 * 1024
+	MaxWaldoCurrentIntentBytes = 16 * 1024
+	MaxWaldoContextReferences  = 64
+	MaxWaldoContextCandidates  = 256
 )
 
 // Service owns Project binding, context precedence, revision safety, and
@@ -36,6 +47,7 @@ const (
 type Service struct {
 	store    ports.WaldoConversationStore
 	executor ports.WaldoContinuationExecutor
+	facts    ports.WaldoContinuationFactsResolver
 	clock    func() time.Time
 }
 
@@ -45,6 +57,14 @@ func New(store ports.WaldoConversationStore, executor ports.WaldoContinuationExe
 		clock = func() time.Time { return time.Now().UTC() }
 	}
 	return &Service{store: store, executor: executor, clock: clock}
+}
+
+// NewWithContinuationFacts constructs a service whose effect policy is driven
+// by daemon-owned canonical facts rather than controller/caller assertions.
+func NewWithContinuationFacts(store ports.WaldoConversationStore, executor ports.WaldoContinuationExecutor, facts ports.WaldoContinuationFactsResolver, clock func() time.Time) *Service {
+	service := New(store, executor, clock)
+	service.facts = facts
+	return service
 }
 
 // Open returns or creates the one durable conversation for a Project.
@@ -142,6 +162,9 @@ func (service *Service) AppendTurn(ctx context.Context, projectID domain.Project
 	}
 	if input.Message == "" {
 		return AppendTurnResult{}, apierr.Invalid("WALDO_TURN_MESSAGE_REQUIRED", "Write a message before sending", nil)
+	}
+	if len(input.Message) > MaxWaldoTurnMessageBytes {
+		return AppendTurnResult{}, apierr.Invalid("WALDO_TURN_TOO_LARGE", "Conversation turns are limited to 64 KiB", map[string]any{"maxBytes": MaxWaldoTurnMessageBytes})
 	}
 	fingerprint := turnFingerprint(projectID, input)
 	if replay, storedFingerprint, found, err := service.store.FindWaldoTurnByRequestKey(ctx, input.RequestKey); err != nil {
@@ -320,8 +343,16 @@ func (service *Service) CompileContext(ctx context.Context, projectID domain.Pro
 	if input.CurrentIntent == "" {
 		return BoundedContextPacket{}, apierr.Invalid("WALDO_CONTEXT_INTENT_REQUIRED", "Current user intent is required", nil)
 	}
+	if len(input.CurrentIntent) > MaxWaldoCurrentIntentBytes {
+		return BoundedContextPacket{}, apierr.Invalid("WALDO_CONTEXT_TOO_LARGE", "Current intent is limited to 16 KiB", map[string]any{"maxBytes": MaxWaldoCurrentIntentBytes})
+	}
+	if len(input.Candidates) > MaxWaldoContextCandidates {
+		return BoundedContextPacket{}, apierr.Invalid("WALDO_CONTEXT_TOO_MANY_CANDIDATES", "Too many context candidates were supplied", map[string]any{"maxCandidates": MaxWaldoContextCandidates})
+	}
 	if input.MaxReferences <= 0 {
 		input.MaxReferences = 16
+	} else if input.MaxReferences > MaxWaldoContextReferences {
+		input.MaxReferences = MaxWaldoContextReferences
 	}
 	refs := make([]domain.WaldoContextRef, 0, len(snapshot.ContextAttachments)+len(input.Candidates))
 	seen := map[string]struct{}{}
@@ -355,8 +386,22 @@ func (service *Service) CompileContext(ctx context.Context, projectID domain.Pro
 		if _, exists := seen[key]; exists {
 			continue
 		}
+		current, found, err := service.store.ResolveWaldoContextRef(ctx, projectID, candidate.Ref)
+		if err != nil {
+			return BoundedContextPacket{}, err
+		}
+		if !found {
+			return BoundedContextPacket{}, apierr.NotFound(CodeContextNotFound, "A candidate context source does not belong to this Project or is no longer available")
+		}
+		if current.Revision != candidate.Ref.Revision {
+			return BoundedContextPacket{}, contextRevisionConflict(candidate.Ref, current.Revision)
+		}
+		key = contextObjectKey(current)
+		if _, exists := seen[key]; exists {
+			continue
+		}
 		seen[key] = struct{}{}
-		refs = append(refs, candidate.Ref)
+		refs = append(refs, current)
 	}
 	omitted := 0
 	if len(refs) > input.MaxReferences {
@@ -376,6 +421,7 @@ type ContinuationInput struct {
 	FromAgentSessionRef domain.AttemptSessionRefID
 	Reason              domain.ContinuationReason
 	ReasonDetail        string
+	TriggerEvidence     domain.ContinuationTriggerEvidence
 	ContextDigest       string
 	ContextRefs         []domain.WaldoContextRef
 	PreviousBindings    domain.ContinuationBindings
@@ -403,6 +449,16 @@ func (service *Service) Continue(ctx context.Context, projectID domain.ProjectID
 		}
 		return replay, nil
 	}
+	if pending, found, err := service.store.FindWaldoContinuationOperationByRequestKey(ctx, input.RequestKey); err != nil {
+		return domain.ContinuationReceipt{}, err
+	} else if found {
+		if pending.RequestFingerprint != request.Fingerprint {
+			return domain.ContinuationReceipt{}, apierr.Conflict(CodeConversationIdempotency, "That idempotency key belongs to different continuation input", map[string]any{"requestKey": input.RequestKey})
+		}
+		return domain.ContinuationReceipt{}, apierr.Conflict(CodeContinuationInProgress,
+			"This continuation is already durably in progress; reconcile it before any retry",
+			map[string]any{"operationId": pending.ID, "state": pending.State})
+	}
 	snapshot, err := service.Get(ctx, projectID)
 	if err != nil {
 		return domain.ContinuationReceipt{}, err
@@ -411,28 +467,116 @@ func (service *Service) Continue(ctx context.Context, projectID domain.ProjectID
 		!input.Reason.Valid() || len(input.ContextDigest) != 64 {
 		return domain.ContinuationReceipt{}, apierr.Invalid(CodeContinuationInputInvalid, "Continuation requires source identity, exact reason, and context digest", nil)
 	}
+	if err := input.TriggerEvidence.ValidateForReason(input.Reason); err != nil {
+		return domain.ContinuationReceipt{}, apierr.Invalid(CodeContinuationInputInvalid, err.Error(), nil)
+	}
 	if err := input.PreviousBindings.Validate(); err != nil {
 		return domain.ContinuationReceipt{}, apierr.Invalid(CodeContinuationInputInvalid, err.Error(), nil)
 	}
 	if err := input.ReplacementBindings.Validate(); err != nil {
 		return domain.ContinuationReceipt{}, apierr.Invalid(CodeContinuationInputInvalid, err.Error(), nil)
 	}
-	for _, ref := range input.ContextRefs {
+	for index, ref := range input.ContextRefs {
 		if err := ref.Validate(); err != nil {
 			return domain.ContinuationReceipt{}, apierr.Invalid(CodeContinuationInputInvalid, err.Error(), nil)
 		}
+		current, found, err := service.store.ResolveWaldoContextRef(ctx, projectID, ref)
+		if err != nil {
+			return domain.ContinuationReceipt{}, err
+		}
+		if !found {
+			return domain.ContinuationReceipt{}, apierr.NotFound(CodeContextNotFound, "A continuation context source does not belong to this Project or is no longer available")
+		}
+		if current.Revision != ref.Revision {
+			return domain.ContinuationReceipt{}, contextRevisionConflict(ref, current.Revision)
+		}
+		input.ContextRefs[index] = current
+	}
+	if service.facts == nil {
+		return domain.ContinuationReceipt{}, apierr.Internal(CodeContinuationFactsUnwired, "Canonical continuation facts are not wired in this environment")
+	}
+	canonical, err := service.facts.ResolveWaldoContinuationFacts(ctx, ports.WaldoContinuationFactsRequest{
+		ProjectID: projectID, FromAgentSessionRef: input.FromAgentSessionRef, Reason: input.Reason,
+		TriggerEvidence:  input.TriggerEvidence,
+		PreviousBindings: input.PreviousBindings, ReplacementBindings: input.ReplacementBindings,
+		EffectsKnown: input.EffectsKnown, LostMaterialContext: input.LostMaterialContext,
+		SourceRevoked: input.SourceRevoked, FreshVerifier: input.FreshVerifier,
+		ContextDigest: input.ContextDigest, ContextRefs: append([]domain.WaldoContextRef(nil), input.ContextRefs...),
+	})
+	if err != nil {
+		return domain.ContinuationReceipt{}, err
+	}
+	input.PreviousBindings = canonical.PreviousBindings
+	input.ReplacementBindings = canonical.ReplacementBindings
+	input.EffectsKnown = canonical.EffectsKnown
+	input.LostMaterialContext = canonical.LostMaterialContext
+	input.SourceRevoked = canonical.SourceRevoked
+	input.FreshVerifier = canonical.FreshVerifier
+	input.TriggerEvidence = canonical.TriggerEvidence
+	if err := input.TriggerEvidence.ValidateForReason(input.Reason); err != nil {
+		return domain.ContinuationReceipt{}, apierr.Invalid(CodeContinuationInputInvalid, err.Error(), nil)
+	}
+	if err := input.PreviousBindings.Validate(); err != nil {
+		return domain.ContinuationReceipt{}, apierr.Invalid(CodeContinuationInputInvalid, err.Error(), nil)
+	}
+	if err := input.ReplacementBindings.Validate(); err != nil {
+		return domain.ContinuationReceipt{}, apierr.Invalid(CodeContinuationInputInvalid, err.Error(), nil)
 	}
 	changed := input.PreviousBindings.Changed(input.ReplacementBindings)
+	bindingIdentityConfirmed := strings.TrimSpace(input.PreviousBindings.Model) != "" &&
+		strings.TrimSpace(input.PreviousBindings.Profile) != "" &&
+		strings.TrimSpace(input.ReplacementBindings.Model) != "" &&
+		strings.TrimSpace(input.ReplacementBindings.Profile) != ""
 	if input.PreviousBindings.ProjectID != projectID || input.ReplacementBindings.ProjectID != projectID {
 		changed = appendMissing(changed, "project")
 	}
-	if len(changed) > 0 || !input.EffectsKnown || input.LostMaterialContext || input.SourceRevoked || input.FreshVerifier {
-		reason := needsUserReason(input, changed)
-		return service.recordContinuation(ctx, snapshot, input, request, domain.ContinuationNeedsYou,
-			true, changed, false, false, "", "", "", reason)
-	}
-	if service.executor == nil {
+	needsOwner := len(changed) > 0 || !input.EffectsKnown || input.LostMaterialContext ||
+		input.SourceRevoked || input.FreshVerifier || !canonical.TriggerConfirmed ||
+		!bindingIdentityConfirmed || reasonRequiresOwner(input.Reason)
+	if !needsOwner && service.executor == nil {
 		return domain.ContinuationReceipt{}, apierr.Internal(CodeContinuationUnwired, "Provider continuation is not wired in this environment")
+	}
+	fromEpisode, found := currentActiveEpisode(snapshot.Episodes)
+	if !found {
+		return domain.ContinuationReceipt{}, apierr.Conflict("WALDO_CONTINUATION_EPISODE_MISSING", "No active bounded conversation episode can be continued", nil)
+	}
+	now := service.clock()
+	operation := domain.WaldoContinuationOperation{
+		ID: "waldo-operation-" + uuid.NewString(), ConversationID: snapshot.Conversation.ID,
+		ProjectID: projectID, FromEpisodeID: fromEpisode.ID, FromAgentSessionRef: input.FromAgentSessionRef,
+		ExpectedConversationRevision: snapshot.Conversation.Revision, State: domain.WaldoContinuationPrepared,
+		Reason: input.Reason, ReasonDetail: input.ReasonDetail, TriggerEvidence: input.TriggerEvidence,
+		MaterialChange: continuationMaterialChange(input, changed), ChangedFields: append([]string(nil), changed...),
+		ContextDigest: input.ContextDigest, ContextRefs: append([]domain.WaldoContextRef(nil), input.ContextRefs...),
+		PreviousBindings: input.PreviousBindings, ReplacementBindings: input.ReplacementBindings,
+		EffectsKnown: input.EffectsKnown, LostMaterialContext: input.LostMaterialContext,
+		SourceRevoked: input.SourceRevoked, FreshVerifier: input.FreshVerifier,
+		TriggerConfirmed: canonical.TriggerConfirmed,
+		RequestKey:       request.Key, RequestFingerprint: request.Fingerprint,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	claimedOperation, claimed, err := service.store.ClaimWaldoContinuationOperation(ctx, operation)
+	if err != nil {
+		return domain.ContinuationReceipt{}, mapStoreError(err)
+	}
+	if !claimed {
+		return domain.ContinuationReceipt{}, apierr.Conflict(CodeContinuationInProgress,
+			"This continuation was claimed concurrently; reconcile it before any retry",
+			map[string]any{"operationId": claimedOperation.ID, "state": claimedOperation.State})
+	}
+	operation = claimedOperation
+	if needsOwner {
+		reason := needsUserReason(input, changed)
+		if !bindingIdentityConfirmed {
+			reason = "Model or profile identity is unknown; confirm the exact replacement configuration before continuing."
+		}
+		return service.recordContinuation(ctx, snapshot, operation, input, request, domain.ContinuationNeedsYou,
+			continuationMaterialChange(input, changed), changed, false, false, "", "", "", reason)
+	}
+	operation, err = service.store.AdvanceWaldoContinuationOperation(ctx, operation.ID,
+		domain.WaldoContinuationPrepared, domain.WaldoContinuationFencing, "", "", "", service.clock())
+	if err != nil {
+		return domain.ContinuationReceipt{}, err
 	}
 	fence, fenceErr := service.executor.FenceForContinuation(ctx, input.FromAgentSessionRef)
 	if fenceErr != nil || !fence.Fenced {
@@ -440,10 +584,23 @@ func (service *Service) Continue(ctx context.Context, projectID domain.ProjectID
 		if fence.Detail != "" {
 			detail = fence.Detail
 		}
-		return service.recordContinuation(ctx, snapshot, input, request, domain.ContinuationNeedsYou,
+		return service.recordContinuation(ctx, snapshot, operation, input, request, domain.ContinuationNeedsYou,
 			false, nil, input.EffectsKnown, false, fence.FenceReceiptRef, fence.ReconciliationRef, "", detail)
 	}
+	operation, err = service.store.AdvanceWaldoContinuationOperation(ctx, operation.ID,
+		domain.WaldoContinuationFencing, domain.WaldoContinuationFenced,
+		fence.FenceReceiptRef, fence.ReconciliationRef, "", service.clock())
+	if err != nil {
+		return domain.ContinuationReceipt{}, err
+	}
+	operation, err = service.store.AdvanceWaldoContinuationOperation(ctx, operation.ID,
+		domain.WaldoContinuationFenced, domain.WaldoContinuationStarting,
+		fence.FenceReceiptRef, fence.ReconciliationRef, "", service.clock())
+	if err != nil {
+		return domain.ContinuationReceipt{}, err
+	}
 	started, startErr := service.executor.StartContinuation(ctx, ports.ContinuationStartRequest{
+		RequestKey:          input.RequestKey,
 		FromAgentSessionRef: input.FromAgentSessionRef, Bindings: input.ReplacementBindings,
 		ContextDigest: input.ContextDigest, ContextRefs: append([]domain.WaldoContextRef(nil), input.ContextRefs...),
 	})
@@ -454,18 +611,75 @@ func (service *Service) Continue(ctx context.Context, projectID domain.ProjectID
 		} else if startErr != nil {
 			detail = startErr.Error()
 		}
-		return service.recordContinuation(ctx, snapshot, input, request, domain.ContinuationUnconfirmed,
+		return service.recordContinuation(ctx, snapshot, operation, input, request, domain.ContinuationUnconfirmed,
 			false, nil, input.EffectsKnown, true, fence.FenceReceiptRef,
 			firstNonBlank(started.ReconciliationRef, fence.ReconciliationRef), "", detail)
 	}
-	return service.recordContinuation(ctx, snapshot, input, request, domain.ContinuationAutomatic,
+	confirmedBindings, confirmed, confirmErr := service.facts.ConfirmWaldoReplacementBindings(ctx, projectID, started.SessionRef, input.ReplacementBindings)
+	if confirmErr != nil || !confirmed || !confirmedBindings.Equal(input.ReplacementBindings) {
+		detail := "Replacement session bindings are ambiguous; reconcile before any retry."
+		if confirmErr != nil {
+			detail = confirmErr.Error()
+		}
+		return service.recordContinuation(ctx, snapshot, operation, input, request, domain.ContinuationUnconfirmed,
+			false, nil, input.EffectsKnown, true, fence.FenceReceiptRef,
+			firstNonBlank(started.ReconciliationRef, fence.ReconciliationRef), "", detail)
+	}
+	return service.recordContinuation(ctx, snapshot, operation, input, request, domain.ContinuationAutomatic,
 		false, nil, true, true, fence.FenceReceiptRef,
 		firstNonBlank(started.ReconciliationRef, fence.ReconciliationRef), started.SessionRef, "")
+}
+
+// RecoverPendingContinuations converts every interrupted durable operation into
+// the exact next safe action without repeating a provider effect.
+func (service *Service) RecoverPendingContinuations(ctx context.Context) ([]domain.ContinuationReceipt, error) {
+	operations, err := service.store.ListPendingWaldoContinuationOperations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	receipts := make([]domain.ContinuationReceipt, 0, len(operations))
+	for _, operation := range operations {
+		snapshot, err := service.Get(ctx, operation.ProjectID)
+		if err != nil {
+			return nil, err
+		}
+		input := ContinuationInput{
+			FromAgentSessionRef: operation.FromAgentSessionRef, Reason: operation.Reason,
+			ReasonDetail: operation.ReasonDetail, TriggerEvidence: operation.TriggerEvidence,
+			ContextDigest: operation.ContextDigest, ContextRefs: append([]domain.WaldoContextRef(nil), operation.ContextRefs...),
+			PreviousBindings: operation.PreviousBindings, ReplacementBindings: operation.ReplacementBindings,
+			EffectsKnown: operation.EffectsKnown, LostMaterialContext: operation.LostMaterialContext,
+			SourceRevoked: operation.SourceRevoked, FreshVerifier: operation.FreshVerifier,
+			RequestKey: operation.RequestKey,
+		}
+		request := ports.WaldoIdempotency{Key: operation.RequestKey, Fingerprint: operation.RequestFingerprint}
+		action := domain.ContinuationNeedsYou
+		fenced := operation.State == domain.WaldoContinuationFenced || operation.State == domain.WaldoContinuationStarting
+		detail := "Continuation was interrupted before a safe provider start; inspect the durable operation before proceeding."
+		switch operation.State {
+		case domain.WaldoContinuationStarting:
+			action = domain.ContinuationUnconfirmed
+			detail = "Daemon restart found an ambiguous replacement start; reconcile before any retry."
+		case domain.WaldoContinuationFenced:
+			detail = "The predecessor was fenced before restart; confirm the next action before starting a replacement."
+		case domain.WaldoContinuationFencing:
+			detail = "Fencing was interrupted and its outcome is unknown; reconcile the predecessor before replacement."
+		}
+		receipt, err := service.recordContinuation(ctx, snapshot, operation, input, request, action,
+			operation.MaterialChange, operation.ChangedFields, operation.EffectsKnown, fenced,
+			operation.FenceReceiptRef, operation.ReconciliationRef, "", detail)
+		if err != nil {
+			return nil, err
+		}
+		receipts = append(receipts, receipt)
+	}
+	return receipts, nil
 }
 
 func (service *Service) recordContinuation(
 	ctx context.Context,
 	snapshot ports.WaldoConversationSnapshot,
+	operation domain.WaldoContinuationOperation,
 	input ContinuationInput,
 	request ports.WaldoIdempotency,
 	action domain.ContinuationAction,
@@ -476,10 +690,7 @@ func (service *Service) recordContinuation(
 	toRef domain.AttemptSessionRefID,
 	needsUserReason string,
 ) (domain.ContinuationReceipt, error) {
-	fromEpisode, found := currentActiveEpisode(snapshot.Episodes)
-	if !found {
-		return domain.ContinuationReceipt{}, apierr.Conflict("WALDO_CONTINUATION_EPISODE_MISSING", "No active bounded conversation episode can be continued", nil)
-	}
+	fromEpisodeID := operation.FromEpisodeID
 	var replacementEpisode *domain.WaldoConversationEpisode
 	toEpisodeID := domain.WaldoConversationEpisodeID("")
 	now := service.clock()
@@ -496,9 +707,9 @@ func (service *Service) recordContinuation(
 	receipt := domain.ContinuationReceipt{
 		ID: "waldo-continuation-" + uuid.NewString(), ConversationID: snapshot.Conversation.ID,
 		ProjectID: snapshot.Conversation.ProjectID, FromAgentSessionRef: input.FromAgentSessionRef,
-		FromEpisodeID: fromEpisode.ID, ToEpisodeID: toEpisodeID,
+		OperationID: operation.ID, FromEpisodeID: fromEpisodeID, ToEpisodeID: toEpisodeID,
 		ToAgentSessionRef: toRef, Action: action, Reason: input.Reason,
-		ReasonDetail: input.ReasonDetail, MaterialChange: material,
+		ReasonDetail: input.ReasonDetail, TriggerEvidence: input.TriggerEvidence, MaterialChange: material,
 		ChangedFields: append([]string(nil), changed...), ContextDigest: input.ContextDigest,
 		ContextRefs:      append([]domain.WaldoContextRef(nil), input.ContextRefs...),
 		PreviousBindings: input.PreviousBindings, ReplacementBindings: input.ReplacementBindings,
@@ -559,9 +770,9 @@ func appendMissing(values []string, value string) []string {
 
 func needsUserReason(input ContinuationInput, changed []string) string {
 	switch {
-	case input.FreshVerifier:
+	case input.FreshVerifier || input.Reason == domain.ContinuationReasonFreshVerifier:
 		return "Start a fresh verifier Attempt without inheriting implementer conclusions."
-	case input.SourceRevoked:
+	case input.SourceRevoked || input.Reason == domain.ContinuationReasonSourceRevoked:
 		return "A context source was revoked; review what remains before continuing."
 	case input.LostMaterialContext:
 		return "Material context could not be preserved; review the bounded packet before continuing."
@@ -569,9 +780,31 @@ func needsUserReason(input ContinuationInput, changed []string) string {
 		return "A consequential effect has an unknown outcome; reconcile it before replacement."
 	case len(changed) > 0:
 		return "Material continuation bindings changed: " + strings.Join(changed, ", ") + "."
+	case input.Reason == domain.ContinuationReasonMaterialDigestChange:
+		return "The material context digest changed; review the replacement packet before continuing."
+	case input.Reason == domain.ContinuationReasonIdentityLost:
+		return "The provider identity was lost; reconcile it before choosing a replacement."
+	case input.Reason == domain.ContinuationReasonUserRequested:
+		return "Confirm the requested replacement before starting a new provider session."
 	default:
 		return "Continuation requires owner review."
 	}
+}
+
+func reasonRequiresOwner(reason domain.ContinuationReason) bool {
+	switch reason {
+	case domain.ContinuationReasonMaterialDigestChange, domain.ContinuationReasonIdentityLost,
+		domain.ContinuationReasonSourceRevoked, domain.ContinuationReasonFreshVerifier,
+		domain.ContinuationReasonUserRequested:
+		return true
+	default:
+		return false
+	}
+}
+
+func continuationMaterialChange(input ContinuationInput, changed []string) bool {
+	return len(changed) > 0 || input.LostMaterialContext || input.SourceRevoked ||
+		input.Reason == domain.ContinuationReasonMaterialDigestChange
 }
 
 func contextRevisionConflict(requested domain.WaldoContextRef, current string) error {
@@ -645,6 +878,7 @@ func contextPacketDigest(packet BoundedContextPacket) string {
 func continuationFingerprint(projectID domain.ProjectID, input ContinuationInput) string {
 	parts := []string{
 		string(projectID), input.FromAgentSessionRef.String(), string(input.Reason), input.ReasonDetail,
+		string(input.TriggerEvidence.Kind), input.TriggerEvidence.Reference,
 		input.ContextDigest, strconv.FormatBool(input.EffectsKnown), strconv.FormatBool(input.LostMaterialContext),
 		strconv.FormatBool(input.SourceRevoked), strconv.FormatBool(input.FreshVerifier),
 	}

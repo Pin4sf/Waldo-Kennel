@@ -13,6 +13,39 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
 
+const advanceWaldoContinuationOperation = `-- name: AdvanceWaldoContinuationOperation :execrows
+UPDATE waldo_continuation_operations
+SET state = ?, fence_receipt_ref = ?, reconciliation_ref = ?,
+    needs_user_reason = ?, updated_at = ?
+WHERE id = ? AND state = ?
+`
+
+type AdvanceWaldoContinuationOperationParams struct {
+	State             string
+	FenceReceiptRef   string
+	ReconciliationRef string
+	NeedsUserReason   string
+	UpdatedAt         time.Time
+	ID                string
+	State_2           string
+}
+
+func (q *Queries) AdvanceWaldoContinuationOperation(ctx context.Context, arg AdvanceWaldoContinuationOperationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, advanceWaldoContinuationOperation,
+		arg.State,
+		arg.FenceReceiptRef,
+		arg.ReconciliationRef,
+		arg.NeedsUserReason,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.State_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const advanceWaldoConversationRevision = `-- name: AdvanceWaldoConversationRevision :execrows
 UPDATE waldo_conversations
 SET revision = revision + 1, updated_at = ?
@@ -114,19 +147,100 @@ func (q *Queries) CreateWaldoContextAttachment(ctx context.Context, arg CreateWa
 	return err
 }
 
+const createWaldoContinuationOperation = `-- name: CreateWaldoContinuationOperation :exec
+INSERT INTO waldo_continuation_operations (
+    id, conversation_id, project_id, from_episode_id, from_agent_session_ref_id,
+    expected_conversation_revision, state, reason, reason_detail,
+    trigger_evidence_kind, trigger_evidence_ref, material_change,
+    changed_fields, context_digest, context_refs, previous_bindings,
+    replacement_bindings, effects_known, lost_material_context, source_revoked,
+    fresh_verifier, trigger_confirmed, fence_receipt_ref, reconciliation_ref,
+    needs_user_reason, request_key, request_fingerprint, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateWaldoContinuationOperationParams struct {
+	ID                           string
+	ConversationID               string
+	ProjectID                    string
+	FromEpisodeID                string
+	FromAgentSessionRefID        string
+	ExpectedConversationRevision int64
+	State                        string
+	Reason                       string
+	ReasonDetail                 string
+	TriggerEvidenceKind          string
+	TriggerEvidenceRef           string
+	MaterialChange               int64
+	ChangedFields                string
+	ContextDigest                string
+	ContextRefs                  string
+	PreviousBindings             string
+	ReplacementBindings          string
+	EffectsKnown                 int64
+	LostMaterialContext          int64
+	SourceRevoked                int64
+	FreshVerifier                int64
+	TriggerConfirmed             int64
+	FenceReceiptRef              string
+	ReconciliationRef            string
+	NeedsUserReason              string
+	RequestKey                   string
+	RequestFingerprint           string
+	CreatedAt                    time.Time
+	UpdatedAt                    time.Time
+}
+
+func (q *Queries) CreateWaldoContinuationOperation(ctx context.Context, arg CreateWaldoContinuationOperationParams) error {
+	_, err := q.db.ExecContext(ctx, createWaldoContinuationOperation,
+		arg.ID,
+		arg.ConversationID,
+		arg.ProjectID,
+		arg.FromEpisodeID,
+		arg.FromAgentSessionRefID,
+		arg.ExpectedConversationRevision,
+		arg.State,
+		arg.Reason,
+		arg.ReasonDetail,
+		arg.TriggerEvidenceKind,
+		arg.TriggerEvidenceRef,
+		arg.MaterialChange,
+		arg.ChangedFields,
+		arg.ContextDigest,
+		arg.ContextRefs,
+		arg.PreviousBindings,
+		arg.ReplacementBindings,
+		arg.EffectsKnown,
+		arg.LostMaterialContext,
+		arg.SourceRevoked,
+		arg.FreshVerifier,
+		arg.TriggerConfirmed,
+		arg.FenceReceiptRef,
+		arg.ReconciliationRef,
+		arg.NeedsUserReason,
+		arg.RequestKey,
+		arg.RequestFingerprint,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const createWaldoContinuationReceipt = `-- name: CreateWaldoContinuationReceipt :exec
 INSERT INTO waldo_continuation_receipts (
-    id, conversation_id, project_id, from_episode_id, to_episode_id,
+    id, operation_id, conversation_id, project_id, from_episode_id, to_episode_id,
     from_agent_session_ref_id, to_agent_session_ref_id, action, reason, reason_detail,
+    trigger_evidence_kind, trigger_evidence_ref,
     material_change, changed_fields, context_digest, context_refs,
     previous_bindings, replacement_bindings, effects_known, old_session_fenced,
     replacement_identity_confirmed, fence_receipt_ref, reconciliation_ref,
     needs_user_reason, request_key, request_fingerprint, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateWaldoContinuationReceiptParams struct {
 	ID                           string
+	OperationID                  string
 	ConversationID               string
 	ProjectID                    string
 	FromEpisodeID                string
@@ -136,6 +250,8 @@ type CreateWaldoContinuationReceiptParams struct {
 	Action                       string
 	Reason                       string
 	ReasonDetail                 string
+	TriggerEvidenceKind          string
+	TriggerEvidenceRef           string
 	MaterialChange               int64
 	ChangedFields                string
 	ContextDigest                string
@@ -156,6 +272,7 @@ type CreateWaldoContinuationReceiptParams struct {
 func (q *Queries) CreateWaldoContinuationReceipt(ctx context.Context, arg CreateWaldoContinuationReceiptParams) error {
 	_, err := q.db.ExecContext(ctx, createWaldoContinuationReceipt,
 		arg.ID,
+		arg.OperationID,
 		arg.ConversationID,
 		arg.ProjectID,
 		arg.FromEpisodeID,
@@ -165,6 +282,8 @@ func (q *Queries) CreateWaldoContinuationReceipt(ctx context.Context, arg Create
 		arg.Action,
 		arg.Reason,
 		arg.ReasonDetail,
+		arg.TriggerEvidenceKind,
+		arg.TriggerEvidenceRef,
 		arg.MaterialChange,
 		arg.ChangedFields,
 		arg.ContextDigest,
@@ -406,8 +525,49 @@ func (q *Queries) FindWaldoContextByDetachRequestKey(ctx context.Context, detach
 	return i, err
 }
 
+const findWaldoContinuationOperationByRequestKey = `-- name: FindWaldoContinuationOperationByRequestKey :one
+SELECT id, conversation_id, project_id, from_episode_id, from_agent_session_ref_id, expected_conversation_revision, state, reason, reason_detail, trigger_evidence_kind, trigger_evidence_ref, material_change, changed_fields, context_digest, context_refs, previous_bindings, replacement_bindings, effects_known, lost_material_context, source_revoked, fresh_verifier, trigger_confirmed, fence_receipt_ref, reconciliation_ref, needs_user_reason, request_key, request_fingerprint, created_at, updated_at FROM waldo_continuation_operations WHERE request_key = ?
+`
+
+func (q *Queries) FindWaldoContinuationOperationByRequestKey(ctx context.Context, requestKey string) (WaldoContinuationOperation, error) {
+	row := q.db.QueryRowContext(ctx, findWaldoContinuationOperationByRequestKey, requestKey)
+	var i WaldoContinuationOperation
+	err := row.Scan(
+		&i.ID,
+		&i.ConversationID,
+		&i.ProjectID,
+		&i.FromEpisodeID,
+		&i.FromAgentSessionRefID,
+		&i.ExpectedConversationRevision,
+		&i.State,
+		&i.Reason,
+		&i.ReasonDetail,
+		&i.TriggerEvidenceKind,
+		&i.TriggerEvidenceRef,
+		&i.MaterialChange,
+		&i.ChangedFields,
+		&i.ContextDigest,
+		&i.ContextRefs,
+		&i.PreviousBindings,
+		&i.ReplacementBindings,
+		&i.EffectsKnown,
+		&i.LostMaterialContext,
+		&i.SourceRevoked,
+		&i.FreshVerifier,
+		&i.TriggerConfirmed,
+		&i.FenceReceiptRef,
+		&i.ReconciliationRef,
+		&i.NeedsUserReason,
+		&i.RequestKey,
+		&i.RequestFingerprint,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const findWaldoContinuationReceiptByRequestKey = `-- name: FindWaldoContinuationReceiptByRequestKey :one
-SELECT id, conversation_id, project_id, from_episode_id, to_episode_id, from_agent_session_ref_id, to_agent_session_ref_id, "action", reason, reason_detail, material_change, changed_fields, context_digest, context_refs, previous_bindings, replacement_bindings, effects_known, old_session_fenced, replacement_identity_confirmed, fence_receipt_ref, reconciliation_ref, needs_user_reason, request_key, request_fingerprint, created_at FROM waldo_continuation_receipts WHERE request_key = ?
+SELECT id, operation_id, conversation_id, project_id, from_episode_id, to_episode_id, from_agent_session_ref_id, to_agent_session_ref_id, "action", reason, reason_detail, trigger_evidence_kind, trigger_evidence_ref, material_change, changed_fields, context_digest, context_refs, previous_bindings, replacement_bindings, effects_known, old_session_fenced, replacement_identity_confirmed, fence_receipt_ref, reconciliation_ref, needs_user_reason, request_key, request_fingerprint, created_at FROM waldo_continuation_receipts WHERE request_key = ?
 `
 
 func (q *Queries) FindWaldoContinuationReceiptByRequestKey(ctx context.Context, requestKey string) (WaldoContinuationReceipt, error) {
@@ -415,6 +575,7 @@ func (q *Queries) FindWaldoContinuationReceiptByRequestKey(ctx context.Context, 
 	var i WaldoContinuationReceipt
 	err := row.Scan(
 		&i.ID,
+		&i.OperationID,
 		&i.ConversationID,
 		&i.ProjectID,
 		&i.FromEpisodeID,
@@ -424,6 +585,8 @@ func (q *Queries) FindWaldoContinuationReceiptByRequestKey(ctx context.Context, 
 		&i.Action,
 		&i.Reason,
 		&i.ReasonDetail,
+		&i.TriggerEvidenceKind,
+		&i.TriggerEvidenceRef,
 		&i.MaterialChange,
 		&i.ChangedFields,
 		&i.ContextDigest,
@@ -528,6 +691,47 @@ func (q *Queries) GetWaldoContextAttachment(ctx context.Context, arg GetWaldoCon
 	return i, err
 }
 
+const getWaldoContinuationOperation = `-- name: GetWaldoContinuationOperation :one
+SELECT id, conversation_id, project_id, from_episode_id, from_agent_session_ref_id, expected_conversation_revision, state, reason, reason_detail, trigger_evidence_kind, trigger_evidence_ref, material_change, changed_fields, context_digest, context_refs, previous_bindings, replacement_bindings, effects_known, lost_material_context, source_revoked, fresh_verifier, trigger_confirmed, fence_receipt_ref, reconciliation_ref, needs_user_reason, request_key, request_fingerprint, created_at, updated_at FROM waldo_continuation_operations WHERE id = ?
+`
+
+func (q *Queries) GetWaldoContinuationOperation(ctx context.Context, id string) (WaldoContinuationOperation, error) {
+	row := q.db.QueryRowContext(ctx, getWaldoContinuationOperation, id)
+	var i WaldoContinuationOperation
+	err := row.Scan(
+		&i.ID,
+		&i.ConversationID,
+		&i.ProjectID,
+		&i.FromEpisodeID,
+		&i.FromAgentSessionRefID,
+		&i.ExpectedConversationRevision,
+		&i.State,
+		&i.Reason,
+		&i.ReasonDetail,
+		&i.TriggerEvidenceKind,
+		&i.TriggerEvidenceRef,
+		&i.MaterialChange,
+		&i.ChangedFields,
+		&i.ContextDigest,
+		&i.ContextRefs,
+		&i.PreviousBindings,
+		&i.ReplacementBindings,
+		&i.EffectsKnown,
+		&i.LostMaterialContext,
+		&i.SourceRevoked,
+		&i.FreshVerifier,
+		&i.TriggerConfirmed,
+		&i.FenceReceiptRef,
+		&i.ReconciliationRef,
+		&i.NeedsUserReason,
+		&i.RequestKey,
+		&i.RequestFingerprint,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getWaldoConversationByID = `-- name: GetWaldoConversationByID :one
 SELECT id, project_id, revision, latest_turn_sequence, created_at, updated_at FROM waldo_conversations WHERE id = ?
 `
@@ -562,6 +766,64 @@ func (q *Queries) GetWaldoConversationByProject(ctx context.Context, projectID s
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listPendingWaldoContinuationOperations = `-- name: ListPendingWaldoContinuationOperations :many
+SELECT id, conversation_id, project_id, from_episode_id, from_agent_session_ref_id, expected_conversation_revision, state, reason, reason_detail, trigger_evidence_kind, trigger_evidence_ref, material_change, changed_fields, context_digest, context_refs, previous_bindings, replacement_bindings, effects_known, lost_material_context, source_revoked, fresh_verifier, trigger_confirmed, fence_receipt_ref, reconciliation_ref, needs_user_reason, request_key, request_fingerprint, created_at, updated_at FROM waldo_continuation_operations
+WHERE state <> 'completed' ORDER BY created_at, id
+`
+
+func (q *Queries) ListPendingWaldoContinuationOperations(ctx context.Context) ([]WaldoContinuationOperation, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingWaldoContinuationOperations)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WaldoContinuationOperation{}
+	for rows.Next() {
+		var i WaldoContinuationOperation
+		if err := rows.Scan(
+			&i.ID,
+			&i.ConversationID,
+			&i.ProjectID,
+			&i.FromEpisodeID,
+			&i.FromAgentSessionRefID,
+			&i.ExpectedConversationRevision,
+			&i.State,
+			&i.Reason,
+			&i.ReasonDetail,
+			&i.TriggerEvidenceKind,
+			&i.TriggerEvidenceRef,
+			&i.MaterialChange,
+			&i.ChangedFields,
+			&i.ContextDigest,
+			&i.ContextRefs,
+			&i.PreviousBindings,
+			&i.ReplacementBindings,
+			&i.EffectsKnown,
+			&i.LostMaterialContext,
+			&i.SourceRevoked,
+			&i.FreshVerifier,
+			&i.TriggerConfirmed,
+			&i.FenceReceiptRef,
+			&i.ReconciliationRef,
+			&i.NeedsUserReason,
+			&i.RequestKey,
+			&i.RequestFingerprint,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listWaldoContextAttachments = `-- name: ListWaldoContextAttachments :many
@@ -611,7 +873,7 @@ func (q *Queries) ListWaldoContextAttachments(ctx context.Context, conversationI
 }
 
 const listWaldoContinuationReceipts = `-- name: ListWaldoContinuationReceipts :many
-SELECT id, conversation_id, project_id, from_episode_id, to_episode_id, from_agent_session_ref_id, to_agent_session_ref_id, "action", reason, reason_detail, material_change, changed_fields, context_digest, context_refs, previous_bindings, replacement_bindings, effects_known, old_session_fenced, replacement_identity_confirmed, fence_receipt_ref, reconciliation_ref, needs_user_reason, request_key, request_fingerprint, created_at FROM waldo_continuation_receipts
+SELECT id, operation_id, conversation_id, project_id, from_episode_id, to_episode_id, from_agent_session_ref_id, to_agent_session_ref_id, "action", reason, reason_detail, trigger_evidence_kind, trigger_evidence_ref, material_change, changed_fields, context_digest, context_refs, previous_bindings, replacement_bindings, effects_known, old_session_fenced, replacement_identity_confirmed, fence_receipt_ref, reconciliation_ref, needs_user_reason, request_key, request_fingerprint, created_at FROM waldo_continuation_receipts
 WHERE conversation_id = ? ORDER BY created_at, id
 `
 
@@ -626,6 +888,7 @@ func (q *Queries) ListWaldoContinuationReceipts(ctx context.Context, conversatio
 		var i WaldoContinuationReceipt
 		if err := rows.Scan(
 			&i.ID,
+			&i.OperationID,
 			&i.ConversationID,
 			&i.ProjectID,
 			&i.FromEpisodeID,
@@ -635,6 +898,8 @@ func (q *Queries) ListWaldoContinuationReceipts(ctx context.Context, conversatio
 			&i.Action,
 			&i.Reason,
 			&i.ReasonDetail,
+			&i.TriggerEvidenceKind,
+			&i.TriggerEvidenceRef,
 			&i.MaterialChange,
 			&i.ChangedFields,
 			&i.ContextDigest,
@@ -803,7 +1068,8 @@ func (q *Queries) ListWaldoTurnContextRefs(ctx context.Context, conversationID s
 }
 
 const resolveWaldoAgentSessionContext = `-- name: ResolveWaldoAgentSessionContext :one
-SELECT session_ref.id AS object_id, CAST(session_ref.seq AS TEXT) AS object_revision,
+SELECT session_ref.id AS object_id, session_ref.seq AS revision_number,
+       a.status AS lifecycle_state, a.updated_at AS lifecycle_updated_at,
        s.project_id AS project_id
 FROM attempt_sessions session_ref
 JOIN attempts a ON a.id = session_ref.attempt_id
@@ -813,20 +1079,29 @@ WHERE session_ref.id = ?
 `
 
 type ResolveWaldoAgentSessionContextRow struct {
-	ObjectID       string
-	ObjectRevision string
-	ProjectID      domain.ProjectID
+	ObjectID           string
+	RevisionNumber     int64
+	LifecycleState     domain.AttemptStatus
+	LifecycleUpdatedAt time.Time
+	ProjectID          domain.ProjectID
 }
 
 func (q *Queries) ResolveWaldoAgentSessionContext(ctx context.Context, id string) (ResolveWaldoAgentSessionContextRow, error) {
 	row := q.db.QueryRowContext(ctx, resolveWaldoAgentSessionContext, id)
 	var i ResolveWaldoAgentSessionContextRow
-	err := row.Scan(&i.ObjectID, &i.ObjectRevision, &i.ProjectID)
+	err := row.Scan(
+		&i.ObjectID,
+		&i.RevisionNumber,
+		&i.LifecycleState,
+		&i.LifecycleUpdatedAt,
+		&i.ProjectID,
+	)
 	return i, err
 }
 
 const resolveWaldoAttemptContext = `-- name: ResolveWaldoAttemptContext :one
-SELECT a.id AS object_id, CAST(a.number AS TEXT) AS object_revision,
+SELECT a.id AS object_id, a.number AS revision_number,
+       a.status AS lifecycle_state, a.updated_at AS lifecycle_updated_at,
        s.project_id AS project_id
 FROM attempts a
 JOIN outcomes o ON o.id = a.outcome_id
@@ -835,15 +1110,68 @@ WHERE a.id = ?
 `
 
 type ResolveWaldoAttemptContextRow struct {
-	ObjectID       domain.AttemptID
-	ObjectRevision string
-	ProjectID      domain.ProjectID
+	ObjectID           domain.AttemptID
+	RevisionNumber     int64
+	LifecycleState     domain.AttemptStatus
+	LifecycleUpdatedAt time.Time
+	ProjectID          domain.ProjectID
 }
 
 func (q *Queries) ResolveWaldoAttemptContext(ctx context.Context, id domain.AttemptID) (ResolveWaldoAttemptContextRow, error) {
 	row := q.db.QueryRowContext(ctx, resolveWaldoAttemptContext, id)
 	var i ResolveWaldoAttemptContextRow
-	err := row.Scan(&i.ObjectID, &i.ObjectRevision, &i.ProjectID)
+	err := row.Scan(
+		&i.ObjectID,
+		&i.RevisionNumber,
+		&i.LifecycleState,
+		&i.LifecycleUpdatedAt,
+		&i.ProjectID,
+	)
+	return i, err
+}
+
+const resolveWaldoContinuationSessionLineage = `-- name: ResolveWaldoContinuationSessionLineage :one
+SELECT session_ref.id AS session_ref_id, session_ref.attempt_id,
+       a.outcome_id, cr.id AS contract_revision_id, a.plan_revision_id,
+       a.work_unit_id, space.project_id, session_ref.harness,
+       session_ref.mode, session_ref.admission_snapshot
+FROM attempt_sessions session_ref
+JOIN attempts a ON a.id = session_ref.attempt_id
+JOIN contract_revisions cr ON cr.outcome_id = a.outcome_id
+    AND cr.number = a.contract_revision_number
+JOIN outcomes o ON o.id = a.outcome_id
+JOIN responsibility_spaces space ON space.id = o.space_id
+WHERE session_ref.id = ?
+`
+
+type ResolveWaldoContinuationSessionLineageRow struct {
+	SessionRefID       string
+	AttemptID          domain.AttemptID
+	OutcomeID          domain.OutcomeID
+	ContractRevisionID domain.ContractRevisionID
+	PlanRevisionID     domain.PlanRevisionID
+	WorkUnitID         domain.WorkUnitID
+	ProjectID          domain.ProjectID
+	Harness            domain.AgentHarness
+	Mode               domain.SessionMode
+	AdmissionSnapshot  string
+}
+
+func (q *Queries) ResolveWaldoContinuationSessionLineage(ctx context.Context, id string) (ResolveWaldoContinuationSessionLineageRow, error) {
+	row := q.db.QueryRowContext(ctx, resolveWaldoContinuationSessionLineage, id)
+	var i ResolveWaldoContinuationSessionLineageRow
+	err := row.Scan(
+		&i.SessionRefID,
+		&i.AttemptID,
+		&i.OutcomeID,
+		&i.ContractRevisionID,
+		&i.PlanRevisionID,
+		&i.WorkUnitID,
+		&i.ProjectID,
+		&i.Harness,
+		&i.Mode,
+		&i.AdmissionSnapshot,
+	)
 	return i, err
 }
 
@@ -870,49 +1198,65 @@ func (q *Queries) ResolveWaldoContractRevisionContext(ctx context.Context, id do
 }
 
 const resolveWaldoIntakeSessionContext = `-- name: ResolveWaldoIntakeSessionContext :one
-SELECT i.id AS object_id, CAST(i.current_proposal_revision AS TEXT) AS object_revision,
+SELECT i.id AS object_id, i.current_proposal_revision AS revision_number,
+       i.status AS lifecycle_state, i.updated_at AS lifecycle_updated_at,
        i.project_id AS project_id
 FROM intake_sessions i
 WHERE i.id = ? AND i.project_id IS NOT NULL
 `
 
 type ResolveWaldoIntakeSessionContextRow struct {
-	ObjectID       string
-	ObjectRevision string
-	ProjectID      sql.NullString
+	ObjectID           string
+	RevisionNumber     int64
+	LifecycleState     string
+	LifecycleUpdatedAt time.Time
+	ProjectID          sql.NullString
 }
 
 func (q *Queries) ResolveWaldoIntakeSessionContext(ctx context.Context, id string) (ResolveWaldoIntakeSessionContextRow, error) {
 	row := q.db.QueryRowContext(ctx, resolveWaldoIntakeSessionContext, id)
 	var i ResolveWaldoIntakeSessionContextRow
-	err := row.Scan(&i.ObjectID, &i.ObjectRevision, &i.ProjectID)
+	err := row.Scan(
+		&i.ObjectID,
+		&i.RevisionNumber,
+		&i.LifecycleState,
+		&i.LifecycleUpdatedAt,
+		&i.ProjectID,
+	)
 	return i, err
 }
 
 const resolveWaldoOutcomeContext = `-- name: ResolveWaldoOutcomeContext :one
-SELECT o.id AS object_id, CAST(o.current_revision_number AS TEXT) AS object_revision,
-       s.project_id AS project_id
+SELECT o.id AS object_id, o.current_revision_number AS revision_number,
+       o.updated_at AS lifecycle_updated_at, s.project_id AS project_id
 FROM outcomes o
 JOIN responsibility_spaces s ON s.id = o.space_id
 WHERE o.id = ?
 `
 
 type ResolveWaldoOutcomeContextRow struct {
-	ObjectID       domain.OutcomeID
-	ObjectRevision string
-	ProjectID      domain.ProjectID
+	ObjectID           domain.OutcomeID
+	RevisionNumber     int64
+	LifecycleUpdatedAt time.Time
+	ProjectID          domain.ProjectID
 }
 
 func (q *Queries) ResolveWaldoOutcomeContext(ctx context.Context, id domain.OutcomeID) (ResolveWaldoOutcomeContextRow, error) {
 	row := q.db.QueryRowContext(ctx, resolveWaldoOutcomeContext, id)
 	var i ResolveWaldoOutcomeContextRow
-	err := row.Scan(&i.ObjectID, &i.ObjectRevision, &i.ProjectID)
+	err := row.Scan(
+		&i.ObjectID,
+		&i.RevisionNumber,
+		&i.LifecycleUpdatedAt,
+		&i.ProjectID,
+	)
 	return i, err
 }
 
 const resolveWaldoPlanRevisionContext = `-- name: ResolveWaldoPlanRevisionContext :one
-SELECT pr.id AS object_id, CAST(pr.number AS TEXT) AS object_revision,
-       s.project_id AS project_id
+SELECT pr.id AS object_id, pr.number AS revision_number,
+       pr.status AS lifecycle_state, pr.run_brief_core_digest,
+       pr.run_brief_compiled_digest, s.project_id AS project_id
 FROM plan_revisions pr
 JOIN outcomes o ON o.id = pr.outcome_id
 JOIN responsibility_spaces s ON s.id = o.space_id
@@ -920,15 +1264,25 @@ WHERE pr.id = ?
 `
 
 type ResolveWaldoPlanRevisionContextRow struct {
-	ObjectID       domain.PlanRevisionID
-	ObjectRevision string
-	ProjectID      domain.ProjectID
+	ObjectID               domain.PlanRevisionID
+	RevisionNumber         int64
+	LifecycleState         string
+	RunBriefCoreDigest     string
+	RunBriefCompiledDigest string
+	ProjectID              domain.ProjectID
 }
 
 func (q *Queries) ResolveWaldoPlanRevisionContext(ctx context.Context, id domain.PlanRevisionID) (ResolveWaldoPlanRevisionContextRow, error) {
 	row := q.db.QueryRowContext(ctx, resolveWaldoPlanRevisionContext, id)
 	var i ResolveWaldoPlanRevisionContextRow
-	err := row.Scan(&i.ObjectID, &i.ObjectRevision, &i.ProjectID)
+	err := row.Scan(
+		&i.ObjectID,
+		&i.RevisionNumber,
+		&i.LifecycleState,
+		&i.RunBriefCoreDigest,
+		&i.RunBriefCompiledDigest,
+		&i.ProjectID,
+	)
 	return i, err
 }
 
@@ -951,8 +1305,9 @@ func (q *Queries) ResolveWaldoProjectContext(ctx context.Context, id domain.Proj
 }
 
 const resolveWaldoWorkUnitContext = `-- name: ResolveWaldoWorkUnitContext :one
-SELECT wu.id AS object_id, CAST(pr.number AS TEXT) AS object_revision,
-       s.project_id AS project_id
+SELECT wu.id AS object_id, pr.number AS revision_number,
+       pr.status AS lifecycle_state, pr.run_brief_core_digest,
+       pr.run_brief_compiled_digest, s.project_id AS project_id
 FROM work_units wu
 JOIN plan_revisions pr ON pr.id = wu.plan_revision_id
 JOIN outcomes o ON o.id = pr.outcome_id
@@ -961,15 +1316,25 @@ WHERE wu.id = ?
 `
 
 type ResolveWaldoWorkUnitContextRow struct {
-	ObjectID       domain.WorkUnitID
-	ObjectRevision string
-	ProjectID      domain.ProjectID
+	ObjectID               domain.WorkUnitID
+	RevisionNumber         int64
+	LifecycleState         string
+	RunBriefCoreDigest     string
+	RunBriefCompiledDigest string
+	ProjectID              domain.ProjectID
 }
 
 func (q *Queries) ResolveWaldoWorkUnitContext(ctx context.Context, id domain.WorkUnitID) (ResolveWaldoWorkUnitContextRow, error) {
 	row := q.db.QueryRowContext(ctx, resolveWaldoWorkUnitContext, id)
 	var i ResolveWaldoWorkUnitContextRow
-	err := row.Scan(&i.ObjectID, &i.ObjectRevision, &i.ProjectID)
+	err := row.Scan(
+		&i.ObjectID,
+		&i.RevisionNumber,
+		&i.LifecycleState,
+		&i.RunBriefCoreDigest,
+		&i.RunBriefCompiledDigest,
+		&i.ProjectID,
+	)
 	return i, err
 }
 
