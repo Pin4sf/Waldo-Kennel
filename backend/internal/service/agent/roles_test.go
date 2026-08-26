@@ -24,15 +24,17 @@ type fakeProfileAgent struct {
 // proving Project-config profiles reach the adapter gate.
 type captureProfileAgent struct {
 	fakeAgent
-	ready    bool
-	captured *ports.AgentConfig
+	ready            bool
+	readyWithProfile bool
+	captured         *ports.AgentConfig
 }
 
 func (f captureProfileAgent) ProfileReadiness(_ context.Context, cfg ports.AgentConfig) (ports.AgentProfileReadiness, error) {
 	if f.captured != nil {
 		*f.captured = cfg
 	}
-	return ports.AgentProfileReadiness{Ready: f.ready, Detail: "captured"}, nil
+	ready := f.ready || f.readyWithProfile && cfg.Profile != ""
+	return ports.AgentProfileReadiness{Ready: ready, Detail: "captured"}, nil
 }
 
 // TestServiceResolveMissionRolesUsesProjectConfigForReadiness proves the
@@ -76,12 +78,24 @@ func TestServiceResolveMissionRolesMismatchedOverrideHarnessIsCleared(t *testing
 		{Harness: domain.HarnessDeepSeekHarness, Manifest: adapters.Manifest{ID: "deepseek-harness"}, Agent: plugin},
 	})
 	cfg := domain.ProjectConfig{
-		Worker: domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Profile: "codex-side-profile"}},
+		AgentConfig: domain.AgentConfig{Model: "shared-model", Mode: "medium", Profile: "shared-profile", Permissions: domain.PermissionModeAuto},
+		Worker: domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{
+			Model: "codex-model", Mode: "high", Profile: "codex-side-profile",
+		}},
 	}
 	roles := svc.ResolveMissionRoles(context.Background(),
 		domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}, cfg)
 	if got := captured.Profile; got != "" {
 		t.Fatalf("readiness probed profile %q from a mismatched override; want empty", got)
+	}
+	if got := captured.Model; got != "" {
+		t.Fatalf("readiness probed model %q from a mismatched override; want empty", got)
+	}
+	if got := captured.Mode; got != "" {
+		t.Fatalf("readiness probed mode %q from a mismatched override; want empty", got)
+	}
+	if got := captured.Permissions; got != domain.PermissionModeAuto {
+		t.Fatalf("readiness dropped provider-neutral permissions %q; want %q", got, domain.PermissionModeAuto)
 	}
 	if roles.Worker.Ready {
 		t.Fatalf("worker must fail closed without an applicable profile: %+v", roles.Worker)
@@ -96,20 +110,67 @@ func TestServiceResolveMissionRolesMismatchedOverrideHarnessIsCleared(t *testing
 // nothing.
 func TestServiceResolveMissionRolesEmptyOverrideHarnessIsCleared(t *testing.T) {
 	captured := ports.AgentConfig{}
-	plugin := captureProfileAgent{fakeAgent: fakeAgent{}, ready: true, captured: &captured}
+	plugin := captureProfileAgent{fakeAgent: fakeAgent{}, ready: false, readyWithProfile: true, captured: &captured}
 	svc := NewWithAgents([]agentregistry.HarnessAgent{
 		{Harness: domain.HarnessDeepSeekHarness, Manifest: adapters.Manifest{ID: "deepseek-harness"}, Agent: plugin},
 	})
 	cfg := domain.ProjectConfig{
-		Worker: domain.RoleOverride{AgentConfig: domain.AgentConfig{Profile: "orphan-profile"}},
+		AgentConfig: domain.AgentConfig{Model: "shared-model", Mode: "medium", Profile: "shared-profile", Permissions: domain.PermissionModeAuto},
+		Worker: domain.RoleOverride{AgentConfig: domain.AgentConfig{
+			Model: "orphan-model", Mode: "high", Profile: "orphan-profile",
+		}},
 	}
 	roles := svc.ResolveMissionRoles(context.Background(),
 		domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}, cfg)
 	if got := captured.Profile; got != "" {
 		t.Fatalf("unset-harness override leaked profile %q into readiness; want empty", got)
 	}
+	if got := captured.Model; got != "" {
+		t.Fatalf("readiness probed model %q from an unset harness; want empty", got)
+	}
+	if got := captured.Mode; got != "" {
+		t.Fatalf("readiness probed mode %q from an unset harness; want empty", got)
+	}
+	if got := captured.Permissions; got != domain.PermissionModeAuto {
+		t.Fatalf("readiness dropped provider-neutral permissions %q; want %q", got, domain.PermissionModeAuto)
+	}
+	if roles.Worker.Ready {
+		t.Fatalf("unset-harness shared profile must fail closed: %+v", roles.Worker)
+	}
+	if !strings.Contains(strings.ToLower(roles.Worker.Reason), "profile") {
+		t.Fatalf("reason should name the missing-profile gate: %q", roles.Worker.Reason)
+	}
+}
+
+// TestServiceResolveMissionRolesMatchingHarnessRetainsSharedProfile proves
+// spawn parity: a shared profile is retained when the stored role harness
+// matches the resolved DeepSeek Harness.
+func TestServiceResolveMissionRolesMatchingHarnessRetainsSharedProfile(t *testing.T) {
+	captured := ports.AgentConfig{}
+	plugin := captureProfileAgent{fakeAgent: fakeAgent{}, ready: false, readyWithProfile: true, captured: &captured}
+	svc := NewWithAgents([]agentregistry.HarnessAgent{
+		{Harness: domain.HarnessDeepSeekHarness, Manifest: adapters.Manifest{ID: "deepseek-harness"}, Agent: plugin},
+	})
+	cfg := domain.ProjectConfig{
+		AgentConfig: domain.AgentConfig{Model: "shared-model", Mode: "medium", Profile: "shared-profile", Permissions: domain.PermissionModeAuto},
+		Worker:      domain.RoleOverride{Harness: domain.HarnessDeepSeekHarness},
+	}
+	roles := svc.ResolveMissionRoles(context.Background(),
+		domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}, cfg)
+	if got := captured.Profile; got != "shared-profile" {
+		t.Fatalf("matching harness dropped shared profile %q; want shared-profile", got)
+	}
+	if got := captured.Model; got != "shared-model" {
+		t.Fatalf("matching harness dropped shared model %q; want shared-model", got)
+	}
+	if got := captured.Mode; got != "medium" {
+		t.Fatalf("matching harness dropped shared mode %q; want medium", got)
+	}
+	if got := captured.Permissions; got != domain.PermissionModeAuto {
+		t.Fatalf("matching harness dropped provider-neutral permissions %q; want %q", got, domain.PermissionModeAuto)
+	}
 	if !roles.Worker.Ready {
-		t.Fatalf("composing profile must keep the honored preference ready: %+v", roles.Worker)
+		t.Fatalf("matching DeepSeek Harness with a shared profile must be ready: %+v", roles.Worker)
 	}
 }
 

@@ -689,9 +689,9 @@ func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectA
 	// otherwise the shared base), so a persisted profile flips readiness here
 	// instead of the UI reporting "no profile selected" after a save.
 	for _, role := range []struct {
-		harness        domain.AgentHarness
+		harness         domain.AgentHarness
 		overrideHarness domain.AgentHarness
-		override       domain.AgentConfig
+		override        domain.AgentConfig
 	}{
 		{base.Worker.Harness, cfg.Worker.Harness, cfg.Worker.AgentConfig},
 		{base.Analyzer.Harness, cfg.Orchestrator.Harness, cfg.Orchestrator.AgentConfig},
@@ -710,16 +710,23 @@ func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectA
 		if !ok {
 			continue
 		}
-		// Spawn clears role-override fields when the override's harness does
-		// not match the launch harness (session_manager.freshAgentConfig).
-		// Readiness applies the identical rule so the two can never disagree:
-		// an override bound to another adapter is treated as unset here.
+		// Spawn clears provider-owned fields after merging the role override when
+		// the stored role harness does not match the launch harness
+		// (session_manager.freshAgentConfig). Readiness applies the identical
+		// rule so the two can never disagree.
 		override := role.override
-		if !overrideAppliesTo(role.overrideHarness, role.harness) {
+		applies := overrideAppliesTo(role.overrideHarness, role.harness)
+		if !applies {
 			override = domain.AgentConfig{}
 		}
+		probeConfig := roleConfig(cfg, override)
+		if !applies {
+			probeConfig.Model = ""
+			probeConfig.Mode = ""
+			probeConfig.Profile = ""
+		}
 		probeCtx, cancel := context.WithTimeout(ctx, agentInstallProbeTimeout)
-		readiness, err := checker.ProfileReadiness(probeCtx, roleConfig(cfg, override))
+		readiness, err := checker.ProfileReadiness(probeCtx, probeConfig)
 		cancel()
 		if err != nil {
 			continue
@@ -761,6 +768,12 @@ func roleConfig(cfg domain.ProjectConfig, override domain.AgentConfig) domain.Ag
 	}
 	if override.Model != "" {
 		cfg.AgentConfig.Model = override.Model
+	}
+	if override.Mode != "" {
+		cfg.AgentConfig.Mode = override.Mode
+	}
+	if override.Permissions != "" {
+		cfg.AgentConfig.Permissions = override.Permissions
 	}
 	return cfg.AgentConfig
 }

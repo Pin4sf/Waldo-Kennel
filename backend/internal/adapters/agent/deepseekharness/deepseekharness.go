@@ -98,7 +98,7 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 
 // GetLaunchCommand builds `dsh --profile <name>` and nothing else. A profile
 // is REQUIRED — bare `dsh` exits with "--profile <name> is required" on the
-// published contract — so an unselected mode fails closed here with an
+// published contract — so an unselected profile fails closed here with an
 // actionable message instead of surfacing as a spawn failure. The prompt and
 // any standing instructions arrive through after-start terminal delivery. A
 // configured model override is refused rather than guessed at; permission
