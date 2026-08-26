@@ -46,6 +46,7 @@ import (
 	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
 	settingssvc "github.com/aoagents/agent-orchestrator/backend/internal/service/settings"
 	usagesvc "github.com/aoagents/agent-orchestrator/backend/internal/service/usage"
+	waldovc "github.com/aoagents/agent-orchestrator/backend/internal/service/waldoconversation"
 	"github.com/aoagents/agent-orchestrator/backend/internal/skillassets"
 	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
 	"github.com/aoagents/agent-orchestrator/backend/internal/terminal"
@@ -414,6 +415,12 @@ func Run() error {
 		return fmt.Errorf("recover interrupted intake analysis: %w", err)
 	}
 	responsibilityLinkSvc := intakevc.NewResponsibilityLinks(store, nil)
+	waldoConversationSvc := waldovc.New(store, nil, nil)
+	if receipts, err := waldoConversationSvc.RecoverPendingContinuations(ctx); err != nil {
+		return fmt.Errorf("recover interrupted Waldo continuations: %w", err)
+	} else if len(receipts) > 0 {
+		log.Warn("recovered interrupted Waldo continuations into durable owner decisions", "count", len(receipts))
+	}
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
 		Projects:            projectSvc,
 		Agents:              agentSvc,
@@ -423,6 +430,7 @@ func Run() error {
 		Notifications:       notifier,
 		Outcomes:            outcomeSvc,
 		Intakes:             intakeSvc,
+		WaldoConversations:  waldoConversationSvc,
 		ResponsibilityLinks: responsibilityLinkSvc,
 		Attempts:            attemptSvc,
 		Proof:               outcomeSvc,

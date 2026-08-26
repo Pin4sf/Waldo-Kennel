@@ -844,6 +844,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{id}/waldo-conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read exact restart-safe Project Waldo conversation truth */
+        get: operations["getProjectWaldoConversation"];
+        put?: never;
+        /** Open the one durable Waldo conversation for a Project */
+        post: operations["openProjectWaldoConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/waldo-conversation/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Explicitly attach provenance-bearing canonical context */
+        post: operations["attachProjectWaldoContext"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/waldo-conversation/context/{attachmentId}/detach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Explicitly detach context from future turns */
+        post: operations["detachProjectWaldoContext"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/waldo-conversation/continuations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Evaluate and durably record bounded provider continuation policy */
+        post: operations["continueProjectWaldoConversation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/waldo-conversation/episodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open one bounded provider-neutral conversation episode */
+        post: operations["openProjectWaldoEpisode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/waldo-conversation/turns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Append one ordered idempotent Project-bound turn */
+        post: operations["appendProjectWaldoTurn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/initialize": {
         parameters: {
             query?: never;
@@ -2195,9 +2298,26 @@ export interface components {
             /** Format: int64 */
             expectedProposalRevision: number;
         };
+        AppendWaldoTurnRequest: {
+            contextAttachmentIds?: string[];
+            episodeId: string;
+            /** Format: int64 */
+            expectedRevision: number;
+            message: string;
+            providerRef?: components["schemas"]["WaldoProviderTurnRefResponse"];
+            requestKey: string;
+            /** @enum {string} */
+            role: "user" | "waldo";
+        };
         ApprovePlanRequest: {
             /** Format: int64 */
             expectedContractRevision: number;
+        };
+        AttachWaldoContextRequest: {
+            /** Format: int64 */
+            expectedRevision: number;
+            ref: components["schemas"]["WaldoContextRefResponse"];
+            requestKey: string;
         };
         AttachmentInput: {
             data: string;
@@ -2359,6 +2479,21 @@ export interface components {
         };
         ContainerReapConfig: {
             disabled?: boolean;
+        };
+        ContinueWaldoConversationRequest: {
+            contextDigest: string;
+            contextRefs?: components["schemas"]["WaldoContextRefResponse"][];
+            effectsKnown: boolean;
+            freshVerifier: boolean;
+            fromAgentSessionRef: string;
+            lostMaterialContext: boolean;
+            previousBindings: components["schemas"]["WaldoContinuationBindingsResponse"];
+            reason: string;
+            reasonDetail: string;
+            replacementBindings: components["schemas"]["WaldoContinuationBindingsResponse"];
+            requestKey: string;
+            sourceRevoked: boolean;
+            triggerEvidence: components["schemas"]["WaldoContinuationEvidenceResponse"];
         };
         ContractCriterionResponse: {
             contractRevisionId: string;
@@ -2809,6 +2944,12 @@ export interface components {
             orchestratorId?: string;
             workerId: string;
         };
+        DetachWaldoContextRequest: {
+            /** Format: int64 */
+            expectedRevision: number;
+            reason: string;
+            requestKey: string;
+        };
         DevImportProjectsConflict: {
             path: string;
             projectId: string;
@@ -3108,6 +3249,12 @@ export interface components {
             projectId?: string;
             /** @description Agent session the shell is scoped to, so it appears only in that session's tab strip. Omitted makes it a standalone shell. */
             sessionId?: string;
+        };
+        OpenWaldoEpisodeRequest: {
+            /** Format: int64 */
+            expectedRevision: number;
+            providerRef?: components["schemas"]["WaldoProviderEpisodeRefResponse"];
+            requestKey: string;
         };
         OrchestratorResponse: {
             id: string;
@@ -3955,6 +4102,148 @@ export interface components {
             subjectType: string;
             verifierProvider?: string;
             verifierRef: string;
+        };
+        WaldoContextAttachmentResponse: {
+            active: boolean;
+            /** Format: int64 */
+            attachedRevision: number;
+            conversationId: string;
+            /** Format: date-time */
+            createdAt: string;
+            detachReason?: string;
+            /** Format: date-time */
+            detachedAt?: null | string;
+            /** Format: int64 */
+            detachedRevision?: number;
+            id: string;
+            projectId: string;
+            ref: components["schemas"]["WaldoContextRefResponse"];
+        };
+        WaldoContextProvenanceResponse: {
+            kind: string;
+            sourceId: string;
+        };
+        WaldoContextRefResponse: {
+            kind: string;
+            objectId: string;
+            provenance: components["schemas"]["WaldoContextProvenanceResponse"];
+            revision?: string;
+        };
+        WaldoContinuationBindingsResponse: {
+            attemptId: string;
+            authorityDigest: string;
+            budgetDigest: string;
+            contractRevisionId: string;
+            effectPolicyDigest: string;
+            model: string;
+            outcomeId: string;
+            planRevisionId: string;
+            profile: string;
+            projectId: string;
+            provider: string;
+            role: string;
+            workUnitId: string;
+            workspaceOwner: string;
+        };
+        WaldoContinuationEnvelope: {
+            continuationReceipt: components["schemas"]["WaldoContinuationReceiptResponse"];
+        };
+        WaldoContinuationEvidenceResponse: {
+            kind: string;
+            reference: string;
+        };
+        WaldoContinuationReceiptResponse: {
+            action: string;
+            changedFields: string[];
+            contextDigest: string;
+            contextRefs: components["schemas"]["WaldoContextRefResponse"][];
+            conversationId: string;
+            /** Format: date-time */
+            createdAt: string;
+            effectsKnown: boolean;
+            fenceReceiptRef?: string;
+            fromAgentSessionRef: string;
+            fromEpisodeId: string;
+            id: string;
+            materialChange: boolean;
+            needsUserReason?: string;
+            oldSessionFenced: boolean;
+            operationId: string;
+            previousBindings: components["schemas"]["WaldoContinuationBindingsResponse"];
+            projectId: string;
+            reason: string;
+            reasonDetail: string;
+            reconciliationRef?: string;
+            replacementBindings: components["schemas"]["WaldoContinuationBindingsResponse"];
+            replacementIdentityConfirmed: boolean;
+            toAgentSessionRef?: string;
+            toEpisodeId?: string;
+            triggerEvidence: components["schemas"]["WaldoContinuationEvidenceResponse"];
+        };
+        WaldoConversationEnvelope: {
+            waldoConversation: components["schemas"]["WaldoConversationSnapshotResponse"];
+        };
+        WaldoConversationEpisodeResponse: {
+            conversationId: string;
+            /** Format: date-time */
+            createdAt: string;
+            id: string;
+            /** Format: int64 */
+            ordinal: number;
+            projectId: string;
+            providerRef?: components["schemas"]["WaldoProviderEpisodeRefResponse"];
+            sealReason?: string;
+            /** Format: date-time */
+            sealedAt?: null | string;
+            state: string;
+        };
+        WaldoConversationResponse: {
+            /** Format: date-time */
+            createdAt: string;
+            id: string;
+            /** Format: int64 */
+            latestTurnSequence: number;
+            projectId: string;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        WaldoConversationSnapshotResponse: {
+            contextAttachments: components["schemas"]["WaldoContextAttachmentResponse"][];
+            continuationReceipts: components["schemas"]["WaldoContinuationReceiptResponse"][];
+            conversation: components["schemas"]["WaldoConversationResponse"];
+            episodes: components["schemas"]["WaldoConversationEpisodeResponse"][];
+            turns: components["schemas"]["WaldoConversationTurnResponse"][];
+        };
+        WaldoConversationTurnResponse: {
+            contextRefs: components["schemas"]["WaldoContextRefResponse"][];
+            conversationId: string;
+            /** Format: date-time */
+            createdAt: string;
+            episodeId: string;
+            id: string;
+            message: string;
+            projectId: string;
+            providerRef?: components["schemas"]["WaldoProviderTurnRefResponse"];
+            role: string;
+            /** Format: int64 */
+            sequence: number;
+        };
+        WaldoProviderEpisodeRefResponse: {
+            provider: string;
+            providerConversationId?: string;
+            transcriptRef?: string;
+        };
+        WaldoProviderTurnRefResponse: {
+            provider: string;
+            providerConversationId?: string;
+            providerTurnId: string;
+            transcriptRef?: string;
+        };
+        WaldoTurnEnvelope: {
+            turn: components["schemas"]["WaldoConversationTurnResponse"];
+            waldoConversation: components["schemas"]["WaldoConversationSnapshotResponse"];
         };
         WorkspaceFileResponse: {
             additions: number;
@@ -7155,6 +7444,512 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getProjectWaldoConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaldoConversationEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    openProjectWaldoConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaldoConversationEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    attachProjectWaldoContext: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachWaldoContextRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaldoConversationEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    detachProjectWaldoContext: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+                attachmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DetachWaldoContextRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaldoConversationEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    continueProjectWaldoConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContinueWaldoConversationRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaldoContinuationEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    openProjectWaldoEpisode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenWaldoEpisodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaldoConversationEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    appendProjectWaldoTurn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppendWaldoTurnRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaldoTurnEnvelope"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaldoTurnEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

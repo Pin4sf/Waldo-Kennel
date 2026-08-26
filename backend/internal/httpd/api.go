@@ -34,6 +34,7 @@ type APIDeps struct {
 	NotificationStream  controllers.NotificationStream
 	Outcomes            controllers.OutcomeService
 	Intakes             controllers.IntakeService
+	WaldoConversations  controllers.WaldoConversationService
 	ResponsibilityLinks controllers.ResponsibilityLinkService
 	// Attempts is nil until Act & Observe execution is wired; the attempt
 	// routes then answer 501, matching every other optional surface.
@@ -105,6 +106,7 @@ type API struct {
 	notifications *controllers.NotificationsController
 	outcomes      *controllers.OutcomesController
 	intakes       *controllers.IntakesController
+	waldo         *controllers.WaldoConversationsController
 	push          *controllers.PushController
 	shellTerms    *controllers.ShellTerminalsController
 	conversations *controllers.ConversationsController
@@ -141,6 +143,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		notifications: &controllers.NotificationsController{Svc: deps.Notifications, Stream: deps.NotificationStream},
 		outcomes:      &controllers.OutcomesController{Svc: deps.Outcomes, Attempts: deps.Attempts, Proof: deps.Proof},
 		intakes:       &controllers.IntakesController{Svc: deps.Intakes, Links: deps.ResponsibilityLinks},
+		waldo:         &controllers.WaldoConversationsController{Svc: deps.WaldoConversations},
 		push:          &controllers.PushController{Registry: deps.Push},
 		shellTerms:    &controllers.ShellTerminalsController{Svc: deps.ShellTerminals},
 		conversations: &controllers.ConversationsController{Svc: deps.Conversations},
@@ -174,6 +177,7 @@ func (a *API) Register(root chi.Router) {
 			a.notifications.Register(r)
 			a.outcomes.Register(r)
 			a.intakes.Register(r)
+			a.waldo.Register(r)
 			a.push.Register(r)
 			a.shellTerms.Register(r)
 			a.conversations.Register(r)

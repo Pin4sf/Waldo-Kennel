@@ -150,6 +150,7 @@ type AppendTurnInput struct {
 type AppendTurnResult struct {
 	Turn     domain.WaldoConversationTurn
 	Snapshot ports.WaldoConversationSnapshot
+	Replayed bool
 }
 
 // AppendTurn appends one ordered, idempotent Project-bound turn. Callers select
@@ -177,7 +178,7 @@ func (service *Service) AppendTurn(ctx context.Context, projectID domain.Project
 		if err != nil {
 			return AppendTurnResult{}, err
 		}
-		return AppendTurnResult{Turn: replay, Snapshot: snapshot}, nil
+		return AppendTurnResult{Turn: replay, Snapshot: snapshot, Replayed: true}, nil
 	}
 	snapshot, err := service.Get(ctx, projectID)
 	if err != nil {
@@ -235,7 +236,13 @@ func (service *Service) AttachContext(ctx context.Context, projectID domain.Proj
 	if err != nil {
 		return ContextMutationResult{}, err
 	}
-	if err := input.Ref.Validate(); err != nil {
+	if !input.Ref.Kind.Valid() {
+		return ContextMutationResult{}, apierr.Invalid("WALDO_CONTEXT_INVALID", fmt.Sprintf("unsupported Waldo context kind %q", input.Ref.Kind), nil)
+	}
+	if strings.TrimSpace(input.Ref.ObjectID) == "" {
+		return ContextMutationResult{}, apierr.Invalid("WALDO_CONTEXT_INVALID", "waldo context object id is required", nil)
+	}
+	if err := input.Ref.Provenance.Validate(); err != nil {
 		return ContextMutationResult{}, apierr.Invalid("WALDO_CONTEXT_INVALID", err.Error(), nil)
 	}
 	input.RequestKey = strings.TrimSpace(input.RequestKey)
@@ -249,7 +256,10 @@ func (service *Service) AttachContext(ctx context.Context, projectID domain.Proj
 	if !found {
 		return ContextMutationResult{}, apierr.NotFound(CodeContextNotFound, "That context object does not belong to this Project")
 	}
-	if input.Ref.Revision != current.Revision {
+	if err := current.Validate(); err != nil {
+		return ContextMutationResult{}, apierr.Internal("WALDO_CONTEXT_CANONICAL_INVALID", "Canonical context resolution returned invalid truth")
+	}
+	if input.Ref.Revision != "" && input.Ref.Revision != current.Revision {
 		return ContextMutationResult{}, contextRevisionConflict(input.Ref, current.Revision)
 	}
 	now := service.clock()

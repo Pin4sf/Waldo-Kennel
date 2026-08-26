@@ -313,6 +313,9 @@ func TestAppendTurnIsOrderedIdempotentAndUsesOnlyExplicitActiveContext(t *testin
 	if err != nil {
 		t.Fatalf("AppendTurn() error = %v", err)
 	}
+	if first.Replayed {
+		t.Fatal("first append was marked as a replay")
+	}
 	detached := input
 	detached.ExpectedRevision = first.Snapshot.Conversation.Revision
 	detached.ContextAttachmentIDs = []domain.WaldoContextAttachmentID{"attachment-detached"}
@@ -328,6 +331,9 @@ func TestAppendTurnIsOrderedIdempotentAndUsesOnlyExplicitActiveContext(t *testin
 	replay, err := service.AppendTurn(context.Background(), "project-1", input)
 	if err != nil {
 		t.Fatalf("AppendTurn() replay error = %v", err)
+	}
+	if !replay.Replayed {
+		t.Fatal("delivered append replay was not marked as a replay")
 	}
 	if replay.Turn.ID != first.Turn.ID || replay.Turn.Sequence != 1 || len(replay.Turn.ContextRefs) != 1 || replay.Turn.ContextRefs[0].ObjectID != "outcome-1" {
 		t.Fatalf("replay = %+v, first = %+v", replay, first)
@@ -370,6 +376,28 @@ func TestAttachContextRejectsStaleCanonicalRevisionAndDetachIsExplicit(t *testin
 	}
 	if detached.Snapshot.ContextAttachments[len(detached.Snapshot.ContextAttachments)-1].Active() {
 		t.Fatal("detached context remained active")
+	}
+}
+
+func TestAttachContextWithoutRequestedRevisionUsesCanonicalTruth(t *testing.T) {
+	store := conversationServiceFixture()
+	service := New(store, nil, func() time.Time { return serviceTestTime })
+
+	attached, err := service.AttachContext(context.Background(), "project-1", AttachContextInput{
+		ExpectedRevision: 2,
+		Ref: domain.WaldoContextRef{
+			Kind:       domain.WaldoContextOutcome,
+			ObjectID:   "outcome-1",
+			Provenance: domain.WaldoContextProvenance{Kind: domain.WaldoProvenanceUser, SourceID: "waldo-rail"},
+		},
+		RequestKey: "attach-current-without-revision",
+	})
+	if err != nil {
+		t.Fatalf("AttachContext() error = %v", err)
+	}
+	attachment := attached.Snapshot.ContextAttachments[len(attached.Snapshot.ContextAttachments)-1]
+	if attachment.Ref.Revision != "4" {
+		t.Fatalf("attached canonical revision = %q, want 4", attachment.Ref.Revision)
 	}
 }
 

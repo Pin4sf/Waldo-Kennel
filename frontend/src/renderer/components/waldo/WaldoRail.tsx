@@ -21,13 +21,20 @@ import {
   type WaldoPreviewEpisode,
   type WaldoPreviewMode,
 } from "./WaldoRailContext";
+import { ProjectWaldoConversation } from "./ProjectWaldoConversation";
 
 type WaldoRailProps = {
   contextLabel: string;
   onClose?: () => void;
+  onOpenHome?: () => void;
   onReturnToInspector?: () => void;
   presentation?: "destination" | "rail";
   previewEnabled: boolean;
+  daemonReady?: boolean;
+  outcomeId?: string;
+  outcomeTitle?: string;
+  projectId?: string;
+  projectName?: string;
 };
 
 const previewStepStates = ["evidenced", "evidenced", "active", "blocked"] as const;
@@ -35,9 +42,15 @@ const previewStepStates = ["evidenced", "evidenced", "active", "blocked"] as con
 export function WaldoRail({
   contextLabel,
   onClose,
+  onOpenHome,
   onReturnToInspector,
   presentation = "rail",
   previewEnabled,
+  daemonReady = false,
+  outcomeId,
+  outcomeTitle,
+  projectId,
+  projectName,
 }: WaldoRailProps) {
   const { t } = useTranslation();
   const sharedConversation = useWaldoRail().conversation;
@@ -121,7 +134,7 @@ export function WaldoRail({
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold text-foreground">{t("waldo.rail.identity")}</h2>
               <span className="rounded-full border border-border px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
-                {previewEnabled ? t("waldo.rail.previewBadge") : t("waldo.rail.localBadge")}
+                {projectId ? t("waldo.project.badge") : previewEnabled ? t("waldo.rail.previewBadge") : t("waldo.rail.localBadge")}
               </span>
             </div>
             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
@@ -149,8 +162,10 @@ export function WaldoRail({
         ) : null}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5" data-testid="waldo-rail-body">
-        {!previewEnabled ? (
+      <div className={cn("min-h-0 flex-1 overflow-y-auto px-4 py-5", projectId && "overflow-hidden p-0")} data-testid="waldo-rail-body">
+        {projectId ? (
+          <ProjectWaldoConversation daemonReady={daemonReady} onOpenHome={onOpenHome} outcomeId={outcomeId} outcomeTitle={outcomeTitle} projectId={projectId} projectName={projectName || projectId} />
+        ) : !previewEnabled ? (
           <div className="flex min-h-full flex-col justify-between gap-10">
             <div>
               <div className="grid size-10 place-items-center rounded-xl bg-muted text-muted-foreground">
@@ -289,7 +304,7 @@ export function WaldoRail({
         )}
       </div>
 
-      {previewEnabled && mode === "conversation" ? (
+      {!projectId && previewEnabled && mode === "conversation" ? (
         <footer className="shrink-0 border-t border-border p-3.5">
           <textarea
             aria-label={t("waldo.rail.composerLabel")}

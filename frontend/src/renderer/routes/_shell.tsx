@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, useMatchRoute, useNavigate, useParams } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useMatchRoute, useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import { isCancelledError, useQueryClient } from "@tanstack/react-query";
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -30,6 +30,7 @@ import { TerminalCacheProvider } from "../components/TerminalPane";
 import { agentsQueryKey, agentsQueryOptions, refreshAgents } from "../hooks/useAgentsQuery";
 import { agentModelsQueryOptions } from "../hooks/useAgentModelsQuery";
 import { useDaemonStatus } from "../hooks/useDaemonStatus";
+import { useOutcome } from "../hooks/useOutcome";
 import { useOpenShellTerminal } from "../hooks/useShellTerminals";
 import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { useWorkspaceQuery, workspaceQueryKey, workspaceQueryOptions } from "../hooks/useWorkspaceQuery";
@@ -168,6 +169,12 @@ function ShellLayout() {
 	const [isSidebarPeekOpen, setIsSidebarPeekOpen] = useState(false);
 	const sidebarPeekCloseTimerRef = useRef<number | undefined>(undefined);
 	const routeParams = useParams({ strict: false }) as { projectId?: string; sessionId?: string };
+	const location = useRouterState({ select: (state) => state.location });
+	const workSearch = location.search as { project?: unknown; outcome?: unknown };
+	const workProjectId =
+		location.pathname === "/work" && typeof workSearch.project === "string" ? workSearch.project : undefined;
+	const workOutcomeId =
+		location.pathname === "/work" && typeof workSearch.outcome === "string" ? workSearch.outcome : undefined;
 	const setInspectorOpen = useUiStore((state) => state.setInspectorOpen);
 	const suppressedInspectorRef = useRef<{ sessionId: string; wasOpen: boolean } | null>(null);
 	useEffect(() => {
@@ -197,7 +204,11 @@ function ShellLayout() {
 		? routeParams.projectId
 		: routeParams.sessionId
 			? workspaces.find((workspace) => workspace.sessions.some((session) => session.id === routeParams.sessionId))?.id
-			: undefined;
+			: workProjectId;
+	const scopedProjectName = scopedProjectId
+		? workspaces.find((workspace) => workspace.id === scopedProjectId)?.name ?? scopedProjectId
+		: undefined;
+	const scopedOutcome = useOutcome(workOutcomeId).outcome;
 	// Warms the New Task composer's model-catalog cache while the user is just
 	// looking at the project, so the picker never shows a loading flash the
 	// first time they actually open the dialog.
@@ -844,10 +855,19 @@ function ShellLayout() {
 						{!isHomeRoute ? (
 							<WaldoShellRail
 								contextLabel={waldoWorkContext}
+								daemonReady={daemonStatus.state === "ready"}
+								onOpenHome={() => {
+									waldo.close();
+									void navigate({ to: "/home" });
+								}}
 								onReturnToInspector={routeParams.sessionId
 									? () => setInspectorOpen(routeParams.sessionId!, true)
 									: undefined}
 								previewEnabled={usesWaldoUiPreview}
+								outcomeId={workOutcomeId}
+								outcomeTitle={scopedOutcome?.title}
+								projectId={scopedProjectId}
+								projectName={scopedProjectName}
 							/>
 						) : null}
 					</main>
