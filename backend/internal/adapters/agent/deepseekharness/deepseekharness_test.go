@@ -106,7 +106,7 @@ func TestGetLaunchCommandRejectsModelOverride(t *testing.T) {
 	}
 }
 
-// A configured mode selects the dsh profile to boot via the one verified
+// A configured profile (AgentConfig.Profile) selects the dsh profile to boot via the one verified
 // launcher flag.
 func TestGetLaunchCommandAppendsProfileFlag(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "dsh"}

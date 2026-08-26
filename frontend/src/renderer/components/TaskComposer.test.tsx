@@ -104,6 +104,39 @@ describe("TaskComposer", () => {
 		expect(onCreated).not.toHaveBeenCalled();
 	});
 
+	it("enables Define outcome when the project persists a profile for a profile-required worker", async () => {
+		// #60 contract: AgentConfig.Profile is the persisted dsh profile, so a
+		// configured value must NOT disable the action the way a missing one does.
+		h.get.mockImplementation(async (path: string) => {
+			if (path === "/api/v1/agents") {
+				return {
+					data: {
+						supported: [
+							{ id: "codex", label: "Codex", roles: { worker: true, coordinator: true, switchTarget: true } },
+							{ id: "deepseek-harness", label: "DeepSeek Harness", requiresProfile: true, roles: { worker: true, coordinator: false, switchTarget: false } },
+						],
+						installed: [],
+						authorized: [{ id: "codex", label: "Codex", authStatus: "authorized" }],
+					},
+				};
+			}
+			if (path.includes("/models")) {
+				return { data: { agentId: "deepseek-harness", selectionMode: "text", models: [], allowCustom: true, source: "manual", fetchedAt: "", stale: false } };
+			}
+			return {
+				data: { status: "ok", project: { config: { worker: { agent: "deepseek-harness", agentConfig: { profile: "waldo" } } } } },
+			};
+		});
+		render(
+			<Wrap>
+				<TaskComposer projectId="proj-1" onCreated={vi.fn()} />
+			</Wrap>,
+		);
+
+		fireEvent.change(await task(), { target: { value: "Ship the ledger fix" } });
+		expect(screen.getByRole("button", { name: "Define outcome" })).toBeEnabled();
+	});
+
 	it("keeps prompt guidance in the field instead of adding a separate footer row", () => {
 		render(
 			<Wrap>

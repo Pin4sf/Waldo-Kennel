@@ -195,7 +195,7 @@ export function TaskComposer({
 	const projectModeForSelectedAgent = selectedMatchesProjectWorker ? defaultWorkerMode : "";
 	const projectProfileForSelectedAgent = selectedMatchesProjectWorker ? defaultWorkerProfile : "";
 	// Profile-required agents (deepseek-harness) launch only through a
-	// user-selected dsh profile, carried as the worker's configured mode. The
+	// user-selected dsh profile persisted as AgentConfig.Profile. The
 	// daemon's inventory flags this authoritatively via `requiresProfile` and
 	// rejects profile-less spawns at request time, so block the Define outcome
 	// action early and explain the missing setup instead of failing after

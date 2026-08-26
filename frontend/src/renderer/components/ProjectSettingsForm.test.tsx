@@ -1090,9 +1090,19 @@ describe("ProjectSettingsForm", () => {
 			}),
 		);
 
-		// Switching back to a zero-configuration worker hides the field again.
+		// Switching back to a zero-configuration worker hides the field again…
 		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "Codex");
 		expect(screen.queryByLabelText("Profile")).not.toBeInTheDocument();
+
+		// …and re-selecting it starts from an EMPTY profile: the earlier hidden
+		// value was cleared at the harness boundary, so the saved request must
+		// not carry any stale profile.
+		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "DeepSeek Harness");
+		submitSettings();
+		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
+		const cleared = putMock.mock.calls[putMock.mock.calls.length - 1]?.[1]?.body;
+		expect(cleared.config.worker).toEqual({ agent: "deepseek-harness" });
+		expect(cleared.config.worker.agentConfig).toBeUndefined();
 	});
 
 	it("saves Codex as the reviewer payload", async () => {

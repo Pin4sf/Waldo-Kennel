@@ -689,13 +689,14 @@ func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectA
 	// otherwise the shared base), so a persisted profile flips readiness here
 	// instead of the UI reporting "no profile selected" after a save.
 	for _, role := range []struct {
-		harness  domain.AgentHarness
-		override domain.AgentConfig
+		harness        domain.AgentHarness
+		overrideHarness domain.AgentHarness
+		override       domain.AgentConfig
 	}{
-		{base.Worker.Harness, cfg.Worker.AgentConfig},
-		{base.Analyzer.Harness, cfg.Orchestrator.AgentConfig},
-		{base.Coordinator.Harness, cfg.Orchestrator.AgentConfig},
-		{base.Verifier.Harness, cfg.Orchestrator.AgentConfig},
+		{base.Worker.Harness, cfg.Worker.Harness, cfg.Worker.AgentConfig},
+		{base.Analyzer.Harness, cfg.Orchestrator.Harness, cfg.Orchestrator.AgentConfig},
+		{base.Coordinator.Harness, cfg.Orchestrator.Harness, cfg.Orchestrator.AgentConfig},
+		{base.Verifier.Harness, cfg.Orchestrator.Harness, cfg.Orchestrator.AgentConfig},
 	} {
 		fact := facts[role.harness]
 		if !fact.RequiresProfile || fact.ProfileReady != nil && *fact.ProfileReady {
@@ -709,8 +710,16 @@ func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectA
 		if !ok {
 			continue
 		}
+		// Spawn clears role-override fields when the override's harness does
+		// not match the launch harness (session_manager.freshAgentConfig).
+		// Readiness applies the identical rule so the two can never disagree:
+		// an override bound to another adapter is treated as unset here.
+		override := role.override
+		if !overrideAppliesTo(role.overrideHarness, role.harness) {
+			override = domain.AgentConfig{}
+		}
 		probeCtx, cancel := context.WithTimeout(ctx, agentInstallProbeTimeout)
-		readiness, err := checker.ProfileReadiness(probeCtx, roleConfig(cfg, role.override))
+		readiness, err := checker.ProfileReadiness(probeCtx, roleConfig(cfg, override))
 		cancel()
 		if err != nil {
 			continue
@@ -734,6 +743,13 @@ func (s *Service) uniqueHarnesses(base domain.ResolvedMissionRoles) []domain.Age
 		names = append(names, harness)
 	}
 	return names
+}
+
+// overrideAppliesTo mirrors session_manager's freshAgentConfig rule: a role
+// override whose harness is unset applies everywhere; one bound to a specific
+// harness applies only when the resolved harness matches it.
+func overrideAppliesTo(overrideHarness, resolved domain.AgentHarness) bool {
+	return overrideHarness == "" || overrideHarness == resolved
 }
 
 // roleConfig merges a role override over the shared base; set fields win.

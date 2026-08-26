@@ -1171,9 +1171,10 @@ func effectiveAgentConfig(kind domain.SessionKind, cfg domain.ProjectConfig) por
 	return merged
 }
 
-// freshAgentConfig resolves project defaults for a new launch. Model and mode
-// belong to the provider that stored the role configuration, so they must not
-// cross a harness boundary; permissions remain provider-neutral. Explicit
+// freshAgentConfig resolves project defaults for a new launch. Model, mode,
+// and profile belong to the provider that stored the role configuration, so
+// they must not cross a harness boundary; permissions remain
+// provider-neutral. Explicit
 // request overrides are applied by the caller after this compatibility guard.
 func freshAgentConfig(kind domain.SessionKind, harness domain.AgentHarness, cfg domain.ProjectConfig) ports.AgentConfig {
 	config := effectiveAgentConfig(kind, cfg)

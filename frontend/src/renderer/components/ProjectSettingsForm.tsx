@@ -484,7 +484,13 @@ function SettingsBody({
 								disabled={agentsQuery.isFetching && agentCatalog === undefined}
 								invalid={validationError !== null && form.workerAgent === ""}
 								onChange={(v) =>
-									setForm((f) => ({ ...f, workerAgent: v, workerModel: "", workerMode: "" }))
+									setForm((f) => ({
+										...f,
+										workerAgent: v,
+										workerModel: "",
+										workerMode: "",
+										workerProfile: "",
+									}))
 								}
 							/>
 						}
