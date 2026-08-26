@@ -22,17 +22,19 @@ import (
 
 // APIDeps bundles every service the API layer's controllers depend on.
 type APIDeps struct {
-	Agents             controllers.AgentCatalog
-	Projects           projectsvc.Manager
-	Sessions           controllers.SessionService
-	Activity           controllers.ActivityRecorder
-	UsageHooks         controllers.UsageHookRecorder
-	UsageSummary       controllers.UsageSummaryService
-	PRs                prsvc.ActionManager
-	Reviews            reviewsvc.Manager
-	Notifications      controllers.NotificationService
-	NotificationStream controllers.NotificationStream
-	Outcomes           controllers.OutcomeService
+	Agents              controllers.AgentCatalog
+	Projects            projectsvc.Manager
+	Sessions            controllers.SessionService
+	Activity            controllers.ActivityRecorder
+	UsageHooks          controllers.UsageHookRecorder
+	UsageSummary        controllers.UsageSummaryService
+	PRs                 prsvc.ActionManager
+	Reviews             reviewsvc.Manager
+	Notifications       controllers.NotificationService
+	NotificationStream  controllers.NotificationStream
+	Outcomes            controllers.OutcomeService
+	Intakes             controllers.IntakeService
+	ResponsibilityLinks controllers.ResponsibilityLinkService
 	// Attempts is nil until Act & Observe execution is wired; the attempt
 	// routes then answer 501, matching every other optional surface.
 	Attempts       controllers.AttemptManager
@@ -102,6 +104,7 @@ type API struct {
 	reviews       *controllers.ReviewsController
 	notifications *controllers.NotificationsController
 	outcomes      *controllers.OutcomesController
+	intakes       *controllers.IntakesController
 	push          *controllers.PushController
 	shellTerms    *controllers.ShellTerminalsController
 	conversations *controllers.ConversationsController
@@ -137,6 +140,7 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		reviews:       &controllers.ReviewsController{Svc: deps.Reviews},
 		notifications: &controllers.NotificationsController{Svc: deps.Notifications, Stream: deps.NotificationStream},
 		outcomes:      &controllers.OutcomesController{Svc: deps.Outcomes, Attempts: deps.Attempts, Proof: deps.Proof},
+		intakes:       &controllers.IntakesController{Svc: deps.Intakes, Links: deps.ResponsibilityLinks},
 		push:          &controllers.PushController{Registry: deps.Push},
 		shellTerms:    &controllers.ShellTerminalsController{Svc: deps.ShellTerminals},
 		conversations: &controllers.ConversationsController{Svc: deps.Conversations},
@@ -169,6 +173,7 @@ func (a *API) Register(root chi.Router) {
 			a.reviews.Register(r)
 			a.notifications.Register(r)
 			a.outcomes.Register(r)
+			a.intakes.Register(r)
 			a.push.Register(r)
 			a.shellTerms.Register(r)
 			a.conversations.Register(r)

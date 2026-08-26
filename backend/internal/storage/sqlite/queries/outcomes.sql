@@ -55,6 +55,10 @@ FROM contract_criteria WHERE contract_revision_id = ? ORDER BY position;
 SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at
 FROM contract_revisions WHERE outcome_id = ? AND number = ?;
 
+-- name: GetContractRevision :one
+SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at
+FROM contract_revisions WHERE id = ?;
+
 -- name: ListContractRevisions :many
 SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at
 FROM contract_revisions WHERE outcome_id = ? ORDER BY number;

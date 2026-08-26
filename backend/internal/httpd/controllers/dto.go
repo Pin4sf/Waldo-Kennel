@@ -1903,16 +1903,21 @@ type ReviseOutcomeContractRequest struct {
 
 // ContractRevisionResponse is one immutable contract revision.
 type ContractRevisionResponse struct {
-	ID              string                      `json:"id"`
-	Number          int64                       `json:"number"`
-	Goal            string                      `json:"goal"`
-	Criteria        []ContractCriterionResponse `json:"criteria"`
-	SuccessCriteria []string                    `json:"successCriteria"`
-	Review          string                      `json:"review"`
-	Constraints     []string                    `json:"constraints"`
-	NonGoals        []string                    `json:"nonGoals"`
-	Clarification   string                      `json:"clarification,omitempty"`
-	CreatedAt       time.Time                   `json:"createdAt"`
+	ID                   string                              `json:"id"`
+	Number               int64                               `json:"number"`
+	Goal                 string                              `json:"goal"`
+	Criteria             []ContractCriterionResponse         `json:"criteria"`
+	SuccessCriteria      []string                            `json:"successCriteria"`
+	Review               string                              `json:"review"`
+	Constraints          []string                            `json:"constraints"`
+	NonGoals             []string                            `json:"nonGoals"`
+	Clarification        string                              `json:"clarification,omitempty"`
+	EvidenceExpectations []IntakeEvidenceExpectationResponse `json:"evidenceExpectations,omitempty"`
+	AuthorityCeiling     IntakeAuthority                     `json:"authorityCeiling,omitempty"`
+	StopConditions       []string                            `json:"stopConditions,omitempty"`
+	TemporalCondition    *string                             `json:"temporalCondition,omitempty"`
+	Facets               []IntakeFacet                       `json:"facets,omitempty"`
+	CreatedAt            time.Time                           `json:"createdAt"`
 }
 
 // ContractCriterionResponse exposes stable criterion identity. Proof binds
@@ -1956,18 +1961,258 @@ func contractRevisionResponse(rev domain.ContractRevision) ContractRevisionRespo
 	for _, criterion := range rev.Criteria {
 		criteria = append(criteria, contractCriterionResponse(criterion))
 	}
-	return ContractRevisionResponse{
-		ID:              string(rev.ID),
-		Number:          rev.Number,
-		Goal:            rev.Goal,
-		Criteria:        criteria,
-		SuccessCriteria: rev.SuccessCriteria,
-		Review:          rev.Review,
-		Constraints:     rev.Constraints,
-		NonGoals:        rev.NonGoals,
-		Clarification:   rev.Clarification,
-		CreatedAt:       rev.CreatedAt,
+	evidence := make([]IntakeEvidenceExpectationResponse, 0, len(rev.EvidenceExpectations))
+	for _, expectation := range rev.EvidenceExpectations {
+		evidence = append(evidence, IntakeEvidenceExpectationResponse{CriterionID: string(expectation.CriterionID), Descriptions: expectation.Descriptions})
 	}
+	return ContractRevisionResponse{
+		ID:                   string(rev.ID),
+		Number:               rev.Number,
+		Goal:                 rev.Goal,
+		Criteria:             criteria,
+		SuccessCriteria:      rev.SuccessCriteria,
+		Review:               rev.Review,
+		Constraints:          rev.Constraints,
+		NonGoals:             rev.NonGoals,
+		Clarification:        rev.Clarification,
+		EvidenceExpectations: evidence,
+		AuthorityCeiling:     intakeAuthority(rev.AuthorityCeiling), StopConditions: rev.StopConditions,
+		TemporalCondition: rev.TemporalCondition, Facets: intakeFacets(rev.Facets),
+		CreatedAt: rev.CreatedAt,
+	}
+}
+
+// CreateIntakeRequest captures one statement and identifier-only provenance.
+// Transcript bodies never cross this persistence contract.
+type CreateIntakeRequest struct {
+	SourceSurface    string                       `json:"sourceSurface" enum:"home,work"`
+	Statement        string                       `json:"statement" maxLength:"4096"`
+	SourceOpenLoopID string                       `json:"sourceOpenLoopId,omitempty"`
+	ConversationRefs []IntakeConversationRefInput `json:"conversationRefs,omitempty"`
+	RequestKey       string                       `json:"requestKey"`
+}
+
+// IntakeConversationRefInput references an owning episode and turn.
+type IntakeConversationRefInput struct {
+	EpisodeID string `json:"episodeId"`
+	TurnID    string `json:"turnId"`
+	Position  int64  `json:"position"`
+}
+
+// AnalyzeIntakeRequest guards analysis with an expected proposal revision.
+type AnalyzeIntakeRequest struct {
+	ExpectedProposalRevision int64 `json:"expectedProposalRevision"`
+}
+
+// AnswerIntakeClarificationRequest answers the single material question.
+type AnswerIntakeClarificationRequest struct {
+	ExpectedProposalRevision int64  `json:"expectedProposalRevision"`
+	Answer                   string `json:"answer"`
+}
+
+// ReviseIntakeProposalRequest appends a reviewed immutable proposal.
+type ReviseIntakeProposalRequest struct {
+	ExpectedProposalRevision int64               `json:"expectedProposalRevision"`
+	Proposal                 IntakeProposalInput `json:"proposal"`
+}
+
+// ConfirmIntakeRequest explicitly confirms the current proposal revision.
+type ConfirmIntakeRequest struct {
+	ExpectedProposalRevision int64  `json:"expectedProposalRevision"`
+	RequestKey               string `json:"requestKey"`
+}
+
+// CancelIntakeRequest consciously releases an unconfirmed intake.
+type CancelIntakeRequest struct {
+	ExpectedProposalRevision int64  `json:"expectedProposalRevision"`
+	Reason                   string `json:"reason"`
+}
+
+// IntakeProposalInput is the editable typed Contract proposal stable core.
+type IntakeProposalInput struct {
+	Title              string                 `json:"title"`
+	DesiredState       string                 `json:"desiredState"`
+	Criteria           []IntakeCriterionInput `json:"criteria"`
+	ReviewMethod       string                 `json:"reviewMethod"`
+	Constraints        []string               `json:"constraints,omitempty"`
+	NonGoals           []string               `json:"nonGoals,omitempty"`
+	AuthorityCeiling   IntakeAuthority        `json:"authorityCeiling"`
+	StopConditions     []string               `json:"stopConditions"`
+	ClarificationNotes []string               `json:"clarificationNotes,omitempty"`
+	TemporalCondition  *string                `json:"temporalCondition,omitempty"`
+	Facets             []IntakeFacet          `json:"facets"`
+}
+
+// IntakeCriterionInput carries stable identity and expected evidence.
+type IntakeCriterionInput struct {
+	ID               string   `json:"id,omitempty"`
+	Text             string   `json:"text"`
+	EvidenceExpected []string `json:"evidenceExpected"`
+}
+
+// IntakeAuthority is the proposed least-privilege ceiling.
+type IntakeAuthority struct {
+	ReadWorkspace  bool `json:"readWorkspace"`
+	WriteWorkspace bool `json:"writeWorkspace"`
+	ExecuteLocal   bool `json:"executeLocal"`
+	UseNetwork     bool `json:"useNetwork"`
+	CommitLocal    bool `json:"commitLocal"`
+	CreatePR       bool `json:"createPr"`
+	Deploy         bool `json:"deploy"`
+	ExternalEffect bool `json:"externalEffect"`
+}
+
+// IntakeFacet is one adaptive, typed extension of the stable core.
+type IntakeFacet struct {
+	Kind         string   `json:"kind" enum:"software,research,design,documentation,investigation,evaluation,operations"`
+	Summary      string   `json:"summary"`
+	Requirements []string `json:"requirements,omitempty"`
+}
+
+// IntakeSessionResponse is the durable shared Home/Work state machine value.
+type IntakeSessionResponse struct {
+	ID                      string    `json:"id"`
+	SourceSurface           string    `json:"sourceSurface"`
+	Purpose                 string    `json:"purpose"`
+	ProjectID               string    `json:"projectId,omitempty"`
+	SourceOpenLoopID        string    `json:"sourceOpenLoopId,omitempty"`
+	Statement               string    `json:"statement"`
+	Status                  string    `json:"status"`
+	CurrentProposalRevision int64     `json:"currentProposalRevision"`
+	ClarificationCount      int64     `json:"clarificationCount"`
+	ConfirmedOutcomeID      string    `json:"confirmedOutcomeId,omitempty"`
+	FailureCode             string    `json:"failureCode,omitempty"`
+	CancellationReason      string    `json:"cancellationReason,omitempty"`
+	CreatedAt               time.Time `json:"createdAt"`
+	UpdatedAt               time.Time `json:"updatedAt"`
+}
+
+// IntakeConversationRefResponse returns provenance identifiers only.
+type IntakeConversationRefResponse struct {
+	EpisodeID string `json:"episodeId"`
+	TurnID    string `json:"turnId"`
+	Position  int64  `json:"position"`
+}
+
+// IntakeCriterionResponse returns one proposed criterion and evidence needs.
+type IntakeCriterionResponse struct {
+	ID               string   `json:"id"`
+	Text             string   `json:"text"`
+	EvidenceExpected []string `json:"evidenceExpected"`
+}
+
+// IntakeProposalResponse returns an immutable typed proposal revision.
+type IntakeProposalResponse struct {
+	ID                 string                    `json:"id"`
+	Revision           int64                     `json:"revision"`
+	Title              string                    `json:"title"`
+	DesiredState       string                    `json:"desiredState"`
+	Criteria           []IntakeCriterionResponse `json:"criteria"`
+	ReviewMethod       string                    `json:"reviewMethod"`
+	Constraints        []string                  `json:"constraints"`
+	NonGoals           []string                  `json:"nonGoals"`
+	AuthorityCeiling   IntakeAuthority           `json:"authorityCeiling"`
+	StopConditions     []string                  `json:"stopConditions"`
+	ClarificationNotes []string                  `json:"clarificationNotes"`
+	TemporalCondition  *string                   `json:"temporalCondition,omitempty"`
+	Facets             []IntakeFacet             `json:"facets"`
+	CreatedAt          time.Time                 `json:"createdAt"`
+}
+
+// IntakeClarificationResponse returns the bounded material question.
+type IntakeClarificationResponse struct {
+	ID                  string     `json:"id"`
+	Question            string     `json:"question"`
+	Reason              string     `json:"reason"`
+	Recommendation      string     `json:"recommendation"`
+	Alternatives        []string   `json:"alternatives"`
+	DeferralConsequence string     `json:"deferralConsequence"`
+	Answer              string     `json:"answer,omitempty"`
+	AnsweredAt          *time.Time `json:"answeredAt,omitempty"`
+}
+
+// IntakeOutcomeResponse identifies the canonical Outcome created on confirmation.
+type IntakeOutcomeResponse struct {
+	ID                    string    `json:"id"`
+	SpaceID               string    `json:"spaceId"`
+	Title                 string    `json:"title"`
+	CurrentRevisionNumber int64     `json:"currentRevisionNumber"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
+}
+
+// IntakeSnapshotResponse is the complete shared intake read model.
+type IntakeSnapshotResponse struct {
+	Session           IntakeSessionResponse           `json:"session"`
+	ConversationRefs  []IntakeConversationRefResponse `json:"conversationRefs"`
+	Proposal          *IntakeProposalResponse         `json:"proposal,omitempty"`
+	Clarification     *IntakeClarificationResponse    `json:"clarification,omitempty"`
+	ConfirmedOutcome  *IntakeOutcomeResponse          `json:"confirmedOutcome,omitempty"`
+	ConfirmedContract *ContractRevisionResponse       `json:"confirmedContract,omitempty"`
+}
+
+// IntakeEnvelope wraps an intake API response.
+type IntakeEnvelope struct {
+	Intake IntakeSnapshotResponse `json:"intake"`
+}
+
+// IntakeIDParam describes the intake route parameter.
+type IntakeIDParam struct {
+	IntakeID string `path:"intakeId"`
+}
+
+// CreateResponsibilityLinkRequest explicitly records Home-to-Work lineage.
+type CreateResponsibilityLinkRequest struct {
+	ProjectID            string `json:"projectId"`
+	SourceOpenLoopID     string `json:"sourceOpenLoopId"`
+	DestinationOutcomeID string `json:"destinationOutcomeId"`
+	Reason               string `json:"reason"`
+	RequestKey           string `json:"requestKey"`
+}
+
+// EndResponsibilityLinkRequest ends lineage without changing responsibilities.
+type EndResponsibilityLinkRequest struct {
+	Reason string `json:"reason"`
+}
+
+// ResponsibilityLinkResponse returns explicit independent lineage.
+type ResponsibilityLinkResponse struct {
+	ID                   string     `json:"id"`
+	SourceOpenLoopID     string     `json:"sourceOpenLoopId"`
+	DestinationOutcomeID string     `json:"destinationOutcomeId"`
+	Creator              string     `json:"creator"`
+	Reason               string     `json:"reason"`
+	CreatedAt            time.Time  `json:"createdAt"`
+	EndedAt              *time.Time `json:"endedAt,omitempty"`
+	EndedBy              string     `json:"endedBy,omitempty"`
+	EndedReason          string     `json:"endedReason,omitempty"`
+}
+
+// ResponsibilityLinkEnvelope wraps a lineage API response.
+type ResponsibilityLinkEnvelope struct {
+	ResponsibilityLink ResponsibilityLinkResponse `json:"responsibilityLink"`
+}
+
+// ResponsibilityLinkIDParam describes the lineage route parameter.
+type ResponsibilityLinkIDParam struct {
+	ResponsibilityLinkID string `path:"responsibilityLinkId"`
+}
+
+// IntakeEvidenceExpectationResponse maps evidence needs to stable criteria.
+type IntakeEvidenceExpectationResponse struct {
+	CriterionID  string   `json:"criterionId"`
+	Descriptions []string `json:"descriptions"`
+}
+
+func intakeAuthority(value domain.ProposedAuthority) IntakeAuthority {
+	return IntakeAuthority{ReadWorkspace: value.ReadWorkspace, WriteWorkspace: value.WriteWorkspace, ExecuteLocal: value.ExecuteLocal, UseNetwork: value.UseNetwork, CommitLocal: value.CommitLocal, CreatePR: value.CreatePR, Deploy: value.Deploy, ExternalEffect: value.ExternalEffect}
+}
+func intakeFacets(values []domain.ContractFacet) []IntakeFacet {
+	out := make([]IntakeFacet, 0, len(values))
+	for _, value := range values {
+		out = append(out, IntakeFacet{Kind: string(value.Kind), Summary: value.Summary, Requirements: value.Requirements})
+	}
+	return out
 }
 
 func contractCriterionResponse(criterion domain.ContractCriterion) ContractCriterionResponse {

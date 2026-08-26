@@ -274,6 +274,29 @@ func (q *Queries) FindWorkResponsibilitySpaceByProject(ctx context.Context, proj
 	return i, err
 }
 
+const getContractRevision = `-- name: GetContractRevision :one
+SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at
+FROM contract_revisions WHERE id = ?
+`
+
+func (q *Queries) GetContractRevision(ctx context.Context, id domain.ContractRevisionID) (ContractRevision, error) {
+	row := q.db.QueryRowContext(ctx, getContractRevision, id)
+	var i ContractRevision
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Number,
+		&i.Goal,
+		&i.SuccessCriteria,
+		&i.Review,
+		&i.Constraints,
+		&i.NonGoals,
+		&i.Clarification,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getContractRevisionByNumber = `-- name: GetContractRevisionByNumber :one
 SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at
 FROM contract_revisions WHERE outcome_id = ? AND number = ?

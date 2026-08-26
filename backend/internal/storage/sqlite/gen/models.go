@@ -168,6 +168,16 @@ type ContractRevision struct {
 	CreatedAt       time.Time
 }
 
+type ContractRevisionIntakeCore struct {
+	ContractRevisionID   string
+	EvidenceExpectations string
+	AuthorityCeiling     string
+	StopConditions       string
+	TemporalCondition    sql.NullString
+	Facets               string
+	CreatedAt            time.Time
+}
+
 type Conversation struct {
 	ID                         string
 	Scope                      domain.ConversationScope
@@ -303,6 +313,77 @@ type EvidenceItem struct {
 	RequestKey         string
 	RequestFingerprint string
 	CreatedAt          time.Time
+}
+
+type IntakeClarification struct {
+	ID                  string
+	IntakeID            string
+	Question            string
+	Reason              string
+	Recommendation      string
+	Alternatives        string
+	DeferralConsequence string
+	CreatedAt           time.Time
+}
+
+type IntakeClarificationAnswer struct {
+	ClarificationID string
+	Answer          string
+	AnsweredAt      time.Time
+}
+
+type IntakeConfirmation struct {
+	IntakeID           string
+	ProposalRevision   int64
+	OutcomeID          string
+	ContractRevisionID string
+	RequestKey         string
+	RequestFingerprint string
+	ConfirmedAt        time.Time
+}
+
+type IntakeConversationRef struct {
+	IntakeID  string
+	EpisodeID string
+	TurnID    string
+	Position  int64
+}
+
+type IntakeProposalRevision struct {
+	ID                 string
+	IntakeID           string
+	Revision           int64
+	Title              string
+	DesiredState       string
+	Criteria           string
+	ReviewMethod       string
+	Constraints        string
+	NonGoals           string
+	AuthorityCeiling   string
+	StopConditions     string
+	ClarificationNotes string
+	TemporalCondition  sql.NullString
+	Facets             string
+	CreatedAt          time.Time
+}
+
+type IntakeSession struct {
+	ID                      string
+	SourceSurface           string
+	Purpose                 string
+	ProjectID               sql.NullString
+	SourceOpenLoopID        sql.NullString
+	Statement               string
+	Status                  string
+	CurrentProposalRevision int64
+	ClarificationCount      int64
+	ConfirmedOutcomeID      sql.NullString
+	FailureCode             string
+	CancellationReason      string
+	RequestKey              string
+	RequestFingerprint      string
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
 }
 
 type ModelUsageEvent struct {
@@ -475,6 +556,21 @@ type Project struct {
 	ArchivedAt    sql.NullTime
 	Config        sql.NullString
 	Kind          string
+}
+
+type ResponsibilityLink struct {
+	ID                   string
+	ProjectID            string
+	SourceOpenLoopID     string
+	DestinationOutcomeID string
+	Creator              string
+	Reason               string
+	RequestKey           string
+	RequestFingerprint   string
+	CreatedAt            time.Time
+	EndedAt              sql.NullTime
+	EndedBy              string
+	EndedReason          string
 }
 
 type ResponsibilitySpace struct {

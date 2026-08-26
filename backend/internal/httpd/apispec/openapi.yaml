@@ -414,6 +414,330 @@ paths:
       summary: Stream CDC events with durable replay
       tags:
       - events
+  /api/v1/intakes/{intakeId}:
+    get:
+      operationId: getIntake
+      parameters:
+      - in: path
+        name: intakeId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntakeEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read durable shared intake state
+      tags:
+      - intakes
+  /api/v1/intakes/{intakeId}/analysis:
+    post:
+      operationId: analyzeIntake
+      parameters:
+      - in: path
+        name: intakeId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeIntakeRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntakeEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Analyze intent into one material question or a Contract proposal
+      tags:
+      - intakes
+  /api/v1/intakes/{intakeId}/cancellation:
+    post:
+      operationId: cancelIntake
+      parameters:
+      - in: path
+        name: intakeId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelIntakeRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntakeEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Consciously release an unconfirmed intake
+      tags:
+      - intakes
+  /api/v1/intakes/{intakeId}/clarification:
+    post:
+      operationId: answerIntakeClarification
+      parameters:
+      - in: path
+        name: intakeId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerIntakeClarificationRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntakeEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Answer the intake's single material clarification
+      tags:
+      - intakes
+  /api/v1/intakes/{intakeId}/confirmation:
+    post:
+      operationId: confirmIntakeOutcome
+      parameters:
+      - in: path
+        name: intakeId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmIntakeRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntakeEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Atomically confirm exactly one Outcome and ContractRevision
+      tags:
+      - intakes
+  /api/v1/intakes/{intakeId}/proposals:
+    post:
+      operationId: reviseIntakeProposal
+      parameters:
+      - in: path
+        name: intakeId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviseIntakeProposalRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntakeEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Append an edited immutable Contract proposal revision
+      tags:
+      - intakes
   /api/v1/mobile/devices:
     get:
       operationId: listMobileDevices
@@ -1989,6 +2313,63 @@ paths:
       summary: Replace a project's per-project config
       tags:
       - projects
+  /api/v1/projects/{id}/intakes:
+    post:
+      operationId: createOutcomeIntake
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIntakeRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntakeEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Capture one simple natural-language Outcome statement
+      tags:
+      - intakes
   /api/v1/projects/{id}/outcomes:
     get:
       operationId: listProjectOutcomes
@@ -2310,6 +2691,159 @@ paths:
       summary: Unpair this phone from the daemon, removing it from the roster
       tags:
       - push
+  /api/v1/responsibility-links:
+    post:
+      operationId: createResponsibilityLink
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateResponsibilityLinkRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponsibilityLinkEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Preserve explicit Home Open Loop to Work Outcome lineage
+      tags:
+      - intakes
+  /api/v1/responsibility-links/{responsibilityLinkId}:
+    get:
+      operationId: getResponsibilityLink
+      parameters:
+      - in: path
+        name: responsibilityLinkId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponsibilityLinkEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read explicit responsibility lineage
+      tags:
+      - intakes
+  /api/v1/responsibility-links/{responsibilityLinkId}/end:
+    post:
+      operationId: endResponsibilityLink
+      parameters:
+      - in: path
+        name: responsibilityLinkId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EndResponsibilityLinkRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponsibilityLinkEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: End lineage without changing either responsibility lifecycle
+      tags:
+      - intakes
   /api/v1/reviews/{reviewSessionID}/activity:
     post:
       operationId: setReviewActivity
@@ -6125,6 +6659,25 @@ components:
       required:
       - switch
       type: object
+    AnalyzeIntakeRequest:
+      properties:
+        expectedProposalRevision:
+          format: int64
+          type: integer
+      required:
+      - expectedProposalRevision
+      type: object
+    AnswerIntakeClarificationRequest:
+      properties:
+        answer:
+          type: string
+        expectedProposalRevision:
+          format: int64
+          type: integer
+      required:
+      - expectedProposalRevision
+      - answer
+      type: object
     ApprovePlanRequest:
       properties:
         expectedContractRevision:
@@ -6393,6 +6946,17 @@ components:
       - connected
       - transport
       type: object
+    CancelIntakeRequest:
+      properties:
+        expectedProposalRevision:
+          format: int64
+          type: integer
+        reason:
+          type: string
+      required:
+      - expectedProposalRevision
+      - reason
+      type: object
     CancelReviewResponse:
       properties:
         reviewerHandleId:
@@ -6514,6 +7078,17 @@ components:
       - totalTokens
       - incomplete
       type: object
+    ConfirmIntakeRequest:
+      properties:
+        expectedProposalRevision:
+          format: int64
+          type: integer
+        requestKey:
+          type: string
+      required:
+      - expectedProposalRevision
+      - requestKey
+      type: object
     ContainerReapConfig:
       properties:
         disabled:
@@ -6538,6 +7113,8 @@ components:
       type: object
     ContractRevisionResponse:
       properties:
+        authorityCeiling:
+          $ref: '#/components/schemas/ControllersIntakeAuthority'
         clarification:
           type: string
         constraints:
@@ -6550,6 +7127,14 @@ components:
         criteria:
           items:
             $ref: '#/components/schemas/ContractCriterionResponse'
+          type: array
+        evidenceExpectations:
+          items:
+            $ref: '#/components/schemas/ControllersIntakeEvidenceExpectationResponse'
+          type: array
+        facets:
+          items:
+            $ref: '#/components/schemas/ControllersIntakeFacet'
           type: array
         goal:
           type: string
@@ -6564,10 +7149,18 @@ components:
           type: integer
         review:
           type: string
+        stopConditions:
+          items:
+            type: string
+          type: array
         successCriteria:
           items:
             type: string
           type: array
+        temporalCondition:
+          type:
+          - "null"
+          - string
       required:
       - id
       - number
@@ -6578,6 +7171,150 @@ components:
       - constraints
       - nonGoals
       - createdAt
+      type: object
+    ControllersIntakeAuthority:
+      properties:
+        commitLocal:
+          type: boolean
+        createPr:
+          type: boolean
+        deploy:
+          type: boolean
+        executeLocal:
+          type: boolean
+        externalEffect:
+          type: boolean
+        readWorkspace:
+          type: boolean
+        useNetwork:
+          type: boolean
+        writeWorkspace:
+          type: boolean
+      required:
+      - readWorkspace
+      - writeWorkspace
+      - executeLocal
+      - useNetwork
+      - commitLocal
+      - createPr
+      - deploy
+      - externalEffect
+      type: object
+    ControllersIntakeConversationRefInput:
+      properties:
+        episodeId:
+          type: string
+        position:
+          format: int64
+          type: integer
+        turnId:
+          type: string
+      required:
+      - episodeId
+      - turnId
+      - position
+      type: object
+    ControllersIntakeConversationRefResponse:
+      properties:
+        episodeId:
+          type: string
+        position:
+          format: int64
+          type: integer
+        turnId:
+          type: string
+      required:
+      - episodeId
+      - turnId
+      - position
+      type: object
+    ControllersIntakeCriterionInput:
+      properties:
+        evidenceExpected:
+          items:
+            type: string
+          type: array
+        id:
+          type: string
+        text:
+          type: string
+      required:
+      - text
+      - evidenceExpected
+      type: object
+    ControllersIntakeCriterionResponse:
+      properties:
+        evidenceExpected:
+          items:
+            type: string
+          type: array
+        id:
+          type: string
+        text:
+          type: string
+      required:
+      - id
+      - text
+      - evidenceExpected
+      type: object
+    ControllersIntakeEvidenceExpectationResponse:
+      properties:
+        criterionId:
+          type: string
+        descriptions:
+          items:
+            type: string
+          type: array
+      required:
+      - criterionId
+      - descriptions
+      type: object
+    ControllersIntakeFacet:
+      properties:
+        kind:
+          enum:
+          - software
+          - research
+          - design
+          - documentation
+          - investigation
+          - evaluation
+          - operations
+          type: string
+        requirements:
+          items:
+            type: string
+          type: array
+        summary:
+          type: string
+      required:
+      - kind
+      - summary
+      type: object
+    ControllersIntakeOutcomeResponse:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        currentRevisionNumber:
+          format: int64
+          type: integer
+        id:
+          type: string
+        spaceId:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - id
+      - spaceId
+      - title
+      - currentRevisionNumber
+      - createdAt
+      - updatedAt
       type: object
     ControllersRequestRereviewRequest:
       properties:
@@ -7388,6 +8125,29 @@ components:
       - cachedTokens
       - totalTokens
       type: object
+    CreateIntakeRequest:
+      properties:
+        conversationRefs:
+          items:
+            $ref: '#/components/schemas/ControllersIntakeConversationRefInput'
+          type: array
+        requestKey:
+          type: string
+        sourceOpenLoopId:
+          type: string
+        sourceSurface:
+          enum:
+          - home
+          - work
+          type: string
+        statement:
+          maxLength: 4096
+          type: string
+      required:
+      - sourceSurface
+      - statement
+      - requestKey
+      type: object
     CreateOutcomeRequest:
       properties:
         clarification:
@@ -7417,6 +8177,25 @@ components:
       - goal
       - successCriteria
       - review
+      - requestKey
+      type: object
+    CreateResponsibilityLinkRequest:
+      properties:
+        destinationOutcomeId:
+          type: string
+        projectId:
+          type: string
+        reason:
+          type: string
+        requestKey:
+          type: string
+        sourceOpenLoopId:
+          type: string
+      required:
+      - projectId
+      - sourceOpenLoopId
+      - destinationOutcomeId
+      - reason
       - requestKey
       type: object
     CriterionProofResponse:
@@ -7653,6 +8432,13 @@ components:
       - sourceBranchId
       - activeBranchId
       type: object
+    EndResponsibilityLinkRequest:
+      properties:
+        reason:
+          type: string
+      required:
+      - reason
+      type: object
     EvidenceItemResponse:
       properties:
         contentDigest:
@@ -7713,6 +8499,217 @@ components:
           type: string
       required:
       - path
+      type: object
+    IntakeClarificationResponse:
+      properties:
+        alternatives:
+          items:
+            type: string
+          type: array
+        answer:
+          type: string
+        answeredAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        deferralConsequence:
+          type: string
+        id:
+          type: string
+        question:
+          type: string
+        reason:
+          type: string
+        recommendation:
+          type: string
+      required:
+      - id
+      - question
+      - reason
+      - recommendation
+      - alternatives
+      - deferralConsequence
+      type: object
+    IntakeEnvelope:
+      properties:
+        intake:
+          $ref: '#/components/schemas/IntakeSnapshotResponse'
+      required:
+      - intake
+      type: object
+    IntakeProposalInput:
+      properties:
+        authorityCeiling:
+          $ref: '#/components/schemas/ControllersIntakeAuthority'
+        clarificationNotes:
+          items:
+            type: string
+          type: array
+        constraints:
+          items:
+            type: string
+          type: array
+        criteria:
+          items:
+            $ref: '#/components/schemas/ControllersIntakeCriterionInput'
+          type: array
+        desiredState:
+          type: string
+        facets:
+          items:
+            $ref: '#/components/schemas/ControllersIntakeFacet'
+          type: array
+        nonGoals:
+          items:
+            type: string
+          type: array
+        reviewMethod:
+          type: string
+        stopConditions:
+          items:
+            type: string
+          type: array
+        temporalCondition:
+          type:
+          - "null"
+          - string
+        title:
+          type: string
+      required:
+      - title
+      - desiredState
+      - criteria
+      - reviewMethod
+      - authorityCeiling
+      - stopConditions
+      - facets
+      type: object
+    IntakeProposalResponse:
+      properties:
+        authorityCeiling:
+          $ref: '#/components/schemas/ControllersIntakeAuthority'
+        clarificationNotes:
+          items:
+            type: string
+          type: array
+        constraints:
+          items:
+            type: string
+          type: array
+        createdAt:
+          format: date-time
+          type: string
+        criteria:
+          items:
+            $ref: '#/components/schemas/ControllersIntakeCriterionResponse'
+          type: array
+        desiredState:
+          type: string
+        facets:
+          items:
+            $ref: '#/components/schemas/ControllersIntakeFacet'
+          type: array
+        id:
+          type: string
+        nonGoals:
+          items:
+            type: string
+          type: array
+        reviewMethod:
+          type: string
+        revision:
+          format: int64
+          type: integer
+        stopConditions:
+          items:
+            type: string
+          type: array
+        temporalCondition:
+          type:
+          - "null"
+          - string
+        title:
+          type: string
+      required:
+      - id
+      - revision
+      - title
+      - desiredState
+      - criteria
+      - reviewMethod
+      - constraints
+      - nonGoals
+      - authorityCeiling
+      - stopConditions
+      - clarificationNotes
+      - facets
+      - createdAt
+      type: object
+    IntakeSessionResponse:
+      properties:
+        cancellationReason:
+          type: string
+        clarificationCount:
+          format: int64
+          type: integer
+        confirmedOutcomeId:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        currentProposalRevision:
+          format: int64
+          type: integer
+        failureCode:
+          type: string
+        id:
+          type: string
+        projectId:
+          type: string
+        purpose:
+          type: string
+        sourceOpenLoopId:
+          type: string
+        sourceSurface:
+          type: string
+        statement:
+          type: string
+        status:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - id
+      - sourceSurface
+      - purpose
+      - statement
+      - status
+      - currentProposalRevision
+      - clarificationCount
+      - createdAt
+      - updatedAt
+      type: object
+    IntakeSnapshotResponse:
+      properties:
+        clarification:
+          $ref: '#/components/schemas/IntakeClarificationResponse'
+        confirmedContract:
+          $ref: '#/components/schemas/ContractRevisionResponse'
+        confirmedOutcome:
+          $ref: '#/components/schemas/ControllersIntakeOutcomeResponse'
+        conversationRefs:
+          items:
+            $ref: '#/components/schemas/ControllersIntakeConversationRefResponse'
+          type: array
+        proposal:
+          $ref: '#/components/schemas/IntakeProposalResponse'
+        session:
+          $ref: '#/components/schemas/IntakeSessionResponse'
+      required:
+      - session
+      - conversationRefs
       type: object
     KillReviewResponse:
       properties:
@@ -8801,6 +9798,45 @@ components:
       required:
       - action
       type: object
+    ResponsibilityLinkEnvelope:
+      properties:
+        responsibilityLink:
+          $ref: '#/components/schemas/ResponsibilityLinkResponse'
+      required:
+      - responsibilityLink
+      type: object
+    ResponsibilityLinkResponse:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        creator:
+          type: string
+        destinationOutcomeId:
+          type: string
+        endedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        endedBy:
+          type: string
+        endedReason:
+          type: string
+        id:
+          type: string
+        reason:
+          type: string
+        sourceOpenLoopId:
+          type: string
+      required:
+      - id
+      - sourceOpenLoopId
+      - destinationOutcomeId
+      - creator
+      - reason
+      - createdAt
+      type: object
     RestoreReviewResponse:
       properties:
         reviewerHandleId:
@@ -8929,6 +9965,17 @@ components:
       - review
       - reviews
       - reviewerHandleId
+      type: object
+    ReviseIntakeProposalRequest:
+      properties:
+        expectedProposalRevision:
+          format: int64
+          type: integer
+        proposal:
+          $ref: '#/components/schemas/IntakeProposalInput'
+      required:
+      - expectedProposalRevision
+      - proposal
       type: object
     ReviseOutcomeContractRequest:
       properties:
@@ -10264,6 +11311,8 @@ tags:
   name: notifications
 - description: Canonical Work Outcome contracts and immutable revisions
   name: outcomes
+- description: Shared Home and Work adaptive intake plus explicit responsibility lineage
+  name: intakes
 - description: Token usage telemetry for AO sessions
   name: usage
 - description: Mobile push-device registration for OS push notifications

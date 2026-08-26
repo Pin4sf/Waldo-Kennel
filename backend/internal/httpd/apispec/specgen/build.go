@@ -69,6 +69,8 @@ func Build() ([]byte, error) {
 			"Durable dashboard notifications"),
 		*(&openapi31.Tag{Name: "outcomes"}).WithDescription(
 			"Canonical Work Outcome contracts and immutable revisions"),
+		*(&openapi31.Tag{Name: "intakes"}).WithDescription(
+			"Shared Home and Work adaptive intake plus explicit responsibility lineage"),
 		*(&openapi31.Tag{Name: "usage"}).WithDescription(
 			"Token usage telemetry for AO sessions"),
 		*(&openapi31.Tag{Name: "push"}).WithDescription(
@@ -285,6 +287,24 @@ var schemaNames = map[string]string{
 	"ControllersNotificationResponse":                     "NotificationResponse",
 	"ControllersListNotificationsResponse":                "ListNotificationsResponse",
 	"ControllersCreateOutcomeRequest":                     "CreateOutcomeRequest",
+	"ControllersCreateIntakeRequest":                      "CreateIntakeRequest",
+	"ControllersAnalyzeIntakeRequest":                     "AnalyzeIntakeRequest",
+	"ControllersAnswerIntakeClarificationRequest":         "AnswerIntakeClarificationRequest",
+	"ControllersReviseIntakeProposalRequest":              "ReviseIntakeProposalRequest",
+	"ControllersConfirmIntakeRequest":                     "ConfirmIntakeRequest",
+	"ControllersCancelIntakeRequest":                      "CancelIntakeRequest",
+	"ControllersIntakeEnvelope":                           "IntakeEnvelope",
+	"ControllersIntakeSnapshotResponse":                   "IntakeSnapshotResponse",
+	"ControllersIntakeSessionResponse":                    "IntakeSessionResponse",
+	"ControllersIntakeProposalInput":                      "IntakeProposalInput",
+	"ControllersIntakeProposalResponse":                   "IntakeProposalResponse",
+	"ControllersIntakeClarificationResponse":              "IntakeClarificationResponse",
+	"ControllersIntakeIDParam":                            "IntakeIDParam",
+	"ControllersCreateResponsibilityLinkRequest":          "CreateResponsibilityLinkRequest",
+	"ControllersEndResponsibilityLinkRequest":             "EndResponsibilityLinkRequest",
+	"ControllersResponsibilityLinkEnvelope":               "ResponsibilityLinkEnvelope",
+	"ControllersResponsibilityLinkResponse":               "ResponsibilityLinkResponse",
+	"ControllersResponsibilityLinkIDParam":                "ResponsibilityLinkIDParam",
 	"ControllersReviseOutcomeContractRequest":             "ReviseOutcomeContractRequest",
 	"ControllersOutcomeEnvelope":                          "OutcomeEnvelope",
 	"ControllersOutcomesEnvelope":                         "OutcomesEnvelope",
@@ -471,6 +491,7 @@ func operations() []operation {
 	ops = append(ops, prOperations()...)
 	ops = append(ops, reviewOperations()...)
 	ops = append(ops, notificationOperations()...)
+	ops = append(ops, intakeOperations()...)
 	ops = append(ops, usageOperations()...)
 	ops = append(ops, pushOperations()...)
 	ops = append(ops, devOperations()...)
@@ -479,6 +500,24 @@ func operations() []operation {
 	ops = append(ops, browserOperations()...)
 	ops = append(ops, shellTerminalOperations()...)
 	return ops
+}
+
+func intakeOperations() []operation {
+	standard := func(success int, body any) []respUnit {
+		return []respUnit{{success, body}, {http.StatusBadRequest, envelope.APIError{}}, {http.StatusConflict, envelope.APIError{}}, {http.StatusNotFound, envelope.APIError{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}}
+	}
+	return []operation{
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/intakes", id: "createOutcomeIntake", tag: "intakes", summary: "Capture one simple natural-language Outcome statement", pathParams: []any{controllers.ProjectIDParam{}}, reqBody: controllers.CreateIntakeRequest{}, resps: standard(http.StatusCreated, controllers.IntakeEnvelope{})},
+		{method: http.MethodGet, path: "/api/v1/intakes/{intakeId}", id: "getIntake", tag: "intakes", summary: "Read durable shared intake state", pathParams: []any{controllers.IntakeIDParam{}}, resps: standard(http.StatusOK, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/intakes/{intakeId}/analysis", id: "analyzeIntake", tag: "intakes", summary: "Analyze intent into one material question or a Contract proposal", pathParams: []any{controllers.IntakeIDParam{}}, reqBody: controllers.AnalyzeIntakeRequest{}, resps: standard(http.StatusOK, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/intakes/{intakeId}/clarification", id: "answerIntakeClarification", tag: "intakes", summary: "Answer the intake's single material clarification", pathParams: []any{controllers.IntakeIDParam{}}, reqBody: controllers.AnswerIntakeClarificationRequest{}, resps: standard(http.StatusOK, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/intakes/{intakeId}/proposals", id: "reviseIntakeProposal", tag: "intakes", summary: "Append an edited immutable Contract proposal revision", pathParams: []any{controllers.IntakeIDParam{}}, reqBody: controllers.ReviseIntakeProposalRequest{}, resps: standard(http.StatusOK, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/intakes/{intakeId}/confirmation", id: "confirmIntakeOutcome", tag: "intakes", summary: "Atomically confirm exactly one Outcome and ContractRevision", pathParams: []any{controllers.IntakeIDParam{}}, reqBody: controllers.ConfirmIntakeRequest{}, resps: standard(http.StatusCreated, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/intakes/{intakeId}/cancellation", id: "cancelIntake", tag: "intakes", summary: "Consciously release an unconfirmed intake", pathParams: []any{controllers.IntakeIDParam{}}, reqBody: controllers.CancelIntakeRequest{}, resps: standard(http.StatusOK, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/responsibility-links", id: "createResponsibilityLink", tag: "intakes", summary: "Preserve explicit Home Open Loop to Work Outcome lineage", reqBody: controllers.CreateResponsibilityLinkRequest{}, resps: standard(http.StatusCreated, controllers.ResponsibilityLinkEnvelope{})},
+		{method: http.MethodGet, path: "/api/v1/responsibility-links/{responsibilityLinkId}", id: "getResponsibilityLink", tag: "intakes", summary: "Read explicit responsibility lineage", pathParams: []any{controllers.ResponsibilityLinkIDParam{}}, resps: standard(http.StatusOK, controllers.ResponsibilityLinkEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/responsibility-links/{responsibilityLinkId}/end", id: "endResponsibilityLink", tag: "intakes", summary: "End lineage without changing either responsibility lifecycle", pathParams: []any{controllers.ResponsibilityLinkIDParam{}}, reqBody: controllers.EndResponsibilityLinkRequest{}, resps: standard(http.StatusOK, controllers.ResponsibilityLinkEnvelope{})},
+	}
 }
 
 func browserOperations() []operation {

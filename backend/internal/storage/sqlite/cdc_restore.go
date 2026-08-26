@@ -235,6 +235,39 @@ var changeLogWriters = []struct {
 		deps:  []string{"outcomes", "responsibility_spaces"},
 		sql:   "CREATE TRIGGER outcome_corrections_cdc_insert\nAFTER INSERT ON outcome_corrections\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_correction_recorded',\n        json_object('correctionId', NEW.id, 'decisionId', NEW.decision_id, 'outcomeId', NEW.outcome_id, 'contractRevisionId', NEW.contract_revision_id, 'targetType', NEW.target_type, 'targetId', NEW.target_id),\n        NEW.created_at);\nEND;",
 	},
+	// Shared adaptive intake and explicit Home-to-Work lineage (#32).
+	{
+		name:  "intake_sessions_cdc_insert",
+		table: "intake_sessions",
+		sql:   "CREATE TRIGGER intake_sessions_cdc_insert\nAFTER INSERT ON intake_sessions\nWHEN NEW.project_id IS NOT NULL\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'intake_captured', json_object('intakeId', NEW.id, 'sourceSurface', NEW.source_surface, 'purpose', NEW.purpose, 'status', NEW.status), NEW.created_at);\nEND;",
+	},
+	{
+		name:  "intake_sessions_cdc_update",
+		table: "intake_sessions",
+		sql:   "CREATE TRIGGER intake_sessions_cdc_update\nAFTER UPDATE ON intake_sessions\nWHEN NEW.project_id IS NOT NULL AND (OLD.status <> NEW.status OR OLD.current_proposal_revision <> NEW.current_proposal_revision OR OLD.failure_code <> NEW.failure_code)\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'intake_updated', json_object('intakeId', NEW.id, 'previousStatus', OLD.status, 'status', NEW.status, 'proposalRevision', NEW.current_proposal_revision), NEW.updated_at);\nEND;",
+	},
+	{
+		name:  "intake_proposals_cdc_insert",
+		table: "intake_proposal_revisions",
+		deps:  []string{"intake_sessions"},
+		sql:   "CREATE TRIGGER intake_proposals_cdc_insert\nAFTER INSERT ON intake_proposal_revisions\nWHEN (SELECT project_id FROM intake_sessions WHERE id = NEW.intake_id) IS NOT NULL\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES ((SELECT project_id FROM intake_sessions WHERE id = NEW.intake_id), NULL, 'intake_proposal_revised', json_object('intakeId', NEW.intake_id, 'proposalId', NEW.id, 'revision', NEW.revision), NEW.created_at);\nEND;",
+	},
+	{
+		name:  "intake_confirmations_cdc_insert",
+		table: "intake_confirmations",
+		deps:  []string{"intake_sessions"},
+		sql:   "CREATE TRIGGER intake_confirmations_cdc_insert\nAFTER INSERT ON intake_confirmations\nWHEN (SELECT project_id FROM intake_sessions WHERE id = NEW.intake_id) IS NOT NULL\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES ((SELECT project_id FROM intake_sessions WHERE id = NEW.intake_id), NULL, 'intake_confirmed', json_object('intakeId', NEW.intake_id, 'proposalRevision', NEW.proposal_revision, 'outcomeId', NEW.outcome_id, 'contractRevisionId', NEW.contract_revision_id), NEW.confirmed_at);\nEND;",
+	},
+	{
+		name:  "responsibility_links_cdc_insert",
+		table: "responsibility_links",
+		sql:   "CREATE TRIGGER responsibility_links_cdc_insert\nAFTER INSERT ON responsibility_links\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'responsibility_link_created', json_object('linkId', NEW.id, 'sourceOpenLoopId', NEW.source_open_loop_id, 'destinationOutcomeId', NEW.destination_outcome_id), NEW.created_at);\nEND;",
+	},
+	{
+		name:  "responsibility_links_cdc_update",
+		table: "responsibility_links",
+		sql:   "CREATE TRIGGER responsibility_links_cdc_update\nAFTER UPDATE ON responsibility_links\nWHEN OLD.ended_at IS NULL AND NEW.ended_at IS NOT NULL\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'responsibility_link_ended', json_object('linkId', NEW.id, 'sourceOpenLoopId', NEW.source_open_loop_id, 'destinationOutcomeId', NEW.destination_outcome_id, 'endedBy', NEW.ended_by), NEW.ended_at);\nEND;",
+	},
 }
 
 // restoreChangeLogWriters recreates any missing change_log-writing trigger
