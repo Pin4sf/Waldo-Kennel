@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-	canSubmitProjectSetup,
 	ProjectSetupFormView,
 	ProjectSetupHeaderView,
 } from "@pin4sf/kennel-product-ui";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
 import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
 import { TriangleAlert, X, type LucideIcon } from "lucide-react";
@@ -33,7 +33,9 @@ type AgentInfo = components["schemas"]["AgentInfo"];
 
 export type CreateProjectAgentSelection = {
 	workerAgent: string;
-	orchestratorAgent: string;
+	// Optional: omitted unless the owner explicitly chose a coordinator
+	// override under Advanced Settings.
+	orchestratorAgent?: string;
 	trackerIntake?: TrackerIntakeConfig;
 };
 
@@ -141,16 +143,15 @@ export function CreateProjectAgentSheet({
 	const coordinatorCapable = new Set(
 		supportedAgents.filter((agent) => agent.roles?.coordinator).map((agent) => agent.id),
 	);
+	// The coordinator override stays EMPTY until the owner explicitly chooses
+	// one under Advanced Settings. An omitted override lets the daemon apply
+	// its canonical default at creation; display and submission therefore
+	// always read the same raw value.
 	const isBusy = isCreating || isInitializing;
 	const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
 	const intakeIncomplete = intakeNeedsRule(intake);
 	const canSubmit =
-		canSubmitProjectSetup({
-			workerAgent,
-			orchestratorAgent,
-			intakeEnabled: intake.enabled,
-			intakeAssignee: intake.assignee,
-		}) &&
+		workerAgent !== "" &&
 		!intakeIncomplete &&
 		!isBusy &&
 		!isLoadingAgents;
@@ -160,8 +161,7 @@ export function CreateProjectAgentSheet({
 		if (!open) return;
 		const defaultAgent = preferredDefaultAgent(agentOptions, preferredAgentId);
 		if (!workerAgentTouched) setWorkerAgent(defaultAgent);
-		if (!orchestratorAgentTouched) setOrchestratorAgent(defaultAgent);
-	}, [agentOptions, open, orchestratorAgentTouched, preferredAgentId, workerAgentTouched]);
+	}, [agentOptions, open, preferredAgentId, workerAgentTouched]);
 
 	useEffect(() => {
 		if (!open) {
@@ -197,7 +197,7 @@ export function CreateProjectAgentSheet({
 							worker: (
 								<RequiredAgentField
 									id="newProjectWorkerAgent"
-									label={t("createProject.workerAgent")}
+									label={t("createProject.defaultCodingAgent")}
 									placeholder={t("createProject.selectWorker")}
 									value={workerAgent}
 									authorized={agentOptions}
@@ -214,24 +214,36 @@ export function CreateProjectAgentSheet({
 								/>
 							),
 							orchestrator: (
-								<RequiredAgentField
-									id="newProjectOrchestratorAgent"
-									selectableIds={coordinatorCapable.size > 0 ? coordinatorCapable : undefined}
-									label={t("createProject.orchestratorAgent")}
-									placeholder={t("createProject.selectOrchestrator")}
-									value={orchestratorAgent}
-									authorized={agentOptions}
-									installed={installedAgents}
-									supported={supportedAgents}
-									disabled={isLoadingAgents}
-									labelClassName="agents-sheet-label"
-									triggerClassName="agents-sheet-control"
-									contentClassName="agents-sheet-menu"
-									onChange={(value) => {
-										setOrchestratorAgent(value);
-										setOrchestratorAgentTouched(true);
-									}}
-								/>
+								<Accordion type="single" collapsible className="rounded-lg border border-border">
+									<AccordionItem value="advanced" className="border-none">
+										<AccordionTrigger className="px-3 text-xs font-medium">
+											{t("createProject.advancedSettings")}
+										</AccordionTrigger>
+										<AccordionContent className="flex flex-col gap-3 px-3 pb-3">
+											<p className="text-xs leading-snug text-muted-foreground">
+												{t("createProject.orchestratorAutoNotice")}
+											</p>
+											<RequiredAgentField
+												id="newProjectOrchestratorAgent"
+												selectableIds={coordinatorCapable.size > 0 ? coordinatorCapable : undefined}
+												label={t("createProject.orchestratorAgent")}
+												placeholder={t("createProject.selectOrchestrator")}
+												value={orchestratorAgent}
+												authorized={agentOptions}
+												installed={installedAgents}
+												supported={supportedAgents}
+												disabled={isLoadingAgents}
+												labelClassName="agents-sheet-label"
+												triggerClassName="agents-sheet-control"
+												contentClassName="agents-sheet-menu"
+												onChange={(value) => {
+													setOrchestratorAgent(value);
+													setOrchestratorAgentTouched(true);
+												}}
+											/>
+										</AccordionContent>
+									</AccordionItem>
+								</Accordion>
 							),
 						}}
 						agents={{
@@ -277,7 +289,11 @@ export function CreateProjectAgentSheet({
 						isBusy={isBusy}
 						onCancel={() => onOpenChange(false)}
 						onSubmit={() =>
-							void onSubmit({ workerAgent, orchestratorAgent, trackerIntake: buildIntake(intake) })
+							void onSubmit({
+									workerAgent,
+									...(orchestratorAgent ? { orchestratorAgent } : {}),
+									trackerIntake: buildIntake(intake),
+								})
 						}
 						setupNotice={
 							repositorySetupNeeded

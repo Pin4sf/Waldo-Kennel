@@ -827,6 +827,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{id}/resolved-mission-roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the daemon-resolved Mission-role proposal for one Project */
+        get: operations["getResolvedMissionRoles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/initialize": {
         parameters: {
             query?: never;
@@ -3211,8 +3228,15 @@ export interface components {
             repo: string;
             workspaceRepos?: components["schemas"]["WorkspaceRepo"][];
         };
+        ProjectAgentPreferences: {
+            analyzer?: string;
+            coordinator?: string;
+            defaultWorker?: string;
+            verifier?: string;
+        };
         ProjectConfig: {
             agentConfig?: components["schemas"]["AgentConfig"];
+            agentPreferences?: components["schemas"]["ProjectAgentPreferences"];
             agentRules?: string;
             agentRulesFile?: string;
             containerReap?: components["schemas"]["ContainerReapConfig"];
@@ -3362,6 +3386,22 @@ export interface components {
             content?: {
                 [key: string]: unknown;
             };
+        };
+        ResolvedAgentRole: {
+            eligible: boolean;
+            harness: string;
+            ready: boolean;
+            reason?: string;
+            source: string;
+        };
+        ResolvedMissionRoles: {
+            analyzer: components["schemas"]["ResolvedAgentRole"];
+            coordinator: components["schemas"]["ResolvedAgentRole"];
+            verifier: components["schemas"]["ResolvedAgentRole"];
+            worker: components["schemas"]["ResolvedAgentRole"];
+        };
+        ResolvedMissionRolesResponse: {
+            roles: components["schemas"]["ResolvedMissionRoles"];
         };
         ResponsibilityLinkEnvelope: {
             responsibilityLink: components["schemas"]["ResponsibilityLinkResponse"];
@@ -7042,6 +7082,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OutcomeEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getResolvedMissionRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedMissionRolesResponse"];
                 };
             };
             /** @description Bad Request */

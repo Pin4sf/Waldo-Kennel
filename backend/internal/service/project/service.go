@@ -46,6 +46,11 @@ type Manager interface {
 	// Remove unregisters a project, stopping its sessions and reclaiming
 	// managed workspaces.
 	Remove(ctx context.Context, id domain.ProjectID) (RemoveResult, error)
+
+	// ResolvedMissionRoles returns the daemon-resolved Mission-role proposal
+	// for one project: stored preferences enriched with live adapter admission.
+	// The proposal is advisory and never rewrites historical sessions or Plans.
+	ResolvedMissionRoles(ctx context.Context, id domain.ProjectID) (domain.ResolvedMissionRoles, error)
 }
 
 // SessionTeardowner is the narrow session-service surface project removal
@@ -58,6 +63,7 @@ type SessionTeardowner interface {
 type Service struct {
 	store          Store
 	sessions       SessionTeardowner
+	roles          RoleResolver
 	clock          func() time.Time
 	telemetry      ports.EventSink
 	defaultHarness domain.AgentHarness
@@ -82,6 +88,17 @@ type Deps struct {
 	Sessions       SessionTeardowner
 	Clock          func() time.Time
 	Telemetry      ports.EventSink
+	// Roles resolves stored agent preferences against the live adapter
+	// inventory. Optional: when nil, ResolvedMissionRoles falls back to the
+	// pure capability-based domain resolution.
+	Roles RoleResolver
+}
+
+// RoleResolver is the narrow boundary toward the daemon's capability-based
+// Mission-role resolution (implemented by the agent inventory service). The
+// caller's context bounds every live probe.
+type RoleResolver interface {
+	ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences) domain.ResolvedMissionRoles
 }
 
 // New returns a project service backed by the given durable store.
@@ -98,6 +115,7 @@ func NewWithDeps(d Deps) *Service {
 	s := &Service{
 		store:          d.Store,
 		sessions:       d.Sessions,
+		roles:          d.Roles,
 		clock:          d.Clock,
 		telemetry:      d.Telemetry,
 		defaultHarness: defaultHarness,
@@ -627,6 +645,28 @@ func (m *Service) SetConfig(ctx context.Context, id domain.ProjectID, in SetConf
 		return Project{}, apierr.Internal("PROJECT_CONFIG_UPDATE_FAILED", "Failed to update project config")
 	}
 	return m.projectFromRow(ctx, row), nil
+}
+
+// ResolvedMissionRoles returns the daemon-resolved role proposal for one
+// project: stored preferences enriched with live adapter admission. The
+// proposal is advisory for future Missions and never rewrites historical
+// sessions or approved Plans.
+func (m *Service) ResolvedMissionRoles(ctx context.Context, id domain.ProjectID) (domain.ResolvedMissionRoles, error) {
+	if err := validateProjectID(id); err != nil {
+		return domain.ResolvedMissionRoles{}, err
+	}
+	row, ok, err := m.store.GetProject(ctx, string(id))
+	if err != nil {
+		return domain.ResolvedMissionRoles{}, apierr.Internal("PROJECT_LOAD_FAILED", "Failed to load project")
+	}
+	if !ok || !row.ArchivedAt.IsZero() {
+		return domain.ResolvedMissionRoles{}, apierr.NotFound("PROJECT_NOT_FOUND", "Unknown project")
+	}
+	prefs := row.Config.AgentPreferences
+	if m.roles != nil {
+		return m.roles.ResolveMissionRoles(ctx, prefs), nil
+	}
+	return domain.ResolveMissionRoles(prefs), nil
 }
 
 func validateScratchProjectConfig(cfg domain.ProjectConfig) error {

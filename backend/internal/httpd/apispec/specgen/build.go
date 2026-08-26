@@ -199,9 +199,14 @@ var schemaNames = map[string]string{
 	"DomainContainerReapConfig":       "ContainerReapConfig",
 	"DomainAgentConfig":               "AgentConfig",
 	"DomainRoleOverride":              "RoleOverride",
+	"DomainProjectAgentPreferences":   "ProjectAgentPreferences",
+	"DomainResolvedMissionRoles":      "ResolvedMissionRoles",
+	"DomainResolvedAgentRole":         "ResolvedAgentRole",
+	"DomainRoleSource":                "RoleSource",
 	// httpd/controllers (wire envelopes)
 	"ControllersListProjectsResponse":                     "ListProjectsResponse",
 	"ControllersProjectResponse":                          "ProjectResponse",
+	"ControllersResolvedMissionRolesResponse":             "ResolvedMissionRolesResponse",
 	"ControllersAgentIDParam":                             "AgentIDParam",
 	"ControllersGetProjectResponse":                       "ProjectGetResponse",
 	"ControllersProjectOrDegraded":                        "ProjectOrDegraded",
@@ -1548,6 +1553,18 @@ func projectOperations() []operation {
 				{http.StatusOK, controllers.GetProjectResponse{}},
 				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/resolved-mission-roles", id: "getResolvedMissionRoles", tag: "projects",
+			summary:    "Read the daemon-resolved Mission-role proposal for one Project",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.ResolvedMissionRolesResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
 			},
 		},
 		{

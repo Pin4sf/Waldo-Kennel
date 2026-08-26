@@ -1,6 +1,10 @@
 package domain
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestProjectConfigValidate(t *testing.T) {
 	tests := []struct {
@@ -180,5 +184,90 @@ func TestProjectConfigIsZero(t *testing.T) {
 	}
 	if (ProjectConfig{Env: map[string]string{"A": "b"}}).IsZero() {
 		t.Fatal("config with env should not be zero")
+	}
+}
+
+func TestProjectAgentPreferencesValidateRejectsUnsupportedRoles(t *testing.T) {
+	cases := []struct {
+		name    string
+		prefs   ProjectAgentPreferences
+		wantErr string
+	}{
+		{
+			name:    "deepseek cannot be preferred coordinator yet",
+			prefs:   ProjectAgentPreferences{Coordinator: "deepseek-harness"},
+			wantErr: "coordinator",
+		},
+		{
+			name:    "claude-code is not admitted for fresh worker spawns",
+			prefs:   ProjectAgentPreferences{DefaultWorker: "claude-code"},
+			wantErr: "worker",
+		},
+		{
+			name:    "unknown harness names are rejected",
+			prefs:   ProjectAgentPreferences{Verifier: "not-a-harness"},
+			wantErr: "verifier",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.prefs.Validate()
+			if err == nil {
+				t.Fatalf("want error containing %q, got nil", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("error %q does not mention %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestProjectAgentPreferencesValidateAcceptsEligibleCombinations(t *testing.T) {
+	prefs := ProjectAgentPreferences{
+		DefaultWorker: "deepseek-harness",
+		Coordinator:   "codex",
+		Verifier:      "codex",
+	}
+	if err := prefs.Validate(); err != nil {
+		t.Fatalf("eligible preferences must validate, got %v", err)
+	}
+	if err := (ProjectAgentPreferences{}).Validate(); err != nil {
+		t.Fatalf("empty preferences mean no preference and must validate, got %v", err)
+	}
+}
+
+func TestResolveMissionRolesDistinguishesPreferenceFromDefault(t *testing.T) {
+	roles := ResolveMissionRoles(ProjectAgentPreferences{DefaultWorker: "deepseek-harness"})
+	if roles.Worker.Harness != HarnessDeepSeekHarness || roles.Worker.Source != RoleSourcePreference {
+		t.Fatalf("worker should honor the preference: %+v", roles.Worker)
+	}
+	if roles.Coordinator.Harness != HarnessCodex || roles.Coordinator.Source != RoleSourceDefault {
+		t.Fatalf("unset roles fall back to the recommended default: %+v", roles.Coordinator)
+	}
+
+	defaults := ResolveMissionRoles(ProjectAgentPreferences{})
+	for _, role := range []ResolvedAgentRole{defaults.Analyzer, defaults.Coordinator, defaults.Worker, defaults.Verifier} {
+		if role.Harness != HarnessCodex || role.Source != RoleSourceDefault {
+			t.Fatalf("empty preferences resolve every role to codex-by-default: %+v", role)
+		}
+	}
+}
+
+func TestProjectConfigRoundTripsAgentPreferences(t *testing.T) {
+	cfg := ProjectConfig{}
+	cfg.AgentPreferences = ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var back ProjectConfig
+	if err := json.Unmarshal(data, &back); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if back.AgentPreferences.DefaultWorker != string(HarnessDeepSeekHarness) {
+		t.Fatalf("preferences lost across JSON round-trip: %+v", back.AgentPreferences)
+	}
+	if err := back.Validate(); err != nil {
+		t.Fatalf("round-tripped config must validate: %v", err)
 	}
 }
