@@ -10,9 +10,10 @@
 //     REQUIRED and validated ahead of spawn by ProfileReadiness; Kennel
 //     delivers the worker's initial task through the terminal after startup
 //     (after_start delivery), so no prompt-flag mapping is required.
-//   - The adapter exposes one config key, "mode": the dsh profile to boot.
-//     Profiles are user-built (`dsh plugin --profile <name> add <package>`),
-//     so the field is free text rather than a fixed enum.
+//   - The adapter exposes one config key, "profile" (AgentConfig.Profile):
+//     the dsh profile to boot. Profiles are user-built
+//     (`dsh plugin --profile <name> add <package>`), so the field is free
+//     text rather than a fixed enum. The legacy mode field stays Amp-only.
 //   - Permission modes are not mapped onto dsh flags (no such mapping is
 //     documented): sessions run under dsh's own native approval settings,
 //     mirroring how the Amp adapter treats undocumented permission flags.

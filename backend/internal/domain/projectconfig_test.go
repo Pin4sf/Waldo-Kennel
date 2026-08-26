@@ -19,6 +19,8 @@ func TestProjectConfigValidate(t *testing.T) {
 		{"good agent profile", ProjectConfig{AgentConfig: AgentConfig{Profile: "waldo-profile"}}, false},
 		{"agent profile with whitespace", ProjectConfig{AgentConfig: AgentConfig{Profile: " waldo "}}, true},
 		{"blank agent profile", ProjectConfig{AgentConfig: AgentConfig{Profile: "   "}}, true},
+		{"agent profile with carriage return", ProjectConfig{AgentConfig: AgentConfig{Profile: "waldo\r"}}, true},
+		{"agent profile with NBSP", ProjectConfig{AgentConfig: AgentConfig{Profile: "waldo\u00A0profile"}}, true},
 		{"bad permission", ProjectConfig{AgentConfig: AgentConfig{Permissions: "yolo"}}, true},
 		{"good session prefix", ProjectConfig{SessionPrefix: "ao"}, false},
 		{"session prefix with slash", ProjectConfig{SessionPrefix: "ao/project"}, true},

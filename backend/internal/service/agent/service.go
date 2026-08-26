@@ -745,11 +745,13 @@ func (s *Service) uniqueHarnesses(base domain.ResolvedMissionRoles) []domain.Age
 	return names
 }
 
-// overrideAppliesTo mirrors session_manager's freshAgentConfig rule: a role
-// override whose harness is unset applies everywhere; one bound to a specific
-// harness applies only when the resolved harness matches it.
+// overrideAppliesTo mirrors session_manager's freshAgentConfig rule exactly:
+// an override whose harness differs from the resolved launch harness —
+// including an UNSET harness — is cleared before launch, so it must be
+// treated as cleared here too. Only an explicit harness match carries the
+// override's Model/Mode/Profile forward.
 func overrideAppliesTo(overrideHarness, resolved domain.AgentHarness) bool {
-	return overrideHarness == "" || overrideHarness == resolved
+	return overrideHarness != "" && overrideHarness == resolved
 }
 
 // roleConfig merges a role override over the shared base; set fields win.

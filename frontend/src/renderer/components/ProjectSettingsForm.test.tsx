@@ -1096,11 +1096,13 @@ describe("ProjectSettingsForm", () => {
 
 		// …and re-selecting it starts from an EMPTY profile: the earlier hidden
 		// value was cleared at the harness boundary, so the saved request must
-		// not carry any stale profile.
+		// not carry any stale profile. Wait for the SECOND PUT specifically —
+		// the first is the pre-switch save that carried the profile.
 		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "DeepSeek Harness");
+		const callsBefore = putMock.mock.calls.length;
 		submitSettings();
-		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
-		const cleared = putMock.mock.calls[putMock.mock.calls.length - 1]?.[1]?.body;
+		await waitFor(() => expect(putMock.mock.calls.length).toBe(callsBefore + 1));
+		const cleared = putMock.mock.calls[callsBefore]?.[1]?.body;
 		expect(cleared.config.worker).toEqual({ agent: "deepseek-harness" });
 		expect(cleared.config.worker.agentConfig).toBeUndefined();
 	});

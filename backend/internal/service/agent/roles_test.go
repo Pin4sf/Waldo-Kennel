@@ -46,7 +46,7 @@ func TestServiceResolveMissionRolesUsesProjectConfigForReadiness(t *testing.T) {
 		{Harness: domain.HarnessDeepSeekHarness, Manifest: adapters.Manifest{ID: "deepseek-harness"}, Agent: plugin},
 	})
 	cfg := domain.ProjectConfig{
-		Worker: domain.RoleOverride{AgentConfig: domain.AgentConfig{Profile: "waldo-profile"}},
+		Worker: domain.RoleOverride{Harness: domain.HarnessDeepSeekHarness, AgentConfig: domain.AgentConfig{Profile: "waldo-profile"}},
 	}
 	roles := svc.ResolveMissionRoles(context.Background(),
 		domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}, cfg)
@@ -63,6 +63,54 @@ func TestServiceResolveMissionRolesUsesProjectConfigForReadiness(t *testing.T) {
 
 func (f fakeProfileAgent) ProfileReadiness(context.Context, ports.AgentConfig) (ports.AgentProfileReadiness, error) {
 	return ports.AgentProfileReadiness{Ready: f.ready, Detail: f.detail}, nil
+}
+
+// TestServiceResolveMissionRolesMismatchedOverrideHarnessIsCleared locks
+// spawn parity: an override bound to a DIFFERENT harness than the resolved
+// one contributes nothing — its Profile is cleared exactly as
+// freshAgentConfig clears it at launch.
+func TestServiceResolveMissionRolesMismatchedOverrideHarnessIsCleared(t *testing.T) {
+	captured := ports.AgentConfig{}
+	plugin := captureProfileAgent{fakeAgent: fakeAgent{}, ready: false, captured: &captured}
+	svc := NewWithAgents([]agentregistry.HarnessAgent{
+		{Harness: domain.HarnessDeepSeekHarness, Manifest: adapters.Manifest{ID: "deepseek-harness"}, Agent: plugin},
+	})
+	cfg := domain.ProjectConfig{
+		Worker: domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Profile: "codex-side-profile"}},
+	}
+	roles := svc.ResolveMissionRoles(context.Background(),
+		domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}, cfg)
+	if got := captured.Profile; got != "" {
+		t.Fatalf("readiness probed profile %q from a mismatched override; want empty", got)
+	}
+	if roles.Worker.Ready {
+		t.Fatalf("worker must fail closed without an applicable profile: %+v", roles.Worker)
+	}
+	if !strings.Contains(strings.ToLower(roles.Worker.Reason), "profile") {
+		t.Fatalf("reason should name the missing-profile gate: %q", roles.Worker.Reason)
+	}
+}
+
+// TestServiceResolveMissionRolesEmptyOverrideHarnessIsCleared proves the
+// unset-harness edge follows spawn: empty reads as mismatch and contributes
+// nothing.
+func TestServiceResolveMissionRolesEmptyOverrideHarnessIsCleared(t *testing.T) {
+	captured := ports.AgentConfig{}
+	plugin := captureProfileAgent{fakeAgent: fakeAgent{}, ready: true, captured: &captured}
+	svc := NewWithAgents([]agentregistry.HarnessAgent{
+		{Harness: domain.HarnessDeepSeekHarness, Manifest: adapters.Manifest{ID: "deepseek-harness"}, Agent: plugin},
+	})
+	cfg := domain.ProjectConfig{
+		Worker: domain.RoleOverride{AgentConfig: domain.AgentConfig{Profile: "orphan-profile"}},
+	}
+	roles := svc.ResolveMissionRoles(context.Background(),
+		domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}, cfg)
+	if got := captured.Profile; got != "" {
+		t.Fatalf("unset-harness override leaked profile %q into readiness; want empty", got)
+	}
+	if !roles.Worker.Ready {
+		t.Fatalf("composing profile must keep the honored preference ready: %+v", roles.Worker)
+	}
 }
 
 func TestEnrichMissionRolesFailsClosedWithoutProfile(t *testing.T) {
