@@ -1549,7 +1549,7 @@ describe("ProjectSettingsForm", () => {
 		// The stored verifier preference hydrates the form; choosing a worker
 		// preference and saving persists exactly the non-blank fields.
 		const workerPref = screen.getByRole("button", { name: "Preferred worker" });
-		await chooseOption(workerPref, "deepseek-harness");
+		await chooseOption(workerPref, "DeepSeek Harness");
 		submitSettings();
 
 		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));

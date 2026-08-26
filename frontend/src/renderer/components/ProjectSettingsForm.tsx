@@ -224,6 +224,10 @@ function SettingsBody({
 		supportedAgents.filter((agent) => agent.roles?.coordinator).map((agent) => agent.id),
 	);
 	const workerSelectable = supportedAgents.filter((agent) => agent.roles?.worker).map((agent) => agent.id);
+	// Preference menus present catalog labels (never raw ids) and only
+	// admission-admitted harnesses, mirroring what SetConfig will accept.
+	const toPreferenceOptions = (ids: string[]) =>
+		ids.map((id) => ({ id, label: supportedAgents.find((agent) => agent.id === id)?.label ?? id }));
 	const workerRequiresProfile =
 		supportedAgents.find((agent) => agent.id === form.workerAgent)?.requiresProfile === true;
 
@@ -574,25 +578,25 @@ function SettingsBody({
 							<MissionRolePreference
 								label={t("settings.project.missionRoleWorker")}
 								value={form.agentPreferences.defaultWorker}
-								options={workerSelectable}
+								options={toPreferenceOptions(workerSelectable)}
 								onChange={(v) => patchPreference("defaultWorker", v)}
 							/>
 							<MissionRolePreference
 								label={t("settings.project.missionRoleAnalyzer")}
 								value={form.agentPreferences.analyzer}
-								options={[...coordinatorCapable]}
+								options={toPreferenceOptions([...coordinatorCapable])}
 								onChange={(v) => patchPreference("analyzer", v)}
 							/>
 							<MissionRolePreference
 								label={t("settings.project.missionRoleCoordinator")}
 								value={form.agentPreferences.coordinator}
-								options={[...coordinatorCapable]}
+								options={toPreferenceOptions([...coordinatorCapable])}
 								onChange={(v) => patchPreference("coordinator", v)}
 							/>
 							<MissionRolePreference
 								label={t("settings.project.missionRoleVerifier")}
 								value={form.agentPreferences.verifier}
-								options={[...coordinatorCapable]}
+								options={toPreferenceOptions([...coordinatorCapable])}
 								onChange={(v) => patchPreference("verifier", v)}
 							/>
 						</div>
@@ -967,13 +971,13 @@ function MissionRolePreference({
 }: {
 	label: string;
 	value: string;
-	options: string[];
+	options: { id: string; label: string }[];
 	onChange: (value: string) => void;
 }) {
 	const { t } = useTranslation();
 	const menuOptions = [
 		{ value: "__none__", label: t("settings.project.missionRoleNoPreference") },
-		...options.map((id) => ({ value: id, label: id })),
+		...options.map((option) => ({ value: option.id, label: option.label })),
 	];
 	return (
 		<label className="flex flex-col gap-1 text-xs font-medium">
