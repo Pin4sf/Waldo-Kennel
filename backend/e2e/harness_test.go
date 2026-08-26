@@ -314,9 +314,10 @@ func (d *daemon) mustCall(method, path string, want int, body, out any) {
 // apiError is the daemon's error envelope. Asserting on `code` rather than on
 // prose keeps these tests from breaking when a message is reworded.
 type apiError struct {
-	Error   string `json:"error"`
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Error   string         `json:"error"`
+	Code    string         `json:"code"`
+	Message string         `json:"message"`
+	Details map[string]any `json:"details,omitempty"`
 }
 
 func (d *daemon) callExpectingError(method, path string, body any) (int, apiError) {
