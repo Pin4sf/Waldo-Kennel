@@ -587,11 +587,14 @@ func sortInfos(infos []Info) {
 }
 
 // RoleInventoryFact is the live adapter admission truth for one harness,
-// probed from the same inventory the agents list serves.
+// probed from the same inventory primitive the agents list serves. Auth is
+// part of admission: an installed, profile-ready but unauthorized harness is
+// NOT ready.
 type RoleInventoryFact struct {
 	Installed       bool
 	RequiresProfile bool
 	ProfileReady    *bool
+	Auth            ports.AgentAuthStatus
 }
 
 func (s *Service) agentFor(harness domain.AgentHarness) (agentregistry.HarnessAgent, bool) {
@@ -603,30 +606,22 @@ func (s *Service) agentFor(harness domain.AgentHarness) (agentregistry.HarnessAg
 	return agentregistry.HarnessAgent{}, false
 }
 
-// InventoryRoleFacts probes installation and advisory profile readiness for
-// each named harness against the current adapter inventory.
-func (s *Service) InventoryRoleFacts(harnesses []domain.AgentHarness) map[domain.AgentHarness]RoleInventoryFact {
+// InventoryRoleFacts probes installation, authorization, and advisory profile
+// readiness for each named harness through probeAgent — the same primitive
+// that serves the agents catalog — so both paths report identical truth. The
+// caller's context bounds every probe; child timeouts derive from it.
+func (s *Service) InventoryRoleFacts(ctx context.Context, harnesses []domain.AgentHarness) map[domain.AgentHarness]RoleInventoryFact {
 	out := make(map[domain.AgentHarness]RoleInventoryFact, len(harnesses))
 	for _, harness := range harnesses {
-		fact := RoleInventoryFact{}
-		if item, ok := s.agentFor(harness); ok {
-			if resolver, isResolver := item.Agent.(ports.AgentBinaryResolver); isResolver {
-				ctx, cancel := context.WithTimeout(context.Background(), agentInstallProbeTimeout)
-				_, err := resolver.ResolveBinary(ctx)
-				cancel()
-				fact.Installed = err == nil
-			} else {
-				fact.Installed = true
-			}
-			if checker, isChecker := item.Agent.(ports.AgentProfileReadinessChecker); isChecker {
-				fact.RequiresProfile = true
-				ctx, cancel := context.WithTimeout(context.Background(), agentInstallProbeTimeout)
-				readiness, err := checker.ProfileReadiness(ctx, ports.AgentConfig{})
-				cancel()
-				if err == nil {
-					ready := readiness.Ready
-					fact.ProfileReady = &ready
-				}
+		fact := RoleInventoryFact{Auth: ports.AgentAuthStatusUnknown}
+		item, ok := s.agentFor(harness)
+		if ok {
+			res := s.probeAgent(ctx, item)
+			fact.Installed = res.installed
+			fact.RequiresProfile = res.info.RequiresProfile
+			fact.ProfileReady = res.info.Ready
+			if res.info.AuthStatus != "" {
+				fact.Auth = res.info.AuthStatus
 			}
 		}
 		out[harness] = fact
@@ -636,21 +631,27 @@ func (s *Service) InventoryRoleFacts(harnesses []domain.AgentHarness) map[domain
 
 // EnrichMissionRoles layers live inventory truth onto the pure capability
 // proposal. Readiness failures never substitute another harness — they flip
-// Ready to false and name the blocking gate, so callers fail closed instead
-// of silently falling back.
+// Ready to false and name every blocking gate, so callers fail closed instead
+// of silently falling back. Authorization fails closed too: unknown or absent
+// grants are treated like a refused one, matching the onboarding authorized-
+// list policy.
 func EnrichMissionRoles(base domain.ResolvedMissionRoles, facts map[domain.AgentHarness]RoleInventoryFact) domain.ResolvedMissionRoles {
 	enrich := func(role domain.ResolvedAgentRole) domain.ResolvedAgentRole {
 		fact, known := facts[role.Harness]
 		if !known {
 			return role
 		}
-		switch {
-		case !fact.Installed:
+		if !fact.Installed {
 			role.Ready = false
 			role.Reason += "; harness is not installed"
-		case fact.RequiresProfile && (fact.ProfileReady == nil || !*fact.ProfileReady):
+		}
+		if fact.RequiresProfile && (fact.ProfileReady == nil || !*fact.ProfileReady) {
 			role.Ready = false
 			role.Reason += "; profile readiness fails closed (no composed profile)"
+		}
+		if fact.Auth != ports.AgentAuthStatusAuthorized {
+			role.Ready = false
+			role.Reason += "; agent authorization is not granted"
 		}
 		return role
 	}
@@ -665,7 +666,7 @@ func EnrichMissionRoles(base domain.ResolvedMissionRoles, facts map[domain.Agent
 // into one daemon-resolved role proposal. Assignments are proposals for
 // future Missions; historical sessions and approved Plans keep their
 // immutable provider identity regardless of what this returns.
-func (s *Service) ResolveMissionRoles(prefs domain.ProjectAgentPreferences) domain.ResolvedMissionRoles {
+func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences) domain.ResolvedMissionRoles {
 	base := domain.ResolveMissionRoles(prefs)
 	seen := map[domain.AgentHarness]struct{}{
 		base.Analyzer.Harness:    {},
@@ -677,5 +678,5 @@ func (s *Service) ResolveMissionRoles(prefs domain.ProjectAgentPreferences) doma
 	for harness := range seen {
 		names = append(names, harness)
 	}
-	return EnrichMissionRoles(base, s.InventoryRoleFacts(names))
+	return EnrichMissionRoles(base, s.InventoryRoleFacts(ctx, names))
 }

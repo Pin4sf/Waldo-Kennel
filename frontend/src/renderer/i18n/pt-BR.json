@@ -603,7 +603,7 @@
 	"settings.project.defaultOrchestrator": "Agente orchestrator padrão",
 	"settings.project.defaultReviewer": "Agente revisor padrão",
 	"settings.project.defaultWorker": "Agente worker padrão",
-	"settings.project.missionRoles": "Mission roles",
+	"settings.project.missionRoles": "Resolved Mission role proposal",
 	"settings.project.missionRolesHint": "Optional preferences for future Mission spawns. The daemon resolves each role against live agent admission; historical sessions are never rewritten.",
 	"settings.project.missionRoleWorker": "Preferred worker",
 	"settings.project.missionRoleAnalyzer": "Preferred analyzer",

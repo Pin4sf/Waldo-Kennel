@@ -95,9 +95,10 @@ type Deps struct {
 }
 
 // RoleResolver is the narrow boundary toward the daemon's capability-based
-// Mission-role resolution (implemented by the agent inventory service).
+// Mission-role resolution (implemented by the agent inventory service). The
+// caller's context bounds every live probe.
 type RoleResolver interface {
-	ResolveMissionRoles(prefs domain.ProjectAgentPreferences) domain.ResolvedMissionRoles
+	ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences) domain.ResolvedMissionRoles
 }
 
 // New returns a project service backed by the given durable store.
@@ -663,7 +664,7 @@ func (m *Service) ResolvedMissionRoles(ctx context.Context, id domain.ProjectID)
 	}
 	prefs := row.Config.AgentPreferences
 	if m.roles != nil {
-		return m.roles.ResolveMissionRoles(prefs), nil
+		return m.roles.ResolveMissionRoles(ctx, prefs), nil
 	}
 	return domain.ResolveMissionRoles(prefs), nil
 }

@@ -1541,7 +1541,7 @@ describe("ProjectSettingsForm", () => {
 
 		// The resolved proposal panel renders daemon truth, including the
 		// fail-closed not-ready reason for the honored worker preference.
-		expect(await screen.findByText("Mission roles")).toBeInTheDocument();
+		expect(await screen.findByText("Resolved Mission role proposal")).toBeInTheDocument();
 		expect(await screen.findByText("profile waldo-profile is not ready")).toBeInTheDocument();
 		expect(screen.getByText("preference")).toBeInTheDocument();
 		expect(screen.getAllByText("default").length).toBeGreaterThanOrEqual(3);
@@ -1563,7 +1563,7 @@ describe("ProjectSettingsForm", () => {
 	it("keeps Mission role preferences empty when nothing was recorded", async () => {
 		mockProject({ id: "proj-1", name: "Project One" });
 		renderSettings("proj-1", undefined, "agents");
-		await screen.findByText("Mission roles");
+		await screen.findByText("Resolved Mission role proposal");
 
 		submitSettings();
 		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));

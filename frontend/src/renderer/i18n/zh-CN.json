@@ -576,7 +576,7 @@
 	"settings.project.defaultOrchestrator": "默认编排代理",
 	"settings.project.defaultReviewer": "默认评审代理",
 	"settings.project.defaultWorker": "默认 worker 代理",
-	"settings.project.missionRoles": "Mission roles",
+	"settings.project.missionRoles": "Resolved Mission role proposal",
 	"settings.project.missionRolesHint": "Optional preferences for future Mission spawns. The daemon resolves each role against live agent admission; historical sessions are never rewritten.",
 	"settings.project.missionRoleWorker": "Preferred worker",
 	"settings.project.missionRoleAnalyzer": "Preferred analyzer",

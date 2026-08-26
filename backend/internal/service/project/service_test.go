@@ -1657,7 +1657,7 @@ type stubRoleResolver struct {
 	called bool
 }
 
-func (s *stubRoleResolver) ResolveMissionRoles(domain.ProjectAgentPreferences) domain.ResolvedMissionRoles {
+func (s *stubRoleResolver) ResolveMissionRoles(_ context.Context, _ domain.ProjectAgentPreferences) domain.ResolvedMissionRoles {
 	s.called = true
 	return s.roles
 }

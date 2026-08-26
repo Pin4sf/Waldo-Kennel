@@ -91,6 +91,10 @@ export function createProjectConfig(input: CreateProjectConfigInput): components
 	return {
 		worker: { agent: input.workerAgent as components["schemas"]["RoleOverride"]["agent"] },
 		orchestrator: { agent: input.orchestratorAgent as components["schemas"]["RoleOverride"]["agent"] },
+		// Task 1 contract: project creation chooses and persists one default
+		// coding agent, so the Mission-role preference is recorded at the same
+		// moment the legacy role override is written.
+		agentPreferences: { defaultWorker: input.workerAgent },
 		...(input.trackerIntake ? { trackerIntake: input.trackerIntake } : {}),
 	};
 }

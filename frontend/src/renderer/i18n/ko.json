@@ -594,7 +594,7 @@
 	"settings.project.defaultOrchestrator": "기본 오케스트레이터 에이전트",
 	"settings.project.defaultReviewer": "기본 리뷰어 에이전트",
 	"settings.project.defaultWorker": "기본 워커 에이전트",
-	"settings.project.missionRoles": "Mission roles",
+	"settings.project.missionRoles": "Resolved Mission role proposal",
 	"settings.project.missionRolesHint": "Optional preferences for future Mission spawns. The daemon resolves each role against live agent admission; historical sessions are never rewritten.",
 	"settings.project.missionRoleWorker": "Preferred worker",
 	"settings.project.missionRoleAnalyzer": "Preferred analyzer",
