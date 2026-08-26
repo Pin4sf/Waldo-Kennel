@@ -30,11 +30,11 @@ func (p *Plugin) ProfileReadiness(ctx context.Context, cfg ports.AgentConfig) (p
 	if err := ctx.Err(); err != nil {
 		return ports.AgentProfileReadiness{}, err
 	}
-	profile := strings.TrimSpace(cfg.Mode)
+	profile := strings.TrimSpace(cfg.Profile)
 	if profile == "" {
 		return ports.AgentProfileReadiness{
 			Ready:  false,
-			Detail: "no dsh profile selected — create one ('dsh plugin --profile <name> add <package>') and set it as this agent's mode",
+			Detail: "no dsh profile selected — create one ('dsh plugin --profile <name> add <package>') and set it as this agent's profile",
 		}, nil
 	}
 

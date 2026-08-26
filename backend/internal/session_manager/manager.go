@@ -1162,21 +1162,26 @@ func effectiveAgentConfig(kind domain.SessionKind, cfg domain.ProjectConfig) por
 	if override.Mode != "" {
 		merged.Mode = override.Mode
 	}
+	if override.Profile != "" {
+		merged.Profile = override.Profile
+	}
 	if override.Permissions != "" {
 		merged.Permissions = override.Permissions
 	}
 	return merged
 }
 
-// freshAgentConfig resolves project defaults for a new launch. Model and mode
-// belong to the provider that stored the role configuration, so they must not
-// cross a harness boundary; permissions remain provider-neutral. Explicit
+// freshAgentConfig resolves project defaults for a new launch. Model, mode,
+// and profile belong to the provider that stored the role configuration, so
+// they must not cross a harness boundary; permissions remain
+// provider-neutral. Explicit
 // request overrides are applied by the caller after this compatibility guard.
 func freshAgentConfig(kind domain.SessionKind, harness domain.AgentHarness, cfg domain.ProjectConfig) ports.AgentConfig {
 	config := effectiveAgentConfig(kind, cfg)
 	if roleOverride(kind, cfg).Harness != harness {
 		config.Model = ""
 		config.Mode = ""
+		config.Profile = ""
 	}
 	return config
 }
@@ -1187,6 +1192,9 @@ func applySpawnAgentConfig(base, override ports.AgentConfig) ports.AgentConfig {
 	}
 	if override.Mode != "" {
 		base.Mode = override.Mode
+	}
+	if override.Profile != "" {
+		base.Profile = override.Profile
 	}
 	if override.Permissions != "" {
 		base.Permissions = override.Permissions

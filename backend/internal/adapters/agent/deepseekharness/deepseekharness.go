@@ -10,9 +10,10 @@
 //     REQUIRED and validated ahead of spawn by ProfileReadiness; Kennel
 //     delivers the worker's initial task through the terminal after startup
 //     (after_start delivery), so no prompt-flag mapping is required.
-//   - The adapter exposes one config key, "mode": the dsh profile to boot.
-//     Profiles are user-built (`dsh plugin --profile <name> add <package>`),
-//     so the field is free text rather than a fixed enum.
+//   - The adapter exposes one config key, "profile" (AgentConfig.Profile):
+//     the dsh profile to boot. Profiles are user-built
+//     (`dsh plugin --profile <name> add <package>`), so the field is free
+//     text rather than a fixed enum. The legacy mode field stays Amp-only.
 //   - Permission modes are not mapped onto dsh flags (no such mapping is
 //     documented): sessions run under dsh's own native approval settings,
 //     mirroring how the Amp adapter treats undocumented permission flags.
@@ -89,15 +90,15 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 		return ports.ConfigSpec{}, err
 	}
 	return ports.ConfigSpec{Fields: []ports.ConfigField{{
-		Key:         "mode",
+		Key:         "profile",
 		Type:        ports.ConfigFieldString,
-		Description: "Required dsh profile to boot (created via `dsh plugin --profile <name> add <package>`).",
+		Description: "Required dsh profile to boot (created via `dsh plugin --profile <name> add <package>`); maps to AgentConfig.Profile.",
 	}}}, nil
 }
 
 // GetLaunchCommand builds `dsh --profile <name>` and nothing else. A profile
 // is REQUIRED — bare `dsh` exits with "--profile <name> is required" on the
-// published contract — so an unselected mode fails closed here with an
+// published contract — so an unselected profile fails closed here with an
 // actionable message instead of surfacing as a spawn failure. The prompt and
 // any standing instructions arrive through after-start terminal delivery. A
 // configured model override is refused rather than guessed at; permission
@@ -110,9 +111,9 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	if model := strings.TrimSpace(cfg.Config.Model); model != "" {
 		return nil, fmt.Errorf("deepseek-harness: model override %q is not supported until the dsh CLI flag contract is pinned", model)
 	}
-	profile := strings.TrimSpace(cfg.Config.Mode)
+	profile := strings.TrimSpace(cfg.Config.Profile)
 	if profile == "" {
-		return nil, fmt.Errorf("deepseek-harness: no dsh profile configured — create one ('dsh plugin --profile <name> add <package>') and select it as this agent's mode")
+		return nil, fmt.Errorf("deepseek-harness: no dsh profile configured — create one ('dsh plugin --profile <name> add <package>') and select it as this agent's profile")
 	}
 
 	binary, err := p.dshBinary(ctx)

@@ -548,6 +548,16 @@ func (a *readinessGateAgent) ProfileReadiness(_ context.Context, cfg ports.Agent
 	return a.readiness, nil
 }
 
+// profileLaunchAgent launches `dsh --profile <cfg.Profile>`, so tests can
+// prove the resolved profile survives the manager path into launch argv.
+type profileLaunchAgent struct {
+	*readinessGateAgent
+}
+
+func (a *profileLaunchAgent) GetLaunchCommand(_ context.Context, cfg ports.LaunchConfig) ([]string, error) {
+	return []string{"dsh", "--profile", strings.TrimSpace(cfg.Config.Profile)}, nil
+}
+
 type scratchHookAgent struct {
 	fakeAgent
 }
@@ -4671,12 +4681,12 @@ func TestSpawn_RejectsHistoricalHarnessBeforeCreatingStateOrWorkspace(t *testing
 func TestResumeAgent_ProfileNotReadyFailsBeforeRuntime(t *testing.T) {
 	st := newFakeStore()
 	// The project's worker role belongs to DeepSeek with its own profile, so
-	// freshAgentConfig keeps the mode instead of clearing it at the harness
+	// freshAgentConfig keeps the profile instead of clearing it at the harness
 	// boundary.
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
 		Worker: domain.RoleOverride{
 			Harness:     domain.HarnessDeepSeekHarness,
-			AgentConfig: domain.AgentConfig{Mode: "tui"},
+			AgentConfig: domain.AgentConfig{Profile: "waldo"},
 		},
 	}}
 	st.sessions["mer-1"] = domain.SessionRecord{
@@ -4696,7 +4706,7 @@ func TestResumeAgent_ProfileNotReadyFailsBeforeRuntime(t *testing.T) {
 	ws := &fakeWorkspace{}
 	agent := &readinessGateAgent{readiness: ports.AgentProfileReadiness{
 		Ready:  false,
-		Detail: `dsh --profile tui --dump-config failed: profile "tui" does not exist`,
+		Detail: `dsh --profile waldo --dump-config failed: profile "waldo" does not exist`,
 	}}
 	m := New(Deps{
 		Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: ws, Store: st,
@@ -4711,8 +4721,8 @@ func TestResumeAgent_ProfileNotReadyFailsBeforeRuntime(t *testing.T) {
 	if !strings.Contains(err.Error(), "does not exist") {
 		t.Fatalf("error = %v, want the adapter detail surfaced", err)
 	}
-	if agent.lastProbeConfig.Mode != "tui" {
-		t.Fatalf("probe mode = %q, want the project-resolved profile", agent.lastProbeConfig.Mode)
+	if agent.lastProbeConfig.Profile != "waldo" {
+		t.Fatalf("probed profile = %q, want the project-resolved profile", agent.lastProbeConfig.Profile)
 	}
 	if rt.created != 0 {
 		t.Fatal("runtime must not be created for a not-ready profile")
@@ -4729,7 +4739,7 @@ func TestSpawn_ProfileNotReadyFailsBeforeDurableState(t *testing.T) {
 	ws := &fakeWorkspace{}
 	agent := &readinessGateAgent{readiness: ports.AgentProfileReadiness{
 		Ready:  false,
-		Detail: `dsh --profile tui --dump-config failed: profile "tui" does not exist`,
+		Detail: `dsh --profile waldo --dump-config failed: profile "waldo" does not exist`,
 	}}
 	m := New(Deps{
 		Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: ws, Store: st,
@@ -4741,7 +4751,7 @@ func TestSpawn_ProfileNotReadyFailsBeforeDurableState(t *testing.T) {
 		ProjectID:   "mer",
 		Kind:        domain.KindWorker,
 		Harness:     domain.HarnessDeepSeekHarness,
-		AgentConfig: ports.AgentConfig{Mode: "tui"},
+		AgentConfig: ports.AgentConfig{Profile: "waldo"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "is not ready") {
 		t.Fatalf("Spawn() error = %v, want the profile-readiness failure", err)
@@ -4752,8 +4762,8 @@ func TestSpawn_ProfileNotReadyFailsBeforeDurableState(t *testing.T) {
 	if agent.probeCalls != 1 {
 		t.Fatalf("ProfileReadiness calls = %d, want exactly one preflight probe", agent.probeCalls)
 	}
-	if agent.lastProbeConfig.Mode != "tui" {
-		t.Fatalf("probe mode = %q, want the launch-shaped requested profile", agent.lastProbeConfig.Mode)
+	if agent.lastProbeConfig.Profile != "waldo" {
+		t.Fatalf("probed profile = %q, want the launch-shaped requested profile", agent.lastProbeConfig.Profile)
 	}
 	if len(st.sessions) != 0 {
 		t.Fatalf("not-ready profile must not persist a session row, got %d", len(st.sessions))
@@ -4774,7 +4784,7 @@ func TestSpawn_ReadyProfileProceedsPastPreflight(t *testing.T) {
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
 	rt := &fakeRuntime{}
 	ws := &fakeWorkspace{}
-	agent := &readinessGateAgent{readiness: ports.AgentProfileReadiness{Ready: true, Detail: "composed"}}
+	agent := &profileLaunchAgent{readinessGateAgent: &readinessGateAgent{readiness: ports.AgentProfileReadiness{Ready: true, Detail: "composed"}}}
 	m := New(Deps{
 		Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: ws, Store: st,
 		Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st},
@@ -4785,7 +4795,7 @@ func TestSpawn_ReadyProfileProceedsPastPreflight(t *testing.T) {
 		ProjectID:   "mer",
 		Kind:        domain.KindWorker,
 		Harness:     domain.HarnessDeepSeekHarness,
-		AgentConfig: ports.AgentConfig{Mode: "tui"},
+		AgentConfig: ports.AgentConfig{Profile: "waldo"},
 		Prompt:      "do it",
 	})
 	if err != nil {
@@ -4796,6 +4806,10 @@ func TestSpawn_ReadyProfileProceedsPastPreflight(t *testing.T) {
 	}
 	if agent.probeCalls != 1 {
 		t.Fatalf("ProfileReadiness calls = %d, want exactly one preflight probe", agent.probeCalls)
+	}
+	// The merged profile must survive the whole manager path into launch argv.
+	if len(rt.lastCfg.Argv) != 3 || rt.lastCfg.Argv[1] != "--profile" || rt.lastCfg.Argv[2] != "waldo" {
+		t.Fatalf("launch argv = %#v, want [dsh --profile waldo]", rt.lastCfg.Argv)
 	}
 	if len(st.sessions) != 1 {
 		t.Fatalf("ready spawn should persist exactly one session row, got %d", len(st.sessions))

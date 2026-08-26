@@ -681,8 +681,64 @@ func EnrichMissionRoles(base domain.ResolvedMissionRoles, facts map[domain.Agent
 // into one daemon-resolved role proposal. Assignments are proposals for
 // future Missions; historical sessions and approved Plans keep their
 // immutable provider identity regardless of what this returns.
-func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences) domain.ResolvedMissionRoles {
+func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences, cfg domain.ProjectConfig) domain.ResolvedMissionRoles {
 	base := domain.ResolveMissionRoles(prefs)
+	facts := s.InventoryRoleFacts(ctx, s.uniqueHarnesses(base))
+	// Profile readiness is Project-config-aware: each role is probed with the
+	// AgentConfig that launch would actually merge (role override when set,
+	// otherwise the shared base), so a persisted profile flips readiness here
+	// instead of the UI reporting "no profile selected" after a save.
+	for _, role := range []struct {
+		harness         domain.AgentHarness
+		overrideHarness domain.AgentHarness
+		override        domain.AgentConfig
+	}{
+		{base.Worker.Harness, cfg.Worker.Harness, cfg.Worker.AgentConfig},
+		{base.Analyzer.Harness, cfg.Orchestrator.Harness, cfg.Orchestrator.AgentConfig},
+		{base.Coordinator.Harness, cfg.Orchestrator.Harness, cfg.Orchestrator.AgentConfig},
+		{base.Verifier.Harness, cfg.Orchestrator.Harness, cfg.Orchestrator.AgentConfig},
+	} {
+		fact := facts[role.harness]
+		if !fact.RequiresProfile || fact.ProfileReady != nil && *fact.ProfileReady {
+			continue
+		}
+		item, ok := s.agentFor(role.harness)
+		if !ok {
+			continue
+		}
+		checker, ok := item.Agent.(ports.AgentProfileReadinessChecker)
+		if !ok {
+			continue
+		}
+		// Spawn clears provider-owned fields after merging the role override when
+		// the stored role harness does not match the launch harness
+		// (session_manager.freshAgentConfig). Readiness applies the identical
+		// rule so the two can never disagree.
+		override := role.override
+		applies := overrideAppliesTo(role.overrideHarness, role.harness)
+		if !applies {
+			override = domain.AgentConfig{}
+		}
+		probeConfig := roleConfig(cfg, override)
+		if !applies {
+			probeConfig.Model = ""
+			probeConfig.Mode = ""
+			probeConfig.Profile = ""
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, agentInstallProbeTimeout)
+		readiness, err := checker.ProfileReadiness(probeCtx, probeConfig)
+		cancel()
+		if err != nil {
+			continue
+		}
+		ready := readiness.Ready
+		fact.ProfileReady = &ready
+		facts[role.harness] = fact
+	}
+	return EnrichMissionRoles(base, facts)
+}
+
+func (s *Service) uniqueHarnesses(base domain.ResolvedMissionRoles) []domain.AgentHarness {
 	seen := map[domain.AgentHarness]struct{}{
 		base.Analyzer.Harness:    {},
 		base.Coordinator.Harness: {},
@@ -693,5 +749,31 @@ func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectA
 	for harness := range seen {
 		names = append(names, harness)
 	}
-	return EnrichMissionRoles(base, s.InventoryRoleFacts(ctx, names))
+	return names
+}
+
+// overrideAppliesTo mirrors session_manager's freshAgentConfig rule exactly:
+// an override whose harness differs from the resolved launch harness —
+// including an UNSET harness — is cleared before launch, so it must be
+// treated as cleared here too. Only an explicit harness match carries the
+// override's Model/Mode/Profile forward.
+func overrideAppliesTo(overrideHarness, resolved domain.AgentHarness) bool {
+	return overrideHarness != "" && overrideHarness == resolved
+}
+
+// roleConfig merges a role override over the shared base; set fields win.
+func roleConfig(cfg domain.ProjectConfig, override domain.AgentConfig) domain.AgentConfig {
+	if override.Profile != "" {
+		cfg.AgentConfig.Profile = override.Profile
+	}
+	if override.Model != "" {
+		cfg.AgentConfig.Model = override.Model
+	}
+	if override.Mode != "" {
+		cfg.AgentConfig.Mode = override.Mode
+	}
+	if override.Permissions != "" {
+		cfg.AgentConfig.Permissions = override.Permissions
+	}
+	return cfg.AgentConfig
 }

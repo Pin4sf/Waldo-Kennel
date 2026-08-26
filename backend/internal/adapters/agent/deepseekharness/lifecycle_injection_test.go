@@ -53,12 +53,12 @@ func TestLifecycleMissingBinaryFailsClosedBeforeRuntime(t *testing.T) {
 	plugin := &Plugin{}
 	if _, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Prompt: "hello",
-		Config: ports.AgentConfig{Mode: "tui"},
+		Config: ports.AgentConfig{Profile: "tui"},
 	}); !errors.Is(err, ports.ErrAgentBinaryNotFound) {
 		t.Fatalf("GetLaunchCommand err = %v, want ErrAgentBinaryNotFound", err)
 	}
 	// The readiness probe surfaces the same truth rather than a verdict.
-	if _, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Mode: "tui"}); !errors.Is(err, ports.ErrAgentBinaryNotFound) {
+	if _, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Profile: "tui"}); !errors.Is(err, ports.ErrAgentBinaryNotFound) {
 		t.Fatalf("ProfileReadiness err = %v, want ErrAgentBinaryNotFound", err)
 	}
 }
@@ -75,7 +75,7 @@ func TestLifecycleFakeBinaryIsResolvedAndLaunched(t *testing.T) {
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Prompt:      "record one focus block",
 		Permissions: ports.PermissionModeBypassPermissions,
-		Config:      ports.AgentConfig{Mode: "tui"},
+		Config:      ports.AgentConfig{Profile: "tui"},
 	})
 	if err != nil {
 		t.Fatalf("GetLaunchCommand err: %v", err)
@@ -118,7 +118,7 @@ func TestReadinessComposesConfiguredProfile(t *testing.T) {
 	fakePATH(t, dir)
 
 	plugin := &Plugin{}
-	readiness, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Mode: "tui"})
+	readiness, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Profile: "tui"})
 	if err != nil {
 		t.Fatalf("ProfileReadiness err: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestReadinessReportsInvalidProfileTruthfully(t *testing.T) {
 	fakePATH(t, dir)
 
 	plugin := &Plugin{}
-	readiness, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Mode: "broken"})
+	readiness, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Profile: "broken"})
 	if err != nil {
 		t.Fatalf("ProfileReadiness err: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestReadinessMissingBinaryFailsClosed(t *testing.T) {
 	fakePATH(t, t.TempDir())
 
 	plugin := &Plugin{}
-	if _, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Mode: "tui"}); !errors.Is(err, ports.ErrAgentBinaryNotFound) {
+	if _, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Profile: "tui"}); !errors.Is(err, ports.ErrAgentBinaryNotFound) {
 		t.Fatalf("err = %v, want ErrAgentBinaryNotFound", err)
 	}
 }
@@ -189,7 +189,7 @@ func TestReadinessProbeTimeoutReportsNotReady(t *testing.T) {
 	defer func() { profileProbeTimeout = original }()
 
 	plugin := &Plugin{}
-	readiness, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Mode: "stuck"})
+	readiness, err := plugin.ProfileReadiness(context.Background(), ports.AgentConfig{Profile: "stuck"})
 	if err != nil {
 		t.Fatalf("ProfileReadiness err: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestLifecycleResolvedLaunchArgvStillSurfacesExecFailure(t *testing.T) {
 	plugin := &Plugin{}
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Prompt: "record one focus block",
-		Config: ports.AgentConfig{Mode: "tui"},
+		Config: ports.AgentConfig{Profile: "tui"},
 	})
 	if err != nil {
 		t.Fatalf("GetLaunchCommand err: %v", err)

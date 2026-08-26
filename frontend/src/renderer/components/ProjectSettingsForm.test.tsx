@@ -1069,8 +1069,8 @@ describe("ProjectSettingsForm", () => {
 		expect(await screen.findByRole("button", { name: "Default worker agent" })).toHaveTextContent("Codex");
 		expect(screen.queryByLabelText("Profile")).not.toBeInTheDocument();
 
-		// Selecting the profile-gated harness reveals the field bound to the
-		// worker's configured mode — the value spawn reads as the dsh profile.
+		// Selecting the profile-gated harness reveals the field bound to
+		// AgentConfig.Profile — the value spawn reads as the dsh profile.
 		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "DeepSeek Harness");
 
 		const profileInput = screen.getByLabelText("Profile");
@@ -1084,15 +1084,27 @@ describe("ProjectSettingsForm", () => {
 			expect.objectContaining({
 				body: expect.objectContaining({
 					config: expect.objectContaining({
-						worker: { agent: "deepseek-harness", agentConfig: { mode: "dsh-main" } },
+						worker: { agent: "deepseek-harness", agentConfig: { profile: "dsh-main" } },
 					}),
 				}),
 			}),
 		);
 
-		// Switching back to a zero-configuration worker hides the field again.
+		// Switching back to a zero-configuration worker hides the field again…
 		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "Codex");
 		expect(screen.queryByLabelText("Profile")).not.toBeInTheDocument();
+
+		// …and re-selecting it starts from an EMPTY profile: the earlier hidden
+		// value was cleared at the harness boundary, so the saved request must
+		// not carry any stale profile. Wait for the SECOND PUT specifically —
+		// the first is the pre-switch save that carried the profile.
+		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "DeepSeek Harness");
+		const callsBefore = putMock.mock.calls.length;
+		submitSettings();
+		await waitFor(() => expect(putMock.mock.calls.length).toBe(callsBefore + 1));
+		const cleared = putMock.mock.calls[callsBefore]?.[1]?.body;
+		expect(cleared.config.worker).toEqual({ agent: "deepseek-harness" });
+		expect(cleared.config.worker.agentConfig).toBeUndefined();
 	});
 
 	it("saves Codex as the reviewer payload", async () => {
