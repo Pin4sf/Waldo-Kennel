@@ -22,3 +22,17 @@ it("starts with one Outcome statement prompt and supports keyboard submission", 
 	expect(postMock).toHaveBeenCalledWith("/api/v1/projects/{id}/intakes", expect.objectContaining({ body: expect.objectContaining({ statement: "Add keyboard navigation" }) }));
 	expect(navigateMock).toHaveBeenCalledWith({ to: "/work", search: { project: "project-1", intake: "intake-1" } });
 });
+
+it("keeps the statement visibly unsaved when the daemon rejects capture", async () => {
+	postMock.mockResolvedValueOnce({ data: undefined, error: { code: "DAEMON_UNAVAILABLE" } });
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+	render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" /></QueryClientProvider>);
+
+	const statement = screen.getByRole("textbox", { name: /what would you like to make true/i });
+	await userEvent.type(statement, "Keep this statement local");
+	await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+	expect(await screen.findByRole("alert")).toHaveTextContent("Daemon unavailable Your statement has not been saved.");
+	expect(statement).toHaveValue("Keep this statement local");
+	expect(navigateMock).not.toHaveBeenCalled();
+});
