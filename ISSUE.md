@@ -1,6 +1,6 @@
 # Implementation issues and follow-ups
 
-Last updated: 2026-08-26 during issue #32 verification.
+Last updated: 2026-08-26 during issue #77 verification.
 
 This file records verified follow-ups discovered while implementing a feature. Independent work that is large enough to schedule and review separately must also have a dedicated GitHub issue; this file does not replace the canonical issue tracker.
 
@@ -18,6 +18,14 @@ These observations are already covered by [#40 Integrate Work with Home through 
 
 - An unconfirmed `IntakeSession` is durable and readable after a daemon restart, but the Work board does not yet discover and resume it automatically.
 - `ResponsibilityLink` accepts the Home source responsibility as an opaque identifier. Resolving and presenting the canonical Home-side responsibility belongs to the separate Work/Home consumption layer.
+
+## Escalated: governed Project Waldo provider execution
+
+- GitHub issue: [#82 Wire governed Project Waldo provider replies and same-Attempt continuation](https://github.com/Pin4sf/Waldo-Kennel/issues/82)
+- Status: open; discovered while verifying issue #77 against the locked Task 2 continuation contract.
+- Evidence: the durable Project conversation, context, policy, and receipt contracts are implemented, but production constructs the continuation service without a canonical-facts or replacement executor adapter. The live Electron send path therefore persists the user turn and explicitly starts no provider response.
+- Boundary: issue #77 must remain fail-closed and must not fabricate provider replies, fencing, replacement identity, or caller-supplied canonical bindings. Issue #82 owns the daemon/session-manager integration for provider-backed replies and safe same-Attempt rollover.
+- Sequencing: #82 starts from the merged #77 contracts and blocks full Task 2/#77 closure and the real #38 evaluation. It does not block review and merge of the truthful #77 foundation PR or independent #78 renderer composition.
 
 ## Security-triage escalation
 

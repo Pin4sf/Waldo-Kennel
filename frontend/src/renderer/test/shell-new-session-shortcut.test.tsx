@@ -93,6 +93,8 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 	useMatchRoute: () => () => false,
 	useNavigate: () => shellMocks.navigate,
 	useParams: () => shellMocks.state.routeParams,
+	useRouterState: ({ select }: { select: (state: { location: { pathname: string; search: Record<string, unknown> } }) => unknown }) =>
+		select({ location: { pathname: Object.keys(shellMocks.state.routeSearch).length > 0 ? "/work" : "/", search: shellMocks.state.routeSearch } }),
 	useSearch: () => shellMocks.state.routeSearch,
 }));
 
@@ -128,6 +130,10 @@ vi.mock("../hooks/useWorkspaceQuery", () => ({
 
 vi.mock("../hooks/useDaemonStatus", () => ({
 	useDaemonStatus: () => shellMocks.state.daemonStatus,
+}));
+
+vi.mock("../hooks/useOutcome", () => ({
+	useOutcome: () => ({ outcome: undefined, isLoading: false }),
 }));
 
 // The shell layout opens standalone terminals; this suite only covers the

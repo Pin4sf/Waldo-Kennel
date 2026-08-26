@@ -2165,6 +2165,219 @@ type IntakeEnvelope struct {
 	Intake IntakeSnapshotResponse `json:"intake"`
 }
 
+// OpenWaldoEpisodeRequest starts one bounded provider-neutral episode.
+type OpenWaldoEpisodeRequest struct {
+	ExpectedRevision int64                            `json:"expectedRevision"`
+	ProviderRef      *WaldoProviderEpisodeRefResponse `json:"providerRef,omitempty"`
+	RequestKey       string                           `json:"requestKey"`
+}
+
+// AppendWaldoTurnRequest appends one visible ordered turn.
+type AppendWaldoTurnRequest struct {
+	ExpectedRevision     int64                         `json:"expectedRevision"`
+	EpisodeID            string                        `json:"episodeId"`
+	Role                 string                        `json:"role" enum:"user,waldo"`
+	Message              string                        `json:"message" maxLength:"65536"`
+	ProviderRef          *WaldoProviderTurnRefResponse `json:"providerRef,omitempty"`
+	ContextAttachmentIDs []string                      `json:"contextAttachmentIds,omitempty"`
+	RequestKey           string                        `json:"requestKey"`
+}
+
+// AttachWaldoContextRequest explicitly attaches a canonical Project object.
+type AttachWaldoContextRequest struct {
+	ExpectedRevision int64                   `json:"expectedRevision"`
+	Ref              WaldoContextRefResponse `json:"ref"`
+	RequestKey       string                  `json:"requestKey"`
+}
+
+// DetachWaldoContextRequest consciously releases context from future turns.
+type DetachWaldoContextRequest struct {
+	ExpectedRevision int64  `json:"expectedRevision"`
+	Reason           string `json:"reason"`
+	RequestKey       string `json:"requestKey"`
+}
+
+// ContinueWaldoConversationRequest asks daemon policy to evaluate a bounded
+// provider continuation. Caller values are proposals; canonical facts decide.
+type ContinueWaldoConversationRequest struct {
+	FromAgentSessionRef string                            `json:"fromAgentSessionRef"`
+	Reason              string                            `json:"reason"`
+	ReasonDetail        string                            `json:"reasonDetail"`
+	TriggerEvidence     WaldoContinuationEvidenceResponse `json:"triggerEvidence"`
+	ContextDigest       string                            `json:"contextDigest"`
+	ContextRefs         []WaldoContextRefResponse         `json:"contextRefs,omitempty"`
+	PreviousBindings    WaldoContinuationBindingsResponse `json:"previousBindings"`
+	ReplacementBindings WaldoContinuationBindingsResponse `json:"replacementBindings"`
+	EffectsKnown        bool                              `json:"effectsKnown"`
+	LostMaterialContext bool                              `json:"lostMaterialContext"`
+	SourceRevoked       bool                              `json:"sourceRevoked"`
+	FreshVerifier       bool                              `json:"freshVerifier"`
+	RequestKey          string                            `json:"requestKey"`
+}
+
+// WaldoConversationResponse is the durable Project aggregate root.
+type WaldoConversationResponse struct {
+	ID                 string    `json:"id"`
+	ProjectID          string    `json:"projectId"`
+	Revision           int64     `json:"revision"`
+	LatestTurnSequence int64     `json:"latestTurnSequence"`
+	CreatedAt          time.Time `json:"createdAt"`
+	UpdatedAt          time.Time `json:"updatedAt"`
+}
+
+// WaldoProviderEpisodeRefResponse identifies a provider-native episode without copying its transcript.
+type WaldoProviderEpisodeRefResponse struct {
+	Provider               string `json:"provider"`
+	ProviderConversationID string `json:"providerConversationId,omitempty"`
+	TranscriptRef          string `json:"transcriptRef,omitempty"`
+}
+
+// WaldoProviderTurnRefResponse identifies one provider-native turn without copying its transcript.
+type WaldoProviderTurnRefResponse struct {
+	Provider               string `json:"provider"`
+	ProviderConversationID string `json:"providerConversationId,omitempty"`
+	ProviderTurnID         string `json:"providerTurnId"`
+	TranscriptRef          string `json:"transcriptRef,omitempty"`
+}
+
+// WaldoConversationEpisodeResponse describes one bounded provider-neutral conversation episode.
+type WaldoConversationEpisodeResponse struct {
+	ID             string                           `json:"id"`
+	ConversationID string                           `json:"conversationId"`
+	ProjectID      string                           `json:"projectId"`
+	Ordinal        int64                            `json:"ordinal"`
+	State          string                           `json:"state"`
+	ProviderRef    *WaldoProviderEpisodeRefResponse `json:"providerRef,omitempty"`
+	CreatedAt      time.Time                        `json:"createdAt"`
+	SealedAt       *time.Time                       `json:"sealedAt,omitempty"`
+	SealReason     string                           `json:"sealReason,omitempty"`
+}
+
+// WaldoContextProvenanceResponse records why a canonical object was attached.
+type WaldoContextProvenanceResponse struct {
+	Kind     string `json:"kind"`
+	SourceID string `json:"sourceId"`
+}
+
+// WaldoContextRefResponse identifies a canonical Project-bound object at an exact revision.
+type WaldoContextRefResponse struct {
+	Kind       string                         `json:"kind"`
+	ObjectID   string                         `json:"objectId"`
+	Revision   string                         `json:"revision,omitempty"`
+	Provenance WaldoContextProvenanceResponse `json:"provenance"`
+}
+
+// WaldoContextAttachmentResponse describes the explicit attach and detach lifecycle of one context ref.
+type WaldoContextAttachmentResponse struct {
+	ID               string                  `json:"id"`
+	ConversationID   string                  `json:"conversationId"`
+	ProjectID        string                  `json:"projectId"`
+	Ref              WaldoContextRefResponse `json:"ref"`
+	AttachedRevision int64                   `json:"attachedRevision"`
+	DetachedRevision int64                   `json:"detachedRevision,omitempty"`
+	Active           bool                    `json:"active"`
+	CreatedAt        time.Time               `json:"createdAt"`
+	DetachedAt       *time.Time              `json:"detachedAt,omitempty"`
+	DetachReason     string                  `json:"detachReason,omitempty"`
+}
+
+// WaldoConversationTurnResponse is one ordered visible Project conversation turn.
+type WaldoConversationTurnResponse struct {
+	ID             string                        `json:"id"`
+	ConversationID string                        `json:"conversationId"`
+	EpisodeID      string                        `json:"episodeId"`
+	ProjectID      string                        `json:"projectId"`
+	Sequence       int64                         `json:"sequence"`
+	Role           string                        `json:"role"`
+	Message        string                        `json:"message"`
+	ProviderRef    *WaldoProviderTurnRefResponse `json:"providerRef,omitempty"`
+	ContextRefs    []WaldoContextRefResponse     `json:"contextRefs"`
+	CreatedAt      time.Time                     `json:"createdAt"`
+}
+
+// WaldoContinuationEvidenceResponse identifies the exact continuation trigger evidence.
+type WaldoContinuationEvidenceResponse struct {
+	Kind      string `json:"kind"`
+	Reference string `json:"reference"`
+}
+
+// WaldoContinuationBindingsResponse captures canonical facts that must remain equal for automatic continuation.
+type WaldoContinuationBindingsResponse struct {
+	ProjectID          string `json:"projectId"`
+	OutcomeID          string `json:"outcomeId"`
+	ContractRevisionID string `json:"contractRevisionId"`
+	PlanRevisionID     string `json:"planRevisionId"`
+	WorkUnitID         string `json:"workUnitId"`
+	AttemptID          string `json:"attemptId"`
+	Provider           string `json:"provider"`
+	Model              string `json:"model"`
+	Profile            string `json:"profile"`
+	Role               string `json:"role"`
+	AuthorityDigest    string `json:"authorityDigest"`
+	BudgetDigest       string `json:"budgetDigest"`
+	WorkspaceOwner     string `json:"workspaceOwner"`
+	EffectPolicyDigest string `json:"effectPolicyDigest"`
+}
+
+// WaldoContinuationReceiptResponse records the durable decision and replacement lineage for one continuation.
+type WaldoContinuationReceiptResponse struct {
+	ID                           string                            `json:"id"`
+	OperationID                  string                            `json:"operationId"`
+	ConversationID               string                            `json:"conversationId"`
+	ProjectID                    string                            `json:"projectId"`
+	FromEpisodeID                string                            `json:"fromEpisodeId"`
+	ToEpisodeID                  string                            `json:"toEpisodeId,omitempty"`
+	FromAgentSessionRef          string                            `json:"fromAgentSessionRef"`
+	ToAgentSessionRef            string                            `json:"toAgentSessionRef,omitempty"`
+	Action                       string                            `json:"action"`
+	Reason                       string                            `json:"reason"`
+	ReasonDetail                 string                            `json:"reasonDetail"`
+	TriggerEvidence              WaldoContinuationEvidenceResponse `json:"triggerEvidence"`
+	MaterialChange               bool                              `json:"materialChange"`
+	ChangedFields                []string                          `json:"changedFields"`
+	ContextDigest                string                            `json:"contextDigest"`
+	ContextRefs                  []WaldoContextRefResponse         `json:"contextRefs"`
+	PreviousBindings             WaldoContinuationBindingsResponse `json:"previousBindings"`
+	ReplacementBindings          WaldoContinuationBindingsResponse `json:"replacementBindings"`
+	EffectsKnown                 bool                              `json:"effectsKnown"`
+	OldSessionFenced             bool                              `json:"oldSessionFenced"`
+	ReplacementIdentityConfirmed bool                              `json:"replacementIdentityConfirmed"`
+	FenceReceiptRef              string                            `json:"fenceReceiptRef,omitempty"`
+	ReconciliationRef            string                            `json:"reconciliationRef,omitempty"`
+	NeedsUserReason              string                            `json:"needsUserReason,omitempty"`
+	CreatedAt                    time.Time                         `json:"createdAt"`
+}
+
+// WaldoConversationSnapshotResponse is exact restart-safe daemon truth.
+type WaldoConversationSnapshotResponse struct {
+	Conversation         WaldoConversationResponse          `json:"conversation"`
+	Episodes             []WaldoConversationEpisodeResponse `json:"episodes"`
+	Turns                []WaldoConversationTurnResponse    `json:"turns"`
+	ContextAttachments   []WaldoContextAttachmentResponse   `json:"contextAttachments"`
+	ContinuationReceipts []WaldoContinuationReceiptResponse `json:"continuationReceipts"`
+}
+
+// WaldoConversationEnvelope wraps the current durable conversation snapshot.
+type WaldoConversationEnvelope struct {
+	WaldoConversation WaldoConversationSnapshotResponse `json:"waldoConversation"`
+}
+
+// WaldoTurnEnvelope wraps an appended turn and the resulting canonical snapshot.
+type WaldoTurnEnvelope struct {
+	Turn              WaldoConversationTurnResponse     `json:"turn"`
+	WaldoConversation WaldoConversationSnapshotResponse `json:"waldoConversation"`
+}
+
+// WaldoContinuationEnvelope wraps one durable continuation receipt.
+type WaldoContinuationEnvelope struct {
+	ContinuationReceipt WaldoContinuationReceiptResponse `json:"continuationReceipt"`
+}
+
+// WaldoContextAttachmentIDParam describes the context attachment route parameter.
+type WaldoContextAttachmentIDParam struct {
+	AttachmentID string `path:"attachmentId"`
+}
+
 // IntakeIDParam describes the intake route parameter.
 type IntakeIDParam struct {
 	IntakeID string `path:"intakeId"`

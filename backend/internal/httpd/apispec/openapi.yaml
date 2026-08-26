@@ -2504,6 +2504,403 @@ paths:
       summary: Read the daemon-resolved Mission-role proposal for one Project
       tags:
       - projects
+  /api/v1/projects/{id}/waldo-conversation:
+    get:
+      operationId: getProjectWaldoConversation
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaldoConversationEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read exact restart-safe Project Waldo conversation truth
+      tags:
+      - waldo-conversations
+    post:
+      operationId: openProjectWaldoConversation
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaldoConversationEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Open the one durable Waldo conversation for a Project
+      tags:
+      - waldo-conversations
+  /api/v1/projects/{id}/waldo-conversation/context:
+    post:
+      operationId: attachProjectWaldoContext
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttachWaldoContextRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaldoConversationEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Explicitly attach provenance-bearing canonical context
+      tags:
+      - waldo-conversations
+  /api/v1/projects/{id}/waldo-conversation/context/{attachmentId}/detach:
+    post:
+      operationId: detachProjectWaldoContext
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - in: path
+        name: attachmentId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetachWaldoContextRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaldoConversationEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Explicitly detach context from future turns
+      tags:
+      - waldo-conversations
+  /api/v1/projects/{id}/waldo-conversation/continuations:
+    post:
+      operationId: continueProjectWaldoConversation
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContinueWaldoConversationRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaldoContinuationEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Evaluate and durably record bounded provider continuation policy
+      tags:
+      - waldo-conversations
+  /api/v1/projects/{id}/waldo-conversation/episodes:
+    post:
+      operationId: openProjectWaldoEpisode
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenWaldoEpisodeRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaldoConversationEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Open one bounded provider-neutral conversation episode
+      tags:
+      - waldo-conversations
+  /api/v1/projects/{id}/waldo-conversation/turns:
+    post:
+      operationId: appendProjectWaldoTurn
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppendWaldoTurnRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaldoTurnEnvelope'
+          description: OK
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaldoTurnEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Append one ordered idempotent Project-bound turn
+      tags:
+      - waldo-conversations
   /api/v1/projects/initialize:
     post:
       operationId: initializeProjectRepository
@@ -6725,6 +7122,36 @@ components:
       - expectedProposalRevision
       - answer
       type: object
+    AppendWaldoTurnRequest:
+      properties:
+        contextAttachmentIds:
+          items:
+            type: string
+          type: array
+        episodeId:
+          type: string
+        expectedRevision:
+          format: int64
+          type: integer
+        message:
+          maxLength: 65536
+          type: string
+        providerRef:
+          $ref: '#/components/schemas/WaldoProviderTurnRefResponse'
+        requestKey:
+          type: string
+        role:
+          enum:
+          - user
+          - waldo
+          type: string
+      required:
+      - expectedRevision
+      - episodeId
+      - role
+      - message
+      - requestKey
+      type: object
     ApprovePlanRequest:
       properties:
         expectedContractRevision:
@@ -6732,6 +7159,20 @@ components:
           type: integer
       required:
       - expectedContractRevision
+      type: object
+    AttachWaldoContextRequest:
+      properties:
+        expectedRevision:
+          format: int64
+          type: integer
+        ref:
+          $ref: '#/components/schemas/WaldoContextRefResponse'
+        requestKey:
+          type: string
+      required:
+      - expectedRevision
+      - ref
+      - requestKey
       type: object
     AttachmentInput:
       properties:
@@ -7140,6 +7581,50 @@ components:
       properties:
         disabled:
           type: boolean
+      type: object
+    ContinueWaldoConversationRequest:
+      properties:
+        contextDigest:
+          type: string
+        contextRefs:
+          items:
+            $ref: '#/components/schemas/WaldoContextRefResponse'
+          type: array
+        effectsKnown:
+          type: boolean
+        freshVerifier:
+          type: boolean
+        fromAgentSessionRef:
+          type: string
+        lostMaterialContext:
+          type: boolean
+        previousBindings:
+          $ref: '#/components/schemas/WaldoContinuationBindingsResponse'
+        reason:
+          type: string
+        reasonDetail:
+          type: string
+        replacementBindings:
+          $ref: '#/components/schemas/WaldoContinuationBindingsResponse'
+        requestKey:
+          type: string
+        sourceRevoked:
+          type: boolean
+        triggerEvidence:
+          $ref: '#/components/schemas/WaldoContinuationEvidenceResponse'
+      required:
+      - fromAgentSessionRef
+      - reason
+      - reasonDetail
+      - triggerEvidence
+      - contextDigest
+      - previousBindings
+      - replacementBindings
+      - effectsKnown
+      - lostMaterialContext
+      - sourceRevoked
+      - freshVerifier
+      - requestKey
       type: object
     ContractCriterionResponse:
       properties:
@@ -8369,6 +8854,20 @@ components:
       - ok
       - workerId
       type: object
+    DetachWaldoContextRequest:
+      properties:
+        expectedRevision:
+          format: int64
+          type: integer
+        reason:
+          type: string
+        requestKey:
+          type: string
+      required:
+      - expectedRevision
+      - reason
+      - requestKey
+      type: object
     DevImportProjectsConflict:
       properties:
         path:
@@ -9158,6 +9657,19 @@ components:
           description: Agent session the shell is scoped to, so it appears only in
             that session's tab strip. Omitted makes it a standalone shell.
           type: string
+      type: object
+    OpenWaldoEpisodeRequest:
+      properties:
+        expectedRevision:
+          format: int64
+          type: integer
+        providerRef:
+          $ref: '#/components/schemas/WaldoProviderEpisodeRefResponse'
+        requestKey:
+          type: string
+      required:
+      - expectedRevision
+      - requestKey
       type: object
     OrchestratorResponse:
       properties:
@@ -11292,6 +11804,375 @@ components:
       - result
       - verifierRef
       - createdAt
+      type: object
+    WaldoContextAttachmentResponse:
+      properties:
+        active:
+          type: boolean
+        attachedRevision:
+          format: int64
+          type: integer
+        conversationId:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        detachReason:
+          type: string
+        detachedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        detachedRevision:
+          format: int64
+          type: integer
+        id:
+          type: string
+        projectId:
+          type: string
+        ref:
+          $ref: '#/components/schemas/WaldoContextRefResponse'
+      required:
+      - id
+      - conversationId
+      - projectId
+      - ref
+      - attachedRevision
+      - active
+      - createdAt
+      type: object
+    WaldoContextProvenanceResponse:
+      properties:
+        kind:
+          type: string
+        sourceId:
+          type: string
+      required:
+      - kind
+      - sourceId
+      type: object
+    WaldoContextRefResponse:
+      properties:
+        kind:
+          type: string
+        objectId:
+          type: string
+        provenance:
+          $ref: '#/components/schemas/WaldoContextProvenanceResponse'
+        revision:
+          type: string
+      required:
+      - kind
+      - objectId
+      - provenance
+      type: object
+    WaldoContinuationBindingsResponse:
+      properties:
+        attemptId:
+          type: string
+        authorityDigest:
+          type: string
+        budgetDigest:
+          type: string
+        contractRevisionId:
+          type: string
+        effectPolicyDigest:
+          type: string
+        model:
+          type: string
+        outcomeId:
+          type: string
+        planRevisionId:
+          type: string
+        profile:
+          type: string
+        projectId:
+          type: string
+        provider:
+          type: string
+        role:
+          type: string
+        workUnitId:
+          type: string
+        workspaceOwner:
+          type: string
+      required:
+      - projectId
+      - outcomeId
+      - contractRevisionId
+      - planRevisionId
+      - workUnitId
+      - attemptId
+      - provider
+      - model
+      - profile
+      - role
+      - authorityDigest
+      - budgetDigest
+      - workspaceOwner
+      - effectPolicyDigest
+      type: object
+    WaldoContinuationEnvelope:
+      properties:
+        continuationReceipt:
+          $ref: '#/components/schemas/WaldoContinuationReceiptResponse'
+      required:
+      - continuationReceipt
+      type: object
+    WaldoContinuationEvidenceResponse:
+      properties:
+        kind:
+          type: string
+        reference:
+          type: string
+      required:
+      - kind
+      - reference
+      type: object
+    WaldoContinuationReceiptResponse:
+      properties:
+        action:
+          type: string
+        changedFields:
+          items:
+            type: string
+          type: array
+        contextDigest:
+          type: string
+        contextRefs:
+          items:
+            $ref: '#/components/schemas/WaldoContextRefResponse'
+          type: array
+        conversationId:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        effectsKnown:
+          type: boolean
+        fenceReceiptRef:
+          type: string
+        fromAgentSessionRef:
+          type: string
+        fromEpisodeId:
+          type: string
+        id:
+          type: string
+        materialChange:
+          type: boolean
+        needsUserReason:
+          type: string
+        oldSessionFenced:
+          type: boolean
+        operationId:
+          type: string
+        previousBindings:
+          $ref: '#/components/schemas/WaldoContinuationBindingsResponse'
+        projectId:
+          type: string
+        reason:
+          type: string
+        reasonDetail:
+          type: string
+        reconciliationRef:
+          type: string
+        replacementBindings:
+          $ref: '#/components/schemas/WaldoContinuationBindingsResponse'
+        replacementIdentityConfirmed:
+          type: boolean
+        toAgentSessionRef:
+          type: string
+        toEpisodeId:
+          type: string
+        triggerEvidence:
+          $ref: '#/components/schemas/WaldoContinuationEvidenceResponse'
+      required:
+      - id
+      - operationId
+      - conversationId
+      - projectId
+      - fromEpisodeId
+      - fromAgentSessionRef
+      - action
+      - reason
+      - reasonDetail
+      - triggerEvidence
+      - materialChange
+      - changedFields
+      - contextDigest
+      - contextRefs
+      - previousBindings
+      - replacementBindings
+      - effectsKnown
+      - oldSessionFenced
+      - replacementIdentityConfirmed
+      - createdAt
+      type: object
+    WaldoConversationEnvelope:
+      properties:
+        waldoConversation:
+          $ref: '#/components/schemas/WaldoConversationSnapshotResponse'
+      required:
+      - waldoConversation
+      type: object
+    WaldoConversationEpisodeResponse:
+      properties:
+        conversationId:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        ordinal:
+          format: int64
+          type: integer
+        projectId:
+          type: string
+        providerRef:
+          $ref: '#/components/schemas/WaldoProviderEpisodeRefResponse'
+        sealReason:
+          type: string
+        sealedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        state:
+          type: string
+      required:
+      - id
+      - conversationId
+      - projectId
+      - ordinal
+      - state
+      - createdAt
+      type: object
+    WaldoConversationResponse:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        latestTurnSequence:
+          format: int64
+          type: integer
+        projectId:
+          type: string
+        revision:
+          format: int64
+          type: integer
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - id
+      - projectId
+      - revision
+      - latestTurnSequence
+      - createdAt
+      - updatedAt
+      type: object
+    WaldoConversationSnapshotResponse:
+      properties:
+        contextAttachments:
+          items:
+            $ref: '#/components/schemas/WaldoContextAttachmentResponse'
+          type: array
+        continuationReceipts:
+          items:
+            $ref: '#/components/schemas/WaldoContinuationReceiptResponse'
+          type: array
+        conversation:
+          $ref: '#/components/schemas/WaldoConversationResponse'
+        episodes:
+          items:
+            $ref: '#/components/schemas/WaldoConversationEpisodeResponse'
+          type: array
+        turns:
+          items:
+            $ref: '#/components/schemas/WaldoConversationTurnResponse'
+          type: array
+      required:
+      - conversation
+      - episodes
+      - turns
+      - contextAttachments
+      - continuationReceipts
+      type: object
+    WaldoConversationTurnResponse:
+      properties:
+        contextRefs:
+          items:
+            $ref: '#/components/schemas/WaldoContextRefResponse'
+          type: array
+        conversationId:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        episodeId:
+          type: string
+        id:
+          type: string
+        message:
+          type: string
+        projectId:
+          type: string
+        providerRef:
+          $ref: '#/components/schemas/WaldoProviderTurnRefResponse'
+        role:
+          type: string
+        sequence:
+          format: int64
+          type: integer
+      required:
+      - id
+      - conversationId
+      - episodeId
+      - projectId
+      - sequence
+      - role
+      - message
+      - contextRefs
+      - createdAt
+      type: object
+    WaldoProviderEpisodeRefResponse:
+      properties:
+        provider:
+          type: string
+        providerConversationId:
+          type: string
+        transcriptRef:
+          type: string
+      required:
+      - provider
+      type: object
+    WaldoProviderTurnRefResponse:
+      properties:
+        provider:
+          type: string
+        providerConversationId:
+          type: string
+        providerTurnId:
+          type: string
+        transcriptRef:
+          type: string
+      required:
+      - provider
+      - providerTurnId
+      type: object
+    WaldoTurnEnvelope:
+      properties:
+        turn:
+          $ref: '#/components/schemas/WaldoConversationTurnResponse'
+        waldoConversation:
+          $ref: '#/components/schemas/WaldoConversationSnapshotResponse'
+      required:
+      - turn
+      - waldoConversation
       type: object
     WorkspaceFileResponse:
       properties:

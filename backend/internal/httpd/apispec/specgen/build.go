@@ -310,6 +310,27 @@ var schemaNames = map[string]string{
 	"ControllersResponsibilityLinkEnvelope":               "ResponsibilityLinkEnvelope",
 	"ControllersResponsibilityLinkResponse":               "ResponsibilityLinkResponse",
 	"ControllersResponsibilityLinkIDParam":                "ResponsibilityLinkIDParam",
+	"ControllersOpenWaldoEpisodeRequest":                  "OpenWaldoEpisodeRequest",
+	"ControllersAppendWaldoTurnRequest":                   "AppendWaldoTurnRequest",
+	"ControllersAttachWaldoContextRequest":                "AttachWaldoContextRequest",
+	"ControllersDetachWaldoContextRequest":                "DetachWaldoContextRequest",
+	"ControllersContinueWaldoConversationRequest":         "ContinueWaldoConversationRequest",
+	"ControllersWaldoConversationResponse":                "WaldoConversationResponse",
+	"ControllersWaldoProviderEpisodeRefResponse":          "WaldoProviderEpisodeRefResponse",
+	"ControllersWaldoProviderTurnRefResponse":             "WaldoProviderTurnRefResponse",
+	"ControllersWaldoConversationEpisodeResponse":         "WaldoConversationEpisodeResponse",
+	"ControllersWaldoContextProvenanceResponse":           "WaldoContextProvenanceResponse",
+	"ControllersWaldoContextRefResponse":                  "WaldoContextRefResponse",
+	"ControllersWaldoContextAttachmentResponse":           "WaldoContextAttachmentResponse",
+	"ControllersWaldoConversationTurnResponse":            "WaldoConversationTurnResponse",
+	"ControllersWaldoContinuationEvidenceResponse":        "WaldoContinuationEvidenceResponse",
+	"ControllersWaldoContinuationBindingsResponse":        "WaldoContinuationBindingsResponse",
+	"ControllersWaldoContinuationReceiptResponse":         "WaldoContinuationReceiptResponse",
+	"ControllersWaldoConversationSnapshotResponse":        "WaldoConversationSnapshotResponse",
+	"ControllersWaldoConversationEnvelope":                "WaldoConversationEnvelope",
+	"ControllersWaldoTurnEnvelope":                        "WaldoTurnEnvelope",
+	"ControllersWaldoContinuationEnvelope":                "WaldoContinuationEnvelope",
+	"ControllersWaldoContextAttachmentIDParam":            "WaldoContextAttachmentIDParam",
 	"ControllersReviseOutcomeContractRequest":             "ReviseOutcomeContractRequest",
 	"ControllersOutcomeEnvelope":                          "OutcomeEnvelope",
 	"ControllersOutcomesEnvelope":                         "OutcomesEnvelope",
@@ -497,6 +518,7 @@ func operations() []operation {
 	ops = append(ops, reviewOperations()...)
 	ops = append(ops, notificationOperations()...)
 	ops = append(ops, intakeOperations()...)
+	ops = append(ops, waldoConversationOperations()...)
 	ops = append(ops, usageOperations()...)
 	ops = append(ops, pushOperations()...)
 	ops = append(ops, devOperations()...)
@@ -505,6 +527,28 @@ func operations() []operation {
 	ops = append(ops, browserOperations()...)
 	ops = append(ops, shellTerminalOperations()...)
 	return ops
+}
+
+func waldoConversationOperations() []operation {
+	standard := func(successes []respUnit) []respUnit {
+		return append(successes,
+			respUnit{http.StatusBadRequest, envelope.APIError{}},
+			respUnit{http.StatusConflict, envelope.APIError{}},
+			respUnit{http.StatusNotFound, envelope.APIError{}},
+			respUnit{http.StatusInternalServerError, envelope.APIError{}},
+			respUnit{http.StatusNotImplemented, envelope.APIError{}},
+		)
+	}
+	project := []any{controllers.ProjectIDParam{}}
+	return []operation{
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/waldo-conversation", id: "openProjectWaldoConversation", tag: "waldo-conversations", summary: "Open the one durable Waldo conversation for a Project", pathParams: project, resps: standard([]respUnit{{http.StatusCreated, controllers.WaldoConversationEnvelope{}}})},
+		{method: http.MethodGet, path: "/api/v1/projects/{id}/waldo-conversation", id: "getProjectWaldoConversation", tag: "waldo-conversations", summary: "Read exact restart-safe Project Waldo conversation truth", pathParams: project, resps: standard([]respUnit{{http.StatusOK, controllers.WaldoConversationEnvelope{}}})},
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/waldo-conversation/episodes", id: "openProjectWaldoEpisode", tag: "waldo-conversations", summary: "Open one bounded provider-neutral conversation episode", pathParams: project, reqBody: controllers.OpenWaldoEpisodeRequest{}, resps: standard([]respUnit{{http.StatusCreated, controllers.WaldoConversationEnvelope{}}})},
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/waldo-conversation/turns", id: "appendProjectWaldoTurn", tag: "waldo-conversations", summary: "Append one ordered idempotent Project-bound turn", pathParams: project, reqBody: controllers.AppendWaldoTurnRequest{}, resps: standard([]respUnit{{http.StatusCreated, controllers.WaldoTurnEnvelope{}}, {http.StatusOK, controllers.WaldoTurnEnvelope{}}})},
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/waldo-conversation/context", id: "attachProjectWaldoContext", tag: "waldo-conversations", summary: "Explicitly attach provenance-bearing canonical context", pathParams: project, reqBody: controllers.AttachWaldoContextRequest{}, resps: standard([]respUnit{{http.StatusCreated, controllers.WaldoConversationEnvelope{}}})},
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/waldo-conversation/context/{attachmentId}/detach", id: "detachProjectWaldoContext", tag: "waldo-conversations", summary: "Explicitly detach context from future turns", pathParams: []any{controllers.ProjectIDParam{}, controllers.WaldoContextAttachmentIDParam{}}, reqBody: controllers.DetachWaldoContextRequest{}, resps: standard([]respUnit{{http.StatusOK, controllers.WaldoConversationEnvelope{}}})},
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/waldo-conversation/continuations", id: "continueProjectWaldoConversation", tag: "waldo-conversations", summary: "Evaluate and durably record bounded provider continuation policy", pathParams: project, reqBody: controllers.ContinueWaldoConversationRequest{}, resps: standard([]respUnit{{http.StatusCreated, controllers.WaldoContinuationEnvelope{}}})},
+	}
 }
 
 func intakeOperations() []operation {
