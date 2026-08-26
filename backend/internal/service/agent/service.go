@@ -588,13 +588,18 @@ func sortInfos(infos []Info) {
 
 // RoleInventoryFact is the live adapter admission truth for one harness,
 // probed from the same inventory primitive the agents list serves. Auth is
-// part of admission: an installed, profile-ready but unauthorized harness is
-// NOT ready.
+// part of admission ONLY where the adapter implements the auth checker: an
+// adapter without one (DeepSeek Harness deliberately does not) signals its
+// readiness through installation and profile facts instead, so a missing
+// probe must never read as a refused grant.
 type RoleInventoryFact struct {
 	Installed       bool
 	RequiresProfile bool
 	ProfileReady    *bool
-	Auth            ports.AgentAuthStatus
+	// AuthApplicable reports whether this adapter requires authorization.
+	AuthApplicable bool
+	// Auth is the probed grant status; meaningful only when AuthApplicable.
+	Auth ports.AgentAuthStatus
 }
 
 func (s *Service) agentFor(harness domain.AgentHarness) (agentregistry.HarnessAgent, bool) {
@@ -616,6 +621,7 @@ func (s *Service) InventoryRoleFacts(ctx context.Context, harnesses []domain.Age
 		fact := RoleInventoryFact{Auth: ports.AgentAuthStatusUnknown}
 		item, ok := s.agentFor(harness)
 		if ok {
+			fact.AuthApplicable = isAuthApplicable(item)
 			res := s.probeAgent(ctx, item)
 			fact.Installed = res.installed
 			fact.RequiresProfile = res.info.RequiresProfile
@@ -629,12 +635,21 @@ func (s *Service) InventoryRoleFacts(ctx context.Context, harnesses []domain.Age
 	return out
 }
 
+// isAuthApplicable reports whether the adapter participates in authorization:
+// adapters without an auth checker (DeepSeek Harness by design) are exempt,
+// and their readiness is installation + profile only.
+func isAuthApplicable(item agentregistry.HarnessAgent) bool {
+	_, ok := item.Agent.(ports.AgentAuthChecker)
+	return ok
+}
+
 // EnrichMissionRoles layers live inventory truth onto the pure capability
 // proposal. Readiness failures never substitute another harness — they flip
 // Ready to false and name every blocking gate, so callers fail closed instead
-// of silently falling back. Authorization fails closed too: unknown or absent
-// grants are treated like a refused one, matching the onboarding authorized-
-// list policy.
+// of silently falling back. Authorization fails closed only where the gate
+// applies: an adapter that does not implement the auth checker (DeepSeek
+// Harness) proves readiness through installation and profile facts instead,
+// while a probed unknown or refused grant blocks.
 func EnrichMissionRoles(base domain.ResolvedMissionRoles, facts map[domain.AgentHarness]RoleInventoryFact) domain.ResolvedMissionRoles {
 	enrich := func(role domain.ResolvedAgentRole) domain.ResolvedAgentRole {
 		fact, known := facts[role.Harness]
@@ -649,7 +664,7 @@ func EnrichMissionRoles(base domain.ResolvedMissionRoles, facts map[domain.Agent
 			role.Ready = false
 			role.Reason += "; profile readiness fails closed (no composed profile)"
 		}
-		if fact.Auth != ports.AgentAuthStatusAuthorized {
+		if fact.AuthApplicable && fact.Auth != ports.AgentAuthStatusAuthorized {
 			role.Ready = false
 			role.Reason += "; agent authorization is not granted"
 		}

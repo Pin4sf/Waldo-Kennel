@@ -27,7 +27,7 @@ func (f fakeProfileAgent) ProfileReadiness(context.Context, ports.AgentConfig) (
 func TestEnrichMissionRolesFailsClosedWithoutProfile(t *testing.T) {
 	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
-		domain.HarnessDeepSeekHarness: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(false), Auth: ports.AgentAuthStatusAuthorized},
+		domain.HarnessDeepSeekHarness: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(false), AuthApplicable: true, Auth: ports.AgentAuthStatusAuthorized},
 	}
 	got := EnrichMissionRoles(base, facts)
 	if got.Worker.Harness != domain.HarnessDeepSeekHarness {
@@ -48,7 +48,7 @@ func TestEnrichMissionRolesFailsClosedWhenAuthorizationNotGranted(t *testing.T) 
 	} {
 		base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{})
 		facts := map[domain.AgentHarness]RoleInventoryFact{
-			domain.HarnessCodex: {Installed: true, Auth: auth},
+			domain.HarnessCodex: {Installed: true, AuthApplicable: true, Auth: auth},
 		}
 		got := EnrichMissionRoles(base, facts)
 		if got.Coordinator.Ready {
@@ -63,7 +63,7 @@ func TestEnrichMissionRolesFailsClosedWhenAuthorizationNotGranted(t *testing.T) 
 func TestEnrichMissionRolesStacksIndependentBlockers(t *testing.T) {
 	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
-		domain.HarnessDeepSeekHarness: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(false), Auth: ports.AgentAuthStatusUnauthorized},
+		domain.HarnessDeepSeekHarness: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(false), AuthApplicable: true, Auth: ports.AgentAuthStatusUnauthorized},
 	}
 	got := EnrichMissionRoles(base, facts)
 	lower := strings.ToLower(got.Worker.Reason)
@@ -75,10 +75,34 @@ func TestEnrichMissionRolesStacksIndependentBlockers(t *testing.T) {
 	}
 }
 
+// TestEnrichMissionRolesDeepSeekReadyAfterProfile proves the canonical unlock
+// path: DeepSeek Harness deliberately does not implement the auth checker, so
+// once it is installed and its profile is ready — exactly what the #60
+// Profile contract will compose — the honored worker preference becomes ready.
+func TestEnrichMissionRolesDeepSeekReadyAfterProfile(t *testing.T) {
+	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"})
+	facts := map[domain.AgentHarness]RoleInventoryFact{
+		domain.HarnessDeepSeekHarness: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(true), AuthApplicable: false, Auth: ports.AgentAuthStatusUnknown},
+	}
+	got := EnrichMissionRoles(base, facts)
+	if got.Worker.Harness != domain.HarnessDeepSeekHarness {
+		t.Fatalf("preference harness must be preserved: %+v", got.Worker)
+	}
+	if !got.Worker.Ready {
+		t.Fatalf("profile-ready DeepSeek worker must become ready: %+v", got.Worker)
+	}
+	lower := strings.ToLower(got.Worker.Reason)
+	for _, blocker := range []string{"not installed", "profile", "authorization"} {
+		if strings.Contains(lower, blocker) {
+			t.Fatalf("ready worker must not carry a blocking reason: %q", got.Worker.Reason)
+		}
+	}
+}
+
 func TestEnrichMissionRolesMarksUninstalledHarnessNotReady(t *testing.T) {
 	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
-		domain.HarnessCodex: {Installed: false, Auth: ports.AgentAuthStatusAuthorized},
+		domain.HarnessCodex: {Installed: false, AuthApplicable: true, Auth: ports.AgentAuthStatusAuthorized},
 	}
 	got := EnrichMissionRoles(base, facts)
 	if got.Coordinator.Harness != domain.HarnessCodex || got.Coordinator.Ready {
@@ -89,7 +113,7 @@ func TestEnrichMissionRolesMarksUninstalledHarnessNotReady(t *testing.T) {
 func TestEnrichMissionRolesPassesReadyRolesThrough(t *testing.T) {
 	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
-		domain.HarnessCodex: {Installed: true, Auth: ports.AgentAuthStatusAuthorized},
+		domain.HarnessCodex: {Installed: true, AuthApplicable: true, Auth: ports.AgentAuthStatusAuthorized},
 	}
 	got := EnrichMissionRoles(base, facts)
 	for name, role := range map[string]domain.ResolvedAgentRole{

@@ -823,3 +823,65 @@ func TestProjectsAPI_ResolvedMissionRolesLiveFailures(t *testing.T) {
 		t.Fatalf("error envelope must preserve the request id for correlation; body=%s", body)
 	}
 }
+
+// TestProjectsAPI_ResolvedMissionRolesUnavailableDefaultAgent proves Task 1's
+// unavailable-default case through the wire: when the injected inventory
+// reports the default harness as not installed, every role answers not-ready
+// with the truthful reason, and error paths keep the typed envelope plus
+// request-id correlation.
+func TestProjectsAPI_ResolvedMissionRolesUnavailableDefaultAgent(t *testing.T) {
+	repo := gitRepo(t, "mission-roles-unavailable")
+	roles := domain.ResolvedMissionRoles{
+		Worker:      domain.ResolvedAgentRole{Harness: domain.HarnessCodex, Source: domain.RoleSourceDefault, Eligible: true, Reason: "harness is not installed"},
+		Analyzer:    domain.ResolvedAgentRole{Harness: domain.HarnessCodex, Source: domain.RoleSourceDefault, Eligible: true, Reason: "harness is not installed"},
+		Coordinator: domain.ResolvedAgentRole{Harness: domain.HarnessCodex, Source: domain.RoleSourceDefault, Eligible: true, Reason: "harness is not installed"},
+		Verifier:    domain.ResolvedAgentRole{Harness: domain.HarnessCodex, Source: domain.RoleSourceDefault, Eligible: true, Reason: "harness is not installed"},
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store, err := sqlitetest.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{
+		Projects: projectsvc.NewWithDeps(projectsvc.Deps{Store: store, Roles: stubRoleResolver{roles: roles}}),
+	}, httpd.ControlDeps{}))
+	t.Cleanup(srv.Close)
+
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/projects", `{"path":`+quote(repo)+`,"projectId":"unavail"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("seed create = %d, want 201; body=%s", status, body)
+	}
+
+	body, status, _ = doRequest(t, srv, "GET", "/api/v1/projects/unavail/resolved-mission-roles", "")
+	if status != http.StatusOK {
+		t.Fatalf("GET roles = %d, want 200; body=%s", status, body)
+	}
+	var got resolvedRolesBody
+	mustJSON(t, body, &got)
+	for _, role := range []struct {
+		name string
+		view resolvedRoleBody
+	}{
+		{"worker", got.Roles.Worker},
+		{"analyzer", got.Roles.Analyzer},
+		{"coordinator", got.Roles.Coordinator},
+		{"verifier", got.Roles.Verifier},
+	} {
+		if role.view.Ready || role.view.Harness != "codex" || !strings.Contains(role.view.Reason, "not installed") {
+			t.Fatalf("%s unavailable default = %#v, want codex/not-ready naming the install gate", role.name, role.view)
+		}
+	}
+
+	// Error path keeps the typed envelope and request-id correlation.
+	body, status, _ = doRequest(t, srv, "GET", "/api/v1/projects/absent/resolved-mission-roles", "")
+	var errBody struct {
+		Code      string `json:"code"`
+		RequestID string `json:"requestId"`
+	}
+	mustJSON(t, body, &errBody)
+	if status != http.StatusNotFound || errBody.Code != "PROJECT_NOT_FOUND" || errBody.RequestID == "" {
+		t.Fatalf("unknown project = %d/%q/requestId=%q, want 404/PROJECT_NOT_FOUND/non-empty; body=%s",
+			status, errBody.Code, errBody.RequestID, body)
+	}
+}
