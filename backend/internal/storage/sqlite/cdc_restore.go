@@ -256,7 +256,7 @@ var changeLogWriters = []struct {
 		name:  "intake_confirmations_cdc_insert",
 		table: "intake_confirmations",
 		deps:  []string{"intake_sessions"},
-		sql:   "CREATE TRIGGER intake_confirmations_cdc_insert\nAFTER INSERT ON intake_confirmations\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES ((SELECT project_id FROM intake_sessions WHERE id = NEW.intake_id), NULL, 'intake_confirmed', json_object('intakeId', NEW.intake_id, 'proposalRevision', NEW.proposal_revision, 'outcomeId', NEW.outcome_id, 'contractRevisionId', NEW.contract_revision_id), NEW.confirmed_at);\nEND;",
+		sql:   "CREATE TRIGGER intake_confirmations_cdc_insert\nAFTER INSERT ON intake_confirmations\nWHEN (SELECT project_id FROM intake_sessions WHERE id = NEW.intake_id) IS NOT NULL\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES ((SELECT project_id FROM intake_sessions WHERE id = NEW.intake_id), NULL, 'intake_confirmed', json_object('intakeId', NEW.intake_id, 'proposalRevision', NEW.proposal_revision, 'outcomeId', NEW.outcome_id, 'contractRevisionId', NEW.contract_revision_id), NEW.confirmed_at);\nEND;",
 	},
 	{
 		name:  "responsibility_links_cdc_insert",

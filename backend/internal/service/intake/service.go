@@ -50,6 +50,12 @@ type ConfirmOutcomeInput struct {
 	RequestKey               string
 }
 
+// CancelInput consciously releases intake without creating responsibility.
+type CancelInput struct {
+	ExpectedProposalRevision int64
+	Reason                   string
+}
+
 // Service owns the shared Home/Work adaptive intake state machine.
 type Service struct {
 	store    ports.IntakeStore
@@ -75,6 +81,16 @@ func (service *Service) Get(ctx context.Context, id domain.IntakeSessionID) (por
 		return ports.IntakeSnapshot{}, apierr.NotFound("INTAKE_NOT_FOUND", "That intake does not exist")
 	}
 	return snapshot, nil
+}
+
+// RecoverInterruptedAnalyses turns crash-interrupted transient work into an
+// explicit retryable durable failure during daemon startup.
+func (service *Service) RecoverInterruptedAnalyses(ctx context.Context) (int64, error) {
+	recovered, err := service.store.RecoverInterruptedIntakeAnalyses(ctx, service.clock())
+	if err != nil {
+		return 0, apierr.Internal("INTAKE_ANALYSIS_RECOVERY_FAILED", "Interrupted Outcome intake analysis could not be recovered")
+	}
+	return recovered, nil
 }
 
 // Capture persists exact intent before any analysis occurs.
@@ -236,6 +252,32 @@ func (service *Service) ReviseProposal(ctx context.Context, id domain.IntakeSess
 	return revised, nil
 }
 
+// Cancel consciously releases an unconfirmed intake without creating an Outcome.
+func (service *Service) Cancel(ctx context.Context, id domain.IntakeSessionID, input CancelInput) (ports.IntakeSnapshot, error) {
+	input.Reason = strings.TrimSpace(input.Reason)
+	if input.Reason == "" {
+		return ports.IntakeSnapshot{}, apierr.Invalid("INTAKE_CANCELLATION_REASON_REQUIRED", "Say why this intake is being released", nil)
+	}
+	snapshot, found, err := service.store.GetIntake(ctx, id)
+	if err != nil {
+		return ports.IntakeSnapshot{}, err
+	}
+	if !found {
+		return ports.IntakeSnapshot{}, apierr.NotFound("INTAKE_NOT_FOUND", "That intake does not exist")
+	}
+	if snapshot.Session.CurrentProposalRevision != input.ExpectedProposalRevision {
+		return ports.IntakeSnapshot{}, intakeRevisionConflict(id, input.ExpectedProposalRevision, snapshot.Session.CurrentProposalRevision)
+	}
+	if !domain.CanTransitionIntake(snapshot.Session.Status, domain.IntakeStatusCancelled) {
+		return ports.IntakeSnapshot{}, apierr.Conflict("INTAKE_STATE_CONFLICT", "This intake cannot be cancelled from its current state", nil)
+	}
+	cancelled, err := service.store.CancelIntake(ctx, id, input.ExpectedProposalRevision, input.Reason, service.clock())
+	if err != nil {
+		return ports.IntakeSnapshot{}, mapStoreError(err)
+	}
+	return cancelled, nil
+}
+
 // ConfirmOutcome compiles the latest reviewed proposal into exactly one
 // canonical Outcome and ContractRevision. The store owns the atomic write and
 // idempotency fence.
@@ -317,6 +359,7 @@ func (service *Service) completeAnalysis(ctx context.Context, analyzing ports.In
 		clarification.IntakeID = analyzing.Session.ID
 		clarification.CreatedAt = now
 		if err := clarification.Validate(); err != nil {
+			_, _ = service.store.FailIntakeAnalysis(ctx, analyzing.Session.ID, expectedRevision, "INTAKE_ANALYSIS_INVALID", now)
 			return ports.IntakeSnapshot{}, apierr.Invalid("INTAKE_ANALYSIS_INVALID", err.Error(), nil)
 		}
 		view, err := service.store.CompleteIntakeWithClarification(ctx, analyzing.Session.ID, expectedRevision, clarification, now)
@@ -343,6 +386,7 @@ func (service *Service) completeAnalysis(ctx context.Context, analyzing ports.In
 		}
 	}
 	if err := proposal.Validate(); err != nil {
+		_, _ = service.store.FailIntakeAnalysis(ctx, analyzing.Session.ID, expectedRevision, "INTAKE_ANALYSIS_INVALID", now)
 		return ports.IntakeSnapshot{}, apierr.Invalid("INTAKE_ANALYSIS_INVALID", err.Error(), nil)
 	}
 	ready, err := service.store.CompleteIntakeWithProposal(ctx, analyzing.Session.ID, expectedRevision, proposal, now)

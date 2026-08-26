@@ -228,6 +228,38 @@ func (s *Store) FailIntakeAnalysis(ctx context.Context, id domain.IntakeSessionI
 	return s.intakeSnapshot(ctx, s.qw, row)
 }
 
+// RecoverInterruptedIntakeAnalyses makes transient analyzing state retryable after restart.
+func (s *Store) RecoverInterruptedIntakeAnalyses(ctx context.Context, at time.Time) (int64, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return s.qw.RecoverInterruptedIntakeAnalyses(ctx, at)
+}
+
+// CancelIntake records conscious release without creating an Outcome.
+func (s *Store) CancelIntake(ctx context.Context, id domain.IntakeSessionID, expected int64, reason string, at time.Time) (ports.IntakeSnapshot, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	row, err := s.qw.GetIntakeSession(ctx, id.String())
+	if err != nil {
+		return ports.IntakeSnapshot{}, err
+	}
+	rows, err := s.qw.CancelIntake(ctx, gen.CancelIntakeParams{CancellationReason: reason, UpdatedAt: at, ID: id.String(), CurrentProposalRevision: expected})
+	if err != nil {
+		return ports.IntakeSnapshot{}, err
+	}
+	if rows != 1 {
+		if row.CurrentProposalRevision != expected {
+			return ports.IntakeSnapshot{}, revisionConflict(row, id, expected)
+		}
+		return ports.IntakeSnapshot{}, fmt.Errorf("intake %s cannot be cancelled from %s", id, row.Status)
+	}
+	row, err = s.qw.GetIntakeSession(ctx, id.String())
+	if err != nil {
+		return ports.IntakeSnapshot{}, err
+	}
+	return s.intakeSnapshot(ctx, s.qw, row)
+}
+
 // ConfirmIntakeWithOutcome atomically creates exactly one Outcome and ContractRevision.
 func (s *Store) ConfirmIntakeWithOutcome(ctx context.Context, id domain.IntakeSessionID, expected int64, outcome domain.Outcome, contract domain.ContractRevision, request ports.IntakeIdempotency, at time.Time) (ports.IntakeSnapshot, error) {
 	s.writeMu.Lock()
@@ -244,7 +276,17 @@ func (s *Store) ConfirmIntakeWithOutcome(ctx context.Context, id domain.IntakeSe
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return ports.IntakeSnapshot{}, err
 	}
-	err := s.inTx(ctx, "confirm intake outcome", func(q *gen.Queries) error {
+	row, err := s.qw.GetIntakeSession(ctx, id.String())
+	if err != nil {
+		return ports.IntakeSnapshot{}, err
+	}
+	if row.CurrentProposalRevision != expected {
+		return ports.IntakeSnapshot{}, revisionConflict(row, id, expected)
+	}
+	if row.Status == string(domain.IntakeStatusConfirmed) {
+		return s.intakeSnapshot(ctx, s.qw, row)
+	}
+	err = s.inTx(ctx, "confirm intake outcome", func(q *gen.Queries) error {
 		row, err := q.GetIntakeSession(ctx, id.String())
 		if err != nil {
 			return err
@@ -290,7 +332,7 @@ func (s *Store) ConfirmIntakeWithOutcome(ctx context.Context, id domain.IntakeSe
 	if err != nil {
 		return ports.IntakeSnapshot{}, err
 	}
-	row, err := s.qw.GetIntakeSession(ctx, id.String())
+	row, err = s.qw.GetIntakeSession(ctx, id.String())
 	if err != nil {
 		return ports.IntakeSnapshot{}, err
 	}
@@ -522,7 +564,7 @@ func (s *Store) EndResponsibilityLink(ctx context.Context, id domain.Responsibil
 		if _, err := s.qw.GetResponsibilityLink(ctx, id.String()); errors.Is(err, sql.ErrNoRows) {
 			return domain.ResponsibilityLink{}, false, nil
 		}
-		return domain.ResponsibilityLink{}, true, fmt.Errorf("responsibility link %s is already ended", id)
+		return domain.ResponsibilityLink{}, true, &ports.ResponsibilityLinkEndConflictError{ID: id}
 	}
 	row, err := s.qw.GetResponsibilityLink(ctx, id.String())
 	if err != nil {

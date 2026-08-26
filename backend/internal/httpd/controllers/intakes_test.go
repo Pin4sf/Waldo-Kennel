@@ -80,6 +80,40 @@ func TestCreateIntakeMissingProjectIs404Envelope(t *testing.T) {
 	}
 }
 
+func TestCancelIntakeReturnsDurableReasonAndRequestIDOnStaleRevision(t *testing.T) {
+	store := sqlitetest.MustOpen(t)
+	if err := store.UpsertProject(t.Context(), domain.ProjectRecord{ID: "cancel-api", Path: "/tmp/cancel-api", RegisteredAt: time.Now().UTC()}); err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+	service := intakevc.New(store, intakevc.NewRuleBasedAnalyzer(), nil)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	server := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{Intakes: service}, httpd.ControlDeps{}))
+	t.Cleanup(server.Close)
+	body, status, _ := doRequest(t, server, http.MethodPost, "/api/v1/projects/cancel-api/intakes", `{"sourceSurface":"work","statement":"Release this intake","requestKey":"capture-cancel-api"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("capture=%d: %s", status, body)
+	}
+	var captured struct {
+		Intake struct {
+			Session struct {
+				ID string `json:"id"`
+			} `json:"session"`
+		} `json:"intake"`
+	}
+	if err := json.Unmarshal(body, &captured); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	path := "/api/v1/intakes/" + captured.Intake.Session.ID + "/cancellation"
+	body, status, _ = doRequest(t, server, http.MethodPost, path, `{"expectedProposalRevision":1,"reason":"No longer needed"}`)
+	if status != http.StatusConflict || !containsJSON(body, `"code":"INTAKE_REVISION_CONFLICT"`) || !containsJSON(body, `"requestId":`) {
+		t.Fatalf("stale=%d: %s", status, body)
+	}
+	body, status, _ = doRequest(t, server, http.MethodPost, path, `{"expectedProposalRevision":0,"reason":"No longer needed"}`)
+	if status != http.StatusOK || !containsJSON(body, `"status":"cancelled"`) || !containsJSON(body, `"cancellationReason":"No longer needed"`) {
+		t.Fatalf("cancel=%d: %s", status, body)
+	}
+}
+
 func containsJSON(body []byte, needle string) bool {
 	return len(body) >= len(needle) && stringContains(string(body), needle)
 }

@@ -15,6 +15,7 @@ type memoryResponsibilityLinkStore struct {
 	links           map[domain.ResponsibilityLinkID]domain.ResponsibilityLink
 	requests        map[string]domain.ResponsibilityLinkID
 	writes          int
+	endErr          error
 }
 
 func (store *memoryResponsibilityLinkStore) GetProject(_ context.Context, id string) (domain.ProjectRecord, bool, error) {
@@ -54,6 +55,9 @@ func (store *memoryResponsibilityLinkStore) GetResponsibilityLink(_ context.Cont
 }
 
 func (store *memoryResponsibilityLinkStore) EndResponsibilityLink(_ context.Context, id domain.ResponsibilityLinkID, actor domain.ResponsibilityLinkCreator, reason string, at time.Time) (domain.ResponsibilityLink, bool, error) {
+	if store.endErr != nil {
+		return domain.ResponsibilityLink{}, true, store.endErr
+	}
 	link, ok := store.links[id]
 	if !ok {
 		return domain.ResponsibilityLink{}, false, nil
@@ -64,6 +68,13 @@ func (store *memoryResponsibilityLinkStore) EndResponsibilityLink(_ context.Cont
 	}
 	store.links[id] = ended
 	return ended, true, nil
+}
+
+func TestEndResponsibilityLinkDoesNotMisreportStoreFailureAsConflict(t *testing.T) {
+	store := &memoryResponsibilityLinkStore{endErr: context.DeadlineExceeded}
+	service := NewResponsibilityLinks(store, nil)
+	_, err := service.EndResponsibilityLink(context.Background(), "rlink-1", "Owner requested release")
+	assertAPIErrorCode(t, err, "RESPONSIBILITY_LINK_END_FAILED")
 }
 
 func TestCreateResponsibilityLinkRequiresProjectAndMatchingDestination(t *testing.T) {

@@ -191,6 +191,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/intakes/{intakeId}/cancellation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Consciously release an unconfirmed intake */
+        post: operations["cancelIntake"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/intakes/{intakeId}/clarification": {
         parameters: {
             query?: never;
@@ -2267,6 +2284,11 @@ export interface components {
             sessionId: string;
             transport: string;
         };
+        CancelIntakeRequest: {
+            /** Format: int64 */
+            expectedProposalRevision: number;
+            reason: string;
+        };
         CancelReviewResponse: {
             reviewerHandleId: string;
             reviews: components["schemas"]["PRReviewState"][];
@@ -2884,6 +2906,7 @@ export interface components {
             title: string;
         };
         IntakeSessionResponse: {
+            cancellationReason?: string;
             /** Format: int64 */
             clarificationCount: number;
             confirmedOutcomeId?: string;
@@ -4532,6 +4555,77 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AnalyzeIntakeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    cancelIntake: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                intakeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelIntakeRequest"];
             };
         };
         responses: {

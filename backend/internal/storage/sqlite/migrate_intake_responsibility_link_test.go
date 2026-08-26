@@ -59,6 +59,13 @@ func TestMigration0104ProposalLinkAndCDCGuards(t *testing.T) {
 	if err := restoreChangeLogWriters(db); err != nil {
 		t.Fatalf("restore CDC: %v", err)
 	}
+	var confirmationTrigger string
+	if err := db.QueryRow(`SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'intake_confirmations_cdc_insert'`).Scan(&confirmationTrigger); err != nil {
+		t.Fatalf("read intake confirmation CDC trigger: %v", err)
+	}
+	if !strings.Contains(confirmationTrigger, "project_id") || !strings.Contains(strings.ToUpper(confirmationTrigger), "WHEN") {
+		t.Fatalf("intake confirmation CDC trigger lacks project guard: %s", confirmationTrigger)
+	}
 	seedContractProject(t, db)
 	spaceID := seedWorkSpace(t, db)
 	if _, err := db.Exec(`INSERT INTO outcomes (id, space_id, title, current_revision_number) VALUES ('out_link', ?, 'Outcome', 0)`, spaceID); err != nil {

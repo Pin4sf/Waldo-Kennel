@@ -94,6 +94,13 @@ func TestIntakeStoreConfirmationIsAtomicStaleSafeAndIdempotent(t *testing.T) {
 	if first.ConfirmedOutcome == nil || replay.ConfirmedOutcome == nil || replay.ConfirmedOutcome.ID != first.ConfirmedOutcome.ID {
 		t.Fatalf("confirmation replay = %+v", replay)
 	}
+	differentKey, err := store.ConfirmIntakeWithOutcome(ctx, session.ID, 1, domain.Outcome{ID: "other-new-key"}, domain.ContractRevision{}, ports.IntakeIdempotency{Key: "confirm-retry-key", Fingerprint: "retry-fp"}, now)
+	if err != nil || differentKey.ConfirmedOutcome == nil || differentKey.ConfirmedOutcome.ID != first.ConfirmedOutcome.ID {
+		t.Fatalf("different-key retry = %+v err=%v", differentKey, err)
+	}
+	if _, found, _ := store.GetOutcome(ctx, "other-new-key"); found {
+		t.Fatal("different-key retry created a second Outcome")
+	}
 
 	_, err = store.ConfirmIntakeWithOutcome(ctx, session.ID, 0, domain.Outcome{ID: "out-stale"}, domain.ContractRevision{}, ports.IntakeIdempotency{Key: "confirm-stale", Fingerprint: "stale"}, now)
 	if err == nil {
@@ -101,6 +108,57 @@ func TestIntakeStoreConfirmationIsAtomicStaleSafeAndIdempotent(t *testing.T) {
 	}
 	if _, found, _ := store.GetOutcome(ctx, "out-stale"); found {
 		t.Fatal("stale confirmation persisted a partial Outcome")
+	}
+}
+
+func TestIntakeStoreRecoversInterruptedAnalysisAndPersistsCancellation(t *testing.T) {
+	dataDir := t.TempDir()
+	store, err := sqlitetest.Open(dataDir)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	ctx := context.Background()
+	seedProject(t, store, "recovery-project")
+	now := time.Date(2026, 8, 26, 5, 45, 0, 0, time.UTC)
+	session := domain.IntakeSession{ID: "intake-interrupted", SourceSurface: domain.IntakeSourceWork, Purpose: domain.IntakePurposeOutcome, ProjectID: "recovery-project", Statement: "Recover me", Status: domain.IntakeStatusCaptured, CreatedAt: now, UpdatedAt: now}
+	if _, err := store.CreateIntake(ctx, session, nil, ports.IntakeIdempotency{Key: "capture-recovery", Fingerprint: "fp"}); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	if _, err := store.BeginIntakeAnalysis(ctx, session.ID, 0, now); err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	reopened, err := sqlite.Open(dataDir)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	recovered, err := reopened.RecoverInterruptedIntakeAnalyses(ctx, now.Add(time.Minute))
+	if err != nil || recovered != 1 {
+		t.Fatalf("recover count=%d err=%v", recovered, err)
+	}
+	failed, found, err := reopened.GetIntake(ctx, session.ID)
+	if err != nil || !found || failed.Session.Status != domain.IntakeStatusAnalysisFailed || failed.Session.FailureCode != "INTAKE_ANALYSIS_INTERRUPTED" {
+		t.Fatalf("recovered snapshot=%+v found=%v err=%v", failed, found, err)
+	}
+	cancelled, err := reopened.CancelIntake(ctx, session.ID, 0, "Owner consciously released this", now.Add(2*time.Minute))
+	if err != nil || cancelled.Session.Status != domain.IntakeStatusCancelled || cancelled.Session.CancellationReason != "Owner consciously released this" {
+		t.Fatalf("cancelled=%+v err=%v", cancelled, err)
+	}
+	events, err := reopened.EventsAfter(ctx, 0, 100)
+	if err != nil {
+		t.Fatalf("read CDC events: %v", err)
+	}
+	updates := 0
+	for _, event := range events {
+		if event.Type == "intake_updated" {
+			updates++
+		}
+	}
+	if updates < 2 {
+		t.Fatalf("intake_updated CDC events = %d, want recovery and cancellation trigger events", updates)
 	}
 }
 

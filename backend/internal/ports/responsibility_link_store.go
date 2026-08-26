@@ -24,6 +24,13 @@ func (err *ResponsibilityLinkDuplicateError) Error() string {
 	return fmt.Sprintf("active responsibility link already exists from %s to %s", err.SourceOpenLoopID, err.DestinationOutcomeID)
 }
 
+// ResponsibilityLinkEndConflictError reports an already-ended lineage link.
+type ResponsibilityLinkEndConflictError struct{ ID domain.ResponsibilityLinkID }
+
+func (err *ResponsibilityLinkEndConflictError) Error() string {
+	return fmt.Sprintf("responsibility link %s is already ended", err.ID)
+}
+
 // ResponsibilityLinkStore persists explicit lineage independently of lifecycle.
 type ResponsibilityLinkStore interface {
 	GetProject(context.Context, string) (domain.ProjectRecord, bool, error)

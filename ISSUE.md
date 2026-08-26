@@ -30,3 +30,8 @@ These observations are already covered by [#40 Integrate Work with Home through 
 - Offline capture failure now keeps the entered statement visible and explicitly marks it unsaved.
 - Simple Outcomes advance without a clarification; adaptive intake asks no more than one material question.
 - Confirmation and ResponsibilityLink creation are idempotent, stale revisions are rejected, provenance stores references instead of transcript copies, and CDC remains trigger-backed.
+- Invalid analyzer output and daemon-interrupted analysis now become explicit retryable `analysis_failed` state instead of remaining stuck in `analyzing`.
+- Users can consciously release an unconfirmed intake with a durable cancellation reason; cancellation creates no Outcome.
+- Capture and confirmation retries reuse stable request keys, while a confirmed intake remains one Outcome even if a client retries with a new key.
+- ResponsibilityLink end conflicts remain distinct from internal storage failures, preserving accurate daemon error envelopes and request IDs.
+- The retired pre-#32 understand surface and its obsolete tests were removed; Work now has one Outcome-first intake implementation.

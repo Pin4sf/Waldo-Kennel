@@ -2022,6 +2022,12 @@ type ConfirmIntakeRequest struct {
 	RequestKey               string `json:"requestKey"`
 }
 
+// CancelIntakeRequest consciously releases an unconfirmed intake.
+type CancelIntakeRequest struct {
+	ExpectedProposalRevision int64  `json:"expectedProposalRevision"`
+	Reason                   string `json:"reason"`
+}
+
 // IntakeProposalInput is the editable typed Contract proposal stable core.
 type IntakeProposalInput struct {
 	Title              string                 `json:"title"`
@@ -2076,6 +2082,7 @@ type IntakeSessionResponse struct {
 	ClarificationCount      int64     `json:"clarificationCount"`
 	ConfirmedOutcomeID      string    `json:"confirmedOutcomeId,omitempty"`
 	FailureCode             string    `json:"failureCode,omitempty"`
+	CancellationReason      string    `json:"cancellationReason,omitempty"`
 	CreatedAt               time.Time `json:"createdAt"`
 	UpdatedAt               time.Time `json:"updatedAt"`
 }

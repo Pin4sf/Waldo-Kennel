@@ -408,6 +408,9 @@ func Run() error {
 
 	outcomeSvc := outcomevc.New(store, nil)
 	intakeSvc := intakevc.New(store, intakevc.NewRuleBasedAnalyzer(), nil)
+	if _, err := intakeSvc.RecoverInterruptedAnalyses(ctx); err != nil {
+		return fmt.Errorf("recover interrupted intake analysis: %w", err)
+	}
 	responsibilityLinkSvc := intakevc.NewResponsibilityLinks(store, nil)
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
 		Projects:            projectSvc,

@@ -11,6 +11,33 @@ import (
 	"time"
 )
 
+const cancelIntake = `-- name: CancelIntake :execrows
+UPDATE intake_sessions
+SET status = 'cancelled', cancellation_reason = ?, failure_code = '', updated_at = ?
+WHERE id = ? AND current_proposal_revision = ?
+  AND status IN ('captured', 'needs_user', 'ready', 'analysis_failed')
+`
+
+type CancelIntakeParams struct {
+	CancellationReason      string
+	UpdatedAt               time.Time
+	ID                      string
+	CurrentProposalRevision int64
+}
+
+func (q *Queries) CancelIntake(ctx context.Context, arg CancelIntakeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, cancelIntake,
+		arg.CancellationReason,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.CurrentProposalRevision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const confirmIntake = `-- name: ConfirmIntake :execrows
 UPDATE intake_sessions SET status = 'confirmed', confirmed_outcome_id = ?, updated_at = ?
 WHERE id = ? AND current_proposal_revision = ? AND status = 'ready'
@@ -635,6 +662,20 @@ func (q *Queries) ListIntakeConversationRefs(ctx context.Context, intakeID strin
 		return nil, err
 	}
 	return items, nil
+}
+
+const recoverInterruptedIntakeAnalyses = `-- name: RecoverInterruptedIntakeAnalyses :execrows
+UPDATE intake_sessions
+SET status = 'analysis_failed', failure_code = 'INTAKE_ANALYSIS_INTERRUPTED', updated_at = ?
+WHERE status = 'analyzing'
+`
+
+func (q *Queries) RecoverInterruptedIntakeAnalyses(ctx context.Context, updatedAt time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, recoverInterruptedIntakeAnalyses, updatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateIntakeAnalysisState = `-- name: UpdateIntakeAnalysisState :execrows

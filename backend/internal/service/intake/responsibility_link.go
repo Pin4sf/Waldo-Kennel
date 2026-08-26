@@ -104,7 +104,11 @@ func (service *ResponsibilityLinkService) EndResponsibilityLink(ctx context.Cont
 	}
 	ended, found, err := service.store.EndResponsibilityLink(ctx, id, domain.ResponsibilityLinkCreatorOwner, reason, service.clock())
 	if err != nil {
-		return domain.ResponsibilityLink{}, apierr.Conflict("RESPONSIBILITY_LINK_END_CONFLICT", err.Error(), nil)
+		var conflict *ports.ResponsibilityLinkEndConflictError
+		if errors.As(err, &conflict) {
+			return domain.ResponsibilityLink{}, apierr.Conflict("RESPONSIBILITY_LINK_END_CONFLICT", err.Error(), nil)
+		}
+		return domain.ResponsibilityLink{}, apierr.Internal("RESPONSIBILITY_LINK_END_FAILED", "The Responsibility Link could not be ended")
 	}
 	if !found {
 		return domain.ResponsibilityLink{}, apierr.NotFound("RESPONSIBILITY_LINK_NOT_FOUND", "That Responsibility Link does not exist")

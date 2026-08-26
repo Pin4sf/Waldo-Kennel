@@ -55,6 +55,17 @@ WHERE id = ? AND current_proposal_revision = ? AND status = ?;
 UPDATE intake_sessions SET status = 'analysis_failed', failure_code = ?, updated_at = ?
 WHERE id = ? AND current_proposal_revision = ? AND status = 'analyzing';
 
+-- name: RecoverInterruptedIntakeAnalyses :execrows
+UPDATE intake_sessions
+SET status = 'analysis_failed', failure_code = 'INTAKE_ANALYSIS_INTERRUPTED', updated_at = ?
+WHERE status = 'analyzing';
+
+-- name: CancelIntake :execrows
+UPDATE intake_sessions
+SET status = 'cancelled', cancellation_reason = ?, failure_code = '', updated_at = ?
+WHERE id = ? AND current_proposal_revision = ?
+  AND status IN ('captured', 'needs_user', 'ready', 'analysis_failed');
+
 -- name: UpdateIntakeWithProposal :execrows
 UPDATE intake_sessions SET status = 'ready', current_proposal_revision = ?, failure_code = '', updated_at = ?
 WHERE id = ? AND current_proposal_revision = ? AND status IN ('analyzing', 'ready');

@@ -17,6 +17,28 @@ type memoryIntakeStore struct {
 	proposalHistory []domain.OutcomeContractProposal
 	confirmations   map[string]ports.IntakeSnapshot
 	confirmWrites   int
+	recoverWrites   int64
+}
+
+func (store *memoryIntakeStore) RecoverInterruptedIntakeAnalyses(_ context.Context, at time.Time) (int64, error) {
+	if store.snapshot.Session.Status != domain.IntakeStatusAnalyzing {
+		return 0, nil
+	}
+	store.snapshot.Session.Status = domain.IntakeStatusAnalysisFailed
+	store.snapshot.Session.FailureCode = "INTAKE_ANALYSIS_INTERRUPTED"
+	store.snapshot.Session.UpdatedAt = at
+	store.recoverWrites++
+	return 1, nil
+}
+
+func (store *memoryIntakeStore) CancelIntake(_ context.Context, _ domain.IntakeSessionID, expected int64, reason string, at time.Time) (ports.IntakeSnapshot, error) {
+	if store.snapshot.Session.CurrentProposalRevision != expected {
+		return ports.IntakeSnapshot{}, &ports.IntakeRevisionConflictError{ExpectedRevision: expected, CurrentRevision: store.snapshot.Session.CurrentProposalRevision}
+	}
+	store.snapshot.Session.Status = domain.IntakeStatusCancelled
+	store.snapshot.Session.CancellationReason = reason
+	store.snapshot.Session.UpdatedAt = at
+	return store.snapshot, nil
 }
 
 func (store *memoryIntakeStore) GetProject(_ context.Context, id string) (domain.ProjectRecord, bool, error) {
@@ -74,6 +96,9 @@ func (store *memoryIntakeStore) ConfirmIntakeWithOutcome(_ context.Context, _ do
 	}
 	if replay, ok := store.confirmations[request.Key]; ok {
 		return replay, nil
+	}
+	if store.snapshot.Session.Status == domain.IntakeStatusConfirmed {
+		return store.snapshot, nil
 	}
 	if store.snapshot.Session.CurrentProposalRevision != expectedRevision {
 		return ports.IntakeSnapshot{}, &ports.IntakeRevisionConflictError{ExpectedRevision: expectedRevision, CurrentRevision: store.snapshot.Session.CurrentProposalRevision}
@@ -353,6 +378,88 @@ func TestAnalyzerFailureIsDurableAndRetryable(t *testing.T) {
 	retried, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0})
 	if err != nil || retried.Session.Status != domain.IntakeStatusReady {
 		t.Fatalf("retry = %+v err=%v", retried, err)
+	}
+}
+
+func TestInvalidAnalyzerOutputLeavesDurableRetryableFailure(t *testing.T) {
+	tests := []struct {
+		name   string
+		result ports.IntakeAnalysisResult
+	}{
+		{name: "invalid clarification", result: ports.IntakeAnalysisResult{Clarification: &domain.ClarificationRequest{}}},
+		{name: "invalid proposal", result: ports.IntakeAnalysisResult{Proposal: &domain.OutcomeContractProposal{}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := &memoryIntakeStore{}
+			service := New(store, &scriptedAnalyzer{result: test.result}, func() time.Time {
+				return time.Date(2026, 8, 26, 3, 50, 0, 0, time.UTC)
+			})
+			captured, err := service.Capture(context.Background(), CaptureInput{
+				SourceSurface: domain.IntakeSourceWork, Purpose: domain.IntakePurposeOutcome,
+				ProjectID: "project-1", Statement: "Keep invalid analysis retryable", RequestKey: "capture-" + test.name,
+			})
+			if err != nil {
+				t.Fatalf("Capture() error = %v", err)
+			}
+			_, err = service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0})
+			assertAPIErrorCode(t, err, "INTAKE_ANALYSIS_INVALID")
+			if store.snapshot.Session.Status != domain.IntakeStatusAnalysisFailed || store.snapshot.Session.FailureCode != "INTAKE_ANALYSIS_INVALID" {
+				t.Fatalf("durable invalid-analysis failure = %+v", store.snapshot.Session)
+			}
+		})
+	}
+}
+
+func TestConfirmedIntakeIsIdempotentAcrossRetryRequestKeys(t *testing.T) {
+	now := time.Date(2026, 8, 26, 3, 55, 0, 0, time.UTC)
+	store := &memoryIntakeStore{}
+	service := New(store, &scriptedAnalyzer{result: ports.IntakeAnalysisResult{Proposal: validProposalDraft("Ready")}}, func() time.Time { return now })
+	captured, err := service.Capture(context.Background(), CaptureInput{SourceSurface: domain.IntakeSourceWork, Purpose: domain.IntakePurposeOutcome, ProjectID: "project-1", Statement: "Confirm once", RequestKey: "capture-once"})
+	if err != nil {
+		t.Fatalf("Capture() error = %v", err)
+	}
+	ready, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0})
+	if err != nil {
+		t.Fatalf("Analyze() error = %v", err)
+	}
+	first, err := service.ConfirmOutcome(context.Background(), captured.Session.ID, ConfirmOutcomeInput{ExpectedProposalRevision: ready.Proposal.Revision, RequestKey: "confirm-first"})
+	if err != nil {
+		t.Fatalf("ConfirmOutcome() error = %v", err)
+	}
+	second, err := service.ConfirmOutcome(context.Background(), captured.Session.ID, ConfirmOutcomeInput{ExpectedProposalRevision: ready.Proposal.Revision, RequestKey: "confirm-retry-new-key"})
+	if err != nil {
+		t.Fatalf("ConfirmOutcome() retry error = %v", err)
+	}
+	if store.confirmWrites != 1 || first.ConfirmedOutcome.ID != second.ConfirmedOutcome.ID {
+		t.Fatalf("confirmation writes/outcomes = %d/%s/%s, want one stable Outcome", store.confirmWrites, first.ConfirmedOutcome.ID, second.ConfirmedOutcome.ID)
+	}
+}
+
+func TestCancelRecordsConsciousReleaseAndRejectsStaleRevision(t *testing.T) {
+	store := &memoryIntakeStore{}
+	service := New(store, nil, func() time.Time { return time.Date(2026, 8, 26, 4, 0, 0, 0, time.UTC) })
+	captured, err := service.Capture(context.Background(), CaptureInput{SourceSurface: domain.IntakeSourceWork, Purpose: domain.IntakePurposeOutcome, ProjectID: "project-1", Statement: "Maybe later", RequestKey: "capture-cancel"})
+	if err != nil {
+		t.Fatalf("Capture() error = %v", err)
+	}
+	_, err = service.Cancel(context.Background(), captured.Session.ID, CancelInput{ExpectedProposalRevision: 1, Reason: "No longer needed"})
+	assertAPIErrorCode(t, err, "INTAKE_REVISION_CONFLICT")
+	cancelled, err := service.Cancel(context.Background(), captured.Session.ID, CancelInput{ExpectedProposalRevision: 0, Reason: "  No longer needed  "})
+	if err != nil {
+		t.Fatalf("Cancel() error = %v", err)
+	}
+	if cancelled.Session.Status != domain.IntakeStatusCancelled || cancelled.Session.CancellationReason != "No longer needed" || cancelled.ConfirmedOutcome != nil {
+		t.Fatalf("Cancel() = %+v", cancelled)
+	}
+}
+
+func TestRecoverInterruptedAnalysesMakesTransientStateRetryable(t *testing.T) {
+	store := &memoryIntakeStore{snapshot: ports.IntakeSnapshot{Session: domain.IntakeSession{ID: "intake-interrupted", Status: domain.IntakeStatusAnalyzing}}}
+	service := New(store, nil, func() time.Time { return time.Date(2026, 8, 26, 4, 5, 0, 0, time.UTC) })
+	recovered, err := service.RecoverInterruptedAnalyses(context.Background())
+	if err != nil || recovered != 1 || store.snapshot.Session.Status != domain.IntakeStatusAnalysisFailed || store.snapshot.Session.FailureCode != "INTAKE_ANALYSIS_INTERRUPTED" {
+		t.Fatalf("RecoverInterruptedAnalyses() recovered=%d snapshot=%+v err=%v", recovered, store.snapshot, err)
 	}
 }
 

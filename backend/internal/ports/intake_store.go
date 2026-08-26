@@ -56,4 +56,6 @@ type IntakeStore interface {
 	EnsureWorkResponsibilitySpace(context.Context, domain.ProjectID) (domain.ResponsibilitySpace, error)
 	ConfirmIntakeWithOutcome(context.Context, domain.IntakeSessionID, int64, domain.Outcome, domain.ContractRevision, IntakeIdempotency, time.Time) (IntakeSnapshot, error)
 	FailIntakeAnalysis(context.Context, domain.IntakeSessionID, int64, string, time.Time) (IntakeSnapshot, error)
+	CancelIntake(context.Context, domain.IntakeSessionID, int64, string, time.Time) (IntakeSnapshot, error)
+	RecoverInterruptedIntakeAnalyses(context.Context, time.Time) (int64, error)
 }

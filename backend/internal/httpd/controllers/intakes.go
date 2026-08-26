@@ -22,6 +22,7 @@ type IntakeService interface {
 	AnswerClarification(context.Context, domain.IntakeSessionID, intakevc.AnswerClarificationInput) (ports.IntakeSnapshot, error)
 	ReviseProposal(context.Context, domain.IntakeSessionID, intakevc.ReviseProposalInput) (ports.IntakeSnapshot, error)
 	ConfirmOutcome(context.Context, domain.IntakeSessionID, intakevc.ConfirmOutcomeInput) (ports.IntakeSnapshot, error)
+	Cancel(context.Context, domain.IntakeSessionID, intakevc.CancelInput) (ports.IntakeSnapshot, error)
 }
 
 // ResponsibilityLinkService defines explicit Home-to-Work lineage operations.
@@ -45,6 +46,7 @@ func (controller *IntakesController) Register(router chi.Router) {
 	router.Post("/intakes/{intakeId}/clarification", controller.answer)
 	router.Post("/intakes/{intakeId}/proposals", controller.revise)
 	router.Post("/intakes/{intakeId}/confirmation", controller.confirm)
+	router.Post("/intakes/{intakeId}/cancellation", controller.cancel)
 	router.Post("/responsibility-links", controller.createLink)
 	router.Get("/responsibility-links/{responsibilityLinkId}", controller.getLink)
 	router.Post("/responsibility-links/{responsibilityLinkId}/end", controller.endLink)
@@ -152,6 +154,23 @@ func (controller *IntakesController) confirm(w http.ResponseWriter, r *http.Requ
 	envelope.WriteJSON(w, http.StatusCreated, IntakeEnvelope{Intake: intakeSnapshotResponse(snapshot)})
 }
 
+func (controller *IntakesController) cancel(w http.ResponseWriter, r *http.Request) {
+	if controller.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/intakes/{intakeId}/cancellation")
+		return
+	}
+	var request CancelIntakeRequest
+	if !decodeIntakeJSON(w, r, &request) {
+		return
+	}
+	snapshot, err := controller.Svc.Cancel(r.Context(), domain.IntakeSessionID(chi.URLParam(r, "intakeId")), intakevc.CancelInput{ExpectedProposalRevision: request.ExpectedProposalRevision, Reason: request.Reason})
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, IntakeEnvelope{Intake: intakeSnapshotResponse(snapshot)})
+}
+
 func (controller *IntakesController) createLink(w http.ResponseWriter, r *http.Request) {
 	if controller.Links == nil {
 		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/responsibility-links")
@@ -220,7 +239,7 @@ func intakeProposalFromInput(input IntakeProposalInput) domain.OutcomeContractPr
 }
 
 func intakeSnapshotResponse(snapshot ports.IntakeSnapshot) IntakeSnapshotResponse {
-	response := IntakeSnapshotResponse{Session: IntakeSessionResponse{ID: snapshot.Session.ID.String(), SourceSurface: string(snapshot.Session.SourceSurface), Purpose: string(snapshot.Session.Purpose), ProjectID: string(snapshot.Session.ProjectID), SourceOpenLoopID: snapshot.Session.SourceOpenLoopID.String(), Statement: snapshot.Session.Statement, Status: string(snapshot.Session.Status), CurrentProposalRevision: snapshot.Session.CurrentProposalRevision, ClarificationCount: snapshot.Session.ClarificationCount, ConfirmedOutcomeID: snapshot.Session.ConfirmedOutcomeID.String(), FailureCode: snapshot.Session.FailureCode, CreatedAt: snapshot.Session.CreatedAt, UpdatedAt: snapshot.Session.UpdatedAt}}
+	response := IntakeSnapshotResponse{Session: IntakeSessionResponse{ID: snapshot.Session.ID.String(), SourceSurface: string(snapshot.Session.SourceSurface), Purpose: string(snapshot.Session.Purpose), ProjectID: string(snapshot.Session.ProjectID), SourceOpenLoopID: snapshot.Session.SourceOpenLoopID.String(), Statement: snapshot.Session.Statement, Status: string(snapshot.Session.Status), CurrentProposalRevision: snapshot.Session.CurrentProposalRevision, ClarificationCount: snapshot.Session.ClarificationCount, ConfirmedOutcomeID: snapshot.Session.ConfirmedOutcomeID.String(), FailureCode: snapshot.Session.FailureCode, CancellationReason: snapshot.Session.CancellationReason, CreatedAt: snapshot.Session.CreatedAt, UpdatedAt: snapshot.Session.UpdatedAt}}
 	for _, ref := range snapshot.ConversationRefs {
 		response.ConversationRefs = append(response.ConversationRefs, IntakeConversationRefResponse{EpisodeID: ref.EpisodeID, TurnID: ref.TurnID, Position: ref.Position})
 	}

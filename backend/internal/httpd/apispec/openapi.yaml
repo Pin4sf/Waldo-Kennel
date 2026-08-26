@@ -518,6 +518,61 @@ paths:
       summary: Analyze intent into one material question or a Contract proposal
       tags:
       - intakes
+  /api/v1/intakes/{intakeId}/cancellation:
+    post:
+      operationId: cancelIntake
+      parameters:
+      - in: path
+        name: intakeId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelIntakeRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntakeEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Consciously release an unconfirmed intake
+      tags:
+      - intakes
   /api/v1/intakes/{intakeId}/clarification:
     post:
       operationId: answerIntakeClarification
@@ -6891,6 +6946,17 @@ components:
       - connected
       - transport
       type: object
+    CancelIntakeRequest:
+      properties:
+        expectedProposalRevision:
+          format: int64
+          type: integer
+        reason:
+          type: string
+      required:
+      - expectedProposalRevision
+      - reason
+      type: object
     CancelReviewResponse:
       properties:
         reviewerHandleId:
@@ -8582,6 +8648,8 @@ components:
       type: object
     IntakeSessionResponse:
       properties:
+        cancellationReason:
+          type: string
         clarificationCount:
           format: int64
           type: integer
