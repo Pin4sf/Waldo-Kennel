@@ -6522,6 +6522,8 @@ components:
           type: string
         permissions:
           type: string
+        profile:
+          type: string
       type: object
     AgentInfo:
       properties:

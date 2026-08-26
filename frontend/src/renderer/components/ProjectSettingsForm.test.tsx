@@ -1069,8 +1069,8 @@ describe("ProjectSettingsForm", () => {
 		expect(await screen.findByRole("button", { name: "Default worker agent" })).toHaveTextContent("Codex");
 		expect(screen.queryByLabelText("Profile")).not.toBeInTheDocument();
 
-		// Selecting the profile-gated harness reveals the field bound to the
-		// worker's configured mode — the value spawn reads as the dsh profile.
+		// Selecting the profile-gated harness reveals the field bound to
+		// AgentConfig.Profile — the value spawn reads as the dsh profile.
 		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "DeepSeek Harness");
 
 		const profileInput = screen.getByLabelText("Profile");
@@ -1084,7 +1084,7 @@ describe("ProjectSettingsForm", () => {
 			expect.objectContaining({
 				body: expect.objectContaining({
 					config: expect.objectContaining({
-						worker: { agent: "deepseek-harness", agentConfig: { mode: "dsh-main" } },
+						worker: { agent: "deepseek-harness", agentConfig: { profile: "dsh-main" } },
 					}),
 				}),
 			}),

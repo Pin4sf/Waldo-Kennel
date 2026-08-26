@@ -111,7 +111,7 @@ func TestGetLaunchCommandRejectsModelOverride(t *testing.T) {
 func TestGetLaunchCommandAppendsProfileFlag(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "dsh"}
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		Config: ports.AgentConfig{Mode: " tui "},
+		Config: ports.AgentConfig{Profile: " tui "},
 	})
 	if err != nil {
 		t.Fatalf("err: %v", err)

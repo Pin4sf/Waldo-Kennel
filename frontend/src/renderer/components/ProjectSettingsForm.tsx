@@ -159,9 +159,11 @@ function SettingsBody({
 		workerMode: workerRoleMigrates
 			? ""
 			: config.worker?.agentConfig?.mode ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.mode ?? ""),
+		workerProfile: config.worker?.agentConfig?.profile ?? "",
 		orchestratorMode: orchestratorRoleMigrates
 			? ""
 			: config.orchestrator?.agentConfig?.mode ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.mode ?? ""),
+		orchestratorProfile: config.orchestrator?.agentConfig?.profile ?? "",
 		permissions: config.agentConfig?.permissions ?? "",
 		agentPreferences: {
 			defaultWorker: config.agentPreferences?.defaultWorker ?? "",
@@ -246,16 +248,17 @@ function SettingsBody({
 						worker: {
 							...config.worker,
 							agent: form.workerAgent,
-							agentConfig: buildRoleAgentConfig(config.worker?.agentConfig, form.workerModel, form.workerMode),
+							agentConfig: buildRoleAgentConfig(config.worker?.agentConfig, form.workerModel, form.workerMode, form.workerProfile),
 						},
 						orchestrator: {
 							...config.orchestrator,
 							agent: form.orchestratorAgent,
 							agentConfig: buildRoleAgentConfig(
-								config.orchestrator?.agentConfig,
-								form.orchestratorModel,
-								form.orchestratorMode,
-							),
+									config.orchestrator?.agentConfig,
+									form.orchestratorModel,
+									form.orchestratorMode,
+									form.orchestratorProfile,
+								),
 						},
 						agentConfig: blankToUndefined({
 							...sharedAgentConfig,
@@ -273,16 +276,17 @@ function SettingsBody({
 						worker: {
 							...config.worker,
 							agent: form.workerAgent,
-							agentConfig: buildRoleAgentConfig(config.worker?.agentConfig, form.workerModel, form.workerMode),
+							agentConfig: buildRoleAgentConfig(config.worker?.agentConfig, form.workerModel, form.workerMode, form.workerProfile),
 						},
 						orchestrator: {
 							...config.orchestrator,
 							agent: form.orchestratorAgent,
 							agentConfig: buildRoleAgentConfig(
-								config.orchestrator?.agentConfig,
-								form.orchestratorModel,
-								form.orchestratorMode,
-							),
+									config.orchestrator?.agentConfig,
+									form.orchestratorModel,
+									form.orchestratorMode,
+									form.orchestratorProfile,
+								),
 						},
 						agentConfig: blankToUndefined({
 							...sharedAgentConfig,
@@ -491,9 +495,11 @@ function SettingsBody({
 								projectId={projectId}
 								model={form.workerModel}
 								mode={form.workerMode}
+								profile={form.workerProfile}
 								requiresProfile={workerRequiresProfile}
 								onModelChange={(workerModel) => setForm((f) => ({ ...f, workerModel }))}
 								onModeChange={(workerMode) => setForm((f) => ({ ...f, workerMode }))}
+								onProfileChange={(workerProfile) => setForm((f) => ({ ...f, workerProfile }))}
 							/>
 						}
 						orchestratorArea={
@@ -526,8 +532,10 @@ function SettingsBody({
 								projectId={projectId}
 								model={form.orchestratorModel}
 								mode={form.orchestratorMode}
+								profile={form.orchestratorProfile}
 								onModelChange={(orchestratorModel) => setForm((f) => ({ ...f, orchestratorModel }))}
 								onModeChange={(orchestratorMode) => setForm((f) => ({ ...f, orchestratorMode }))}
+								onProfileChange={(orchestratorProfile) => setForm((f) => ({ ...f, orchestratorProfile }))}
 							/>
 						}
 						permissions={{
@@ -680,19 +688,23 @@ function AgentModelField({
 	projectId,
 	model,
 	mode,
+	profile,
 	requiresProfile = false,
 	onModelChange,
 	onModeChange,
+	onProfileChange,
 }: {
 	role: "worker" | "orchestrator";
 	agentId: string;
 	projectId: string;
 	model: string;
 	mode: string;
-	/** Daemon-declared launch requirement: this agent boots a user-selected profile carried as the role's mode. */
+	profile: string;
+	/** Daemon-declared launch requirement: this adapter boots a user-selected profile (AgentConfig.Profile). */
 	requiresProfile?: boolean;
 	onModelChange: (value: string) => void;
 	onModeChange: (value: string) => void;
+	onProfileChange: (value: string) => void;
 }) {
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
@@ -767,9 +779,8 @@ function AgentModelField({
 	const hasCatalog = catalog?.selectionMode === "catalog" && (catalog.models?.length ?? 0) > 0;
 	const modelIsInCatalog = catalog?.models?.some((item) => item.id === model) ?? false;
 	const showCustomInput = hasCatalog && (customAgentId === agentId || (model !== "" && !modelIsInCatalog));
-	// Profile-required harnesses (deepseek-harness) carry their launch profile in
-	// the role's mode. Without a mode catalog there is no other mode editor, so
-	// the profile is entered as free text beside the model field.
+	// Profile-required harnesses (deepseek-harness) carry their launch profile
+	// in AgentConfig.Profile, entered as free text beside the model field.
 	const profileLabel = t("settings.project.profile");
 	const selectCatalogModel = (value: string) => {
 		setCustomAgentId(null);
@@ -837,9 +848,9 @@ function AgentModelField({
 						id={`${role}-profile`}
 						aria-label={profileLabel}
 						className="settings-inline-input settings-model-control"
-						value={mode}
+						value={profile}
 						disabled={agentId === ""}
-						onChange={(event) => onModeChange(event.target.value)}
+						onChange={(event) => onProfileChange(event.target.value)}
 					/>
 				</SettingsRow>
 			)}
@@ -1035,11 +1046,14 @@ function buildRoleAgentConfig(
 	existing: components["schemas"]["AgentConfig"] | undefined,
 	model: string,
 	mode: string,
+	profile: string,
 ): components["schemas"]["AgentConfig"] | undefined {
 	const next = { ...existing };
 	if (model) next.model = model;
 	else delete next.model;
 	if (mode) next.mode = mode;
 	else delete next.mode;
+	if (profile) next.profile = profile;
+	else delete next.profile;
 	return Object.keys(next).length > 0 ? next : undefined;
 }

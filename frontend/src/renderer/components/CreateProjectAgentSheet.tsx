@@ -136,7 +136,6 @@ export function CreateProjectAgentSheet({
 	const [workerAgent, setWorkerAgent] = useState("");
 	const [orchestratorAgent, setOrchestratorAgent] = useState("");
 	const [workerAgentTouched, setWorkerAgentTouched] = useState(false);
-	const [orchestratorAgentTouched, setOrchestratorAgentTouched] = useState(false);
 	// Coordinator admission comes from the daemon's inventory roles; optional
 	// chaining tolerates stale catalogs. An empty set keeps the picker unfiltered
 	// rather than offering nothing at all.
@@ -168,7 +167,6 @@ export function CreateProjectAgentSheet({
 			setWorkerAgent("");
 			setOrchestratorAgent("");
 			setWorkerAgentTouched(false);
-			setOrchestratorAgentTouched(false);
 			setIntake(EMPTY_INTAKE);
 		}
 	}, [open, path]);
@@ -236,10 +234,7 @@ export function CreateProjectAgentSheet({
 												labelClassName="agents-sheet-label"
 												triggerClassName="agents-sheet-control"
 												contentClassName="agents-sheet-menu"
-												onChange={(value) => {
-													setOrchestratorAgent(value);
-													setOrchestratorAgentTouched(true);
-												}}
+												onChange={setOrchestratorAgent}
 											/>
 										</AccordionContent>
 									</AccordionItem>

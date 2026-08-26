@@ -110,9 +110,9 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	if model := strings.TrimSpace(cfg.Config.Model); model != "" {
 		return nil, fmt.Errorf("deepseek-harness: model override %q is not supported until the dsh CLI flag contract is pinned", model)
 	}
-	profile := strings.TrimSpace(cfg.Config.Mode)
+	profile := strings.TrimSpace(cfg.Config.Profile)
 	if profile == "" {
-		return nil, fmt.Errorf("deepseek-harness: no dsh profile configured — create one ('dsh plugin --profile <name> add <package>') and select it as this agent's mode")
+		return nil, fmt.Errorf("deepseek-harness: no dsh profile configured — create one ('dsh plugin --profile <name> add <package>') and select it as this agent's profile")
 	}
 
 	binary, err := p.dshBinary(ctx)

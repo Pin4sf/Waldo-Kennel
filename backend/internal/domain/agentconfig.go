@@ -1,6 +1,9 @@
 package domain
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // PermissionMode controls how much review an agent requires before acting. It
 // lives in domain (not ports) so the typed AgentConfig can carry it; ports
@@ -28,6 +31,11 @@ type AgentConfig struct {
 	// Mode selects an agent-owned operating mode when the adapter exposes modes
 	// instead of raw model ids (currently Amp: low|medium|high|ultra).
 	Mode string `json:"mode,omitempty"`
+	// Profile selects the adapter-defined profile for profile-based agents
+	// (DeepSeek Harness). It is deliberately separate from Mode so Amp's mode
+	// vocabulary stays exclusively Amp's; the owning adapter defines what a
+	// valid profile name is and validates it at spawn.
+	Profile string `json:"profile,omitempty"`
 	// Permissions sets the agent's starting permission mode. Empty is treated
 	// like the adapter's default mode.
 	Permissions PermissionMode `json:"permissions,omitempty"`
@@ -59,6 +67,9 @@ func (c AgentConfig) Validate() error {
 	case "", "low", "medium", "high", "ultra":
 	default:
 		return fmt.Errorf("invalid mode %q: want one of low, medium, high, ultra", c.Mode)
+	}
+	if trimmed := strings.TrimSpace(c.Profile); c.Profile != "" && (trimmed == "" || trimmed != c.Profile || strings.ContainsAny(c.Profile, " \t\n")) {
+		return fmt.Errorf("invalid profile %q: want a non-blank name without whitespace", c.Profile)
 	}
 	if c.Permissions.Valid() {
 		return nil

@@ -886,6 +886,46 @@ func TestProjectsAPI_ResolvedMissionRolesUnavailableDefaultAgent(t *testing.T) {
 	}
 }
 
+// TestProjectsAPI_AgentConfigProfileRoundTrip locks the #60 finding-④ fix at
+// the wire: a profile-required agent's dsh profile persists through the
+// project config as AgentConfig.Profile (never the Amp mode field), survives
+// read-back, and whitespace-only names are refused with a typed error.
+func TestProjectsAPI_AgentConfigProfileRoundTrip(t *testing.T) {
+	srv := newTestServer(t)
+	repo := gitRepo(t, "agent-profile")
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/projects", `{"path":`+quote(repo)+`,"projectId":"prof"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("seed create = %d, want 201; body=%s", status, body)
+	}
+
+	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/prof/config", `{"config":{"agentConfig":{"profile":"   "}}}`)
+	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_PROJECT_CONFIG")
+
+	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/prof/config", `{"config":{"agentConfig":{"profile":"waldo-profile"}}}`)
+	if status != http.StatusOK {
+		t.Fatalf("PUT agentConfig.profile = %d, want 200; body=%s", status, body)
+	}
+
+	body, status, _ = doRequest(t, srv, "GET", "/api/v1/projects/prof", "")
+	if status != http.StatusOK {
+		t.Fatalf("GET project = %d, want 200; body=%s", status, body)
+	}
+	var get struct {
+		Project struct {
+			Config struct {
+				AgentConfig struct {
+					Profile string `json:"profile"`
+					Mode    string `json:"mode"`
+				} `json:"agentConfig"`
+			} `json:"config"`
+		} `json:"project"`
+	}
+	mustJSON(t, body, &get)
+	if get.Project.Config.AgentConfig.Profile != "waldo-profile" || get.Project.Config.AgentConfig.Mode != "" {
+		t.Fatalf("persisted agent config = %#v, want profile waldo-profile and empty mode", get.Project.Config.AgentConfig)
+	}
+}
+
 // TestProjectsAPI_ResolvedMissionRolesStoredNonCoordinatorPreference proves
 // the daemon owns coordinator fallback policy: a stored worker preference for
 // a harness that cannot coordinate still yields the canonical coordinator

@@ -136,7 +136,7 @@ function sidebarPR(overrides: Partial<WorkspaceSession["prs"][number]> = {}): Wo
 type CreateProjectInput = {
 	path: string;
 	workerAgent: string;
-	orchestratorAgent: string;
+	orchestratorAgent?: string;
 	trackerIntake?: unknown;
 	asWorkspace?: boolean;
 };
