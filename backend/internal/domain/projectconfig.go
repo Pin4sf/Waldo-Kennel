@@ -277,23 +277,23 @@ func (p ProjectAgentPreferences) Validate() error {
 // authorization, and profile readiness are layered on by the service against
 // the live inventory and reported through Reason when they fail closed.
 type ResolvedAgentRole struct {
-	Harness  AgentHarness
-	Source   RoleSource
-	Eligible bool
+	Harness  AgentHarness `json:"harness"`
+	Source   RoleSource   `json:"source"`
+	Eligible bool         `json:"eligible"`
 	// Ready reports live adapter admission layered on by the service layer
 	// (installed binary, authorization, profile readiness). The pure domain
 	// resolution can only speak to capability admission, so it defaults Ready
 	// to true for admissible roles; the inventory enrichment may flip it.
-	Ready  bool
-	Reason string
+	Ready  bool   `json:"ready"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // ResolvedMissionRoles is the daemon-resolved role proposal for one Project.
 type ResolvedMissionRoles struct {
-	Analyzer    ResolvedAgentRole
-	Coordinator ResolvedAgentRole
-	Worker      ResolvedAgentRole
-	Verifier    ResolvedAgentRole
+	Analyzer    ResolvedAgentRole `json:"analyzer"`
+	Coordinator ResolvedAgentRole `json:"coordinator"`
+	Worker      ResolvedAgentRole `json:"worker"`
+	Verifier    ResolvedAgentRole `json:"verifier"`
 }
 
 // ResolveMissionRoles turns stored preferences into role proposals without

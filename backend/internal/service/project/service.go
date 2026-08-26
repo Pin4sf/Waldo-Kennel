@@ -46,6 +46,11 @@ type Manager interface {
 	// Remove unregisters a project, stopping its sessions and reclaiming
 	// managed workspaces.
 	Remove(ctx context.Context, id domain.ProjectID) (RemoveResult, error)
+
+	// ResolvedMissionRoles returns the daemon-resolved Mission-role proposal
+	// for one project: stored preferences enriched with live adapter admission.
+	// The proposal is advisory and never rewrites historical sessions or Plans.
+	ResolvedMissionRoles(ctx context.Context, id domain.ProjectID) (domain.ResolvedMissionRoles, error)
 }
 
 // SessionTeardowner is the narrow session-service surface project removal

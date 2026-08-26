@@ -85,6 +85,15 @@ func (p ProjectOrDegraded) MarshalJSON() ([]byte, error) {
 // can map it to a 500 before any response bytes are written.
 var errEmptyProjectOrDegraded = errors.New("controllers: GetResult has neither Project nor Degraded set")
 
+// ResolvedMissionRolesResponse is the { roles } body of
+// GET /projects/{id}/resolved-mission-roles: the daemon-resolved Mission-role
+// proposal for one project (stored preferences enriched with live adapter
+// admission). Advisory for future Missions only; it never rewrites historical
+// sessions or approved Plans.
+type ResolvedMissionRolesResponse struct {
+	Roles domain.ResolvedMissionRoles `json:"roles"`
+}
+
 // JSONSchemaOneOf is read by swaggest's reflector (apispec.Build) to emit the
 // oneOf for this field; it is not used at runtime.
 func (ProjectOrDegraded) JSONSchemaOneOf() []interface{} {
