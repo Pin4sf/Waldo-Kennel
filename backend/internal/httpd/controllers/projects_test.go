@@ -648,3 +648,99 @@ func assertErrorCode(t *testing.T, body []byte, status, wantStatus int, wantCode
 	}
 
 }
+
+// resolvedRolesBody mirrors the wire contract of
+// GET /projects/{id}/resolved-mission-roles.
+type resolvedRolesBody struct {
+	Roles struct {
+		Analyzer    resolvedRoleBody `json:"analyzer"`
+		Coordinator resolvedRoleBody `json:"coordinator"`
+		Worker      resolvedRoleBody `json:"worker"`
+		Verifier    resolvedRoleBody `json:"verifier"`
+	} `json:"roles"`
+}
+
+type resolvedRoleBody struct {
+	Harness  string `json:"harness"`
+	Source   string `json:"source"`
+	Eligible bool   `json:"eligible"`
+	Ready    bool   `json:"ready"`
+	Reason   string `json:"reason"`
+}
+
+// TestProjectsAPI_ResolvedMissionRoles locks the read-only Mission-role
+// resolution surface: capability-admitted defaults without preferences,
+// honored preferences within each role's admission, fail-closed rejection of
+// inadmissible or unknown harnesses at SetConfig without drifting stored
+// state, and typed 404s for unknown projects.
+func TestProjectsAPI_ResolvedMissionRoles(t *testing.T) {
+	srv := newTestServer(t)
+	repo := gitRepo(t, "mission-roles")
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/projects", `{"path":`+quote(repo)+`,"projectId":"roles"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("seed create = %d, want 201; body=%s", status, body)
+	}
+
+	// Without recorded preferences every role resolves to the
+	// capability-admitted default with a truthful reason.
+	body, status, _ = doRequest(t, srv, "GET", "/api/v1/projects/roles/resolved-mission-roles", "")
+	if status != http.StatusOK {
+		t.Fatalf("GET roles = %d, want 200; body=%s", status, body)
+	}
+	var got resolvedRolesBody
+	mustJSON(t, body, &got)
+	for _, role := range []struct {
+		name string
+		view resolvedRoleBody
+	}{
+		{"worker", got.Roles.Worker},
+		{"analyzer", got.Roles.Analyzer},
+		{"coordinator", got.Roles.Coordinator},
+		{"verifier", got.Roles.Verifier},
+	} {
+		if role.view.Harness != "codex" || role.view.Source != "default" || !role.view.Eligible || !role.view.Ready || role.view.Reason == "" {
+			t.Fatalf("%s default role = %#v, want codex/default/eligible/ready with a reason", role.name, role.view)
+		}
+	}
+
+	// An admitted worker preference is honored; coordinator-class preferences
+	// stay within their narrower admission (codex only today).
+	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/roles/config", `{"config":{"agentPreferences":{"defaultWorker":"deepseek-harness","verifier":"codex"}}}`)
+	if status != http.StatusOK {
+		t.Fatalf("PUT agentPreferences = %d, want 200; body=%s", status, body)
+	}
+	body, status, _ = doRequest(t, srv, "GET", "/api/v1/projects/roles/resolved-mission-roles", "")
+	if status != http.StatusOK {
+		t.Fatalf("GET roles after preferences = %d, want 200; body=%s", status, body)
+	}
+	mustJSON(t, body, &got)
+	if got.Roles.Worker.Harness != "deepseek-harness" || got.Roles.Worker.Source != "preference" {
+		t.Fatalf("worker after preference = %#v, want deepseek-harness/preference", got.Roles.Worker)
+	}
+	if got.Roles.Verifier.Harness != "codex" || got.Roles.Verifier.Source != "preference" {
+		t.Fatalf("verifier after preference = %#v, want codex/preference", got.Roles.Verifier)
+	}
+
+	// Coordinator-class roles refuse a harness that has not demonstrated
+	// coordination capabilities: rejected at SetConfig, never persisted.
+	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/roles/config", `{"config":{"agentPreferences":{"analyzer":"deepseek-harness"}}}`)
+	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_PROJECT_CONFIG")
+
+	// Unknown harness names are refused the same way.
+	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/roles/config", `{"config":{"agentPreferences":{"defaultWorker":"turbo"}}}`)
+	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_PROJECT_CONFIG")
+
+	// Stored preferences are unchanged by the rejections.
+	body, status, _ = doRequest(t, srv, "GET", "/api/v1/projects/roles/resolved-mission-roles", "")
+	if status != http.StatusOK {
+		t.Fatalf("GET roles after rejects = %d, want 200; body=%s", status, body)
+	}
+	mustJSON(t, body, &got)
+	if got.Roles.Worker.Harness != "deepseek-harness" || got.Roles.Analyzer.Source != "default" {
+		t.Fatalf("roles after rejects drifted: %#v", got.Roles)
+	}
+
+	// Unknown projects answer a typed 404.
+	body, status, _ = doRequest(t, srv, "GET", "/api/v1/projects/absent/resolved-mission-roles", "")
+	assertErrorCode(t, body, status, http.StatusNotFound, "PROJECT_NOT_FOUND")
+}
