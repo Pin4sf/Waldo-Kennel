@@ -1162,6 +1162,9 @@ func effectiveAgentConfig(kind domain.SessionKind, cfg domain.ProjectConfig) por
 	if override.Mode != "" {
 		merged.Mode = override.Mode
 	}
+	if override.Profile != "" {
+		merged.Profile = override.Profile
+	}
 	if override.Permissions != "" {
 		merged.Permissions = override.Permissions
 	}
@@ -1177,6 +1180,7 @@ func freshAgentConfig(kind domain.SessionKind, harness domain.AgentHarness, cfg 
 	if roleOverride(kind, cfg).Harness != harness {
 		config.Model = ""
 		config.Mode = ""
+		config.Profile = ""
 	}
 	return config
 }
@@ -1187,6 +1191,9 @@ func applySpawnAgentConfig(base, override ports.AgentConfig) ports.AgentConfig {
 	}
 	if override.Mode != "" {
 		base.Mode = override.Mode
+	}
+	if override.Profile != "" {
+		base.Profile = override.Profile
 	}
 	if override.Permissions != "" {
 		base.Permissions = override.Permissions

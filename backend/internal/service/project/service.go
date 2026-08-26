@@ -98,7 +98,7 @@ type Deps struct {
 // Mission-role resolution (implemented by the agent inventory service). The
 // caller's context bounds every live probe.
 type RoleResolver interface {
-	ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences) domain.ResolvedMissionRoles
+	ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences, cfg domain.ProjectConfig) domain.ResolvedMissionRoles
 }
 
 // New returns a project service backed by the given durable store.
@@ -664,7 +664,7 @@ func (m *Service) ResolvedMissionRoles(ctx context.Context, id domain.ProjectID)
 	}
 	prefs := row.Config.AgentPreferences
 	if m.roles != nil {
-		return m.roles.ResolveMissionRoles(ctx, prefs), nil
+		return m.roles.ResolveMissionRoles(ctx, prefs, row.Config), nil
 	}
 	return domain.ResolveMissionRoles(prefs), nil
 }

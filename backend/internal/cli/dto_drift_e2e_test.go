@@ -106,6 +106,12 @@ type fakeProjectManager struct {
 
 var _ projectsvc.Manager = (*fakeProjectManager)(nil)
 
+// ResolvedMissionRoles satisfies the Manager surface added by #72; the drift
+// test only exercises config persistence, so an empty proposal suffices.
+func (f *fakeProjectManager) ResolvedMissionRoles(context.Context, domain.ProjectID) (domain.ResolvedMissionRoles, error) {
+	return domain.ResolvedMissionRoles{}, nil
+}
+
 func (f *fakeProjectManager) List(context.Context) ([]projectsvc.Summary, error) {
 	return nil, nil
 }

@@ -3,6 +3,7 @@ package domain
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 // PermissionMode controls how much review an agent requires before acting. It
@@ -68,8 +69,10 @@ func (c AgentConfig) Validate() error {
 	default:
 		return fmt.Errorf("invalid mode %q: want one of low, medium, high, ultra", c.Mode)
 	}
-	if trimmed := strings.TrimSpace(c.Profile); c.Profile != "" && (trimmed == "" || trimmed != c.Profile || strings.ContainsAny(c.Profile, " \t\n")) {
-		return fmt.Errorf("invalid profile %q: want a non-blank name without whitespace", c.Profile)
+	if c.Profile != "" {
+		if strings.TrimSpace(c.Profile) == "" || strings.IndexFunc(c.Profile, unicode.IsSpace) >= 0 {
+			return fmt.Errorf("invalid profile %q: want a non-blank name without whitespace", c.Profile)
+		}
 	}
 	if c.Permissions.Valid() {
 		return nil

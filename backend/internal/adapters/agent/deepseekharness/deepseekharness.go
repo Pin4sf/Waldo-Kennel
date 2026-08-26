@@ -89,9 +89,9 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 		return ports.ConfigSpec{}, err
 	}
 	return ports.ConfigSpec{Fields: []ports.ConfigField{{
-		Key:         "mode",
+		Key:         "profile",
 		Type:        ports.ConfigFieldString,
-		Description: "Required dsh profile to boot (created via `dsh plugin --profile <name> add <package>`).",
+		Description: "Required dsh profile to boot (created via `dsh plugin --profile <name> add <package>`); maps to AgentConfig.Profile.",
 	}}}, nil
 }
 

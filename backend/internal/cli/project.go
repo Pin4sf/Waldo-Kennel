@@ -77,6 +77,7 @@ type workspaceRepoDetails struct {
 type agentConfig struct {
 	Model       string `json:"model,omitempty"`
 	Mode        string `json:"mode,omitempty"`
+	Profile     string `json:"profile,omitempty"`
 	Permissions string `json:"permissions,omitempty"`
 }
 

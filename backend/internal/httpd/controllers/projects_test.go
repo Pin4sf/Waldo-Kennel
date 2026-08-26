@@ -749,7 +749,7 @@ func TestProjectsAPI_ResolvedMissionRoles(t *testing.T) {
 // tests exercise live readiness failures through the wire contract.
 type stubRoleResolver struct{ roles domain.ResolvedMissionRoles }
 
-func (s stubRoleResolver) ResolveMissionRoles(_ context.Context, _ domain.ProjectAgentPreferences) domain.ResolvedMissionRoles {
+func (s stubRoleResolver) ResolveMissionRoles(_ context.Context, _ domain.ProjectAgentPreferences, _ domain.ProjectConfig) domain.ResolvedMissionRoles {
 	return s.roles
 }
 

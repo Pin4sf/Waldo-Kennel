@@ -188,9 +188,12 @@ export function TaskComposer({
 		projectQuery.data?.config?.worker?.agentConfig?.model ?? projectQuery.data?.config?.agentConfig?.model ?? "";
 	const defaultWorkerMode =
 		projectQuery.data?.config?.worker?.agentConfig?.mode ?? projectQuery.data?.config?.agentConfig?.mode ?? "";
+	const defaultWorkerProfile =
+		projectQuery.data?.config?.worker?.agentConfig?.profile ?? projectQuery.data?.config?.agentConfig?.profile ?? "";
 	const selectedMatchesProjectWorker = projectWorkerAgent !== "" && selectedAgent === projectWorkerAgent;
 	const projectModelForSelectedAgent = selectedMatchesProjectWorker ? defaultWorkerModel : "";
 	const projectModeForSelectedAgent = selectedMatchesProjectWorker ? defaultWorkerMode : "";
+	const projectProfileForSelectedAgent = selectedMatchesProjectWorker ? defaultWorkerProfile : "";
 	// Profile-required agents (deepseek-harness) launch only through a
 	// user-selected dsh profile, carried as the worker's configured mode. The
 	// daemon's inventory flags this authoritatively via `requiresProfile` and
@@ -199,7 +202,7 @@ export function TaskComposer({
 	// submit.
 	const selectedAgentRequiresProfile =
 		agentCatalog?.supported?.find((item) => item.id === selectedAgent)?.requiresProfile === true;
-	const profileMissing = selectedAgentRequiresProfile && projectModeForSelectedAgent === "";
+	const profileMissing = selectedAgentRequiresProfile && projectProfileForSelectedAgent === "";
 
 	// Shares the picker's query key, so this is the same fetch, not a second one.
 	const modelCatalogQuery = useQuery(agentModelsQueryOptions(selectedAgent, projectId ?? ""));

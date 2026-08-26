@@ -681,8 +681,48 @@ func EnrichMissionRoles(base domain.ResolvedMissionRoles, facts map[domain.Agent
 // into one daemon-resolved role proposal. Assignments are proposals for
 // future Missions; historical sessions and approved Plans keep their
 // immutable provider identity regardless of what this returns.
-func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences) domain.ResolvedMissionRoles {
+func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences, cfg domain.ProjectConfig) domain.ResolvedMissionRoles {
 	base := domain.ResolveMissionRoles(prefs)
+	facts := s.InventoryRoleFacts(ctx, s.uniqueHarnesses(base))
+	// Profile readiness is Project-config-aware: each role is probed with the
+	// AgentConfig that launch would actually merge (role override when set,
+	// otherwise the shared base), so a persisted profile flips readiness here
+	// instead of the UI reporting "no profile selected" after a save.
+	for _, role := range []struct {
+		harness  domain.AgentHarness
+		override domain.AgentConfig
+	}{
+		{base.Worker.Harness, cfg.Worker.AgentConfig},
+		{base.Analyzer.Harness, cfg.Orchestrator.AgentConfig},
+		{base.Coordinator.Harness, cfg.Orchestrator.AgentConfig},
+		{base.Verifier.Harness, cfg.Orchestrator.AgentConfig},
+	} {
+		fact := facts[role.harness]
+		if !fact.RequiresProfile || fact.ProfileReady != nil && *fact.ProfileReady {
+			continue
+		}
+		item, ok := s.agentFor(role.harness)
+		if !ok {
+			continue
+		}
+		checker, ok := item.Agent.(ports.AgentProfileReadinessChecker)
+		if !ok {
+			continue
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, agentInstallProbeTimeout)
+		readiness, err := checker.ProfileReadiness(probeCtx, roleConfig(cfg, role.override))
+		cancel()
+		if err != nil {
+			continue
+		}
+		ready := readiness.Ready
+		fact.ProfileReady = &ready
+		facts[role.harness] = fact
+	}
+	return EnrichMissionRoles(base, facts)
+}
+
+func (s *Service) uniqueHarnesses(base domain.ResolvedMissionRoles) []domain.AgentHarness {
 	seen := map[domain.AgentHarness]struct{}{
 		base.Analyzer.Harness:    {},
 		base.Coordinator.Harness: {},
@@ -693,5 +733,16 @@ func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectA
 	for harness := range seen {
 		names = append(names, harness)
 	}
-	return EnrichMissionRoles(base, s.InventoryRoleFacts(ctx, names))
+	return names
+}
+
+// roleConfig merges a role override over the shared base; set fields win.
+func roleConfig(cfg domain.ProjectConfig, override domain.AgentConfig) domain.AgentConfig {
+	if override.Profile != "" {
+		cfg.AgentConfig.Profile = override.Profile
+	}
+	if override.Model != "" {
+		cfg.AgentConfig.Model = override.Model
+	}
+	return cfg.AgentConfig
 }

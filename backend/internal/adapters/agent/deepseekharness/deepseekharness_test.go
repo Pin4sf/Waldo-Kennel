@@ -31,13 +31,13 @@ func TestManifest(t *testing.T) {
 	}
 }
 
-func TestGetConfigSpecAdvertisesProfileMode(t *testing.T) {
+func TestGetConfigSpecAdvertisesProfileField(t *testing.T) {
 	spec, err := (&Plugin{}).GetConfigSpec(context.Background())
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if len(spec.Fields) != 1 || spec.Fields[0].Key != "mode" {
-		t.Fatalf("fields = %#v, want exactly the dsh profile mode", spec.Fields)
+	if len(spec.Fields) != 1 || spec.Fields[0].Key != "profile" {
+		t.Fatalf("fields = %#v, want exactly the dsh profile field (AgentConfig.Profile)", spec.Fields)
 	}
 	if spec.Fields[0].Type != ports.ConfigFieldString {
 		t.Fatalf("type = %q, want free text: dsh profiles are user-built, not a closed enum", spec.Fields[0].Type)
