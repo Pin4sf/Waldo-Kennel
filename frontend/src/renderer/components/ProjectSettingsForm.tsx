@@ -163,6 +163,12 @@ function SettingsBody({
 			? ""
 			: config.orchestrator?.agentConfig?.mode ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.mode ?? ""),
 		permissions: config.agentConfig?.permissions ?? "",
+		agentPreferences: {
+			defaultWorker: config.agentPreferences?.defaultWorker ?? "",
+			analyzer: config.agentPreferences?.analyzer ?? "",
+			coordinator: config.agentPreferences?.coordinator ?? "",
+			verifier: config.agentPreferences?.verifier ?? "",
+		},
 		reviewerHarness: "codex",
 		intakeEnabled: intake.enabled ?? false,
 		intakeRepo: intake.repo ?? "",
@@ -176,6 +182,20 @@ function SettingsBody({
 	const missingRequiredAgent = form.workerAgent === "" || form.orchestratorAgent === "";
 	const agentsQuery = useQuery(agentsQueryOptions);
 	const agentCatalog = agentsQuery.data;
+	// The daemon-resolved Mission-role proposal: stored preferences enriched
+	// with live adapter admission. Advisory read-only truth for this project.
+	const resolvedRolesQuery = useQuery({
+		queryKey: ["project", projectId, "resolved-mission-roles"],
+		queryFn: async () => {
+			const { data, error } = await apiClient.GET("/api/v1/projects/{id}/resolved-mission-roles", {
+				params: { path: { id: projectId } },
+			});
+			if (error) throw new Error(apiErrorMessage(error));
+			return data.roles;
+		},
+	});
+	const patchPreference = (role: "defaultWorker" | "analyzer" | "coordinator" | "verifier", value: string) =>
+		setForm((f) => ({ ...f, agentPreferences: { ...f.agentPreferences, [role]: value } }));
 	const refreshAgentsMutation = useMutation({
 		mutationFn: refreshAgents,
 		onSuccess: (next) => queryClient.setQueryData(agentsQueryKey, next),
@@ -203,6 +223,7 @@ function SettingsBody({
 	const coordinatorCapable = new Set(
 		supportedAgents.filter((agent) => agent.roles?.coordinator).map((agent) => agent.id),
 	);
+	const workerSelectable = supportedAgents.filter((agent) => agent.roles?.worker).map((agent) => agent.id);
 	const workerRequiresProfile =
 		supportedAgents.find((agent) => agent.id === form.workerAgent)?.requiresProfile === true;
 
@@ -236,6 +257,7 @@ function SettingsBody({
 							...sharedAgentConfig,
 							permissions: form.permissions || undefined,
 						}),
+						agentPreferences: preferencesPayload(form.agentPreferences),
 					}
 				: {
 						...config,
@@ -262,6 +284,7 @@ function SettingsBody({
 							...sharedAgentConfig,
 							permissions: form.permissions || undefined,
 						}),
+						agentPreferences: preferencesPayload(form.agentPreferences),
 						reviewers: form.reviewerHarness ? [{ harness: form.reviewerHarness }] : undefined,
 						trackerIntake: buildIntake(intakeForm),
 					};
@@ -540,6 +563,43 @@ function SettingsBody({
 							missingRequiredAgent ? t("settings.project.agentsRequired") : null
 						}
 					/>
+					<div className="mt-5 rounded-card border border-border bg-card p-4 hairline">
+						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+							{t("settings.project.missionRoles")}
+						</p>
+						<p className="mt-1 text-xs leading-body text-muted-foreground">
+							{t("settings.project.missionRolesHint")}
+						</p>
+						<div className="mt-3 grid gap-3 sm:grid-cols-2">
+							<MissionRolePreference
+								label={t("settings.project.missionRoleWorker")}
+								value={form.agentPreferences.defaultWorker}
+								options={workerSelectable}
+								onChange={(v) => patchPreference("defaultWorker", v)}
+							/>
+							<MissionRolePreference
+								label={t("settings.project.missionRoleAnalyzer")}
+								value={form.agentPreferences.analyzer}
+								options={[...coordinatorCapable]}
+								onChange={(v) => patchPreference("analyzer", v)}
+							/>
+							<MissionRolePreference
+								label={t("settings.project.missionRoleCoordinator")}
+								value={form.agentPreferences.coordinator}
+								options={[...coordinatorCapable]}
+								onChange={(v) => patchPreference("coordinator", v)}
+							/>
+							<MissionRolePreference
+								label={t("settings.project.missionRoleVerifier")}
+								value={form.agentPreferences.verifier}
+								options={[...coordinatorCapable]}
+								onChange={(v) => patchPreference("verifier", v)}
+							/>
+						</div>
+						{resolvedRolesQuery.data ? (
+							<ResolvedMissionRolesList roles={resolvedRolesQuery.data} />
+						) : null}
+					</div>
 				</>
 			)}
 
@@ -880,6 +940,91 @@ function scratchSupportedConfig(config: ProjectConfig): ProjectConfig {
 
 function blankToUndefined<T extends object>(obj: T): T | undefined {
 	return Object.values(obj).some((v) => v !== undefined) ? obj : undefined;
+}
+
+function preferencesPayload(prefs: {
+	defaultWorker: string;
+	analyzer: string;
+	coordinator: string;
+	verifier: string;
+}): components["schemas"]["ProjectAgentPreferences"] | undefined {
+	const next = {
+		defaultWorker: prefs.defaultWorker || undefined,
+		analyzer: prefs.analyzer || undefined,
+		coordinator: prefs.coordinator || undefined,
+		verifier: prefs.verifier || undefined,
+	};
+	return Object.values(next).some((v) => v !== undefined) ? next : undefined;
+}
+
+// MissionRolePreference edits one optional role preference. An empty value
+// means "no preference": the daemon resolves the capability-admitted default.
+function MissionRolePreference({
+	label,
+	value,
+	options,
+	onChange,
+}: {
+	label: string;
+	value: string;
+	options: string[];
+	onChange: (value: string) => void;
+}) {
+	const { t } = useTranslation();
+	const menuOptions = [
+		{ value: "__none__", label: t("settings.project.missionRoleNoPreference") },
+		...options.map((id) => ({ value: id, label: id })),
+	];
+	return (
+		<label className="flex flex-col gap-1 text-xs font-medium">
+			{label}
+			<SettingsOptionMenu
+				aria-label={label}
+				value={value || "__none__"}
+				options={menuOptions}
+				onChange={(v) => onChange(v === "__none__" ? "" : v)}
+			/>
+		</label>
+	);
+}
+
+// ResolvedMissionRolesList renders the daemon's advisory resolution for each
+// Mission role, including why a preference was not honored or why a harness is
+// not ready. It never re-derives admission client-side.
+function ResolvedMissionRolesList({ roles }: { roles: components["schemas"]["ResolvedMissionRoles"] }) {
+	const { t } = useTranslation();
+	const rows = [
+		{ label: t("settings.project.defaultWorker"), role: roles.worker },
+		{ label: t("settings.project.missionRoleAnalyzer"), role: roles.analyzer },
+		{ label: t("settings.project.missionRoleCoordinator"), role: roles.coordinator },
+		{ label: t("settings.project.missionRoleVerifier"), role: roles.verifier },
+	];
+	return (
+		<dl className="mt-4 grid gap-2 border-t border-border pt-3 text-xs leading-snug">
+			{rows.map(({ label, role }) => (
+				<div key={label} className="flex items-baseline justify-between gap-3">
+					<dt className="text-muted-foreground">{label}</dt>
+					<dd className="flex items-baseline gap-2 text-right">
+						<span>{role.harness}</span>
+						<span
+							className={
+								role.source === "preference"
+									? "rounded-xs bg-[--color-status-ready] px-1.5 py-0.5 text-2xs text-background"
+									: "rounded-xs bg-popover px-1.5 py-0.5 text-2xs text-muted-foreground"
+							}
+						>
+							{role.source === "preference"
+								? t("settings.project.missionRoleFromPreference")
+								: t("settings.project.missionRoleFromDefault")}
+						</span>
+						{!role.ready && role.reason ? (
+							<span className="text-2xs text-muted-foreground">{role.reason}</span>
+						) : null}
+					</dd>
+				</div>
+			))}
+		</dl>
+	);
 }
 
 function buildRoleAgentConfig(

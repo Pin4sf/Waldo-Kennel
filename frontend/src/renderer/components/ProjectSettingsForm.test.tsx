@@ -165,9 +165,39 @@ const agentCatalogResponse = {
 	error: undefined,
 };
 
+// Mirrors GET /projects/{id}/resolved-mission-roles: one honored preference,
+// daemon defaults, and a fail-closed not-ready row carrying its reason.
+const resolvedMissionRolesResponse = {
+	analyzer: {
+		harness: "codex",
+		source: "default",
+		eligible: true,
+		ready: true,
+		reason: "no preference recorded; using the capability-admitted default",
+	},
+	coordinator: {
+		harness: "codex",
+		source: "default",
+		eligible: true,
+		ready: true,
+		reason: "no preference recorded; using the capability-admitted default",
+	},
+	worker: {
+		harness: "deepseek-harness",
+		source: "preference",
+		eligible: true,
+		ready: false,
+		reason: "profile waldo-profile is not ready",
+	},
+	verifier: { harness: "codex", source: "default", eligible: true, ready: true, reason: "" },
+};
+
 function mockProject(project: Record<string, unknown>) {
 	getMock.mockImplementation(async (path: string) => {
 		if (path === "/api/v1/agents") return agentCatalogResponse;
+		if (path === "/api/v1/projects/{id}/resolved-mission-roles") {
+			return { data: { roles: resolvedMissionRolesResponse }, error: undefined };
+		}
 		if (path === "/api/v1/agents/{agent}/models") {
 			return {
 				data: {
@@ -1497,5 +1527,47 @@ describe("ProjectSettingsForm", () => {
 		expect(postMock).not.toHaveBeenCalled();
 		expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["project", "proj-1"] });
 		expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceQueryKey });
+	});
+
+	it("edits Mission role preferences and renders the daemon-resolved proposal", async () => {
+		mockProject({
+			id: "proj-1",
+			name: "Project One",
+			config: {
+				agentPreferences: { verifier: "codex" },
+			},
+		});
+		renderSettings("proj-1", undefined, "agents");
+
+		// The resolved proposal panel renders daemon truth, including the
+		// fail-closed not-ready reason for the honored worker preference.
+		expect(await screen.findByText("Mission roles")).toBeInTheDocument();
+		expect(await screen.findByText("profile waldo-profile is not ready")).toBeInTheDocument();
+		expect(screen.getByText("preference")).toBeInTheDocument();
+		expect(screen.getAllByText("default").length).toBeGreaterThanOrEqual(3);
+
+		// The stored verifier preference hydrates the form; choosing a worker
+		// preference and saving persists exactly the non-blank fields.
+		const workerPref = screen.getByRole("button", { name: "Preferred worker" });
+		await chooseOption(workerPref, "deepseek-harness");
+		submitSettings();
+
+		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
+		const body = putMock.mock.calls[0]?.[1]?.body;
+		expect(body.config.agentPreferences).toEqual({
+			defaultWorker: "deepseek-harness",
+			verifier: "codex",
+		});
+	});
+
+	it("keeps Mission role preferences empty when nothing was recorded", async () => {
+		mockProject({ id: "proj-1", name: "Project One" });
+		renderSettings("proj-1", undefined, "agents");
+		await screen.findByText("Mission roles");
+
+		submitSettings();
+		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
+		const body = putMock.mock.calls[0]?.[1]?.body;
+		expect(body.config.agentPreferences).toBeUndefined();
 	});
 });
