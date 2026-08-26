@@ -166,7 +166,7 @@
 	"createProject.selectWorker": "워커 에이전트 선택",
 	"createProject.defaultCodingAgent": "Default coding agent",
 	"createProject.advancedSettings": "Advanced settings",
-	"createProject.orchestratorAutoNotice": "Coordinator override — defaults to {{agent}} based on the daemon's admission inventory.",
+	"createProject.orchestratorAutoNotice": "Optional coordinator override \u2014 left empty, the daemon applies its canonical default.",
 	"createProject.settingUp": "설정 중...",
 	"createProject.workerAgent": "워커 에이전트",
 	"createProject.workspace": "워크스페이스",

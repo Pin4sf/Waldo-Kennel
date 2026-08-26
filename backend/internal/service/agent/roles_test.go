@@ -149,4 +149,51 @@ func TestServiceResolveMissionRolesProbesLiveInventory(t *testing.T) {
 	}
 }
 
+// TestResolveMissionRolesCoordinatorFallbackIgnoresCandidateOrder proves the
+// canonical coordinator default is deterministic: with several admitted,
+// authorized adapters in the inventory — probed in different orders — a
+// stored non-coordinator preference still falls back to the same canonical
+// default with identical proposals.
+func TestResolveMissionRolesCoordinatorFallbackIgnoresCandidateOrder(t *testing.T) {
+	prefs := domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}
+	build := func(order []domain.AgentHarness) *Service {
+		items := make([]agentregistry.HarnessAgent, 0, len(order))
+		for _, harness := range order {
+			items = append(items, agentregistry.HarnessAgent{
+				Harness:  harness,
+				Manifest: adapters.Manifest{ID: string(harness)},
+				Agent:    fakeAuthAgent{fakeAgent: fakeAgent{}, status: ports.AgentAuthStatusAuthorized},
+			})
+		}
+		// The real DeepSeek adapter carries its own profile gate; keep one in
+		// the inventory so the worker role exercises the profile path too.
+		return NewWithAgents(append(items, agentregistry.HarnessAgent{
+			Harness:  domain.HarnessDeepSeekHarness,
+			Manifest: adapters.Manifest{ID: "deepseek-harness"},
+			Agent:    &deepseekharness.Plugin{},
+		}))
+	}
+	orderings := [][]domain.AgentHarness{
+		{domain.HarnessCodex, domain.HarnessClaudeCode, domain.HarnessAider},
+		{domain.HarnessAider, domain.HarnessCodex, domain.HarnessClaudeCode},
+	}
+	var baseline domain.ResolvedMissionRoles
+	for i, order := range orderings {
+		got := build(order).ResolveMissionRoles(context.Background(), prefs)
+		if got.Coordinator.Harness != domain.HarnessCodex || got.Coordinator.Source != domain.RoleSourceDefault {
+			t.Fatalf("ordering %d coordinator = %+v, want canonical codex/default", i, got.Coordinator)
+		}
+		if got.Worker.Harness != domain.HarnessDeepSeekHarness || got.Worker.Source != domain.RoleSourcePreference {
+			t.Fatalf("ordering %d worker = %+v, want honored deepseek-harness preference", i, got.Worker)
+		}
+		if i == 0 {
+			baseline = got
+			continue
+		}
+		if got != baseline {
+			t.Fatalf("reordered candidates changed the proposal:\nfirst=%+v\nsecond=%+v", baseline, got)
+		}
+	}
+}
+
 func boolPtr(b bool) *bool { return &b }

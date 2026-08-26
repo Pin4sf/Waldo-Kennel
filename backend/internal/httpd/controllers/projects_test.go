@@ -885,3 +885,47 @@ func TestProjectsAPI_ResolvedMissionRolesUnavailableDefaultAgent(t *testing.T) {
 			status, errBody.Code, errBody.RequestID, body)
 	}
 }
+
+// TestProjectsAPI_ResolvedMissionRolesStoredNonCoordinatorPreference proves
+// the daemon owns coordinator fallback policy: a stored worker preference for
+// a harness that cannot coordinate still yields the canonical coordinator
+// default on the wire, identically across repeated reads regardless of any
+// candidate ordering inside the inventory.
+func TestProjectsAPI_ResolvedMissionRolesStoredNonCoordinatorPreference(t *testing.T) {
+	srv := newTestServer(t)
+	repo := gitRepo(t, "mission-roles-noncoord")
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/projects", `{"path":`+quote(repo)+`,"projectId":"noncoord"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("seed create = %d, want 201; body=%s", status, body)
+	}
+
+	// deepseek-harness is admitted for worker roles but not as a coordinator;
+	// SetConfig accepts the preference and resolution must fall back.
+	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/noncoord/config", `{"config":{"agentPreferences":{"defaultWorker":"deepseek-harness"}}}`)
+	if status != http.StatusOK {
+		t.Fatalf("PUT agentPreferences = %d, want 200; body=%s", status, body)
+	}
+
+	var first string
+	for attempt := 0; attempt < 2; attempt++ {
+		body, status, _ = doRequest(t, srv, "GET", "/api/v1/projects/noncoord/resolved-mission-roles", "")
+		if status != http.StatusOK {
+			t.Fatalf("GET roles (attempt %d) = %d, want 200; body=%s", attempt, status, body)
+		}
+		var got resolvedRolesBody
+		mustJSON(t, body, &got)
+		if got.Roles.Worker.Harness != "deepseek-harness" || got.Roles.Worker.Source != "preference" {
+			t.Fatalf("worker preference = %#v, want deepseek-harness/preference", got.Roles.Worker)
+		}
+		if got.Roles.Coordinator.Harness != "codex" || got.Roles.Coordinator.Source != "default" || !got.Roles.Coordinator.Ready {
+			t.Fatalf("coordinator fallback = %#v, want canonical codex/default ready", got.Roles.Coordinator)
+		}
+		if attempt == 0 {
+			first = string(body)
+			continue
+		}
+		if string(body) != first {
+			t.Fatalf("repeated reads diverged:\nfirst=%s\nsecond=%s", first, body)
+		}
+	}
+}

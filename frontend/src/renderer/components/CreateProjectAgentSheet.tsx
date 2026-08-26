@@ -33,7 +33,9 @@ type AgentInfo = components["schemas"]["AgentInfo"];
 
 export type CreateProjectAgentSelection = {
 	workerAgent: string;
-	orchestratorAgent: string;
+	// Optional: omitted unless the owner explicitly chose a coordinator
+	// override under Advanced Settings.
+	orchestratorAgent?: string;
 	trackerIntake?: TrackerIntakeConfig;
 };
 
@@ -141,21 +143,15 @@ export function CreateProjectAgentSheet({
 	const coordinatorCapable = new Set(
 		supportedAgents.filter((agent) => agent.roles?.coordinator).map((agent) => agent.id),
 	);
-	// Safe default derivation: the coordinator override follows the chosen
-	// default coding agent when the daemon's inventory admits it, otherwise it
-	// falls back to the first admitted coordinator. Admission policy stays in
-	// daemon data (roles flags); React only reads it.
-	const deriveOrchestrator = (workerId: string) =>
-		coordinatorCapable.has(workerId) ? workerId : ([...coordinatorCapable][0] ?? workerId);
-	const effectiveOrchestratorAgent = orchestratorAgentTouched
-		? orchestratorAgent
-		: deriveOrchestrator(workerAgent);
+	// The coordinator override stays EMPTY until the owner explicitly chooses
+	// one under Advanced Settings. An omitted override lets the daemon apply
+	// its canonical default at creation; display and submission therefore
+	// always read the same raw value.
 	const isBusy = isCreating || isInitializing;
 	const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
 	const intakeIncomplete = intakeNeedsRule(intake);
 	const canSubmit =
 		workerAgent !== "" &&
-		effectiveOrchestratorAgent !== "" &&
 		!intakeIncomplete &&
 		!isBusy &&
 		!isLoadingAgents;
@@ -165,8 +161,7 @@ export function CreateProjectAgentSheet({
 		if (!open) return;
 		const defaultAgent = preferredDefaultAgent(agentOptions, preferredAgentId);
 		if (!workerAgentTouched) setWorkerAgent(defaultAgent);
-		if (!orchestratorAgentTouched) setOrchestratorAgent(defaultAgent);
-	}, [agentOptions, open, orchestratorAgentTouched, preferredAgentId, workerAgentTouched]);
+	}, [agentOptions, open, preferredAgentId, workerAgentTouched]);
 
 	useEffect(() => {
 		if (!open) {
@@ -226,16 +221,14 @@ export function CreateProjectAgentSheet({
 										</AccordionTrigger>
 										<AccordionContent className="flex flex-col gap-3 px-3 pb-3">
 											<p className="text-xs leading-snug text-muted-foreground">
-												{t("createProject.orchestratorAutoNotice", {
-													agent: effectiveOrchestratorAgent,
-												})}
+												{t("createProject.orchestratorAutoNotice")}
 											</p>
 											<RequiredAgentField
 												id="newProjectOrchestratorAgent"
 												selectableIds={coordinatorCapable.size > 0 ? coordinatorCapable : undefined}
 												label={t("createProject.orchestratorAgent")}
 												placeholder={t("createProject.selectOrchestrator")}
-												value={orchestratorAgent || effectiveOrchestratorAgent}
+												value={orchestratorAgent}
 												authorized={agentOptions}
 												installed={installedAgents}
 												supported={supportedAgents}
@@ -296,7 +289,11 @@ export function CreateProjectAgentSheet({
 						isBusy={isBusy}
 						onCancel={() => onOpenChange(false)}
 						onSubmit={() =>
-							void onSubmit({ workerAgent, orchestratorAgent: effectiveOrchestratorAgent, trackerIntake: buildIntake(intake) })
+							void onSubmit({
+									workerAgent,
+									...(orchestratorAgent ? { orchestratorAgent } : {}),
+									trackerIntake: buildIntake(intake),
+								})
 						}
 						setupNotice={
 							repositorySetupNeeded

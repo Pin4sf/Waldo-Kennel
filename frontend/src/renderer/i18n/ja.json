@@ -166,7 +166,7 @@
 	"createProject.selectWorker": "ワーカーエージェントを選択",
 	"createProject.defaultCodingAgent": "Default coding agent",
 	"createProject.advancedSettings": "Advanced settings",
-	"createProject.orchestratorAutoNotice": "Coordinator override — defaults to {{agent}} based on the daemon's admission inventory.",
+	"createProject.orchestratorAutoNotice": "Optional coordinator override \u2014 left empty, the daemon applies its canonical default.",
 	"createProject.settingUp": "セットアップ中...",
 	"createProject.workerAgent": "ワーカーエージェント",
 	"createProject.workspace": "ワークスペース",

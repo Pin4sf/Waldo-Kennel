@@ -166,7 +166,7 @@
 	"createProject.selectWorker": "选择 worker 代理",
 	"createProject.defaultCodingAgent": "Default coding agent",
 	"createProject.advancedSettings": "Advanced settings",
-	"createProject.orchestratorAutoNotice": "Coordinator override — defaults to {{agent}} based on the daemon's admission inventory.",
+	"createProject.orchestratorAutoNotice": "Optional coordinator override \u2014 left empty, the daemon applies its canonical default.",
 	"createProject.settingUp": "正在设置...",
 	"createProject.workerAgent": "Worker 代理",
 	"createProject.workspace": "工作区",

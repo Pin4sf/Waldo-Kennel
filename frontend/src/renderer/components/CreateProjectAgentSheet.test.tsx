@@ -115,9 +115,10 @@ describe("CreateProjectAgentSheet", () => {
 		await userEvent.click(screen.getByRole("button", { name: "Create and start" }));
 
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+		// No Advanced Settings choice: the coordinator override is omitted and
+		// the daemon applies its canonical default at creation.
 		expect(onSubmit).toHaveBeenCalledWith({
 			workerAgent: "codex",
-			orchestratorAgent: "codex",
 			trackerIntake: undefined,
 		});
 	});
@@ -144,17 +145,17 @@ describe("CreateProjectAgentSheet", () => {
 		});
 	});
 
-	it("derives the coordinator override without a second normal-path choice", async () => {
+	it("omits the coordinator override even for a non-coordinator default coding agent", async () => {
 		const onSubmit = renderSheet();
-		// claude-code is not admitted as a coordinator by the daemon inventory,
-		// so the safe derived default is the first admitted coordinator.
+		// claude-code is not admitted as a coordinator by the daemon inventory;
+		// the sheet still requires no second choice and sends no override —
+		// the daemon applies its canonical coordinator default.
 		await chooseOption(screen.getByLabelText("Default coding agent"), "claude-code");
 		await userEvent.click(screen.getByRole("button", { name: "Create and start" }));
 
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
 		expect(onSubmit).toHaveBeenCalledWith({
 			workerAgent: "claude-code",
-			orchestratorAgent: "codex",
 			trackerIntake: undefined,
 		});
 	});

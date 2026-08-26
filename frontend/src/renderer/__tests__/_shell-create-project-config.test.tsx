@@ -2,30 +2,28 @@ import { describe, expect, it } from "vitest";
 import { createProjectConfig } from "../routes/_shell";
 
 describe("createProjectConfig", () => {
-	it("persists the selected default coding agent as the Mission-role worker preference", () => {
+	it("omits the coordinator override on the default path so the daemon applies its canonical default", () => {
+		expect(
+			createProjectConfig({
+				workerAgent: "codex",
+			}),
+		).toEqual({
+			worker: { agent: "codex" },
+			agentPreferences: { defaultWorker: "codex" },
+		});
+	});
+
+	it("persists the worker preference and an explicit Advanced Settings coordinator override together", () => {
 		expect(
 			createProjectConfig({
 				workerAgent: "codex",
 				orchestratorAgent: "claude-code",
+				trackerIntake: { enabled: true, provider: "github", assignee: "octocat" },
 			}),
 		).toEqual({
 			worker: { agent: "codex" },
 			orchestrator: { agent: "claude-code" },
 			agentPreferences: { defaultWorker: "codex" },
-		});
-	});
-
-	it("preserves tracker intake and the worker preference alongside selected agent defaults", () => {
-		expect(
-			createProjectConfig({
-				workerAgent: "cursor",
-				orchestratorAgent: "opencode",
-				trackerIntake: { enabled: true, provider: "github", assignee: "octocat" },
-			}),
-		).toEqual({
-			worker: { agent: "cursor" },
-			orchestrator: { agent: "opencode" },
-			agentPreferences: { defaultWorker: "cursor" },
 			trackerIntake: { enabled: true, provider: "github", assignee: "octocat" },
 		});
 	});
