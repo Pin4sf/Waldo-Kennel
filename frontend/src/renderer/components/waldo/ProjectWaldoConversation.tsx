@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Link2, Link2Off, Send } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Link2, Link2Off, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { components } from "../../../api/schema";
@@ -52,6 +52,16 @@ function writeSnapshot(projectId: string, snapshot: Snapshot) {
   }
 }
 
+type ContinuationBindingStatus = "unchanged" | "changed" | "unavailable";
+
+function continuationBindingStatus(previous: unknown, replacement: unknown, fields: string[]): ContinuationBindingStatus {
+  if (!previous || typeof previous !== "object" || !replacement || typeof replacement !== "object") return "unavailable";
+  const before = previous as Record<string, unknown>;
+  const after = replacement as Record<string, unknown>;
+  if (fields.some((field) => before[field] === undefined || before[field] === null || before[field] === "" || after[field] === undefined || after[field] === null || after[field] === "")) return "unavailable";
+  return fields.every((field) => before[field] === after[field]) ? "unchanged" : "changed";
+}
+
 export function ProjectWaldoConversation({ daemonReady, onOpenHome, outcomeId, outcomeTitle, projectId, projectName }: ProjectWaldoConversationProps) {
   const { t } = useTranslation();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(() => readSnapshot(projectId));
@@ -61,6 +71,7 @@ export function ProjectWaldoConversation({ daemonReady, onOpenHome, outcomeId, o
   const [error, setError] = useState("");
   const [requestId, setRequestId] = useState("");
   const [notice, setNotice] = useState("");
+  const [expandedReceiptIds, setExpandedReceiptIds] = useState<Set<string>>(() => new Set());
 
   const acceptSnapshot = useCallback((next: Snapshot) => {
     setSnapshot(next);
@@ -219,6 +230,15 @@ export function ProjectWaldoConversation({ daemonReady, onOpenHome, outcomeId, o
     setBusy(false);
   }
 
+  function toggleReceiptDetails(receiptId: string) {
+    setExpandedReceiptIds((current) => {
+      const next = new Set(current);
+      if (next.has(receiptId)) next.delete(receiptId);
+      else next.add(receiptId);
+      return next;
+    });
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b border-border px-4 py-3">
@@ -265,16 +285,93 @@ export function ProjectWaldoConversation({ daemonReady, onOpenHome, outcomeId, o
 
         {(snapshot?.continuationReceipts.length ?? 0) > 0 ? (
           <section aria-label={t("waldo.project.receiptsAria")} className="mt-5 space-y-2 border-t border-border pt-4">
-            {snapshot?.continuationReceipts.map((receipt) => (
-              <article className="rounded-xl border border-border bg-card p-3" key={receipt.id}>
-                <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                  {receipt.action === "automatic" ? <CheckCircle2 aria-hidden="true" className="size-3.5 text-success-foreground" /> : <AlertTriangle aria-hidden="true" className="size-3.5 text-warning-foreground" />}
-                  {receipt.action === "automatic" ? t("waldo.project.continuedSafely") : t("waldo.project.needsYou")}
-                </div>
-                <p className="mt-1 text-xs leading-5 text-muted-foreground">{receipt.action === "automatic" ? receipt.reasonDetail : receipt.needsUserReason || receipt.reasonDetail}</p>
-                <p className="mt-1 text-micro text-muted-foreground">{receipt.oldSessionFenced ? t("waldo.project.predecessorFenced") : t("waldo.project.fencingUnconfirmed")} · {receipt.replacementIdentityConfirmed ? t("waldo.project.replacementConfirmed") : t("waldo.project.noReplacement")}</p>
-              </article>
-            ))}
+            {snapshot?.continuationReceipts.map((receipt) => {
+              const expanded = expandedReceiptIds.has(receipt.id);
+              const detailsId = `waldo-continuation-details-${receipt.id}`;
+              const bindingStatus = {
+                scope: continuationBindingStatus(receipt.previousBindings, receipt.replacementBindings, ["projectId", "outcomeId", "contractRevisionId", "planRevisionId", "workUnitId", "attemptId", "role"]),
+                provider: continuationBindingStatus(receipt.previousBindings, receipt.replacementBindings, ["provider", "model", "profile"]),
+                workspace: continuationBindingStatus(receipt.previousBindings, receipt.replacementBindings, ["workspaceOwner"]),
+                authority: continuationBindingStatus(receipt.previousBindings, receipt.replacementBindings, ["authorityDigest", "effectPolicyDigest"]),
+                budget: continuationBindingStatus(receipt.previousBindings, receipt.replacementBindings, ["budgetDigest"]),
+              };
+              const statusLabel = (status: ContinuationBindingStatus) => {
+                if (status === "unchanged") return t("waldo.project.continuationUnchanged");
+                if (status === "changed") return t("waldo.project.continuationChanged");
+                return t("waldo.project.continuationUnavailable");
+              };
+              return (
+                <article className="rounded-xl border border-border bg-card p-3" key={receipt.id}>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    {receipt.action === "automatic" ? <CheckCircle2 aria-hidden="true" className="size-3.5 text-success-foreground" /> : <AlertTriangle aria-hidden="true" className="size-3.5 text-warning-foreground" />}
+                    {receipt.action === "automatic" ? t("waldo.project.continuedSafely") : t("waldo.project.needsYou")}
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{receipt.action === "automatic" ? receipt.reasonDetail : receipt.needsUserReason || receipt.reasonDetail}</p>
+                  {receipt.action === "automatic" ? <p className="mt-1 text-micro text-muted-foreground">{t("waldo.project.continuationSummary", { scope: statusLabel(bindingStatus.scope), provider: statusLabel(bindingStatus.provider), workspace: statusLabel(bindingStatus.workspace), authority: statusLabel(bindingStatus.authority), budget: statusLabel(bindingStatus.budget) })}</p> : null}
+                  <p className="mt-1 text-micro text-muted-foreground">{receipt.oldSessionFenced ? t("waldo.project.predecessorFenced") : t("waldo.project.fencingUnconfirmed")} · {receipt.replacementIdentityConfirmed ? t("waldo.project.replacementConfirmed") : t("waldo.project.noReplacement")}</p>
+                  <button
+                    aria-controls={detailsId}
+                    aria-expanded={expanded}
+                    aria-label={expanded ? t("waldo.project.hideReceiptDetails") : t("waldo.project.showReceiptDetails")}
+                    className="mt-2 inline-flex items-center gap-1 text-micro font-medium text-muted-foreground hover:text-foreground"
+                    onClick={() => toggleReceiptDetails(receipt.id)}
+                    type="button"
+                  >
+                    <ChevronDown aria-hidden="true" className={cn("size-3 transition-transform", expanded && "rotate-180")} />
+                    {expanded ? t("waldo.project.hideReceiptDetails") : t("waldo.project.showReceiptDetails")}
+                  </button>
+                  {expanded ? (
+                    <div aria-label={t("waldo.project.receiptDetailsAria")} className="mt-3 border-t border-border pt-3" id={detailsId} role="region">
+                      <dl className="space-y-2 text-micro">
+                        <div>
+                          <dt className="font-medium text-foreground">{t("waldo.project.oldSession")}</dt>
+                          <dd className="break-all text-muted-foreground">{receipt.fromAgentSessionRef}</dd>
+                        </div>
+                        {receipt.toAgentSessionRef ? (
+                          <div>
+                            <dt className="font-medium text-foreground">{t("waldo.project.newSession")}</dt>
+                            <dd className="break-all text-muted-foreground">{receipt.toAgentSessionRef}</dd>
+                          </div>
+                        ) : null}
+                        <div>
+                          <dt className="font-medium text-foreground">{t("waldo.project.triggerEvidence")}</dt>
+                          <dd className="break-all text-muted-foreground">{receipt.triggerEvidence.kind} · {receipt.triggerEvidence.reference}</dd>
+                        </div>
+                        <div>
+                          <dt className="font-medium text-foreground">{t("waldo.project.contextCheckpoint")}</dt>
+                          <dd className="break-all text-muted-foreground">{receipt.contextDigest || t("waldo.project.continuationUnavailable")}</dd>
+                        </div>
+                        {(receipt.contextRefs?.length ?? 0) > 0 ? (
+                          <div>
+                            <dt className="font-medium text-foreground">{t("waldo.project.contextReferences")}</dt>
+                            <dd className="space-y-1 text-muted-foreground">
+                              {receipt.contextRefs.map((ref, index) => (
+                                <div className="break-all" key={`${ref.kind}-${ref.objectId}-${ref.revision ?? index}`}>
+                                  <div>{ref.kind} · {ref.objectId}{ref.revision ? ` · ${t("waldo.project.revision", { revision: ref.revision })}` : ""}</div>
+                                  <div>{ref.provenance.kind} · {ref.provenance.sourceId}</div>
+                                </div>
+                              ))}
+                            </dd>
+                          </div>
+                        ) : null}
+                        {receipt.fenceReceiptRef ? (
+                          <div>
+                            <dt className="font-medium text-foreground">{t("waldo.project.fenceReceipt")}</dt>
+                            <dd className="break-all text-muted-foreground">{receipt.fenceReceiptRef}</dd>
+                          </div>
+                        ) : null}
+                        {receipt.reconciliationRef ? (
+                          <div>
+                            <dt className="font-medium text-foreground">{t("waldo.project.reconciliation")}</dt>
+                            <dd className="break-all text-muted-foreground">{receipt.reconciliationRef}</dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
           </section>
         ) : null}
 

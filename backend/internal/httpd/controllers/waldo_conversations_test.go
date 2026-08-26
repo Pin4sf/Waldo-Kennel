@@ -145,6 +145,66 @@ func TestProjectWaldoConversationRoutesPreserveTypedErrorsAndRequestIDs(t *testi
 	}
 }
 
+func TestProjectWaldoContinuationRoutePreservesUnwiredFactsErrorAndRequestID(t *testing.T) {
+	store := sqlitetest.MustOpen(t)
+	if err := store.UpsertProject(t.Context(), domain.ProjectRecord{
+		ID: "waldo-continuation", DisplayName: "Waldo Continuation", Path: "/tmp/waldo-continuation", RegisteredAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+	service := waldovc.New(store, nil, nil)
+	server := newProjectWaldoServer(t, service)
+	if _, status, _ := doRequest(t, server, http.MethodPost, "/api/v1/projects/waldo-continuation/waldo-conversation", `{}`); status != http.StatusCreated {
+		t.Fatalf("open conversation = %d, want 201", status)
+	}
+
+	bindings := `{
+		"projectId":"waldo-continuation",
+		"outcomeId":"outcome-1",
+		"contractRevisionId":"contract-1",
+		"planRevisionId":"plan-1",
+		"workUnitId":"work-unit-1",
+		"attemptId":"attempt-1",
+		"provider":"codex",
+		"model":"gpt-5.6",
+		"profile":"default",
+		"role":"implementer",
+		"authorityDigest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"budgetDigest":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"workspaceOwner":"worktree-1",
+		"effectPolicyDigest":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	}`
+	request := `{
+		"fromAgentSessionRef":"session-ref-1",
+		"reason":"context_reserve",
+		"reasonDetail":"Provider context reserve reached",
+		"triggerEvidence":{"kind":"provider_context_meter","reference":"meter-1"},
+		"contextDigest":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		"previousBindings":` + bindings + `,
+		"replacementBindings":` + bindings + `,
+		"effectsKnown":true,
+		"lostMaterialContext":false,
+		"sourceRevoked":false,
+		"freshVerifier":false,
+		"requestKey":"continuation-unwired-1"
+	}`
+	body, status, _ := doRequest(t, server, http.MethodPost,
+		"/api/v1/projects/waldo-continuation/waldo-conversation/continuations", request)
+	if status != http.StatusInternalServerError {
+		t.Fatalf("unwired continuation = %d, want 500: %s", status, body)
+	}
+	var errorEnvelope struct {
+		Code      string `json:"code"`
+		RequestID string `json:"requestId"`
+	}
+	if err := json.Unmarshal(body, &errorEnvelope); err != nil {
+		t.Fatalf("decode continuation error: %v: %s", err, body)
+	}
+	if errorEnvelope.Code != waldovc.CodeContinuationFactsUnwired || errorEnvelope.RequestID == "" {
+		t.Fatalf("continuation error = %+v, want %s with requestId", errorEnvelope, waldovc.CodeContinuationFactsUnwired)
+	}
+}
+
 type waldoConversationEnvelope struct {
 	Conversation struct {
 		ID        string `json:"id"`

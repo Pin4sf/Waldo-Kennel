@@ -12,6 +12,23 @@ vi.mock("../../lib/api-client", () => ({
   apiErrorRequestId: (error: { requestId?: string }) => error?.requestId,
 }));
 
+const canonicalBindings = {
+  projectId: "project-1",
+  outcomeId: "outcome-1",
+  contractRevisionId: "contract-1",
+  planRevisionId: "plan-1",
+  workUnitId: "work-unit-1",
+  attemptId: "attempt-1",
+  provider: "codex",
+  model: "gpt-5.6",
+  profile: "default",
+  role: "implementer",
+  authorityDigest: "authority-1",
+  budgetDigest: "budget-1",
+  workspaceOwner: "worktree-1",
+  effectPolicyDigest: "effects-1",
+};
+
 const snapshot = {
   conversation: {
     id: "conversation-1",
@@ -28,7 +45,7 @@ const snapshot = {
   ],
   contextAttachments: [{ id: "context-1", conversationId: "conversation-1", projectId: "project-1", ref: { kind: "project", objectId: "project-1", provenance: { kind: "user", sourceId: "waldo-rail" } }, attachedRevision: 3, active: true, createdAt: "2026-08-26T10:00:30Z" }],
   continuationReceipts: [
-    { id: "receipt-1", operationId: "operation-1", conversationId: "conversation-1", projectId: "project-1", fromEpisodeId: "episode-0", toEpisodeId: "episode-1", fromAgentSessionRef: "attempt-session-1", toAgentSessionRef: "attempt-session-2", action: "automatic", reason: "context_reserve", reasonDetail: "Provider context reserve reached", triggerEvidence: { kind: "provider_context_meter", reference: "meter-1" }, materialChange: false, changedFields: [], contextDigest: "a".repeat(64), contextRefs: [], previousBindings: {}, replacementBindings: {}, effectsKnown: true, oldSessionFenced: true, replacementIdentityConfirmed: true, fenceReceiptRef: "fence-1", reconciliationRef: "reconcile-1", createdAt: "2026-08-26T10:03:00Z" },
+    { id: "receipt-1", operationId: "operation-1", conversationId: "conversation-1", projectId: "project-1", fromEpisodeId: "episode-0", toEpisodeId: "episode-1", fromAgentSessionRef: "attempt-session-1", toAgentSessionRef: "attempt-session-2", action: "automatic", reason: "context_reserve", reasonDetail: "Provider context reserve reached", triggerEvidence: { kind: "provider_context_meter", reference: "meter-1" }, materialChange: false, changedFields: [], contextDigest: "a".repeat(64), contextRefs: [{ kind: "outcome", objectId: "outcome-1", revision: "4", provenance: { kind: "canonical", sourceId: "contract-4" } }], previousBindings: canonicalBindings, replacementBindings: canonicalBindings, effectsKnown: true, oldSessionFenced: true, replacementIdentityConfirmed: true, fenceReceiptRef: "fence-1", reconciliationRef: "reconcile-1", createdAt: "2026-08-26T10:03:00Z" },
     { id: "receipt-2", operationId: "operation-2", conversationId: "conversation-1", projectId: "project-1", fromEpisodeId: "episode-1", fromAgentSessionRef: "attempt-session-2", action: "needs_you", reason: "fresh_verifier", reasonDetail: "Verifier independence required", triggerEvidence: { kind: "verifier_boundary", reference: "verification-1" }, materialChange: false, changedFields: [], contextDigest: "b".repeat(64), contextRefs: [], previousBindings: {}, replacementBindings: {}, effectsKnown: true, oldSessionFenced: false, replacementIdentityConfirmed: false, needsUserReason: "Start a fresh verifier Attempt without inheriting implementer conclusions.", createdAt: "2026-08-26T10:04:00Z" },
   ],
 };
@@ -54,10 +71,45 @@ describe("ProjectWaldoConversation", () => {
     ]);
     expect(screen.getByText("Project context attached")).toBeInTheDocument();
     expect(screen.getByText("Continued safely")).toBeInTheDocument();
+    expect(screen.getByText("Scope unchanged · Provider unchanged · Workspace unchanged · Authority unchanged · Budget unchanged")).toBeInTheDocument();
     expect(screen.getByText("Needs You")).toBeInTheDocument();
     expect(screen.getByText(/fresh verifier Attempt/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open personal context in Home" }));
     expect(onOpenHome).toHaveBeenCalledTimes(1);
+  });
+
+  it("expands continuation lineage and provenance details accessibly", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWaldoConversation daemonReady projectId="project-1" projectName="Kennel" />);
+
+    await screen.findByText("Continued safely");
+    const expand = screen.getAllByRole("button", { name: "Show continuation details" })[0];
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("attempt-session-1")).not.toBeInTheDocument();
+
+    await user.click(expand);
+
+    expect(expand).toHaveAttribute("aria-expanded", "true");
+    const details = screen.getByRole("region", { name: "Continuation details" });
+    expect(within(details).getByText("attempt-session-1")).toBeInTheDocument();
+    expect(within(details).getByText("attempt-session-2")).toBeInTheDocument();
+    expect(within(details).getByText("provider_context_meter · meter-1")).toBeInTheDocument();
+    expect(within(details).getByText("Context checkpoint")).toBeInTheDocument();
+    expect(within(details).getByText("a".repeat(64))).toBeInTheDocument();
+    expect(within(details).getByText("outcome · outcome-1 · revision 4")).toBeInTheDocument();
+    expect(within(details).getByText("canonical · contract-4")).toBeInTheDocument();
+    expect(within(details).getByText("fence-1")).toBeInTheDocument();
+    expect(within(details).getByText("reconcile-1")).toBeInTheDocument();
+  });
+
+  it("labels missing continuation bindings as unavailable", async () => {
+    getMock.mockResolvedValueOnce({ data: { waldoConversation: { ...snapshot, continuationReceipts: [{ ...snapshot.continuationReceipts[0], previousBindings: {}, replacementBindings: {} }] } } });
+    const user = userEvent.setup();
+    render(<ProjectWaldoConversation daemonReady projectId="project-1" projectName="Kennel" />);
+
+    await user.click((await screen.findAllByRole("button", { name: "Show continuation details" }))[0]);
+
+    expect(screen.getByText("Scope unavailable · Provider unavailable · Workspace unavailable · Authority unavailable · Budget unavailable")).toBeInTheDocument();
   });
 
   it("detaches context with the current revision and preserves the draft while offline", async () => {
