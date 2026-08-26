@@ -268,6 +268,44 @@ var changeLogWriters = []struct {
 		table: "responsibility_links",
 		sql:   "CREATE TRIGGER responsibility_links_cdc_update\nAFTER UPDATE ON responsibility_links\nWHEN OLD.ended_at IS NULL AND NEW.ended_at IS NOT NULL\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'responsibility_link_ended', json_object('linkId', NEW.id, 'sourceOpenLoopId', NEW.source_open_loop_id, 'destinationOutcomeId', NEW.destination_outcome_id, 'endedBy', NEW.ended_by), NEW.ended_at);\nEND;",
 	},
+	// Durable Project-Waldo conversation and bounded provider continuation (#77).
+	// Payloads deliberately contain identifiers and policy facts only; visible
+	// messages and provider transcript content never enter the CDC stream.
+	{
+		name:  "waldo_conversations_cdc_insert",
+		table: "waldo_conversations",
+		sql:   "CREATE TRIGGER waldo_conversations_cdc_insert\nAFTER INSERT ON waldo_conversations\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'waldo_conversation_created', json_object('conversationId', NEW.id), NEW.created_at);\nEND;",
+	},
+	{
+		name:  "waldo_conversation_episodes_cdc_insert",
+		table: "waldo_conversation_episodes",
+		sql:   "CREATE TRIGGER waldo_conversation_episodes_cdc_insert\nAFTER INSERT ON waldo_conversation_episodes\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'waldo_conversation_episode_opened', json_object('conversationId', NEW.conversation_id, 'episodeId', NEW.id, 'ordinal', NEW.ordinal), NEW.created_at);\nEND;",
+	},
+	{
+		name:  "waldo_conversation_episodes_cdc_update",
+		table: "waldo_conversation_episodes",
+		sql:   "CREATE TRIGGER waldo_conversation_episodes_cdc_update\nAFTER UPDATE ON waldo_conversation_episodes\nWHEN OLD.state = 'active' AND NEW.state = 'sealed'\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'waldo_conversation_episode_sealed', json_object('conversationId', NEW.conversation_id, 'episodeId', NEW.id, 'reason', NEW.seal_reason), NEW.sealed_at);\nEND;",
+	},
+	{
+		name:  "waldo_conversation_turns_cdc_insert",
+		table: "waldo_conversation_turns",
+		sql:   "CREATE TRIGGER waldo_conversation_turns_cdc_insert\nAFTER INSERT ON waldo_conversation_turns\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'waldo_conversation_turn_appended', json_object('conversationId', NEW.conversation_id, 'episodeId', NEW.episode_id, 'turnId', NEW.id, 'sequence', NEW.sequence, 'role', NEW.role), NEW.created_at);\nEND;",
+	},
+	{
+		name:  "waldo_context_attachments_cdc_insert",
+		table: "waldo_context_attachments",
+		sql:   "CREATE TRIGGER waldo_context_attachments_cdc_insert\nAFTER INSERT ON waldo_context_attachments\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'waldo_conversation_context_attached', json_object('conversationId', NEW.conversation_id, 'attachmentId', NEW.id, 'kind', NEW.kind, 'objectId', NEW.object_id, 'objectRevision', NEW.object_revision), NEW.created_at);\nEND;",
+	},
+	{
+		name:  "waldo_context_attachments_cdc_update",
+		table: "waldo_context_attachments",
+		sql:   "CREATE TRIGGER waldo_context_attachments_cdc_update\nAFTER UPDATE ON waldo_context_attachments\nWHEN OLD.detached_at IS NULL AND NEW.detached_at IS NOT NULL\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'waldo_conversation_context_detached', json_object('conversationId', NEW.conversation_id, 'attachmentId', NEW.id), NEW.detached_at);\nEND;",
+	},
+	{
+		name:  "waldo_continuation_receipts_cdc_insert",
+		table: "waldo_continuation_receipts",
+		sql:   "CREATE TRIGGER waldo_continuation_receipts_cdc_insert\nAFTER INSERT ON waldo_continuation_receipts\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'waldo_conversation_continuation_recorded', json_object('conversationId', NEW.conversation_id, 'receiptId', NEW.id, 'fromEpisodeId', NEW.from_episode_id, 'toEpisodeId', COALESCE(NEW.to_episode_id, ''), 'action', NEW.action, 'reason', NEW.reason, 'materialChange', json(CASE WHEN NEW.material_change THEN 'true' ELSE 'false' END)), NEW.created_at);\nEND;",
+	},
 }
 
 // restoreChangeLogWriters recreates any missing change_log-writing trigger

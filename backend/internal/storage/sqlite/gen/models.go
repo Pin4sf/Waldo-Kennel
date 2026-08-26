@@ -790,6 +790,102 @@ type VerificationRun struct {
 	CreatedAt          time.Time
 }
 
+type WaldoContextAttachment struct {
+	ID                       string
+	ConversationID           string
+	ProjectID                string
+	Kind                     string
+	ObjectID                 string
+	ObjectRevision           string
+	ProvenanceKind           string
+	ProvenanceRef            string
+	AttachedRevision         int64
+	AttachRequestKey         string
+	AttachRequestFingerprint string
+	CreatedAt                time.Time
+	DetachedRevision         sql.NullInt64
+	DetachedAt               sql.NullTime
+	DetachReason             string
+	DetachRequestKey         sql.NullString
+	DetachRequestFingerprint string
+}
+
+type WaldoContinuationReceipt struct {
+	ID                           string
+	ConversationID               string
+	ProjectID                    string
+	FromEpisodeID                string
+	ToEpisodeID                  sql.NullString
+	FromAgentSessionRefID        string
+	ToAgentSessionRefID          sql.NullString
+	Action                       string
+	Reason                       string
+	ReasonDetail                 string
+	MaterialChange               int64
+	ChangedFields                string
+	ContextDigest                string
+	ContextRefs                  string
+	PreviousBindings             string
+	ReplacementBindings          string
+	EffectsKnown                 int64
+	OldSessionFenced             int64
+	ReplacementIdentityConfirmed int64
+	FenceReceiptRef              string
+	ReconciliationRef            string
+	NeedsUserReason              string
+	RequestKey                   string
+	RequestFingerprint           string
+	CreatedAt                    time.Time
+}
+
+type WaldoConversation struct {
+	ID                 string
+	ProjectID          string
+	Revision           int64
+	LatestTurnSequence int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type WaldoConversationEpisode struct {
+	ID                     string
+	ConversationID         string
+	ProjectID              string
+	Ordinal                int64
+	State                  string
+	Provider               string
+	ProviderConversationID string
+	TranscriptRef          string
+	RequestKey             string
+	RequestFingerprint     string
+	CreatedAt              time.Time
+	SealedAt               sql.NullTime
+	SealReason             string
+}
+
+type WaldoConversationTurn struct {
+	ID                     string
+	ConversationID         string
+	EpisodeID              string
+	ProjectID              string
+	Sequence               int64
+	Role                   string
+	Message                string
+	Provider               string
+	ProviderConversationID string
+	ProviderTurnID         string
+	TranscriptRef          string
+	RequestKey             string
+	RequestFingerprint     string
+	CreatedAt              time.Time
+}
+
+type WaldoTurnContextRef struct {
+	TurnID       string
+	AttachmentID string
+	Position     int64
+}
+
 type WorkUnit struct {
 	ID                      domain.WorkUnitID
 	PlanRevisionID          domain.PlanRevisionID
