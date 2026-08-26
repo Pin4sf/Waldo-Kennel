@@ -7,11 +7,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/deepseekharness/dshtest"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
@@ -27,16 +27,13 @@ import (
 //     never claims a healthy run, which is exactly why Kennel owns run-state
 //     truth in the session manager rather than in resolution.
 
+// writeFakeDSH delegates script emission to the exported dshtest package so
+// the in-package scaffold and every cross-package consumer share one fixture
+// implementation (issue #60: importable failure-injection fixtures).
 func writeFakeDSH(t *testing.T, dir, name, body string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
-	script := "#!/bin/sh\n" + body + "\n"
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		t.Fatalf("write fake dsh: %v", err)
-	}
-	if runtime.GOOS == "windows" {
-		t.Skip("fake shell binaries are unix-only")
-	}
+	dshtest.WriteScriptAt(t, path, body)
 	return path
 }
 
