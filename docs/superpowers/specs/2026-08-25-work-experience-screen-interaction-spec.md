@@ -9,6 +9,8 @@
 - **Implementation status:** Design contract, not a shipped-feature claim. Current product code represents only parts of this experience.
 - **Authority:** This document fixes information architecture, responsibility boundaries, required states, and interaction behavior. It deliberately leaves final visual styling, exact dimensions, and illustration language to design exploration. It does not authorize release, deployment, ambient capture, provider access, or learning promotion.
 
+For a team-facing, interactive explanation of this specification, open the self-contained [Work Experience Visual Guide](../../product/kennel-work-experience-visual-guide.html). The visual guide teaches the approved model; this written specification remains canonical for exact behavior and failure boundaries.
+
 ## 1. The job this experience must do
 
 The user should be able to state a result, correct Waldo's understanding, approve a proposed way of achieving it, supervise several agents without becoming their dispatcher, and decide whether the result is actually complete.

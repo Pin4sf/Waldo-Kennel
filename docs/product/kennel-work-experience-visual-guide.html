@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Waldo Kennel Work — Product Experience Guide</title>
+  <style>
+    :root {
+      --ink: #121315;
+      --ink-2: #25272b;
+      --paper: #f4f1e8;
+      --paper-2: #ebe7dc;
+      --surface: #fffdf7;
+      --surface-2: #f8f5ec;
+      --line: #cbc5b7;
+      --line-dark: #474a4f;
+      --muted: #686860;
+      --orange: #f15d2a;
+      --orange-soft: #ffe5d8;
+      --blue: #315fc5;
+      --blue-soft: #dfe9ff;
+      --green: #147a54;
+      --green-soft: #dcefe5;
+      --amber: #9a6a00;
+      --amber-soft: #f8e9b7;
+      --purple: #6d49a8;
+      --purple-soft: #eadff6;
+      --red: #b2362f;
+      --red-soft: #f8deda;
+      --shadow: 0 18px 60px rgba(28, 26, 20, 0.12);
+      --radius-sm: 8px;
+      --radius: 15px;
+      --radius-lg: 24px;
+      --content: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 15px/1.55 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, textarea { font: inherit; }
+    button { color: inherit; }
+    a { color: inherit; text-underline-offset: 3px; }
+    h1, h2, h3, h4, p { margin-top: 0; }
+    h1, h2, h3 { letter-spacing: -0.035em; }
+    h1 { max-width: 920px; margin-bottom: 24px; font-size: clamp(46px, 7.2vw, 104px); line-height: .91; }
+    h2 { max-width: 850px; margin-bottom: 14px; font-size: clamp(31px, 4.2vw, 58px); line-height: 1; }
+    h3 { margin-bottom: 8px; font-size: 22px; line-height: 1.12; }
+    h4 { margin: 0 0 7px; font-size: 14px; letter-spacing: .01em; }
+    p { max-width: 760px; }
+    code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
+    :focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+    .skip-link { position: fixed; left: 16px; top: -60px; z-index: 100; padding: 10px 14px; background: var(--ink); color: white; }
+    .skip-link:focus { top: 16px; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      min-height: 58px;
+      padding: 10px 24px;
+      color: white;
+      background: var(--ink);
+      border-bottom: 1px solid #383a3f;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 760; letter-spacing: -.02em; }
+    .brand-mark { display: grid; grid-template-columns: repeat(3, 5px); gap: 2px; transform: rotate(45deg); }
+    .brand-mark i { width: 5px; height: 5px; background: var(--orange); border-radius: 1px; }
+    .topbar .status { margin-left: auto; color: #d4d4ce; font-size: 12px; }
+    .status-dot { display: inline-block; width: 7px; height: 7px; margin-right: 7px; background: #ffbe33; border-radius: 50%; }
+    .topbar a { color: #d4d4ce; font-size: 12px; text-decoration: none; }
+    .topbar a:hover { color: white; }
+
+    .shell { display: grid; grid-template-columns: 226px minmax(0, 1fr); }
+    .rail {
+      position: sticky;
+      top: 58px;
+      align-self: start;
+      height: calc(100vh - 58px);
+      padding: 28px 18px;
+      overflow: auto;
+      background: var(--paper-2);
+      border-right: 1px solid var(--line);
+    }
+    .rail-label { margin: 0 8px 12px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+    .rail a {
+      display: flex;
+      gap: 9px;
+      align-items: center;
+      min-height: 38px;
+      padding: 7px 9px;
+      color: var(--muted);
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+    }
+    .rail a::before { content: ""; width: 6px; height: 6px; background: var(--line); border-radius: 50%; }
+    .rail a:hover, .rail a.active { color: var(--ink); background: rgba(255, 253, 247, .78); }
+    .rail a.active::before { background: var(--orange); }
+    .rail-note { margin: 30px 8px 0; padding-top: 18px; color: var(--muted); border-top: 1px solid var(--line); font-size: 11px; }
+
+    main { min-width: 0; }
+    section { position: relative; padding: 108px clamp(24px, 5vw, 76px); border-bottom: 1px solid var(--line); scroll-margin-top: 56px; }
+    section > .inner { max-width: var(--content); margin: 0 auto; }
+    .kicker { margin-bottom: 18px; color: var(--orange); font-size: 11px; font-weight: 800; letter-spacing: .17em; text-transform: uppercase; }
+    .lede { max-width: 820px; margin-bottom: 38px; color: var(--muted); font-size: clamp(17px, 2vw, 22px); line-height: 1.45; }
+    .eyebrow { color: var(--muted); font-size: 10px; font-weight: 760; letter-spacing: .14em; text-transform: uppercase; }
+    .quiet { color: var(--muted); }
+    .tiny { color: var(--muted); font-size: 11px; }
+    .tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid currentColor; border-radius: 999px; font-size: 11px; font-weight: 680; }
+    .tag.orange { color: #9b3b18; background: var(--orange-soft); }
+    .tag.blue { color: #24478e; background: var(--blue-soft); }
+    .tag.green { color: #105e41; background: var(--green-soft); }
+    .tag.amber { color: #795500; background: var(--amber-soft); }
+    .tag.purple { color: #563881; background: var(--purple-soft); }
+    .tag.neutral { color: #4f504d; background: var(--surface-2); }
+
+    .hero { min-height: calc(100vh - 58px); display: flex; align-items: center; color: white; background: var(--ink); }
+    .hero::after { content: ""; position: absolute; inset: 28px; pointer-events: none; border: 1px solid #34363a; border-radius: var(--radius-lg); }
+    .hero .inner { position: relative; z-index: 1; width: 100%; }
+    .hero h1 em { color: var(--orange); font-style: normal; }
+    .hero .lede { color: #c5c6c2; }
+    .hero-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 48px; align-items: end; }
+    .hero-thesis { max-width: 620px; padding: 22px 0 0; border-top: 1px solid #44464b; }
+    .hero-thesis strong { display: block; margin-bottom: 7px; font-size: 17px; }
+    .hero-thesis p { margin-bottom: 0; color: #aeb0ad; }
+    .hero-stack { display: grid; gap: 8px; }
+    .hero-stack div { display: flex; justify-content: space-between; gap: 18px; padding: 12px 14px; color: #d6d7d4; border: 1px solid #42444a; border-radius: 9px; }
+    .hero-stack span:first-child { color: #858985; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+
+    .manifesto { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 48px; }
+    .statement { padding: 25px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .statement.before { color: #706b62; background: transparent; border-style: dashed; }
+    .statement blockquote { margin: 20px 0 0; font-size: clamp(21px, 2.7vw, 34px); font-weight: 620; letter-spacing: -.035em; line-height: 1.14; }
+    .statement.after { border: 2px solid var(--ink); box-shadow: var(--shadow); }
+
+    .ontology-wrap { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 28px; align-items: start; }
+    .lineage { position: relative; display: grid; gap: 10px; }
+    .lineage::before { content: ""; position: absolute; left: 23px; top: 34px; bottom: 34px; width: 1px; background: var(--line); }
+    .lineage-row { position: relative; z-index: 1; display: grid; grid-template-columns: 46px minmax(160px, .55fr) 1fr; gap: 15px; align-items: center; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; }
+    .lineage-row .num { display: grid; place-items: center; width: 28px; height: 28px; margin-left: 3px; color: white; background: var(--ink); border-radius: 50%; font: 700 11px ui-monospace, monospace; }
+    .lineage-row strong { font-size: 15px; }
+    .lineage-row p { margin: 0; color: var(--muted); font-size: 12px; }
+    .lineage-row.session { border-color: #9fb3e6; background: #f5f8ff; }
+    .lineage-row.accept { border-color: #8ebfa8; background: #f2faf6; }
+    .definition-panel { position: sticky; top: 86px; padding: 24px; color: white; background: var(--ink-2); border-radius: var(--radius); }
+    .definition-panel h3 { color: white; }
+    .definition-panel p { color: #bfc1be; }
+    .definition-panel .rule { padding: 14px 0; border-top: 1px solid #45474c; }
+    .definition-panel .rule:first-of-type { margin-top: 18px; }
+    .definition-panel .rule strong { display: block; color: white; font-size: 13px; }
+    .definition-panel .rule span { color: #aeb0ad; font-size: 12px; }
+
+    .stepper { display: grid; grid-template-columns: repeat(7, minmax(116px, 1fr)); gap: 8px; margin: 34px 0 24px; overflow-x: auto; padding-bottom: 3px; }
+    .step-button { min-width: 116px; min-height: 86px; padding: 12px; text-align: left; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 11px; cursor: pointer; }
+    .step-button:hover { color: var(--ink); background: var(--surface-2); }
+    .step-button[aria-selected="true"] { color: white; background: var(--ink); border-color: var(--ink); }
+    .step-button .step-num { display: block; margin-bottom: 13px; font: 700 11px ui-monospace, monospace; }
+    .step-button .step-name { display: block; font-size: 12px; font-weight: 720; line-height: 1.2; }
+    .journey-stage { display: grid; grid-template-columns: minmax(0, .82fr) minmax(440px, 1.18fr); min-height: 570px; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow); }
+    .journey-copy { padding: clamp(25px, 4vw, 48px); border-right: 1px solid var(--line); }
+    .journey-copy h3 { margin: 13px 0 16px; font-size: clamp(29px, 4vw, 48px); }
+    .journey-copy .value { margin-top: 26px; padding-top: 18px; color: var(--green); border-top: 1px solid var(--line); }
+    .journey-copy ul { padding-left: 18px; color: var(--muted); }
+    .journey-copy li + li { margin-top: 7px; }
+    .journey-visual { position: relative; display: grid; place-items: center; min-width: 0; padding: 32px; background: #e9e5da; }
+
+    .app-window { width: min(100%, 710px); min-height: 430px; overflow: hidden; background: #151719; border: 1px solid #050607; border-radius: 17px; box-shadow: 0 24px 60px rgba(23, 22, 19, .22); }
+    .window-bar { display: flex; align-items: center; gap: 7px; height: 40px; padding: 0 14px; color: #c7c9c6; border-bottom: 1px solid #35373b; font-size: 11px; }
+    .traffic { width: 8px; height: 8px; border-radius: 50%; background: #ff655d; }
+    .traffic:nth-child(2) { background: #ffbd45; }
+    .traffic:nth-child(3) { background: #34c84a; }
+    .window-title { margin-left: 8px; }
+    .window-body { display: grid; grid-template-columns: 148px 1fr; min-height: 390px; color: #f0f0ed; }
+    .mini-sidebar { padding: 17px 12px; border-right: 1px solid #33353a; }
+    .mini-logo { margin-bottom: 25px; font-weight: 750; }
+    .mini-label { margin-bottom: 8px; color: #777b79; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
+    .project-row { display: flex; align-items: center; gap: 7px; min-height: 31px; padding: 7px; border-radius: 6px; font-size: 10px; }
+    .project-row.active { background: #2c2e30; }
+    .project-plus { margin-left: auto; color: #babdba; }
+    .mini-main { min-width: 0; padding: 18px; }
+    .mini-top { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+    .mini-top strong { font-size: 11px; }
+    .mini-top .spacer { flex: 1; }
+    .mini-btn { padding: 6px 9px; color: #161719; background: #f8f8f4; border: 0; border-radius: 6px; font-size: 9px; }
+    .mini-btn.dark { color: #f5f5f0; background: #282a2e; border: 1px solid #45484c; }
+    .mini-card { padding: 14px; background: #202225; border: 1px solid #3c3f43; border-radius: 10px; }
+    .mini-card + .mini-card { margin-top: 9px; }
+    .mini-card h4 { color: #fafaf5; font-size: 12px; }
+    .mini-card p { margin: 0; color: #979b97; font-size: 9px; }
+    .mini-input { width: 100%; min-height: 78px; margin: 13px 0; padding: 11px; color: #efefea; background: #191b1d; border: 1px solid #4b4e51; border-radius: 7px; font-size: 10px; resize: none; }
+    .mini-board { display: grid; grid-template-columns: repeat(3, minmax(116px, 1fr)); gap: 8px; overflow: hidden; }
+    .mini-col { min-height: 270px; padding: 9px; background: #1b1d1f; border: 1px solid #323438; border-radius: 7px; }
+    .mini-col > span { color: #919491; font-size: 8px; text-transform: uppercase; }
+    .mini-outcome { margin-top: 9px; padding: 10px; background: #27292c; border: 1px solid #414449; border-radius: 7px; }
+    .mini-outcome b { display: block; margin-bottom: 11px; font-size: 10px; }
+    .mini-outcome small { color: #a8aaa7; font-size: 8px; }
+    .mini-progress { height: 3px; margin-top: 10px; background: #414348; }
+    .mini-progress i { display: block; width: 62%; height: 100%; background: var(--orange); }
+
+    .contract-row { display: grid; grid-template-columns: 105px 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid #37393e; font-size: 9px; }
+    .contract-row:first-child { border-top: 0; }
+    .contract-row span { color: #888b89; }
+    .contract-row b { font-weight: 560; }
+    .choice { display: flex; gap: 7px; margin-top: 8px; padding: 8px; background: #292b2e; border: 1px solid #42454a; border-radius: 6px; font-size: 9px; }
+    .choice i { flex: 0 0 9px; height: 9px; margin-top: 2px; border: 1px solid #8d908e; border-radius: 50%; }
+    .choice.selected i { border: 3px solid #f2f2ed; }
+
+    .mission-mini { position: relative; min-height: 275px; margin: 6px 0 14px; background: #191b1d; border: 1px solid #34363a; border-radius: 9px; }
+    .mission-line { position: absolute; height: 1px; background: #5b5e62; transform-origin: left center; }
+    .mission-node { position: absolute; z-index: 2; width: 112px; padding: 9px; background: #282a2d; border: 1px solid #55585d; border-radius: 7px; font-size: 8px; }
+    .mission-node strong { display: block; margin-bottom: 3px; color: white; font-size: 9px; }
+    .mission-node small { color: #989b98; }
+    .mission-node.user { border-color: #d69d32; }
+    .mission-node.verify { border-color: #4e9d79; }
+    .mission-node.agent { border-color: #5279c8; }
+    .node-dot { display: inline-block; width: 5px; height: 5px; margin-right: 4px; background: #878a87; border-radius: 50%; }
+    .node-dot.active { background: #56c38c; }
+    .node-dot.needs { background: #f0b73d; }
+
+    .proof-list { display: grid; gap: 8px; }
+    .proof-row { display: grid; grid-template-columns: 18px 1fr auto; gap: 9px; align-items: start; padding: 10px; background: #242629; border: 1px solid #3d4044; border-radius: 7px; font-size: 9px; }
+    .proof-check { display: grid; place-items: center; width: 16px; height: 16px; color: #0e4d34; background: #79d4aa; border-radius: 50%; font-weight: 800; }
+    .proof-row small { color: #979b97; }
+
+    .levels { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 22px; }
+    .level-tabs { display: grid; gap: 8px; align-content: start; }
+    .level-tab { padding: 14px; text-align: left; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+    .level-tab[aria-selected="true"] { color: white; background: var(--ink); border-color: var(--ink); }
+    .level-tab strong { display: block; margin-bottom: 4px; color: inherit; }
+    .level-content { min-height: 375px; padding: clamp(24px, 4vw, 42px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+    .level-content h3 { font-size: 34px; }
+    .level-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 26px; }
+    .level-box { padding: 17px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
+    .level-box strong { display: block; margin-bottom: 5px; }
+    .level-box p { margin: 0; color: var(--muted); font-size: 12px; }
+    .not-rule { margin-top: 20px; padding: 12px 15px; color: var(--red); background: var(--red-soft); border-left: 4px solid var(--red); font-size: 12px; }
+
+    .context-demo { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; }
+    .context-map { min-height: 430px; padding: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+    .context-tabs { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 25px; }
+    .context-tab { padding: 8px 12px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+    .context-tab[aria-selected="true"] { color: white; background: var(--ink); border-color: var(--ink); }
+    .context-sources { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; margin-top: 22px; }
+    .source-item { padding: 13px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; }
+    .source-item strong { display: block; margin-bottom: 4px; font-size: 12px; }
+    .source-item span { color: var(--muted); font-size: 11px; }
+    .chat-panel { overflow: hidden; color: white; background: var(--ink-2); border-radius: var(--radius); }
+    .chat-head { padding: 15px; border-bottom: 1px solid #45474c; }
+    .chat-head strong { display: block; }
+    .context-chip { display: inline-block; margin-top: 7px; padding: 4px 7px; color: #d8d9d6; background: #34363a; border: 1px solid #51545a; border-radius: 999px; font-size: 9px; }
+    .chat-body { display: grid; gap: 12px; min-height: 285px; padding: 18px; align-content: end; }
+    .message { max-width: 88%; padding: 10px; border-radius: 9px; font-size: 11px; }
+    .message.waldo { color: #dedfdb; background: #33353a; }
+    .message.user { justify-self: end; color: #171819; background: #f0f0ea; }
+    .chat-input { margin: 0 13px 13px; padding: 11px; color: #c9cbc7; border: 1px solid #505258; border-radius: 9px; font-size: 10px; }
+
+    .topology-controls { display: flex; gap: 8px; margin: 30px 0 16px; }
+    .topology-button { padding: 9px 13px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+    .topology-button[aria-pressed="true"] { color: white; background: var(--ink); border-color: var(--ink); }
+    .topology { display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: 520px; overflow: hidden; background: #17191b; border-radius: var(--radius-lg); }
+    .topology-canvas { position: relative; min-height: 520px; overflow: hidden; }
+    .topology-canvas::before { content: ""; position: absolute; inset: 28px; border: 1px solid #303237; border-radius: 14px; }
+    .topo-node { position: absolute; z-index: 2; width: 150px; min-height: 68px; padding: 12px; color: #e8e9e6; background: #282a2e; border: 1px solid #4d5055; border-radius: 9px; }
+    .topo-node strong { display: block; font-size: 12px; }
+    .topo-node span { color: #969a96; font-size: 9px; }
+    .topo-node.worker { border-color: #567cd1; }
+    .topo-node.verify { border-color: #52a77e; }
+    .topo-node.user { border-color: #d09a31; }
+    .topo-edge { position: absolute; z-index: 1; height: 1px; background: #62656a; transform-origin: 0 0; }
+    .topology-aside { padding: 32px; color: white; background: #242629; border-left: 1px solid #3b3d42; }
+    .topology-aside h3 { color: white; font-size: 28px; }
+    .topology-aside p { color: #b4b6b3; }
+    .reason-list { padding: 0; list-style: none; }
+    .reason-list li { padding: 11px 0; color: #bfc1be; border-top: 1px solid #414349; font-size: 12px; }
+    .reason-list b { color: white; }
+
+    .ownership { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 34px; }
+    .owner-card { padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+    .owner-card .owner-icon { display: grid; place-items: center; width: 35px; height: 35px; margin-bottom: 22px; color: white; background: var(--ink); border-radius: 9px; font-weight: 800; }
+    .owner-card ul { padding-left: 17px; color: var(--muted); font-size: 12px; }
+    .owner-card li + li { margin-top: 6px; }
+    .owner-card.canonical { border-top: 4px solid var(--orange); }
+    .owner-card.user { border-top: 4px solid var(--green); }
+    .owner-card.providers { border-top: 4px solid var(--blue); }
+
+    .decision-flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 34px; }
+    .decision-node { position: relative; padding: 20px; background: var(--surface); border: 1px solid var(--line); }
+    .decision-node + .decision-node { border-left: 0; }
+    .decision-node strong { display: block; margin-bottom: 7px; }
+    .decision-node p { margin: 0; color: var(--muted); font-size: 11px; }
+    .decision-node::after { content: "→"; position: absolute; right: -12px; top: 50%; z-index: 2; display: grid; place-items: center; width: 23px; height: 23px; color: white; background: var(--ink); border-radius: 50%; transform: translateY(-50%); }
+    .decision-node:last-child::after { display: none; }
+
+    .learning-line { display: flex; gap: 8px; align-items: stretch; margin: 32px 0; overflow-x: auto; }
+    .learning-node { min-width: 160px; flex: 1; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; }
+    .learning-node strong { display: block; font-size: 12px; }
+    .learning-node span { color: var(--muted); font-size: 10px; }
+    .learning-arrow { display: grid; place-items: center; color: var(--muted); }
+    .memory-boundary { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .memory-box { padding: 21px; border: 1px solid var(--line); border-radius: var(--radius); }
+    .memory-box.allowed { background: var(--green-soft); border-color: #90baa6; }
+    .memory-box.blocked { background: var(--red-soft); border-color: #d7a19b; }
+    .memory-box ul { margin-bottom: 0; padding-left: 18px; font-size: 12px; }
+
+    .atlas-toolbar { display: flex; gap: 7px; margin: 28px 0 15px; overflow-x: auto; }
+    .atlas-filter { white-space: nowrap; padding: 8px 11px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+    .atlas-filter[aria-pressed="true"] { color: white; background: var(--ink); border-color: var(--ink); }
+    .screen-atlas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .screen-card { min-height: 190px; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+    .screen-card[hidden] { display: none; }
+    .screen-id { display: inline-block; margin-bottom: 24px; color: var(--orange); font: 700 10px ui-monospace, monospace; }
+    .screen-card h3 { font-size: 17px; }
+    .screen-card p { margin: 0; color: var(--muted); font-size: 11px; }
+    .screen-card .screen-type { display: block; margin-top: 16px; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .11em; }
+
+    details { background: var(--surface); border-top: 1px solid var(--line); }
+    details:last-child { border-bottom: 1px solid var(--line); }
+    summary { display: flex; align-items: center; gap: 15px; min-height: 74px; padding: 18px 5px; cursor: pointer; font-size: 17px; font-weight: 650; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    summary::before { content: "+"; display: grid; place-items: center; width: 25px; height: 25px; color: white; background: var(--ink); border-radius: 50%; font-weight: 400; }
+    details[open] summary::before { content: "–"; }
+    details > div { max-width: 830px; padding: 0 45px 24px; color: var(--muted); }
+
+    .principles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 35px; }
+    .principle { padding: 21px; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; }
+    .principle b { display: block; margin-bottom: 7px; }
+    .principle p { margin: 0; color: var(--muted); font-size: 12px; }
+    .final-callout { margin-top: 54px; padding: clamp(26px, 5vw, 58px); color: white; background: var(--ink); border-radius: var(--radius-lg); }
+    .final-callout h3 { max-width: 850px; font-size: clamp(30px, 4.5vw, 58px); }
+    .final-callout p { color: #b7b9b6; }
+    .artifact-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+    .artifact-links a { padding: 8px 11px; color: white; border: 1px solid #4a4c51; border-radius: 8px; font-size: 11px; text-decoration: none; }
+    .artifact-links a:hover { background: #2a2c30; }
+
+    footer { padding: 30px clamp(24px, 5vw, 76px); color: var(--muted); background: var(--paper-2); font-size: 11px; }
+    footer .inner { display: flex; justify-content: space-between; gap: 20px; max-width: var(--content); margin: 0 auto; }
+
+    @media (max-width: 1050px) {
+      .shell { grid-template-columns: 1fr; }
+      .rail { position: sticky; top: 58px; z-index: 40; display: flex; gap: 4px; height: auto; padding: 8px 14px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .rail-label, .rail-note { display: none; }
+      .rail a { flex: 0 0 auto; min-height: 32px; padding: 5px 9px; font-size: 11px; }
+      .ontology-wrap, .context-demo { grid-template-columns: 1fr; }
+      .definition-panel { position: static; }
+      .journey-stage { grid-template-columns: 1fr; }
+      .journey-copy { border-right: 0; border-bottom: 1px solid var(--line); }
+      .topology { grid-template-columns: 1fr; }
+      .topology-aside { border-top: 1px solid #3b3d42; border-left: 0; }
+      .screen-atlas { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 760px) {
+      .topbar { padding: 9px 14px; }
+      .topbar .status { display: none; }
+      section { padding: 76px 18px; }
+      .hero { min-height: auto; padding-top: 110px; padding-bottom: 90px; }
+      .hero::after { inset: 14px; }
+      .hero-grid, .manifesto, .levels, .ownership, .memory-boundary, .principles { grid-template-columns: 1fr; }
+      .hero-stack { margin-top: 20px; }
+      .lineage-row { grid-template-columns: 36px 1fr; }
+      .lineage-row p { grid-column: 2; }
+      .level-tabs { display: flex; overflow-x: auto; }
+      .level-tab { min-width: 180px; }
+      .level-grid { grid-template-columns: 1fr; }
+      .context-sources { grid-template-columns: 1fr; }
+      .decision-flow { grid-template-columns: 1fr; }
+      .decision-node + .decision-node { border-top: 0; border-left: 1px solid var(--line); }
+      .decision-node::after { right: 50%; top: auto; bottom: -12px; transform: translateX(50%) rotate(90deg); }
+      .screen-atlas { grid-template-columns: repeat(2, 1fr); }
+      .window-body { grid-template-columns: 105px 1fr; }
+      .mini-sidebar { padding: 12px 8px; }
+      .mini-main { padding: 11px; }
+      .journey-visual { padding: 18px 10px; }
+      .app-window { border-radius: 11px; }
+      .topo-node.right-edge { transform: translateX(-72%); }
+    }
+
+    @media (max-width: 500px) {
+      h1 { font-size: 45px; }
+      .screen-atlas { grid-template-columns: 1fr; }
+      .window-body { grid-template-columns: 1fr; }
+      .mini-sidebar { display: none; }
+      .mini-board { grid-template-columns: repeat(3, 130px); overflow-x: auto; }
+      .journey-stage { min-height: auto; }
+      .topology-canvas { min-height: 430px; transform-origin: top left; }
+      footer .inner { display: block; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to product guide</a>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Waldo Kennel · Work</div>
+    <span class="status"><i class="status-dot"></i>Canonical product intent · not a shipped-state claim</span>
+    <a href="../superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md">Source specification ↗</a>
+  </header>
+
+  <div class="shell">
+    <nav class="rail" aria-label="Guide chapters">
+      <p class="rail-label">Explain the product</p>
+      <a href="#promise">Promise</a>
+      <a href="#ontology">Ontology</a>
+      <a href="#journey">Journey</a>
+      <a href="#levels">Three levels</a>
+      <a href="#waldo">Project Waldo</a>
+      <a href="#mission">Adaptive Mission</a>
+      <a href="#authority">Authority &amp; proof</a>
+      <a href="#learning">Learning</a>
+      <a href="#screens">Screen atlas</a>
+      <a href="#questions">Clarifications</a>
+      <a href="#design">Design brief</a>
+      <p class="rail-note">Use this page to align product, design, and engineering. The linked written specifications remain canonical when implementation details are disputed.</p>
+    </nav>
+
+    <main id="main">
+      <section class="hero" id="promise">
+        <div class="inner">
+          <p class="kicker">The final Work experience</p>
+          <h1>One desired result.<br><em>Many capable agents.</em><br>One inspectable truth.</h1>
+          <p class="lede">Waldo Kennel turns a natural-language intention into a correctable Outcome contract, an authorized adaptive Mission, visible agent execution, and evidence-backed acceptance—without making the user coordinate provider sessions by hand.</p>
+          <div class="hero-grid">
+            <div class="hero-thesis">
+              <strong>The product is organized around what should become true.</strong>
+              <p>Codex, DeepSeek, Claude Code, and future harnesses are replaceable executors underneath the Outcome. Kennel keeps the result, authority, evidence, and lineage coherent.</p>
+            </div>
+            <div class="hero-stack" role="group" aria-label="Core distinctions">
+              <div><span>USER SEES</span><strong>Outcome progress</strong></div>
+              <div><span>KENNEL OWNS</span><strong>Mission truth</strong></div>
+              <div><span>PROVIDERS DO</span><strong>Bounded Attempts</strong></div>
+              <div><span>USER DECIDES</span><strong>Acceptance</strong></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="inner">
+          <p class="kicker">The product shift</p>
+          <h2>From transcript supervision to Outcome supervision.</h2>
+          <p class="lede">The user should not need to prompt-engineer, keep one coordinator context alive, or infer completion from terminals. Kennel carries the administrative and coordination burden while the user keeps authorship and authority.</p>
+          <div class="manifesto">
+            <article class="statement before">
+              <span class="eyebrow">Before</span>
+              <blockquote>“Start an agent, explain the task, watch the transcript, and decide whether it probably worked.”</blockquote>
+            </article>
+            <article class="statement after">
+              <span class="eyebrow">With Waldo Kennel</span>
+              <blockquote>“State what should become true, correct Waldo’s understanding, approve the Mission, and supervise evidence-backed progress.”</blockquote>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="ontology">
+        <div class="inner">
+          <p class="kicker">The shared ontology</p>
+          <h2>The durable result sits above every agent session.</h2>
+          <p class="lede">This lineage is the backbone of the Work product. Each layer answers a different question and remains recoverable when providers restart, fail, or are replaced.</p>
+          <div class="ontology-wrap">
+            <div class="lineage" role="group" aria-label="Canonical Work lineage">
+              <div class="lineage-row"><span class="num">01</span><strong>Project</strong><p>The repository or workspace, its policy, defaults, conversation, and shared context.</p></div>
+              <div class="lineage-row"><span class="num">02</span><strong>Outcome</strong><p>The durable result the user wants to make true. This is what Board/List displays.</p></div>
+              <div class="lineage-row"><span class="num">03</span><strong>Contract revision</strong><p>Desired state, criteria, evidence expectations, constraints, review, and authority ceiling.</p></div>
+              <div class="lineage-row"><span class="num">04</span><strong>Plan revision / Mission</strong><p>The reviewable topology: Work Units, dependencies, providers, permissions, cost, and recovery.</p></div>
+              <div class="lineage-row"><span class="num">05</span><strong>Work Unit</strong><p>One bounded responsibility with a clear objective and evidence obligation.</p></div>
+              <div class="lineage-row"><span class="num">06</span><strong>Attempt</strong><p>One execution try for that Work Unit, with a worktree and authority fence.</p></div>
+              <div class="lineage-row session"><span class="num">07</span><strong>AgentSessionRef</strong><p>The provider-native Codex, DeepSeek, Claude Code, or future session attached to the Attempt.</p></div>
+              <div class="lineage-row"><span class="num">08</span><strong>Evidence &amp; Verification</strong><p>Criterion-bound proof plus the declared independence of the check.</p></div>
+              <div class="lineage-row accept"><span class="num">09</span><strong>Acceptance or Reopen</strong><p>The user closes, requests rework, revises, reopens, or creates a successor Outcome.</p></div>
+            </div>
+            <aside class="definition-panel" aria-label="Outcome and session naming rule">
+              <span class="tag orange">Naming rule</span>
+              <h3>There is no “Outcome session.”</h3>
+              <p>An Outcome is responsibility truth. A session is temporary execution machinery underneath it.</p>
+              <div class="rule"><strong>One Outcome</strong><span>may have no session yet, one direct session, several concurrent sessions, or replacement sessions.</span></div>
+              <div class="rule"><strong>One provider session</strong><span>belongs to one Attempt and cannot accept the Outcome.</span></div>
+              <div class="rule"><strong>One Waldo identity</strong><span>persists across bounded provider turns without pretending one LLM context lives forever.</span></div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section id="journey">
+        <div class="inner">
+          <p class="kicker">The complete user journey</p>
+          <h2>Seven decisions, one re-enterable flow.</h2>
+          <p class="lede">Select each step. The interface changes emphasis as responsibility moves from intention to contract, Mission, execution, and proof. It is a lifecycle—not a rigid wizard.</p>
+          <div class="stepper" role="tablist" aria-label="Outcome journey">
+            <button type="button" class="step-button" role="tab" aria-selected="true" data-step="project"><span class="step-num">01</span><span class="step-name">Add Project</span></button>
+            <button type="button" class="step-button" role="tab" aria-selected="false" data-step="intent"><span class="step-num">02</span><span class="step-name">State Outcome</span></button>
+            <button type="button" class="step-button" role="tab" aria-selected="false" data-step="understand"><span class="step-num">03</span><span class="step-name">Correct Contract</span></button>
+            <button type="button" class="step-button" role="tab" aria-selected="false" data-step="mission"><span class="step-num">04</span><span class="step-name">Review Mission</span></button>
+            <button type="button" class="step-button" role="tab" aria-selected="false" data-step="authorize"><span class="step-num">05</span><span class="step-name">Authorize</span></button>
+            <button type="button" class="step-button" role="tab" aria-selected="false" data-step="observe"><span class="step-num">06</span><span class="step-name">Act &amp; Observe</span></button>
+            <button type="button" class="step-button" role="tab" aria-selected="false" data-step="prove"><span class="step-num">07</span><span class="step-name">Prove &amp; Close</span></button>
+          </div>
+          <div class="journey-stage" aria-live="polite">
+            <div class="journey-copy" id="journey-copy"></div>
+            <div class="journey-visual" id="journey-visual"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="levels">
+        <div class="inner">
+          <p class="kicker">Navigation and mental model</p>
+          <h2>Move from responsibility to operation only when you need to.</h2>
+          <p class="lede">The default view stays at the highest useful level. Users can always descend into agent detail without turning provider terminals into the product homepage.</p>
+          <div class="levels">
+            <div class="level-tabs" role="tablist" aria-label="Work navigation levels">
+              <button type="button" class="level-tab" role="tab" aria-selected="true" data-level="project"><strong>Project Board / List</strong>All Outcomes and attention</button>
+              <button type="button" class="level-tab" role="tab" aria-selected="false" data-level="outcome"><strong>Outcome Mission Control</strong>One result and its Mission</button>
+              <button type="button" class="level-tab" role="tab" aria-selected="false" data-level="session"><strong>Session Inspector</strong>One provider session</button>
+            </div>
+            <div class="level-content" id="level-content" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="waldo">
+        <div class="inner">
+          <p class="kicker">Conversation and context</p>
+          <h2>Project Waldo is persistent. Provider sessions are replaceable.</h2>
+          <p class="lede">The same Waldo relationship can discuss the Project, focus on one Outcome, or explain the session being inspected. The visible context chip prevents scope ambiguity.</p>
+          <div class="context-demo">
+            <div class="context-map">
+              <div class="context-tabs" role="tablist" aria-label="Waldo context">
+                <button type="button" class="context-tab" role="tab" aria-selected="true" data-context="project">Project</button>
+                <button type="button" class="context-tab" role="tab" aria-selected="false" data-context="outcome">Outcome</button>
+                <button type="button" class="context-tab" role="tab" aria-selected="false" data-context="inspect">Inspecting session</button>
+                <button type="button" class="context-tab" role="tab" aria-selected="false" data-context="home">Personal / Home</button>
+              </div>
+              <div id="context-explainer"></div>
+            </div>
+            <aside class="chat-panel" aria-label="Project Waldo conversation preview">
+              <div class="chat-head"><strong>Waldo</strong><span class="context-chip" id="context-chip">Context: Project · kennel-design</span></div>
+              <div class="chat-body" id="chat-body"></div>
+              <div class="chat-input" id="chat-placeholder">Ask about kennel-design…</div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section id="mission">
+        <div class="inner">
+          <p class="kicker">Adaptive orchestration</p>
+          <h2>The Mission graph changes because the Outcome changes.</h2>
+          <p class="lede">Kennel proposes the smallest sufficient topology. A small Outcome should not inherit ceremony meant for a complex parallel Mission. The Project default provider is preferred—not blindly forced.</p>
+          <div class="topology-controls" role="group" aria-label="Mission complexity">
+            <button type="button" class="topology-button" aria-pressed="true" data-topology="small">Small</button>
+            <button type="button" class="topology-button" aria-pressed="false" data-topology="medium">Medium</button>
+            <button type="button" class="topology-button" aria-pressed="false" data-topology="complex">Complex</button>
+          </div>
+          <div class="topology">
+            <div class="topology-canvas" id="topology-canvas" role="group" aria-label="Adaptive Mission graph"></div>
+            <aside class="topology-aside" id="topology-aside" aria-label="Selected Mission rationale"></aside>
+          </div>
+        </div>
+      </section>
+
+      <section id="authority">
+        <div class="inner">
+          <p class="kicker">Authority, recovery, and proof</p>
+          <h2>Agents receive autonomy inside an exact, reviewable envelope.</h2>
+          <p class="lede">The daemon coordinates what may happen. Providers decide local tactics within the authorized RunBrief. The user remains the authority for material change and acceptance.</p>
+          <div class="ownership">
+            <article class="owner-card canonical"><div class="owner-icon">K</div><h3>Kennel daemon</h3><p class="quiet">Canonical control plane</p><ul><li>State, revisions, routing, and policy</li><li>Context compilation and RunBriefs</li><li>Readiness, fencing, recovery, and receipts</li><li>Attention and Decision Requests</li></ul></article>
+            <article class="owner-card providers"><div class="owner-icon">A</div><h3>Agent providers</h3><p class="quiet">Replaceable execution</p><ul><li>Analyze, plan, implement, integrate, verify</li><li>Operate inside one bounded Attempt</li><li>Return artifacts, observations, and Evidence candidates</li><li>Cannot widen authority or accept the Outcome</li></ul></article>
+            <article class="owner-card user"><div class="owner-icon">U</div><h3>The user</h3><p class="quiet">Authorship and final authority</p><ul><li>Corrects desired state and success</li><li>Authorizes exact Plan revisions</li><li>Approves consequential changes</li><li>Accepts, requests rework, or reopens</li></ul></article>
+          </div>
+          <div class="decision-flow" role="group" aria-label="Decision and execution sequence">
+            <div class="decision-node"><strong>Proposal</strong><p>Waldo suggests Contract or Mission changes. Nothing consequential has run.</p></div>
+            <div class="decision-node"><strong>Authorization</strong><p>The user approves agents, scope, permissions, cost, effects, and stopping rules.</p></div>
+            <div class="decision-node"><strong>Execution</strong><p>Attempts run in owned workspaces with stable session identity and recovery fences.</p></div>
+            <div class="decision-node"><strong>Proof</strong><p>Evidence maps to criteria. Verification declares independence. The user decides.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="learning">
+        <div class="inner">
+          <p class="kicker">Paxel-style observation and learning</p>
+          <h2>Learning attaches beside execution—not above user authority.</h2>
+          <p class="lede">Waldo can notice repeated corrections, useful procedures, and Project patterns. Observation produces candidates with provenance; it does not silently become Memory or rewrite future Missions.</p>
+          <div class="learning-line" role="group" aria-label="Governed learning lineage">
+            <div class="learning-node"><strong>Attributed observations</strong><span>sessions, workspace, evidence, corrections</span></div><span class="learning-arrow">→</span>
+            <div class="learning-node"><strong>LearningEpisode</strong><span>rebuildable and scoped</span></div><span class="learning-arrow">→</span>
+            <div class="learning-node"><strong>Candidate</strong><span>visible, correctable, dismissible</span></div><span class="learning-arrow">→</span>
+            <div class="learning-node"><strong>Evaluation</strong><span>bounded experiment when required</span></div><span class="learning-arrow">→</span>
+            <div class="learning-node"><strong>Promotion decision</strong><span>explicit, reversible, Project-scoped</span></div>
+          </div>
+          <div class="memory-boundary">
+            <div class="memory-box allowed"><h3>Can inform future Work</h3><ul><li>Confirmed Project rules and corrections</li><li>Promoted Project-scoped skills</li><li>Attributed Outcome lineage and current revisions</li><li>Purpose-bound retrieval with a receipt</li></ul></div>
+            <div class="memory-box blocked"><h3>Never automatic</h3><ul><li>Raw transcript becomes durable Memory</li><li>Accepted Outcome proves which method caused success</li><li>Home/personal context enters Work silently</li><li>An analyzer or experiment promotes itself</li></ul></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="screens">
+        <div class="inner">
+          <p class="kicker">The designer’s screen atlas</p>
+          <h2>Sixteen surfaces, one coherent experience.</h2>
+          <p class="lede">These are not sixteen equal destinations. They compose into a Project Board, re-enterable Outcome Mission Control, and on-demand Session Inspector.</p>
+          <div class="atlas-toolbar" role="group" aria-label="Filter screens">
+            <button type="button" class="atlas-filter" aria-pressed="true" data-filter="all">All surfaces</button>
+            <button type="button" class="atlas-filter" aria-pressed="false" data-filter="enter">Enter</button>
+            <button type="button" class="atlas-filter" aria-pressed="false" data-filter="understand">Understand</button>
+            <button type="button" class="atlas-filter" aria-pressed="false" data-filter="decide">Decide</button>
+            <button type="button" class="atlas-filter" aria-pressed="false" data-filter="act">Act</button>
+            <button type="button" class="atlas-filter" aria-pressed="false" data-filter="prove">Prove</button>
+            <button type="button" class="atlas-filter" aria-pressed="false" data-filter="control">Control</button>
+          </div>
+          <div class="screen-atlas" id="screen-atlas"></div>
+        </div>
+      </section>
+
+      <section id="questions">
+        <div class="inner">
+          <p class="kicker">The clarifications we finalized</p>
+          <h2>Common questions, one shared answer.</h2>
+          <p class="lede">These answers resolve the ambiguities that otherwise lead design and engineering toward different products.</p>
+          <details open><summary>Is the Outcome the running agent session?</summary><div>No. The Outcome is the durable desired result. It contains Contract and Plan revisions, Work Units, Attempts, sessions, Evidence, Verification, and Acceptance. Board/List shows Outcomes; Sessions is a separate operational projection.</div></details>
+          <details><summary>Where does normal user input go when an agent needs help?</summary><div>It attaches to an Outcome-level Decision Request. Kennel records one canonical answer and routes it to every affected Work Unit/session. Direct provider instruction is an explicit advanced action in Session Inspector.</div></details>
+          <details><summary>Is Project Waldo one coordinator session that must stay open?</summary><div>No. The Kennel daemon is the always-running coordinator. Project Waldo is a durable conversation projection composed from bounded provider turns. When a context becomes stale or too large, Kennel can safely continue it into a replacement session and retain a receipt.</div></details>
+          <details><summary>When does automatic session replacement happen?</summary><div>Only at a safe checkpoint when identity is lost/unhealthy, trusted context reserve is low, conservative adapter thresholds are reached, material grounding changed, independence requires a fresh verifier, or source revocation invalidates context. Purely mechanical same-provider continuation can happen with a receipt; material changes require user review.</div></details>
+          <details><summary>Does every Outcome require multiple agents?</summary><div>No. Small and medium Outcomes usually prefer the Project default harness and the smallest sufficient graph. One harness may fill several roles through separate sessions. Multi-provider Missions appear only when complexity, installed capabilities, and explicit authorization justify them.</div></details>
+          <details><summary>Can DeepSeek be the Project default?</summary><div>Yes, after `dsh` is installed, the user selects a valid profile, readiness succeeds, and prompt delivery is verified. DeepSeek is currently admitted as a worker. Coordinator/verifier eligibility remains capability-gated. Kennel never silently falls back after the user explicitly selects DeepSeek.</div></details>
+          <details><summary>How do agents communicate without sharing one giant transcript?</summary><div>Each Work Unit receives a purpose-built RunBrief. Dependencies pass durable, attributed handoff packets, artifacts, decisions, Evidence candidates, verification results, and recovery receipts. Provider transcripts remain operational detail, not the only shared memory.</div></details>
+          <details><summary>What happens when an agent says it is done?</summary><div>Its output becomes an observation or Evidence candidate. Kennel maps Evidence to the Contract criteria and runs the declared Verification method. Only the user Accepts; incomplete feedback keeps the Outcome open and may create a new Attempt or revised Plan/Contract.</div></details>
+          <details><summary>How does Home relate to Work?</summary><div>Home remains a separate personal responsibility surface. A future explicit ResponsibilityLink can connect a Home Open Loop to a Work Outcome without merging their contracts or silently moving personal context into a Project.</div></details>
+        </div>
+      </section>
+
+      <section id="design">
+        <div class="inner">
+          <p class="kicker">What the team should design and build</p>
+          <h2>Operational clarity first. Expressiveness only when it teaches.</h2>
+          <p class="lede">The Work surface should feel calm, dense, and trustworthy. It can be visually distinctive without making every lifecycle fact a card or every provider action a spectacle.</p>
+          <div class="principles">
+            <div class="principle"><b>One reading path per state</b><p>The current decision or next safe action precedes telemetry, transcripts, or agent detail.</p></div>
+            <div class="principle"><b>Responsibility before machinery</b><p>Outcome title and desired result dominate provider/model labels.</p></div>
+            <div class="principle"><b>Truth before optimism</b><p>Starting, unconfirmed, blocked, recovering, verified, and accepted remain distinct.</p></div>
+            <div class="principle"><b>Context is always visible</b><p>Project, Outcome, Work Unit, Attempt, and inspected session never blur together.</p></div>
+            <div class="principle"><b>Graph plus accessible list</b><p>The Mission graph explains topology; the list preserves scanability and keyboard access.</p></div>
+            <div class="principle"><b>Motion earns its place</b><p>Use it for spatial transitions and binding receipts, not endless AI-thinking decoration.</p></div>
+            <div class="principle"><b>Failures keep their lineage</b><p>Replacement Attempts and sessions are visible; errors are never erased by a retry.</p></div>
+            <div class="principle"><b>Provider honesty</b><p>Unsupported controls are absent or explained. There is no silent provider fallback.</p></div>
+            <div class="principle"><b>Restart is part of the flow</b><p>Return users to the exact canonical state, selection, and next safe action.</p></div>
+          </div>
+          <div class="final-callout">
+            <span class="tag orange">The alignment sentence</span>
+            <h3>Waldo Kennel lets a user supervise the truth of an Outcome while Kennel coordinates the temporary agent sessions required to make it real.</h3>
+            <p>This visual guide explains the experience. The canonical written specifications define the exact behavior, ownership, failure, and acceptance boundaries.</p>
+            <div class="artifact-links">
+              <a href="../superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md">Control-plane specification</a>
+              <a href="../superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md">Screen &amp; interaction specification</a>
+              <a href="../superpowers/plans/2026-08-25-work-control-plane-delivery.md">Delivery plan</a>
+              <a href="kennel-v1-product-architecture.md">Product architecture</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer><div class="inner"><span>Waldo Kennel Work · visual product guide · 26 August 2026</span><span>Product intent—not a claim that every surface is shipped.</span></div></footer>
+
+  <script>
+    const journeyData = {
+      project: {
+        kicker: "01 · Add and configure a Project",
+        title: "Choose the workspace and the default ready coding agent.",
+        description: "Project setup binds one repository or workspace, then records a preference for Codex or DeepSeek. Provider-specific configuration appears only when required.",
+        bullets: ["Persistent + beside Projects", "Folder/workspace identity", "Live provider readiness", "DeepSeek profile when required", "Advanced role preferences stay optional"],
+        value: "Value · One-time setup makes every later Outcome contextual and provider-honest.",
+        visual: "project"
+      },
+      intent: {
+        kicker: "02 · Natural-language intent",
+        title: "Ask only what the user already knows: what should become true?",
+        description: "The compact modal captures the exact statement. It does not demand a title, task list, agent choice, or success criteria before Waldo has analyzed the Project.",
+        bullets: ["Project context is explicit", "One multiline Outcome field", "Command/Control + Enter submits", "No Outcome exists yet", "Questions remain Project Waldo conversation"],
+        value: "Value · Delegation begins as naturally as talking to a capable teammate.",
+        visual: "intent"
+      },
+      understand: {
+        kicker: "03 · Contextual Contract draft",
+        title: "Waldo drafts the difficult parts; the user corrects them.",
+        description: "Kennel compiles bounded Project context and proposes the stable Contract core plus only relevant typed facets. One material clarification is active at a time.",
+        bullets: ["Desired state and criteria", "Evidence and review method", "Constraints and non-goals", "Authority ceiling and stop conditions", "Suggested versus user-authored provenance"],
+        value: "Value · Misunderstandings are caught before agents change files.",
+        visual: "understand"
+      },
+      mission: {
+        kicker: "04 · Adaptive Mission proposal",
+        title: "Show the smallest sufficient way to achieve the confirmed result.",
+        description: "The graph explains Work Units, dependencies, roles, providers, worktrees, evidence, and recovery. Small Outcomes stay simple; complex Missions may branch.",
+        bullets: ["Plain-language topology rationale", "Capability-resolved roles", "One or many harnesses", "Evidence and verifier placement", "Every material revision remains reviewable"],
+        value: "Value · Users inspect strategy without manually dispatching agents.",
+        visual: "mission"
+      },
+      authorize: {
+        kicker: "05 · Explicit authorization",
+        title: "Approve the exact Plan—not a vague promise of autonomy.",
+        description: "The authorization summary names agents, files/workspaces, permissions, network, external effects, budget, concurrency, evidence, and stopping conditions.",
+        bullets: ["Authorize this Plan", "Exact Contract/Plan binding", "No silent provider fallback", "Material changes require a new decision", "Least privilege by default"],
+        value: "Value · Agents receive meaningful autonomy without silently expanding authority.",
+        visual: "authorize"
+      },
+      observe: {
+        kicker: "06 · Act and Observe",
+        title: "Mission Control shows responsibility; Session Inspector shows machinery.",
+        description: "The user sees active Work Units, Attempts, sessions, Decisions, recovery, and evidence coverage. Clicking a leaf opens the exact provider session.",
+        bullets: ["Outcome-level Needs You", "Adaptive Mission graph", "Attempt and replacement lineage", "Safe context continuation receipts", "Terminal/browser/chat only on demand"],
+        value: "Value · The user supervises progress without reconstructing truth from transcripts.",
+        visual: "observe"
+      },
+      prove: {
+        kicker: "07 · Prove and Close",
+        title: "Completion is criterion-bound evidence plus a user decision.",
+        description: "Every criterion shows expected Evidence, actual artifacts or checks, producer, freshness, subject revision, and Verification independence.",
+        bullets: ["Deterministic or agent review class", "Contradictions remain visible", "Accept Outcome", "Request rework or revise", "Reopen or create a successor"],
+        value: "Value · Done becomes inspectable, correctable, and owned by the user.",
+        visual: "prove"
+      }
+    };
+
+    const miniShell = (inner, title = "Board · Work") => `
+      <div class="app-window" aria-hidden="true">
+        <div class="window-bar"><i class="traffic"></i><i class="traffic"></i><i class="traffic"></i><span class="window-title">${title}</span></div>
+        <div class="window-body">
+          <aside class="mini-sidebar"><div class="mini-logo">Kennel</div><div class="mini-label">Projects</div><div class="project-row">▱ Scratch</div><div class="project-row active">▱ kennel-design <span class="project-plus">＋</span></div></aside>
+          <div class="mini-main">${inner}</div>
+        </div>
+      </div>`;
+
+    const visuals = {
+      project: () => miniShell(`<div class="mini-top"><strong>Add Project</strong><span class="spacer"></span><button class="mini-btn dark">Cancel</button></div><div class="mini-card"><h4>Choose repository or workspace</h4><p>/Users/me/Developer/kennel-design</p></div><div class="mini-card"><h4>Default coding agent</h4><p>Codex · ready by default</p><div class="choice selected"><i></i><div><b>Codex</b><br><span class="tiny">Ready · zero configuration</span></div></div><div class="choice"><i></i><div><b>DeepSeek Harness</b><br><span class="tiny">Select a valid dsh profile</span></div></div></div><div class="mini-top" style="margin-top:12px"><span class="spacer"></span><button class="mini-btn">Add Project</button></div>`, "Project setup · Work"),
+      intent: () => miniShell(`<div class="mini-top"><strong>Define an Outcome</strong><span class="spacer"></span><span class="tag neutral">kennel-design</span></div><div class="mini-card"><h4>What would you like to make true?</h4><textarea class="mini-input" readonly>Make the Work dashboard show every Outcome, the agents working on it, and exactly where I need to intervene.</textarea><div class="mini-top" style="margin:0"><span class="tiny">⌘ Enter to analyze</span><span class="spacer"></span><button class="mini-btn">Analyze Outcome</button></div></div><p class="tiny" style="margin-top:12px">No Outcome or Contract has been created yet.</p>`, "Natural-language intake · Work"),
+      understand: () => miniShell(`<div class="mini-top"><strong>Understand the Outcome</strong><span class="spacer"></span><span class="tag amber">Draft</span></div><div class="mini-card"><div class="contract-row"><span>Desired state</span><b>Every Outcome and its agent work are visible from one Project dashboard.</b></div><div class="contract-row"><span>Success</span><b>Board/List agree; running sessions link to their parent Outcome.</b></div><div class="contract-row"><span>Evidence</span><b>Desktop and compact screenshots plus interaction tests.</b></div><div class="contract-row"><span>Review</span><b>Owner walkthrough before acceptance.</b></div></div><div class="mini-card"><h4>One material question</h4><p>Should accepted Outcomes remain visible by default?</p><div class="choice selected"><i></i><div>Hide behind Completed filter <span class="tag green">Recommended</span></div></div><div class="choice"><i></i><div>Keep in the last column</div></div></div>`, "Contract proposal · Work"),
+      mission: () => miniShell(`<div class="mini-top"><strong>Mission proposal</strong><span class="spacer"></span><span class="tag blue">Plan 1</span></div><div class="mission-mini"><span class="mission-line" style="left:128px;top:76px;width:8%"></span><span class="mission-line" style="left:58%;top:76px;width:14%"></span><div class="mission-node user" style="left:16px;top:43px"><strong>Confirmed Outcome</strong><small>Contract 1</small></div><div class="mission-node agent" style="left:47%;top:43px;transform:translateX(-50%)"><strong>Build dashboard</strong><small>Codex worker</small></div><div class="mission-node verify" style="right:16px;top:43px"><strong>Verify flow</strong><small>Fresh session</small></div><div class="mission-node user" style="right:16px;top:170px"><strong>User acceptance</strong><small>Owner decides</small></div><span class="mission-line" style="right:70px;top:112px;width:58px;transform:rotate(90deg)"></span></div><div class="mini-card"><p>Recommended because the work has one writer and benefits from a fresh verification boundary.</p></div>`, "Adaptive Mission · Work"),
+      authorize: () => miniShell(`<div class="mini-top"><strong>Authorize Plan 1</strong><span class="spacer"></span><span class="tag amber">Decision</span></div><div class="mini-card"><div class="contract-row"><span>Sessions</span><b>2 · Codex worker + fresh verifier</b></div><div class="contract-row"><span>Workspace</span><b>One isolated write worktree</b></div><div class="contract-row"><span>Network</span><b>Repository dependencies only</b></div><div class="contract-row"><span>Effects</span><b>May commit · cannot merge, deploy, or message externally</b></div><div class="contract-row"><span>Stop</span><b>Unknown effects, scope change, or verification contradiction</b></div></div><div class="mini-top" style="margin-top:14px"><button class="mini-btn dark">Revise Plan</button><span class="spacer"></span><button class="mini-btn">Authorize this Plan</button></div>`, "Explicit authorization · Work"),
+      observe: () => miniShell(`<div class="mini-top"><strong>Outcome · Work dashboard</strong><span class="spacer"></span><button class="mini-btn dark">Waldo</button></div><div class="mission-mini"><span class="mission-line" style="left:126px;top:85px;width:9%"></span><span class="mission-line" style="left:58%;top:85px;width:14%"></span><div class="mission-node user" style="left:16px;top:52px"><strong>Outcome</strong><small><i class="node-dot active"></i>In progress</small></div><div class="mission-node agent" style="left:47%;top:52px;transform:translateX(-50%)"><strong>Build dashboard</strong><small><i class="node-dot active"></i>Codex · Attempt 1</small></div><div class="mission-node verify" style="right:16px;top:52px"><strong>Verify flow</strong><small>Waiting on dependency</small></div><div class="mission-node user" style="left:47%;top:176px;transform:translateX(-50%)"><strong>Needs your decision</strong><small><i class="node-dot needs"></i>Allow fixture update?</small></div><span class="mission-line" style="left:47%;top:122px;width:52px;transform:rotate(90deg)"></span></div><div class="mini-card"><h4>Latest verified progress</h4><p>Board and List now share the same Outcome projection. Compact navigation remains under test.</p><div class="mini-progress"><i></i></div></div>`, "Mission Control · Work"),
+      prove: () => miniShell(`<div class="mini-top"><strong>Prove and Close</strong><span class="spacer"></span><span class="tag green">Ready to review</span></div><div class="proof-list"><div class="proof-row"><span class="proof-check">✓</span><div><b>One card per Outcome</b><br><small>Board projection test · deterministic</small></div><span class="tag green">Verified</span></div><div class="proof-row"><span class="proof-check">✓</span><div><b>Sessions link to Work Units</b><br><small>Owner walkthrough · current beta</small></div><span class="tag green">Verified</span></div><div class="proof-row"><span class="proof-check">!</span><div><b>Compact keyboard path</b><br><small>One focus-return gap remains</small></div><span class="tag amber">Needs work</span></div></div><div class="mini-top" style="margin-top:16px"><button class="mini-btn dark">Request rework</button><span class="spacer"></span><button class="mini-btn">Accept Outcome</button></div>`, "Evidence & acceptance · Work")
+    };
+
+    function renderJourney(key) {
+      const item = journeyData[key];
+      document.querySelectorAll(".step-button").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.step === key)));
+      document.getElementById("journey-copy").innerHTML = `<span class="eyebrow">${item.kicker}</span><h3>${item.title}</h3><p class="quiet">${item.description}</p><ul>${item.bullets.map((bullet) => `<li>${bullet}</li>`).join("")}</ul><p class="value"><strong>${item.value}</strong></p>`;
+      document.getElementById("journey-visual").innerHTML = visuals[item.visual]();
+    }
+
+    const levelData = {
+      project: { title: "Project Board / List", copy: "The default Work landing is an Outcome projection. It answers: what desired results exist, what needs me, what is running, and what is ready for proof?", boxes: [["Card or row means Outcome", "Provider sessions are summarized underneath instead of becoming parallel tasks."], ["Attention is derived", "Needs You, blocked, waiting, and ready to accept come from durable facts."], ["Project Waldo remains available", "Discuss the whole Project or begin a new Outcome without opening a provider console."], ["Sessions has a separate view", "Cross-Outcome provider operation exists for diagnosis, not as the product home."]], not: "Not a board of terminals, branches, PRs, or provider conversations." },
+      outcome: { title: "Outcome Mission Control", copy: "Selecting an Outcome opens one adaptive workspace. Before confirmation it emphasizes Contract understanding; before execution it emphasizes authorization; while running it emphasizes the Mission; near completion it emphasizes proof.", boxes: [["Contract and Plan truth", "Current revisions, user decisions, and stale bindings stay visible."], ["Adaptive Mission graph", "Work Units, dependencies, Attempts, sessions, decisions, and evidence flow."], ["Outcome-level input", "One Decision Request can coordinate several affected sessions."], ["Re-enterable", "Restart returns to the exact Outcome, selected node, and next safe action."]], not: "Not a fixed graph-only screen and not a transcript with extra labels." },
+      session: { title: "Individual Session Inspector", copy: "Selecting an Attempt or provider node opens operational detail: provider-native chat, terminal, browser, worktree, RunBrief, artifacts, activity, and recovery lineage.", boxes: [["Exact identity", "Provider, model/profile, Attempt, Work Unit, Outcome, and worktree."], ["Direct tactical control", "Instruct, pause, resume, cancel, or take over only where supported."], ["Material changes escalate", "Scope, Plan, permission, cost, and effects return to the appropriate user gate."], ["History survives replacement", "Old and replacement sessions remain connected to their Attempt lineage."]], not: "Not where normal Outcome decisions or acceptance live." }
+    };
+
+    function renderLevel(key) {
+      const item = levelData[key];
+      document.querySelectorAll(".level-tab").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.level === key)));
+      document.getElementById("level-content").innerHTML = `<span class="eyebrow">${key} level</span><h3>${item.title}</h3><p class="quiet">${item.copy}</p><div class="level-grid">${item.boxes.map(([title, copy]) => `<div class="level-box"><strong>${title}</strong><p>${copy}</p></div>`).join("")}</div><div class="not-rule"><strong>It is not:</strong> ${item.not}</div>`;
+    }
+
+    const contextData = {
+      project: { chip: "Context: Project · kennel-design", title: "Discuss the whole Project", copy: "Waldo can explain repository state, prior Outcomes, Project rules, or turn a conversation into a new Intake draft.", sources: [["Project identity & policy", "Canonical, current"], ["Repository entry context", "Bounded, source-linked"], ["Related Outcomes", "Only high-signal lineage"], ["Admitted knowledge", "Scoped and provenance-bearing"]], messages: [["user", "What should we work on next?"], ["waldo", "Two Outcomes need attention. The dashboard flow is blocked on a Project-level conversation contract; the provider settings slice can proceed independently."]] },
+      outcome: { chip: "Context: Outcome · Build the Work dashboard", title: "Coordinate one desired result", copy: "Waldo can explain the Contract, revise the Mission proposal, present a Decision Request, or summarize evidence gaps.", sources: [["Current Contract", "User-approved revision"], ["Current Mission", "Authorized Plan"], ["Work Unit handoffs", "Attributed"], ["Evidence & Decisions", "Criterion-bound"]], messages: [["waldo", "The implementation session needs one decision: should accepted Outcomes stay visible by default?"], ["user", "Hide them behind a Completed filter."], ["waldo", "Recorded for this Outcome. I’ll route the answer to the dashboard Work Unit."]] },
+      inspect: { chip: "Inspecting: DeepSeek · Attempt 1", title: "Explain, then link to the provider", copy: "Project Waldo may summarize what the selected session is doing. Direct provider conversation remains inside Session Inspector so tactical and canonical input do not blur.", sources: [["RunBrief", "Frozen for Attempt"], ["Session activity", "Operational fact"], ["Worktree/artifacts", "Attributed"], ["Recovery receipt", "When applicable"]], messages: [["user", "Why is this session waiting?"], ["waldo", "DeepSeek completed its implementation handoff. The integrator Work Unit is waiting for the API lease to merge. Open Session Inspector for the exact transcript."]] },
+      home: { chip: "Scope change required · Home", title: "Personal conversation belongs in Home", copy: "Waldo does not silently disclose personal context to a Work Project. The user may explicitly move only approved text or create a ResponsibilityLink later.", sources: [["Current Work draft", "Can be retained"], ["Home context", "Not loaded"], ["Scope change", "Requires confirmation"], ["Transfer receipt", "Approved content only"]], messages: [["user", "Also remind me to call my doctor tomorrow."], ["waldo", "That belongs in Home, not kennel-design. Continue in Home with only this message?"]] }
+    };
+
+    function renderContext(key) {
+      const item = contextData[key];
+      document.querySelectorAll(".context-tab").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.context === key)));
+      document.getElementById("context-explainer").innerHTML = `<span class="eyebrow">Bounded context</span><h3>${item.title}</h3><p class="quiet">${item.copy}</p><div class="context-sources">${item.sources.map(([title, copy]) => `<div class="source-item"><strong>${title}</strong><span>${copy}</span></div>`).join("")}</div>`;
+      document.getElementById("context-chip").textContent = item.chip;
+      document.getElementById("chat-body").innerHTML = item.messages.map(([who, message]) => `<div class="message ${who}">${message}</div>`).join("");
+      document.getElementById("chat-placeholder").textContent = key === "home" ? "Confirm scope change…" : key === "project" ? "Ask about kennel-design…" : "Reply in this context…";
+    }
+
+    const topologyData = {
+      small: { title: "Direct execution", tag: "1 harness · 1 write session", copy: "Use when one bounded agent can own the change and deterministic checks are sufficient.", reasons: ["One writer; no useful parallelism", "Project default worker is ready", "Deterministic verification is available", "Lowest coordination cost"], nodes: [{x:8,y:39,w:"user",t:"Confirmed Outcome",s:"Contract 1"},{x:38,y:39,w:"worker",t:"Implement",s:"Codex or DeepSeek"},{x:70,y:39,w:"verify",t:"Deterministic checks",s:"Evidence"},{x:70,y:70,w:"user",t:"User acceptance",s:"Owner decides"}], edges:[[23,46,15,0],[53,46,17,0],[78,52,0,18]] },
+      medium: { title: "Implement, then verify", tag: "1 harness · separate sessions", copy: "Use when implementation benefits from an independent fresh context even if one provider fills both roles.", reasons: ["Separate implementation and review purposes", "Fresh verifier avoids inherited conclusions", "One integration point", "Still understandable at a glance"], nodes: [{x:5,y:39,w:"user",t:"Confirmed Outcome",s:"Contract 1"},{x:31,y:25,w:"worker",t:"Implement",s:"Codex · session A"},{x:56,y:25,w:"verify",t:"Fresh verifier",s:"Codex · session B"},{x:31,y:62,w:"worker",t:"Correct gaps",s:"Replacement Attempt if needed"},{x:78,y:44,w:"user",t:"User acceptance",s:"Owner decides"}], edges:[[20,46,11,-14],[46,32,10,0],[71,32,7,12],[64,38,-22,24],[46,69,32,-18]] },
+      complex: { title: "Parallel bounded Mission", tag: "Codex + DeepSeek workers", copy: "Use only when responsibilities can be isolated, dependencies are explicit, and parallel work reduces time without overlapping writers.", reasons: ["Planner decomposes a confirmed Contract", "Isolated worktrees prevent write conflict", "Durable handoffs feed one integrator", "Verifier remains independent", "User authorizes added cost and concurrency"], nodes: [{x:4,y:42,w:"user",t:"Confirmed Outcome",s:"Contract 1"},{x:23,y:42,w:"worker",t:"Plan & coordinate",s:"Codex"},{x:45,y:18,w:"worker",t:"Backend Work Unit",s:"Codex worker"},{x:45,y:66,w:"worker",t:"UI Work Unit",s:"DeepSeek worker"},{x:66,y:42,w:"worker",t:"Integrate",s:"Codex"},{x:82,y:18,w:"verify",t:"Verify",s:"Fresh session"},{x:82,y:66,w:"user",t:"Accept",s:"Owner decides"}], edges:[[19,49,4,0],[38,49,7,-24],[38,49,7,24],[60,25,6,17],[60,73,6,-24],[81,49,1,-24],[89,25,0,41]] }
+    };
+
+    function renderTopology(key) {
+      const item = topologyData[key];
+      document.querySelectorAll(".topology-button").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.topology === key)));
+      const canvas = document.getElementById("topology-canvas");
+      canvas.innerHTML = item.edges.map(([x,y,dx,dy]) => { const width = Math.sqrt(dx*dx + dy*dy); const angle = Math.atan2(dy, dx) * 180 / Math.PI; return `<span class="topo-edge" style="left:${x}%;top:${y}%;width:${width}%;transform:rotate(${angle}deg)"></span>`; }).join("") + item.nodes.map((node) => `<div class="topo-node ${node.w} ${node.x > 75 ? "right-edge" : ""}" style="left:${node.x}%;top:${node.y}%"><strong>${node.t}</strong><span>${node.s}</span></div>`).join("");
+      document.getElementById("topology-aside").innerHTML = `<span class="tag blue">${item.tag}</span><h3>${item.title}</h3><p>${item.copy}</p><ul class="reason-list">${item.reasons.map((reason) => `<li><b>✓</b> ${reason}</li>`).join("")}</ul>`;
+    }
+
+    const screens = [
+      ["W01","First Work entry","No Project yet; add repository/workspace or use Scratch intentionally.","enter","screen"],
+      ["W02","Add Project / Workspace","Scope, folder, identity, default worker, readiness, and optional advanced roles.","enter","modal"],
+      ["W03","Project Board / List","One Outcome per card/row, next action, attention, sessions, and evidence coverage.","act","workspace"],
+      ["W04","Persistent Project Waldo","Project/Outcome context chips, proposals, decisions, and explicit Home redirect.","understand","panel"],
+      ["W05","New Outcome","One natural-language field; no long empty Contract form.","enter","modal"],
+      ["W06","Analyze & clarify","Bounded context receipt and at most one material question.","understand","state"],
+      ["W07","Adaptive Contract","Stable core, typed facets, provenance, regenerate, correct, and confirm.","understand","screen"],
+      ["W08","Mission proposal","Adaptive topology, roles, dependencies, worktrees, evidence, cost, and recovery.","decide","screen"],
+      ["W09","Mission Control","Authorized execution graph, Work Units, Attempts, decisions, recovery, and evidence.","act","workspace"],
+      ["W10","Work Unit / Attempt","One responsibility, RunBrief, worktree, Attempt history, and sessions.","act","panel"],
+      ["W11","Session Inspector","Provider chat, terminal, browser, files, RunBrief, history, and truthful controls.","act","inspector"],
+      ["W12","Needs You / Island","One durable Outcome-level Decision Request projected everywhere.","decide","island"],
+      ["W13","Prove & Close","Criterion Evidence, Verification class, Accept, rework, revise, Reopen.","prove","screen"],
+      ["W14","Sessions across Outcomes","Operational provider view linked back to Outcome and Work Unit.","control","projection"],
+      ["W15","What Waldo noticed","Attributed learning candidates: correct, dismiss, evaluate, or promote.","control","screen"],
+      ["W16","Project Settings","Default worker, readiness, advanced roles, Project context, retention, and removal.","control","screen"]
+    ];
+
+    function renderAtlas(filter = "all") {
+      document.querySelectorAll(".atlas-filter").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.filter === filter)));
+      document.getElementById("screen-atlas").innerHTML = screens.map(([id,title,copy,stage,type]) => `<article class="screen-card" ${filter !== "all" && filter !== stage ? "hidden" : ""}><span class="screen-id">${id}</span><h3>${title}</h3><p>${copy}</p><span class="screen-type">${stage} · ${type}</span></article>`).join("");
+    }
+
+    document.querySelectorAll(".step-button").forEach((button) => button.addEventListener("click", () => renderJourney(button.dataset.step)));
+    document.querySelectorAll(".level-tab").forEach((button) => button.addEventListener("click", () => renderLevel(button.dataset.level)));
+    document.querySelectorAll(".context-tab").forEach((button) => button.addEventListener("click", () => renderContext(button.dataset.context)));
+    document.querySelectorAll(".topology-button").forEach((button) => button.addEventListener("click", () => renderTopology(button.dataset.topology)));
+    document.querySelectorAll(".atlas-filter").forEach((button) => button.addEventListener("click", () => renderAtlas(button.dataset.filter)));
+
+    const chapterLinks = [...document.querySelectorAll(".rail a")];
+    const observedSections = chapterLinks.map((link) => document.querySelector(link.getAttribute("href"))).filter(Boolean);
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a,b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      chapterLinks.forEach((link) => link.classList.toggle("active", link.getAttribute("href") === `#${visible.target.id}`));
+    }, { rootMargin: "-20% 0px -65% 0px", threshold: [0, .2, .6] });
+    observedSections.forEach((section) => observer.observe(section));
+
+    renderJourney("project");
+    renderLevel("project");
+    renderContext("project");
+    renderTopology("small");
+    renderAtlas();
+  </script>
+</body>
+</html>
