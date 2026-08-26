@@ -43,6 +43,11 @@ type ProjectConfig struct {
 
 	// AgentConfig is the default agent config for the project.
 	AgentConfig AgentConfig `json:"agentConfig,omitempty"`
+	// AgentPreferences records the project's preferred Mission-role harnesses
+	// (default worker plus optional analyzer/coordinator/verifier). They are
+	// proposals resolved against live capability admission at planning time —
+	// never a rewrite of historical sessions or approved Plans.
+	AgentPreferences ProjectAgentPreferences `json:"agentPreferences,omitempty"`
 	// Worker and Orchestrator are role-specific harness/agent-config overrides.
 	Worker       RoleOverride `json:"worker,omitempty"`
 	Orchestrator RoleOverride `json:"orchestrator,omitempty"`
@@ -198,7 +203,123 @@ func (c ProjectConfig) Validate() error {
 	if err := c.TrackerIntake.Validate(); err != nil {
 		return err
 	}
+	if err := c.AgentPreferences.Validate(); err != nil {
+		return fmt.Errorf("agentPreferences: %w", err)
+	}
 	return nil
+}
+
+// RoleSource names where a resolved Mission-role assignment came from, so a
+// proposal can always be traced back to either the project's explicit
+// preference or the daemon's capability-based fallback.
+type RoleSource string
+
+const (
+	// RoleSourcePreference marks an assignment that honors the project's
+	// recorded preference for this role.
+	RoleSourcePreference RoleSource = "preference"
+	// RoleSourceDefault marks the recommended fallback when no admissible
+	// preference exists for the role.
+	RoleSourceDefault RoleSource = "default"
+)
+
+// ProjectAgentPreferences records the project's preferred Mission-role
+// harnesses. Empty fields mean "no preference": resolution falls back to the
+// daemon's capability-based default at planning time. Preferences are
+// proposals for future Missions — they never rewrite historical sessions or
+// approved Plans, whose provider identity stays immutable.
+//
+// The zero value carries no preference and always validates.
+type ProjectAgentPreferences struct {
+	// DefaultWorker is the harness fresh worker spawns should prefer.
+	DefaultWorker string `json:"defaultWorker,omitempty"`
+	// Analyzer is the preferred harness for intake analysis roles.
+	Analyzer string `json:"analyzer,omitempty"`
+	// Coordinator is the preferred harness for Mission coordination roles.
+	Coordinator string `json:"coordinator,omitempty"`
+	// Verifier is the preferred harness for verification roles.
+	Verifier string `json:"verifier,omitempty"`
+}
+
+// Validate rejects preferences the daemon's capability admission cannot honor:
+// unknown harness names, worker roles outside IsSelectableForNewWork, and
+// analyzer/coordinator/verifier roles outside IsSelectableAsCoordinator (the
+// capability-gated roles). Readiness/profile gates are checked later against
+// the live adapter inventory; this only refuses what could never be honored.
+func (p ProjectAgentPreferences) Validate() error {
+	for role, value := range map[string]string{
+		"worker":      p.DefaultWorker,
+		"analyzer":    p.Analyzer,
+		"coordinator": p.Coordinator,
+		"verifier":    p.Verifier,
+	} {
+		harness := AgentHarness(strings.TrimSpace(value))
+		if harness == "" {
+			continue
+		}
+		if !harness.IsKnown() {
+			return fmt.Errorf("%s: harness %q is not a known agent", role, value)
+		}
+		eligible := harness.IsSelectableForNewWork()
+		if role != "worker" {
+			eligible = harness.IsSelectableAsCoordinator()
+		}
+		if !eligible {
+			return fmt.Errorf("%s: harness %q is not admitted for this role by capability admission", role, value)
+		}
+	}
+	return nil
+}
+
+// ResolvedAgentRole is one Mission-role proposal. Source distinguishes an
+// assignment that honors the project preference from the daemon's default;
+// Eligible reflects domain capability admission only — adapter installation,
+// authorization, and profile readiness are layered on by the service against
+// the live inventory and reported through Reason when they fail closed.
+type ResolvedAgentRole struct {
+	Harness  AgentHarness `json:"harness"`
+	Source   RoleSource   `json:"source"`
+	Eligible bool         `json:"eligible"`
+	// Ready reports live adapter admission layered on by the service layer
+	// (installed binary, authorization, profile readiness). The pure domain
+	// resolution can only speak to capability admission, so it defaults Ready
+	// to true for admissible roles; the inventory enrichment may flip it.
+	Ready  bool   `json:"ready"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// ResolvedMissionRoles is the daemon-resolved role proposal for one Project.
+type ResolvedMissionRoles struct {
+	Analyzer    ResolvedAgentRole `json:"analyzer"`
+	Coordinator ResolvedAgentRole `json:"coordinator"`
+	Worker      ResolvedAgentRole `json:"worker"`
+	Verifier    ResolvedAgentRole `json:"verifier"`
+}
+
+// ResolveMissionRoles turns stored preferences into role proposals without
+// touching any live adapter: an admissible preference wins its role; anything
+// absent or inadmissible falls back to the recommended default with a Reason.
+func ResolveMissionRoles(prefs ProjectAgentPreferences) ResolvedMissionRoles {
+	resolve := func(role, value string, eligible func(AgentHarness) bool, fallback AgentHarness) ResolvedAgentRole {
+		harness := AgentHarness(strings.TrimSpace(value))
+		if harness == "" {
+			return ResolvedAgentRole{Harness: fallback, Source: RoleSourceDefault, Eligible: true, Ready: true,
+				Reason: "no preference recorded; using the capability-admitted default"}
+		}
+		admissible := harness.IsKnown() && eligible(harness)
+		if admissible {
+			return ResolvedAgentRole{Harness: harness, Source: RoleSourcePreference, Eligible: true, Ready: true,
+				Reason: "honors the project preference"}
+		}
+		return ResolvedAgentRole{Harness: fallback, Source: RoleSourceDefault, Eligible: true, Ready: true,
+			Reason: "preferred harness \"" + value + "\" is not admitted for this role"}
+	}
+	return ResolvedMissionRoles{
+		Worker:      resolve("worker", prefs.DefaultWorker, AgentHarness.IsSelectableForNewWork, HarnessCodex),
+		Analyzer:    resolve("analyzer", prefs.Analyzer, AgentHarness.IsSelectableAsCoordinator, HarnessCodex),
+		Coordinator: resolve("coordinator", prefs.Coordinator, AgentHarness.IsSelectableAsCoordinator, HarnessCodex),
+		Verifier:    resolve("verifier", prefs.Verifier, AgentHarness.IsSelectableAsCoordinator, HarnessCodex),
+	}
 }
 
 func validateNoWhitespaceField(name, value string) error {

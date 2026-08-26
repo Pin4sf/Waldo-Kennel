@@ -257,7 +257,16 @@ func Run() error {
 	lcStack.LCM.SetSessionInputLease(sessMgr)
 	lcStack.LCM.SetSessionOperationGate(sessMgr)
 	termMgr.SetSessionInputLease(sessMgr)
-	projectSvc := projectsvc.NewWithDeps(projectsvc.Deps{Store: store, Sessions: sessionSvc, DefaultHarness: domain.HarnessCodex, Telemetry: telemetrySink})
+	// The agent catalog service is constructed before the project service so
+	// Mission-role resolution can enrich stored preferences with live adapter
+	// admission (installed binary, authorization, profile readiness).
+	agentSvc := agentsvc.NewWithDeps(agentsvc.Deps{Cache: store, Discoverer: modelcatalog.Discoverer{}, Projects: store})
+	go func() {
+		if _, err := agentSvc.Refresh(ctx); err != nil {
+			log.Warn("initial agent catalog refresh failed", "err", err)
+		}
+	}()
+	projectSvc := projectsvc.NewWithDeps(projectsvc.Deps{Store: store, Sessions: sessionSvc, DefaultHarness: domain.HarnessCodex, Telemetry: telemetrySink, Roles: agentSvc})
 	if err := seedScratchProjectOnBoot(ctx, cfg, projectSvc); err != nil {
 		stop()
 		lcStack.Stop()
@@ -267,13 +276,6 @@ func Run() error {
 		return err
 	}
 	lcStack.trackerDone = startTrackerIntake(ctx, store, sessionSvc, log)
-
-	agentSvc := agentsvc.NewWithDeps(agentsvc.Deps{Cache: store, Discoverer: modelcatalog.Discoverer{}, Projects: store})
-	go func() {
-		if _, err := agentSvc.Refresh(ctx); err != nil {
-			log.Warn("initial agent catalog refresh failed", "err", err)
-		}
-	}()
 
 	// Connect Mobile: the bridge service needs the LAN listener, but the LAN
 	// listener needs the built router's handler, which only exists once srv is

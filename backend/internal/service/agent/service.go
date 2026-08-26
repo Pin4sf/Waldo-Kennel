@@ -585,3 +585,113 @@ func sortInfos(infos []Info) {
 		return infos[i].ID < infos[j].ID
 	})
 }
+
+// RoleInventoryFact is the live adapter admission truth for one harness,
+// probed from the same inventory primitive the agents list serves. Auth is
+// part of admission ONLY where the adapter implements the auth checker: an
+// adapter without one (DeepSeek Harness deliberately does not) signals its
+// readiness through installation and profile facts instead, so a missing
+// probe must never read as a refused grant.
+type RoleInventoryFact struct {
+	Installed       bool
+	RequiresProfile bool
+	ProfileReady    *bool
+	// AuthApplicable reports whether this adapter requires authorization.
+	AuthApplicable bool
+	// Auth is the probed grant status; meaningful only when AuthApplicable.
+	Auth ports.AgentAuthStatus
+}
+
+func (s *Service) agentFor(harness domain.AgentHarness) (agentregistry.HarnessAgent, bool) {
+	for _, item := range s.agents {
+		if item.Harness == harness {
+			return item, true
+		}
+	}
+	return agentregistry.HarnessAgent{}, false
+}
+
+// InventoryRoleFacts probes installation, authorization, and advisory profile
+// readiness for each named harness through probeAgent — the same primitive
+// that serves the agents catalog — so both paths report identical truth. The
+// caller's context bounds every probe; child timeouts derive from it.
+func (s *Service) InventoryRoleFacts(ctx context.Context, harnesses []domain.AgentHarness) map[domain.AgentHarness]RoleInventoryFact {
+	out := make(map[domain.AgentHarness]RoleInventoryFact, len(harnesses))
+	for _, harness := range harnesses {
+		fact := RoleInventoryFact{Auth: ports.AgentAuthStatusUnknown}
+		item, ok := s.agentFor(harness)
+		if ok {
+			fact.AuthApplicable = isAuthApplicable(item)
+			res := s.probeAgent(ctx, item)
+			fact.Installed = res.installed
+			fact.RequiresProfile = res.info.RequiresProfile
+			fact.ProfileReady = res.info.Ready
+			if res.info.AuthStatus != "" {
+				fact.Auth = res.info.AuthStatus
+			}
+		}
+		out[harness] = fact
+	}
+	return out
+}
+
+// isAuthApplicable reports whether the adapter participates in authorization:
+// adapters without an auth checker (DeepSeek Harness by design) are exempt,
+// and their readiness is installation + profile only.
+func isAuthApplicable(item agentregistry.HarnessAgent) bool {
+	_, ok := item.Agent.(ports.AgentAuthChecker)
+	return ok
+}
+
+// EnrichMissionRoles layers live inventory truth onto the pure capability
+// proposal. Readiness failures never substitute another harness — they flip
+// Ready to false and name every blocking gate, so callers fail closed instead
+// of silently falling back. Authorization fails closed only where the gate
+// applies: an adapter that does not implement the auth checker (DeepSeek
+// Harness) proves readiness through installation and profile facts instead,
+// while a probed unknown or refused grant blocks.
+func EnrichMissionRoles(base domain.ResolvedMissionRoles, facts map[domain.AgentHarness]RoleInventoryFact) domain.ResolvedMissionRoles {
+	enrich := func(role domain.ResolvedAgentRole) domain.ResolvedAgentRole {
+		fact, known := facts[role.Harness]
+		if !known {
+			return role
+		}
+		if !fact.Installed {
+			role.Ready = false
+			role.Reason += "; harness is not installed"
+		}
+		if fact.RequiresProfile && (fact.ProfileReady == nil || !*fact.ProfileReady) {
+			role.Ready = false
+			role.Reason += "; profile readiness fails closed (no composed profile)"
+		}
+		if fact.AuthApplicable && fact.Auth != ports.AgentAuthStatusAuthorized {
+			role.Ready = false
+			role.Reason += "; agent authorization is not granted"
+		}
+		return role
+	}
+	base.Worker = enrich(base.Worker)
+	base.Analyzer = enrich(base.Analyzer)
+	base.Coordinator = enrich(base.Coordinator)
+	base.Verifier = enrich(base.Verifier)
+	return base
+}
+
+// ResolveMissionRoles combines stored preferences with live inventory truth
+// into one daemon-resolved role proposal. Assignments are proposals for
+// future Missions; historical sessions and approved Plans keep their
+// immutable provider identity regardless of what this returns.
+func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences) domain.ResolvedMissionRoles {
+	base := domain.ResolveMissionRoles(prefs)
+	seen := map[domain.AgentHarness]struct{}{
+		base.Analyzer.Harness:    {},
+		base.Coordinator.Harness: {},
+		base.Worker.Harness:      {},
+		base.Verifier.Harness:    {},
+	}
+	names := make([]domain.AgentHarness, 0, len(seen))
+	for harness := range seen {
+		names = append(names, harness)
+	}
+	return EnrichMissionRoles(base, s.InventoryRoleFacts(ctx, names))
+}

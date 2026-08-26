@@ -115,17 +115,19 @@ describe("CreateProjectAgentSheet", () => {
 		await userEvent.click(screen.getByRole("button", { name: "Create and start" }));
 
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+		// No Advanced Settings choice: the coordinator override is omitted and
+		// the daemon applies its canonical default at creation.
 		expect(onSubmit).toHaveBeenCalledWith({
 			workerAgent: "codex",
-			orchestratorAgent: "codex",
 			trackerIntake: undefined,
 		});
 	});
 
 	it("blocks submit when intake is enabled with no assignee, then passes the intake payload once one is set", async () => {
 		const onSubmit = renderSheet();
-		await chooseOption(screen.getByLabelText("Worker agent"), "codex");
-		await chooseOption(screen.getByLabelText("Orchestrator agent"), "codex");
+		await chooseOption(screen.getByLabelText("Default coding agent"), "codex");
+		await userEvent.click(screen.getByRole("button", { name: "Advanced settings" }));
+		await chooseOption(await screen.findByLabelText("Orchestrator agent"), "codex");
 
 		await userEvent.click(screen.getByLabelText("Enable issue intake"));
 		// Enabled with no eligibility rule → submit stays disabled (compact sheet
@@ -140,6 +142,21 @@ describe("CreateProjectAgentSheet", () => {
 			workerAgent: "codex",
 			orchestratorAgent: "codex",
 			trackerIntake: { enabled: true, provider: "github", assignee: "octocat" },
+		});
+	});
+
+	it("omits the coordinator override even for a non-coordinator default coding agent", async () => {
+		const onSubmit = renderSheet();
+		// claude-code is not admitted as a coordinator by the daemon inventory;
+		// the sheet still requires no second choice and sends no override —
+		// the daemon applies its canonical coordinator default.
+		await chooseOption(screen.getByLabelText("Default coding agent"), "claude-code");
+		await userEvent.click(screen.getByRole("button", { name: "Create and start" }));
+
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+		expect(onSubmit).toHaveBeenCalledWith({
+			workerAgent: "claude-code",
+			trackerIntake: undefined,
 		});
 	});
 

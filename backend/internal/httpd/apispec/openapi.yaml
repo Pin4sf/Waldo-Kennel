@@ -2459,6 +2459,51 @@ paths:
       summary: Create an Outcome with its first immutable contract revision
       tags:
       - outcomes
+  /api/v1/projects/{id}/resolved-mission-roles:
+    get:
+      operationId: getResolvedMissionRoles
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolvedMissionRolesResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read the daemon-resolved Mission-role proposal for one Project
+      tags:
+      - projects
   /api/v1/projects/initialize:
     post:
       operationId: initializeProjectRepository
@@ -9440,10 +9485,23 @@ components:
       - repo
       - defaultBranch
       type: object
+    ProjectAgentPreferences:
+      properties:
+        analyzer:
+          type: string
+        coordinator:
+          type: string
+        defaultWorker:
+          type: string
+        verifier:
+          type: string
+      type: object
     ProjectConfig:
       properties:
         agentConfig:
           $ref: '#/components/schemas/AgentConfig'
+        agentPreferences:
+          $ref: '#/components/schemas/ProjectAgentPreferences'
         agentRules:
           type: string
         agentRulesFile:
@@ -9797,6 +9855,47 @@ components:
           type: object
       required:
       - action
+      type: object
+    ResolvedAgentRole:
+      properties:
+        eligible:
+          type: boolean
+        harness:
+          type: string
+        ready:
+          type: boolean
+        reason:
+          type: string
+        source:
+          type: string
+      required:
+      - harness
+      - source
+      - eligible
+      - ready
+      type: object
+    ResolvedMissionRoles:
+      properties:
+        analyzer:
+          $ref: '#/components/schemas/ResolvedAgentRole'
+        coordinator:
+          $ref: '#/components/schemas/ResolvedAgentRole'
+        verifier:
+          $ref: '#/components/schemas/ResolvedAgentRole'
+        worker:
+          $ref: '#/components/schemas/ResolvedAgentRole'
+      required:
+      - analyzer
+      - coordinator
+      - worker
+      - verifier
+      type: object
+    ResolvedMissionRolesResponse:
+      properties:
+        roles:
+          $ref: '#/components/schemas/ResolvedMissionRoles'
+      required:
+      - roles
       type: object
     ResponsibilityLinkEnvelope:
       properties:
