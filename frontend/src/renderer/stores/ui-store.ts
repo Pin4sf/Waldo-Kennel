@@ -49,6 +49,10 @@ type UiState = {
 	/** Which reading of the sessions lanes is showing. Sticky across launches:
 	 *  a person picks board or list once and expects it to stay picked. */
 	sessionsViewMode: SessionsViewMode;
+	/** Board or List reading of one Outcome's attempt lineage (Act & Observe).
+	 *  Sticky across launches, same as sessionsViewMode, but scoped separately
+	 *  since it governs a different lane model (attempts, not sessions). */
+	outcomeRunViewMode: SessionsViewMode;
 	/** Agent seeded into new project and session forms. Empty means "let the app
 	 *  pick", which is what a person who skipped the setup tour gets. */
 	defaultAgentId: string;
@@ -95,6 +99,7 @@ type UiState = {
 	visibleTerminalKindBySession: Record<string, TerminalTarget["kind"]>;
 	setWorkbenchTab: (tab: WorkbenchTab) => void;
 	setSessionsViewMode: (mode: SessionsViewMode) => void;
+	setOutcomeRunViewMode: (mode: SessionsViewMode) => void;
 	setDefaultAgentId: (agentId: string) => void;
 	openOnboarding: () => void;
 	closeOnboarding: () => void;
@@ -132,6 +137,7 @@ export type OrchestratorReplacementFailure = {
 
 const sidebarStorageKey = "kennel.sidebar.open";
 const sessionsViewModeStorageKey = "kennel.sessions.viewMode";
+const outcomeRunViewModeStorageKey = "kennel.outcome.runViewMode";
 const defaultAgentStorageKey = "kennel.agent.default";
 const onboardingStorageKey = "kennel.onboarding.completed";
 const developerModeStorageKey = "kennel.developerMode";
@@ -146,6 +152,10 @@ function initialSidebarOpen() {
 
 function initialSessionsViewMode(): SessionsViewMode {
 	return getLocalStorage()?.getItem(sessionsViewModeStorageKey) === "list" ? "list" : "board";
+}
+
+function initialOutcomeRunViewMode(): SessionsViewMode {
+	return getLocalStorage()?.getItem(outcomeRunViewModeStorageKey) === "list" ? "list" : "board";
 }
 
 function initialDefaultAgentId() {
@@ -170,6 +180,7 @@ const initialThemeStyle = readStoredThemeStyle();
 export const useUiStore = create<UiState>((set, get) => ({
 	workbenchTab: "changes",
 	sessionsViewMode: initialSessionsViewMode(),
+	outcomeRunViewMode: initialOutcomeRunViewMode(),
 	defaultAgentId: initialDefaultAgentId(),
 	hasCompletedOnboarding: initialHasCompletedOnboarding(),
 	isOnboardingOpen: false,
@@ -193,6 +204,10 @@ export const useUiStore = create<UiState>((set, get) => ({
 	setSessionsViewMode: (sessionsViewMode) => {
 		getLocalStorage()?.setItem(sessionsViewModeStorageKey, sessionsViewMode);
 		set({ sessionsViewMode });
+	},
+	setOutcomeRunViewMode: (outcomeRunViewMode) => {
+		getLocalStorage()?.setItem(outcomeRunViewModeStorageKey, outcomeRunViewMode);
+		set({ outcomeRunViewMode });
 	},
 	setDefaultAgentId: (defaultAgentId) => {
 		getLocalStorage()?.setItem(defaultAgentStorageKey, defaultAgentId);

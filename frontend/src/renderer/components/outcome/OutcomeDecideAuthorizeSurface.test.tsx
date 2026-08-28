@@ -248,7 +248,7 @@ describe("OutcomeDecideAuthorizeSurface", () => {
 		expect(card).toHaveTextContent(/authorized/i);
 		expect(screen.queryByTestId("outcome-propose-plan")).not.toBeInTheDocument();
 		expect(screen.queryByTestId("outcome-approve-plan")).not.toBeInTheDocument();
-		await userEvent.click(screen.getByRole("button", { name: /review the Work board/i }));
+		await userEvent.click(screen.getByRole("button", { name: /start sessions/i }));
 		expect(onReviewWork).toHaveBeenCalledOnce();
 	});
 });

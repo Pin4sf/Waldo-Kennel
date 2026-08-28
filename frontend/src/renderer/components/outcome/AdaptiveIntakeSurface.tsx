@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -102,7 +103,57 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 	}
 
 	if (!hasTrustedApiBaseUrl()) return <TruthMessage title={t("outcome.intake.offlineTitle")} body={t("outcome.intake.offlineBody")} />;
-	if (!intakeId) return <form className="mx-auto flex h-full w-full max-w-2xl flex-col justify-center gap-4 px-4 sm:px-8" onSubmit={capture}><label className="text-lg font-medium" htmlFor="outcome-statement">{t("outcome.intake.prompt")}</label><textarea id="outcome-statement" aria-label={t("outcome.intake.prompt")} autoFocus className="min-h-28 w-full resize-y rounded-xl border border-border bg-background p-4 text-base outline-none focus:ring-2 focus:ring-ring" onChange={(event) => setStatement(event.target.value)} onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} placeholder={t("outcome.intake.placeholder")} value={statement} /><div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">{t("outcome.intake.hint")}</p><Button disabled={pending || !statement.trim()} type="submit">{pending ? t("outcome.intake.saving") : t("outcome.intake.continue")}</Button></div>{error ? <p className="text-sm text-destructive" role="alert">{error} {t("outcome.intake.unsaved")}</p> : null}</form>;
+	if (!intakeId) return (
+		<form
+			className="mx-auto flex h-full w-full max-w-3xl flex-col items-center justify-center gap-6 px-4 sm:px-8"
+			onSubmit={capture}
+		>
+			<label
+				className="text-balance text-center text-2xl font-medium leading-snug tracking-wide-sm text-foreground sm:text-[28px]"
+				htmlFor="outcome-statement"
+			>
+				{t("outcome.intake.prompt")}
+			</label>
+			<div className="flex w-full flex-col gap-3 rounded-group hairline border-border bg-card px-4.5 py-3.5">
+				<textarea
+					id="outcome-statement"
+					aria-label={t("outcome.intake.prompt")}
+					autoFocus
+					className="min-h-16 w-full resize-y bg-transparent text-sm leading-body text-foreground outline-none placeholder:text-muted-foreground/70"
+					onChange={(event) => setStatement(event.target.value)}
+					onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
+						if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+							event.preventDefault();
+							event.currentTarget.form?.requestSubmit();
+						}
+					}}
+					placeholder={t("outcome.intake.placeholder")}
+					value={statement}
+				/>
+				<div className="flex items-center justify-between gap-3">
+					<p className="text-2xs text-passive">{t("outcome.intake.hint")}</p>
+					<Button
+						aria-label={pending ? t("outcome.intake.saving") : t("outcome.intake.continue")}
+						className="rounded-full"
+						disabled={pending || !statement.trim()}
+						size="icon-sm"
+						type="submit"
+					>
+						{pending ? (
+							<Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+						) : (
+							<ArrowRight aria-hidden="true" className="size-3.5" />
+						)}
+					</Button>
+				</div>
+			</div>
+			{error ? (
+				<p className="text-sm text-destructive" role="alert">
+					{error} {t("outcome.intake.unsaved")}
+				</p>
+			) : null}
+		</form>
+	);
 	if (query.isLoading && !snapshot) return <TruthMessage title={t("outcome.intake.loadingTitle")} body={t("outcome.intake.loadingBody")} />;
 	if (query.error && !snapshot) return <TruthMessage title={t("outcome.intake.unavailableTitle")} body={apiErrorMessage(query.error)} />;
 	if (!snapshot) return <TruthMessage title={t("outcome.intake.unavailableTitle")} body={t("outcome.intake.noState")} />;
