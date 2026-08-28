@@ -1,6 +1,6 @@
 import { SessionsBoardGridView, SessionsListView, SessionsViewSwitch } from "@pin4sf/kennel-product-ui";
 import { Loader2, ShieldAlert } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MessageKey } from "../../i18n/messages";
@@ -16,6 +16,7 @@ import { boardAttentionZoneOrder, getAttentionZoneViewForZone } from "../../lib/
 import { useUiStore } from "../../stores/ui-store";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { OutcomeAttemptTerminalPanel } from "./OutcomeAttemptTerminalPanel";
 import {
 	AttemptCardAdapter,
 	AttemptRowAdapter,
@@ -23,10 +24,6 @@ import {
 	toAttemptBoardPresentation,
 	type AttemptBoardPresentation,
 } from "./OutcomeRunBoardAdapters";
-
-/** The id `CurrentAttemptCard` renders on its root — the board/list "Engage"
- *  action scrolls this into view rather than duplicating its controls. */
-const CURRENT_ATTEMPT_ANCHOR_ID = "outcome-run-current-attempt";
 
 type OutcomeRunSurfaceProps = {
 	outcomeId: string;
@@ -100,8 +97,14 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfac
 		() => attempts.map((attempt) => toAttemptBoardPresentation(attempt, plan, attempt.id === current?.id, t)),
 		[attempts, plan, current?.id, t],
 	);
-	const engageCurrentAttempt = () =>
-		document.getElementById(CURRENT_ATTEMPT_ANCHOR_ID)?.scrollIntoView({ behavior: "smooth", block: "start" });
+	// Instruct (Board) / Choose /Engage (List) drills into the current attempt's
+	// real bound session in a terminal panel beside the board/list, rather than
+	// leaving the click with no visible effect.
+	const [isAttemptPanelOpen, setIsAttemptPanelOpen] = useState(false);
+	useEffect(() => {
+		setIsAttemptPanelOpen(false);
+	}, [current?.id]);
+	const engageCurrentAttempt = () => setIsAttemptPanelOpen(true);
 
 	async function startAttempt() {
 		if (!plan || pending) return;
@@ -182,26 +185,31 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfac
 							value={outcomeRunViewMode}
 						/>
 					</div>
-					<div className="h-[24rem] min-h-0 shrink-0">
-						{outcomeRunViewMode === "list" ? (
-							<SessionsListView
-								columns={boardColumns}
-								labels={boardLabels}
-								renderSessionRow={(presentation) => (
-									<AttemptRowAdapter onEngage={engageCurrentAttempt} presentation={presentation} />
-								)}
-								sessions={attemptPresentations}
-							/>
-						) : (
-							<SessionsBoardGridView
-								columns={boardColumns}
-								labels={boardLabels}
-								renderSessionCard={(presentation) => (
-									<AttemptCardAdapter onEngage={engageCurrentAttempt} presentation={presentation} />
-								)}
-								sessions={attemptPresentations}
-							/>
-						)}
+					<div className="flex min-h-0 flex-1 gap-2.5">
+						<div className="h-[24rem] min-w-0 min-h-0 flex-1">
+							{outcomeRunViewMode === "list" ? (
+								<SessionsListView
+									columns={boardColumns}
+									labels={boardLabels}
+									renderSessionRow={(presentation) => (
+										<AttemptRowAdapter onEngage={engageCurrentAttempt} presentation={presentation} />
+									)}
+									sessions={attemptPresentations}
+								/>
+							) : (
+								<SessionsBoardGridView
+									columns={boardColumns}
+									labels={boardLabels}
+									renderSessionCard={(presentation) => (
+										<AttemptCardAdapter onEngage={engageCurrentAttempt} presentation={presentation} />
+									)}
+									sessions={attemptPresentations}
+								/>
+							)}
+						</div>
+						{isAttemptPanelOpen && current ? (
+							<OutcomeAttemptTerminalPanel attempt={current} onClose={() => setIsAttemptPanelOpen(false)} />
+						) : null}
 					</div>
 				</div>
 			)}
@@ -266,7 +274,6 @@ function CurrentAttemptCard({
 		<div
 			className="flex max-w-xl flex-col gap-3 rounded-card hairline border-border bg-card p-4.5"
 			data-testid={`outcome-run-attempt-${attempt.id}`}
-			id={CURRENT_ATTEMPT_ANCHOR_ID}
 		>
 			<div className="flex items-center gap-2">
 				{badgeKey && (
