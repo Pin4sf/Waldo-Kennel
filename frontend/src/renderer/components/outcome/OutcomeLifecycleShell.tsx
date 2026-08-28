@@ -50,7 +50,10 @@ export function OutcomeLifecycleShell({ stage, projectId, outcomeId, children }:
 
 	return (
 		<section className="flex h-full flex-col gap-4" data-project-id={projectId} data-outcome-id={outcomeId}>
-			<ol aria-label={t("outcome.lifecycle.label")} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+			<ol
+				aria-label={t("outcome.lifecycle.label")}
+				className="inline-flex w-fit flex-wrap items-center gap-1 rounded-lg bg-shell p-1"
+			>
 				{OUTCOME_STAGES.map((candidate, index) => {
 					const isCurrent = candidate === stage;
 					// Position is presentation only. A stage rendered "complete" here
@@ -63,8 +66,10 @@ export function OutcomeLifecycleShell({ stage, projectId, outcomeId, children }:
 							data-stage={candidate}
 							data-position={position}
 							className={cn(
-								"rounded-md px-2 py-1 text-xs",
-								isCurrent ? "bg-accent text-accent-foreground font-medium" : "text-muted-foreground",
+								"rounded-md px-2.5 py-1 text-xs transition-colors",
+								isCurrent
+									? "hairline border-border bg-card font-medium text-foreground"
+									: "text-muted-foreground",
 							)}
 						>
 							{t(STAGE_LABEL_KEYS[candidate])}
