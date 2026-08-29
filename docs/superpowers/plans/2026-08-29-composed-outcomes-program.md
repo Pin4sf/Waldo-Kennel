@@ -138,17 +138,22 @@ The product architecture doc is the contract, and it currently says decompositio
 
 **Gate:** the written architecture and the intended code agree before any code is written.
 
-### Phase 1 — Composition domain, storage, and read API
+### Phase 1 — Composition domain, storage, and read API — **delivered 2026-08-29**
 
-- `Outcome.ParentID`, `OutcomeShape`, `ContributionLink`, `ContributionDependency`, `DecompositionRevision` in `internal/domain`.
-- Migration `0106`: nullable `parent_outcome_id` with FK and index; `decomposition_revisions`, `contribution_links`, `contribution_dependencies`; immutability triggers matching the `contract_revisions` pattern; new `change_log` event types (`outcome_decomposed`, `outcome_contribution_bound`) added through the established checked-table rebuild.
-- `GET /api/v1/outcomes/{id}` returns parent ref and children; `GET /api/v1/projects/{id}/outcomes` returns the tree with a flat-list projection retained for existing callers.
-- Regenerate `openapi.yaml` + `schema.ts`.
-- **Tests:** depth cap, cycle rejection, authority containment, orphan rejection, CDC emission, restart durability, and — critically — that an Outcome with no parent behaves exactly as it does today.
+**Scope adjusted during implementation.** `DecompositionRevision` and `ContributionDependency` moved to Phase 2, where their writer lives. Shipping their tables here would have been exactly the horizontal schema the repository forbids — a relation no code can write, waiting for a later PR to make it true. Phase 1 delivers composition end to end without them; Phase 2 adds the frozen, authorized decomposition on top.
 
-**Gate:** a decomposed Outcome round-trips through restart with no behavior change to existing flat Outcomes.
+Delivered:
+
+- `Outcome.ParentID`, derived `OutcomeShape`, `ContributionLink`, authority containment, criterion coverage, and staleness in `internal/domain`.
+- Migration `0106` extends the `change_log` vocabulary with `outcome_contribution_bound`. The composition schema itself installs through `reconcileComposedOutcomesSchema`, a startup seam matching `reconcileOutcomeProofSchema`: a burned `0099` ledger entry leaves `outcomes` physically absent while its version is marked, and `ALTER TABLE` cannot be made conditional in goose SQL.
+- `POST /api/v1/outcomes/{outcomeId}/contributions` and `GET /api/v1/outcomes/{outcomeId}/composition`; `parentId` added to every Outcome projection. `openapi.yaml` and `schema.ts` regenerated.
+- **Tests** at all three layers: depth cap (domain, service, and raw SQL, in both directions), authority containment naming every over-claimed authority, unknown/blank/duplicate criterion claims, mismatched bindings, link immutability against a writer that bypasses the store, split-revision bindings, CDC emission, replay idempotency, parent-revision staleness, degraded-profile deferral and seam idempotency, and that an Outcome with no parent behaves exactly as it does today.
+
+**Gate met:** a decomposed Outcome round-trips through restart; direct Outcomes are unchanged; the full backend suite and `-race` pass except one pre-existing DeepSeek failure; lint adds no new issues.
 
 ### Phase 2 — Decomposition proposal and authorization
+
+Owns `DecompositionRevision` and `ContributionDependency`, inherited from Phase 1 along with parent-retained criteria — all three exist to be *authorized*, so they land with the flow that authorizes them.
 
 - Waldo (analyzer/coordinator role, via the existing role resolution) proposes N contributing Outcomes: draft title, draft contract core, contribution bindings, dependencies, and a plain-language rationale for the topology.
 - Deterministic daemon policy validates before the user ever sees it: criterion coverage, authority containment, acyclicity, adapter readiness for the proposed roles, worktree non-overlap.
