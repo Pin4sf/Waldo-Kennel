@@ -18,11 +18,12 @@
 | --- | --- | --- | --- |
 | Foundation identity | [AO retirement audit](ao-legacy-retirement-audit.md) | [AO retirement plan](../superpowers/plans/2026-08-21-ao-legacy-retirement.md) | active product vocabulary, donor independence, package identity, provenance preserved |
 | Work | [First Outcome slice](kennel-v0-first-outcome-slice.md) | [First Outcome handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) | one real Focus Ledger Outcome through explicit Acceptance and Re-entry |
-| Work control plane | [Canonical Work flow](../superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md) + [screen/interaction spec](../superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md) | [Work control-plane delivery](../superpowers/plans/2026-08-25-work-control-plane-delivery.md) | Board -> Outcome Mission Control -> Session Inspector, durable Project conversation, adaptive Contract, bounded continuation, and one evaluated adaptive Mission |
+| Work control plane | [Canonical Work flow](../superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md) + [screen/interaction spec](../superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md) | [Work control-plane delivery](../superpowers/plans/2026-08-25-work-control-plane-delivery.md) | Board -> Outcome Mission Control -> Session Inspector, durable Project conversation, adaptive Contract, bounded continuation, and one evaluated adaptive Mission. Its "adaptive multi-Work-Unit Mission" slice is superseded by [ADR 0007](../adr/0007-composed-outcomes.md): `PlanRevision` stays at one direct Work Unit and the contributing-Outcome layer carries the topology |
 | Home/Personal Agent | [Home design](../superpowers/specs/2026-08-21-home-personal-agent-memory-design.md) | [Home foundations plan](../superpowers/plans/2026-08-21-home-personal-agent-foundations.md) | useful Home, explicit closure, governed capture, candidate-only memory, deletion non-resurrection |
 | Learning L1 | [Learning design](../superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md) | [Experience Ledger plan](../superpowers/plans/2026-08-21-learning-experience-ledger.md) | attributable shadow episodes/candidates with no responsibility/proof mutation |
 | Learning L2 | same | [Experiment/Evaluation plan](../superpowers/plans/2026-08-21-learning-experiment-evaluation.md) | locked evaluator, hidden held-out no-regression, isolation and cleanup |
 | Learning L3 | same | [Skill Registry plan](../superpowers/plans/2026-08-21-learning-skill-registry.md) | one explicitly promoted provisional Project skill with receipts and rollback |
+| Composed Outcomes | [ADR 0007](../adr/0007-composed-outcomes.md) | [Composed Outcomes program](../superpowers/plans/2026-08-29-composed-outcomes-program.md) | one Project-level Outcome decomposed into independently governed contributing Outcomes, with criterion-bound roll-up and no rise in supervision cost |
 | Later ecosystem | [ADR 0006](../adr/0006-one-durable-waldo-multiple-governed-presences.md) | Not implementation-ready by design | local gates, attachment protocol, health threat model, custody migration, and mobile specification |
 
 ## Dependency and parallelism
@@ -38,7 +39,7 @@ Work A Enter -> B Contract -> C Plan -> D Attempt -> E Proof/Acceptance
 Home OpenLoop -> Home flows -> Capture/source plane -> MemoryCandidate gate
 Work result facts + Home/source refs -> Learning L1 -> L2 -> L3
 Work D/E + shared Intake + durable Project conversation -> Work Mission Control
-Work Mission Control + first-slice evaluation -> adaptive multi-WorkUnit Mission
+Work Mission Control + first-slice evaluation -> composed Outcomes (ADR 0007)
 Home durable-memory gate + L3 evidence + attachment/health specs -> ADR 0006 ecosystem work
 ```
 
@@ -52,6 +53,7 @@ AO donor detachment can run beside Work/Home. The destructive donor removal wait
 | Shared `IntakeSession` state machine | Home Task 4, reviewed by Work owner | Home and Work controllers |
 | `ResponsibilityLink` | Home Task 4 | Work read projection |
 | Outcome/Attempt/Evidence/Verification/Acceptance facts | Work | Home projection, Learning sources |
+| `DecompositionRevision`, `ContributionLink`, `ContributionDependency` | Composed Outcomes vertical | Board/Mission Control, attention roll-up, Learning attribution |
 | Source/deletion generations | Home capture/memory | Learning and future attachment |
 | RunBrief skill/context references | Work integration owner | Home retrieval, Learning L3, provider adapters |
 | Project Waldo conversation and continuation receipts | new Conversation Runtime vertical | Work intake, Mission Control, later Home relationship surface |
@@ -65,7 +67,7 @@ One PR owns a shared file at a time. Parallel branches do not independently edit
 
 Current route integration convention: `/work` is the Work-first Enter destination, `/home` is the Personal Home Today destination, and the global mode control remembers the last meaningful route within each lane. The inherited `/` orchestration board remains a valid remembered Work route after it has been visited. Generated `routeTree.gen.ts` conflicts are resolved from the route source files and regenerated; neither lane selects its generated side wholesale.
 
-Migrations `0099-0102` are present on the 2026-08-25 `beta` baseline. Older numeric reservations for Home and Learning are historical coordination evidence, not live claims. Every unmerged vertical must inspect current `origin/beta`, claim the next unused migration in its issue/PR lease before editing schema, and renumber its own unmerged work when another integration lands first.
+Migrations `0099-0105` are present on the 2026-08-29 `beta` baseline; the next free number is `0106`. Older numeric reservations for Home and Learning are historical coordination evidence, not live claims. Every unmerged vertical must inspect current `origin/beta`, claim the next unused migration in its issue/PR lease before editing schema, and renumber its own unmerged work when another integration lands first.
 
 ## Milestones
 
@@ -89,7 +91,7 @@ The first four milestones contain issue-sized implementation work. The fifth con
 
 Foundation, Work, and Home use one issue per implementation-plan task. Learning uses one issue per gated L1/L2/L3 plan, with that plan's four tasks serving as the issue checklist. The later milestone contains gates, not implementation promises. Closed AO-era issues [#2-#10](https://github.com/Pin4sf/Waldo-Kennel/issues?q=is%3Aissue+is%3Aclosed+number%3A2..10) retain their completion or supersession comments rather than being rewritten.
 
-The 2026-08-25 issue audit found the canonical Outcome and learning lineages covered by the existing issues above. The Work control-plane specification requires separately reviewed vertical issues for durable Project conversation, Project agent-role resolution, adaptive Work intake composition, Outcome Mission Control/Session Inspector, and a later evaluated adaptive multi-WorkUnit Mission. These slices must not be smuggled into #31, #32, or #40 without an explicit issue-scope decision.
+The 2026-08-25 issue audit found the canonical Outcome and learning lineages covered by the existing issues above. The Work control-plane specification requires separately reviewed vertical issues for durable Project conversation, Project agent-role resolution, adaptive Work intake composition, Outcome Mission Control/Session Inspector, and a later evaluated adaptive multi-WorkUnit Mission. That last slice is superseded by [ADR 0007](../adr/0007-composed-outcomes.md), which puts the topology in the contributing-Outcome layer instead; the Composed Outcomes program replaces it. The remaining slices must not be smuggled into #31, #32, or #40 without an explicit issue-scope decision.
 
 ## Completion definition
 

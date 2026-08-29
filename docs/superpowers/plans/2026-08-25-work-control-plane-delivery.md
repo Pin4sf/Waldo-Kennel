@@ -208,6 +208,8 @@ type OutcomeContractProposal struct {
 
 ### Task 5: One adaptive multi-WorkUnit Mission vertical and evaluation
 
+> **Superseded 2026-08-29 by [ADR 0007](../../adr/0007-composed-outcomes.md).** `PlanRevision` stays at exactly one direct Work Unit; the topology moves up into contributing Outcomes. Its replacement is the [Composed Outcomes program](2026-08-29-composed-outcomes-program.md). The task is kept for provenance; do not plan from it.
+
 **Files:**
 - Modify: Outcome Plan/WorkUnit domain and service under current owners
 - Modify: Attempt execution/admission service under #31 ownership
