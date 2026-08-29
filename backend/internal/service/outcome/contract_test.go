@@ -30,6 +30,8 @@ type fakeStore struct {
 	decompositions     map[domain.DecompositionRevisionID]domain.DecompositionRevision
 	decompositionOrder []domain.DecompositionRevisionID
 	waivers            []domain.ContributionDependencyWaiver
+	requests           map[domain.DecompositionRequestID]domain.DecompositionRequest
+	requestOrder       []domain.DecompositionRequestID
 
 	order  []domain.OutcomeID
 	writes int
@@ -585,6 +587,71 @@ func (f *fakeStore) ListContributionDependencyWaivers(_ context.Context, decompo
 	for _, waiver := range f.waivers {
 		if waiver.DecompositionID == decompositionID {
 			out = append(out, waiver)
+		}
+	}
+	return out, nil
+}
+
+// --- Agent-authored decomposition asks (ADR 0007 phase 2b) ---
+
+func (f *fakeStore) CreateDecompositionRequest(_ context.Context, request domain.DecompositionRequest) error {
+	if err := request.Validate(); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.requests == nil {
+		f.requests = map[domain.DecompositionRequestID]domain.DecompositionRequest{}
+	}
+	f.requests[request.ID] = request
+	f.requestOrder = append(f.requestOrder, request.ID)
+	return nil
+}
+
+func (f *fakeStore) GetDecompositionRequest(_ context.Context, id domain.DecompositionRequestID) (domain.DecompositionRequest, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	request, ok := f.requests[id]
+	return request, ok, nil
+}
+
+func (f *fakeStore) LatestDecompositionRequest(_ context.Context, outcomeID domain.OutcomeID) (domain.DecompositionRequest, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := len(f.requestOrder) - 1; i >= 0; i-- {
+		if request := f.requests[f.requestOrder[i]]; request.OutcomeID == outcomeID {
+			return request, true, nil
+		}
+	}
+	return domain.DecompositionRequest{}, false, nil
+}
+
+// The guarded update is what makes the callback single-use, so the fake
+// guards too: a test that could answer twice here would prove nothing.
+func (f *fakeStore) AnswerDecompositionRequest(_ context.Context, answer ports.DecompositionRequestAnswer) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	request, ok := f.requests[answer.RequestID]
+	if !ok || !request.Status.Open() {
+		return fmt.Errorf("%w: %s", ports.ErrDecompositionRequestClosed, answer.RequestID)
+	}
+	request.Status = answer.Status
+	request.RawProposal = answer.RawProposal
+	request.RefusalReason = answer.RefusalReason
+	request.DecompositionID = answer.DecompositionID
+	at := answer.At
+	request.AnsweredAt = &at
+	f.requests[answer.RequestID] = request
+	return nil
+}
+
+func (f *fakeStore) ListOpenDecompositionRequests(_ context.Context) ([]domain.DecompositionRequest, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]domain.DecompositionRequest, 0, len(f.requestOrder))
+	for _, id := range f.requestOrder {
+		if request := f.requests[id]; request.Status.Open() {
+			out = append(out, request)
 		}
 	}
 	return out, nil

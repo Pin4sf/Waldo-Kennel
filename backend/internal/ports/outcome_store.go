@@ -121,6 +121,26 @@ type OutcomeStore interface {
 	// one decomposition. Waivers are append-only, so this is the full history.
 	ListContributionDependencyWaivers(ctx context.Context, decompositionID domain.DecompositionRevisionID) ([]domain.ContributionDependencyWaiver, error)
 
+	// CreateDecompositionRequest opens one durable ask for an agent-authored
+	// decomposition. Only the callback token's digest is persisted.
+	CreateDecompositionRequest(ctx context.Context, request domain.DecompositionRequest) error
+
+	// GetDecompositionRequest reads one ask; ok=false when absent.
+	GetDecompositionRequest(ctx context.Context, id domain.DecompositionRequestID) (domain.DecompositionRequest, bool, error)
+
+	// LatestDecompositionRequest returns an Outcome's newest ask of any status.
+	LatestDecompositionRequest(ctx context.Context, outcomeID domain.OutcomeID) (domain.DecompositionRequest, bool, error)
+
+	// AnswerDecompositionRequest closes an open ask one way, retaining the
+	// agent's draft whatever the verdict. A second answer finds no open row
+	// and returns ErrDecompositionRequestClosed — that guard is what makes the
+	// callback single-use.
+	AnswerDecompositionRequest(ctx context.Context, answer DecompositionRequestAnswer) error
+
+	// ListOpenDecompositionRequests returns every unanswered ask so a
+	// restarted daemon can close the ones that expired while it was down.
+	ListOpenDecompositionRequests(ctx context.Context) ([]domain.DecompositionRequest, error)
+
 	// AppendPlanRevision atomically persists one proposed plan together with
 	// its single Work Unit and capability grants, assigning the plan number
 	// inside the transaction and returning the plan with that number.
@@ -254,3 +274,18 @@ type AuthorizedContribution struct {
 // ErrDecompositionNotProposed reports an authorization attempt against a
 // decomposition that is not an open proposal — already authorized or absent.
 var ErrDecompositionNotProposed = errors.New("decomposition is not an open proposal")
+
+// DecompositionRequestAnswer closes one ask. RawProposal is retained whatever
+// the verdict, so a refused draft stays correctable instead of being lost.
+type DecompositionRequestAnswer struct {
+	RequestID       domain.DecompositionRequestID
+	Status          domain.DecompositionRequestStatus
+	RawProposal     string
+	RefusalReason   string
+	DecompositionID domain.DecompositionRevisionID
+	At              time.Time
+}
+
+// ErrDecompositionRequestClosed reports an answer to an ask that is no longer
+// open — already answered, expired, or absent.
+var ErrDecompositionRequestClosed = errors.New("decomposition request is not open")

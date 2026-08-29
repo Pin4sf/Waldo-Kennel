@@ -112,6 +112,7 @@ var shippedMigrations = map[int64]string{
 	106: "0106_composed_outcomes.sql",
 	107: "0107_outcome_decomposition.sql",
 	108: "0108_contribution_dependency_waivers.sql",
+	109: "0109_decomposition_requests.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

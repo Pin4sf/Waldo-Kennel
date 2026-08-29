@@ -253,3 +253,40 @@ DROP TRIGGER IF EXISTS contribution_waivers_immutable_delete;
 CREATE TRIGGER contribution_waivers_immutable_delete
 BEFORE DELETE ON contribution_dependency_waivers
 BEGIN SELECT RAISE(ABORT, 'dependency waivers are append-only'); END;
+
+-- Phase 2b (0109): one durable ask for an agent-authored decomposition.
+-- The callback token is stored only as a digest, and is SCOPING rather than
+-- authentication (ADR 0007): the loopback listener is unauthenticated, so this
+-- prevents a confused agent answering for the wrong Outcome or twice, not a
+-- hostile local process.
+CREATE TABLE IF NOT EXISTS decomposition_requests (
+    id                    TEXT PRIMARY KEY,
+    outcome_id            TEXT NOT NULL REFERENCES outcomes (id),
+    contract_revision_id  TEXT NOT NULL REFERENCES contract_revisions (id),
+    status                TEXT NOT NULL CHECK (status IN ('requested','fulfilled','rejected','expired','cancelled')),
+    callback_token_digest TEXT NOT NULL CHECK (length(callback_token_digest) = 64),
+    session_id            TEXT NOT NULL DEFAULT '',
+    expires_at            TIMESTAMP NOT NULL,
+    raw_proposal          TEXT NOT NULL DEFAULT '',
+    refusal_reason        TEXT NOT NULL DEFAULT '',
+    decomposition_id      TEXT REFERENCES decomposition_revisions (id),
+    created_at            TIMESTAMP NOT NULL DEFAULT (datetime('now')),
+    answered_at           TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_decomposition_requests_outcome
+    ON decomposition_requests (outcome_id, created_at);
+
+-- A request is frozen except for its one-way move out of 'requested'. Nothing
+-- may reopen an answered ask, which is what makes the callback single-use.
+DROP TRIGGER IF EXISTS decomposition_requests_freeze_update;
+CREATE TRIGGER decomposition_requests_freeze_update
+BEFORE UPDATE ON decomposition_requests
+WHEN OLD.status <> 'requested'
+     OR NEW.status = 'requested'
+     OR NEW.id <> OLD.id
+     OR NEW.outcome_id <> OLD.outcome_id
+     OR NEW.contract_revision_id <> OLD.contract_revision_id
+     OR NEW.callback_token_digest <> OLD.callback_token_digest
+     OR NEW.expires_at <> OLD.expires_at
+BEGIN SELECT RAISE(ABORT, 'a decomposition request is frozen except for its one-way answer'); END;

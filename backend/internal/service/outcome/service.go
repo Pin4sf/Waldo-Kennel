@@ -59,6 +59,18 @@ type Manager interface {
 	// declared ordering. Only the owner may waive, and the reason is durable.
 	WaiveContributionDependency(ctx context.Context, parentID domain.OutcomeID, in WaiveDependencyInput) (DecompositionView, error)
 
+	// AskForDecomposition opens a durable request and starts an agent working
+	// on it. The proposal arrives later, over the API: the daemon has no
+	// synchronous model call.
+	AskForDecomposition(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) (DecompositionRequestView, error)
+
+	// SubmitAgentProposal is the callback an agent-authored proposal arrives
+	// on. It passes the SAME gates a hand-authored proposal does.
+	SubmitAgentProposal(ctx context.Context, requestID domain.DecompositionRequestID, token string, in ProposeDecompositionInput, raw string) (DecompositionRequestView, error)
+
+	// LatestDecompositionRequest reads an Outcome's newest ask.
+	LatestDecompositionRequest(ctx context.Context, outcomeID domain.OutcomeID) (DecompositionRequestView, error)
+
 	// CreateContribution adds one contributing Outcome beneath parentID. It is
 	// the transactional primitive authorization builds on; it is deliberately
 	// NOT exposed over HTTP, because an ad-hoc contribution would bypass the
@@ -123,7 +135,9 @@ type OutcomeView struct {
 type Service struct {
 	store ports.OutcomeStore
 	proof ports.OutcomeProofStore
-	clock func() time.Time
+	// proposer starts agent-authored decomposition work. Nil means unwired.
+	proposer ports.DecompositionProposer
+	clock    func() time.Time
 
 	// PolicyLayers optionally narrows the authority ceiling for tests and
 	// constrained environments. Empty means the v0 default: the worktree-local
@@ -162,6 +176,14 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 		service.proof = proof
 	}
 	return service
+}
+
+// WithDecompositionProposer wires agent-authored decomposition. A nil proposer
+// leaves the ask refused with a truthful "not wired" answer rather than
+// pretending a request was started, mirroring every other unwired capability.
+func (s *Service) WithDecompositionProposer(proposer ports.DecompositionProposer) *Service {
+	s.proposer = proposer
+	return s
 }
 
 // WithProofStore supplies the append-only Work E proof boundary. Production

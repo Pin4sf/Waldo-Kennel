@@ -39,6 +39,36 @@ func (q *Queries) AdvanceOutcomeCurrentRevision(ctx context.Context, arg Advance
 	return result.RowsAffected()
 }
 
+const answerDecompositionRequest = `-- name: AnswerDecompositionRequest :execrows
+UPDATE decomposition_requests
+SET status = ?, raw_proposal = ?, refusal_reason = ?, decomposition_id = ?, answered_at = ?
+WHERE id = ? AND status = 'requested'
+`
+
+type AnswerDecompositionRequestParams struct {
+	Status          domain.DecompositionRequestStatus
+	RawProposal     string
+	RefusalReason   string
+	DecompositionID sql.NullString
+	AnsweredAt      sql.NullTime
+	ID              domain.DecompositionRequestID
+}
+
+func (q *Queries) AnswerDecompositionRequest(ctx context.Context, arg AnswerDecompositionRequestParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, answerDecompositionRequest,
+		arg.Status,
+		arg.RawProposal,
+		arg.RefusalReason,
+		arg.DecompositionID,
+		arg.AnsweredAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const approvePlanRevision = `-- name: ApprovePlanRevision :execrows
 UPDATE plan_revisions SET status = 'approved'
 WHERE id = ? AND outcome_id = ? AND status = 'proposed'
@@ -298,6 +328,36 @@ func (q *Queries) CreateDecompositionContribution(ctx context.Context, arg Creat
 	return err
 }
 
+const createDecompositionRequest = `-- name: CreateDecompositionRequest :exec
+INSERT INTO decomposition_requests (id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateDecompositionRequestParams struct {
+	ID                  domain.DecompositionRequestID
+	OutcomeID           domain.OutcomeID
+	ContractRevisionID  domain.ContractRevisionID
+	Status              domain.DecompositionRequestStatus
+	CallbackTokenDigest string
+	SessionID           string
+	ExpiresAt           time.Time
+	CreatedAt           time.Time
+}
+
+func (q *Queries) CreateDecompositionRequest(ctx context.Context, arg CreateDecompositionRequestParams) error {
+	_, err := q.db.ExecContext(ctx, createDecompositionRequest,
+		arg.ID,
+		arg.OutcomeID,
+		arg.ContractRevisionID,
+		arg.Status,
+		arg.CallbackTokenDigest,
+		arg.SessionID,
+		arg.ExpiresAt,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const createDecompositionRetainedCriterion = `-- name: CreateDecompositionRetainedCriterion :exec
 INSERT INTO decomposition_retained_criteria (id, decomposition_id, parent_criterion_id)
 VALUES (?, ?, ?)
@@ -538,6 +598,31 @@ func (q *Queries) GetContractRevisionByNumber(ctx context.Context, arg GetContra
 	return i, err
 }
 
+const getDecompositionRequest = `-- name: GetDecompositionRequest :one
+SELECT id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, raw_proposal, refusal_reason, decomposition_id, created_at, answered_at
+FROM decomposition_requests WHERE id = ?
+`
+
+func (q *Queries) GetDecompositionRequest(ctx context.Context, id domain.DecompositionRequestID) (DecompositionRequest, error) {
+	row := q.db.QueryRowContext(ctx, getDecompositionRequest, id)
+	var i DecompositionRequest
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.ContractRevisionID,
+		&i.Status,
+		&i.CallbackTokenDigest,
+		&i.SessionID,
+		&i.ExpiresAt,
+		&i.RawProposal,
+		&i.RefusalReason,
+		&i.DecompositionID,
+		&i.CreatedAt,
+		&i.AnsweredAt,
+	)
+	return i, err
+}
+
 const getDecompositionRevision = `-- name: GetDecompositionRevision :one
 SELECT id, outcome_id, number, contract_revision_id, status, rationale, created_at, authorized_at
 FROM decomposition_revisions WHERE id = ? AND outcome_id = ?
@@ -650,6 +735,32 @@ func (q *Queries) GetResponsibilitySpace(ctx context.Context, id domain.Responsi
 		&i.Kind,
 		&i.ProjectID,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const latestDecompositionRequest = `-- name: LatestDecompositionRequest :one
+SELECT id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, raw_proposal, refusal_reason, decomposition_id, created_at, answered_at
+FROM decomposition_requests WHERE outcome_id = ?
+ORDER BY created_at DESC, id DESC LIMIT 1
+`
+
+func (q *Queries) LatestDecompositionRequest(ctx context.Context, outcomeID domain.OutcomeID) (DecompositionRequest, error) {
+	row := q.db.QueryRowContext(ctx, latestDecompositionRequest, outcomeID)
+	var i DecompositionRequest
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.ContractRevisionID,
+		&i.Status,
+		&i.CallbackTokenDigest,
+		&i.SessionID,
+		&i.ExpiresAt,
+		&i.RawProposal,
+		&i.RefusalReason,
+		&i.DecompositionID,
+		&i.CreatedAt,
+		&i.AnsweredAt,
 	)
 	return i, err
 }
@@ -1052,6 +1163,48 @@ func (q *Queries) ListDecompositionRetainedCriteria(ctx context.Context, decompo
 	for rows.Next() {
 		var i DecompositionRetainedCriterium
 		if err := rows.Scan(&i.ID, &i.DecompositionID, &i.ParentCriterionID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOpenDecompositionRequests = `-- name: ListOpenDecompositionRequests :many
+SELECT id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, raw_proposal, refusal_reason, decomposition_id, created_at, answered_at
+FROM decomposition_requests WHERE status = 'requested'
+ORDER BY expires_at
+`
+
+func (q *Queries) ListOpenDecompositionRequests(ctx context.Context) ([]DecompositionRequest, error) {
+	rows, err := q.db.QueryContext(ctx, listOpenDecompositionRequests)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DecompositionRequest{}
+	for rows.Next() {
+		var i DecompositionRequest
+		if err := rows.Scan(
+			&i.ID,
+			&i.OutcomeID,
+			&i.ContractRevisionID,
+			&i.Status,
+			&i.CallbackTokenDigest,
+			&i.SessionID,
+			&i.ExpiresAt,
+			&i.RawProposal,
+			&i.RefusalReason,
+			&i.DecompositionID,
+			&i.CreatedAt,
+			&i.AnsweredAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

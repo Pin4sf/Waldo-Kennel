@@ -337,6 +337,21 @@ type DecompositionContribution struct {
 	ChildOutcomeID  *domain.OutcomeID
 }
 
+type DecompositionRequest struct {
+	ID                  domain.DecompositionRequestID
+	OutcomeID           domain.OutcomeID
+	ContractRevisionID  domain.ContractRevisionID
+	Status              domain.DecompositionRequestStatus
+	CallbackTokenDigest string
+	SessionID           string
+	ExpiresAt           time.Time
+	RawProposal         string
+	RefusalReason       string
+	DecompositionID     sql.NullString
+	CreatedAt           time.Time
+	AnsweredAt          sql.NullTime
+}
+
 type DecompositionRetainedCriterium struct {
 	ID                string
 	DecompositionID   domain.DecompositionRevisionID

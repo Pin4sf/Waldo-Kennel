@@ -357,6 +357,22 @@ sql:
             go_type:
               import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
               type: "DecompositionRevisionID"
+          - column: "decomposition_requests.id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "DecompositionRequestID"
+          - column: "decomposition_requests.outcome_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "OutcomeID"
+          - column: "decomposition_requests.contract_revision_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "ContractRevisionID"
+          - column: "decomposition_requests.status"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "DecompositionRequestStatus"
           - column: "plan_revisions.id"
             go_type:
               import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"

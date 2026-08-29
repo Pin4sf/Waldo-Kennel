@@ -271,6 +271,21 @@ var changeLogWriters = []struct {
 		deps:  []string{"decomposition_revisions", "outcomes", "responsibility_spaces"},
 		sql:   "CREATE TRIGGER contribution_waivers_cdc_insert\nAFTER INSERT ON contribution_dependency_waivers\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM decomposition_revisions d JOIN outcomes o ON o.id = d.outcome_id JOIN responsibility_spaces s ON s.id = o.space_id WHERE d.id = NEW.decomposition_id),\n        NULL, 'outcome_contribution_dependency_waived',\n        json_object('waiverId', NEW.id, 'decompositionId', NEW.decomposition_id, 'fromRef', NEW.from_ref, 'toRef', NEW.to_ref, 'waivedBy', NEW.waived_by),\n        NEW.created_at);\nEND;",
 	},
+	// Agent-authored decomposition asks (0109). The refusal is published as
+	// well as the success: an agent proposal the daemon turned down is a fact
+	// the owner needs, not a silent non-event.
+	{
+		name:  "decomposition_requests_cdc_insert",
+		table: "decomposition_requests",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER decomposition_requests_cdc_insert\nAFTER INSERT ON decomposition_requests\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_decomposition_requested',\n        json_object('requestId', NEW.id, 'outcomeId', NEW.outcome_id, 'contractRevisionId', NEW.contract_revision_id, 'expiresAt', NEW.expires_at),\n        NEW.created_at);\nEND;",
+	},
+	{
+		name:  "decomposition_requests_cdc_update",
+		table: "decomposition_requests",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER decomposition_requests_cdc_update\nAFTER UPDATE ON decomposition_requests\nWHEN OLD.status <> NEW.status\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_decomposition_request_answered',\n        json_object('requestId', NEW.id, 'outcomeId', NEW.outcome_id, 'previousStatus', OLD.status, 'status', NEW.status, 'decompositionId', NEW.decomposition_id),\n        datetime('now'));\nEND;",
+	},
 	// Shared adaptive intake and explicit Home-to-Work lineage (#32).
 	{
 		name:  "intake_sessions_cdc_insert",

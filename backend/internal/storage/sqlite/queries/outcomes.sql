@@ -199,3 +199,26 @@ VALUES (?, ?, ?, ?, ?, ?, ?);
 SELECT id, decomposition_id, from_ref, to_ref, reason, waived_by, created_at
 FROM contribution_dependency_waivers WHERE decomposition_id = ?
 ORDER BY created_at, id;
+
+-- name: CreateDecompositionRequest :exec
+INSERT INTO decomposition_requests (id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: GetDecompositionRequest :one
+SELECT id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, raw_proposal, refusal_reason, decomposition_id, created_at, answered_at
+FROM decomposition_requests WHERE id = ?;
+
+-- name: LatestDecompositionRequest :one
+SELECT id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, raw_proposal, refusal_reason, decomposition_id, created_at, answered_at
+FROM decomposition_requests WHERE outcome_id = ?
+ORDER BY created_at DESC, id DESC LIMIT 1;
+
+-- name: AnswerDecompositionRequest :execrows
+UPDATE decomposition_requests
+SET status = ?, raw_proposal = ?, refusal_reason = ?, decomposition_id = ?, answered_at = ?
+WHERE id = ? AND status = 'requested';
+
+-- name: ListOpenDecompositionRequests :many
+SELECT id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, raw_proposal, refusal_reason, decomposition_id, created_at, answered_at
+FROM decomposition_requests WHERE status = 'requested'
+ORDER BY expires_at;
