@@ -151,18 +151,28 @@ Delivered:
 
 **Gate met:** a decomposed Outcome round-trips through restart; direct Outcomes are unchanged; the full backend suite and `-race` pass except one pre-existing DeepSeek failure; lint adds no new issues.
 
-### Phase 2 — Decomposition proposal and authorization
+### Phase 2 — Decomposition proposal and authorization — **delivered 2026-08-29**
 
 Owns `DecompositionRevision` and `ContributionDependency`, inherited from Phase 1 along with parent-retained criteria — all three exist to be *authorized*, so they land with the flow that authorizes them.
 
-- Waldo (analyzer/coordinator role, via the existing role resolution) proposes N contributing Outcomes: draft title, draft contract core, contribution bindings, dependencies, and a plain-language rationale for the topology.
-- Deterministic daemon policy validates before the user ever sees it: criterion coverage, authority containment, acyclicity, adapter readiness for the proposed roles, worktree non-overlap.
-- The user corrects — add, remove, retitle, rebind, re-scope authority — and authorizes. Authorization freezes an immutable `DecompositionRevision` and creates the child Outcomes with their initial contracts in one transaction.
-- Model output is a **proposal only**; it cannot create an Outcome, bind a criterion, or widen authority.
+Delivered:
 
-**Gate:** a rejected proposal (uncovered criterion, widened authority, cycle) fails closed with the offender named, and creates nothing.
+- `DecompositionRevision` (proposed → authorized), `ProposedContribution`, `ContributionDependency`, cycle detection, and the coverage/containment predicates in `internal/domain`.
+- Migration `0107` extends the `change_log` vocabulary; the relations install through the shared `reconcileComposedOutcomesSchema` seam, with freeze triggers permitting only the one-way move to authorized.
+- `POST /outcomes/{id}/decompositions`, `POST /outcomes/{id}/decompositions/{decompositionId}/authorization`, `GET /outcomes/{id}/decomposition`.
+- Omitting contributors yields the daemon's deterministic default: one contributing Outcome per criterion, mechanical rather than clever, labelled as a starting point rather than a recommendation.
+- **Tests** at domain, service, and SQLite layers, including transactional rollback of a partially-failing authorization and freeze enforcement against a writer that bypasses the store.
+
+**Scope changes made during implementation, both recorded here rather than in a commit message alone:**
+
+1. **The ad-hoc `POST /outcomes/{id}/contributions` route from Phase 1 is retired.** A contributing Outcome is now born only by authorizing a decomposition. Leaving both paths open would have been a governance hole: the ad-hoc route bypasses coverage, containment, and ordering — exactly the deterministic validation ADR 0007 requires before the owner sees a proposal. Adding a contributor later is a new decomposition revision, which is the revision discipline the rest of the codebase already uses. `CreateContribution` survives as the service-level transactional primitive.
+2. **Adapter-readiness and worktree-overlap validation deferred to Phase 3.** The plan listed them here, but roles are not assigned per contributor until execution, `StartAttempt` already probes readiness fail-closed, and worktree isolation is structurally guaranteed one-per-Attempt. Validating them at propose time would duplicate a gate that already exists downstream, against data that does not exist yet.
+
+**Gate met:** a rejected proposal fails closed with the offender named and creates nothing — verified for uncovered criteria, unknown criteria, widened authority, dependency cycles, stale contracts, and a mid-authorization storage failure.
 
 ### Phase 3 — Execution across contributing Outcomes
+
+Inherits adapter-readiness and worktree-overlap validation from Phase 2.
 
 - Dependency gating on `StartAttempt`, with explicit durable waivers.
 - Each child's Attempt keeps its own isolated worktree — one fenced writer each, which the existing Attempt fence already guarantees per attempt.
