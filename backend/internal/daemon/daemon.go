@@ -409,7 +409,21 @@ func Run() error {
 		attemptSpawner{sessions: sessionSvc, projects: store, agents: agents}, store)
 	go runAttemptLivenessLoop(ctx, attemptSvc, log)
 
-	outcomeSvc := outcomevc.New(store, nil)
+	// Composed Outcomes (ADR 0007): agent-authored decomposition rides the same
+	// spawn path, on the analyzer role, and answers on the daemon's own
+	// loopback origin. Requests that expired while the daemon was down are
+	// swept once here — the deadline is durable, not an in-memory timer.
+	outcomeSvc := outcomevc.New(store, nil).WithDecompositionProposer(agentDecompositionProposer{
+		sessions:     sessionSvc,
+		projects:     store,
+		agents:       agents,
+		callbackBase: fmt.Sprintf("http://%s:%d", config.LoopbackHost, cfg.Port),
+	})
+	if expired, err := outcomeSvc.ExpireStaleDecompositionRequests(ctx); err != nil {
+		log.Warn("could not sweep expired decomposition requests", "error", err)
+	} else if expired > 0 {
+		log.Info("closed decomposition requests that expired while the daemon was down", "count", expired)
+	}
 	intakeSvc := intakevc.New(store, intakevc.NewRuleBasedAnalyzer(), nil)
 	if _, err := intakeSvc.RecoverInterruptedAnalyses(ctx); err != nil {
 		return fmt.Errorf("recover interrupted intake analysis: %w", err)
