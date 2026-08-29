@@ -151,7 +151,7 @@ Delivered:
 
 **Gate met:** a decomposed Outcome round-trips through restart; direct Outcomes are unchanged; the full backend suite and `-race` pass except one pre-existing DeepSeek failure; lint adds no new issues.
 
-### Phase 2 — Decomposition proposal and authorization — **delivered 2026-08-29**
+### Phase 2 — Decomposition proposal and authorization — **delivered 2026-08-29, minus the model-authored proposal**
 
 Owns `DecompositionRevision` and `ContributionDependency`, inherited from Phase 1 along with parent-retained criteria — all three exist to be *authorized*, so they land with the flow that authorizes them.
 
@@ -167,6 +167,10 @@ Delivered:
 
 1. **The ad-hoc `POST /outcomes/{id}/contributions` route from Phase 1 is retired.** A contributing Outcome is now born only by authorizing a decomposition. Leaving both paths open would have been a governance hole: the ad-hoc route bypasses coverage, containment, and ordering — exactly the deterministic validation ADR 0007 requires before the owner sees a proposal. Adding a contributor later is a new decomposition revision, which is the revision discipline the rest of the codebase already uses. `CreateContribution` survives as the service-level transactional primitive.
 2. **Adapter-readiness and worktree-overlap validation deferred to Phase 3.** The plan listed them here, but roles are not assigned per contributor until execution, `StartAttempt` already probes readiness fail-closed, and worktree isolation is structurally guaranteed one-per-Attempt. Validating them at propose time would duplicate a gate that already exists downstream, against data that does not exist yet.
+
+**Not delivered: Waldo does not author the proposal.** This phase's text says Waldo proposes N contributing Outcomes with draft contracts, bindings, dependencies, and a rationale. What shipped is the *authorization* half plus a deterministic fallback: the daemon derives one contributing Outcome per criterion, and the API accepts a fully corrected list from the caller. Nothing analyzes the project and proposes a sensible topology, so `POST /decompositions` with an empty body returns the mechanical default — complete and inspectable, but not a recommendation.
+
+The renderer has no decomposition editor either. Its Propose button sends only the expected revision, so authoring contributors, declaring dependencies, and marking criteria parent-retained are API-only today.
 
 **Gate met:** a rejected proposal fails closed with the offender named and creates nothing — verified for uncovered criteria, unknown criteria, widened authority, dependency cycles, stale contracts, and a mid-authorization storage failure.
 
