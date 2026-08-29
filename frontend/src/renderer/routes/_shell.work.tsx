@@ -2,10 +2,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { OutcomeDecideAuthorizeSurface } from "../components/outcome/OutcomeDecideAuthorizeSurface";
 import { OutcomeLifecycleShell } from "../components/outcome/OutcomeLifecycleShell";
+import type { OutcomeRecord } from "../hooks/useOutcome";
 import { OutcomeProveCloseSurface } from "../components/outcome/OutcomeProveCloseSurface";
 import { OutcomeRunSurface } from "../components/outcome/OutcomeRunSurface";
+import { OutcomesOverviewSurface } from "../components/outcome/OutcomesOverviewSurface";
 import { AdaptiveIntakeSurface } from "../components/outcome/AdaptiveIntakeSurface";
 import { WorkEnterSurface } from "../components/outcome/WorkEnterSurface";
+import { WorkShell } from "../components/outcome/WorkShell";
 
 type WorkSearch = {
 	/** Selected project. Absent renders the Enter surface (stage: enter). */
@@ -16,6 +19,10 @@ type WorkSearch = {
 	outcome?: string;
 	/** Shared durable intake being reviewed before an Outcome exists. */
 	intake?: string;
+	/** Cross-project Outcomes overview, opened from WorkShell's Outcomes
+	 *  button. Independent of project/stage/outcome — it lists every Outcome
+	 *  across every project, not one project's lifecycle. */
+	view?: "outcomes";
 };
 
 function validateSearch(search: Record<string, unknown>): WorkSearch {
@@ -28,6 +35,7 @@ function validateSearch(search: Record<string, unknown>): WorkSearch {
 		stage,
 		outcome: typeof search.outcome === "string" && search.outcome !== "" ? search.outcome : undefined,
 		intake: typeof search.intake === "string" && search.intake !== "" && search.intake !== "new" ? search.intake : undefined,
+		view: search.view === "outcomes" ? "outcomes" : undefined,
 	};
 }
 
@@ -41,8 +49,48 @@ export const Route = createFileRoute("/_shell/work")({
 });
 
 function WorkRoute() {
-	const { project, stage, outcome, intake } = Route.useSearch();
+	const { project, stage, outcome, intake, view } = Route.useSearch();
 	const navigate = useNavigate();
+
+	// WorkShell renders the persistent top-bar chrome (List/Board, terminal
+	// toggle, Outcomes) exactly once here, around whichever stage body below
+	// is current — so no branch can ever render without it, which is the bug
+	// this replaces (OutcomeLifecycleShell's inert pill row used to be the
+	// ONLY visible chrome above a stage surface).
+	return (
+		<WorkShell outcomeId={outcome} projectId={project}>
+			{renderStageBody({ intake, navigate, outcome, project, stage, view })}
+		</WorkShell>
+	);
+}
+
+function renderStageBody({
+	intake,
+	navigate,
+	outcome,
+	project,
+	stage,
+	view,
+}: {
+	intake?: string;
+	navigate: ReturnType<typeof useNavigate>;
+	outcome?: string;
+	project?: string;
+	stage?: WorkSearch["stage"];
+	view?: WorkSearch["view"];
+}) {
+	if (view === "outcomes") {
+		return (
+			<OutcomesOverviewSurface
+				onOpenOutcome={(projectId: string, openedOutcome: OutcomeRecord) => {
+					void navigate({
+						to: "/work",
+						search: { project: projectId, stage: "decide_authorize", outcome: openedOutcome.id },
+					});
+				}}
+			/>
+		);
+	}
 
 	if (!project) {
 		return <WorkEnterSurface />;
@@ -96,8 +144,16 @@ function WorkRoute() {
 		return (
 			<OutcomeLifecycleShell outcomeId={outcome} projectId={project} stage="decide_authorize">
 				<OutcomeDecideAuthorizeSurface
+					// An authorized plan continues into Act & Observe — the real,
+					// in-shell OutcomeRunSurface docked by WorkShell — not the
+					// disconnected generic Sessions board. That board has no
+					// concept of this Outcome's attempt lineage; landing there
+					// after authorizing a plan was the actual "Act & Observe
+					// integration gap" earlier rounds' notes referred to, and it
+					// is closed by this route change alone (OutcomeRunSurface
+					// already starts a governed attempt itself once here).
 					onReviewWork={() => {
-						void navigate({ to: "/projects/$projectId", params: { projectId: project } });
+						void navigate({ to: "/work", search: { project, stage: "act_observe", outcome } });
 					}}
 					outcomeId={outcome}
 				/>

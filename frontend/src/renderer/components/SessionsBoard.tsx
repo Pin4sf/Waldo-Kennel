@@ -25,8 +25,7 @@ import {
 	useSessionUsageSummaries,
 	type SessionUsageSummary,
 } from "../hooks/useSessionUsageSummaries";
-import { useProjectOutcomes, type OutcomeRecord } from "../hooks/useOutcome";
-import { deriveOutcomeDashboardPresentation } from "../lib/outcome-dashboard-presentation";
+import { useProjectOutcomes } from "../hooks/useOutcome";
 import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useTerminateSession } from "../hooks/useTerminateSession";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
@@ -184,14 +183,6 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 		if (!projectId) return;
 		void navigate({ to: "/work", search: { project: projectId } });
 	};
-	const continueOutcome = (outcome: OutcomeRecord) => {
-		if (!projectId) return;
-		void navigate({
-			to: "/work",
-			search: { project: projectId, stage: "decide_authorize", outcome: outcome.id },
-		});
-	};
-
 	const openOrchestrator = async (mode?: "tui") => {
 		if (!projectId || isProjectRestarting) return;
 		if (orchestrator) {
@@ -406,47 +397,15 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 					/>
 				) : (
 					<div className="flex h-full min-h-0 flex-col">
-						{projectOutcomesQuery.failure ? (
-							<div className="mx-2.5 mt-2.5 flex shrink-0 items-center gap-3 rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground" role="alert">
-								<span className="min-w-0 flex-1">{t("outcome.dashboard.loadFailed")}</span>
-								<button className="font-medium text-foreground hover:underline" onClick={projectOutcomesQuery.refetch} type="button">
-									{t("outcome.understand.retry")}
-								</button>
-							</div>
-						) : null}
-						{projectOutcomes.length > 0 ? (
-							<section
-								aria-label={t("outcome.dashboard.heading")}
-								className="mx-2.5 mt-2.5 shrink-0 rounded-lg border border-border bg-card px-3 py-2.5"
-							>
-								<div className="mb-2 flex items-center justify-between gap-3">
-									<h2 className="text-sm font-semibold text-foreground">{t("outcome.dashboard.heading")}</h2>
-									<span className="text-xs text-muted-foreground">{projectOutcomes.length}</span>
-								</div>
-								<div className="flex gap-2 overflow-x-auto pb-0.5">
-									{projectOutcomes.map((outcome) => {
-										const presentation = deriveOutcomeDashboardPresentation(outcome);
-										return (
-										<button
-											aria-label={t("outcome.dashboard.continueAria", { title: outcome.title })}
-											className="min-w-56 rounded-md border border-border bg-background px-3 py-2 text-left transition-colors hover:border-border-strong hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-											key={outcome.id}
-											onClick={() => continueOutcome(outcome)}
-											type="button"
-										>
-											<span className="block truncate text-sm font-medium text-foreground">{outcome.title}</span>
-											<span className="mt-0.5 block text-xs text-muted-foreground">
-												{t(presentation.stageKey)} · {t(presentation.stateKey)}
-											</span>
-											<span className="mt-1 block text-xs font-medium text-foreground">
-												{t(presentation.nextActionKey)}
-											</span>
-										</button>
-										);
-									})}
-								</div>
-							</section>
-						) : null}
+						{/* This board no longer shows its own Outcomes summary: WorkShell
+						    (components/outcome/WorkShell.tsx) is the persistent Work
+						    chrome now, with the sidebar's project/outcome tree and the
+						    Outcomes destination reachable from its top bar — a second,
+						    disconnected "Outcomes" card here duplicated that navigation
+						    and, before WorkShell existed, was the only way back into an
+						    authorized plan. `projectOutcomes`/`projectOutcomesQuery` are
+						    still read below only to decide whether this project's board
+						    is genuinely empty (no sessions AND no outcomes). */}
 						{/* The view switch heads the lanes rather than the window: it
 						    changes what is below it, so it belongs to that region. */}
 						<div className="flex shrink-0 items-center gap-2 px-2.5 pb-2.5 pt-2.5">

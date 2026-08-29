@@ -143,26 +143,44 @@ export function BoardSessionRowAdapter({
 	const translate: ProductUITranslator = (key, values) => t(key as MessageKey, values);
 	const [previewOpen, setPreviewOpen] = useState(false);
 	const [pinnedOpen, setPinnedOpen] = useState(false);
+	const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const open = previewOpen || pinnedOpen;
 	const zone = attentionZone(session.status);
 
+	const cancelOpen = () => {
+		if (openTimerRef.current !== null) {
+			clearTimeout(openTimerRef.current);
+			openTimerRef.current = null;
+		}
+	};
 	const cancelClose = () => {
 		if (closeTimerRef.current !== null) {
 			clearTimeout(closeTimerRef.current);
 			closeTimerRef.current = null;
 		}
 	};
+	// A brief hover-intent delay before the preview opens: without it, simply
+	// scanning down a list opens (and, via the backdrop below, darkens the
+	// whole screen for) every row the pointer passes over on the way — a rapid
+	// flash per row rather than a deliberate pause on one.
 	const previewBrief = () => {
 		cancelClose();
-		setPreviewOpen(true);
+		if (pinnedOpen || previewOpen) return;
+		cancelOpen();
+		openTimerRef.current = setTimeout(() => {
+			openTimerRef.current = null;
+			setPreviewOpen(true);
+		}, 150);
 	};
 	const schedulePreviewClose = () => {
+		cancelOpen();
 		cancelClose();
 		if (pinnedOpen) return;
 		closeTimerRef.current = setTimeout(() => setPreviewOpen(false), 100);
 	};
 	const dismissBrief = () => {
+		cancelOpen();
 		cancelClose();
 		setPinnedOpen(false);
 		setPreviewOpen(false);
@@ -170,6 +188,7 @@ export function BoardSessionRowAdapter({
 
 	useEffect(
 		() => () => {
+			if (openTimerRef.current !== null) clearTimeout(openTimerRef.current);
 			if (closeTimerRef.current !== null) clearTimeout(closeTimerRef.current);
 		},
 		[],
@@ -182,7 +201,12 @@ export function BoardSessionRowAdapter({
 			}}
 			open={open}
 		>
-			{open && typeof document !== "undefined"
+			{/* The dimmed backdrop is a modal affordance — it belongs to the
+			    explicitly pinned brief (a "Choose" click), never to the transient
+			    hover preview. Tying it to `open` (preview included) darkened the
+			    whole viewport on every row a person's pointer merely passed over
+			    while scanning the list, which read as a rapid full-screen flicker. */}
+			{pinnedOpen && typeof document !== "undefined"
 				? createPortal(
 						<div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[49] bg-black/55" data-testid="waldo-brief-backdrop" />,
 						document.body,
@@ -202,6 +226,7 @@ export function BoardSessionRowAdapter({
 						action={
 							<ChooseSessionButton
 								onChoose={() => {
+									cancelOpen();
 									cancelClose();
 									setPinnedOpen(true);
 									setPreviewOpen(true);

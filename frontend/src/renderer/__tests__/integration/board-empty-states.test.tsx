@@ -259,7 +259,12 @@ describe("project board with no sessions", () => {
 		expect(useUiStore.getState().newTaskRequest).toBeNull();
 	});
 
-	it("shows daemon-backed Outcomes even before a worker session exists", async () => {
+	it("does not treat a project as empty when a daemon-backed Outcome exists, even before a worker session does", async () => {
+		// The board no longer shows its own Outcomes summary card (WorkShell,
+		// the sidebar's project/outcome tree, and its Outcomes destination
+		// replaced it) — this test's remaining job is the empty-state gate
+		// itself: an Outcome existing must still keep the board out of its
+		// "Start by defining an outcome" empty state.
 		respondWith([project], [], undefined, [
 			{
 				id: "outcome-1",
@@ -269,8 +274,9 @@ describe("project board with no sessions", () => {
 		]);
 		renderBoard(<SessionsBoard projectId="proj-1" />);
 
-		expect(await screen.findByText("Explain Waldo clearly")).toBeInTheDocument();
+		await waitFor(() => expect(screen.getByRole("tablist", { name: "Session view" })).toBeInTheDocument());
 		expect(screen.queryByText("Start by defining an outcome")).not.toBeInTheDocument();
+		expect(screen.queryByText("Explain Waldo clearly")).not.toBeInTheDocument();
 		expect(columnCount()).toBe(4);
 	});
 
