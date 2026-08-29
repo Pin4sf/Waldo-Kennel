@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MessageKey } from "../../i18n/messages";
-import { useOutcome, useOutcomeProof } from "../../hooks/useOutcome";
+import { useOutcome } from "../../hooks/useOutcome";
 import {
 	DECOMPOSITION_STATUS,
 	OUTCOME_SHAPES,
@@ -15,6 +15,7 @@ import {
 	useWaiveContributionDependency,
 	type ContributorRecord,
 } from "../../hooks/useOutcomeComposition";
+import { DecompositionEditor, NO_AUTHORITY } from "./DecompositionEditor";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
@@ -385,27 +386,57 @@ function AcceptanceBatchPanel({ outcomeId, revision }: { outcomeId: string; revi
 	);
 }
 
-/** A direct Outcome can be decomposed; the proposal creates nothing. */
+/**
+ * A direct Outcome can be decomposed. The proposal creates nothing until it is
+ * authorized, so the editor below is free to be wrong — the daemon is the gate.
+ */
 function DecomposePanel({ outcomeId, revision }: { outcomeId: string; revision: number }) {
 	const { t } = useTranslation();
+	const { outcome } = useOutcome(outcomeId);
 	const { decomposition, refetch } = useOutcomeDecomposition(outcomeId);
 	const propose = useProposeDecomposition(outcomeId);
 	const authorize = useAuthorizeDecomposition(outcomeId);
-	const { proof } = useOutcomeProof(outcomeId);
+	const [editing, setEditing] = useState(false);
 
 	const proposal = decomposition?.status === DECOMPOSITION_STATUS.proposed ? decomposition : undefined;
+	const criteria = outcome?.currentRevision.criteria ?? [];
+
+	if (editing && outcome) {
+		return (
+			<section className="flex flex-col gap-3" data-testid="mission-decompose">
+				<DecompositionEditor
+					criteria={criteria}
+					existing={proposal}
+					expectedContractRevision={revision}
+					failureMessage={propose.failure?.message}
+					onCancel={() => {
+						propose.reset();
+						setEditing(false);
+					}}
+					onPropose={(request) => {
+						void propose.submit(request).then(() => {
+							setEditing(false);
+							refetch();
+						});
+					}}
+					parentAuthority={outcome.currentRevision.authorityCeiling ?? NO_AUTHORITY}
+					pending={propose.pending}
+				/>
+			</section>
+		);
+	}
 
 	return (
-		<section className="bg-card hairline rounded-card flex flex-col gap-3 p-4" data-testid="mission-decompose">
+		<section className="rounded-group hairline border-border bg-card flex flex-col gap-3 px-4.5 py-3.5" data-testid="mission-decompose">
 			<h3 className="text-sm font-medium">{t("outcome.mission.decomposeHeading")}</h3>
-			<p className="text-muted-foreground text-2xs leading-body">{t("outcome.mission.decomposeExplainer")}</p>
+			<p className="text-muted-foreground text-sm">{t("outcome.mission.decomposeExplainer")}</p>
 
 			{proposal ? (
 				<div className="flex flex-col gap-2">
 					{proposal.stale ? (
-						<p className="text-[var(--color-status-needs-you)] text-2xs">{t("outcome.mission.proposalStale")}</p>
+						<p className="text-[var(--color-status-needs-you)] text-xs">{t("outcome.mission.proposalStale")}</p>
 					) : null}
-					<p className="text-xs leading-body">{proposal.rationale}</p>
+					<p className="text-sm leading-body">{proposal.rationale}</p>
 					<ul className="flex flex-col gap-1">
 						{proposal.contributors.map((contributor) => (
 							<li className="text-xs" key={contributor.ref}>
@@ -413,32 +444,38 @@ function DecomposePanel({ outcomeId, revision }: { outcomeId: string; revision: 
 							</li>
 						))}
 					</ul>
-					<Button
-						className="self-start"
-						disabled={authorize.pending || proposal.stale}
-						onClick={() => void authorize.submit(proposal.id)}
-						size="sm"
-					>
-						{t("outcome.mission.authorize", { n: proposal.contributors.length })}
-					</Button>
+					<div className="flex items-center gap-2">
+						<Button
+							disabled={authorize.pending || proposal.stale}
+							onClick={() => void authorize.submit(proposal.id)}
+							size="sm"
+						>
+							{t("outcome.mission.authorize", { n: proposal.contributors.length })}
+						</Button>
+						<Button onClick={() => setEditing(true)} size="sm" type="button" variant="outline">
+							{t("outcome.mission.edit")}
+						</Button>
+					</div>
 					{authorize.failure ? (
-						<span className="text-destructive text-2xs">{authorize.failure.message}</span>
+						<span className="text-destructive text-xs">{authorize.failure.message}</span>
 					) : null}
 				</div>
 			) : (
-				<>
+				<div className="flex items-center gap-2">
 					<Button
-						className="self-start"
-						disabled={propose.pending || !proof || proof.criteria.length === 0}
+						disabled={propose.pending || criteria.length === 0}
 						onClick={() => void propose.submit({ expectedContractRevision: revision }).then(refetch)}
 						size="sm"
 						variant="outline"
 					>
 						{t("outcome.mission.propose")}
 					</Button>
-					{propose.failure ? <span className="text-destructive text-2xs">{propose.failure.message}</span> : null}
-				</>
+					<Button disabled={criteria.length === 0} onClick={() => setEditing(true)} size="sm" type="button" variant="outline">
+						{t("outcome.mission.authorMine")}
+					</Button>
+				</div>
 			)}
+			{propose.failure ? <span className="text-destructive text-xs">{propose.failure.message}</span> : null}
 		</section>
 	);
 }
