@@ -16,8 +16,14 @@
 
 -- +goose Up
 -- +goose StatementBegin
--- Detach every writer before rebuilding the checked CDC vocabulary. Startup's
--- restoreChangeLogWriters recreates only writers whose tables exist.
+-- Detach every writer before rebuilding the checked CDC vocabulary.
+--
+-- This list is the CANONICAL set from cdc_restore.go, not the set some
+-- earlier migration happened to name. restoreChangeLogWriters attaches
+-- writers AFTER goose finishes, so a live database carries writers no
+-- prior migration file mentions; leaving one attached strands it on the
+-- dropped table and the rebuild fails. Startup recreates only writers
+-- whose subject tables exist.
 DROP TRIGGER IF EXISTS agent_switches_cdc_insert;
 DROP TRIGGER IF EXISTS agent_switches_cdc_update;
 DROP TRIGGER IF EXISTS conversation_activities_cdc_insert;
@@ -55,12 +61,25 @@ DROP TRIGGER IF EXISTS evidence_items_cdc_insert;
 DROP TRIGGER IF EXISTS verification_runs_cdc_insert;
 DROP TRIGGER IF EXISTS acceptance_decisions_cdc_insert;
 DROP TRIGGER IF EXISTS outcome_corrections_cdc_insert;
+DROP TRIGGER IF EXISTS contribution_links_cdc_insert;
+DROP TRIGGER IF EXISTS decomposition_revisions_cdc_insert;
+DROP TRIGGER IF EXISTS decomposition_revisions_cdc_update;
+DROP TRIGGER IF EXISTS contribution_waivers_cdc_insert;
 DROP TRIGGER IF EXISTS intake_sessions_cdc_insert;
 DROP TRIGGER IF EXISTS intake_sessions_cdc_update;
 DROP TRIGGER IF EXISTS intake_proposals_cdc_insert;
 DROP TRIGGER IF EXISTS intake_confirmations_cdc_insert;
 DROP TRIGGER IF EXISTS responsibility_links_cdc_insert;
 DROP TRIGGER IF EXISTS responsibility_links_cdc_update;
+DROP TRIGGER IF EXISTS waldo_conversations_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_conversation_episodes_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_conversation_episodes_cdc_update;
+DROP TRIGGER IF EXISTS waldo_conversation_turns_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_context_attachments_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_context_attachments_cdc_update;
+DROP TRIGGER IF EXISTS waldo_continuation_operations_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_continuation_operations_cdc_update;
+DROP TRIGGER IF EXISTS waldo_continuation_receipts_cdc_insert;
 
 CREATE TABLE change_log_new (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,14 +120,62 @@ CREATE INDEX idx_change_log_project ON change_log (project_id, seq);
 -- parent_outcome_id column is deliberately left in place: SQLite cannot drop
 -- it conditionally, it is NULL for every Outcome once the links are gone, and
 -- re-running the reconcile seam is idempotent.
+DROP TRIGGER IF EXISTS agent_switches_cdc_insert;
+DROP TRIGGER IF EXISTS agent_switches_cdc_update;
+DROP TRIGGER IF EXISTS conversation_activities_cdc_insert;
+DROP TRIGGER IF EXISTS conversation_activities_cdc_update;
+DROP TRIGGER IF EXISTS conversation_messages_cdc_insert;
+DROP TRIGGER IF EXISTS conversation_messages_cdc_update;
+DROP TRIGGER IF EXISTS conversation_turns_cdc_update;
+DROP TRIGGER IF EXISTS pr_cdc_insert;
+DROP TRIGGER IF EXISTS pr_cdc_update;
+DROP TRIGGER IF EXISTS pr_checks_cdc_insert;
+DROP TRIGGER IF EXISTS pr_checks_cdc_update;
+DROP TRIGGER IF EXISTS pr_review_threads_cdc_insert;
+DROP TRIGGER IF EXISTS pr_review_threads_cdc_update;
+DROP TRIGGER IF EXISTS pr_session_cdc_update;
+DROP TRIGGER IF EXISTS session_cleanup_facts_cdc_insert;
+DROP TRIGGER IF EXISTS session_cleanup_facts_cdc_update;
+DROP TRIGGER IF EXISTS session_interface_transitions_cdc_insert;
+DROP TRIGGER IF EXISTS session_interface_transitions_cdc_update;
+DROP TRIGGER IF EXISTS sessions_cdc_insert;
+DROP TRIGGER IF EXISTS sessions_cdc_update;
+DROP TRIGGER IF EXISTS usage_bindings_cdc_insert;
+DROP TRIGGER IF EXISTS usage_bindings_cdc_update;
+DROP TRIGGER IF EXISTS usage_sources_cdc_update;
+DROP TRIGGER IF EXISTS responsibility_outcomes_cdc_insert;
+DROP TRIGGER IF EXISTS responsibility_outcomes_cdc_update;
+DROP TRIGGER IF EXISTS responsibility_contract_revisions_cdc_insert;
+DROP TRIGGER IF EXISTS outcome_plans_cdc_insert;
+DROP TRIGGER IF EXISTS outcome_plans_cdc_update;
+DROP TRIGGER IF EXISTS attempts_cdc_insert;
+DROP TRIGGER IF EXISTS attempts_cdc_update;
+DROP TRIGGER IF EXISTS attempt_sessions_cdc_insert;
+DROP TRIGGER IF EXISTS attempt_observations_cdc_insert;
+DROP TRIGGER IF EXISTS attempt_recovery_receipts_cdc_insert;
+DROP TRIGGER IF EXISTS evidence_items_cdc_insert;
+DROP TRIGGER IF EXISTS verification_runs_cdc_insert;
+DROP TRIGGER IF EXISTS acceptance_decisions_cdc_insert;
+DROP TRIGGER IF EXISTS outcome_corrections_cdc_insert;
 DROP TRIGGER IF EXISTS contribution_links_cdc_insert;
-DROP TRIGGER IF EXISTS contribution_links_immutable_delete;
-DROP TRIGGER IF EXISTS contribution_links_immutable_update;
-DROP TRIGGER IF EXISTS contribution_links_single_revision_guard;
-DROP TRIGGER IF EXISTS contribution_links_binding_guard;
-DROP TRIGGER IF EXISTS outcomes_composition_parent_guard;
-DROP TRIGGER IF EXISTS outcomes_composition_depth_update;
-DROP TRIGGER IF EXISTS outcomes_composition_depth_insert;
+DROP TRIGGER IF EXISTS decomposition_revisions_cdc_insert;
+DROP TRIGGER IF EXISTS decomposition_revisions_cdc_update;
+DROP TRIGGER IF EXISTS contribution_waivers_cdc_insert;
+DROP TRIGGER IF EXISTS intake_sessions_cdc_insert;
+DROP TRIGGER IF EXISTS intake_sessions_cdc_update;
+DROP TRIGGER IF EXISTS intake_proposals_cdc_insert;
+DROP TRIGGER IF EXISTS intake_confirmations_cdc_insert;
+DROP TRIGGER IF EXISTS responsibility_links_cdc_insert;
+DROP TRIGGER IF EXISTS responsibility_links_cdc_update;
+DROP TRIGGER IF EXISTS waldo_conversations_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_conversation_episodes_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_conversation_episodes_cdc_update;
+DROP TRIGGER IF EXISTS waldo_conversation_turns_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_context_attachments_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_context_attachments_cdc_update;
+DROP TRIGGER IF EXISTS waldo_continuation_operations_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_continuation_operations_cdc_update;
+DROP TRIGGER IF EXISTS waldo_continuation_receipts_cdc_insert;
 
 DROP INDEX IF EXISTS idx_contribution_links_child;
 DROP INDEX IF EXISTS idx_contribution_links_parent;
@@ -155,12 +222,25 @@ DROP TRIGGER IF EXISTS evidence_items_cdc_insert;
 DROP TRIGGER IF EXISTS verification_runs_cdc_insert;
 DROP TRIGGER IF EXISTS acceptance_decisions_cdc_insert;
 DROP TRIGGER IF EXISTS outcome_corrections_cdc_insert;
+DROP TRIGGER IF EXISTS contribution_links_cdc_insert;
+DROP TRIGGER IF EXISTS decomposition_revisions_cdc_insert;
+DROP TRIGGER IF EXISTS decomposition_revisions_cdc_update;
+DROP TRIGGER IF EXISTS contribution_waivers_cdc_insert;
 DROP TRIGGER IF EXISTS intake_sessions_cdc_insert;
 DROP TRIGGER IF EXISTS intake_sessions_cdc_update;
 DROP TRIGGER IF EXISTS intake_proposals_cdc_insert;
 DROP TRIGGER IF EXISTS intake_confirmations_cdc_insert;
 DROP TRIGGER IF EXISTS responsibility_links_cdc_insert;
 DROP TRIGGER IF EXISTS responsibility_links_cdc_update;
+DROP TRIGGER IF EXISTS waldo_conversations_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_conversation_episodes_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_conversation_episodes_cdc_update;
+DROP TRIGGER IF EXISTS waldo_conversation_turns_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_context_attachments_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_context_attachments_cdc_update;
+DROP TRIGGER IF EXISTS waldo_continuation_operations_cdc_insert;
+DROP TRIGGER IF EXISTS waldo_continuation_operations_cdc_update;
+DROP TRIGGER IF EXISTS waldo_continuation_receipts_cdc_insert;
 
 CREATE TABLE change_log_down (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,

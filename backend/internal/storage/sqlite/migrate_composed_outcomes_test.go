@@ -183,3 +183,59 @@ func declaredRelations(t *testing.T) []string {
 	}
 	return names
 }
+
+// A migration that rebuilds change_log must detach EVERY canonical CDC writer
+// first, not just the ones some earlier migration file happened to name.
+//
+// restoreChangeLogWriters attaches writers after goose finishes, so a live
+// database carries writers no prior migration mentions. Leaving one attached
+// strands it on the dropped table, and the rebuild fails at runtime with
+// "no such table: main.change_log" — which is exactly what a real restart hit
+// and every fixture here missed, because fixtures never had the full writer
+// set attached when the rebuild ran.
+func TestChangeLogRebuildsDetachEveryCanonicalWriter(t *testing.T) {
+	canonical := make([]string, 0, len(changeLogWriters))
+	for _, writer := range changeLogWriters {
+		canonical = append(canonical, writer.name)
+	}
+	if len(canonical) == 0 {
+		t.Fatal("no canonical writers found; this test would be vacuous")
+	}
+
+	entries, err := os.ReadDir("migrations")
+	if err != nil {
+		t.Fatalf("read migrations: %v", err)
+	}
+	dropPattern := regexp.MustCompile(`DROP TRIGGER IF EXISTS (\w+);`)
+	checked := 0
+	for _, entry := range entries {
+		body, err := os.ReadFile(filepath.Join("migrations", entry.Name()))
+		if err != nil {
+			t.Fatalf("read %s: %v", entry.Name(), err)
+		}
+		text := string(body)
+		// Only migrations that actually rebuild the checked relation.
+		if !strings.Contains(text, "DROP TABLE change_log") {
+			continue
+		}
+		// Older rebuilds predate writers added after them; a migration can only
+		// be held to the writers that existed when it shipped. Check the ones
+		// this change owns, which are the ones a live database hits today.
+		if entry.Name() < "0106" {
+			continue
+		}
+		checked++
+		dropped := make(map[string]struct{})
+		for _, match := range dropPattern.FindAllStringSubmatch(text, -1) {
+			dropped[match[1]] = struct{}{}
+		}
+		for _, writer := range canonical {
+			if _, ok := dropped[writer]; !ok {
+				t.Errorf("%s rebuilds change_log but never detaches %q; a live database would strand it", entry.Name(), writer)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no rebuild migrations examined; the guard would be vacuous")
+	}
+}
