@@ -1981,6 +1981,7 @@
 	"outcome.intake.desiredStateField": "Desired state",
 	"outcome.intake.criteriaField": "Success criteria",
 	"outcome.intake.reviewField": "Review method",
+	"outcome.intake.previewReviewMethod": "문구를 다시 읽고 일치하는지 확인합니다.",
 	"waldo.project.badge": "Project",
 	"waldo.project.contextAttached": "Project context attached",
 	"waldo.project.outcomeContextAttached": "Outcome context attached",

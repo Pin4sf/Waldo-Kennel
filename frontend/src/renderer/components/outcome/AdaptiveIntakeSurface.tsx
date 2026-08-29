@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 
 import type { components } from "../../../api/schema";
 import { apiClient, apiErrorMessage, hasTrustedApiBaseUrl } from "../../lib/api-client";
+import { usesPreviewWorkspaceData } from "../../lib/preview-mode";
+import { createPreviewOutcome } from "../../lib/preview-outcome-store";
 import { Button } from "../ui/button";
 
 type IntakeSnapshot = components["schemas"]["IntakeSnapshotResponse"];
@@ -61,6 +63,22 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		try {
 			const normalized = statement.trim();
 			if (captureIntent.current?.statement !== normalized) captureIntent.current = { statement: normalized, key: requestKey("capture") };
+			if (usesPreviewWorkspaceData) {
+				// The daemon-backed intake conversation (capture -> analysis ->
+				// clarification -> confirm) has no browser-preview equivalent, so a
+				// preview session goes straight to a confirmed preview Outcome using
+				// the statement verbatim, reusing the same store the rest of the
+				// Outcome lifecycle already previews against.
+				const outcome = createPreviewOutcome(projectId, {
+					title: normalized,
+					goal: normalized,
+					successCriteria: [normalized],
+					review: t("outcome.intake.previewReviewMethod"),
+					requestKey: captureIntent.current.key,
+				});
+				await navigate({ to: "/work", search: { project: projectId, stage: "decide_authorize", outcome: outcome.id } });
+				return;
+			}
 			const { data, error: apiError } = await apiClient.POST("/api/v1/projects/{id}/intakes", { params: { path: { id: projectId } }, body: { sourceSurface: "work", statement: normalized, requestKey: captureIntent.current.key } });
 			if (apiError) throw apiError;
 			await navigate({ to: "/work", search: { project: projectId, intake: data.intake.session.id } });
@@ -102,7 +120,9 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		} catch (cause) { setError(apiErrorMessage(cause)); } finally { setPending(false); }
 	}
 
-	if (!hasTrustedApiBaseUrl()) return <TruthMessage title={t("outcome.intake.offlineTitle")} body={t("outcome.intake.offlineBody")} />;
+	if (!usesPreviewWorkspaceData && !hasTrustedApiBaseUrl()) {
+		return <TruthMessage title={t("outcome.intake.offlineTitle")} body={t("outcome.intake.offlineBody")} />;
+	}
 	if (!intakeId) return (
 		<form
 			className="mx-auto flex h-full w-full max-w-3xl flex-col items-center justify-center gap-6 px-4 sm:px-8"
