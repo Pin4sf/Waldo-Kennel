@@ -1942,8 +1942,11 @@ type ContractCriterionResponse struct {
 // full immutable revision history. Project listings also include the latest
 // durable plan fact so callers can derive stage without transcript inspection.
 type OutcomeResponse struct {
-	ID                    string                     `json:"id"`
-	SpaceID               string                     `json:"spaceId"`
+	ID      string `json:"id"`
+	SpaceID string `json:"spaceId"`
+	// ParentID names the Outcome this one contributes to, absent for a
+	// Project-level Outcome (ADR 0007).
+	ParentID              string                     `json:"parentId,omitempty"`
 	Title                 string                     `json:"title"`
 	CurrentRevisionNumber int64                      `json:"currentRevisionNumber"`
 	Current               ContractRevisionResponse   `json:"currentRevision"`
@@ -2429,6 +2432,13 @@ type IntakeEvidenceExpectationResponse struct {
 func intakeAuthority(value domain.ProposedAuthority) IntakeAuthority {
 	return IntakeAuthority{ReadWorkspace: value.ReadWorkspace, WriteWorkspace: value.WriteWorkspace, ExecuteLocal: value.ExecuteLocal, UseNetwork: value.UseNetwork, CommitLocal: value.CommitLocal, CreatePR: value.CreatePR, Deploy: value.Deploy, ExternalEffect: value.ExternalEffect}
 }
+
+// proposedAuthority is intakeAuthority's inverse, for request bodies that
+// state a ceiling rather than report one.
+func proposedAuthority(value IntakeAuthority) domain.ProposedAuthority {
+	return domain.ProposedAuthority{ReadWorkspace: value.ReadWorkspace, WriteWorkspace: value.WriteWorkspace, ExecuteLocal: value.ExecuteLocal, UseNetwork: value.UseNetwork, CommitLocal: value.CommitLocal, CreatePR: value.CreatePR, Deploy: value.Deploy, ExternalEffect: value.ExternalEffect}
+}
+
 func intakeFacets(values []domain.ContractFacet) []IntakeFacet {
 	out := make([]IntakeFacet, 0, len(values))
 	for _, value := range values {
@@ -2660,6 +2670,7 @@ func outcomeResponse(view outcomevc.OutcomeView) OutcomeResponse {
 	resp := OutcomeResponse{
 		ID:                    string(view.Outcome.ID),
 		SpaceID:               string(view.Outcome.SpaceID),
+		ParentID:              string(view.Outcome.ParentID),
 		Title:                 view.Outcome.Title,
 		CurrentRevisionNumber: view.Outcome.CurrentRevisionNumber,
 		Current:               contractRevisionResponse(view.Current),
@@ -2980,6 +2991,129 @@ func attemptResponse(view outcomevc.AttemptView) AttemptResponse {
 			LastRenewedAt: view.Fence.LastRenewedAt,
 			ReleasedAt:    releasedAt,
 		}
+	}
+	return resp
+}
+
+// --- Composed Outcomes (ADR 0007) ---
+
+// CreateContributionRequest is the body for POST
+// /outcomes/{outcomeId}/contributions. A contributing Outcome states its own
+// contract, so the contract fields mirror CreateOutcomeRequest; claimedCriteria
+// is what makes it a contribution rather than an unrelated Outcome.
+type CreateContributionRequest struct {
+	Title           string   `json:"title"`
+	Goal            string   `json:"goal"`
+	SuccessCriteria []string `json:"successCriteria"`
+	Review          string   `json:"review"`
+	Constraints     []string `json:"constraints,omitempty"`
+	NonGoals        []string `json:"nonGoals,omitempty"`
+	Clarification   string   `json:"clarification,omitempty"`
+	// ClaimedCriteria names parent criterion identities from the parent's
+	// CURRENT contract revision. At least one is required.
+	ClaimedCriteria []string `json:"claimedCriteria"`
+	// Authority is the child's proposed ceiling. It may narrow the parent's
+	// and may never widen it.
+	Authority  IntakeAuthority `json:"authority,omitempty"`
+	RequestKey string          `json:"requestKey"`
+}
+
+// ContributionLinkResponse is one immutable criterion binding.
+type ContributionLinkResponse struct {
+	ID                       string    `json:"id"`
+	ParentOutcomeID          string    `json:"parentOutcomeId"`
+	ChildOutcomeID           string    `json:"childOutcomeId"`
+	ParentContractRevisionID string    `json:"parentContractRevisionId"`
+	ParentCriterionID        string    `json:"parentCriterionId"`
+	CreatedAt                time.Time `json:"createdAt"`
+}
+
+// ContributorResponse is one contributing Outcome and its bindings.
+type ContributorResponse struct {
+	Outcome OutcomeResponse            `json:"outcome"`
+	Links   []ContributionLinkResponse `json:"links"`
+	// Stale reports a binding to a superseded parent revision. It blocks new
+	// authorization; it does not mean running work is dead.
+	Stale bool `json:"stale"`
+}
+
+// CriterionClaimResponse is one parent criterion and who claims it. An empty
+// claimedBy is a truthful report of an incomplete decomposition, not an error.
+type CriterionClaimResponse struct {
+	CriterionID string   `json:"criterionId"`
+	Position    int64    `json:"position"`
+	Text        string   `json:"text"`
+	ClaimedBy   []string `json:"claimedBy"`
+}
+
+// OutcomeCompositionResponse is the derived composition read model. Shape is
+// computed from whether contributors exist and is never stored.
+type OutcomeCompositionResponse struct {
+	Shape        string                   `json:"shape"`
+	ParentID     string                   `json:"parentId,omitempty"`
+	Contributors []ContributorResponse    `json:"contributors"`
+	Coverage     []CriterionClaimResponse `json:"coverage"`
+	// UnclaimedCriteria repeats the criteria nothing claims, so a caller does
+	// not have to re-derive the one fact that decides whether a decomposition
+	// is complete.
+	UnclaimedCriteria []CriterionClaimResponse `json:"unclaimedCriteria"`
+}
+
+// OutcomeCompositionEnvelope is the { composition } response body.
+type OutcomeCompositionEnvelope struct {
+	Composition OutcomeCompositionResponse `json:"composition"`
+}
+
+func contributionLinkResponse(link domain.ContributionLink) ContributionLinkResponse {
+	return ContributionLinkResponse{
+		ID:                       string(link.ID),
+		ParentOutcomeID:          string(link.ParentOutcomeID),
+		ChildOutcomeID:           string(link.ChildOutcomeID),
+		ParentContractRevisionID: string(link.ParentContractRevisionID),
+		ParentCriterionID:        string(link.ParentCriterionID),
+		CreatedAt:                link.CreatedAt,
+	}
+}
+
+func criterionClaimResponse(claim domain.CriterionClaim) CriterionClaimResponse {
+	claimedBy := make([]string, 0, len(claim.ClaimedBy))
+	for _, id := range claim.ClaimedBy {
+		claimedBy = append(claimedBy, string(id))
+	}
+	return CriterionClaimResponse{
+		CriterionID: string(claim.CriterionID),
+		Position:    claim.Position,
+		Text:        claim.Text,
+		ClaimedBy:   claimedBy,
+	}
+}
+
+func outcomeCompositionResponse(view outcomevc.CompositionView, contributors []outcomevc.OutcomeView) OutcomeCompositionResponse {
+	resp := OutcomeCompositionResponse{
+		Shape:             string(view.Shape),
+		Contributors:      make([]ContributorResponse, 0, len(view.Contributors)),
+		Coverage:          make([]CriterionClaimResponse, 0, len(view.Coverage)),
+		UnclaimedCriteria: make([]CriterionClaimResponse, 0),
+	}
+	if view.Parent != nil {
+		resp.ParentID = string(view.Parent.ID)
+	}
+	for i, contributor := range view.Contributors {
+		links := make([]ContributionLinkResponse, 0, len(contributor.Links))
+		for _, link := range contributor.Links {
+			links = append(links, contributionLinkResponse(link))
+		}
+		entry := ContributorResponse{Links: links, Stale: contributor.Stale}
+		if i < len(contributors) {
+			entry.Outcome = outcomeResponse(contributors[i])
+		}
+		resp.Contributors = append(resp.Contributors, entry)
+	}
+	for _, claim := range view.Coverage {
+		resp.Coverage = append(resp.Coverage, criterionClaimResponse(claim))
+	}
+	for _, claim := range view.Unclaimed() {
+		resp.UnclaimedCriteria = append(resp.UnclaimedCriteria, criterionClaimResponse(claim))
 	}
 	return resp
 }

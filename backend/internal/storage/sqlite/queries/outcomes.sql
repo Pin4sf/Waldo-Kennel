@@ -14,19 +14,19 @@ INSERT INTO responsibility_spaces (id, kind, project_id)
 VALUES (?, 'WorkProject', ?);
 
 -- name: CreateOutcome :exec
-INSERT INTO outcomes (id, space_id, title, current_revision_number, idempotency_key)
-VALUES (?, ?, ?, ?, ?);
+INSERT INTO outcomes (id, space_id, title, current_revision_number, idempotency_key, parent_outcome_id)
+VALUES (?, ?, ?, ?, ?, ?);
 
 -- name: FindOutcomeByIdempotencyKey :one
-SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at
+SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
 FROM outcomes WHERE idempotency_key = ?;
 
 -- name: GetOutcome :one
-SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at
+SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
 FROM outcomes WHERE id = ?;
 
 -- name: ListOutcomesByProject :many
-SELECT o.id, o.space_id, o.title, o.current_revision_number, o.idempotency_key, o.created_at, o.updated_at
+SELECT o.id, o.space_id, o.title, o.current_revision_number, o.idempotency_key, o.created_at, o.updated_at, o.parent_outcome_id
 FROM outcomes o
 JOIN responsibility_spaces rs ON rs.id = o.space_id
 WHERE rs.project_id = ? AND rs.kind = 'WorkProject'
@@ -108,3 +108,28 @@ VALUES (?, ?, ?, ?);
 -- name: ListCapabilityGrantsForPlan :many
 SELECT id, plan_revision_id, name, scope
 FROM capability_grants WHERE plan_revision_id = ?;
+
+-- Composed Outcomes (ADR 0007). Contribution is criterion-bound and
+-- append-only; there is deliberately no update or delete query.
+
+-- name: ListContributingOutcomes :many
+SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
+FROM outcomes WHERE parent_outcome_id = ?
+ORDER BY created_at, id;
+
+-- name: CountContributingOutcomes :one
+SELECT COUNT(*) FROM outcomes WHERE parent_outcome_id = ?;
+
+-- name: CreateContributionLink :exec
+INSERT INTO contribution_links (id, parent_outcome_id, child_outcome_id, parent_contract_revision_id, parent_criterion_id)
+VALUES (?, ?, ?, ?, ?);
+
+-- name: ListContributionLinksForParent :many
+SELECT id, parent_outcome_id, child_outcome_id, parent_contract_revision_id, parent_criterion_id, created_at
+FROM contribution_links WHERE parent_outcome_id = ?
+ORDER BY created_at, id;
+
+-- name: ListContributionLinksForChild :many
+SELECT id, parent_outcome_id, child_outcome_id, parent_contract_revision_id, parent_criterion_id, created_at
+FROM contribution_links WHERE child_outcome_id = ?
+ORDER BY created_at, id;

@@ -40,6 +40,16 @@ type Manager interface {
 	// contract belonging to the project's Work responsibility space.
 	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]OutcomeView, error)
 
+	// CreateContribution adds one contributing Outcome beneath parentID,
+	// bound to named criteria of the parent's CURRENT contract revision
+	// (ADR 0007). It fails closed on a third composition level, an unknown
+	// criterion, or a ceiling wider than the parent's.
+	CreateContribution(ctx context.Context, parentID domain.OutcomeID, in CreateContributionInput) (OutcomeView, error)
+
+	// Composition reports derived shape, contributing Outcomes, and criterion
+	// coverage. A direct Outcome answers shape "direct" with no contributors.
+	Composition(ctx context.Context, id domain.OutcomeID) (CompositionView, error)
+
 	// ProposePlan deterministically derives the smallest-sufficient direct
 	// Work Unit from the Outcome's current contract revision, freezes it into
 	// a RunBrief core digest, and records it as a proposed PlanRevision.

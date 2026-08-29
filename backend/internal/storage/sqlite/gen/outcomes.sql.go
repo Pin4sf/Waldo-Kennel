@@ -57,6 +57,17 @@ func (q *Queries) ApprovePlanRevision(ctx context.Context, arg ApprovePlanRevisi
 	return result.RowsAffected()
 }
 
+const countContributingOutcomes = `-- name: CountContributingOutcomes :one
+SELECT COUNT(*) FROM outcomes WHERE parent_outcome_id = ?
+`
+
+func (q *Queries) CountContributingOutcomes(ctx context.Context, parentOutcomeID sql.NullString) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countContributingOutcomes, parentOutcomeID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createCapabilityGrant = `-- name: CreateCapabilityGrant :exec
 INSERT INTO capability_grants (id, plan_revision_id, name, scope)
 VALUES (?, ?, ?, ?)
@@ -135,9 +146,33 @@ func (q *Queries) CreateContractRevision(ctx context.Context, arg CreateContract
 	return err
 }
 
-const createOutcome = `-- name: CreateOutcome :exec
-INSERT INTO outcomes (id, space_id, title, current_revision_number, idempotency_key)
+const createContributionLink = `-- name: CreateContributionLink :exec
+INSERT INTO contribution_links (id, parent_outcome_id, child_outcome_id, parent_contract_revision_id, parent_criterion_id)
 VALUES (?, ?, ?, ?, ?)
+`
+
+type CreateContributionLinkParams struct {
+	ID                       string
+	ParentOutcomeID          string
+	ChildOutcomeID           string
+	ParentContractRevisionID string
+	ParentCriterionID        string
+}
+
+func (q *Queries) CreateContributionLink(ctx context.Context, arg CreateContributionLinkParams) error {
+	_, err := q.db.ExecContext(ctx, createContributionLink,
+		arg.ID,
+		arg.ParentOutcomeID,
+		arg.ChildOutcomeID,
+		arg.ParentContractRevisionID,
+		arg.ParentCriterionID,
+	)
+	return err
+}
+
+const createOutcome = `-- name: CreateOutcome :exec
+INSERT INTO outcomes (id, space_id, title, current_revision_number, idempotency_key, parent_outcome_id)
+VALUES (?, ?, ?, ?, ?, ?)
 `
 
 type CreateOutcomeParams struct {
@@ -146,6 +181,7 @@ type CreateOutcomeParams struct {
 	Title                 string
 	CurrentRevisionNumber int64
 	IdempotencyKey        sql.NullString
+	ParentOutcomeID       sql.NullString
 }
 
 func (q *Queries) CreateOutcome(ctx context.Context, arg CreateOutcomeParams) error {
@@ -155,6 +191,7 @@ func (q *Queries) CreateOutcome(ctx context.Context, arg CreateOutcomeParams) er
 		arg.Title,
 		arg.CurrentRevisionNumber,
 		arg.IdempotencyKey,
+		arg.ParentOutcomeID,
 	)
 	return err
 }
@@ -238,7 +275,7 @@ func (q *Queries) CreateWorkUnit(ctx context.Context, arg CreateWorkUnitParams) 
 }
 
 const findOutcomeByIdempotencyKey = `-- name: FindOutcomeByIdempotencyKey :one
-SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at
+SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
 FROM outcomes WHERE idempotency_key = ?
 `
 
@@ -253,6 +290,7 @@ func (q *Queries) FindOutcomeByIdempotencyKey(ctx context.Context, idempotencyKe
 		&i.IdempotencyKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ParentOutcomeID,
 	)
 	return i, err
 }
@@ -348,7 +386,7 @@ func (q *Queries) GetLatestPlanRevision(ctx context.Context, outcomeID domain.Ou
 }
 
 const getOutcome = `-- name: GetOutcome :one
-SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at
+SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
 FROM outcomes WHERE id = ?
 `
 
@@ -363,6 +401,7 @@ func (q *Queries) GetOutcome(ctx context.Context, id domain.OutcomeID) (Outcome,
 		&i.IdempotencyKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ParentOutcomeID,
 	)
 	return i, err
 }
@@ -547,8 +586,121 @@ func (q *Queries) ListContractRevisions(ctx context.Context, outcomeID domain.Ou
 	return items, nil
 }
 
+const listContributingOutcomes = `-- name: ListContributingOutcomes :many
+
+SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
+FROM outcomes WHERE parent_outcome_id = ?
+ORDER BY created_at, id
+`
+
+// Composed Outcomes (ADR 0007). Contribution is criterion-bound and
+// append-only; there is deliberately no update or delete query.
+func (q *Queries) ListContributingOutcomes(ctx context.Context, parentOutcomeID sql.NullString) ([]Outcome, error) {
+	rows, err := q.db.QueryContext(ctx, listContributingOutcomes, parentOutcomeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Outcome{}
+	for rows.Next() {
+		var i Outcome
+		if err := rows.Scan(
+			&i.ID,
+			&i.SpaceID,
+			&i.Title,
+			&i.CurrentRevisionNumber,
+			&i.IdempotencyKey,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentOutcomeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listContributionLinksForChild = `-- name: ListContributionLinksForChild :many
+SELECT id, parent_outcome_id, child_outcome_id, parent_contract_revision_id, parent_criterion_id, created_at
+FROM contribution_links WHERE child_outcome_id = ?
+ORDER BY created_at, id
+`
+
+func (q *Queries) ListContributionLinksForChild(ctx context.Context, childOutcomeID string) ([]ContributionLink, error) {
+	rows, err := q.db.QueryContext(ctx, listContributionLinksForChild, childOutcomeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ContributionLink{}
+	for rows.Next() {
+		var i ContributionLink
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentOutcomeID,
+			&i.ChildOutcomeID,
+			&i.ParentContractRevisionID,
+			&i.ParentCriterionID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listContributionLinksForParent = `-- name: ListContributionLinksForParent :many
+SELECT id, parent_outcome_id, child_outcome_id, parent_contract_revision_id, parent_criterion_id, created_at
+FROM contribution_links WHERE parent_outcome_id = ?
+ORDER BY created_at, id
+`
+
+func (q *Queries) ListContributionLinksForParent(ctx context.Context, parentOutcomeID string) ([]ContributionLink, error) {
+	rows, err := q.db.QueryContext(ctx, listContributionLinksForParent, parentOutcomeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ContributionLink{}
+	for rows.Next() {
+		var i ContributionLink
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentOutcomeID,
+			&i.ChildOutcomeID,
+			&i.ParentContractRevisionID,
+			&i.ParentCriterionID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOutcomesByProject = `-- name: ListOutcomesByProject :many
-SELECT o.id, o.space_id, o.title, o.current_revision_number, o.idempotency_key, o.created_at, o.updated_at
+SELECT o.id, o.space_id, o.title, o.current_revision_number, o.idempotency_key, o.created_at, o.updated_at, o.parent_outcome_id
 FROM outcomes o
 JOIN responsibility_spaces rs ON rs.id = o.space_id
 WHERE rs.project_id = ? AND rs.kind = 'WorkProject'
@@ -572,6 +724,7 @@ func (q *Queries) ListOutcomesByProject(ctx context.Context, projectID domain.Pr
 			&i.IdempotencyKey,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ParentOutcomeID,
 		); err != nil {
 			return nil, err
 		}

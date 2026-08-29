@@ -1719,6 +1719,96 @@ paths:
         recovery)
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/composition:
+    get:
+      operationId: getOutcomeComposition
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutcomeCompositionEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read derived shape, contributing Outcomes, and criterion coverage
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/contributions:
+    post:
+      operationId: createOutcomeContribution
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContributionRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutcomeEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Add one contributing Outcome bound to parent criteria
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/evidence:
     post:
       operationId: recordOutcomeEvidence
@@ -7704,6 +7794,44 @@ components:
       - nonGoals
       - createdAt
       type: object
+    ContributionLinkResponse:
+      properties:
+        childOutcomeId:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        parentContractRevisionId:
+          type: string
+        parentCriterionId:
+          type: string
+        parentOutcomeId:
+          type: string
+      required:
+      - id
+      - parentOutcomeId
+      - childOutcomeId
+      - parentContractRevisionId
+      - parentCriterionId
+      - createdAt
+      type: object
+    ContributorResponse:
+      properties:
+        links:
+          items:
+            $ref: '#/components/schemas/ContributionLinkResponse'
+          type: array
+        outcome:
+          $ref: '#/components/schemas/OutcomeResponse'
+        stale:
+          type: boolean
+      required:
+      - outcome
+      - links
+      - stale
+      type: object
     ControllersIntakeAuthority:
       properties:
         commitLocal:
@@ -8657,6 +8785,44 @@ components:
       - cachedTokens
       - totalTokens
       type: object
+    CreateContributionRequest:
+      properties:
+        authority:
+          $ref: '#/components/schemas/ControllersIntakeAuthority'
+        claimedCriteria:
+          items:
+            type: string
+          type: array
+        clarification:
+          type: string
+        constraints:
+          items:
+            type: string
+          type: array
+        goal:
+          type: string
+        nonGoals:
+          items:
+            type: string
+          type: array
+        requestKey:
+          type: string
+        review:
+          type: string
+        successCriteria:
+          items:
+            type: string
+          type: array
+        title:
+          type: string
+      required:
+      - title
+      - goal
+      - successCriteria
+      - review
+      - claimedCriteria
+      - requestKey
+      type: object
     CreateIntakeRequest:
       properties:
         conversationRefs:
@@ -8729,6 +8895,25 @@ components:
       - destinationOutcomeId
       - reason
       - requestKey
+      type: object
+    CriterionClaimResponse:
+      properties:
+        claimedBy:
+          items:
+            type: string
+          type: array
+        criterionId:
+          type: string
+        position:
+          format: int64
+          type: integer
+        text:
+          type: string
+      required:
+      - criterionId
+      - position
+      - text
+      - claimedBy
       type: object
     CriterionProofResponse:
       properties:
@@ -9683,6 +9868,37 @@ components:
       - id
       - projectId
       type: object
+    OutcomeCompositionEnvelope:
+      properties:
+        composition:
+          $ref: '#/components/schemas/OutcomeCompositionResponse'
+      required:
+      - composition
+      type: object
+    OutcomeCompositionResponse:
+      properties:
+        contributors:
+          items:
+            $ref: '#/components/schemas/ContributorResponse'
+          type: array
+        coverage:
+          items:
+            $ref: '#/components/schemas/CriterionClaimResponse'
+          type: array
+        parentId:
+          type: string
+        shape:
+          type: string
+        unclaimedCriteria:
+          items:
+            $ref: '#/components/schemas/CriterionClaimResponse'
+          type: array
+      required:
+      - shape
+      - contributors
+      - coverage
+      - unclaimedCriteria
+      type: object
     OutcomeCorrectionResponse:
       properties:
         contractRevisionId:
@@ -9777,6 +9993,8 @@ components:
           type: string
         latestPlan:
           $ref: '#/components/schemas/PlanRevisionResponse'
+        parentId:
+          type: string
         spaceId:
           type: string
         title:

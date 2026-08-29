@@ -235,6 +235,19 @@ var changeLogWriters = []struct {
 		deps:  []string{"outcomes", "responsibility_spaces"},
 		sql:   "CREATE TRIGGER outcome_corrections_cdc_insert\nAFTER INSERT ON outcome_corrections\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_correction_recorded',\n        json_object('correctionId', NEW.id, 'decisionId', NEW.decision_id, 'outcomeId', NEW.outcome_id, 'contractRevisionId', NEW.contract_revision_id, 'targetType', NEW.target_type, 'targetId', NEW.target_id),\n        NEW.created_at);\nEND;",
 	},
+	// Composed Outcomes (0106, ADR 0007). The binding is the fact worth
+	// publishing: a contributing Outcome's own 'outcome_created' event says
+	// nothing about what it contributes to, and this one carries the parent,
+	// the exact parent revision, and the criterion claimed. The existing
+	// outcomes writers are deliberately left untouched — restoration gates on
+	// table existence, not column existence, so a writer referencing
+	// parent_outcome_id would fail on a profile that skipped 0106.
+	{
+		name:  "contribution_links_cdc_insert",
+		table: "contribution_links",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER contribution_links_cdc_insert\nAFTER INSERT ON contribution_links\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.parent_outcome_id),\n        NULL, 'outcome_contribution_bound',\n        json_object('linkId', NEW.id, 'parentOutcomeId', NEW.parent_outcome_id, 'childOutcomeId', NEW.child_outcome_id, 'parentContractRevisionId', NEW.parent_contract_revision_id, 'parentCriterionId', NEW.parent_criterion_id),\n        NEW.created_at);\nEND;",
+	},
 	// Shared adaptive intake and explicit Home-to-Work lineage (#32).
 	{
 		name:  "intake_sessions_cdc_insert",

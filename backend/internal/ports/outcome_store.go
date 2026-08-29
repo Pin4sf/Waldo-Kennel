@@ -67,6 +67,28 @@ type OutcomeStore interface {
 	// ascending revision number.
 	ListContractRevisions(ctx context.Context, id domain.OutcomeID) ([]domain.ContractRevision, error)
 
+	// CreateContributionWithContract atomically persists one contributing
+	// Outcome, its ContractRevision 1, and every criterion binding, so a child
+	// can never exist claiming nothing (ADR 0007). Storage enforces the depth
+	// cap, the single-parent-revision rule, and link immutability; the service
+	// enforces authority containment and criterion identity beforehand.
+	CreateContributionWithContract(ctx context.Context, child domain.Outcome, first domain.ContractRevision, links []domain.ContributionLink, requestKey string) error
+
+	// ListContributingOutcomes returns the Outcomes contributing to parent in
+	// stable creation order. An empty list means the Outcome is direct: shape
+	// is derived from this, never stored.
+	ListContributingOutcomes(ctx context.Context, parent domain.OutcomeID) ([]domain.Outcome, error)
+
+	// ListContributionLinksForParent returns every binding held against
+	// parent, including those bound to superseded revisions. Superseded links
+	// stay readable so a stale contribution can be explained rather than
+	// silently disappearing.
+	ListContributionLinksForParent(ctx context.Context, parent domain.OutcomeID) ([]domain.ContributionLink, error)
+
+	// ListContributionLinksForChild returns one contributing Outcome's
+	// bindings. Their shared parent revision is that Outcome's binding.
+	ListContributionLinksForChild(ctx context.Context, child domain.OutcomeID) ([]domain.ContributionLink, error)
+
 	// AppendPlanRevision atomically persists one proposed plan together with
 	// its single Work Unit and capability grants, assigning the plan number
 	// inside the transaction and returning the plan with that number.

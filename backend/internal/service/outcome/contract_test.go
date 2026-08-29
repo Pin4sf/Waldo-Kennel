@@ -3,6 +3,7 @@ package outcome_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -23,6 +24,7 @@ type fakeStore struct {
 	revs     map[domain.OutcomeID][]domain.ContractRevision
 	keys     map[string]domain.OutcomeID
 	plans    map[domain.OutcomeID]domain.PlanRevision
+	links    map[domain.OutcomeID][]domain.ContributionLink
 	order    []domain.OutcomeID
 	writes   int
 }
@@ -370,4 +372,83 @@ func (f *fakeStore) GetLatestPlanRevision(_ context.Context, outcomeID domain.Ou
 
 func (f *fakeStore) ApprovePlanRevision(_ context.Context, _ domain.OutcomeID, id domain.PlanRevisionID) (domain.PlanRevision, bool, error) {
 	return domain.PlanRevision{ID: id, Status: domain.PlanStatusApproved}, true, nil
+}
+
+// --- Composed Outcomes (ADR 0007) ---
+//
+// The fake enforces the same invariants storage does, so a service test that
+// passes here would also pass against SQLite. A fake that silently accepted a
+// third level or an unlinked child would prove nothing.
+
+func (f *fakeStore) CreateContributionWithContract(
+	_ context.Context,
+	child domain.Outcome,
+	first domain.ContractRevision,
+	links []domain.ContributionLink,
+	requestKey string,
+) error {
+	if err := domain.ValidateContributionLinkSet(child.ID, links); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if requestKey != "" {
+		if _, taken := f.keys[requestKey]; taken {
+			return errUniqueKey
+		}
+	}
+	parent, ok := f.outcomes[child.ParentID]
+	if !ok {
+		return fmt.Errorf("parent outcome %s not found", child.ParentID)
+	}
+	if parent.IsContributing() {
+		return fmt.Errorf("composition depth limit: a contributing outcome cannot be a parent")
+	}
+	first.Number = 1
+	child.CurrentRevisionNumber = 1
+	f.outcomes[child.ID] = child
+	f.revs[child.ID] = []domain.ContractRevision{first}
+	f.order = append(f.order, child.ID)
+	if f.links == nil {
+		f.links = map[domain.OutcomeID][]domain.ContributionLink{}
+	}
+	f.links[child.ID] = append(f.links[child.ID], links...)
+	if requestKey != "" {
+		f.keys[requestKey] = child.ID
+	}
+	f.writes++
+	return nil
+}
+
+func (f *fakeStore) ListContributingOutcomes(_ context.Context, parent domain.OutcomeID) ([]domain.Outcome, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]domain.Outcome, 0)
+	for _, id := range f.order {
+		if o, ok := f.outcomes[id]; ok && o.ParentID == parent && !parent.IsZero() {
+			out = append(out, o)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeStore) ListContributionLinksForParent(_ context.Context, parent domain.OutcomeID) ([]domain.ContributionLink, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]domain.ContributionLink, 0)
+	for _, id := range f.order {
+		for _, link := range f.links[id] {
+			if link.ParentOutcomeID == parent {
+				out = append(out, link)
+			}
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeStore) ListContributionLinksForChild(_ context.Context, child domain.OutcomeID) ([]domain.ContributionLink, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]domain.ContributionLink, 0, len(f.links[child]))
+	return append(out, f.links[child]...), nil
 }

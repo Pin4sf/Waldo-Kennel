@@ -23,6 +23,10 @@ type OutcomeService interface {
 	ProposePlan(ctx context.Context, id domain.OutcomeID, expectedContractRevision int64) (outcomevc.PlanView, error)
 	ApprovePlan(ctx context.Context, id domain.OutcomeID, in outcomevc.ApprovePlanInput) (outcomevc.AuthorizedPlanView, error)
 	GetLatestPlan(ctx context.Context, id domain.OutcomeID) (outcomevc.PlanView, error)
+
+	// Composed Outcomes (ADR 0007).
+	CreateContribution(ctx context.Context, parentID domain.OutcomeID, in outcomevc.CreateContributionInput) (outcomevc.OutcomeView, error)
+	Composition(ctx context.Context, id domain.OutcomeID) (outcomevc.CompositionView, error)
 }
 
 // AttemptManager is the Act & Observe boundary (#31). A nil field answers 501
@@ -68,6 +72,8 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/observations", c.recordObservation)
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/cancel", c.cancelAttempt)
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/recovery", c.recoverAttempt)
+	r.Post("/outcomes/{outcomeId}/contributions", c.createContribution)
+	r.Get("/outcomes/{outcomeId}/composition", c.getComposition)
 	r.Get("/outcomes/{outcomeId}/proof", c.getProof)
 	r.Post("/outcomes/{outcomeId}/evidence", c.recordEvidence)
 	r.Post("/outcomes/{outcomeId}/verifications", c.recordVerification)
@@ -413,4 +419,67 @@ func (c *OutcomesController) recoverAttempt(w http.ResponseWriter, r *http.Reque
 		resp.Receipt = &receipt
 	}
 	envelope.WriteJSON(w, http.StatusOK, resp)
+}
+
+// createContribution adds one contributing Outcome beneath {outcomeId}. Every
+// refusal — depth cap, unknown criterion, widened authority — fails closed in
+// the service and reaches the caller with the offender named.
+func (c *OutcomesController) createContribution(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/contributions")
+		return
+	}
+	var req CreateContributionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	claimed := make([]domain.CriterionID, 0, len(req.ClaimedCriteria))
+	for _, id := range req.ClaimedCriteria {
+		claimed = append(claimed, domain.CriterionID(id))
+	}
+	view, err := c.Svc.CreateContribution(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.CreateContributionInput{
+		Title:           req.Title,
+		Goal:            req.Goal,
+		SuccessCriteria: req.SuccessCriteria,
+		Review:          req.Review,
+		Constraints:     req.Constraints,
+		NonGoals:        req.NonGoals,
+		Clarification:   req.Clarification,
+		ClaimedCriteria: claimed,
+		Authority:       proposedAuthority(req.Authority),
+		RequestKey:      req.RequestKey,
+	})
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusCreated, OutcomeEnvelope{Outcome: outcomeResponse(view)})
+}
+
+// getComposition reports derived shape, contributors, and criterion coverage.
+// A direct Outcome answers 200 with shape "direct" and no contributors: the
+// absence of composition is a fact, not a missing resource.
+func (c *OutcomesController) getComposition(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodGet, "/api/v1/outcomes/{outcomeId}/composition")
+		return
+	}
+	view, err := c.Svc.Composition(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	// Each contributor carries its own contract so Mission Control can render
+	// the decomposition without a request per child.
+	contributors := make([]outcomevc.OutcomeView, 0, len(view.Contributors))
+	for _, contributor := range view.Contributors {
+		full, err := c.Svc.Get(r.Context(), contributor.Outcome.ID)
+		if err != nil {
+			envelope.WriteError(w, r, err)
+			return
+		}
+		contributors = append(contributors, full)
+	}
+	envelope.WriteJSON(w, http.StatusOK, OutcomeCompositionEnvelope{Composition: outcomeCompositionResponse(view, contributors)})
 }

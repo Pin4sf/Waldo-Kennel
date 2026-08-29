@@ -178,6 +178,15 @@ type ContractRevisionIntakeCore struct {
 	CreatedAt            time.Time
 }
 
+type ContributionLink struct {
+	ID                       string
+	ParentOutcomeID          string
+	ChildOutcomeID           string
+	ParentContractRevisionID string
+	ParentCriterionID        string
+	CreatedAt                time.Time
+}
+
 type Conversation struct {
 	ID                         string
 	Scope                      domain.ConversationScope
@@ -421,6 +430,7 @@ type Outcome struct {
 	IdempotencyKey        sql.NullString
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+	ParentOutcomeID       sql.NullString
 }
 
 type OutcomeCorrection struct {

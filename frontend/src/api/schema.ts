@@ -619,6 +619,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/composition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read derived shape, contributing Outcomes, and criterion coverage */
+        get: operations["getOutcomeComposition"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/contributions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add one contributing Outcome bound to parent criteria */
+        post: operations["createOutcomeContribution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/evidence": {
         parameters: {
             query?: never;
@@ -2521,6 +2555,20 @@ export interface components {
             successCriteria: string[];
             temporalCondition?: null | string;
         };
+        ContributionLinkResponse: {
+            childOutcomeId: string;
+            /** Format: date-time */
+            createdAt: string;
+            id: string;
+            parentContractRevisionId: string;
+            parentCriterionId: string;
+            parentOutcomeId: string;
+        };
+        ContributorResponse: {
+            links: components["schemas"]["ContributionLinkResponse"][];
+            outcome: components["schemas"]["OutcomeResponse"];
+            stale: boolean;
+        };
         ControllersIntakeAuthority: {
             commitLocal: boolean;
             createPr: boolean;
@@ -2873,6 +2921,18 @@ export interface components {
             /** Format: int64 */
             totalTokens: number;
         };
+        CreateContributionRequest: {
+            authority?: components["schemas"]["ControllersIntakeAuthority"];
+            claimedCriteria: string[];
+            clarification?: string;
+            constraints?: string[];
+            goal: string;
+            nonGoals?: string[];
+            requestKey: string;
+            review: string;
+            successCriteria: string[];
+            title: string;
+        };
         CreateIntakeRequest: {
             conversationRefs?: components["schemas"]["ControllersIntakeConversationRefInput"][];
             requestKey: string;
@@ -2897,6 +2957,13 @@ export interface components {
             reason: string;
             requestKey: string;
             sourceOpenLoopId: string;
+        };
+        CriterionClaimResponse: {
+            claimedBy: string[];
+            criterionId: string;
+            /** Format: int64 */
+            position: number;
+            text: string;
         };
         CriterionProofResponse: {
             contractRevisionId: string;
@@ -3261,6 +3328,16 @@ export interface components {
             projectId: string;
             projectName?: string;
         };
+        OutcomeCompositionEnvelope: {
+            composition: components["schemas"]["OutcomeCompositionResponse"];
+        };
+        OutcomeCompositionResponse: {
+            contributors: components["schemas"]["ContributorResponse"][];
+            coverage: components["schemas"]["CriterionClaimResponse"][];
+            parentId?: string;
+            shape: string;
+            unclaimedCriteria: components["schemas"]["CriterionClaimResponse"][];
+        };
         OutcomeCorrectionResponse: {
             contractRevisionId: string;
             /** Format: date-time */
@@ -3297,6 +3374,7 @@ export interface components {
             history: components["schemas"]["ContractRevisionResponse"][];
             id: string;
             latestPlan?: components["schemas"]["PlanRevisionResponse"];
+            parentId?: string;
             spaceId: string;
             title: string;
             /** Format: date-time */
@@ -6450,6 +6528,119 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomeComposition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutcomeCompositionEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    createOutcomeContribution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateContributionRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutcomeEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

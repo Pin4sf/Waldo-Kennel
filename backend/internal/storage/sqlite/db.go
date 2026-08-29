@@ -168,10 +168,142 @@ func migrate(db *sql.DB) error {
 	if err := restoreChangeLogWriters(db); err != nil {
 		return fmt.Errorf("restore change log writers: %w", err)
 	}
+	if err := reconcileComposedOutcomesSchema(db); err != nil {
+		return fmt.Errorf("reconcile composed outcomes schema: %w", err)
+	}
 	if err := reconcileProjectChatProjection(db); err != nil {
 		return fmt.Errorf("reconcile project chat projection: %w", err)
 	}
 	return reconcileSchema(db)
+}
+
+// reconcileComposedOutcomesSchema installs the composition schema migration
+// 0106 deliberately does not (ADR 0007).
+//
+// It lives here for the same reason reconcileOutcomeProofSchema does: a burned
+// 0099 ledger entry marks the version applied while leaving `outcomes` and
+// `contract_criteria` physically absent, and ALTER TABLE cannot be made
+// conditional inside migration SQL. On a complete profile this adds the parent
+// column, the contribution_links table, and the fail-closed guards; on a
+// degraded one it defers without inventing composition state.
+//
+// Every statement is idempotent, so a repaired profile heals on the next start.
+func reconcileComposedOutcomesSchema(db *sql.DB) error {
+	for _, table := range []string{"outcomes", "contract_revisions", "contract_criteria"} {
+		var present int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table,
+		).Scan(&present); err != nil {
+			return err
+		}
+		if present == 0 {
+			return nil
+		}
+	}
+
+	var hasParent int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM pragma_table_info('outcomes') WHERE name = 'parent_outcome_id'`,
+	).Scan(&hasParent); err != nil {
+		return err
+	}
+	if hasParent == 0 {
+		// Default NULL is required: SQLite forbids ADD COLUMN with a
+		// REFERENCES clause unless the default is NULL. It is also the correct
+		// default — an existing Outcome contributes to nothing.
+		if _, err := db.Exec(`ALTER TABLE outcomes ADD COLUMN parent_outcome_id TEXT REFERENCES outcomes (id)`); err != nil {
+			return err
+		}
+	}
+
+	_, err := db.Exec(`
+CREATE INDEX IF NOT EXISTS idx_outcomes_parent
+    ON outcomes (parent_outcome_id, created_at)
+    WHERE parent_outcome_id IS NOT NULL;
+
+-- One immutable binding from a contributing Outcome to one parent criterion.
+-- The composite reference to contract_criteria pins the binding to the exact
+-- parent revision the criterion belongs to, so a later parent revision cannot
+-- silently inherit claims made against the superseded one.
+CREATE TABLE IF NOT EXISTS contribution_links (
+    id                          TEXT PRIMARY KEY,
+    parent_outcome_id           TEXT NOT NULL REFERENCES outcomes (id),
+    child_outcome_id            TEXT NOT NULL REFERENCES outcomes (id),
+    parent_contract_revision_id TEXT NOT NULL REFERENCES contract_revisions (id),
+    parent_criterion_id         TEXT NOT NULL,
+    created_at                  TIMESTAMP NOT NULL DEFAULT (datetime('now')),
+    CHECK (parent_outcome_id <> child_outcome_id),
+    FOREIGN KEY (parent_contract_revision_id, parent_criterion_id)
+        REFERENCES contract_criteria (contract_revision_id, id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contribution_links_child_criterion
+    ON contribution_links (child_outcome_id, parent_criterion_id);
+CREATE INDEX IF NOT EXISTS idx_contribution_links_parent
+    ON contribution_links (parent_outcome_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_contribution_links_child
+    ON contribution_links (child_outcome_id);
+
+-- Depth cap (ADR 0007): a contributing Outcome may never itself be a parent.
+-- Enforced here as well as in the domain because the cap is what makes cycles
+-- impossible by construction — a graph that cannot reach depth 3 cannot loop.
+DROP TRIGGER IF EXISTS outcomes_composition_depth_insert;
+CREATE TRIGGER outcomes_composition_depth_insert
+BEFORE INSERT ON outcomes
+WHEN NEW.parent_outcome_id IS NOT NULL
+     AND (SELECT parent.parent_outcome_id FROM outcomes parent WHERE parent.id = NEW.parent_outcome_id) IS NOT NULL
+BEGIN SELECT RAISE(ABORT, 'composition depth limit: a contributing outcome cannot be a parent'); END;
+
+DROP TRIGGER IF EXISTS outcomes_composition_depth_update;
+CREATE TRIGGER outcomes_composition_depth_update
+BEFORE UPDATE OF parent_outcome_id ON outcomes
+WHEN NEW.parent_outcome_id IS NOT NULL
+     AND (SELECT parent.parent_outcome_id FROM outcomes parent WHERE parent.id = NEW.parent_outcome_id) IS NOT NULL
+BEGIN SELECT RAISE(ABORT, 'composition depth limit: a contributing outcome cannot be a parent'); END;
+
+-- The same cap read from the other direction: an Outcome that already has
+-- contributors cannot itself become a contributor.
+DROP TRIGGER IF EXISTS outcomes_composition_parent_guard;
+CREATE TRIGGER outcomes_composition_parent_guard
+BEFORE UPDATE OF parent_outcome_id ON outcomes
+WHEN NEW.parent_outcome_id IS NOT NULL
+     AND EXISTS (SELECT 1 FROM outcomes child WHERE child.parent_outcome_id = NEW.id)
+BEGIN SELECT RAISE(ABORT, 'composition depth limit: an outcome with contributors cannot become one'); END;
+
+-- A link must describe a real contribution: the child must actually name this
+-- parent, and the revision must actually belong to it.
+DROP TRIGGER IF EXISTS contribution_links_binding_guard;
+CREATE TRIGGER contribution_links_binding_guard
+BEFORE INSERT ON contribution_links
+WHEN (SELECT child.parent_outcome_id FROM outcomes child WHERE child.id = NEW.child_outcome_id)
+         IS NOT NEW.parent_outcome_id
+     OR NOT EXISTS (SELECT 1 FROM contract_revisions revision
+                     WHERE revision.id = NEW.parent_contract_revision_id
+                       AND revision.outcome_id = NEW.parent_outcome_id)
+BEGIN SELECT RAISE(ABORT, 'contribution link does not describe this parent and child'); END;
+
+-- Every link for one child names the same parent revision. A child bound
+-- across two revisions would be current and superseded at once, and nothing
+-- downstream could decide which.
+DROP TRIGGER IF EXISTS contribution_links_single_revision_guard;
+CREATE TRIGGER contribution_links_single_revision_guard
+BEFORE INSERT ON contribution_links
+WHEN EXISTS (SELECT 1 FROM contribution_links existing
+              WHERE existing.child_outcome_id = NEW.child_outcome_id
+                AND existing.parent_contract_revision_id <> NEW.parent_contract_revision_id)
+BEGIN SELECT RAISE(ABORT, 'a contributing outcome binds to exactly one parent contract revision'); END;
+
+DROP TRIGGER IF EXISTS contribution_links_immutable_update;
+CREATE TRIGGER contribution_links_immutable_update
+BEFORE UPDATE ON contribution_links
+BEGIN SELECT RAISE(ABORT, 'contribution links are append-only'); END;
+
+DROP TRIGGER IF EXISTS contribution_links_immutable_delete;
+CREATE TRIGGER contribution_links_immutable_delete
+BEFORE DELETE ON contribution_links
+BEGIN SELECT RAISE(ABORT, 'contribution links are append-only'); END;
+`)
+	return err
 }
 
 // reconcileOutcomeProofSchema performs the one conditional data-copy SQLite

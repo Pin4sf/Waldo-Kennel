@@ -86,13 +86,23 @@ func (c ContractCriterion) Validate() error {
 // CurrentRevisionNumber means the contract has not been created yet — never a
 // terminal state.
 type Outcome struct {
-	ID                    OutcomeID
-	SpaceID               ResponsibilitySpaceID
+	ID      OutcomeID
+	SpaceID ResponsibilitySpaceID
+	// ParentID names the Outcome this one contributes to, or is zero for a
+	// Project-level Outcome. A contributing Outcome is a full responsibility
+	// in its own right — its own contract, plan, Attempts, Evidence,
+	// Verification, and AcceptanceDecision — not a task inside its parent
+	// (ADR 0007). Composition is capped at CompositionDepthLimit levels, so a
+	// contributing Outcome may never itself be a parent.
+	ParentID              OutcomeID
 	Title                 string
 	CurrentRevisionNumber int64
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }
+
+// IsContributing reports whether this Outcome contributes to a parent.
+func (o Outcome) IsContributing() bool { return !o.ParentID.IsZero() }
 
 // Validate checks intrinsic outcome invariants.
 func (o Outcome) Validate() error {
@@ -107,6 +117,9 @@ func (o Outcome) Validate() error {
 	}
 	if o.CurrentRevisionNumber < 0 {
 		return fmt.Errorf("outcome current revision number must not be negative")
+	}
+	if o.ParentID == o.ID {
+		return fmt.Errorf("outcome cannot contribute to itself")
 	}
 	return nil
 }
