@@ -193,15 +193,20 @@ Widening the fence subject is a material change to the mechanism that prevents t
 
 **Gate:** the recovery half of the Phase 3 gate is unchanged and still holds — killing a contributor's provider session contains, reconciles, and produces a safe next action, now surfaced at the parent through the attention roll-up. The parallel-execution half cannot be met until the fence decision is made.
 
-### Phase 4 — Roll-up proof and parent acceptance
+### Phase 4 — Roll-up proof and parent acceptance — **delivered 2026-08-29**
 
-- Parent proof view: each parent criterion, the children claiming it, their evidence, verification result and independence class, and any contradiction.
-- Parent Ready-for-Acceptance derived from coverage — never stored, always derived, matching the existing "no lifecycle status field" rule.
-- The batched acceptance surface from §2, producing N+1 separate immutable `AcceptanceDecision`s from one sitting, with weak or contradicted children excluded and escalated.
-- Parent-retained criteria surface as owner actions with their own evidence and verification obligation; the parent cannot reach Ready while one is unproved.
-- Reopen and successor semantics.
+Delivered:
 
-**Gate:** a child with contradicted evidence or a weaker-than-contracted independence class cannot enter the batch, and the parent cannot reach Ready.
+- `deriveProof` is composition-aware rather than duplicated: a delegated criterion is proved by its contributors' acceptance, a retained one by the owner's own evidence. One definition of "ready" serves both shapes, so `DecideAcceptance` works on a decomposed parent unchanged. A direct Outcome derives exactly as before.
+- A criterion two contributors share is proved only when **both** are accepted. All contributors accepted makes a parent **Ready for Acceptance**, never Accepted.
+- Parent-retained criteria stay on the parent's own evidence path and block readiness until proved — retention decides *who* proves a criterion, never *whether* it is proved.
+- `GET /outcomes/{id}/acceptance-batch` reports eligibility without deciding anything; `POST` records one sitting as N separate immutable decisions, plus the parent's when asked and earned.
+- Storage writes a sitting all-or-nothing and refuses to decide one Outcome twice within it.
+- **Tests** at domain, service, and SQLite layers, including every exclusion case, transactional rollback, and idempotent replay.
+
+**The independence bar, stated precisely.** ADR 0007 says a contributor is withheld when its verification is "weaker than its own contract required". A contract cannot express that today — `ContractRevision.Review` is free text — so the implemented bar is a fixed floor: **independent of the producer**. Producer self-checks are useful evidence but not independent verification. `IndependenceSatisfies` deliberately refuses to impose a total order on the classes, because a deterministic check and an owner walkthrough are strong in different ways and ranking them would encode a judgment the architecture never made; exactly one threshold is treated as real, and any other minimum is an exact requirement. A per-contract or per-decomposition configurable minimum is **not implemented** and is the natural follow-up.
+
+**Gate met:** a contributor with contradicted evidence, or verified only by its producer's self-check, cannot enter the batch and keeps the parent out of reach — verified end to end.
 
 ### Phase 5 — Board → Mission Control → Session Inspector
 
@@ -228,7 +233,7 @@ If composition raises supervision cost, we report that plainly and revisit batch
 | Risk | Why it matters | Mitigation |
 | --- | --- | --- |
 | **Acceptance multiplication** | Directly attacks the product's primary success measure. | Batched interaction with unbatched authority (§2); measured in Phase 6, not assumed. |
-| **Coverage theatre** | A decomposition that claims every parent criterion while children prove them weakly makes "done" less trustworthy than the flat model, not more. | Independence class enforced per criterion at roll-up; weak proof cannot enter the acceptance batch. |
+| **Coverage theatre** | A decomposition that claims every parent criterion while children prove them weakly makes "done" less trustworthy than the flat model, not more. | Independence enforced at batch entry (Phase 4): producer self-check alone cannot enter, and an excluded contributor keeps the parent out of reach. The bar is currently a fixed floor rather than per-contract — see Phase 4. |
 | **Two decomposition mechanisms** | Child Outcomes and multi-WorkUnit Missions would be two systems with two authority and staleness models. | Do not widen `PlanRevision`; the child layer *is* the graph (§3.4). |
 | **Staleness storms** | One parent contract revision invalidating four in-flight children could stall everything. | Cascade blocks *new* plan approval and attempt start only; running attempts keep tactical freedom and reconcile at their fence, matching the existing lease design. |
 | **Shared-surface collision** | Phases 1–2 touch DTO registry, route registration, migration numbers, and generated API files — the build program's named-integration-owner surfaces. | One PR owns each shared file at a time; claim the migration number in the issue before editing schema. |
