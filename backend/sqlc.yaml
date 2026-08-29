@@ -353,6 +353,10 @@ sql:
             go_type:
               import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
               type: "DecompositionRevisionID"
+          - column: "contribution_dependency_waivers.decomposition_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "DecompositionRevisionID"
           - column: "plan_revisions.id"
             go_type:
               import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"

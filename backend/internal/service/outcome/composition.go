@@ -41,6 +41,10 @@ type CompositionView struct {
 	Parent       *domain.Outcome
 	Contributors []ContributorView
 	Coverage     []domain.CriterionClaim
+	// Attention rolls each contributor's situation up to the parent, most
+	// demanding first, with every item naming the contributor it came from.
+	// It is derived at read time and never stored.
+	Attention domain.ParentAttention
 }
 
 // ContributorView is one contributing Outcome with the bindings that make it
@@ -52,6 +56,10 @@ type ContributorView struct {
 	// Stale reports that this Outcome is bound to a superseded parent
 	// revision. It blocks new authorization; it does not kill running work.
 	Stale bool
+	// Gate reports unmet upstream dependencies, and any the owner waived.
+	Gate domain.ContributionStartGate
+	// Attention is this contributor's roll-up item.
+	Attention domain.ContributorAttention
 }
 
 // Unclaimed returns the current parent criteria no contributor claims. A
@@ -217,19 +225,63 @@ func (s *Service) Composition(ctx context.Context, id domain.OutcomeID) (Composi
 	for _, link := range links {
 		byChild[link.ChildOutcomeID] = append(byChild[link.ChildOutcomeID], link)
 	}
+	facts := make([]domain.ContributorFacts, 0, len(children))
 	for _, child := range children {
 		childLinks := byChild[child.ID]
 		if childLinks == nil {
 			childLinks = []domain.ContributionLink{}
 		}
-		view.Contributors = append(view.Contributors, ContributorView{
+		contributor := ContributorView{
 			Outcome: child,
 			Links:   childLinks,
 			Stale:   domain.ContributionStale(current, childLinks),
-		})
+		}
+		gate, err := s.startGateFor(ctx, child)
+		if err != nil {
+			return CompositionView{}, err
+		}
+		contributor.Gate = gate
+
+		fact, err := s.contributorFacts(ctx, child, contributor.Stale, gate)
+		if err != nil {
+			return CompositionView{}, err
+		}
+		contributor.Attention = domain.DeriveContributorAttention(fact)
+		facts = append(facts, fact)
+		view.Contributors = append(view.Contributors, contributor)
 	}
 	view.Coverage = domain.CriterionCoverage(current, links)
+	view.Attention = domain.SummariseParentAttention(facts)
 	return view, nil
+}
+
+// contributorFacts assembles one contributor's durable facts for the roll-up.
+// Every input is a stored fact or a derivation over stored facts; nothing here
+// asks a provider what it thinks its state is.
+func (s *Service) contributorFacts(ctx context.Context, child domain.Outcome, stale bool, gate domain.ContributionStartGate) (domain.ContributorFacts, error) {
+	fact := domain.ContributorFacts{
+		OutcomeID: child.ID, Title: child.Title, Stale: stale, Gate: gate,
+	}
+	attempts, err := s.ListAttempts(ctx, child.ID)
+	if err != nil {
+		return domain.ContributorFacts{}, err
+	}
+	fact.Attempts = make([]domain.AttemptPresentation, 0, len(attempts))
+	for _, attempt := range attempts {
+		fact.Attempts = append(fact.Attempts, attempt.Presentation)
+	}
+	if s.proof == nil {
+		// Proof is unwired: report what is knowable rather than guessing that
+		// nothing is ready.
+		return fact, nil
+	}
+	proof, err := s.GetProof(ctx, child.ID)
+	if err != nil {
+		return domain.ContributorFacts{}, err
+	}
+	fact.Accepted = proof.Status == ProofStatusAccepted
+	fact.ReadyForAcceptance = proof.Status == ProofStatusReadyForAcceptance
+	return fact, nil
 }
 
 // resolveClaimedCriteria checks every claimed identity against the parent's

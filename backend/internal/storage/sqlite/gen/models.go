@@ -185,6 +185,16 @@ type ContributionDependency struct {
 	ToRef           string
 }
 
+type ContributionDependencyWaiver struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	FromRef         string
+	ToRef           string
+	Reason          string
+	WaivedBy        string
+	CreatedAt       time.Time
+}
+
 type ContributionLink struct {
 	ID                       string
 	ParentOutcomeID          string

@@ -1798,6 +1798,63 @@ paths:
         past it
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/decomposition/waivers:
+    post:
+      operationId: waiveOutcomeContributionDependency
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaiveContributionDependencyRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecompositionEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Waive one declared contribution ordering, with a durable reason
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/decompositions:
     post:
       operationId: proposeOutcomeDecomposition
@@ -7932,8 +7989,32 @@ components:
       - parentCriterionId
       - createdAt
       type: object
+    ContributorAttentionResponse:
+      properties:
+        kind:
+          type: string
+        nextAction:
+          type: string
+        outcomeId:
+          type: string
+        reason:
+          type: string
+        title:
+          type: string
+      required:
+      - outcomeId
+      - title
+      - kind
+      - reason
+      type: object
     ContributorResponse:
       properties:
+        attention:
+          $ref: '#/components/schemas/ContributorAttentionResponse'
+        blockedBy:
+          items:
+            $ref: '#/components/schemas/UpstreamBlockResponse'
+          type: array
         links:
           items:
             $ref: '#/components/schemas/ContributionLinkResponse'
@@ -7942,10 +8023,17 @@ components:
           $ref: '#/components/schemas/OutcomeResponse'
         stale:
           type: boolean
+        waived:
+          items:
+            $ref: '#/components/schemas/UpstreamBlockResponse'
+          type: array
       required:
       - outcome
       - links
       - stale
+      - blockedBy
+      - waived
+      - attention
       type: object
     ControllersIntakeAuthority:
       properties:
@@ -10011,6 +10099,8 @@ components:
       type: object
     OutcomeCompositionResponse:
       properties:
+        attention:
+          $ref: '#/components/schemas/ParentAttentionResponse'
         contributors:
           items:
             $ref: '#/components/schemas/ContributorResponse'
@@ -10031,6 +10121,7 @@ components:
       - shape
       - contributors
       - coverage
+      - attention
       - unclaimedCriteria
       type: object
     OutcomeCorrectionResponse:
@@ -10183,6 +10274,30 @@ components:
       - title
       - targetSha
       - status
+      type: object
+    ParentAttentionResponse:
+      properties:
+        acceptedOf:
+          type: integer
+        contributors:
+          type: integer
+        counts:
+          additionalProperties:
+            type: integer
+          type:
+          - object
+          - "null"
+        headline:
+          type: string
+        items:
+          items:
+            $ref: '#/components/schemas/ContributorAttentionResponse'
+          type: array
+      required:
+      - items
+      - counts
+      - acceptedOf
+      - contributors
       type: object
     PlanEnvelope:
       properties:
@@ -12128,6 +12243,20 @@ components:
       required:
       - title
       type: object
+    UpstreamBlockResponse:
+      properties:
+        outcomeId:
+          type: string
+        reason:
+          type: string
+        ref:
+          type: string
+        title:
+          type: string
+      required:
+      - ref
+      - reason
+      type: object
     UsageHarnessResponse:
       properties:
         harness:
@@ -12258,6 +12387,19 @@ components:
       - result
       - verifierRef
       - createdAt
+      type: object
+    WaiveContributionDependencyRequest:
+      properties:
+        fromRef:
+          type: string
+        reason:
+          type: string
+        toRef:
+          type: string
+      required:
+      - fromRef
+      - toRef
+      - reason
       type: object
     WaldoContextAttachmentResponse:
       properties:

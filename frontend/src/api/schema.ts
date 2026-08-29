@@ -653,6 +653,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/decomposition/waivers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Waive one declared contribution ordering, with a durable reason */
+        post: operations["waiveOutcomeContributionDependency"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/decompositions": {
         parameters: {
             query?: never;
@@ -2607,10 +2624,20 @@ export interface components {
             parentCriterionId: string;
             parentOutcomeId: string;
         };
+        ContributorAttentionResponse: {
+            kind: string;
+            nextAction?: string;
+            outcomeId: string;
+            reason: string;
+            title: string;
+        };
         ContributorResponse: {
+            attention: components["schemas"]["ContributorAttentionResponse"];
+            blockedBy: components["schemas"]["UpstreamBlockResponse"][];
             links: components["schemas"]["ContributionLinkResponse"][];
             outcome: components["schemas"]["OutcomeResponse"];
             stale: boolean;
+            waived: components["schemas"]["UpstreamBlockResponse"][];
         };
         ControllersIntakeAuthority: {
             commitLocal: boolean;
@@ -3383,6 +3410,7 @@ export interface components {
             composition: components["schemas"]["OutcomeCompositionResponse"];
         };
         OutcomeCompositionResponse: {
+            attention: components["schemas"]["ParentAttentionResponse"];
             contributors: components["schemas"]["ContributorResponse"][];
             coverage: components["schemas"]["CriterionClaimResponse"][];
             parentId?: string;
@@ -3443,6 +3471,15 @@ export interface components {
             status: "needs_review" | "running" | "up_to_date" | "changes_requested" | "ineligible";
             targetSha: string;
             title: string;
+        };
+        ParentAttentionResponse: {
+            acceptedOf: number;
+            contributors: number;
+            counts: {
+                [key: string]: number;
+            } | null;
+            headline?: string;
+            items: components["schemas"]["ContributorAttentionResponse"][];
         };
         PlanEnvelope: {
             plan: components["schemas"]["PlanRevisionResponse"];
@@ -4220,6 +4257,12 @@ export interface components {
             /** @description New tab title for the shell terminal. Trimmed; must be non-empty. */
             title: string;
         };
+        UpstreamBlockResponse: {
+            outcomeId?: string;
+            reason: string;
+            ref: string;
+            title?: string;
+        };
         UsageHarnessResponse: {
             harness: string;
             models: components["schemas"]["UsageModelResponse"][];
@@ -4264,6 +4307,11 @@ export interface components {
             subjectType: string;
             verifierProvider?: string;
             verifierRef: string;
+        };
+        WaiveContributionDependencyRequest: {
+            fromRef: string;
+            reason: string;
+            toRef: string;
         };
         WaldoContextAttachmentResponse: {
             active: boolean;
@@ -6712,6 +6760,78 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    waiveOutcomeContributionDependency: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaiveContributionDependencyRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecompositionEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -351,3 +351,48 @@ func nonNilStrings(values []string) []string {
 	}
 	return values
 }
+
+// AppendContributionDependencyWaiver records the owner's override of a
+// declared ordering. Storage refuses a waiver for a dependency nobody
+// declared: consenting to nothing is not consent.
+func (s *Store) AppendContributionDependencyWaiver(ctx context.Context, waiver domain.ContributionDependencyWaiver) error {
+	if err := waiver.Validate(); err != nil {
+		return err
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if err := s.qw.CreateContributionDependencyWaiver(ctx, gen.CreateContributionDependencyWaiverParams{
+		ID:              string(waiver.ID),
+		DecompositionID: waiver.DecompositionID,
+		FromRef:         waiver.FromRef,
+		ToRef:           waiver.ToRef,
+		Reason:          waiver.Reason,
+		WaivedBy:        string(waiver.WaivedBy),
+		CreatedAt:       waiver.CreatedAt,
+	}); err != nil {
+		return fmt.Errorf("waive dependency %s -> %s: %w", waiver.FromRef, waiver.ToRef, err)
+	}
+	return nil
+}
+
+// ListContributionDependencyWaivers returns every waiver recorded against one
+// decomposition, oldest first.
+func (s *Store) ListContributionDependencyWaivers(ctx context.Context, decompositionID domain.DecompositionRevisionID) ([]domain.ContributionDependencyWaiver, error) {
+	rows, err := s.qr.ListContributionDependencyWaivers(ctx, decompositionID)
+	if err != nil {
+		return nil, fmt.Errorf("list waivers for %s: %w", decompositionID, err)
+	}
+	out := make([]domain.ContributionDependencyWaiver, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, domain.ContributionDependencyWaiver{
+			ID:              domain.ContributionWaiverID(row.ID),
+			DecompositionID: row.DecompositionID,
+			FromRef:         row.FromRef,
+			ToRef:           row.ToRef,
+			Reason:          row.Reason,
+			WaivedBy:        domain.AcceptanceActorType(row.WaivedBy),
+			CreatedAt:       row.CreatedAt,
+		})
+	}
+	return out, nil
+}

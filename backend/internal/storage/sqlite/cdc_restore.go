@@ -263,6 +263,14 @@ var changeLogWriters = []struct {
 		deps:  []string{"outcomes", "responsibility_spaces"},
 		sql:   "CREATE TRIGGER decomposition_revisions_cdc_update\nAFTER UPDATE ON decomposition_revisions\nWHEN OLD.status <> NEW.status\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_decomposition_authorized',\n        json_object('decompositionId', NEW.id, 'outcomeId', NEW.outcome_id, 'number', NEW.number, 'previousStatus', OLD.status, 'status', NEW.status),\n        datetime('now'));\nEND;",
 	},
+	// Dependency waivers (0108). Overriding an authorized ordering is a real
+	// decision about risk, so it publishes like every other owner decision.
+	{
+		name:  "contribution_waivers_cdc_insert",
+		table: "contribution_dependency_waivers",
+		deps:  []string{"decomposition_revisions", "outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER contribution_waivers_cdc_insert\nAFTER INSERT ON contribution_dependency_waivers\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM decomposition_revisions d JOIN outcomes o ON o.id = d.outcome_id JOIN responsibility_spaces s ON s.id = o.space_id WHERE d.id = NEW.decomposition_id),\n        NULL, 'outcome_contribution_dependency_waived',\n        json_object('waiverId', NEW.id, 'decompositionId', NEW.decomposition_id, 'fromRef', NEW.from_ref, 'toRef', NEW.to_ref, 'waivedBy', NEW.waived_by),\n        NEW.created_at);\nEND;",
+	},
 	// Shared adaptive intake and explicit Home-to-Work lineage (#32).
 	{
 		name:  "intake_sessions_cdc_insert",

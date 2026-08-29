@@ -32,6 +32,11 @@ type fakeOutcomeService struct {
 	authorizeDecomposition func(context.Context, domain.OutcomeID, domain.DecompositionRevisionID) (outcomevc.DecompositionView, error)
 	latestDecomposition    func(context.Context, domain.OutcomeID) (outcomevc.DecompositionView, error)
 
+	waiveDependency func(context.Context, domain.OutcomeID, outcomevc.WaiveDependencyInput) (outcomevc.DecompositionView, error)
+
+	lastWaiverOf domain.OutcomeID
+	lastWaiver   outcomevc.WaiveDependencyInput
+
 	lastDecompositionOf    domain.OutcomeID
 	lastDecompositionInput outcomevc.ProposeDecompositionInput
 
@@ -68,6 +73,14 @@ func (f *fakeOutcomeService) LatestDecomposition(ctx context.Context, parentID d
 		return outcomevc.DecompositionView{}, apierr.NotFound("DECOMPOSITION_NOT_FOUND", "not implemented in fake")
 	}
 	return f.latestDecomposition(ctx, parentID)
+}
+
+func (f *fakeOutcomeService) WaiveContributionDependency(ctx context.Context, parentID domain.OutcomeID, in outcomevc.WaiveDependencyInput) (outcomevc.DecompositionView, error) {
+	f.lastWaiverOf, f.lastWaiver = parentID, in
+	if f.waiveDependency == nil {
+		return outcomevc.DecompositionView{}, apierr.NotFound("DECOMPOSITION_NOT_FOUND", "not implemented in fake")
+	}
+	return f.waiveDependency(ctx, parentID, in)
 }
 
 func (f *fakeOutcomeService) Composition(ctx context.Context, id domain.OutcomeID) (outcomevc.CompositionView, error) {

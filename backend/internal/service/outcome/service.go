@@ -55,6 +55,10 @@ type Manager interface {
 	// parent contract has moved past it.
 	LatestDecomposition(ctx context.Context, parentID domain.OutcomeID) (DecompositionView, error)
 
+	// WaiveContributionDependency records the owner's explicit override of a
+	// declared ordering. Only the owner may waive, and the reason is durable.
+	WaiveContributionDependency(ctx context.Context, parentID domain.OutcomeID, in WaiveDependencyInput) (DecompositionView, error)
+
 	// CreateContribution adds one contributing Outcome beneath parentID. It is
 	// the transactional primitive authorization builds on; it is deliberately
 	// NOT exposed over HTTP, because an ad-hoc contribution would bypass the

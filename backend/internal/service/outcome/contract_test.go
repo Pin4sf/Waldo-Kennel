@@ -29,6 +29,7 @@ type fakeStore struct {
 
 	decompositions     map[domain.DecompositionRevisionID]domain.DecompositionRevision
 	decompositionOrder []domain.DecompositionRevisionID
+	waivers            []domain.ContributionDependencyWaiver
 
 	order  []domain.OutcomeID
 	writes int
@@ -547,4 +548,44 @@ func (f *fakeStore) LatestDecompositionRevision(_ context.Context, outcomeID dom
 		}
 	}
 	return latest, found, nil
+}
+
+// --- Dependency waivers (ADR 0007 phase 3) ---
+
+func (f *fakeStore) AppendContributionDependencyWaiver(_ context.Context, waiver domain.ContributionDependencyWaiver) error {
+	if err := waiver.Validate(); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	// Storage refuses a waiver for an ordering nobody declared; the fake must
+	// too, or a service test could pass against a rule SQLite would reject.
+	revision, ok := f.decompositions[waiver.DecompositionID]
+	if !ok {
+		return fmt.Errorf("no such decomposition %s", waiver.DecompositionID)
+	}
+	declared := false
+	for _, dependency := range revision.Dependencies {
+		if dependency.FromRef == waiver.FromRef && dependency.ToRef == waiver.ToRef {
+			declared = true
+			break
+		}
+	}
+	if !declared {
+		return fmt.Errorf("no such declared dependency to waive")
+	}
+	f.waivers = append(f.waivers, waiver)
+	return nil
+}
+
+func (f *fakeStore) ListContributionDependencyWaivers(_ context.Context, decompositionID domain.DecompositionRevisionID) ([]domain.ContributionDependencyWaiver, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]domain.ContributionDependencyWaiver, 0, len(f.waivers))
+	for _, waiver := range f.waivers {
+		if waiver.DecompositionID == decompositionID {
+			out = append(out, waiver)
+		}
+	}
+	return out, nil
 }

@@ -32,6 +32,7 @@ type OutcomeService interface {
 	ProposeDecomposition(ctx context.Context, parentID domain.OutcomeID, in outcomevc.ProposeDecompositionInput) (outcomevc.DecompositionView, error)
 	AuthorizeDecomposition(ctx context.Context, parentID domain.OutcomeID, decompositionID domain.DecompositionRevisionID) (outcomevc.DecompositionView, error)
 	LatestDecomposition(ctx context.Context, parentID domain.OutcomeID) (outcomevc.DecompositionView, error)
+	WaiveContributionDependency(ctx context.Context, parentID domain.OutcomeID, in outcomevc.WaiveDependencyInput) (outcomevc.DecompositionView, error)
 }
 
 // AttemptManager is the Act & Observe boundary (#31). A nil field answers 501
@@ -81,6 +82,7 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Post("/outcomes/{outcomeId}/decompositions", c.proposeDecomposition)
 	r.Post("/outcomes/{outcomeId}/decompositions/{decompositionId}/authorization", c.authorizeDecomposition)
 	r.Get("/outcomes/{outcomeId}/decomposition", c.latestDecomposition)
+	r.Post("/outcomes/{outcomeId}/decomposition/waivers", c.waiveContributionDependency)
 	r.Get("/outcomes/{outcomeId}/proof", c.getProof)
 	r.Post("/outcomes/{outcomeId}/evidence", c.recordEvidence)
 	r.Post("/outcomes/{outcomeId}/verifications", c.recordVerification)
@@ -505,4 +507,27 @@ func (c *OutcomesController) latestDecomposition(w http.ResponseWriter, r *http.
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, DecompositionEnvelope{Decomposition: decompositionResponse(view)})
+}
+
+// waiveContributionDependency records the owner's decision to start a
+// contributing Outcome before a declared upstream is accepted. Only the owner
+// may waive, the reason is durable, and the waiver never disappears.
+func (c *OutcomesController) waiveContributionDependency(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/decomposition/waivers")
+		return
+	}
+	var req WaiveContributionDependencyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	view, err := c.Svc.WaiveContributionDependency(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.WaiveDependencyInput{
+		FromRef: req.FromRef, ToRef: req.ToRef, Reason: req.Reason,
+	})
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusCreated, DecompositionEnvelope{Decomposition: decompositionResponse(view)})
 }

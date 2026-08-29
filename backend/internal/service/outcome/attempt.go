@@ -190,6 +190,17 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if !ok {
 		return AttemptView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
 	}
+	// Gate 0: a contributing Outcome may not start while a declared upstream
+	// sibling is unaccepted (ADR 0007). It runs first because it decides
+	// whether this responsibility may execute at all, before any question
+	// about which plan it would execute.
+	gate, err := s.startGateFor(ctx, outcome)
+	if err != nil {
+		return AttemptView{}, err
+	}
+	if !gate.Clear() {
+		return AttemptView{}, blockedError(outcomeID, gate)
+	}
 	plan, found, err := s.store.GetPlanRevision(ctx, outcomeID, in.PlanRevisionID)
 	if err != nil {
 		return AttemptView{}, err

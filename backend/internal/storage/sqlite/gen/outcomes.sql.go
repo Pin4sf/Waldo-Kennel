@@ -207,6 +207,34 @@ func (q *Queries) CreateContributionDependency(ctx context.Context, arg CreateCo
 	return err
 }
 
+const createContributionDependencyWaiver = `-- name: CreateContributionDependencyWaiver :exec
+INSERT INTO contribution_dependency_waivers (id, decomposition_id, from_ref, to_ref, reason, waived_by, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateContributionDependencyWaiverParams struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	FromRef         string
+	ToRef           string
+	Reason          string
+	WaivedBy        string
+	CreatedAt       time.Time
+}
+
+func (q *Queries) CreateContributionDependencyWaiver(ctx context.Context, arg CreateContributionDependencyWaiverParams) error {
+	_, err := q.db.ExecContext(ctx, createContributionDependencyWaiver,
+		arg.ID,
+		arg.DecompositionID,
+		arg.FromRef,
+		arg.ToRef,
+		arg.Reason,
+		arg.WaivedBy,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const createContributionLink = `-- name: CreateContributionLink :exec
 INSERT INTO contribution_links (id, parent_outcome_id, child_outcome_id, parent_contract_revision_id, parent_criterion_id)
 VALUES (?, ?, ?, ?, ?)
@@ -842,6 +870,43 @@ func (q *Queries) ListContributionDependencies(ctx context.Context, decompositio
 			&i.DecompositionID,
 			&i.FromRef,
 			&i.ToRef,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listContributionDependencyWaivers = `-- name: ListContributionDependencyWaivers :many
+SELECT id, decomposition_id, from_ref, to_ref, reason, waived_by, created_at
+FROM contribution_dependency_waivers WHERE decomposition_id = ?
+ORDER BY created_at, id
+`
+
+func (q *Queries) ListContributionDependencyWaivers(ctx context.Context, decompositionID domain.DecompositionRevisionID) ([]ContributionDependencyWaiver, error) {
+	rows, err := q.db.QueryContext(ctx, listContributionDependencyWaivers, decompositionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ContributionDependencyWaiver{}
+	for rows.Next() {
+		var i ContributionDependencyWaiver
+		if err := rows.Scan(
+			&i.ID,
+			&i.DecompositionID,
+			&i.FromRef,
+			&i.ToRef,
+			&i.Reason,
+			&i.WaivedBy,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

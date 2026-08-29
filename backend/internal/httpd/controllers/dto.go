@@ -3020,6 +3020,48 @@ type ContributorResponse struct {
 	// Stale reports a binding to a superseded parent revision. It blocks new
 	// authorization; it does not mean running work is dead.
 	Stale bool `json:"stale"`
+	// BlockedBy names declared upstream contributions that are not yet
+	// accepted; Waived names those the owner explicitly overrode. A waived
+	// dependency stays visible: it is overridden, not forgotten.
+	BlockedBy []UpstreamBlockResponse      `json:"blockedBy"`
+	Waived    []UpstreamBlockResponse      `json:"waived"`
+	Attention ContributorAttentionResponse `json:"attention"`
+}
+
+// UpstreamBlockResponse is one unmet or waived dependency.
+type UpstreamBlockResponse struct {
+	Ref       string `json:"ref"`
+	OutcomeID string `json:"outcomeId,omitempty"`
+	Title     string `json:"title,omitempty"`
+	Reason    string `json:"reason"`
+}
+
+// ContributorAttentionResponse is one roll-up item.
+type ContributorAttentionResponse struct {
+	OutcomeID  string `json:"outcomeId"`
+	Title      string `json:"title"`
+	Kind       string `json:"kind"`
+	Reason     string `json:"reason"`
+	NextAction string `json:"nextAction,omitempty"`
+}
+
+// ParentAttentionResponse summarises a decomposed Outcome for its owner.
+type ParentAttentionResponse struct {
+	Headline     string                         `json:"headline,omitempty"`
+	Items        []ContributorAttentionResponse `json:"items"`
+	Counts       map[string]int                 `json:"counts"`
+	AcceptedOf   int                            `json:"acceptedOf"`
+	Contributors int                            `json:"contributors"`
+}
+
+// WaiveContributionDependencyRequest is the body for POST
+// /outcomes/{outcomeId}/decomposition/waivers. The reason is required and
+// durable: a waiver nobody can explain later is indistinguishable from a
+// mistake.
+type WaiveContributionDependencyRequest struct {
+	FromRef string `json:"fromRef"`
+	ToRef   string `json:"toRef"`
+	Reason  string `json:"reason"`
 }
 
 // CriterionClaimResponse is one parent criterion and who claims it. An empty
@@ -3031,13 +3073,16 @@ type CriterionClaimResponse struct {
 	ClaimedBy   []string `json:"claimedBy"`
 }
 
-// OutcomeCompositionResponse is the derived composition read model. Shape is
-// computed from whether contributors exist and is never stored.
+// OutcomeCompositionResponse is the derived composition read model. Shape and
+// attention are computed from durable facts and are never stored.
 type OutcomeCompositionResponse struct {
 	Shape        string                   `json:"shape"`
 	ParentID     string                   `json:"parentId,omitempty"`
 	Contributors []ContributorResponse    `json:"contributors"`
 	Coverage     []CriterionClaimResponse `json:"coverage"`
+	// Attention rolls each contributor's situation up to the parent, most
+	// demanding first, every item naming the contributor it came from.
+	Attention ParentAttentionResponse `json:"attention"`
 	// UnclaimedCriteria repeats the criteria nothing claims, so a caller does
 	// not have to re-derive the one fact that decides whether a decomposition
 	// is complete.
@@ -3083,12 +3128,18 @@ func outcomeCompositionResponse(view outcomevc.CompositionView, contributors []o
 	if view.Parent != nil {
 		resp.ParentID = string(view.Parent.ID)
 	}
+	resp.Attention = parentAttentionResponse(view.Attention)
 	for i, contributor := range view.Contributors {
 		links := make([]ContributionLinkResponse, 0, len(contributor.Links))
 		for _, link := range contributor.Links {
 			links = append(links, contributionLinkResponse(link))
 		}
-		entry := ContributorResponse{Links: links, Stale: contributor.Stale}
+		entry := ContributorResponse{
+			Links: links, Stale: contributor.Stale,
+			BlockedBy: upstreamBlocks(contributor.Gate.Blocked),
+			Waived:    upstreamBlocks(contributor.Gate.Waived),
+			Attention: contributorAttentionResponse(contributor.Attention),
+		}
 		if i < len(contributors) {
 			entry.Outcome = outcomeResponse(contributors[i])
 		}
@@ -3265,4 +3316,39 @@ func nonNilList(values []string) []string {
 		return []string{}
 	}
 	return values
+}
+
+func upstreamBlocks(blocks []domain.UpstreamBlock) []UpstreamBlockResponse {
+	out := make([]UpstreamBlockResponse, 0, len(blocks))
+	for _, block := range blocks {
+		out = append(out, UpstreamBlockResponse{
+			Ref: block.Ref, OutcomeID: string(block.OutcomeID),
+			Title: block.Title, Reason: block.Reason,
+		})
+	}
+	return out
+}
+
+func contributorAttentionResponse(item domain.ContributorAttention) ContributorAttentionResponse {
+	return ContributorAttentionResponse{
+		OutcomeID: string(item.OutcomeID), Title: item.Title,
+		Kind: string(item.Kind), Reason: item.Reason, NextAction: item.NextAction,
+	}
+}
+
+func parentAttentionResponse(summary domain.ParentAttention) ParentAttentionResponse {
+	resp := ParentAttentionResponse{
+		Headline:     string(summary.Headline),
+		Items:        make([]ContributorAttentionResponse, 0, len(summary.Items)),
+		Counts:       make(map[string]int, len(summary.Counts)),
+		AcceptedOf:   summary.AcceptedOf,
+		Contributors: summary.Contributors,
+	}
+	for _, item := range summary.Items {
+		resp.Items = append(resp.Items, contributorAttentionResponse(item))
+	}
+	for kind, count := range summary.Counts {
+		resp.Counts[string(kind)] = count
+	}
+	return resp
 }

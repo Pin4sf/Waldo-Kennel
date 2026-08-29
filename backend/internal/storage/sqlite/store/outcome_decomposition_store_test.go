@@ -354,3 +354,100 @@ func TestDecomposition_RejectsPersistingAnAlreadyAuthorizedRevision(t *testing.T
 		t.Fatal("a decomposition is persisted as proposed; authorization is a separate decision")
 	}
 }
+
+// --- Dependency waivers (phase 3) ---
+
+func TestDecomposition_WaiverRequiresADeclaredOrdering(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	parent, revision := seedParent(t, s, "mer", "w1")
+	proposal, err := s.AppendDecompositionRevision(ctx, proposalFor(parent, revision, "dec-w1"))
+	if err != nil {
+		t.Fatalf("append decomposition: %v", err)
+	}
+
+	// The proposal declares c1 -> c2 only.
+	if err := s.AppendContributionDependencyWaiver(ctx, domain.ContributionDependencyWaiver{
+		ID: "cw-good", DecompositionID: proposal.ID, FromRef: "c1", ToRef: "c2",
+		Reason: "The interface is frozen.", WaivedBy: domain.AcceptanceActorUser, CreatedAt: decomposedAt,
+	}); err != nil {
+		t.Fatalf("waiving a declared ordering must succeed: %v", err)
+	}
+
+	// Waiving an ordering nobody declared would record consent to nothing.
+	err = s.AppendContributionDependencyWaiver(ctx, domain.ContributionDependencyWaiver{
+		ID: "cw-bad", DecompositionID: proposal.ID, FromRef: "c2", ToRef: "c1",
+		Reason: "Reversed.", WaivedBy: domain.AcceptanceActorUser, CreatedAt: decomposedAt,
+	})
+	if err == nil {
+		t.Fatal("waiving an undeclared ordering must be refused by storage")
+	}
+	if !strings.Contains(err.Error(), "no such declared dependency") {
+		t.Fatalf("refusal must name the reason, got %v", err)
+	}
+
+	waivers, err := s.ListContributionDependencyWaivers(ctx, proposal.ID)
+	if err != nil {
+		t.Fatalf("list waivers: %v", err)
+	}
+	if len(waivers) != 1 || waivers[0].FromRef != "c1" || waivers[0].Reason == "" {
+		t.Fatalf("waivers = %+v, want the one declared override with its reason", waivers)
+	}
+	if waivers[0].WaivedBy != domain.AcceptanceActorUser {
+		t.Fatalf("waivedBy = %q, want the owner", waivers[0].WaivedBy)
+	}
+}
+
+// A waiver is a decision, so it is append-only and publishes like one.
+func TestDecomposition_WaiversAreAppendOnlyAndPublished(t *testing.T) {
+	dir := t.TempDir()
+	s := sqlitetest.MustOpenAt(t, dir)
+	ctx := context.Background()
+	parent, revision := seedParent(t, s, "mer", "w2")
+	proposal, err := s.AppendDecompositionRevision(ctx, proposalFor(parent, revision, "dec-w2"))
+	if err != nil {
+		t.Fatalf("append decomposition: %v", err)
+	}
+	if err := s.AppendContributionDependencyWaiver(ctx, domain.ContributionDependencyWaiver{
+		ID: "cw-w2", DecompositionID: proposal.ID, FromRef: "c1", ToRef: "c2",
+		Reason: "The interface is frozen.", WaivedBy: domain.AcceptanceActorUser, CreatedAt: decomposedAt,
+	}); err != nil {
+		t.Fatalf("waive: %v", err)
+	}
+
+	events, err := s.EventsAfter(ctx, 0, 300)
+	if err != nil {
+		t.Fatalf("events: %v", err)
+	}
+	waived := 0
+	for _, event := range events {
+		if string(event.Type) == "outcome_contribution_dependency_waived" {
+			waived++
+			if !strings.Contains(string(event.Payload), "c1") || !strings.Contains(string(event.Payload), string(proposal.ID)) {
+				t.Fatalf("waiver payload must name the ordering and decomposition: %s", event.Payload)
+			}
+		}
+	}
+	if waived != 1 {
+		t.Fatalf("emitted %d waiver events, want exactly one", waived)
+	}
+
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(dir, "kennel.db"))
+	if err != nil {
+		t.Fatalf("open database directly: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	// Withdrawing a waiver is a new decomposition, never a delete.
+	if _, err := db.ExecContext(ctx, `DELETE FROM contribution_dependency_waivers`); err == nil {
+		t.Fatal("dependency waivers must reject DELETE")
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE contribution_dependency_waivers SET reason = 'rewritten'`); err == nil {
+		t.Fatal("dependency waivers must reject UPDATE")
+	}
+	// Only the owner may waive, at the storage layer too.
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO contribution_dependency_waivers (id, decomposition_id, from_ref, to_ref, reason, waived_by)
+		 VALUES ('cw-agent', ?, 'c1', 'c2', 'agent decided', 'agent')`, string(proposal.ID)); err == nil {
+		t.Fatal("only the user may waive a dependency")
+	}
+}

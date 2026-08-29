@@ -213,3 +213,43 @@ DROP TRIGGER IF EXISTS contribution_dependencies_immutable_delete;
 CREATE TRIGGER contribution_dependencies_immutable_delete
 BEFORE DELETE ON contribution_dependencies
 BEGIN SELECT RAISE(ABORT, 'contribution dependencies are append-only'); END;
+
+-- Phase 3 (0108): the owner's explicit override of an ordering they
+-- authorized. Append-only and attributable — withdrawing a waiver is a new
+-- decomposition, not a delete.
+CREATE TABLE IF NOT EXISTS contribution_dependency_waivers (
+    id               TEXT PRIMARY KEY,
+    decomposition_id TEXT NOT NULL REFERENCES decomposition_revisions (id),
+    from_ref         TEXT NOT NULL,
+    to_ref           TEXT NOT NULL,
+    reason           TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+    waived_by        TEXT NOT NULL CHECK (waived_by = 'user'),
+    created_at       TIMESTAMP NOT NULL DEFAULT (datetime('now')),
+    CHECK (from_ref <> to_ref),
+    UNIQUE (decomposition_id, from_ref, to_ref)
+);
+
+CREATE INDEX IF NOT EXISTS idx_contribution_waivers_decomposition
+    ON contribution_dependency_waivers (decomposition_id, created_at);
+
+-- A waiver may only override an ordering that actually exists: waiving a
+-- dependency nobody declared would silently record consent to nothing.
+DROP TRIGGER IF EXISTS contribution_waivers_declared_guard;
+CREATE TRIGGER contribution_waivers_declared_guard
+BEFORE INSERT ON contribution_dependency_waivers
+WHEN NOT EXISTS (
+    SELECT 1 FROM contribution_dependencies dependency
+     WHERE dependency.decomposition_id = NEW.decomposition_id
+       AND dependency.from_ref = NEW.from_ref
+       AND dependency.to_ref = NEW.to_ref)
+BEGIN SELECT RAISE(ABORT, 'no such declared dependency to waive'); END;
+
+DROP TRIGGER IF EXISTS contribution_waivers_immutable_update;
+CREATE TRIGGER contribution_waivers_immutable_update
+BEFORE UPDATE ON contribution_dependency_waivers
+BEGIN SELECT RAISE(ABORT, 'dependency waivers are append-only'); END;
+
+DROP TRIGGER IF EXISTS contribution_waivers_immutable_delete;
+CREATE TRIGGER contribution_waivers_immutable_delete
+BEFORE DELETE ON contribution_dependency_waivers
+BEGIN SELECT RAISE(ABORT, 'dependency waivers are append-only'); END;

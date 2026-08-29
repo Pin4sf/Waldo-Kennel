@@ -190,3 +190,12 @@ VALUES (?, ?, ?, ?);
 SELECT id, decomposition_id, from_ref, to_ref
 FROM contribution_dependencies WHERE decomposition_id = ?
 ORDER BY from_ref, to_ref;
+
+-- name: CreateContributionDependencyWaiver :exec
+INSERT INTO contribution_dependency_waivers (id, decomposition_id, from_ref, to_ref, reason, waived_by, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- name: ListContributionDependencyWaivers :many
+SELECT id, decomposition_id, from_ref, to_ref, reason, waived_by, created_at
+FROM contribution_dependency_waivers WHERE decomposition_id = ?
+ORDER BY created_at, id;

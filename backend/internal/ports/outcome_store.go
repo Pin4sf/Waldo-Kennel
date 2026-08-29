@@ -112,6 +112,15 @@ type OutcomeStore interface {
 	// status; ok=false when the Outcome has never been decomposed.
 	LatestDecompositionRevision(ctx context.Context, outcomeID domain.OutcomeID) (domain.DecompositionRevision, bool, error)
 
+	// AppendContributionDependencyWaiver records the owner's override of a
+	// declared ordering. Storage refuses a waiver for a dependency nobody
+	// declared: consenting to nothing is not consent.
+	AppendContributionDependencyWaiver(ctx context.Context, waiver domain.ContributionDependencyWaiver) error
+
+	// ListContributionDependencyWaivers returns every waiver recorded against
+	// one decomposition. Waivers are append-only, so this is the full history.
+	ListContributionDependencyWaivers(ctx context.Context, decompositionID domain.DecompositionRevisionID) ([]domain.ContributionDependencyWaiver, error)
+
 	// AppendPlanRevision atomically persists one proposed plan together with
 	// its single Work Unit and capability grants, assigning the plan number
 	// inside the transaction and returning the plan with that number.
