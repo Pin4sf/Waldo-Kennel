@@ -123,6 +123,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/decomposition-requests/{requestId}/proposal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Callback: a spawned agent submits its proposed decomposition */
+        post: operations["submitOutcomeDecompositionProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dev/import-projects": {
         parameters: {
             query?: never;
@@ -665,6 +682,40 @@ export interface paths {
         get: operations["getLatestOutcomeDecomposition"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/decomposition-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the newest decomposition ask and what became of it */
+        get: operations["getLatestOutcomeDecompositionRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/decomposition-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask an agent to propose a decomposition (answers later on the callback route) */
+        post: operations["askForOutcomeDecomposition"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2434,6 +2485,10 @@ export interface components {
             /** Format: int64 */
             expectedContractRevision: number;
         };
+        AskForDecompositionRequest: {
+            /** Format: int64 */
+            expectedContractRevision: number;
+        };
         AttachWaldoContextRequest: {
             /** Format: int64 */
             expectedRevision: number;
@@ -3093,6 +3148,26 @@ export interface components {
         };
         DecompositionEnvelope: {
             decomposition: components["schemas"]["DecompositionResponse"];
+        };
+        DecompositionRequestEnvelope: {
+            request: components["schemas"]["DecompositionRequestResponse"];
+        };
+        DecompositionRequestResponse: {
+            /** Format: date-time */
+            answeredAt?: null | string;
+            contractRevisionId: string;
+            /** Format: date-time */
+            createdAt: string;
+            decompositionId?: string;
+            expired: boolean;
+            /** Format: date-time */
+            expiresAt: string;
+            id: string;
+            outcomeId: string;
+            rawProposal?: string;
+            refusalReason?: string;
+            sessionId?: string;
+            status: string;
         };
         DecompositionResponse: {
             /** Format: date-time */
@@ -4236,6 +4311,12 @@ export interface components {
             /** @description Source invocation generation that authored this handoff. */
             sourceGenerationId: string;
         };
+        SubmitAgentProposalRequest: {
+            contributors: components["schemas"]["ProposedContributionRequest"][];
+            dependencies?: components["schemas"]["ContributionDependencyRequest"][];
+            rationale: string;
+            retainedCriteria?: string[];
+        };
         SubmitReviewInput: {
             /** @description Review body recorded by AO. Required for changes_requested. */
             body?: string;
@@ -4943,6 +5024,78 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    submitOutcomeDecompositionProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Decomposition request identifier, e.g. dreq-<uuid>. */
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitAgentProposalRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecompositionRequestEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6937,6 +7090,128 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getLatestOutcomeDecompositionRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecompositionRequestEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    askForOutcomeDecomposition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskForDecompositionRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecompositionRequestEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

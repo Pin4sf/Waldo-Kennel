@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -33,6 +34,13 @@ type OutcomeService interface {
 	AuthorizeDecomposition(ctx context.Context, parentID domain.OutcomeID, decompositionID domain.DecompositionRevisionID) (outcomevc.DecompositionView, error)
 	LatestDecomposition(ctx context.Context, parentID domain.OutcomeID) (outcomevc.DecompositionView, error)
 	WaiveContributionDependency(ctx context.Context, parentID domain.OutcomeID, in outcomevc.WaiveDependencyInput) (outcomevc.DecompositionView, error)
+
+	// Agent-authored decomposition (ADR 0007). The daemon has no synchronous
+	// model call, so the ask returns immediately and the proposal arrives on
+	// the callback route.
+	AskForDecomposition(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) (outcomevc.DecompositionRequestView, error)
+	SubmitAgentProposal(ctx context.Context, requestID domain.DecompositionRequestID, token string, in outcomevc.ProposeDecompositionInput, raw string) (outcomevc.DecompositionRequestView, error)
+	LatestDecompositionRequest(ctx context.Context, outcomeID domain.OutcomeID) (outcomevc.DecompositionRequestView, error)
 }
 
 // AttemptManager is the Act & Observe boundary (#31). A nil field answers 501
@@ -89,6 +97,12 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Post("/outcomes/{outcomeId}/decompositions/{decompositionId}/authorization", c.authorizeDecomposition)
 	r.Get("/outcomes/{outcomeId}/decomposition", c.latestDecomposition)
 	r.Post("/outcomes/{outcomeId}/decomposition/waivers", c.waiveContributionDependency)
+	r.Post("/outcomes/{outcomeId}/decomposition-requests", c.askForDecomposition)
+	r.Get("/outcomes/{outcomeId}/decomposition-request", c.latestDecompositionRequest)
+	// Addressed by REQUEST, not by Outcome: the answering agent knows only the
+	// request it was handed, and scoping the callback that way is what stops a
+	// confused agent answering for a different Outcome.
+	r.Post("/decomposition-requests/{requestId}/proposal", c.submitAgentProposal)
 	r.Get("/outcomes/{outcomeId}/proof", c.getProof)
 	r.Post("/outcomes/{outcomeId}/evidence", c.recordEvidence)
 	r.Post("/outcomes/{outcomeId}/verifications", c.recordVerification)
@@ -586,3 +600,86 @@ func (c *OutcomesController) acceptContributorBatch(w http.ResponseWriter, r *ht
 	}
 	envelope.WriteJSON(w, http.StatusCreated, AcceptBatchEnvelope{Batch: acceptBatchResponse(view)})
 }
+
+// DecompositionCallbackTokenHeader carries the scoping token a spawned agent
+// was handed. It is NOT authentication — the loopback listener is
+// unauthenticated by deliberate decision (ADR 0001), so this cannot stop a
+// hostile local process. It scopes an answer to one request, single-use and
+// expiring, which is what stops a confused or retrying agent answering for the
+// wrong Outcome. See ADR 0007.
+const DecompositionCallbackTokenHeader = "X-Kennel-Decomposition-Token" //nolint:gosec // header NAME, not a credential; the token itself is minted per request and never constant.
+
+// askForDecomposition opens a durable ask and starts an agent on it. It
+// returns as soon as the agent is started; the proposal arrives later.
+func (c *OutcomesController) askForDecomposition(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/decomposition-requests")
+		return
+	}
+	var req AskForDecompositionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	view, err := c.Svc.AskForDecomposition(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), req.ExpectedContractRevision)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusAccepted, DecompositionRequestEnvelope{Request: decompositionRequestResponse(view)})
+}
+
+// latestDecompositionRequest reports the newest ask and what became of it.
+func (c *OutcomesController) latestDecompositionRequest(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodGet, "/api/v1/outcomes/{outcomeId}/decomposition-request")
+		return
+	}
+	view, err := c.Svc.LatestDecompositionRequest(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, DecompositionRequestEnvelope{Request: decompositionRequestResponse(view)})
+}
+
+// submitAgentProposal is the callback a spawned agent answers on.
+//
+// A refused proposal is NOT an error here: the request records the refusal and
+// keeps the draft, so this answers 200 with a rejected request rather than
+// 4xx. The agent did its job; the daemon disagreed with the result, and the
+// owner is the one who acts on that.
+func (c *OutcomesController) submitAgentProposal(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/decomposition-requests/{requestId}/proposal")
+		return
+	}
+	var req SubmitAgentProposalRequest
+	raw, err := io.ReadAll(io.LimitReader(r.Body, maxAgentProposalBytes))
+	if err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Could not read the proposal body", nil)
+		return
+	}
+	if err := json.Unmarshal(raw, &req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	view, err := c.Svc.SubmitAgentProposal(
+		r.Context(),
+		domain.DecompositionRequestID(chi.URLParam(r, "requestId")),
+		r.Header.Get(DecompositionCallbackTokenHeader),
+		agentProposalInput(req),
+		// The agent's own bytes are retained verbatim, so a refused draft is
+		// exactly what it sent rather than a re-render of it.
+		string(raw),
+	)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, DecompositionRequestEnvelope{Request: decompositionRequestResponse(view)})
+}
+
+// maxAgentProposalBytes bounds what a spawned agent may post back. A runaway
+// generation should be refused at the door rather than parsed.
+const maxAgentProposalBytes = 1 << 20

@@ -3434,3 +3434,85 @@ func acceptanceDecisionResponse(decision domain.AcceptanceDecision) AcceptanceDe
 		CreatedAt: decision.CreatedAt,
 	}
 }
+
+// --- Agent-authored decomposition asks (ADR 0007 phase 2b) ---
+
+// DecompositionRequestIDParam is the {requestId} path parameter on the
+// callback route. The callback is addressed by REQUEST rather than by Outcome:
+// the answering agent knows only the request it was given.
+type DecompositionRequestIDParam struct {
+	RequestID string `path:"requestId" description:"Decomposition request identifier, e.g. dreq-<uuid>."`
+}
+
+// AskForDecompositionRequest opens a durable ask. The proposal arrives later
+// over the callback route; this returns as soon as an agent has been started.
+type AskForDecompositionRequest struct {
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+}
+
+// SubmitAgentProposalRequest is the body a spawned agent POSTs back. It is the
+// same shape a person would author, because an agent proposal passes exactly
+// the same gates — there is no trusted-proposer path.
+type SubmitAgentProposalRequest struct {
+	Rationale        string                          `json:"rationale"`
+	Contributors     []ProposedContributionRequest   `json:"contributors"`
+	RetainedCriteria []string                        `json:"retainedCriteria,omitempty"`
+	Dependencies     []ContributionDependencyRequest `json:"dependencies,omitempty"`
+}
+
+// DecompositionRequestResponse reports one ask and what became of it.
+type DecompositionRequestResponse struct {
+	ID                 string `json:"id"`
+	OutcomeID          string `json:"outcomeId"`
+	ContractRevisionID string `json:"contractRevisionId"`
+	Status             string `json:"status"`
+	// Expired is derived from the clock, so an ask that timed out while the
+	// daemon was down still reads as expired.
+	Expired bool `json:"expired"`
+	// RefusalReason carries the daemon's own words when it turned a proposal
+	// down, and RawProposal the draft it turned down — kept so the owner can
+	// correct one field instead of regenerating.
+	RefusalReason   string     `json:"refusalReason,omitempty"`
+	RawProposal     string     `json:"rawProposal,omitempty"`
+	DecompositionID string     `json:"decompositionId,omitempty"`
+	SessionID       string     `json:"sessionId,omitempty"`
+	ExpiresAt       time.Time  `json:"expiresAt"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	AnsweredAt      *time.Time `json:"answeredAt,omitempty"`
+}
+
+// DecompositionRequestEnvelope is the { request } response body.
+type DecompositionRequestEnvelope struct {
+	Request DecompositionRequestResponse `json:"request"`
+}
+
+func decompositionRequestResponse(view outcomevc.DecompositionRequestView) DecompositionRequestResponse {
+	request := view.Request
+	resp := DecompositionRequestResponse{
+		ID: string(request.ID), OutcomeID: string(request.OutcomeID),
+		ContractRevisionID: string(request.ContractRevisionID),
+		Status:             string(request.Status),
+		Expired:            view.Expired,
+		RefusalReason:      request.RefusalReason,
+		RawProposal:        request.RawProposal,
+		DecompositionID:    string(request.DecompositionID),
+		SessionID:          request.SessionID,
+		ExpiresAt:          request.ExpiresAt,
+		CreatedAt:          request.CreatedAt,
+		AnsweredAt:         request.AnsweredAt,
+	}
+	return resp
+}
+
+// agentProposalInput maps a callback body onto the same input a person's
+// proposal uses. ExpectedContractRevision is deliberately absent: the request
+// already froze which revision was asked about, and letting the agent name one
+// would let it answer a different question than it was given.
+func agentProposalInput(req SubmitAgentProposalRequest) outcomevc.ProposeDecompositionInput {
+	return proposeDecompositionInput(ProposeDecompositionRequest{
+		Rationale:        req.Rationale,
+		Contributors:     req.Contributors,
+		RetainedCriteria: req.RetainedCriteria,
+		Dependencies:     req.Dependencies,
+	})
+}
