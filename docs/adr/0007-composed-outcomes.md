@@ -69,6 +69,37 @@ All contributors accepted makes a parent **Ready for Acceptance**, never Accepte
 
 No automated actor creates an `AcceptanceDecision`. This decision batches keystrokes, not authority.
 
+### Agent-authored proposals reach the daemon by callback
+
+The daemon has no synchronous model call: every provider interaction is
+spawn-a-session-and-observe. A model-authored decomposition therefore arrives
+the same way the reviewer's results do — the daemon opens a durable
+**decomposition request**, spawns a bounded coordinator session, and the agent
+POSTs a structured proposal back against that request.
+
+An agent proposal passes through the **identical** validation as a
+hand-authored one: coverage, authority containment, criterion existence, and
+cycle detection. There is deliberately no trusted-proposer path. The moment a
+model's output skips a gate, the gate stops meaning anything.
+
+A refused proposal is retained on the request as opaque JSON alongside the
+daemon's stated reason, so the owner can correct one wrong field instead of
+regenerating. It is stored as a draft, never as a `DecompositionRevision`.
+
+**Security limit, stated plainly.** The callback carries a single-use,
+expiring token bound to one Outcome and one contract revision. That token is
+**scoping, not authentication.** The primary listener is loopback and
+unauthenticated by deliberate decision (see [ADR 0001](0001-lan-listener-for-mobile.md)),
+so any process on the machine can already reach every endpoint; the token
+cannot change that and must not be described as if it does. What it does
+prevent is the realistic failure this mechanism introduces: a confused,
+retrying, or misrouted agent posting a proposal for the **wrong Outcome**, for
+a superseded contract revision, or twice. Only the digest is stored.
+
+If the loopback listener ever gains real authentication, this token should be
+revisited as a capability rather than left as the only thing standing between
+an agent and another Outcome's decomposition.
+
 ## Consequences
 
 ### Benefits
