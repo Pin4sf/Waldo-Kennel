@@ -340,7 +340,10 @@ describe("Sidebar", () => {
 		expect(outcome).toHaveAttribute("aria-current", "page");
 		expect(screen.getByText("Project One").closest("button")).toHaveAttribute("data-active", "true");
 		expect(screen.getByText("Outcomes")).toBeInTheDocument();
-		expect(screen.getByText("Sessions")).toBeInTheDocument();
+		// The "SESSIONS" section caption was removed as chrome noise — the
+		// session rows themselves stay, unlabeled, right under the outcomes.
+		expect(screen.queryByText("Sessions")).not.toBeInTheDocument();
+		expect(screen.getByText(session.title)).toBeInTheDocument();
 	});
 
 	it("shows personal destinations without the Work project tree in Home", () => {

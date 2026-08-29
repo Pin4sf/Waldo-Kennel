@@ -418,15 +418,21 @@ export function Sidebar({
 				<>
 			{/* Keep Search + section chrome fixed; only the project tree scrolls. */}
 			{figmaBoard ? (
-				<div className="figma-board-sidebar__section-heading">
+				<div className="figma-board-sidebar__section-heading group/projects-header">
 					<span>{t("shell.projects")}</span>
 					<span className="figma-board-sidebar__section-icons">
 						<ChevronDown aria-hidden="true" />
-						<Filter aria-hidden="true" />
-						<CreateProjectButton
-							onCreateProject={onCreateProject}
-							onInitializeProject={onInitializeProject}
-						/>
+						{/* Filter + "new project" stay hidden until the row is hovered or
+						    one of them has focus — mirrors the session row's own
+						    hover-reveal pattern (SessionRow, group-hover/session-row)
+						    rather than a new mechanism. */}
+						<span className="inline-flex items-center gap-1.75 opacity-0 transition-opacity duration-fast group-hover/projects-header:opacity-100 group-focus-within/projects-header:opacity-100 motion-reduce:transition-none">
+							<Filter aria-hidden="true" />
+							<CreateProjectButton
+								onCreateProject={onCreateProject}
+								onInitializeProject={onInitializeProject}
+							/>
+						</span>
 					</span>
 				</div>
 			) : (
@@ -1041,11 +1047,6 @@ function ProjectItem({
 									outcome={outcome}
 								/>
 							))}
-							{sessions.length > 0 ? (
-								<li className="px-1.75 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-									{t("shell.sessions")}
-								</li>
-							) : null}
 							{visibleSessions.map((session) => (
 								<SessionRow
 									key={session.id}
