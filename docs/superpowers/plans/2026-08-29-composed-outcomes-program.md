@@ -170,17 +170,28 @@ Delivered:
 
 **Gate met:** a rejected proposal fails closed with the offender named and creates nothing — verified for uncovered criteria, unknown criteria, widened authority, dependency cycles, stale contracts, and a mid-authorization storage failure.
 
-### Phase 3 — Execution across contributing Outcomes
+### Phase 3 — Execution across contributing Outcomes — **partially delivered 2026-08-29**
 
-Inherits adapter-readiness and worktree-overlap validation from Phase 2.
+Delivered:
 
-- Dependency gating on `StartAttempt`, with explicit durable waivers.
-- Each child's Attempt keeps its own isolated worktree — one fenced writer each, which the existing Attempt fence already guarantees per attempt.
-- Parent-level attention roll-up: Needs You / Action Required / Waiting aggregated from children, each item naming the child it came from.
-- Concurrency budget at the parent: how many children may run at once, enforced by the existing budget envelope.
-- Recovery unchanged per child; the parent surfaces the receipt.
+- Dependency gating on `StartAttempt`, running before any plan question and pre-durable like every other start gate: a blocked start writes nothing and spawns nothing. Only an *authorized* decomposition gates; the gate is directional; acceptance follows the newest decision, so an accepted-then-reopened upstream stops clearing it.
+- Durable, attributable, reasoned waivers, owner-only, append-only, refused for an ordering nobody declared. A waived dependency stays visible rather than disappearing.
+- Parent attention roll-up over each contributor's derived attempt presentation, gate, staleness, and proof status, ordered most-demanding first, every item naming its contributor. Derived at read time, never stored.
+- Migration `0108` and the waiver relation in the shared schema file.
 
-**Gate:** killing a child's provider session mid-flight contains, reconciles, and produces a safe next action at the parent without manual state reconstruction.
+**Not delivered, and the reason is a correction to this plan.** Phase 3's original text claimed "each child's Attempt keeps its own isolated worktree — one fenced writer each, which the existing Attempt fence already guarantees per attempt." **That is wrong.** The attempt fence subject is `project:<projectID>`, not per-worktree — a deliberate v0 simplification whose own comment reads "one governed isolated worktree per project, so two Outcomes can never hold simultaneous writers against the same tree."
+
+The consequence: **contributing Outcomes cannot currently run in parallel.** The second contributor's `StartAttempt` fails closed with `AttemptFenceHeldError`. Sessions do get their own worktrees, so the physical isolation the architecture requires already exists; the fence is simply stricter than that isolation needs.
+
+This is a gap between what the visual guide and product architecture promise (parallel contributors on isolated worktrees) and what the code does. It is **not** a correctness problem — composition still delivers independent governance, contained failure, and composable proof, and serialized execution is safe. It is a throughput and experience limitation.
+
+Widening the fence subject is a material change to the mechanism that prevents two writers on one tree, and ADR 0007's consequences never considered it. It therefore needs its own decision rather than being made inside an implementation phase. Two candidate subjects: per contributing Outcome (`outcome:<id>`), or per resolved worktree once the spawn seam can name one before the fence is taken.
+
+**Concurrency budget deferred with it.** While the fence serializes contributors to one at a time, a budget bounding how many may run concurrently has nothing to bound. It also cannot be enforced honestly by a check-then-act count outside the attempt-creation transaction — that reads as enforcement while racing — so it belongs with the fence decision and the wider budget envelope (time, retries, cost), not as a one-off counter.
+
+**Adapter readiness** inherited from Phase 2 is already covered: `StartAttempt`'s existing readiness probe fails closed per attempt through the same checker session spawn uses.
+
+**Gate:** the recovery half of the Phase 3 gate is unchanged and still holds — killing a contributor's provider session contains, reconciles, and produces a safe next action, now surfaced at the parent through the attention roll-up. The parallel-execution half cannot be met until the fence decision is made.
 
 ### Phase 4 — Roll-up proof and parent acceptance
 
@@ -221,6 +232,7 @@ If composition raises supervision cost, we report that plainly and revisit batch
 | **Two decomposition mechanisms** | Child Outcomes and multi-WorkUnit Missions would be two systems with two authority and staleness models. | Do not widen `PlanRevision`; the child layer *is* the graph (§3.4). |
 | **Staleness storms** | One parent contract revision invalidating four in-flight children could stall everything. | Cascade blocks *new* plan approval and attempt start only; running attempts keep tactical freedom and reconcile at their fence, matching the existing lease design. |
 | **Shared-surface collision** | Phases 1–2 touch DTO registry, route registration, migration numbers, and generated API files — the build program's named-integration-owner surfaces. | One PR owns each shared file at a time; claim the migration number in the issue before editing schema. |
+| **Serialized contributors** | The attempt fence is `project:<id>`, so contributors cannot run in parallel — a gap against the promised experience, found in Phase 3. | Named as its own decision (see Phase 3) rather than resolved by widening a safety mechanism inside an implementation phase. |
 | **Docs drifting from code** | `STATUS.md` already understates `beta`. | Phase 0 is a real gate, not a formality. |
 
 ---
