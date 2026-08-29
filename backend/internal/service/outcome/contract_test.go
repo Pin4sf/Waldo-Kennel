@@ -656,3 +656,17 @@ func (f *fakeStore) ListOpenDecompositionRequests(_ context.Context) ([]domain.D
 	}
 	return out, nil
 }
+
+func (f *fakeStore) BindDecompositionRequestSession(_ context.Context, id domain.DecompositionRequestID, sessionID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	request, ok := f.requests[id]
+	// Storage binds only an open, unbound request; the fake matches so a test
+	// cannot pass against a rule SQLite would reject.
+	if !ok || !request.Status.Open() || request.SessionID != "" {
+		return fmt.Errorf("decomposition request %s is not open and unbound", id)
+	}
+	request.SessionID = sessionID
+	f.requests[id] = request
+	return nil
+}

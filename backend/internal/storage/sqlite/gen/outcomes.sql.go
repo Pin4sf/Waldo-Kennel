@@ -126,6 +126,25 @@ func (q *Queries) BindDecompositionContributionOutcome(ctx context.Context, arg 
 	return result.RowsAffected()
 }
 
+const bindDecompositionRequestSession = `-- name: BindDecompositionRequestSession :execrows
+UPDATE decomposition_requests
+SET session_id = ?
+WHERE id = ? AND status = 'requested' AND session_id = ''
+`
+
+type BindDecompositionRequestSessionParams struct {
+	SessionID string
+	ID        domain.DecompositionRequestID
+}
+
+func (q *Queries) BindDecompositionRequestSession(ctx context.Context, arg BindDecompositionRequestSessionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, bindDecompositionRequestSession, arg.SessionID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const countContributingOutcomes = `-- name: CountContributingOutcomes :one
 SELECT COUNT(*) FROM outcomes WHERE parent_outcome_id = ?
 `

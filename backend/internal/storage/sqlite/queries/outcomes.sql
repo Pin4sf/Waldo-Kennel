@@ -222,3 +222,8 @@ WHERE id = ? AND status = 'requested';
 SELECT id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, raw_proposal, refusal_reason, decomposition_id, created_at, answered_at
 FROM decomposition_requests WHERE status = 'requested'
 ORDER BY expires_at;
+
+-- name: BindDecompositionRequestSession :execrows
+UPDATE decomposition_requests
+SET session_id = ?
+WHERE id = ? AND status = 'requested' AND session_id = '';

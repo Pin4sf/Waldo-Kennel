@@ -277,16 +277,23 @@ CREATE TABLE IF NOT EXISTS decomposition_requests (
 CREATE INDEX IF NOT EXISTS idx_decomposition_requests_outcome
     ON decomposition_requests (outcome_id, created_at);
 
--- A request is frozen except for its one-way move out of 'requested'. Nothing
--- may reopen an answered ask, which is what makes the callback single-use.
+-- A request is frozen except for two changes: binding the session that was
+-- spawned to answer it, and its one-way move out of 'requested'.
+--
+-- The session binding has to be a separate update because the row is written
+-- BEFORE the spawn — an agent holding a token for an unrecorded request would
+-- have nowhere to answer — so the session id does not exist yet at insert.
+-- Nothing may reopen an answered ask, which is what keeps the callback
+-- single-use.
 DROP TRIGGER IF EXISTS decomposition_requests_freeze_update;
 CREATE TRIGGER decomposition_requests_freeze_update
 BEFORE UPDATE ON decomposition_requests
 WHEN OLD.status <> 'requested'
-     OR NEW.status = 'requested'
      OR NEW.id <> OLD.id
      OR NEW.outcome_id <> OLD.outcome_id
      OR NEW.contract_revision_id <> OLD.contract_revision_id
      OR NEW.callback_token_digest <> OLD.callback_token_digest
      OR NEW.expires_at <> OLD.expires_at
-BEGIN SELECT RAISE(ABORT, 'a decomposition request is frozen except for its one-way answer'); END;
+     -- While still open, the ONLY permitted change is the session binding.
+     OR (NEW.status = 'requested' AND NEW.session_id IS OLD.session_id)
+BEGIN SELECT RAISE(ABORT, 'a decomposition request is frozen except for its session binding and its one-way answer'); END;

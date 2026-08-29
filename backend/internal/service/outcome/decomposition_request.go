@@ -21,6 +21,13 @@ type DecompositionRequestView struct {
 	// Expired is derived from the clock rather than stored, so a request that
 	// timed out while the daemon was down still reads as expired.
 	Expired bool
+	// SessionBindingFailed reports that the answering session could not be
+	// recorded. The ask still stands and the agent can still answer, but
+	// recovery has lost its handle on that session.
+	SessionBindingFailed bool
+	// SessionBindingError carries why, so the failure is reported rather than
+	// merely flagged.
+	SessionBindingError string
 }
 
 // AskForDecomposition opens a durable request and starts an agent working on
@@ -95,7 +102,24 @@ func (s *Service) AskForDecomposition(ctx context.Context, outcomeID domain.Outc
 		})
 		return DecompositionRequestView{}, apierr.Internal("DECOMPOSITION_SPAWN_FAILED", err.Error())
 	}
+	// Bind the answering session so a restart can tell what was working on
+	// this. A failed bind is not worth failing the ask over — the agent is
+	// already running and can still answer — but it does cost recovery its
+	// only handle on that session, so it is reported rather than swallowed.
 	request.SessionID = ticket.SessionID
+	if ticket.SessionID != "" {
+		if bindErr := s.store.BindDecompositionRequestSession(ctx, request.ID, ticket.SessionID); bindErr != nil {
+			// Deliberately not an error return: the ask SUCCEEDED. The request
+			// is persisted and an agent is already running against it, so
+			// failing here would tell the owner the ask failed while an agent
+			// works anyway. The cost is real though — recovery loses its handle
+			// on that session — so it is reported on the view, not swallowed.
+			//nolint:nilerr // the ask succeeded; only the binding did not, and it is reported.
+			return DecompositionRequestView{
+				Request: request, SessionBindingFailed: true, SessionBindingError: bindErr.Error(),
+			}, nil
+		}
+	}
 	return DecompositionRequestView{Request: request}, nil
 }
 

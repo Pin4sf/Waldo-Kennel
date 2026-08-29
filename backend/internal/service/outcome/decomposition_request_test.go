@@ -286,3 +286,31 @@ func TestExpireStaleDecompositionRequestsClosesTimedOutAsks(t *testing.T) {
 		t.Fatalf("an expired ask must not block a new one: %v", err)
 	}
 }
+
+// The row is written before the spawn, so the answering session can only be
+// recorded afterwards. Without this a restart has no handle on what was
+// working, which is exactly what the first real run on Mesa exposed.
+func TestAskForDecompositionBindsTheAnsweringSession(t *testing.T) {
+	svc, store, _, parentID, _ := newAskService(t)
+	ctx := context.Background()
+
+	view, err := svc.AskForDecomposition(ctx, parentID, 1)
+	if err != nil {
+		t.Fatalf("ask: %v", err)
+	}
+	if view.SessionBindingFailed {
+		t.Fatal("the binding must succeed on an open, unbound request")
+	}
+	if view.Request.SessionID != "sess-proposer" {
+		t.Fatalf("returned session = %q, want the spawned one", view.Request.SessionID)
+	}
+	// And it must be DURABLE, not just present on the returned value — that
+	// was the whole defect.
+	stored, found, err := store.GetDecompositionRequest(ctx, view.Request.ID)
+	if err != nil || !found {
+		t.Fatalf("re-read request: found=%v err=%v", found, err)
+	}
+	if stored.SessionID != "sess-proposer" {
+		t.Fatalf("stored session = %q, want it persisted so recovery can find it", stored.SessionID)
+	}
+}

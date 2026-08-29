@@ -141,6 +141,11 @@ type OutcomeStore interface {
 	// restarted daemon can close the ones that expired while it was down.
 	ListOpenDecompositionRequests(ctx context.Context) ([]domain.DecompositionRequest, error)
 
+	// BindDecompositionRequestSession records which spawned session is
+	// answering. It is a separate write because the row is created BEFORE the
+	// spawn, so the session id does not exist yet at insert.
+	BindDecompositionRequestSession(ctx context.Context, id domain.DecompositionRequestID, sessionID string) error
+
 	// AppendPlanRevision atomically persists one proposed plan together with
 	// its single Work Unit and capability grants, assigning the plan number
 	// inside the transaction and returning the plan with that number.

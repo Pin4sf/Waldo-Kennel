@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
@@ -132,4 +133,25 @@ func decompositionRequestFromRow(row gen.DecompositionRequest) domain.Decomposit
 		request.AnsweredAt = &at
 	}
 	return request
+}
+
+// BindDecompositionRequestSession records which spawned session is answering.
+//
+// It is a separate write because the row is created BEFORE the spawn — an
+// agent holding a token for an unrecorded request would have nowhere to
+// answer — so the session id does not exist yet at insert. Binding only an
+// open, unbound request means a late or duplicate bind cannot overwrite the
+// session a recovery already reasoned about.
+func (s *Store) BindDecompositionRequestSession(ctx context.Context, id domain.DecompositionRequestID, sessionID string) error {
+	if strings.TrimSpace(sessionID) == "" {
+		return fmt.Errorf("cannot bind an empty session to decomposition request %s", id)
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if _, err := s.qw.BindDecompositionRequestSession(ctx, gen.BindDecompositionRequestSessionParams{
+		SessionID: sessionID, ID: id,
+	}); err != nil {
+		return fmt.Errorf("bind session to decomposition request %s: %w", id, err)
+	}
+	return nil
 }
