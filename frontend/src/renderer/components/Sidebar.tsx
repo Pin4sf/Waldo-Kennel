@@ -41,7 +41,7 @@ import { aoBridge } from "../lib/bridge";
 import { useCommandPaletteEnabled } from "../hooks/useCommandPaletteEnabled";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useProjectOutcomes, type OutcomeRecord } from "../hooks/useOutcome";
-import { buildOutcomeTree, outcomeSidebarStage } from "../lib/outcome-tree";
+import { buildOutcomeTree, outcomeDestinationStage } from "../lib/outcome-tree";
 import { usePinSession, useUnpinSession } from "../hooks/usePinSession";
 import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { renameSession } from "../lib/rename-session";
@@ -1046,7 +1046,7 @@ function ProjectItem({
 									<OutcomeRow
 										active={selection.activeOutcomeId === node.outcome.id}
 										figmaBoard={figmaBoard}
-										onOpen={() => openOutcome(node.outcome.id, outcomeSidebarStage(node))}
+										onOpen={() => openOutcome(node.outcome.id, outcomeDestinationStage(node))}
 										onOpenMissionControl={() => openOutcome(node.outcome.id, "decompose")}
 										outcome={node.outcome}
 									/>

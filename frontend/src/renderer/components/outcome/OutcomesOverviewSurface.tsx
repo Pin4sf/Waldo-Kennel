@@ -1,13 +1,16 @@
-import { Flag } from "lucide-react";
+import { Fragment } from "react";
+import { Flag, Network } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useProjectOutcomes, type OutcomeRecord } from "../../hooks/useOutcome";
 import { useWorkspaceQuery } from "../../hooks/useWorkspaceQuery";
+import { cn } from "../../lib/utils";
 import { deriveOutcomeDashboardPresentation } from "../../lib/outcome-dashboard-presentation";
+import { buildOutcomeTree, outcomeDestinationStage, type OutcomeDestinationStage } from "../../lib/outcome-tree";
 import type { WorkspaceSummary } from "../../types/workspace";
 
 type OutcomesOverviewSurfaceProps = {
-	onOpenOutcome: (projectId: string, outcome: OutcomeRecord) => void;
+	onOpenOutcome: (projectId: string, outcome: OutcomeRecord, stage: OutcomeDestinationStage) => void;
 };
 
 /**
@@ -19,6 +22,12 @@ type OutcomesOverviewSurfaceProps = {
  * locally derived stage/state, and no full relationship graph yet (that
  * visualization stays deprioritized; this is the straightforward list/
  * overview it can grow from).
+ *
+ * Composition is shown the same way the sidebar shows it, through the shared
+ * `outcome-tree` derivation: contributors nest under the parent that claims
+ * them, a decomposed parent opens on Mission Control, and every root carries
+ * an explicit Mission Control action for a decomposition that has been
+ * proposed but not yet authorized.
  */
 export function OutcomesOverviewSurface({ onOpenOutcome }: OutcomesOverviewSurfaceProps) {
 	const { t } = useTranslation();
@@ -56,11 +65,12 @@ function ProjectOutcomesGroup({
 	onOpenOutcome,
 }: {
 	workspace: WorkspaceSummary;
-	onOpenOutcome: (projectId: string, outcome: OutcomeRecord) => void;
+	onOpenOutcome: (projectId: string, outcome: OutcomeRecord, stage: OutcomeDestinationStage) => void;
 }) {
 	const { t } = useTranslation();
 	const outcomesQuery = useProjectOutcomes(workspace.id);
 	const outcomes = outcomesQuery.outcomes;
+	const outcomeTree = buildOutcomeTree(outcomes);
 
 	if (!outcomesQuery.isLoading && !outcomesQuery.failure && outcomes.length === 0) return null;
 
@@ -81,8 +91,22 @@ function ProjectOutcomesGroup({
 				<p className="text-muted-foreground text-xs">{t("outcome.overview.loading")}</p>
 			) : (
 				<ul className="flex flex-col gap-1">
-					{outcomes.map((outcome) => (
-						<OutcomeOverviewRow key={outcome.id} onOpen={() => onOpenOutcome(workspace.id, outcome)} outcome={outcome} />
+					{outcomeTree.map((node) => (
+						<Fragment key={node.outcome.id}>
+							<OutcomeOverviewRow
+								onOpen={() => onOpenOutcome(workspace.id, node.outcome, outcomeDestinationStage(node))}
+								onOpenMissionControl={() => onOpenOutcome(workspace.id, node.outcome, "decompose")}
+								outcome={node.outcome}
+							/>
+							{node.contributors.map((contributor) => (
+								<OutcomeOverviewRow
+									contributor
+									key={contributor.id}
+									onOpen={() => onOpenOutcome(workspace.id, contributor, "decide_authorize")}
+									outcome={contributor}
+								/>
+							))}
+						</Fragment>
 					))}
 				</ul>
 			)}
@@ -90,23 +114,53 @@ function ProjectOutcomesGroup({
 	);
 }
 
-function OutcomeOverviewRow({ outcome, onOpen }: { outcome: OutcomeRecord; onOpen: () => void }) {
+// `contributor` indents a contributing Outcome under the parent that claims
+// it. The Mission Control action sits outside the row's own button rather than
+// inside it — a button cannot nest, and the two go to different places.
+function OutcomeOverviewRow({
+	outcome,
+	contributor = false,
+	onOpen,
+	onOpenMissionControl,
+}: {
+	outcome: OutcomeRecord;
+	contributor?: boolean;
+	onOpen: () => void;
+	onOpenMissionControl?: () => void;
+}) {
 	const { t } = useTranslation();
 	const presentation = deriveOutcomeDashboardPresentation(outcome);
 	return (
-		<li>
-			<button
-				className="flex w-full min-w-0 items-center gap-2.5 rounded-md hairline border-border bg-card px-3.5 py-2.5 text-left transition-colors hover:bg-interactive-hover"
-				data-testid="outcomes-overview-row"
-				onClick={onOpen}
-				type="button"
-			>
-				<Flag aria-hidden="true" className="size-icon-sm shrink-0 text-muted-foreground" />
-				<span className="min-w-0 flex-1 truncate text-sm text-foreground">{outcome.title}</span>
-				<span className="shrink-0 text-xs text-muted-foreground">
-					{t(presentation.stageKey)} · {t(presentation.stateKey)}
-				</span>
-			</button>
+		<li className={cn(contributor && "pl-6")}>
+			<div className="group/outcome-overview-row flex w-full min-w-0 items-center rounded-md hairline border-border bg-card transition-colors hover:bg-interactive-hover focus-within:bg-interactive-hover">
+				<button
+					className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-3.5 py-2.5 text-left outline-hidden focus-visible:ring-2 focus-visible:ring-ring/70"
+					data-testid="outcomes-overview-row"
+					onClick={onOpen}
+					type="button"
+				>
+					<Flag aria-hidden="true" className="size-icon-sm shrink-0 text-muted-foreground" />
+					<span className="min-w-0 flex-1 truncate text-sm text-foreground">{outcome.title}</span>
+					<span className="shrink-0 text-xs text-muted-foreground">
+						{t(presentation.stageKey)} · {t(presentation.stateKey)}
+					</span>
+				</button>
+				{onOpenMissionControl ? (
+					<button
+						aria-label={t("outcome.dashboard.missionControlAria", { title: outcome.title })}
+						className={cn(
+							"mr-2 grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0",
+							"transition-[background-color,color,opacity] hover:bg-interactive-hover hover:text-foreground",
+							"focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50",
+							"group-hover/outcome-overview-row:opacity-100 group-focus-within/outcome-overview-row:opacity-100",
+						)}
+						onClick={onOpenMissionControl}
+						type="button"
+					>
+						<Network aria-hidden="true" className="size-icon-sm" />
+					</button>
+				) : null}
+			</div>
 		</li>
 	);
 }

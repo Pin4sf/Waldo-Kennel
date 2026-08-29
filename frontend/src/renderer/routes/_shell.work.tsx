@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { OutcomeDecideAuthorizeSurface } from "../components/outcome/OutcomeDecideAuthorizeSurface";
 import { OutcomeLifecycleShell } from "../components/outcome/OutcomeLifecycleShell";
 import type { OutcomeRecord } from "../hooks/useOutcome";
+import type { OutcomeDestinationStage } from "../lib/outcome-tree";
 import { OutcomeProveCloseSurface } from "../components/outcome/OutcomeProveCloseSurface";
 import { OutcomeRunSurface } from "../components/outcome/OutcomeRunSurface";
 import { OutcomesOverviewSurface } from "../components/outcome/OutcomesOverviewSurface";
@@ -97,10 +98,10 @@ function renderStageBody({
 	if (view === "outcomes") {
 		return (
 			<OutcomesOverviewSurface
-				onOpenOutcome={(projectId: string, openedOutcome: OutcomeRecord) => {
+				onOpenOutcome={(projectId: string, openedOutcome: OutcomeRecord, openedStage: OutcomeDestinationStage) => {
 					void navigate({
 						to: "/work",
-						search: { project: projectId, stage: "decide_authorize", outcome: openedOutcome.id },
+						search: { project: projectId, stage: openedStage, outcome: openedOutcome.id },
 					});
 				}}
 			/>

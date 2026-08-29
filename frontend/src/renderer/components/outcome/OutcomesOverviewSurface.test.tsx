@@ -28,8 +28,8 @@ function workspace(id: string, name: string): WorkspaceSummary {
 	return { id, name, kind: "single_repo", path: `/repo/${id}`, type: "main", sessions: [] };
 }
 
-function outcome(id: string, title: string) {
-	return { id, title, currentRevisionNumber: 1, latestPlan: undefined } as never;
+function outcome(id: string, title: string, parentId?: string) {
+	return { id, title, currentRevisionNumber: 1, latestPlan: undefined, parentId } as never;
 }
 
 function renderSurface(onOpenOutcome = vi.fn()) {
@@ -89,6 +89,61 @@ describe("OutcomesOverviewSurface", () => {
 		expect(onOpenOutcome).toHaveBeenCalledTimes(1);
 		expect(onOpenOutcome.mock.calls[0][0]).toBe("proj-1");
 		expect(onOpenOutcome.mock.calls[0][1]).toMatchObject({ id: "out-1", title: "Ship the release" });
+		expect(onOpenOutcome.mock.calls[0][2]).toBe("decide_authorize");
+	});
+
+	it("opens a decomposed parent on Mission Control and nests its contributors", async () => {
+		workspaceQueryMock.mockReturnValue({ data: [workspace("proj-1", "Waldo Kennel")], isLoading: false });
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [outcome("parent-1", "Ship the importer"), outcome("child-1", "Parse the archive", "parent-1")],
+			isLoading: false,
+			refetch: vi.fn(),
+		});
+		const user = userEvent.setup();
+		const onOpenOutcome = renderSurface();
+
+		await user.click(await screen.findByText("Ship the importer"));
+		expect(onOpenOutcome).toHaveBeenLastCalledWith("proj-1", expect.objectContaining({ id: "parent-1" }), "decompose");
+
+		// A contributor answers for its own contract, so it keeps the ordinary
+		// destination — and is indented under the parent that claims it.
+		const contributor = screen.getByText("Parse the archive");
+		expect(contributor.closest("li")).toHaveClass("pl-6");
+		await user.click(contributor);
+		expect(onOpenOutcome).toHaveBeenLastCalledWith(
+			"proj-1",
+			expect.objectContaining({ id: "child-1" }),
+			"decide_authorize",
+		);
+	});
+
+	it("reaches Mission Control for an Outcome nobody has decomposed yet", async () => {
+		workspaceQueryMock.mockReturnValue({ data: [workspace("proj-1", "Waldo Kennel")], isLoading: false });
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [outcome("out-1", "Ship the release")],
+			isLoading: false,
+			refetch: vi.fn(),
+		});
+		const user = userEvent.setup();
+		const onOpenOutcome = renderSurface();
+
+		await user.click(await screen.findByRole("button", { name: "Mission control for Ship the release" }));
+		expect(onOpenOutcome).toHaveBeenCalledWith("proj-1", expect.objectContaining({ id: "out-1" }), "decompose");
+	});
+
+	it("offers no decomposition action on a contributing Outcome", async () => {
+		workspaceQueryMock.mockReturnValue({ data: [workspace("proj-1", "Waldo Kennel")], isLoading: false });
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [outcome("parent-1", "Ship the importer"), outcome("child-1", "Parse the archive", "parent-1")],
+			isLoading: false,
+			refetch: vi.fn(),
+		});
+		renderSurface();
+
+		expect(await screen.findByRole("button", { name: "Mission control for Ship the importer" })).toBeInTheDocument();
+		// The depth limit is two levels: a contributor cannot be decomposed
+		// again, so it must not offer the action.
+		expect(screen.queryByRole("button", { name: "Mission control for Parse the archive" })).not.toBeInTheDocument();
 	});
 
 	it("surfaces a failed project's load error with a real retry, not a silent gap", async () => {

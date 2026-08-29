@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildOutcomeTree, outcomeSidebarStage } from "./outcome-tree";
+import { buildOutcomeTree, outcomeDestinationStage } from "./outcome-tree";
 
 const root = (id: string) => ({ id });
 const child = (id: string, parentId: string) => ({ id, parentId });
@@ -35,19 +35,19 @@ describe("buildOutcomeTree", () => {
 	});
 });
 
-describe("outcomeSidebarStage", () => {
+describe("outcomeDestinationStage", () => {
 	it("sends a decomposed parent to mission control", () => {
 		const [parent] = buildOutcomeTree([root("p"), child("c", "p")]);
-		expect(outcomeSidebarStage(parent)).toBe("decompose");
+		expect(outcomeDestinationStage(parent)).toBe("decompose");
 	});
 
 	it("leaves a direct Outcome on decide & authorize", () => {
 		const [only] = buildOutcomeTree([root("p")]);
-		expect(outcomeSidebarStage(only)).toBe("decide_authorize");
+		expect(outcomeDestinationStage(only)).toBe("decide_authorize");
 	});
 
 	it("leaves a contributor on decide & authorize", () => {
 		const tree = buildOutcomeTree([root("p"), child("c", "p")]);
-		expect(outcomeSidebarStage({ outcome: tree[0].contributors[0], contributors: [] })).toBe("decide_authorize");
+		expect(outcomeDestinationStage({ outcome: tree[0].contributors[0], contributors: [] })).toBe("decide_authorize");
 	});
 });

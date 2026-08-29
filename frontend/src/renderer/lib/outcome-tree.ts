@@ -1,11 +1,14 @@
 /**
- * Sidebar topology for composed Outcomes (ADR 0007).
+ * Navigable topology for composed Outcomes (ADR 0007).
  *
  * The daemon lists every Outcome in a project flat — contributing Outcomes
  * included, since they are ordinary Outcomes in the same responsibility space.
  * Nesting is derived here from the one canonical fact that list already
- * carries, `parentId`, so the sidebar never invents a relationship the daemon
+ * carries, `parentId`, so a surface never invents a relationship the daemon
  * did not record and never issues a per-Outcome query to learn one.
+ *
+ * Every surface that lists Outcomes shares this derivation, so the sidebar and
+ * the Outcomes overview cannot disagree about where a row leads.
  */
 
 export type OutcomeTreeFacts = { id: string; parentId?: string };
@@ -16,8 +19,8 @@ export type OutcomeTreeNode<T extends OutcomeTreeFacts> = {
 	contributors: T[];
 };
 
-/** The Work stage a sidebar click on an Outcome should land on. */
-export type OutcomeSidebarStage = "decompose" | "decide_authorize";
+/** The Work stage a click on an Outcome row should land on. */
+export type OutcomeDestinationStage = "decompose" | "decide_authorize";
 
 /**
  * Group a project's flat Outcome list into roots and their contributors.
@@ -57,6 +60,6 @@ export function buildOutcomeTree<T extends OutcomeTreeFacts>(outcomes: readonly 
  * Outcome somewhere the owner has not agreed to go. The row's explicit Mission
  * Control action is the way in for those.
  */
-export function outcomeSidebarStage<T extends OutcomeTreeFacts>(node: OutcomeTreeNode<T>): OutcomeSidebarStage {
+export function outcomeDestinationStage<T extends OutcomeTreeFacts>(node: OutcomeTreeNode<T>): OutcomeDestinationStage {
 	return node.contributors.length > 0 ? "decompose" : "decide_authorize";
 }
