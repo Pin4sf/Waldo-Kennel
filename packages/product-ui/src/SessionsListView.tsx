@@ -288,7 +288,7 @@ function ListCell({ children, className }: { children: ReactNode; className?: st
 			<span className="block overflow-hidden">{children}</span>
 			<span
 				aria-hidden="true"
-				className="list-cell-fade pointer-events-none absolute inset-y-0 right-0 w-10 group-hover/row:opacity-0"
+				className="list-cell-fade pointer-events-none absolute inset-y-0 right-0 w-10 opacity-100 transition-opacity duration-fast ease-out group-hover/row:opacity-0 motion-reduce:transition-none"
 			/>
 		</span>
 	);
