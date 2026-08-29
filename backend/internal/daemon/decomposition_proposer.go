@@ -156,6 +156,12 @@ RULES the daemon enforces. A proposal breaking any of these is refused:
   - Every parent criterion above must be claimed by at least one contributing
     Outcome, or listed in retainedCriteria for the owner to prove directly.
     There is no third option.
+  - Every contributing Outcome must claim at least one parent criterion. There
+    is no "foundation" or "prerequisite" contribution that claims none: if some
+    work only enables another contribution, it belongs INSIDE that one, not
+    beside it. A contribution proving nothing about the parent could be
+    abandoned without changing whether the parent is done, which is what makes
+    it a task rather than a responsibility.
   - Use the criterionId values exactly as given. Invented ids are refused.
   - A criterion may not be both claimed and retained.
   - At most %d contributing Outcomes.

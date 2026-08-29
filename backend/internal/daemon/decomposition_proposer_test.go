@@ -157,3 +157,23 @@ func TestProposeSurfacesASpawnFailure(t *testing.T) {
 type stubAgentResolver struct{}
 
 func (stubAgentResolver) Agent(domain.AgentHarness) (ports.Agent, bool) { return nil, false }
+
+// The first real run against Mesa produced a "foundation" contribution
+// claiming no criterion. That is refused by ProposedContribution.Validate, but
+// the brief had only stated the COVERAGE rule — every criterion is claimed —
+// and never the per-contribution one. The agent obeyed what it was told and
+// was refused for a rule it was never given, which is a brief defect.
+func TestBriefStatesThatEveryContributionMustClaimACriterion(t *testing.T) {
+	brief, err := decompositionBrief(briefInput(), "http://127.0.0.1:3031")
+	if err != nil {
+		t.Fatalf("brief: %v", err)
+	}
+	if !strings.Contains(brief, "Every contributing Outcome must claim at least one parent criterion") {
+		t.Fatalf("brief must state the per-contribution claim rule:\n%s", brief)
+	}
+	// And say where enabling work belongs instead, or the rule reads as an
+	// arbitrary refusal rather than a modelling instruction.
+	if !strings.Contains(brief, "belongs INSIDE") {
+		t.Fatal("brief must say where enabling work belongs instead of beside")
+	}
+}
