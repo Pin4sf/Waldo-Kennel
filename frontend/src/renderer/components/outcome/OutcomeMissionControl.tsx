@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { MessageKey } from "../../i18n/messages";
@@ -13,6 +14,10 @@ import {
 	useOutcomeDecomposition,
 	useProposeDecomposition,
 	useWaiveContributionDependency,
+	useAskForDecomposition,
+	useDecompositionRequest,
+	parseRawProposal,
+	DECOMPOSITION_REQUEST_STATUS,
 	type ContributorRecord,
 } from "../../hooks/useOutcomeComposition";
 import { DecompositionEditor, NO_AUTHORITY } from "./DecompositionEditor";
@@ -387,34 +392,41 @@ function AcceptanceBatchPanel({ outcomeId, revision }: { outcomeId: string; revi
 }
 
 /**
- * A direct Outcome can be decomposed. The proposal creates nothing until it is
- * authorized, so the editor below is free to be wrong — the daemon is the gate.
+ * A direct Outcome can be decomposed. Nothing here creates a responsibility
+ * until the owner authorizes: a proposal, however it was authored, is an offer.
  */
 function DecomposePanel({ outcomeId, revision }: { outcomeId: string; revision: number }) {
 	const { t } = useTranslation();
 	const { outcome } = useOutcome(outcomeId);
 	const { decomposition, refetch } = useOutcomeDecomposition(outcomeId);
+	const { request, pending: agentWorking, refetch: refetchRequest } = useDecompositionRequest(outcomeId);
 	const propose = useProposeDecomposition(outcomeId);
 	const authorize = useAuthorizeDecomposition(outcomeId);
+	const ask = useAskForDecomposition(outcomeId);
 	const [editing, setEditing] = useState(false);
+	const [draft, setDraft] = useState<ReturnType<typeof parseRawProposal>>(undefined);
 
 	const proposal = decomposition?.status === DECOMPOSITION_STATUS.proposed ? decomposition : undefined;
 	const criteria = outcome?.currentRevision.criteria ?? [];
+	const refused = request?.status === DECOMPOSITION_REQUEST_STATUS.rejected ? request : undefined;
 
 	if (editing && outcome) {
 		return (
 			<section className="flex flex-col gap-3" data-testid="mission-decompose">
 				<DecompositionEditor
 					criteria={criteria}
+					draft={draft}
 					existing={proposal}
 					expectedContractRevision={revision}
 					failureMessage={propose.failure?.message}
 					onCancel={() => {
 						propose.reset();
+						setDraft(undefined);
 						setEditing(false);
 					}}
 					onPropose={(request) => {
 						void propose.submit(request).then(() => {
+							setDraft(undefined);
 							setEditing(false);
 							refetch();
 						});
@@ -431,6 +443,46 @@ function DecomposePanel({ outcomeId, revision }: { outcomeId: string; revision: 
 			<h3 className="text-sm font-medium">{t("outcome.mission.decomposeHeading")}</h3>
 			<p className="text-muted-foreground text-sm">{t("outcome.mission.decomposeExplainer")}</p>
 
+			{/* An agent is working. There is nothing to await here — the answer
+			    arrives on the daemon's callback route — so this reports rather
+			    than pretends to block. */}
+			{agentWorking ? (
+				<p className="text-muted-foreground flex items-center gap-2 text-sm" data-testid="decompose-agent-working">
+					<Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+					{t("outcome.mission.agentWorking")}
+				</p>
+			) : null}
+
+			{request?.status === DECOMPOSITION_REQUEST_STATUS.expired ? (
+				<p className="text-muted-foreground text-xs" data-testid="decompose-agent-expired">
+					{t("outcome.mission.agentExpired")}
+				</p>
+			) : null}
+
+			{/* A refused draft is kept so one field can be fixed instead of
+			    regenerating. Reopening it is the point of retaining it. */}
+			{refused ? (
+				<div className="flex flex-col gap-2" data-testid="decompose-agent-refused">
+					<p className="text-[var(--color-status-needs-you)] text-xs">
+						{t("outcome.mission.agentRefused", { reason: refused.refusalReason ?? "" })}
+					</p>
+					{parseRawProposal(refused.rawProposal) ? (
+						<Button
+							className="self-start"
+							onClick={() => {
+								setDraft(parseRawProposal(refused.rawProposal));
+								setEditing(true);
+							}}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							{t("outcome.mission.openRefusedDraft")}
+						</Button>
+					) : null}
+				</div>
+			) : null}
+
 			{proposal ? (
 				<div className="flex flex-col gap-2">
 					{proposal.stale ? (
@@ -446,6 +498,7 @@ function DecomposePanel({ outcomeId, revision }: { outcomeId: string; revision: 
 					</ul>
 					<div className="flex items-center gap-2">
 						<Button
+							data-testid="decompose-authorize"
 							disabled={authorize.pending || proposal.stale}
 							onClick={() => void authorize.submit(proposal.id)}
 							size="sm"
@@ -461,7 +514,16 @@ function DecomposePanel({ outcomeId, revision }: { outcomeId: string; revision: 
 					) : null}
 				</div>
 			) : (
-				<div className="flex items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2">
+					<Button
+						data-testid="decompose-ask-agent"
+						disabled={ask.pending || agentWorking || criteria.length === 0}
+						onClick={() => void ask.submit({ expectedContractRevision: revision }).then(refetchRequest)}
+						size="sm"
+					>
+						{ask.pending && <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />}
+						{t("outcome.mission.askAgent")}
+					</Button>
 					<Button
 						disabled={propose.pending || criteria.length === 0}
 						onClick={() => void propose.submit({ expectedContractRevision: revision }).then(refetch)}
@@ -475,6 +537,7 @@ function DecomposePanel({ outcomeId, revision }: { outcomeId: string; revision: 
 					</Button>
 				</div>
 			)}
+			{ask.failure ? <span className="text-destructive text-xs">{ask.failure.message}</span> : null}
 			{propose.failure ? <span className="text-destructive text-xs">{propose.failure.message}</span> : null}
 		</section>
 	);

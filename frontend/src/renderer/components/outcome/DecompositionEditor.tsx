@@ -29,6 +29,13 @@ type DecompositionEditorProps = {
 	expectedContractRevision: number;
 	/** Seeds the draft when re-opening an existing proposal. */
 	existing?: DecompositionRecord;
+	/**
+	 * Seeds from a REFUSED agent draft. That draft is retained precisely so one
+	 * wrong field can be corrected instead of regenerating, which only helps if
+	 * it can be reopened here. It takes precedence over `existing`: the refused
+	 * draft is what the owner came back to fix.
+	 */
+	draft?: ProposeRequest;
 	pending: boolean;
 	failureMessage?: string;
 	onPropose: (request: ProposeRequest) => void;
@@ -50,7 +57,21 @@ function blankContribution(index: number): DraftContribution {
 	return { ref: `c${index + 1}`, title: "", goal: "", successCriteria: "", review: "", claimedCriteria: [] };
 }
 
-function seedFrom(existing: DecompositionRecord | undefined, criteria: ContractCriterion[]): DraftContribution[] {
+function seedFrom(
+	existing: DecompositionRecord | undefined,
+	draft: ProposeRequest | undefined,
+	criteria: ContractCriterion[],
+): DraftContribution[] {
+	if (draft && draft.contributors && draft.contributors.length > 0) {
+		return draft.contributors.map((contributor, index) => ({
+			ref: contributor.ref || `c${index + 1}`,
+			title: contributor.title ?? "",
+			goal: contributor.goal ?? "",
+			successCriteria: (contributor.successCriteria ?? []).join("\n"),
+			review: contributor.review ?? "",
+			claimedCriteria: [...(contributor.claimedCriteria ?? [])],
+		}));
+	}
 	if (existing && existing.contributors.length > 0) {
 		return existing.contributors.map((contributor) => ({
 			ref: contributor.ref,
@@ -87,18 +108,23 @@ export function DecompositionEditor({
 	parentAuthority,
 	expectedContractRevision,
 	existing,
+	draft,
 	pending,
 	failureMessage,
 	onPropose,
 	onCancel,
 }: DecompositionEditorProps) {
 	const { t } = useTranslation();
-	const [contributions, setContributions] = useState<DraftContribution[]>(() => seedFrom(existing, criteria));
-	const [retained, setRetained] = useState<string[]>(() => [...(existing?.retainedCriteria ?? [])]);
+	const [contributions, setContributions] = useState<DraftContribution[]>(() => seedFrom(existing, draft, criteria));
+	const [retained, setRetained] = useState<string[]>(() => [...(draft?.retainedCriteria ?? existing?.retainedCriteria ?? [])]);
 	const [dependencies, setDependencies] = useState<{ fromRef: string; toRef: string }[]>(
-		() => (existing?.dependencies ?? []).map((d) => ({ fromRef: d.fromRef, toRef: d.toRef })),
+		() =>
+			(draft?.dependencies ?? existing?.dependencies ?? []).map((d) => ({
+				fromRef: d.fromRef,
+				toRef: d.toRef,
+			})),
 	);
-	const [rationale, setRationale] = useState(existing?.rationale ?? "");
+	const [rationale, setRationale] = useState(draft?.rationale ?? existing?.rationale ?? "");
 
 	const claimed = useMemo(() => {
 		const owned = new Set<string>();

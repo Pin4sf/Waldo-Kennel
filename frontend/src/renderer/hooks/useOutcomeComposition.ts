@@ -276,3 +276,114 @@ export function useAcceptContributorBatch(
 		submit: mutation.mutateAsync,
 	};
 }
+
+export type DecompositionRequestRecord = components["schemas"]["DecompositionRequestResponse"];
+export type AskForDecompositionRequest = components["schemas"]["AskForDecompositionRequest"];
+type DecompositionRequestEnvelope = components["schemas"]["DecompositionRequestEnvelope"];
+
+/** The daemon's ask lifecycle, mirrored so controls never key off literals. */
+export const DECOMPOSITION_REQUEST_STATUS = {
+	requested: "requested",
+	fulfilled: "fulfilled",
+	rejected: "rejected",
+	expired: "expired",
+	cancelled: "cancelled",
+} as const;
+
+export function outcomeDecompositionRequestQueryKey(outcomeId: string | undefined) {
+	return ["outcome-decomposition-request", outcomeId ?? ""] as const;
+}
+
+/**
+ * The newest ask and what became of it.
+ *
+ * An open request is polled, because the answer arrives from a spawned agent
+ * over the API rather than from anything this client did — there is nothing to
+ * await. Polling stops the moment the daemon reaches a verdict.
+ */
+export function useDecompositionRequest(outcomeId: string | undefined) {
+	const query = useQuery({
+		queryKey: outcomeDecompositionRequestQueryKey(outcomeId),
+		enabled: Boolean(outcomeId),
+		queryFn: async () => {
+			const { data, error } = await apiClient.GET("/api/v1/outcomes/{outcomeId}/decomposition-request", {
+				params: { path: { outcomeId: outcomeId as string } },
+			});
+			if (error) throw error;
+			return (data as DecompositionRequestEnvelope).request;
+		},
+		// An Outcome nobody has asked about answers 404; that is the ordinary
+		// state, not a failure worth retrying.
+		retry: (attempt, error) => {
+			const code = apiErrorCode(error);
+			if (code === "DECOMPOSITION_REQUEST_NOT_FOUND" || (code && PERMANENT.has(code))) return false;
+			return attempt < 2;
+		},
+		refetchInterval: (query) => {
+			const request = query.state.data as DecompositionRequestRecord | undefined;
+			if (!request) return false;
+			const open = request.status === DECOMPOSITION_REQUEST_STATUS.requested && !request.expired;
+			return open ? 3000 : false;
+		},
+	});
+	const request = query.data;
+	return {
+		request,
+		/** True only while an agent could still answer. */
+		pending: Boolean(
+			request && request.status === DECOMPOSITION_REQUEST_STATUS.requested && !request.expired,
+		),
+		isLoading: query.isLoading,
+		failure: query.error ? classifyOutcomeFailure(query.error) : undefined,
+		refetch: () => void query.refetch(),
+	};
+}
+
+/**
+ * Ask an agent to propose. This returns as soon as one is started: the
+ * proposal itself arrives later, on the daemon's callback route.
+ */
+export function useAskForDecomposition(
+	outcomeId: string | undefined,
+): DecompositionMutationState<AskForDecompositionRequest, DecompositionRequestRecord> {
+	const queryClient = useQueryClient();
+	const invalidate = useCompositionInvalidation(outcomeId);
+	const mutation = useMutation({
+		mutationFn: async (input: AskForDecompositionRequest) => {
+			const { data, error } = await apiClient.POST("/api/v1/outcomes/{outcomeId}/decomposition-requests", {
+				params: { path: { outcomeId: outcomeId as string } },
+				body: input,
+			});
+			if (error) throw error;
+			return (data as DecompositionRequestEnvelope).request;
+		},
+		onSuccess: (request) => {
+			queryClient.setQueryData(outcomeDecompositionRequestQueryKey(outcomeId), request);
+			invalidate();
+		},
+	});
+	return {
+		pending: mutation.isPending,
+		failure: mutation.error ? classifyOutcomeFailure(mutation.error) : undefined,
+		reset: () => mutation.reset(),
+		submit: mutation.mutateAsync,
+	};
+}
+
+/**
+ * Parse a refused draft back into editable contributors.
+ *
+ * A rejected proposal is retained precisely so one wrong field can be fixed
+ * instead of regenerating, which only helps if the draft can be reopened. A
+ * draft that will not parse yields undefined rather than a half-built form.
+ */
+export function parseRawProposal(raw: string | undefined): ProposeDecompositionRequest | undefined {
+	if (!raw) return undefined;
+	try {
+		const parsed = JSON.parse(raw) as ProposeDecompositionRequest;
+		if (!Array.isArray(parsed?.contributors)) return undefined;
+		return parsed;
+	} catch {
+		return undefined;
+	}
+}
