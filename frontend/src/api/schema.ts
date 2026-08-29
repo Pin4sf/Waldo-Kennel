@@ -636,7 +636,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/outcomes/{outcomeId}/contributions": {
+    "/api/v1/outcomes/{outcomeId}/decomposition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the newest decomposition and whether the parent contract moved past it */
+        get: operations["getLatestOutcomeDecomposition"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/decompositions": {
         parameters: {
             query?: never;
             header?: never;
@@ -645,8 +662,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add one contributing Outcome bound to parent criteria */
-        post: operations["createOutcomeContribution"];
+        /** Propose a decomposition into contributing Outcomes (creates nothing) */
+        post: operations["proposeOutcomeDecomposition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/decompositions/{decompositionId}/authorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Authorize a decomposition, creating its contributing Outcomes */
+        post: operations["authorizeOutcomeDecomposition"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2555,6 +2589,15 @@ export interface components {
             successCriteria: string[];
             temporalCondition?: null | string;
         };
+        ContributionDependencyRequest: {
+            fromRef: string;
+            toRef: string;
+        };
+        ContributionDependencyResponse: {
+            fromRef: string;
+            id: string;
+            toRef: string;
+        };
         ContributionLinkResponse: {
             childOutcomeId: string;
             /** Format: date-time */
@@ -2921,18 +2964,6 @@ export interface components {
             /** Format: int64 */
             totalTokens: number;
         };
-        CreateContributionRequest: {
-            authority?: components["schemas"]["ControllersIntakeAuthority"];
-            claimedCriteria: string[];
-            clarification?: string;
-            constraints?: string[];
-            goal: string;
-            nonGoals?: string[];
-            requestKey: string;
-            review: string;
-            successCriteria: string[];
-            title: string;
-        };
         CreateIntakeRequest: {
             conversationRefs?: components["schemas"]["ControllersIntakeConversationRefInput"][];
             requestKey: string;
@@ -2986,6 +3017,26 @@ export interface components {
             requestKey: string;
             resourceDisposition: string;
             summary: string;
+        };
+        DecompositionEnvelope: {
+            decomposition: components["schemas"]["DecompositionResponse"];
+        };
+        DecompositionResponse: {
+            /** Format: date-time */
+            authorizedAt?: null | string;
+            contractRevisionId: string;
+            contributors: components["schemas"]["ProposedContributionResponse"][];
+            /** Format: date-time */
+            createdAt: string;
+            dependencies: components["schemas"]["ContributionDependencyResponse"][];
+            id: string;
+            /** Format: int64 */
+            number: number;
+            outcomeId: string;
+            rationale: string;
+            retainedCriteria: string[];
+            stale: boolean;
+            status: string;
         };
         DegradedProject: {
             id: string;
@@ -3503,9 +3554,42 @@ export interface components {
             providerTurnId: string;
             sourceTurnId: string;
         };
+        ProposeDecompositionRequest: {
+            contributors?: components["schemas"]["ProposedContributionRequest"][];
+            dependencies?: components["schemas"]["ContributionDependencyRequest"][];
+            /** Format: int64 */
+            expectedContractRevision: number;
+            rationale?: string;
+            retainedCriteria?: string[];
+        };
         ProposePlanRequest: {
             /** Format: int64 */
             expectedContractRevision: number;
+        };
+        ProposedContributionRequest: {
+            authority?: components["schemas"]["ControllersIntakeAuthority"];
+            claimedCriteria: string[];
+            constraints?: string[];
+            goal: string;
+            nonGoals?: string[];
+            ref?: string;
+            review: string;
+            successCriteria: string[];
+            title: string;
+        };
+        ProposedContributionResponse: {
+            authority: components["schemas"]["ControllersIntakeAuthority"];
+            childOutcomeId?: string;
+            claimedCriteria: string[];
+            constraints: string[];
+            goal: string;
+            nonGoals: string[];
+            /** Format: int64 */
+            position: number;
+            ref: string;
+            review: string;
+            successCriteria: string[];
+            title: string;
         };
         PushDeviceEnvelope: {
             device: components["schemas"]["PushDeviceResponse"];
@@ -6605,7 +6689,57 @@ export interface operations {
             };
         };
     };
-    createOutcomeContribution: {
+    getLatestOutcomeDecomposition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecompositionEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    proposeOutcomeDecomposition: {
         parameters: {
             query?: never;
             header?: never;
@@ -6617,7 +6751,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateContributionRequest"];
+                "application/json": components["schemas"]["ProposeDecompositionRequest"];
             };
         };
         responses: {
@@ -6627,7 +6761,68 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OutcomeEnvelope"];
+                    "application/json": components["schemas"]["DecompositionEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    authorizeOutcomeDecomposition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+                /** @description Decomposition revision identifier, e.g. dec-<uuid>. */
+                decompositionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecompositionEnvelope"];
                 };
             };
             /** @description Bad Request */

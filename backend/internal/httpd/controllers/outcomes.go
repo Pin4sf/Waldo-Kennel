@@ -24,9 +24,14 @@ type OutcomeService interface {
 	ApprovePlan(ctx context.Context, id domain.OutcomeID, in outcomevc.ApprovePlanInput) (outcomevc.AuthorizedPlanView, error)
 	GetLatestPlan(ctx context.Context, id domain.OutcomeID) (outcomevc.PlanView, error)
 
-	// Composed Outcomes (ADR 0007).
-	CreateContribution(ctx context.Context, parentID domain.OutcomeID, in outcomevc.CreateContributionInput) (outcomevc.OutcomeView, error)
+	// Composed Outcomes (ADR 0007). A contributing Outcome is born only by
+	// authorizing a decomposition: there is deliberately no ad-hoc create
+	// route, because one would bypass the coverage, containment, and ordering
+	// gates that make a decomposition trustworthy.
 	Composition(ctx context.Context, id domain.OutcomeID) (outcomevc.CompositionView, error)
+	ProposeDecomposition(ctx context.Context, parentID domain.OutcomeID, in outcomevc.ProposeDecompositionInput) (outcomevc.DecompositionView, error)
+	AuthorizeDecomposition(ctx context.Context, parentID domain.OutcomeID, decompositionID domain.DecompositionRevisionID) (outcomevc.DecompositionView, error)
+	LatestDecomposition(ctx context.Context, parentID domain.OutcomeID) (outcomevc.DecompositionView, error)
 }
 
 // AttemptManager is the Act & Observe boundary (#31). A nil field answers 501
@@ -72,8 +77,10 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/observations", c.recordObservation)
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/cancel", c.cancelAttempt)
 	r.Post("/outcomes/{outcomeId}/attempts/{attemptId}/recovery", c.recoverAttempt)
-	r.Post("/outcomes/{outcomeId}/contributions", c.createContribution)
 	r.Get("/outcomes/{outcomeId}/composition", c.getComposition)
+	r.Post("/outcomes/{outcomeId}/decompositions", c.proposeDecomposition)
+	r.Post("/outcomes/{outcomeId}/decompositions/{decompositionId}/authorization", c.authorizeDecomposition)
+	r.Get("/outcomes/{outcomeId}/decomposition", c.latestDecomposition)
 	r.Get("/outcomes/{outcomeId}/proof", c.getProof)
 	r.Post("/outcomes/{outcomeId}/evidence", c.recordEvidence)
 	r.Post("/outcomes/{outcomeId}/verifications", c.recordVerification)
@@ -421,42 +428,6 @@ func (c *OutcomesController) recoverAttempt(w http.ResponseWriter, r *http.Reque
 	envelope.WriteJSON(w, http.StatusOK, resp)
 }
 
-// createContribution adds one contributing Outcome beneath {outcomeId}. Every
-// refusal — depth cap, unknown criterion, widened authority — fails closed in
-// the service and reaches the caller with the offender named.
-func (c *OutcomesController) createContribution(w http.ResponseWriter, r *http.Request) {
-	if c.Svc == nil {
-		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/contributions")
-		return
-	}
-	var req CreateContributionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
-		return
-	}
-	claimed := make([]domain.CriterionID, 0, len(req.ClaimedCriteria))
-	for _, id := range req.ClaimedCriteria {
-		claimed = append(claimed, domain.CriterionID(id))
-	}
-	view, err := c.Svc.CreateContribution(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.CreateContributionInput{
-		Title:           req.Title,
-		Goal:            req.Goal,
-		SuccessCriteria: req.SuccessCriteria,
-		Review:          req.Review,
-		Constraints:     req.Constraints,
-		NonGoals:        req.NonGoals,
-		Clarification:   req.Clarification,
-		ClaimedCriteria: claimed,
-		Authority:       proposedAuthority(req.Authority),
-		RequestKey:      req.RequestKey,
-	})
-	if err != nil {
-		envelope.WriteError(w, r, err)
-		return
-	}
-	envelope.WriteJSON(w, http.StatusCreated, OutcomeEnvelope{Outcome: outcomeResponse(view)})
-}
-
 // getComposition reports derived shape, contributors, and criterion coverage.
 // A direct Outcome answers 200 with shape "direct" and no contributors: the
 // absence of composition is a fact, not a missing resource.
@@ -482,4 +453,56 @@ func (c *OutcomesController) getComposition(w http.ResponseWriter, r *http.Reque
 		contributors = append(contributors, full)
 	}
 	envelope.WriteJSON(w, http.StatusOK, OutcomeCompositionEnvelope{Composition: outcomeCompositionResponse(view, contributors)})
+}
+
+// proposeDecomposition validates a decomposition and records it as a proposal.
+// It creates no Outcome: a refused proposal leaves nothing behind, and an
+// accepted one is still only an offer until the owner authorizes it.
+func (c *OutcomesController) proposeDecomposition(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/decompositions")
+		return
+	}
+	var req ProposeDecompositionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	view, err := c.Svc.ProposeDecomposition(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), proposeDecompositionInput(req))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusCreated, DecompositionEnvelope{Decomposition: decompositionResponse(view)})
+}
+
+// authorizeDecomposition is the owner decision that creates the contributing
+// Outcomes. Re-authorizing an already authorized decomposition is a replay and
+// answers 200 with the same result rather than creating them twice.
+func (c *OutcomesController) authorizeDecomposition(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/decompositions/{decompositionId}/authorization")
+		return
+	}
+	view, err := c.Svc.AuthorizeDecomposition(r.Context(),
+		domain.OutcomeID(chi.URLParam(r, "outcomeId")),
+		domain.DecompositionRevisionID(chi.URLParam(r, "decompositionId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, DecompositionEnvelope{Decomposition: decompositionResponse(view)})
+}
+
+func (c *OutcomesController) latestDecomposition(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodGet, "/api/v1/outcomes/{outcomeId}/decomposition")
+		return
+	}
+	view, err := c.Svc.LatestDecomposition(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, DecompositionEnvelope{Decomposition: decompositionResponse(view)})
 }

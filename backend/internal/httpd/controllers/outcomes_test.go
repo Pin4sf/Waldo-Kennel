@@ -28,6 +28,13 @@ type fakeOutcomeService struct {
 	contribute  func(context.Context, domain.OutcomeID, outcomevc.CreateContributionInput) (outcomevc.OutcomeView, error)
 	composition func(context.Context, domain.OutcomeID) (outcomevc.CompositionView, error)
 
+	proposeDecomposition   func(context.Context, domain.OutcomeID, outcomevc.ProposeDecompositionInput) (outcomevc.DecompositionView, error)
+	authorizeDecomposition func(context.Context, domain.OutcomeID, domain.DecompositionRevisionID) (outcomevc.DecompositionView, error)
+	latestDecomposition    func(context.Context, domain.OutcomeID) (outcomevc.DecompositionView, error)
+
+	lastDecompositionOf    domain.OutcomeID
+	lastDecompositionInput outcomevc.ProposeDecompositionInput
+
 	lastInput            outcomevc.CreateInput
 	lastContributionOf   domain.OutcomeID
 	lastContributionData outcomevc.CreateContributionInput
@@ -39,6 +46,28 @@ func (f *fakeOutcomeService) CreateContribution(ctx context.Context, parentID do
 		return outcomevc.OutcomeView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "not implemented in fake")
 	}
 	return f.contribute(ctx, parentID, in)
+}
+
+func (f *fakeOutcomeService) ProposeDecomposition(ctx context.Context, parentID domain.OutcomeID, in outcomevc.ProposeDecompositionInput) (outcomevc.DecompositionView, error) {
+	f.lastDecompositionOf, f.lastDecompositionInput = parentID, in
+	if f.proposeDecomposition == nil {
+		return outcomevc.DecompositionView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "not implemented in fake")
+	}
+	return f.proposeDecomposition(ctx, parentID, in)
+}
+
+func (f *fakeOutcomeService) AuthorizeDecomposition(ctx context.Context, parentID domain.OutcomeID, decompositionID domain.DecompositionRevisionID) (outcomevc.DecompositionView, error) {
+	if f.authorizeDecomposition == nil {
+		return outcomevc.DecompositionView{}, apierr.NotFound("DECOMPOSITION_NOT_FOUND", "not implemented in fake")
+	}
+	return f.authorizeDecomposition(ctx, parentID, decompositionID)
+}
+
+func (f *fakeOutcomeService) LatestDecomposition(ctx context.Context, parentID domain.OutcomeID) (outcomevc.DecompositionView, error) {
+	if f.latestDecomposition == nil {
+		return outcomevc.DecompositionView{}, apierr.NotFound("DECOMPOSITION_NOT_FOUND", "not implemented in fake")
+	}
+	return f.latestDecomposition(ctx, parentID)
 }
 
 func (f *fakeOutcomeService) Composition(ctx context.Context, id domain.OutcomeID) (outcomevc.CompositionView, error) {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
@@ -25,8 +26,12 @@ type fakeStore struct {
 	keys     map[string]domain.OutcomeID
 	plans    map[domain.OutcomeID]domain.PlanRevision
 	links    map[domain.OutcomeID][]domain.ContributionLink
-	order    []domain.OutcomeID
-	writes   int
+
+	decompositions     map[domain.DecompositionRevisionID]domain.DecompositionRevision
+	decompositionOrder []domain.DecompositionRevisionID
+
+	order  []domain.OutcomeID
+	writes int
 }
 
 func newFakeStore() *fakeStore {
@@ -451,4 +456,95 @@ func (f *fakeStore) ListContributionLinksForChild(_ context.Context, child domai
 	defer f.mu.Unlock()
 	out := make([]domain.ContributionLink, 0, len(f.links[child]))
 	return append(out, f.links[child]...), nil
+}
+
+// --- Decomposition authority (ADR 0007 phase 2) ---
+//
+// The fake keeps proposals and authorization separate exactly as storage does,
+// so a test cannot pass by treating a proposal as if it had already created
+// the contributing Outcomes.
+
+func (f *fakeStore) AppendDecompositionRevision(_ context.Context, revision domain.DecompositionRevision) (domain.DecompositionRevision, error) {
+	if err := revision.Validate(); err != nil {
+		return domain.DecompositionRevision{}, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.decompositions == nil {
+		f.decompositions = map[domain.DecompositionRevisionID]domain.DecompositionRevision{}
+	}
+	highest := int64(0)
+	for _, existing := range f.decompositions {
+		if existing.OutcomeID == revision.OutcomeID && existing.Number > highest {
+			highest = existing.Number
+		}
+	}
+	revision.Number = highest + 1
+	f.decompositions[revision.ID] = revision
+	f.decompositionOrder = append(f.decompositionOrder, revision.ID)
+	return revision, nil
+}
+
+func (f *fakeStore) AuthorizeDecompositionRevision(
+	_ context.Context,
+	outcomeID domain.OutcomeID,
+	decompositionID domain.DecompositionRevisionID,
+	contributions []ports.AuthorizedContribution,
+	at time.Time,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	revision, ok := f.decompositions[decompositionID]
+	if !ok || revision.OutcomeID != outcomeID || revision.Status != domain.DecompositionProposed {
+		return fmt.Errorf("%w: %s", ports.ErrDecompositionNotProposed, decompositionID)
+	}
+	if f.links == nil {
+		f.links = map[domain.OutcomeID][]domain.ContributionLink{}
+	}
+	byRef := make(map[string]domain.OutcomeID, len(contributions))
+	for _, contribution := range contributions {
+		child := contribution.Outcome
+		child.CurrentRevisionNumber = 1
+		first := contribution.First
+		first.Number = 1
+		f.outcomes[child.ID] = child
+		f.revs[child.ID] = []domain.ContractRevision{first}
+		f.order = append(f.order, child.ID)
+		f.links[child.ID] = append(f.links[child.ID], contribution.Links...)
+		byRef[contribution.Ref] = child.ID
+		f.writes++
+	}
+	for i := range revision.Contributors {
+		if id, ok := byRef[revision.Contributors[i].Ref]; ok {
+			revision.Contributors[i].ChildOutcomeID = id
+		}
+	}
+	revision.Status = domain.DecompositionAuthorized
+	revision.AuthorizedAt = &at
+	f.decompositions[decompositionID] = revision
+	return nil
+}
+
+func (f *fakeStore) GetDecompositionRevision(_ context.Context, outcomeID domain.OutcomeID, id domain.DecompositionRevisionID) (domain.DecompositionRevision, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	revision, ok := f.decompositions[id]
+	if !ok || revision.OutcomeID != outcomeID {
+		return domain.DecompositionRevision{}, false, nil
+	}
+	return revision, true, nil
+}
+
+func (f *fakeStore) LatestDecompositionRevision(_ context.Context, outcomeID domain.OutcomeID) (domain.DecompositionRevision, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var latest domain.DecompositionRevision
+	found := false
+	for _, id := range f.decompositionOrder {
+		revision := f.decompositions[id]
+		if revision.OutcomeID == outcomeID && (!found || revision.Number > latest.Number) {
+			latest, found = revision, true
+		}
+	}
+	return latest, found, nil
 }

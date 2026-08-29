@@ -1880,6 +1880,12 @@ type OutcomeIDParam struct {
 	OutcomeID string `path:"outcomeId" description:"Outcome identifier, e.g. out-<uuid>."`
 }
 
+// DecompositionIDParam is the {decompositionId} path parameter on the
+// decomposition authorization route.
+type DecompositionIDParam struct {
+	DecompositionID string `path:"decompositionId" description:"Decomposition revision identifier, e.g. dec-<uuid>."`
+}
+
 // AttemptIDParam is the {attemptId} path parameter shared by the attempt routes.
 type AttemptIDParam struct {
 	AttemptID string `path:"attemptId" description:"Attempt identifier, e.g. att-<uuid>."`
@@ -2997,27 +3003,6 @@ func attemptResponse(view outcomevc.AttemptView) AttemptResponse {
 
 // --- Composed Outcomes (ADR 0007) ---
 
-// CreateContributionRequest is the body for POST
-// /outcomes/{outcomeId}/contributions. A contributing Outcome states its own
-// contract, so the contract fields mirror CreateOutcomeRequest; claimedCriteria
-// is what makes it a contribution rather than an unrelated Outcome.
-type CreateContributionRequest struct {
-	Title           string   `json:"title"`
-	Goal            string   `json:"goal"`
-	SuccessCriteria []string `json:"successCriteria"`
-	Review          string   `json:"review"`
-	Constraints     []string `json:"constraints,omitempty"`
-	NonGoals        []string `json:"nonGoals,omitempty"`
-	Clarification   string   `json:"clarification,omitempty"`
-	// ClaimedCriteria names parent criterion identities from the parent's
-	// CURRENT contract revision. At least one is required.
-	ClaimedCriteria []string `json:"claimedCriteria"`
-	// Authority is the child's proposed ceiling. It may narrow the parent's
-	// and may never widen it.
-	Authority  IntakeAuthority `json:"authority,omitempty"`
-	RequestKey string          `json:"requestKey"`
-}
-
 // ContributionLinkResponse is one immutable criterion binding.
 type ContributionLinkResponse struct {
 	ID                       string    `json:"id"`
@@ -3116,4 +3101,168 @@ func outcomeCompositionResponse(view outcomevc.CompositionView, contributors []o
 		resp.UnclaimedCriteria = append(resp.UnclaimedCriteria, criterionClaimResponse(claim))
 	}
 	return resp
+}
+
+// --- Decomposition authority (ADR 0007 phase 2) ---
+
+// ProposeDecompositionRequest is the body for POST
+// /outcomes/{outcomeId}/decompositions. Omitting contributors asks the daemon
+// for its deterministic starting point: one contributing Outcome per parent
+// criterion, which the owner then corrects.
+type ProposeDecompositionRequest struct {
+	// ExpectedContractRevision must name the parent's current revision.
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+	// Rationale explains the topology in plain language. A decomposition the
+	// owner cannot evaluate is not reviewable.
+	Rationale    string                        `json:"rationale,omitempty"`
+	Contributors []ProposedContributionRequest `json:"contributors,omitempty"`
+	// RetainedCriteria are parent criteria the owner will prove directly
+	// rather than delegate.
+	RetainedCriteria []string                        `json:"retainedCriteria,omitempty"`
+	Dependencies     []ContributionDependencyRequest `json:"dependencies,omitempty"`
+}
+
+// ProposedContributionRequest is one contributing Outcome as offered. It
+// carries a whole contract because a contributing Outcome is a full
+// responsibility, not a task.
+type ProposedContributionRequest struct {
+	Ref             string          `json:"ref,omitempty"`
+	Title           string          `json:"title"`
+	Goal            string          `json:"goal"`
+	SuccessCriteria []string        `json:"successCriteria"`
+	Review          string          `json:"review"`
+	Constraints     []string        `json:"constraints,omitempty"`
+	NonGoals        []string        `json:"nonGoals,omitempty"`
+	Authority       IntakeAuthority `json:"authority,omitempty"`
+	ClaimedCriteria []string        `json:"claimedCriteria"`
+}
+
+// ContributionDependencyRequest declares that fromRef must finish before toRef
+// starts.
+type ContributionDependencyRequest struct {
+	FromRef string `json:"fromRef"`
+	ToRef   string `json:"toRef"`
+}
+
+// ProposedContributionResponse is one contributing Outcome as recorded.
+// ChildOutcomeID is absent until authorization creates the Outcome.
+type ProposedContributionResponse struct {
+	Ref             string          `json:"ref"`
+	Position        int64           `json:"position"`
+	Title           string          `json:"title"`
+	Goal            string          `json:"goal"`
+	SuccessCriteria []string        `json:"successCriteria"`
+	Review          string          `json:"review"`
+	Constraints     []string        `json:"constraints"`
+	NonGoals        []string        `json:"nonGoals"`
+	Authority       IntakeAuthority `json:"authority"`
+	ClaimedCriteria []string        `json:"claimedCriteria"`
+	ChildOutcomeID  string          `json:"childOutcomeId,omitempty"`
+}
+
+// ContributionDependencyResponse is one recorded ordering.
+type ContributionDependencyResponse struct {
+	ID      string `json:"id"`
+	FromRef string `json:"fromRef"`
+	ToRef   string `json:"toRef"`
+}
+
+// DecompositionResponse is one decomposition revision: a decomposed Outcome's
+// plan. Proposed means nothing exists yet; authorized means the contributing
+// Outcomes were created.
+type DecompositionResponse struct {
+	ID                 string                           `json:"id"`
+	OutcomeID          string                           `json:"outcomeId"`
+	Number             int64                            `json:"number"`
+	ContractRevisionID string                           `json:"contractRevisionId"`
+	Status             string                           `json:"status"`
+	Rationale          string                           `json:"rationale"`
+	Contributors       []ProposedContributionResponse   `json:"contributors"`
+	RetainedCriteria   []string                         `json:"retainedCriteria"`
+	Dependencies       []ContributionDependencyResponse `json:"dependencies"`
+	// Stale reports that the parent contract moved on after this
+	// decomposition was proposed. A stale proposal cannot be authorized.
+	Stale        bool       `json:"stale"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	AuthorizedAt *time.Time `json:"authorizedAt,omitempty"`
+}
+
+// DecompositionEnvelope is the { decomposition } response body.
+type DecompositionEnvelope struct {
+	Decomposition DecompositionResponse `json:"decomposition"`
+}
+
+func proposeDecompositionInput(req ProposeDecompositionRequest) outcomevc.ProposeDecompositionInput {
+	contributors := make([]outcomevc.ProposedContributionInput, 0, len(req.Contributors))
+	for _, contributor := range req.Contributors {
+		claimed := make([]domain.CriterionID, 0, len(contributor.ClaimedCriteria))
+		for _, id := range contributor.ClaimedCriteria {
+			claimed = append(claimed, domain.CriterionID(id))
+		}
+		contributors = append(contributors, outcomevc.ProposedContributionInput{
+			Ref: contributor.Ref, Title: contributor.Title, Goal: contributor.Goal,
+			SuccessCriteria: contributor.SuccessCriteria, Review: contributor.Review,
+			Constraints: contributor.Constraints, NonGoals: contributor.NonGoals,
+			Authority: proposedAuthority(contributor.Authority), ClaimedCriteria: claimed,
+		})
+	}
+	retained := make([]domain.CriterionID, 0, len(req.RetainedCriteria))
+	for _, id := range req.RetainedCriteria {
+		retained = append(retained, domain.CriterionID(id))
+	}
+	dependencies := make([]outcomevc.ContributionDependencyInput, 0, len(req.Dependencies))
+	for _, dependency := range req.Dependencies {
+		dependencies = append(dependencies, outcomevc.ContributionDependencyInput{FromRef: dependency.FromRef, ToRef: dependency.ToRef})
+	}
+	return outcomevc.ProposeDecompositionInput{
+		ExpectedContractRevision: req.ExpectedContractRevision,
+		Rationale:                req.Rationale,
+		Contributors:             contributors,
+		RetainedCriteria:         retained,
+		Dependencies:             dependencies,
+	}
+}
+
+func decompositionResponse(view outcomevc.DecompositionView) DecompositionResponse {
+	revision := view.Decomposition
+	resp := DecompositionResponse{
+		ID: string(revision.ID), OutcomeID: string(revision.OutcomeID), Number: revision.Number,
+		ContractRevisionID: string(revision.ContractRevisionID), Status: string(revision.Status),
+		Rationale:        revision.Rationale,
+		Contributors:     make([]ProposedContributionResponse, 0, len(revision.Contributors)),
+		RetainedCriteria: make([]string, 0, len(revision.RetainedCriteria)),
+		Dependencies:     make([]ContributionDependencyResponse, 0, len(revision.Dependencies)),
+		Stale:            view.Stale,
+		CreatedAt:        revision.CreatedAt,
+		AuthorizedAt:     revision.AuthorizedAt,
+	}
+	for _, contributor := range revision.Contributors {
+		claimed := make([]string, 0, len(contributor.ClaimedCriteria))
+		for _, id := range contributor.ClaimedCriteria {
+			claimed = append(claimed, string(id))
+		}
+		resp.Contributors = append(resp.Contributors, ProposedContributionResponse{
+			Ref: contributor.Ref, Position: contributor.Position, Title: contributor.Title,
+			Goal: contributor.Goal, SuccessCriteria: nonNilList(contributor.SuccessCriteria),
+			Review: contributor.Review, Constraints: nonNilList(contributor.Constraints),
+			NonGoals: nonNilList(contributor.NonGoals), Authority: intakeAuthority(contributor.Authority),
+			ClaimedCriteria: claimed, ChildOutcomeID: string(contributor.ChildOutcomeID),
+		})
+	}
+	for _, id := range revision.RetainedCriteria {
+		resp.RetainedCriteria = append(resp.RetainedCriteria, string(id))
+	}
+	for _, dependency := range revision.Dependencies {
+		resp.Dependencies = append(resp.Dependencies, ContributionDependencyResponse{
+			ID: dependency.ID, FromRef: dependency.FromRef, ToRef: dependency.ToRef,
+		})
+	}
+	return resp
+}
+
+func nonNilList(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }

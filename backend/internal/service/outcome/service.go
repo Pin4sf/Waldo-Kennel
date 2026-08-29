@@ -40,10 +40,25 @@ type Manager interface {
 	// contract belonging to the project's Work responsibility space.
 	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]OutcomeView, error)
 
-	// CreateContribution adds one contributing Outcome beneath parentID,
-	// bound to named criteria of the parent's CURRENT contract revision
-	// (ADR 0007). It fails closed on a third composition level, an unknown
-	// criterion, or a ceiling wider than the parent's.
+	// ProposeDecomposition validates a decomposition and records it as a
+	// proposal. It creates no Outcome and no binding: a refused proposal
+	// leaves nothing behind, and an accepted one is still only an offer.
+	ProposeDecomposition(ctx context.Context, parentID domain.OutcomeID, in ProposeDecompositionInput) (DecompositionView, error)
+
+	// AuthorizeDecomposition is the owner decision that creates the
+	// contributing Outcomes a proposal described. It re-runs every gate
+	// against the parent's current contract rather than trusting what passed
+	// at propose time.
+	AuthorizeDecomposition(ctx context.Context, parentID domain.OutcomeID, decompositionID domain.DecompositionRevisionID) (DecompositionView, error)
+
+	// LatestDecomposition reads the newest decomposition and whether the
+	// parent contract has moved past it.
+	LatestDecomposition(ctx context.Context, parentID domain.OutcomeID) (DecompositionView, error)
+
+	// CreateContribution adds one contributing Outcome beneath parentID. It is
+	// the transactional primitive authorization builds on; it is deliberately
+	// NOT exposed over HTTP, because an ad-hoc contribution would bypass the
+	// coverage, containment, and ordering gates.
 	CreateContribution(ctx context.Context, parentID domain.OutcomeID, in CreateContributionInput) (OutcomeView, error)
 
 	// Composition reports derived shape, contributing Outcomes, and criterion

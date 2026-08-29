@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -88,6 +89,28 @@ type OutcomeStore interface {
 	// ListContributionLinksForChild returns one contributing Outcome's
 	// bindings. Their shared parent revision is that Outcome's binding.
 	ListContributionLinksForChild(ctx context.Context, child domain.OutcomeID) ([]domain.ContributionLink, error)
+
+	// AppendDecompositionRevision persists one PROPOSED decomposition with its
+	// contributors, retained criteria, and dependencies, assigning the number
+	// inside the transaction. It creates no Outcome and no binding: a proposal
+	// is a reviewable offer, and a refused one leaves nothing behind.
+	AppendDecompositionRevision(ctx context.Context, revision domain.DecompositionRevision) (domain.DecompositionRevision, error)
+
+	// AuthorizeDecompositionRevision is the owner decision that turns a
+	// proposal into responsibilities. Every contributing Outcome, its first
+	// contract, its criterion bindings, the proposal's resolution, and the
+	// one-way status move land in one transaction — a half-decomposed parent
+	// would be a decomposition nobody authorized. Authorizing anything that is
+	// not an open proposal returns ErrDecompositionNotProposed.
+	AuthorizeDecompositionRevision(ctx context.Context, outcomeID domain.OutcomeID, decompositionID domain.DecompositionRevisionID, contributions []AuthorizedContribution, at time.Time) error
+
+	// GetDecompositionRevision reads one decomposition; ok=false when absent
+	// for this Outcome.
+	GetDecompositionRevision(ctx context.Context, outcomeID domain.OutcomeID, id domain.DecompositionRevisionID) (domain.DecompositionRevision, bool, error)
+
+	// LatestDecompositionRevision returns the newest decomposition of any
+	// status; ok=false when the Outcome has never been decomposed.
+	LatestDecompositionRevision(ctx context.Context, outcomeID domain.OutcomeID) (domain.DecompositionRevision, bool, error)
 
 	// AppendPlanRevision atomically persists one proposed plan together with
 	// its single Work Unit and capability grants, assigning the plan number
@@ -208,3 +231,17 @@ type AttemptReplayError struct {
 func (e *AttemptReplayError) Error() string {
 	return fmt.Sprintf("attempt %s was already admitted for this request key", e.Attempt.ID)
 }
+
+// AuthorizedContribution pairs one proposal ref with the Outcome, contract,
+// and bindings authorization creates for it. The service resolves proposals
+// into these; storage writes them atomically.
+type AuthorizedContribution struct {
+	Ref     string
+	Outcome domain.Outcome
+	First   domain.ContractRevision
+	Links   []domain.ContributionLink
+}
+
+// ErrDecompositionNotProposed reports an authorization attempt against a
+// decomposition that is not an open proposal — already authorized or absent.
+var ErrDecompositionNotProposed = errors.New("decomposition is not an open proposal")

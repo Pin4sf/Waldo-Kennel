@@ -178,6 +178,13 @@ type ContractRevisionIntakeCore struct {
 	CreatedAt            time.Time
 }
 
+type ContributionDependency struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	FromRef         string
+	ToRef           string
+}
+
 type ContributionLink struct {
 	ID                       string
 	ParentOutcomeID          string
@@ -302,6 +309,39 @@ type ConversationTurn struct {
 	BranchID             string
 	PromotionStartedAt   sql.NullTime
 	PromotedToTurnID     sql.NullString
+}
+
+type DecompositionContribution struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	Ref             string
+	Position        int64
+	Title           string
+	Goal            string
+	SuccessCriteria string
+	Review          string
+	Constraints     string
+	NonGoals        string
+	Authority       string
+	ClaimedCriteria string
+	ChildOutcomeID  *domain.OutcomeID
+}
+
+type DecompositionRetainedCriterium struct {
+	ID                string
+	DecompositionID   domain.DecompositionRevisionID
+	ParentCriterionID domain.CriterionID
+}
+
+type DecompositionRevision struct {
+	ID                 domain.DecompositionRevisionID
+	OutcomeID          domain.OutcomeID
+	Number             int64
+	ContractRevisionID domain.ContractRevisionID
+	Status             domain.DecompositionStatus
+	Rationale          string
+	CreatedAt          time.Time
+	AuthorizedAt       sql.NullTime
 }
 
 type EvidenceItem struct {

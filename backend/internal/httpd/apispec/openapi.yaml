@@ -1758,9 +1758,49 @@ paths:
       summary: Read derived shape, contributing Outcomes, and criterion coverage
       tags:
       - outcomes
-  /api/v1/outcomes/{outcomeId}/contributions:
+  /api/v1/outcomes/{outcomeId}/decomposition:
+    get:
+      operationId: getLatestOutcomeDecomposition
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecompositionEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read the newest decomposition and whether the parent contract moved
+        past it
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/decompositions:
     post:
-      operationId: createOutcomeContribution
+      operationId: proposeOutcomeDecomposition
       parameters:
       - description: Outcome identifier, e.g. out-<uuid>.
         in: path
@@ -1773,14 +1813,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateContributionRequest'
+              $ref: '#/components/schemas/ProposeDecompositionRequest'
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OutcomeEnvelope'
+                $ref: '#/components/schemas/DecompositionEnvelope'
           description: Created
         "400":
           content:
@@ -1806,7 +1846,59 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
-      summary: Add one contributing Outcome bound to parent criteria
+      summary: Propose a decomposition into contributing Outcomes (creates nothing)
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/decompositions/{decompositionId}/authorization:
+    post:
+      operationId: authorizeOutcomeDecomposition
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Decomposition revision identifier, e.g. dec-<uuid>.
+        in: path
+        name: decompositionId
+        required: true
+        schema:
+          description: Decomposition revision identifier, e.g. dec-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecompositionEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Authorize a decomposition, creating its contributing Outcomes
       tags:
       - outcomes
   /api/v1/outcomes/{outcomeId}/evidence:
@@ -7794,6 +7886,29 @@ components:
       - nonGoals
       - createdAt
       type: object
+    ContributionDependencyRequest:
+      properties:
+        fromRef:
+          type: string
+        toRef:
+          type: string
+      required:
+      - fromRef
+      - toRef
+      type: object
+    ContributionDependencyResponse:
+      properties:
+        fromRef:
+          type: string
+        id:
+          type: string
+        toRef:
+          type: string
+      required:
+      - id
+      - fromRef
+      - toRef
+      type: object
     ContributionLinkResponse:
       properties:
         childOutcomeId:
@@ -8785,44 +8900,6 @@ components:
       - cachedTokens
       - totalTokens
       type: object
-    CreateContributionRequest:
-      properties:
-        authority:
-          $ref: '#/components/schemas/ControllersIntakeAuthority'
-        claimedCriteria:
-          items:
-            type: string
-          type: array
-        clarification:
-          type: string
-        constraints:
-          items:
-            type: string
-          type: array
-        goal:
-          type: string
-        nonGoals:
-          items:
-            type: string
-          type: array
-        requestKey:
-          type: string
-        review:
-          type: string
-        successCriteria:
-          items:
-            type: string
-          type: array
-        title:
-          type: string
-      required:
-      - title
-      - goal
-      - successCriteria
-      - review
-      - claimedCriteria
-      - requestKey
-      type: object
     CreateIntakeRequest:
       properties:
         conversationRefs:
@@ -8973,6 +9050,63 @@ components:
       - summary
       - resourceDisposition
       - requestKey
+      type: object
+    DecompositionEnvelope:
+      properties:
+        decomposition:
+          $ref: '#/components/schemas/DecompositionResponse'
+      required:
+      - decomposition
+      type: object
+    DecompositionResponse:
+      properties:
+        authorizedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        contractRevisionId:
+          type: string
+        contributors:
+          items:
+            $ref: '#/components/schemas/ProposedContributionResponse'
+          type: array
+        createdAt:
+          format: date-time
+          type: string
+        dependencies:
+          items:
+            $ref: '#/components/schemas/ContributionDependencyResponse'
+          type: array
+        id:
+          type: string
+        number:
+          format: int64
+          type: integer
+        outcomeId:
+          type: string
+        rationale:
+          type: string
+        retainedCriteria:
+          items:
+            type: string
+          type: array
+        stale:
+          type: boolean
+        status:
+          type: string
+      required:
+      - id
+      - outcomeId
+      - number
+      - contractRevisionId
+      - status
+      - rationale
+      - contributors
+      - retainedCriteria
+      - dependencies
+      - stale
+      - createdAt
       type: object
     DegradedProject:
       properties:
@@ -10334,6 +10468,28 @@ components:
       - providerTurnId
       - activityId
       type: object
+    ProposeDecompositionRequest:
+      properties:
+        contributors:
+          items:
+            $ref: '#/components/schemas/ProposedContributionRequest'
+          type: array
+        dependencies:
+          items:
+            $ref: '#/components/schemas/ContributionDependencyRequest'
+          type: array
+        expectedContractRevision:
+          format: int64
+          type: integer
+        rationale:
+          type: string
+        retainedCriteria:
+          items:
+            type: string
+          type: array
+      required:
+      - expectedContractRevision
+      type: object
     ProposePlanRequest:
       properties:
         expectedContractRevision:
@@ -10341,6 +10497,86 @@ components:
           type: integer
       required:
       - expectedContractRevision
+      type: object
+    ProposedContributionRequest:
+      properties:
+        authority:
+          $ref: '#/components/schemas/ControllersIntakeAuthority'
+        claimedCriteria:
+          items:
+            type: string
+          type: array
+        constraints:
+          items:
+            type: string
+          type: array
+        goal:
+          type: string
+        nonGoals:
+          items:
+            type: string
+          type: array
+        ref:
+          type: string
+        review:
+          type: string
+        successCriteria:
+          items:
+            type: string
+          type: array
+        title:
+          type: string
+      required:
+      - title
+      - goal
+      - successCriteria
+      - review
+      - claimedCriteria
+      type: object
+    ProposedContributionResponse:
+      properties:
+        authority:
+          $ref: '#/components/schemas/ControllersIntakeAuthority'
+        childOutcomeId:
+          type: string
+        claimedCriteria:
+          items:
+            type: string
+          type: array
+        constraints:
+          items:
+            type: string
+          type: array
+        goal:
+          type: string
+        nonGoals:
+          items:
+            type: string
+          type: array
+        position:
+          format: int64
+          type: integer
+        ref:
+          type: string
+        review:
+          type: string
+        successCriteria:
+          items:
+            type: string
+          type: array
+        title:
+          type: string
+      required:
+      - ref
+      - position
+      - title
+      - goal
+      - successCriteria
+      - review
+      - constraints
+      - nonGoals
+      - authority
+      - claimedCriteria
       type: object
     PushDeviceEnvelope:
       properties:

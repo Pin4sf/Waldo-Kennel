@@ -133,3 +133,60 @@ ORDER BY created_at, id;
 SELECT id, parent_outcome_id, child_outcome_id, parent_contract_revision_id, parent_criterion_id, created_at
 FROM contribution_links WHERE child_outcome_id = ?
 ORDER BY created_at, id;
+
+-- Decomposition authority (ADR 0007 phase 2). Proposals are append-only; the
+-- only permitted mutation is the one-way move to authorized.
+
+-- name: CreateDecompositionRevision :exec
+INSERT INTO decomposition_revisions (id, outcome_id, number, contract_revision_id, status, rationale, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- name: MaxDecompositionRevisionNumber :one
+SELECT CAST(COALESCE(MAX(number), 0) AS INTEGER) FROM decomposition_revisions WHERE outcome_id = ?;
+
+-- name: GetDecompositionRevision :one
+SELECT id, outcome_id, number, contract_revision_id, status, rationale, created_at, authorized_at
+FROM decomposition_revisions WHERE id = ? AND outcome_id = ?;
+
+-- name: LatestDecompositionRevision :one
+SELECT id, outcome_id, number, contract_revision_id, status, rationale, created_at, authorized_at
+FROM decomposition_revisions WHERE outcome_id = ?
+ORDER BY number DESC LIMIT 1;
+
+-- name: AuthorizeDecompositionRevision :execrows
+UPDATE decomposition_revisions
+SET status = 'authorized', authorized_at = ?
+WHERE id = ? AND outcome_id = ? AND status = 'proposed';
+
+-- name: CreateDecompositionContribution :exec
+INSERT INTO decomposition_contributions
+    (id, decomposition_id, ref, position, title, goal, success_criteria, review, constraints, non_goals, authority, claimed_criteria)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: ListDecompositionContributions :many
+SELECT id, decomposition_id, ref, position, title, goal, success_criteria, review, constraints, non_goals, authority, claimed_criteria, child_outcome_id
+FROM decomposition_contributions WHERE decomposition_id = ?
+ORDER BY position, ref;
+
+-- name: BindDecompositionContributionOutcome :execrows
+UPDATE decomposition_contributions
+SET child_outcome_id = ?
+WHERE id = ? AND child_outcome_id IS NULL;
+
+-- name: CreateDecompositionRetainedCriterion :exec
+INSERT INTO decomposition_retained_criteria (id, decomposition_id, parent_criterion_id)
+VALUES (?, ?, ?);
+
+-- name: ListDecompositionRetainedCriteria :many
+SELECT id, decomposition_id, parent_criterion_id
+FROM decomposition_retained_criteria WHERE decomposition_id = ?
+ORDER BY parent_criterion_id;
+
+-- name: CreateContributionDependency :exec
+INSERT INTO contribution_dependencies (id, decomposition_id, from_ref, to_ref)
+VALUES (?, ?, ?, ?);
+
+-- name: ListContributionDependencies :many
+SELECT id, decomposition_id, from_ref, to_ref
+FROM contribution_dependencies WHERE decomposition_id = ?
+ORDER BY from_ref, to_ref;

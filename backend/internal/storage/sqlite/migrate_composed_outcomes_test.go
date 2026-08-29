@@ -1,6 +1,9 @@
 package sqlite
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -120,4 +123,63 @@ func TestComposedOutcomesSchemaDefersOnDegradedProfile(t *testing.T) {
 	if err := reconcileComposedOutcomesSchema(full); err != nil {
 		t.Fatalf("reconcile must be idempotent: %v", err)
 	}
+}
+
+// The composition DDL is shared verbatim between sqlc and the startup seam, so
+// generated code cannot describe relations the database does not have. This
+// asserts the sharing actually holds: every relation the schema file declares
+// exists after a real migrate, and the sqlc-only column file matches what the
+// seam adds in Go.
+func TestComposedOutcomesSchemaMatchesTheSeam(t *testing.T) {
+	declared := declaredRelations(t)
+	if len(declared) < 5 {
+		t.Fatalf("expected the schema file to declare the composition relations, found %v", declared)
+	}
+
+	db := openContractTestDB(t)
+	upTo(t, db, 107)
+	if err := reconcileComposedOutcomesSchema(db); err != nil {
+		t.Fatalf("reconcile composed outcomes schema: %v", err)
+	}
+	for _, name := range declared {
+		var present int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, name,
+		).Scan(&present); err != nil {
+			t.Fatalf("inspect %s: %v", name, err)
+		}
+		if present == 0 {
+			t.Fatalf("schema declares %q for sqlc but the seam never creates it", name)
+		}
+	}
+
+	// The ALTER lives in a sqlc-only file because SQLite cannot guard it; the
+	// seam performs it in Go. Both must name the same column.
+	columns, err := os.ReadFile(filepath.Join("schema", "composed_outcomes_columns.sql"))
+	if err != nil {
+		t.Fatalf("read sqlc-only column file: %v", err)
+	}
+	if !strings.Contains(string(columns), "parent_outcome_id") {
+		t.Fatal("the sqlc-only column file must declare parent_outcome_id")
+	}
+	var hasParent int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM pragma_table_info('outcomes') WHERE name = 'parent_outcome_id'`,
+	).Scan(&hasParent); err != nil {
+		t.Fatalf("inspect outcomes columns: %v", err)
+	}
+	if hasParent != 1 {
+		t.Fatal("the seam must add the column the sqlc-only file declares")
+	}
+}
+
+// declaredRelations extracts every table name the shared schema file creates.
+func declaredRelations(t *testing.T) []string {
+	t.Helper()
+	matches := regexp.MustCompile(`(?i)CREATE TABLE IF NOT EXISTS\s+(\w+)`).FindAllStringSubmatch(composedOutcomesDDL, -1)
+	names := make([]string, 0, len(matches))
+	for _, match := range matches {
+		names = append(names, match[1])
+	}
+	return names
 }
