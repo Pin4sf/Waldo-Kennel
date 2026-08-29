@@ -1,4 +1,4 @@
-import { SessionsBoardGridView, SessionsListView, SessionsViewSwitch } from "@pin4sf/kennel-product-ui";
+import { SessionsBoardGridView, SessionsListView } from "@pin4sf/kennel-product-ui";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,7 +16,6 @@ import { boardAttentionZoneOrder, getAttentionZoneViewForZone } from "../../lib/
 import { useUiStore } from "../../stores/ui-store";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { OutcomeAttemptTerminalPanel } from "./OutcomeAttemptTerminalPanel";
 import {
 	AttemptCardAdapter,
 	AttemptRowAdapter,
@@ -90,21 +89,24 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfac
 		planApproved && !pending && (!current || current.fence === undefined);
 
 	const outcomeRunViewMode = useUiStore((state) => state.outcomeRunViewMode);
-	const setOutcomeRunViewMode = useUiStore((state) => state.setOutcomeRunViewMode);
 	const boardColumns = useMemo(() => boardAttentionZoneOrder.map((zone) => getAttentionZoneViewForZone(zone, t)), [t]);
 	const boardLabels = useMemo(() => outcomeRunBoardLabels(t), [t]);
 	const attemptPresentations: AttemptBoardPresentation[] = useMemo(
 		() => attempts.map((attempt) => toAttemptBoardPresentation(attempt, plan, attempt.id === current?.id, t)),
 		[attempts, plan, current?.id, t],
 	);
-	// Instruct (Board) / Choose /Engage (List) drills into the current attempt's
-	// real bound session in a terminal panel beside the board/list, rather than
-	// leaving the click with no visible effect.
-	const [isAttemptPanelOpen, setIsAttemptPanelOpen] = useState(false);
+	// Instruct (Board) / Choose / Engage (List) drills into the current
+	// attempt's real bound session in a terminal panel. The panel itself is
+	// docked by WorkShell (components/outcome/WorkShell.tsx) beside every
+	// Work stage — not just this one — so its open state lives in the shared
+	// ui-store slice rather than local state, and the same terminal-toggle
+	// button in the persistent top bar opens the exact same panel.
+	const openAttemptPanel = useUiStore((state) => state.openOutcomeAttemptPanel);
+	const closeAttemptPanel = useUiStore((state) => state.closeOutcomeAttemptPanel);
 	useEffect(() => {
-		setIsAttemptPanelOpen(false);
-	}, [current?.id]);
-	const engageCurrentAttempt = () => setIsAttemptPanelOpen(true);
+		closeAttemptPanel();
+	}, [current?.id, closeAttemptPanel]);
+	const engageCurrentAttempt = () => openAttemptPanel();
 
 	async function startAttempt() {
 		if (!plan || pending) return;
@@ -173,43 +175,31 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfac
 			    nothing here is fabricated, every card comes from `attempts`. */}
 			{attempts.length > 0 && (
 				<div className="flex min-h-0 flex-1 flex-col gap-2.5" data-testid="outcome-run-board">
-					<div className="flex items-center justify-between gap-2">
-						<h3 className="text-sm font-medium text-foreground">{t("outcome.run.lineageHeading")}</h3>
-						<SessionsViewSwitch
-							labels={{
-								ariaLabel: t("outcome.run.viewSwitchAria"),
-								board: t("outcome.run.viewBoard"),
-								list: t("outcome.run.viewList"),
-							}}
-							onChange={setOutcomeRunViewMode}
-							value={outcomeRunViewMode}
-						/>
-					</div>
-					<div className="flex min-h-0 flex-1 gap-2.5">
-						<div className="h-[24rem] min-w-0 min-h-0 flex-1">
-							{outcomeRunViewMode === "list" ? (
-								<SessionsListView
-									columns={boardColumns}
-									labels={boardLabels}
-									renderSessionRow={(presentation) => (
-										<AttemptRowAdapter onEngage={engageCurrentAttempt} presentation={presentation} />
-									)}
-									sessions={attemptPresentations}
-								/>
-							) : (
-								<SessionsBoardGridView
-									columns={boardColumns}
-									labels={boardLabels}
-									renderSessionCard={(presentation) => (
-										<AttemptCardAdapter onEngage={engageCurrentAttempt} presentation={presentation} />
-									)}
-									sessions={attemptPresentations}
-								/>
-							)}
-						</div>
-						{isAttemptPanelOpen && current ? (
-							<OutcomeAttemptTerminalPanel attempt={current} onClose={() => setIsAttemptPanelOpen(false)} />
-						) : null}
+					{/* List/Board itself is hoisted into WorkShell's persistent top bar
+					    (Figma shows it there on every Work stage, not just this one) —
+					    it still governs this reading of the lineage via the same
+					    outcomeRunViewMode store slice. */}
+					<h3 className="text-sm font-medium text-foreground">{t("outcome.run.lineageHeading")}</h3>
+					<div className="h-[24rem] min-h-0 flex-1">
+						{outcomeRunViewMode === "list" ? (
+							<SessionsListView
+								columns={boardColumns}
+								labels={boardLabels}
+								renderSessionRow={(presentation) => (
+									<AttemptRowAdapter onEngage={engageCurrentAttempt} presentation={presentation} />
+								)}
+								sessions={attemptPresentations}
+							/>
+						) : (
+							<SessionsBoardGridView
+								columns={boardColumns}
+								labels={boardLabels}
+								renderSessionCard={(presentation) => (
+									<AttemptCardAdapter onEngage={engageCurrentAttempt} presentation={presentation} />
+								)}
+								sessions={attemptPresentations}
+							/>
+						)}
 					</div>
 				</div>
 			)}
