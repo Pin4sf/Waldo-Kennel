@@ -7,16 +7,29 @@ import { useUiStore } from "../../stores/ui-store";
 import { TooltipProvider } from "../ui/tooltip";
 
 // Locked contract under test: WorkShell is the persistent chrome every Work
-// stage renders inside — it must always show real navigation (List/Board,
-// terminal toggle, Outcomes), never an inert control masquerading as one, and
-// the terminal toggle must reflect real attempt data, never local guesswork.
-const { navigateMock, attemptsQueryMock } = vi.hoisted(() => ({
+// stage renders inside — it must always show real navigation (back/forward,
+// sidebar toggle, search, notifications, List/Board, terminal toggle,
+// Outcomes), never an inert control masquerading as one, and the terminal
+// toggle must reflect real attempt data, never local guesswork.
+const { navigateMock, attemptsQueryMock, historyBackMock, historyForwardMock, canGoBackRef } = vi.hoisted(() => ({
 	navigateMock: vi.fn(),
 	attemptsQueryMock: vi.fn(),
+	historyBackMock: vi.fn(),
+	historyForwardMock: vi.fn(),
+	canGoBackRef: { current: false },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => navigateMock,
+	useCanGoBack: () => canGoBackRef.current,
+	useRouter: () => ({
+		history: {
+			back: historyBackMock,
+			forward: historyForwardMock,
+			location: { state: { __TSR_index: 0 } },
+			subscribe: () => () => {},
+		},
+	}),
 }));
 
 vi.mock("../../hooks/useOutcome", () => ({
@@ -56,12 +69,27 @@ function renderShell(props: Partial<React.ComponentProps<typeof WorkShell>> = {}
 describe("WorkShell", () => {
 	beforeEach(() => {
 		navigateMock.mockClear();
+		historyBackMock.mockClear();
+		historyForwardMock.mockClear();
+		canGoBackRef.current = false;
 		attemptsQueryMock.mockReset().mockReturnValue({ attempts: [], isLoading: false, refetch: vi.fn() });
-		useUiStore.setState({ isOutcomeAttemptPanelOpen: false, outcomeRunViewMode: "board", isCommandPaletteOpen: false });
+		useUiStore.setState({
+			isOutcomeAttemptPanelOpen: false,
+			outcomeRunViewMode: "board",
+			isCommandPaletteOpen: false,
+			isKeyboardShortcutsOpen: false,
+			isSidebarOpen: true,
+		});
 	});
 
 	afterEach(() => {
-		useUiStore.setState({ isOutcomeAttemptPanelOpen: false, outcomeRunViewMode: "board", isCommandPaletteOpen: false });
+		useUiStore.setState({
+			isOutcomeAttemptPanelOpen: false,
+			outcomeRunViewMode: "board",
+			isCommandPaletteOpen: false,
+			isKeyboardShortcutsOpen: false,
+			isSidebarOpen: true,
+		});
 	});
 
 	it("renders the stage body it wraps", () => {
@@ -120,5 +148,41 @@ describe("WorkShell", () => {
 	it("leaves the relationship graph disabled — a bonus, not a promised destination", () => {
 		renderShell();
 		expect(screen.getByTestId("work-shell-graph")).toBeDisabled();
+	});
+
+	it("groups the sidebar toggle, back/forward, search, and notifications in one left cluster", () => {
+		renderShell();
+		expect(screen.getByRole("button", { name: /collapse sidebar|expand sidebar/i })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /go back/i })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /go forward/i })).toBeInTheDocument();
+		expect(screen.getByTestId("mock-notification-center")).toBeInTheDocument();
+	});
+
+	it("toggles the sidebar from its own inline control", async () => {
+		const user = userEvent.setup();
+		renderShell();
+		expect(useUiStore.getState().isSidebarOpen).toBe(true);
+		await user.click(screen.getByRole("button", { name: /collapse sidebar|expand sidebar/i }));
+		expect(useUiStore.getState().isSidebarOpen).toBe(false);
+	});
+
+	it("disables back/forward when there is nowhere to go, and calls real router history otherwise", async () => {
+		canGoBackRef.current = true;
+		const user = userEvent.setup();
+		renderShell();
+		const back = screen.getByRole("button", { name: /go back/i });
+		const forward = screen.getByRole("button", { name: /go forward/i });
+		expect(back).toBeEnabled();
+		expect(forward).toBeDisabled();
+		await user.click(back);
+		expect(historyBackMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("opens the shared keyboard-shortcuts dialog from the bottom-left help button", async () => {
+		const user = userEvent.setup();
+		renderShell();
+		expect(useUiStore.getState().isKeyboardShortcutsOpen).toBe(false);
+		await user.click(screen.getByTestId("work-shell-help"));
+		expect(useUiStore.getState().isKeyboardShortcutsOpen).toBe(true);
 	});
 });
