@@ -43,6 +43,18 @@ npm run build
 
 When showing or demoing frontend changes, run `kennel preview [url]` from inside the session so the change renders in the desktop browser panel (the inspector rail's Browser tab); do not just describe it.
 
+To drive the renderer against a REAL daemon from a browser (screenshots, DOM
+assertions, no Electron shell):
+
+```bash
+KENNEL_DEV_API_TARGET=http://127.0.0.1:<daemon-port> npm --prefix frontend run dev:web:live
+```
+
+`dev:web` stays on demo fixtures. `dev:web:live` points the dev server's proxy
+at a running daemon and keeps renderer requests same-origin so that proxy is
+actually used. Known limitation: a hard page load of `/work?...` does not mount
+that route in browser preview — navigate to it by clicking through the app.
+
 ## Where to look first
 
 - `README.md` — current run/config/test quickstart.

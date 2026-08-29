@@ -1,4 +1,6 @@
 import type { AoBridge } from "../../preload";
+import type { DaemonStatus } from "../../shared/daemon-status";
+import { usesLiveDaemonPreview } from "./preview-mode";
 import { coerceLocale } from "../../shared/ui-locale";
 export type { FeatureBuild } from "../../main/feature-builds";
 
@@ -68,10 +70,26 @@ export const aoBridge: AoBridge =
 			readText: async () => (navigator.clipboard?.readText ? navigator.clipboard.readText() : ""),
 		},
 		daemon: {
-			getStatus: async () => ({
-				state: "stopped",
-				message: "Electron preload is not available in browser preview.",
-			}),
+			// Without Electron there is no supervisor to ask, so readiness is
+			// probed over HTTP instead. In live preview the daemon sits behind
+			// the dev server's proxy, and answering "stopped" — as this used to,
+			// unconditionally — made every surface wait forever on a daemon that
+			// was in fact running.
+			getStatus: async (): Promise<DaemonStatus> => {
+				if (!usesLiveDaemonPreview) {
+					return { state: "stopped", message: "Electron preload is not available in browser preview." };
+				}
+				try {
+					const response = await fetch("/api/v1/projects", { method: "GET" });
+					if (!response.ok) {
+						return { state: "error", message: `The daemon answered ${response.status}.` };
+					}
+					// No port: requests stay same-origin so the proxy is used.
+					return { state: "ready" };
+				} catch {
+					return { state: "stopped", message: "No daemon is reachable through the dev server proxy." };
+				}
+			},
 			start: async () => ({ state: "starting" }),
 			stop: async () => ({ state: "stopped" }),
 			restart: async () => ({ state: "starting" }),
