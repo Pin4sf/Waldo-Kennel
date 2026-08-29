@@ -9,8 +9,11 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import type { AttemptRecord, PlanRecord } from "../../hooks/useOutcome";
+import { useSessionScmSummary } from "../../hooks/useSessionScmSummary";
+import { useWorkspaceQuery } from "../../hooks/useWorkspaceQuery";
 import type { MessageKey } from "../../i18n/messages";
 import { formatTimeCompact } from "../../lib/format-time";
+import { prBrowserUrl, sessionPRDisplaySummaries } from "../../lib/pr-display";
 import type { AttentionZone } from "../../lib/session-presentation";
 import type { SessionStatus } from "../../types/workspace";
 import { ProductExternalLink } from "../ProductExternalLink";
@@ -171,11 +174,59 @@ function EngageAttemptButton({ onEngage }: { onEngage: () => void }) {
 	);
 }
 
+function MergeAttemptLink({ href }: { href: string }) {
+	const { t } = useTranslation();
+	return (
+		<ProductExternalLink
+			className="relative z-10 inline-flex h-[30px] items-center justify-center rounded-md border border-border-strong bg-popover px-2.5 text-brand font-medium text-foreground transition-colors hover:bg-white/10"
+			href={href}
+			stopPropagation
+		>
+			{t("pr.merge.action")}
+		</ProductExternalLink>
+	);
+}
+
+/**
+ * Resolves the current attempt's most recently bound session to a real pull
+ * request, so the Ready lane (a succeeded attempt) can offer a genuine Merge
+ * action next to Engage — reusing the exact hooks and URL helpers the generic
+ * Sessions board already uses for the identical job (`useSessionScmSummary`,
+ * `sessionPRDisplaySummaries`, `prBrowserUrl`), not a new API call. An
+ * Attempt carries no PR field of its own; only its bound WorkspaceSession does.
+ */
+function useAttemptMergeHref(attempt: AttemptRecord): string | undefined {
+	const latestBinding = attempt.sessions[attempt.sessions.length - 1];
+	const sessionId = latestBinding?.sessionId;
+	const workspaceQuery = useWorkspaceQuery();
+	const scmQuery = useSessionScmSummary(sessionId);
+	const session = (workspaceQuery.data ?? [])
+		.flatMap((workspace) => workspace.sessions)
+		.find((candidate) => candidate.id === sessionId);
+	if (!session) return undefined;
+	const [primaryPR] = sessionPRDisplaySummaries(session, scmQuery.data);
+	return primaryPR ? prBrowserUrl(primaryPR) : undefined;
+}
+
+function AttemptCardActions({ onEngage, presentation }: { onEngage: () => void; presentation: AttemptBoardPresentation }) {
+	const mergeHref = useAttemptMergeHref(presentation.attempt);
+	const showMerge = attemptZone(presentation.attempt.presentation.phase) === "merge" && Boolean(mergeHref);
+	if (!showMerge) return <EngageAttemptButton onEngage={onEngage} />;
+	return (
+		<span className="relative z-10 inline-flex items-center gap-1.5">
+			<EngageAttemptButton onEngage={onEngage} />
+			<MergeAttemptLink href={mergeHref as string} />
+		</span>
+	);
+}
+
 /**
  * The board card for one attempt. Only the current attempt is interactive
  * (Engage scrolls the actionable detail panel into view) — historical attempts
  * in the lineage render read-only, the same way `ArchivedSessionCardAdapter`
- * keeps terminated sessions informational.
+ * keeps terminated sessions informational. A succeeded current attempt with a
+ * real pull request additionally offers Merge, matching the Ready lane's
+ * Instruct+Merge pairing on the generic Sessions board.
  */
 export function AttemptCardAdapter({
 	onEngage,
@@ -188,7 +239,7 @@ export function AttemptCardAdapter({
 	const translate: ProductUITranslator = (key, values) => t(key as MessageKey, values);
 	return (
 		<SessionCardView
-			action={presentation.isCurrent ? <EngageAttemptButton onEngage={onEngage} /> : undefined}
+			action={presentation.isCurrent ? <AttemptCardActions onEngage={onEngage} presentation={presentation} /> : undefined}
 			externalLink={ProductExternalLink}
 			interactive={presentation.isCurrent}
 			labels={attemptCardLabels(t)}
@@ -211,7 +262,13 @@ export function AttemptRowAdapter({
 	const translate: ProductUITranslator = (key, values) => t(key as MessageKey, values);
 	return (
 		<SessionRowView
-			action={presentation.isCurrent ? <EngageAttemptButton onEngage={onEngage} /> : <span aria-hidden="true" />}
+			action={
+				presentation.isCurrent ? (
+					<AttemptCardActions onEngage={onEngage} presentation={presentation} />
+				) : (
+					<span aria-hidden="true" />
+				)
+			}
 			externalLink={ProductExternalLink}
 			interactive={presentation.isCurrent}
 			labels={attemptCardLabels(t)}
