@@ -164,7 +164,11 @@ function ShellLayout() {
 	}, [isFullScreen]);
 	// Seeded to the current value so a mount never opens a terminal unasked.
 	const handledShellNonceRef = useRef(newShellTerminalNonce);
-	const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
+	// Lives in ui-store, not local state: WorkShell's bottom-left help button
+	// opens this exact dialog too, and a store slice is the shared channel every
+	// other one-shot cross-component signal in this file already uses.
+	const isKeyboardShortcutsOpen = useUiStore((state) => state.isKeyboardShortcutsOpen);
+	const setIsKeyboardShortcutsOpen = useUiStore((state) => state.setKeyboardShortcutsOpen);
 	const [isKeyboardShortcutsSettingsOpen, setIsKeyboardShortcutsSettingsOpen] = useState(false);
 	const [isSidebarPeekOpen, setIsSidebarPeekOpen] = useState(false);
 	const sidebarPeekCloseTimerRef = useRef<number | undefined>(undefined);
@@ -816,7 +820,13 @@ function ShellLayout() {
 							{/* Board/session routes render inside the same inset box the welcome board and settings paint for themselves, so every screen sits within the app's outer boundary. */}
 							{usesWorkProjectShell ? (
 								<CenterPanelShell className="center-panel-shell--figma-board">
-									{hideShellTopbar ? null : <ShellTopbar />}
+									{/* WorkShell (mounted by every /work branch) carries its own
+									    full topbar row — ShellTopbar has no concept of the Work
+									    destination and falls back to a bare "Board" crumb, so it
+									    would double up rather than complement it. Board/session
+									    routes are unaffected: they still get ShellTopbar wherever
+									    the platform doesn't hide it. */}
+									{hideShellTopbar || isOutcomeWorkRoute ? null : <ShellTopbar />}
 									<div className="flex min-h-0 flex-1 flex-col">
 										<Outlet />
 									</div>
@@ -896,13 +906,16 @@ function ShellLayout() {
               survive if they're processed after the drag strips they overlap.
               Rendered first, real clicks get swallowed by window-drag even
               though DOM hit-testing looks correct. */}
-					{/* The figma-board Kanban/session routes paint this cluster
-					    themselves inside their own full-bleed shell (unchanged from
-					    earlier rounds). Work does not — its stage surfaces render
-					    directly inside WorkShell with no substitute for back/forward
-					    or the sidebar toggle, so this must stay mounted for Work or
-					    those controls silently vanish for the whole destination. */}
-					{usesWorkProjectShell && !isOutcomeWorkRoute ? null : (
+					{/* Every figma-board route (Kanban/session AND Work) paints its own
+					    back/forward + sidebar-toggle inline instead of this fixed
+					    cluster: on Work specifically, WorkShell groups them with
+					    search and the notification bell in one left-aligned row
+					    (Figma's Board/Enter screenshots), which this fixed-position
+					    cluster — anchored to reserve space for real native traffic
+					    lights that don't exist in browser preview — cannot do. Round 3
+					    special-cased Work to render this cluster instead; superseded
+					    by WorkShell's own inline controls. */}
+					{usesWorkProjectShell ? null : (
 						<TitlebarNav
 							hasSessionTopbar={Boolean(routeParams.sessionId)}
 							historyLocked={isWelcomeBoard}

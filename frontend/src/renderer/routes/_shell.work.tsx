@@ -144,8 +144,16 @@ function renderStageBody({
 		return (
 			<OutcomeLifecycleShell outcomeId={outcome} projectId={project} stage="decide_authorize">
 				<OutcomeDecideAuthorizeSurface
+					// An authorized plan continues into Act & Observe — the real,
+					// in-shell OutcomeRunSurface docked by WorkShell — not the
+					// disconnected generic Sessions board. That board has no
+					// concept of this Outcome's attempt lineage; landing there
+					// after authorizing a plan was the actual "Act & Observe
+					// integration gap" earlier rounds' notes referred to, and it
+					// is closed by this route change alone (OutcomeRunSurface
+					// already starts a governed attempt itself once here).
 					onReviewWork={() => {
-						void navigate({ to: "/projects/$projectId", params: { projectId: project } });
+						void navigate({ to: "/work", search: { project, stage: "act_observe", outcome } });
 					}}
 					outcomeId={outcome}
 				/>

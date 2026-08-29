@@ -68,6 +68,10 @@ type UiState = {
 	isSidebarOpen: boolean;
 	inspectorSessions: Record<string, InspectorSessionState>;
 	isCommandPaletteOpen: boolean;
+	/** The global keyboard-shortcuts reference dialog. Lives here (not local
+	 *  component state) so any surface — the ⌘/ shortcut, the settings menu,
+	 *  WorkShell's bottom-left help button — can open the exact same dialog. */
+	isKeyboardShortcutsOpen: boolean;
 	settingsModal: SettingsModal | null;
 	themePreference: ThemePreference;
 	/** Resolved light/dark for React consumers; may track OS while preference is system. */
@@ -127,6 +131,7 @@ type UiState = {
 	setBrowserContentRevealed: (sessionId: string, revealed: boolean) => void;
 	setBrowserUnseen: (sessionId: string, unseen: boolean) => void;
 	setCommandPaletteOpen: (open: boolean) => void;
+	setKeyboardShortcutsOpen: (open: boolean) => void;
 	setProjectRestarting: (projectId: string, restarting: boolean) => void;
 	setOrchestratorReplacementError: (projectId: string, failure: OrchestratorReplacementFailure | null) => void;
 	setOrchestratorStartupError: (projectId: string, message: string | null) => void;
@@ -197,6 +202,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	isSidebarOpen: initialSidebarOpen(),
 	inspectorSessions: {},
 	isCommandPaletteOpen: false,
+	isKeyboardShortcutsOpen: false,
 	settingsModal: null,
 	themePreference: initialThemePreference,
 	resolvedTheme: resolveTheme(initialThemePreference),
@@ -332,6 +338,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 			};
 		}),
 	setCommandPaletteOpen: (isCommandPaletteOpen) => set({ isCommandPaletteOpen }),
+	setKeyboardShortcutsOpen: (isKeyboardShortcutsOpen) => set({ isKeyboardShortcutsOpen }),
 	setProjectRestarting: (projectId, restarting) =>
 		set((state) => {
 			const restartingProjectIds = new Set(state.restartingProjectIds);

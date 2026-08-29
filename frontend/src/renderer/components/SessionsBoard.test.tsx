@@ -121,7 +121,11 @@ beforeEach(() => {
 });
 
 describe("SessionsBoard", () => {
-	it("shows saved Outcome stage and next action, then continues from durable facts", async () => {
+	// The board no longer shows its own Outcomes summary card — WorkShell (the
+	// persistent Work chrome) plus the sidebar's project/outcome tree and its
+	// Outcomes destination replaced it, so a second, disconnected navigation
+	// path here would only duplicate (and could drift from) the real one.
+	it("never shows its own Outcomes summary card, even with outcomes present", () => {
 		workspaceQueryMock.mockReturnValue({
 			data: [workspaceWithSessions([])],
 			isError: false,
@@ -134,31 +138,6 @@ describe("SessionsBoard", () => {
 					title: "Explain Waldo clearly",
 					currentRevisionNumber: 1,
 				},
-			],
-			isLoading: false,
-		});
-
-		renderBoard("p1");
-
-		expect(screen.getByText("Explain Waldo clearly")).toBeInTheDocument();
-		expect(screen.getByText("Decide & Authorize · Contract saved")).toBeInTheDocument();
-		expect(screen.getByText("Review plan and permissions")).toBeInTheDocument();
-		await userEvent.click(screen.getByRole("button", { name: "Continue Explain Waldo clearly" }));
-		expect(navigateMock).toHaveBeenCalledWith({
-			to: "/work",
-			search: { project: "p1", stage: "decide_authorize", outcome: "outcome-1" },
-		});
-		expect(screen.getByRole("tablist", { name: "Session view" })).toBeInTheDocument();
-	});
-
-	it("re-enters an approved Outcome through its exact approved Plan", async () => {
-		workspaceQueryMock.mockReturnValue({
-			data: [workspaceWithSessions([])],
-			isError: false,
-			isSuccess: true,
-		});
-		projectOutcomesQueryMock.mockReturnValue({
-			outcomes: [
 				{
 					id: "outcome-approved",
 					title: "Ship the dashboard",
@@ -171,13 +150,10 @@ describe("SessionsBoard", () => {
 
 		renderBoard("p1");
 
-		expect(screen.getByText("Authorized · Execution not connected")).toBeInTheDocument();
-		expect(screen.getByText("Review approved plan")).toBeInTheDocument();
-		await userEvent.click(screen.getByRole("button", { name: "Continue Ship the dashboard" }));
-		expect(navigateMock).toHaveBeenCalledWith({
-			to: "/work",
-			search: { project: "p1", stage: "decide_authorize", outcome: "outcome-approved" },
-		});
+		expect(screen.queryByText("Explain Waldo clearly")).toBeNull();
+		expect(screen.queryByText("Ship the dashboard")).toBeNull();
+		expect(screen.queryByText("Authorized · Execution not connected")).toBeNull();
+		expect(screen.getByRole("tablist", { name: "Session view" })).toBeInTheDocument();
 	});
 
 	it("shows a live orchestrator as project activity and switches it between Board and List", async () => {
