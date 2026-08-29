@@ -151,7 +151,7 @@ Delivered:
 
 **Gate met:** a decomposed Outcome round-trips through restart; direct Outcomes are unchanged; the full backend suite and `-race` pass except one pre-existing DeepSeek failure; lint adds no new issues.
 
-### Phase 2 — Decomposition proposal and authorization — **delivered 2026-08-29, minus the model-authored proposal**
+### Phase 2 — Decomposition proposal and authorization — **delivered 2026-08-29; the model-authored half closed later the same day, see Phase 2b**
 
 Owns `DecompositionRevision` and `ContributionDependency`, inherited from Phase 1 along with parent-retained criteria — all three exist to be *authorized*, so they land with the flow that authorizes them.
 
@@ -173,6 +173,31 @@ Delivered:
 The renderer has no decomposition editor either. Its Propose button sends only the expected revision, so authoring contributors, declaring dependencies, and marking criteria parent-retained are API-only today.
 
 **Gate met:** a rejected proposal fails closed with the offender named and creates nothing — verified for uncovered criteria, unknown criteria, widened authority, dependency cycles, stale contracts, and a mid-authorization storage failure.
+
+### Phase 2b — The model authors the proposal — **delivered 2026-08-29**
+
+Phase 2 shipped the authorization half and a mechanical default. This closes the other half: an agent reads the project and proposes a topology.
+
+**The constraint that shaped the design.** The daemon has no synchronous model call anywhere — it spawns provider sessions and observes them. Adding a blocking one for decomposition would have introduced a second, contradictory way for the daemon to reach a model, inside the exact code path that must fail closed. So the ask is spawn-and-observe like everything else, and the agent **calls back**:
+
+1. The owner asks from Mission Control. The daemon writes a durable `DecompositionRequest`, mints a single-use expiring token, and spawns an analyzer-role session carrying a brief.
+2. The agent reads the repository and `POST`s a proposal to `/decomposition-requests/{id}/proposal` with the token in a header.
+3. The proposal runs the **same** `ProposeDecomposition` gates as a hand-authored one, and its verdict is recorded against the request either way.
+
+**What is deliberately withheld from the model.** It authors contributors, criterion claims, retained criteria, dependencies, and a rationale — everything, including dependencies, per the owner's decision. It authors no verdict: a model proposal that fails coverage, containment, or ordering is refused exactly as a human's would be, with the offender named. There is no trusted-proposer path and no leniency at the gate.
+
+**The token's limit, stated so it is not mistaken for more.** It is **scoping, not authentication.** The loopback listener is unauthenticated by design, so any local process can already reach the API; the token stops a *confused* agent from posting for the wrong Outcome, against a stale contract revision, or twice. It is not a defence against a hostile local process, and nothing in the system should be built as though it were. This is recorded in ADR 0007 and as a hard rule in `AGENTS.md`.
+
+**A refused proposal is retained**, not discarded, so the owner can open the draft and correct it rather than re-run the agent from nothing.
+
+**Renderer.** Mission Control gained the Ask flow (pending, fulfilled, refused-with-draft) and a `DecompositionEditor` for authoring or correcting a proposal by hand — closing the "API-only" gap Phase 2 recorded. The editor's authority control fails closed on an unrecognised value rather than defaulting to the parent's ceiling.
+
+**Two bugs found by running it for real on the Mesa project, both mine:**
+
+1. `sessionId` was never persisted against the request. The freeze trigger, written to keep an open request immutable, forbade *every* update that left `status = 'requested'` — including the session binding. Loosened to permit exactly that one change while still open.
+2. The second run's proposal was refused for a "foundation" contributor claiming no criterion. The brief stated the *coverage* rule ("every criterion must be claimed or retained") but never the *per-contribution* rule ("every contribution must claim at least one"). An agent obeying the brief literally could not satisfy the gate. Fixed in the brief, pinned by a test.
+
+**Gate met:** verified end to end against a real repository. The agent read Mesa, grouped six criteria into two contributors rather than the mechanical one-per-criterion default, declared a `c1 → c2` dependency, and gave a rationale for the split. The refusal path was verified on a second Outcome, which retains its draft.
 
 ### Phase 3 — Execution across contributing Outcomes — **partially delivered 2026-08-29**
 
@@ -235,11 +260,22 @@ The derivation is deliberately shared rather than duplicated per surface: two li
 
 **Gate partially met:** context rides in search params, so a refresh returns to the exact project, Outcome, and stage. The full "exact next safe action after restart" gate depends on surfaces the fence decision still gates.
 
-### Phase 6 — Evaluation against the falsification gate
+### Phase 6 — Evaluation against the falsification gate — **not started**
 
 Run the dogfood protocol on composed Outcomes and compare against both direct-Codex use *and* flat single-Outcome Kennel use. The measure that decides whether §2's cost was paid: **median active supervision minutes per accepted Outcome.**
 
 If composition raises supervision cost, we report that plainly and revisit batched acceptance — not relabel the result.
+
+Until this runs, composition's effect on the product's primary success measure is **unproven**. Everything Phases 1–5 deliver is machinery that makes the measurement possible; none of it is evidence that the measurement will come out in composition's favour.
+
+### What is open when this program lands
+
+Recorded here so none of it is discovered later as a surprise:
+
+1. **The attempt fence decision.** `project:<projectID>` serializes contributors. It gates parallel execution, a concurrency budget, and the Mission graph. Deliberately not resolved inside an implementation phase — widening a safety mechanism to unblock a feature is how safety mechanisms stop meaning anything.
+2. **Phase 6 itself.**
+3. **A per-contract independence bar** (see Phase 4) — currently a fixed floor.
+4. **Proposer sessions are not reaped.** An analyzer session spawned to propose a decomposition stays in the project's session list after it answers.
 
 ---
 
