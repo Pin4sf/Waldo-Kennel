@@ -208,17 +208,22 @@ Delivered:
 
 **Gate met:** a contributor with contradicted evidence, or verified only by its producer's self-check, cannot enter the batch and keeps the parent out of reach — verified end to end.
 
-### Phase 5 — Board → Mission Control → Session Inspector
+### Phase 5 — Board → Mission Control → Session Inspector — **delivered 2026-08-29, with one deliberate omission**
 
-Replace the stage wizard with the canonical three-level navigation:
+Delivered:
 
-- **Project Board/List** — cards are Project-level Outcomes with current attention, contributor count, and proof state.
-- **Outcome Mission Control** — the contributing-Outcome graph plus an accessible list projection, per the visual guide's "graph plus accessible list" rule.
-- **Session Inspector** — one provider session, reached on demand, never the homepage.
-- Project Waldo's context chip gains the Outcome scope it already anticipates.
-- All of it through `tokens.css` and shadcn primitives per `DESIGN.md`; demoed with `kennel preview`, not described.
+- **Project Board** at `/work?project=X` — Project-level Outcomes only. Contributors are deliberately absent; listing them would flatten the hierarchy composition exists to express.
+- **Outcome Mission Control** at `/work?project=X&outcome=Y` — shape, criterion coverage, per-contributor attention, dependency gates and waivers, the decomposition proposal/authorization flow, and the batched acceptance panel including everything the daemon withheld.
+- **Session Inspector** is the existing session route, reached on demand. No second session surface was built: a provider session is temporary execution machinery and must never be the homepage.
+- The five lifecycle surfaces stay reachable through `stage`.
+- 50 new strings across all 8 locale catalogs, inserted in place rather than re-sorting.
+- 8 renderer tests covering hierarchy separation, derived attention, the serialization notice, withheld contributors, and the durable-reason requirement on waivers.
 
-**Gate:** restart returns the user to the exact canonical state, selection, and next safe action.
+**The Mission graph is deliberately not built.** The plan and the visual guide both call for a graph plus an accessible list. Only the list shipped, because the attempt fence is still project-wide (see Phase 3): contributors cannot run in parallel, so a graph would draw concurrency the daemon refuses. Drawing a promise the system cannot keep is worse than drawing less. The surface states the constraint in as many words. **The graph belongs with the fence decision** — once contributors can genuinely run in parallel, the topology becomes worth drawing.
+
+**Not demonstrated in-app.** `CLAUDE.md` asks for `kennel preview` on frontend changes; it requires a Kennel-managed session (`KENNEL_SESSION_ID`), which a plain terminal does not have. Verified by typecheck, the full renderer suite, and a packaged build instead. A visual pass in the running app is still outstanding.
+
+**Gate partially met:** context rides in search params, so a refresh returns to the exact project, Outcome, and stage. The full "exact next safe action after restart" gate depends on surfaces the fence decision still gates.
 
 ### Phase 6 — Evaluation against the falsification gate
 
