@@ -178,6 +178,32 @@ type ContractRevisionIntakeCore struct {
 	CreatedAt            time.Time
 }
 
+type ContributionDependency struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	FromRef         string
+	ToRef           string
+}
+
+type ContributionDependencyWaiver struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	FromRef         string
+	ToRef           string
+	Reason          string
+	WaivedBy        string
+	CreatedAt       time.Time
+}
+
+type ContributionLink struct {
+	ID                       string
+	ParentOutcomeID          string
+	ChildOutcomeID           string
+	ParentContractRevisionID string
+	ParentCriterionID        string
+	CreatedAt                time.Time
+}
+
 type Conversation struct {
 	ID                         string
 	Scope                      domain.ConversationScope
@@ -293,6 +319,54 @@ type ConversationTurn struct {
 	BranchID             string
 	PromotionStartedAt   sql.NullTime
 	PromotedToTurnID     sql.NullString
+}
+
+type DecompositionContribution struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	Ref             string
+	Position        int64
+	Title           string
+	Goal            string
+	SuccessCriteria string
+	Review          string
+	Constraints     string
+	NonGoals        string
+	Authority       string
+	ClaimedCriteria string
+	ChildOutcomeID  *domain.OutcomeID
+}
+
+type DecompositionRequest struct {
+	ID                  domain.DecompositionRequestID
+	OutcomeID           domain.OutcomeID
+	ContractRevisionID  domain.ContractRevisionID
+	Status              domain.DecompositionRequestStatus
+	CallbackTokenDigest string
+	SessionID           string
+	ExpiresAt           time.Time
+	RawProposal         string
+	RefusalReason       string
+	DecompositionID     sql.NullString
+	CreatedAt           time.Time
+	AnsweredAt          sql.NullTime
+}
+
+type DecompositionRetainedCriterium struct {
+	ID                string
+	DecompositionID   domain.DecompositionRevisionID
+	ParentCriterionID domain.CriterionID
+}
+
+type DecompositionRevision struct {
+	ID                 domain.DecompositionRevisionID
+	OutcomeID          domain.OutcomeID
+	Number             int64
+	ContractRevisionID domain.ContractRevisionID
+	Status             domain.DecompositionStatus
+	Rationale          string
+	CreatedAt          time.Time
+	AuthorizedAt       sql.NullTime
 }
 
 type EvidenceItem struct {
@@ -421,6 +495,7 @@ type Outcome struct {
 	IdempotencyKey        sql.NullString
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+	ParentOutcomeID       sql.NullString
 }
 
 type OutcomeCorrection struct {

@@ -1880,6 +1880,12 @@ type OutcomeIDParam struct {
 	OutcomeID string `path:"outcomeId" description:"Outcome identifier, e.g. out-<uuid>."`
 }
 
+// DecompositionIDParam is the {decompositionId} path parameter on the
+// decomposition authorization route.
+type DecompositionIDParam struct {
+	DecompositionID string `path:"decompositionId" description:"Decomposition revision identifier, e.g. dec-<uuid>."`
+}
+
 // AttemptIDParam is the {attemptId} path parameter shared by the attempt routes.
 type AttemptIDParam struct {
 	AttemptID string `path:"attemptId" description:"Attempt identifier, e.g. att-<uuid>."`
@@ -1942,8 +1948,11 @@ type ContractCriterionResponse struct {
 // full immutable revision history. Project listings also include the latest
 // durable plan fact so callers can derive stage without transcript inspection.
 type OutcomeResponse struct {
-	ID                    string                     `json:"id"`
-	SpaceID               string                     `json:"spaceId"`
+	ID      string `json:"id"`
+	SpaceID string `json:"spaceId"`
+	// ParentID names the Outcome this one contributes to, absent for a
+	// Project-level Outcome (ADR 0007).
+	ParentID              string                     `json:"parentId,omitempty"`
 	Title                 string                     `json:"title"`
 	CurrentRevisionNumber int64                      `json:"currentRevisionNumber"`
 	Current               ContractRevisionResponse   `json:"currentRevision"`
@@ -2429,6 +2438,13 @@ type IntakeEvidenceExpectationResponse struct {
 func intakeAuthority(value domain.ProposedAuthority) IntakeAuthority {
 	return IntakeAuthority{ReadWorkspace: value.ReadWorkspace, WriteWorkspace: value.WriteWorkspace, ExecuteLocal: value.ExecuteLocal, UseNetwork: value.UseNetwork, CommitLocal: value.CommitLocal, CreatePR: value.CreatePR, Deploy: value.Deploy, ExternalEffect: value.ExternalEffect}
 }
+
+// proposedAuthority is intakeAuthority's inverse, for request bodies that
+// state a ceiling rather than report one.
+func proposedAuthority(value IntakeAuthority) domain.ProposedAuthority {
+	return domain.ProposedAuthority{ReadWorkspace: value.ReadWorkspace, WriteWorkspace: value.WriteWorkspace, ExecuteLocal: value.ExecuteLocal, UseNetwork: value.UseNetwork, CommitLocal: value.CommitLocal, CreatePR: value.CreatePR, Deploy: value.Deploy, ExternalEffect: value.ExternalEffect}
+}
+
 func intakeFacets(values []domain.ContractFacet) []IntakeFacet {
 	out := make([]IntakeFacet, 0, len(values))
 	for _, value := range values {
@@ -2614,10 +2630,7 @@ func outcomeProofResponse(view outcomevc.ProofView) OutcomeProofResponse {
 		response.Criteria = append(response.Criteria, item)
 	}
 	for _, decision := range view.Decisions {
-		response.Decisions = append(response.Decisions, AcceptanceDecisionResponse{
-			ID: string(decision.ID), ContractRevisionID: string(decision.ContractRevisionID), Kind: string(decision.Kind), ActorType: string(decision.ActorType),
-			Summary: decision.Summary, ResourceDisposition: string(decision.ResourceDisposition), CreatedAt: decision.CreatedAt,
-		})
+		response.Decisions = append(response.Decisions, acceptanceDecisionResponse(decision))
 	}
 	for _, correction := range view.Corrections {
 		response.Corrections = append(response.Corrections, OutcomeCorrectionResponse{
@@ -2660,6 +2673,7 @@ func outcomeResponse(view outcomevc.OutcomeView) OutcomeResponse {
 	resp := OutcomeResponse{
 		ID:                    string(view.Outcome.ID),
 		SpaceID:               string(view.Outcome.SpaceID),
+		ParentID:              string(view.Outcome.ParentID),
 		Title:                 view.Outcome.Title,
 		CurrentRevisionNumber: view.Outcome.CurrentRevisionNumber,
 		Current:               contractRevisionResponse(view.Current),
@@ -2982,4 +2996,523 @@ func attemptResponse(view outcomevc.AttemptView) AttemptResponse {
 		}
 	}
 	return resp
+}
+
+// --- Composed Outcomes (ADR 0007) ---
+
+// ContributionLinkResponse is one immutable criterion binding.
+type ContributionLinkResponse struct {
+	ID                       string    `json:"id"`
+	ParentOutcomeID          string    `json:"parentOutcomeId"`
+	ChildOutcomeID           string    `json:"childOutcomeId"`
+	ParentContractRevisionID string    `json:"parentContractRevisionId"`
+	ParentCriterionID        string    `json:"parentCriterionId"`
+	CreatedAt                time.Time `json:"createdAt"`
+}
+
+// ContributorResponse is one contributing Outcome and its bindings.
+type ContributorResponse struct {
+	Outcome OutcomeResponse            `json:"outcome"`
+	Links   []ContributionLinkResponse `json:"links"`
+	// Stale reports a binding to a superseded parent revision. It blocks new
+	// authorization; it does not mean running work is dead.
+	Stale bool `json:"stale"`
+	// BlockedBy names declared upstream contributions that are not yet
+	// accepted; Waived names those the owner explicitly overrode. A waived
+	// dependency stays visible: it is overridden, not forgotten.
+	BlockedBy []UpstreamBlockResponse      `json:"blockedBy"`
+	Waived    []UpstreamBlockResponse      `json:"waived"`
+	Attention ContributorAttentionResponse `json:"attention"`
+}
+
+// UpstreamBlockResponse is one unmet or waived dependency.
+type UpstreamBlockResponse struct {
+	Ref       string `json:"ref"`
+	OutcomeID string `json:"outcomeId,omitempty"`
+	Title     string `json:"title,omitempty"`
+	Reason    string `json:"reason"`
+}
+
+// ContributorAttentionResponse is one roll-up item.
+type ContributorAttentionResponse struct {
+	OutcomeID  string `json:"outcomeId"`
+	Title      string `json:"title"`
+	Kind       string `json:"kind"`
+	Reason     string `json:"reason"`
+	NextAction string `json:"nextAction,omitempty"`
+}
+
+// ParentAttentionResponse summarises a decomposed Outcome for its owner.
+type ParentAttentionResponse struct {
+	Headline     string                         `json:"headline,omitempty"`
+	Items        []ContributorAttentionResponse `json:"items"`
+	Counts       map[string]int                 `json:"counts"`
+	AcceptedOf   int                            `json:"acceptedOf"`
+	Contributors int                            `json:"contributors"`
+}
+
+// WaiveContributionDependencyRequest is the body for POST
+// /outcomes/{outcomeId}/decomposition/waivers. The reason is required and
+// durable: a waiver nobody can explain later is indistinguishable from a
+// mistake.
+type WaiveContributionDependencyRequest struct {
+	FromRef string `json:"fromRef"`
+	ToRef   string `json:"toRef"`
+	Reason  string `json:"reason"`
+}
+
+// CriterionClaimResponse is one parent criterion and who claims it. An empty
+// claimedBy is a truthful report of an incomplete decomposition, not an error.
+type CriterionClaimResponse struct {
+	CriterionID string   `json:"criterionId"`
+	Position    int64    `json:"position"`
+	Text        string   `json:"text"`
+	ClaimedBy   []string `json:"claimedBy"`
+}
+
+// OutcomeCompositionResponse is the derived composition read model. Shape and
+// attention are computed from durable facts and are never stored.
+type OutcomeCompositionResponse struct {
+	Shape        string                   `json:"shape"`
+	ParentID     string                   `json:"parentId,omitempty"`
+	Contributors []ContributorResponse    `json:"contributors"`
+	Coverage     []CriterionClaimResponse `json:"coverage"`
+	// Attention rolls each contributor's situation up to the parent, most
+	// demanding first, every item naming the contributor it came from.
+	Attention ParentAttentionResponse `json:"attention"`
+	// UnclaimedCriteria repeats the criteria nothing claims, so a caller does
+	// not have to re-derive the one fact that decides whether a decomposition
+	// is complete.
+	UnclaimedCriteria []CriterionClaimResponse `json:"unclaimedCriteria"`
+}
+
+// OutcomeCompositionEnvelope is the { composition } response body.
+type OutcomeCompositionEnvelope struct {
+	Composition OutcomeCompositionResponse `json:"composition"`
+}
+
+func contributionLinkResponse(link domain.ContributionLink) ContributionLinkResponse {
+	return ContributionLinkResponse{
+		ID:                       string(link.ID),
+		ParentOutcomeID:          string(link.ParentOutcomeID),
+		ChildOutcomeID:           string(link.ChildOutcomeID),
+		ParentContractRevisionID: string(link.ParentContractRevisionID),
+		ParentCriterionID:        string(link.ParentCriterionID),
+		CreatedAt:                link.CreatedAt,
+	}
+}
+
+func criterionClaimResponse(claim domain.CriterionClaim) CriterionClaimResponse {
+	claimedBy := make([]string, 0, len(claim.ClaimedBy))
+	for _, id := range claim.ClaimedBy {
+		claimedBy = append(claimedBy, string(id))
+	}
+	return CriterionClaimResponse{
+		CriterionID: string(claim.CriterionID),
+		Position:    claim.Position,
+		Text:        claim.Text,
+		ClaimedBy:   claimedBy,
+	}
+}
+
+func outcomeCompositionResponse(view outcomevc.CompositionView, contributors []outcomevc.OutcomeView) OutcomeCompositionResponse {
+	resp := OutcomeCompositionResponse{
+		Shape:             string(view.Shape),
+		Contributors:      make([]ContributorResponse, 0, len(view.Contributors)),
+		Coverage:          make([]CriterionClaimResponse, 0, len(view.Coverage)),
+		UnclaimedCriteria: make([]CriterionClaimResponse, 0),
+	}
+	if view.Parent != nil {
+		resp.ParentID = string(view.Parent.ID)
+	}
+	resp.Attention = parentAttentionResponse(view.Attention)
+	for i, contributor := range view.Contributors {
+		links := make([]ContributionLinkResponse, 0, len(contributor.Links))
+		for _, link := range contributor.Links {
+			links = append(links, contributionLinkResponse(link))
+		}
+		entry := ContributorResponse{
+			Links: links, Stale: contributor.Stale,
+			BlockedBy: upstreamBlocks(contributor.Gate.Blocked),
+			Waived:    upstreamBlocks(contributor.Gate.Waived),
+			Attention: contributorAttentionResponse(contributor.Attention),
+		}
+		if i < len(contributors) {
+			entry.Outcome = outcomeResponse(contributors[i])
+		}
+		resp.Contributors = append(resp.Contributors, entry)
+	}
+	for _, claim := range view.Coverage {
+		resp.Coverage = append(resp.Coverage, criterionClaimResponse(claim))
+	}
+	for _, claim := range view.Unclaimed() {
+		resp.UnclaimedCriteria = append(resp.UnclaimedCriteria, criterionClaimResponse(claim))
+	}
+	return resp
+}
+
+// --- Decomposition authority (ADR 0007 phase 2) ---
+
+// ProposeDecompositionRequest is the body for POST
+// /outcomes/{outcomeId}/decompositions. Omitting contributors asks the daemon
+// for its deterministic starting point: one contributing Outcome per parent
+// criterion, which the owner then corrects.
+type ProposeDecompositionRequest struct {
+	// ExpectedContractRevision must name the parent's current revision.
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+	// Rationale explains the topology in plain language. A decomposition the
+	// owner cannot evaluate is not reviewable.
+	Rationale    string                        `json:"rationale,omitempty"`
+	Contributors []ProposedContributionRequest `json:"contributors,omitempty"`
+	// RetainedCriteria are parent criteria the owner will prove directly
+	// rather than delegate.
+	RetainedCriteria []string                        `json:"retainedCriteria,omitempty"`
+	Dependencies     []ContributionDependencyRequest `json:"dependencies,omitempty"`
+}
+
+// ProposedContributionRequest is one contributing Outcome as offered. It
+// carries a whole contract because a contributing Outcome is a full
+// responsibility, not a task.
+type ProposedContributionRequest struct {
+	Ref             string          `json:"ref,omitempty"`
+	Title           string          `json:"title"`
+	Goal            string          `json:"goal"`
+	SuccessCriteria []string        `json:"successCriteria"`
+	Review          string          `json:"review"`
+	Constraints     []string        `json:"constraints,omitempty"`
+	NonGoals        []string        `json:"nonGoals,omitempty"`
+	Authority       IntakeAuthority `json:"authority,omitempty"`
+	ClaimedCriteria []string        `json:"claimedCriteria"`
+}
+
+// ContributionDependencyRequest declares that fromRef must finish before toRef
+// starts.
+type ContributionDependencyRequest struct {
+	FromRef string `json:"fromRef"`
+	ToRef   string `json:"toRef"`
+}
+
+// ProposedContributionResponse is one contributing Outcome as recorded.
+// ChildOutcomeID is absent until authorization creates the Outcome.
+type ProposedContributionResponse struct {
+	Ref             string          `json:"ref"`
+	Position        int64           `json:"position"`
+	Title           string          `json:"title"`
+	Goal            string          `json:"goal"`
+	SuccessCriteria []string        `json:"successCriteria"`
+	Review          string          `json:"review"`
+	Constraints     []string        `json:"constraints"`
+	NonGoals        []string        `json:"nonGoals"`
+	Authority       IntakeAuthority `json:"authority"`
+	ClaimedCriteria []string        `json:"claimedCriteria"`
+	ChildOutcomeID  string          `json:"childOutcomeId,omitempty"`
+}
+
+// ContributionDependencyResponse is one recorded ordering.
+type ContributionDependencyResponse struct {
+	ID      string `json:"id"`
+	FromRef string `json:"fromRef"`
+	ToRef   string `json:"toRef"`
+}
+
+// DecompositionResponse is one decomposition revision: a decomposed Outcome's
+// plan. Proposed means nothing exists yet; authorized means the contributing
+// Outcomes were created.
+type DecompositionResponse struct {
+	ID                 string                           `json:"id"`
+	OutcomeID          string                           `json:"outcomeId"`
+	Number             int64                            `json:"number"`
+	ContractRevisionID string                           `json:"contractRevisionId"`
+	Status             string                           `json:"status"`
+	Rationale          string                           `json:"rationale"`
+	Contributors       []ProposedContributionResponse   `json:"contributors"`
+	RetainedCriteria   []string                         `json:"retainedCriteria"`
+	Dependencies       []ContributionDependencyResponse `json:"dependencies"`
+	// Stale reports that the parent contract moved on after this
+	// decomposition was proposed. A stale proposal cannot be authorized.
+	Stale        bool       `json:"stale"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	AuthorizedAt *time.Time `json:"authorizedAt,omitempty"`
+}
+
+// DecompositionEnvelope is the { decomposition } response body.
+type DecompositionEnvelope struct {
+	Decomposition DecompositionResponse `json:"decomposition"`
+}
+
+func proposeDecompositionInput(req ProposeDecompositionRequest) outcomevc.ProposeDecompositionInput {
+	contributors := make([]outcomevc.ProposedContributionInput, 0, len(req.Contributors))
+	for _, contributor := range req.Contributors {
+		claimed := make([]domain.CriterionID, 0, len(contributor.ClaimedCriteria))
+		for _, id := range contributor.ClaimedCriteria {
+			claimed = append(claimed, domain.CriterionID(id))
+		}
+		contributors = append(contributors, outcomevc.ProposedContributionInput{
+			Ref: contributor.Ref, Title: contributor.Title, Goal: contributor.Goal,
+			SuccessCriteria: contributor.SuccessCriteria, Review: contributor.Review,
+			Constraints: contributor.Constraints, NonGoals: contributor.NonGoals,
+			Authority: proposedAuthority(contributor.Authority), ClaimedCriteria: claimed,
+		})
+	}
+	retained := make([]domain.CriterionID, 0, len(req.RetainedCriteria))
+	for _, id := range req.RetainedCriteria {
+		retained = append(retained, domain.CriterionID(id))
+	}
+	dependencies := make([]outcomevc.ContributionDependencyInput, 0, len(req.Dependencies))
+	for _, dependency := range req.Dependencies {
+		dependencies = append(dependencies, outcomevc.ContributionDependencyInput{FromRef: dependency.FromRef, ToRef: dependency.ToRef})
+	}
+	return outcomevc.ProposeDecompositionInput{
+		ExpectedContractRevision: req.ExpectedContractRevision,
+		Rationale:                req.Rationale,
+		Contributors:             contributors,
+		RetainedCriteria:         retained,
+		Dependencies:             dependencies,
+	}
+}
+
+func decompositionResponse(view outcomevc.DecompositionView) DecompositionResponse {
+	revision := view.Decomposition
+	resp := DecompositionResponse{
+		ID: string(revision.ID), OutcomeID: string(revision.OutcomeID), Number: revision.Number,
+		ContractRevisionID: string(revision.ContractRevisionID), Status: string(revision.Status),
+		Rationale:        revision.Rationale,
+		Contributors:     make([]ProposedContributionResponse, 0, len(revision.Contributors)),
+		RetainedCriteria: make([]string, 0, len(revision.RetainedCriteria)),
+		Dependencies:     make([]ContributionDependencyResponse, 0, len(revision.Dependencies)),
+		Stale:            view.Stale,
+		CreatedAt:        revision.CreatedAt,
+		AuthorizedAt:     revision.AuthorizedAt,
+	}
+	for _, contributor := range revision.Contributors {
+		claimed := make([]string, 0, len(contributor.ClaimedCriteria))
+		for _, id := range contributor.ClaimedCriteria {
+			claimed = append(claimed, string(id))
+		}
+		resp.Contributors = append(resp.Contributors, ProposedContributionResponse{
+			Ref: contributor.Ref, Position: contributor.Position, Title: contributor.Title,
+			Goal: contributor.Goal, SuccessCriteria: nonNilList(contributor.SuccessCriteria),
+			Review: contributor.Review, Constraints: nonNilList(contributor.Constraints),
+			NonGoals: nonNilList(contributor.NonGoals), Authority: intakeAuthority(contributor.Authority),
+			ClaimedCriteria: claimed, ChildOutcomeID: string(contributor.ChildOutcomeID),
+		})
+	}
+	for _, id := range revision.RetainedCriteria {
+		resp.RetainedCriteria = append(resp.RetainedCriteria, string(id))
+	}
+	for _, dependency := range revision.Dependencies {
+		resp.Dependencies = append(resp.Dependencies, ContributionDependencyResponse{
+			ID: dependency.ID, FromRef: dependency.FromRef, ToRef: dependency.ToRef,
+		})
+	}
+	return resp
+}
+
+func nonNilList(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
+func upstreamBlocks(blocks []domain.UpstreamBlock) []UpstreamBlockResponse {
+	out := make([]UpstreamBlockResponse, 0, len(blocks))
+	for _, block := range blocks {
+		out = append(out, UpstreamBlockResponse{
+			Ref: block.Ref, OutcomeID: string(block.OutcomeID),
+			Title: block.Title, Reason: block.Reason,
+		})
+	}
+	return out
+}
+
+func contributorAttentionResponse(item domain.ContributorAttention) ContributorAttentionResponse {
+	return ContributorAttentionResponse{
+		OutcomeID: string(item.OutcomeID), Title: item.Title,
+		Kind: string(item.Kind), Reason: item.Reason, NextAction: item.NextAction,
+	}
+}
+
+func parentAttentionResponse(summary domain.ParentAttention) ParentAttentionResponse {
+	resp := ParentAttentionResponse{
+		Headline:     string(summary.Headline),
+		Items:        make([]ContributorAttentionResponse, 0, len(summary.Items)),
+		Counts:       make(map[string]int, len(summary.Counts)),
+		AcceptedOf:   summary.AcceptedOf,
+		Contributors: summary.Contributors,
+	}
+	for _, item := range summary.Items {
+		resp.Items = append(resp.Items, contributorAttentionResponse(item))
+	}
+	for kind, count := range summary.Counts {
+		resp.Counts[string(kind)] = count
+	}
+	return resp
+}
+
+// --- Batched parent acceptance (ADR 0007 phase 4) ---
+
+// AcceptContributorBatchRequest is one owner sitting over a decomposed
+// Outcome's ready contributors. It produces one immutable decision per
+// Outcome accepted, never one merged decision.
+type AcceptContributorBatchRequest struct {
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+	// OutcomeIds narrows the sitting; omit for every eligible contributor.
+	OutcomeIds []string `json:"outcomeIds,omitempty"`
+	Summary    string   `json:"summary"`
+	// AcceptParent also accepts the Project-level Outcome, permitted only
+	// when this batch leaves every parent criterion proved.
+	AcceptParent        bool   `json:"acceptParent,omitempty"`
+	ResourceDisposition string `json:"resourceDisposition"`
+	RequestKey          string `json:"requestKey"`
+}
+
+// BatchEntryVerdictResponse is the daemon's answer on one contributor. The
+// daemon may only withhold; it never accepts.
+type BatchEntryVerdictResponse struct {
+	OutcomeID string `json:"outcomeId"`
+	Title     string `json:"title"`
+	Eligible  bool   `json:"eligible"`
+	Reason    string `json:"reason"`
+	Remedy    string `json:"remedy,omitempty"`
+}
+
+// BatchEligibilityEnvelope reports who could be accepted right now.
+type BatchEligibilityEnvelope struct {
+	Contributors []BatchEntryVerdictResponse `json:"contributors"`
+}
+
+// AcceptBatchResponse reports what one sitting decided and what it withheld.
+type AcceptBatchResponse struct {
+	Accepted       []AcceptanceDecisionResponse `json:"accepted"`
+	Excluded       []BatchEntryVerdictResponse  `json:"excluded"`
+	ParentAccepted *AcceptanceDecisionResponse  `json:"parentAccepted,omitempty"`
+	Parent         OutcomeProofResponse         `json:"parent"`
+}
+
+// AcceptBatchEnvelope is the { batch } response body.
+type AcceptBatchEnvelope struct {
+	Batch AcceptBatchResponse `json:"batch"`
+}
+
+func batchEntryVerdictResponse(verdict domain.BatchEntryVerdict) BatchEntryVerdictResponse {
+	return BatchEntryVerdictResponse{
+		OutcomeID: string(verdict.OutcomeID), Title: verdict.Title,
+		Eligible: verdict.Eligible, Reason: verdict.Reason, Remedy: verdict.Remedy,
+	}
+}
+
+func batchEntryVerdicts(verdicts []domain.BatchEntryVerdict) []BatchEntryVerdictResponse {
+	out := make([]BatchEntryVerdictResponse, 0, len(verdicts))
+	for _, verdict := range verdicts {
+		out = append(out, batchEntryVerdictResponse(verdict))
+	}
+	return out
+}
+
+func acceptBatchResponse(view outcomevc.AcceptBatchView) AcceptBatchResponse {
+	resp := AcceptBatchResponse{
+		Accepted: make([]AcceptanceDecisionResponse, 0, len(view.Accepted)),
+		Excluded: batchEntryVerdicts(view.Excluded),
+		Parent:   outcomeProofResponse(view.Parent),
+	}
+	for _, decision := range view.Accepted {
+		resp.Accepted = append(resp.Accepted, acceptanceDecisionResponse(decision))
+	}
+	if view.ParentAccepted != nil {
+		parent := acceptanceDecisionResponse(*view.ParentAccepted)
+		resp.ParentAccepted = &parent
+	}
+	return resp
+}
+
+func acceptanceDecisionResponse(decision domain.AcceptanceDecision) AcceptanceDecisionResponse {
+	return AcceptanceDecisionResponse{
+		ID: string(decision.ID), ContractRevisionID: string(decision.ContractRevisionID),
+		Kind: string(decision.Kind), ActorType: string(decision.ActorType),
+		Summary: decision.Summary, ResourceDisposition: string(decision.ResourceDisposition),
+		CreatedAt: decision.CreatedAt,
+	}
+}
+
+// --- Agent-authored decomposition asks (ADR 0007 phase 2b) ---
+
+// DecompositionRequestIDParam is the {requestId} path parameter on the
+// callback route. The callback is addressed by REQUEST rather than by Outcome:
+// the answering agent knows only the request it was given.
+type DecompositionRequestIDParam struct {
+	RequestID string `path:"requestId" description:"Decomposition request identifier, e.g. dreq-<uuid>."`
+}
+
+// AskForDecompositionRequest opens a durable ask. The proposal arrives later
+// over the callback route; this returns as soon as an agent has been started.
+type AskForDecompositionRequest struct {
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+}
+
+// SubmitAgentProposalRequest is the body a spawned agent POSTs back. It is the
+// same shape a person would author, because an agent proposal passes exactly
+// the same gates — there is no trusted-proposer path.
+type SubmitAgentProposalRequest struct {
+	Rationale        string                          `json:"rationale"`
+	Contributors     []ProposedContributionRequest   `json:"contributors"`
+	RetainedCriteria []string                        `json:"retainedCriteria,omitempty"`
+	Dependencies     []ContributionDependencyRequest `json:"dependencies,omitempty"`
+}
+
+// DecompositionRequestResponse reports one ask and what became of it.
+type DecompositionRequestResponse struct {
+	ID                 string `json:"id"`
+	OutcomeID          string `json:"outcomeId"`
+	ContractRevisionID string `json:"contractRevisionId"`
+	Status             string `json:"status"`
+	// Expired is derived from the clock, so an ask that timed out while the
+	// daemon was down still reads as expired.
+	Expired bool `json:"expired"`
+	// RefusalReason carries the daemon's own words when it turned a proposal
+	// down, and RawProposal the draft it turned down — kept so the owner can
+	// correct one field instead of regenerating.
+	RefusalReason   string     `json:"refusalReason,omitempty"`
+	RawProposal     string     `json:"rawProposal,omitempty"`
+	DecompositionID string     `json:"decompositionId,omitempty"`
+	SessionID       string     `json:"sessionId,omitempty"`
+	ExpiresAt       time.Time  `json:"expiresAt"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	AnsweredAt      *time.Time `json:"answeredAt,omitempty"`
+}
+
+// DecompositionRequestEnvelope is the { request } response body.
+type DecompositionRequestEnvelope struct {
+	Request DecompositionRequestResponse `json:"request"`
+}
+
+func decompositionRequestResponse(view outcomevc.DecompositionRequestView) DecompositionRequestResponse {
+	request := view.Request
+	resp := DecompositionRequestResponse{
+		ID: string(request.ID), OutcomeID: string(request.OutcomeID),
+		ContractRevisionID: string(request.ContractRevisionID),
+		Status:             string(request.Status),
+		Expired:            view.Expired,
+		RefusalReason:      request.RefusalReason,
+		RawProposal:        request.RawProposal,
+		DecompositionID:    string(request.DecompositionID),
+		SessionID:          request.SessionID,
+		ExpiresAt:          request.ExpiresAt,
+		CreatedAt:          request.CreatedAt,
+		AnsweredAt:         request.AnsweredAt,
+	}
+	return resp
+}
+
+// agentProposalInput maps a callback body onto the same input a person's
+// proposal uses. ExpectedContractRevision is deliberately absent: the request
+// already froze which revision was asked about, and letting the agent name one
+// would let it answer a different question than it was given.
+func agentProposalInput(req SubmitAgentProposalRequest) outcomevc.ProposeDecompositionInput {
+	return proposeDecompositionInput(ProposeDecompositionRequest{
+		Rationale:        req.Rationale,
+		Contributors:     req.Contributors,
+		RetainedCriteria: req.RetainedCriteria,
+		Dependencies:     req.Dependencies,
+	})
 }

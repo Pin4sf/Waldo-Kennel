@@ -347,3 +347,91 @@ func TestResolveMissionRolesCoordinatorFallbackIgnoresCandidateOrder(t *testing.
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// An agent that runs without a provider grant must not be gated on finding one.
+// opencode ships usable free models, so an install with no credential is
+// working, and an inconclusive probe is its ordinary state rather than a
+// missing precondition.
+func TestEnrichMissionRolesOptionalAuthReadyWithoutGrant(t *testing.T) {
+	for name, auth := range map[string]ports.AgentAuthStatus{
+		"unknown":    ports.AgentAuthStatusUnknown,
+		"authorized": ports.AgentAuthStatusAuthorized,
+	} {
+		base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{DefaultWorker: "opencode"})
+		facts := map[domain.AgentHarness]RoleInventoryFact{
+			domain.HarnessOpenCode: {Installed: true, AuthApplicable: true, AuthOptional: true, Auth: auth},
+		}
+		got := EnrichMissionRoles(base, facts)
+		if got.Worker.Harness != domain.HarnessOpenCode {
+			t.Fatalf("%s: preference harness must be preserved: %+v", name, got.Worker)
+		}
+		if !got.Worker.Ready {
+			t.Fatalf("%s: optional-auth worker must be ready: %+v", name, got.Worker)
+		}
+		if strings.Contains(strings.ToLower(got.Worker.Reason), "authorization") {
+			t.Fatalf("%s: reason must not name an authorization gate: %q", name, got.Worker.Reason)
+		}
+	}
+}
+
+// Optional auth softens only the inconclusive case. A probe that affirmatively
+// reports a refused grant is evidence, not absence of it, so it still blocks.
+func TestEnrichMissionRolesOptionalAuthStillBlocksRefusedGrant(t *testing.T) {
+	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{DefaultWorker: "opencode"})
+	facts := map[domain.AgentHarness]RoleInventoryFact{
+		domain.HarnessOpenCode: {Installed: true, AuthApplicable: true, AuthOptional: true, Auth: ports.AgentAuthStatusUnauthorized},
+	}
+	got := EnrichMissionRoles(base, facts)
+	if got.Worker.Ready {
+		t.Fatalf("a refused grant must still block even when auth is optional: %+v", got.Worker)
+	}
+	if !strings.Contains(strings.ToLower(got.Worker.Reason), "authorization") {
+		t.Fatalf("reason should name the authorization gate: %q", got.Worker.Reason)
+	}
+}
+
+// Optional auth must not weaken an agent that genuinely needs a grant, and it
+// must not bypass the other independent gates.
+func TestEnrichMissionRolesOptionalAuthDoesNotWeakenOtherGates(t *testing.T) {
+	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{DefaultWorker: "opencode"})
+	facts := map[domain.AgentHarness]RoleInventoryFact{
+		domain.HarnessOpenCode: {Installed: false, AuthApplicable: true, AuthOptional: true, Auth: ports.AgentAuthStatusUnknown},
+	}
+	got := EnrichMissionRoles(base, facts)
+	if got.Worker.Ready {
+		t.Fatalf("an uninstalled optional-auth worker must fail closed: %+v", got.Worker)
+	}
+	if !strings.Contains(strings.ToLower(got.Worker.Reason), "not installed") {
+		t.Fatalf("reason should name the install gate: %q", got.Worker.Reason)
+	}
+}
+
+// The shipped opencode adapter must actually declare optional auth; without it
+// the readiness gate above would still block a working install.
+func TestOpenCodeAdapterDeclaresOptionalAuth(t *testing.T) {
+	for _, item := range agentregistry.Harnessed() {
+		if item.Harness != domain.HarnessOpenCode {
+			continue
+		}
+		if !isAuthOptional(item) {
+			t.Fatal("opencode adapter must declare AuthOptional: it runs without a provider grant")
+		}
+		return
+	}
+	t.Fatal("opencode adapter not found in the shipped registry")
+}
+
+// Agents that need a grant must keep the strict default: saying nothing about
+// optional auth means an inconclusive probe still fails closed.
+func TestCodexKeepsStrictAuthDefault(t *testing.T) {
+	for _, item := range agentregistry.Harnessed() {
+		if item.Harness != domain.HarnessCodex {
+			continue
+		}
+		if isAuthOptional(item) {
+			t.Fatal("codex must keep the strict auth default")
+		}
+		return
+	}
+	t.Fatal("codex adapter not found in the shipped registry")
+}

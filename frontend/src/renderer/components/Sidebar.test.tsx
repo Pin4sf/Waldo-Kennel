@@ -346,6 +346,94 @@ describe("Sidebar", () => {
 		expect(screen.getByText(session.title)).toBeInTheDocument();
 	});
 
+	it("opens a direct Outcome on Decide & Authorize", async () => {
+		const user = userEvent.setup();
+		mockPathname.current = "/work";
+		mockSearch.current = { project: "proj-1" };
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [{ id: "outcome-1", title: "Explain Waldo clearly", currentRevisionNumber: 1 }],
+			isLoading: false,
+		});
+
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		await user.click(await screen.findByRole("button", { name: "Continue Explain Waldo clearly" }));
+
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "proj-1", stage: "decide_authorize", outcome: "outcome-1" },
+		});
+	});
+
+	it("opens a decomposed parent on Mission Control and nests its contributors", async () => {
+		const user = userEvent.setup();
+		mockPathname.current = "/work";
+		mockSearch.current = { project: "proj-1" };
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [
+				{ id: "parent-1", title: "Ship the importer", currentRevisionNumber: 1 },
+				{ id: "child-1", title: "Parse the archive", currentRevisionNumber: 1, parentId: "parent-1" },
+			],
+			isLoading: false,
+		});
+
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		await user.click(await screen.findByRole("button", { name: "Continue Ship the importer" }));
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "proj-1", stage: "decompose", outcome: "parent-1" },
+		});
+
+		// A contributor answers for its own contract, so it keeps the ordinary
+		// destination — and is indented under the parent that claims it.
+		const contributor = screen.getByRole("button", { name: "Continue Parse the archive" });
+		expect(contributor.closest("li")).toHaveClass("pl-8");
+		await user.click(contributor);
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "proj-1", stage: "decide_authorize", outcome: "child-1" },
+		});
+	});
+
+	it("reaches Mission Control for an Outcome nobody has decomposed yet", async () => {
+		const user = userEvent.setup();
+		mockPathname.current = "/work";
+		mockSearch.current = { project: "proj-1" };
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [{ id: "outcome-1", title: "Explain Waldo clearly", currentRevisionNumber: 1 }],
+			isLoading: false,
+		});
+
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		await user.click(await screen.findByRole("button", { name: "Mission control for Explain Waldo clearly" }));
+
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "proj-1", stage: "decompose", outcome: "outcome-1" },
+		});
+	});
+
+	it("offers no decomposition action on a contributing Outcome", async () => {
+		mockPathname.current = "/work";
+		mockSearch.current = { project: "proj-1" };
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [
+				{ id: "parent-1", title: "Ship the importer", currentRevisionNumber: 1 },
+				{ id: "child-1", title: "Parse the archive", currentRevisionNumber: 1, parentId: "parent-1" },
+			],
+			isLoading: false,
+		});
+
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		expect(await screen.findByRole("button", { name: "Mission control for Ship the importer" })).toBeInTheDocument();
+		// The depth limit is two levels: a contributor cannot be decomposed
+		// again, so it must not offer the action.
+		expect(screen.queryByRole("button", { name: "Mission control for Parse the archive" })).not.toBeInTheDocument();
+	});
+
 	it("shows personal destinations without the Work project tree in Home", () => {
 		mockPathname.current = "/home";
 		renderSidebar();

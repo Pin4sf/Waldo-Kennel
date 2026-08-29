@@ -235,6 +235,57 @@ var changeLogWriters = []struct {
 		deps:  []string{"outcomes", "responsibility_spaces"},
 		sql:   "CREATE TRIGGER outcome_corrections_cdc_insert\nAFTER INSERT ON outcome_corrections\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_correction_recorded',\n        json_object('correctionId', NEW.id, 'decisionId', NEW.decision_id, 'outcomeId', NEW.outcome_id, 'contractRevisionId', NEW.contract_revision_id, 'targetType', NEW.target_type, 'targetId', NEW.target_id),\n        NEW.created_at);\nEND;",
 	},
+	// Composed Outcomes (0106, ADR 0007). The binding is the fact worth
+	// publishing: a contributing Outcome's own 'outcome_created' event says
+	// nothing about what it contributes to, and this one carries the parent,
+	// the exact parent revision, and the criterion claimed. The existing
+	// outcomes writers are deliberately left untouched — restoration gates on
+	// table existence, not column existence, so a writer referencing
+	// parent_outcome_id would fail on a profile that skipped 0106.
+	{
+		name:  "contribution_links_cdc_insert",
+		table: "contribution_links",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER contribution_links_cdc_insert\nAFTER INSERT ON contribution_links\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.parent_outcome_id),\n        NULL, 'outcome_contribution_bound',\n        json_object('linkId', NEW.id, 'parentOutcomeId', NEW.parent_outcome_id, 'childOutcomeId', NEW.child_outcome_id, 'parentContractRevisionId', NEW.parent_contract_revision_id, 'parentCriterionId', NEW.parent_criterion_id),\n        NEW.created_at);\nEND;",
+	},
+	// Decomposition authority writers (0107). Proposal and authorization are
+	// separate events because they mean different things: one records what was
+	// offered, the other that contributing Outcomes now exist.
+	{
+		name:  "decomposition_revisions_cdc_insert",
+		table: "decomposition_revisions",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER decomposition_revisions_cdc_insert\nAFTER INSERT ON decomposition_revisions\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_decomposition_proposed',\n        json_object('decompositionId', NEW.id, 'outcomeId', NEW.outcome_id, 'number', NEW.number, 'contractRevisionId', NEW.contract_revision_id, 'status', NEW.status),\n        NEW.created_at);\nEND;",
+	},
+	{
+		name:  "decomposition_revisions_cdc_update",
+		table: "decomposition_revisions",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER decomposition_revisions_cdc_update\nAFTER UPDATE ON decomposition_revisions\nWHEN OLD.status <> NEW.status\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_decomposition_authorized',\n        json_object('decompositionId', NEW.id, 'outcomeId', NEW.outcome_id, 'number', NEW.number, 'previousStatus', OLD.status, 'status', NEW.status),\n        datetime('now'));\nEND;",
+	},
+	// Dependency waivers (0108). Overriding an authorized ordering is a real
+	// decision about risk, so it publishes like every other owner decision.
+	{
+		name:  "contribution_waivers_cdc_insert",
+		table: "contribution_dependency_waivers",
+		deps:  []string{"decomposition_revisions", "outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER contribution_waivers_cdc_insert\nAFTER INSERT ON contribution_dependency_waivers\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM decomposition_revisions d JOIN outcomes o ON o.id = d.outcome_id JOIN responsibility_spaces s ON s.id = o.space_id WHERE d.id = NEW.decomposition_id),\n        NULL, 'outcome_contribution_dependency_waived',\n        json_object('waiverId', NEW.id, 'decompositionId', NEW.decomposition_id, 'fromRef', NEW.from_ref, 'toRef', NEW.to_ref, 'waivedBy', NEW.waived_by),\n        NEW.created_at);\nEND;",
+	},
+	// Agent-authored decomposition asks (0109). The refusal is published as
+	// well as the success: an agent proposal the daemon turned down is a fact
+	// the owner needs, not a silent non-event.
+	{
+		name:  "decomposition_requests_cdc_insert",
+		table: "decomposition_requests",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER decomposition_requests_cdc_insert\nAFTER INSERT ON decomposition_requests\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_decomposition_requested',\n        json_object('requestId', NEW.id, 'outcomeId', NEW.outcome_id, 'contractRevisionId', NEW.contract_revision_id, 'expiresAt', NEW.expires_at),\n        NEW.created_at);\nEND;",
+	},
+	{
+		name:  "decomposition_requests_cdc_update",
+		table: "decomposition_requests",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		sql:   "CREATE TRIGGER decomposition_requests_cdc_update\nAFTER UPDATE ON decomposition_requests\nWHEN OLD.status <> NEW.status\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT s.project_id FROM outcomes o JOIN responsibility_spaces s ON s.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL, 'outcome_decomposition_request_answered',\n        json_object('requestId', NEW.id, 'outcomeId', NEW.outcome_id, 'previousStatus', OLD.status, 'status', NEW.status, 'decompositionId', NEW.decomposition_id),\n        datetime('now'));\nEND;",
+	},
 	// Shared adaptive intake and explicit Home-to-Work lineage (#32).
 	{
 		name:  "intake_sessions_cdc_insert",

@@ -25,7 +25,80 @@ type fakeOutcomeService struct {
 	get    func(context.Context, domain.OutcomeID) (outcomevc.OutcomeView, error)
 	list   func(context.Context, domain.ProjectID) ([]outcomevc.OutcomeView, error)
 
-	lastInput outcomevc.CreateInput
+	contribute  func(context.Context, domain.OutcomeID, outcomevc.CreateContributionInput) (outcomevc.OutcomeView, error)
+	composition func(context.Context, domain.OutcomeID) (outcomevc.CompositionView, error)
+
+	proposeDecomposition   func(context.Context, domain.OutcomeID, outcomevc.ProposeDecompositionInput) (outcomevc.DecompositionView, error)
+	authorizeDecomposition func(context.Context, domain.OutcomeID, domain.DecompositionRevisionID) (outcomevc.DecompositionView, error)
+	latestDecomposition    func(context.Context, domain.OutcomeID) (outcomevc.DecompositionView, error)
+
+	waiveDependency func(context.Context, domain.OutcomeID, outcomevc.WaiveDependencyInput) (outcomevc.DecompositionView, error)
+
+	askForDecomposition        func(domain.OutcomeID, int64) (outcomevc.DecompositionRequestView, error)
+	submitAgentProposal        func(domain.DecompositionRequestID, string, outcomevc.ProposeDecompositionInput, string) (outcomevc.DecompositionRequestView, error)
+	latestDecompositionRequest func(domain.OutcomeID) (outcomevc.DecompositionRequestView, error)
+
+	lastAskOf       domain.OutcomeID
+	lastAskRevision int64
+	lastSubmitID    domain.DecompositionRequestID
+	lastSubmitToken string
+	lastSubmitInput outcomevc.ProposeDecompositionInput
+	lastSubmitRaw   string
+
+	lastWaiverOf domain.OutcomeID
+	lastWaiver   outcomevc.WaiveDependencyInput
+
+	lastDecompositionOf    domain.OutcomeID
+	lastDecompositionInput outcomevc.ProposeDecompositionInput
+
+	lastInput            outcomevc.CreateInput
+	lastContributionOf   domain.OutcomeID
+	lastContributionData outcomevc.CreateContributionInput
+}
+
+func (f *fakeOutcomeService) CreateContribution(ctx context.Context, parentID domain.OutcomeID, in outcomevc.CreateContributionInput) (outcomevc.OutcomeView, error) {
+	f.lastContributionOf, f.lastContributionData = parentID, in
+	if f.contribute == nil {
+		return outcomevc.OutcomeView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "not implemented in fake")
+	}
+	return f.contribute(ctx, parentID, in)
+}
+
+func (f *fakeOutcomeService) ProposeDecomposition(ctx context.Context, parentID domain.OutcomeID, in outcomevc.ProposeDecompositionInput) (outcomevc.DecompositionView, error) {
+	f.lastDecompositionOf, f.lastDecompositionInput = parentID, in
+	if f.proposeDecomposition == nil {
+		return outcomevc.DecompositionView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "not implemented in fake")
+	}
+	return f.proposeDecomposition(ctx, parentID, in)
+}
+
+func (f *fakeOutcomeService) AuthorizeDecomposition(ctx context.Context, parentID domain.OutcomeID, decompositionID domain.DecompositionRevisionID) (outcomevc.DecompositionView, error) {
+	if f.authorizeDecomposition == nil {
+		return outcomevc.DecompositionView{}, apierr.NotFound("DECOMPOSITION_NOT_FOUND", "not implemented in fake")
+	}
+	return f.authorizeDecomposition(ctx, parentID, decompositionID)
+}
+
+func (f *fakeOutcomeService) LatestDecomposition(ctx context.Context, parentID domain.OutcomeID) (outcomevc.DecompositionView, error) {
+	if f.latestDecomposition == nil {
+		return outcomevc.DecompositionView{}, apierr.NotFound("DECOMPOSITION_NOT_FOUND", "not implemented in fake")
+	}
+	return f.latestDecomposition(ctx, parentID)
+}
+
+func (f *fakeOutcomeService) WaiveContributionDependency(ctx context.Context, parentID domain.OutcomeID, in outcomevc.WaiveDependencyInput) (outcomevc.DecompositionView, error) {
+	f.lastWaiverOf, f.lastWaiver = parentID, in
+	if f.waiveDependency == nil {
+		return outcomevc.DecompositionView{}, apierr.NotFound("DECOMPOSITION_NOT_FOUND", "not implemented in fake")
+	}
+	return f.waiveDependency(ctx, parentID, in)
+}
+
+func (f *fakeOutcomeService) Composition(ctx context.Context, id domain.OutcomeID) (outcomevc.CompositionView, error) {
+	if f.composition == nil {
+		return outcomevc.CompositionView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "not implemented in fake")
+	}
+	return f.composition(ctx, id)
 }
 
 func (f *fakeOutcomeService) ProposePlan(_ context.Context, _ domain.OutcomeID, _ int64) (outcomevc.PlanView, error) {
@@ -399,4 +472,27 @@ func TestOutcomePlanRoutesFunctionalThroughRealStore(t *testing.T) {
 	if _, missStatus, _ := doRequest(t, srv, http.MethodPost, "/api/v1/outcomes/out-ghost/plans", proposeBody); missStatus != http.StatusNotFound {
 		t.Fatalf("unknown outcome propose = %d, want 404", missStatus)
 	}
+}
+
+func (f *fakeOutcomeService) AskForDecomposition(_ context.Context, outcomeID domain.OutcomeID, expected int64) (outcomevc.DecompositionRequestView, error) {
+	f.lastAskOf, f.lastAskRevision = outcomeID, expected
+	if f.askForDecomposition == nil {
+		return outcomevc.DecompositionRequestView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "not implemented in fake")
+	}
+	return f.askForDecomposition(outcomeID, expected)
+}
+
+func (f *fakeOutcomeService) SubmitAgentProposal(_ context.Context, requestID domain.DecompositionRequestID, token string, in outcomevc.ProposeDecompositionInput, raw string) (outcomevc.DecompositionRequestView, error) {
+	f.lastSubmitID, f.lastSubmitToken, f.lastSubmitInput, f.lastSubmitRaw = requestID, token, in, raw
+	if f.submitAgentProposal == nil {
+		return outcomevc.DecompositionRequestView{}, apierr.NotFound("DECOMPOSITION_REQUEST_NOT_FOUND", "not implemented in fake")
+	}
+	return f.submitAgentProposal(requestID, token, in, raw)
+}
+
+func (f *fakeOutcomeService) LatestDecompositionRequest(_ context.Context, outcomeID domain.OutcomeID) (outcomevc.DecompositionRequestView, error) {
+	if f.latestDecompositionRequest == nil {
+		return outcomevc.DecompositionRequestView{}, apierr.NotFound("DECOMPOSITION_REQUEST_NOT_FOUND", "not implemented in fake")
+	}
+	return f.latestDecompositionRequest(outcomeID)
 }

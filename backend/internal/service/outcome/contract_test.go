@@ -3,9 +3,11 @@ package outcome_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
@@ -23,8 +25,16 @@ type fakeStore struct {
 	revs     map[domain.OutcomeID][]domain.ContractRevision
 	keys     map[string]domain.OutcomeID
 	plans    map[domain.OutcomeID]domain.PlanRevision
-	order    []domain.OutcomeID
-	writes   int
+	links    map[domain.OutcomeID][]domain.ContributionLink
+
+	decompositions     map[domain.DecompositionRevisionID]domain.DecompositionRevision
+	decompositionOrder []domain.DecompositionRevisionID
+	waivers            []domain.ContributionDependencyWaiver
+	requests           map[domain.DecompositionRequestID]domain.DecompositionRequest
+	requestOrder       []domain.DecompositionRequestID
+
+	order  []domain.OutcomeID
+	writes int
 }
 
 func newFakeStore() *fakeStore {
@@ -370,4 +380,293 @@ func (f *fakeStore) GetLatestPlanRevision(_ context.Context, outcomeID domain.Ou
 
 func (f *fakeStore) ApprovePlanRevision(_ context.Context, _ domain.OutcomeID, id domain.PlanRevisionID) (domain.PlanRevision, bool, error) {
 	return domain.PlanRevision{ID: id, Status: domain.PlanStatusApproved}, true, nil
+}
+
+// --- Composed Outcomes (ADR 0007) ---
+//
+// The fake enforces the same invariants storage does, so a service test that
+// passes here would also pass against SQLite. A fake that silently accepted a
+// third level or an unlinked child would prove nothing.
+
+func (f *fakeStore) CreateContributionWithContract(
+	_ context.Context,
+	child domain.Outcome,
+	first domain.ContractRevision,
+	links []domain.ContributionLink,
+	requestKey string,
+) error {
+	if err := domain.ValidateContributionLinkSet(child.ID, links); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if requestKey != "" {
+		if _, taken := f.keys[requestKey]; taken {
+			return errUniqueKey
+		}
+	}
+	parent, ok := f.outcomes[child.ParentID]
+	if !ok {
+		return fmt.Errorf("parent outcome %s not found", child.ParentID)
+	}
+	if parent.IsContributing() {
+		return fmt.Errorf("composition depth limit: a contributing outcome cannot be a parent")
+	}
+	first.Number = 1
+	child.CurrentRevisionNumber = 1
+	f.outcomes[child.ID] = child
+	f.revs[child.ID] = []domain.ContractRevision{first}
+	f.order = append(f.order, child.ID)
+	if f.links == nil {
+		f.links = map[domain.OutcomeID][]domain.ContributionLink{}
+	}
+	f.links[child.ID] = append(f.links[child.ID], links...)
+	if requestKey != "" {
+		f.keys[requestKey] = child.ID
+	}
+	f.writes++
+	return nil
+}
+
+func (f *fakeStore) ListContributingOutcomes(_ context.Context, parent domain.OutcomeID) ([]domain.Outcome, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]domain.Outcome, 0)
+	for _, id := range f.order {
+		if o, ok := f.outcomes[id]; ok && o.ParentID == parent && !parent.IsZero() {
+			out = append(out, o)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeStore) ListContributionLinksForParent(_ context.Context, parent domain.OutcomeID) ([]domain.ContributionLink, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]domain.ContributionLink, 0)
+	for _, id := range f.order {
+		for _, link := range f.links[id] {
+			if link.ParentOutcomeID == parent {
+				out = append(out, link)
+			}
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeStore) ListContributionLinksForChild(_ context.Context, child domain.OutcomeID) ([]domain.ContributionLink, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]domain.ContributionLink, 0, len(f.links[child]))
+	return append(out, f.links[child]...), nil
+}
+
+// --- Decomposition authority (ADR 0007 phase 2) ---
+//
+// The fake keeps proposals and authorization separate exactly as storage does,
+// so a test cannot pass by treating a proposal as if it had already created
+// the contributing Outcomes.
+
+func (f *fakeStore) AppendDecompositionRevision(_ context.Context, revision domain.DecompositionRevision) (domain.DecompositionRevision, error) {
+	if err := revision.Validate(); err != nil {
+		return domain.DecompositionRevision{}, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.decompositions == nil {
+		f.decompositions = map[domain.DecompositionRevisionID]domain.DecompositionRevision{}
+	}
+	highest := int64(0)
+	for _, existing := range f.decompositions {
+		if existing.OutcomeID == revision.OutcomeID && existing.Number > highest {
+			highest = existing.Number
+		}
+	}
+	revision.Number = highest + 1
+	f.decompositions[revision.ID] = revision
+	f.decompositionOrder = append(f.decompositionOrder, revision.ID)
+	return revision, nil
+}
+
+func (f *fakeStore) AuthorizeDecompositionRevision(
+	_ context.Context,
+	outcomeID domain.OutcomeID,
+	decompositionID domain.DecompositionRevisionID,
+	contributions []ports.AuthorizedContribution,
+	at time.Time,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	revision, ok := f.decompositions[decompositionID]
+	if !ok || revision.OutcomeID != outcomeID || revision.Status != domain.DecompositionProposed {
+		return fmt.Errorf("%w: %s", ports.ErrDecompositionNotProposed, decompositionID)
+	}
+	if f.links == nil {
+		f.links = map[domain.OutcomeID][]domain.ContributionLink{}
+	}
+	byRef := make(map[string]domain.OutcomeID, len(contributions))
+	for _, contribution := range contributions {
+		child := contribution.Outcome
+		child.CurrentRevisionNumber = 1
+		first := contribution.First
+		first.Number = 1
+		f.outcomes[child.ID] = child
+		f.revs[child.ID] = []domain.ContractRevision{first}
+		f.order = append(f.order, child.ID)
+		f.links[child.ID] = append(f.links[child.ID], contribution.Links...)
+		byRef[contribution.Ref] = child.ID
+		f.writes++
+	}
+	for i := range revision.Contributors {
+		if id, ok := byRef[revision.Contributors[i].Ref]; ok {
+			revision.Contributors[i].ChildOutcomeID = id
+		}
+	}
+	revision.Status = domain.DecompositionAuthorized
+	revision.AuthorizedAt = &at
+	f.decompositions[decompositionID] = revision
+	return nil
+}
+
+func (f *fakeStore) GetDecompositionRevision(_ context.Context, outcomeID domain.OutcomeID, id domain.DecompositionRevisionID) (domain.DecompositionRevision, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	revision, ok := f.decompositions[id]
+	if !ok || revision.OutcomeID != outcomeID {
+		return domain.DecompositionRevision{}, false, nil
+	}
+	return revision, true, nil
+}
+
+func (f *fakeStore) LatestDecompositionRevision(_ context.Context, outcomeID domain.OutcomeID) (domain.DecompositionRevision, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var latest domain.DecompositionRevision
+	found := false
+	for _, id := range f.decompositionOrder {
+		revision := f.decompositions[id]
+		if revision.OutcomeID == outcomeID && (!found || revision.Number > latest.Number) {
+			latest, found = revision, true
+		}
+	}
+	return latest, found, nil
+}
+
+// --- Dependency waivers (ADR 0007 phase 3) ---
+
+func (f *fakeStore) AppendContributionDependencyWaiver(_ context.Context, waiver domain.ContributionDependencyWaiver) error {
+	if err := waiver.Validate(); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	// Storage refuses a waiver for an ordering nobody declared; the fake must
+	// too, or a service test could pass against a rule SQLite would reject.
+	revision, ok := f.decompositions[waiver.DecompositionID]
+	if !ok {
+		return fmt.Errorf("no such decomposition %s", waiver.DecompositionID)
+	}
+	declared := false
+	for _, dependency := range revision.Dependencies {
+		if dependency.FromRef == waiver.FromRef && dependency.ToRef == waiver.ToRef {
+			declared = true
+			break
+		}
+	}
+	if !declared {
+		return fmt.Errorf("no such declared dependency to waive")
+	}
+	f.waivers = append(f.waivers, waiver)
+	return nil
+}
+
+func (f *fakeStore) ListContributionDependencyWaivers(_ context.Context, decompositionID domain.DecompositionRevisionID) ([]domain.ContributionDependencyWaiver, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]domain.ContributionDependencyWaiver, 0, len(f.waivers))
+	for _, waiver := range f.waivers {
+		if waiver.DecompositionID == decompositionID {
+			out = append(out, waiver)
+		}
+	}
+	return out, nil
+}
+
+// --- Agent-authored decomposition asks (ADR 0007 phase 2b) ---
+
+func (f *fakeStore) CreateDecompositionRequest(_ context.Context, request domain.DecompositionRequest) error {
+	if err := request.Validate(); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.requests == nil {
+		f.requests = map[domain.DecompositionRequestID]domain.DecompositionRequest{}
+	}
+	f.requests[request.ID] = request
+	f.requestOrder = append(f.requestOrder, request.ID)
+	return nil
+}
+
+func (f *fakeStore) GetDecompositionRequest(_ context.Context, id domain.DecompositionRequestID) (domain.DecompositionRequest, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	request, ok := f.requests[id]
+	return request, ok, nil
+}
+
+func (f *fakeStore) LatestDecompositionRequest(_ context.Context, outcomeID domain.OutcomeID) (domain.DecompositionRequest, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := len(f.requestOrder) - 1; i >= 0; i-- {
+		if request := f.requests[f.requestOrder[i]]; request.OutcomeID == outcomeID {
+			return request, true, nil
+		}
+	}
+	return domain.DecompositionRequest{}, false, nil
+}
+
+// The guarded update is what makes the callback single-use, so the fake
+// guards too: a test that could answer twice here would prove nothing.
+func (f *fakeStore) AnswerDecompositionRequest(_ context.Context, answer ports.DecompositionRequestAnswer) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	request, ok := f.requests[answer.RequestID]
+	if !ok || !request.Status.Open() {
+		return fmt.Errorf("%w: %s", ports.ErrDecompositionRequestClosed, answer.RequestID)
+	}
+	request.Status = answer.Status
+	request.RawProposal = answer.RawProposal
+	request.RefusalReason = answer.RefusalReason
+	request.DecompositionID = answer.DecompositionID
+	at := answer.At
+	request.AnsweredAt = &at
+	f.requests[answer.RequestID] = request
+	return nil
+}
+
+func (f *fakeStore) ListOpenDecompositionRequests(_ context.Context) ([]domain.DecompositionRequest, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]domain.DecompositionRequest, 0, len(f.requestOrder))
+	for _, id := range f.requestOrder {
+		if request := f.requests[id]; request.Status.Open() {
+			out = append(out, request)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeStore) BindDecompositionRequestSession(_ context.Context, id domain.DecompositionRequestID, sessionID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	request, ok := f.requests[id]
+	// Storage binds only an open, unbound request; the fake matches so a test
+	// cannot pass against a rule SQLite would reject.
+	if !ok || !request.Status.Open() || request.SessionID != "" {
+		return fmt.Errorf("decomposition request %s is not open and unbound", id)
+	}
+	request.SessionID = sessionID
+	f.requests[id] = request
+	return nil
 }

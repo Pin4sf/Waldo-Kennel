@@ -1,7 +1,7 @@
 # Waldo Kennel v0 dogfood and provider-neutral v1 architecture
 
-- Status: Accepted v0 dogfood baseline and provider-neutral v1 direction, amended by ADR 0004; documentation only
-- Decision date: 2026-08-20; Home/Personal Agent amendment accepted 2026-08-21
+- Status: Accepted v0 dogfood baseline and provider-neutral v1 direction, amended by ADR 0004 and ADR 0007; documentation only
+- Decision date: 2026-08-20; Home/Personal Agent amendment accepted 2026-08-21; Composed Outcomes amendment accepted 2026-08-29
 - Launch wedge: agent-heavy Mac users, expanding through governed personal and communication continuity
 - Launch proof: useful Outcomes and commitments reach conscious closure with lower coordination and supervision cost
 - Current implementation status: prerequisite foundation, legacy-import removal, Codex admission, and CLI reduction are on `main`; the accepted Outcome/Home/continuity model is not implemented by the existing overlay
@@ -120,9 +120,12 @@ An Outcome or Open Loop belongs to exactly one Responsibility Space at a time. M
 | --- | --- |
 | `ResponsibilitySpace` | Explicit Work Project or Personal Home boundary for policy, context, retention, and later attachment. |
 | `Project` | Local executable workspace inside a Work Project space. Repository bytes and worktrees remain Kennel custody. |
-| `Outcome` | User-delegated responsibility: something that needs to become true. It owns execution and acceptance lineage. |
+| `Outcome` | User-delegated responsibility: something that needs to become true. It owns execution and acceptance lineage. An Outcome is exactly one of two shapes and never both: **direct**, owning `PlanRevision`s and `Attempt`s; or **decomposed**, owning a `DecompositionRevision` and never starting an Attempt of its own ([ADR 0007](../adr/0007-composed-outcomes.md)). |
 | `ContractRevision` | Immutable goal, success criteria, constraints, review expectation, authority envelope, and stop conditions. |
-| `PlanRevision` | Versioned execution proposal. The optional Mission Map is its user-facing projection. |
+| `PlanRevision` | Versioned execution proposal for one direct Outcome. The optional Mission Map is its user-facing projection. |
+| `DecompositionRevision` | Immutable authorized set of contributing Outcomes, their contribution bindings, and their dependencies, frozen against one parent `ContractRevision`. It is the decomposed Outcome's plan: a decomposed Outcome has no `PlanRevision` and no `Attempt`. A new parent contract revision supersedes it and makes every contributor bound through it stale. |
+| `ContributionLink` | Immutable binding from one contributing Outcome to one or more parent criterion identities. Contribution is criterion-bound or it is decorative: every parent criterion is either claimed by a contributor or explicitly **parent-retained**, and authorization fails closed on any criterion that is neither. Retention decides who proves a criterion, never whether it is proved. |
+| `ContributionDependency` | Declared ordering between two sibling contributing Outcomes inside one `DecompositionRevision`. Cycles are rejected at authorization. A contributor's first Attempt is gated on its declared upstreams unless the user records an explicit durable waiver. |
 | `OpenLoop` | Confirmed unresolved responsibility or commitment that must be preserved, revisited, consciously closed, released, or promoted to an Outcome. |
 | `LoopDisposition` | Immutable user decision to confirm, close, release, reopen, transfer, or supersede an Open Loop. |
 | `SuccessorLink` | Lineage from an accepted Outcome or closed Open Loop to a later follow-up responsibility. |
@@ -205,7 +208,7 @@ This supports Minimi-like ambient continuity and Open Loop help while adding Wal
 
 ## Exact lineages
 
-### Work Outcome
+### Work Outcome — direct
 
 ```text
 ResponsibilitySpace / WorkProject
@@ -222,6 +225,28 @@ ResponsibilitySpace / WorkProject
   -> Adaptive Close
   -> optional SuccessorLink -> new Outcome or OpenLoop
 ```
+
+### Work Outcome — composed
+
+A Project-level Outcome may instead be decomposed into contributing Outcomes, each of which is a full responsibility running the direct lineage above. The parent's decomposition is its plan; it never executes.
+
+```text
+ResponsibilitySpace / WorkProject
+  -> Outcome (decomposed)
+  -> clarification -> ContractRevision
+  -> DecompositionRevision
+       -> ContributionLinks (criterion-bound) + ContributionDependencies
+       -> contributing Outcome  -> its own direct lineage -> AcceptanceDecision
+       -> contributing Outcome  -> its own direct lineage -> AcceptanceDecision
+       -> parent-retained criteria -> owner EvidenceItems + VerificationRuns
+  -> criterion coverage roll-up
+  -> Ready for Acceptance
+  -> AcceptanceDecision (parent, separate and immutable)
+  -> Adaptive Close
+  -> optional SuccessorLink -> new Outcome or OpenLoop
+```
+
+Composition is capped at two levels: a contributing Outcome may not itself be decomposed. A contributing Outcome's authority ceiling is a subset of its parent's — a lower layer may narrow authority and may never widen it, which is the existing intersection rule applied to a new layer.
 
 ### Communication continuity
 
@@ -279,6 +304,12 @@ Draft -> Contracted -> Active -> Ready for Acceptance -> Accepted
 
 `Completed` is not an Outcome state. Acceptance requires the user's immutable decision.
 
+A decomposed Outcome runs the same states, derived from its contributors rather than from its own Attempts. Every contributor accepted plus every parent-retained criterion proved makes the parent **Ready for Acceptance** — never Accepted. A set of proved parts is not proof that the whole goal became true.
+
+Contributors reach Ready for Acceptance independently and wait. The parent's Prove & Close surface presents every ready contributor together with its criteria, Evidence, Verification result, and declared independence class separately inspectable, so one review sitting produces **N separate immutable `AcceptanceDecision` records, one per Outcome accepted** — never one decision fanned out, and never a parent decision that implies its children. The daemon's only power over that batch is **exclusion**: a contributor whose Evidence is contradicted or missing, or whose Verification carries a weaker independence class than its own contract required, is withheld and escalated with the reason named. The daemon may withhold; it may not approve. No automated actor creates an `AcceptanceDecision`.
+
+Reopening a parent does not reopen its contributors; it produces a successor or a new contributing Outcome.
+
 ### Work control-plane composition
 
 The approved [Work control-plane design](../superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md) fixes the user-facing hierarchy without changing the canonical lineage:
@@ -286,11 +317,12 @@ The approved [Work control-plane design](../superpowers/specs/2026-08-25-work-co
 ```text
 Project Board or List
   -> Outcome Mission Control
+    -> contributing Outcome (when decomposed)
     -> Work Unit / Attempt
       -> individual Agent Session Inspector
 ```
 
-Board/List cards represent Outcomes and summarize current attention, Work Units, Attempts, provider sessions, and proof. The separate Sessions view is an operational cross-Outcome projection. An Outcome is never called or modeled as a session.
+Board/List cards represent Project-level Outcomes and summarize current attention, contributors, Work Units, Attempts, provider sessions, and proof. For a decomposed Outcome, Mission Control's topology is its contributing Outcomes and their dependencies; each contributor opens its own Mission Control. Attention rolls up to the parent, and every rolled-up item names the contributor it came from — otherwise the parent becomes a second undifferentiated activity feed. The separate Sessions view is an operational cross-Outcome projection. An Outcome is never called or modeled as a session.
 
 Work exposes one persistent Waldo conversation scoped to the selected Project. Selecting an Outcome adds an explicit context chip and starts bounded conversation/intake episodes; it does not create another Waldo identity or let chat become canonical responsibility. Direct provider chat remains subordinate to an Attempt in Session Inspector. Personal/general conversation belongs in Home and crosses scope only through explicit user-approved context or `ResponsibilityLink` lineage.
 

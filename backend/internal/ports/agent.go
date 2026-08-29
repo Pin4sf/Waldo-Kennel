@@ -65,6 +65,26 @@ type AgentAuthChecker interface {
 	AuthStatus(ctx context.Context) (AgentAuthStatus, error)
 }
 
+// AgentOptionalAuth is the optional declaration that a provider grant is not a
+// precondition for running the agent, only useful information about it.
+//
+// It separates two things AgentAuthChecker alone conflates. Reporting auth
+// status is worth doing for any agent that can report it; requiring a grant
+// before AO will run the agent is a different claim. Most agents cannot do
+// anything without credentials, so an inconclusive probe has to fail closed
+// for them. opencode ships usable free models and works with no credential at
+// all, so for it AgentAuthStatusUnknown is the ordinary healthy state rather
+// than a missing precondition.
+//
+// Declaring optional auth only softens the inconclusive case: a probe that
+// affirmatively reports AgentAuthStatusUnauthorized still blocks, because that
+// is evidence of refusal rather than absence of evidence.
+type AgentOptionalAuth interface {
+	// AuthOptional reports whether the agent can do useful work without a
+	// provider grant.
+	AuthOptional() bool
+}
+
 // AgentProfileReadiness is the advisory result of an adapter's profile-level
 // readiness probe: whether the agent's own configuration beyond binary
 // presence is sufficient to attempt a launch. Spawn remains the authoritative

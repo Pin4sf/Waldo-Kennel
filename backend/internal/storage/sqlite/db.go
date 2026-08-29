@@ -168,10 +168,62 @@ func migrate(db *sql.DB) error {
 	if err := restoreChangeLogWriters(db); err != nil {
 		return fmt.Errorf("restore change log writers: %w", err)
 	}
+	if err := reconcileComposedOutcomesSchema(db); err != nil {
+		return fmt.Errorf("reconcile composed outcomes schema: %w", err)
+	}
 	if err := reconcileProjectChatProjection(db); err != nil {
 		return fmt.Errorf("reconcile project chat projection: %w", err)
 	}
 	return reconcileSchema(db)
+}
+
+// composedOutcomesDDL is the composition schema, shared verbatim with sqlc so
+// generated code and the running database cannot disagree.
+//
+//go:embed schema/composed_outcomes.sql
+var composedOutcomesDDL string
+
+// reconcileComposedOutcomesSchema installs the composition schema migration
+// 0106 deliberately does not (ADR 0007).
+//
+// It lives here for the same reason reconcileOutcomeProofSchema does: a burned
+// 0099 ledger entry marks the version applied while leaving `outcomes` and
+// `contract_criteria` physically absent, and ALTER TABLE cannot be made
+// conditional inside migration SQL. On a complete profile this adds the parent
+// column, the contribution_links table, and the fail-closed guards; on a
+// degraded one it defers without inventing composition state.
+//
+// Every statement is idempotent, so a repaired profile heals on the next start.
+func reconcileComposedOutcomesSchema(db *sql.DB) error {
+	for _, table := range []string{"outcomes", "contract_revisions", "contract_criteria"} {
+		var present int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table,
+		).Scan(&present); err != nil {
+			return err
+		}
+		if present == 0 {
+			return nil
+		}
+	}
+
+	var hasParent int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM pragma_table_info('outcomes') WHERE name = 'parent_outcome_id'`,
+	).Scan(&hasParent); err != nil {
+		return err
+	}
+	if hasParent == 0 {
+		// Default NULL is required: SQLite forbids ADD COLUMN with a
+		// REFERENCES clause unless the default is NULL. It is also the correct
+		// default — an existing Outcome contributes to nothing.
+		if _, err := db.Exec(`ALTER TABLE outcomes ADD COLUMN parent_outcome_id TEXT REFERENCES outcomes (id)`); err != nil {
+			return err
+		}
+	}
+
+	_, err := db.Exec(composedOutcomesDDL)
+	return err
 }
 
 // reconcileOutcomeProofSchema performs the one conditional data-copy SQLite

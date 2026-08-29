@@ -309,7 +309,7 @@ Missing implementation work must be published as dependency-aware vertical slice
 2. Project default-agent onboarding plus capability-based role resolution;
 3. adaptive Work intake and stable-core Contract proposal over the shared Intake contract;
 4. Board -> Outcome Mission Control -> Session Inspector composition;
-5. one adaptive multi-WorkUnit Mission vertical after the first direct-Outcome gate passes.
+5. one adaptive multi-WorkUnit Mission vertical after the first direct-Outcome gate passes. **Superseded 2026-08-29 by [ADR 0007](../../adr/0007-composed-outcomes.md):** a Project-level Outcome decomposes into contributing Outcomes instead, and `PlanRevision` stays at one direct Work Unit.
 
 Each slice must cross domain/storage/CDC/service/API/UI/restart/evaluation as needed, own one migration/API lease window, and branch from freshly fetched `origin/beta`. Existing issue bodies are not silently broadened; shared-contract alignment is recorded in comments and missing slices receive separately reviewed issues.
 

@@ -1,7 +1,11 @@
 version: "2"
 sql:
   - engine: "sqlite"
-    schema: "internal/storage/sqlite/migrations"
+    schema:
+      - "internal/storage/sqlite/migrations"
+      # Composition relations live outside migration SQL so the startup seam
+      # can defer on degraded profiles; sqlc reads the same file the seam runs.
+      - "internal/storage/sqlite/schema"
     queries: "internal/storage/sqlite/queries"
     gen:
       go:
@@ -312,6 +316,63 @@ sql:
             go_type:
               import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
               type: "OutcomeID"
+          - column: "decomposition_revisions.id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "DecompositionRevisionID"
+          - column: "decomposition_revisions.outcome_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "OutcomeID"
+          - column: "decomposition_revisions.contract_revision_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "ContractRevisionID"
+          - column: "decomposition_revisions.status"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "DecompositionStatus"
+          - column: "decomposition_contributions.decomposition_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "DecompositionRevisionID"
+          - column: "decomposition_contributions.child_outcome_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "OutcomeID"
+              pointer: true
+          - column: "decomposition_retained_criteria.decomposition_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "DecompositionRevisionID"
+          - column: "decomposition_retained_criteria.parent_criterion_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "CriterionID"
+          - column: "contribution_dependencies.decomposition_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "DecompositionRevisionID"
+          - column: "contribution_dependency_waivers.decomposition_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "DecompositionRevisionID"
+          - column: "decomposition_requests.id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "DecompositionRequestID"
+          - column: "decomposition_requests.outcome_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "OutcomeID"
+          - column: "decomposition_requests.contract_revision_id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "ContractRevisionID"
+          - column: "decomposition_requests.status"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "DecompositionRequestStatus"
           - column: "plan_revisions.id"
             go_type:
               import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"

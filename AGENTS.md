@@ -43,6 +43,18 @@ npm run build
 
 When showing or demoing frontend changes, run `kennel preview [url]` from inside the session so the change renders in the desktop browser panel (the inspector rail's Browser tab); do not just describe it.
 
+To drive the renderer against a REAL daemon from a browser (screenshots, DOM
+assertions, no Electron shell):
+
+```bash
+KENNEL_DEV_API_TARGET=http://127.0.0.1:<daemon-port> npm --prefix frontend run dev:web:live
+```
+
+`dev:web` stays on demo fixtures. `dev:web:live` points the dev server's proxy
+at a running daemon and keeps renderer requests same-origin so that proxy is
+actually used. Known limitation: a hard page load of `/work?...` does not mount
+that route in browser preview — navigate to it by clicking through the app.
+
 ## Where to look first
 
 - `README.md` — current run/config/test quickstart.
@@ -51,6 +63,7 @@ When showing or demoing frontend changes, run `kennel preview [url]` from inside
 - `docs/STATUS.md` — what is shipped on `main` today and what is still in flight.
 - `docs/product/kennel-v1-product-architecture.md` — canonical Waldo Kennel product ontology, exact responsibility/execution/evidence lineages, custody, governance, and phase boundaries. Read it before changing Outcome, Home, Work, authority, evidence, verification, acceptance, or continuity semantics.
 - `docs/product/kennel-v0-first-outcome-slice.md` — locked first vertical proof and its falsifiable acceptance/recovery contract.
+- `docs/adr/0007-composed-outcomes.md` and `docs/superpowers/plans/2026-08-29-composed-outcomes-program.md` — the composed-Outcome ontology and its phased delivery. Read both before changing decomposition, contribution binding, proof roll-up, or acceptance.
 - `docs/cli/README.md` — intended CLI shape: thin Cobra client over daemon HTTP, never direct storage/runtime access.
 - `docs/plans/island-app-unification.md` — the implementation record for Kennel Island as a window of the desktop app's single Electron process. Read it before touching `packages/kennel-island/`, Island lifecycle/settings, or session deep-link handling.
 - `CLAUDE.md` — compatibility pointer for Claude Code; it directs agents back to `AGENTS.md`.
@@ -91,6 +104,8 @@ For code entry points:
 - The daemon MAY run a **second, opt-in LAN listener** (the "Connect Mobile" feature) that binds `0.0.0.0` **only while explicitly enabled**, **only** behind the bearer-password `authMiddleware`, serving the app API but never the loopback-gated control routes (`/shutdown`, telemetry, mobile control). It is plaintext and home-network-only by deliberate decision — see `docs/adr/0001-lan-listener-for-mobile.md` and `CONTEXT.md`. Do not add any other network-facing bind.
 - The CLI is a thin client. Do not port old in-process TypeScript CLI behavior that bypasses daemon HTTP routes.
 - The current `OutcomeTask`/`completed` overlay is donor code, not the accepted product ontology. New product work must preserve `Outcome -> ContractRevision -> PlanRevision -> WorkUnit -> Attempt -> AgentSessionRef -> EvidenceItem -> VerificationRun -> AcceptanceDecision`; provider/session completion, commits, PRs, or checks cannot accept or close an Outcome.
+- An Outcome may instead be **decomposed** into contributing Outcomes ([ADR 0007](docs/adr/0007-composed-outcomes.md)). A decomposed Outcome owns a `DecompositionRevision` in place of a `PlanRevision` and never starts an Attempt; each contributing Outcome runs the full lineage above and earns its own `AcceptanceDecision`. Composition is two levels deep, contribution is criterion-bound, and a child's authority ceiling never exceeds its parent's. Do not add a second decomposition mechanism: `PlanRevision` stays at one direct `WorkUnit`, and dependencies live between contributing Outcomes.
+- Agent-authored proposals (decomposition today, intake later) reach the daemon by **callback**, never by parsing model text, and pass the **same** validation as a hand-authored one — there is no trusted-proposer path. Their callback token is **scoping, not authentication**: the loopback listener is unauthenticated by design, so the token exists to stop a confused agent posting for the wrong Outcome or twice, not to stop a hostile local process. Do not describe it as auth or rely on it as such. See `docs/adr/0007-composed-outcomes.md`.
 - Do not store derived/display session status. Status is derived from durable facts (`activity_state`, `is_terminated`, PR/check/comment facts) at service read time.
 - Do not treat failed/unknown runtime probes as proof a session is dead.
 - Do not force-delete dirty registered worktrees.

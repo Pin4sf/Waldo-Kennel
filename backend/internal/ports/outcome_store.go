@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -66,6 +67,84 @@ type OutcomeStore interface {
 	// ListContractRevisions returns the full immutable history ordered by
 	// ascending revision number.
 	ListContractRevisions(ctx context.Context, id domain.OutcomeID) ([]domain.ContractRevision, error)
+
+	// CreateContributionWithContract atomically persists one contributing
+	// Outcome, its ContractRevision 1, and every criterion binding, so a child
+	// can never exist claiming nothing (ADR 0007). Storage enforces the depth
+	// cap, the single-parent-revision rule, and link immutability; the service
+	// enforces authority containment and criterion identity beforehand.
+	CreateContributionWithContract(ctx context.Context, child domain.Outcome, first domain.ContractRevision, links []domain.ContributionLink, requestKey string) error
+
+	// ListContributingOutcomes returns the Outcomes contributing to parent in
+	// stable creation order. An empty list means the Outcome is direct: shape
+	// is derived from this, never stored.
+	ListContributingOutcomes(ctx context.Context, parent domain.OutcomeID) ([]domain.Outcome, error)
+
+	// ListContributionLinksForParent returns every binding held against
+	// parent, including those bound to superseded revisions. Superseded links
+	// stay readable so a stale contribution can be explained rather than
+	// silently disappearing.
+	ListContributionLinksForParent(ctx context.Context, parent domain.OutcomeID) ([]domain.ContributionLink, error)
+
+	// ListContributionLinksForChild returns one contributing Outcome's
+	// bindings. Their shared parent revision is that Outcome's binding.
+	ListContributionLinksForChild(ctx context.Context, child domain.OutcomeID) ([]domain.ContributionLink, error)
+
+	// AppendDecompositionRevision persists one PROPOSED decomposition with its
+	// contributors, retained criteria, and dependencies, assigning the number
+	// inside the transaction. It creates no Outcome and no binding: a proposal
+	// is a reviewable offer, and a refused one leaves nothing behind.
+	AppendDecompositionRevision(ctx context.Context, revision domain.DecompositionRevision) (domain.DecompositionRevision, error)
+
+	// AuthorizeDecompositionRevision is the owner decision that turns a
+	// proposal into responsibilities. Every contributing Outcome, its first
+	// contract, its criterion bindings, the proposal's resolution, and the
+	// one-way status move land in one transaction — a half-decomposed parent
+	// would be a decomposition nobody authorized. Authorizing anything that is
+	// not an open proposal returns ErrDecompositionNotProposed.
+	AuthorizeDecompositionRevision(ctx context.Context, outcomeID domain.OutcomeID, decompositionID domain.DecompositionRevisionID, contributions []AuthorizedContribution, at time.Time) error
+
+	// GetDecompositionRevision reads one decomposition; ok=false when absent
+	// for this Outcome.
+	GetDecompositionRevision(ctx context.Context, outcomeID domain.OutcomeID, id domain.DecompositionRevisionID) (domain.DecompositionRevision, bool, error)
+
+	// LatestDecompositionRevision returns the newest decomposition of any
+	// status; ok=false when the Outcome has never been decomposed.
+	LatestDecompositionRevision(ctx context.Context, outcomeID domain.OutcomeID) (domain.DecompositionRevision, bool, error)
+
+	// AppendContributionDependencyWaiver records the owner's override of a
+	// declared ordering. Storage refuses a waiver for a dependency nobody
+	// declared: consenting to nothing is not consent.
+	AppendContributionDependencyWaiver(ctx context.Context, waiver domain.ContributionDependencyWaiver) error
+
+	// ListContributionDependencyWaivers returns every waiver recorded against
+	// one decomposition. Waivers are append-only, so this is the full history.
+	ListContributionDependencyWaivers(ctx context.Context, decompositionID domain.DecompositionRevisionID) ([]domain.ContributionDependencyWaiver, error)
+
+	// CreateDecompositionRequest opens one durable ask for an agent-authored
+	// decomposition. Only the callback token's digest is persisted.
+	CreateDecompositionRequest(ctx context.Context, request domain.DecompositionRequest) error
+
+	// GetDecompositionRequest reads one ask; ok=false when absent.
+	GetDecompositionRequest(ctx context.Context, id domain.DecompositionRequestID) (domain.DecompositionRequest, bool, error)
+
+	// LatestDecompositionRequest returns an Outcome's newest ask of any status.
+	LatestDecompositionRequest(ctx context.Context, outcomeID domain.OutcomeID) (domain.DecompositionRequest, bool, error)
+
+	// AnswerDecompositionRequest closes an open ask one way, retaining the
+	// agent's draft whatever the verdict. A second answer finds no open row
+	// and returns ErrDecompositionRequestClosed — that guard is what makes the
+	// callback single-use.
+	AnswerDecompositionRequest(ctx context.Context, answer DecompositionRequestAnswer) error
+
+	// ListOpenDecompositionRequests returns every unanswered ask so a
+	// restarted daemon can close the ones that expired while it was down.
+	ListOpenDecompositionRequests(ctx context.Context) ([]domain.DecompositionRequest, error)
+
+	// BindDecompositionRequestSession records which spawned session is
+	// answering. It is a separate write because the row is created BEFORE the
+	// spawn, so the session id does not exist yet at insert.
+	BindDecompositionRequestSession(ctx context.Context, id domain.DecompositionRequestID, sessionID string) error
 
 	// AppendPlanRevision atomically persists one proposed plan together with
 	// its single Work Unit and capability grants, assigning the plan number
@@ -186,3 +265,32 @@ type AttemptReplayError struct {
 func (e *AttemptReplayError) Error() string {
 	return fmt.Sprintf("attempt %s was already admitted for this request key", e.Attempt.ID)
 }
+
+// AuthorizedContribution pairs one proposal ref with the Outcome, contract,
+// and bindings authorization creates for it. The service resolves proposals
+// into these; storage writes them atomically.
+type AuthorizedContribution struct {
+	Ref     string
+	Outcome domain.Outcome
+	First   domain.ContractRevision
+	Links   []domain.ContributionLink
+}
+
+// ErrDecompositionNotProposed reports an authorization attempt against a
+// decomposition that is not an open proposal — already authorized or absent.
+var ErrDecompositionNotProposed = errors.New("decomposition is not an open proposal")
+
+// DecompositionRequestAnswer closes one ask. RawProposal is retained whatever
+// the verdict, so a refused draft stays correctable instead of being lost.
+type DecompositionRequestAnswer struct {
+	RequestID       domain.DecompositionRequestID
+	Status          domain.DecompositionRequestStatus
+	RawProposal     string
+	RefusalReason   string
+	DecompositionID domain.DecompositionRevisionID
+	At              time.Time
+}
+
+// ErrDecompositionRequestClosed reports an answer to an ask that is no longer
+// open — already answered, expired, or absent.
+var ErrDecompositionRequestClosed = errors.New("decomposition request is not open")

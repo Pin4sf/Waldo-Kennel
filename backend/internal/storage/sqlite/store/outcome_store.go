@@ -86,10 +86,11 @@ func (s *Store) CreateOutcomeWithContract(ctx context.Context, outcome domain.Ou
 		key = sql.NullString{String: requestKey, Valid: true}
 	}
 	if err := txq.CreateOutcome(ctx, gen.CreateOutcomeParams{
-		ID:             outcome.ID,
-		SpaceID:        outcome.SpaceID,
-		Title:          outcome.Title,
-		IdempotencyKey: key,
+		ID:              outcome.ID,
+		SpaceID:         outcome.SpaceID,
+		Title:           outcome.Title,
+		IdempotencyKey:  key,
+		ParentOutcomeID: nullOutcomeID(outcome.ParentID),
 	}); err != nil {
 		return fmt.Errorf("create outcome %s: %w", outcome.ID, err)
 	}
@@ -290,10 +291,39 @@ func outcomeFromRow(row gen.Outcome) domain.Outcome {
 	return domain.Outcome{
 		ID:                    row.ID,
 		SpaceID:               row.SpaceID,
+		ParentID:              outcomeIDFromNull(row.ParentOutcomeID),
 		Title:                 row.Title,
 		CurrentRevisionNumber: row.CurrentRevisionNumber,
 		CreatedAt:             row.CreatedAt,
 		UpdatedAt:             row.UpdatedAt,
+	}
+}
+
+// nullOutcomeID maps a zero parent to SQL NULL. A Project-level Outcome
+// contributes to nothing, and NULL is the only value the partial parent index
+// and the depth-cap triggers treat as "root".
+func nullOutcomeID(id domain.OutcomeID) sql.NullString {
+	if id.IsZero() {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: string(id), Valid: true}
+}
+
+func outcomeIDFromNull(v sql.NullString) domain.OutcomeID {
+	if !v.Valid {
+		return ""
+	}
+	return domain.OutcomeID(v.String)
+}
+
+func contributionLinkFromRow(row gen.ContributionLink) domain.ContributionLink {
+	return domain.ContributionLink{
+		ID:                       domain.ContributionLinkID(row.ID),
+		ParentOutcomeID:          domain.OutcomeID(row.ParentOutcomeID),
+		ChildOutcomeID:           domain.OutcomeID(row.ChildOutcomeID),
+		ParentContractRevisionID: domain.ContractRevisionID(row.ParentContractRevisionID),
+		ParentCriterionID:        domain.CriterionID(row.ParentCriterionID),
+		CreatedAt:                row.CreatedAt,
 	}
 }
 
@@ -594,4 +624,131 @@ func planFromParts(row gen.PlanRevision, units []gen.WorkUnit, grants []gen.Capa
 		return domain.PlanRevision{}, fmt.Errorf("plan %s failed readback validation: %w", row.ID, err)
 	}
 	return plan, nil
+}
+
+// CreateContributionWithContract atomically persists one contributing Outcome,
+// its ContractRevision 1, and every criterion binding that makes the
+// contribution real (ADR 0007).
+//
+// All three land in one transaction on purpose. A contributing Outcome without
+// its links would be a child claiming nothing — the "decorative contribution"
+// the ontology forbids — and a partial failure must leave no such row behind.
+func (s *Store) CreateContributionWithContract(
+	ctx context.Context,
+	child domain.Outcome,
+	first domain.ContractRevision,
+	links []domain.ContributionLink,
+	requestKey string,
+) error {
+	if err := child.Validate(); err != nil {
+		return err
+	}
+	if child.ParentID.IsZero() {
+		return fmt.Errorf("contributing outcome %s must name a parent", child.ID)
+	}
+	if err := domain.ValidateContributionLinkSet(child.ID, links); err != nil {
+		return err
+	}
+
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
+	tx, err := s.writeDB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin create contribution %s: %w", child.ID, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	txq := s.qw.WithTx(tx)
+
+	var key sql.NullString
+	if requestKey != "" {
+		key = sql.NullString{String: requestKey, Valid: true}
+	}
+	if err := txq.CreateOutcome(ctx, gen.CreateOutcomeParams{
+		ID:              child.ID,
+		SpaceID:         child.SpaceID,
+		Title:           child.Title,
+		IdempotencyKey:  key,
+		ParentOutcomeID: nullOutcomeID(child.ParentID),
+	}); err != nil {
+		return fmt.Errorf("create contributing outcome %s: %w", child.ID, err)
+	}
+
+	number, err := nextRevisionNumber(ctx, txq, child.ID)
+	if err != nil {
+		return err
+	}
+	first.Number = number
+	if err := insertContractRevision(ctx, txq, first); err != nil {
+		return err
+	}
+	rows, err := txq.AdvanceOutcomeCurrentRevision(ctx, gen.AdvanceOutcomeCurrentRevisionParams{
+		CurrentRevisionNumber:   number,
+		UpdatedAt:               first.CreatedAt,
+		ID:                      child.ID,
+		CurrentRevisionNumber_2: 0,
+	})
+	if err != nil {
+		return fmt.Errorf("point contributing outcome %s at revision 1: %w", child.ID, err)
+	}
+	if rows != 1 {
+		return fmt.Errorf("point contributing outcome %s at revision 1: pointer moved concurrently", child.ID)
+	}
+
+	for _, link := range links {
+		if err := txq.CreateContributionLink(ctx, gen.CreateContributionLinkParams{
+			ID:                       string(link.ID),
+			ParentOutcomeID:          string(link.ParentOutcomeID),
+			ChildOutcomeID:           string(link.ChildOutcomeID),
+			ParentContractRevisionID: string(link.ParentContractRevisionID),
+			ParentCriterionID:        string(link.ParentCriterionID),
+		}); err != nil {
+			return fmt.Errorf("bind contribution %s to criterion %s: %w", link.ChildOutcomeID, link.ParentCriterionID, err)
+		}
+	}
+	return tx.Commit()
+}
+
+// ListContributingOutcomes returns the Outcomes contributing to parent in
+// stable creation order. A direct Outcome returns an empty list, which is what
+// makes shape derivable rather than stored.
+func (s *Store) ListContributingOutcomes(ctx context.Context, parent domain.OutcomeID) ([]domain.Outcome, error) {
+	rows, err := s.qr.ListContributingOutcomes(ctx, nullOutcomeID(parent))
+	if err != nil {
+		return nil, fmt.Errorf("list contributing outcomes for %s: %w", parent, err)
+	}
+	out := make([]domain.Outcome, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, outcomeFromRow(row))
+	}
+	return out, nil
+}
+
+// ListContributionLinksForParent returns every criterion binding held against
+// parent, across all of its contributing Outcomes and all parent revisions.
+// Callers filter to the current revision; the superseded ones stay readable.
+func (s *Store) ListContributionLinksForParent(ctx context.Context, parent domain.OutcomeID) ([]domain.ContributionLink, error) {
+	rows, err := s.qr.ListContributionLinksForParent(ctx, string(parent))
+	if err != nil {
+		return nil, fmt.Errorf("list contribution links for parent %s: %w", parent, err)
+	}
+	out := make([]domain.ContributionLink, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, contributionLinkFromRow(row))
+	}
+	return out, nil
+}
+
+// ListContributionLinksForChild returns the bindings one contributing Outcome
+// holds. Their shared parent revision is that Outcome's binding.
+func (s *Store) ListContributionLinksForChild(ctx context.Context, child domain.OutcomeID) ([]domain.ContributionLink, error) {
+	rows, err := s.qr.ListContributionLinksForChild(ctx, string(child))
+	if err != nil {
+		return nil, fmt.Errorf("list contribution links for child %s: %w", child, err)
+	}
+	out := make([]domain.ContributionLink, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, contributionLinkFromRow(row))
+	}
+	return out, nil
 }

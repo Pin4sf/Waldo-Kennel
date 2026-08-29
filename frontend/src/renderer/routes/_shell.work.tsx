@@ -3,18 +3,27 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { OutcomeDecideAuthorizeSurface } from "../components/outcome/OutcomeDecideAuthorizeSurface";
 import { OutcomeLifecycleShell } from "../components/outcome/OutcomeLifecycleShell";
 import type { OutcomeRecord } from "../hooks/useOutcome";
+import type { OutcomeDestinationStage } from "../lib/outcome-tree";
 import { OutcomeProveCloseSurface } from "../components/outcome/OutcomeProveCloseSurface";
 import { OutcomeRunSurface } from "../components/outcome/OutcomeRunSurface";
 import { OutcomesOverviewSurface } from "../components/outcome/OutcomesOverviewSurface";
 import { AdaptiveIntakeSurface } from "../components/outcome/AdaptiveIntakeSurface";
+import { OutcomeMissionControl } from "../components/outcome/OutcomeMissionControl";
 import { WorkEnterSurface } from "../components/outcome/WorkEnterSurface";
 import { WorkShell } from "../components/outcome/WorkShell";
 
 type WorkSearch = {
 	/** Selected project. Absent renders the Enter surface (stage: enter). */
 	project?: string;
-	/** Lifecycle stage within the Work destination. Defaults to understand. */
-	stage?: "understand" | "decide_authorize" | "act_observe" | "prove_close";
+	/**
+	 * Lifecycle stage within the Work destination. Defaults to understand.
+	 *
+	 * "decompose" is the Outcome-level surface for a composed Outcome
+	 * (ADR 0007): a decomposed Outcome has contributing Outcomes rather than a
+	 * plan, so it needs its own destination alongside the direct lifecycle
+	 * rather than pretending to be a plan review.
+	 */
+	stage?: "decompose" | "decide_authorize" | "act_observe" | "prove_close";
 	/** The Outcome a saved contract produced; required from decide onward. */
 	outcome?: string;
 	/** Shared durable intake being reviewed before an Outcome exists. */
@@ -27,7 +36,10 @@ type WorkSearch = {
 
 function validateSearch(search: Record<string, unknown>): WorkSearch {
 	const stage =
-		search.stage === "decide_authorize" || search.stage === "act_observe" || search.stage === "prove_close"
+		search.stage === "decompose" ||
+		search.stage === "decide_authorize" ||
+		search.stage === "act_observe" ||
+		search.stage === "prove_close"
 			? search.stage
 			: undefined;
 	return {
@@ -43,6 +55,10 @@ function validateSearch(search: Record<string, unknown>): WorkSearch {
 // Authorize, and Act & Observe share this one route so the spine stays one
 // surface set; context rides in search params so refreshes keep it, and
 // Home/Work mode memory (pathname-only) keeps working.
+//
+// Composed Outcomes (ADR 0007) add "decompose": the Outcome-level destination
+// for an Outcome pursued through contributing Outcomes. Listing Outcomes stays
+// OutcomesOverviewSurface's job — there is deliberately no second board.
 export const Route = createFileRoute("/_shell/work")({
 	validateSearch,
 	component: WorkRoute,
@@ -82,10 +98,10 @@ function renderStageBody({
 	if (view === "outcomes") {
 		return (
 			<OutcomesOverviewSurface
-				onOpenOutcome={(projectId: string, openedOutcome: OutcomeRecord) => {
+				onOpenOutcome={(projectId: string, openedOutcome: OutcomeRecord, openedStage: OutcomeDestinationStage) => {
 					void navigate({
 						to: "/work",
-						search: { project: projectId, stage: "decide_authorize", outcome: openedOutcome.id },
+						search: { project: projectId, stage: openedStage, outcome: openedOutcome.id },
 					});
 				}}
 			/>
@@ -129,6 +145,25 @@ function renderStageBody({
 					outcomeId={outcome}
 				/>
 			</OutcomeLifecycleShell>
+		);
+	}
+
+	if (stage === "decompose") {
+		if (!outcome) {
+			// A deep link without its Outcome falls back to Understand.
+			return (
+				<OutcomeLifecycleShell projectId={project} stage="understand">
+					<AdaptiveIntakeSurface projectId={project} intakeId={intake} />
+				</OutcomeLifecycleShell>
+			);
+		}
+		return (
+			<OutcomeMissionControl
+				onInspectContributor={(contributorId) => {
+					void navigate({ to: "/work", search: { project, stage: "decompose", outcome: contributorId } });
+				}}
+				outcomeId={outcome}
+			/>
 		);
 	}
 

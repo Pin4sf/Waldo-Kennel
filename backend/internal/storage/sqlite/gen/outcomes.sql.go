@@ -39,6 +39,36 @@ func (q *Queries) AdvanceOutcomeCurrentRevision(ctx context.Context, arg Advance
 	return result.RowsAffected()
 }
 
+const answerDecompositionRequest = `-- name: AnswerDecompositionRequest :execrows
+UPDATE decomposition_requests
+SET status = ?, raw_proposal = ?, refusal_reason = ?, decomposition_id = ?, answered_at = ?
+WHERE id = ? AND status = 'requested'
+`
+
+type AnswerDecompositionRequestParams struct {
+	Status          domain.DecompositionRequestStatus
+	RawProposal     string
+	RefusalReason   string
+	DecompositionID sql.NullString
+	AnsweredAt      sql.NullTime
+	ID              domain.DecompositionRequestID
+}
+
+func (q *Queries) AnswerDecompositionRequest(ctx context.Context, arg AnswerDecompositionRequestParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, answerDecompositionRequest,
+		arg.Status,
+		arg.RawProposal,
+		arg.RefusalReason,
+		arg.DecompositionID,
+		arg.AnsweredAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const approvePlanRevision = `-- name: ApprovePlanRevision :execrows
 UPDATE plan_revisions SET status = 'approved'
 WHERE id = ? AND outcome_id = ? AND status = 'proposed'
@@ -55,6 +85,75 @@ func (q *Queries) ApprovePlanRevision(ctx context.Context, arg ApprovePlanRevisi
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const authorizeDecompositionRevision = `-- name: AuthorizeDecompositionRevision :execrows
+UPDATE decomposition_revisions
+SET status = 'authorized', authorized_at = ?
+WHERE id = ? AND outcome_id = ? AND status = 'proposed'
+`
+
+type AuthorizeDecompositionRevisionParams struct {
+	AuthorizedAt sql.NullTime
+	ID           domain.DecompositionRevisionID
+	OutcomeID    domain.OutcomeID
+}
+
+func (q *Queries) AuthorizeDecompositionRevision(ctx context.Context, arg AuthorizeDecompositionRevisionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, authorizeDecompositionRevision, arg.AuthorizedAt, arg.ID, arg.OutcomeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const bindDecompositionContributionOutcome = `-- name: BindDecompositionContributionOutcome :execrows
+UPDATE decomposition_contributions
+SET child_outcome_id = ?
+WHERE id = ? AND child_outcome_id IS NULL
+`
+
+type BindDecompositionContributionOutcomeParams struct {
+	ChildOutcomeID *domain.OutcomeID
+	ID             string
+}
+
+func (q *Queries) BindDecompositionContributionOutcome(ctx context.Context, arg BindDecompositionContributionOutcomeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, bindDecompositionContributionOutcome, arg.ChildOutcomeID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const bindDecompositionRequestSession = `-- name: BindDecompositionRequestSession :execrows
+UPDATE decomposition_requests
+SET session_id = ?
+WHERE id = ? AND status = 'requested' AND session_id = ''
+`
+
+type BindDecompositionRequestSessionParams struct {
+	SessionID string
+	ID        domain.DecompositionRequestID
+}
+
+func (q *Queries) BindDecompositionRequestSession(ctx context.Context, arg BindDecompositionRequestSessionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, bindDecompositionRequestSession, arg.SessionID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const countContributingOutcomes = `-- name: CountContributingOutcomes :one
+SELECT COUNT(*) FROM outcomes WHERE parent_outcome_id = ?
+`
+
+func (q *Queries) CountContributingOutcomes(ctx context.Context, parentOutcomeID sql.NullString) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countContributingOutcomes, parentOutcomeID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const createCapabilityGrant = `-- name: CreateCapabilityGrant :exec
@@ -135,9 +234,199 @@ func (q *Queries) CreateContractRevision(ctx context.Context, arg CreateContract
 	return err
 }
 
-const createOutcome = `-- name: CreateOutcome :exec
-INSERT INTO outcomes (id, space_id, title, current_revision_number, idempotency_key)
+const createContributionDependency = `-- name: CreateContributionDependency :exec
+INSERT INTO contribution_dependencies (id, decomposition_id, from_ref, to_ref)
+VALUES (?, ?, ?, ?)
+`
+
+type CreateContributionDependencyParams struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	FromRef         string
+	ToRef           string
+}
+
+func (q *Queries) CreateContributionDependency(ctx context.Context, arg CreateContributionDependencyParams) error {
+	_, err := q.db.ExecContext(ctx, createContributionDependency,
+		arg.ID,
+		arg.DecompositionID,
+		arg.FromRef,
+		arg.ToRef,
+	)
+	return err
+}
+
+const createContributionDependencyWaiver = `-- name: CreateContributionDependencyWaiver :exec
+INSERT INTO contribution_dependency_waivers (id, decomposition_id, from_ref, to_ref, reason, waived_by, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateContributionDependencyWaiverParams struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	FromRef         string
+	ToRef           string
+	Reason          string
+	WaivedBy        string
+	CreatedAt       time.Time
+}
+
+func (q *Queries) CreateContributionDependencyWaiver(ctx context.Context, arg CreateContributionDependencyWaiverParams) error {
+	_, err := q.db.ExecContext(ctx, createContributionDependencyWaiver,
+		arg.ID,
+		arg.DecompositionID,
+		arg.FromRef,
+		arg.ToRef,
+		arg.Reason,
+		arg.WaivedBy,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const createContributionLink = `-- name: CreateContributionLink :exec
+INSERT INTO contribution_links (id, parent_outcome_id, child_outcome_id, parent_contract_revision_id, parent_criterion_id)
 VALUES (?, ?, ?, ?, ?)
+`
+
+type CreateContributionLinkParams struct {
+	ID                       string
+	ParentOutcomeID          string
+	ChildOutcomeID           string
+	ParentContractRevisionID string
+	ParentCriterionID        string
+}
+
+func (q *Queries) CreateContributionLink(ctx context.Context, arg CreateContributionLinkParams) error {
+	_, err := q.db.ExecContext(ctx, createContributionLink,
+		arg.ID,
+		arg.ParentOutcomeID,
+		arg.ChildOutcomeID,
+		arg.ParentContractRevisionID,
+		arg.ParentCriterionID,
+	)
+	return err
+}
+
+const createDecompositionContribution = `-- name: CreateDecompositionContribution :exec
+INSERT INTO decomposition_contributions
+    (id, decomposition_id, ref, position, title, goal, success_criteria, review, constraints, non_goals, authority, claimed_criteria)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateDecompositionContributionParams struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	Ref             string
+	Position        int64
+	Title           string
+	Goal            string
+	SuccessCriteria string
+	Review          string
+	Constraints     string
+	NonGoals        string
+	Authority       string
+	ClaimedCriteria string
+}
+
+func (q *Queries) CreateDecompositionContribution(ctx context.Context, arg CreateDecompositionContributionParams) error {
+	_, err := q.db.ExecContext(ctx, createDecompositionContribution,
+		arg.ID,
+		arg.DecompositionID,
+		arg.Ref,
+		arg.Position,
+		arg.Title,
+		arg.Goal,
+		arg.SuccessCriteria,
+		arg.Review,
+		arg.Constraints,
+		arg.NonGoals,
+		arg.Authority,
+		arg.ClaimedCriteria,
+	)
+	return err
+}
+
+const createDecompositionRequest = `-- name: CreateDecompositionRequest :exec
+INSERT INTO decomposition_requests (id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateDecompositionRequestParams struct {
+	ID                  domain.DecompositionRequestID
+	OutcomeID           domain.OutcomeID
+	ContractRevisionID  domain.ContractRevisionID
+	Status              domain.DecompositionRequestStatus
+	CallbackTokenDigest string
+	SessionID           string
+	ExpiresAt           time.Time
+	CreatedAt           time.Time
+}
+
+func (q *Queries) CreateDecompositionRequest(ctx context.Context, arg CreateDecompositionRequestParams) error {
+	_, err := q.db.ExecContext(ctx, createDecompositionRequest,
+		arg.ID,
+		arg.OutcomeID,
+		arg.ContractRevisionID,
+		arg.Status,
+		arg.CallbackTokenDigest,
+		arg.SessionID,
+		arg.ExpiresAt,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const createDecompositionRetainedCriterion = `-- name: CreateDecompositionRetainedCriterion :exec
+INSERT INTO decomposition_retained_criteria (id, decomposition_id, parent_criterion_id)
+VALUES (?, ?, ?)
+`
+
+type CreateDecompositionRetainedCriterionParams struct {
+	ID                string
+	DecompositionID   domain.DecompositionRevisionID
+	ParentCriterionID domain.CriterionID
+}
+
+func (q *Queries) CreateDecompositionRetainedCriterion(ctx context.Context, arg CreateDecompositionRetainedCriterionParams) error {
+	_, err := q.db.ExecContext(ctx, createDecompositionRetainedCriterion, arg.ID, arg.DecompositionID, arg.ParentCriterionID)
+	return err
+}
+
+const createDecompositionRevision = `-- name: CreateDecompositionRevision :exec
+
+INSERT INTO decomposition_revisions (id, outcome_id, number, contract_revision_id, status, rationale, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateDecompositionRevisionParams struct {
+	ID                 domain.DecompositionRevisionID
+	OutcomeID          domain.OutcomeID
+	Number             int64
+	ContractRevisionID domain.ContractRevisionID
+	Status             domain.DecompositionStatus
+	Rationale          string
+	CreatedAt          time.Time
+}
+
+// Decomposition authority (ADR 0007 phase 2). Proposals are append-only; the
+// only permitted mutation is the one-way move to authorized.
+func (q *Queries) CreateDecompositionRevision(ctx context.Context, arg CreateDecompositionRevisionParams) error {
+	_, err := q.db.ExecContext(ctx, createDecompositionRevision,
+		arg.ID,
+		arg.OutcomeID,
+		arg.Number,
+		arg.ContractRevisionID,
+		arg.Status,
+		arg.Rationale,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const createOutcome = `-- name: CreateOutcome :exec
+INSERT INTO outcomes (id, space_id, title, current_revision_number, idempotency_key, parent_outcome_id)
+VALUES (?, ?, ?, ?, ?, ?)
 `
 
 type CreateOutcomeParams struct {
@@ -146,6 +435,7 @@ type CreateOutcomeParams struct {
 	Title                 string
 	CurrentRevisionNumber int64
 	IdempotencyKey        sql.NullString
+	ParentOutcomeID       sql.NullString
 }
 
 func (q *Queries) CreateOutcome(ctx context.Context, arg CreateOutcomeParams) error {
@@ -155,6 +445,7 @@ func (q *Queries) CreateOutcome(ctx context.Context, arg CreateOutcomeParams) er
 		arg.Title,
 		arg.CurrentRevisionNumber,
 		arg.IdempotencyKey,
+		arg.ParentOutcomeID,
 	)
 	return err
 }
@@ -238,7 +529,7 @@ func (q *Queries) CreateWorkUnit(ctx context.Context, arg CreateWorkUnitParams) 
 }
 
 const findOutcomeByIdempotencyKey = `-- name: FindOutcomeByIdempotencyKey :one
-SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at
+SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
 FROM outcomes WHERE idempotency_key = ?
 `
 
@@ -253,6 +544,7 @@ func (q *Queries) FindOutcomeByIdempotencyKey(ctx context.Context, idempotencyKe
 		&i.IdempotencyKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ParentOutcomeID,
 	)
 	return i, err
 }
@@ -325,6 +617,57 @@ func (q *Queries) GetContractRevisionByNumber(ctx context.Context, arg GetContra
 	return i, err
 }
 
+const getDecompositionRequest = `-- name: GetDecompositionRequest :one
+SELECT id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, raw_proposal, refusal_reason, decomposition_id, created_at, answered_at
+FROM decomposition_requests WHERE id = ?
+`
+
+func (q *Queries) GetDecompositionRequest(ctx context.Context, id domain.DecompositionRequestID) (DecompositionRequest, error) {
+	row := q.db.QueryRowContext(ctx, getDecompositionRequest, id)
+	var i DecompositionRequest
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.ContractRevisionID,
+		&i.Status,
+		&i.CallbackTokenDigest,
+		&i.SessionID,
+		&i.ExpiresAt,
+		&i.RawProposal,
+		&i.RefusalReason,
+		&i.DecompositionID,
+		&i.CreatedAt,
+		&i.AnsweredAt,
+	)
+	return i, err
+}
+
+const getDecompositionRevision = `-- name: GetDecompositionRevision :one
+SELECT id, outcome_id, number, contract_revision_id, status, rationale, created_at, authorized_at
+FROM decomposition_revisions WHERE id = ? AND outcome_id = ?
+`
+
+type GetDecompositionRevisionParams struct {
+	ID        domain.DecompositionRevisionID
+	OutcomeID domain.OutcomeID
+}
+
+func (q *Queries) GetDecompositionRevision(ctx context.Context, arg GetDecompositionRevisionParams) (DecompositionRevision, error) {
+	row := q.db.QueryRowContext(ctx, getDecompositionRevision, arg.ID, arg.OutcomeID)
+	var i DecompositionRevision
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Number,
+		&i.ContractRevisionID,
+		&i.Status,
+		&i.Rationale,
+		&i.CreatedAt,
+		&i.AuthorizedAt,
+	)
+	return i, err
+}
+
 const getLatestPlanRevision = `-- name: GetLatestPlanRevision :one
 SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at
 FROM plan_revisions WHERE outcome_id = ? ORDER BY number DESC LIMIT 1
@@ -348,7 +691,7 @@ func (q *Queries) GetLatestPlanRevision(ctx context.Context, outcomeID domain.Ou
 }
 
 const getOutcome = `-- name: GetOutcome :one
-SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at
+SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
 FROM outcomes WHERE id = ?
 `
 
@@ -363,6 +706,7 @@ func (q *Queries) GetOutcome(ctx context.Context, id domain.OutcomeID) (Outcome,
 		&i.IdempotencyKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ParentOutcomeID,
 	)
 	return i, err
 }
@@ -410,6 +754,54 @@ func (q *Queries) GetResponsibilitySpace(ctx context.Context, id domain.Responsi
 		&i.Kind,
 		&i.ProjectID,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const latestDecompositionRequest = `-- name: LatestDecompositionRequest :one
+SELECT id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, raw_proposal, refusal_reason, decomposition_id, created_at, answered_at
+FROM decomposition_requests WHERE outcome_id = ?
+ORDER BY created_at DESC, id DESC LIMIT 1
+`
+
+func (q *Queries) LatestDecompositionRequest(ctx context.Context, outcomeID domain.OutcomeID) (DecompositionRequest, error) {
+	row := q.db.QueryRowContext(ctx, latestDecompositionRequest, outcomeID)
+	var i DecompositionRequest
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.ContractRevisionID,
+		&i.Status,
+		&i.CallbackTokenDigest,
+		&i.SessionID,
+		&i.ExpiresAt,
+		&i.RawProposal,
+		&i.RefusalReason,
+		&i.DecompositionID,
+		&i.CreatedAt,
+		&i.AnsweredAt,
+	)
+	return i, err
+}
+
+const latestDecompositionRevision = `-- name: LatestDecompositionRevision :one
+SELECT id, outcome_id, number, contract_revision_id, status, rationale, created_at, authorized_at
+FROM decomposition_revisions WHERE outcome_id = ?
+ORDER BY number DESC LIMIT 1
+`
+
+func (q *Queries) LatestDecompositionRevision(ctx context.Context, outcomeID domain.OutcomeID) (DecompositionRevision, error) {
+	row := q.db.QueryRowContext(ctx, latestDecompositionRevision, outcomeID)
+	var i DecompositionRevision
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Number,
+		&i.ContractRevisionID,
+		&i.Status,
+		&i.Rationale,
+		&i.CreatedAt,
+		&i.AuthorizedAt,
 	)
 	return i, err
 }
@@ -547,8 +939,306 @@ func (q *Queries) ListContractRevisions(ctx context.Context, outcomeID domain.Ou
 	return items, nil
 }
 
+const listContributingOutcomes = `-- name: ListContributingOutcomes :many
+
+SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
+FROM outcomes WHERE parent_outcome_id = ?
+ORDER BY created_at, id
+`
+
+// Composed Outcomes (ADR 0007). Contribution is criterion-bound and
+// append-only; there is deliberately no update or delete query.
+func (q *Queries) ListContributingOutcomes(ctx context.Context, parentOutcomeID sql.NullString) ([]Outcome, error) {
+	rows, err := q.db.QueryContext(ctx, listContributingOutcomes, parentOutcomeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Outcome{}
+	for rows.Next() {
+		var i Outcome
+		if err := rows.Scan(
+			&i.ID,
+			&i.SpaceID,
+			&i.Title,
+			&i.CurrentRevisionNumber,
+			&i.IdempotencyKey,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentOutcomeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listContributionDependencies = `-- name: ListContributionDependencies :many
+SELECT id, decomposition_id, from_ref, to_ref
+FROM contribution_dependencies WHERE decomposition_id = ?
+ORDER BY from_ref, to_ref
+`
+
+func (q *Queries) ListContributionDependencies(ctx context.Context, decompositionID domain.DecompositionRevisionID) ([]ContributionDependency, error) {
+	rows, err := q.db.QueryContext(ctx, listContributionDependencies, decompositionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ContributionDependency{}
+	for rows.Next() {
+		var i ContributionDependency
+		if err := rows.Scan(
+			&i.ID,
+			&i.DecompositionID,
+			&i.FromRef,
+			&i.ToRef,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listContributionDependencyWaivers = `-- name: ListContributionDependencyWaivers :many
+SELECT id, decomposition_id, from_ref, to_ref, reason, waived_by, created_at
+FROM contribution_dependency_waivers WHERE decomposition_id = ?
+ORDER BY created_at, id
+`
+
+func (q *Queries) ListContributionDependencyWaivers(ctx context.Context, decompositionID domain.DecompositionRevisionID) ([]ContributionDependencyWaiver, error) {
+	rows, err := q.db.QueryContext(ctx, listContributionDependencyWaivers, decompositionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ContributionDependencyWaiver{}
+	for rows.Next() {
+		var i ContributionDependencyWaiver
+		if err := rows.Scan(
+			&i.ID,
+			&i.DecompositionID,
+			&i.FromRef,
+			&i.ToRef,
+			&i.Reason,
+			&i.WaivedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listContributionLinksForChild = `-- name: ListContributionLinksForChild :many
+SELECT id, parent_outcome_id, child_outcome_id, parent_contract_revision_id, parent_criterion_id, created_at
+FROM contribution_links WHERE child_outcome_id = ?
+ORDER BY created_at, id
+`
+
+func (q *Queries) ListContributionLinksForChild(ctx context.Context, childOutcomeID string) ([]ContributionLink, error) {
+	rows, err := q.db.QueryContext(ctx, listContributionLinksForChild, childOutcomeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ContributionLink{}
+	for rows.Next() {
+		var i ContributionLink
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentOutcomeID,
+			&i.ChildOutcomeID,
+			&i.ParentContractRevisionID,
+			&i.ParentCriterionID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listContributionLinksForParent = `-- name: ListContributionLinksForParent :many
+SELECT id, parent_outcome_id, child_outcome_id, parent_contract_revision_id, parent_criterion_id, created_at
+FROM contribution_links WHERE parent_outcome_id = ?
+ORDER BY created_at, id
+`
+
+func (q *Queries) ListContributionLinksForParent(ctx context.Context, parentOutcomeID string) ([]ContributionLink, error) {
+	rows, err := q.db.QueryContext(ctx, listContributionLinksForParent, parentOutcomeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ContributionLink{}
+	for rows.Next() {
+		var i ContributionLink
+		if err := rows.Scan(
+			&i.ID,
+			&i.ParentOutcomeID,
+			&i.ChildOutcomeID,
+			&i.ParentContractRevisionID,
+			&i.ParentCriterionID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDecompositionContributions = `-- name: ListDecompositionContributions :many
+SELECT id, decomposition_id, ref, position, title, goal, success_criteria, review, constraints, non_goals, authority, claimed_criteria, child_outcome_id
+FROM decomposition_contributions WHERE decomposition_id = ?
+ORDER BY position, ref
+`
+
+func (q *Queries) ListDecompositionContributions(ctx context.Context, decompositionID domain.DecompositionRevisionID) ([]DecompositionContribution, error) {
+	rows, err := q.db.QueryContext(ctx, listDecompositionContributions, decompositionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DecompositionContribution{}
+	for rows.Next() {
+		var i DecompositionContribution
+		if err := rows.Scan(
+			&i.ID,
+			&i.DecompositionID,
+			&i.Ref,
+			&i.Position,
+			&i.Title,
+			&i.Goal,
+			&i.SuccessCriteria,
+			&i.Review,
+			&i.Constraints,
+			&i.NonGoals,
+			&i.Authority,
+			&i.ClaimedCriteria,
+			&i.ChildOutcomeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDecompositionRetainedCriteria = `-- name: ListDecompositionRetainedCriteria :many
+SELECT id, decomposition_id, parent_criterion_id
+FROM decomposition_retained_criteria WHERE decomposition_id = ?
+ORDER BY parent_criterion_id
+`
+
+func (q *Queries) ListDecompositionRetainedCriteria(ctx context.Context, decompositionID domain.DecompositionRevisionID) ([]DecompositionRetainedCriterium, error) {
+	rows, err := q.db.QueryContext(ctx, listDecompositionRetainedCriteria, decompositionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DecompositionRetainedCriterium{}
+	for rows.Next() {
+		var i DecompositionRetainedCriterium
+		if err := rows.Scan(&i.ID, &i.DecompositionID, &i.ParentCriterionID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOpenDecompositionRequests = `-- name: ListOpenDecompositionRequests :many
+SELECT id, outcome_id, contract_revision_id, status, callback_token_digest, session_id, expires_at, raw_proposal, refusal_reason, decomposition_id, created_at, answered_at
+FROM decomposition_requests WHERE status = 'requested'
+ORDER BY expires_at
+`
+
+func (q *Queries) ListOpenDecompositionRequests(ctx context.Context) ([]DecompositionRequest, error) {
+	rows, err := q.db.QueryContext(ctx, listOpenDecompositionRequests)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DecompositionRequest{}
+	for rows.Next() {
+		var i DecompositionRequest
+		if err := rows.Scan(
+			&i.ID,
+			&i.OutcomeID,
+			&i.ContractRevisionID,
+			&i.Status,
+			&i.CallbackTokenDigest,
+			&i.SessionID,
+			&i.ExpiresAt,
+			&i.RawProposal,
+			&i.RefusalReason,
+			&i.DecompositionID,
+			&i.CreatedAt,
+			&i.AnsweredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOutcomesByProject = `-- name: ListOutcomesByProject :many
-SELECT o.id, o.space_id, o.title, o.current_revision_number, o.idempotency_key, o.created_at, o.updated_at
+SELECT o.id, o.space_id, o.title, o.current_revision_number, o.idempotency_key, o.created_at, o.updated_at, o.parent_outcome_id
 FROM outcomes o
 JOIN responsibility_spaces rs ON rs.id = o.space_id
 WHERE rs.project_id = ? AND rs.kind = 'WorkProject'
@@ -572,6 +1262,7 @@ func (q *Queries) ListOutcomesByProject(ctx context.Context, projectID domain.Pr
 			&i.IdempotencyKey,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ParentOutcomeID,
 		); err != nil {
 			return nil, err
 		}
@@ -633,6 +1324,17 @@ func (q *Queries) MaxContractRevisionNumber(ctx context.Context, outcomeID domai
 	var coalesce interface{}
 	err := row.Scan(&coalesce)
 	return coalesce, err
+}
+
+const maxDecompositionRevisionNumber = `-- name: MaxDecompositionRevisionNumber :one
+SELECT CAST(COALESCE(MAX(number), 0) AS INTEGER) FROM decomposition_revisions WHERE outcome_id = ?
+`
+
+func (q *Queries) MaxDecompositionRevisionNumber(ctx context.Context, outcomeID domain.OutcomeID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, maxDecompositionRevisionNumber, outcomeID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const maxPlanRevisionNumber = `-- name: MaxPlanRevisionNumber :one

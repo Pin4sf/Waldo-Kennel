@@ -1011,9 +1011,13 @@ func (m *Manager) resolveTargetActivationOutcome(
 	return current, false, sourceStillOwns, nil
 }
 
+// switchHarnessSupported gates the source side of a switch: the harness a
+// session is being moved away from. Preserving the outgoing conversation reads
+// the adapter's native state root, so a source must expose one — which is why
+// this is a narrower set than "every recognized harness".
 func switchHarnessSupported(h domain.AgentHarness) bool {
 	switch h {
-	case domain.HarnessClaudeCode, domain.HarnessCodex:
+	case domain.HarnessClaudeCode, domain.HarnessCodex, domain.HarnessOpenCode:
 		return true
 	default:
 		return false

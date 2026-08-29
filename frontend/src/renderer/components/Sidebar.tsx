@@ -13,6 +13,7 @@ import {
 	LogIn,
 	LogOut,
 	MoreVertical,
+	Network,
 	Pencil,
 	Pin,
 	PinOff,
@@ -23,7 +24,7 @@ import {
 	Trash2,
 	User,
 } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { UpdateStatus } from "../../main/update-settings";
 import {
@@ -40,6 +41,7 @@ import { aoBridge } from "../lib/bridge";
 import { useCommandPaletteEnabled } from "../hooks/useCommandPaletteEnabled";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useProjectOutcomes, type OutcomeRecord } from "../hooks/useOutcome";
+import { buildOutcomeTree, outcomeDestinationStage } from "../lib/outcome-tree";
 import { usePinSession, useUnpinSession } from "../hooks/usePinSession";
 import { spawnOrchestrator } from "../lib/spawn-orchestrator";
 import { renameSession } from "../lib/rename-session";
@@ -726,11 +728,12 @@ function ProjectItem({
 		}
 	};
 
-	const openOutcome = (outcome: OutcomeRecord) => {
-		void navigate({
-			to: "/work",
-			search: { project: workspace.id, stage: "decide_authorize", outcome: outcome.id },
-		});
+	// The daemon lists contributing Outcomes flat alongside their parents, so
+	// the sidebar derives the nesting itself from parentId.
+	const outcomeTree = buildOutcomeTree(outcomes);
+
+	const openOutcome = (outcomeId: string, stage: "decompose" | "decide_authorize") => {
+		void navigate({ to: "/work", search: { project: workspace.id, stage, outcome: outcomeId } });
 	};
 	const openNewOutcome = () => {
 		void navigate({ to: "/work", search: { project: workspace.id } });
@@ -1038,14 +1041,26 @@ function ProjectItem({
 									{t("outcome.dashboard.heading")}
 								</li>
 							) : null}
-							{outcomes.map((outcome) => (
-								<OutcomeRow
-									active={selection.activeOutcomeId === outcome.id}
-									figmaBoard={figmaBoard}
-									key={outcome.id}
-									onOpen={() => openOutcome(outcome)}
-									outcome={outcome}
-								/>
+							{outcomeTree.map((node) => (
+								<Fragment key={node.outcome.id}>
+									<OutcomeRow
+										active={selection.activeOutcomeId === node.outcome.id}
+										figmaBoard={figmaBoard}
+										onOpen={() => openOutcome(node.outcome.id, outcomeDestinationStage(node))}
+										onOpenMissionControl={() => openOutcome(node.outcome.id, "decompose")}
+										outcome={node.outcome}
+									/>
+									{node.contributors.map((contributor) => (
+										<OutcomeRow
+											active={selection.activeOutcomeId === contributor.id}
+											contributor
+											figmaBoard={figmaBoard}
+											key={contributor.id}
+											onOpen={() => openOutcome(contributor.id, "decide_authorize")}
+											outcome={contributor}
+										/>
+									))}
+								</Fragment>
 							))}
 							{visibleSessions.map((session) => (
 								<SessionRow
@@ -1112,35 +1127,69 @@ function ProjectItem({
 	);
 }
 
+// One Outcome row. `contributor` indents a contributing Outcome under the
+// parent it was decomposed from; `onOpenMissionControl`, when given, reveals a
+// hover action that opens Mission Control directly. That action is the only way
+// into a decomposition the owner has not authorized yet — until then no
+// contributing Outcome exists for the row's own destination to be derived from.
 function OutcomeRow({
 	outcome,
 	active,
+	contributor = false,
 	figmaBoard,
 	onOpen,
+	onOpenMissionControl,
 }: {
 	outcome: OutcomeRecord;
 	active: boolean;
+	contributor?: boolean;
 	figmaBoard: boolean;
 	onOpen: () => void;
+	onOpenMissionControl?: () => void;
 }) {
 	const { t } = useTranslation();
 	const presentation = deriveOutcomeDashboardPresentation(outcome);
 	return (
-		<SidebarMenuSubItem className={cn(figmaBoard ? "figma-board-sidebar__session-item" : "pl-4.5")}>
-			<button
-				aria-current={active ? "page" : undefined}
-				aria-label={t("outcome.dashboard.continueAria", { title: outcome.title })}
+		<SidebarMenuSubItem
+			className={cn(figmaBoard ? "figma-board-sidebar__session-item" : "pl-4.5", contributor && "pl-8")}
+		>
+			<div
 				className={cn(
-					"group/outcome-row flex h-7 w-full min-w-0 items-center gap-1.25 rounded-md px-1.75 text-left text-sm text-muted-foreground transition-[background-color,color] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+					"group/outcome-row flex h-7 w-full items-center rounded-md text-muted-foreground transition-[background-color,color]",
+					"hover:bg-muted hover:text-foreground focus-within:bg-muted",
 					active && "bg-muted text-foreground",
 				)}
-				onClick={onOpen}
-				title={`${t(presentation.stageKey)} · ${t(presentation.stateKey)}`}
-				type="button"
 			>
-				<span aria-hidden="true" className="size-2 shrink-0 rounded-full border border-current" />
-				<span className="min-w-0 flex-1 truncate">{outcome.title}</span>
-			</button>
+				<button
+					aria-current={active ? "page" : undefined}
+					aria-label={t("outcome.dashboard.continueAria", { title: outcome.title })}
+					className="flex h-7 min-w-0 flex-1 items-center gap-1.25 rounded-md px-1.75 text-left text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+					onClick={onOpen}
+					title={`${t(presentation.stageKey)} · ${t(presentation.stateKey)}`}
+					type="button"
+				>
+					<span aria-hidden="true" className="size-2 shrink-0 rounded-full border border-current" />
+					<span className="min-w-0 flex-1 truncate">{outcome.title}</span>
+				</button>
+				{onOpenMissionControl ? (
+					<button
+						aria-label={t("outcome.dashboard.missionControlAria", { title: outcome.title })}
+						className={cn(
+							"grid h-5 w-0 shrink-0 place-items-center overflow-hidden rounded-md text-passive opacity-0",
+							"transition-[width,margin,background-color,color,opacity] hover:bg-interactive-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50 [&_svg]:size-3!",
+							"group-hover/outcome-row:w-5 group-hover/outcome-row:opacity-100",
+							"group-focus-within/outcome-row:w-5 group-focus-within/outcome-row:opacity-100",
+						)}
+						onClick={(event) => {
+							event.stopPropagation();
+							onOpenMissionControl();
+						}}
+						type="button"
+					>
+						<Network aria-hidden="true" />
+					</button>
+				) : null}
+			</div>
 		</SidebarMenuSubItem>
 	);
 }
