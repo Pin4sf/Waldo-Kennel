@@ -896,7 +896,13 @@ function ShellLayout() {
               survive if they're processed after the drag strips they overlap.
               Rendered first, real clicks get swallowed by window-drag even
               though DOM hit-testing looks correct. */}
-					{usesWorkProjectShell ? null : (
+					{/* The figma-board Kanban/session routes paint this cluster
+					    themselves inside their own full-bleed shell (unchanged from
+					    earlier rounds). Work does not — its stage surfaces render
+					    directly inside WorkShell with no substitute for back/forward
+					    or the sidebar toggle, so this must stay mounted for Work or
+					    those controls silently vanish for the whole destination. */}
+					{usesWorkProjectShell && !isOutcomeWorkRoute ? null : (
 						<TitlebarNav
 							hasSessionTopbar={Boolean(routeParams.sessionId)}
 							historyLocked={isWelcomeBoard}

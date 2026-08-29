@@ -53,6 +53,12 @@ type UiState = {
 	 *  Sticky across launches, same as sessionsViewMode, but scoped separately
 	 *  since it governs a different lane model (attempts, not sessions). */
 	outcomeRunViewMode: SessionsViewMode;
+	/** The current attempt's drill-in terminal panel (Figma's terminal-toggle
+	 *  icon in the Work destination's persistent top bar). Ephemeral like the
+	 *  command palette: it opens on demand and never persists across launches,
+	 *  and it is shared between the WorkShell toggle button and the Board/List
+	 *  "Instruct"/"Engage" card actions so both open the exact same panel. */
+	isOutcomeAttemptPanelOpen: boolean;
 	/** Agent seeded into new project and session forms. Empty means "let the app
 	 *  pick", which is what a person who skipped the setup tour gets. */
 	defaultAgentId: string;
@@ -100,6 +106,9 @@ type UiState = {
 	setWorkbenchTab: (tab: WorkbenchTab) => void;
 	setSessionsViewMode: (mode: SessionsViewMode) => void;
 	setOutcomeRunViewMode: (mode: SessionsViewMode) => void;
+	openOutcomeAttemptPanel: () => void;
+	closeOutcomeAttemptPanel: () => void;
+	toggleOutcomeAttemptPanel: () => void;
 	setDefaultAgentId: (agentId: string) => void;
 	openOnboarding: () => void;
 	closeOnboarding: () => void;
@@ -181,6 +190,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	workbenchTab: "changes",
 	sessionsViewMode: initialSessionsViewMode(),
 	outcomeRunViewMode: initialOutcomeRunViewMode(),
+	isOutcomeAttemptPanelOpen: false,
 	defaultAgentId: initialDefaultAgentId(),
 	hasCompletedOnboarding: initialHasCompletedOnboarding(),
 	isOnboardingOpen: false,
@@ -209,6 +219,10 @@ export const useUiStore = create<UiState>((set, get) => ({
 		getLocalStorage()?.setItem(outcomeRunViewModeStorageKey, outcomeRunViewMode);
 		set({ outcomeRunViewMode });
 	},
+	openOutcomeAttemptPanel: () => set({ isOutcomeAttemptPanelOpen: true }),
+	closeOutcomeAttemptPanel: () => set({ isOutcomeAttemptPanelOpen: false }),
+	toggleOutcomeAttemptPanel: () =>
+		set((state) => ({ isOutcomeAttemptPanelOpen: !state.isOutcomeAttemptPanelOpen })),
 	setDefaultAgentId: (defaultAgentId) => {
 		getLocalStorage()?.setItem(defaultAgentStorageKey, defaultAgentId);
 		set({ defaultAgentId });
