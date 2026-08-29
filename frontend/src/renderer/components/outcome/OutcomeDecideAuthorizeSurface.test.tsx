@@ -190,6 +190,35 @@ describe("OutcomeDecideAuthorizeSurface", () => {
 		expect(screen.queryByTestId("outcome-approve-plan")).not.toBeInTheDocument();
 	});
 
+	it("authorizes as a smooth in-place refresh — same plan card node, no reload or remount flash", async () => {
+		getMock.mockImplementation(async (url: string) => {
+			if (url === "/api/v1/outcomes/{outcomeId}") return { data: outcomeEnvelope(1), error: undefined };
+			if (url === "/api/v1/outcomes/{outcomeId}/plan") return { data: planEnvelope(), error: undefined };
+			return { data: undefined, error: undefined };
+		});
+		postMock.mockResolvedValue({
+			data: planEnvelope({ status: "approved" }),
+			error: undefined,
+		});
+		renderSurface();
+
+		const planCardBeforeApproval = await screen.findByTestId("outcome-plan-card");
+		expect(screen.getByTestId("outcome-plan-card").textContent).toMatch(/proposed/i);
+		expect(screen.queryByTestId("outcome-review-work")).not.toBeInTheDocument();
+
+		await userEvent.click(screen.getByTestId("outcome-approve-plan"));
+
+		await waitFor(() => expect(screen.getByTestId("outcome-plan-card").textContent).toMatch(/authorized/i));
+		// approve() resolves onSuccess by writing straight into the query cache
+		// (queryClient.setQueryData in useApproveOutcomePlan) rather than
+		// invalidating and refetching, so the same PlanReviewCard element updates
+		// in place — never torn down and rebuilt, and never a moment with no
+		// plan card at all while a refetch is in flight.
+		expect(screen.getByTestId("outcome-plan-card")).toBe(planCardBeforeApproval);
+		expect(screen.queryByTestId("outcome-approve-plan")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("outcome-plan-update")).not.toBeInTheDocument();
+	});
+
 	it("renders a typed stale conflict instead of transferring authority silently", async () => {
 		getMock.mockImplementation(async (url: string) => {
 			if (url === "/api/v1/outcomes/{outcomeId}") return { data: outcomeEnvelope(2), error: undefined };
@@ -248,7 +277,7 @@ describe("OutcomeDecideAuthorizeSurface", () => {
 		expect(card).toHaveTextContent(/authorized/i);
 		expect(screen.queryByTestId("outcome-propose-plan")).not.toBeInTheDocument();
 		expect(screen.queryByTestId("outcome-approve-plan")).not.toBeInTheDocument();
-		await userEvent.click(screen.getByRole("button", { name: /start sessions/i }));
+		await userEvent.click(screen.getByTestId("outcome-review-work"));
 		expect(onReviewWork).toHaveBeenCalledOnce();
 	});
 });
