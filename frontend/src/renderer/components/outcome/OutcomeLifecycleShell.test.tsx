@@ -1,42 +1,23 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { OUTCOME_STAGES, OutcomeLifecycleShell, type OutcomeStage } from "./OutcomeLifecycleShell";
 
-// The shell is the common five-stage spine. Home, Work, and Settings are
-// destinations *outside* this enum: Settings opens control, it is never a sixth
-// stage. These tests pin that boundary because widening the enum is the most
-// likely way the locked product contract gets broken by accident.
-
-function stageNames() {
-	return within(screen.getByRole("list", { name: /lifecycle/i }))
-		.getAllByRole("listitem")
-		.map((item) => item.textContent?.trim());
-}
+// The five-stage enum is still the locked product contract. Home, Work, and
+// Settings are destinations *outside* it: Settings opens control, it is never
+// a sixth stage. This test pins that boundary because widening the enum is
+// the most likely way it gets broken by accident.
+//
+// The shell itself renders no visible chrome (round 3): Figma's Work
+// destination has no stage-tab strip, and the prior `<ol>` pill row was the
+// ONLY visible chrome above a stage surface, leaving no way to navigate
+// anywhere. Real navigation is the persistent sidebar + WorkShell's top-bar
+// cluster, which wrap this. What's left to test here is the stage/identity
+// bookkeeping the shell still exposes as `data-*` attributes.
 
 describe("OutcomeLifecycleShell", () => {
 	it("exposes exactly the five locked lifecycle stages in order", () => {
 		expect(OUTCOME_STAGES).toEqual(["enter", "understand", "decide_authorize", "act_observe", "prove_close"]);
-	});
-
-	it("renders one step per stage in lifecycle order", () => {
-		render(
-			<OutcomeLifecycleShell stage="enter" projectId="proj-1">
-				<p>body</p>
-			</OutcomeLifecycleShell>,
-		);
-		expect(stageNames()).toHaveLength(5);
-	});
-
-	it("marks only the current stage as the active step", () => {
-		render(
-			<OutcomeLifecycleShell stage="decide_authorize" projectId="proj-1">
-				<p>body</p>
-			</OutcomeLifecycleShell>,
-		);
-		const current = screen.getAllByRole("listitem").filter((item) => item.getAttribute("aria-current") === "step");
-		expect(current).toHaveLength(1);
-		expect(current[0]).toHaveTextContent(/decide/i);
 	});
 
 	it("renders its children as the stage body", () => {
@@ -48,15 +29,26 @@ describe("OutcomeLifecycleShell", () => {
 		expect(screen.getByText("stage body content")).toBeInTheDocument();
 	});
 
-	it("does not treat Settings or any destination as a lifecycle stage", () => {
+	it("renders no visible stage list — navigation lives in the sidebar and WorkShell", () => {
 		render(
-			<OutcomeLifecycleShell stage="enter" projectId="proj-1">
+			<OutcomeLifecycleShell stage="decide_authorize" projectId="proj-1">
 				<p>body</p>
 			</OutcomeLifecycleShell>,
 		);
-		const names = stageNames().join(" ").toLowerCase();
-		expect(names).not.toMatch(/settings/);
-		expect(names).not.toMatch(/\bhome\b/);
+		expect(screen.queryByRole("list")).toBeNull();
+		expect(screen.queryByRole("listitem")).toBeNull();
+	});
+
+	it("exposes the current stage and identity as data attributes", () => {
+		const { container } = render(
+			<OutcomeLifecycleShell stage="decide_authorize" projectId="proj-1" outcomeId="outcome-1">
+				<p>body</p>
+			</OutcomeLifecycleShell>,
+		);
+		const root = container.firstElementChild as HTMLElement;
+		expect(root.getAttribute("data-stage")).toBe("decide_authorize");
+		expect(root.getAttribute("data-project-id")).toBe("proj-1");
+		expect(root.getAttribute("data-outcome-id")).toBe("outcome-1");
 	});
 
 	it("accepts an optional outcomeId without requiring one", () => {
@@ -64,7 +56,7 @@ describe("OutcomeLifecycleShell", () => {
 		const stage: OutcomeStage = "enter";
 		expect(() =>
 			render(
-				<OutcomeLifecycleShell stage={stage} projectId="proj-1" outcomeId="outcome-1">
+				<OutcomeLifecycleShell stage={stage} projectId="proj-1">
 					<p>body</p>
 				</OutcomeLifecycleShell>,
 			),
