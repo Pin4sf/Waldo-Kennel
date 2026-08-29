@@ -1894,6 +1894,7 @@
 	"outcome.dashboard.heading": "Resultados",
 	"outcome.dashboard.newOutcome": "Novo Outcome",
 	"outcome.dashboard.continueAria": "Continuar {{title}}",
+	"outcome.dashboard.missionControlAria": "Controle de missão de {{title}}",
 	"outcome.dashboard.contractRevision": "Revisão do contrato {{revision}}",
 	"outcome.dashboard.loadFailed": "O Kennel não conseguiu carregar os resultados deste projeto.",
 	"outcome.dashboard.contractSaved": "Contrato salvo",

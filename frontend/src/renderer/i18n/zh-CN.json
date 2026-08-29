@@ -1860,6 +1860,7 @@
 	"outcome.dashboard.heading": "成果",
 	"outcome.dashboard.newOutcome": "新建 Outcome",
 	"outcome.dashboard.continueAria": "继续 {{title}}",
+	"outcome.dashboard.missionControlAria": "{{title}} 的任务控制台",
 	"outcome.dashboard.contractRevision": "合同修订版 {{revision}}",
 	"outcome.dashboard.loadFailed": "Kennel 无法加载此项目的成果。",
 	"outcome.dashboard.contractSaved": "契约已保存",

@@ -1894,6 +1894,7 @@
 	"outcome.dashboard.heading": "Résultats",
 	"outcome.dashboard.newOutcome": "Nouvel Outcome",
 	"outcome.dashboard.continueAria": "Continuer {{title}}",
+	"outcome.dashboard.missionControlAria": "Contrôle de mission pour {{title}}",
 	"outcome.dashboard.contractRevision": "Révision du contrat {{revision}}",
 	"outcome.dashboard.loadFailed": "Kennel n’a pas pu charger les résultats de ce projet.",
 	"outcome.dashboard.contractSaved": "Contrat enregistré",

@@ -1878,6 +1878,7 @@
 	"outcome.dashboard.heading": "成果",
 	"outcome.dashboard.newOutcome": "新しいOutcome",
 	"outcome.dashboard.continueAria": "{{title}} を続ける",
+	"outcome.dashboard.missionControlAria": "{{title}} のミッションコントロール",
 	"outcome.dashboard.contractRevision": "契約リビジョン {{revision}}",
 	"outcome.dashboard.loadFailed": "このプロジェクトの成果を読み込めませんでした。",
 	"outcome.dashboard.contractSaved": "契約を保存済み",
