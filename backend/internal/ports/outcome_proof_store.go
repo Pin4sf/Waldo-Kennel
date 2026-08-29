@@ -22,6 +22,12 @@ type OutcomeProofStore interface {
 	// CreateAcceptanceDecision persists the decision and optional correction
 	// atomically: rework/reopen can never exist without its re-entry lineage.
 	CreateAcceptanceDecision(context.Context, domain.AcceptanceDecision, *domain.OutcomeCorrection) error
+
+	// CreateAcceptanceDecisionBatch persists several decisions in one
+	// transaction. Each stays its own immutable record; the transaction is
+	// what makes one owner sitting all-or-nothing, so a partial write can
+	// never leave them unable to say which decisions took effect.
+	CreateAcceptanceDecisionBatch(context.Context, []domain.AcceptanceDecision) error
 	FindAcceptanceDecisionByRequestKey(context.Context, string) (domain.AcceptanceDecision, bool, error)
 	ListAcceptanceDecisions(context.Context, domain.OutcomeID) ([]domain.AcceptanceDecision, error)
 	ListOutcomeCorrections(context.Context, domain.OutcomeID) ([]domain.OutcomeCorrection, error)

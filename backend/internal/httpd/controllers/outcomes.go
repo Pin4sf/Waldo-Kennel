@@ -54,6 +54,12 @@ type ProofManager interface {
 	RecordEvidence(context.Context, domain.OutcomeID, outcomevc.RecordEvidenceInput) (outcomevc.ProofView, error)
 	RecordVerification(context.Context, domain.OutcomeID, outcomevc.RecordVerificationInput) (outcomevc.ProofView, error)
 	DecideAcceptance(context.Context, domain.OutcomeID, outcomevc.DecideAcceptanceInput) (outcomevc.ProofView, error)
+
+	// Batched parent acceptance (ADR 0007). One sitting produces N separate
+	// immutable decisions; the daemon may only withhold a contributor from the
+	// batch, never accept one.
+	BatchEligibility(context.Context, domain.OutcomeID) ([]domain.BatchEntryVerdict, error)
+	AcceptContributorBatch(context.Context, domain.OutcomeID, outcomevc.AcceptBatchInput) (outcomevc.AcceptBatchView, error)
 }
 
 // OutcomesController owns the canonical Outcome contract routes.
@@ -87,6 +93,8 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Post("/outcomes/{outcomeId}/evidence", c.recordEvidence)
 	r.Post("/outcomes/{outcomeId}/verifications", c.recordVerification)
 	r.Post("/outcomes/{outcomeId}/acceptance-decisions", c.decideAcceptance)
+	r.Get("/outcomes/{outcomeId}/acceptance-batch", c.batchEligibility)
+	r.Post("/outcomes/{outcomeId}/acceptance-batch", c.acceptContributorBatch)
 }
 
 func (c *OutcomesController) getProof(w http.ResponseWriter, r *http.Request) {
@@ -530,4 +538,51 @@ func (c *OutcomesController) waiveContributionDependency(w http.ResponseWriter, 
 		return
 	}
 	envelope.WriteJSON(w, http.StatusCreated, DecompositionEnvelope{Decomposition: decompositionResponse(view)})
+}
+
+// batchEligibility reports who could be accepted right now, and why the others
+// could not, without deciding anything.
+func (c *OutcomesController) batchEligibility(w http.ResponseWriter, r *http.Request) {
+	if c.Proof == nil {
+		apispec.NotImplemented(w, r, http.MethodGet, "/api/v1/outcomes/{outcomeId}/acceptance-batch")
+		return
+	}
+	verdicts, err := c.Proof.BatchEligibility(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, BatchEligibilityEnvelope{Contributors: batchEntryVerdicts(verdicts)})
+}
+
+// acceptContributorBatch records one owner sitting. Every accepted Outcome
+// gets its own immutable decision; excluded contributors are reported with a
+// reason and a remedy rather than silently dropped.
+func (c *OutcomesController) acceptContributorBatch(w http.ResponseWriter, r *http.Request) {
+	if c.Proof == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/acceptance-batch")
+		return
+	}
+	var req AcceptContributorBatchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	ids := make([]domain.OutcomeID, 0, len(req.OutcomeIds))
+	for _, id := range req.OutcomeIds {
+		ids = append(ids, domain.OutcomeID(id))
+	}
+	view, err := c.Proof.AcceptContributorBatch(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.AcceptBatchInput{
+		ExpectedContractRevision: req.ExpectedContractRevision,
+		OutcomeIDs:               ids,
+		Summary:                  req.Summary,
+		AcceptParent:             req.AcceptParent,
+		ResourceDisposition:      domain.ResourceDisposition(req.ResourceDisposition),
+		RequestKey:               req.RequestKey,
+	})
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusCreated, AcceptBatchEnvelope{Batch: acceptBatchResponse(view)})
 }

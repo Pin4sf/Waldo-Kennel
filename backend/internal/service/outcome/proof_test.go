@@ -365,3 +365,25 @@ func (f *proofFakeStore) ListOutcomeCorrections(_ context.Context, outcomeID dom
 	}
 	return out, nil
 }
+
+// CreateAcceptanceDecisionBatch mirrors storage: every decision stays its own
+// record, and the whole sitting is all-or-nothing.
+func (f *proofFakeStore) CreateAcceptanceDecisionBatch(_ context.Context, decisions []domain.AcceptanceDecision) error {
+	if len(decisions) == 0 {
+		return errors.New("an acceptance batch requires at least one decision")
+	}
+	f.proofMu.Lock()
+	defer f.proofMu.Unlock()
+	for _, decision := range decisions {
+		if err := decision.Validate(); err != nil {
+			return err
+		}
+		for _, existing := range f.decisions {
+			if existing.RequestKey == decision.RequestKey {
+				return errors.New("duplicate decision request key")
+			}
+		}
+	}
+	f.decisions = append(f.decisions, decisions...)
+	return nil
+}

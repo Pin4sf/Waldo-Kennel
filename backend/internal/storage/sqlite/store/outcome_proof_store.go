@@ -238,3 +238,42 @@ func acceptanceFromRow(row gen.AcceptanceDecision) domain.AcceptanceDecision {
 		RequestFingerprint: row.RequestFingerprint, CreatedAt: row.CreatedAt,
 	}
 }
+
+// CreateAcceptanceDecisionBatch persists several acceptance decisions in one
+// transaction (ADR 0007).
+//
+// Each decision stays its own immutable record with its own Outcome, contract
+// revision, summary, and idempotency identity — batching collapses the owner's
+// keystrokes, never their authority. The transaction exists so ONE sitting is
+// all-or-nothing: a partial write would leave the owner unable to say which of
+// their decisions took effect.
+func (s *Store) CreateAcceptanceDecisionBatch(ctx context.Context, decisions []domain.AcceptanceDecision) error {
+	if len(decisions) == 0 {
+		return fmt.Errorf("an acceptance batch requires at least one decision")
+	}
+	seen := make(map[domain.OutcomeID]struct{}, len(decisions))
+	for _, decision := range decisions {
+		if err := decision.Validate(); err != nil {
+			return err
+		}
+		if _, dup := seen[decision.OutcomeID]; dup {
+			return fmt.Errorf("acceptance batch decides outcome %s twice", decision.OutcomeID)
+		}
+		seen[decision.OutcomeID] = struct{}{}
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return s.inTx(ctx, "create acceptance decision batch", func(q *gen.Queries) error {
+		for _, decision := range decisions {
+			if err := q.CreateAcceptanceDecision(ctx, gen.CreateAcceptanceDecisionParams{
+				ID: string(decision.ID), OutcomeID: string(decision.OutcomeID), ContractRevisionID: string(decision.ContractRevisionID),
+				Kind: string(decision.Kind), ActorType: string(decision.ActorType), Summary: decision.Summary,
+				ResourceDisposition: string(decision.ResourceDisposition), RequestKey: decision.RequestKey,
+				RequestFingerprint: decision.RequestFingerprint, CreatedAt: decision.CreatedAt,
+			}); err != nil {
+				return fmt.Errorf("decide outcome %s: %w", decision.OutcomeID, err)
+			}
+		}
+		return nil
+	})
+}

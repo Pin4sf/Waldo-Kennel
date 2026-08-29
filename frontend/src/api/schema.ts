@@ -516,6 +516,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/acceptance-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Report which contributing Outcomes could be accepted together right now */
+        get: operations["getOutcomeAcceptanceBatchEligibility"];
+        put?: never;
+        /** Accept every eligible contributing Outcome in one sitting, as separate decisions */
+        post: operations["acceptOutcomeContributorBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/acceptance-decisions": {
         parameters: {
             query?: never;
@@ -2280,6 +2298,24 @@ export interface components {
             message: string;
             requestId?: string;
         };
+        AcceptBatchEnvelope: {
+            batch: components["schemas"]["AcceptBatchResponse"];
+        };
+        AcceptBatchResponse: {
+            accepted: components["schemas"]["AcceptanceDecisionResponse"][];
+            excluded: components["schemas"]["BatchEntryVerdictResponse"][];
+            parent: components["schemas"]["OutcomeProofResponse"];
+            parentAccepted?: components["schemas"]["AcceptanceDecisionResponse"];
+        };
+        AcceptContributorBatchRequest: {
+            acceptParent?: boolean;
+            /** Format: int64 */
+            expectedContractRevision: number;
+            outcomeIds?: string[];
+            requestKey: string;
+            resourceDisposition: string;
+            summary: string;
+        };
         AcceptanceDecisionResponse: {
             actorType: string;
             contractRevisionId: string;
@@ -2486,6 +2522,16 @@ export interface components {
             /** Format: int64 */
             seq: number;
             sessionId: string;
+        };
+        BatchEligibilityEnvelope: {
+            contributors: components["schemas"]["BatchEntryVerdictResponse"][];
+        };
+        BatchEntryVerdictResponse: {
+            eligible: boolean;
+            outcomeId: string;
+            reason: string;
+            remedy?: string;
+            title: string;
         };
         BrowserCommandRequest: {
             action: string;
@@ -6214,6 +6260,137 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomeAcceptanceBatchEligibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchEligibilityEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    acceptOutcomeContributorBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptContributorBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptBatchEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

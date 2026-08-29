@@ -2630,10 +2630,7 @@ func outcomeProofResponse(view outcomevc.ProofView) OutcomeProofResponse {
 		response.Criteria = append(response.Criteria, item)
 	}
 	for _, decision := range view.Decisions {
-		response.Decisions = append(response.Decisions, AcceptanceDecisionResponse{
-			ID: string(decision.ID), ContractRevisionID: string(decision.ContractRevisionID), Kind: string(decision.Kind), ActorType: string(decision.ActorType),
-			Summary: decision.Summary, ResourceDisposition: string(decision.ResourceDisposition), CreatedAt: decision.CreatedAt,
-		})
+		response.Decisions = append(response.Decisions, acceptanceDecisionResponse(decision))
 	}
 	for _, correction := range view.Corrections {
 		response.Corrections = append(response.Corrections, OutcomeCorrectionResponse{
@@ -3351,4 +3348,89 @@ func parentAttentionResponse(summary domain.ParentAttention) ParentAttentionResp
 		resp.Counts[string(kind)] = count
 	}
 	return resp
+}
+
+// --- Batched parent acceptance (ADR 0007 phase 4) ---
+
+// AcceptContributorBatchRequest is one owner sitting over a decomposed
+// Outcome's ready contributors. It produces one immutable decision per
+// Outcome accepted, never one merged decision.
+type AcceptContributorBatchRequest struct {
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+	// OutcomeIds narrows the sitting; omit for every eligible contributor.
+	OutcomeIds []string `json:"outcomeIds,omitempty"`
+	Summary    string   `json:"summary"`
+	// AcceptParent also accepts the Project-level Outcome, permitted only
+	// when this batch leaves every parent criterion proved.
+	AcceptParent        bool   `json:"acceptParent,omitempty"`
+	ResourceDisposition string `json:"resourceDisposition"`
+	RequestKey          string `json:"requestKey"`
+}
+
+// BatchEntryVerdictResponse is the daemon's answer on one contributor. The
+// daemon may only withhold; it never accepts.
+type BatchEntryVerdictResponse struct {
+	OutcomeID string `json:"outcomeId"`
+	Title     string `json:"title"`
+	Eligible  bool   `json:"eligible"`
+	Reason    string `json:"reason"`
+	Remedy    string `json:"remedy,omitempty"`
+}
+
+// BatchEligibilityEnvelope reports who could be accepted right now.
+type BatchEligibilityEnvelope struct {
+	Contributors []BatchEntryVerdictResponse `json:"contributors"`
+}
+
+// AcceptBatchResponse reports what one sitting decided and what it withheld.
+type AcceptBatchResponse struct {
+	Accepted       []AcceptanceDecisionResponse `json:"accepted"`
+	Excluded       []BatchEntryVerdictResponse  `json:"excluded"`
+	ParentAccepted *AcceptanceDecisionResponse  `json:"parentAccepted,omitempty"`
+	Parent         OutcomeProofResponse         `json:"parent"`
+}
+
+// AcceptBatchEnvelope is the { batch } response body.
+type AcceptBatchEnvelope struct {
+	Batch AcceptBatchResponse `json:"batch"`
+}
+
+func batchEntryVerdictResponse(verdict domain.BatchEntryVerdict) BatchEntryVerdictResponse {
+	return BatchEntryVerdictResponse{
+		OutcomeID: string(verdict.OutcomeID), Title: verdict.Title,
+		Eligible: verdict.Eligible, Reason: verdict.Reason, Remedy: verdict.Remedy,
+	}
+}
+
+func batchEntryVerdicts(verdicts []domain.BatchEntryVerdict) []BatchEntryVerdictResponse {
+	out := make([]BatchEntryVerdictResponse, 0, len(verdicts))
+	for _, verdict := range verdicts {
+		out = append(out, batchEntryVerdictResponse(verdict))
+	}
+	return out
+}
+
+func acceptBatchResponse(view outcomevc.AcceptBatchView) AcceptBatchResponse {
+	resp := AcceptBatchResponse{
+		Accepted: make([]AcceptanceDecisionResponse, 0, len(view.Accepted)),
+		Excluded: batchEntryVerdicts(view.Excluded),
+		Parent:   outcomeProofResponse(view.Parent),
+	}
+	for _, decision := range view.Accepted {
+		resp.Accepted = append(resp.Accepted, acceptanceDecisionResponse(decision))
+	}
+	if view.ParentAccepted != nil {
+		parent := acceptanceDecisionResponse(*view.ParentAccepted)
+		resp.ParentAccepted = &parent
+	}
+	return resp
+}
+
+func acceptanceDecisionResponse(decision domain.AcceptanceDecision) AcceptanceDecisionResponse {
+	return AcceptanceDecisionResponse{
+		ID: string(decision.ID), ContractRevisionID: string(decision.ContractRevisionID),
+		Kind: string(decision.Kind), ActorType: string(decision.ActorType),
+		Summary: decision.Summary, ResourceDisposition: string(decision.ResourceDisposition),
+		CreatedAt: decision.CreatedAt,
+	}
 }

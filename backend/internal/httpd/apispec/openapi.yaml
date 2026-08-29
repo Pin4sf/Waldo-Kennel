@@ -1343,6 +1343,109 @@ paths:
       summary: Read one Outcome with its full revision history
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/acceptance-batch:
+    get:
+      operationId: getOutcomeAcceptanceBatchEligibility
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchEligibilityEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Report which contributing Outcomes could be accepted together right
+        now
+      tags:
+      - outcomes
+    post:
+      operationId: acceptOutcomeContributorBatch
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptContributorBatchRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptBatchEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Accept every eligible contributing Outcome in one sitting, as separate
+        decisions
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/acceptance-decisions:
     post:
       operationId: decideOutcomeAcceptance
@@ -7085,6 +7188,55 @@ components:
       - code
       - message
       type: object
+    AcceptBatchEnvelope:
+      properties:
+        batch:
+          $ref: '#/components/schemas/AcceptBatchResponse'
+      required:
+      - batch
+      type: object
+    AcceptBatchResponse:
+      properties:
+        accepted:
+          items:
+            $ref: '#/components/schemas/AcceptanceDecisionResponse'
+          type: array
+        excluded:
+          items:
+            $ref: '#/components/schemas/BatchEntryVerdictResponse'
+          type: array
+        parent:
+          $ref: '#/components/schemas/OutcomeProofResponse'
+        parentAccepted:
+          $ref: '#/components/schemas/AcceptanceDecisionResponse'
+      required:
+      - accepted
+      - excluded
+      - parent
+      type: object
+    AcceptContributorBatchRequest:
+      properties:
+        acceptParent:
+          type: boolean
+        expectedContractRevision:
+          format: int64
+          type: integer
+        outcomeIds:
+          items:
+            type: string
+          type: array
+        requestKey:
+          type: string
+        resourceDisposition:
+          type: string
+        summary:
+          type: string
+      required:
+      - expectedContractRevision
+      - summary
+      - resourceDisposition
+      - requestKey
+      type: object
     AcceptanceDecisionResponse:
       properties:
         actorType:
@@ -7628,6 +7780,33 @@ components:
       - harness
       - runBriefCoreDigest
       - boundAt
+      type: object
+    BatchEligibilityEnvelope:
+      properties:
+        contributors:
+          items:
+            $ref: '#/components/schemas/BatchEntryVerdictResponse'
+          type: array
+      required:
+      - contributors
+      type: object
+    BatchEntryVerdictResponse:
+      properties:
+        eligible:
+          type: boolean
+        outcomeId:
+          type: string
+        reason:
+          type: string
+        remedy:
+          type: string
+        title:
+          type: string
+      required:
+      - outcomeId
+      - title
+      - eligible
+      - reason
       type: object
     BrowserCommandRequest:
       properties:

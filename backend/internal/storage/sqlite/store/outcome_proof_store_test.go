@@ -154,3 +154,70 @@ func TestOutcomeProofStoreIdempotencyLookupPreservesOriginalFingerprint(t *testi
 		t.Fatalf("rows after conflicting replay=%+v err=%v", rows, err)
 	}
 }
+
+// A sitting is all-or-nothing: a partial write would leave the owner unable to
+// say which of their decisions took effect.
+func TestAcceptanceBatchIsAllOrNothing(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	parent, revision := seedParent(t, s, "mer", "batch1")
+
+	good := domain.AcceptanceDecision{
+		ID: "acc-good", OutcomeID: parent.ID, ContractRevisionID: revision.ID,
+		Kind: domain.AcceptanceAccept, ActorType: domain.AcceptanceActorUser,
+		Summary: "Reviewed and accepted.", ResourceDisposition: domain.ResourceDispositionRetain,
+		RequestKey: "sitting:good", RequestFingerprint: strings.Repeat("a", 64),
+		CreatedAt: decomposedAt,
+	}
+	// A second decision naming an Outcome that does not exist fails the FK.
+	bad := good
+	bad.ID, bad.OutcomeID, bad.RequestKey = "acc-bad", "out-ghost", "sitting:bad"
+
+	if err := s.CreateAcceptanceDecisionBatch(ctx, []domain.AcceptanceDecision{good, bad}); err == nil {
+		t.Fatal("a batch containing an impossible decision must fail")
+	}
+	decisions, err := s.ListAcceptanceDecisions(ctx, parent.ID)
+	if err != nil {
+		t.Fatalf("list decisions: %v", err)
+	}
+	if len(decisions) != 0 {
+		t.Fatalf("a failed sitting must leave no decision behind, got %+v", decisions)
+	}
+
+	// The same sitting without the impossible decision writes cleanly.
+	if err := s.CreateAcceptanceDecisionBatch(ctx, []domain.AcceptanceDecision{good}); err != nil {
+		t.Fatalf("valid batch: %v", err)
+	}
+	decisions, err = s.ListAcceptanceDecisions(ctx, parent.ID)
+	if err != nil {
+		t.Fatalf("list decisions: %v", err)
+	}
+	if len(decisions) != 1 || decisions[0].ID != good.ID {
+		t.Fatalf("decisions = %+v, want exactly the one accepted", decisions)
+	}
+}
+
+// Batching collapses keystrokes, never authority: one Outcome may not be
+// decided twice inside a single sitting.
+func TestAcceptanceBatchRejectsDecidingOneOutcomeTwice(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	parent, revision := seedParent(t, s, "mer", "batch2")
+
+	first := domain.AcceptanceDecision{
+		ID: "acc-1", OutcomeID: parent.ID, ContractRevisionID: revision.ID,
+		Kind: domain.AcceptanceAccept, ActorType: domain.AcceptanceActorUser,
+		Summary: "Accepted.", ResourceDisposition: domain.ResourceDispositionRetain,
+		RequestKey: "sitting:1", RequestFingerprint: strings.Repeat("b", 64), CreatedAt: decomposedAt,
+	}
+	second := first
+	second.ID, second.RequestKey = "acc-2", "sitting:2"
+
+	err := s.CreateAcceptanceDecisionBatch(ctx, []domain.AcceptanceDecision{first, second})
+	if err == nil {
+		t.Fatal("one Outcome must not be decided twice in one sitting")
+	}
+	if !strings.Contains(err.Error(), "twice") {
+		t.Fatalf("refusal must name the reason, got %v", err)
+	}
+}

@@ -22,6 +22,12 @@ type fakeProofManager struct {
 	evidence     func(context.Context, domain.OutcomeID, outcomevc.RecordEvidenceInput) (outcomevc.ProofView, error)
 	verification func(context.Context, domain.OutcomeID, outcomevc.RecordVerificationInput) (outcomevc.ProofView, error)
 	decision     func(context.Context, domain.OutcomeID, outcomevc.DecideAcceptanceInput) (outcomevc.ProofView, error)
+
+	batchEligibility func() ([]domain.BatchEntryVerdict, error)
+	acceptBatch      func(domain.OutcomeID, outcomevc.AcceptBatchInput) (outcomevc.AcceptBatchView, error)
+
+	lastBatchOf domain.OutcomeID
+	lastBatch   outcomevc.AcceptBatchInput
 }
 
 func (f *fakeProofManager) GetProof(ctx context.Context, id domain.OutcomeID) (outcomevc.ProofView, error) {
@@ -141,4 +147,19 @@ func TestOutcomeProofRoutesAnswer501WhenUnwired(t *testing.T) {
 			t.Fatalf("%s status=%d body=%s", route, status, body)
 		}
 	}
+}
+
+func (f *fakeProofManager) BatchEligibility(_ context.Context, _ domain.OutcomeID) ([]domain.BatchEntryVerdict, error) {
+	if f.batchEligibility == nil {
+		return nil, apierr.NotFound("OUTCOME_NOT_FOUND", "not implemented in fake")
+	}
+	return f.batchEligibility()
+}
+
+func (f *fakeProofManager) AcceptContributorBatch(_ context.Context, parentID domain.OutcomeID, in outcomevc.AcceptBatchInput) (outcomevc.AcceptBatchView, error) {
+	f.lastBatchOf, f.lastBatch = parentID, in
+	if f.acceptBatch == nil {
+		return outcomevc.AcceptBatchView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "not implemented in fake")
+	}
+	return f.acceptBatch(parentID, in)
 }
