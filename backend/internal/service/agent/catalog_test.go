@@ -300,9 +300,9 @@ func TestDefaultCatalogExposesAdmittedHarnessesForNewWork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Registration order: Codex first (the v0 dogfood default), DeepSeek
-	// Harness admitted alongside it through the same fail-closed checks.
-	wantIDs := []string{"codex", "deepseek-harness"}
+	// Sorted by id: Codex (the v0 dogfood default), DeepSeek Harness, and
+	// opencode, each admitted through the same fail-closed checks.
+	wantIDs := []string{"codex", "deepseek-harness", "opencode"}
 	if len(got.Supported) != len(wantIDs) {
 		t.Fatalf("default supported = %#v, want %v", got.Supported, wantIDs)
 	}
@@ -344,8 +344,12 @@ func TestRefreshReportsAuthorizedInstalledAgents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Refresh: %v", err)
 	}
-	if len(got.Supported) != 1 || len(got.Installed) != 1 {
-		t.Fatalf("inventory = %#v, want only codex", got)
+	// Codex and opencode are both admitted and installed here; claude-code is
+	// not admitted for new work, and broken-auth fails its probe. Authorization
+	// is the narrower set: opencode's stub carries no auth checker, so it stays
+	// installed-but-unauthorized rather than being promoted on installation.
+	if len(got.Supported) != 2 || len(got.Installed) != 2 {
+		t.Fatalf("inventory = %#v, want codex and opencode", got)
 	}
 	if len(got.Authorized) != 1 || got.Authorized[0].ID != "codex" {
 		t.Fatalf("authorized = %#v, want only codex", got.Authorized)
@@ -357,6 +361,9 @@ func TestRefreshReportsAuthorizedInstalledAgents(t *testing.T) {
 	}
 	if byID["codex"].AuthStatus != ports.AgentAuthStatusAuthorized {
 		t.Fatalf("codex authStatus = %q", byID["codex"].AuthStatus)
+	}
+	if byID["opencode"].AuthStatus != ports.AgentAuthStatusUnknown {
+		t.Fatalf("opencode authStatus = %q, want unknown without an auth checker", byID["opencode"].AuthStatus)
 	}
 }
 

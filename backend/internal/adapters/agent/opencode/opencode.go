@@ -75,6 +75,7 @@ func New() *Plugin {
 var _ adapters.Adapter = (*Plugin)(nil)
 var _ ports.Agent = (*Plugin)(nil)
 var _ ports.AgentAuthChecker = (*Plugin)(nil)
+var _ ports.AgentOptionalAuth = (*Plugin)(nil)
 
 // Manifest returns the adapter's static self-description.
 func (p *Plugin) Manifest() adapters.Manifest {
@@ -173,6 +174,13 @@ func (p *Plugin) SessionInfo(ctx context.Context, session ports.SessionRef) (por
 	return info, ok, nil
 }
 
+// AuthOptional reports that opencode does not need a provider grant to run.
+// `opencode models` lists usable free models (opencode/*-free) with zero
+// credentials configured, so an install with no login is fully working rather
+// than half-configured. This keeps the unknown status below from reading as a
+// missing precondition; an affirmative unauthorized result still blocks.
+func (p *Plugin) AuthOptional() bool { return true }
+
 // AuthStatus checks whether opencode has a configured provider credential.
 // Missing credentials remain unknown because opencode can still run its public
 // free models without a provider login.
@@ -241,7 +249,7 @@ func opencodeLocalAuthStatus(ctx context.Context) (ports.AgentAuthStatus, bool, 
 	if jsonOK && jsonStatus == ports.AgentAuthStatusAuthorized {
 		return jsonStatus, true, nil
 	}
-	if status, ok, err := opencodeDBAuthStatus(ctx, filepath.Join(dataDir, "opencode.db")); err != nil || ok {
+	if status, ok, err := opencodeDBAuthStatus(ctx, filepath.Join(dataDir, opencodeStateDBName)); err != nil || ok {
 		return status, ok, err
 	}
 	if jsonOK {
@@ -251,17 +259,53 @@ func opencodeLocalAuthStatus(ctx context.Context) (ports.AgentAuthStatus, bool, 
 }
 
 func opencodeDataDir() (string, bool) {
-	if dataDir := strings.TrimSpace(os.Getenv("OPENCODE_DATA_DIR")); dataDir != "" {
-		return dataDir, true
+	return opencodeDataDirFrom(nil)
+}
+
+// opencodeDataDirFrom resolves opencode's state root, preferring an explicit
+// launch environment over the daemon's own so a session pinned to its own data
+// dir is inspected against the state it actually runs with. Precedence follows
+// opencode: OPENCODE_DATA_DIR, then XDG_DATA_HOME/opencode, then
+// ~/.local/share/opencode. A nil env resolves purely from the process
+// environment, which is what the auth probe has always done.
+func opencodeDataDirFrom(env map[string]string) (string, bool) {
+	lookup := func(key string) string {
+		if value, ok := env[key]; ok {
+			return strings.TrimSpace(value)
+		}
+		return strings.TrimSpace(os.Getenv(key))
 	}
-	if dataHome := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); dataHome != "" {
+	if dataDir := lookup("OPENCODE_DATA_DIR"); dataDir != "" {
+		return filepath.Clean(dataDir), true
+	}
+	if dataHome := lookup("XDG_DATA_HOME"); dataHome != "" {
 		return filepath.Join(dataHome, "opencode"), true
+	}
+	if home := lookup("HOME"); home != "" {
+		return filepath.Join(home, ".local", "share", "opencode"), true
 	}
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return "", false
 	}
 	return filepath.Join(home, ".local", "share", "opencode"), true
+}
+
+// opencodeStateDBName is opencode's SQLite state file, which holds both the
+// account records the auth probe reads and the session records the continuation
+// probe reads.
+const opencodeStateDBName = "opencode.db"
+
+// openOpenCodeStateDB opens opencode's state read-only. Read-only matters: AO
+// inspects another tool's live database, and opencode runs it in WAL mode, so
+// the short busy timeout lets a concurrent write settle instead of failing the
+// probe outright.
+func openOpenCodeStateDB(path string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?mode=ro&_pragma=busy_timeout(1000)")
+	if err != nil {
+		return nil, fmt.Errorf("opencode: open session state: %w", err)
+	}
+	return db, nil
 }
 
 func opencodeAuthJSONStatus(path string) (ports.AgentAuthStatus, bool, error) {
@@ -305,7 +349,7 @@ func opencodeDBAuthStatus(ctx context.Context, path string) (ports.AgentAuthStat
 		return ports.AgentAuthStatusUnknown, false, err
 	}
 
-	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?mode=ro&_pragma=busy_timeout(1000)")
+	db, err := openOpenCodeStateDB(path)
 	if err != nil {
 		return ports.AgentAuthStatusUnknown, false, err
 	}

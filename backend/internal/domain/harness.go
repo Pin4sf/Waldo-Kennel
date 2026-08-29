@@ -69,9 +69,12 @@ func (h AgentHarness) IsRecognizedPersisted() bool {
 // Codex remains the recommended zero-configuration default; DeepSeek Harness
 // is admitted alongside it as a worker once its profile-readiness checks pass,
 // through the same fail-closed adapter admission (a missing dsh binary is
-// "not ready", never silently skipped).
+// "not ready", never silently skipped). opencode is admitted on the same terms:
+// it resolves its own binary, reports authorization, and delivers the task
+// prompt at launch, so a missing or unauthorized install fails closed here
+// rather than producing a session that cannot run.
 func (h AgentHarness) IsSelectableForNewWork() bool {
-	return h == HarnessCodex || h == HarnessDeepSeekHarness
+	return h == HarnessCodex || h == HarnessDeepSeekHarness || h == HarnessOpenCode
 }
 
 // IsSelectableAsCoordinator reports whether h may run as a project
@@ -80,8 +83,13 @@ func (h AgentHarness) IsSelectableForNewWork() bool {
 // identity, structured chat, and recovery support, which DeepSeek Harness has
 // not demonstrated yet. When those capabilities pass their own admission, this
 // predicate widens without touching the worker admission above.
+//
+// opencode satisfies all three: the workspace activity plugin reports its
+// native session id (stable identity), it speaks ACP through a registered chat
+// driver (structured chat), and it resumes that id with `--session` backed by a
+// native-session probe (recovery).
 func (h AgentHarness) IsSelectableAsCoordinator() bool {
-	return h == HarnessCodex
+	return h == HarnessCodex || h == HarnessOpenCode
 }
 
 // IsSelectableAsSwitchTarget reports whether h may be the destination of an
@@ -91,8 +99,15 @@ func (h AgentHarness) IsSelectableAsCoordinator() bool {
 // neither yet — its restore path reports ok=false pending the dsh hook
 // contract — so admitting it here would advertise switches that can only fail.
 // Worker spawns are unaffected: they start fresh by design.
+//
+// opencode declares continuation capabilities (provider-assigned ids learned
+// from its activity plugin), resolves the state root those ids live in, and
+// probes that state before AO reuses a resume handle, so a switch onto it
+// either continues a real conversation or truthfully starts fresh. It exposes
+// no per-session transcript file — history lives in its SQLite state — so the
+// switch records the source transcript as unavailable instead of inventing one.
 func (h AgentHarness) IsSelectableAsSwitchTarget() bool {
-	return h == HarnessCodex
+	return h == HarnessCodex || h == HarnessOpenCode
 }
 
 // IsKnown is retained as a compatibility alias for persisted identity checks.

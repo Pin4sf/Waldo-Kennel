@@ -596,8 +596,12 @@ type RoleInventoryFact struct {
 	Installed       bool
 	RequiresProfile bool
 	ProfileReady    *bool
-	// AuthApplicable reports whether this adapter requires authorization.
+	// AuthApplicable reports whether this adapter participates in authorization.
 	AuthApplicable bool
+	// AuthOptional reports whether the adapter can work without a grant, so an
+	// inconclusive probe is its healthy state rather than a missing
+	// precondition. Meaningful only when AuthApplicable.
+	AuthOptional bool
 	// Auth is the probed grant status; meaningful only when AuthApplicable.
 	Auth ports.AgentAuthStatus
 }
@@ -622,6 +626,7 @@ func (s *Service) InventoryRoleFacts(ctx context.Context, harnesses []domain.Age
 		item, ok := s.agentFor(harness)
 		if ok {
 			fact.AuthApplicable = isAuthApplicable(item)
+			fact.AuthOptional = isAuthOptional(item)
 			res := s.probeAgent(ctx, item)
 			fact.Installed = res.installed
 			fact.RequiresProfile = res.info.RequiresProfile
@@ -641,6 +646,29 @@ func (s *Service) InventoryRoleFacts(ctx context.Context, harnesses []domain.Age
 func isAuthApplicable(item agentregistry.HarnessAgent) bool {
 	_, ok := item.Agent.(ports.AgentAuthChecker)
 	return ok
+}
+
+// isAuthOptional reports whether the adapter declares that a provider grant is
+// information rather than a precondition (opencode, which ships usable free
+// models). Adapters that say nothing keep the strict default.
+func isAuthOptional(item agentregistry.HarnessAgent) bool {
+	reporter, ok := item.Agent.(ports.AgentOptionalAuth)
+	return ok && reporter.AuthOptional()
+}
+
+// authBlocksReadiness decides whether a probed grant status should stop a role
+// from being ready. An affirmative refusal always blocks. An inconclusive probe
+// blocks only for adapters that need a grant to run at all: for one that
+// declares auth optional, "no credential found" is its working state, and
+// treating that as refusal would gate an agent that runs fine without one.
+func authBlocksReadiness(fact RoleInventoryFact) bool {
+	if fact.Auth == ports.AgentAuthStatusUnauthorized {
+		return true
+	}
+	if fact.AuthOptional {
+		return false
+	}
+	return fact.Auth != ports.AgentAuthStatusAuthorized
 }
 
 // EnrichMissionRoles layers live inventory truth onto the pure capability
@@ -664,7 +692,7 @@ func EnrichMissionRoles(base domain.ResolvedMissionRoles, facts map[domain.Agent
 			role.Ready = false
 			role.Reason += "; profile readiness fails closed (no composed profile)"
 		}
-		if fact.AuthApplicable && fact.Auth != ports.AgentAuthStatusAuthorized {
+		if fact.AuthApplicable && authBlocksReadiness(fact) {
 			role.Ready = false
 			role.Reason += "; agent authorization is not granted"
 		}

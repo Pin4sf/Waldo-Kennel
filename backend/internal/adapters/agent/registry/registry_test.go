@@ -198,3 +198,45 @@ func hasLine(content, line string) bool {
 	}
 	return false
 }
+
+// TestSwitchTargetAdmittedHarnessesDeclareContinuation enforces the invariant
+// the switch path depends on: a harness may only be switch-target-admitted if
+// its shipped adapter actually satisfies session_manager.validateContinuationAgent.
+// Widening domain admission without the adapter support would advertise
+// switches that can only fail at activation, which is the exact trap the
+// DeepSeek Harness gating comment describes. Asserting it here, over the real
+// registry, keeps the domain predicate and the adapter capability from drifting.
+func TestSwitchTargetAdmittedHarnessesDeclareContinuation(t *testing.T) {
+	admitted := 0
+	for _, ha := range Harnessed() {
+		if !ha.Harness.IsSelectableAsSwitchTarget() {
+			continue
+		}
+		admitted++
+		t.Run(string(ha.Harness), func(t *testing.T) {
+			provider, ok := ha.Agent.(ports.AgentContinuationCapabilityProvider)
+			if !ok {
+				t.Fatalf("%s is switch-target-admitted without declaring continuation capabilities", ha.Harness)
+			}
+			caps := provider.ContinuationCapabilities()
+			switch caps.FreshNativeSessionID {
+			case ports.FreshNativeSessionIDProviderAssigned:
+			case ports.FreshNativeSessionIDCallerAssigned:
+				// Caller-assigned ids are only usable with an allocator.
+				if _, ok := ha.Agent.(ports.AgentFreshNativeSessionIDProvider); !ok {
+					t.Fatalf("%s declares caller-assigned ids without an allocator", ha.Harness)
+				}
+			default:
+				t.Fatalf("%s declares no verified fresh native-session identity mode", ha.Harness)
+			}
+			// Preserving the outgoing conversation resolves the adapter's native
+			// state root, so a switch-admitted adapter must expose one.
+			if _, ok := ha.Agent.(ports.AgentNativeSessionConfigProvider); !ok {
+				t.Fatalf("%s is switch-target-admitted without a native session config dir", ha.Harness)
+			}
+		})
+	}
+	if admitted == 0 {
+		t.Fatal("no switch-target-admitted harnesses found: the invariant would vacuously pass")
+	}
+}
