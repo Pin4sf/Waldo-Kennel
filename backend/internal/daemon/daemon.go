@@ -448,6 +448,27 @@ func Run() error {
 	if _, err := intakeSvc.RecoverInterruptedAnalyses(ctx); err != nil {
 		return fmt.Errorf("recover interrupted intake analysis: %w", err)
 	}
+	// Expiry is a durable deadline, so it also has to be enforced while the
+	// daemon KEEPS running: without this an intake whose agent stopped
+	// answering would read as "still working" until the next restart. The
+	// owner can always cancel out of that by hand, but they should not have
+	// to in order to learn that nothing is coming.
+	go func() {
+		ticker := time.NewTicker(intakeAnalysisSweepInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if expired, err := intakeSvc.ExpireStaleAnalysisRequests(ctx); err != nil {
+					log.Warn("could not sweep expired intake analysis requests", "error", err)
+				} else if expired > 0 {
+					log.Info("closed intake analysis requests that expired", "count", expired)
+				}
+			}
+		}
+	}()
 	responsibilityLinkSvc := intakevc.NewResponsibilityLinks(store, nil)
 	waldoConversationSvc := waldovc.New(store, nil, nil)
 	if receipts, err := waldoConversationSvc.RecoverPendingContinuations(ctx); err != nil {

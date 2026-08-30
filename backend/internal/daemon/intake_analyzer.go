@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
@@ -290,3 +291,8 @@ func excerpt(statement string, limit int) string {
 // restated here rather than imported so the daemon wiring does not pull the
 // HTTP controller package into the spawn path.
 const intakeCallbackHeader = "X-Kennel-Intake-Token" //nolint:gosec // header NAME, not a credential.
+
+// intakeAnalysisSweepInterval is how often a running daemon re-checks durable
+// expiry. Well under the request TTL, so an abandoned ask reaches a verdict
+// within a fraction of its own lifetime rather than at the next restart.
+const intakeAnalysisSweepInterval = 2 * time.Minute
