@@ -2,9 +2,24 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
+
+// IntakeCallback is where a deferred answer goes: the durable request it
+// answers, the scoping token that addresses it, and when it stops being
+// accepted.
+//
+// It carries no URL. The service that mints it owns durable state, not HTTP;
+// the daemon layer that spawns the agent is what knows the loopback origin and
+// renders the endpoint into the brief — the same split decomposition uses.
+type IntakeCallback struct {
+	RequestID domain.IntakeAnalysisRequestID
+	// Token is SCOPING, NOT AUTHENTICATION. See IntakeAnalysisRequest.
+	Token     string
+	ExpiresAt time.Time
+}
 
 // IntakeAnalysisInput is the bounded, provenance-bearing analyzer packet. It
 // contains conversation identifiers only; transcript bodies remain in their
@@ -15,6 +30,17 @@ type IntakeAnalysisInput struct {
 	PreviousProposal  *domain.OutcomeContractProposal
 	Clarification     *domain.ClarificationRequest
 	ClarificationText string
+
+	// Defer opens the durable request this analysis will answer on and returns
+	// where to answer. It is a capability rather than a field because minting
+	// is a durable write with consequences: an analyzer that answers inline
+	// never calls it, and no request row is written for an analysis no agent
+	// was ever asked to do.
+	//
+	// The request is persisted before this returns, so an agent spawned
+	// afterwards always has somewhere to answer. Call it exactly once, and
+	// only when about to defer.
+	Defer func(context.Context) (IntakeCallback, error)
 }
 
 // IntakeAnalysisResult is structured proposal output. Exactly one of Proposal
@@ -46,6 +72,9 @@ type IntakeAnalysisTicket struct {
 	Inline *IntakeAnalysisResult
 	// SessionID names the bounded session started to answer, when one was.
 	SessionID string
+	// Harness names which agent was asked, so a waiting state can say who is
+	// working rather than showing an anonymous spinner.
+	Harness domain.AgentHarness
 	// Detail explains what was started, in the owner's terms.
 	Detail string
 }

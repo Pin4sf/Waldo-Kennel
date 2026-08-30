@@ -425,6 +425,16 @@ func Run() error {
 		log.Info("closed decomposition requests that expired while the daemon was down", "count", expired)
 	}
 	intakeSvc := intakevc.New(store, intakevc.NewRuleBasedAnalyzer(), nil)
+	// Order matters. Expiry runs FIRST: it closes asks whose deadline passed
+	// while the daemon was down and returns their intakes to a retryable
+	// failure. Only then does the interrupted-analysis sweep run, which skips
+	// intakes that still have an OPEN ask — an agent's analysis is meant to
+	// outlive a restart, and reaping it would kill the work this exists to do.
+	if expired, err := intakeSvc.ExpireStaleAnalysisRequests(ctx); err != nil {
+		log.Warn("could not sweep expired intake analysis requests", "error", err)
+	} else if expired > 0 {
+		log.Info("closed intake analysis requests that expired while the daemon was down", "count", expired)
+	}
 	if _, err := intakeSvc.RecoverInterruptedAnalyses(ctx); err != nil {
 		return fmt.Errorf("recover interrupted intake analysis: %w", err)
 	}

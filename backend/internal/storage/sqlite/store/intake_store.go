@@ -588,3 +588,126 @@ func responsibilityLinkFromRow(row gen.ResponsibilityLink) domain.Responsibility
 	}
 	return link
 }
+
+// CreateIntakeAnalysisRequest opens one durable ask for an agent-authored
+// Contract proposal. It is written before the agent is spawned: an agent
+// holding a token for an unrecorded request would have nowhere to answer.
+func (s *Store) CreateIntakeAnalysisRequest(ctx context.Context, request domain.IntakeAnalysisRequest) error {
+	if err := request.Validate(); err != nil {
+		return err
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return s.qw.CreateIntakeAnalysisRequest(ctx, gen.CreateIntakeAnalysisRequestParams{
+		ID:                       request.ID,
+		IntakeID:                 request.IntakeID.String(),
+		ExpectedProposalRevision: request.ExpectedProposalRevision,
+		Status:                   request.Status,
+		CallbackTokenDigest:      request.CallbackTokenDigest,
+		SessionID:                request.SessionID,
+		Harness:                  request.Harness,
+		ExpiresAt:                request.ExpiresAt,
+		RawProposal:              request.RawProposal,
+		RefusalReason:            request.RefusalReason,
+		CreatedAt:                request.CreatedAt,
+	})
+}
+
+// GetIntakeAnalysisRequest reads one ask.
+func (s *Store) GetIntakeAnalysisRequest(ctx context.Context, id domain.IntakeAnalysisRequestID) (domain.IntakeAnalysisRequest, bool, error) {
+	row, err := s.qr.GetIntakeAnalysisRequest(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.IntakeAnalysisRequest{}, false, nil
+	}
+	if err != nil {
+		return domain.IntakeAnalysisRequest{}, false, err
+	}
+	return intakeAnalysisRequestFromRow(row), true, nil
+}
+
+// LatestIntakeAnalysisRequest returns an intake's newest ask of any status.
+func (s *Store) LatestIntakeAnalysisRequest(ctx context.Context, intakeID domain.IntakeSessionID) (domain.IntakeAnalysisRequest, bool, error) {
+	row, err := s.qr.LatestIntakeAnalysisRequest(ctx, intakeID.String())
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.IntakeAnalysisRequest{}, false, nil
+	}
+	if err != nil {
+		return domain.IntakeAnalysisRequest{}, false, err
+	}
+	return intakeAnalysisRequestFromRow(row), true, nil
+}
+
+// ListOpenIntakeAnalysisRequests returns every unanswered ask.
+func (s *Store) ListOpenIntakeAnalysisRequests(ctx context.Context) ([]domain.IntakeAnalysisRequest, error) {
+	rows, err := s.qr.ListOpenIntakeAnalysisRequests(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.IntakeAnalysisRequest, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, intakeAnalysisRequestFromRow(row))
+	}
+	return out, nil
+}
+
+// BindIntakeAnalysisRequestSession records which session and harness answer.
+func (s *Store) BindIntakeAnalysisRequestSession(ctx context.Context, id domain.IntakeAnalysisRequestID, sessionID string, harness domain.AgentHarness) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.BindIntakeAnalysisRequestSession(ctx, gen.BindIntakeAnalysisRequestSessionParams{
+		SessionID: sessionID, Harness: harness, ID: id,
+	})
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ports.ErrIntakeAnalysisRequestClosed
+	}
+	return nil
+}
+
+// AnswerIntakeAnalysisRequest closes an open ask one way, retaining the draft.
+// Answering an already-closed ask reports ErrIntakeAnalysisRequestClosed
+// rather than overwriting the first answer: that is the single-use guard.
+func (s *Store) AnswerIntakeAnalysisRequest(ctx context.Context, answer ports.IntakeAnalysisRequestAnswer) error {
+	if !answer.Status.Valid() || answer.Status.Open() {
+		return fmt.Errorf("answer intake analysis request %s: %q does not close it", answer.RequestID, answer.Status)
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.AnswerIntakeAnalysisRequest(ctx, gen.AnswerIntakeAnalysisRequestParams{
+		Status:        answer.Status,
+		RawProposal:   answer.RawProposal,
+		RefusalReason: answer.RefusalReason,
+		AnsweredAt:    sql.NullTime{Time: answer.At, Valid: true},
+		ID:            answer.RequestID,
+	})
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ports.ErrIntakeAnalysisRequestClosed
+	}
+	return nil
+}
+
+func intakeAnalysisRequestFromRow(row gen.IntakeAnalysisRequest) domain.IntakeAnalysisRequest {
+	request := domain.IntakeAnalysisRequest{
+		ID:                       row.ID,
+		IntakeID:                 domain.IntakeSessionID(row.IntakeID),
+		ExpectedProposalRevision: row.ExpectedProposalRevision,
+		Status:                   row.Status,
+		CallbackTokenDigest:      row.CallbackTokenDigest,
+		SessionID:                row.SessionID,
+		Harness:                  row.Harness,
+		ExpiresAt:                row.ExpiresAt,
+		RawProposal:              row.RawProposal,
+		RefusalReason:            row.RefusalReason,
+		CreatedAt:                row.CreatedAt,
+	}
+	if row.AnsweredAt.Valid {
+		answered := row.AnsweredAt.Time
+		request.AnsweredAt = &answered
+	}
+	return request
+}

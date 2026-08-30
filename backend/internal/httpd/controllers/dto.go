@@ -2169,6 +2169,63 @@ type IntakeSnapshotResponse struct {
 	ConfirmedContract *ContractRevisionResponse       `json:"confirmedContract,omitempty"`
 }
 
+// SubmitIntakeAnalysisRequest is what a spawned agent posts back on the
+// intake callback. It carries the SAME proposal shape a hand-authored revision
+// uses: an agent gets no special vocabulary, so its draft passes exactly the
+// same validation.
+//
+// Exactly one of Proposal or Clarification may be present, matching the
+// at-most-one-material-question rule the offline analyzer already obeys.
+type SubmitIntakeAnalysisRequest struct {
+	Proposal      *IntakeProposalInput      `json:"proposal,omitempty"`
+	Clarification *IntakeClarificationInput `json:"clarification,omitempty"`
+}
+
+// IntakeClarificationInput is one bounded material question an agent may ask
+// instead of proposing.
+type IntakeClarificationInput struct {
+	Question            string   `json:"question"`
+	Reason              string   `json:"reason"`
+	Recommendation      string   `json:"recommendation"`
+	Alternatives        []string `json:"alternatives,omitempty"`
+	DeferralConsequence string   `json:"deferralConsequence"`
+}
+
+// IntakeAnalysisRequestResponse is one durable ask for an agent-authored
+// Contract proposal, and what became of it.
+//
+// The callback token is deliberately absent: only its digest is ever stored,
+// and the raw token exists solely inside the brief handed to the one session
+// asked to answer.
+type IntakeAnalysisRequestResponse struct {
+	ID                       string    `json:"id"`
+	IntakeID                 string    `json:"intakeId"`
+	ExpectedProposalRevision int64     `json:"expectedProposalRevision"`
+	Status                   string    `json:"status"`
+	SessionID                string    `json:"sessionId,omitempty"`
+	Harness                  string    `json:"harness,omitempty"`
+	ExpiresAt                time.Time `json:"expiresAt"`
+	// Expired is derived from the clock rather than stored, so a request that
+	// timed out while the daemon was down still reads as expired.
+	Expired       bool       `json:"expired"`
+	RawProposal   string     `json:"rawProposal,omitempty"`
+	RefusalReason string     `json:"refusalReason,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	AnsweredAt    *time.Time `json:"answeredAt,omitempty"`
+}
+
+// IntakeAnalysisRequestIDParam is the {requestId} path parameter on the intake
+// callback route. The callback is addressed by REQUEST rather than by intake:
+// the answering agent knows only the request it was given.
+type IntakeAnalysisRequestIDParam struct {
+	RequestID string `path:"requestId" description:"Intake analysis request identifier, e.g. ireq-<uuid>."`
+}
+
+// IntakeAnalysisRequestEnvelope wraps one ask.
+type IntakeAnalysisRequestEnvelope struct {
+	Request IntakeAnalysisRequestResponse `json:"request"`
+}
+
 // IntakeEnvelope wraps an intake API response.
 type IntakeEnvelope struct {
 	Intake IntakeSnapshotResponse `json:"intake"`

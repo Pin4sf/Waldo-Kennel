@@ -56,9 +56,20 @@ UPDATE intake_sessions SET status = 'analysis_failed', failure_code = ?, updated
 WHERE id = ? AND current_proposal_revision = ? AND status = 'analyzing';
 
 -- name: RecoverInterruptedIntakeAnalyses :execrows
+-- An in-process analysis cannot outlive the daemon, so finding one still
+-- `analyzing` at startup means it was interrupted and must become a durable
+-- retryable failure.
+--
+-- An analysis an AGENT is working on is the opposite case: it is supposed to
+-- outlive a restart, and reaping it would kill exactly the work this feature
+-- exists to do. The open request row is the durable fact that tells the two
+-- apart, so the sweep asks it rather than guessing from the status alone.
 UPDATE intake_sessions
 SET status = 'analysis_failed', failure_code = 'INTAKE_ANALYSIS_INTERRUPTED', updated_at = ?
-WHERE status = 'analyzing';
+WHERE status = 'analyzing'
+  AND id NOT IN (
+    SELECT intake_id FROM intake_analysis_requests WHERE status = 'requested'
+  );
 
 -- name: CancelIntake :execrows
 UPDATE intake_sessions
@@ -118,3 +129,33 @@ WHERE source_open_loop_id = ? AND destination_outcome_id = ? AND ended_at IS NUL
 UPDATE responsibility_links
 SET ended_at = ?, ended_by = ?, ended_reason = ?
 WHERE id = ? AND ended_at IS NULL;
+
+-- name: CreateIntakeAnalysisRequest :exec
+INSERT INTO intake_analysis_requests
+    (id, intake_id, expected_proposal_revision, status, callback_token_digest,
+     session_id, harness, expires_at, raw_proposal, refusal_reason, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: GetIntakeAnalysisRequest :one
+SELECT * FROM intake_analysis_requests WHERE id = ?;
+
+-- name: LatestIntakeAnalysisRequest :one
+SELECT * FROM intake_analysis_requests
+WHERE intake_id = ?
+ORDER BY created_at DESC, id DESC
+LIMIT 1;
+
+-- name: ListOpenIntakeAnalysisRequests :many
+SELECT * FROM intake_analysis_requests WHERE status = 'requested';
+
+-- name: BindIntakeAnalysisRequestSession :execrows
+UPDATE intake_analysis_requests
+SET session_id = ?, harness = ?
+WHERE id = ? AND status = 'requested';
+
+-- name: AnswerIntakeAnalysisRequest :execrows
+-- The status guard is what makes the callback single-use: a second answer
+-- matches no open row and changes nothing, rather than overwriting the first.
+UPDATE intake_analysis_requests
+SET status = ?, raw_proposal = ?, refusal_reason = ?, answered_at = ?
+WHERE id = ? AND status = 'requested';

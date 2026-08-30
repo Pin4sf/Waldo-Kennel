@@ -174,6 +174,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/intake-analysis-requests/{requestId}/proposal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Callback: a spawned agent submits its proposed Contract */
+        post: operations["submitIntakeAnalysisProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/intakes/{intakeId}": {
         parameters: {
             query?: never;
@@ -202,6 +219,40 @@ export interface paths {
         put?: never;
         /** Analyze intent into one material question or a Contract proposal */
         post: operations["analyzeIntake"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/intakes/{intakeId}/analysis-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the newest agent analysis ask and what became of it */
+        get: operations["getLatestIntakeAnalysisRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/intakes/{intakeId}/analysis-request/cancellation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop waiting for an agent and return the intake to a retryable state */
+        post: operations["cancelIntakeAnalysisRequest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2740,6 +2791,27 @@ export interface components {
             stale: boolean;
             waived: components["schemas"]["UpstreamBlockResponse"][];
         };
+        ControllersIntakeAnalysisRequestEnvelope: {
+            request: components["schemas"]["ControllersIntakeAnalysisRequestResponse"];
+        };
+        ControllersIntakeAnalysisRequestResponse: {
+            /** Format: date-time */
+            answeredAt?: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: int64 */
+            expectedProposalRevision: number;
+            expired: boolean;
+            /** Format: date-time */
+            expiresAt: string;
+            harness?: string;
+            id: string;
+            intakeId: string;
+            rawProposal?: string;
+            refusalReason?: string;
+            sessionId?: string;
+            status: string;
+        };
         ControllersIntakeAuthority: {
             commitLocal: boolean;
             createPr: boolean;
@@ -2749,6 +2821,13 @@ export interface components {
             readWorkspace: boolean;
             useNetwork: boolean;
             writeWorkspace: boolean;
+        };
+        ControllersIntakeClarificationInput: {
+            alternatives?: string[];
+            deferralConsequence: string;
+            question: string;
+            reason: string;
+            recommendation: string;
         };
         ControllersIntakeConversationRefInput: {
             episodeId: string;
@@ -2860,6 +2939,10 @@ export interface components {
         };
         ControllersSetSessionAutoReviewRequest: {
             enabled: boolean;
+        };
+        ControllersSubmitIntakeAnalysisRequest: {
+            clarification?: components["schemas"]["ControllersIntakeClarificationInput"];
+            proposal?: components["schemas"]["IntakeProposalInput"];
         };
         ConversationAccountPayload: {
             authMode?: string;
@@ -5215,6 +5298,78 @@ export interface operations {
             };
         };
     };
+    submitIntakeAnalysisProposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Intake analysis request identifier, e.g. ireq-<uuid>. */
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersSubmitIntakeAnalysisRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     getIntake: {
         parameters: {
             query?: never;
@@ -5296,6 +5451,140 @@ export interface operations {
                 "application/json": components["schemas"]["AnalyzeIntakeRequest"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getLatestIntakeAnalysisRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                intakeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersIntakeAnalysisRequestEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    cancelIntakeAnalysisRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                intakeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {

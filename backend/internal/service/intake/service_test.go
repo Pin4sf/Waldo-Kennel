@@ -2,6 +2,7 @@ package intake
 
 import (
 	"context"
+	"strings"
 	"errors"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 )
 
 type memoryIntakeStore struct {
+	requests []domain.IntakeAnalysisRequest
 	ports.IntakeStore
 	snapshot        ports.IntakeSnapshot
 	proposalHistory []domain.OutcomeContractProposal
@@ -497,38 +499,250 @@ func assertAPIErrorCode(t *testing.T, err error, want string) {
 	}
 }
 
-// An analyzer that answers later is expressible on the port from this phase
-// on, but nothing can receive that later answer yet: the durable request, the
-// callback route, and the awaiting_analyst state are the next phase. Until
-// they exist the intake must fail loudly and stay retryable, NOT sit in
-// `analyzing` — the startup sweep reaps that state, so an owner would watch an
-// intake stop with no explanation and no way back.
-func TestDeferredAnalysisIsRefusedLoudlyUntilCallbacksExist(t *testing.T) {
-	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+
+// --- Agent-authored analysis: the durable request and its callback ---
+
+func (store *memoryIntakeStore) CreateIntakeAnalysisRequest(_ context.Context, request domain.IntakeAnalysisRequest) error {
+	if err := request.Validate(); err != nil {
+		return err
+	}
+	store.requests = append(store.requests, request)
+	return nil
+}
+
+func (store *memoryIntakeStore) GetIntakeAnalysisRequest(_ context.Context, id domain.IntakeAnalysisRequestID) (domain.IntakeAnalysisRequest, bool, error) {
+	for _, request := range store.requests {
+		if request.ID == id {
+			return request, true, nil
+		}
+	}
+	return domain.IntakeAnalysisRequest{}, false, nil
+}
+
+func (store *memoryIntakeStore) LatestIntakeAnalysisRequest(_ context.Context, _ domain.IntakeSessionID) (domain.IntakeAnalysisRequest, bool, error) {
+	if len(store.requests) == 0 {
+		return domain.IntakeAnalysisRequest{}, false, nil
+	}
+	return store.requests[len(store.requests)-1], true, nil
+}
+
+func (store *memoryIntakeStore) ListOpenIntakeAnalysisRequests(_ context.Context) ([]domain.IntakeAnalysisRequest, error) {
+	open := make([]domain.IntakeAnalysisRequest, 0, len(store.requests))
+	for _, request := range store.requests {
+		if request.Status.Open() {
+			open = append(open, request)
+		}
+	}
+	return open, nil
+}
+
+func (store *memoryIntakeStore) BindIntakeAnalysisRequestSession(_ context.Context, id domain.IntakeAnalysisRequestID, sessionID string, harness domain.AgentHarness) error {
+	for i := range store.requests {
+		if store.requests[i].ID == id && store.requests[i].Status.Open() {
+			store.requests[i].SessionID = sessionID
+			store.requests[i].Harness = harness
+			return nil
+		}
+	}
+	return ports.ErrIntakeAnalysisRequestClosed
+}
+
+// The single-use guard: an answer only lands on a still-open ask.
+func (store *memoryIntakeStore) AnswerIntakeAnalysisRequest(_ context.Context, answer ports.IntakeAnalysisRequestAnswer) error {
+	for i := range store.requests {
+		if store.requests[i].ID != answer.RequestID {
+			continue
+		}
+		if !store.requests[i].Status.Open() {
+			return ports.ErrIntakeAnalysisRequestClosed
+		}
+		store.requests[i].Status = answer.Status
+		store.requests[i].RawProposal = answer.RawProposal
+		store.requests[i].RefusalReason = answer.RefusalReason
+		at := answer.At
+		store.requests[i].AnsweredAt = &at
+		return nil
+	}
+	return ports.ErrIntakeAnalysisRequestClosed
+}
+
+// deferringAnalyzer opens a callback and answers nothing, as an agent-backed
+// analyzer does. It records the callback so a test can answer on it.
+type deferringAnalyzer struct {
+	callback ports.IntakeCallback
+	openErr  error
+}
+
+func (a *deferringAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysisInput) (ports.IntakeAnalysisTicket, error) {
+	callback, err := input.Defer(ctx)
+	if err != nil {
+		a.openErr = err
+		return ports.IntakeAnalysisTicket{}, err
+	}
+	a.callback = callback
+	return ports.IntakeAnalysisTicket{SessionID: "sess-analyst", Harness: "codex", Detail: "codex is proposing a Contract"}, nil
+}
+
+func deferredService(t *testing.T, now time.Time) (*Service, *memoryIntakeStore, *deferringAnalyzer, domain.IntakeSessionID) {
+	t.Helper()
 	store := &memoryIntakeStore{}
-	analyzer := &scriptedAnalyzer{deferred: true}
+	analyzer := &deferringAnalyzer{}
 	service := New(store, analyzer, func() time.Time { return now })
 	captured, err := service.Capture(context.Background(), CaptureInput{SourceSurface: domain.IntakeSourceWork, Purpose: domain.IntakePurposeOutcome, ProjectID: "project-1", Statement: "Let an agent draft this", RequestKey: "capture-deferred"})
 	if err != nil {
 		t.Fatalf("Capture() error = %v", err)
 	}
+	if _, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0}); err != nil {
+		t.Fatalf("Analyze() error = %v", err)
+	}
+	return service, store, analyzer, captured.Session.ID
+}
 
-	if _, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0}); err == nil {
-		t.Fatal("Analyze() error = nil, want a refusal for an answer nothing can receive")
+func TestDeferredAnalysisOpensOneDurableRequestAndKeepsTheIntakeWaiting(t *testing.T) {
+	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+	_, store, analyzer, _ := deferredService(t, now)
+
+	if len(store.requests) != 1 {
+		t.Fatalf("want exactly one durable request, got %d", len(store.requests))
+	}
+	request := store.requests[0]
+	if !request.Status.Open() || request.SessionID != "sess-analyst" || request.Harness != "codex" {
+		t.Fatalf("request did not record the answering session: %+v", request)
+	}
+	// The token is never stored; only its digest is, and the digest must match
+	// the token the analyzer was handed.
+	if request.CallbackTokenDigest != domain.HashCallbackToken(analyzer.callback.Token) {
+		t.Fatal("stored digest does not address the token handed to the analyzer")
+	}
+	if strings.Contains(request.CallbackTokenDigest, analyzer.callback.Token) {
+		t.Fatal("the raw callback token was stored")
+	}
+	// The intake stays analyzing: the open request beside it is what says an
+	// agent is working, and it must not be a failure.
+	if store.snapshot.Session.Status != domain.IntakeStatusAnalyzing {
+		t.Fatalf("deferred intake status = %q, want analyzing", store.snapshot.Session.Status)
+	}
+}
+
+func TestAgentProposalOnTheCallbackBecomesTheEditableProposal(t *testing.T) {
+	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+	service, store, analyzer, _ := deferredService(t, now)
+
+	ready, err := service.SubmitAgentProposal(context.Background(), analyzer.callback.RequestID, analyzer.callback.Token,
+		ports.IntakeAnalysisResult{Proposal: validProposalDraft("The agent read the repo and proposed this")}, `{"raw":true}`)
+	if err != nil {
+		t.Fatalf("SubmitAgentProposal() error = %v", err)
+	}
+	if ready.Session.Status != domain.IntakeStatusReady || ready.Proposal == nil {
+		t.Fatalf("fulfilled analysis = %+v", ready.Session)
+	}
+	if store.requests[0].Status != domain.IntakeAnalysisFulfilled || store.requests[0].RawProposal != `{"raw":true}` {
+		t.Fatalf("request not closed as fulfilled with its draft: %+v", store.requests[0])
+	}
+
+	// Single-use: the same agent retrying must not append a second proposal.
+	if _, err := service.SubmitAgentProposal(context.Background(), analyzer.callback.RequestID, analyzer.callback.Token,
+		ports.IntakeAnalysisResult{Proposal: validProposalDraft("A second answer")}, "{}"); err == nil {
+		t.Fatal("a second answer on the same request was admitted")
+	}
+}
+
+func TestCallbackRefusesWrongTokenAndExpiredRequestBeforeParsing(t *testing.T) {
+	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+	service, store, analyzer, _ := deferredService(t, now)
+
+	// A confused agent answering with the wrong token is a routing problem,
+	// and is refused without the proposal being looked at.
+	if _, err := service.SubmitAgentProposal(context.Background(), analyzer.callback.RequestID, "not-the-token",
+		ports.IntakeAnalysisResult{Proposal: validProposalDraft("Wrongly addressed")}, "{}"); err == nil {
+		t.Fatal("an answer carrying the wrong token was admitted")
+	}
+	if store.requests[0].Status != domain.IntakeAnalysisRequested {
+		t.Fatalf("a misrouted answer closed the request: %+v", store.requests[0])
+	}
+
+	// Expiry is derived from the clock, so a daemon that was not running still
+	// sees an ask that timed out.
+	late := New(store, analyzer, func() time.Time { return now.Add(domain.DefaultIntakeAnalysisRequestTTL + time.Minute) })
+	if _, err := late.SubmitAgentProposal(context.Background(), analyzer.callback.RequestID, analyzer.callback.Token,
+		ports.IntakeAnalysisResult{Proposal: validProposalDraft("Too late")}, "{}"); err == nil {
+		t.Fatal("an answer after expiry was admitted")
+	}
+}
+
+func TestRefusedAgentProposalIsRetainedAndLeavesTheIntakeRetryable(t *testing.T) {
+	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+	service, store, analyzer, id := deferredService(t, now)
+
+	// An invalid proposal passes exactly the gates a hand-authored one does.
+	if _, err := service.SubmitAgentProposal(context.Background(), analyzer.callback.RequestID, analyzer.callback.Token,
+		ports.IntakeAnalysisResult{Proposal: &domain.OutcomeContractProposal{}}, `{"bad":true}`); err == nil {
+		t.Fatal("an invalid agent proposal was accepted")
+	}
+	request := store.requests[0]
+	if request.Status != domain.IntakeAnalysisRejected || request.RawProposal != `{"bad":true}` || request.RefusalReason == "" {
+		t.Fatalf("refused draft was not retained with the daemon's words: %+v", request)
 	}
 	if store.snapshot.Session.Status != domain.IntakeStatusAnalysisFailed {
-		t.Fatalf("deferred analysis left status %q, want a durable retryable failure", store.snapshot.Session.Status)
-	}
-	if store.snapshot.Session.FailureCode != "INTAKE_ANALYSIS_DEFERRED_UNSUPPORTED" {
-		t.Fatalf("failure code = %q, want the deferred-unsupported code by name", store.snapshot.Session.FailureCode)
+		t.Fatalf("refusal left status %q, want a retryable failure", store.snapshot.Session.Status)
 	}
 
-	// Retryable in the ordinary way: the same intake advances once an analyzer
-	// answers inline again.
-	analyzer.deferred = false
-	analyzer.result = ports.IntakeAnalysisResult{Proposal: validProposalDraft("The floor still works")}
-	retried, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0})
-	if err != nil || retried.Session.Status != domain.IntakeStatusReady {
-		t.Fatalf("retry after deferred refusal = %+v err=%v", retried, err)
+	// The floor is always reachable: the owner still gets a proposal.
+	ready, err := service.Analyze(context.Background(), id, AnalyzeInput{ExpectedProposalRevision: 0, Offline: true})
+	if err != nil || ready.Session.Status != domain.IntakeStatusReady {
+		t.Fatalf("offline fallback after refusal = %+v err=%v", ready.Session, err)
+	}
+	if len(store.requests) != 1 {
+		t.Fatalf("the offline floor opened a request it never needed: %d", len(store.requests))
+	}
+}
+
+func TestOwnerCanStopWaitingAndTakeTheOfflineProposal(t *testing.T) {
+	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+	service, store, _, id := deferredService(t, now)
+
+	if _, err := service.CancelAnalysisRequest(context.Background(), id); err != nil {
+		t.Fatalf("CancelAnalysisRequest() error = %v", err)
+	}
+	if store.requests[0].Status != domain.IntakeAnalysisRequestCancelled {
+		t.Fatalf("cancel did not close the ask: %+v", store.requests[0])
+	}
+	ready, err := service.Analyze(context.Background(), id, AnalyzeInput{ExpectedProposalRevision: 0, Offline: true})
+	if err != nil || ready.Session.Status != domain.IntakeStatusReady {
+		t.Fatalf("offline proposal after cancel = %+v err=%v", ready.Session, err)
+	}
+}
+
+func TestExpiryClosesAbandonedRequestsAndFreesTheIntake(t *testing.T) {
+	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+	_, store, _, _ := deferredService(t, now)
+
+	later := New(store, &deferringAnalyzer{}, func() time.Time { return now.Add(domain.DefaultIntakeAnalysisRequestTTL + time.Minute) })
+	closed, err := later.ExpireStaleAnalysisRequests(context.Background())
+	if err != nil || closed != 1 {
+		t.Fatalf("ExpireStaleAnalysisRequests() = %d err=%v, want 1", closed, err)
+	}
+	if store.requests[0].Status != domain.IntakeAnalysisExpired {
+		t.Fatalf("expiry verdict = %+v", store.requests[0])
+	}
+	// An intake left waiting for an agent that never answered has to become a
+	// retryable failure, not sit in analyzing forever.
+	if store.snapshot.Session.Status != domain.IntakeStatusAnalysisFailed {
+		t.Fatalf("expired intake status = %q", store.snapshot.Session.Status)
+	}
+}
+
+func TestOnlyOneAgentMayWorkOnAnIntakeAtATime(t *testing.T) {
+	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+	service, store, _, id := deferredService(t, now)
+
+	// The intake is analyzing with an open ask; a second ask must be refused
+	// before another agent is spawned to race the first.
+	store.snapshot.Session.Status = domain.IntakeStatusAnalysisFailed
+	if _, err := service.Analyze(context.Background(), id, AnalyzeInput{ExpectedProposalRevision: 0}); err == nil {
+		t.Fatal("a second concurrent analysis request was admitted")
+	}
+	if len(store.requests) != 1 {
+		t.Fatalf("a competing request was written anyway: %d", len(store.requests))
 	}
 }

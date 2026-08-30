@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -58,4 +59,44 @@ type IntakeStore interface {
 	FailIntakeAnalysis(context.Context, domain.IntakeSessionID, int64, string, time.Time) (IntakeSnapshot, error)
 	CancelIntake(context.Context, domain.IntakeSessionID, int64, string, time.Time) (IntakeSnapshot, error)
 	RecoverInterruptedIntakeAnalyses(context.Context, time.Time) (int64, error)
+
+	// CreateIntakeAnalysisRequest opens one durable ask for an agent-authored
+	// Contract proposal. It is written BEFORE the agent is spawned.
+	CreateIntakeAnalysisRequest(context.Context, domain.IntakeAnalysisRequest) error
+
+	// GetIntakeAnalysisRequest reads one ask; ok=false when absent.
+	GetIntakeAnalysisRequest(context.Context, domain.IntakeAnalysisRequestID) (domain.IntakeAnalysisRequest, bool, error)
+
+	// LatestIntakeAnalysisRequest returns an intake's newest ask of any status,
+	// which is what the waiting state and the refused-draft view read.
+	LatestIntakeAnalysisRequest(context.Context, domain.IntakeSessionID) (domain.IntakeAnalysisRequest, bool, error)
+
+	// AnswerIntakeAnalysisRequest closes an open ask one way, retaining the
+	// draft whatever the verdict. Answering a closed ask changes nothing and
+	// returns ErrIntakeAnalysisRequestClosed — that guard is what makes the
+	// callback single-use.
+	AnswerIntakeAnalysisRequest(context.Context, IntakeAnalysisRequestAnswer) error
+
+	// ListOpenIntakeAnalysisRequests returns every unanswered ask so a
+	// durable deadline can be enforced at startup and on a timer.
+	ListOpenIntakeAnalysisRequests(context.Context) ([]domain.IntakeAnalysisRequest, error)
+
+	// BindIntakeAnalysisRequestSession records which spawned session and
+	// harness are answering, so a restart can tell what was working on this
+	// and the waiting state can name who.
+	BindIntakeAnalysisRequestSession(context.Context, domain.IntakeAnalysisRequestID, string, domain.AgentHarness) error
 }
+
+// IntakeAnalysisRequestAnswer closes one ask. RawProposal is retained whatever
+// the verdict, so a refused draft stays inspectable.
+type IntakeAnalysisRequestAnswer struct {
+	RequestID     domain.IntakeAnalysisRequestID
+	Status        domain.IntakeAnalysisRequestStatus
+	RawProposal   string
+	RefusalReason string
+	At            time.Time
+}
+
+// ErrIntakeAnalysisRequestClosed reports an answer to an ask that is no longer
+// open. It is the single-use guard, not an unexpected failure.
+var ErrIntakeAnalysisRequestClosed = errors.New("intake analysis request is not open")

@@ -389,6 +389,21 @@ type EvidenceItem struct {
 	CreatedAt          time.Time
 }
 
+type IntakeAnalysisRequest struct {
+	ID                       domain.IntakeAnalysisRequestID
+	IntakeID                 string
+	ExpectedProposalRevision int64
+	Status                   domain.IntakeAnalysisRequestStatus
+	CallbackTokenDigest      string
+	SessionID                string
+	Harness                  domain.AgentHarness
+	ExpiresAt                time.Time
+	RawProposal              string
+	RefusalReason            string
+	CreatedAt                time.Time
+	AnsweredAt               sql.NullTime
+}
+
 type IntakeClarification struct {
 	ID                  string
 	IntakeID            string

@@ -9,7 +9,59 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
+
+const answerIntakeAnalysisRequest = `-- name: AnswerIntakeAnalysisRequest :execrows
+UPDATE intake_analysis_requests
+SET status = ?, raw_proposal = ?, refusal_reason = ?, answered_at = ?
+WHERE id = ? AND status = 'requested'
+`
+
+type AnswerIntakeAnalysisRequestParams struct {
+	Status        domain.IntakeAnalysisRequestStatus
+	RawProposal   string
+	RefusalReason string
+	AnsweredAt    sql.NullTime
+	ID            domain.IntakeAnalysisRequestID
+}
+
+// The status guard is what makes the callback single-use: a second answer
+// matches no open row and changes nothing, rather than overwriting the first.
+func (q *Queries) AnswerIntakeAnalysisRequest(ctx context.Context, arg AnswerIntakeAnalysisRequestParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, answerIntakeAnalysisRequest,
+		arg.Status,
+		arg.RawProposal,
+		arg.RefusalReason,
+		arg.AnsweredAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const bindIntakeAnalysisRequestSession = `-- name: BindIntakeAnalysisRequestSession :execrows
+UPDATE intake_analysis_requests
+SET session_id = ?, harness = ?
+WHERE id = ? AND status = 'requested'
+`
+
+type BindIntakeAnalysisRequestSessionParams struct {
+	SessionID string
+	Harness   domain.AgentHarness
+	ID        domain.IntakeAnalysisRequestID
+}
+
+func (q *Queries) BindIntakeAnalysisRequestSession(ctx context.Context, arg BindIntakeAnalysisRequestSessionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, bindIntakeAnalysisRequestSession, arg.SessionID, arg.Harness, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
 
 const cancelIntake = `-- name: CancelIntake :execrows
 UPDATE intake_sessions
@@ -88,6 +140,44 @@ func (q *Queries) CreateContractRevisionIntakeCore(ctx context.Context, arg Crea
 		arg.StopConditions,
 		arg.TemporalCondition,
 		arg.Facets,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const createIntakeAnalysisRequest = `-- name: CreateIntakeAnalysisRequest :exec
+INSERT INTO intake_analysis_requests
+    (id, intake_id, expected_proposal_revision, status, callback_token_digest,
+     session_id, harness, expires_at, raw_proposal, refusal_reason, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateIntakeAnalysisRequestParams struct {
+	ID                       domain.IntakeAnalysisRequestID
+	IntakeID                 string
+	ExpectedProposalRevision int64
+	Status                   domain.IntakeAnalysisRequestStatus
+	CallbackTokenDigest      string
+	SessionID                string
+	Harness                  domain.AgentHarness
+	ExpiresAt                time.Time
+	RawProposal              string
+	RefusalReason            string
+	CreatedAt                time.Time
+}
+
+func (q *Queries) CreateIntakeAnalysisRequest(ctx context.Context, arg CreateIntakeAnalysisRequestParams) error {
+	_, err := q.db.ExecContext(ctx, createIntakeAnalysisRequest,
+		arg.ID,
+		arg.IntakeID,
+		arg.ExpectedProposalRevision,
+		arg.Status,
+		arg.CallbackTokenDigest,
+		arg.SessionID,
+		arg.Harness,
+		arg.ExpiresAt,
+		arg.RawProposal,
+		arg.RefusalReason,
 		arg.CreatedAt,
 	)
 	return err
@@ -494,6 +584,30 @@ func (q *Queries) GetContractRevisionIntakeCore(ctx context.Context, contractRev
 	return i, err
 }
 
+const getIntakeAnalysisRequest = `-- name: GetIntakeAnalysisRequest :one
+SELECT id, intake_id, expected_proposal_revision, status, callback_token_digest, session_id, harness, expires_at, raw_proposal, refusal_reason, created_at, answered_at FROM intake_analysis_requests WHERE id = ?
+`
+
+func (q *Queries) GetIntakeAnalysisRequest(ctx context.Context, id domain.IntakeAnalysisRequestID) (IntakeAnalysisRequest, error) {
+	row := q.db.QueryRowContext(ctx, getIntakeAnalysisRequest, id)
+	var i IntakeAnalysisRequest
+	err := row.Scan(
+		&i.ID,
+		&i.IntakeID,
+		&i.ExpectedProposalRevision,
+		&i.Status,
+		&i.CallbackTokenDigest,
+		&i.SessionID,
+		&i.Harness,
+		&i.ExpiresAt,
+		&i.RawProposal,
+		&i.RefusalReason,
+		&i.CreatedAt,
+		&i.AnsweredAt,
+	)
+	return i, err
+}
+
 const getIntakeClarification = `-- name: GetIntakeClarification :one
 SELECT c.id, c.intake_id, c.question, c.reason, c.recommendation, c.alternatives,
        c.deferral_consequence, c.created_at, a.answer, a.answered_at
@@ -631,6 +745,33 @@ func (q *Queries) GetResponsibilityLink(ctx context.Context, id string) (Respons
 	return i, err
 }
 
+const latestIntakeAnalysisRequest = `-- name: LatestIntakeAnalysisRequest :one
+SELECT id, intake_id, expected_proposal_revision, status, callback_token_digest, session_id, harness, expires_at, raw_proposal, refusal_reason, created_at, answered_at FROM intake_analysis_requests
+WHERE intake_id = ?
+ORDER BY created_at DESC, id DESC
+LIMIT 1
+`
+
+func (q *Queries) LatestIntakeAnalysisRequest(ctx context.Context, intakeID string) (IntakeAnalysisRequest, error) {
+	row := q.db.QueryRowContext(ctx, latestIntakeAnalysisRequest, intakeID)
+	var i IntakeAnalysisRequest
+	err := row.Scan(
+		&i.ID,
+		&i.IntakeID,
+		&i.ExpectedProposalRevision,
+		&i.Status,
+		&i.CallbackTokenDigest,
+		&i.SessionID,
+		&i.Harness,
+		&i.ExpiresAt,
+		&i.RawProposal,
+		&i.RefusalReason,
+		&i.CreatedAt,
+		&i.AnsweredAt,
+	)
+	return i, err
+}
+
 const listIntakeConversationRefs = `-- name: ListIntakeConversationRefs :many
 SELECT intake_id, episode_id, turn_id, position
 FROM intake_conversation_refs WHERE intake_id = ? ORDER BY position
@@ -664,12 +805,63 @@ func (q *Queries) ListIntakeConversationRefs(ctx context.Context, intakeID strin
 	return items, nil
 }
 
+const listOpenIntakeAnalysisRequests = `-- name: ListOpenIntakeAnalysisRequests :many
+SELECT id, intake_id, expected_proposal_revision, status, callback_token_digest, session_id, harness, expires_at, raw_proposal, refusal_reason, created_at, answered_at FROM intake_analysis_requests WHERE status = 'requested'
+`
+
+func (q *Queries) ListOpenIntakeAnalysisRequests(ctx context.Context) ([]IntakeAnalysisRequest, error) {
+	rows, err := q.db.QueryContext(ctx, listOpenIntakeAnalysisRequests)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IntakeAnalysisRequest{}
+	for rows.Next() {
+		var i IntakeAnalysisRequest
+		if err := rows.Scan(
+			&i.ID,
+			&i.IntakeID,
+			&i.ExpectedProposalRevision,
+			&i.Status,
+			&i.CallbackTokenDigest,
+			&i.SessionID,
+			&i.Harness,
+			&i.ExpiresAt,
+			&i.RawProposal,
+			&i.RefusalReason,
+			&i.CreatedAt,
+			&i.AnsweredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recoverInterruptedIntakeAnalyses = `-- name: RecoverInterruptedIntakeAnalyses :execrows
 UPDATE intake_sessions
 SET status = 'analysis_failed', failure_code = 'INTAKE_ANALYSIS_INTERRUPTED', updated_at = ?
 WHERE status = 'analyzing'
+  AND id NOT IN (
+    SELECT intake_id FROM intake_analysis_requests WHERE status = 'requested'
+  )
 `
 
+// An in-process analysis cannot outlive the daemon, so finding one still
+// `analyzing` at startup means it was interrupted and must become a durable
+// retryable failure.
+//
+// An analysis an AGENT is working on is the opposite case: it is supposed to
+// outlive a restart, and reaping it would kill exactly the work this feature
+// exists to do. The open request row is the durable fact that tells the two
+// apart, so the sweep asks it rather than guessing from the status alone.
 func (q *Queries) RecoverInterruptedIntakeAnalyses(ctx context.Context, updatedAt time.Time) (int64, error) {
 	result, err := q.db.ExecContext(ctx, recoverInterruptedIntakeAnalyses, updatedAt)
 	if err != nil {
