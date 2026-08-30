@@ -320,17 +320,7 @@ export function Sidebar({
 					isOverlay && underTopbar && "pt-(--sidebar-chrome-offset)!",
 				)}
 			>
-				{figmaBoard ? (
-					<button
-						aria-label={t("shell.orchestratorBoard")}
-						className="figma-board-sidebar__brand"
-						onClick={selection.goWork}
-						style={noDragStyle}
-						type="button"
-					>
-						Kennel
-					</button>
-				) : (
+				{figmaBoard ? null : (
 				<>{/* Brand (project-sidebar__brand); in the icon rail it becomes the old
             36px board button wrapping the 22px accent mark. */}
 				<div

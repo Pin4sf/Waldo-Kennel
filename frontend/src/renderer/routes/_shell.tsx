@@ -859,9 +859,14 @@ function ShellLayout() {
 						</CenterPanelShell>
 							)}
 						</div>
-						<div className="pointer-events-none absolute right-2 top-1.5 z-titlebar">
-							<WaldoLauncher className="pointer-events-auto" />
-						</div>
+						{/* WorkShell renders this same launcher itself, relocated into
+						    Figma's bottom-right Chat pill + menu composition — this
+						    top-right copy would duplicate it, not complement it. */}
+						{isOutcomeWorkRoute ? null : (
+							<div className="pointer-events-none absolute right-2 top-1.5 z-titlebar">
+								<WaldoLauncher className="pointer-events-auto" />
+							</div>
+						)}
 						{!isHomeRoute ? (
 							<WaldoShellRail
 								contextLabel={waldoWorkContext}

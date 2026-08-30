@@ -1,14 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, ChevronDown, Loader2, Mic, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { components } from "../../../api/schema";
 import { apiClient, apiErrorMessage, hasTrustedApiBaseUrl } from "../../lib/api-client";
+import { useWorkspaceQuery } from "../../hooks/useWorkspaceQuery";
 import { usesPreviewWorkspaceData } from "../../lib/preview-mode";
 import { createPreviewOutcome } from "../../lib/preview-outcome-store";
 import { Button } from "../ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 type IntakeSnapshot = components["schemas"]["IntakeSnapshotResponse"];
 type ProposalInput = components["schemas"]["IntakeProposalInput"];
@@ -16,6 +18,11 @@ type ProposalInput = components["schemas"]["IntakeProposalInput"];
 export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: string; intakeId?: string }) {
 	const navigate = useNavigate();
 	const { t } = useTranslation();
+	// The heading names the project the Outcome belongs to (Figma: "Describe an
+	// ideal outcome for {project}"), read from the same workspace list the
+	// sidebar and WorkEnterSurface's own project picker already use.
+	const workspaceQuery = useWorkspaceQuery();
+	const projectName = workspaceQuery.data?.find((workspace) => workspace.id === projectId)?.name ?? projectId;
 	const [statement, setStatement] = useState("");
 	const [answer, setAnswer] = useState("");
 	const [cancellationReason, setCancellationReason] = useState("");
@@ -128,16 +135,25 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 			className="mx-auto flex h-full w-full max-w-3xl flex-col items-center justify-center gap-6 px-4 sm:px-8"
 			onSubmit={capture}
 		>
-			<label
-				className="text-balance text-center text-2xl font-medium leading-snug tracking-wide-sm text-foreground sm:text-[28px]"
-				htmlFor="outcome-statement"
-			>
-				{t("outcome.intake.prompt")}
-			</label>
+			<h2 className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-balance text-center text-2xl font-medium leading-snug tracking-wide-sm text-foreground sm:text-[28px]">
+				<span>{t("outcome.intake.describeOutcomeFor")}</span>
+				{/* Reopens WorkEnterSurface's own project picker — the cheapest real
+				    wiring for "change project" is the picker that already exists,
+				    not a new dropdown duplicating it. */}
+				<button
+					aria-label={t("outcome.intake.changeProject")}
+					className="inline-flex items-center gap-1 border-b-2 border-link pb-0.5 text-foreground transition-colors hover:text-link"
+					onClick={() => void navigate({ to: "/work", search: {} })}
+					type="button"
+				>
+					<span>{projectName}</span>
+					<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+				</button>
+			</h2>
 			<div className="flex w-full flex-col gap-3 rounded-group hairline border-border bg-card px-4.5 py-3.5">
 				<textarea
 					id="outcome-statement"
-					aria-label={t("outcome.intake.prompt")}
+					aria-label={t("outcome.intake.describeOutcomeForAria", { project: projectName })}
 					autoFocus
 					className="min-h-16 w-full resize-y bg-transparent text-sm leading-body text-foreground outline-none placeholder:text-muted-foreground/70"
 					onChange={(event) => setStatement(event.target.value)}
@@ -150,21 +166,54 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 					placeholder={t("outcome.intake.placeholder")}
 					value={statement}
 				/>
-				<div className="flex items-center justify-between gap-3">
-					<p className="text-2xs text-passive">{t("outcome.intake.hint")}</p>
-					<Button
-						aria-label={pending ? t("outcome.intake.saving") : t("outcome.intake.continue")}
-						className="rounded-full"
-						disabled={pending || !statement.trim()}
-						size="icon-sm"
-						type="submit"
-					>
-						{pending ? (
-							<Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
-						) : (
-							<ArrowRight aria-hidden="true" className="size-3.5" />
-						)}
-					</Button>
+				<div className="flex items-center justify-between gap-1">
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span className="inline-flex">
+								<Button
+									aria-label={t("outcome.intake.attach")}
+									disabled
+									size="icon-sm"
+									type="button"
+									variant="ghost"
+								>
+									<Plus aria-hidden="true" className="size-4" />
+								</Button>
+							</span>
+						</TooltipTrigger>
+						<TooltipContent side="top">{t("outcome.intake.attachComingSoon")}</TooltipContent>
+					</Tooltip>
+					<div className="flex items-center gap-1">
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="inline-flex">
+									<Button
+										aria-label={t("outcome.intake.voiceInput")}
+										disabled
+										size="icon-sm"
+										type="button"
+										variant="ghost"
+									>
+										<Mic aria-hidden="true" className="size-4" />
+									</Button>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent side="top">{t("outcome.intake.voiceInputComingSoon")}</TooltipContent>
+						</Tooltip>
+						<Button
+							aria-label={pending ? t("outcome.intake.saving") : t("outcome.intake.continue")}
+							disabled={pending || !statement.trim()}
+							size="icon-sm"
+							type="submit"
+							variant="ghost"
+						>
+							{pending ? (
+								<Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+							) : (
+								<ArrowRight aria-hidden="true" className="size-3.5" />
+							)}
+						</Button>
+					</div>
 				</div>
 			</div>
 			{error ? (

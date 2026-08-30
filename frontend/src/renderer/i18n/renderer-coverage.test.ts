@@ -30,6 +30,7 @@ const approvedLiterals: Record<string, readonly string[]> = {
 	"components/SessionFilesView.tsx": ["-&gt;"],
 	"components/SessionInspector.tsx": ["PR #"],
 	"components/Sidebar.tsx": ["Kennel", "daemon"],
+	"components/outcome/WorkShell.tsx": ["Kennel"],
 	"components/WindowTitlebar.tsx": [
 		"Alt+F4",
 		"Ctrl+Z",
