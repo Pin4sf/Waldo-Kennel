@@ -11,6 +11,7 @@ import { usesPreviewWorkspaceData } from "../../lib/preview-mode";
 import { createPreviewOutcome } from "../../lib/preview-outcome-store";
 import { Button } from "../ui/button";
 import { OutcomeIntakeAgentRoles } from "./OutcomeIntakeAgentRoles";
+import { IntakeAuthorityEditor, IntakeContractReview, normalizeProposal, proposalProblems } from "./IntakeContractReview";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 
 type IntakeSnapshot = components["schemas"]["IntakeSnapshotResponse"];
@@ -56,7 +57,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		if (!snapshot?.proposal) return;
 		const next = proposalInput(snapshot);
 		setDraft(next);
-		setInitialDraft(JSON.stringify(next));
+		setInitialDraft(JSON.stringify(normalizeProposal(next)));
 	}, [snapshot?.proposal?.id]);
 
 	useEffect(() => {
@@ -110,8 +111,12 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		setPending(true); setError(null);
 		try {
 			let current = snapshot;
-			if (JSON.stringify(draft) !== initialDraft) {
-				const revised = await apiClient.POST("/api/v1/intakes/{intakeId}/proposals", { params: { path: { intakeId } }, body: { expectedProposalRevision: current.session.currentProposalRevision, proposal: draft } });
+			// Trimmed and blank-stripped before comparison as well as before the
+			// send, so trailing whitespace or an emptied list row is not itself
+			// treated as a revision worth appending.
+			const normalized = normalizeProposal(draft);
+			if (JSON.stringify(normalized) !== initialDraft) {
+				const revised = await apiClient.POST("/api/v1/intakes/{intakeId}/proposals", { params: { path: { intakeId } }, body: { expectedProposalRevision: current.session.currentProposalRevision, proposal: normalized } });
 				if (revised.error) throw revised.error; current = revised.data.intake; setSnapshot(current);
 			}
 			const revision = current.session.currentProposalRevision;
@@ -207,7 +212,48 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 	if (!snapshot) return <TruthMessage title={t("outcome.intake.unavailableTitle")} body={t("outcome.intake.noState")} />;
 	if (pending && (snapshot.session.status === "captured" || snapshot.session.status === "analysis_failed")) return <TruthMessage title={t("outcome.intake.analyzingTitle")} body={t("outcome.intake.analyzingBody")} />;
 	if (snapshot.session.status === "needs_user" && snapshot.clarification) return <form className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-8 sm:px-8" onSubmit={answerQuestion}><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("outcome.intake.question")}</p><h2 className="text-xl font-medium">{snapshot.clarification.question}</h2><p className="text-sm text-muted-foreground">{snapshot.clarification.reason}</p><label className="text-sm font-medium" htmlFor="clarification-answer">{t("outcome.intake.answer")}</label><input id="clarification-answer" autoFocus className="rounded-lg border border-border bg-background px-3 py-2" onChange={(event) => setAnswer(event.target.value)} value={answer} /><p className="text-xs text-muted-foreground">{t("outcome.intake.recommended", { recommendation: snapshot.clarification.recommendation })}</p><Button disabled={pending || !answer.trim()} type="submit">{t("outcome.intake.continue")}</Button><label className="text-sm font-medium" htmlFor="intake-cancellation-reason">{t("outcome.intake.cancelReason")}</label><input id="intake-cancellation-reason" className="rounded-lg border border-border bg-background px-3 py-2" onChange={(event) => setCancellationReason(event.target.value)} value={cancellationReason} /><Button disabled={pending || !cancellationReason.trim()} type="button" variant="outline" onClick={() => void cancel()}>{t("outcome.intake.cancel")}</Button>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}</form>;
-	if (snapshot.session.status === "ready" && draft) return <section className="mx-auto grid w-full max-w-4xl gap-6 px-4 py-6 sm:px-8 lg:grid-cols-[minmax(0,1fr)_16rem]"><div className="flex min-w-0 flex-col gap-4"><div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("outcome.intake.reviewTitle")}</p><p className="mt-1 text-sm text-muted-foreground">{t("outcome.intake.reviewBody")}</p></div><Field label={t("outcome.intake.titleField")} value={draft.title} onChange={(value) => setDraft({ ...draft, title: value })} /><Field label={t("outcome.intake.desiredStateField")} multiline value={draft.desiredState} onChange={(value) => setDraft({ ...draft, desiredState: value })} /><Field label={t("outcome.intake.criteriaField")} multiline value={draft.criteria.map((criterion) => criterion.text).join("\n")} onChange={(value) => setDraft({ ...draft, criteria: value.split("\n").filter(Boolean).map((text, index) => ({ ...(draft.criteria[index] ?? { evidenceExpected: ["Owner walkthrough demonstrates the result."] }), text })) })} /><Field label={t("outcome.intake.reviewField")} multiline value={draft.reviewMethod} onChange={(value) => setDraft({ ...draft, reviewMethod: value })} /></div><aside className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 lg:sticky lg:top-4 lg:self-start"><p className="text-sm font-medium">{t("outcome.intake.authorityTitle")}</p><p className="text-xs text-muted-foreground">{t("outcome.intake.authorityBody")}</p><Button disabled={pending} onClick={() => void confirm()}>{pending ? t("outcome.intake.confirming") : t("outcome.intake.confirm")}</Button><label className="text-xs font-medium" htmlFor="intake-cancellation-reason">{t("outcome.intake.cancelReason")}</label><input id="intake-cancellation-reason" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" onChange={(event) => setCancellationReason(event.target.value)} value={cancellationReason} /><Button disabled={pending || !cancellationReason.trim()} variant="outline" onClick={() => void cancel()}>{t("outcome.intake.cancel")}</Button>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}</aside></section>;
+	if (snapshot.session.status === "ready" && draft) {
+		const problems = proposalProblems(draft);
+		return (
+			<section className="mx-auto grid w-full max-w-4xl gap-4 px-4 py-6 sm:px-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
+				<div className="flex min-w-0 flex-col gap-3">
+					<div>
+						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("outcome.intake.reviewTitle")}</p>
+						<p className="mt-1 text-sm text-muted-foreground">{t("outcome.intake.reviewBody")}</p>
+					</div>
+					<IntakeContractReview draft={draft} onChange={setDraft} />
+				</div>
+				<aside className="flex flex-col gap-3 rounded-group hairline border-border bg-card px-4.5 py-3.5 lg:sticky lg:top-4 lg:self-start">
+					<div>
+						<p className="text-xs font-medium text-foreground">{t("outcome.intake.authorityTitle")}</p>
+						<p className="mt-0.5 text-2xs leading-body text-passive">{t("outcome.intake.authorityBody")}</p>
+					</div>
+					{/* The proposal's real ceiling, editable. This was static prose
+					    that merely happened to match what the rule-based analyzer
+					    always emitted; a narrowed or model-authored ceiling would
+					    have been described wrongly. */}
+					<IntakeAuthorityEditor
+						onChange={(authorityCeiling) => setDraft({ ...draft, authorityCeiling })}
+						value={draft.authorityCeiling}
+					/>
+					{problems.length > 0 ? (
+						<ul className="flex list-disc flex-col gap-1 pl-4 text-2xs leading-body text-warning" data-testid="intake-problems">
+							{problems.map((problem) => (
+								<li key={problem}>{t(problem as never)}</li>
+							))}
+						</ul>
+					) : null}
+					<Button disabled={pending || problems.length > 0} onClick={() => void confirm()}>
+						{pending ? t("outcome.intake.confirming") : t("outcome.intake.confirm")}
+					</Button>
+					<label className="text-xs font-medium text-muted-foreground" htmlFor="intake-cancellation-reason">{t("outcome.intake.cancelReason")}</label>
+					<input id="intake-cancellation-reason" className="rounded-md hairline border-border bg-background px-2.5 py-1.5 text-xs" onChange={(event) => setCancellationReason(event.target.value)} value={cancellationReason} />
+					<Button disabled={pending || !cancellationReason.trim()} variant="outline" onClick={() => void cancel()}>{t("outcome.intake.cancel")}</Button>
+					{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+				</aside>
+			</section>
+		);
+	}
 	if (snapshot.session.status === "confirmed" && snapshot.confirmedOutcome) return <TruthMessage title={t("outcome.intake.confirmedTitle")} body={t("outcome.intake.confirmedBody")} />;
 	if (snapshot.session.status === "cancelled") return <TruthMessage title={t("outcome.intake.cancelledTitle")} body={snapshot.session.cancellationReason || t("outcome.intake.cancelledBody")} />;
 	return <TruthMessage title={t("outcome.intake.attentionTitle")} body={error ?? t("outcome.intake.state", { status: snapshot.session.status })} />;
@@ -260,7 +306,6 @@ function IntakeProjectSwitcher({
 	);
 }
 
-function Field({ label, value, onChange, multiline = false }: { label: string; value: string; onChange: (value: string) => void; multiline?: boolean }) { const id = useMemo(() => `intake-${label.toLowerCase().replaceAll(" ", "-")}`, [label]); return <label className="flex flex-col gap-1 text-sm font-medium" htmlFor={id}>{label}{multiline ? <textarea id={id} aria-label={label} className="min-h-24 rounded-lg border border-border bg-background p-3 font-normal" onChange={(event) => onChange(event.target.value)} value={value} /> : <input id={id} aria-label={label} className="rounded-lg border border-border bg-background px-3 py-2 font-normal" onChange={(event) => onChange(event.target.value)} value={value} />}</label>; }
 function TruthMessage({ title, body }: { title: string; body: string }) { return <div className="mx-auto flex h-full max-w-xl flex-col justify-center gap-2 px-4 sm:px-8"><h2 className="text-lg font-medium">{title}</h2><p className="text-sm text-muted-foreground">{body}</p></div>; }
 function proposalInput(snapshot: IntakeSnapshot): ProposalInput { const proposal = snapshot.proposal as NonNullable<IntakeSnapshot["proposal"]>; return { title: proposal.title, desiredState: proposal.desiredState, criteria: proposal.criteria.map((criterion) => ({ id: criterion.id, text: criterion.text, evidenceExpected: criterion.evidenceExpected })), reviewMethod: proposal.reviewMethod, constraints: proposal.constraints, nonGoals: proposal.nonGoals, authorityCeiling: proposal.authorityCeiling, stopConditions: proposal.stopConditions, clarificationNotes: proposal.clarificationNotes, temporalCondition: proposal.temporalCondition, facets: proposal.facets }; }
 function requestKey(prefix: string) { return `${prefix}-${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`}`; }
