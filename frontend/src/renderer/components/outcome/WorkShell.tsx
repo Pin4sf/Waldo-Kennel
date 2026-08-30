@@ -1,6 +1,6 @@
 import { SessionsViewSwitch } from "@pin4sf/kennel-product-ui";
-import { useCanGoBack, useNavigate, useRouter } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Flag, HelpCircle, PanelLeft, Search, Terminal, Waypoints } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Flag, HelpCircle, Menu, PanelLeft, Search, Terminal, Waypoints } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,9 +8,10 @@ import { useOutcomeAttempts } from "../../hooks/useOutcome";
 import { useUiStore } from "../../stores/ui-store";
 import { NotificationCenter } from "../NotificationCenter";
 import { TopbarButton } from "../TopbarButton";
-import { useCanGoForward } from "../TitlebarNav";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { useWaldoRail } from "../waldo/WaldoRailContext";
 import { OutcomeAttemptTerminalPanel } from "./OutcomeAttemptTerminalPanel";
+import waldoMark from "../../../../assets/waldo-mark.svg";
 
 type WorkShellProps = {
 	/** Absent on the Enter surface, before a project is chosen. */
@@ -29,26 +30,25 @@ type WorkShellProps = {
  * previously the only visible chrome above a stage surface).
  *
  * Real navigation is the persistent sidebar (project/outcome tree, untouched
- * here) plus this one top-bar row, three zones: a left cluster (sidebar
- * toggle, back/forward, search, notifications — Figma's "all left-aligned"
- * chrome), List/Board centered (governs Act & Observe, present but inert
- * elsewhere — Figma shows it inert on the Enter screen too), and a right
- * cluster (terminal toggle, relationship graph, Outcomes destination).
+ * here) plus this one top-bar row, three zones: a small inline "Kennel"
+ * wordmark + a left cluster (sidebar toggle, search, notifications), List/
+ * Board centered (governs Act & Observe, present but inert elsewhere — Figma
+ * shows it inert on the Enter screen too), and a right cluster (terminal
+ * toggle, relationship graph, Outcomes destination). Round 5's reference
+ * mockup has no back/forward history controls here — round 4 had added them
+ * per an earlier ask, but the canonical reference doesn't carry them, so
+ * they're gone again.
  *
- * This renders its own back/forward/sidebar-toggle/bell inline rather than
- * reusing the fixed-position `TitlebarNav`/`ShellTopbar` chrome the Board and
- * session routes use: those are anchored to reserve space for real native
- * traffic lights and render nothing in a browser preview with no native
- * titlebar, and `ShellTopbar` has no concept of the Work destination (it
- * falls back to a bare "Board" crumb here). `_shell.tsx` suppresses both for
- * every Work route so this is the only copy.
+ * The bottom-right Chat pill + menu reuse the exact same Waldo rail toggle
+ * `WaldoLauncher` (rendered top-right on every other route) calls — this is
+ * that same trigger, relocated and reshaped into Figma's composition for
+ * Work specifically, not a second copy of it. `_shell.tsx` suppresses the
+ * top-right WaldoLauncher for Work routes so there is exactly one.
  */
 export function WorkShell({ projectId, outcomeId, children }: WorkShellProps) {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
-	const router = useRouter();
-	const canGoBack = useCanGoBack();
-	const canGoForward = useCanGoForward();
+	const waldo = useWaldoRail();
 	const isSidebarOpen = useUiStore((state) => state.isSidebarOpen);
 	const toggleSidebar = useUiStore((state) => state.toggleSidebar);
 	const setCommandPaletteOpen = useUiStore((state) => state.setCommandPaletteOpen);
@@ -78,6 +78,8 @@ export function WorkShell({ projectId, outcomeId, children }: WorkShellProps) {
 		void navigate({ to: "/work", search: { view: "outcomes" } });
 	};
 
+	const goWork = () => void navigate({ to: "/" });
+
 	return (
 		<div className="relative flex h-full min-h-0 flex-col gap-2.5" data-testid="work-shell">
 			{/* workspace-topbar-container carries the reserved right-hand lane
@@ -88,6 +90,14 @@ export function WorkShell({ projectId, outcomeId, children }: WorkShellProps) {
 				data-testid="work-shell-topbar"
 			>
 				<div className="flex shrink-0 items-center gap-1">
+					<button
+						aria-label={t("shell.orchestratorBoard")}
+						className="px-1.5 text-sm font-normal text-foreground transition-colors hover:text-muted-foreground"
+						onClick={goWork}
+						type="button"
+					>
+						Kennel
+					</button>
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<TopbarButton
@@ -101,36 +111,6 @@ export function WorkShell({ projectId, outcomeId, children }: WorkShellProps) {
 						<TooltipContent side="bottom">
 							{isSidebarOpen ? t("shell.collapseSidebar") : t("shell.expandSidebar")}
 						</TooltipContent>
-					</Tooltip>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<span className="inline-flex">
-								<TopbarButton
-									aria-label={t("titlebar.goBack")}
-									disabled={!canGoBack}
-									onClick={() => router.history.back()}
-									variant="icon"
-								>
-									<ArrowLeft aria-hidden="true" className="size-icon-md" />
-								</TopbarButton>
-							</span>
-						</TooltipTrigger>
-						<TooltipContent side="bottom">{t("titlebar.goBack")}</TooltipContent>
-					</Tooltip>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<span className="inline-flex">
-								<TopbarButton
-									aria-label={t("titlebar.goForward")}
-									disabled={!canGoForward}
-									onClick={() => router.history.forward()}
-									variant="icon"
-								>
-									<ArrowRight aria-hidden="true" className="size-icon-md" />
-								</TopbarButton>
-							</span>
-						</TooltipTrigger>
-						<TooltipContent side="bottom">{t("titlebar.goForward")}</TooltipContent>
 					</Tooltip>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -233,6 +213,39 @@ export function WorkShell({ projectId, outcomeId, children }: WorkShellProps) {
 				</TooltipTrigger>
 				<TooltipContent side="right">{t("work.shell.help")}</TooltipContent>
 			</Tooltip>
+
+			<div className="absolute bottom-3 right-3 z-chrome flex items-center gap-1.5">
+				<button
+					aria-controls="waldo-rail"
+					aria-expanded={waldo.isOpen}
+					aria-label={t("shortcut.toggle-waldo")}
+					className="waldo-native-interactive inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-raised/92 pl-2 pr-3 text-sm font-medium text-foreground shadow-sm backdrop-blur-md transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 motion-reduce:transition-none data-[open=true]:bg-interactive-active"
+					data-open={waldo.isOpen}
+					data-testid="work-shell-chat"
+					onClick={(event) => waldo.toggle(event.currentTarget)}
+					ref={waldo.launcherRef}
+					type="button"
+				>
+					<img alt="" aria-hidden="true" className="size-4 object-contain" data-brand="waldo" src={waldoMark} />
+					<span>{t("work.shell.chat")}</span>
+				</button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<span className="inline-flex">
+							<button
+								aria-label={t("work.shell.menu")}
+								className="grid size-8 place-items-center rounded-full border border-border bg-raised/92 text-muted-foreground shadow-sm backdrop-blur-md transition-colors disabled:pointer-events-none disabled:opacity-60"
+								data-testid="work-shell-menu"
+								disabled
+								type="button"
+							>
+								<Menu aria-hidden="true" className="size-icon-md" />
+							</button>
+						</span>
+					</TooltipTrigger>
+					<TooltipContent side="top">{t("work.shell.menuComingSoon")}</TooltipContent>
+				</Tooltip>
+			</div>
 		</div>
 	);
 }
