@@ -166,12 +166,16 @@ func (service *Service) Analyze(ctx context.Context, id domain.IntakeSessionID, 
 	if err != nil {
 		return ports.IntakeSnapshot{}, mapStoreError(err)
 	}
-	result, err := service.analyzer.Analyze(ctx, ports.IntakeAnalysisInput{
+	ticket, err := service.analyzer.Analyze(ctx, ports.IntakeAnalysisInput{
 		Session: analyzing.Session, ConversationRefs: analyzing.ConversationRefs,
 		PreviousProposal: analyzing.Proposal, Clarification: analyzing.Clarification,
 	})
 	if err != nil {
 		_, _ = service.store.FailIntakeAnalysis(ctx, id, input.ExpectedProposalRevision, "INTAKE_ANALYSIS_FAILED", service.clock())
+		return ports.IntakeSnapshot{}, err
+	}
+	result, err := service.settleTicket(ctx, id, input.ExpectedProposalRevision, ticket)
+	if err != nil {
 		return ports.IntakeSnapshot{}, err
 	}
 	return service.completeAnalysis(ctx, analyzing, input.ExpectedProposalRevision, result, "")
@@ -204,7 +208,7 @@ func (service *Service) AnswerClarification(ctx context.Context, id domain.Intak
 	if err != nil {
 		return ports.IntakeSnapshot{}, mapStoreError(err)
 	}
-	result, err := service.analyzer.Analyze(ctx, ports.IntakeAnalysisInput{
+	ticket, err := service.analyzer.Analyze(ctx, ports.IntakeAnalysisInput{
 		Session: analyzing.Session, ConversationRefs: analyzing.ConversationRefs,
 		PreviousProposal: analyzing.Proposal, Clarification: analyzing.Clarification,
 		ClarificationText: input.Answer,
@@ -213,7 +217,33 @@ func (service *Service) AnswerClarification(ctx context.Context, id domain.Intak
 		_, _ = service.store.FailIntakeAnalysis(ctx, id, input.ExpectedProposalRevision, "INTAKE_ANALYSIS_FAILED", service.clock())
 		return ports.IntakeSnapshot{}, err
 	}
+	result, err := service.settleTicket(ctx, id, input.ExpectedProposalRevision, ticket)
+	if err != nil {
+		return ports.IntakeSnapshot{}, err
+	}
 	return service.completeAnalysis(ctx, analyzing, input.ExpectedProposalRevision, result, input.Answer)
+}
+
+// settleTicket turns an analyzer's ticket into the result this phase can act
+// on, and fails the intake loudly when it cannot.
+//
+// An analyzer that answers later returns no Inline. Nothing in the tree does
+// that yet: the durable request, the callback route, and the awaiting_analyst
+// state that such a ticket needs are the NEXT phase of this work. Until they
+// exist, a deferred ticket is refused explicitly and the intake is moved to a
+// retryable failure, rather than being left parked in `analyzing` where the
+// startup sweep would silently reap it and the owner would see an intake that
+// simply stopped.
+//
+// This is the exact seam the next phase replaces; it is deliberately loud so
+// it cannot be mistaken for working.
+func (service *Service) settleTicket(ctx context.Context, id domain.IntakeSessionID, expectedRevision int64, ticket ports.IntakeAnalysisTicket) (ports.IntakeAnalysisResult, error) {
+	if ticket.Inline != nil {
+		return *ticket.Inline, nil
+	}
+	_, _ = service.store.FailIntakeAnalysis(ctx, id, expectedRevision, "INTAKE_ANALYSIS_DEFERRED_UNSUPPORTED", service.clock())
+	return ports.IntakeAnalysisResult{}, apierr.Internal("INTAKE_ANALYSIS_DEFERRED_UNSUPPORTED",
+		"This analyzer answers later, and receiving a later answer is not built yet")
 }
 
 // ReviseProposal appends a user-authored immutable proposal revision. It never

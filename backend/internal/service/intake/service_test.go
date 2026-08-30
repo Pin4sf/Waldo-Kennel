@@ -150,22 +150,30 @@ func (store *memoryIntakeStore) FailIntakeAnalysis(_ context.Context, _ domain.I
 }
 
 type scriptedAnalyzer struct {
-	result  ports.IntakeAnalysisResult
-	results []ports.IntakeAnalysisResult
-	err     error
-	seen    ports.IntakeAnalysisInput
-	calls   int
+	result   ports.IntakeAnalysisResult
+	results  []ports.IntakeAnalysisResult
+	err      error
+	seen     ports.IntakeAnalysisInput
+	calls    int
+	deferred bool
 }
 
-func (analyzer *scriptedAnalyzer) Analyze(_ context.Context, input ports.IntakeAnalysisInput) (ports.IntakeAnalysisResult, error) {
+// The fake is scripted in IntakeAnalysisResult terms and wraps each one as an
+// inline ticket, so these tests keep asserting the same behaviour they did
+// before the port grew a deferred shape. deferred covers the other half.
+func (analyzer *scriptedAnalyzer) Analyze(_ context.Context, input ports.IntakeAnalysisInput) (ports.IntakeAnalysisTicket, error) {
 	analyzer.seen = input
+	if analyzer.deferred {
+		return ports.IntakeAnalysisTicket{SessionID: "sess-analyst", Detail: "an agent is proposing"}, analyzer.err
+	}
 	if analyzer.calls < len(analyzer.results) {
 		result := analyzer.results[analyzer.calls]
 		analyzer.calls++
-		return result, analyzer.err
+		return ports.IntakeAnalysisTicket{Inline: &result}, analyzer.err
 	}
 	analyzer.calls++
-	return analyzer.result, analyzer.err
+	result := analyzer.result
+	return ports.IntakeAnalysisTicket{Inline: &result}, analyzer.err
 }
 
 func TestCaptureAndAnalyzeSimpleOutcomeAdvancesDirectlyToReady(t *testing.T) {
@@ -486,5 +494,41 @@ func assertAPIErrorCode(t *testing.T, err error, want string) {
 	var apiError *apierr.Error
 	if !errors.As(err, &apiError) || apiError.Code != want {
 		t.Fatalf("error = %#v, want api error code %s", err, want)
+	}
+}
+
+// An analyzer that answers later is expressible on the port from this phase
+// on, but nothing can receive that later answer yet: the durable request, the
+// callback route, and the awaiting_analyst state are the next phase. Until
+// they exist the intake must fail loudly and stay retryable, NOT sit in
+// `analyzing` — the startup sweep reaps that state, so an owner would watch an
+// intake stop with no explanation and no way back.
+func TestDeferredAnalysisIsRefusedLoudlyUntilCallbacksExist(t *testing.T) {
+	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+	store := &memoryIntakeStore{}
+	analyzer := &scriptedAnalyzer{deferred: true}
+	service := New(store, analyzer, func() time.Time { return now })
+	captured, err := service.Capture(context.Background(), CaptureInput{SourceSurface: domain.IntakeSourceWork, Purpose: domain.IntakePurposeOutcome, ProjectID: "project-1", Statement: "Let an agent draft this", RequestKey: "capture-deferred"})
+	if err != nil {
+		t.Fatalf("Capture() error = %v", err)
+	}
+
+	if _, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0}); err == nil {
+		t.Fatal("Analyze() error = nil, want a refusal for an answer nothing can receive")
+	}
+	if store.snapshot.Session.Status != domain.IntakeStatusAnalysisFailed {
+		t.Fatalf("deferred analysis left status %q, want a durable retryable failure", store.snapshot.Session.Status)
+	}
+	if store.snapshot.Session.FailureCode != "INTAKE_ANALYSIS_DEFERRED_UNSUPPORTED" {
+		t.Fatalf("failure code = %q, want the deferred-unsupported code by name", store.snapshot.Session.FailureCode)
+	}
+
+	// Retryable in the ordinary way: the same intake advances once an analyzer
+	// answers inline again.
+	analyzer.deferred = false
+	analyzer.result = ports.IntakeAnalysisResult{Proposal: validProposalDraft("The floor still works")}
+	retried, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0})
+	if err != nil || retried.Session.Status != domain.IntakeStatusReady {
+		t.Fatalf("retry after deferred refusal = %+v err=%v", retried, err)
 	}
 }
