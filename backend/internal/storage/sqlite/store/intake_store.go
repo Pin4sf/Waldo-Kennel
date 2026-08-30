@@ -307,9 +307,6 @@ func (s *Store) ConfirmIntakeWithOutcome(ctx context.Context, id domain.IntakeSe
 		if err := insertContractRevision(ctx, q, contract); err != nil {
 			return err
 		}
-		if err := insertContractIntakeCore(ctx, q, contract); err != nil {
-			return err
-		}
 		rows, err := q.AdvanceOutcomeCurrentRevision(ctx, gen.AdvanceOutcomeCurrentRevisionParams{CurrentRevisionNumber: 1, UpdatedAt: at, ID: outcome.ID, CurrentRevisionNumber_2: 0})
 		if err != nil {
 			return err
@@ -466,6 +463,9 @@ func nullString(value string) sql.NullString {
 	return sql.NullString{String: value, Valid: value != ""}
 }
 
+// insertContractIntakeCore persists the part of a contract revision that lives
+// outside the base relation. Called from insertContractRevision so EVERY
+// creator writes it, not only intake confirmation.
 func insertContractIntakeCore(ctx context.Context, q *gen.Queries, contract domain.ContractRevision) error {
 	evidence, err := json.Marshal(contract.EvidenceExpectations)
 	if err != nil {
@@ -487,7 +487,14 @@ func insertContractIntakeCore(ctx context.Context, q *gen.Queries, contract doma
 	if contract.TemporalCondition != nil {
 		temporal = nullString(*contract.TemporalCondition)
 	}
-	return q.CreateContractRevisionIntakeCore(ctx, gen.CreateContractRevisionIntakeCoreParams{ContractRevisionID: contract.ID.String(), EvidenceExpectations: string(evidence), AuthorityCeiling: string(authority), StopConditions: string(stops), TemporalCondition: temporal, Facets: string(facets), CreatedAt: contract.CreatedAt})
+	// The base relation lets its own column default stamp the row, so a
+	// revision carrying no explicit time gets the same "now" here rather than
+	// a zero year.
+	createdAt := contract.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
+	}
+	return q.CreateContractRevisionIntakeCore(ctx, gen.CreateContractRevisionIntakeCoreParams{ContractRevisionID: contract.ID.String(), EvidenceExpectations: string(evidence), AuthorityCeiling: string(authority), StopConditions: string(stops), TemporalCondition: temporal, Facets: string(facets), CreatedAt: createdAt})
 }
 
 func applyContractIntakeCore(contract *domain.ContractRevision, core gen.ContractRevisionIntakeCore) error {
