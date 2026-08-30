@@ -2,8 +2,8 @@ package intake
 
 import (
 	"context"
-	"strings"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -498,7 +498,6 @@ func assertAPIErrorCode(t *testing.T, err error, want string) {
 		t.Fatalf("error = %#v, want api error code %s", err, want)
 	}
 }
-
 
 // --- Agent-authored analysis: the durable request and its callback ---
 

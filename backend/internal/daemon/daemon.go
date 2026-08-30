@@ -424,7 +424,17 @@ func Run() error {
 	} else if expired > 0 {
 		log.Info("closed decomposition requests that expired while the daemon was down", "count", expired)
 	}
-	intakeSvc := intakevc.New(store, intakevc.NewRuleBasedAnalyzer(), nil)
+	// Agent-authored Contract proposals. Unlike the decomposition proposer
+	// beside it, this NEVER fails closed: intake is the entry point to the
+	// product, so every reason an agent cannot be asked degrades to the
+	// deterministic baseline rather than blocking Outcome creation.
+	intakeSvc := intakevc.New(store, agentIntakeAnalyzer{
+		sessions:     sessionSvc,
+		projects:     store,
+		agents:       agents,
+		offline:      intakevc.NewRuleBasedAnalyzer(),
+		callbackBase: fmt.Sprintf("http://%s:%d", config.LoopbackHost, cfg.Port),
+	}, nil)
 	// Order matters. Expiry runs FIRST: it closes asks whose deadline passed
 	// while the daemon was down and returns their intakes to a retryable
 	// failure. Only then does the interrupted-analysis sweep run, which skips
