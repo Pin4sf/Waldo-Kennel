@@ -67,3 +67,22 @@ it("reuses one confirmation request key after an uncertain retry", async () => {
 	const secondKey = postMock.mock.calls[1][1].body.requestKey;
 	expect(secondKey).toBe(firstKey);
 });
+
+it("names the project the Outcome will belong to and switches project in place", async () => {
+	getMock.mockImplementation((path: string) =>
+		path === "/api/v1/projects"
+			? Promise.resolve({ data: { projects: [{ id: "project-1", name: "waldo-kennel", path: "/w/kennel" }, { id: "project-2", name: "mesa", path: "/w/mesa" }] }, error: undefined })
+			: Promise.resolve({ data: { sessions: [] }, error: undefined }),
+	);
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+	render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" /></QueryClientProvider>);
+
+	expect(await screen.findByRole("heading", { name: /describe an ideal outcome for waldo-kennel/i })).toBeInTheDocument();
+	expect(screen.getByRole("textbox", { name: /describe an ideal outcome for waldo-kennel/i })).toBeInTheDocument();
+
+	await userEvent.click(screen.getByRole("button", { name: "Switch project" }));
+	await userEvent.click(await screen.findByRole("menuitem", { name: "mesa" }));
+
+	expect(navigateMock).toHaveBeenCalledWith({ to: "/work", search: { project: "project-2" } });
+	expect(postMock).not.toHaveBeenCalled();
+});

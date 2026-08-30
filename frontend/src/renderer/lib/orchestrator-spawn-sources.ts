@@ -5,6 +5,7 @@ export const ORCHESTRATOR_SPAWN_SOURCES = [
 	"sidebar",
 	"project_add",
 	"settings",
+	"outcome_intake",
 	"restart",
 	"command_palette",
 ] as const;

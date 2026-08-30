@@ -1,14 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Loader2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { useTranslation } from "react-i18next";
+import { ArrowRight, Check, ChevronDown, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { Trans, useTranslation } from "react-i18next";
 
 import type { components } from "../../../api/schema";
+import { useWorkspaceQuery } from "../../hooks/useWorkspaceQuery";
 import { apiClient, apiErrorMessage, hasTrustedApiBaseUrl } from "../../lib/api-client";
 import { usesPreviewWorkspaceData } from "../../lib/preview-mode";
 import { createPreviewOutcome } from "../../lib/preview-outcome-store";
 import { Button } from "../ui/button";
+import { OutcomeIntakeAgentRoles } from "./OutcomeIntakeAgentRoles";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 
 type IntakeSnapshot = components["schemas"]["IntakeSnapshotResponse"];
 type ProposalInput = components["schemas"]["IntakeProposalInput"];
@@ -37,6 +40,16 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 			return data.intake;
 		},
 	});
+
+	// The intake prompt names the project it will create an Outcome in, so the
+	// person can see (and correct) where this is landing before they type. The
+	// name is a fact from the daemon's project list, never derived from the id.
+	const workspaces = useWorkspaceQuery();
+	const projects = useMemo(
+		() => (workspaces.data ?? []).map((workspace) => ({ id: workspace.id, name: workspace.name })),
+		[workspaces.data],
+	);
+	const projectName = projects.find((project) => project.id === projectId)?.name;
 
 	useEffect(() => { if (query.data) setSnapshot(query.data); }, [query.data]);
 	useEffect(() => {
@@ -128,16 +141,26 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 			className="mx-auto flex h-full w-full max-w-3xl flex-col items-center justify-center gap-6 px-4 sm:px-8"
 			onSubmit={capture}
 		>
-			<label
-				className="text-balance text-center text-2xl font-medium leading-snug tracking-wide-sm text-foreground sm:text-[28px]"
-				htmlFor="outcome-statement"
-			>
-				{t("outcome.intake.prompt")}
-			</label>
+			{/* A heading, not a <label>: the project name inside it is an
+			    interactive switcher, and a control nested in a label would steal
+			    the label's click-to-focus. The textarea keeps its own name below. */}
+			<h1 className="text-balance text-center text-2xl font-medium leading-snug tracking-wide-sm text-foreground sm:text-[28px]">
+				{projectName ? (
+					<Trans
+						components={{
+							project: <IntakeProjectSwitcher currentProjectId={projectId} projects={projects} />,
+						}}
+						i18nKey="outcome.intake.promptForProject"
+						values={{ project: projectName }}
+					/>
+				) : (
+					t("outcome.intake.prompt")
+				)}
+			</h1>
 			<div className="flex w-full flex-col gap-3 rounded-group hairline border-border bg-card px-4.5 py-3.5">
 				<textarea
 					id="outcome-statement"
-					aria-label={t("outcome.intake.prompt")}
+					aria-label={projectName ? t("outcome.intake.promptForProjectPlain", { project: projectName }) : t("outcome.intake.prompt")}
 					autoFocus
 					className="min-h-16 w-full resize-y bg-transparent text-sm leading-body text-foreground outline-none placeholder:text-muted-foreground/70"
 					onChange={(event) => setStatement(event.target.value)}
@@ -151,20 +174,25 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 					value={statement}
 				/>
 				<div className="flex items-center justify-between gap-3">
-					<p className="text-2xs text-passive">{t("outcome.intake.hint")}</p>
-					<Button
-						aria-label={pending ? t("outcome.intake.saving") : t("outcome.intake.continue")}
-						className="rounded-full"
-						disabled={pending || !statement.trim()}
-						size="icon-sm"
-						type="submit"
-					>
-						{pending ? (
-							<Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
-						) : (
-							<ArrowRight aria-hidden="true" className="size-3.5" />
-						)}
-					</Button>
+					<p className="min-w-0 truncate text-2xs text-passive">{t("outcome.intake.hint")}</p>
+					<div className="flex shrink-0 items-center gap-1.5">
+						{/* Who will do this, decided beside what is being asked for.
+						    Writes the project's durable worker/orchestrator agents. */}
+						<OutcomeIntakeAgentRoles projectId={projectId} />
+						<Button
+							aria-label={pending ? t("outcome.intake.saving") : t("outcome.intake.continue")}
+							className="rounded-full"
+							disabled={pending || !statement.trim()}
+							size="icon-sm"
+							type="submit"
+						>
+							{pending ? (
+								<Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+							) : (
+								<ArrowRight aria-hidden="true" className="size-3.5" />
+							)}
+						</Button>
+					</div>
 				</div>
 			</div>
 			{error ? (
@@ -183,6 +211,53 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 	if (snapshot.session.status === "confirmed" && snapshot.confirmedOutcome) return <TruthMessage title={t("outcome.intake.confirmedTitle")} body={t("outcome.intake.confirmedBody")} />;
 	if (snapshot.session.status === "cancelled") return <TruthMessage title={t("outcome.intake.cancelledTitle")} body={snapshot.session.cancellationReason || t("outcome.intake.cancelledBody")} />;
 	return <TruthMessage title={t("outcome.intake.attentionTitle")} body={error ?? t("outcome.intake.state", { status: snapshot.session.status })} />;
+}
+
+/**
+ * The project the intake will create its Outcome in, rendered inline in the
+ * prompt and switchable in place. Switching is navigation only — it changes
+ * which project the next capture targets and writes nothing.
+ */
+function IntakeProjectSwitcher({
+	children,
+	currentProjectId,
+	projects,
+}: {
+	children?: ReactNode;
+	currentProjectId: string;
+	projects: { id: string; name: string }[];
+}) {
+	const navigate = useNavigate();
+	const { t } = useTranslation();
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<button
+					aria-label={t("outcome.intake.switchProject")}
+					className="inline-flex items-baseline gap-1.5 rounded-xs text-foreground underline decoration-link decoration-2 underline-offset-[6px] transition-colors hover:decoration-link-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+					data-testid="intake-project-switcher"
+					type="button"
+				>
+					{children}
+					<ChevronDown aria-hidden="true" className="size-5 shrink-0 self-center text-muted-foreground" />
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="start">
+				{projects.map((project) => (
+					<DropdownMenuItem
+						key={project.id}
+						onSelect={() => void navigate({ to: "/work", search: { project: project.id } })}
+					>
+						<Check
+							aria-hidden="true"
+							className={project.id === currentProjectId ? "size-icon-sm" : "size-icon-sm opacity-0"}
+						/>
+						<span className="min-w-0 truncate">{project.name}</span>
+					</DropdownMenuItem>
+				))}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
 }
 
 function Field({ label, value, onChange, multiline = false }: { label: string; value: string; onChange: (value: string) => void; multiline?: boolean }) { const id = useMemo(() => `intake-${label.toLowerCase().replaceAll(" ", "-")}`, [label]); return <label className="flex flex-col gap-1 text-sm font-medium" htmlFor={id}>{label}{multiline ? <textarea id={id} aria-label={label} className="min-h-24 rounded-lg border border-border bg-background p-3 font-normal" onChange={(event) => onChange(event.target.value)} value={value} /> : <input id={id} aria-label={label} className="rounded-lg border border-border bg-background px-3 py-2 font-normal" onChange={(event) => onChange(event.target.value)} value={value} />}</label>; }

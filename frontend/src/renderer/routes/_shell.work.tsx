@@ -143,6 +143,7 @@ function renderStageBody({
 						void navigate({ to: "/work", search: { project, stage: "prove_close", outcome } });
 					}}
 					outcomeId={outcome}
+					projectId={project}
 				/>
 			</OutcomeLifecycleShell>
 		);
