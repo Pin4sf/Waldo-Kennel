@@ -214,12 +214,25 @@ function ContributorRow({
 				<div className="flex min-w-0 flex-col gap-1">
 					<span className="text-sm font-medium">{title}</span>
 					<AttentionLine kind={kind} reason={reason} />
-					{nextAction ? <span className="text-muted-foreground text-2xs">{nextAction}</span> : null}
 				</div>
+				{/* The daemon already says what this contribution needs next.
+				    Rendering that as prose beside an "Inspect" button meant the
+				    named step — "Start work on this contribution" — was the one
+				    thing a person could not click. It is the button's label now,
+				    so the sentence and the control are the same thing. */}
 				{contributor && onInspect ? (
-					<Button onClick={() => onInspect(contributor.outcome.id)} size="sm" variant="ghost">
-						{t("outcome.mission.inspect")}
+					<Button
+						className="shrink-0"
+						onClick={() => onInspect(contributor.outcome.id)}
+						size="sm"
+						variant={nextAction ? "outline" : "ghost"}
+					>
+						{nextAction ?? t("outcome.mission.inspect")}
 					</Button>
+				) : nextAction ? (
+					// Nowhere to send them — but what the daemon says is needed is
+					// still worth saying, so the row never loses it.
+					<span className="shrink-0 text-2xs text-muted-foreground">{nextAction}</span>
 				) : null}
 			</div>
 
