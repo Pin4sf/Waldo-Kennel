@@ -20,7 +20,7 @@ Kennel is isolated from Agent Orchestrator at every installed-product boundary:
 | Loopback / development / LAN ports | `3031` / `3032` / `3041` |
 | Generated branch namespace | `kennel/` |
 
-Kennel does not read or migrate `~/.ao` or the older `~/.agent-orchestrator` layout. Earlier installations of the donor project remain separate, and users add local repositories explicitly through Kennel's supported project flow. Project-local `.kennel/attachments` and `.kennel/launch.json` live inside a project; they are not Kennel global state.
+Kennel does not read or migrate `~/.ao` or the older `~/.agent-orchestrator` layout. Earlier installations of the donor project remain separate, and users add local repositories explicitly through Kennel's supported project flow. Project-local `.kennel/attachments` and `.kennel/launch.json` live inside a project; they are not Kennel global state. Those two names moved from `.ao/`, and because both sit inside a user's own repository Kennel still reads the old location when the new one is absent -- a committed `.ao/launch.json` keeps working, and attachments left in a pre-rename worktree are still rescued before it is torn down. Kennel only ever reads those paths; it writes the `.kennel/` names.
 
 Kennel is now a standalone application. The source entrypoint is `backend/cmd/kennel`, the Go module is `github.com/Pin4sf/Waldo-Kennel/backend`, and no upstream synchronization seams remain — the donor remote has been removed and every identifier, path, and message names Kennel. See [identity and state](docs/identity-and-state.md) and [upstream provenance](docs/upstream-provenance.md) for the historical record of what Kennel derived from and why.
 
