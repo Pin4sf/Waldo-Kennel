@@ -139,7 +139,7 @@ type Service struct {
 	proposer ports.DecompositionProposer
 	// reaper ends a proposing session once its ask is closed. Optional.
 	reaper ports.AnalystSessionReaper
-	clock    func() time.Time
+	clock  func() time.Time
 
 	// PolicyLayers optionally narrows the authority ceiling for tests and
 	// constrained environments. Empty means the v0 default: the worktree-local
