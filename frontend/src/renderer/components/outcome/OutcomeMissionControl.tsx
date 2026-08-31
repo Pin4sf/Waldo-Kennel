@@ -20,7 +20,9 @@ import {
 	DECOMPOSITION_REQUEST_STATUS,
 	type ContributorRecord,
 } from "../../hooks/useOutcomeComposition";
+import type { components } from "../../../api/schema";
 import { DecompositionEditor, NO_AUTHORITY } from "./DecompositionEditor";
+import { DecompositionGraph } from "./DecompositionGraph";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { cn } from "../../lib/utils";
@@ -89,6 +91,7 @@ export function OutcomeMissionControl({ outcomeId, onInspectContributor }: Outco
 					<CoveragePanel composition={composition} />
 					<ContributorList
 						composition={composition}
+						decomposition={decomposition}
 						decompositionStatus={decomposition?.status}
 						onInspectContributor={onInspectContributor}
 						outcomeId={outcomeId}
@@ -133,17 +136,29 @@ function CoveragePanel({ composition }: { composition: NonNullable<ReturnType<ty
 function ContributorList({
 	composition,
 	outcomeId,
+	decomposition,
 	decompositionStatus,
 	onInspectContributor,
 }: {
 	composition: NonNullable<ReturnType<typeof useOutcomeComposition>["composition"]>;
 	outcomeId: string;
+	decomposition?: components["schemas"]["DecompositionResponse"];
 	decompositionStatus?: string;
 	onInspectContributor?: (contributorId: string) => void;
 }) {
 	const { t } = useTranslation();
 	return (
-		<section className="flex flex-col gap-2" data-testid="mission-contributors">
+		<section className="flex flex-col gap-3" data-testid="mission-contributors">
+			{/* The dependency order, drawn. The list below stays: it carries the
+			    per-contributor detail and actions, and remains the accessible
+			    path through the same information. */}
+			{decomposition ? (
+				<DecompositionGraph
+					contributors={composition.contributors}
+					decomposition={decomposition}
+					onInspect={onInspectContributor}
+				/>
+			) : null}
 			<h3 className="text-sm font-medium">{t("outcome.mission.contributorsHeading")}</h3>
 			{/* Execution is currently serialized by the project-wide attempt
 			    fence; saying so beats letting the surface imply concurrency. */}
@@ -489,13 +504,11 @@ function DecomposePanel({ outcomeId, revision }: { outcomeId: string; revision: 
 						<p className="text-[var(--color-status-needs-you)] text-xs">{t("outcome.mission.proposalStale")}</p>
 					) : null}
 					<p className="text-sm leading-body">{proposal.rationale}</p>
-					<ul className="flex flex-col gap-1">
-						{proposal.contributors.map((contributor) => (
-							<li className="text-xs" key={contributor.ref}>
-								{contributor.title}
-							</li>
-						))}
-					</ul>
+					{/* The shape, before it is authorized. This is where the order
+					    matters most: a flat list of titles does not show that one
+					    contribution has to finish before another can start, which
+					    is exactly what the owner is being asked to approve. */}
+					<DecompositionGraph contributors={[]} decomposition={proposal} />
 					<div className="flex items-center gap-2">
 						<Button
 							data-testid="decompose-authorize"

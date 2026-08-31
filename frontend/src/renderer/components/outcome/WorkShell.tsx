@@ -5,6 +5,7 @@ import { useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useOutcomeAttempts } from "../../hooks/useOutcome";
+import { OUTCOME_SHAPES, useOutcomeComposition } from "../../hooks/useOutcomeComposition";
 import { useUiStore } from "../../stores/ui-store";
 import { NotificationCenter } from "../NotificationCenter";
 import { TopbarButton } from "../TopbarButton";
@@ -73,6 +74,16 @@ export function WorkShell({ projectId, outcomeId, children }: WorkShellProps) {
 	useEffect(() => {
 		closeAttemptPanel();
 	}, [outcomeId, closeAttemptPanel]);
+
+	// The relationship graph lives on Mission Control, which is the destination
+	// for a decomposed Outcome. A direct one has no relationships to draw, so
+	// the control stays disabled rather than leading somewhere empty.
+	const composition = useOutcomeComposition(outcomeId).composition;
+	const isDecomposed = composition?.shape === OUTCOME_SHAPES.decomposed;
+	const openRelationshipGraph = () => {
+		if (!outcomeId) return;
+		void navigate({ to: "/work", search: { project: projectId, stage: "decompose", outcome: outcomeId } });
+	};
 
 	const openOutcomesOverview = () => {
 		void navigate({ to: "/work", search: { view: "outcomes" } });
@@ -188,14 +199,17 @@ export function WorkShell({ projectId, outcomeId, children }: WorkShellProps) {
 								<TopbarButton
 									aria-label={t("work.shell.relationshipGraph")}
 									data-testid="work-shell-graph"
-									disabled
+									disabled={!isDecomposed}
+									onClick={openRelationshipGraph}
 									variant="icon"
 								>
 									<Waypoints aria-hidden="true" className="size-icon-md" />
 								</TopbarButton>
 							</span>
 						</TooltipTrigger>
-						<TooltipContent side="bottom">{t("work.shell.relationshipGraphComingSoon")}</TooltipContent>
+						<TooltipContent side="bottom">
+							{isDecomposed ? t("work.shell.relationshipGraph") : t("work.shell.relationshipGraphDirect")}
+						</TooltipContent>
 					</Tooltip>
 
 					<TopbarButton
