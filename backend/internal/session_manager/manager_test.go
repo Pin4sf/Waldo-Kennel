@@ -4928,7 +4928,7 @@ func TestSpawn_HookPATHPinUnavailable(t *testing.T) {
 		executable func() (string, error)
 	}{
 		{"executable unresolvable", func() (string, error) { return "", errors.New("no exe") }},
-		{"executable not named kennel", func() (string, error) { return "/opt/aod/kennel-daemon", nil }},
+		{"executable not named kennel", func() (string, error) { return "/opt/other/kennel-daemon", nil }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

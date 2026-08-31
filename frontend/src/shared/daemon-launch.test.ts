@@ -124,13 +124,13 @@ describe("bundledDaemonIdentityError", () => {
 	it("compares executable paths outside AppImage", () => {
 		const command = "/opt/Kennel/resources/daemon/kennel-daemon";
 		expect(bundledDaemonIdentityError({ executablePath: command }, command, undefined, samePath)).toBeNull();
-		expect(bundledDaemonIdentityError({ executablePath: "/other/ao" }, command, undefined, samePath)).toBe(
-			`Another Kennel daemon is already running from /other/ao; expected ${command}. Stop the other daemon before using this app.`,
+		expect(bundledDaemonIdentityError({ executablePath: "/other/daemon" }, command, undefined, samePath)).toBe(
+			`Another Kennel daemon is already running from /other/daemon; expected ${command}. Stop the other daemon before using this app.`,
 		);
 	});
 
 	it("fails closed outside AppImage when the daemon does not report its binary path", () => {
-		expect(bundledDaemonIdentityError({}, "/opt/ao/resources/daemon/kennel-daemon", undefined, samePath)).toBe(
+		expect(bundledDaemonIdentityError({}, "/opt/Kennel/resources/daemon/kennel-daemon", undefined, samePath)).toBe(
 			"An older Kennel daemon is already running, but it does not report its binary path. Stop it and restart this app.",
 		);
 	});

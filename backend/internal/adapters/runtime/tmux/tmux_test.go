@@ -723,7 +723,7 @@ func TestIsSupervisedProcessAliveFindsExactDescendant(t *testing.T) {
 	r, fr := newTestRuntime(0)
 	fr.outputs = [][]byte{
 		[]byte("100\n"),
-		[]byte("100 1 /bin/sh -c launch\n101 100 /opt/ao agent-process supervise --session sess-1 --launch launch-2 -- codex\n102 101 codex\n"),
+		[]byte("100 1 /bin/sh -c launch\n101 100 /opt/kennel agent-process supervise --session sess-1 --launch launch-2 -- codex\n102 101 codex\n"),
 	}
 
 	alive, err := r.IsSupervisedProcessAlive(context.Background(), ports.RuntimeHandle{ID: "sess-1"}, ports.SupervisedProcessRef{
@@ -739,7 +739,7 @@ func TestIsSupervisedProcessAliveFindsExactDescendant(t *testing.T) {
 }
 
 func TestIsSupervisedProcessAliveRejectsStaleAndUnrelatedProcesses(t *testing.T) {
-	entries, err := parseProcessTable("100 1 /bin/sh\n101 100 /opt/ao agent-process supervise --session sess-1 --launch launch-old -- codex\n102 101 codex\n200 1 /opt/ao agent-process supervise --session sess-1 --launch launch-new -- codex\n201 200 codex\n")
+	entries, err := parseProcessTable("100 1 /bin/sh\n101 100 /opt/kennel agent-process supervise --session sess-1 --launch launch-old -- codex\n102 101 codex\n200 1 /opt/kennel agent-process supervise --session sess-1 --launch launch-new -- codex\n201 200 codex\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -755,7 +755,7 @@ func TestIsSupervisedProcessAliveRejectsStaleAndUnrelatedProcesses(t *testing.T)
 }
 
 func TestExactSupervisedWorkloadRejectsSupervisorReportingExitedChild(t *testing.T) {
-	entries, err := parseProcessTable("100 1 /bin/sh\n101 100 /opt/ao agent-process supervise --session sess-1 --launch launch-2 -- codex\n")
+	entries, err := parseProcessTable("100 1 /bin/sh\n101 100 /opt/kennel agent-process supervise --session sess-1 --launch launch-2 -- codex\n")
 	if err != nil {
 		t.Fatal(err)
 	}
