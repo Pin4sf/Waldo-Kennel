@@ -122,7 +122,7 @@ func (controller *IntakesController) answer(w http.ResponseWriter, r *http.Reque
 	if !decodeIntakeJSON(w, r, &request) {
 		return
 	}
-	snapshot, err := controller.Svc.AnswerClarification(r.Context(), domain.IntakeSessionID(chi.URLParam(r, "intakeId")), intakevc.AnswerClarificationInput{ExpectedProposalRevision: request.ExpectedProposalRevision, Answer: request.Answer})
+	snapshot, err := controller.Svc.AnswerClarification(r.Context(), domain.IntakeSessionID(chi.URLParam(r, "intakeId")), intakevc.AnswerClarificationInput{ExpectedProposalRevision: request.ExpectedProposalRevision, Answer: request.Answer, Offline: request.Offline})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return

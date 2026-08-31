@@ -42,6 +42,12 @@ type AnalyzeInput struct {
 type AnswerClarificationInput struct {
 	ExpectedProposalRevision int64
 	Answer                   string
+	// Offline routes the answer through the deterministic baseline instead of
+	// asking an agent, exactly as AnalyzeInput.Offline does. Without it an
+	// owner who deliberately took the offline proposal could not finish the
+	// intake: the clarification it asked would be answered to an agent that
+	// may defer, leaving the intake in `analyzing` until it expired.
+	Offline bool
 }
 
 // ReviseProposalInput appends a user-reviewed immutable proposal.
@@ -234,16 +240,17 @@ func (service *Service) AnswerClarification(ctx context.Context, id domain.Intak
 	if snapshot.Session.Status != domain.IntakeStatusNeedsUser || snapshot.Clarification == nil {
 		return ports.IntakeSnapshot{}, apierr.Conflict("INTAKE_STATE_CONFLICT", "This intake is not waiting for a clarification answer", nil)
 	}
-	if service.analyzer == nil {
-		return ports.IntakeSnapshot{}, apierr.Internal("INTAKE_ANALYZER_UNAVAILABLE", "Outcome analysis is not configured")
-	}
+	// chooseAnalyzer already falls back to the offline floor when no agent
+	// analyzer is configured — "the floor is never absent" — so answering must
+	// route through it rather than reaching for service.analyzer directly.
+	analyzer := service.chooseAnalyzer(input.Offline)
 	now := service.clock()
 	analyzing, err := service.store.AnswerIntakeClarification(ctx, id, input.ExpectedProposalRevision, input.Answer, now)
 	if err != nil {
 		return ports.IntakeSnapshot{}, mapStoreError(err)
 	}
 	deferral := service.newDeferral(id, input.ExpectedProposalRevision)
-	ticket, err := service.analyzer.Analyze(ctx, ports.IntakeAnalysisInput{
+	ticket, err := analyzer.Analyze(ctx, ports.IntakeAnalysisInput{
 		Session: analyzing.Session, ConversationRefs: analyzing.ConversationRefs,
 		PreviousProposal: analyzing.Proposal, Clarification: analyzing.Clarification,
 		ClarificationText: input.Answer,

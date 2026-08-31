@@ -875,3 +875,55 @@ func TestAFailedReapNeverUndoesTheDurableClose(t *testing.T) {
 type failingReaper struct{}
 
 func (failingReaper) Kill(context.Context, string) error { return errors.New("tmux is gone") }
+
+// An owner who deliberately took the offline proposal has to be able to finish
+// the intake. AnswerClarification used to reach for service.analyzer directly,
+// so the answer went to an agent that could defer: the intake then sat in
+// `analyzing` until its request expired, and the offline path had no ending.
+// The scripted analyzer holds exactly one result - the clarification - so any
+// second call would be answering from an empty script.
+func TestAnsweringAClarificationOfflineNeverAsksAnAgent(t *testing.T) {
+	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+	store := &memoryIntakeStore{}
+	analyzer := &scriptedAnalyzer{results: []ports.IntakeAnalysisResult{
+		{Clarification: &domain.ClarificationRequest{
+			Question: "What does today mean for this Outcome?",
+			Reason:   "The date boundary changes which records count toward success.",
+		}},
+	}}
+	service := New(store, analyzer, func() time.Time { return now })
+
+	captured, err := service.Capture(context.Background(), CaptureInput{
+		SourceSurface: domain.IntakeSourceWork, Purpose: domain.IntakePurposeOutcome,
+		ProjectID: "project-1", Statement: "Show my total focus time today", RequestKey: "capture-offline-answer",
+	})
+	if err != nil {
+		t.Fatalf("Capture() error = %v", err)
+	}
+	needsUser, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0})
+	if err != nil {
+		t.Fatalf("Analyze() error = %v", err)
+	}
+	if needsUser.Session.Status != domain.IntakeStatusNeedsUser {
+		t.Fatalf("Analyze() status = %q, want needs_user", needsUser.Session.Status)
+	}
+	asked := analyzer.calls
+
+	ready, err := service.AnswerClarification(context.Background(), captured.Session.ID, AnswerClarificationInput{
+		ExpectedProposalRevision: 0,
+		Answer:                   "The Mac's local calendar day.",
+		Offline:                  true,
+	})
+	if err != nil {
+		t.Fatalf("AnswerClarification(offline) error = %v", err)
+	}
+	if ready.Session.Status != domain.IntakeStatusReady || ready.Proposal == nil {
+		t.Fatalf("offline answer left the intake at %q with proposal present=%v, want a ready proposal", ready.Session.Status, ready.Proposal != nil)
+	}
+	if analyzer.calls != asked {
+		t.Fatalf("the offline answer asked an agent anyway: analyzer calls %d -> %d", asked, analyzer.calls)
+	}
+	if len(store.requests) != 0 {
+		t.Fatalf("an offline answer opened %d durable agent ask(s); it must open none", len(store.requests))
+	}
+}

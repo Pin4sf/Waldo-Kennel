@@ -7820,6 +7820,8 @@ components:
         expectedProposalRevision:
           format: int64
           type: integer
+        offline:
+          type: boolean
       required:
       - expectedProposalRevision
       - answer
