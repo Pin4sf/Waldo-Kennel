@@ -435,7 +435,7 @@ func (s *Service) activeOrchestrators(ctx context.Context, projectID domain.Proj
 	return s.List(ctx, ListFilter{ProjectID: projectID, Active: &active, OrchestratorOnly: true})
 }
 
-const orchestratorRetireNotice = "AO is replacing this project orchestrator. Stop coordinating new work now; a fresh orchestrator will take over in a new workspace."
+const orchestratorRetireNotice = "Kennel is replacing this project orchestrator. Stop coordinating new work now; a fresh orchestrator will take over in a new workspace."
 
 func (s *Service) sendRetireNotice(ctx context.Context, id domain.SessionID) error {
 	if err := s.manager.Send(ctx, id, orchestratorRetireNotice, nil); err != nil {
@@ -921,7 +921,7 @@ func toAPIError(err error) error {
 			"The agent has not exposed a native conversation that can resume in the other interface", nil)
 	case errors.Is(err, sessionmanager.ErrInterfaceTransitionNotCancellable):
 		return apierr.Conflict("INTERFACE_TRANSITION_NOT_CANCELLABLE",
-			"The source controller has already stopped; AO must finish or recover the switch", nil)
+			"The source controller has already stopped; Kennel must finish or recover the switch", nil)
 	case errors.Is(err, sessionmanager.ErrInterfaceAlreadySelected):
 		return apierr.Conflict("INTERFACE_ALREADY_SELECTED",
 			"The session is already using the requested interface", nil)
@@ -969,19 +969,19 @@ func toAPIError(err error) error {
 			"The handoff is stale or its collection window has closed", nil)
 	case errors.Is(err, sessionmanager.ErrInvalidAgentHandoff):
 		return apierr.Invalid("INVALID_AGENT_HANDOFF",
-			"The handoff does not satisfy AO's semantic handoff schema", nil)
+			"The handoff does not satisfy Kennel's semantic handoff schema", nil)
 	case errors.Is(err, sessionmanager.ErrSwitchDeliveryUnconfirmed):
 		return apierr.Conflict("AGENT_SWITCH_DELIVERY_UNCONFIRMED",
-			"The target agent started, but AO could not confirm that it accepted the continuation", nil)
+			"The target agent started, but Kennel could not confirm that it accepted the continuation", nil)
 	case errors.Is(err, sessionmanager.ErrSwitchInProgress):
 		return apierr.Conflict("AGENT_SWITCH_IN_PROGRESS",
 			"This session already has an agent switch in progress", nil)
 	case errors.Is(err, sessionmanager.ErrSwitchShuttingDown):
 		return apierr.Conflict("AGENT_SWITCH_UNAVAILABLE",
-			"AO is shutting down and cannot start another agent switch", nil)
+			"Kennel is shutting down and cannot start another agent switch", nil)
 	case errors.Is(err, sessionmanager.ErrSwitchUnavailable):
 		return apierr.Conflict("AGENT_SWITCH_UNAVAILABLE",
-			"Agent switching is unavailable in this AO instance", nil)
+			"Agent switching is unavailable in this Kennel instance", nil)
 	case errors.Is(err, domain.ErrAgentSwitchIdempotencyConflict):
 		return apierr.Conflict("AGENT_SWITCH_IDEMPOTENCY_CONFLICT",
 			"The idempotency key is already associated with a different agent switch", nil)

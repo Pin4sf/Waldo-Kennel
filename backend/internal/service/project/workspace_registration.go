@@ -173,7 +173,7 @@ func detectWorkspaceChildren(ctx context.Context, parent string, projectID domai
 				"Child repository name is reserved for internal use",
 				map[string]any{
 					"path":         child,
-					"suggestedFix": fmt.Sprintf("Rename the directory %q — the name %q is reserved by AO for the workspace root.", child, domain.RootWorkspaceRepoName),
+					"suggestedFix": fmt.Sprintf("Rename the directory %q — the name %q is reserved by Kennel for the workspace root.", child, domain.RootWorkspaceRepoName),
 				})
 		}
 		if !isGitRepo(child) {
@@ -264,7 +264,7 @@ func adoptWorkspaceParent(ctx context.Context, parent string, repos []domain.Wor
 	if err := guardNoGitlinks(ctx, parent); err != nil {
 		return err
 	}
-	if _, err := gitOutput(ctx, parent, "commit", "-m", "chore: configure AO workspace ignores", "--", ".gitignore"); err != nil {
+	if _, err := gitOutput(ctx, parent, "commit", "-m", "chore: configure Kennel workspace ignores", "--", ".gitignore"); err != nil {
 		return apierr.Invalid("WORKSPACE_PARENT_COMMIT_FAILED", "Failed to commit workspace parent .gitignore", map[string]any{"error": err.Error()})
 	}
 	return nil
@@ -314,7 +314,7 @@ func initWorkspaceParentWithGit(ctx context.Context, parent string, repos []doma
 	if err := guardNoGitlinks(ctx, parent); err != nil {
 		return err
 	}
-	if _, err := runGit(ctx, parent, "commit", "-m", "chore: initialize AO workspace root"); err != nil {
+	if _, err := runGit(ctx, parent, "commit", "-m", "chore: initialize Kennel workspace root"); err != nil {
 		return apierr.Invalid("WORKSPACE_PARENT_COMMIT_FAILED", "Failed to create workspace parent initial commit", map[string]any{"error": err.Error()})
 	}
 	return nil

@@ -2174,7 +2174,7 @@ func TestToAPIErrorSwitchDeliveryUnconfirmedMessage(t *testing.T) {
 	if apiError.Code != "AGENT_SWITCH_DELIVERY_UNCONFIRMED" {
 		t.Fatalf("code = %q, want AGENT_SWITCH_DELIVERY_UNCONFIRMED", apiError.Code)
 	}
-	const wantMessage = "The target agent started, but AO could not confirm that it accepted the continuation"
+	const wantMessage = "The target agent started, but Kennel could not confirm that it accepted the continuation"
 	if apiError.Message != wantMessage {
 		t.Fatalf("message = %q, want %q", apiError.Message, wantMessage)
 	}

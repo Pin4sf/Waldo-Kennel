@@ -250,7 +250,7 @@ func outcomeSessionDisplayName(brief string) string {
 
 func taskTitleDelegationMessage(workerID domain.SessionID, in DelegateTaskInput) string {
 	var b strings.Builder
-	b.WriteString("AO TASK TITLE UPDATE\n")
+	b.WriteString("Kennel TASK TITLE UPDATE\n")
 	b.WriteString("A worker was already spawned directly with the user's task. Do not spawn another worker or orchestrator, and do not implement the task in this orchestrator session.\n")
 	b.WriteString("Choose a concise task title from the brief and run:\n\n")
 	b.WriteString("kennel session rename ")
