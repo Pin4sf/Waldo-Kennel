@@ -163,7 +163,15 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		setPending(true); setError(null);
 		void apiClient.POST("/api/v1/intakes/{intakeId}/analysis", { params: { path: { intakeId } }, body: { expectedProposalRevision: snapshot.session.currentProposalRevision } })
 			.then(({ data, error: apiError }) => { if (apiError) throw apiError; setSnapshot(data.intake); })
-			.catch((cause) => setError(apiErrorMessage(cause)))
+			.catch((cause) => {
+				setError(apiErrorMessage(cause));
+				// The daemon has already recorded a durable failure; without
+				// re-reading it this surface keeps the pre-analysis snapshot and
+				// falls through to a bare error message with nothing to click.
+				// Re-reading is what puts the person on the recovery surface,
+				// where the offline proposal and a retry actually live.
+				void query.refetch();
+			})
 			.finally(() => setPending(false));
 	}, [intakeId, snapshot]);
 
