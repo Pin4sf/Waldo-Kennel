@@ -568,8 +568,9 @@ func (store *memoryIntakeStore) AnswerIntakeAnalysisRequest(_ context.Context, a
 // deferringAnalyzer opens a callback and answers nothing, as an agent-backed
 // analyzer does. It records the callback so a test can answer on it.
 type deferringAnalyzer struct {
-	callback ports.IntakeCallback
-	openErr  error
+	callback      ports.IntakeCallback
+	openErr       error
+	failAfterOpen error
 }
 
 func (a *deferringAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysisInput) (ports.IntakeAnalysisTicket, error) {
@@ -579,6 +580,9 @@ func (a *deferringAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnaly
 		return ports.IntakeAnalysisTicket{}, err
 	}
 	a.callback = callback
+	if a.failAfterOpen != nil {
+		return ports.IntakeAnalysisTicket{}, a.failAfterOpen
+	}
 	return ports.IntakeAnalysisTicket{SessionID: "sess-analyst", Harness: "codex", Detail: "codex is proposing a Contract"}, nil
 }
 
@@ -743,5 +747,41 @@ func TestOnlyOneAgentMayWorkOnAnIntakeAtATime(t *testing.T) {
 	}
 	if len(store.requests) != 1 {
 		t.Fatalf("a competing request was written anyway: %d", len(store.requests))
+	}
+}
+
+// A spawn that fails leaves an ask nothing will ever answer. Holding it open
+// would make the one-open-ask-at-a-time guard refuse every retry for the full
+// TTL, so an instant failure would lock the owner out for fifteen minutes.
+func TestAFailedAnalyzerClosesTheAskItOpened(t *testing.T) {
+	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+	store := &memoryIntakeStore{}
+	analyzer := &deferringAnalyzer{failAfterOpen: errors.New("duplicate session: mesa-5")}
+	service := New(store, analyzer, func() time.Time { return now })
+	captured, err := service.Capture(context.Background(), CaptureInput{SourceSurface: domain.IntakeSourceWork, Purpose: domain.IntakePurposeOutcome, ProjectID: "project-1", Statement: "Spawn will fail", RequestKey: "capture-spawnfail"})
+	if err != nil {
+		t.Fatalf("Capture() error = %v", err)
+	}
+
+	if _, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0}); err == nil {
+		t.Fatal("Analyze() error = nil, want the spawn failure")
+	}
+	if len(store.requests) != 1 {
+		t.Fatalf("want the opened ask retained, got %d", len(store.requests))
+	}
+	if store.requests[0].Status.Open() {
+		t.Fatalf("the ask stayed open after the analyzer failed: %+v", store.requests[0])
+	}
+	if !strings.Contains(store.requests[0].RefusalReason, "duplicate session") {
+		t.Fatalf("the ask was closed without the adapter's own words: %q", store.requests[0].RefusalReason)
+	}
+
+	// Retrying must now be possible rather than refused as a conflict.
+	analyzer.failAfterOpen = nil
+	if _, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0}); err != nil {
+		t.Fatalf("retry after a failed spawn = %v, want a fresh ask", err)
+	}
+	if len(store.requests) != 2 {
+		t.Fatalf("retry did not open a new ask: %d", len(store.requests))
 	}
 }

@@ -185,6 +185,9 @@ func (service *Service) Analyze(ctx context.Context, id domain.IntakeSessionID, 
 		Defer: deferral.open,
 	})
 	if err != nil {
+		// An analyzer that opened an ask and then failed has left one nothing
+		// will ever answer; closing it here is what keeps a retry possible.
+		deferral.abandon(ctx, err.Error())
 		_, _ = service.store.FailIntakeAnalysis(ctx, id, input.ExpectedProposalRevision, "INTAKE_ANALYSIS_FAILED", service.clock())
 		return ports.IntakeSnapshot{}, err
 	}
@@ -226,6 +229,7 @@ func (service *Service) AnswerClarification(ctx context.Context, id domain.Intak
 		Defer:             deferral.open,
 	})
 	if err != nil {
+		deferral.abandon(ctx, err.Error())
 		_, _ = service.store.FailIntakeAnalysis(ctx, id, input.ExpectedProposalRevision, "INTAKE_ANALYSIS_FAILED", service.clock())
 		return ports.IntakeSnapshot{}, err
 	}
@@ -257,6 +261,23 @@ type deferral struct {
 
 func (service *Service) newDeferral(id domain.IntakeSessionID, expectedRevision int64) *deferral {
 	return &deferral{service: service, intakeID: id, expectedRevision: expectedRevision}
+}
+
+// abandon closes an ask whose analyzer never got as far as answering.
+//
+// Without this a failed spawn leaves the request open for its full TTL, and
+// the one-open-ask-at-a-time guard then refuses every retry for fifteen
+// minutes — so the owner is locked out of asking again by a failure that
+// happened instantly. Decomposition closes its request on spawn failure for
+// the same reason.
+func (d *deferral) abandon(ctx context.Context, reason string) {
+	if d.request == nil {
+		return
+	}
+	_ = d.service.store.AnswerIntakeAnalysisRequest(ctx, ports.IntakeAnalysisRequestAnswer{
+		RequestID: d.request.ID, Status: domain.IntakeAnalysisRejected,
+		RefusalReason: reason, At: d.service.clock(),
+	})
 }
 
 func (d *deferral) open(ctx context.Context) (ports.IntakeCallback, error) {
