@@ -50,7 +50,7 @@ func (p agentDecompositionProposer) Propose(ctx context.Context, in ports.Decomp
 
 	// The analyzer role decides which harness may propose. A harness that is
 	// not admitted to coordinate is not admitted to decompose either.
-	roles := domain.ResolveMissionRoles(record.Config.AgentPreferences)
+	roles := domain.ResolveMissionRoles(record.Config)
 	harness := roles.Analyzer.Harness
 	if harness == "" {
 		return ports.DecompositionProposalTicket{}, fmt.Errorf("no analyzer harness is resolved for project %s", in.ProjectID)

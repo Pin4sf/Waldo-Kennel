@@ -666,7 +666,7 @@ func (m *Service) ResolvedMissionRoles(ctx context.Context, id domain.ProjectID)
 	if m.roles != nil {
 		return m.roles.ResolveMissionRoles(ctx, prefs, row.Config), nil
 	}
-	return domain.ResolveMissionRoles(prefs), nil
+	return domain.ResolveMissionRoles(row.Config), nil
 }
 
 func validateScratchProjectConfig(cfg domain.ProjectConfig) error {

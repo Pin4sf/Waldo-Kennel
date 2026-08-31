@@ -785,3 +785,93 @@ func TestAFailedAnalyzerClosesTheAskItOpened(t *testing.T) {
 		t.Fatalf("retry did not open a new ask: %d", len(store.requests))
 	}
 }
+
+type recordingReaper struct{ killed []string }
+
+func (r *recordingReaper) Kill(_ context.Context, sessionID string) error {
+	r.killed = append(r.killed, sessionID)
+	return nil
+}
+
+// A proposing session has exactly one job and is finished the moment its ask
+// closes — however it closes. Leaving it running holds a worktree and a
+// runtime name the next spawn for the same project collides with.
+func TestEveryClosedAskReapsItsProposingSession(t *testing.T) {
+	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+
+	for _, test := range []struct {
+		name  string
+		close func(*testing.T, *Service, *deferringAnalyzer, domain.IntakeSessionID)
+	}{
+		{name: "fulfilled", close: func(t *testing.T, s *Service, a *deferringAnalyzer, _ domain.IntakeSessionID) {
+			if _, err := s.SubmitAgentProposal(context.Background(), a.callback.RequestID, a.callback.Token,
+				ports.IntakeAnalysisResult{Proposal: validProposalDraft("Agent proposal")}, "{}"); err != nil {
+				t.Fatalf("submit: %v", err)
+			}
+		}},
+		{name: "refused", close: func(t *testing.T, s *Service, a *deferringAnalyzer, _ domain.IntakeSessionID) {
+			if _, err := s.SubmitAgentProposal(context.Background(), a.callback.RequestID, a.callback.Token,
+				ports.IntakeAnalysisResult{Proposal: &domain.OutcomeContractProposal{}}, "{}"); err == nil {
+				t.Fatal("an invalid proposal was accepted")
+			}
+		}},
+		{name: "cancelled", close: func(t *testing.T, s *Service, _ *deferringAnalyzer, id domain.IntakeSessionID) {
+			if _, err := s.CancelAnalysisRequest(context.Background(), id); err != nil {
+				t.Fatalf("cancel: %v", err)
+			}
+		}},
+		{name: "expired", close: func(t *testing.T, s *Service, _ *deferringAnalyzer, _ domain.IntakeSessionID) {
+			late := New(s.store, nil, func() time.Time { return now.Add(domain.DefaultIntakeAnalysisRequestTTL + time.Minute) })
+			late.reaper = s.reaper
+			if closed, err := late.ExpireStaleAnalysisRequests(context.Background()); err != nil || closed != 1 {
+				t.Fatalf("expire = %d err=%v", closed, err)
+			}
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := &memoryIntakeStore{}
+			analyzer := &deferringAnalyzer{}
+			reaper := &recordingReaper{}
+			service := New(store, analyzer, func() time.Time { return now }).WithAnalystSessionReaper(reaper)
+			captured, err := service.Capture(context.Background(), CaptureInput{SourceSurface: domain.IntakeSourceWork, Purpose: domain.IntakePurposeOutcome, ProjectID: "project-1", Statement: "Let an agent draft this", RequestKey: "capture-" + test.name})
+			if err != nil {
+				t.Fatalf("Capture() error = %v", err)
+			}
+			if _, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0}); err != nil {
+				t.Fatalf("Analyze() error = %v", err)
+			}
+
+			test.close(t, service, analyzer, captured.Session.ID)
+
+			if len(reaper.killed) != 1 || reaper.killed[0] != "sess-analyst" {
+				t.Fatalf("closing as %s reaped %v, want the one proposing session", test.name, reaper.killed)
+			}
+		})
+	}
+}
+
+// Reaping runs only after the ask is durably closed, so a kill that fails
+// costs a stray process rather than a record that disagrees with reality.
+func TestAFailedReapNeverUndoesTheDurableClose(t *testing.T) {
+	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+	store := &memoryIntakeStore{}
+	analyzer := &deferringAnalyzer{}
+	service := New(store, analyzer, func() time.Time { return now }).WithAnalystSessionReaper(failingReaper{})
+	captured, _ := service.Capture(context.Background(), CaptureInput{SourceSurface: domain.IntakeSourceWork, Purpose: domain.IntakePurposeOutcome, ProjectID: "project-1", Statement: "Let an agent draft this", RequestKey: "capture-reapfail"})
+	if _, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0}); err != nil {
+		t.Fatalf("Analyze() error = %v", err)
+	}
+
+	ready, err := service.SubmitAgentProposal(context.Background(), analyzer.callback.RequestID, analyzer.callback.Token,
+		ports.IntakeAnalysisResult{Proposal: validProposalDraft("Agent proposal")}, "{}")
+	if err != nil {
+		t.Fatalf("a failing reap broke the answer: %v", err)
+	}
+	if ready.Session.Status != domain.IntakeStatusReady || store.requests[0].Status != domain.IntakeAnalysisFulfilled {
+		t.Fatalf("close did not stand: %+v / %+v", ready.Session, store.requests[0])
+	}
+}
+
+type failingReaper struct{}
+
+func (failingReaper) Kill(context.Context, string) error { return errors.New("tmux is gone") }

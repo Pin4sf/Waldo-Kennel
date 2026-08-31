@@ -413,7 +413,8 @@ func Run() error {
 	// spawn path, on the analyzer role, and answers on the daemon's own
 	// loopback origin. Requests that expired while the daemon was down are
 	// swept once here — the deadline is durable, not an in-memory timer.
-	outcomeSvc := outcomevc.New(store, nil).WithDecompositionProposer(agentDecompositionProposer{
+	reaper := sessionReaper{sessions: sessionSvc}
+	outcomeSvc := outcomevc.New(store, nil).WithAnalystSessionReaper(reaper).WithDecompositionProposer(agentDecompositionProposer{
 		sessions:     sessionSvc,
 		projects:     store,
 		agents:       agents,
@@ -434,7 +435,7 @@ func Run() error {
 		agents:       agents,
 		offline:      intakevc.NewRuleBasedAnalyzer(),
 		callbackBase: fmt.Sprintf("http://%s:%d", config.LoopbackHost, cfg.Port),
-	}, nil)
+	}, nil).WithAnalystSessionReaper(reaper)
 	// Order matters. Expiry runs FIRST: it closes asks whose deadline passed
 	// while the daemon was down and returns their intakes to a retryable
 	// failure. Only then does the interrupted-analysis sweep run, which skips

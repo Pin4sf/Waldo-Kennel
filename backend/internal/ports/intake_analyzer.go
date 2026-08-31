@@ -85,3 +85,18 @@ type IntakeAnalysisTicket struct {
 type IntakeAnalyzer interface {
 	Analyze(context.Context, IntakeAnalysisInput) (IntakeAnalysisTicket, error)
 }
+
+// AnalystSessionReaper ends the bounded session spawned to answer an ask, once
+// that ask is closed.
+//
+// A proposing session has exactly one job and is finished the moment its
+// answer lands — or the moment the ask is refused, expired, or cancelled.
+// Leaving it running is not merely untidy: it holds a worktree and a runtime
+// name, and the next spawn for the same project collides with it.
+//
+// Reaping is best-effort by construction. The ask is already durably closed
+// before this runs, so a failure to kill leaves a stray process, never an
+// inconsistent record.
+type AnalystSessionReaper interface {
+	Kill(ctx context.Context, sessionID string) error
+}

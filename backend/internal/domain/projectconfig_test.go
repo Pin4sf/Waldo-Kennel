@@ -242,7 +242,7 @@ func TestProjectAgentPreferencesValidateAcceptsEligibleCombinations(t *testing.T
 }
 
 func TestResolveMissionRolesDistinguishesPreferenceFromDefault(t *testing.T) {
-	roles := ResolveMissionRoles(ProjectAgentPreferences{DefaultWorker: "deepseek-harness"})
+	roles := ResolveMissionRoles(ProjectConfig{AgentPreferences: ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}})
 	if roles.Worker.Harness != HarnessDeepSeekHarness || roles.Worker.Source != RoleSourcePreference {
 		t.Fatalf("worker should honor the preference: %+v", roles.Worker)
 	}
@@ -250,7 +250,7 @@ func TestResolveMissionRolesDistinguishesPreferenceFromDefault(t *testing.T) {
 		t.Fatalf("unset roles fall back to the recommended default: %+v", roles.Coordinator)
 	}
 
-	defaults := ResolveMissionRoles(ProjectAgentPreferences{})
+	defaults := ResolveMissionRoles(ProjectConfig{AgentPreferences: ProjectAgentPreferences{}})
 	for _, role := range []ResolvedAgentRole{defaults.Analyzer, defaults.Coordinator, defaults.Worker, defaults.Verifier} {
 		if role.Harness != HarnessCodex || role.Source != RoleSourceDefault {
 			t.Fatalf("empty preferences resolve every role to codex-by-default: %+v", role)
@@ -274,5 +274,55 @@ func TestProjectConfigRoundTripsAgentPreferences(t *testing.T) {
 	}
 	if err := back.Validate(); err != nil {
 		t.Fatalf("round-tripped config must validate: %v", err)
+	}
+}
+
+// The project selects its worker and orchestrator harness in Settings and in
+// the Outcome composer. A Mission role with no separate preference recorded
+// has to follow that selection: before this, a project that displayed
+// "opencode" everywhere still spawned Codex for analysis and decomposition,
+// because those roles read only agentPreferences and fell back to a constant.
+func TestMissionRolesFollowTheHarnessTheProjectSelected(t *testing.T) {
+	cfg := ProjectConfig{
+		Worker:       RoleOverride{Harness: HarnessOpenCode},
+		Orchestrator: RoleOverride{Harness: HarnessOpenCode},
+	}
+	roles := ResolveMissionRoles(cfg)
+	if roles.Worker.Harness != HarnessOpenCode {
+		t.Errorf("worker = %q, want the selected harness", roles.Worker.Harness)
+	}
+	for name, role := range map[string]ResolvedAgentRole{
+		"analyzer": roles.Analyzer, "coordinator": roles.Coordinator, "verifier": roles.Verifier,
+	} {
+		if role.Harness != HarnessOpenCode {
+			t.Errorf("%s = %q, want the selected orchestrator harness", name, role.Harness)
+		}
+	}
+}
+
+// An explicit Mission-role preference is still the stronger statement: it is
+// set for that role specifically, while the selection covers a whole class.
+func TestAnExplicitRolePreferenceOutranksTheSelection(t *testing.T) {
+	roles := ResolveMissionRoles(ProjectConfig{
+		AgentPreferences: ProjectAgentPreferences{Analyzer: string(HarnessCodex)},
+		Orchestrator:     RoleOverride{Harness: HarnessOpenCode},
+	})
+	if roles.Analyzer.Harness != HarnessCodex {
+		t.Errorf("analyzer = %q, want the explicit preference", roles.Analyzer.Harness)
+	}
+	// The roles that carry no preference of their own still follow selection.
+	if roles.Coordinator.Harness != HarnessOpenCode {
+		t.Errorf("coordinator = %q, want the selected harness", roles.Coordinator.Harness)
+	}
+}
+
+// A selection the role cannot admit is not silently honored; it falls through
+// to the capability default rather than proposing something spawn would refuse.
+func TestAnIneligibleSelectionFallsThroughToTheDefault(t *testing.T) {
+	roles := ResolveMissionRoles(ProjectConfig{
+		Orchestrator: RoleOverride{Harness: AgentHarness("deepseek-harness")},
+	})
+	if roles.Analyzer.Harness != HarnessCodex {
+		t.Errorf("analyzer = %q, want the capability default for an ineligible selection", roles.Analyzer.Harness)
 	}
 }

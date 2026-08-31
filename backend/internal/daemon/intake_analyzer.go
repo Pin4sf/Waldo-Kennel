@@ -106,7 +106,7 @@ func (a agentIntakeAnalyzer) resolveAnalyst(ctx context.Context, projectID domai
 	// The analyzer role decides which harness may propose. A harness not
 	// admitted to analyze is not admitted here either, and there is no
 	// fallback to a different provider.
-	harness := domain.ResolveMissionRoles(record.Config.AgentPreferences).Analyzer.Harness
+	harness := domain.ResolveMissionRoles(record.Config).Analyzer.Harness
 	if harness == "" {
 		return "", false
 	}
@@ -296,3 +296,26 @@ const intakeCallbackHeader = "X-Kennel-Intake-Token" //nolint:gosec // header NA
 // expiry. Well under the request TTL, so an abandoned ask reaches a verdict
 // within a fraction of its own lifetime rather than at the next restart.
 const intakeAnalysisSweepInterval = 2 * time.Minute
+
+// sessionReaper ends a bounded proposing session through the ordinary session
+// service, adding no new teardown path of its own.
+//
+// It exists because a session spawned to answer one question has nothing left
+// to do once the answer lands. Before this, those sessions accumulated: the
+// composed-Outcomes handoff recorded two proposer sessions still sitting in a
+// live project weeks after they answered, and a stale one also holds its
+// runtime name — a later spawn for the same project fails with "duplicate
+// session" until someone kills it by hand.
+type sessionReaper struct {
+	sessions attemptSessionControl
+}
+
+var _ ports.AnalystSessionReaper = sessionReaper{}
+
+func (r sessionReaper) Kill(ctx context.Context, sessionID string) error {
+	if r.sessions == nil || strings.TrimSpace(sessionID) == "" {
+		return nil
+	}
+	_, err := r.sessions.Kill(ctx, domain.SessionID(sessionID))
+	return err
+}

@@ -137,6 +137,8 @@ type Service struct {
 	proof ports.OutcomeProofStore
 	// proposer starts agent-authored decomposition work. Nil means unwired.
 	proposer ports.DecompositionProposer
+	// reaper ends a proposing session once its ask is closed. Optional.
+	reaper ports.AnalystSessionReaper
 	clock    func() time.Time
 
 	// PolicyLayers optionally narrows the authority ceiling for tests and
@@ -176,6 +178,14 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 		service.proof = proof
 	}
 	return service
+}
+
+// WithAnalystSessionReaper wires session cleanup for answered asks. A
+// proposing session has one job and is finished when its answer lands; leaving
+// it running holds a worktree and a runtime name the next spawn collides with.
+func (s *Service) WithAnalystSessionReaper(reaper ports.AnalystSessionReaper) *Service {
+	s.reaper = reaper
+	return s
 }
 
 // WithDecompositionProposer wires agent-authored decomposition. A nil proposer

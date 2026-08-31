@@ -709,8 +709,15 @@ func EnrichMissionRoles(base domain.ResolvedMissionRoles, facts map[domain.Agent
 // into one daemon-resolved role proposal. Assignments are proposals for
 // future Missions; historical sessions and approved Plans keep their
 // immutable provider identity regardless of what this returns.
+func withPreferences(cfg domain.ProjectConfig, prefs domain.ProjectAgentPreferences) domain.ProjectConfig {
+	// Callers pass preferences separately from the config they came from; the
+	// resolver now needs both in one place, and the explicit argument wins.
+	cfg.AgentPreferences = prefs
+	return cfg
+}
+
 func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences, cfg domain.ProjectConfig) domain.ResolvedMissionRoles {
-	base := domain.ResolveMissionRoles(prefs)
+	base := domain.ResolveMissionRoles(withPreferences(cfg, prefs))
 	facts := s.InventoryRoleFacts(ctx, s.uniqueHarnesses(base))
 	// Profile readiness is Project-config-aware: each role is probed with the
 	// AgentConfig that launch would actually merge (role override when set,

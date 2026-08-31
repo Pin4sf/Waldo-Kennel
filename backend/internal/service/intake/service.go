@@ -72,7 +72,28 @@ type Service struct {
 	// there is always a proposal available, and the owner can always choose it
 	// over waiting for one.
 	offline ports.IntakeAnalyzer
-	clock   func() time.Time
+	// reaper ends a proposing session once its ask is closed. Optional: a nil
+	// reaper simply leaves sessions running, which is what the daemon did
+	// before this existed.
+	reaper ports.AnalystSessionReaper
+	clock  func() time.Time
+}
+
+// WithAnalystSessionReaper wires session cleanup for answered asks.
+func (service *Service) WithAnalystSessionReaper(reaper ports.AnalystSessionReaper) *Service {
+	service.reaper = reaper
+	return service
+}
+
+// reap ends the session that answered (or failed to answer) one ask.
+//
+// Called only AFTER the ask is durably closed, so a kill that fails costs a
+// stray process rather than a record that disagrees with reality.
+func (service *Service) reap(ctx context.Context, sessionID string) {
+	if service.reaper == nil || strings.TrimSpace(sessionID) == "" {
+		return
+	}
+	_ = service.reaper.Kill(ctx, sessionID)
 }
 
 // New constructs the shared adaptive intake service.
@@ -430,6 +451,7 @@ func (service *Service) SubmitAgentProposal(
 	}); err != nil && !errors.Is(err, ports.ErrIntakeAnalysisRequestClosed) {
 		return ports.IntakeSnapshot{}, err
 	}
+	service.reap(ctx, request.SessionID)
 	return completed, nil
 }
 
@@ -445,6 +467,7 @@ func (service *Service) rejectAgentProposal(ctx context.Context, request domain.
 		return ports.IntakeSnapshot{}, err
 	}
 	_, _ = service.store.FailIntakeAnalysis(ctx, request.IntakeID, request.ExpectedProposalRevision, "INTAKE_ANALYSIS_REFUSED", now)
+	service.reap(ctx, request.SessionID)
 	return ports.IntakeSnapshot{}, apierr.Invalid("INTAKE_ANALYSIS_REFUSED", reason,
 		map[string]any{"requestId": string(request.ID)})
 }
@@ -473,6 +496,7 @@ func (service *Service) CancelAnalysisRequest(ctx context.Context, id domain.Int
 	}); err != nil && !errors.Is(err, ports.ErrIntakeAnalysisRequestClosed) {
 		return ports.IntakeSnapshot{}, err
 	}
+	service.reap(ctx, request.SessionID)
 	return service.store.FailIntakeAnalysis(ctx, id, request.ExpectedProposalRevision, "INTAKE_ANALYSIS_CANCELLED", now)
 }
 
@@ -501,6 +525,7 @@ func (service *Service) ExpireStaleAnalysisRequests(ctx context.Context) (int, e
 			return closed, err
 		}
 		_, _ = service.store.FailIntakeAnalysis(ctx, request.IntakeID, request.ExpectedProposalRevision, "INTAKE_ANALYSIS_EXPIRED", now)
+		service.reap(ctx, request.SessionID)
 		closed++
 	}
 	return closed, nil
