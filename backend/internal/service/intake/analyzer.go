@@ -13,6 +13,11 @@ import (
 // RuleBasedAnalyzer is the offline-truth baseline for shared intake. It makes
 // a conservative editable proposal without claiming model analysis. A future
 // analyzer may enrich the same typed contract behind the port.
+//
+// It answers synchronously, so it fills the ticket's Inline field. That is not
+// a shortcut around the no-synchronous-model-call rule — it performs no model
+// call and no I/O at all, which is exactly why it can answer at once, and why
+// it remains the floor an agent-backed analyzer degrades to.
 type RuleBasedAnalyzer struct{}
 
 // NewRuleBasedAnalyzer constructs the deterministic offline baseline.
@@ -20,17 +25,20 @@ func NewRuleBasedAnalyzer() *RuleBasedAnalyzer { return &RuleBasedAnalyzer{} }
 
 var ambiguousLocalDay = regexp.MustCompile(`(?i)\b(today|tonight|this morning|this evening)\b`)
 
-// Analyze returns one bounded question or an editable typed proposal.
-func (*RuleBasedAnalyzer) Analyze(_ context.Context, input ports.IntakeAnalysisInput) (ports.IntakeAnalysisResult, error) {
+var _ ports.IntakeAnalyzer = (*RuleBasedAnalyzer)(nil)
+
+// Analyze returns one bounded question or an editable typed proposal, always
+// inline.
+func (*RuleBasedAnalyzer) Analyze(_ context.Context, input ports.IntakeAnalysisInput) (ports.IntakeAnalysisTicket, error) {
 	statement := strings.TrimSpace(input.Session.Statement)
 	if ambiguousLocalDay.MatchString(statement) && strings.TrimSpace(input.ClarificationText) == "" {
-		return ports.IntakeAnalysisResult{Clarification: &domain.ClarificationRequest{
+		return inline(ports.IntakeAnalysisResult{Clarification: &domain.ClarificationRequest{
 			Question:            "Which time boundary should this Outcome use?",
 			Reason:              "The boundary changes what counts toward the result.",
 			Recommendation:      "Use this Mac's local calendar day.",
 			Alternatives:        []string{"Mac local calendar day", "Rolling 24 hours"},
 			DeferralConsequence: "The proposal will use the Mac's local calendar day.",
-		}}, nil
+		}}), nil
 	}
 	title := outcomeTitle(statement)
 	facet := domain.ContractFacet{Kind: inferFacet(statement), Summary: title}
@@ -45,7 +53,11 @@ func (*RuleBasedAnalyzer) Analyze(_ context.Context, input ports.IntakeAnalysisI
 	if answer := strings.TrimSpace(input.ClarificationText); answer != "" {
 		proposal.TemporalCondition = &answer
 	}
-	return ports.IntakeAnalysisResult{Proposal: proposal}, nil
+	return inline(ports.IntakeAnalysisResult{Proposal: proposal}), nil
+}
+
+func inline(result ports.IntakeAnalysisResult) ports.IntakeAnalysisTicket {
+	return ports.IntakeAnalysisTicket{Inline: &result}
 }
 
 func outcomeTitle(statement string) string {

@@ -216,6 +216,24 @@ func (s *Store) ListContractRevisions(ctx context.Context, id domain.OutcomeID) 
 				Text:               criterion.Text,
 			})
 		}
+		// Without this join the ceiling reads as all-false and the stop
+		// conditions vanish, for every reader outside intake — including the
+		// gates that refuse a contributor for widening its parent's authority,
+		// which were comparing against a ceiling that was never loaded.
+		core, err := s.qr.GetContractRevisionIntakeCore(ctx, string(rev.ID))
+		switch {
+		case err == nil:
+			if err := applyContractIntakeCore(&rev, core); err != nil {
+				return nil, fmt.Errorf("read core for revision %s: %w", rev.ID, err)
+			}
+		case errors.Is(err, sql.ErrNoRows):
+			// Revisions written before this relation was populated by every
+			// creator have no row. The data was never captured, so it is
+			// absent rather than recoverable: leave the zero values and do not
+			// invent a ceiling.
+		default:
+			return nil, fmt.Errorf("read core for revision %s: %w", rev.ID, err)
+		}
 		out = append(out, rev)
 	}
 	return out, nil
@@ -283,6 +301,15 @@ func insertContractRevision(ctx context.Context, q *gen.Queries, revision domain
 		}); err != nil {
 			return fmt.Errorf("create contract criterion %s: %w", criterion.ID, err)
 		}
+	}
+	// The authority ceiling, stop conditions, expected evidence, temporal
+	// condition, and facets live in a side relation (0104). Writing it HERE
+	// rather than at each call site is the point: it was previously written
+	// only by intake confirmation, so a contract created any other way — a
+	// correction, a contributing Outcome — silently lost its ceiling and stop
+	// conditions on the way to the database.
+	if err := insertContractIntakeCore(ctx, q, revision); err != nil {
+		return fmt.Errorf("create contract revision core %s: %w", revision.ID, err)
 	}
 	return nil
 }

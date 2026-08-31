@@ -413,7 +413,8 @@ func Run() error {
 	// spawn path, on the analyzer role, and answers on the daemon's own
 	// loopback origin. Requests that expired while the daemon was down are
 	// swept once here — the deadline is durable, not an in-memory timer.
-	outcomeSvc := outcomevc.New(store, nil).WithDecompositionProposer(agentDecompositionProposer{
+	reaper := sessionReaper{sessions: sessionSvc}
+	outcomeSvc := outcomevc.New(store, nil).WithAnalystSessionReaper(reaper).WithDecompositionProposer(agentDecompositionProposer{
 		sessions:     sessionSvc,
 		projects:     store,
 		agents:       agents,
@@ -424,10 +425,51 @@ func Run() error {
 	} else if expired > 0 {
 		log.Info("closed decomposition requests that expired while the daemon was down", "count", expired)
 	}
-	intakeSvc := intakevc.New(store, intakevc.NewRuleBasedAnalyzer(), nil)
+	// Agent-authored Contract proposals. Unlike the decomposition proposer
+	// beside it, this NEVER fails closed: intake is the entry point to the
+	// product, so every reason an agent cannot be asked degrades to the
+	// deterministic baseline rather than blocking Outcome creation.
+	intakeSvc := intakevc.New(store, agentIntakeAnalyzer{
+		sessions:     sessionSvc,
+		projects:     store,
+		agents:       agents,
+		offline:      intakevc.NewRuleBasedAnalyzer(),
+		callbackBase: fmt.Sprintf("http://%s:%d", config.LoopbackHost, cfg.Port),
+	}, nil).WithAnalystSessionReaper(reaper)
+	// Order matters. Expiry runs FIRST: it closes asks whose deadline passed
+	// while the daemon was down and returns their intakes to a retryable
+	// failure. Only then does the interrupted-analysis sweep run, which skips
+	// intakes that still have an OPEN ask — an agent's analysis is meant to
+	// outlive a restart, and reaping it would kill the work this exists to do.
+	if expired, err := intakeSvc.ExpireStaleAnalysisRequests(ctx); err != nil {
+		log.Warn("could not sweep expired intake analysis requests", "error", err)
+	} else if expired > 0 {
+		log.Info("closed intake analysis requests that expired while the daemon was down", "count", expired)
+	}
 	if _, err := intakeSvc.RecoverInterruptedAnalyses(ctx); err != nil {
 		return fmt.Errorf("recover interrupted intake analysis: %w", err)
 	}
+	// Expiry is a durable deadline, so it also has to be enforced while the
+	// daemon KEEPS running: without this an intake whose agent stopped
+	// answering would read as "still working" until the next restart. The
+	// owner can always cancel out of that by hand, but they should not have
+	// to in order to learn that nothing is coming.
+	go func() {
+		ticker := time.NewTicker(intakeAnalysisSweepInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if expired, err := intakeSvc.ExpireStaleAnalysisRequests(ctx); err != nil {
+					log.Warn("could not sweep expired intake analysis requests", "error", err)
+				} else if expired > 0 {
+					log.Info("closed intake analysis requests that expired", "count", expired)
+				}
+			}
+		}
+	}()
 	responsibilityLinkSvc := intakevc.NewResponsibilityLinks(store, nil)
 	waldoConversationSvc := waldovc.New(store, nil, nil)
 	if receipts, err := waldoConversationSvc.RecoverPendingContinuations(ctx); err != nil {

@@ -373,6 +373,18 @@ sql:
             go_type:
               import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
               type: "DecompositionRequestStatus"
+          - column: "intake_analysis_requests.id"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "IntakeAnalysisRequestID"
+          - column: "intake_analysis_requests.status"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "IntakeAnalysisRequestStatus"
+          - column: "intake_analysis_requests.harness"
+            go_type:
+              import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+              type: "AgentHarness"
           - column: "plan_revisions.id"
             go_type:
               import: "github.com/aoagents/agent-orchestrator/backend/internal/domain"

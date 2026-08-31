@@ -175,7 +175,7 @@ func TestServiceResolveMissionRolesMatchingHarnessRetainsSharedProfile(t *testin
 }
 
 func TestEnrichMissionRolesFailsClosedWithoutProfile(t *testing.T) {
-	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"})
+	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
 		domain.HarnessDeepSeekHarness: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(false), AuthApplicable: true, Auth: ports.AgentAuthStatusAuthorized},
 	}
@@ -196,7 +196,7 @@ func TestEnrichMissionRolesFailsClosedWhenAuthorizationNotGranted(t *testing.T) 
 		"unauthorized": ports.AgentAuthStatusUnauthorized,
 		"unknown":      ports.AgentAuthStatusUnknown,
 	} {
-		base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{})
+		base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{}})
 		facts := map[domain.AgentHarness]RoleInventoryFact{
 			domain.HarnessCodex: {Installed: true, AuthApplicable: true, Auth: auth},
 		}
@@ -211,7 +211,7 @@ func TestEnrichMissionRolesFailsClosedWhenAuthorizationNotGranted(t *testing.T) 
 }
 
 func TestEnrichMissionRolesStacksIndependentBlockers(t *testing.T) {
-	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"})
+	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
 		domain.HarnessDeepSeekHarness: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(false), AuthApplicable: true, Auth: ports.AgentAuthStatusUnauthorized},
 	}
@@ -230,7 +230,7 @@ func TestEnrichMissionRolesStacksIndependentBlockers(t *testing.T) {
 // once it is installed and its profile is ready — exactly what the #60
 // Profile contract will compose — the honored worker preference becomes ready.
 func TestEnrichMissionRolesDeepSeekReadyAfterProfile(t *testing.T) {
-	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"})
+	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
 		domain.HarnessDeepSeekHarness: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(true), AuthApplicable: false, Auth: ports.AgentAuthStatusUnknown},
 	}
@@ -250,7 +250,7 @@ func TestEnrichMissionRolesDeepSeekReadyAfterProfile(t *testing.T) {
 }
 
 func TestEnrichMissionRolesMarksUninstalledHarnessNotReady(t *testing.T) {
-	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{})
+	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{}})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
 		domain.HarnessCodex: {Installed: false, AuthApplicable: true, Auth: ports.AgentAuthStatusAuthorized},
 	}
@@ -261,7 +261,7 @@ func TestEnrichMissionRolesMarksUninstalledHarnessNotReady(t *testing.T) {
 }
 
 func TestEnrichMissionRolesPassesReadyRolesThrough(t *testing.T) {
-	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{})
+	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{}})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
 		domain.HarnessCodex: {Installed: true, AuthApplicable: true, Auth: ports.AgentAuthStatusAuthorized},
 	}
@@ -357,7 +357,7 @@ func TestEnrichMissionRolesOptionalAuthReadyWithoutGrant(t *testing.T) {
 		"unknown":    ports.AgentAuthStatusUnknown,
 		"authorized": ports.AgentAuthStatusAuthorized,
 	} {
-		base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{DefaultWorker: "opencode"})
+		base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "opencode"}})
 		facts := map[domain.AgentHarness]RoleInventoryFact{
 			domain.HarnessOpenCode: {Installed: true, AuthApplicable: true, AuthOptional: true, Auth: auth},
 		}
@@ -377,7 +377,7 @@ func TestEnrichMissionRolesOptionalAuthReadyWithoutGrant(t *testing.T) {
 // Optional auth softens only the inconclusive case. A probe that affirmatively
 // reports a refused grant is evidence, not absence of it, so it still blocks.
 func TestEnrichMissionRolesOptionalAuthStillBlocksRefusedGrant(t *testing.T) {
-	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{DefaultWorker: "opencode"})
+	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "opencode"}})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
 		domain.HarnessOpenCode: {Installed: true, AuthApplicable: true, AuthOptional: true, Auth: ports.AgentAuthStatusUnauthorized},
 	}
@@ -393,7 +393,7 @@ func TestEnrichMissionRolesOptionalAuthStillBlocksRefusedGrant(t *testing.T) {
 // Optional auth must not weaken an agent that genuinely needs a grant, and it
 // must not bypass the other independent gates.
 func TestEnrichMissionRolesOptionalAuthDoesNotWeakenOtherGates(t *testing.T) {
-	base := domain.ResolveMissionRoles(domain.ProjectAgentPreferences{DefaultWorker: "opencode"})
+	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "opencode"}})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
 		domain.HarnessOpenCode: {Installed: false, AuthApplicable: true, AuthOptional: true, Auth: ports.AgentAuthStatusUnknown},
 	}

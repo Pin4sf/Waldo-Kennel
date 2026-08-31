@@ -539,14 +539,14 @@ export interface StartAttemptState {
 	 * for the retry so an ambiguous network answer replays the same request
 	 * instead of admitting twice.
 	 */
-	start: (input: { planRevisionId: string }) => Promise<AttemptRecord>;
+	start: (input: { planRevisionId: string; harness?: string }) => Promise<AttemptRecord>;
 }
 
 export function useStartOutcomeAttempt(outcomeId: string | undefined): StartAttemptState {
 	const queryClient = useQueryClient();
 	const requestKeyRef = useRef<string | undefined>(undefined);
 	const mutation = useMutation({
-		mutationFn: async (input: { planRevisionId: string }) => {
+		mutationFn: async (input: { planRevisionId: string; harness?: string }) => {
 			if (!requestKeyRef.current) {
 				requestKeyRef.current = crypto.randomUUID();
 			}
@@ -554,6 +554,10 @@ export function useStartOutcomeAttempt(outcomeId: string | undefined): StartAtte
 			const { data, error } = await apiClient.POST("/api/v1/outcomes/{outcomeId}/attempts", {
 				params: { path: { outcomeId: outcomeId as string } },
 				body: {
+					// Omitted rather than sent empty when the project names no
+					// worker: the daemon owns the fallback (Codex), and sending
+					// "" would read as a deliberate choice of nothing.
+					...(input.harness ? { harness: input.harness } : {}),
 					planRevisionId: input.planRevisionId,
 					requestKey,
 				},

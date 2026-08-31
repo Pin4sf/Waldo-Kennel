@@ -12,6 +12,7 @@ import {
 	useStartOutcomeAttempt,
 	type AttemptRecord,
 } from "../../hooks/useOutcome";
+import { useProjectAgentRoles } from "../../hooks/useProjectAgentRoles";
 import { boardAttentionZoneOrder, getAttentionZoneViewForZone } from "../../lib/session-presentation";
 import { useUiStore } from "../../stores/ui-store";
 import { Badge } from "../ui/badge";
@@ -26,6 +27,11 @@ import {
 
 type OutcomeRunSurfaceProps = {
 	outcomeId: string;
+	/**
+	 * The Outcome's project, needed only to resolve which worker agent it is
+	 * configured to run on. Absent falls back to the daemon's own default.
+	 */
+	projectId?: string;
 	onReviewProof?: () => void;
 };
 
@@ -69,8 +75,13 @@ function statusBadgeKey(status: string): MessageKey | undefined {
  * completion is never presented as success, transcripts are never read, and
  * no provider name is treated as a policy.
  */
-export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfaceProps) {
+export function OutcomeRunSurface({ outcomeId, projectId, onReviewProof }: OutcomeRunSurfaceProps) {
 	const { t } = useTranslation();
+	// The worker the project is configured for — chosen in the intake composer
+	// or in Project Settings, both of which write the same field. Without this
+	// the daemon would silently run every attempt on its Codex fallback no
+	// matter what the project says.
+	const projectRoles = useProjectAgentRoles(projectId);
 	const planQuery = useOutcomePlan(outcomeId);
 	const attemptsQuery = useOutcomeAttempts(outcomeId);
 	const start = useStartOutcomeAttempt(outcomeId);
@@ -111,7 +122,10 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfac
 	async function startAttempt() {
 		if (!plan || pending) return;
 		try {
-			await start.start({ planRevisionId: plan.id });
+			await start.start({
+				planRevisionId: plan.id,
+				harness: projectRoles.available ? projectRoles.worker : undefined,
+			});
 		} catch {
 			// Failure state derives from the mutation's typed error.
 		}

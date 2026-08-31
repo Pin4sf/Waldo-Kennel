@@ -102,11 +102,11 @@ function routeResponse(path: string) {
 	return { data: undefined, error: { code: "OUTCOME_NOT_FOUND", message: "not stubbed" } };
 }
 
-function renderMissionControl() {
+function renderMissionControl(props: { onInspectContributor?: (id: string) => void } = {}) {
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 	return render(
 		<QueryClientProvider client={queryClient}>
-			<OutcomeMissionControl outcomeId="out-parent" />
+			<OutcomeMissionControl outcomeId="out-parent" {...props} />
 		</QueryClientProvider>,
 	);
 }
@@ -132,6 +132,7 @@ describe("OutcomeMissionControl", () => {
 		// Attention arrives derived: the renderer classifies nothing itself.
 		const contributors = screen.getByTestId("mission-contributors");
 		expect(contributors.textContent).toContain("waiting on Admission gates admit OpenCode");
+		// With nowhere to navigate, the next action is still stated.
 		expect(contributors.textContent).toContain("Accept the upstream contribution, or waive the dependency");
 	});
 
@@ -195,4 +196,26 @@ describe("OutcomeMissionControl", () => {
 			),
 		);
 	});
+});
+
+// The daemon says what a contribution needs next. Rendering that as prose
+// beside an "Inspect" button made the named step the one thing a person could
+// not click, and Inspect went to the contributor's own Mission Control — which
+// only offers decomposing it further, not doing the work.
+it("makes the contribution's next step the control that opens its work", async () => {
+	const onInspectContributor = vi.fn();
+	renderMissionControl({ onInspectContributor });
+
+	const action = await screen.findByRole("button", {
+		name: "Accept the upstream contribution, or waive the dependency",
+	});
+	await userEvent.click(action);
+	expect(onInspectContributor).toHaveBeenCalledWith("out-c2");
+});
+
+// A contribution the daemon has no next action for keeps the generic label,
+// so the row always has exactly one control rather than none.
+it("falls back to one generic control when there is no next action", async () => {
+	renderMissionControl({ onInspectContributor: vi.fn() });
+	expect(await screen.findByRole("button", { name: "Inspect" })).toBeInTheDocument();
 });

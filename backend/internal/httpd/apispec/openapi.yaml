@@ -471,6 +471,63 @@ paths:
       summary: Stream CDC events with durable replay
       tags:
       - events
+  /api/v1/intake-analysis-requests/{requestId}/proposal:
+    post:
+      operationId: submitIntakeAnalysisProposal
+      parameters:
+      - description: Intake analysis request identifier, e.g. ireq-<uuid>.
+        in: path
+        name: requestId
+        required: true
+        schema:
+          description: Intake analysis request identifier, e.g. ireq-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersSubmitIntakeAnalysisRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntakeEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: 'Callback: a spawned agent submits its proposed Contract'
+      tags:
+      - intakes
   /api/v1/intakes/{intakeId}:
     get:
       operationId: getIntake
@@ -573,6 +630,104 @@ paths:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
       summary: Analyze intent into one material question or a Contract proposal
+      tags:
+      - intakes
+  /api/v1/intakes/{intakeId}/analysis-request:
+    get:
+      operationId: getLatestIntakeAnalysisRequest
+      parameters:
+      - in: path
+        name: intakeId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersIntakeAnalysisRequestEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read the newest agent analysis ask and what became of it
+      tags:
+      - intakes
+  /api/v1/intakes/{intakeId}/analysis-request/cancellation:
+    post:
+      operationId: cancelIntakeAnalysisRequest
+      parameters:
+      - in: path
+        name: intakeId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntakeEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Stop waiting for an agent and return the intake to a retryable state
       tags:
       - intakes
   /api/v1/intakes/{intakeId}/cancellation:
@@ -7653,6 +7808,8 @@ components:
         expectedProposalRevision:
           format: int64
           type: integer
+        offline:
+          type: boolean
       required:
       - expectedProposalRevision
       type: object
@@ -8376,6 +8533,54 @@ components:
       - waived
       - attention
       type: object
+    ControllersIntakeAnalysisRequestEnvelope:
+      properties:
+        request:
+          $ref: '#/components/schemas/ControllersIntakeAnalysisRequestResponse'
+      required:
+      - request
+      type: object
+    ControllersIntakeAnalysisRequestResponse:
+      properties:
+        answeredAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        createdAt:
+          format: date-time
+          type: string
+        expectedProposalRevision:
+          format: int64
+          type: integer
+        expired:
+          type: boolean
+        expiresAt:
+          format: date-time
+          type: string
+        harness:
+          type: string
+        id:
+          type: string
+        intakeId:
+          type: string
+        rawProposal:
+          type: string
+        refusalReason:
+          type: string
+        sessionId:
+          type: string
+        status:
+          type: string
+      required:
+      - id
+      - intakeId
+      - expectedProposalRevision
+      - status
+      - expiresAt
+      - expired
+      - createdAt
+      type: object
     ControllersIntakeAuthority:
       properties:
         commitLocal:
@@ -8403,6 +8608,26 @@ components:
       - createPr
       - deploy
       - externalEffect
+      type: object
+    ControllersIntakeClarificationInput:
+      properties:
+        alternatives:
+          items:
+            type: string
+          type: array
+        deferralConsequence:
+          type: string
+        question:
+          type: string
+        reason:
+          type: string
+        recommendation:
+          type: string
+      required:
+      - question
+      - reason
+      - recommendation
+      - deferralConsequence
       type: object
     ControllersIntakeConversationRefInput:
       properties:
@@ -8725,6 +8950,13 @@ components:
           type: boolean
       required:
       - enabled
+      type: object
+    ControllersSubmitIntakeAnalysisRequest:
+      properties:
+        clarification:
+          $ref: '#/components/schemas/ControllersIntakeClarificationInput'
+        proposal:
+          $ref: '#/components/schemas/IntakeProposalInput'
       type: object
     ConversationAccountPayload:
       properties:

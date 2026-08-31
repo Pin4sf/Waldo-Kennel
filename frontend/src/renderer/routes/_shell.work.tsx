@@ -143,6 +143,7 @@ function renderStageBody({
 						void navigate({ to: "/work", search: { project, stage: "prove_close", outcome } });
 					}}
 					outcomeId={outcome}
+					projectId={project}
 				/>
 			</OutcomeLifecycleShell>
 		);
@@ -159,8 +160,16 @@ function renderStageBody({
 		}
 		return (
 			<OutcomeMissionControl
+				// A contributor is a leaf of THIS decomposition, so its own work
+				// lives in Decide & Authorize — where its plan is drafted and
+				// authorized, and which leads on to Act & Observe. Sending it to
+				// `decompose` (its own Mission Control) is what made the row's
+				// next step unreachable: that surface only offers decomposing it
+				// further, which is not what "start work on this" means. A
+				// contributor that has itself been decomposed is still reachable
+				// through the Outcomes overview's Mission Control action.
 				onInspectContributor={(contributorId) => {
-					void navigate({ to: "/work", search: { project, stage: "decompose", outcome: contributorId } });
+					void navigate({ to: "/work", search: { project, stage: "decide_authorize", outcome: contributorId } });
 				}}
 				outcomeId={outcome}
 			/>

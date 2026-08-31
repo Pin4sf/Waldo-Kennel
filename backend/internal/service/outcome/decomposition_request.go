@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -197,7 +198,17 @@ func (s *Service) SubmitAgentProposal(
 	request.DecompositionID = proposed.Decomposition.ID
 	request.RawProposal = raw
 	request.AnsweredAt = &now
+	s.reap(ctx, request.SessionID)
 	return DecompositionRequestView{Request: request}, nil
+}
+
+// reap ends the session spawned to propose, once its ask is closed. Same
+// contract as intake's: best-effort, and only after the durable close.
+func (s *Service) reap(ctx context.Context, sessionID string) {
+	if s.reaper == nil || strings.TrimSpace(sessionID) == "" {
+		return
+	}
+	_ = s.reaper.Kill(ctx, sessionID)
 }
 
 // rejectProposal records a refusal WITH the draft, so the owner corrects one
@@ -215,6 +226,7 @@ func (s *Service) rejectProposal(ctx context.Context, request domain.Decompositi
 	request.RawProposal = raw
 	request.RefusalReason = reason
 	request.AnsweredAt = &now
+	s.reap(ctx, request.SessionID)
 	return DecompositionRequestView{Request: request}, nil
 }
 
@@ -251,6 +263,7 @@ func (s *Service) ExpireStaleDecompositionRequests(ctx context.Context) (int, er
 		}); err != nil && !errors.Is(err, ports.ErrDecompositionRequestClosed) {
 			return closed, err
 		}
+		s.reap(ctx, request.SessionID)
 		closed++
 	}
 	return closed, nil

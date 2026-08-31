@@ -1,20 +1,27 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Loader2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { useTranslation } from "react-i18next";
+import { ArrowRight, Check, ChevronDown, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { Trans, useTranslation } from "react-i18next";
 
 import type { components } from "../../../api/schema";
+import { intakeAnalysisRequestQueryKey, proposalProvenance, useIntakeAnalysisRequest } from "../../hooks/useIntakeAnalysisRequest";
+import { useWorkspaceQuery } from "../../hooks/useWorkspaceQuery";
 import { apiClient, apiErrorMessage, hasTrustedApiBaseUrl } from "../../lib/api-client";
 import { usesPreviewWorkspaceData } from "../../lib/preview-mode";
 import { createPreviewOutcome } from "../../lib/preview-outcome-store";
 import { Button } from "../ui/button";
+import { OutcomeIntakeAgentRoles } from "./OutcomeIntakeAgentRoles";
+import { IntakeAnalysisRefused, IntakeAnalysisWaiting, ProposalProvenanceNote } from "./IntakeAnalysisWaiting";
+import { IntakeAuthorityEditor, IntakeContractReview, normalizeProposal, proposalProblems } from "./IntakeContractReview";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 
 type IntakeSnapshot = components["schemas"]["IntakeSnapshotResponse"];
 type ProposalInput = components["schemas"]["IntakeProposalInput"];
 
 export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: string; intakeId?: string }) {
 	const navigate = useNavigate();
+	const queryClient = useQueryClient();
 	const { t } = useTranslation();
 	const [statement, setStatement] = useState("");
 	const [answer, setAnswer] = useState("");
@@ -31,6 +38,15 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 	const query = useQuery({
 		queryKey: ["intake", intakeId ?? ""],
 		enabled: Boolean(intakeId && hasTrustedApiBaseUrl()),
+		// While an analysis is in flight the answer arrives from a spawned
+		// agent over a callback, not from anything this client did — so
+		// nothing here would ever learn it landed without asking again.
+		refetchInterval: (q) => (q.state.data?.session.status === "analyzing" ? 3_000 : false),
+		// An agent answers whether or not anyone is looking at this tab, and
+		// the waiting screen is exactly where a person walks away. Without
+		// this the poll pauses while the document is hidden and the surface
+		// sits on a stale "still working" long after the answer landed.
+		refetchIntervalInBackground: true,
 		queryFn: async () => {
 			const { data, error: apiError } = await apiClient.GET("/api/v1/intakes/{intakeId}", { params: { path: { intakeId: intakeId as string } } });
 			if (apiError) throw apiError;
@@ -38,21 +54,124 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		},
 	});
 
+	// The intake prompt names the project it will create an Outcome in, so the
+	// person can see (and correct) where this is landing before they type. The
+	// name is a fact from the daemon's project list, never derived from the id.
+	const workspaces = useWorkspaceQuery();
+	const projects = useMemo(
+		() => (workspaces.data ?? []).map((workspace) => ({ id: workspace.id, name: workspace.name })),
+		[workspaces.data],
+	);
+	const projectName = projects.find((project) => project.id === projectId)?.name;
+
+	// An agent may be reading the project to propose the Contract. The daemon
+	// keeps the intake in `analyzing` while it works, so "an agent is working"
+	// is read from the durable ask beside it rather than from the status.
+	const analysisRequest = useIntakeAnalysisRequest(intakeId, {
+		poll: snapshot?.session.status === "analyzing",
+	});
+	const openAsk = analysisRequest.request?.status === "requested" && !analysisRequest.request.expired;
+	const refusedAsk =
+		analysisRequest.request &&
+		(analysisRequest.request.status === "rejected" || analysisRequest.request.status === "expired")
+			? analysisRequest.request
+			: undefined;
+
+	async function refreshIntake(next?: IntakeSnapshot) {
+		if (next) setSnapshot(next);
+		await queryClient.invalidateQueries({ queryKey: intakeAnalysisRequestQueryKey(intakeId) });
+	}
+
+	/** Stop waiting and take the proposal that is always available. */
+	async function takeOfflineProposal() {
+		if (!snapshot || !intakeId || pending) return;
+		setPending(true); setError(null);
+		try {
+			// Close any open ask first: an analysis that starts while one is
+			// still open would be refused as a conflict.
+			if (openAsk) {
+				await apiClient.POST("/api/v1/intakes/{intakeId}/analysis-request/cancellation", { params: { path: { intakeId } } });
+			}
+			const { data, error: apiError } = await apiClient.POST("/api/v1/intakes/{intakeId}/analysis", {
+				params: { path: { intakeId } },
+				body: { expectedProposalRevision: snapshot.session.currentProposalRevision, offline: true },
+			});
+			if (apiError) throw apiError;
+			await refreshIntake(data.intake);
+		} catch (cause) { setError(apiErrorMessage(cause)); } finally { setPending(false); }
+	}
+
+	/**
+	 * Release the intake rather than wait. This is a durable cancellation, not
+	 * navigation: leaving the page would abandon an intake that still says an
+	 * agent is working on it.
+	 */
+	async function releaseWhileWaiting() {
+		if (!snapshot || !intakeId || pending) return;
+		setPending(true); setError(null);
+		try {
+			if (openAsk) {
+				await apiClient.POST("/api/v1/intakes/{intakeId}/analysis-request/cancellation", { params: { path: { intakeId } } });
+			}
+			const { error: apiError } = await apiClient.POST("/api/v1/intakes/{intakeId}/cancellation", {
+				params: { path: { intakeId } },
+				body: { expectedProposalRevision: snapshot.session.currentProposalRevision, reason: t("outcome.intake.waiting.releaseReason") },
+			});
+			if (apiError) throw apiError;
+			await navigate({ to: "/work", search: { project: projectId } });
+		} catch (cause) { setError(apiErrorMessage(cause)); } finally { setPending(false); }
+	}
+
+	/** Ask an agent again, from a refused or expired draft. */
+	async function retryAgentAnalysis() {
+		if (!snapshot || !intakeId || pending) return;
+		setPending(true); setError(null);
+		try {
+			const { data, error: apiError } = await apiClient.POST("/api/v1/intakes/{intakeId}/analysis", {
+				params: { path: { intakeId } },
+				body: { expectedProposalRevision: snapshot.session.currentProposalRevision },
+			});
+			if (apiError) throw apiError;
+			await refreshIntake(data.intake);
+		} catch (cause) { setError(apiErrorMessage(cause)); } finally { setPending(false); }
+	}
+
 	useEffect(() => { if (query.data) setSnapshot(query.data); }, [query.data]);
+	// A poll that lands while an agent is answering has to invalidate the ask
+	// too, so the review screen can say who authored what it is about to show.
+	useEffect(() => {
+		if (query.data?.session.status === "ready") {
+			void queryClient.invalidateQueries({ queryKey: intakeAnalysisRequestQueryKey(intakeId) });
+		}
+	}, [query.data?.session.status, intakeId, queryClient]);
 	useEffect(() => {
 		if (!snapshot?.proposal) return;
 		const next = proposalInput(snapshot);
 		setDraft(next);
-		setInitialDraft(JSON.stringify(next));
+		setInitialDraft(JSON.stringify(normalizeProposal(next)));
 	}, [snapshot?.proposal?.id]);
 
 	useEffect(() => {
-		if (!intakeId || !snapshot || (snapshot.session.status !== "captured" && snapshot.session.status !== "analysis_failed") || analyzed.current === intakeId) return;
+		// Only a freshly captured intake analyzes itself. A failed one used to
+		// auto-retry here, which was harmless when analysis was a local
+		// function and is not now: arriving at a refused draft would spawn
+		// another agent immediately, spending real work to re-derive a
+		// refusal the owner has not even read yet. Retrying is now a choice
+		// they make, beside the reason it failed.
+		if (!intakeId || !snapshot || snapshot.session.status !== "captured" || analyzed.current === intakeId) return;
 		analyzed.current = intakeId;
 		setPending(true); setError(null);
 		void apiClient.POST("/api/v1/intakes/{intakeId}/analysis", { params: { path: { intakeId } }, body: { expectedProposalRevision: snapshot.session.currentProposalRevision } })
 			.then(({ data, error: apiError }) => { if (apiError) throw apiError; setSnapshot(data.intake); })
-			.catch((cause) => setError(apiErrorMessage(cause)))
+			.catch((cause) => {
+				setError(apiErrorMessage(cause));
+				// The daemon has already recorded a durable failure; without
+				// re-reading it this surface keeps the pre-analysis snapshot and
+				// falls through to a bare error message with nothing to click.
+				// Re-reading is what puts the person on the recovery surface,
+				// where the offline proposal and a retry actually live.
+				void query.refetch();
+			})
 			.finally(() => setPending(false));
 	}, [intakeId, snapshot]);
 
@@ -81,6 +200,13 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 			}
 			const { data, error: apiError } = await apiClient.POST("/api/v1/projects/{id}/intakes", { params: { path: { id: projectId } }, body: { sourceSurface: "work", statement: normalized, requestKey: captureIntent.current.key } });
 			if (apiError) throw apiError;
+			// Captured durably, so the box must not keep it: this surface stays
+			// mounted across the intake it just created, and a statement left
+			// behind would pre-fill the NEXT Outcome with the last one. Cleared
+			// only on success — a rejected capture keeps the text, which is the
+			// whole point of saying it was not saved.
+			setStatement("");
+			captureIntent.current = null;
 			await navigate({ to: "/work", search: { project: projectId, intake: data.intake.session.id } });
 		} catch (cause) { setError(apiErrorMessage(cause)); } finally { setPending(false); }
 	}
@@ -97,8 +223,12 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		setPending(true); setError(null);
 		try {
 			let current = snapshot;
-			if (JSON.stringify(draft) !== initialDraft) {
-				const revised = await apiClient.POST("/api/v1/intakes/{intakeId}/proposals", { params: { path: { intakeId } }, body: { expectedProposalRevision: current.session.currentProposalRevision, proposal: draft } });
+			// Trimmed and blank-stripped before comparison as well as before the
+			// send, so trailing whitespace or an emptied list row is not itself
+			// treated as a revision worth appending.
+			const normalized = normalizeProposal(draft);
+			if (JSON.stringify(normalized) !== initialDraft) {
+				const revised = await apiClient.POST("/api/v1/intakes/{intakeId}/proposals", { params: { path: { intakeId } }, body: { expectedProposalRevision: current.session.currentProposalRevision, proposal: normalized } });
 				if (revised.error) throw revised.error; current = revised.data.intake; setSnapshot(current);
 			}
 			const revision = current.session.currentProposalRevision;
@@ -128,16 +258,26 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 			className="mx-auto flex h-full w-full max-w-3xl flex-col items-center justify-center gap-6 px-4 sm:px-8"
 			onSubmit={capture}
 		>
-			<label
-				className="text-balance text-center text-2xl font-medium leading-snug tracking-wide-sm text-foreground sm:text-[28px]"
-				htmlFor="outcome-statement"
-			>
-				{t("outcome.intake.prompt")}
-			</label>
+			{/* A heading, not a <label>: the project name inside it is an
+			    interactive switcher, and a control nested in a label would steal
+			    the label's click-to-focus. The textarea keeps its own name below. */}
+			<h1 className="text-balance text-center text-2xl font-medium leading-snug tracking-wide-sm text-foreground sm:text-[28px]">
+				{projectName ? (
+					<Trans
+						components={{
+							project: <IntakeProjectSwitcher currentProjectId={projectId} projects={projects} />,
+						}}
+						i18nKey="outcome.intake.promptForProject"
+						values={{ project: projectName }}
+					/>
+				) : (
+					t("outcome.intake.prompt")
+				)}
+			</h1>
 			<div className="flex w-full flex-col gap-3 rounded-group hairline border-border bg-card px-4.5 py-3.5">
 				<textarea
 					id="outcome-statement"
-					aria-label={t("outcome.intake.prompt")}
+					aria-label={projectName ? t("outcome.intake.promptForProjectPlain", { project: projectName }) : t("outcome.intake.prompt")}
 					autoFocus
 					className="min-h-16 w-full resize-y bg-transparent text-sm leading-body text-foreground outline-none placeholder:text-muted-foreground/70"
 					onChange={(event) => setStatement(event.target.value)}
@@ -151,20 +291,25 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 					value={statement}
 				/>
 				<div className="flex items-center justify-between gap-3">
-					<p className="text-2xs text-passive">{t("outcome.intake.hint")}</p>
-					<Button
-						aria-label={pending ? t("outcome.intake.saving") : t("outcome.intake.continue")}
-						className="rounded-full"
-						disabled={pending || !statement.trim()}
-						size="icon-sm"
-						type="submit"
-					>
-						{pending ? (
-							<Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
-						) : (
-							<ArrowRight aria-hidden="true" className="size-3.5" />
-						)}
-					</Button>
+					<p className="min-w-0 truncate text-2xs text-passive">{t("outcome.intake.hint")}</p>
+					<div className="flex shrink-0 items-center gap-1.5">
+						{/* Who will do this, decided beside what is being asked for.
+						    Writes the project's durable worker/orchestrator agents. */}
+						<OutcomeIntakeAgentRoles projectId={projectId} />
+						<Button
+							aria-label={pending ? t("outcome.intake.saving") : t("outcome.intake.continue")}
+							className="rounded-full"
+							disabled={pending || !statement.trim()}
+							size="icon-sm"
+							type="submit"
+						>
+							{pending ? (
+								<Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+							) : (
+								<ArrowRight aria-hidden="true" className="size-3.5" />
+							)}
+						</Button>
+					</div>
 				</div>
 			</div>
 			{error ? (
@@ -177,15 +322,136 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 	if (query.isLoading && !snapshot) return <TruthMessage title={t("outcome.intake.loadingTitle")} body={t("outcome.intake.loadingBody")} />;
 	if (query.error && !snapshot) return <TruthMessage title={t("outcome.intake.unavailableTitle")} body={apiErrorMessage(query.error)} />;
 	if (!snapshot) return <TruthMessage title={t("outcome.intake.unavailableTitle")} body={t("outcome.intake.noState")} />;
+	// An agent is reading the project. This is derived from the durable ask
+	// rather than the status, because the daemon deliberately keeps such an
+	// intake in `analyzing` instead of adding a second representation of the
+	// same fact.
+	if (snapshot.session.status === "analyzing") {
+		return (
+			<IntakeAnalysisWaiting
+				onRelease={() => void releaseWhileWaiting()}
+				onUseOffline={() => void takeOfflineProposal()}
+				pending={pending}
+				request={openAsk ? analysisRequest.request : undefined}
+			/>
+		);
+	}
+	// Any failed analysis lands here, whether an agent produced a draft the
+	// daemon refused or nothing was ever asked. Both need the same two ways
+	// forward; only the refused one also has something to show.
+	if (snapshot.session.status === "analysis_failed" && !pending) {
+		return (
+			<IntakeAnalysisRefused
+				failureCode={snapshot.session.failureCode}
+				onRetry={() => void retryAgentAnalysis()}
+				onUseOffline={() => void takeOfflineProposal()}
+				pending={pending}
+				request={refusedAsk}
+			/>
+		);
+	}
 	if (pending && (snapshot.session.status === "captured" || snapshot.session.status === "analysis_failed")) return <TruthMessage title={t("outcome.intake.analyzingTitle")} body={t("outcome.intake.analyzingBody")} />;
 	if (snapshot.session.status === "needs_user" && snapshot.clarification) return <form className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-8 sm:px-8" onSubmit={answerQuestion}><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("outcome.intake.question")}</p><h2 className="text-xl font-medium">{snapshot.clarification.question}</h2><p className="text-sm text-muted-foreground">{snapshot.clarification.reason}</p><label className="text-sm font-medium" htmlFor="clarification-answer">{t("outcome.intake.answer")}</label><input id="clarification-answer" autoFocus className="rounded-lg border border-border bg-background px-3 py-2" onChange={(event) => setAnswer(event.target.value)} value={answer} /><p className="text-xs text-muted-foreground">{t("outcome.intake.recommended", { recommendation: snapshot.clarification.recommendation })}</p><Button disabled={pending || !answer.trim()} type="submit">{t("outcome.intake.continue")}</Button><label className="text-sm font-medium" htmlFor="intake-cancellation-reason">{t("outcome.intake.cancelReason")}</label><input id="intake-cancellation-reason" className="rounded-lg border border-border bg-background px-3 py-2" onChange={(event) => setCancellationReason(event.target.value)} value={cancellationReason} /><Button disabled={pending || !cancellationReason.trim()} type="button" variant="outline" onClick={() => void cancel()}>{t("outcome.intake.cancel")}</Button>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}</form>;
-	if (snapshot.session.status === "ready" && draft) return <section className="mx-auto grid w-full max-w-4xl gap-6 px-4 py-6 sm:px-8 lg:grid-cols-[minmax(0,1fr)_16rem]"><div className="flex min-w-0 flex-col gap-4"><div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("outcome.intake.reviewTitle")}</p><p className="mt-1 text-sm text-muted-foreground">{t("outcome.intake.reviewBody")}</p></div><Field label={t("outcome.intake.titleField")} value={draft.title} onChange={(value) => setDraft({ ...draft, title: value })} /><Field label={t("outcome.intake.desiredStateField")} multiline value={draft.desiredState} onChange={(value) => setDraft({ ...draft, desiredState: value })} /><Field label={t("outcome.intake.criteriaField")} multiline value={draft.criteria.map((criterion) => criterion.text).join("\n")} onChange={(value) => setDraft({ ...draft, criteria: value.split("\n").filter(Boolean).map((text, index) => ({ ...(draft.criteria[index] ?? { evidenceExpected: ["Owner walkthrough demonstrates the result."] }), text })) })} /><Field label={t("outcome.intake.reviewField")} multiline value={draft.reviewMethod} onChange={(value) => setDraft({ ...draft, reviewMethod: value })} /></div><aside className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 lg:sticky lg:top-4 lg:self-start"><p className="text-sm font-medium">{t("outcome.intake.authorityTitle")}</p><p className="text-xs text-muted-foreground">{t("outcome.intake.authorityBody")}</p><Button disabled={pending} onClick={() => void confirm()}>{pending ? t("outcome.intake.confirming") : t("outcome.intake.confirm")}</Button><label className="text-xs font-medium" htmlFor="intake-cancellation-reason">{t("outcome.intake.cancelReason")}</label><input id="intake-cancellation-reason" className="rounded-lg border border-border bg-background px-3 py-2 text-sm" onChange={(event) => setCancellationReason(event.target.value)} value={cancellationReason} /><Button disabled={pending || !cancellationReason.trim()} variant="outline" onClick={() => void cancel()}>{t("outcome.intake.cancel")}</Button>{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}</aside></section>;
+	if (snapshot.session.status === "ready" && draft) {
+		const problems = proposalProblems(draft);
+		return (
+			<section className="mx-auto grid w-full max-w-4xl gap-4 px-4 py-6 sm:px-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
+				<div className="flex min-w-0 flex-col gap-3">
+					<div>
+						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("outcome.intake.reviewTitle")}</p>
+						<p className="mt-1 text-sm text-muted-foreground">{t("outcome.intake.reviewBody")}</p>
+						{/* Whether anything analyzed this. An offline proposal and an
+						    agent-authored one look identical otherwise, while being
+						    worth very different amounts of trust. */}
+						<div className="mt-1.5">
+							<ProposalProvenanceNote {...proposalProvenance(analysisRequest.request)} />
+						</div>
+					</div>
+					<IntakeContractReview draft={draft} onChange={setDraft} />
+				</div>
+				<aside className="flex flex-col gap-3 rounded-group hairline border-border bg-card px-4.5 py-3.5 lg:sticky lg:top-4 lg:self-start">
+					<div>
+						<p className="text-xs font-medium text-foreground">{t("outcome.intake.authorityTitle")}</p>
+						<p className="mt-0.5 text-2xs leading-body text-passive">{t("outcome.intake.authorityBody")}</p>
+					</div>
+					{/* The proposal's real ceiling, editable. This was static prose
+					    that merely happened to match what the rule-based analyzer
+					    always emitted; a narrowed or model-authored ceiling would
+					    have been described wrongly. */}
+					<IntakeAuthorityEditor
+						onChange={(authorityCeiling) => setDraft({ ...draft, authorityCeiling })}
+						value={draft.authorityCeiling}
+					/>
+					{problems.length > 0 ? (
+						<ul className="flex list-disc flex-col gap-1 pl-4 text-2xs leading-body text-warning" data-testid="intake-problems">
+							{problems.map((problem) => (
+								<li key={problem}>{t(problem as never)}</li>
+							))}
+						</ul>
+					) : null}
+					<Button disabled={pending || problems.length > 0} onClick={() => void confirm()}>
+						{pending ? t("outcome.intake.confirming") : t("outcome.intake.confirm")}
+					</Button>
+					<label className="text-xs font-medium text-muted-foreground" htmlFor="intake-cancellation-reason">{t("outcome.intake.cancelReason")}</label>
+					<input id="intake-cancellation-reason" className="rounded-md hairline border-border bg-background px-2.5 py-1.5 text-xs" onChange={(event) => setCancellationReason(event.target.value)} value={cancellationReason} />
+					<Button disabled={pending || !cancellationReason.trim()} variant="outline" onClick={() => void cancel()}>{t("outcome.intake.cancel")}</Button>
+					{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+				</aside>
+			</section>
+		);
+	}
 	if (snapshot.session.status === "confirmed" && snapshot.confirmedOutcome) return <TruthMessage title={t("outcome.intake.confirmedTitle")} body={t("outcome.intake.confirmedBody")} />;
 	if (snapshot.session.status === "cancelled") return <TruthMessage title={t("outcome.intake.cancelledTitle")} body={snapshot.session.cancellationReason || t("outcome.intake.cancelledBody")} />;
 	return <TruthMessage title={t("outcome.intake.attentionTitle")} body={error ?? t("outcome.intake.state", { status: snapshot.session.status })} />;
 }
 
-function Field({ label, value, onChange, multiline = false }: { label: string; value: string; onChange: (value: string) => void; multiline?: boolean }) { const id = useMemo(() => `intake-${label.toLowerCase().replaceAll(" ", "-")}`, [label]); return <label className="flex flex-col gap-1 text-sm font-medium" htmlFor={id}>{label}{multiline ? <textarea id={id} aria-label={label} className="min-h-24 rounded-lg border border-border bg-background p-3 font-normal" onChange={(event) => onChange(event.target.value)} value={value} /> : <input id={id} aria-label={label} className="rounded-lg border border-border bg-background px-3 py-2 font-normal" onChange={(event) => onChange(event.target.value)} value={value} />}</label>; }
+/**
+ * The project the intake will create its Outcome in, rendered inline in the
+ * prompt and switchable in place. Switching is navigation only — it changes
+ * which project the next capture targets and writes nothing.
+ */
+function IntakeProjectSwitcher({
+	children,
+	currentProjectId,
+	projects,
+}: {
+	children?: ReactNode;
+	currentProjectId: string;
+	projects: { id: string; name: string }[];
+}) {
+	const navigate = useNavigate();
+	const { t } = useTranslation();
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<button
+					aria-label={t("outcome.intake.switchProject")}
+					className="inline-flex items-baseline gap-1.5 rounded-xs text-foreground underline decoration-link decoration-2 underline-offset-[6px] transition-colors hover:decoration-link-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+					data-testid="intake-project-switcher"
+					type="button"
+				>
+					{children}
+					<ChevronDown aria-hidden="true" className="size-5 shrink-0 self-center text-muted-foreground" />
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="start">
+				{projects.map((project) => (
+					<DropdownMenuItem
+						key={project.id}
+						onSelect={() => void navigate({ to: "/work", search: { project: project.id } })}
+					>
+						<Check
+							aria-hidden="true"
+							className={project.id === currentProjectId ? "size-icon-sm" : "size-icon-sm opacity-0"}
+						/>
+						<span className="min-w-0 truncate">{project.name}</span>
+					</DropdownMenuItem>
+				))}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+}
+
 function TruthMessage({ title, body }: { title: string; body: string }) { return <div className="mx-auto flex h-full max-w-xl flex-col justify-center gap-2 px-4 sm:px-8"><h2 className="text-lg font-medium">{title}</h2><p className="text-sm text-muted-foreground">{body}</p></div>; }
 function proposalInput(snapshot: IntakeSnapshot): ProposalInput { const proposal = snapshot.proposal as NonNullable<IntakeSnapshot["proposal"]>; return { title: proposal.title, desiredState: proposal.desiredState, criteria: proposal.criteria.map((criterion) => ({ id: criterion.id, text: criterion.text, evidenceExpected: criterion.evidenceExpected })), reviewMethod: proposal.reviewMethod, constraints: proposal.constraints, nonGoals: proposal.nonGoals, authorityCeiling: proposal.authorityCeiling, stopConditions: proposal.stopConditions, clarificationNotes: proposal.clarificationNotes, temporalCondition: proposal.temporalCondition, facets: proposal.facets }; }
 function requestKey(prefix: string) { return `${prefix}-${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`}`; }
