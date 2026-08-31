@@ -130,7 +130,7 @@ export function DecompositionGraph({
 				{levels.map((level, index) => (
 					<li className="flex flex-col gap-1.5" key={index}>
 						<p className="text-2xs uppercase tracking-wide text-passive">
-							{index === 0 ? t("outcome.graph.startsFirst") : t("outcome.graph.afterLevel", { count: index, n: index })}
+							{index === 0 ? t("outcome.graph.startsFirst") : t("outcome.graph.step", { n: index + 1 })}
 						</p>
 						<div className="flex flex-wrap gap-1.5">
 							{level.map((node) => {
