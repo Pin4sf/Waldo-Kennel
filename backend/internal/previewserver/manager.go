@@ -28,7 +28,14 @@ import (
 
 const (
 	// ConfigPath is the workspace-relative managed preview configuration file.
-	ConfigPath              = ".kennel/launch.json"
+	ConfigPath = ".kennel/launch.json"
+	// legacyConfigPath is where the same file lived before Kennel stopped
+	// being a fork. It is a file people author by hand and commit to their
+	// own repositories, so renaming it without reading the old name would
+	// silently break every project that already has one. Read-only: Kennel
+	// never writes this path, and the error a missing config reports always
+	// names the current one, so nothing steers a new project to it.
+	legacyConfigPath        = ".ao/launch.json"
 	defaultReadyTimeout     = 30 * time.Second
 	maxReadyTimeout         = 55 * time.Second
 	probeInterval           = 150 * time.Millisecond
@@ -584,7 +591,18 @@ func loadConfiguration(workspacePath, requestedName string) (Configuration, erro
 		return Configuration{}, serviceError("PREVIEW_WORKSPACE_MISSING", "session workspace is unavailable")
 	}
 	configPath := filepath.Join(workspacePath, filepath.FromSlash(ConfigPath))
+	readPath := ConfigPath
 	data, err := os.ReadFile(configPath)
+	if errors.Is(err, os.ErrNotExist) {
+		// Fall back to the pre-rename name so a repository that already
+		// carries one keeps working. Only absence falls through: a config
+		// that exists but cannot be read is a real failure to report, not a
+		// reason to go looking for a second file.
+		legacyPath := filepath.Join(workspacePath, filepath.FromSlash(legacyConfigPath))
+		if legacyData, legacyErr := os.ReadFile(legacyPath); legacyErr == nil {
+			data, err, readPath = legacyData, nil, legacyConfigPath
+		}
+	}
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return Configuration{}, serviceError(
@@ -598,13 +616,13 @@ func loadConfiguration(workspacePath, requestedName string) (Configuration, erro
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&file); err != nil {
-		return Configuration{}, serviceError("PREVIEW_CONFIG_INVALID", fmt.Sprintf("decode %s: %v", ConfigPath, err))
+		return Configuration{}, serviceError("PREVIEW_CONFIG_INVALID", fmt.Sprintf("decode %s: %v", readPath, err))
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		if err == nil {
 			err = errors.New("unexpected trailing JSON value")
 		}
-		return Configuration{}, serviceError("PREVIEW_CONFIG_INVALID", fmt.Sprintf("decode %s: %v", ConfigPath, err))
+		return Configuration{}, serviceError("PREVIEW_CONFIG_INVALID", fmt.Sprintf("decode %s: %v", readPath, err))
 	}
 	if file.Version != 1 {
 		return Configuration{}, serviceError("PREVIEW_CONFIG_INVALID", "preview configuration version must be 1")

@@ -486,6 +486,15 @@ func TestNameFromWorkspacePathRejectsTraversal(t *testing.T) {
 		{path: ".kennel/attachments/attachment-1.png", want: "attachment-1.png", ok: true},
 		{path: "/.kennel/attachments/attachment-1.png", want: "attachment-1.png", ok: true},
 		{path: ".kennel/attachments/image-a1b2c3d4.webp", want: "image-a1b2c3d4.webp", ok: true},
+		// Messages written before the rename are immutable history; the paths
+		// they carry must still resolve, and must still be validated exactly
+		// as strictly as the current container's.
+		{path: ".ao/attachments/attachment-1.png", want: "attachment-1.png", ok: true},
+		{path: "/.ao/attachments/attachment-1.png", want: "attachment-1.png", ok: true},
+		{path: ".ao/attachments/../secret", ok: false},
+		{path: ".ao/attachments/nested/file.png", ok: false},
+		{path: ".ao/attachments/secret.txt", ok: false},
+		{path: ".hidden/attachments/attachment-1.png", ok: false},
 		{path: ".kennel/attachments/../secret", ok: false},
 		{path: ".kennel/attachments/nested/file.png", ok: false},
 		{path: ".kennel/attachments/secret.txt", ok: false},
@@ -531,5 +540,88 @@ func TestStoreRejectsUnsafeNamesAndDoesNotImportSymlinks(t *testing.T) {
 	}
 	if _, _, err := store.Open(context.Background(), "kennel-1", "attachment-link.png"); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("Open symlink import error = %v, want not exist", err)
+	}
+}
+
+// A worktree created before Kennel stopped being a fork still projects its
+// attachments under `.ao/attachments`. Import is the last thing that runs
+// before such a worktree is deleted, so failing to read the legacy container
+// would destroy those bytes with nothing left to recover them from.
+func TestStoreImportsAttachmentsFromTheLegacyContainer(t *testing.T) {
+	dataDir := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "worktree")
+	legacyPath := filepath.Join(workspace, ".ao", "attachments", "attachment-legacy.png")
+	if err := os.MkdirAll(filepath.Dir(legacyPath), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	want := []byte("bytes-written-before-the-rename")
+	if err := os.WriteFile(legacyPath, want, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store := New(dataDir)
+	if err := store.ImportWorkspace(context.Background(), "kennel-legacy", workspace); err != nil {
+		t.Fatalf("ImportWorkspace: %v", err)
+	}
+	if err := os.RemoveAll(workspace); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(workspace, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.MaterializeWorkspace(context.Background(), "kennel-legacy", workspace); err != nil {
+		t.Fatalf("MaterializeWorkspace: %v", err)
+	}
+
+	// Restoration always projects into the current container: the legacy name
+	// is read, never written.
+	restored := filepath.Join(workspace, filepath.FromSlash(WorkspaceDir), "attachment-legacy.png")
+	got, err := os.ReadFile(restored)
+	if err != nil {
+		t.Fatalf("legacy attachment was not rescued: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("restored attachment = %q, want %q", got, want)
+	}
+	if _, err := os.Stat(filepath.Join(workspace, ".ao")); !os.IsNotExist(err) {
+		t.Fatalf("materialize recreated the legacy container; it must only ever be read")
+	}
+}
+
+// A worktree straddling the rename holds both containers. The current one is
+// the durable truth, so it wins and the legacy copy of the same name is left
+// alone rather than overwriting it.
+func TestStoreImportPrefersTheCurrentContainerOverTheLegacyOne(t *testing.T) {
+	dataDir := t.TempDir()
+	workspace := filepath.Join(t.TempDir(), "worktree")
+	current := filepath.Join(workspace, filepath.FromSlash(WorkspaceDir), "attachment-1.png")
+	legacy := filepath.Join(workspace, ".ao", "attachments", "attachment-1.png")
+	for _, dir := range []string{filepath.Dir(current), filepath.Dir(legacy)} {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(current, []byte("current-bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy, []byte("stale-bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store := New(dataDir)
+	if err := store.ImportWorkspace(context.Background(), "kennel-both", workspace); err != nil {
+		t.Fatalf("ImportWorkspace: %v", err)
+	}
+	reader, _, err := store.Open(context.Background(), "kennel-both", "attachment-1.png")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = reader.Close() }()
+	got, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "current-bytes" {
+		t.Fatalf("canonical bytes = %q, want the current container to win", got)
 	}
 }

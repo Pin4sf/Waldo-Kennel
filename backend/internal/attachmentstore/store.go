@@ -23,7 +23,13 @@ import (
 const (
 	// WorkspaceDir is the worktree-relative directory named in chat messages.
 	WorkspaceDir = ".kennel/attachments"
-	durableDir   = "attachments"
+	// workspaceContainerDir and legacyWorkspaceContainerDir are the two
+	// worktree directories an attachment projection can live under. The legacy
+	// name predates Kennel becoming a standalone project; it is read on import
+	// and recognized in stored message paths, but never written.
+	workspaceContainerDir       = ".kennel"
+	legacyWorkspaceContainerDir = ".ao"
+	durableDir                  = "attachments"
 	// MaxFileBytes matches the HTTP attachment limit and also bounds legacy
 	// imports from agent-writable worktrees.
 	MaxFileBytes = 10 << 20
@@ -114,15 +120,50 @@ func (s *Store) ImportWorkspace(ctx context.Context, id domain.SessionID, worksp
 		return fmt.Errorf("open workspace root: %w", err)
 	}
 	defer func() { _ = workspaceRoot.Close() }()
-	aoRoot, err := openChildDir(ctx, workspaceRoot, ".kennel", false, 0)
+
+	var sessionRoot *os.Root
+	defer func() {
+		if sessionRoot != nil {
+			_ = sessionRoot.Close()
+		}
+	}()
+
+	// Import is the last chance to rescue bytes before a worktree is deleted,
+	// so it has to look under the pre-rename directory too. A worktree created
+	// before Kennel stopped being a fork still carries `.ao/attachments`, and
+	// skipping it here would destroy those files at teardown with nothing left
+	// to recover them from. Current name first: canonical files already
+	// written win over later sources, so `.kennel` takes precedence when a
+	// worktree somehow holds both.
+	for _, container := range []string{workspaceContainerDir, legacyWorkspaceContainerDir} {
+		if err := s.importWorkspaceContainer(ctx, id, workspaceRoot, container, &sessionRoot); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// importWorkspaceContainer imports every eligible attachment out of one
+// container directory in the worktree. A missing container is not an error:
+// most worktrees have exactly one of the two names, and older ones have the
+// legacy name only. sessionRoot is opened lazily and shared across containers
+// so a worktree with nothing to import never creates canonical storage.
+func (s *Store) importWorkspaceContainer(
+	ctx context.Context,
+	id domain.SessionID,
+	workspaceRoot *os.Root,
+	container string,
+	sessionRoot **os.Root,
+) error {
+	containerRoot, err := openChildDir(ctx, workspaceRoot, container, false, 0)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("open workspace Kennel directory: %w", err)
+		return fmt.Errorf("open workspace %s directory: %w", container, err)
 	}
-	defer func() { _ = aoRoot.Close() }()
-	sourceRoot, err := openChildDir(ctx, aoRoot, "attachments", false, 0)
+	defer func() { _ = containerRoot.Close() }()
+	sourceRoot, err := openChildDir(ctx, containerRoot, "attachments", false, 0)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
@@ -134,12 +175,6 @@ func (s *Store) ImportWorkspace(ctx context.Context, id domain.SessionID, worksp
 	if err != nil {
 		return fmt.Errorf("list workspace attachments: %w", err)
 	}
-	var sessionRoot *os.Root
-	defer func() {
-		if sessionRoot != nil {
-			_ = sessionRoot.Close()
-		}
-	}()
 
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
@@ -155,14 +190,15 @@ func (s *Store) ImportWorkspace(ctx context.Context, id domain.SessionID, worksp
 		if openErr != nil {
 			return fmt.Errorf("open workspace attachment %q: %w", entry.Name(), openErr)
 		}
-		if sessionRoot == nil {
-			sessionRoot, err = s.openCanonicalSession(ctx, id, true)
-			if err != nil {
+		if *sessionRoot == nil {
+			opened, openErr := s.openCanonicalSession(ctx, id, true)
+			if openErr != nil {
 				_ = file.Close()
-				return fmt.Errorf("open canonical attachment root: %w", err)
+				return fmt.Errorf("open canonical attachment root: %w", openErr)
 			}
+			*sessionRoot = opened
 		}
-		copyErr := writeReaderAtomicRoot(ctx, sessionRoot, ".", entry.Name(), file, false)
+		copyErr := writeReaderAtomicRoot(ctx, *sessionRoot, ".", entry.Name(), file, false)
 		closeErr := file.Close()
 		if errors.Is(copyErr, ErrExists) || errors.Is(copyErr, errEmpty) || errors.Is(copyErr, errTooLarge) {
 			continue
@@ -299,7 +335,13 @@ func NameFromWorkspacePath(raw string) (string, bool) {
 	raw = strings.ReplaceAll(raw, `\`, "/")
 	raw = strings.TrimPrefix(raw, "/")
 	parts := strings.Split(raw, "/")
-	if len(parts) != 3 || parts[0] != ".kennel" || parts[1] != "attachments" {
+	// Messages persisted before the rename still spell the projection under
+	// the legacy container, and those rows are immutable history. Refusing
+	// them here would break every attachment already in a chat transcript.
+	if len(parts) != 3 || parts[1] != "attachments" {
+		return "", false
+	}
+	if parts[0] != workspaceContainerDir && parts[0] != legacyWorkspaceContainerDir {
 		return "", false
 	}
 	if validateName(parts[2]) != nil {

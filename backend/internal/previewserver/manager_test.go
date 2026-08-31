@@ -205,16 +205,22 @@ func helperConfiguration(name string, kind TargetKind) Configuration {
 
 func writeLaunchFile(t *testing.T, configurations []Configuration) string {
 	t.Helper()
-	workspace := t.TempDir()
-	dir := filepath.Join(workspace, ".kennel")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	return writeLaunchFileIn(t, t.TempDir(), ConfigPath, configurations)
+}
+
+// writeLaunchFileIn writes a launch file at an explicit workspace-relative
+// path so a test can place one under the pre-rename container.
+func writeLaunchFileIn(t *testing.T, workspace, relPath string, configurations []Configuration) string {
+	t.Helper()
+	target := filepath.Join(workspace, filepath.FromSlash(relPath))
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	body, err := json.Marshal(launchFile{Version: 1, Configurations: configurations})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "launch.json"), body, 0o600); err != nil {
+	if err := os.WriteFile(target, body, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return workspace
@@ -225,5 +231,57 @@ func assertPreviewErrorCode(t *testing.T, err error, code string) {
 	var serviceErr Error
 	if !errors.As(err, &serviceErr) || serviceErr.Code != code {
 		t.Fatalf("error = %#v, want %s", err, code)
+	}
+}
+
+// launch.json is authored by hand and committed to a user's own repository,
+// so the rename cannot be allowed to make an existing one invisible. Kennel
+// reads the pre-rename path and never writes it.
+func TestManagerReadsALaunchFileLeftAtTheLegacyPath(t *testing.T) {
+	workspace := writeLaunchFileIn(t, t.TempDir(), legacyConfigPath,
+		[]Configuration{helperConfiguration("web", TargetApp)})
+	manager := New(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	t.Cleanup(manager.Close)
+
+	status, err := manager.Start(context.Background(), "kennel-legacy", workspace, "")
+	if err != nil {
+		t.Fatalf("a launch file at %s was not found: %v", legacyConfigPath, err)
+	}
+	if status.TargetKind != TargetApp {
+		t.Fatalf("targetKind = %q, want app", status.TargetKind)
+	}
+	_, _ = manager.Stop(context.Background(), "kennel-legacy")
+
+	if _, err := os.Stat(filepath.Join(workspace, filepath.FromSlash(ConfigPath))); !os.IsNotExist(err) {
+		t.Fatalf("starting a preview migrated the legacy config; it must only ever be read")
+	}
+}
+
+// With both present the current path is the one that counts, so a stale
+// pre-rename file cannot quietly override the config a user is editing today.
+func TestManagerPrefersTheCurrentLaunchFileOverTheLegacyOne(t *testing.T) {
+	workspace := t.TempDir()
+	writeLaunchFileIn(t, workspace, ConfigPath, []Configuration{helperConfiguration("web", TargetApp)})
+	writeLaunchFileIn(t, workspace, legacyConfigPath, []Configuration{helperConfiguration("stale", TargetAPI)})
+
+	cfg, err := loadConfiguration(workspace, "")
+	if err != nil {
+		t.Fatalf("loadConfiguration: %v", err)
+	}
+	if cfg.Name != "web" {
+		t.Fatalf("configuration = %q, want the current path's %q", cfg.Name, "web")
+	}
+}
+
+// A workspace with neither file still reports the current path, so nobody is
+// pointed at the legacy name when creating their first config.
+func TestManagerMissingLaunchFileNamesTheCurrentPath(t *testing.T) {
+	_, err := loadConfiguration(t.TempDir(), "")
+	assertPreviewErrorCode(t, err, "PREVIEW_CONFIG_NOT_FOUND")
+	if err == nil || !strings.Contains(err.Error(), ConfigPath) {
+		t.Fatalf("error %v should name %s", err, ConfigPath)
+	}
+	if err != nil && strings.Contains(err.Error(), legacyConfigPath) {
+		t.Fatalf("error %v must not advertise the legacy path", err)
 	}
 }
