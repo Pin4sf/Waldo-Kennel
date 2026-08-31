@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	sessionmanager "github.com/Pin4sf/Waldo-Kennel/backend/internal/session_manager"
 )
 
 // agentIntakeAnalyzer starts a bounded session that proposes the Contract for

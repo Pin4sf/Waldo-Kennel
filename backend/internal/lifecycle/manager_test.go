@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 var ctx = context.Background()
@@ -1142,11 +1142,11 @@ func TestActivity_SourceUpdateBeforeInternalHandoffRequestRemainsUserFacing(t *t
 			m := New(store, &fakeMessenger{})
 
 			if err := m.ApplyActivitySignal(ctx, rec.ID, ports.ActivitySignal{
-				LaunchID: "source-generation", LatestAssistantUpdate: "real turn completed before AO requested a handoff",
+				LaunchID: "source-generation", LatestAssistantUpdate: "real turn completed before Kennel requested a handoff",
 			}); err != nil {
 				t.Fatalf("ApplyActivitySignal: %v", err)
 			}
-			if got := store.session(rec.ID).Metadata.LatestAssistantUpdate; got != "real turn completed before AO requested a handoff" {
+			if got := store.session(rec.ID).Metadata.LatestAssistantUpdate; got != "real turn completed before Kennel requested a handoff" {
 				t.Fatalf("latest assistant update = %q, want legitimate pre-request update", got)
 			}
 		})
@@ -3352,7 +3352,7 @@ func TestMarkTerminated_ReapsContainersAgainWhenAlreadyTerminated(t *testing.T) 
 
 // TestMarkTerminated_ContainerReapFailureDoesNotFailTermination asserts the
 // best-effort contract: a container reaper error must never fail
-// MarkTerminated, matching every other best-effort teardown step in AO.
+// MarkTerminated, matching every other best-effort teardown step in Kennel.
 func TestMarkTerminated_ContainerReapFailureDoesNotFailTermination(t *testing.T) {
 	cr := &fakeLifecycleContainerReaper{err: errors.New("docker rm: permission denied")}
 	pl := &fakeProjectConfigLoader{projects: map[string]domain.ProjectRecord{
@@ -3417,7 +3417,7 @@ func TestMarkTerminated_ProjectLoadErrorSkipsRatherThanReaps(t *testing.T) {
 }
 
 // TestMarkTerminated_NilReaperSkipsWithoutProjectLookup confirms nil wiring
-// (the common case — most AO installs run without Docker) skips reaping
+// (the common case — most Kennel installs run without Docker) skips reaping
 // cleanly without even attempting a project lookup.
 func TestMarkTerminated_NilReaperSkipsWithoutProjectLookup(t *testing.T) {
 	m, st, _ := newManager() // newManager wires no container reaper at all
@@ -3433,7 +3433,7 @@ func TestMarkTerminated_NilReaperSkipsWithoutProjectLookup(t *testing.T) {
 
 // TestMarkTerminated_MissingProjectSkipsRatherThanReaps is the regression for
 // failing open on a missing project record: GetProject returning ok=false,
-// err=nil is ambiguity (AO cannot know whether ContainerReap.Disabled would
+// err=nil is ambiguity (Kennel cannot know whether ContainerReap.Disabled would
 // have applied), not a green light to reap. Must be treated the same as the
 // error path.
 func TestMarkTerminated_MissingProjectSkipsRatherThanReaps(t *testing.T) {
@@ -3508,7 +3508,7 @@ func TestRuntimeObservation_WorkloadDeathAloneDoesNotReap(t *testing.T) {
 // mergeMetadata is an explicit allowlist, so a field added to SessionMetadata
 // without a line here is silently dropped on every spawn and restore. That
 // happened to the chat resume handle: the provider still held the conversation,
-// but AO forgot its id, so no restart could ever resume it — and nothing failed
+// but Kennel forgot its id, so no restart could ever resume it — and nothing failed
 // loudly, the column was just empty.
 func TestMarkSpawnedPersistsChatControllerFacts(t *testing.T) {
 	ctx := context.Background()

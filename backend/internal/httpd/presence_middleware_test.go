@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/presence"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/presence"
 )
 
 func TestPresenceMiddlewareTouchesTracker(t *testing.T) {

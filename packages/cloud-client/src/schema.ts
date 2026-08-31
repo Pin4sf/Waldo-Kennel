@@ -2285,7 +2285,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The GitHub App installation was disconnected from AO. */
+            /** @description The GitHub App installation was disconnected from Kennel. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2379,7 +2379,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description GitHub repository, AO project, and first orchestrator created. */
+            /** @description GitHub repository, Kennel project, and first orchestrator created. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -2538,7 +2538,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description AO review planning state and recorded runs for the session. */
+            /** @description Kennel review planning state and recorded runs for the session. */
             200: {
                 headers: {
                     [name: string]: unknown;

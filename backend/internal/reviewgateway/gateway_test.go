@@ -73,10 +73,10 @@ func TestPrepareHostTrustedEnvironmentUsesPrivateAOOwnedDirectories(t *testing.T
 		rel, relErr := filepath.Rel(dataDir, path)
 		info, statErr := os.Stat(path)
 		if relErr != nil || strings.HasPrefix(rel, "..") || statErr != nil {
-			t.Fatalf("private AO-owned directory %q: rel=%q relErr=%v statErr=%v", path, rel, relErr, statErr)
+			t.Fatalf("private Kennel-owned directory %q: rel=%q relErr=%v statErr=%v", path, rel, relErr, statErr)
 		}
 		if info.Mode().Perm() != 0o700 {
-			t.Fatalf("private AO-owned directory %q mode = %v", path, info.Mode().Perm())
+			t.Fatalf("private Kennel-owned directory %q mode = %v", path, info.Mode().Perm())
 		}
 	}
 	got := env.TUIEnvironment()
@@ -84,7 +84,7 @@ func TestPrepareHostTrustedEnvironmentUsesPrivateAOOwnedDirectories(t *testing.T
 		t.Fatalf("TUI environment = %#v", got)
 	}
 	if _, err := PrepareHostTrustedEnvironment("relative", "review-worker-1"); err == nil {
-		t.Fatal("relative AO data directory accepted")
+		t.Fatal("relative Kennel data directory accepted")
 	}
 	if _, err := PrepareHostTrustedEnvironment(dataDir, "../escape"); err == nil {
 		t.Fatal("unsafe reviewer id accepted")
@@ -115,6 +115,6 @@ func TestPrepareEnvironmentRejectsTraversalAndInvalidAuthorization(t *testing.T)
 
 func TestPrepareEnvironmentRequiresAbsoluteDataDir(t *testing.T) {
 	if _, err := PrepareEnvironment("relative", testManifest(t)); err == nil {
-		t.Fatal("relative AO data directory was accepted")
+		t.Fatal("relative Kennel data directory was accepted")
 	}
 }

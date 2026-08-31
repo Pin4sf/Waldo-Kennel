@@ -407,7 +407,7 @@ func newAppRunID() string {
 }
 
 // resolveRunFilePath picks where running.json lives. An explicit KENNEL_RUN_FILE
-// wins; otherwise it sits under the canonical AO home directory so the CLI and
+// wins; otherwise it sits under the canonical Kennel home directory so the CLI and
 // Electron supervisor share one handshake location.
 func resolveRunFilePath() (string, error) {
 	if p, ok := os.LookupEnv("KENNEL_RUN_FILE"); ok && p != "" {
@@ -421,7 +421,7 @@ func resolveRunFilePath() (string, error) {
 }
 
 // resolveDataDir picks where durable state (the SQLite DB) lives. An explicit
-// KENNEL_DATA_DIR wins; otherwise it defaults under the same canonical AO home
+// KENNEL_DATA_DIR wins; otherwise it defaults under the same canonical Kennel home
 // directory as the run-file.
 func resolveDataDir() (string, error) {
 	if p, ok := os.LookupEnv("KENNEL_DATA_DIR"); ok && p != "" {

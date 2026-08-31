@@ -727,7 +727,7 @@ describe("portable inspector presentations", () => {
 });
 
 const reviewLabels: InspectorReviewLabels = {
-  aoSource: "AO",
+  aoSource: "Kennel",
   bot: "Bot",
   earlierPass: "Earlier pass",
   githubSource: "On GitHub",

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	intakevc "github.com/aoagents/agent-orchestrator/backend/internal/service/intake"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/controllers"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	intakevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intake"
 )
 
 // The brief and the route must name the same header. They are separate

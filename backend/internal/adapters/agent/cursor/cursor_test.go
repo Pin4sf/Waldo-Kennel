@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestGetLaunchCommandBuildsArgv(t *testing.T) {
@@ -293,7 +293,7 @@ func TestGetAgentHooksInstallsCursorHooks(t *testing.T) {
 		t.Fatal(err)
 	}
 	hooksPath := filepath.Join(hooksDir, "hooks.json")
-	// Pre-existing user hook on an event AO also manages, plus a non-AO field.
+	// Pre-existing user hook on an event Kennel also manages, plus a non-Kennel field.
 	existing := `{"version":1,"customField":"keep me","hooks":{"stop":[{"command":"custom stop hook"}]}}`
 	if err := os.WriteFile(hooksPath, []byte(existing), 0o644); err != nil {
 		t.Fatal(err)
@@ -307,7 +307,7 @@ func TestGetAgentHooksInstallsCursorHooks(t *testing.T) {
 	if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
-	// A second install must not duplicate AO hook commands.
+	// A second install must not duplicate Kennel hook commands.
 	if err := plugin.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -352,8 +352,8 @@ func TestGetAgentHooksInstallsCursorHooks(t *testing.T) {
 	if trust.WorkspacePath != workspace {
 		t.Fatalf("trust workspacePath = %q, want %q", trust.WorkspacePath, workspace)
 	}
-	if trust.TrustMethod != "ao-session" {
-		t.Fatalf("trustMethod = %q, want ao-session", trust.TrustMethod)
+	if trust.TrustMethod != "kennel-session" {
+		t.Fatalf("trustMethod = %q, want kennel-session", trust.TrustMethod)
 	}
 	if trust.TrustedAt == "" {
 		t.Fatal("trustedAt is empty")
@@ -455,7 +455,7 @@ func TestCleanupWorkspaceRemovesOnlyAOManagedTrustMarker(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(trustPath); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("AO trust marker stat = %v, want missing", err)
+		t.Fatalf("Kennel trust marker stat = %v, want missing", err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(trustPath), 0o750); err != nil {
@@ -556,8 +556,8 @@ func TestCursorWorkspaceProjectName(t *testing.T) {
 		want string
 	}{
 		{
-			path: "/Users/example/.ao/data/worktrees/project/session-1",
-			want: "Users-example-ao-data-worktrees-project-session-1",
+			path: "/Users/example/.kennel/data/worktrees/project/session-1",
+			want: "Users-example-kennel-data-worktrees-project-session-1",
 		},
 		{
 			path: "/Users/example/Library/Application Support/Cursor/workspace.json",

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestRuntimeIntegration(t *testing.T) {
@@ -143,7 +143,7 @@ func TestRuntimeIntegrationSupervisedExitKeepsInteractiveShell(t *testing.T) {
 	t.Cleanup(func() { _ = r.Destroy(context.Background(), ports.RuntimeHandle{ID: tmuxID}) })
 
 	// Re-run this test binary as a long-lived helper with the same controlled
-	// command-line identity as AO's supervisor. The CLI package separately tests
+	// command-line identity as Kennel's supervisor. The CLI package separately tests
 	// that the real supervisor waits for and reports its child.
 	h, err := r.Create(ctx, ports.RuntimeConfig{
 		SessionID:     domain.SessionID(id),
@@ -171,7 +171,7 @@ func TestRuntimeIntegrationSupervisedExitKeepsInteractiveShell(t *testing.T) {
 	}
 
 	// The helper exits normally, matching Codex /exit or EOF. The launch shell
-	// must then execute AO's keep-alive interactive shell.
+	// must then execute Kennel's keep-alive interactive shell.
 	deadline = time.Now().Add(5 * time.Second)
 	for {
 		alive, probeErr := r.IsSupervisedProcessAlive(ctx, h, ref)

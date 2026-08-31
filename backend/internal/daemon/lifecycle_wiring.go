@@ -7,27 +7,27 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/activitydispatch"
-	agentregistry "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/registry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/container/dockerreap"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/reviewer"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/runtimeselect"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/workspace/gitworktree"
-	workspacerouter "github.com/aoagents/agent-orchestrator/backend/internal/adapters/workspace/router"
-	scratchworkspace "github.com/aoagents/agent-orchestrator/backend/internal/adapters/workspace/scratch"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/lifecycle"
-	activityobserver "github.com/aoagents/agent-orchestrator/backend/internal/observe/activity"
-	"github.com/aoagents/agent-orchestrator/backend/internal/observe/reaper"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	reviewcore "github.com/aoagents/agent-orchestrator/backend/internal/review"
-	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
-	reviewsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/review"
-	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/activitydispatch"
+	agentregistry "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/registry"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/container/dockerreap"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/reviewer"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/runtime/runtimeselect"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/workspace/gitworktree"
+	workspacerouter "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/workspace/router"
+	scratchworkspace "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/workspace/scratch"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/lifecycle"
+	activityobserver "github.com/Pin4sf/Waldo-Kennel/backend/internal/observe/activity"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/observe/reaper"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	reviewcore "github.com/Pin4sf/Waldo-Kennel/backend/internal/review"
+	chatsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/chat"
+	reviewsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/review"
+	sessionsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/session"
+	sessionmanager "github.com/Pin4sf/Waldo-Kennel/backend/internal/session_manager"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
 )
 
 type notificationSink interface {
@@ -73,7 +73,7 @@ func startLifecycle(ctx context.Context, store *sqlite.Store, runtime ports.Runt
 
 // ReconcileRuntime runs the same conservative runtime/workload observation as
 // the periodic reaper. The daemon calls it after session-manager reconciliation
-// so exits missed while AO was stopped are folded before the API starts serving.
+// so exits missed while Kennel was stopped are folded before the API starts serving.
 func (l *lifecycleStack) ReconcileRuntime(ctx context.Context) error {
 	return l.runtimeReaper.Tick(ctx)
 }

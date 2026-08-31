@@ -2,7 +2,7 @@ import { authHeaders, httpBase, normalizeServerHost, type ServerConfig } from ".
 import { cachedInstallId, getInstallId } from "./installId";
 import type { AttentionLevel } from "./theme";
 
-// ---- Types (subset of AO's DashboardSession we use on the phone) ------------
+// ---- Types (subset of Kennel's DashboardSession we use on the phone) ------------
 
 export type SessionMode = "chat" | "tui";
 
@@ -40,7 +40,7 @@ export type DashboardSession = {
 	// Which agent CLI drives this session (claude-code, codex, …). Parsed off the
 	// wire but discarded until the orchestrator tab needed it for brand marks.
 	harness?: string | null;
-	/** Controller currently committed for this AO session. */
+	/** Controller currently committed for this Kennel session. */
 	mode: SessionMode;
 	branch: string | null;
 	issueId: string | null;
@@ -116,7 +116,7 @@ export type SessionsResponse = {
 
 // ---- Wire types (this repo's Go daemon, /api/v1/*) --------------------------
 //
-// The app UI speaks AO's OG "DashboardSession" shape; this daemon speaks a
+// The app UI speaks Kennel's OG "DashboardSession" shape; this daemon speaks a
 // leaner read model. The maps below translate the daemon's SessionView/PR facts
 // into the shapes the screens expect, so the rest of the app is unchanged.
 
@@ -290,7 +290,7 @@ async function req(cfg: ServerConfig, path: string, init?: RequestInit, timeoutM
 			headers: {
 				...authHeaders(cfg),
 				"Content-Type": "application/json",
-				...(installId ? { "X-AO-Install-Id": installId } : {}),
+				...(installId ? { "X-Kennel-Install-Id": installId } : {}),
 				...(init?.headers ?? {}),
 			},
 		});
@@ -416,7 +416,7 @@ export async function getPreview(cfg: ServerConfig, id: string, preferredURL?: s
 	return external ? { entry: external.hostname, url: external.href, authenticated: false } : null;
 }
 
-/** Rewrite host-loopback previews for the phone without ever forwarding AO auth. */
+/** Rewrite host-loopback previews for the phone without ever forwarding Kennel auth. */
 export function mobileReachablePreviewURL(raw: string | undefined, aoHost: string): URL | undefined {
 	if (!raw) return undefined;
 	try {
@@ -670,7 +670,7 @@ export async function restoreSession(cfg: ServerConfig, id: string): Promise<voi
 	await req(cfg, `${API}/sessions/${encodeURIComponent(id)}/restore`, { method: "POST" });
 }
 
-/** Restart a stopped agent/controller without restoring a terminated AO session. */
+/** Restart a stopped agent/controller without restoring a terminated Kennel session. */
 export async function resumeSessionAgent(cfg: ServerConfig, id: string): Promise<void> {
 	await req(cfg, `${API}/sessions/${encodeURIComponent(id)}/resume-agent`, { method: "POST" });
 }

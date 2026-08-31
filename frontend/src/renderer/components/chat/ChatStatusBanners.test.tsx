@@ -8,7 +8,7 @@ import { McpServerBanner, ReauthBanner, ThreadStateBanner } from "./ChatStatusBa
 // that teaches readers to ignore the row.
 
 describe("ReauthBanner", () => {
-	it("names the command, because re-authenticating is not something AO can do", () => {
+	it("names the command, because re-authenticating is not something Kennel can do", () => {
 		render(
 			<ReauthBanner
 				account={{
@@ -60,7 +60,7 @@ describe("ThreadStateBanner", () => {
 		expect(screen.getByText(/not in Kennel's connection to it/)).toBeInTheDocument();
 	});
 
-	it("reports a closed thread as history AO kept and the agent did not", () => {
+	it("reports a closed thread as history Kennel kept and the agent did not", () => {
 		render(<ThreadStateBanner threadState={{ status: "closed" }} />);
 		expect(screen.getByText(/closed this thread/i)).toBeInTheDocument();
 	});

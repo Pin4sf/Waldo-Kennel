@@ -17,7 +17,7 @@ import { haptics } from "./haptics";
 import type { ConnStatus } from "./store";
 import { statusVisual, type Theme } from "./theme";
 import { useTheme, useThemedStyles } from "./ThemeProvider";
-// AO mascot glyph (transparent) shown beside each screen heading.
+// Kennel mascot glyph (transparent) shown beside each screen heading.
 import MASCOT from "../assets/mascot.png";
 
 // A gently breathing dot - the only motion in the UI, reserved for "working".
@@ -221,7 +221,7 @@ function MascotLamp({ status }: { status?: ConnStatus }) {
 			style={s.mascotWrap}
 			accessible
 			accessibilityRole="image"
-			accessibilityLabel={status ? `AO mascot, ${label}` : "AO mascot"}
+			accessibilityLabel={status ? `Kennel mascot, ${label}` : "Kennel mascot"}
 		>
 			<Image source={MASCOT} style={s.mascot} resizeMode="contain" />
 			{status ? (

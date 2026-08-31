@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // ---------------------------------------------------------------------------
@@ -98,7 +98,7 @@ func newProviderForTest(t *testing.T, f *fakeGH) *Provider {
 		HTTPClient: f.server.Client(),
 		RESTBase:   f.server.URL,
 		GraphQLURL: f.server.URL + "/graphql",
-		UserAgent:  "ao-scm-test",
+		UserAgent:  "kennel-scm-test",
 	})
 	if err != nil {
 		t.Fatalf("NewProvider: %v", err)
@@ -134,7 +134,7 @@ func TestAuthenticatedIdentityCachesHumanUser(t *testing.T) {
 func TestAuthenticatedIdentityClassifiesBot(t *testing.T) {
 	f := newFakeGH(t)
 	f.on(http.MethodGet, "/user", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"login": "ao-bot", "type": "Bot"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"login": "kennel-bot", "type": "Bot"})
 	})
 	p := newProviderForTest(t, f)
 
@@ -142,7 +142,7 @@ func TestAuthenticatedIdentityClassifiesBot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != (ports.SCMIdentity{Login: "ao-bot", Human: false}) {
+	if got != (ports.SCMIdentity{Login: "kennel-bot", Human: false}) {
 		t.Fatalf("identity = %#v", got)
 	}
 }
@@ -1592,7 +1592,7 @@ func installCheckRunsFake(t *testing.T, f *fakeGH, owner, repo, sha string, mu *
 // for the "completed checks remain pending" bug: the guard used to condition on
 // per_page=1, so GitHub's ETag only covered the first returned run. When a
 // DIFFERENT workflow finished, the single-item representation was unchanged and
-// GitHub answered 304, leaving AO stuck on "Checks running" until the five-minute
+// GitHub answered 304, leaving Kennel stuck on "Checks running" until the five-minute
 // forced refresh. The guard must now track the complete run set.
 func TestCommitChecksGuard_OtherRunTransitionInvalidatesGuard(t *testing.T) {
 	f := newFakeGH(t)
@@ -1629,7 +1629,7 @@ func TestCommitChecksGuard_OtherRunTransitionInvalidatesGuard(t *testing.T) {
 
 	// Third poll: the FIRST returned run is stable, but a DIFFERENT run
 	// transitions in_progress -> completed. With the old per_page=1 guard this
-	// returned 304 and AO kept "Checks running". With the complete-representation
+	// returned 304 and Kennel kept "Checks running". With the complete-representation
 	// guard the full body changed, so GitHub sends a fresh ETag -> NotModified=false.
 	mu.Lock()
 	runs = []map[string]any{

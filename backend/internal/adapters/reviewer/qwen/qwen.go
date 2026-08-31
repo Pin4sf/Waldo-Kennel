@@ -1,5 +1,5 @@
-// Package qwen contains AO's experimental host-trusted Qwen Code reviewer.
-// Qwen runs as a visible, long-lived TUI in an AO-owned neutral directory.
+// Package qwen contains Kennel's experimental host-trusted Qwen Code reviewer.
+// Qwen runs as a visible, long-lived TUI in an Kennel-owned neutral directory.
 package qwen
 
 import (
@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	workerqwen "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/qwen"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/reviewgateway"
+	workerqwen "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/qwen"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/reviewgateway"
 )
 
 // HostTrustWarning describes the security boundary operators accept by using
@@ -31,7 +31,7 @@ type Reviewer struct {
 }
 
 // New creates the Qwen reviewer. Production launch invocations supply the
-// AO-owned data directory used for its neutral working and configuration roots.
+// Kennel-owned data directory used for its neutral working and configuration roots.
 func New() *Reviewer {
 	return &Reviewer{resolveBinary: workerqwen.ResolveQwenBinary}
 }
@@ -92,7 +92,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 	return cmd, true, err
 }
 
-// ReviewMessage reuses AO's normal pane injection for subsequent passes.
+// ReviewMessage reuses Kennel's normal pane injection for subsequent passes.
 func (*Reviewer) ReviewMessage(_ context.Context, inv ports.ReviewInvocation) (string, error) {
 	return inv.Prompt, nil
 }
@@ -125,7 +125,7 @@ func (*Reviewer) ReviewCancel(context.Context) (ports.ReviewCancelSpec, error) {
 func (r *Reviewer) prepareEnvironment(inv ports.ReviewInvocation) (reviewgateway.Environment, error) {
 	dataDir := inv.DataDir
 	if strings.TrimSpace(dataDir) == "" {
-		return reviewgateway.Environment{}, errors.New("qwen reviewer: AO data directory is required")
+		return reviewgateway.Environment{}, errors.New("qwen reviewer: Kennel data directory is required")
 	}
 	env, err := reviewgateway.PrepareHostTrustedEnvironment(dataDir, inv.ReviewerID)
 	if err != nil {

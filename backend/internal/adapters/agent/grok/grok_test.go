@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hooksjson"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hooksjson"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestManifest(t *testing.T) {
@@ -274,7 +274,7 @@ func TestGetRestoreCommandNoID(t *testing.T) {
 	}{
 		{"empty metadata", ports.SessionRef{Metadata: map[string]string{}}},
 		{"blank agent session metadata", ports.SessionRef{Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "   "}}},
-		{"kennel session id only", ports.SessionRef{ID: "ao-7"}},
+		{"kennel session id only", ports.SessionRef{ID: "kennel-7"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -391,7 +391,7 @@ func TestGetAgentHooksInstallsGrokCommandsInClaudeSettings(t *testing.T) {
 		t.Fatalf("existing Stop hook not preserved: %#v", config.Hooks["Stop"])
 	}
 	if countGrokHookCommand(config.Hooks["Stop"], "kennel hooks claude-code stop") != 1 {
-		t.Fatalf("existing Claude AO Stop hook not preserved: %#v", config.Hooks["Stop"])
+		t.Fatalf("existing Claude Kennel Stop hook not preserved: %#v", config.Hooks["Stop"])
 	}
 	if len(config.Permissions) == 0 {
 		t.Fatalf("unrelated settings clobbered: %s", data)
@@ -433,7 +433,7 @@ func TestGetAgentHooksInstallsGrokCommandsInClaudeSettings(t *testing.T) {
 		t.Fatalf("user Stop hook not preserved after uninstall: %#v", config.Hooks["Stop"])
 	}
 	if countGrokHookCommand(config.Hooks["Stop"], "kennel hooks claude-code stop") != 1 {
-		t.Fatalf("Claude AO Stop hook not preserved after uninstall: %#v", config.Hooks["Stop"])
+		t.Fatalf("Claude Kennel Stop hook not preserved after uninstall: %#v", config.Hooks["Stop"])
 	}
 	if len(config.Permissions) == 0 {
 		t.Fatalf("unrelated settings clobbered after uninstall: %s", data)

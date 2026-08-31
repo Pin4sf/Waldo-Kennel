@@ -3,13 +3,13 @@
 // workspace-local lifecycle hooks, and reading hook-derived session info.
 //
 // Goose (binary "goose") is launched as `goose run -t "" --interactive`, and
-// AO injects prompted tasks after startup. Its non-interactive
+// Kennel injects prompted tasks after startup. Its non-interactive
 // `goose run -t "<text>"` mode exits after the prompt completes, which is not a
-// usable lifecycle for AO worker terminals. Goose has a native
+// usable lifecycle for Kennel worker terminals. Goose has a native
 // Claude-Code-style lifecycle hook system (released 2026-05): a plugin directory
 // under <workspace>/.agents/plugins/<name>/hooks/hooks.json is auto-discovered
 // at startup and its commands run on SessionStart / UserPromptSubmit / Stop /
-// etc. AO installs its hooks there, so AO derives native session identity and
+// etc. Kennel installs its hooks there, so Kennel derives native session identity and
 // activity from Goose hooks (Tier A), the same way the Codex adapter does.
 //
 // Permission/approval is controlled by the GOOSE_MODE environment variable
@@ -18,7 +18,7 @@
 // the opencode adapter uses for OPENCODE_PERMISSION). The default mode emits no
 // prefix so Goose defers to the user's own config.
 //
-// Note: the AO repo also vendors pressly/goose as its SQLite migration tool,
+// Note: the Kennel repo also vendors pressly/goose as its SQLite migration tool,
 // but that is a different Go import path; this package's name `goose` only
 // collides at the import-alias level, which central wiring resolves.
 package goose
@@ -30,10 +30,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
@@ -98,7 +98,7 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 // non-default permission mode is rendered as an `env GOOSE_MODE=<mode>` prefix
 // because Goose reads its approval mode from the environment, not from a flag.
 // System instructions, when present, are passed via `--system`. Goose requires
-// one of --instructions, --text, or --recipe, so AO supplies empty text plus
+// one of --instructions, --text, or --recipe, so Kennel supplies empty text plus
 // --interactive to land in an input-ready terminal without inventing an initial
 // task.
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
@@ -123,7 +123,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	return cmd, nil
 }
 
-// GetPromptDeliveryStrategy reports that AO should inject prompted Goose tasks
+// GetPromptDeliveryStrategy reports that Kennel should inject prompted Goose tasks
 // into the interactive terminal after startup. Goose's `-t <prompt>` mode exits
 // after the single prompt completes.
 func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, _ ports.LaunchConfig) (ports.PromptDeliveryStrategy, error) {
@@ -138,7 +138,7 @@ func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, _ ports.LaunchCo
 //	[env GOOSE_MODE=<mode>] goose run --system <text> --resume --session-id <agentSessionId>
 //
 // ok is false when the hook-derived native session id has not landed yet, so
-// callers can fall back to fresh launch behavior. AO deliberately uses run
+// callers can fall back to fresh launch behavior. Kennel deliberately uses run
 // rather than session here: run supports --system alongside --resume, so the
 // current derived system instructions are reapplied without replaying the
 // original task or relying on Goose to persist invocation-level instructions.
@@ -197,7 +197,7 @@ func systemPromptTextFrom(inline, file string) (string, error) {
 	if file == "" {
 		return "", nil
 	}
-	data, err := os.ReadFile(file) //nolint:gosec // path is AO-owned launch config
+	data, err := os.ReadFile(file) //nolint:gosec // path is Kennel-owned launch config
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", file, err)
 	}
@@ -209,7 +209,7 @@ func systemPromptTextFrom(inline, file string) (string, error) {
 
 // appendModelFlag appends a trimmed --model flag when a model override is
 // configured. Goose pairs a model with a --provider; a bare --model overrides
-// the model within the configured provider, which matches AO's single-string
+// the model within the configured provider, which matches Kennel's single-string
 // agentConfig.model contract.
 func appendModelFlag(cmd *[]string, cfg ports.AgentConfig) {
 	if model := strings.TrimSpace(cfg.Model); model != "" {
@@ -234,7 +234,7 @@ func gooseModeEnvPrefix(mode ports.PermissionMode) []string {
 	return []string{"env", gooseModeEnvVar + "=" + value}
 }
 
-// gooseMode maps an AO permission mode onto Goose's GOOSE_MODE value.
+// gooseMode maps an Kennel permission mode onto Goose's GOOSE_MODE value.
 //
 //   - default            → "": no env; Goose's own config decides approvals.
 //   - accept-edits       → smart_approve: auto-approves safe edits, asks on risk.

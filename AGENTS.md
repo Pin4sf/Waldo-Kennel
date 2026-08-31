@@ -4,7 +4,7 @@ Operational guidance for coding agents working in this repository. Keep changes 
 
 ## Repo layout
 
-- `backend/` — AO-derived Go chassis: Cobra `kennel` CLI (source entrypoint `cmd/ao`), loopback HTTP daemon, services, SQLite storage, lifecycle/reaper, runtime/workspace/agent/tracker adapters, terminal mux, and tests.
+- `backend/` — Go chassis: Cobra `kennel` CLI (source entrypoint `cmd/kennel`), loopback HTTP daemon, services, SQLite storage, lifecycle/reaper, runtime/workspace/agent/tracker adapters, terminal mux, and tests. Historically derived from agent-orchestrator; Kennel is now standalone with no upstream remote.
 - `frontend/` — Electron + React supervisor wired to the daemon via the generated typed client. Treat it as a thin supervisor/UI surface; do not move daemon logic into it.
 - `docs/` — current architecture/status notes. Start here before changing lifecycle, CLI, agents, storage, or daemon behavior.
 - `test/` — external smoke/e2e assets, including the CLI fresh-install container check.
@@ -30,7 +30,7 @@ go build ./...
 go test ./...
 go test -race ./...
 go vet ./...
-go run ./cmd/ao start # source seam; reports and installs as kennel
+go run ./cmd/kennel start # source seam; reports and installs as kennel
 ```
 
 Frontend-specific checks:

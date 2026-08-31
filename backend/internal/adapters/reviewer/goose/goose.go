@@ -1,4 +1,4 @@
-// Package goose defines AO's experimental host-trusted Goose reviewer.
+// Package goose defines Kennel's experimental host-trusted Goose reviewer.
 package goose
 
 import (
@@ -10,24 +10,24 @@ import (
 	"path/filepath"
 	"strings"
 
-	workergoose "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/goose"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
-	"github.com/aoagents/agent-orchestrator/backend/internal/reviewgateway"
+	workergoose "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/goose"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/reviewgateway"
 )
 
 const (
 	pinnedVersion     = "1.38.0"
-	gooseBinary       = "/opt/ao/bin/goose"
-	gatewayMCPBinary  = "/opt/ao/bin/ao-review-gateway-mcp"
-	containedRoot     = "/opt/ao/reviewer"
+	gooseBinary       = "/opt/kennel/bin/goose"
+	gatewayMCPBinary  = "/opt/kennel/bin/kennel-review-gateway-mcp"
+	containedRoot     = "/opt/kennel/reviewer"
 	neutralWorkingDir = containedRoot + "/work"
 	isolatedHome      = containedRoot + "/home"
 	isolatedGooseRoot = containedRoot + "/goose"
 	isolatedTemp      = containedRoot + "/tmp"
 	systemPromptPath  = containedRoot + "/prompts/system.md"
-	modelBrokerHost   = "http://ao-review-model-broker/v1"
+	modelBrokerHost   = "http://kennel-review-model-broker/v1"
 
 	// This is the SHA-256 of the exact stdout emitted by the official Goose
 	// 1.38.0 binary for `goose session --help`. Version equality alone is not
@@ -53,7 +53,7 @@ func New() *Reviewer {
 	return &Reviewer{
 		resolveBinary: workergoose.ResolveGooseBinary,
 		run: func(ctx context.Context, env map[string]string, binary string, args ...string) ([]byte, error) {
-			cmd := aoprocess.CommandContext(ctx, binary, args...)
+			cmd := kennelprocess.CommandContext(ctx, binary, args...)
 			cmd.Env = appendEnvironment(os.Environ(), env)
 			return cmd.CombinedOutput()
 		},
@@ -67,9 +67,9 @@ var _ ports.Reviewer = (*Reviewer)(nil)
 var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 var _ ports.ReviewerReusePolicy = (*Reviewer)(nil)
 
-// ReviewCommand launches Goose's normal interactive run mode with AO-owned CLI
+// ReviewCommand launches Goose's normal interactive run mode with Kennel-owned CLI
 // state. The first review task is passed as Goose's native instructions file so
-// AO never has to type a backtick-wrapped task path into a pane that may have
+// Kennel never has to type a backtick-wrapped task path into a pane that may have
 // fallen back to the user's shell. Host tools, inherited credentials, and
 // network remain host-trusted.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
@@ -91,7 +91,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 	}
 	profile, err := reviewgateway.PrepareHostTrustedEnvironment(inv.DataDir, inv.ReviewerID)
 	if err != nil {
-		return ports.ReviewCommandSpec{}, fmt.Errorf("goose reviewer: prepare AO-owned profile: %w", err)
+		return ports.ReviewCommandSpec{}, fmt.Errorf("goose reviewer: prepare Kennel-owned profile: %w", err)
 	}
 	env := hostGooseEnvironment(profile)
 	if strings.TrimSpace(os.Getenv("ZHIPU_API_KEY")) == "" {
@@ -121,7 +121,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 }
 
 // ReviewRestoreCommand restores a recorded Goose reviewer pane by relaunching
-// with the AO-owned profile and current task context.
+// with the Kennel-owned profile and current task context.
 func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, bool, error) {
 	cmd, err := r.ReviewCommand(ctx, inv)
 	return cmd, true, err
@@ -133,7 +133,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 func (*Reviewer) ReviewProcessReusable() bool { return false }
 
 // ReviewPreflight verifies that the Goose executable is available. The pinned
-// CLI probe runs later with AO-owned state roots in ReviewCommand.
+// CLI probe runs later with Kennel-owned state roots in ReviewCommand.
 func (r *Reviewer) ReviewPreflight(ctx context.Context, _ string) error {
 	_, err := r.resolveBinary(ctx)
 	return err
@@ -166,14 +166,14 @@ func appendEnvironment(base []string, overrides map[string]string) []string {
 	return result
 }
 
-// ReviewMessage keeps subsequent reviews in the already-running TUI. AO's
+// ReviewMessage keeps subsequent reviews in the already-running TUI. Kennel's
 // launcher supplies only a short reference to an immutable task file here.
 func (*Reviewer) ReviewMessage(_ context.Context, inv ports.ReviewInvocation) (string, error) {
 	return inv.Prompt, nil
 }
 
 // ReviewCancel sends exactly one Ctrl-C. Goose treats it as cancellation of an
-// active turn; AO must not send a second interrupt that could exit the TUI.
+// active turn; Kennel must not send a second interrupt that could exit the TUI.
 func (*Reviewer) ReviewCancel(context.Context) (ports.ReviewCancelSpec, error) {
 	return ports.ReviewCancelSpec{Mode: ports.ReviewCancelInterrupt, Interrupts: 1}, nil
 }
@@ -232,7 +232,7 @@ func containedCommand(initialMessage string) containedProcessSpec {
 			"CONTEXT_FILE_NAMES=[]",
 			"GOOSE_DISABLE_KEYRING=1",
 			"GOOSE_DISABLE_SESSION_NAMING=true",
-			"GOOSE_MODEL=ao-reviewer",
+			"GOOSE_MODEL=kennel-reviewer",
 			"GOOSE_MODE=auto",
 			"GOOSE_PATH_ROOT=" + isolatedGooseRoot,
 			"GOOSE_PROVIDER=openai",
@@ -240,7 +240,7 @@ func containedCommand(initialMessage string) containedProcessSpec {
 			"GOOSE_TELEMETRY_OFF=1",
 			"HOME=" + isolatedHome,
 			"OPENAI_BASE_URL=" + modelBrokerHost,
-			"PATH=/opt/ao/bin:/usr/bin:/bin",
+			"PATH=/opt/kennel/bin:/usr/bin:/bin",
 			"TERM=xterm-256color",
 			"TMPDIR=" + isolatedTemp,
 		},

@@ -19,9 +19,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/daemonmeta"
-	"github.com/aoagents/agent-orchestrator/backend/internal/runfile"
-	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/daemonmeta"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/runfile"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/telemetrymeta"
 )
 
 func TestRootHelpDoesNotShowDaemon(t *testing.T) {
@@ -191,7 +191,7 @@ func TestCLIInvocationActorType(t *testing.T) {
 		t.Fatalf("status actor without session env = %q, want user", got)
 	}
 
-	t.Setenv("KENNEL_SESSION_ID", "ao-session-1")
+	t.Setenv("KENNEL_SESSION_ID", "kennel-session-1")
 	if got := cliInvocationActorType(byName["status"]); got != "agent" {
 		t.Fatalf("status actor with session env = %q, want agent", got)
 	}
@@ -346,7 +346,7 @@ func TestStopDoesNotShutdownUnverifiedReusedPID(t *testing.T) {
 	}
 	select {
 	case <-shutdownCalled:
-		t.Fatal("stop requested shutdown from a process whose health probe did not prove AO daemon ownership")
+		t.Fatal("stop requested shutdown from a process whose health probe did not prove Kennel daemon ownership")
 	default:
 	}
 	if !strings.Contains(out, `"state": "stopped"`) {

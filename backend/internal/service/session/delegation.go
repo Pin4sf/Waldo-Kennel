@@ -8,10 +8,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	sessionmanager "github.com/Pin4sf/Waldo-Kennel/backend/internal/session_manager"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 	outcomeSessionTitleLimit            = 80
 )
 
-// DelegateTaskInput describes a task AO should spawn as a worker session. Brief
+// DelegateTaskInput describes a task Kennel should spawn as a worker session. Brief
 // may be empty to open an idle worker that the user can instruct later. Empty
 // RequestedAgent means the spawn uses the project's worker-agent default.
 type DelegateTaskInput struct {
@@ -43,7 +43,7 @@ type DelegateTaskOutcome struct {
 }
 
 // DelegateTask spawns the worker directly, matching `kennel spawn`, with a
-// provisional display name derived from the task brief. AO then best-effort
+// provisional display name derived from the task brief. Kennel then best-effort
 // refines that title in the background through the project orchestrator,
 // resuming or creating the coordinator when necessary.
 func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (DelegateTaskOutcome, error) {

@@ -1775,13 +1775,13 @@ describe("SessionInspector summary reviews", () => {
     expect(
       await screen.findByRole("button", { name: "Run review" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("AO code reviews")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kennel code reviews")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Reviews on the pull request"),
     ).not.toBeInTheDocument();
   });
 
-  it("hides AO code reviews until a review run has been triggered", async () => {
+  it("hides Kennel code reviews until a review run has been triggered", async () => {
     mockCommonGets([], "", [reviewState(3, "needs_review", "abc123")]);
 
     renderWithQuery(<SessionInspector session={session([pr(3, "open")])} />);
@@ -1790,11 +1790,11 @@ describe("SessionInspector summary reviews", () => {
     expect(
       await screen.findByRole("button", { name: "Review latest commit" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("AO code reviews")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kennel code reviews")).not.toBeInTheDocument();
     expect(screen.queryByText("Reviewable change 3")).not.toBeInTheDocument();
   });
 
-  it("shows AO code reviews for verdict-only review states", async () => {
+  it("shows Kennel code reviews for verdict-only review states", async () => {
     mockCommonGets([], "reviewer-pane", [
       reviewState(3, "changes_requested", "abc123"),
     ]);
@@ -1921,7 +1921,7 @@ describe("SessionInspector summary reviews", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders AO review summaries as Markdown", async () => {
+  it("renders Kennel review summaries as Markdown", async () => {
     mockCommonGets([], "reviewer-pane", [
       {
         ...reviewState(3, "up_to_date", "abc123"),
@@ -1941,7 +1941,7 @@ describe("SessionInspector summary reviews", () => {
     expect(summary).not.toHaveTextContent("**auth validation**");
   });
 
-  // An AO pass only gets a review-comment anchor once it is submitted to
+  // An Kennel pass only gets a review-comment anchor once it is submitted to
   // GitHub, so without a fallback an unsubmitted pass is a dead end.
   it("links a run to its GitHub review, falling back to the PR when it has none", async () => {
     mockCommonGets([], "reviewer-pane", [
@@ -1985,7 +1985,7 @@ describe("SessionInspector summary reviews", () => {
     ["cancelled", "approved", "Review needed", "Review latest commit"],
     ["running", "approved", "Reviewing...", "Stop review"],
   ] as const)(
-    "keeps the current AO review state clear while the current head is %s",
+    "keeps the current Kennel review state clear while the current head is %s",
     async (status, previousVerdict, runLabel, actionLabel) => {
       const current = {
         ...reviewState(
@@ -2130,13 +2130,13 @@ describe("SessionInspector summary reviews", () => {
     expect(comments).toHaveTextContent("Sent to worker agent");
     expect(comments).not.toHaveTextContent("a.ts:3");
     expect(comments).not.toHaveTextContent("a.ts:9");
-    // AO's runs and the PR's own reviews share one section keyed by PR, so the
-    // unresolved count rides the same row as the AO verdict.
+    // Kennel's runs and the PR's own reviews share one section keyed by PR, so the
+    // unresolved count rides the same row as the Kennel verdict.
     expect(screen.getByText("Review summary")).toBeInTheDocument();
     expect(
       screen.queryByText("Reviews on the pull request"),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("AO code reviews")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kennel code reviews")).not.toBeInTheDocument();
     expect(
       screen.queryByText("No unresolved threads."),
     ).not.toBeInTheDocument();
@@ -2443,7 +2443,7 @@ describe("SessionInspector summary reviews", () => {
     expect(screen.getAllByText("Sent to worker agent")).toHaveLength(2);
   });
 
-  it("marks an AO review using its stored injection decision", async () => {
+  it("marks an Kennel review using its stored injection decision", async () => {
     mockCommonGets([], "reviewer-pane", [
       {
         ...reviewState(3, "up_to_date", "abc123"),
@@ -2687,7 +2687,7 @@ describe("SessionInspector summary reviews", () => {
     renderWithQuery(<SessionInspector session={session([pr(3, "open")])} />);
     await openReviewsSection();
 
-    // AO runs one reviewer per worker, so a second harness cannot start
+    // Kennel runs one reviewer per worker, so a second harness cannot start
     // alongside it. Say so rather than silently ignoring the choice.
     expect(screen.getByText("Review in progress · Codex")).toBeInTheDocument();
     expect(

@@ -3,7 +3,7 @@ package codexappserver
 import (
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Turn-diff parsing.
@@ -16,7 +16,7 @@ import (
 // than arriving ready-made.
 //
 // The structured alternative, `item/fileChange/patchUpdated`, reports one ITEM's
-// changes. It cannot answer "what has this turn changed so far" without AO
+// changes. It cannot answer "what has this turn changed so far" without Kennel
 // accumulating and de-duplicating items itself, which is a second source of truth
 // for something the provider already aggregates correctly.
 
@@ -111,7 +111,7 @@ func parseTurnDiff(diff string) (files []ports.ChatDiffFile, truncated bool) {
 	return files, false
 }
 
-// Change kinds AO reports. These are the neutral names, not the provider's:
+// Change kinds Kennel reports. These are the neutral names, not the provider's:
 // `item/fileChange/patchUpdated` spells them add/delete/update.
 const (
 	diffStatusAdded    = "added"

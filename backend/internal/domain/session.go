@@ -35,7 +35,7 @@ type SessionMetadata struct {
 	AgentSessionID    string `json:"agentSessionId,omitempty"`
 	Prompt            string `json:"prompt,omitempty"`
 	// LatestUserPrompt is the latest real user-authored task direction observed
-	// for this AO session. Internal AO coordination messages (for example an
+	// for this Kennel session. Internal Kennel coordination messages (for example an
 	// agent-switch handoff request) must not replace it.
 	LatestUserPrompt string `json:"latestUserPrompt,omitempty"`
 	// LatestAssistantUpdate is the latest user-facing assistant update observed

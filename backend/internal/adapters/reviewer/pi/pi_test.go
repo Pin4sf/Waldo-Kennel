@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/reviewgateway"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/reviewgateway"
 )
 
 func testReviewer(help string) *Reviewer {
@@ -35,8 +35,8 @@ func testInvocation(t *testing.T, runID, prURL, targetSHA string) ports.ReviewIn
 	return ports.ReviewInvocation{
 		ReviewerID: "review-worker-1", RunID: runID, WorkerSessionID: "worker-1",
 		PRURL: prURL, TargetSHA: targetSHA,
-		WorkspacePath: filepath.Join(root, "worktree"), DataDir: filepath.Join(root, "ao-data"),
-		Prompt: "Read and follow the AO review task.", TaskPromptFile: taskPath, TaskPromptRoot: promptRoot,
+		WorkspacePath: filepath.Join(root, "worktree"), DataDir: filepath.Join(root, "kennel-data"),
+		Prompt: "Read and follow the Kennel review task.", TaskPromptFile: taskPath, TaskPromptRoot: promptRoot,
 	}
 }
 
@@ -97,7 +97,7 @@ func TestExtensionRejectsCommandInjectionSurfaces(t *testing.T) {
 func TestReviewCommandIsInteractiveAndIsolated(t *testing.T) {
 	inv := testInvocation(t, "run-1", "https://github.com/acme/widgets/pull/42", "0123456789abcdef")
 	r := testReviewer("")
-	inv.Prompt = "Read and follow the AO review task in `/ao/task.md`."
+	inv.Prompt = "Read and follow the Kennel review task in `/ao/task.md`."
 	inv.SystemPromptFile = filepath.Join(inv.TaskPromptRoot, "system.md")
 	spec, err := r.ReviewCommand(context.Background(), inv)
 	if err != nil {
@@ -117,7 +117,7 @@ func TestReviewCommandIsInteractiveAndIsolated(t *testing.T) {
 	if !strings.Contains(joined, "ao_read,ao_search,git_inspect,github_post_review,ao_review_submit") {
 		t.Fatalf("argv missing exact tool allowlist: %#v", spec.Argv)
 	}
-	if got := spec.Argv[len(spec.Argv)-1]; got != "Read and follow the AO review task in `/ao/task.md`." {
+	if got := spec.Argv[len(spec.Argv)-1]; got != "Read and follow the Kennel review task in `/ao/task.md`." {
 		t.Fatalf("terminal-visible prompt = %q", got)
 	}
 	if spec.Env["KENNEL_PI_REVIEW_SESSION"] != "worker-1" || spec.Env["KENNEL_PI_REVIEW_PROMPT_ROOT"] != inv.TaskPromptRoot || spec.Env["KENNEL_PI_REVIEW_MANIFEST_POINTER"] == "" {
@@ -129,7 +129,7 @@ func TestReviewCommandIsInteractiveAndIsolated(t *testing.T) {
 		spec.Env["XDG_STATE_HOME"] != filepath.Join(wantProfileRoot, "state") ||
 		spec.Env["XDG_CACHE_HOME"] != filepath.Join(wantProfileRoot, "cache") ||
 		spec.Env["TMPDIR"] != filepath.Join(wantProfileRoot, "tmp") {
-		t.Fatalf("Pi reviewer must use AO-owned profile roots, env = %#v", spec.Env)
+		t.Fatalf("Pi reviewer must use Kennel-owned profile roots, env = %#v", spec.Env)
 	}
 	manifest := readActiveManifest(t, spec.Env["KENNEL_PI_REVIEW_MANIFEST_POINTER"])
 	if len(manifest.Tasks) != 1 || manifest.Tasks[0].RunID != inv.RunID || manifest.Tasks[0].PRURL != inv.PRURL || manifest.Tasks[0].TargetSHA != inv.TargetSHA {

@@ -7,17 +7,17 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/attachmentstore"
-	"github.com/aoagents/agent-orchestrator/backend/internal/cdc"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apispec"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/presence"
-	prsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/pr"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
-	reviewsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/review"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/attachmentstore"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/cdc"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apispec"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/controllers"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/envelope"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/presence"
+	prsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/pr"
+	projectsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
+	reviewsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/review"
 )
 
 // APIDeps bundles every service the API layer's controllers depend on.

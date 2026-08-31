@@ -1,4 +1,4 @@
-// Package agy defines AO's experimental host-trusted Antigravity reviewer.
+// Package agy defines Kennel's experimental host-trusted Antigravity reviewer.
 package agy
 
 import (
@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"strings"
 
-	agentagy "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agy"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
-	"github.com/aoagents/agent-orchestrator/backend/internal/reviewgateway"
+	agentagy "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agy"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/reviewgateway"
 )
 
 // HarnessID identifies the Agy reviewer adapter.
@@ -38,7 +38,7 @@ func New() *Reviewer {
 	return &Reviewer{
 		resolveBinary: agentagy.ResolveAgyBinary,
 		run: func(ctx context.Context, env map[string]string, binary string, args ...string) ([]byte, error) {
-			cmd := aoprocess.CommandContext(ctx, binary, args...)
+			cmd := kennelprocess.CommandContext(ctx, binary, args...)
 			cmd.Env = appendEnvironment(os.Environ(), env)
 			return cmd.CombinedOutput()
 		},
@@ -52,7 +52,7 @@ var _ ports.Reviewer = (*Reviewer)(nil)
 var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 
 // ReviewCommand launches Agy's permanent interactive TUI in sandbox mode. The
-// checkout and AO prompt root are explicitly added because this experimental
+// checkout and Kennel prompt root are explicitly added because this experimental
 // mode is host-trusted rather than contained.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	binary, err := r.resolveBinary(ctx)
@@ -67,7 +67,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 	}
 	env, err := reviewgateway.PrepareHostTrustedEnvironment(inv.DataDir, inv.ReviewerID)
 	if err != nil {
-		return ports.ReviewCommandSpec{}, fmt.Errorf("agy reviewer: prepare AO-owned profile: %w", err)
+		return ports.ReviewCommandSpec{}, fmt.Errorf("agy reviewer: prepare Kennel-owned profile: %w", err)
 	}
 	envVars := env.TUIEnvironment()
 	envVars["KENNEL_DATA_DIR"] = env.DataDir
@@ -86,14 +86,14 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 }
 
 // ReviewRestoreCommand restores a recorded Agy reviewer pane by relaunching
-// the reviewer command with its AO-owned profile and current task context.
+// the reviewer command with its Kennel-owned profile and current task context.
 func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, bool, error) {
 	cmd, err := r.ReviewCommand(ctx, inv)
 	return cmd, true, err
 }
 
 // ReviewPreflight verifies that the Agy executable is available. Compatibility
-// probing happens after AO-owned state roots are available in ReviewCommand.
+// probing happens after Kennel-owned state roots are available in ReviewCommand.
 func (r *Reviewer) ReviewPreflight(ctx context.Context, _ string) error {
 	_, err := r.resolveBinary(ctx)
 	return err
@@ -127,7 +127,7 @@ func appendEnvironment(base []string, overrides map[string]string) []string {
 	return result
 }
 
-// ReviewMessage returns the short AO-owned task-file reference for a future
+// ReviewMessage returns the short Kennel-owned task-file reference for a future
 // long-lived TUI. The full instructions remain outside terminal scrollback.
 func (*Reviewer) ReviewMessage(_ context.Context, inv ports.ReviewInvocation) (string, error) {
 	return inv.Prompt, nil

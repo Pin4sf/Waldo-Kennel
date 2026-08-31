@@ -13,13 +13,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Kimi Code shows an interactive "Trust this folder?" dialog before the
 // composer on first launch in an untrusted directory. That dialog swallows the
-// after-start prompt paste and blocks the readiness marker, so AO seeds Kimi's
+// after-start prompt paste and blocks the readiness marker, so Kennel seeds Kimi's
 // workspace-trust record for the session worktree before launch, the same way
 // the Claude Code adapter pre-records trust in ~/.claude.json.
 //
@@ -56,7 +56,7 @@ func (p *Plugin) PreLaunch(ctx context.Context, cfg ports.LaunchConfig) error {
 }
 
 // kimiWorkspaceTrust is the on-disk shape Kimi writes when a user trusts a
-// folder. AO writes the same shape so Kimi cannot distinguish seeded trust
+// folder. Kennel writes the same shape so Kimi cannot distinguish seeded trust
 // from a user's own decision.
 type kimiWorkspaceTrust struct {
 	Root      string `json:"root"`

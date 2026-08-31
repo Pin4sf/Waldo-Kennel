@@ -152,7 +152,7 @@ Legacy-import removal, provider admission, and later CLI narrowing are separate 
 
 - [ ] **Step 1: Write failing boundary assertions**
 
-Add or update tests proving `kennel import` and import API operations are absent, the migration offer is not rendered, and active skill/landing documentation contains no `ao import` instruction. Preserve `devimport`, `.ao/attachments`, `.ao/launch.json`, `backend/cmd/ao`, Go-module, and provenance/sync seams.
+Add or update tests proving `kennel import` and import API operations are absent, the migration offer is not rendered, and active skill/landing documentation contains no `ao import` instruction. Preserve `devimport`, `.kennel/attachments`, `.kennel/launch.json`, `backend/cmd/kennel`, Go-module, and provenance/sync seams.
 
 - [ ] **Step 2: Run the focused tests and confirm failure**
 

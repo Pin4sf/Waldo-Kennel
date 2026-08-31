@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 // Reviewer is the contract a code-review adapter satisfies. It is deliberately
@@ -13,16 +13,16 @@ import (
 // (claude-code) builds its own prompt internally; a one-shot CLI (greptile)
 // returns its own argv with no prompt at all.
 type Reviewer interface {
-	// ReviewCommand builds the command (and any extra env) AO should run to
+	// ReviewCommand builds the command (and any extra env) Kennel should run to
 	// spawn a fresh reviewer over the worker's checkout for a PR.
 	ReviewCommand(ctx context.Context, inv ReviewInvocation) (ReviewCommandSpec, error)
-	// ReviewMessage builds the text AO injects into an already-running reviewer
+	// ReviewMessage builds the text Kennel injects into an already-running reviewer
 	// pane to ask it to review a new commit. It must be self-contained (carry
-	// the ids the reviewer needs to submit) since AO passes no environment.
+	// the ids the reviewer needs to submit) since Kennel passes no environment.
 	ReviewMessage(ctx context.Context, inv ReviewInvocation) (string, error)
 }
 
-// ReviewCancelMode names how AO should stop a running reviewer.
+// ReviewCancelMode names how Kennel should stop a running reviewer.
 type ReviewCancelMode string
 
 const (
@@ -56,7 +56,7 @@ type ReviewerCanceller interface {
 }
 
 // ReviewerRestorer is implemented by prompt-driven reviewers that can resume a
-// native agent conversation after AO recreates the terminal pane.
+// native agent conversation after Kennel recreates the terminal pane.
 type ReviewerRestorer interface {
 	ReviewRestoreCommand(ctx context.Context, inv ReviewInvocation) (cmd ReviewCommandSpec, ok bool, err error)
 }
@@ -101,30 +101,30 @@ type ReviewInvocation struct {
 	ReviewIndex int
 	// WorkspacePath is the worker's checkout the reviewer reads.
 	WorkspacePath string
-	// DataDir is AO's owned state root. Reviewer prelaunch hooks may use it for
-	// profile installation but must not write outside AO/workspace boundaries.
+	// DataDir is Kennel's owned state root. Reviewer prelaunch hooks may use it for
+	// profile installation but must not write outside Kennel/workspace boundaries.
 	DataDir string
-	// RunFilePath is the daemon run-file reviewer-local AO CLI calls must use to
+	// RunFilePath is the daemon run-file reviewer-local Kennel CLI calls must use to
 	// find this daemon. Some harnesses filter shell command environments, so
 	// adapters may need to pass this value through their own command config.
 	RunFilePath string
-	// Prompt and SystemPrompt are the review instructions AO authored centrally,
+	// Prompt and SystemPrompt are the review instructions Kennel authored centrally,
 	// mirroring the worker's LaunchConfig.Prompt / SystemPrompt split: SystemPrompt
 	// carries the standing reviewer role, Prompt the per-pass task. A prompt-driven
 	// adapter (claude-code) feeds them to the agent; a one-shot CLI reviewer may
 	// ignore them.
 	Prompt       string
 	SystemPrompt string
-	// SystemPromptFile is the AO-owned file form of SystemPrompt. Reviewer
+	// SystemPromptFile is the Kennel-owned file form of SystemPrompt. Reviewer
 	// launchers use it to keep standing instructions out of the shared terminal
 	// stream while preserving their system-level role in agent harnesses that
 	// support prompt files.
 	SystemPromptFile string
-	// TaskPromptFile is the AO-owned file containing the full per-pass task.
+	// TaskPromptFile is the Kennel-owned file containing the full per-pass task.
 	// Prompt carries only a short reference to this file so the instructions do
 	// not enter the shared terminal stream.
 	TaskPromptFile string
-	// TaskPromptRoot is the stable AO-owned directory containing task prompt
+	// TaskPromptRoot is the stable Kennel-owned directory containing task prompt
 	// files for this reviewer. Adapters use it when a long-lived reviewer needs
 	// permission to read request-scoped task files created after launch.
 	TaskPromptRoot string
@@ -138,7 +138,7 @@ type ReviewTask struct {
 }
 
 // ReviewCommandSpec is how to launch a reviewer: the argv, any extra env, and
-// any launch-time native session id the adapter can determine. AO supplies the
+// any launch-time native session id the adapter can determine. Kennel supplies the
 // workspace and review-tracking env around it.
 type ReviewCommandSpec struct {
 	Argv           []string
@@ -148,7 +148,7 @@ type ReviewCommandSpec struct {
 	// reviewers use this instead of placing a task on the command line.
 	InitialMessage string
 	// WorkingDirectory overrides the worker checkout as the process working
-	// directory. Secure interactive reviewers use an AO-owned neutral directory;
+	// directory. Secure interactive reviewers use an Kennel-owned neutral directory;
 	// this routing field is not itself a process sandbox.
 	WorkingDirectory string
 }

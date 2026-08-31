@@ -439,14 +439,14 @@ func clearDoctorGitLabEnv(t *testing.T) {
 	t.Setenv("GITLAB_TOKEN", "")
 }
 
-// TestDoctorChecksAOBinaryIdentity covers the `ao-binary` check: workspace
+// TestDoctorChecksAOBinaryIdentity covers the `kennel-binary` check: workspace
 // hooks invoke a bare `kennel hooks <agent> <event>`, so doctor must surface when
 // the `ao` on PATH is not the running binary (e.g. a legacy CLI without the
 // hooks command shadowing the Go one).
 func TestDoctorChecksAOBinaryIdentity(t *testing.T) {
 	dir := t.TempDir()
 	self := filepath.Join(dir, "ao")
-	other := filepath.Join(dir, "ao-legacy")
+	other := filepath.Join(dir, "kennel-legacy")
 	for _, p := range []string{self, other} {
 		if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil { //nolint:gosec // test fixture must be executable-shaped
 			t.Fatal(err)
@@ -482,14 +482,14 @@ func TestDoctorChecksAOBinaryIdentity(t *testing.T) {
 			c := &commandContext{deps: deps.withDefaults()}
 			check := c.checkAOBinary()
 			if check.Level != tc.wantLevel || !strings.Contains(check.Message, tc.wantIn) {
-				t.Fatalf("ao-binary check = %+v, want level %s with %q", check, tc.wantLevel, tc.wantIn)
+				t.Fatalf("kennel-binary check = %+v, want level %s with %q", check, tc.wantLevel, tc.wantIn)
 			}
 		})
 	}
 }
 
 // TestDoctorIncludesAOBinaryCheck asserts runDoctor actually surfaces the
-// ao-binary check, so the identity probe cannot silently fall out of the report.
+// kennel-binary check, so the identity probe cannot silently fall out of the report.
 func TestDoctorIncludesAOBinaryCheck(t *testing.T) {
 	setConfigEnv(t)
 	c := doctorContext(t, map[string]string{"git": "/bin/git"}, func(context.Context, string, ...string) ([]byte, error) {
@@ -497,9 +497,9 @@ func TestDoctorIncludesAOBinaryCheck(t *testing.T) {
 	})
 
 	// doctorContext's LookPath has no "kennel", so the check lands as a WARN.
-	check := findDoctorCheck(t, c.runDoctor(context.Background()), "ao-binary")
+	check := findDoctorCheck(t, c.runDoctor(context.Background()), "kennel-binary")
 	if check.Level != doctorWarn || !strings.Contains(check.Message, "not found in PATH") {
-		t.Fatalf("ao-binary check = %+v, want WARN for missing ao", check)
+		t.Fatalf("kennel-binary check = %+v, want WARN for missing ao", check)
 	}
 }
 
@@ -585,7 +585,7 @@ func TestDoctorCodexLaunchFlagsWarnOnRejectedFlag(t *testing.T) {
 		codexCanaryFake(t, "error: unexpected argument '--dangerously-bypass-hook-trust' found\n", errors.New("exit status 2")))
 
 	check := findDoctorCheck(t, c.runDoctor(context.Background()), "codex-launch-flags")
-	if check.Level != doctorWarn || !strings.Contains(check.Message, "rejected AO's launch flags") {
+	if check.Level != doctorWarn || !strings.Contains(check.Message, "rejected Kennel's launch flags") {
 		t.Fatalf("canary = %+v, want WARN rejected flags", check)
 	}
 }

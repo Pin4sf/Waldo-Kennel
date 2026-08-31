@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/droid"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/droid"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Run explicitly with KENNEL_LIVE_DROID_ACP=1. It uses the user's existing Droid
@@ -35,7 +35,7 @@ func TestLiveDroidACP(t *testing.T) {
 	defer conversation.Close()
 
 	ref, err := conversation.SendTurn(ctx, ports.ChatUserMessage{
-		Text: "Reply with exactly: AO Droid ACP works", ClientMessageID: "live-1",
+		Text: "Reply with exactly: Kennel Droid ACP works", ClientMessageID: "live-1",
 		Origin: domain.MessageOriginHuman,
 	})
 	if err != nil {
@@ -59,7 +59,7 @@ func TestLiveDroidACP(t *testing.T) {
 				if event.TurnState != domain.TurnStateCompleted {
 					t.Fatalf("turn state = %q; answer=%q", event.TurnState, answer.String())
 				}
-				if !strings.Contains(answer.String(), "AO Droid ACP works") {
+				if !strings.Contains(answer.String(), "Kennel Droid ACP works") {
 					t.Fatalf("answer = %q", answer.String())
 				}
 				return

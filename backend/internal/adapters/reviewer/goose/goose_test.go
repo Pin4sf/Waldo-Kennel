@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const pinnedSessionHelp = `Start or resume interactive chat sessions
@@ -75,7 +75,7 @@ Options:
 func testReviewer(t *testing.T, version, help string) (*Reviewer, *[][]string) {
 	t.Helper()
 	calls := &[][]string{}
-	return &Reviewer{resolveBinary: func(context.Context) (string, error) { return "/opt/ao/bin/goose", nil }, run: func(_ context.Context, _ map[string]string, binary string, args ...string) ([]byte, error) {
+	return &Reviewer{resolveBinary: func(context.Context) (string, error) { return "/opt/kennel/bin/goose", nil }, run: func(_ context.Context, _ map[string]string, binary string, args ...string) ([]byte, error) {
 		*calls = append(*calls, append([]string{binary}, args...))
 		if slices.Equal(args, []string{"--version"}) {
 			return []byte(version), nil
@@ -101,12 +101,12 @@ func TestReviewCommandLaunchesHostTrustedInteractiveRun(t *testing.T) {
 		TaskPromptRoot:   "/host/ao/prompts/reviewer",
 		TaskPromptFile:   taskPromptFile,
 		SystemPromptFile: "/host/ao/prompts/reviewer/system.md",
-		Prompt:           "Read AO task ref 4f09.",
+		Prompt:           "Read Kennel task ref 4f09.",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"/opt/ao/bin/goose", "run", "--instructions", taskPromptFile, "--interactive"}
+	want := []string{"/opt/kennel/bin/goose", "run", "--instructions", taskPromptFile, "--interactive"}
 	if !reflect.DeepEqual(spec.Argv, want) || spec.InitialMessage != "" || spec.WorkingDirectory != "/host/worktree" {
 		t.Fatalf("ReviewCommand spec = %+v", spec)
 	}
@@ -131,7 +131,7 @@ func TestReviewCommandRejectsMissingTaskPromptFile(t *testing.T) {
 		ReviewerID:     "review-worker-1",
 		WorkspacePath:  "/host/worktree",
 		TaskPromptRoot: "/host/ao/prompts/reviewer",
-		Prompt:         "Read AO task ref 4f09.",
+		Prompt:         "Read Kennel task ref 4f09.",
 	})
 	if err == nil || !strings.Contains(err.Error(), "task prompt file") {
 		t.Fatalf("ReviewCommand error = %v, want task prompt file", err)
@@ -158,7 +158,7 @@ func TestReviewCommandPreservesExplicitHostGooseXDGProfile(t *testing.T) {
 		WorkspacePath:  "/host/worktree",
 		TaskPromptRoot: "/host/ao/prompts/reviewer",
 		TaskPromptFile: "/host/ao/prompts/reviewer/requests/batch-1/run-1/task.md",
-		Prompt:         "Read AO task ref 4f09.",
+		Prompt:         "Read Kennel task ref 4f09.",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ func TestReviewCommandAliasesZhipuAPIKeyForGooseProvider(t *testing.T) {
 		WorkspacePath:  "/host/worktree",
 		TaskPromptRoot: "/host/ao/prompts/reviewer",
 		TaskPromptFile: "/host/ao/prompts/reviewer/requests/batch-1/run-1/task.md",
-		Prompt:         "Read AO task ref 4f09.",
+		Prompt:         "Read Kennel task ref 4f09.",
 	}
 
 	r, _ := testReviewer(t, pinnedVersion, pinnedSessionHelp)
@@ -228,11 +228,11 @@ func TestCompatibilityProbeFailsClosedOnVersionOrHelpDrift(t *testing.T) {
 }
 
 func TestContainedCommandIsOnlyPinnedLongLivedTUI(t *testing.T) {
-	const taskRef = "Read AO review task ref 4f09."
+	const taskRef = "Read Kennel review task ref 4f09."
 	spec := containedCommand(taskRef)
 	wantArgv := []string{
-		"/opt/ao/bin/goose", "session", "--no-profile",
-		"--with-extension", "/opt/ao/bin/ao-review-gateway-mcp",
+		"/opt/kennel/bin/goose", "session", "--no-profile",
+		"--with-extension", "/opt/kennel/bin/kennel-review-gateway-mcp",
 	}
 	if !reflect.DeepEqual(spec.Argv, wantArgv) {
 		t.Fatalf("argv = %#v, want %#v", spec.Argv, wantArgv)
@@ -304,14 +304,14 @@ func TestReplacementEnvironmentBlocksHostProfileCredentialsAndDiscovery(t *testi
 	if env["GOOSE_DISABLE_KEYRING"] != "1" || env["CONTEXT_FILE_NAMES"] != "[]" {
 		t.Fatalf("keyring/project hints not disabled: %#v", env)
 	}
-	if env["GOOSE_PROVIDER"] != "openai" || env["GOOSE_MODEL"] != "ao-reviewer" || env["OPENAI_BASE_URL"] != modelBrokerHost {
+	if env["GOOSE_PROVIDER"] != "openai" || env["GOOSE_MODEL"] != "kennel-reviewer" || env["OPENAI_BASE_URL"] != modelBrokerHost {
 		t.Fatalf("model is not broker-only: %#v", env)
 	}
-	if got := strings.TrimRight(env["OPENAI_BASE_URL"], "/") + "/chat/completions"; got != "http://ao-review-model-broker/v1/chat/completions" || strings.Count(got, "/v1/") != 1 {
+	if got := strings.TrimRight(env["OPENAI_BASE_URL"], "/") + "/chat/completions"; got != "http://kennel-review-model-broker/v1/chat/completions" || strings.Count(got, "/v1/") != 1 {
 		t.Fatalf("broker request URL = %q, want exactly one /v1 segment", got)
 	}
 	if env["GOOSE_SYSTEM_PROMPT_FILE_PATH"] != systemPromptPath || !strings.HasPrefix(systemPromptPath, containedRoot+"/") || !slices.Equal(spec.ReadOnlyFiles, []string{systemPromptPath}) {
-		t.Fatalf("system prompt is not the contained AO-owned path: %#v", env)
+		t.Fatalf("system prompt is not the contained Kennel-owned path: %#v", env)
 	}
 	if env["GOOSE_MODE"] != "auto" || env["GOOSE_TELEMETRY_OFF"] != "1" || env["GOOSE_DISABLE_SESSION_NAMING"] != "true" {
 		t.Fatalf("Goose contained controls are not pinned: %#v", env)

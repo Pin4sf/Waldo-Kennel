@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestReviewCommandBuildsReadOnlyInteractiveTUI(t *testing.T) {
 	promptRoot := t.TempDir()
 	systemPath := filepath.Join(promptRoot, "system.md")
-	if err := os.WriteFile(systemPath, []byte("AO reviewer role\n"), 0o600); err != nil {
+	if err := os.WriteFile(systemPath, []byte("Kennel reviewer role\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	r := &Reviewer{resolveBinary: func(context.Context) (string, error) { return "kiro-cli", nil }}
@@ -43,7 +43,7 @@ func TestReviewCommandBuildsReadOnlyInteractiveTUI(t *testing.T) {
 		t.Fatalf("initial message = %q", spec.InitialMessage)
 	}
 	if spec.WorkingDirectory == "" || spec.WorkingDirectory == "/worktrees/worker-1" || !strings.HasPrefix(spec.WorkingDirectory, promptRoot) {
-		t.Fatalf("working directory = %q, want AO-owned directory", spec.WorkingDirectory)
+		t.Fatalf("working directory = %q, want Kennel-owned directory", spec.WorkingDirectory)
 	}
 
 	data, err := os.ReadFile(filepath.Join(spec.WorkingDirectory, ".kiro", "agents", reviewerAgentName+".json"))

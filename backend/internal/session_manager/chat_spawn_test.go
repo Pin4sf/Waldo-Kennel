@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // newChatManager mirrors newManager() with a chat launcher injected, so both
@@ -24,7 +24,7 @@ func newChatManager(chat ChatLauncher) (*Manager, *fakeStore, *fakeRuntime) {
 		Messenger: &fakeMessenger{},
 		Chat:      chat,
 		Lifecycle: &fakeLCM{store: st},
-		DataDir:   "/ao-test-data",
+		DataDir:   "/kennel-test-data",
 		LookPath:  lookPath,
 	})
 	return m, st, rt
@@ -355,7 +355,7 @@ func TestChatSpawnStartsControllerAndNoRuntime(t *testing.T) {
 	if start.WorkspacePath == "" {
 		t.Error("controller started with no workspace path")
 	}
-	if start.DataDir != "/ao-test-data" {
+	if start.DataDir != "/kennel-test-data" {
 		t.Errorf("controller data dir = %q, want manager-owned data dir", start.DataDir)
 	}
 	// The controller must receive the session env, which is what carries the
@@ -562,7 +562,7 @@ func TestRestoreResumesChatRatherThanRelaunchingATerminal(t *testing.T) {
 // session has no pane to type into, so without a mode branch the send reached the
 // runtime guard and was refused as "missing runtime handles" — which is true of
 // the handles and wrong about the session, and left chat workers unreachable by
-// AO's own automation.
+// Kennel's own automation.
 func TestSendRoutesIntoTheChatConversation(t *testing.T) {
 	launcher := &recordingLauncher{}
 	mgr, _, runtime := newChatManager(launcher)

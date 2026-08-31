@@ -410,7 +410,7 @@ describe("createNotificationsTransport", () => {
 		});
 	});
 
-	it("patches resolvedAt on live unread/all caches when AO closes the issue", () => {
+	it("patches resolvedAt on live unread/all caches when Kennel closes the issue", () => {
 		const qc = queryClient();
 		createNotificationsTransport(qc).connect();
 		const source = EventSourceStub.instances[0];

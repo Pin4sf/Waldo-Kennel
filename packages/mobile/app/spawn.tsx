@@ -286,7 +286,7 @@ export default function SpawnModal() {
 					<ModeChoice label="Terminal UI" detail="Agent's own TUI" selected={mode === "tui"} onPress={() => selectMode("tui")} />
 				</View>
 				<Text style={styles.hint}>{mode === "chat" ? "Chat is the mobile default. The agent runs through its structured controller; no tmux is created for it." : "Compatibility mode. The agent runs inside tmux and mobile mirrors its terminal."}</Text>
-				{mode === "chat" && !loading && agents.length === 0 ? <Text style={styles.warn}>No installed agent on this AO host currently supports Chat. Choose Terminal UI or install/authenticate a Chat-capable agent.</Text> : null}
+				{mode === "chat" && !loading && agents.length === 0 ? <Text style={styles.warn}>No installed agent on this Kennel host currently supports Chat. Choose Terminal UI or install/authenticate a Chat-capable agent.</Text> : null}
 
 				{catalogError ? <Text style={styles.warn}>{catalogError}</Text> : null}
 

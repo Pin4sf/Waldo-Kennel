@@ -12,11 +12,11 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
-	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	sessionmanager "github.com/Pin4sf/Waldo-Kennel/backend/internal/session_manager"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/telemetrymeta"
 )
 
 // Store is the read-only persistence surface needed to assemble controller-facing session read models.
@@ -114,13 +114,13 @@ const (
 	RestoreModeViewFresh RestoreModeView = "fresh"
 )
 
-// RestoreOutcome reports the restored read model and how AO relaunched it.
+// RestoreOutcome reports the restored read model and how Kennel relaunched it.
 type RestoreOutcome struct {
 	Session domain.Session  `json:"session"`
 	Mode    RestoreModeView `json:"restoreMode"`
 }
 
-// ResumeAgentOutcome reports the resumed read model and how AO relaunched it.
+// ResumeAgentOutcome reports the resumed read model and how Kennel relaunched it.
 type ResumeAgentOutcome struct {
 	Session domain.Session  `json:"session"`
 	Mode    RestoreModeView `json:"resumeMode"`
@@ -673,7 +673,7 @@ func (s *Service) SetTerminateOnPRMerge(ctx context.Context, id domain.SessionID
 	return s.Get(ctx, id)
 }
 
-// SetAutoInjectReview persists whether new SCM and AO review feedback should be sent to the session.
+// SetAutoInjectReview persists whether new SCM and Kennel review feedback should be sent to the session.
 func (s *Service) SetAutoInjectReview(ctx context.Context, id domain.SessionID, autoInject bool) (domain.Session, error) {
 	updated, err := s.store.SetSessionAutoInjectReview(ctx, id, autoInject, time.Now().UTC())
 	if err != nil {

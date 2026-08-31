@@ -115,7 +115,7 @@ Kennel inherits a working local AO architecture. Preserve these boundaries:
 - **Status:** derive display state from durable session, PR, CI, and review facts at read time. Do not turn board columns into stored status.
 - **Worktrees:** workers receive isolated worktrees/branches; do not force-delete a dirty registered worktree.
 - **API:** source is Go DTOs and API-spec registration; OpenAPI and frontend schema are generated artifacts that must be committed together.
-- **App data:** all Kennel runtime data stays under `~/.kennel` (overridable via `KENNEL_DATA_DIR`/`KENNEL_RUN_FILE`), including Electron `userData`. The in-workspace `.ao/attachments` path is a separate compatibility seam decided independently by issue #37.
+- **App data:** all Kennel runtime data stays under `~/.kennel` (overridable via `KENNEL_DATA_DIR`/`KENNEL_RUN_FILE`), including Electron `userData`. The in-workspace `.kennel/attachments` path is a separate compatibility seam decided independently by issue #37.
 
 Read [architecture.md](architecture.md), [backend-code-structure.md](backend-code-structure.md), [AGENTS.md](../AGENTS.md), and the relevant LAN/reviewer ADR before changing their respective boundaries.
 

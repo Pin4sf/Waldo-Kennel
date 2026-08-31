@@ -214,7 +214,7 @@ func TestMigration0099PreservesInheritedChangeEventTypes(t *testing.T) {
 
 	// Inherited event types survive the CHECK rebuild.
 	if _, err := db.Exec(`INSERT INTO change_log (project_id, event_type, payload)
-		VALUES ('p1', 'session_created', json('{"id":"ao-1"}'))`); err != nil {
+		VALUES ('p1', 'session_created', json('{"id":"kennel-1"}'))`); err != nil {
 		t.Fatalf("inherited event type rejected after rebuild: %v", err)
 	}
 	// Unknown types stay rejected.
@@ -251,7 +251,7 @@ func TestMigration0099DownRestoresPriorChangeLogShape(t *testing.T) {
 		t.Fatalf("outcome events survive Down: %d", n)
 	}
 	if _, err := db.Exec(`INSERT INTO change_log (project_id, event_type, payload)
-		VALUES ('p1', 'session_created', json('{"id":"ao-1"}'))`); err != nil {
+		VALUES ('p1', 'session_created', json('{"id":"kennel-1"}'))`); err != nil {
 		t.Fatalf("inherited event type rejected after Down: %v", err)
 	}
 	if _, err := db.Exec(`INSERT INTO change_log (project_id, event_type, payload)

@@ -1,4 +1,4 @@
-// Package droidacp binds the user's own Factory Droid installation to AO's
+// Package droidacp binds the user's own Factory Droid installation to Kennel's
 // reusable ACP Chat transport.
 package droidacp
 
@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/droid"
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/nativeacp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/droid"
+	acpdriver "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/acp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/nativeacp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // New launches Droid's native ACP daemon from the exact binary resolved by its
@@ -29,7 +29,7 @@ func configure(cfg acpdriver.LaunchConfig) ([]string, map[string]string, error) 
 	if bypass {
 		// Droid's ACP-daemon form is under `exec`, where full bypass exists.
 		// The TUI adapter maps this to high because interactive Droid has no
-		// equivalent flag; Chat can preserve AO's stronger requested meaning.
+		// equivalent flag; Chat can preserve Kennel's stronger requested meaning.
 		settingsMode = ports.PermissionModeDefault
 	}
 	args, err := droid.PrepareRuntimeSettingsArgs(

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 var (
@@ -19,18 +19,18 @@ var (
 )
 
 // opencode deliberately does not implement ports.AgentTranscriptLocator.
-// Claude Code and Codex each write a per-conversation transcript file that AO
+// Claude Code and Codex each write a per-conversation transcript file that Kennel
 // can point at, but opencode keeps message history in rows of its SQLite state
 // (session_message), not in a readable per-session file. The locator contract
 // returns a filesystem path, so implementing it would mean inventing a path
 // that does not exist. Its absence is already the honest answer: the switch
 // path records the source transcript as unavailable rather than advertising a
-// handoff artifact AO cannot produce.
+// handoff artifact Kennel cannot produce.
 
 // ContinuationCapabilities reports that opencode assigns its own conversation
-// ids. AO learns the id from the workspace activity plugin, which forwards
+// ids. Kennel learns the id from the workspace activity plugin, which forwards
 // opencode's native session.id through `kennel hooks opencode session-start`,
-// and GetRestoreCommand replays it with `--session`. AO never selects the id,
+// and GetRestoreCommand replays it with `--session`. Kennel never selects the id,
 // so caller-assigned continuation is deliberately not claimed.
 func (p *Plugin) ContinuationCapabilities() ports.ContinuationCapabilities {
 	return ports.ContinuationCapabilities{
@@ -59,7 +59,7 @@ func (p *Plugin) NativeSessionConfigDir(ctx context.Context, env map[string]stri
 // mirrors Codex, where an archived conversation stays readable history but is
 // no longer an active conversation to continue).
 //
-// Every case AO cannot prove returns Unknown rather than Unavailable, because
+// Every case Kennel cannot prove returns Unknown rather than Unavailable, because
 // Unavailable makes the switch path discard a resume handle: a missing state
 // file, a schema older than the columns read here, and a locked or unreadable
 // database are all "no authoritative answer", not "the session is gone".

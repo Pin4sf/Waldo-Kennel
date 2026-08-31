@@ -3,7 +3,7 @@ package claudecode
 import (
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 func TestDeriveActivityState(t *testing.T) {

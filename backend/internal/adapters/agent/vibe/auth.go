@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/authprobe"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/authprobe"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 var _ ports.AgentAuthChecker = (*Plugin)(nil)
@@ -131,7 +131,7 @@ func vibeKeychainAuthStatus(ctx context.Context, envVar string) (ports.AgentAuth
 	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	out, err := aoprocess.CommandContext(probeCtx, "security", "find-generic-password", "-s", vibeKeychainService, "-a", envVar, "-w").CombinedOutput()
+	out, err := kennelprocess.CommandContext(probeCtx, "security", "find-generic-password", "-s", vibeKeychainService, "-a", envVar, "-w").CombinedOutput()
 	if probeCtx.Err() != nil {
 		return ports.AgentAuthStatusUnknown, false, nil
 	}

@@ -1091,7 +1091,7 @@ describe("Sidebar", () => {
 					remote: "",
 					hasRemote: false,
 					status: "error",
-					reason: "Repository name is reserved by AO.",
+					reason: "Repository name is reserved by Kennel.",
 				},
 				{
 					name: "api",
@@ -1115,7 +1115,7 @@ describe("Sidebar", () => {
 		expect(await screen.findByText(/Import failed · workspace not registered/i)).toBeInTheDocument();
 		expect(screen.getByText("workspace not registered")).toBeInTheDocument();
 		expect(screen.getByText("web")).toBeInTheDocument();
-		expect(screen.getByText("Repository name is reserved by AO.")).toBeInTheDocument();
+		expect(screen.getByText("Repository name is reserved by Kennel.")).toBeInTheDocument();
 		expect(screen.getByText("api")).toBeInTheDocument();
 		expect(screen.getByText("main github.com/acme/api")).toBeInTheDocument();
 		expect(screen.getByText("Resolve 1 failed repository to continue")).toBeInTheDocument();
@@ -1173,7 +1173,7 @@ describe("Sidebar", () => {
 
 	it("does not rescan folders for non-validation create failures", async () => {
 		const user = userEvent.setup();
-		const onCreateProject = vi.fn().mockRejectedValue(new Error("AO daemon is not ready.")) as CreateProjectHandler;
+		const onCreateProject = vi.fn().mockRejectedValue(new Error("Kennel daemon is not ready.")) as CreateProjectHandler;
 		window.kennel!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/workspace");
 		window.kennel!.app.checkAncestorRepo = vi.fn().mockResolvedValue(undefined);
 		window.kennel!.app.scanImportFolder = vi.fn();
@@ -1185,7 +1185,7 @@ describe("Sidebar", () => {
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
-		expect(await screen.findByText("AO daemon is not ready.")).toBeInTheDocument();
+		expect(await screen.findByText("Kennel daemon is not ready.")).toBeInTheDocument();
 		// checkAncestorRepo is called once during the preflight (chooseDirectory),
 		// but scanImportFolder is never called (shouldScanCreateFailure returns false for this error)
 		expect(window.kennel!.app.checkAncestorRepo).toHaveBeenCalledWith("/repo/workspace");

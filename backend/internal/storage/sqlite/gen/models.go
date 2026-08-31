@@ -8,8 +8,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/cdc"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/cdc"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 type AcceptanceDecision struct {

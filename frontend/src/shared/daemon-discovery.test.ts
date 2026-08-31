@@ -113,7 +113,7 @@ describe("parseRunFile", () => {
 });
 
 describe("defaultRunFilePath", () => {
-	it("matches Go's canonical AO home default on macOS", () => {
+	it("matches Go's canonical Kennel home default on macOS", () => {
 		expect(defaultRunFilePath("darwin", {}, "/Users/me")).toBe("/Users/me/.kennel/running.json");
 	});
 

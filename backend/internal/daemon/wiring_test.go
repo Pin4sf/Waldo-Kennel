@@ -11,18 +11,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/runtimeselect"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/tmux"
-	telemetryadapter "github.com/aoagents/agent-orchestrator/backend/internal/adapters/telemetry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/cdc"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/lifecycle"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/runtime/runtimeselect"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/runtime/tmux"
+	telemetryadapter "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/telemetry"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/cdc"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/lifecycle"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	projectsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
+	sessionmanager "github.com/Pin4sf/Waldo-Kennel/backend/internal/session_manager"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
 // TestWiring_WriteFlowsToBroadcaster exercises the real boot path end to end:
@@ -389,13 +389,13 @@ func TestStartTrackerIntake_RunsEvenWithoutEnabledProjects(t *testing.T) {
 }
 
 func TestTrackerTokenSourcePrefersAOGitHubToken(t *testing.T) {
-	t.Setenv("KENNEL_GITHUB_TOKEN", "ao-token")
+	t.Setenv("KENNEL_GITHUB_TOKEN", "kennel-token")
 	t.Setenv("GITHUB_TOKEN", "github-token")
 	token, err := (&trackerTokenSource{}).Token(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if token != "ao-token" {
+	if token != "kennel-token" {
 		t.Fatalf("token = %q, want KENNEL_GITHUB_TOKEN", token)
 	}
 }
@@ -430,7 +430,7 @@ func TestWiring_SessionMessengerSendsToRuntimePane(t *testing.T) {
 	rec, err := store.CreateSession(ctx, domain.SessionRecord{
 		ProjectID: "p", Kind: domain.KindWorker,
 		Activity: domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
-		Metadata: domain.SessionMetadata{RuntimeHandleID: "ao-1/terminal_0"},
+		Metadata: domain.SessionMetadata{RuntimeHandleID: "kennel-1/terminal_0"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -438,8 +438,8 @@ func TestWiring_SessionMessengerSendsToRuntimePane(t *testing.T) {
 	if err := messenger.Send(ctx, rec.ID, "hello agent"); err != nil {
 		t.Fatalf("messenger.Send: %v", err)
 	}
-	if runtime.handle.ID != "ao-1/terminal_0" {
-		t.Fatalf("handle = %q, want ao-1/terminal_0", runtime.handle.ID)
+	if runtime.handle.ID != "kennel-1/terminal_0" {
+		t.Fatalf("handle = %q, want kennel-1/terminal_0", runtime.handle.ID)
 	}
 	if runtime.message != "hello agent" {
 		t.Fatalf("message = %q, want hello agent", runtime.message)
@@ -500,7 +500,7 @@ func TestWiring_SessionMessengerRejectsTerminatedSession(t *testing.T) {
 		ProjectID: "p", Kind: domain.KindWorker,
 		IsTerminated: true,
 		Activity:     domain.Activity{State: domain.ActivityIdle, LastActivityAt: time.Now()},
-		Metadata:     domain.SessionMetadata{RuntimeHandleID: "ao-1/terminal_0"},
+		Metadata:     domain.SessionMetadata{RuntimeHandleID: "kennel-1/terminal_0"},
 	})
 	if err != nil {
 		t.Fatal(err)

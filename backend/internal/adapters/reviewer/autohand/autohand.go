@@ -1,17 +1,17 @@
-// Package autohand adapts Autohand as an experimental user-approved AO reviewer.
+// Package autohand adapts Autohand as an experimental user-approved Kennel reviewer.
 package autohand
 
 import (
 	"context"
 	"strings"
 
-	workerautohand "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/autohand"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workerautohand "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/autohand"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // HostTrustWarning documents that Autohand retains its normal approval flow.
-const HostTrustWarning = "experimental user-approved reviewer: Autohand uses normal permission prompts; AO does not enable --yes or --unrestricted"
+const HostTrustWarning = "experimental user-approved reviewer: Autohand uses normal permission prompts; Kennel does not enable --yes or --unrestricted"
 
 // Reviewer builds Autohand's reviewer command.
 type Reviewer struct {
@@ -48,7 +48,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 	return cmd, true, err
 }
 
-// ReviewMessage returns the next AO-owned task reference.
+// ReviewMessage returns the next Kennel-owned task reference.
 func (*Reviewer) ReviewMessage(_ context.Context, inv ports.ReviewInvocation) (string, error) {
 	return inv.Prompt, nil
 }

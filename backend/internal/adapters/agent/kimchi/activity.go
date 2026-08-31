@@ -3,12 +3,12 @@ package kimchi
 import (
 	"encoding/json"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 // DeriveActivityState maps a Kimchi hook event (and its native stdin payload)
-// onto an AO activity state. Kimchi's native hook-adapter system emits
-// events with the same names and payload formats that AO installs. The
+// onto an Kennel activity state. Kimchi's native hook-adapter system emits
+// events with the same names and payload formats that Kennel installs. The
 // notification-type-to-state mapping mirrors claudecode/activity.go: kimchi
 // emits the same notification_type names (permission_prompt from the
 // permissions extension, agent_needs_input from the questionnaire
@@ -74,7 +74,7 @@ func sessionEndState(payload []byte) (domain.ActivityState, bool) {
 	switch p.Reason {
 	case "reload", "new", "resume", "fork":
 		// Non-terminal: the native session is replaced or reloaded while the
-		// AO session stays alive. Report nothing so the activity feed is
+		// Kennel session stays alive. Report nothing so the activity feed is
 		// unaffected and the session continues.
 		return "", false
 	default:

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 // TokenSource yields a GitLab private token on demand. Production wires this
@@ -174,7 +174,7 @@ func (s *GLabTokenSource) ttl() time.Duration {
 func glabAuthToken(ctx context.Context) (string, error) {
 	// glab writes auth status output to stderr, not stdout — use CombinedOutput
 	// to capture both streams so the token is not lost.
-	out, err := aoprocess.CommandContext(ctx, "glab", "auth", "status", "--show-token").CombinedOutput()
+	out, err := kennelprocess.CommandContext(ctx, "glab", "auth", "status", "--show-token").CombinedOutput()
 	if err != nil {
 		return "", ErrNoToken
 	}

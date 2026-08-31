@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 // DecompositionProposalInput is the bounded packet a proposer is given. It

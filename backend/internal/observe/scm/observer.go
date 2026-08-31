@@ -18,10 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/observe"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/observe"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 const (
@@ -1313,7 +1313,7 @@ func (o *Observer) selectRefreshCandidates(ctx context.Context, subjects map[str
 //
 // The pass is unbounded — no per-poll cap on reconciliation fetches. The worst
 // case (one PR updated, 49 others reconciled) is bounded by the tracked-open-
-// PR count, which is small in AO's use case (sessions track the PRs they
+// PR count, which is small in Kennel's use case (sessions track the PRs they
 // spawned).
 //
 // ASYMMETRY — this pass is GitHub-only by deliberate design:
@@ -1384,7 +1384,7 @@ func (o *Observer) reconcileTerminalGitHubPRs(ctx context.Context, subjects map[
 		return out
 	}
 	// Unbounded: issue detail fetches for every reconciled PR. The worst case
-	// is bounded by the tracked-open-PR count, which is small in AO's use case.
+	// is bounded by the tracked-open-PR count, which is small in Kennel's use case.
 	for _, chunk := range chunks(refs, BatchSize) {
 		if err := ctx.Err(); err != nil {
 			return out
@@ -2105,7 +2105,7 @@ func normalizePRState(draft, merged, closed bool) string {
 // The observer uses this to backfill projects that were registered before
 // project.Add resolved origin URLs at add time.
 func resolveGitOriginURL(path string) string {
-	out, err := aoprocess.Command("git", "-C", path, "remote", "get-url", "origin").Output()
+	out, err := kennelprocess.Command("git", "-C", path, "remote", "get-url", "origin").Output()
 	if err != nil {
 		return ""
 	}
@@ -2116,13 +2116,13 @@ func resolveGitOriginURL(path string) string {
 // returns nil on any error (missing repo, no git, no remotes). The observer uses
 // it to scan upstream/mirror remotes for cross-fork PRs in addition to origin.
 func gitRemoteURLs(path string) []string {
-	out, err := aoprocess.Command("git", "-C", path, "remote").Output()
+	out, err := kennelprocess.Command("git", "-C", path, "remote").Output()
 	if err != nil {
 		return nil
 	}
 	var urls []string
 	for _, name := range strings.Fields(string(out)) {
-		u, err := aoprocess.Command("git", "-C", path, "remote", "get-url", name).Output()
+		u, err := kennelprocess.Command("git", "-C", path, "remote", "get-url", name).Output()
 		if err != nil {
 			continue
 		}

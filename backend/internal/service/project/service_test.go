@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/gitdefault"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/service/project"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/gitdefault"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
 // newManager builds a Manager over a real, isolated sqlite store cloned from a
@@ -97,7 +97,7 @@ func gitRepoWithOriginHead(t *testing.T, defaultBranch, featureBranch string) st
 
 func commitEmpty(t *testing.T, dir string) {
 	t.Helper()
-	if out, err := exec.Command("git", "-C", dir, "-c", "user.email=ao@example.com", "-c", "user.name=AO Test", "commit", "--allow-empty", "-m", "initial").CombinedOutput(); err != nil {
+	if out, err := exec.Command("git", "-C", dir, "-c", "user.email=ao@example.com", "-c", "user.name=Kennel Test", "commit", "--allow-empty", "-m", "initial").CombinedOutput(); err != nil {
 		t.Fatalf("git commit: %v (%s)", err, out)
 	}
 }
@@ -572,13 +572,13 @@ func TestManager_UpdateSettings(t *testing.T) {
 		AgentConfig:       domain.AgentConfig{Model: "claude-opus-4-5"},
 	}
 	proj, err := m.UpdateSettings(ctx, "ao", project.UpdateSettingsInput{
-		DisplayName: "  AO Project  ",
+		DisplayName: "  Kennel Project  ",
 		Config:      cfg,
 	})
 	if err != nil {
 		t.Fatalf("UpdateSettings: %v", err)
 	}
-	if proj.Name != "AO Project" || proj.Config == nil || proj.Config.AgentConfig.Model != "claude-opus-4-5" {
+	if proj.Name != "Kennel Project" || proj.Config == nil || proj.Config.AgentConfig.Model != "claude-opus-4-5" {
 		t.Fatalf("returned project = %#v", proj)
 	}
 	if proj.DefaultBranch != "develop" {
@@ -590,7 +590,7 @@ func TestManager_UpdateSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.Project == nil || got.Project.Name != "AO Project" || got.Project.Config == nil || got.Project.Config.Env["FOO"] != "bar" {
+	if got.Project == nil || got.Project.Name != "Kennel Project" || got.Project.Config == nil || got.Project.Config.Env["FOO"] != "bar" {
 		t.Fatalf("Get project = %#v", got.Project)
 	}
 	if got.Project.Config.AgentRules != "Run focused tests." || got.Project.Config.OrchestratorRules != "Delegate implementation." {
@@ -607,7 +607,7 @@ func TestManager_UpdateSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get after rejected update: %v", err)
 	}
-	if got.Project == nil || got.Project.Name != "AO Project" || got.Project.Config == nil || got.Project.Config.AgentConfig.Model != "claude-opus-4-5" {
+	if got.Project == nil || got.Project.Name != "Kennel Project" || got.Project.Config == nil || got.Project.Config.AgentConfig.Model != "claude-opus-4-5" {
 		t.Fatalf("project changed after rejected update = %#v", got.Project)
 	}
 	_, err = m.UpdateSettings(ctx, "ao", project.UpdateSettingsInput{DisplayName: "  ", Config: cfg})
@@ -704,7 +704,7 @@ func TestManager_InitializeRepositoryRecovery(t *testing.T) {
 			t.Fatalf("Add after init: %v", err)
 		}
 		if proj.DefaultBranch != domain.DefaultBranchName {
-			t.Fatalf("AO-initialized default branch = %q, want %q", proj.DefaultBranch, domain.DefaultBranchName)
+			t.Fatalf("Kennel-initialized default branch = %q, want %q", proj.DefaultBranch, domain.DefaultBranchName)
 		}
 	})
 
@@ -847,7 +847,7 @@ func TestManager_InitializeRepositoryRecovery(t *testing.T) {
 		_, err := m.InitializeRepository(ctx, project.InitializeRepositoryInput{Path: dir})
 		wantCode(t, err, "PROJECT_SETUP_PATH_UNSAFE")
 		if _, statErr := os.Lstat(filepath.Join(dir, ".git")); !errors.Is(statErr, os.ErrNotExist) {
-			t.Fatalf("unexpected .git after rejected AO worktree setup: %v", statErr)
+			t.Fatalf("unexpected .git after rejected Kennel worktree setup: %v", statErr)
 		}
 	})
 
@@ -1015,9 +1015,9 @@ func TestManager_GetUpdateRemoveErrors(t *testing.T) {
 
 func configureCommitter(t *testing.T) {
 	t.Helper()
-	t.Setenv("GIT_AUTHOR_NAME", "AO Test")
+	t.Setenv("GIT_AUTHOR_NAME", "Kennel Test")
 	t.Setenv("GIT_AUTHOR_EMAIL", "ao@example.com")
-	t.Setenv("GIT_COMMITTER_NAME", "AO Test")
+	t.Setenv("GIT_COMMITTER_NAME", "Kennel Test")
 	t.Setenv("GIT_COMMITTER_EMAIL", "ao@example.com")
 }
 
@@ -1079,7 +1079,7 @@ func TestManager_AddWorkspaceInsideAncestorRepo(t *testing.T) {
 		t.Fatalf("Kind = %q, want workspace", proj.Kind)
 	}
 	if proj.DefaultBranch != domain.DefaultBranchName {
-		t.Fatalf("AO-initialized workspace root default = %q, want %q", proj.DefaultBranch, domain.DefaultBranchName)
+		t.Fatalf("Kennel-initialized workspace root default = %q, want %q", proj.DefaultBranch, domain.DefaultBranchName)
 	}
 	if len(proj.WorkspaceRepos) != 2 {
 		t.Fatalf("expected 2 child repos, got %d", len(proj.WorkspaceRepos))
@@ -1307,7 +1307,7 @@ func TestManager_AddWorkspaceAdoptsExistingParent(t *testing.T) {
 		t.Fatalf("git log: %v (%s)", err, logOut)
 	}
 	lines := strings.Split(strings.TrimSpace(string(logOut)), "\n")
-	// Expect: AO workspace commit + "add gitignore" + "initial" = 3 commits.
+	// Expect: Kennel workspace commit + "add gitignore" + "initial" = 3 commits.
 	if len(lines) != 3 {
 		t.Fatalf("expected 3 commits, got %d:\n%s", len(lines), logOut)
 	}

@@ -39,7 +39,7 @@ describe("raw SCM models", () => {
 		]);
 	});
 
-	it("represents provider observations separately from AO review execution", () => {
+	it("represents provider observations separately from Kennel review execution", () => {
 		const pullRequest = {
 			url: "github://o/r/pull/7",
 			number: 7,

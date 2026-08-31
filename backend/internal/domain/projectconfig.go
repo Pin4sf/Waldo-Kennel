@@ -25,7 +25,7 @@ type ProjectConfig struct {
 	SessionPrefix string `json:"sessionPrefix,omitempty"`
 
 	// Env are extra environment variables forwarded into worker session
-	// runtimes. AO-internal vars (KENNEL_SESSION, KENNEL_PROJECT_ID, …) always win.
+	// runtimes. Kennel-internal vars (KENNEL_SESSION, KENNEL_PROJECT_ID, …) always win.
 	Env map[string]string `json:"env,omitempty"`
 	// Symlinks are repo-relative paths symlinked into each session workspace.
 	Symlinks []string `json:"symlinks,omitempty"`
@@ -61,7 +61,7 @@ type ProjectConfig struct {
 	// tracker is not commented on or transitioned.
 	TrackerIntake TrackerIntakeConfig `json:"trackerIntake,omitempty"`
 
-	// ContainerReap controls whether AO reaps a worker session's kennel.session-
+	// ContainerReap controls whether Kennel reaps a worker session's kennel.session-
 	// labeled Docker containers on terminal state / kill. Enabled by default;
 	// set Disabled to opt a project out entirely. Per-container sparing uses
 	// the kennel.spare=true label instead (see dockerreap.SpareLabel) so the
@@ -122,7 +122,7 @@ const (
 	// DefaultBranchAuto tells callers to infer the Git default branch for each
 	// repository instead of naming one branch for the whole project.
 	DefaultBranchAuto = "auto"
-	// DefaultBranchName is the branch AO selects when it creates a repository.
+	// DefaultBranchName is the branch Kennel selects when it creates a repository.
 	// Automatic resolution never uses it as a guess for existing repositories.
 	DefaultBranchName = "main"
 )

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/cdc"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/cdc"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
 )
 
 type fakeEventSource struct {
@@ -155,8 +155,8 @@ func TestEventsStreamResetsCursorAheadOfCurrentDatabase(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if got := resp.Header.Get("X-AO-Event-After"); got != "0" {
-		t.Fatalf("X-AO-Event-After = %q, want 0", got)
+	if got := resp.Header.Get("X-Kennel-Event-After"); got != "0" {
+		t.Fatalf("X-Kennel-Event-After = %q, want 0", got)
 	}
 	if ids := readSSEIDs(t, resp.Body, 1); ids[0] != "1" {
 		t.Fatalf("id = %q, want 1", ids[0])

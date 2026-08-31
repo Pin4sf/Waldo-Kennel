@@ -35,7 +35,7 @@ const CONTEXT_CRITICAL = 0.9;
  *
  * A full context degrades gracefully: history gets compacted and the conversation
  * continues. Exhausted quota does not degrade at all, it just stops, and it stops
- * for a window measured in days on the accounts AO sees. So the warning arrives
+ * for a window measured in days on the accounts Kennel sees. So the warning arrives
  * earlier, while the user still has the option of pacing themselves.
  */
 const QUOTA_WARN = 75;
@@ -56,7 +56,7 @@ function quotaSeverity(percent: number): Severity {
 }
 
 /**
- * Normal usage is informational rather than session activity, so it uses AO's
+ * Normal usage is informational rather than session activity, so it uses Kennel's
  * logo blue. Warning and critical retain the established status colours: amber
  * means "a human should look", and red means the next turn is at risk.
  */

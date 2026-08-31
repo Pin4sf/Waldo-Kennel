@@ -65,7 +65,7 @@ func TestResolveNeverFallsBackToCurrentOrConventionalBranch(t *testing.T) {
 	if !errors.Is(err, ErrUnresolved) {
 		t.Fatalf("Resolve error = %v, want ErrUnresolved", err)
 	}
-	if !strings.Contains(err.Error(), "no remote or AO-recorded default") {
+	if !strings.Contains(err.Error(), "no remote or Kennel-recorded default") {
 		t.Fatalf("Resolve error = %v, want missing authoritative metadata detail", err)
 	}
 }
@@ -79,8 +79,8 @@ func TestResolveUsesBranchAORecordedAtInitialization(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if resolution.Branch != "main" || resolution.Ref != "refs/heads/main" || resolution.Source != SourceAOInitialized {
-		t.Fatalf("resolution = %#v, want AO-initialized main", resolution)
+	if resolution.Branch != "main" || resolution.Ref != "refs/heads/main" || resolution.Source != SourceKennelInitialized {
+		t.Fatalf("resolution = %#v, want Kennel-initialized main", resolution)
 	}
 }
 
@@ -106,8 +106,8 @@ func TestResolveBackfillsLegacyAOInitializedRepository(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Resolve legacy repository: %v", err)
 			}
-			if resolution.Branch != legacyDefaultBranch || resolution.Ref != "refs/heads/main" || resolution.Source != SourceAOInitialized {
-				t.Fatalf("resolution = %#v, want backfilled AO main", resolution)
+			if resolution.Branch != legacyDefaultBranch || resolution.Ref != "refs/heads/main" || resolution.Source != SourceKennelInitialized {
+				t.Fatalf("resolution = %#v, want backfilled Kennel main", resolution)
 			}
 			if got := gitOutput(t, repo, "config", "--local", "--get", ManagedDefaultConfigKey); got != legacyDefaultBranch {
 				t.Fatalf("backfilled marker = %q, want %q", got, legacyDefaultBranch)
@@ -196,7 +196,7 @@ func localRepo(t *testing.T, branch string) string {
 func configureGit(t *testing.T, repo string) {
 	t.Helper()
 	runGit(t, repo, "config", "user.email", "ao@example.com")
-	runGit(t, repo, "config", "user.name", "AO Test")
+	runGit(t, repo, "config", "user.name", "Kennel Test")
 }
 
 func gitOutput(t *testing.T, repo string, args ...string) string {

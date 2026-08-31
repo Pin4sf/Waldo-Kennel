@@ -2,7 +2,7 @@
 // sessions and resuming sessions when a native session id is known.
 //
 // Kimchi (@kimchi-dev/cli, binary "kimchi") is a coding-agent CLI built on
-// @earendil-works/pi-coding-agent. AO drives it non-interactively with
+// @earendil-works/pi-coding-agent. Kennel drives it non-interactively with
 // `--print` ("process prompt and exit"). The initial prompt is delivered
 // in-command as a trailing positional argument.
 //
@@ -11,14 +11,14 @@
 // system-prompt file is read from disk and inlined.
 //
 // Permissions: Kimchi accepts `--plan`, `--auto`, and `--yolo` flags for
-// permission modes. AO maps its own modes onto these flags.
+// permission modes. Kennel maps its own modes onto these flags.
 //
 // Restore: Kimchi persists sessions and resumes by id with `--session <id>`.
-// The native session id is captured from hook metadata and stored in AO's
+// The native session id is captured from hook metadata and stored in Kennel's
 // session metadata; GetRestoreCommand reads it back.
 //
 // Hooks: Kimchi has a native hook adapter that reads .kimchi/hooks.local.json.
-// AO installs hooks in that file using `kennel hooks kimchi <event>` commands.
+// Kennel installs hooks in that file using `kennel hooks kimchi <event>` commands.
 // The adapter is always-on; no user configuration is needed for hooks to fire.
 //
 // PreLaunch: Kimchi does NOT have a first-run trust/onboarding dialog (unlike
@@ -28,16 +28,16 @@
 // `kimchi --help` output contains no trust, onboarding, or workspace-trust
 // flags or subcommands. The `kimchi setup` subcommand is an interactive API
 // key wizard, not a per-directory trust gate. Therefore no PreLaunch
-// implementation is needed; AO worktree spawns will not hang on a trust dialog.
+// implementation is needed; Kennel worktree spawns will not hang on a trust dialog.
 //
 // ActiveTurnSteer: Kimchi has a programmatic steering mechanism
 // (pi.sendMessage with deliverAs:"steer") used by internal extensions to inject
-// guidance into the active turn. However, AO writes to the tmux pane as
+// guidance into the active turn. However, Kennel writes to the tmux pane as
 // terminal keystrokes, which go through the TUI editor's default submit path —
 // those messages queue for the next turn, they do not steer the current one.
 // Only the programmatic API can steer; terminal input cannot. Therefore
 // SteersActiveTurn is not implemented, matching Claude Code and Pi. Enabling it
-// would require AO to use pi.sendMessage directly instead of terminal input.
+// would require Kennel to use pi.sendMessage directly instead of terminal input.
 package kimchi
 
 import (
@@ -48,10 +48,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const adapterID = "kimchi"
@@ -83,7 +83,7 @@ func readBoundedSystemPrompt(ctx context.Context, path string) (string, error) {
 		return "", err
 	}
 
-	f, err := os.Open(path) //nolint:gosec // path is AO-owned config
+	f, err := os.Open(path) //nolint:gosec // path is Kennel-owned config
 	if err != nil {
 		return "", fmt.Errorf("kimchi: read system prompt file: %w", err)
 	}
@@ -139,7 +139,7 @@ var _ ports.SubmitActivitySignaler = (*Plugin)(nil)
 var _ ports.BlockedActivitySignaler = (*Plugin)(nil)
 
 // EmitsSubmitActivity signals that Kimchi fires a user-prompt-submit hook
-// under AO's launch, so Activity.State can flip to active after a prompt is
+// under Kennel's launch, so Activity.State can flip to active after a prompt is
 // accepted. This engages the session manager's confirm loop for Kimchi
 // sessions. See ports.SubmitActivitySignaler.
 func (p *Plugin) EmitsSubmitActivity() bool { return true }
@@ -312,7 +312,7 @@ func (p *Plugin) SessionInfo(ctx context.Context, session ports.SessionRef) (por
 // rule syntax as Claude Code (bash(git diff:*), edit, mcp__server__tool), and
 // the rule parser is case-insensitive on tool names, so lowercase tool names
 // are used to match Kimchi's internal names. These rules are honored under
-// --auto and --plan; only --dangerously-skip-permissions (not mapped by AO)
+// --auto and --plan; only --dangerously-skip-permissions (not mapped by Kennel)
 // would skip the denylist.
 func appendToolFlags(cmd *[]string, allowed, disallowed []string) error {
 	for _, rule := range allowed {

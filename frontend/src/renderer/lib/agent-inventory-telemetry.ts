@@ -20,7 +20,7 @@ export type AgentInventory = {
   /**
    * Sorted, comma-joined authorized agent ids.
    *
-   * Safe because agent ids are a fixed vocabulary from AO's own registry
+   * Safe because agent ids are a fixed vocabulary from Kennel's own registry
    * (`claude-code`, `codex`, …), not user-supplied text. Sorted so the same set
    * produces the same value and can be grouped in analysis.
    */

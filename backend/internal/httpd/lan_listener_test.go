@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/mobilebridge"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/mobilebridge"
 )
 
 func TestLANManagerAuthGatesSharedHandler(t *testing.T) {
@@ -69,7 +69,7 @@ func TestLANManagerBlocksLoopbackOnlyControlRoutes(t *testing.T) {
 		"/api/v1/mobile/devices/i1",
 		"/api/v1/dev/import-projects",
 		"/api/v1/browser/status",
-		"/api/v1/sessions/ao-1/preview/server",
+		"/api/v1/sessions/kennel-1/preview/server",
 	}
 	for _, path := range blocked {
 		req, _ := http.NewRequest(http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d%s", port, path), nil)

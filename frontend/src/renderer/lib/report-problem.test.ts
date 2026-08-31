@@ -115,7 +115,7 @@ describe("report problem drafts", () => {
 			expect(draft).toContain("Details");
 			expect(draft).not.toContain("## Type");
 			expect(draft).not.toContain("Bug report");
-			expect(draft).not.toContain("Generated locally by AO");
+			expect(draft).not.toContain("Generated locally by Kennel");
 			expect(draft).not.toContain("No logs, repo contents");
 		}
 	});

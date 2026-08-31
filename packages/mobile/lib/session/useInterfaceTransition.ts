@@ -61,7 +61,7 @@ export function useInterfaceTransition(
 
 	const start = useCallback(
 		async (targetMode: "chat" | "tui", policy: "drain" | "interrupt") => {
-			if (!cfg) throw new Error("No AO server configured");
+			if (!cfg) throw new Error("No Kennel server configured");
 			setStarting(true);
 			setError(undefined);
 			try {
@@ -83,7 +83,7 @@ export function useInterfaceTransition(
 	);
 
 	const cancel = useCallback(async () => {
-		if (!cfg) throw new Error("No AO server configured");
+		if (!cfg) throw new Error("No Kennel server configured");
 		setCancelling(true);
 		setError(undefined);
 		try {

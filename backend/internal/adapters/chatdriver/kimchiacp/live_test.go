@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/kimchi"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/kimchi"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Run explicitly with KENNEL_LIVE_KIMCHI_ACP=1. It uses the user's existing Kimchi
@@ -43,7 +43,7 @@ func TestLiveKimchiACP(t *testing.T) {
 
 	// Send a turn and verify streaming + completion.
 	ref, err := conversation.SendTurn(ctx, ports.ChatUserMessage{
-		Text:            "Reply with exactly: AO Kimchi ACP works",
+		Text:            "Reply with exactly: Kennel Kimchi ACP works",
 		ClientMessageID: "live-1",
 		Origin:          domain.MessageOriginHuman,
 	})
@@ -70,7 +70,7 @@ func TestLiveKimchiACP(t *testing.T) {
 				if event.TurnState != domain.TurnStateCompleted {
 					t.Fatalf("turn state = %q; answer=%q", event.TurnState, answer.String())
 				}
-				if !strings.Contains(answer.String(), "AO Kimchi ACP works") {
+				if !strings.Contains(answer.String(), "Kennel Kimchi ACP works") {
 					t.Fatalf("answer = %q", answer.String())
 				}
 				return

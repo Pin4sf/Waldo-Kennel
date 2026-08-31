@@ -31,7 +31,7 @@ function memoryStorage(initial: Record<string, string> = {}) {
 }
 
 describe("telemetry sanitizers", () => {
-	it("isolates anonymous AO installation identity from persisted PostHog person state", () => {
+	it("isolates anonymous Kennel installation identity from persisted PostHog person state", () => {
 		const config = buildPostHogConfig("ins_stable-install-id");
 
 		expect(config.persistence).toBe("memory");
@@ -160,14 +160,14 @@ describe("telemetry sanitizers", () => {
 		expect(safe).toEqual({ enabled: false });
 	});
 
-	it("disables every billable PostHog product AO does not consume", () => {
+	it("disables every billable PostHog product Kennel does not consume", () => {
 		const config = buildPostHogConfig("ins_stable-install-id");
 
 		// Replay is billed per recording, so it escapes the per-name rate limits
 		// in this module entirely. Disabling it client-side means the project-side
 		// toggle cannot switch it back on for shipped builds.
 		expect(config.disable_session_recording).toBe(true);
-		// AO reads no flags and ships no surveys, and /flags requests are billed
+		// Kennel reads no flags and ships no surveys, and /flags requests are billed
 		// per request, so any request here is cost for data nothing reads.
 		expect(config.advanced_disable_flags).toBe(true);
 		expect(config.disable_surveys).toBe(true);
@@ -178,7 +178,7 @@ describe("telemetry sanitizers", () => {
 		expect(config.capture_performance).toBe(false);
 	});
 
-	it("emits the stable AO installation id without creating a person profile", () => {
+	it("emits the stable Kennel installation id without creating a person profile", () => {
 		const client = new PostHog();
 		client.init("phc_test", {
 			...buildPostHogConfig("ins_stable-install-id"),
@@ -206,7 +206,7 @@ describe("telemetry sanitizers", () => {
 		}
 	});
 
-	it("builds stable AO version context for PostHog events", () => {
+	it("builds stable Kennel version context for PostHog events", () => {
 		expect(buildTelemetryContext(" 1.2.3-nightly.20260707 ", "linux")).toMatchObject({
 			app_version: "1.2.3-nightly.20260707",
 			kennel_version: "1.2.3-nightly.20260707",

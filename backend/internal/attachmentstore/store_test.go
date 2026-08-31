@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 func TestStoreImportsBeforeWorkspaceRemovalAndMaterializesAfterRestore(t *testing.T) {
@@ -25,7 +25,7 @@ func TestStoreImportsBeforeWorkspaceRemovalAndMaterializesAfterRestore(t *testin
 	}
 
 	store := New(dataDir)
-	if err := store.ImportWorkspace(context.Background(), "ao-1", workspace); err != nil {
+	if err := store.ImportWorkspace(context.Background(), "kennel-1", workspace); err != nil {
 		t.Fatalf("ImportWorkspace: %v", err)
 	}
 	if err := os.RemoveAll(workspace); err != nil {
@@ -34,7 +34,7 @@ func TestStoreImportsBeforeWorkspaceRemovalAndMaterializesAfterRestore(t *testin
 	if err := os.MkdirAll(workspace, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.MaterializeWorkspace(context.Background(), "ao-1", workspace); err != nil {
+	if _, err := store.MaterializeWorkspace(context.Background(), "kennel-1", workspace); err != nil {
 		t.Fatalf("MaterializeWorkspace: %v", err)
 	}
 
@@ -53,7 +53,7 @@ func TestStorePutWritesCanonicalAndWorkspaceCopies(t *testing.T) {
 	store := New(dataDir)
 	want := []byte("new-image-bytes")
 
-	if err := store.Put(context.Background(), "ao-1", workspace, "attachment-new.png", want); err != nil {
+	if err := store.Put(context.Background(), "kennel-1", workspace, "attachment-new.png", want); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
 	got, err := os.ReadFile(filepath.Join(workspace, filepath.FromSlash(WorkspaceDir), "attachment-new.png"))
@@ -64,7 +64,7 @@ func TestStorePutWritesCanonicalAndWorkspaceCopies(t *testing.T) {
 		t.Fatalf("workspace attachment = %q, want %q", got, want)
 	}
 
-	file, info, err := store.Open(context.Background(), "ao-1", "attachment-new.png")
+	file, info, err := store.Open(context.Background(), "kennel-1", "attachment-new.png")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestStorePutWritesCanonicalAndWorkspaceCopies(t *testing.T) {
 func TestStorePutRequiresCanonicalDataDirectory(t *testing.T) {
 	workspace := t.TempDir()
 	name := "attachment-no-store.bin"
-	if err := New("").Put(context.Background(), "ao-1", workspace, name, []byte("bytes")); err == nil {
+	if err := New("").Put(context.Background(), "kennel-1", workspace, name, []byte("bytes")); err == nil {
 		t.Fatal("Put succeeded without a canonical data directory")
 	}
 	if _, err := os.Stat(filepath.Join(workspace, filepath.FromSlash(WorkspaceDir), name)); !errors.Is(err, fs.ErrNotExist) {
@@ -89,22 +89,22 @@ func TestStorePutRejectsSymlinkedWorkspaceAttachmentDir(t *testing.T) {
 	dataDir := t.TempDir()
 	workspace := t.TempDir()
 	outside := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(workspace, ".ao"), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Join(workspace, ".kennel"), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(outside, filepath.Join(workspace, ".ao", "attachments")); err != nil {
+	if err := os.Symlink(outside, filepath.Join(workspace, ".kennel", "attachments")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 
 	name := "attachment-review.png"
-	err := New(dataDir).Put(context.Background(), "ao-1", workspace, name, []byte("must stay confined"))
+	err := New(dataDir).Put(context.Background(), "kennel-1", workspace, name, []byte("must stay confined"))
 	if err == nil {
 		t.Fatal("Put succeeded through a symlinked workspace attachment directory")
 	}
 	if _, statErr := os.Stat(filepath.Join(outside, name)); !errors.Is(statErr, fs.ErrNotExist) {
 		t.Fatalf("Put wrote outside the workspace: %v", statErr)
 	}
-	if _, statErr := os.Stat(filepath.Join(dataDir, durableDir, "ao-1", name)); !errors.Is(statErr, fs.ErrNotExist) {
+	if _, statErr := os.Stat(filepath.Join(dataDir, durableDir, "kennel-1", name)); !errors.Is(statErr, fs.ErrNotExist) {
 		t.Fatalf("failed Put left an unreferenced canonical attachment: %v", statErr)
 	}
 }
@@ -114,14 +114,14 @@ func TestStoreOpenRejectsSymlinkedCanonicalSessionDir(t *testing.T) {
 	workspace := t.TempDir()
 	store := New(dataDir)
 	name := "attachment-review.png"
-	if err := store.Put(context.Background(), "ao-1", workspace, name, []byte("session one secret")); err != nil {
+	if err := store.Put(context.Background(), "kennel-1", workspace, name, []byte("session one secret")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(filepath.Join(dataDir, durableDir, "ao-1"), filepath.Join(dataDir, durableDir, "ao-2")); err != nil {
+	if err := os.Symlink(filepath.Join(dataDir, durableDir, "kennel-1"), filepath.Join(dataDir, durableDir, "kennel-2")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 
-	file, _, err := store.Open(context.Background(), "ao-2", name)
+	file, _, err := store.Open(context.Background(), "kennel-2", name)
 	if file != nil {
 		_ = file.Close()
 	}
@@ -133,7 +133,7 @@ func TestStoreOpenRejectsSymlinkedCanonicalSessionDir(t *testing.T) {
 func TestStoreRemoveSessionRejectsSymlinkedCanonicalRoot(t *testing.T) {
 	dataDir := t.TempDir()
 	outside := t.TempDir()
-	externalSession := filepath.Join(outside, "ao-1")
+	externalSession := filepath.Join(outside, "kennel-1")
 	if err := os.MkdirAll(externalSession, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestStoreRemoveSessionRejectsSymlinkedCanonicalRoot(t *testing.T) {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 
-	err := New(dataDir).RemoveSession(context.Background(), "ao-1")
+	err := New(dataDir).RemoveSession(context.Background(), "kennel-1")
 	if err == nil {
 		t.Fatal("RemoveSession accepted a symlinked canonical root")
 	}
@@ -156,28 +156,28 @@ func TestStoreRemoveSessionRejectsSymlinkedCanonicalRoot(t *testing.T) {
 
 func TestStoreRemoveSessionDeletesOnlyThePermanentOwner(t *testing.T) {
 	store := New(t.TempDir())
-	for _, id := range []domain.SessionID{"ao-1", "ao-2"} {
+	for _, id := range []domain.SessionID{"kennel-1", "kennel-2"} {
 		if err := store.Put(context.Background(), id, t.TempDir(), "attachment-owned.bin", []byte(id)); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := store.RemoveSession(context.Background(), "ao-1"); err != nil {
+	if err := store.RemoveSession(context.Background(), "kennel-1"); err != nil {
 		t.Fatal(err)
 	}
-	if file, _, err := store.Open(context.Background(), "ao-1", "attachment-owned.bin"); !errors.Is(err, fs.ErrNotExist) {
+	if file, _, err := store.Open(context.Background(), "kennel-1", "attachment-owned.bin"); !errors.Is(err, fs.ErrNotExist) {
 		if file != nil {
 			_ = file.Close()
 		}
 		t.Fatalf("deleted owner's attachment error = %v, want not exist", err)
 	}
-	file, _, err := store.Open(context.Background(), "ao-2", "attachment-owned.bin")
+	file, _, err := store.Open(context.Background(), "kennel-2", "attachment-owned.bin")
 	if err != nil {
 		t.Fatalf("other owner's attachment was removed: %v", err)
 	}
 	defer func() { _ = file.Close() }()
 	got, err := io.ReadAll(file)
-	if err != nil || string(got) != "ao-2" {
-		t.Fatalf("other owner's attachment = %q, %v; want ao-2", got, err)
+	if err != nil || string(got) != "kennel-2" {
+		t.Fatalf("other owner's attachment = %q, %v; want kennel-2", got, err)
 	}
 }
 
@@ -202,7 +202,7 @@ func TestStorePutRejectsSymlinkedCanonicalDirectories(t *testing.T) {
 				if err := os.MkdirAll(filepath.Join(dataDir, durableDir), 0o700); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.Symlink(outside, filepath.Join(dataDir, durableDir, "ao-1")); err != nil {
+				if err := os.Symlink(outside, filepath.Join(dataDir, durableDir, "kennel-1")); err != nil {
 					t.Skipf("symlinks unavailable: %v", err)
 				}
 			},
@@ -215,14 +215,14 @@ func TestStorePutRejectsSymlinkedCanonicalDirectories(t *testing.T) {
 			outside := t.TempDir()
 			tt.link(t, dataDir, outside)
 			name := "attachment-review.png"
-			err := New(dataDir).Put(context.Background(), "ao-1", t.TempDir(), name, []byte("must stay confined"))
+			err := New(dataDir).Put(context.Background(), "kennel-1", t.TempDir(), name, []byte("must stay confined"))
 			if err == nil {
 				t.Fatal("Put accepted a symlinked canonical directory")
 			}
 			if _, statErr := os.Stat(filepath.Join(outside, name)); !errors.Is(statErr, fs.ErrNotExist) {
 				t.Fatalf("Put wrote outside the canonical store: %v", statErr)
 			}
-			if _, statErr := os.Stat(filepath.Join(outside, "ao-1", name)); !errors.Is(statErr, fs.ErrNotExist) {
+			if _, statErr := os.Stat(filepath.Join(outside, "kennel-1", name)); !errors.Is(statErr, fs.ErrNotExist) {
 				t.Fatalf("Put wrote outside the canonical store: %v", statErr)
 			}
 		})
@@ -233,21 +233,21 @@ func TestStoreMaterializeRejectsUnsafeWorkspaceDestination(t *testing.T) {
 	dataDir := t.TempDir()
 	store := New(dataDir)
 	name := "attachment-review.png"
-	if err := store.Put(context.Background(), "ao-1", t.TempDir(), name, []byte("canonical bytes")); err != nil {
+	if err := store.Put(context.Background(), "kennel-1", t.TempDir(), name, []byte("canonical bytes")); err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run("symlinked attachment directory", func(t *testing.T) {
 		workspace := t.TempDir()
 		outside := t.TempDir()
-		if err := os.MkdirAll(filepath.Join(workspace, ".ao"), 0o750); err != nil {
+		if err := os.MkdirAll(filepath.Join(workspace, ".kennel"), 0o750); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.Symlink(outside, filepath.Join(workspace, ".ao", "attachments")); err != nil {
+		if err := os.Symlink(outside, filepath.Join(workspace, ".kennel", "attachments")); err != nil {
 			t.Skipf("symlinks unavailable: %v", err)
 		}
 
-		if _, err := store.MaterializeWorkspace(context.Background(), "ao-1", workspace); err == nil {
+		if _, err := store.MaterializeWorkspace(context.Background(), "kennel-1", workspace); err == nil {
 			t.Fatal("MaterializeWorkspace accepted a symlinked attachment directory")
 		}
 		if _, err := os.Stat(filepath.Join(outside, name)); !errors.Is(err, fs.ErrNotExist) {
@@ -257,7 +257,7 @@ func TestStoreMaterializeRejectsUnsafeWorkspaceDestination(t *testing.T) {
 
 	t.Run("empty workspace path", func(t *testing.T) {
 		t.Chdir(t.TempDir())
-		if _, err := store.MaterializeWorkspace(context.Background(), "ao-1", ""); err == nil {
+		if _, err := store.MaterializeWorkspace(context.Background(), "kennel-1", ""); err == nil {
 			t.Fatal("MaterializeWorkspace accepted an empty workspace path")
 		}
 	})
@@ -267,14 +267,14 @@ func TestStoreMaterializeRestoresCanonicalBytesOverExistingProjection(t *testing
 	store := New(t.TempDir())
 	workspace := t.TempDir()
 	name := "attachment-restored.bin"
-	if err := store.Put(context.Background(), "ao-1", workspace, name, []byte("canonical")); err != nil {
+	if err := store.Put(context.Background(), "kennel-1", workspace, name, []byte("canonical")); err != nil {
 		t.Fatal(err)
 	}
 	projection := filepath.Join(workspace, filepath.FromSlash(WorkspaceDir), name)
 	if err := os.WriteFile(projection, []byte("tampered"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.MaterializeWorkspace(context.Background(), "ao-1", workspace); err != nil {
+	if _, err := store.MaterializeWorkspace(context.Background(), "kennel-1", workspace); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(projection)
@@ -287,13 +287,13 @@ func TestStorePutPreservesExistingAttachmentOnNameCollision(t *testing.T) {
 	store := New(t.TempDir())
 	workspace := t.TempDir()
 	name := "attachment-collision.png"
-	if err := store.Put(context.Background(), "ao-1", workspace, name, []byte("first")); err != nil {
+	if err := store.Put(context.Background(), "kennel-1", workspace, name, []byte("first")); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Put(context.Background(), "ao-1", workspace, name, []byte("second")); err == nil {
+	if err := store.Put(context.Background(), "kennel-1", workspace, name, []byte("second")); err == nil {
 		t.Fatal("second Put overwrote an attachment with the same generated name")
 	}
-	file, _, err := store.Open(context.Background(), "ao-1", name)
+	file, _, err := store.Open(context.Background(), "kennel-1", name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,18 +310,18 @@ func TestStorePutPreservesExistingAttachmentOnNameCollision(t *testing.T) {
 func TestStorePutRetainsAttachmentSizeLimit(t *testing.T) {
 	store := New(t.TempDir())
 	workspace := t.TempDir()
-	if err := store.Put(context.Background(), "ao-1", workspace, "attachment-empty.bin", nil); err == nil {
+	if err := store.Put(context.Background(), "kennel-1", workspace, "attachment-empty.bin", nil); err == nil {
 		t.Fatal("Put accepted an empty attachment")
 	}
 	const maxAttachmentBytes = 10 << 20
-	if err := store.Put(context.Background(), "ao-1", workspace, "attachment-large.bin", make([]byte, maxAttachmentBytes+1)); err == nil {
+	if err := store.Put(context.Background(), "kennel-1", workspace, "attachment-large.bin", make([]byte, maxAttachmentBytes+1)); err == nil {
 		t.Fatal("Put accepted an attachment larger than 10 MiB")
 	}
 }
 
 func TestStoreOpenDoesNotServeOversizedCanonicalFile(t *testing.T) {
 	dataDir := t.TempDir()
-	dir := filepath.Join(dataDir, durableDir, "ao-1")
+	dir := filepath.Join(dataDir, durableDir, "kennel-1")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +329,7 @@ func TestStoreOpenDoesNotServeOversizedCanonicalFile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, name), make([]byte, MaxFileBytes+1), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	file, _, err := New(dataDir).Open(context.Background(), "ao-1", name)
+	file, _, err := New(dataDir).Open(context.Background(), "kennel-1", name)
 	if file != nil {
 		_ = file.Close()
 	}
@@ -346,7 +346,7 @@ func TestStoreImportWorkspaceRetainsNameTypeAndSizeLimits(t *testing.T) {
 	}
 	files := map[string][]byte{
 		"attachment-legacy.png": []byte("legacy bytes"),
-		"notes.txt":             []byte("not an AO-generated attachment"),
+		"notes.txt":             []byte("not an Kennel-generated attachment"),
 		"attachment-vector.svg": []byte("<svg></svg>"),
 		"attachment-large.bin":  make([]byte, MaxFileBytes+1),
 	}
@@ -357,16 +357,16 @@ func TestStoreImportWorkspaceRetainsNameTypeAndSizeLimits(t *testing.T) {
 	}
 
 	store := New(t.TempDir())
-	if err := store.ImportWorkspace(context.Background(), "ao-1", workspace); err != nil {
+	if err := store.ImportWorkspace(context.Background(), "kennel-1", workspace); err != nil {
 		t.Fatalf("ImportWorkspace: %v", err)
 	}
-	file, _, err := store.Open(context.Background(), "ao-1", "attachment-legacy.png")
+	file, _, err := store.Open(context.Background(), "kennel-1", "attachment-legacy.png")
 	if err != nil {
 		t.Fatalf("Open imported legacy attachment: %v", err)
 	}
 	_ = file.Close()
 	for _, name := range []string{"notes.txt", "attachment-vector.svg", "attachment-large.bin"} {
-		if file, _, err := store.Open(context.Background(), "ao-1", name); !errors.Is(err, fs.ErrNotExist) {
+		if file, _, err := store.Open(context.Background(), "kennel-1", name); !errors.Is(err, fs.ErrNotExist) {
 			if file != nil {
 				_ = file.Close()
 			}
@@ -376,7 +376,7 @@ func TestStoreImportWorkspaceRetainsNameTypeAndSizeLimits(t *testing.T) {
 }
 
 func TestStoreImportWorkspaceRejectsSymlinkedParents(t *testing.T) {
-	t.Run("workspace AO directory", func(t *testing.T) {
+	t.Run("workspace Kennel directory", func(t *testing.T) {
 		workspace := t.TempDir()
 		outside := t.TempDir()
 		if err := os.MkdirAll(filepath.Join(outside, "attachments"), 0o750); err != nil {
@@ -385,14 +385,14 @@ func TestStoreImportWorkspaceRejectsSymlinkedParents(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(outside, "attachments", "attachment-import.png"), []byte("outside"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.Symlink(outside, filepath.Join(workspace, ".ao")); err != nil {
+		if err := os.Symlink(outside, filepath.Join(workspace, ".kennel")); err != nil {
 			t.Skipf("symlinks unavailable: %v", err)
 		}
 		store := New(t.TempDir())
-		if err := store.ImportWorkspace(context.Background(), "ao-1", workspace); err == nil {
+		if err := store.ImportWorkspace(context.Background(), "kennel-1", workspace); err == nil {
 			t.Fatal("ImportWorkspace accepted a symlinked workspace parent")
 		}
-		if file, _, err := store.Open(context.Background(), "ao-1", "attachment-import.png"); !errors.Is(err, fs.ErrNotExist) {
+		if file, _, err := store.Open(context.Background(), "kennel-1", "attachment-import.png"); !errors.Is(err, fs.ErrNotExist) {
 			if file != nil {
 				_ = file.Close()
 			}
@@ -414,10 +414,10 @@ func TestStoreImportWorkspaceRejectsSymlinkedParents(t *testing.T) {
 		if err := os.Symlink(outside, filepath.Join(dataDir, durableDir)); err != nil {
 			t.Skipf("symlinks unavailable: %v", err)
 		}
-		if err := New(dataDir).ImportWorkspace(context.Background(), "ao-1", workspace); err == nil {
+		if err := New(dataDir).ImportWorkspace(context.Background(), "kennel-1", workspace); err == nil {
 			t.Fatal("ImportWorkspace accepted a symlinked canonical root")
 		}
-		if _, err := os.Stat(filepath.Join(outside, "ao-1", "attachment-import.png")); !errors.Is(err, fs.ErrNotExist) {
+		if _, err := os.Stat(filepath.Join(outside, "kennel-1", "attachment-import.png")); !errors.Is(err, fs.ErrNotExist) {
 			t.Fatalf("ImportWorkspace wrote outside the canonical root: %v", err)
 		}
 	})
@@ -425,7 +425,7 @@ func TestStoreImportWorkspaceRejectsSymlinkedParents(t *testing.T) {
 
 func TestStoreImportWorkspaceTreatsMissingWorktreeAsNothingToImport(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "already-removed")
-	if err := New(t.TempDir()).ImportWorkspace(context.Background(), "ao-1", missing); err != nil {
+	if err := New(t.TempDir()).ImportWorkspace(context.Background(), "kennel-1", missing); err != nil {
 		t.Fatalf("ImportWorkspace missing worktree: %v", err)
 	}
 }
@@ -439,7 +439,7 @@ func TestStoreImportWorkspaceRequiresCanonicalStorageForLegacyBytes(t *testing.T
 	if err := os.WriteFile(path, []byte("only copy"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := New("").ImportWorkspace(context.Background(), "ao-1", workspace); err == nil {
+	if err := New("").ImportWorkspace(context.Background(), "kennel-1", workspace); err == nil {
 		t.Fatal("ImportWorkspace reported legacy bytes preserved without canonical storage")
 	}
 	if got, err := os.ReadFile(path); err != nil || string(got) != "only copy" {
@@ -453,11 +453,11 @@ func TestStorePutHonorsCancelledContextBeforeWriting(t *testing.T) {
 	dataDir := t.TempDir()
 	workspace := t.TempDir()
 	name := "attachment-cancelled.bin"
-	if err := New(dataDir).Put(ctx, "ao-1", workspace, name, []byte("bytes")); !errors.Is(err, context.Canceled) {
+	if err := New(dataDir).Put(ctx, "kennel-1", workspace, name, []byte("bytes")); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Put error = %v, want context canceled", err)
 	}
 	for _, path := range []string{
-		filepath.Join(dataDir, durableDir, "ao-1", name),
+		filepath.Join(dataDir, durableDir, "kennel-1", name),
 		filepath.Join(workspace, filepath.FromSlash(WorkspaceDir), name),
 	} {
 		if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
@@ -469,10 +469,10 @@ func TestStorePutHonorsCancelledContextBeforeWriting(t *testing.T) {
 func TestStorePutRejectsEmptyWorkspaceBeforeCanonicalWrite(t *testing.T) {
 	dataDir := t.TempDir()
 	name := "attachment-no-workspace.bin"
-	if err := New(dataDir).Put(context.Background(), "ao-1", "", name, []byte("bytes")); err == nil {
+	if err := New(dataDir).Put(context.Background(), "kennel-1", "", name, []byte("bytes")); err == nil {
 		t.Fatal("Put accepted an empty workspace path")
 	}
-	if _, err := os.Stat(filepath.Join(dataDir, durableDir, "ao-1", name)); !errors.Is(err, fs.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(dataDir, durableDir, "kennel-1", name)); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("Put persisted canonical bytes without a workspace projection: %v", err)
 	}
 }
@@ -483,15 +483,15 @@ func TestNameFromWorkspacePathRejectsTraversal(t *testing.T) {
 		want string
 		ok   bool
 	}{
-		{path: ".ao/attachments/attachment-1.png", want: "attachment-1.png", ok: true},
-		{path: "/.ao/attachments/attachment-1.png", want: "attachment-1.png", ok: true},
-		{path: ".ao/attachments/image-a1b2c3d4.webp", want: "image-a1b2c3d4.webp", ok: true},
-		{path: ".ao/attachments/../secret", ok: false},
-		{path: ".ao/attachments/nested/file.png", ok: false},
-		{path: ".ao/attachments/secret.txt", ok: false},
-		{path: ".ao/attachments/.hidden.png", ok: false},
-		{path: ".ao/attachments/attachment-no-extension", ok: false},
-		{path: ".ao/attachments/attachment-1.svg", ok: false},
+		{path: ".kennel/attachments/attachment-1.png", want: "attachment-1.png", ok: true},
+		{path: "/.kennel/attachments/attachment-1.png", want: "attachment-1.png", ok: true},
+		{path: ".kennel/attachments/image-a1b2c3d4.webp", want: "image-a1b2c3d4.webp", ok: true},
+		{path: ".kennel/attachments/../secret", ok: false},
+		{path: ".kennel/attachments/nested/file.png", ok: false},
+		{path: ".kennel/attachments/secret.txt", ok: false},
+		{path: ".kennel/attachments/.hidden.png", ok: false},
+		{path: ".kennel/attachments/attachment-no-extension", ok: false},
+		{path: ".kennel/attachments/attachment-1.svg", ok: false},
 		{path: "dist/attachment-1.png", ok: false},
 	}
 	for _, tt := range tests {
@@ -523,13 +523,13 @@ func TestStoreRejectsUnsafeNamesAndDoesNotImportSymlinks(t *testing.T) {
 	if err := store.Put(context.Background(), domain.SessionID("../escape"), workspace, "attachment.png", []byte("x")); err == nil {
 		t.Fatal("Put accepted unsafe session id")
 	}
-	if err := store.Put(context.Background(), "ao-1", workspace, "../attachment.png", []byte("x")); err == nil {
+	if err := store.Put(context.Background(), "kennel-1", workspace, "../attachment.png", []byte("x")); err == nil {
 		t.Fatal("Put accepted unsafe attachment name")
 	}
-	if err := store.ImportWorkspace(context.Background(), "ao-1", workspace); err != nil {
+	if err := store.ImportWorkspace(context.Background(), "kennel-1", workspace); err != nil {
 		t.Fatalf("ImportWorkspace: %v", err)
 	}
-	if _, _, err := store.Open(context.Background(), "ao-1", "attachment-link.png"); !errors.Is(err, fs.ErrNotExist) {
+	if _, _, err := store.Open(context.Background(), "kennel-1", "attachment-link.png"); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("Open symlink import error = %v, want not exist", err)
 	}
 }

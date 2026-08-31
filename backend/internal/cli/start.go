@@ -13,18 +13,18 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
 )
 
 // releaseRepo is the GitHub "owner/repo" that `kennel start` fetches the desktop app
 // from. It defaults to the production target and is overridable at build time so
 // a test binary fetches from the fork without a source edit:
 //
-//	go build -ldflags "-X github.com/aoagents/agent-orchestrator/backend/internal/cli.releaseRepo=Pin4sf/Waldo-Kennel" ./cmd/ao
+//	go build -ldflags "-X github.com/Pin4sf/Waldo-Kennel/backend/internal/cli.releaseRepo=Pin4sf/Waldo-Kennel" ./cmd/kennel
 //
 // Mirrors how version.go's Version var is stamped by release tooling.
 //
-// This must remain Kennel-owned: falling back to an AO repository would let a
+// This must remain Kennel-owned: falling back to an Kennel repository would let a
 // Kennel install fetch a differently identified application.
 var releaseRepo = "Pin4sf/Waldo-Kennel"
 
@@ -255,9 +255,9 @@ func linuxAppImagePath() string {
 const linuxDesktopEntryName = "kennel.desktop"
 
 func linuxApplicationsDir() (string, error) {
-	// A URL-scheme handler is OS integration metadata, not AO runtime state.
+	// A URL-scheme handler is OS integration metadata, not Kennel runtime state.
 	// freedesktop.org requires desktop entries under XDG_DATA_HOME; keeping the
-	// executable and all mutable AO data under ~/.kennel is unchanged.
+	// executable and all mutable Kennel data under ~/.kennel is unchanged.
 	if dataHome := os.Getenv("XDG_DATA_HOME"); filepath.IsAbs(dataHome) {
 		return filepath.Join(dataHome, "applications"), nil
 	}

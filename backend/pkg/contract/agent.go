@@ -3,7 +3,7 @@ package contract
 // AgentCapability is a stable feature an agent runtime can expose.
 type AgentCapability string
 
-// Agent capabilities understood by AO clients.
+// Agent capabilities understood by Kennel clients.
 const (
 	CapabilityInterfaceChat  AgentCapability = "interface.chat"
 	CapabilityInterfaceTUI   AgentCapability = "interface.tui"

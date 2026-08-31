@@ -1366,11 +1366,11 @@ function ReviewsSection({
 }
 
 /**
- * AO's own reviewer passes and the reviews humans and bots left on GitHub, in
+ * Kennel's own reviewer passes and the reviews humans and bots left on GitHub, in
  * one list keyed by PR. They were two sections, which made the same PR appear
  * twice and left the reader joining them up by number; a review is a review,
  * and what matters is who wrote it. Each group inside a PR names its source —
- * "AO codex" against the agent that ran, "On GitHub" for everyone else.
+ * "Kennel codex" against the agent that ran, "On GitHub" for everyone else.
  */
 function MergedReviewsSection({
 	githubPRs,
@@ -1891,7 +1891,7 @@ function reviewRunHasOutcome(run: ReviewRunFacts | undefined): boolean {
 	return Boolean(run?.verdict?.trim());
 }
 
-/** The PRs AO has an agent review outcome for. */
+/** The PRs Kennel has an agent review outcome for. */
 function triggeredReviewStatesFrom(openReviewStates: PRReviewState[], runs: ReviewRunFacts[]): PRReviewState[] {
 	return openReviewStates.filter(
 		(reviewState) =>

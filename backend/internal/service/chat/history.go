@@ -9,15 +9,15 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Conversation history operations: rollback, fork, and the thread title.
 //
 // The three share one property that shapes everything here: they change the
-// provider's own record of the conversation, not AO's view of it. Rollback is the
-// sharp one — it changes what the agent REMEMBERS — so AO's durable rows have to
+// provider's own record of the conversation, not Kennel's view of it. Rollback is the
+// sharp one — it changes what the agent REMEMBERS — so Kennel's durable rows have to
 // follow, or the timeline goes on showing prose the agent cannot recall.
 //
 // Each is optional on the driver and feature-detected, following the Models
@@ -38,7 +38,7 @@ var (
 	// the turn ends, which is why it is separate from every other refusal here.
 	ErrTurnRunning = errors.New("cannot roll back while a turn is running")
 	// ErrTurnNotRollbackable reports a turn the provider never accepted. There is
-	// no provider history to discard, so an undo would only hide AO's own rows and
+	// no provider history to discard, so an undo would only hide Kennel's own rows and
 	// leave the agent remembering more than the timeline shows.
 	ErrTurnNotRollbackable = errors.New("turn was never dispatched to the provider")
 	// ErrTitleRequired refuses a blank thread title. The provider refuses one too,
@@ -81,13 +81,13 @@ func classify(err error) error {
 const maxTitleRunes = 80
 
 // Rollback discards a turn and everything after it, from the agent's memory and
-// from AO's timeline.
+// from Kennel's timeline.
 //
 // Refused while a turn is running, and refused BEFORE the provider is asked. The
 // provider refuses this too, but relying on that alone would make the outcome a
-// race: AO would have already decided to hide rows by the time it learned it could
+// race: Kennel would have already decided to hide rows by the time it learned it could
 // not. The controller holds its dispatch lock across the check and the call, so
-// within AO the answer cannot change underneath.
+// within Kennel the answer cannot change underneath.
 func (s *Service) Rollback(ctx context.Context, id domain.SessionID, turnID string) (int, error) {
 	if _, err := s.requireChatSession(ctx, id); err != nil {
 		return 0, err
@@ -105,8 +105,8 @@ func (s *Service) Rollback(ctx context.Context, id domain.SessionID, turnID stri
 // ForkConversation branches this session's provider conversation and returns the
 // new provider handle.
 //
-// Deliberately not reachable over HTTP yet, and the reason is not effort. AO's
-// schema allows one conversation per session, so a fork has to become a second AO
+// Deliberately not reachable over HTTP yet, and the reason is not effort. Kennel's
+// schema allows one conversation per session, so a fork has to become a second Kennel
 // session — and a second session gets a fresh worktree, while the provider's own
 // documentation is explicit that a fork copies conversation history and does NOT
 // revert or copy the file changes the agent made. The forked agent would remember
@@ -392,8 +392,8 @@ func (s *Service) installBranchController(
 
 // SetTitle names the provider's thread and returns the normalized title.
 //
-// Nothing is written to AO's rows here. The provider answers, then emits its own
-// rename notification, and the projection applies it — so the title AO stores is
+// Nothing is written to Kennel's rows here. The provider answers, then emits its own
+// rename notification, and the projection applies it — so the title Kennel stores is
 // always one the provider confirmed. Writing it optimistically as well would give
 // one fact two authors and no way to tell which lost.
 func (s *Service) SetTitle(ctx context.Context, id domain.SessionID, title string) (string, error) {
@@ -418,7 +418,7 @@ func (s *Service) SetTitle(ctx context.Context, id domain.SessionID, title strin
 	return normalized, nil
 }
 
-// NormalizeTitle reduces a title to the one-line label AO is willing to show.
+// NormalizeTitle reduces a title to the one-line label Kennel is willing to show.
 //
 // The rules come from the automatic-semantic-task-titles design: one line, no
 // wrapper punctuation, no trailing punctuation, and a hard length bound. They are
@@ -427,7 +427,7 @@ func (s *Service) SetTitle(ctx context.Context, id domain.SessionID, title strin
 // often enough that a client would otherwise render them.
 //
 // Over-length input is truncated at a word boundary rather than rejected: the
-// provider already accepted the name, and refusing to display a title AO's own
+// provider already accepted the name, and refusing to display a title Kennel's own
 // session is now carrying would leave the two disagreeing.
 func NormalizeTitle(raw string) string {
 	title := raw

@@ -2,12 +2,12 @@
 // (claude-code, goose, qwen, agy, droid, kimchi) share byte-for-byte in shape.
 // Each file is a JSON object with a "hooks" sub-map keyed by native event name,
 // whose values are matcher groups ({matcher?, hooks:[{type,command,timeout}]}). The
-// adapters differed only in the file path, the AO command prefix, the per-hook
+// adapters differed only in the file path, the Kennel command prefix, the per-hook
 // timeout, and which events they install, so they describe those with a Manager
 // and share the install/uninstall/detect logic here.
 //
 // The read/write path preserves every top-level key and every user-defined hook
-// AO does not own, and writes atomically, so installing AO's hooks never clobbers
+// Kennel does not own, and writes atomically, so installing Kennel's hooks never clobbers
 // unrelated settings.
 package hooksjson
 
@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
 )
 
 // HookEntry is one command hook inside a matcher group.
@@ -40,9 +40,9 @@ type MatcherGroup struct {
 	Extra   map[string]json.RawMessage `json:"-"`
 }
 
-// UnmarshalJSON retains fields introduced by an agent before AO learns about
+// UnmarshalJSON retains fields introduced by an agent before Kennel learns about
 // them. User hooks may depend on agent-specific keys such as async or
-// commandWindows, and reconciling AO hooks must not remove them.
+// commandWindows, and reconciling Kennel hooks must not remove them.
 func (h *HookEntry) UnmarshalJSON(data []byte) error {
 	type known struct {
 		Type    string `json:"type"`
@@ -91,7 +91,7 @@ func (h HookEntry) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON preserves unknown matcher-group fields for the same reason as
-// HookEntry: reconciling one AO hook must not rewrite unrelated user behavior.
+// HookEntry: reconciling one Kennel hook must not rewrite unrelated user behavior.
 func (g *MatcherGroup) UnmarshalJSON(data []byte) error {
 	type known struct {
 		Matcher *string     `json:"matcher,omitempty"`
@@ -149,7 +149,7 @@ func setRawField(fields map[string]json.RawMessage, key string, value any) error
 	return nil
 }
 
-// HookSpec describes one hook AO installs: the native event it attaches to, its
+// HookSpec describes one hook Kennel installs: the native event it attaches to, its
 // optional matcher, and the command to run. Adapters define these in code rather
 // than reading an embedded template.
 type HookSpec struct {
@@ -158,25 +158,25 @@ type HookSpec struct {
 	Command string
 }
 
-// Manager installs, removes, and detects AO's hooks in one agent's matcher-group
+// Manager installs, removes, and detects Kennel's hooks in one agent's matcher-group
 // hooks file. Construct one per adapter with its file path, command prefix,
 // per-hook timeout, and managed hook set.
 type Manager struct {
 	// Label prefixes error messages, e.g. "claude-code" or "goose", so the
 	// wrapped error reads "<label>.GetAgentHooks: ...".
 	Label string
-	// CommandPrefix identifies AO-owned hook commands, e.g. "kennel hooks goose ".
+	// CommandPrefix identifies Kennel-owned hook commands, e.g. "kennel hooks goose ".
 	// Install skips commands already present and uninstall/detect match on it.
 	CommandPrefix string
 	// Timeout is written into each installed hook entry.
 	Timeout int
 	// Path returns the hooks file path for a workspace.
 	Path func(workspacePath string) string
-	// Managed is the set of hooks AO installs.
+	// Managed is the set of hooks Kennel installs.
 	Managed []HookSpec
 }
 
-// Install reconciles AO's managed hooks into the workspace's hooks file,
+// Install reconciles Kennel's managed hooks into the workspace's hooks file,
 // preserving user-defined hooks and unrelated settings. A managed command is
 // moved when its matcher changes and is never duplicated. It also writes a
 // self-ignoring .gitignore covering the hooks file so it does not block
@@ -218,7 +218,7 @@ func (m Manager) Install(ctx context.Context, workspacePath string) error {
 	return nil
 }
 
-// Uninstall removes AO's hooks from the workspace's hooks file, leaving
+// Uninstall removes Kennel's hooks from the workspace's hooks file, leaving
 // user-defined hooks and unrelated settings untouched. A missing file is a no-op.
 func (m Manager) Uninstall(ctx context.Context, workspacePath string) error {
 	if err := ctx.Err(); err != nil {
@@ -254,7 +254,7 @@ func (m Manager) Uninstall(ctx context.Context, workspacePath string) error {
 	return nil
 }
 
-// AreInstalled reports whether any AO hook is present in the workspace's hooks
+// AreInstalled reports whether any Kennel hook is present in the workspace's hooks
 // file. A missing file means none are installed.
 func (m Manager) AreInstalled(ctx context.Context, workspacePath string) (bool, error) {
 	if err := ctx.Err(); err != nil {
@@ -313,7 +313,7 @@ func (m Manager) managedEvents() []string {
 }
 
 // readHooksFile loads the file into a top-level raw map plus the decoded "hooks"
-// sub-map, preserving every key AO doesn't manage. A missing or empty file
+// sub-map, preserving every key Kennel doesn't manage. A missing or empty file
 // yields empty maps.
 func readHooksFile(hooksPath string) (topLevel, rawHooks map[string]json.RawMessage, err error) {
 	topLevel = map[string]json.RawMessage{}
@@ -391,7 +391,7 @@ func marshalEvent(rawHooks map[string]json.RawMessage, event string, groups []Ma
 	return nil
 }
 
-// reconcileHook removes every copy of one AO-owned command before adding the
+// reconcileHook removes every copy of one Kennel-owned command before adding the
 // current managed entry under its declared matcher. This lets adapter upgrades
 // change a matcher or timeout without leaving stale or duplicate commands,
 // while preserving every unrelated hook in the affected groups.
@@ -416,7 +416,7 @@ func reconcileHook(groups []MatcherGroup, hook HookEntry, matcher *string) []Mat
 			result = append(result, group)
 		} else if removedManaged && !keptEmptyTarget && matchersEqual(group.Matcher, matcher) {
 			// Reuse the target group so agent-specific group fields survive an
-			// in-place refresh of AO's hook.
+			// in-place refresh of Kennel's hook.
 			group.Hooks = nil
 			result = append(result, group)
 			keptEmptyTarget = true
@@ -437,7 +437,7 @@ func addHook(groups []MatcherGroup, hook HookEntry, matcher *string) []MatcherGr
 	return append(groups, MatcherGroup{Matcher: matcher, Hooks: []HookEntry{hook}})
 }
 
-// removeManaged strips AO hook entries (matched by command prefix) from every
+// removeManaged strips Kennel hook entries (matched by command prefix) from every
 // group, dropping any group left without hooks so the event array doesn't
 // accumulate empty matcher objects.
 func removeManaged(groups []MatcherGroup, prefix string) []MatcherGroup {

@@ -10,15 +10,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/sessionguard"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/sessionguard"
 )
 
 const reviewMaxNudge = 3
 
 // ReviewDeliveryOutcome reports what ApplyReviewBatch did with completed
-// AO-internal review passes.
+// Kennel-internal review passes.
 type ReviewDeliveryOutcome string
 
 const (
@@ -30,7 +30,7 @@ const (
 	ReviewDeliverySent ReviewDeliveryOutcome = "sent"
 )
 
-// ReviewResult is the already-persisted result of an AO-internal review pass.
+// ReviewResult is the already-persisted result of an Kennel-internal review pass.
 // Lifecycle treats it as input to the reaction reducer; it does not write the
 // review_run row.
 type ReviewResult struct {
@@ -69,7 +69,7 @@ func (m *Manager) ApplyReviewBatch(ctx context.Context, workerID domain.SessionI
 		return results[i].RunID < results[j].RunID
 	})
 	var msg strings.Builder
-	fmt.Fprintf(&msg, "[AO reviewer] AO's internal code reviewer submitted %d review(s) requesting changes.\n", len(results))
+	fmt.Fprintf(&msg, "[Kennel reviewer] Kennel's internal code reviewer submitted %d review(s) requesting changes.\n", len(results))
 	var sigParts []string
 	for i, r := range results {
 		fmt.Fprintf(&msg, "\nReview %d\nPR: %s\nVerdict: %s", i+1, domain.SanitizeControlChars(r.PRURL), domain.SanitizeControlChars(string(r.Verdict)))
@@ -540,7 +540,7 @@ func prCommentObservations(comments []domain.PullRequestComment) []ports.PRComme
 //     reducer is idempotent — repeat observations on an already-terminated
 //     session are no-ops because MarkTerminated skips when IsTerminated.
 //   - Assignee changed → log only. No session-state reaction yet; the policy
-//     for "assignee changed away from AO" is reserved for the write-side work
+//     for "assignee changed away from Kennel" is reserved for the write-side work
 //     tracked by #40.
 //   - New bot comment → one-time nudge using the same sendOnce + dedup
 //     signature pattern as the SCM lane. Dedup is in-memory only for now;
@@ -747,13 +747,13 @@ func formatReviewChangesRequestedMessage(review domain.PullRequestReview) string
 	if review.ID != "" {
 		fmt.Fprintf(&msg, "\nReview ID: %s", domain.SanitizeControlChars(review.ID))
 	}
-	msg.WriteString("\n\nAddress the requested changes and push. You should not need to re-fetch the review unless you need additional context beyond what AO has provided here.")
+	msg.WriteString("\n\nAddress the requested changes and push. You should not need to re-fetch the review unless you need additional context beyond what Kennel has provided here.")
 	return msg.String()
 }
 
 func formatReviewCommentsMessage(comments []ports.PRCommentObservation) string {
 	if len(comments) == 0 {
-		return "A reviewer left feedback on your PR. Address it and push. Fetch the review details only if you need additional context beyond what AO has provided here."
+		return "A reviewer left feedback on your PR. Address it and push. Fetch the review details only if you need additional context beyond what Kennel has provided here."
 	}
 	var msg strings.Builder
 	fmt.Fprintf(&msg, "The following %d unresolved review comment(s) are on your PR as of just now. You should not need to re-fetch this data unless you need additional context.\n", len(comments))

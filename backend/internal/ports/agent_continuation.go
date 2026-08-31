@@ -8,14 +8,14 @@ type FreshNativeSessionIDMode string
 
 const (
 	// FreshNativeSessionIDProviderAssigned means the provider chooses the id and
-	// AO learns it from the provider's lifecycle hooks.
+	// Kennel learns it from the provider's lifecycle hooks.
 	FreshNativeSessionIDProviderAssigned FreshNativeSessionIDMode = "provider_assigned"
 	// FreshNativeSessionIDCallerAssigned means the adapter accepts
 	// LaunchConfig.NativeSessionID for a fresh conversation.
 	FreshNativeSessionIDCallerAssigned FreshNativeSessionIDMode = "caller_assigned"
 )
 
-// ContinuationCapabilities is the static fresh-conversation behavior AO needs
+// ContinuationCapabilities is the static fresh-conversation behavior Kennel needs
 // before it activates an agent as part of a session switch. Runtime evidence
 // such as whether one particular native session still exists is reported by
 // AgentNativeSessionProber instead.
@@ -32,14 +32,14 @@ type AgentContinuationCapabilityProvider interface {
 }
 
 // AgentFreshNativeSessionIDProvider keeps provider-specific id formats out of
-// switch orchestration. AO persists the returned id and passes it back through
+// switch orchestration. Kennel persists the returned id and passes it back through
 // LaunchConfig.NativeSessionID.
 type AgentFreshNativeSessionIDProvider interface {
 	NewNativeSessionID() string
 }
 
 // NativeSessionRef identifies provider-owned local session state without
-// conflating it with the stable AO session id. ConfigDir is the exact native
+// conflating it with the stable Kennel session id. ConfigDir is the exact native
 // configuration/state root used by that invocation (for example CODEX_HOME).
 type NativeSessionRef struct {
 	NativeSessionID string
@@ -47,7 +47,7 @@ type NativeSessionRef struct {
 }
 
 // AgentNativeSessionConfigProvider resolves the provider state root used for
-// a launch. AO stores the returned path with the native-session binding so a
+// a launch. Kennel stores the returned path with the native-session binding so a
 // later probe does not accidentally inspect another account/config home.
 type AgentNativeSessionConfigProvider interface {
 	NativeSessionConfigDir(ctx context.Context, env map[string]string) (string, error)
@@ -55,7 +55,7 @@ type AgentNativeSessionConfigProvider interface {
 
 // NativeSessionAvailability is a tri-state result. Unknown is materially
 // different from unavailable: some providers can resume remote conversations
-// even when AO cannot find authoritative local state.
+// even when Kennel cannot find authoritative local state.
 type NativeSessionAvailability string
 
 const (

@@ -1,4 +1,4 @@
-// Mission Control palette - mirrors AO's DESIGN.md so the phone app reads as the
+// Mission Control palette - mirrors Kennel's DESIGN.md so the phone app reads as the
 // same product. Color = meaning; most states get none.
 //   blue   = the conductor (you / orchestrator / primary action)
 //   orange = a working agent (alive, running)
@@ -250,7 +250,7 @@ export function terminalTheme(scheme: ColorScheme): TerminalTheme {
 
 // ---- Status vocabulary -----------------------------------------------------
 
-// AO's attention levels, in urgency order. Drives the board sections.
+// Kennel's attention levels, in urgency order. Drives the board sections.
 export type AttentionLevel = "merge" | "action" | "respond" | "review" | "pending" | "working" | "done";
 
 export type AttentionMeta = { label: string; color: string; tint: string; order: number };
@@ -269,7 +269,7 @@ export function attentionMetaFor(t: Theme): Record<string, AttentionMeta> {
 
 export type StatusVisual = { color: string; label: string; breathing?: boolean };
 
-// One status maps to one dot color and short label. Mirrors AO's getStatusSpec so
+// One status maps to one dot color and short label. Mirrors Kennel's getStatusSpec so
 // the phone speaks the same visual language as the dashboard.
 export function statusVisual(t: Theme, status?: string | null): StatusVisual {
 	switch (status) {

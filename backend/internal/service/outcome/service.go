@@ -16,9 +16,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Manager is the controller-facing boundary for the Outcome contract.
@@ -139,7 +139,7 @@ type Service struct {
 	proposer ports.DecompositionProposer
 	// reaper ends a proposing session once its ask is closed. Optional.
 	reaper ports.AnalystSessionReaper
-	clock    func() time.Time
+	clock  func() time.Time
 
 	// PolicyLayers optionally narrows the authority ceiling for tests and
 	// constrained environments. Empty means the v0 default: the worktree-local

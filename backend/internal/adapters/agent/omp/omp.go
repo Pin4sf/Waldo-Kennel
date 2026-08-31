@@ -1,5 +1,5 @@
-// Package omp implements AO's OMP agent adapter. OMP is a terminal-first
-// coding harness, so AO launches it interactively inside the session terminal
+// Package omp implements Kennel's OMP agent adapter. OMP is a terminal-first
+// coding harness, so Kennel launches it interactively inside the session terminal
 // pane and keeps protocol-level RPC/ACP integration out of this adapter.
 package omp
 
@@ -9,10 +9,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const adapterID = "omp"
@@ -74,7 +74,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	return cmd, nil
 }
 
-// GetRestoreCommand continues an OMP session when AO has captured its native
+// GetRestoreCommand continues an OMP session when Kennel has captured its native
 // session id. ok=false means the session manager should fall back to a fresh
 // launch.
 func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig) ([]string, bool, error) {
@@ -100,7 +100,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 	return cmd, true, nil
 }
 
-// SessionInfo surfaces metadata captured by AO's generic session machinery.
+// SessionInfo surfaces metadata captured by Kennel's generic session machinery.
 func (p *Plugin) SessionInfo(ctx context.Context, session ports.SessionRef) (ports.SessionInfo, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return ports.SessionInfo{}, false, err
@@ -117,7 +117,7 @@ func appendSystemPrompt(cmd *[]string, inline, file string) error {
 	if file == "" {
 		return nil
 	}
-	data, err := os.ReadFile(file) //nolint:gosec // path is AO-owned launch config
+	data, err := os.ReadFile(file) //nolint:gosec // path is Kennel-owned launch config
 	if err != nil {
 		return err
 	}

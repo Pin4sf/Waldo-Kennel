@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 var _ ports.SCMReviewRequester = (*Provider)(nil)
@@ -16,7 +16,7 @@ var _ ports.SCMReviewResolver = (*Provider)(nil)
 
 // RequestReview asks GitLab to assign the supplied user as a merge-request
 // reviewer. GitLab's update endpoint expects numeric reviewer ids, so the
-// username carried by AO is resolved first and existing reviewers are preserved.
+// username carried by Kennel is resolved first and existing reviewers are preserved.
 func (p *Provider) RequestReview(ctx context.Context, request ports.SCMReviewRequest) error {
 	if p == nil || p.client == nil {
 		return fmt.Errorf("gitlab scm: review requester is not configured")

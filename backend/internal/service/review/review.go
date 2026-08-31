@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/lifecycle"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	reviewcore "github.com/aoagents/agent-orchestrator/backend/internal/review"
-	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/lifecycle"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	reviewcore "github.com/Pin4sf/Waldo-Kennel/backend/internal/review"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/telemetrymeta"
 )
 
 // ErrInvalid and ErrNotFound re-export the engine sentinels so the HTTP

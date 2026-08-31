@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/store"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/store"
 )
 
 // The durable half of rollback and of the provider thread title.
@@ -658,7 +658,7 @@ func TestApplyProviderTitleNeverOverwritesAManualName(t *testing.T) {
 	}
 }
 
-// A later provider title may replace an earlier one AO applied itself: refining the
+// A later provider title may replace an earlier one Kennel applied itself: refining the
 // name it chose is not the same as overruling the user.
 func TestApplyProviderTitleReplacesTheTitleAOAppliedBefore(t *testing.T) {
 	s, session, conversation := conversationFixture(t)
@@ -673,7 +673,7 @@ func TestApplyProviderTitleReplacesTheTitleAOAppliedBefore(t *testing.T) {
 		t.Fatalf("second apply: %v", err)
 	}
 	if !applied {
-		t.Fatal("a second provider title did not replace the first one AO applied")
+		t.Fatal("a second provider title did not replace the first one Kennel applied")
 	}
 
 	rec, ok, err := s.GetSession(ctx, session)
@@ -685,7 +685,7 @@ func TestApplyProviderTitleReplacesTheTitleAOAppliedBefore(t *testing.T) {
 	}
 }
 
-// A rename landing after AO applied a title still wins, because the witness no longer
+// A rename landing after Kennel applied a title still wins, because the witness no longer
 // matches. This is the race the compare-and-set exists for.
 func TestApplyProviderTitleLosesToARenameThatFollowedIt(t *testing.T) {
 	s, session, conversation := conversationFixture(t)
@@ -704,7 +704,7 @@ func TestApplyProviderTitleLosesToARenameThatFollowedIt(t *testing.T) {
 		t.Fatalf("second apply: %v", err)
 	}
 	if applied {
-		t.Fatal("a provider title overwrote a rename that came after AO's own title")
+		t.Fatal("a provider title overwrote a rename that came after Kennel's own title")
 	}
 }
 

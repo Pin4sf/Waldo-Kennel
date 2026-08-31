@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	workeragent "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/kilocode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workeragent "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/kilocode"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const configAssignmentPrefix = "KILO_CONFIG_CONTENT="
@@ -37,7 +37,7 @@ var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 // ReviewCommand launches Kilo Code with the same hidden system-prompt agent as
 // the worker adapter, then replaces its normal permission config with the
 // reviewer-only read/report policy. The persistent TUI form is intentional:
-// AO reuses reviewer panes and injects later review tasks into them.
+// Kennel reuses reviewer panes and injects later review tasks into them.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	argv, err := r.agent.GetLaunchCommand(ctx, ports.LaunchConfig{
 		SessionID:        inv.ReviewerID,

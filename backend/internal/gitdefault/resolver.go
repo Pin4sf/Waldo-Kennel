@@ -10,15 +10,15 @@ import (
 	"sort"
 	"strings"
 
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 const (
 	defaultGitBinary             = "git"
 	legacyDefaultBranch          = "main"
 	legacyInitialCommitSubject   = "initial commit"
-	legacyWorkspaceCommitSubject = "chore: initialize AO workspace root"
-	// ManagedDefaultConfigKey records the branch AO selected when it initialized
+	legacyWorkspaceCommitSubject = "chore: initialize Kennel workspace root"
+	// ManagedDefaultConfigKey records the branch Kennel selected when it initialized
 	// a repository itself. It is intentionally repo-local and is only consulted
 	// when the repository has no remotes.
 	ManagedDefaultConfigKey = "kennel.defaultBranch"
@@ -36,12 +36,12 @@ const (
 	SourceLiveRemoteHead Source = "live_remote_head"
 	// SourceCachedRemoteHead means the branch came from the selected remote's cached HEAD.
 	SourceCachedRemoteHead Source = "cached_remote_head"
-	// SourceAOInitialized means AO recorded the branch when it initialized the repository.
-	SourceAOInitialized Source = "ao_initialized"
+	// SourceKennelInitialized means Kennel recorded the branch when it initialized the repository.
+	SourceKennelInitialized Source = "kennel_initialized"
 )
 
 // Resolution is an authoritative branch plus the ref that can safely seed a
-// new worktree. Remote is empty only for repositories initialized by AO.
+// new worktree. Remote is empty only for repositories initialized by Kennel.
 type Resolution struct {
 	Branch string
 	Remote string
@@ -238,7 +238,7 @@ func (r *Resolver) resolveAOInitialized(ctx context.Context, repo string) (Resol
 		branch, ok = r.legacyAOInitializedBranch(ctx, repo)
 		if !ok {
 			return Resolution{}, unresolvedf(
-				"repository %q has no remote or AO-recorded default", repo,
+				"repository %q has no remote or Kennel-recorded default", repo,
 			)
 		}
 		if _, err := r.run(ctx, r.binary, "-C", repo, "config", "--local", ManagedDefaultConfigKey, branch); err != nil {
@@ -254,10 +254,10 @@ func (r *Resolver) resolveAOInitialized(ctx context.Context, repo string) (Resol
 			"repository %q records %s=%q, but that local branch does not exist", repo, ManagedDefaultConfigKey, branch,
 		)
 	}
-	return Resolution{Branch: branch, Ref: ref, Source: SourceAOInitialized}, nil
+	return Resolution{Branch: branch, Ref: ref, Source: SourceKennelInitialized}, nil
 }
 
-// legacyAOInitializedBranch recognizes the two initial commits written by AO
+// legacyAOInitializedBranch recognizes the two initial commits written by Kennel
 // before ManagedDefaultConfigKey existed. Both legacy creation paths selected
 // main explicitly, so this is a compatibility backfill rather than a branch
 // guess. User-created remoteless repositories remain unresolved.
@@ -283,8 +283,14 @@ func (r *Resolver) legacyAOInitializedBranch(ctx context.Context, repo string) (
 		name := strings.TrimSpace(fields[0])
 		email := strings.TrimSpace(fields[1])
 		subject := strings.TrimSpace(fields[2])
+		// Kennel now authors these commits as itself, but repositories
+		// initialized before the rename still carry the donor identity, so both
+		// are recognized. Dropping the old pair would make Kennel forget which
+		// branch it chose for every project it set up earlier.
 		if subject == legacyWorkspaceCommitSubject ||
-			(subject == legacyInitialCommitSubject && name == "Agent Orchestrator" && email == "ao@example.com") {
+			(subject == legacyInitialCommitSubject &&
+				((name == "Kennel" && email == "kennel@example.com") ||
+					(name == "Agent Orchestrator" && email == "ao@example.com"))) {
 			return legacyDefaultBranch, true
 		}
 	}
@@ -360,7 +366,7 @@ func unresolvedf(format string, args ...any) error {
 }
 
 func runCommand(ctx context.Context, binary string, args ...string) ([]byte, error) {
-	cmd := aoprocess.CommandContext(ctx, binary, args...)
+	cmd := kennelprocess.CommandContext(ctx, binary, args...)
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=Never")
 	out, err := cmd.CombinedOutput()
 	if err != nil {

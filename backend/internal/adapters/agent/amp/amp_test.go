@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestManifest(t *testing.T) {
@@ -248,7 +248,7 @@ func TestGetRestoreCommandNoID(t *testing.T) {
 func TestGetAgentHooksInstallsSystemPromptPlugin(t *testing.T) {
 	workspace := t.TempDir()
 	promptFile := filepath.Join(t.TempDir(), "system.md")
-	if err := os.WriteFile(promptFile, []byte("AO standing instructions\n"), 0o600); err != nil {
+	if err := os.WriteFile(promptFile, []byte("Kennel standing instructions\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -281,7 +281,7 @@ func TestGetAgentHooksGitignoresSystemPromptPlugin(t *testing.T) {
 	workspace := t.TempDir()
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO standing instructions",
+		SystemPrompt:  "Kennel standing instructions",
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
 	}

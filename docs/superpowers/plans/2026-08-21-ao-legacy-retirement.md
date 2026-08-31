@@ -14,7 +14,7 @@
 
 - Keep `LICENSE`, `NOTICE`, `upstream.json`, `docs/upstream-provenance.md`, and `scripts/compare-upstream.sh`.
 - Do not edit already-merged SQLite migrations or relabel historical provider/session identities.
-- Keep `backend/cmd/ao`, the Go module path, sqlc imports, `.ao/attachments`, and `.ao/launch.json` in this plan.
+- Keep `backend/cmd/kennel`, the Go module path, sqlc imports, `.kennel/attachments`, and `.kennel/launch.json` in this plan.
 - No AO npm package may be published. No Waldo/Kennel release is authorized.
 - Every deletion task records its exact path list and checks active consumers before the destructive commit.
 - Preserve unrelated user work and never use bulk destructive shell commands.
@@ -210,7 +210,7 @@ git commit -m "docs: make Kennel the current technical subject"
 **Files:**
 - Inspect: `packages/cloud-client/**`, release/pod/updater helpers, LAN/mobile bridge backend
 - Create: `docs/product/remaining-compatibility-seams.md`
-- Do not modify: Go module path, `backend/cmd/ao`, `.ao/attachments`, `.ao/launch.json`
+- Do not modify: Go module path, `backend/cmd/kennel`, `.kennel/attachments`, `.kennel/launch.json`
 
 **Interfaces:**
 - Consumes: Tasks 1-4 consumer inventory

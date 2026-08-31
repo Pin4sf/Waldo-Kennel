@@ -17,11 +17,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/pkg/agentruntime"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/pkg/agentruntime"
 )
 
 // Plugin is the Cursor agent adapter. It is safe for concurrent use; the binary
@@ -40,14 +40,14 @@ func New() *Plugin {
 var _ adapters.Adapter = (*Plugin)(nil)
 var _ ports.Agent = (*Plugin)(nil)
 
-// cursorDataDir returns the isolated Cursor profile AO uses for managed Cursor
+// cursorDataDir returns the isolated Cursor profile Kennel uses for managed Cursor
 // sessions. This keeps Cursor's trust/cache state under KENNEL_DATA_DIR instead of
 // the user's normal ~/.cursor profile.
 func cursorDataDir(dataDir string) string {
 	return filepath.Join(dataDir, "cursor")
 }
 
-// AugmentRuntimeEnv points cursor-agent at AO's isolated Cursor profile so
+// AugmentRuntimeEnv points cursor-agent at Kennel's isolated Cursor profile so
 // workspace trust seeded during hook installation is read by the launched
 // process without modifying the user's normal Cursor state.
 func (p *Plugin) AugmentRuntimeEnv(env map[string]string, dataDir string) {

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	reviewcore "github.com/aoagents/agent-orchestrator/backend/internal/review"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	reviewcore "github.com/Pin4sf/Waldo-Kennel/backend/internal/review"
 )
 
 type fakeStore struct {

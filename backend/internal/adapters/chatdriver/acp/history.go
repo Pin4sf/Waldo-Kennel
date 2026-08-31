@@ -8,13 +8,13 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // historyCapture receives the session/update replay produced by ACP session/load.
 // ACP deliberately replays a flat stream rather than provider turns, so user
-// message ids are the durable boundaries from which AO reconstructs settled turns.
+// message ids are the durable boundaries from which Kennel reconstructs settled turns.
 type historyCapture struct {
 	sessionID       string
 	events          []ports.ChatEvent
@@ -91,7 +91,7 @@ func (c *conversation) ReadHistory(ctx context.Context) ([]ports.ChatEvent, erro
 
 // prepareHistoryUpdate handles the one replay notification that the ordinary live
 // path intentionally ignores: user_message_chunk. For all other replay updates it
-// establishes the reconstructed turn, then lets SessionUpdate's existing ACP -> AO
+// establishes the reconstructed turn, then lets SessionUpdate's existing ACP -> Kennel
 // normalization run unchanged.
 func (c *conversation) prepareHistoryUpdate(update acpsdk.SessionUpdate) bool {
 	if !c.historyReplayActive() {

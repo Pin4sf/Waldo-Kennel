@@ -15,9 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/deepseekharness"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/deepseekharness/dshtest"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/deepseekharness"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/deepseekharness/dshtest"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Scenario (gap ②): the provider process dies mid-run. The exit surfaces as

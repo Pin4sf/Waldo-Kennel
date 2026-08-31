@@ -23,15 +23,15 @@ import (
 
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
 
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
+	projectsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
 // emptyGetManager returns a GetResult that sets neither Project nor Degraded —
@@ -588,7 +588,7 @@ func gitRepo(t *testing.T, name string) string {
 		t.Fatalf("git init fixture: %v\n%s", err, out)
 
 	}
-	if out, err := exec.Command("git", "-C", dir, "-c", "user.email=ao@example.com", "-c", "user.name=AO Test", "commit", "--allow-empty", "-m", "initial").CombinedOutput(); err != nil {
+	if out, err := exec.Command("git", "-C", dir, "-c", "user.email=ao@example.com", "-c", "user.name=Kennel Test", "commit", "--allow-empty", "-m", "initial").CombinedOutput(); err != nil {
 		t.Fatalf("git commit fixture: %v\n%s", err, out)
 	}
 	return dir

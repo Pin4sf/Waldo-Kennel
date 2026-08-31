@@ -20,7 +20,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const postHogBufferSize = 128
@@ -318,7 +318,7 @@ const (
 func (s *PostHogSink) send(ctx context.Context, ev ports.TelemetryEvent) {
 	eventName := remoteEventName(ev.Name)
 	// A stable per-event UUID, reused across every attempt, is PostHog's
-	// idempotency key. A transport error only means AO received no response;
+	// idempotency key. A transport error only means Kennel received no response;
 	// PostHog may already have ingested the first attempt, so without a shared
 	// UUID a retry would land as a duplicate (inflating counts and the billed
 	// volume, breaking the "retries add no volume" guarantee). PostHog dedupes

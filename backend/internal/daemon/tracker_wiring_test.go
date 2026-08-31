@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"testing"
 
-	trackergitlab "github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/gitlab"
-	trackermulti "github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/multi"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	trackergitlab "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/tracker/gitlab"
+	trackermulti "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/tracker/multi"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 // TestNewGitLabTracker_PassesAllowedHosts verifies that AllowedHosts from

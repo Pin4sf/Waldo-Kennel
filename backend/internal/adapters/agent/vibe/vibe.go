@@ -3,7 +3,7 @@
 //
 // Mistral Vibe (binary "vibe", https://github.com/mistralai/mistral-vibe) is a
 // Python CLI installed via `uv tool install mistral-vibe`, pip, or its install
-// script. AO drives Vibe in interactive mode by passing the task as the
+// script. Kennel drives Vibe in interactive mode by passing the task as the
 // positional initial prompt. `--trust` skips the working-directory trust prompt
 // for Kennel-managed worktrees while preserving Vibe's normal TUI.
 //
@@ -12,7 +12,7 @@
 // ("auto-approves all tool executions"). PermissionModeDefault emits no flag so
 // Vibe resolves its starting agent from the user's `default_agent` config.
 //
-// Vibe hooks receive the native session id on every callback. AO installs
+// Vibe hooks receive the native session id on every callback. Kennel installs
 // workspace-local pre_tool, post_tool, and post_agent hooks to persist that id
 // for restore and to report conservative activity signals without mutating the
 // user's global Vibe configuration.
@@ -31,11 +31,11 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const adapterID = "vibe"
@@ -74,12 +74,12 @@ func (p *Plugin) Manifest() adapters.Manifest {
 //	vibe --trust [--workdir <path>] [--agent <profile-or-ao-agent>] [--auto-approve] [-- <prompt>]
 //
 // When present, the prompt is delivered as Vibe's positional initial prompt, so
-// AO uses in-command delivery. Empty prompts intentionally launch an interactive
+// Kennel uses in-command delivery. Empty prompts intentionally launch an interactive
 // Vibe TUI with no positional prompt: the session manager uses promptless
 // launches for orchestrators and restore fallback. `--trust` skips the trust
 // prompt for automation and avoiding `-p` keeps Vibe in its Textual TUI instead
 // of programmatic output mode. `--workdir` is passed explicitly because Vibe
-// validates its own working directory in addition to the process cwd AO sets
+// validates its own working directory in addition to the process cwd Kennel sets
 // through the runtime. Vibe exposes no CLI system-prompt flag (system prompts
 // are config-driven), so SystemPrompt is not forwarded.
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
@@ -164,7 +164,7 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 	}, nil
 }
 
-// SessionInfo surfaces the native session id captured by AO's Vibe hooks.
+// SessionInfo surfaces the native session id captured by Kennel's Vibe hooks.
 func (p *Plugin) SessionInfo(ctx context.Context, session ports.SessionRef) (ports.SessionInfo, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return ports.SessionInfo{}, false, err
@@ -174,14 +174,14 @@ func (p *Plugin) SessionInfo(ctx context.Context, session ports.SessionRef) (por
 }
 
 // appendWorkdirFlag adds Vibe's explicit `--workdir` flag. Vibe validates its
-// own working directory in addition to the process cwd AO sets.
+// own working directory in addition to the process cwd Kennel sets.
 func appendWorkdirFlag(cmd *[]string, workspacePath string) {
 	if workspacePath != "" {
 		*cmd = append(*cmd, "--workdir", workspacePath)
 	}
 }
 
-// appendAgentFlags maps AO permission modes onto Vibe's builtin `--agent`
+// appendAgentFlags maps Kennel permission modes onto Vibe's builtin `--agent`
 // profiles. PermissionModeDefault (and the empty mode) emit no flag so Vibe
 // resolves its starting agent from the user's `default_agent` config.
 func appendAgentFlags(cmd *[]string, mode ports.PermissionMode) {
@@ -202,7 +202,7 @@ func appendCustomAgentApprovalFlags(cmd *[]string, mode ports.PermissionMode) {
 	}
 }
 
-const vibePromptAgentName = "ao-system-prompt"
+const vibePromptAgentName = "kennel-system-prompt"
 
 func vibeAgentFlag(mode ports.PermissionMode, inlinePrompt, promptFile, model, dataDir, sessionID string) (string, string, error) {
 	trimmedModel := strings.TrimSpace(model)
@@ -221,7 +221,7 @@ func vibeAgentFlag(mode ports.PermissionMode, inlinePrompt, promptFile, model, d
 	agentsDir := filepath.Join(vibeRoot, ".vibe", "agents")
 	promptText := inlinePrompt
 	if promptText == "" && promptFile != "" {
-		data, err := os.ReadFile(promptFile) //nolint:gosec // path is AO-owned launch config
+		data, err := os.ReadFile(promptFile) //nolint:gosec // path is Kennel-owned launch config
 		if err != nil {
 			return "", "", err
 		}
@@ -268,7 +268,7 @@ func vibeManagerOwnedAgentRoot(dataDir, sessionID string) string {
 func vibeAgentTOML(agentName string, mode ports.PermissionMode, model string, hasPrompt bool) (string, error) {
 	var b strings.Builder
 	b.WriteString(`agent_type = "agent"` + "\n")
-	b.WriteString(`display_name = "AO Session"` + "\n")
+	b.WriteString(`display_name = "Kennel Session"` + "\n")
 	b.WriteString(`description = "Kennel session standing instructions."` + "\n")
 	b.WriteString(`safety = "neutral"` + "\n")
 	if hasPrompt {

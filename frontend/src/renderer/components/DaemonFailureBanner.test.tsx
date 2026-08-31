@@ -17,14 +17,14 @@ describe("DaemonFailureBanner", () => {
 				status={{
 					state: "stopped",
 					code: "exited",
-					message: "AO daemon exited with code 1",
+					message: "Kennel daemon exited with code 1",
 					details: "go: go.mod requires go >= 1.25.7",
 				}}
 			/>,
 		);
 
 		expect(screen.getByRole("alert")).toHaveTextContent("Kennel daemon failed to start");
-		expect(screen.getByRole("alert")).toHaveTextContent("AO daemon exited with code 1");
+		expect(screen.getByRole("alert")).toHaveTextContent("Kennel daemon exited with code 1");
 		expect(screen.getByText("exited")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Restart daemon" })).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("button", { name: "Show details" }));
@@ -83,7 +83,7 @@ describe("DaemonFailureBanner", () => {
 				status={{
 					state: "error",
 					code: "not_ready",
-					message: "AO daemon did not finish starting within 30 seconds.",
+					message: "Kennel daemon did not finish starting within 30 seconds.",
 				}}
 			/>,
 		);

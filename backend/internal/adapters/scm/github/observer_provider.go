@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const scmBatchCheckContextLimit = 20
@@ -120,7 +120,7 @@ type restCommitCheckRun struct {
 // item: GitHub's ETag for a per_page=1 response only reflects that one run, so
 // a different workflow finishing (or failing, or going pending) can leave the
 // returned item unchanged and GitHub answers 304 even though the aggregate CI
-// state AO displays has changed. Requesting the full page makes the guard
+// state Kennel displays has changed. Requesting the full page makes the guard
 // represent all runs that contribute to the state, and paginating plus
 // fingerprinting stays correct when a commit carries more than one page of
 // runs. DefaultPRMaxAge remains the safety backstop for PR metadata changes not

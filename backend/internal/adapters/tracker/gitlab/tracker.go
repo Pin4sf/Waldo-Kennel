@@ -13,15 +13,15 @@ import (
 	"strings"
 	"time"
 
-	scmgitlab "github.com/aoagents/agent-orchestrator/backend/internal/adapters/scm/gitlab"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/httpkit"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	scmgitlab "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/scm/gitlab"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/tracker/httpkit"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
 	defaultBaseURL   = "https://gitlab.com/api/v4"
-	defaultUserAgent = "ao-agent-orchestrator/tracker-gitlab"
+	defaultUserAgent = "kennel/tracker-gitlab"
 
 	// GitLab's per_page maxes at 100. ListFilter.Limit is an optional
 	// total-result cap; page size stays at the provider max.

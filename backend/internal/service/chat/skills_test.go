@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	chatsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/chat"
 )
 
 // skillfulConversation is a provider double that can enumerate skills.
@@ -41,7 +41,7 @@ func TestSkillsComeFromTheLiveConversation(t *testing.T) {
 		t.Fatalf("got %+v, want the provider's own list", skills)
 	}
 	if conv.calls != 1 {
-		t.Errorf("provider asked %d times, want 1: the list must not be served from a table in AO", conv.calls)
+		t.Errorf("provider asked %d times, want 1: the list must not be served from a table in Kennel", conv.calls)
 	}
 }
 

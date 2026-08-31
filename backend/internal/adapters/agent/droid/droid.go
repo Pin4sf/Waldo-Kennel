@@ -3,7 +3,7 @@
 // workspace-local hooks, and reading hook-derived session info.
 //
 // Droid is Factory's terminal coding agent (binary "droid"). Unlike Grok it has
-// no Claude Code compatibility layer, so AO installs its own hooks into the
+// no Claude Code compatibility layer, so Kennel installs its own hooks into the
 // worktree-local .factory/hooks.json (see hooks.go). The hook JSON structure
 // matches Claude Code's, but Droid's Notification payload omits notification_type
 // and its hooks live under .factory/, so the adapter ships its own activity
@@ -12,7 +12,7 @@
 // Launch uses the interactive `droid [prompt]` command (the prompt is a
 // positional argument). Droid's interactive TUI exposes no per-launch permission
 // flag (--auto / --skip-permissions-unsafe live only on `droid exec`) and no
-// interactive --model flag either, so AO's graduated permission modes and any
+// interactive --model flag either, so Kennel's graduated permission modes and any
 // role-specific model override are both delivered by writing a process-scoped
 // runtime settings file (sessionDefaultSettings.autonomyLevel and a top-level
 // "model" key) and passing it via the root `--settings <path>` flag. The
@@ -29,11 +29,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Plugin is the Droid agent adapter. It is safe for concurrent use; the binary
@@ -167,7 +167,7 @@ func (p *Plugin) SessionInfo(ctx context.Context, session ports.SessionRef) (por
 	return info, ok, nil
 }
 
-// droidAutonomyLevel maps an AO permission mode onto Droid's
+// droidAutonomyLevel maps an Kennel permission mode onto Droid's
 // sessionDefaultSettings.autonomyLevel (off|low|medium|high). The empty string
 // means "no override" — defer to the user's own Droid settings — so the default
 // mode emits no --settings flag and writes no file.
@@ -211,7 +211,7 @@ func runtimeSettingsArgs(dataDir, sessionID string, mode ports.PermissionMode, m
 		return nil, nil
 	}
 	if strings.TrimSpace(dataDir) == "" {
-		return nil, fmt.Errorf("droid: AO data directory required for runtime settings")
+		return nil, fmt.Errorf("droid: Kennel data directory required for runtime settings")
 	}
 
 	settings := map[string]any{}
@@ -249,7 +249,7 @@ func PrepareRuntimeSettingsArgs(
 }
 
 // runtimeSettingsPath is the deterministic path for a session's process-scoped
-// runtime settings file, rooted under the AO data directory rather than the OS
+// runtime settings file, rooted under the Kennel data directory rather than the OS
 // temp dir (AGENTS.md / docs/architecture.md require app state under
 // ~/.kennel / KENNEL_DATA_DIR). A stable name keyed by session id means relaunches
 // overwrite rather than accumulate files.
@@ -258,7 +258,7 @@ func runtimeSettingsPath(dataDir, sessionID string) string {
 	if name == "" {
 		name = "default"
 	}
-	return filepath.Join(dataDir, "agent-runtime", "droid", "ao-droid-"+name+"-settings.json")
+	return filepath.Join(dataDir, "agent-runtime", "droid", "kennel-droid-"+name+"-settings.json")
 }
 
 // sanitizeSessionID keeps only filename-safe characters so the session id can

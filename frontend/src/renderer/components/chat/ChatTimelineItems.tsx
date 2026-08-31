@@ -83,7 +83,7 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
 const ORIGIN_REPORT_COLLAPSE_AT = 600;
 const ORIGIN_REPORT_PREVIEW_LENGTH = 240;
 
-// These are AO-owned prompt suffixes, not general markdown. Chat and spawn used
+// These are Kennel-owned prompt suffixes, not general markdown. Chat and spawn used
 // slightly different wording, and older conversations used "Attached images";
 // accepting every shipped form lets the transcript improve without rewriting
 // its durable history.
@@ -100,13 +100,13 @@ function humanMessageParts(text: string): { body: string; attachments: string[] 
 		.trimEnd()
 		.split("\n")
 		.map((line) => line.slice(2));
-	// Only reinterpret paths AO itself stages. A user can write an identically
+	// Only reinterpret paths Kennel itself stages. A user can write an identically
 	// worded example about docs/screenshot.png; that prose must remain untouched.
 	if (attachments.length === 0 || attachments.some((path) => !STAGED_ATTACHMENT_PATH.test(path))) {
 		return { body: text, attachments: [] };
 	}
 	// The match begins at the generated separator, so slicing at its index
-	// removes only AO-owned text and preserves the authored body byte-for-byte.
+	// removes only Kennel-owned text and preserves the authored body byte-for-byte.
 	return { body: text.slice(0, match.index), attachments };
 }
 
@@ -365,7 +365,7 @@ export function AssistantMessage({
 
 /**
  * Delivery state, stated rather than implied. `uncertain` is its own outcome:
- * the provider may have accepted the turn while AO lost the connection, and
+ * the provider may have accepted the turn while Kennel lost the connection, and
  * pretending otherwise in either direction would be a lie.
  */
 function DeliveryNote({ state }: { state: DeliveryState }) {
@@ -582,7 +582,7 @@ function CommandOutput({ activity }: { activity: ConversationActivity }) {
 	const pre = useRef<HTMLPreElement>(null);
 	const detail = activity.detail;
 	// Older ACP-backed conversations may contain the provider's structured
-	// rawOutput even though AO's view model promises a string. New events are
+	// rawOutput even though Kennel's view model promises a string. New events are
 	// normalized at the adapter boundary; this compatibility read keeps those
 	// already-durable rows from taking down the entire session surface.
 	const raw = commandOutputText(detail?.output as unknown);
@@ -1337,7 +1337,7 @@ function readJsonStringField(raw: string, field: "message" | "additionalDetails"
 	}
 }
 
-/** AO used to persist `provider error: {…}`; parse the JSON object even when prefixed. */
+/** Kennel used to persist `provider error: {…}`; parse the JSON object even when prefixed. */
 function parseJsonObjectSuffix(raw: string): Record<string, unknown> | undefined {
 	const start = raw.indexOf("{");
 	if (start < 0) return undefined;

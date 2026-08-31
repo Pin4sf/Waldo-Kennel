@@ -8,10 +8,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apispec"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	outcomevc "github.com/aoagents/agent-orchestrator/backend/internal/service/outcome"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apispec"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/envelope"
+	outcomevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
 // OutcomeService is the controller-facing Outcome contract (#21) plus the

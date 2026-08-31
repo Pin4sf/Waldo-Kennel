@@ -214,11 +214,11 @@ paths:
     post:
       operationId: executeBrowserCommand
       parameters:
-      - description: Opaque browser capability injected into the owning AO worker.
+      - description: Opaque browser capability injected into the owning Kennel worker.
         in: header
-        name: X-AO-Browser-Capability
+        name: X-Kennel-Browser-Capability
         schema:
-          description: Opaque browser capability injected into the owning AO worker.
+          description: Opaque browser capability injected into the owning Kennel worker.
           type: string
       requestBody:
         content:
@@ -282,17 +282,17 @@ paths:
     get:
       operationId: getBrowserStatus
       parameters:
-      - description: AO session identifier.
+      - description: Kennel session identifier.
         in: query
         name: sessionId
         schema:
-          description: AO session identifier.
+          description: Kennel session identifier.
           type: string
-      - description: Opaque browser capability injected into the owning AO worker.
+      - description: Opaque browser capability injected into the owning Kennel worker.
         in: header
-        name: X-AO-Browser-Capability
+        name: X-Kennel-Browser-Capability
         schema:
-          description: Opaque browser capability injected into the owning AO worker.
+          description: Opaque browser capability injected into the owning Kennel worker.
           type: string
       responses:
         "200":
@@ -5384,12 +5384,13 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
-      - description: AO conversation turn identifier, from the snapshot's turns array.
+      - description: Kennel conversation turn identifier, from the snapshot's turns
+          array.
         in: path
         name: turnId
         required: true
         schema:
-          description: AO conversation turn identifier, from the snapshot's turns
+          description: Kennel conversation turn identifier, from the snapshot's turns
             array.
           type: string
       requestBody:
@@ -5449,12 +5450,13 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
-      - description: AO conversation turn identifier, from the snapshot's turns array.
+      - description: Kennel conversation turn identifier, from the snapshot's turns
+          array.
         in: path
         name: turnId
         required: true
         schema:
-          description: AO conversation turn identifier, from the snapshot's turns
+          description: Kennel conversation turn identifier, from the snapshot's turns
             array.
           type: string
       responses:
@@ -5502,12 +5504,13 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
-      - description: AO conversation turn identifier, from the snapshot's turns array.
+      - description: Kennel conversation turn identifier, from the snapshot's turns
+          array.
         in: path
         name: turnId
         required: true
         schema:
-          description: AO conversation turn identifier, from the snapshot's turns
+          description: Kennel conversation turn identifier, from the snapshot's turns
             array.
           type: string
       responses:
@@ -6141,11 +6144,11 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
-      - description: Opaque browser capability injected into the owning AO worker.
+      - description: Opaque browser capability injected into the owning Kennel worker.
         in: header
-        name: X-AO-Browser-Capability
+        name: X-Kennel-Browser-Capability
         schema:
-          description: Opaque browser capability injected into the owning AO worker.
+          description: Opaque browser capability injected into the owning Kennel worker.
           type: string
       responses:
         "200":
@@ -6197,11 +6200,11 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
-      - description: Opaque browser capability injected into the owning AO worker.
+      - description: Opaque browser capability injected into the owning Kennel worker.
         in: header
-        name: X-AO-Browser-Capability
+        name: X-Kennel-Browser-Capability
         schema:
-          description: Opaque browser capability injected into the owning AO worker.
+          description: Opaque browser capability injected into the owning Kennel worker.
           type: string
       responses:
         "200":
@@ -6253,11 +6256,11 @@ paths:
         schema:
           description: Session identifier, e.g. project-1.
           type: string
-      - description: Opaque browser capability injected into the owning AO worker.
+      - description: Opaque browser capability injected into the owning Kennel worker.
         in: header
-        name: X-AO-Browser-Capability
+        name: X-Kennel-Browser-Capability
         schema:
-          description: Opaque browser capability injected into the owning AO worker.
+          description: Opaque browser capability injected into the owning Kennel worker.
           type: string
       requestBody:
         content:
@@ -6326,8 +6329,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIError'
           description: Gateway Timeout
-      summary: Start a session-owned server from .ao/launch.json and open its application
-        preview
+      summary: Start a session-owned server from .kennel/launch.json and open its
+        application preview
       tags:
       - sessions
   /api/v1/sessions/{sessionId}/restore:
@@ -7020,7 +7023,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
-      summary: Switch a logical AO session to another agent harness
+      summary: Switch a logical Kennel session to another agent harness
       tags:
       - sessions
   /api/v1/sessions/{sessionId}/workspace/events:
@@ -12310,7 +12313,7 @@ components:
           description: Native agent session identifier used to resume its transcript.
           type: string
         event:
-          description: AO hook sub-command that produced this state (e.g. post-tool-use).
+          description: Kennel hook sub-command that produced this state (e.g. post-tool-use).
           type: string
         latestAssistantUpdate:
           description: Latest assistant update exposed by the provider hook.
@@ -12321,7 +12324,7 @@ components:
           maxLength: 16384
           type: string
         launchId:
-          description: AO process generation that produced the signal.
+          description: Kennel process generation that produced the signal.
           type: string
         state:
           description: Agent activity state reported by an agent hook. Optional for
@@ -12396,10 +12399,10 @@ components:
           description: Native reviewer session identifier used to resume its transcript.
           type: string
         event:
-          description: AO hook sub-command that produced this signal.
+          description: Kennel hook sub-command that produced this signal.
           type: string
         launchId:
-          description: AO process generation that produced the signal.
+          description: Kennel process generation that produced the signal.
           type: string
         state:
           description: Reviewer activity state reported by a hook. Accepted for forward
@@ -12744,7 +12747,7 @@ components:
     SubmitReviewInput:
       properties:
         body:
-          description: Review body recorded by AO. Required for changes_requested.
+          description: Review body recorded by Kennel. Required for changes_requested.
           type: string
         githubReviewId:
           description: Id of the GitHub PR review the reviewer posted, if any.
@@ -12764,7 +12767,7 @@ components:
     SubmitReviewItem:
       properties:
         body:
-          description: Review body recorded by AO. Required for changes_requested.
+          description: Review body recorded by Kennel. Required for changes_requested.
           type: string
         githubReviewId:
           description: Id of the GitHub PR review the reviewer posted, if any.
@@ -12791,9 +12794,9 @@ components:
           maxLength: 256
           type: string
         targetHarness:
-          description: Agent harness to continue the logical AO session with. Only
-            continuation-capable harnesses are admitted; worker-only harnesses fail
-            closed.
+          description: Agent harness to continue the logical Kennel session with.
+            Only continuation-capable harnesses are admitted; worker-only harnesses
+            fail closed.
           enum:
           - codex
           type: string
@@ -13531,13 +13534,13 @@ tags:
   name: outcomes
 - description: Shared Home and Work adaptive intake plus explicit responsibility lineage
   name: intakes
-- description: Token usage telemetry for AO sessions
+- description: Token usage telemetry for Kennel sessions
   name: usage
 - description: Mobile push-device registration for OS push notifications
   name: push
 - description: Server-sent CDC event stream with durable replay
   name: events
-- description: Legacy AO project import (availability probe and run)
+- description: Legacy Kennel project import (availability probe and run)
   name: import
 - description: Developer-only maintenance operations
   name: dev

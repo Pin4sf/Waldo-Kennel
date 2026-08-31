@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/codexappserver/codexproto"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/codexappserver/codexproto"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Steering a running turn, over `turn/steer`.
@@ -22,10 +22,10 @@ import (
 //     turn/completed for the whole steered turn.
 //   - The provider ACKNOWLEDGES it by replaying the guidance as an ordinary
 //     `userMessage` item on that same turn (item/started + item/completed, carrying
-//     `clientId` = the clientUserMessageId AO sent). It arrived ~5s after the call
+//     `clientId` = the clientUserMessageId Kennel sent). It arrived ~5s after the call
 //     returned, at the next model-request boundary, with a userPromptSubmit hook
 //     firing for it exactly as a fresh turn's prompt would.
-//   - In-flight work is NOT killed by the provider. The shell command AO's turn had
+//   - In-flight work is NOT killed by the provider. The shell command Kennel's turn had
 //     running kept streaming output across the steer; the AGENT then chose to abort
 //     it (a terminalInteraction carrying ^C) and answered the new instruction. The
 //     turn settled `completed`, not `interrupted` — which is the whole point of
@@ -37,7 +37,7 @@ import (
 //     data.codexErrorInfo.activeTurnNotSteerable.turnKind = "compact", when a turn
 //     is running but is of a kind that cannot take guidance.
 //   - A steer sent after turn/start returned but BEFORE turn/started arrived was
-//     refused with "no active turn to steer", even though AO already held the right
+//     refused with "no active turn to steer", even though Kennel already held the right
 //     turn id. That is why the caller must wait for the provider's own
 //     acknowledgement rather than trusting the id it was handed.
 
@@ -57,7 +57,7 @@ var _ ports.ChatSteerer = (*conversation)(nil)
 //
 // No lock is taken. sendMu serializes turn DISPATCH, and a steer is not a dispatch:
 // it neither starts nor ends a turn, and the provider's expectedTurnId check is a
-// stronger guarantee than a lock AO could hold here — a turn that ends mid-flight
+// stronger guarantee than a lock Kennel could hold here — a turn that ends mid-flight
 // makes the request fail rather than land somewhere unintended.
 func (c *conversation) Steer(
 	ctx context.Context,
@@ -107,7 +107,7 @@ func (c *conversation) Steer(
 
 	turn := resp.TurnID
 	if turn == "" {
-		// Every observed response carried it, but a steer whose target AO cannot name
+		// Every observed response carried it, but a steer whose target Kennel cannot name
 		// would be attributed to nothing; the requested turn is the honest fallback.
 		turn = providerTurnID
 	}

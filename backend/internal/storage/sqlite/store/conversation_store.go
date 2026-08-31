@@ -9,8 +9,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/gen"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/gen"
 )
 
 // Conversation persistence for Chat sessions.
@@ -483,7 +483,7 @@ func (s *Store) AppendUserMessage(
 	return true, nil
 }
 
-// AdoptProviderTurn records a turn the provider started that AO never dispatched.
+// AdoptProviderTurn records a turn the provider started that Kennel never dispatched.
 //
 // A compaction runs as its own provider turn, and so does work the provider
 // resumes inside its own history. Without a row, every item those turns emit
@@ -517,7 +517,7 @@ func (s *Store) AdoptProviderTurn(
 // native thread. The enclosing turn must already have been adopted from the
 // history's turn.started event.
 //
-// Idempotency is by provider turn rather than only by clientMessageID. A prompt AO
+// Idempotency is by provider turn rather than only by clientMessageID. A prompt Kennel
 // originally sent in Chat mode already belongs to that turn but may carry a
 // different client id from the history adapter; checking the turn is what keeps a
 // Chat -> TUI -> Chat round trip from duplicating it.
@@ -615,7 +615,7 @@ func (s *Store) SettleTurn(
 			ProviderTurnID: providerTurnID,
 		})
 	if errors.Is(err, sql.ErrNoRows) {
-		// A turn AO never recorded, e.g. one started by a previous controller
+		// A turn Kennel never recorded, e.g. one started by a previous controller
 		// before a restart. Not an error: there is nothing to settle.
 		return nil
 	}
@@ -907,7 +907,7 @@ func (s *Store) RecordThreadState(
 // The whole list is written, not one server: the provider reports servers one at a
 // time and re-reports all of them on every turn, so the caller merges by name and
 // this stores the result. An empty list is stored as an empty array rather than
-// NULL, because "AO asked and there are none" is a different answer from "AO never
+// NULL, because "Kennel asked and there are none" is a different answer from "Kennel never
 // asked".
 func (s *Store) RecordMCPServers(
 	ctx context.Context,
@@ -935,7 +935,7 @@ func (s *Store) RecordMCPServers(
 
 // SetTurnPlan overwrites a turn's plan and reports whether the turn was found.
 //
-// A plan for a turn AO never recorded happens after a restart, when a controller
+// A plan for a turn Kennel never recorded happens after a restart, when a controller
 // reattaches to a provider turn that predates it. There is nothing to update, and
 // that is not a failure.
 func (s *Store) SetTurnPlan(
@@ -979,7 +979,7 @@ const MaxStreamedTextChars = 32 * 1024
 // AppendActivityStreamedText folds a streamed provider-prose delta into its
 // activity.
 //
-// Reports whether a row was found. A delta for an activity AO has not recorded is
+// Reports whether a row was found. A delta for an activity Kennel has not recorded is
 // an ordinary race, not a failure: the provider can emit a reasoning delta before
 // the item/started that creates the row, and the settled summary on item/completed
 // still lands.
@@ -1205,7 +1205,7 @@ func (s *Store) CancelAllQueuedTurns(
 	return nil
 }
 
-// SettleTurnByID records a terminal state for a turn AO can name directly.
+// SettleTurnByID records a terminal state for a turn Kennel can name directly.
 //
 // Needed for a turn that never reached the provider: it has no provider turn id,
 // so it cannot be found the way a running turn is. Settling those by the empty
@@ -1231,7 +1231,7 @@ func (s *Store) SettleTurnByID(
 }
 
 // AppendAssistantDelta folds a streaming delta into its message, creating the
-// message on first sight. The provider item id is the correlation key because AO
+// message on first sight. The provider item id is the correlation key because Kennel
 // does not choose the provider's message identity.
 func (s *Store) AppendAssistantDelta(
 	ctx context.Context,
@@ -1305,7 +1305,7 @@ func (s *Store) SettleAssistantMessage(
 			ProviderItemID: providerItemID,
 		})
 	if errors.Is(err, sql.ErrNoRows) {
-		// A message whose deltas AO never saw — possible if it completed inside a
+		// A message whose deltas Kennel never saw — possible if it completed inside a
 		// reconnect window. Record it whole rather than dropping it.
 		turnID := s.turnIDFor(ctx, conversationID, providerTurnID)
 		return s.inTx(ctx, "insert assistant message", func(q *gen.Queries) error {
@@ -1421,7 +1421,7 @@ const MaxCommandOutputChars = 64 * 1024
 
 // AppendCommandOutput folds a streamed output delta into its activity.
 //
-// Reports whether a row was found. A delta for an activity AO has not recorded is
+// Reports whether a row was found. A delta for an activity Kennel has not recorded is
 // an ordinary race, not a failure: the provider can emit a delta before the
 // item/started that creates the row, and the aggregate on item/completed still
 // lands. Silently dropping it is correct; claiming an error is not.
@@ -1463,7 +1463,7 @@ func (s *Store) AppendCommandOutput(
 
 // SetTurnDiff overwrites a turn's changed-file summary.
 //
-// Reports whether the turn was found. A diff for a turn AO never recorded happens
+// Reports whether the turn was found. A diff for a turn Kennel never recorded happens
 // after a restart, when a controller reattaches to a provider turn that predates
 // it, and there is nothing to update.
 func (s *Store) SetTurnDiff(
@@ -1624,7 +1624,7 @@ func (s *Store) TurnByID(ctx context.Context, turnID string) (domain.Conversatio
 // RollbackTurns records that a rollback discarded the named turn and everything
 // after it, and returns how many turns that was.
 //
-// This is the AO half of an operation the provider has already performed: the agent
+// This is the Kennel half of an operation the provider has already performed: the agent
 // has forgotten those turns, and these rows are what stop the user being shown
 // prose the agent cannot recall. The three statements commit together because a
 // partial result is the one state that reintroduces the disagreement the whole
@@ -1764,7 +1764,7 @@ func (s *Store) ApplyProviderTitle(
 				DisplayName: title,
 				UpdatedAt:   now,
 				ID:          session,
-				// The witness: only a label AO itself last wrote may be replaced.
+				// The witness: only a label Kennel itself last wrote may be replaced.
 				DisplayName_2: conversation.AppliedTitle,
 			})
 		if updateErr != nil {
@@ -2011,7 +2011,7 @@ func (s *Store) conversationBranchPoints(
 
 /* ---- helpers ---------------------------------------------------------- */
 
-// turnIDFor resolves a provider turn id to AO's turn id, or nil when the turn is
+// turnIDFor resolves a provider turn id to Kennel's turn id, or nil when the turn is
 // unknown. An item with no turn still belongs in the timeline, so an unresolved
 // lookup is not an error.
 func (s *Store) turnIDFor(ctx context.Context, conversationID, providerTurnID string) sql.NullString {
@@ -2115,7 +2115,7 @@ func decodeJSONColumn[T any](column sql.NullString) *T {
 
 // usageFromRow returns nil when the provider never reported, so a client can tell
 // "no usage yet" from "a conversation using zero tokens" -- the second cannot
-// happen, and showing an empty meter for the first would be a claim AO has not
+// happen, and showing an empty meter for the first would be a claim Kennel has not
 // earned.
 func usageFromRow(row gen.Conversation) *domain.ConversationUsage {
 	if !row.ContextUsed.Valid && !row.UsageTotalTokens.Valid && !row.UsageCost.Valid {

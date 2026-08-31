@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/nativeconfig"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/nativeconfig"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const claudeConfigDirEnv = "CLAUDE_CONFIG_DIR"
@@ -26,9 +26,9 @@ var (
 
 // ContinuationCapabilities reports the verified Claude Code continuation
 // behavior. --append-system-prompt-file (with the inline form as a fallback)
-// is accepted on both fresh launch and --resume, and --session-id lets AO
+// is accepted on both fresh launch and --resume, and --session-id lets Kennel
 // assign a distinct UUID to each fresh provider conversation owned by one
-// stable AO session.
+// stable Kennel session.
 func (p *Plugin) ContinuationCapabilities() ports.ContinuationCapabilities {
 	return ports.ContinuationCapabilities{
 		FreshNativeSessionID: ports.FreshNativeSessionIDCallerAssigned,
@@ -36,7 +36,7 @@ func (p *Plugin) ContinuationCapabilities() ports.ContinuationCapabilities {
 }
 
 // NewNativeSessionID returns a provider-valid id for a distinct fresh Claude
-// conversation owned by an existing AO session.
+// conversation owned by an existing Kennel session.
 func (p *Plugin) NewNativeSessionID() string {
 	return uuid.NewString()
 }

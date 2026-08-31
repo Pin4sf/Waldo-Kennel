@@ -95,7 +95,7 @@ type NotificationRecord struct {
 	CreatedAt time.Time
 	// ResolvedAt is when the underlying issue went away — the session received
 	// its input, or the PR stopped waiting on a merge. Zero means still open.
-	// Only AO writes it; there is no user-facing "resolve" action.
+	// Only Kennel writes it; there is no user-facing "resolve" action.
 	ResolvedAt time.Time
 }
 

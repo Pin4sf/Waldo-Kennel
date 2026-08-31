@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestModelCommandUsesProjectWorkingDirectory(t *testing.T) {
@@ -404,8 +404,8 @@ func TestClaudeCodeDiscoveryKeepsNoDefaultWhenNothingConfigured(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// AO passes no --model, so the CLI decides. Guessing here would assert a
-	// default AO cannot verify.
+	// Kennel passes no --model, so the CLI decides. Guessing here would assert a
+	// default Kennel cannot verify.
 	if id := claudeDefaultID(got); id != "" {
 		t.Fatalf("default = %q, want none", id)
 	}

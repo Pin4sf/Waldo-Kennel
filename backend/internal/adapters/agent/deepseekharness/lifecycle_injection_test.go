@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/deepseekharness/dshtest"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/deepseekharness/dshtest"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // The lifecycle scaffold exercises the seams a real dsh integration will

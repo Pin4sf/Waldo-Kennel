@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/activitystate"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/activitystate"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestManifestIDIsKilocode(t *testing.T) {
@@ -30,20 +30,20 @@ func TestGetLaunchCommandBuildsArgv(t *testing.T) {
 		Permissions:      ports.PermissionModeBypassPermissions,
 		Prompt:           "-fix this",
 		SystemPromptFile: filepath.Join("tmp", "prompt with spaces.md"),
-		SystemPrompt:     "follow AO rules",
+		SystemPrompt:     "follow Kennel rules",
 		SessionID:        "sess-1",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Kilo has no system-prompt flag, so AO injects a generated agent through
+	// Kilo has no system-prompt flag, so Kennel injects a generated agent through
 	// KILO_CONFIG_CONTENT and selects it with --agent. bypass-permissions shares
 	// that env payload because the TUI has no permission flag.
 	want := []string{
-		"env", `KILO_CONFIG_CONTENT={"permission":{"*":"allow"},"agent":{"ao-sess-1":{"prompt":"follow AO rules"}}}`,
+		"env", `KILO_CONFIG_CONTENT={"permission":{"*":"allow"},"agent":{"kennel-sess-1":{"prompt":"follow Kennel rules"}}}`,
 		"kilocode",
-		"--agent", "ao-sess-1",
+		"--agent", "kennel-sess-1",
 		"--prompt", "-fix this",
 	}
 	if !reflect.DeepEqual(cmd, want) {
@@ -68,9 +68,9 @@ func TestGetLaunchCommandReadsSystemPromptFile(t *testing.T) {
 	}
 
 	want := []string{
-		"env", `KILO_CONFIG_CONTENT={"agent":{"ao-sess-file":{"prompt":"file rules\n"}}}`,
+		"env", `KILO_CONFIG_CONTENT={"agent":{"kennel-sess-file":{"prompt":"file rules\n"}}}`,
 		"kilocode",
-		"--agent", "ao-sess-file",
+		"--agent", "kennel-sess-file",
 	}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
@@ -124,7 +124,7 @@ func TestGetLaunchCommandAppendsConfiguredModel(t *testing.T) {
 
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Permissions:  ports.PermissionModeBypassPermissions,
-		SystemPrompt: "follow AO rules",
+		SystemPrompt: "follow Kennel rules",
 		SessionID:    "sess-1",
 		// Surrounding whitespace must be trimmed before it reaches the config.
 		Config: ports.AgentConfig{Model: "  anthropic/claude-haiku-4-20250514  "},
@@ -133,12 +133,12 @@ func TestGetLaunchCommandAppendsConfiguredModel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The role model rides on the AO-generated agent (agent.<name>.model),
+	// The role model rides on the Kennel-generated agent (agent.<name>.model),
 	// alongside the injected system prompt, selected with --agent.
 	want := []string{
-		"env", `KILO_CONFIG_CONTENT={"permission":{"*":"allow"},"agent":{"ao-sess-1":{"prompt":"follow AO rules","model":"anthropic/claude-haiku-4-20250514"}}}`,
+		"env", `KILO_CONFIG_CONTENT={"permission":{"*":"allow"},"agent":{"kennel-sess-1":{"prompt":"follow Kennel rules","model":"anthropic/claude-haiku-4-20250514"}}}`,
 		"kilocode",
-		"--agent", "ao-sess-1",
+		"--agent", "kennel-sess-1",
 	}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
@@ -150,7 +150,7 @@ func TestGetLaunchCommandAppendsConfiguredModel(t *testing.T) {
 
 // TestGetLaunchCommandAppendsModelWithoutSystemPrompt is the issue's repro: a
 // role config with a model but no system prompt. The model must still create and
-// select an AO agent, otherwise --agent is never passed and the model is dropped.
+// select an Kennel agent, otherwise --agent is never passed and the model is dropped.
 func TestGetLaunchCommandAppendsModelWithoutSystemPrompt(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "kilocode"}
 
@@ -163,9 +163,9 @@ func TestGetLaunchCommandAppendsModelWithoutSystemPrompt(t *testing.T) {
 	}
 
 	want := []string{
-		"env", `KILO_CONFIG_CONTENT={"agent":{"ao-sess-1":{"model":"anthropic/claude-haiku-4-20250514"}}}`,
+		"env", `KILO_CONFIG_CONTENT={"agent":{"kennel-sess-1":{"model":"anthropic/claude-haiku-4-20250514"}}}`,
 		"kilocode",
-		"--agent", "ao-sess-1",
+		"--agent", "kennel-sess-1",
 	}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
@@ -213,7 +213,7 @@ func TestGetConfigSpecReportsModelField(t *testing.T) {
 		{
 			Key:         "model",
 			Type:        ports.ConfigFieldString,
-			Description: "Model override written to the AO-generated Kilo agent (agent.<name>.model); format provider/model-id (e.g. anthropic/claude-haiku-4-20250514).",
+			Description: "Model override written to the Kennel-generated Kilo agent (agent.<name>.model); format provider/model-id (e.g. anthropic/claude-haiku-4-20250514).",
 		},
 	}
 	if !reflect.DeepEqual(spec.Fields, want) {
@@ -225,7 +225,7 @@ func TestGetAgentHooksInstallsPlugin(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "kilocode"}
 	workspace := t.TempDir()
 
-	// A user's own plugin in the same dir must survive AO's install untouched.
+	// A user's own plugin in the same dir must survive Kennel's install untouched.
 	pluginDir := filepath.Dir(kilocodePluginPath(workspace))
 	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -256,7 +256,7 @@ func TestGetAgentHooksInstallsPlugin(t *testing.T) {
 	}
 	body := string(data)
 	if !strings.Contains(body, kilocodePluginSentinel) {
-		t.Fatalf("installed plugin missing AO sentinel:\n%s", body)
+		t.Fatalf("installed plugin missing Kennel sentinel:\n%s", body)
 	}
 	// Every normalized activity event must be wired via `kennel hooks kilocode <event>`.
 	for _, event := range kilocodeManagedEvents {
@@ -309,7 +309,7 @@ func TestGetAgentHooksRefusesToClobberForeignFile(t *testing.T) {
 	workspace := t.TempDir()
 	ctx := context.Background()
 
-	// A non-Kennel file occupying AO's exact path must NOT be silently overwritten.
+	// A non-Kennel file occupying Kennel's exact path must NOT be silently overwritten.
 	pluginPath := kilocodePluginPath(workspace)
 	if err := os.MkdirAll(filepath.Dir(pluginPath), 0o755); err != nil {
 		t.Fatal(err)
@@ -362,7 +362,7 @@ func TestUninstallHooksRemovesPlugin(t *testing.T) {
 		t.Fatalf("AreHooksInstalled after uninstall = (%v, %v), want (false, nil)", installed, err)
 	}
 	if _, err := os.Stat(kilocodePluginPath(workspace)); !os.IsNotExist(err) {
-		t.Fatalf("AO plugin still present after uninstall: err=%v", err)
+		t.Fatalf("Kennel plugin still present after uninstall: err=%v", err)
 	}
 	if _, err := os.Stat(userPlugin); err != nil {
 		t.Fatalf("user plugin removed by uninstall: %v", err)
@@ -374,7 +374,7 @@ func TestUninstallHooksLeavesForeignFile(t *testing.T) {
 	workspace := t.TempDir()
 	ctx := context.Background()
 
-	// A non-Kennel file occupying AO's filename must NOT be deleted by uninstall.
+	// A non-Kennel file occupying Kennel's filename must NOT be deleted by uninstall.
 	pluginPath := kilocodePluginPath(workspace)
 	if err := os.MkdirAll(filepath.Dir(pluginPath), 0o755); err != nil {
 		t.Fatal(err)
@@ -428,7 +428,7 @@ func TestGetRestoreCommandReappliesSystemPromptAgent(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "kilocode"}
 
 	cmd, ok, err := plugin.GetRestoreCommand(context.Background(), ports.RestoreConfig{
-		SystemPrompt: "restore AO rules",
+		SystemPrompt: "restore Kennel rules",
 		Session: ports.SessionRef{
 			ID:       "sess-1",
 			Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "ses_abc123"},
@@ -441,9 +441,9 @@ func TestGetRestoreCommandReappliesSystemPromptAgent(t *testing.T) {
 		t.Fatal("ok = false, want true")
 	}
 	want := []string{
-		"env", `KILO_CONFIG_CONTENT={"agent":{"ao-sess-1":{"prompt":"restore AO rules"}}}`,
+		"env", `KILO_CONFIG_CONTENT={"agent":{"kennel-sess-1":{"prompt":"restore Kennel rules"}}}`,
 		"kilocode",
-		"--agent", "ao-sess-1",
+		"--agent", "kennel-sess-1",
 		"--session", "ses_abc123",
 	}
 	if !reflect.DeepEqual(cmd, want) {
@@ -467,11 +467,11 @@ func TestGetRestoreCommandAppendsConfiguredModel(t *testing.T) {
 	if !ok {
 		t.Fatal("ok = false, want true")
 	}
-	// Resume re-injects the role model on the AO agent, mirroring launch.
+	// Resume re-injects the role model on the Kennel agent, mirroring launch.
 	want := []string{
-		"env", `KILO_CONFIG_CONTENT={"agent":{"ao-sess-1":{"model":"anthropic/claude-haiku-4-20250514"}}}`,
+		"env", `KILO_CONFIG_CONTENT={"agent":{"kennel-sess-1":{"model":"anthropic/claude-haiku-4-20250514"}}}`,
 		"kilocode",
-		"--agent", "ao-sess-1",
+		"--agent", "kennel-sess-1",
 		"--session", "ses_abc123",
 	}
 	if !reflect.DeepEqual(cmd, want) {

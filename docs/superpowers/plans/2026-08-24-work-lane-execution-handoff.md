@@ -91,7 +91,7 @@ Meta-experiment (pending explicit user go): register Waldo-Kennel as a Project; 
 ## 7. Environment gotchas
 
 - System node is **v26.4.0** → breaks forge nested npm (EALLOWSCRIPTS). Repo pins **22.23.2** (`.nvmrc`). Use nvm; never bare `node`/`npm` for repo scripts.
-- Working dev stack that works today: `go build -o .gocache/kennel-dev ./cmd/ao` then `KENNEL_DATA_DIR=$HOME/.kennel-demo26 .gocache/kennel-dev daemon` (:3031) + `VITE_NO_ELECTRON=1 VITE_KENNEL_API_BASE_URL=http://127.0.0.1:3031 npm run dev:web` (:5173). Stale processes may hold ports — kill via lsof.
+- Working dev stack that works today: `go build -o .gocache/kennel-dev ./cmd/kennel` then `KENNEL_DATA_DIR=$HOME/.kennel-demo26 .gocache/kennel-dev daemon` (:3031) + `VITE_NO_ELECTRON=1 VITE_KENNEL_API_BASE_URL=http://127.0.0.1:3031 npm run dev:web` (:5173). Stale processes may hold ports — kill via lsof.
 - Sparse checkout excludes `backend/` (stale patterns). Fix: `git sparse-checkout disable` (or set patterns incl. `backend/*`) AFTER reconciling untracked-vs-tracked collisions (`docs/research/*.md` exist both untracked locally and tracked on beta — diff first).
 - `web_search` tool broken in DSH sessions (API key error); direct `curl` works fine for research.
 - Vitest gotcha: openapi-fetch passes URL templates (`{outcomeId}`) to mocks — match templates, not concrete ids.

@@ -19,8 +19,8 @@ describe("Chat preflight errors", () => {
 
 	it("does not offer TUI for unrelated conflicts and keeps daemon detail readable", () => {
 		expect(isChatPreflightError(apiError("BRANCH_CHECKED_OUT_ELSEWHERE"))).toBe(false);
-		expect(chatErrorCopy(apiError("CHAT_AUTH_REQUIRED", "409 Conflict - Sign in to Claude Code on the AO host"))).toBe(
-			"Sign in to Claude Code on the AO host",
+		expect(chatErrorCopy(apiError("CHAT_AUTH_REQUIRED", "409 Conflict - Sign in to Claude Code on the Kennel host"))).toBe(
+			"Sign in to Claude Code on the Kennel host",
 		);
 	});
 });

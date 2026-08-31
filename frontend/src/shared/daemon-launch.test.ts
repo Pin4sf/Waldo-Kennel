@@ -17,7 +17,7 @@ describe("resolveDaemonLaunch", () => {
 	it("runs the backend daemon from source in non-Windows dev without an explicit command", () => {
 		expect(resolveDaemonLaunch({}, false, "/resources", "/repo/frontend", "/home/user", "darwin")).toEqual({
 			command: "go",
-			args: ["run", "./cmd/ao", "daemon"],
+			args: ["run", "./cmd/kennel", "daemon"],
 			cwd: "/repo/frontend/../backend",
 			shell: false,
 			source: "dev",
@@ -77,13 +77,13 @@ describe("resolveDaemonLaunch", () => {
 			resolveDaemonLaunch(
 				{},
 				true,
-				"C:\\Program Files\\AO\\resources",
-				"C:\\Program Files\\AO\\resources\\app.asar",
+				"C:\\Program Files\\Kennel\\resources",
+				"C:\\Program Files\\Kennel\\resources\\app.asar",
 				"C:\\Users\\alice",
 				"win32",
 			),
 		).toEqual({
-			command: "C:\\Program Files\\AO\\resources/daemon/kennel-daemon.exe",
+			command: "C:\\Program Files\\Kennel\\resources/daemon/kennel-daemon.exe",
 			args: ["daemon"],
 			cwd: "C:\\Users\\alice/.kennel",
 			shell: false,

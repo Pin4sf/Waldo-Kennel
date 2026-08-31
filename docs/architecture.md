@@ -1018,7 +1018,7 @@ These rules are **load-bearing** — changing them breaks fundamental architectu
 1. **Never store display status** — Status is derived from durable facts at read time
 2. **Never treat failed probes as death** — A failed probe is a fact, not a termination signal
 3. **Never force-delete dirty worktrees** — User data safety over cleanup convenience
-4. **All Kennel app state under ~/.kennel** — No OS-default app-data locations and no implicit `~/.ao` fallback. Project-local `.ao/attachments` and `.ao/launch.json` remain file-format compatibility seams only.
+4. **All Kennel app state under ~/.kennel** — No OS-default app-data locations and no implicit `~/.ao` fallback. Project-local `.kennel/attachments` and `.kennel/launch.json` remain file-format compatibility seams only.
 5. **Primary daemon listener binds to 127.0.0.1 only** — The sole exception is the separately authenticated, explicitly enabled LAN listener described above; it never exposes loopback-only controls.
 6. **CLI is thin** — All logic lives in the daemon, CLI is just an HTTP client
 7. **CDC is source-truth for events** — DB triggers write to change_log, poller fans out

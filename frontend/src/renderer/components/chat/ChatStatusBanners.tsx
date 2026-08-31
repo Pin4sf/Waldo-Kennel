@@ -5,7 +5,7 @@
  * that failed to start produces no rows at all — the agent simply never calls those
  * tools, which reads as a choice. A provider demanding credentials leaves every
  * later turn failing for a reason that looks generic. A thread the provider has put
- * into `system_error` looks, from AO's side, like an agent that has gone quiet.
+ * into `system_error` looks, from Kennel's side, like an agent that has gone quiet.
  *
  * They live above the scroller rather than in it because they are current state:
  * scrolling away from them must not scroll away from the reason the session is
@@ -24,7 +24,7 @@ import type { ConversationAccount, ConversationThreadState, McpServer } from "..
  * The loudest thing on the surface, on purpose: nothing else the user does will
  * help, and every turn they send until they fix it will fail. It names the command
  * because "re-authenticate" is not an action anyone can take — the credentials live
- * with the agent's own CLI, not with AO, which is exactly why the daemon could not
+ * with the agent's own CLI, not with Kennel, which is exactly why the daemon could not
  * fix this itself.
  */
 export const ReauthBanner = memo(function ReauthBanner({

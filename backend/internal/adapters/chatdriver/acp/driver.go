@@ -1,7 +1,7 @@
-// Package acp implements AO's provider-neutral Chat driver over the Agent
+// Package acp implements Kennel's provider-neutral Chat driver over the Agent
 // Client Protocol. Provider packages supply only discovery, launch, metadata,
 // and capability policy; this package owns the ACP lifecycle and translates ACP
-// updates into AO's durable conversation vocabulary.
+// updates into Kennel's durable conversation vocabulary.
 package acp
 
 import (
@@ -14,13 +14,13 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const handshakeTimeout = 60 * time.Second
 
-// Launch describes one ACP agent process. Command may be either AO's packaged
+// Launch describes one ACP agent process. Command may be either Kennel's packaged
 // protocol bridge or the exact user-installed provider executable resolved by
 // the existing agent plugin.
 type Launch struct {
@@ -29,7 +29,7 @@ type Launch struct {
 	Env     map[string]string
 }
 
-// LaunchConfig is the resolved AO session context a provider binding may use to
+// LaunchConfig is the resolved Kennel session context a provider binding may use to
 // construct its process. It intentionally contains no install mechanism: binary
 // ownership stays with the existing agent plugin.
 type LaunchConfig struct {
@@ -48,16 +48,16 @@ type Config struct {
 	Capabilities ports.ChatCapabilities
 	Probe        func(context.Context) error
 	Launch       func(context.Context, LaunchConfig) (Launch, error)
-	// SessionMeta carries adapter-defined ACP extensions whenever AO creates the
+	// SessionMeta carries adapter-defined ACP extensions whenever Kennel creates the
 	// provider-side session object: session/new, session/load, or
 	// session/resume. Standing context such as a system prompt is process input,
 	// not transcript history, so a resumed native conversation must receive it
 	// again even though the provider recovers the messages itself.
 	SessionMeta func(LaunchConfig) map[string]any
-	// SessionMode maps AO's approval vocabulary onto this ACP agent's mode ids.
+	// SessionMode maps Kennel's approval vocabulary onto this ACP agent's mode ids.
 	// Empty means "leave the provider/user default unchanged".
 	SessionMode func(ports.PermissionMode) string
-	// SessionOptions maps AO's per-turn choices onto ACP config option ids.
+	// SessionOptions maps Kennel's per-turn choices onto ACP config option ids.
 	SessionOptions func(ports.ChatTurnSettings) []SessionOption
 }
 
@@ -84,7 +84,7 @@ func New(cfg Config, log *slog.Logger) *Driver {
 	return &Driver{cfg: cfg, log: log, spawn: spawnAgent}
 }
 
-// Harness identifies the AO harness this ACP transport adapts.
+// Harness identifies the Kennel harness this ACP transport adapts.
 func (d *Driver) Harness() domain.AgentHarness { return d.cfg.Harness }
 
 // Probe checks the provider binding without creating an ACP session or worktree.
@@ -98,7 +98,7 @@ func (d *Driver) Probe(ctx context.Context) (ports.ChatCapabilities, error) {
 	return cloneCapabilities(d.cfg.Capabilities), nil
 }
 
-// Start creates a new ACP session in the AO worktree.
+// Start creates a new ACP session in the Kennel worktree.
 func (d *Driver) Start(ctx context.Context, cfg ports.ChatStartConfig) (ports.ChatConversation, error) {
 	if !filepath.IsAbs(cfg.WorkspacePath) {
 		return nil, fmt.Errorf("workspace path must be absolute, got %q", cfg.WorkspacePath)
@@ -165,7 +165,7 @@ func (d *Driver) Start(ctx context.Context, cfg ports.ChatStartConfig) (ports.Ch
 }
 
 // Resume reconnects to the stored ACP session. When the agent advertises
-// session/load, AO uses it to recover both provider context and the normalized
+// session/load, Kennel uses it to recover both provider context and the normalized
 // transcript; newer resume-only agents still recover context without a replay.
 func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.ChatConversation, error) {
 	if cfg.ProviderConversationID == "" {
@@ -279,7 +279,7 @@ func (d *Driver) connect(
 		},
 		ClientCapabilities: acpsdk.ClientCapabilities{
 			// These two Claude bridge extensions enrich the transcript. They do
-			// not grant the agent access to AO's terminal or filesystem APIs.
+			// not grant the agent access to Kennel's terminal or filesystem APIs.
 			Meta: map[string]any{
 				"subagent-transcript": true,
 				"terminal_output":     true,
@@ -322,7 +322,7 @@ func conversationCapabilities(
 	}
 	caps[ports.ChatCapabilityImages] = init.AgentCapabilities.PromptCapabilities.Image
 	caps[ports.ChatCapabilityEmbeddedContext] = init.AgentCapabilities.PromptCapabilities.EmbeddedContext
-	// These are facilities AO itself negotiated as the ACP client. An agent that
+	// These are facilities Kennel itself negotiated as the ACP client. An agent that
 	// never uses them simply produces no matching events.
 	caps[ports.ChatCapabilityElicitation] = true
 	caps[ports.ChatCapabilityNestedAgents] = true

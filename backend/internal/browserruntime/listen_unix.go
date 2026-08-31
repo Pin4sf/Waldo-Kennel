@@ -21,7 +21,7 @@ import (
 // Linux regardless of the user's home/data-directory length.
 const maxUnixSocketPathBytes = 103
 
-var runtimeAliasPattern = regexp.MustCompile(`^ao-brd-(\d+)-[0-9a-f]{16}$`)
+var runtimeAliasPattern = regexp.MustCompile(`^kennel-brd-(\d+)-[0-9a-f]{16}$`)
 
 // Listen creates the local daemon-to-Electron browser bridge listener.
 func Listen(runFilePath string) (net.Listener, string, error) {
@@ -74,7 +74,7 @@ func createRuntimeAlias(root, runtimeDir string) (string, error) {
 		if _, err := rand.Read(random); err != nil {
 			return "", fmt.Errorf("generate browser runtime alias: %w", err)
 		}
-		aliasPath := filepath.Join(root, fmt.Sprintf("ao-brd-%d-%s", os.Getpid(), hex.EncodeToString(random)))
+		aliasPath := filepath.Join(root, fmt.Sprintf("kennel-brd-%d-%s", os.Getpid(), hex.EncodeToString(random)))
 		if err := os.Symlink(runtimeDir, aliasPath); err == nil {
 			return aliasPath, nil
 		} else if !os.IsExist(err) {

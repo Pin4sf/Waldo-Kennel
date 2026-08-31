@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestManifest(t *testing.T) {
@@ -108,14 +108,14 @@ func TestGetLaunchCommandAppendsModelBeforePrompt(t *testing.T) {
 func TestGetLaunchCommandInjectsSystemPromptWithoutProjectFiles(t *testing.T) {
 	p := &Plugin{resolvedBinary: "muse"}
 	cmd, err := p.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		SystemPrompt: "follow AO rules\n",
+		SystemPrompt: "follow Kennel rules\n",
 		Prompt:       "fix it",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
-		"env", museDeveloperPromptEnvVar + "=follow AO rules",
+		"env", museDeveloperPromptEnvVar + "=follow Kennel rules",
 		"muse", "--trust-workspace", "fix it",
 	}
 	if !reflect.DeepEqual(cmd, want) {
@@ -153,7 +153,7 @@ func TestGetLaunchCommandCombinesSystemPromptAndManagedHooksEnvironment(t *testi
 	cmd, err := p.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		DataDir:      dataDir,
 		SessionID:    "sess-1",
-		SystemPrompt: "follow AO rules",
+		SystemPrompt: "follow Kennel rules",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -164,7 +164,7 @@ func TestGetLaunchCommandCombinesSystemPromptAndManagedHooksEnvironment(t *testi
 	}
 	want := []string{
 		"env",
-		museDeveloperPromptEnvVar + "=follow AO rules",
+		museDeveloperPromptEnvVar + "=follow Kennel rules",
 		museManagedHooksEnvVar + "=" + hooksPath,
 		"muse", "--trust-workspace",
 	}
@@ -240,7 +240,7 @@ func TestWorkspaceHooksLeaveTrackedAgentsMDUnchanged(t *testing.T) {
 	t.Setenv(aoRunFileEnvVar, "")
 	workspace := t.TempDir()
 	runGit(t, workspace, "init")
-	runGit(t, workspace, "config", "user.name", "AO Test")
+	runGit(t, workspace, "config", "user.name", "Kennel Test")
 	runGit(t, workspace, "config", "user.email", "ao@example.invalid")
 	path := filepath.Join(workspace, "AGENTS.md")
 	want := []byte("project-owned instructions\n")
@@ -254,7 +254,7 @@ func TestWorkspaceHooksLeaveTrackedAgentsMDUnchanged(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := ports.WorkspaceHookConfig{
 		DataDir: dataDir, SessionID: "sess-tracked",
-		WorkspacePath: workspace, SystemPrompt: "AO-only instructions",
+		WorkspacePath: workspace, SystemPrompt: "Kennel-only instructions",
 	}
 	if err := p.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
@@ -292,7 +292,7 @@ func TestWorkspaceHooksDoNotCreateAgentsMD(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := ports.WorkspaceHookConfig{
 		DataDir: dataDir, SessionID: "sess-absent",
-		WorkspacePath: workspace, SystemPrompt: "AO-only instructions",
+		WorkspacePath: workspace, SystemPrompt: "Kennel-only instructions",
 	}
 	if err := p.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
@@ -380,7 +380,7 @@ func assertMuseManagedHooks(t *testing.T, path string) {
 		}
 		hook := groups[0].Hooks[0]
 		if hook.Type != "command" || !strings.HasSuffix(hook.Command, " "+museHookCommandPrefix+aoEvent) {
-			t.Fatalf("hooks[%q] = %#v, want AO %q command", nativeEvent, hook, aoEvent)
+			t.Fatalf("hooks[%q] = %#v, want Kennel %q command", nativeEvent, hook, aoEvent)
 		}
 	}
 }
@@ -490,7 +490,7 @@ func TestGetRestoreCommandInjectsPromptAndManagedHooksEnvironment(t *testing.T) 
 	p := &Plugin{resolvedBinary: "muse"}
 	cmd, ok, err := p.GetRestoreCommand(context.Background(), ports.RestoreConfig{
 		DataDir:      dataDir,
-		SystemPrompt: "follow AO rules\n",
+		SystemPrompt: "follow Kennel rules\n",
 		Session: ports.SessionRef{
 			ID:       "agent-orchestrator-96",
 			Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "muse-native-1"},
@@ -508,7 +508,7 @@ func TestGetRestoreCommandInjectsPromptAndManagedHooksEnvironment(t *testing.T) 
 	}
 	want := []string{
 		"env",
-		museDeveloperPromptEnvVar + "=follow AO rules",
+		museDeveloperPromptEnvVar + "=follow Kennel rules",
 		museManagedHooksEnvVar + "=" + hooksPath,
 		"muse", "--trust-workspace", "resume", "muse-native-1",
 	}

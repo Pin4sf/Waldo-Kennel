@@ -8,16 +8,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	chatsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/chat"
 
 	"net/http/httptest"
 )
 
-// The wire shape of the provider state AO used to drop. These assert the JSON a
+// The wire shape of the provider state Kennel used to drop. These assert the JSON a
 // client actually receives, because the daemon's snapshot is where this work ends:
 // a field that is correct in the store and absent from the body is not shipped.
 
@@ -82,7 +82,7 @@ func TestSnapshotOmitsAbsentPlan(t *testing.T) {
 }
 
 // The reroute is what stops the UI attributing an answer to a model that did not
-// produce it. It is deliberately separate from `settings`, which says what AO asked
+// produce it. It is deliberately separate from `settings`, which says what Kennel asked
 // for: collapsing them would leave a client unable to tell the two apart.
 func TestSnapshotExposesModelRerouteSeparatelyFromSettings(t *testing.T) {
 	at := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)

@@ -42,7 +42,7 @@ The full development dependency audit is not clean because inherited build/test 
 - `packages/cloud-client`: retained compatibility package and tested foundation, not proof of a deployed cloud product.
 - `packages/ao*`: frozen legacy AO packages, not renamed or republished.
 - release, pod, and updater scripts: retained for controlled migration; no release was published by this gate.
-- `backend/cmd/ao`, Go module imports, `.ao/attachments`, and `.ao/launch.json`: documented source/project compatibility seams, not installed identity.
+- `backend/cmd/kennel`, Go module imports, `.kennel/attachments`, and `.kennel/launch.json`: documented source/project compatibility seams, not installed identity.
 
 ## Known governance boundary
 

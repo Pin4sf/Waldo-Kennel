@@ -601,7 +601,7 @@ function mergeAttentionLinks(pr: SessionPRSummary, kind: "merge_conflict" | "mer
 	return fileLinks.length > 0 ? fileLinks : reasonLinks.length > 0 ? reasonLinks : fallbackLink;
 }
 
-// `blocked_by_provider` is an internal fallback for a host verdict AO cannot
+// `blocked_by_provider` is an internal fallback for a host verdict Kennel cannot
 // explain more precisely. It is not an actionable reason, so cards summarize
 // it as merge availability instead of exposing implementation terminology.
 function visibleMergeReasons(pr: SessionPRSummary): string[] {

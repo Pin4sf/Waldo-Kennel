@@ -9,17 +9,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/codexappserver/codexproto"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/codexappserver/codexproto"
 )
 
 // Does the driver still agree with the provider about the protocol?
 //
-// Every method AO sends or reads is named here. Two failure modes this catches
+// Every method Kennel sends or reads is named here. Two failure modes this catches
 // that nothing else does:
 //
-//   - AO calls a method the installed provider no longer declares, which arrives
+//   - Kennel calls a method the installed provider no longer declares, which arrives
 //     as a generic -32601 at runtime and looks like a broken session.
-//   - AO reads a payload field that has been renamed, which unmarshals to a zero
+//   - Kennel reads a payload field that has been renamed, which unmarshals to a zero
 //     value and looks like "the agent produced no output".
 //
 // The second is the one that actually bit: a thread-vs-turn `sandboxPolicy` shape
@@ -56,7 +56,7 @@ var driverMethods = []struct {
 	{codexproto.MethodMcpServerStatusList, &codexproto.ListMcpServerStatusParams{}},
 
 	// Inbound: the notifications the timeline is built from.
-	// NOT thread/started: AO reads the thread id from the thread/start RESPONSE, so
+	// NOT thread/started: Kennel reads the thread id from the thread/start RESPONSE, so
 	// the notification carries nothing it does not already have. Listing it here
 	// would make this table's claim — every method the driver depends on — false.
 	{codexproto.MethodTurnStarted, nil},
@@ -111,10 +111,10 @@ var driverMethods = []struct {
 	{codexproto.MethodThreadUnarchived, &codexproto.ThreadUnarchivedNotification{}},
 	{codexproto.MethodThreadClosed, &codexproto.ThreadClosedNotification{}},
 
-	// Inbound request: the provider asking for ChatGPT credentials AO does not hold.
+	// Inbound request: the provider asking for ChatGPT credentials Kennel does not hold.
 	// Answered with a refusal and surfaced to the user, never fabricated.
 	{codexproto.MethodAccountChatgptAuthTokensRefresh, &codexproto.ChatgptAuthTokensRefreshParams{}},
-	// Inbound request: run a tool AO never declared. Refused explicitly.
+	// Inbound request: run a tool Kennel never declared. Refused explicitly.
 	{codexproto.MethodItemToolCall, &codexproto.DynamicToolCallParams{}},
 
 	// Inbound: approvals. All three kinds the provider declares, which is the
@@ -195,7 +195,7 @@ func TestGeneratedProtocolMatchesTheInstalledProvider(t *testing.T) {
 		}
 	}
 
-	// New provider methods are not a failure on their own — AO does not have to use
+	// New provider methods are not a failure on their own — Kennel does not have to use
 	// everything — but they are worth surfacing, because they are where the next
 	// feature comes from.
 	if len(missing) > 0 {
@@ -203,7 +203,7 @@ func TestGeneratedProtocolMatchesTheInstalledProvider(t *testing.T) {
 			"run `go generate ./internal/adapters/chatdriver/codexappserver/...` to pick them up: %v",
 			len(missing), truncate(missing))
 	}
-	// A method AO's generated file has and the provider does not is the dangerous
+	// A method Kennel's generated file has and the provider does not is the dangerous
 	// direction: any call to it fails at runtime.
 	if len(extra) > 0 {
 		t.Errorf("generated protocol declares %d method(s) the installed provider does not: %v",
@@ -277,7 +277,7 @@ func truncate(names []string) []string {
 // referenced by nothing at all. The feature is half-landed upstream with its door
 // not yet published.
 //
-// So AO handling none of it costs nothing today: there is no reachable behaviour
+// So Kennel handling none of it costs nothing today: there is no reachable behaviour
 // to be missing. What WOULD cost something is discovering the entry point exists
 // months after it shipped, which is what happens when "check again later" lives in
 // someone's memory instead of in the suite.
@@ -302,7 +302,7 @@ func TestRealtimeStaysUnreachableUntilTheProviderPublishesAnEntryPoint(t *testin
 		if !strings.Contains(method, "realtime") {
 			continue
 		}
-		// A ClientRequest or ClientNotification is something AO can send. Either one
+		// A ClientRequest or ClientNotification is something Kennel can send. Either one
 		// means a session can now be initiated.
 		if strings.HasPrefix(direction, "Client") {
 			startable = append(startable, method+" ("+direction+")")

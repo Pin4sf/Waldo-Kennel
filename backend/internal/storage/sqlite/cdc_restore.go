@@ -13,7 +13,7 @@ import (
 //
 // restoreChangeLogWriters therefore runs from migrate() after goose completes:
 // it recreates each writer only when the trigger is absent AND its subject
-// table exists, healing clean databases, upgraded AO-derived databases, and
+// table exists, healing clean databases, upgraded Kennel-derived databases, and
 // burned/skipped-migration profiles alike. Bodies must be kept verbatim with
 // their defining migration.
 var changeLogWriters = []struct {

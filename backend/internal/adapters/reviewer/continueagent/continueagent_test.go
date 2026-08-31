@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func testReviewer() *Reviewer {
@@ -29,7 +29,7 @@ func TestReviewCommandLaunchesReadonlyHostTrustedTUI(t *testing.T) {
 		t.Fatalf("ReviewCommand spec = %+v", spec)
 	}
 	if spec.Env["HOME"] != filepath.Join(dataDir, "reviewer-runtime", "review-worker-1", "config") || spec.Env["CONTINUE_CLI_ENABLE_TELEMETRY"] != "0" {
-		t.Fatalf("AO-owned environment = %#v", spec.Env)
+		t.Fatalf("Kennel-owned environment = %#v", spec.Env)
 	}
 }
 

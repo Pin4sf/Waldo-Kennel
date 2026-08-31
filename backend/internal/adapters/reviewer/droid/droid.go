@@ -1,4 +1,4 @@
-// Package droid adapts Factory Droid as an experimental host-trusted AO
+// Package droid adapts Factory Droid as an experimental host-trusted Kennel
 // reviewer. It always runs Droid's visible, long-lived interactive TUI.
 package droid
 
@@ -12,16 +12,16 @@ import (
 	"strings"
 	"time"
 
-	workerdroid "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/droid"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workerdroid "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/droid"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const settingsFilename = "droid-reviewer-settings.json"
 
 // HostTrustWarning describes the authority retained by Droid's interactive
-// terminal. Reviewer runs need autonomous execution, so AO cannot rely on Droid
+// terminal. Reviewer runs need autonomous execution, so Kennel cannot rely on Droid
 // settings as an isolation boundary.
 const HostTrustWarning = "experimental host-trusted reviewer: Droid has no OS isolation; terminal users can invoke Bash mode, change interaction/autonomy settings, or enable additional integrations"
 
@@ -45,7 +45,7 @@ var _ ports.ReviewerReusePolicy = (*Reviewer)(nil)
 
 // ReviewCommand starts only Droid's normal interactive TUI. It never uses
 // `droid exec`, output formats, prompt files, or unsafe permission bypasses.
-// AO injects the task after the pane starts and keeps the pane for later passes.
+// Kennel injects the task after the pane starts and keeps the pane for later passes.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	if err := ctx.Err(); err != nil {
 		return ports.ReviewCommandSpec{}, err
@@ -93,7 +93,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 func (*Reviewer) ReviewProcessReusable() bool { return false }
 
 // ReviewPromptReadinessHints gives Droid's startup screen enough time to accept
-// pasted task input before AO submits the initial review reference.
+// pasted task input before Kennel submits the initial review reference.
 func (*Reviewer) ReviewPromptReadinessHints(ctx context.Context) (ports.PromptReadinessHints, error) {
 	if err := ctx.Err(); err != nil {
 		return ports.PromptReadinessHints{}, err

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestManifest(t *testing.T) {
@@ -147,7 +147,7 @@ func TestPromptReadinessHints(t *testing.T) {
 	}
 }
 
-// Kimi prompt mode is non-interactive, so AO launches the TUI and lets the
+// Kimi prompt mode is non-interactive, so Kennel launches the TUI and lets the
 // session manager inject the task after startup. Because the prompt is not
 // carried with `-p`, approval flags remain valid for prompted workers.
 func TestGetLaunchCommandInteractiveMapsPermissionModes(t *testing.T) {
@@ -210,7 +210,7 @@ func TestGetLaunchCommandIgnoresSystemPrompt(t *testing.T) {
 // Kimi docs: `--yolo` and `--auto` cannot be used together with `--continue`
 // or `--session` — resumed sessions inherit the approval settings of the
 // original session — so the restore path must not emit approval flags
-// regardless of the requested AO PermissionMode.
+// regardless of the requested Kennel PermissionMode.
 func TestGetRestoreCommand(t *testing.T) {
 	modes := []ports.PermissionMode{
 		ports.PermissionModeDefault,
@@ -283,7 +283,7 @@ func TestGetAgentHooksInstallsSystemPromptInstructions(t *testing.T) {
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "follow AO rules\n",
+		SystemPrompt:  "follow Kennel rules\n",
 		Env:           map[string]string{"KIMI_CODE_HOME": kimiHome},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
@@ -298,7 +298,7 @@ func TestGetAgentHooksInstallsSystemPromptInstructions(t *testing.T) {
 	for _, want := range []string{
 		kimiInstructionsSentinel,
 		"# Agent Orchestrator Session Instructions",
-		"follow AO rules",
+		"follow Kennel rules",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("instructions missing %q:\n%s", want, text)
@@ -387,7 +387,7 @@ default_model = "kimi-code/kimi-for-coding"
 
 	data, err := os.ReadFile(filepath.Join(aoHome, "config.toml"))
 	if err != nil {
-		t.Fatalf("read AO config: %v", err)
+		t.Fatalf("read Kennel config: %v", err)
 	}
 	text := string(data)
 	for _, want := range []string{
@@ -396,7 +396,7 @@ default_model = "kimi-code/kimi-for-coding"
 		`command = "kennel hooks kimi session-start"`,
 	} {
 		if !strings.Contains(text, want) {
-			t.Fatalf("AO config missing %q:\n%s", want, text)
+			t.Fatalf("Kennel config missing %q:\n%s", want, text)
 		}
 	}
 	source, err := os.ReadFile(filepath.Join(userHome, "config.toml"))
@@ -432,17 +432,17 @@ func TestGetAgentHooksSeedsAOManagedCredentialsFromUserKimiHome(t *testing.T) {
 	targetPath := filepath.Join(aoHome, "credentials", "kimi-code.json")
 	got, err := os.ReadFile(targetPath)
 	if err != nil {
-		t.Fatalf("read AO credentials: %v", err)
+		t.Fatalf("read Kennel credentials: %v", err)
 	}
 	if string(got) != string(userCredentials) {
-		t.Fatalf("AO credentials = %s, want %s", got, userCredentials)
+		t.Fatalf("Kennel credentials = %s, want %s", got, userCredentials)
 	}
 	info, err := os.Stat(targetPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
-		t.Fatalf("AO credentials permissions = %o, want %o", got, want)
+		t.Fatalf("Kennel credentials permissions = %o, want %o", got, want)
 	}
 }
 
@@ -453,7 +453,7 @@ func TestGetAgentHooksPreservesExistingAOManagedCredentials(t *testing.T) {
 	t.Setenv(kimiCodeHomeEnv, userHome)
 	for path, data := range map[string][]byte{
 		filepath.Join(userHome, "credentials", "kimi-code.json"): []byte(`{"access_token":"user-token"}`),
-		filepath.Join(aoHome, "credentials", "kimi-code.json"):   []byte(`{"access_token":"ao-token"}`),
+		filepath.Join(aoHome, "credentials", "kimi-code.json"):   []byte(`{"access_token":"kennel-token"}`),
 	} {
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			t.Fatal(err)
@@ -473,10 +473,10 @@ func TestGetAgentHooksPreservesExistingAOManagedCredentials(t *testing.T) {
 	targetPath := filepath.Join(aoHome, "credentials", "kimi-code.json")
 	got, err := os.ReadFile(targetPath)
 	if err != nil {
-		t.Fatalf("read AO credentials: %v", err)
+		t.Fatalf("read Kennel credentials: %v", err)
 	}
-	if want := `{"access_token":"ao-token"}`; string(got) != want {
-		t.Fatalf("AO credentials = %s, want %s", got, want)
+	if want := `{"access_token":"kennel-token"}`; string(got) != want {
+		t.Fatalf("Kennel credentials = %s, want %s", got, want)
 	}
 }
 
@@ -501,12 +501,12 @@ func TestGetAgentHooksReseedsAOManagedConfigWithoutAuth(t *testing.T) {
 
 	data, err := os.ReadFile(filepath.Join(aoHome, "config.toml"))
 	if err != nil {
-		t.Fatalf("read AO config: %v", err)
+		t.Fatalf("read Kennel config: %v", err)
 	}
 	text := string(data)
 	for _, want := range []string{`api_key = "user-key"`, `command = "kennel hooks kimi session-start"`} {
 		if !strings.Contains(text, want) {
-			t.Fatalf("AO config missing %q:\n%s", want, text)
+			t.Fatalf("Kennel config missing %q:\n%s", want, text)
 		}
 	}
 	if strings.Count(text, kimiHooksSentinelStart) != 1 {
@@ -616,7 +616,7 @@ func TestGetAgentHooksPreservesUserInstructions(t *testing.T) {
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO rules",
+		SystemPrompt:  "Kennel rules",
 		Env:           map[string]string{"KIMI_CODE_HOME": kimiHome},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
@@ -630,7 +630,7 @@ func TestGetAgentHooksPreservesUserInstructions(t *testing.T) {
 	for _, want := range []string{
 		"user instructions",
 		kimiInstructionsSentinel,
-		"AO rules",
+		"Kennel rules",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("instructions missing %q:\n%s", want, text)

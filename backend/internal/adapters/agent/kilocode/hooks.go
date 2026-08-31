@@ -10,20 +10,20 @@ import (
 
 	_ "embed"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
 	// Kilo Code scans each config dir for `{plugin,plugins}/*.{ts,js}` (verified
 	// in the @kilocode/cli binary). Its config-dir suffixes are `.kilo`,
-	// `.kilocode`, and `.opencode` (it is an opencode fork). AO writes the
-	// branded `.kilocode/plugins/` so the AO plugin lands in Kilo's own dir and
+	// `.kilocode`, and `.opencode` (it is an opencode fork). Kennel writes the
+	// branded `.kilocode/plugins/` so the Kennel plugin lands in Kilo's own dir and
 	// never collides with a sibling opencode adapter's `.opencode/` install.
 	kilocodePluginDirName = ".kilocode"
 	kilocodePluginSubDir  = "plugins"
 
-	// kilocodePluginFileName is the AO-owned plugin file. AO fully owns this
+	// kilocodePluginFileName is the Kennel-owned plugin file. Kennel fully owns this
 	// filename: install overwrites it and uninstall deletes it (guarded by the
 	// sentinel), so user-authored plugins in other files are never touched.
 	// It is TypeScript (Kilo runs on Bun); the file's only import is a type-only
@@ -31,11 +31,11 @@ const (
 	kilocodePluginFileName = "kennel-activity.ts"
 
 	// kilocodePluginSentinel marks the file as Kennel-managed. AreHooksInstalled and
-	// UninstallHooks key off it so AO never deletes a user file that happens to
+	// UninstallHooks key off it so Kennel never deletes a user file that happens to
 	// share the name. It must appear verbatim in the embedded plugin source.
 	kilocodePluginSentinel = "kennel: managed kilocode activity plugin"
 
-	// kilocodeHookCommandPrefix identifies the hook commands AO owns. The
+	// kilocodeHookCommandPrefix identifies the hook commands Kennel owns. The
 	// embedded plugin shells `kennel hooks kilocode <event>`; this prefix is the
 	// shared contract with the `kennel hooks` CLI dispatcher and is asserted by tests
 	// so the plugin can't silently drift away from it.
@@ -45,7 +45,7 @@ const (
 // kilocodePluginSource is the Kennel-managed Kilo Code plugin, embedded so it ships
 // inside the binary and is written verbatim into a session's worktree on hook
 // install. It is a real, lintable source file under assets/ rather than a Go
-// string literal because it is plugin source code, not a data structure AO
+// string literal because it is plugin source code, not a data structure Kennel
 // assembles (the way it builds Codex/Claude hook JSON).
 //
 //go:embed assets/kennel-activity.ts
@@ -57,11 +57,11 @@ var kilocodePluginSource string
 // they mirror exactly the events kilocode.DeriveActivityState switches on.
 var kilocodeManagedEvents = []string{"session-start", "user-prompt-submit", "permission-request", "stop"}
 
-// GetAgentHooks installs AO's Kilo Code activity plugin into the worktree-local
+// GetAgentHooks installs Kennel's Kilo Code activity plugin into the worktree-local
 // .kilocode/plugins/ directory. Unlike Claude Code and Codex, Kilo Code has no
 // native command-hook config to merge into; its only lifecycle-extensibility
-// surface is a JS/TS plugin. AO therefore writes a dedicated, AO-owned plugin
-// file. The write is atomic and idempotent: re-installing overwrites AO's own
+// surface is a JS/TS plugin. Kennel therefore writes a dedicated, Kennel-owned plugin
+// file. The write is atomic and idempotent: re-installing overwrites Kennel's own
 // file with identical content. It refuses to overwrite a file that is NOT
 // Kennel-managed (no sentinel), so a user plugin that happens to occupy our path is
 // never silently destroyed — install fails loudly instead.
@@ -101,8 +101,8 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 	return nil
 }
 
-// UninstallHooks removes AO's Kilo Code plugin from the workspace-local
-// .kilocode/plugins/ directory. It deletes the file only when it carries the AO
+// UninstallHooks removes Kennel's Kilo Code plugin from the workspace-local
+// .kilocode/plugins/ directory. It deletes the file only when it carries the Kennel
 // sentinel, so a user file that happens to share the name is left in place. A
 // missing file is a no-op.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
@@ -127,9 +127,9 @@ func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error
 	return nil
 }
 
-// AreHooksInstalled reports whether AO's Kilo Code plugin is present in the
+// AreHooksInstalled reports whether Kennel's Kilo Code plugin is present in the
 // workspace-local plugin dir. A missing file, or a same-named file without the
-// AO sentinel, means none are installed.
+// Kennel sentinel, means none are installed.
 func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
@@ -148,7 +148,7 @@ func kilocodePluginPath(workspacePath string) string {
 	return filepath.Join(workspacePath, kilocodePluginDirName, kilocodePluginSubDir, kilocodePluginFileName)
 }
 
-// isAOManagedPlugin reports whether the file at path exists and carries the AO
+// isAOManagedPlugin reports whether the file at path exists and carries the Kennel
 // sentinel. A missing file yields (false, nil).
 func isAOManagedPlugin(path string) (bool, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path built from caller-owned workspace dir
