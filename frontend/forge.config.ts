@@ -15,9 +15,9 @@ import {
 	UPDATER_CACHE_DIRECTORY_NAME,
 } from "./src/shared/product-identity";
 
-// Default GitHub release target (production). Releases land on Untrivial-ai
-// (the org the repo was transferred to in July 2026; AgentWrapper and aoagents
-// are prior homes). Builds cut by CI must NOT rely on this fallback: the
+// Default GitHub release target (production): Kennel's own repository, which
+// is the single source of truth in product-identity. Builds cut by CI must NOT
+// rely on this fallback: the
 // workflows set KENNEL_RELEASE_REPO to the repo they run in, and the package
 // asserts the baked app-update.yml matches it, so a future org/repo rename
 // fails the build instead of stranding the fleet on a redirect (#3523).
