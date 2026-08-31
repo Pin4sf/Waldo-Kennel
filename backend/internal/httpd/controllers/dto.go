@@ -2020,6 +2020,10 @@ type IntakeConversationRefInput struct {
 // AnalyzeIntakeRequest guards analysis with an expected proposal revision.
 type AnalyzeIntakeRequest struct {
 	ExpectedProposalRevision int64 `json:"expectedProposalRevision"`
+	// Offline runs the deterministic baseline instead of asking an agent. It
+	// is how a person stops waiting and takes the proposal that is always
+	// available, and it asks no agent anything.
+	Offline bool `json:"offline,omitempty"`
 }
 
 // AnswerIntakeClarificationRequest answers the single material question.

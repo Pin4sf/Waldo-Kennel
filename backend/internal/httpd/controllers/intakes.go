@@ -105,7 +105,7 @@ func (controller *IntakesController) analyze(w http.ResponseWriter, r *http.Requ
 	if !decodeIntakeJSON(w, r, &request) {
 		return
 	}
-	snapshot, err := controller.Svc.Analyze(r.Context(), domain.IntakeSessionID(chi.URLParam(r, "intakeId")), intakevc.AnalyzeInput{ExpectedProposalRevision: request.ExpectedProposalRevision})
+	snapshot, err := controller.Svc.Analyze(r.Context(), domain.IntakeSessionID(chi.URLParam(r, "intakeId")), intakevc.AnalyzeInput{ExpectedProposalRevision: request.ExpectedProposalRevision, Offline: request.Offline})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return

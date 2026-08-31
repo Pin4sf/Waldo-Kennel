@@ -2515,6 +2515,7 @@ export interface components {
         AnalyzeIntakeRequest: {
             /** Format: int64 */
             expectedProposalRevision: number;
+            offline?: boolean;
         };
         AnswerIntakeClarificationRequest: {
             answer: string;

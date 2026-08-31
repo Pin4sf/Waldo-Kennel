@@ -178,3 +178,97 @@ it("sends a cleared time boundary as absent rather than blank", async () => {
 	await waitFor(() => expect(postMock).toHaveBeenCalled());
 	expect(postMock.mock.calls[0][1].body.proposal.temporalCondition).toBeNull();
 });
+
+// --- Agent-authored analysis: waiting, refusal, provenance ---
+
+const OPEN_ASK = {
+	id: "ireq-1", intakeId: "intake-waiting", expectedProposalRevision: 0, status: "requested",
+	sessionId: "mesa-5", harness: "codex", expiresAt: "2026-08-31T10:15:00Z", expired: false,
+	createdAt: "2026-08-31T10:00:00Z",
+};
+
+function respondWith(intake: unknown, request: unknown) {
+	getMock.mockImplementation((path: string) => {
+		if (path === "/api/v1/intakes/{intakeId}") return Promise.resolve({ data: { intake }, error: undefined, response: { status: 200 } });
+		if (path === "/api/v1/intakes/{intakeId}/analysis-request") {
+			return request === null
+				? Promise.resolve({ data: undefined, error: undefined, response: { status: 404 } })
+				: Promise.resolve({ data: { request }, error: undefined, response: { status: 200 } });
+		}
+		return Promise.resolve({ data: { projects: [], sessions: [] }, error: undefined, response: { status: 200 } });
+	});
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+	return render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" intakeId="intake-waiting" /></QueryClientProvider>);
+}
+
+it("names the agent that is working and always offers a way out of waiting", async () => {
+	respondWith({ session: { id: "intake-waiting", status: "analyzing", currentProposalRevision: 0 }, conversationRefs: [] }, OPEN_ASK);
+
+	expect(await screen.findByTestId("intake-analysis-waiting")).toBeInTheDocument();
+	// An anonymous spinner gives a person nothing to judge; the harness is named.
+	expect(screen.getByRole("heading", { name: /codex is reading the project/i })).toBeInTheDocument();
+	expect(screen.getByRole("button", { name: "Use the offline proposal instead" })).toBeEnabled();
+	expect(screen.getByRole("button", { name: "Release this intake" })).toBeEnabled();
+});
+
+it("closes the open ask before running the offline analysis, so it is not refused as a conflict", async () => {
+	postMock.mockResolvedValue({ data: { intake: { session: { id: "intake-waiting", status: "ready", currentProposalRevision: 1 }, conversationRefs: [], proposal: READY_PROPOSAL.proposal } }, error: undefined });
+	respondWith({ session: { id: "intake-waiting", status: "analyzing", currentProposalRevision: 0 }, conversationRefs: [] }, OPEN_ASK);
+
+	await userEvent.click(await screen.findByRole("button", { name: "Use the offline proposal instead" }));
+
+	await waitFor(() => expect(postMock).toHaveBeenCalledTimes(2));
+	expect(postMock.mock.calls[0][0]).toBe("/api/v1/intakes/{intakeId}/analysis-request/cancellation");
+	expect(postMock.mock.calls[1][0]).toBe("/api/v1/intakes/{intakeId}/analysis");
+	expect(postMock.mock.calls[1][1].body).toMatchObject({ offline: true });
+});
+
+it("keeps a refused draft inspectable beside the reason it was refused", async () => {
+	respondWith(
+		{ session: { id: "intake-waiting", status: "analysis_failed", currentProposalRevision: 0 }, conversationRefs: [] },
+		{ ...OPEN_ASK, status: "rejected", refusalReason: "At least one stop condition is required.", rawProposal: '{"proposal":{"title":"Half a contract"}}' },
+	);
+
+	expect(await screen.findByTestId("intake-analysis-refused")).toBeInTheDocument();
+	expect(screen.getByRole("alert")).toHaveTextContent("At least one stop condition is required.");
+	expect(screen.getByText(/Half a contract/)).toBeInTheDocument();
+	// Both ways forward, so a refusal is never a dead end.
+	expect(screen.getByRole("button", { name: "Use the offline proposal instead" })).toBeEnabled();
+	expect(screen.getByRole("button", { name: "Ask an agent again" })).toBeEnabled();
+});
+
+it("says whether anything actually analyzed the proposal on screen", async () => {
+	const ready = { session: { id: "intake-waiting", status: "ready", currentProposalRevision: 1 }, conversationRefs: [], proposal: READY_PROPOSAL.proposal };
+
+	const agentAuthored = respondWith(ready, { ...OPEN_ASK, status: "fulfilled" });
+	expect(await screen.findByTestId("proposal-provenance")).toHaveTextContent(/codex read this project/i);
+	agentAuthored.unmount();
+
+	// No ask ever happened, so this came from the deterministic baseline and
+	// the person should expect to rewrite the criteria.
+	respondWith(ready, null);
+	expect(await screen.findByTestId("proposal-provenance")).toHaveTextContent(/No agent analyzed this/i);
+});
+
+it("clears the box after a captured statement but keeps it after a rejected one", async () => {
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+	const { rerender } = render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" /></QueryClientProvider>);
+
+	const statement = screen.getByRole("textbox", { name: /what would you like to make true/i });
+	await userEvent.type(statement, "First Outcome");
+	await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+	// This surface stays mounted across the intake it just created, so a
+	// statement left behind would pre-fill the next Outcome with the last one.
+	await waitFor(() => expect(statement).toHaveValue(""));
+
+	postMock.mockResolvedValueOnce({ data: undefined, error: { code: "DAEMON_UNAVAILABLE" } });
+	rerender(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" /></QueryClientProvider>);
+	await userEvent.type(statement, "Second Outcome");
+	await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+	// A rejected capture keeps the text: saying it was not saved is only
+	// meaningful if the words are still there.
+	await screen.findByRole("alert");
+	expect(statement).toHaveValue("Second Outcome");
+});
