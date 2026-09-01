@@ -10,21 +10,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	sessionmanager "github.com/Pin4sf/Waldo-Kennel/backend/internal/session_manager"
 )
 
 const cancelInterruptDelay = 150 * time.Millisecond
 
 const defaultReviewerInitialDelay = 500 * time.Millisecond
 
-const reviewerTaskMessagePrefix = "Read and follow the AO review task in `"
+const reviewerTaskMessagePrefix = "Read and follow the Kennel review task in `"
 
-// EnvRunFile points reviewer-local AO CLI calls at the live daemon run-file.
+// EnvRunFile points reviewer-local Kennel CLI calls at the live daemon run-file.
 const EnvRunFile = "KENNEL_RUN_FILE"
 
-// EnvAOCommandWarning records why AO could not guarantee a reviewer-local `ao`
+// EnvAOCommandWarning records why Kennel could not guarantee a reviewer-local `ao`
 // command. Review launch remains best-effort so provider reviews can still be
 // posted and later reconciled, but this makes the degraded path diagnosable.
 const EnvAOCommandWarning = "KENNEL_REVIEW_KENNEL_COMMAND_WARNING"
@@ -140,7 +140,7 @@ func WithExecutable(executable func() (string, error)) LauncherOption {
 	}
 }
 
-// WithRunFilePath pins reviewer-local AO CLI calls to this daemon's run-file.
+// WithRunFilePath pins reviewer-local Kennel CLI calls to this daemon's run-file.
 // This is intentionally separate from KENNEL_DATA_DIR: the CLI discovers the live
 // daemon from KENNEL_RUN_FILE, not from the durable data directory.
 func WithRunFilePath(path string) LauncherOption {
@@ -288,7 +288,7 @@ func (l *agentLauncher) prepareInvocation(ctx context.Context, spec LaunchSpec) 
 	}
 	systemPath := filepath.Join(promptRoot, "system.md")
 	systemPrompt := strings.TrimRight(inv.SystemPrompt, "\n") + "\n\n" +
-		"AO stores each review task in an immutable file. Whenever AO asks you to start a review task, " +
+		"Kennel stores each review task in an immutable file. Whenever Kennel asks you to start a review task, " +
 		"read the exact file path in that request first and follow it completely.\n"
 	if err := os.WriteFile(systemPath, []byte(systemPrompt), 0o600); err != nil {
 		return ports.ReviewInvocation{}, fmt.Errorf("write reviewer system prompt: %w", err)
@@ -308,14 +308,14 @@ func (l *agentLauncher) prepareIdleInvocation(spec LaunchSpec) (ports.ReviewInvo
 	promptRoot := filepath.Join(l.dataDir, "prompts", string(spec.WorkerID), "reviewer")
 	systemPath := filepath.Join(promptRoot, "system.md")
 	systemPrompt := reviewSystemPrompt() + "\n\n" +
-		"AO may restore your terminal before a new review task exists. In that state, wait for AO to send a review task file path before reviewing or submitting results.\n"
+		"Kennel may restore your terminal before a new review task exists. In that state, wait for Kennel to send a review task file path before reviewing or submitting results.\n"
 	if err := os.MkdirAll(promptRoot, 0o700); err != nil {
 		return ports.ReviewInvocation{}, fmt.Errorf("create reviewer prompt directory: %w", err)
 	}
 	if err := os.WriteFile(systemPath, []byte(systemPrompt), 0o600); err != nil {
 		return ports.ReviewInvocation{}, fmt.Errorf("write reviewer system prompt: %w", err)
 	}
-	prompt := fmt.Sprintf("Reviewer terminal restored for worker session %s.\n\n%s\n\nWait for AO to send the next review task file path before submitting a new review.", spec.WorkerID, previousReviewHistoryText(spec.PreviousRuns))
+	prompt := fmt.Sprintf("Reviewer terminal restored for worker session %s.\n\n%s\n\nWait for Kennel to send the next review task file path before submitting a new review.", spec.WorkerID, previousReviewHistoryText(spec.PreviousRuns))
 	return ports.ReviewInvocation{
 		ReviewerID:       reviewerHandleID(spec.WorkerID),
 		WorkerSessionID:  spec.WorkerID,
@@ -537,7 +537,7 @@ func (l *agentLauncher) runtimeEnv(ctx context.Context, spec LaunchSpec, argv []
 	} else if shimDir, shimErr := l.ensureAOShimDir(); shimErr == nil {
 		env["PATH"] = prependPathDir(shimDir, env["PATH"])
 	} else {
-		env[EnvAOCommandWarning] = fmt.Sprintf("PATH pin failed: %v; AO shim fallback failed: %v", err, shimErr)
+		env[EnvAOCommandWarning] = fmt.Sprintf("PATH pin failed: %v; Kennel shim fallback failed: %v", err, shimErr)
 	}
 	sessionmanager.AugmentRuntimePATHForLaunchBinary(ctx, env, argv, exec.LookPath)
 	return env
@@ -545,31 +545,31 @@ func (l *agentLauncher) runtimeEnv(ctx context.Context, spec LaunchSpec, argv []
 
 func (l *agentLauncher) ensureAOShimDir() (string, error) {
 	if strings.TrimSpace(l.dataDir) == "" {
-		return "", fmt.Errorf("reviewer AO shim data directory is required")
+		return "", fmt.Errorf("reviewer Kennel shim data directory is required")
 	}
 	exe, err := l.executable()
 	if err != nil {
-		return "", fmt.Errorf("resolve AO executable: %w", err)
+		return "", fmt.Errorf("resolve Kennel executable: %w", err)
 	}
 	if !filepath.IsAbs(exe) {
 		exe, err = filepath.Abs(exe)
 		if err != nil {
-			return "", fmt.Errorf("make AO executable absolute: %w", err)
+			return "", fmt.Errorf("make Kennel executable absolute: %w", err)
 		}
 	}
 	shimDir := filepath.Join(l.dataDir, "reviewer-runtime", "bin")
 	if err := os.MkdirAll(shimDir, 0o700); err != nil {
-		return "", fmt.Errorf("create reviewer AO shim directory: %w", err)
+		return "", fmt.Errorf("create reviewer Kennel shim directory: %w", err)
 	}
 	shimPath := filepath.Join(shimDir, "kennel")
 	if runtime.GOOS == "windows" {
 		shimPath += ".cmd"
 	}
 	if err := os.WriteFile(shimPath, []byte(aoShimScript(exe)), 0o600); err != nil {
-		return "", fmt.Errorf("write reviewer AO shim: %w", err)
+		return "", fmt.Errorf("write reviewer Kennel shim: %w", err)
 	}
-	if err := os.Chmod(shimPath, 0o700); err != nil { // #nosec G302 -- the reviewer shim must be executable by the AO user.
-		return "", fmt.Errorf("mark reviewer AO shim executable: %w", err)
+	if err := os.Chmod(shimPath, 0o700); err != nil { // #nosec G302 -- the reviewer shim must be executable by the Kennel user.
+		return "", fmt.Errorf("mark reviewer Kennel shim executable: %w", err)
 	}
 	return shimDir, nil
 }

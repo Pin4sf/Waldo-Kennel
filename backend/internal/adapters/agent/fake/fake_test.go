@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/lifecycle"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/lifecycle"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestManifestReportsFakeHarness(t *testing.T) {

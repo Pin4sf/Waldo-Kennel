@@ -6,15 +6,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/daemonmeta"
-	"github.com/aoagents/agent-orchestrator/backend/internal/runfile"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/daemonmeta"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/runfile"
 )
 
 // staleProbeTimeout bounds the startup ownership probe so a run-file pointing at
 // an unreachable port cannot stall daemon startup.
 const staleProbeTimeout = 2 * time.Second
 
-// runFileOwnerServing reports whether an AO daemon matching info is actually
+// runFileOwnerServing reports whether an Kennel daemon matching info is actually
 // serving on the recorded loopback port.
 //
 // runfile.CheckStale only confirms the recorded PID is alive, which is not

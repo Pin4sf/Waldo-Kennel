@@ -63,7 +63,7 @@ describe("ContextMeter", () => {
 	});
 
 	describe("threshold colours", () => {
-		it("uses the AO logo accent below 70%", () => {
+		it("uses the Kennel logo accent below 70%", () => {
 			render(<ContextMeter usage={usage({ contextUsed: 172_000 })} />);
 			expect(fill().className).toContain("bg-logo-accent");
 		});
@@ -100,7 +100,7 @@ describe("ContextMeter", () => {
 	it("renders nothing before the provider has reported anything", () => {
 		const { container } = render(<ContextMeter />);
 		// Absent is distinct from zero: an empty meter for an unreported conversation
-		// would be a claim AO has not earned.
+		// would be a claim Kennel has not earned.
 		expect(container).toBeEmptyDOMElement();
 	});
 

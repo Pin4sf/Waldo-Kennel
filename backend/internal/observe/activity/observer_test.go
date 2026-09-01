@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/claudecode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/codex"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/muse"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/claudecode"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/codex"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/muse"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type fakeSessions struct {
@@ -55,12 +55,12 @@ func (f fakeAgents) Agent(harness domain.AgentHarness) (ports.Agent, bool) {
 
 func activeSession(now time.Time, harness domain.AgentHarness) domain.SessionRecord {
 	return domain.SessionRecord{
-		ID:        "ao-1",
+		ID:        "kennel-1",
 		Harness:   harness,
 		Activity:  domain.Activity{State: domain.ActivityActive, LastActivityAt: now.Add(-3 * time.Minute)},
 		UpdatedAt: now.Add(-3 * time.Minute),
 		Metadata: domain.SessionMetadata{
-			RuntimeHandleID: "ao-1",
+			RuntimeHandleID: "kennel-1",
 			RuntimeLaunchID: "launch-1",
 		},
 	}
@@ -127,7 +127,7 @@ func TestPollContinuouslyReconcilesMuse(t *testing.T) {
 		want    domain.ActivityState
 		event   string
 	}{
-		{"fresh active to waiting", domain.ActivityActive, "◆ Request user input AO Muse Fix  1m 02s)\n", domain.ActivityWaitingInput, "terminal-waiting-input"},
+		{"fresh active to waiting", domain.ActivityActive, "◆ Request user input Kennel Muse Fix  1m 02s)\n", domain.ActivityWaitingInput, "terminal-waiting-input"},
 		{"waiting to active", domain.ActivityWaitingInput, "◇ Finishing up (25s · esc to interrupt)\n", domain.ActivityActive, "terminal-active"},
 		{"idle to waiting", domain.ActivityIdle, "Enter to select · ↑/↓ to move · Tab for an optional note · Esc to interrupt\n", domain.ActivityWaitingInput, "terminal-waiting-input"},
 	}

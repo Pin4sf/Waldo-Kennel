@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/conpty/ptyregistry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/runtime/conpty/ptyregistry"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const runtimeLaunchIDEnv = "KENNEL_RUNTIME_LAUNCH_ID"
@@ -215,7 +215,7 @@ func (r *Runtime) IsAlive(ctx context.Context, handle ports.RuntimeHandle) (bool
 }
 
 // IsSupervisedProcessAlive uses the pty-host's child status. For a supervised
-// launch that child is the AO supervisor, whose lifetime matches the managed
+// launch that child is the Kennel supervisor, whose lifetime matches the managed
 // agent process. When a generation ref is supplied, the launch id captured at
 // Create (and persisted in the recovery registry) must match exactly.
 func (r *Runtime) IsSupervisedProcessAlive(ctx context.Context, handle ports.RuntimeHandle, ref ports.SupervisedProcessRef) (bool, error) {

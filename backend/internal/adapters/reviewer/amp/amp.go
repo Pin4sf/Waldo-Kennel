@@ -1,4 +1,4 @@
-// Package amp adapts Amp's normal interactive TUI for AO reviews.
+// Package amp adapts Amp's normal interactive TUI for Kennel reviews.
 package amp
 
 import (
@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	workeramp "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/amp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workeramp "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/amp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Reviewer builds Amp's interactive reviewer command.
@@ -33,7 +33,7 @@ func (*Reviewer) ReviewPromptReadinessHints(ctx context.Context) (ports.PromptRe
 	return workeramp.New().PromptReadinessHints(ctx, ports.LaunchConfig{})
 }
 
-// ReviewCommand launches Amp's permanent interactive TUI. AO never uses
+// ReviewCommand launches Amp's permanent interactive TUI. Kennel never uses
 // --execute; the review task is injected after the pane starts.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	binary, err := r.resolveBinary(ctx)
@@ -58,7 +58,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 }
 
 // ReviewRestoreCommand restores a recorded Amp reviewer pane by relaunching the
-// reviewer command with the current AO-owned task context.
+// reviewer command with the current Kennel-owned task context.
 func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, bool, error) {
 	cmd, err := r.ReviewCommand(ctx, inv)
 	return cmd, true, err
@@ -94,7 +94,7 @@ func writeReviewerSettings(root string) (string, error) {
 	return path, nil
 }
 
-// ReviewMessage returns the next AO-owned task reference.
+// ReviewMessage returns the next Kennel-owned task reference.
 func (*Reviewer) ReviewMessage(_ context.Context, inv ports.ReviewInvocation) (string, error) {
 	return inv.Prompt, nil
 }

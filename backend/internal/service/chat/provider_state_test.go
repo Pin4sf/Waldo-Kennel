@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/store"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	chatsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/chat"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/store"
 )
 
-// Projection of the provider signal AO used to drop: reasoning streams, plans,
+// Projection of the provider signal Kennel used to drop: reasoning streams, plans,
 // terminal input, auto-approval reviews, model reroutes, account state, thread
 // state and MCP server health.
 //
@@ -296,7 +296,7 @@ func TestAccountReportsMergeRatherThanReplace(t *testing.T) {
 	})
 	account := snapshot.Conversation.Account
 	if account.AuthMode != "chatgpt" || account.PlanLabel != "pro" {
-		t.Fatalf("a credential demand blanked what AO already knew: %+v", account)
+		t.Fatalf("a credential demand blanked what Kennel already knew: %+v", account)
 	}
 	if account.ReauthReason != "unauthorized" {
 		t.Errorf("reason = %q", account.ReauthReason)
@@ -493,14 +493,14 @@ func TestAutoReviewIsItsOwnActivityKind(t *testing.T) {
 		ports.ChatEvent{Kind: ports.ChatEventTurnStarted, ProviderTurnID: "pt-1"},
 		ports.ChatEvent{
 			Kind: ports.ChatEventActivityStarted, ProviderTurnID: "pt-1",
-			ProviderItemID: "ao-review-r1",
+			ProviderItemID: "kennel-review-r1",
 			ActivityKind:   domain.ActivityKindAutoReview,
 			ActivityStatus: domain.ActivityStatusRunning,
 			Summary:        "Reviewing curl -s https://example.com",
 		},
 		ports.ChatEvent{
 			Kind: ports.ChatEventActivityCompleted, ProviderTurnID: "pt-1",
-			ProviderItemID: "ao-review-r1",
+			ProviderItemID: "kennel-review-r1",
 			ActivityKind:   domain.ActivityKindAutoReview,
 			ActivityStatus: domain.ActivityStatusCompleted,
 			Summary:        "Auto-approved curl -s https://example.com (low risk)",
@@ -509,9 +509,9 @@ func TestAutoReviewIsItsOwnActivityKind(t *testing.T) {
 	)
 
 	snapshot := h.awaitSnapshot(t, func(s store.ConversationSnapshot) bool {
-		return activityByItem(s, "ao-review-r1").Status == domain.ActivityStatusCompleted
+		return activityByItem(s, "kennel-review-r1").Status == domain.ActivityStatusCompleted
 	})
-	row := activityByItem(snapshot, "ao-review-r1")
+	row := activityByItem(snapshot, "kennel-review-r1")
 	if row.Kind != domain.ActivityKindAutoReview {
 		t.Fatalf("kind = %q, want %q", row.Kind, domain.ActivityKindAutoReview)
 	}

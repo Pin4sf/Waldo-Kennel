@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const testAppRunID = "app-run-current"

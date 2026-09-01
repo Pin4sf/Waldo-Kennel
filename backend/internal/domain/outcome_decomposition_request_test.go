@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 var requestNow = time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)

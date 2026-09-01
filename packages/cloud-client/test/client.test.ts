@@ -353,7 +353,7 @@ describe("CloudClient", () => {
     });
   });
 
-  it("reads normalized pull requests and AO review state for a session", async () => {
+  it("reads normalized pull requests and Kennel review state for a session", async () => {
     const pullRequest = {
       url: "github://o/r/pull/7",
       number: 7,

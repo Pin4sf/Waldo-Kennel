@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 func TestNotificationStore_InsertListAndDedupe(t *testing.T) {

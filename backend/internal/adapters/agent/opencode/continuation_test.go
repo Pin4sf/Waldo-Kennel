@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestContinuationCapabilitiesAreProviderAssigned(t *testing.T) {
@@ -130,7 +130,7 @@ func TestProbeNativeSession(t *testing.T) {
 		{name: "active session resumes", sessionID: "ses_live", configDir: dir, want: ports.NativeSessionAvailabilityAvailable},
 		{name: "archived session is not resumable", sessionID: "ses_archived", configDir: dir, want: ports.NativeSessionAvailabilityUnavailable},
 		{name: "absent session is authoritative", sessionID: "ses_missing", configDir: dir, want: ports.NativeSessionAvailabilityUnavailable},
-		// Everything AO cannot prove stays Unknown: Unavailable would make the
+		// Everything Kennel cannot prove stays Unknown: Unavailable would make the
 		// switch path discard a resume handle that may still be good.
 		{name: "missing state file is unknown", sessionID: "ses_live", configDir: t.TempDir(), want: ports.NativeSessionAvailabilityUnknown},
 		{name: "no config dir is unknown", sessionID: "ses_live", configDir: "", want: ports.NativeSessionAvailabilityUnknown},

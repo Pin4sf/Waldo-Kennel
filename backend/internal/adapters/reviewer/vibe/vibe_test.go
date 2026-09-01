@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func testReviewer(t *testing.T, version, help string) *Reviewer {
@@ -35,13 +35,13 @@ func invocation(t *testing.T) ports.ReviewInvocation {
 	t.Helper()
 	root := t.TempDir()
 	return ports.ReviewInvocation{
-		DataDir:         filepath.Join(root, "ao-data"),
+		DataDir:         filepath.Join(root, "kennel-data"),
 		ReviewerID:      "review-worker-1",
 		WorkerSessionID: "worker-1",
 		WorkspacePath:   filepath.Join(root, "checkout"),
 		TaskPromptRoot:  filepath.Join(root, "prompts"),
 		TaskPromptFile:  filepath.Join(root, "prompts", "task.md"),
-		Prompt:          "Open AO task capability `task-ref-7f18`.",
+		Prompt:          "Open Kennel task capability `task-ref-7f18`.",
 	}
 }
 
@@ -60,7 +60,7 @@ func TestReviewCommandLaunchesHostTrustedPlanTUI(t *testing.T) {
 		t.Fatalf("ReviewCommand spec = %+v, want argv %#v", spec, want)
 	}
 	if spec.Env["VIBE_HOME"] != filepath.Join(inv.DataDir, "reviewer-runtime", inv.ReviewerID, "config") || spec.Env["KENNEL_DATA_DIR"] != inv.DataDir {
-		t.Fatalf("AO-owned Vibe profile = %#v", spec.Env)
+		t.Fatalf("Kennel-owned Vibe profile = %#v", spec.Env)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

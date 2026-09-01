@@ -18,8 +18,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // ErrInvalid and ErrNotFound let the transport layer map failures to 422/404.

@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestManifest(t *testing.T) {
@@ -104,7 +104,7 @@ func TestGetLaunchCommandOmitsBlankConfiguredModel(t *testing.T) {
 }
 
 // TestGetLaunchCommandPermissionModesEmitNoFlag documents that Auggie has no
-// blanket auto-approve flag, so every AO permission mode produces the same argv
+// blanket auto-approve flag, so every Kennel permission mode produces the same argv
 // (no permission flag) and defers to the user's Auggie config.
 func TestGetLaunchCommandPermissionModesEmitNoFlag(t *testing.T) {
 	modes := []ports.PermissionMode{

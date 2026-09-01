@@ -1,5 +1,5 @@
 /**
- * Terminal control sequences projected into readable text for AO's desktop and
+ * Terminal control sequences projected into readable text for Kennel's desktop and
  * mobile Chat timelines. This deliberately is not a terminal emulator: colour
  * is discarded, while carriage-return and backspace overwrites are applied so
  * progress output resembles the final line a terminal displayed.

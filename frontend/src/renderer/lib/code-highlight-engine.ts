@@ -7,7 +7,7 @@
  *
  * The list is what coding agents actually emit, not what highlight.js offers.
  * Adding a grammar is a bundle decision — `common` (37 languages) is roughly
- * four times this set, for languages that will not appear in an AO session.
+ * four times this set, for languages that will not appear in an Kennel session.
  */
 
 import { createLowlight } from "lowlight";

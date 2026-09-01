@@ -126,7 +126,7 @@ export function groupSessions(
  *
  * Two earlier versions of this were stricter and both hid too much. Comparing
  * against the SESSION ID stopped making sense once titles came from `issueId`,
- * because the id then appeared nowhere on the card. And normalising away AO's
+ * because the id then appeared nowhere on the card. And normalising away Kennel's
  * own `ao/<id>/root` scaffolding hid the branch on every unnamed session — but
  * that string is the worktree, it is the only place the card names it, and
  * desktop shows it. Only a branch that genuinely restates the title is dropped.

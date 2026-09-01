@@ -92,7 +92,7 @@ binary_name="ao${goexe}"
 binary_path="${build_dir}/${binary_name}"
 
 mkdir -p "${build_dir}"
-(cd "${backend_dir}" && go build -o "${binary_path}" ./cmd/ao)
+(cd "${backend_dir}" && go build -o "${binary_path}" ./cmd/kennel)
 
 if ! install_dir="$(select_install_dir)"; then
   printf 'Could not find a writable directory on PATH for ao\n' >&2

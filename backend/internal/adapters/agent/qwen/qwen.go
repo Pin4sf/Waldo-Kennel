@@ -6,14 +6,14 @@
 // it inherits gemini-cli-shaped flags: `-p/--prompt` (or a positional prompt)
 // for the headless one-shot prompt, `--approval-mode
 // {plan,default,auto-edit,auto,yolo}` for permissions, and `-r/--resume <id>` to
-// continue a specific session. AO starts prompted worker sessions through Qwen's
+// continue a specific session. Kennel starts prompted worker sessions through Qwen's
 // documented `--input-file` remote-input bridge, which submits the task into the
 // interactive TUI after Qwen reports session_start; this avoids Qwen's
 // non-interactive approval behavior in `-p` mode and avoids a blind terminal
 // Enter race. Qwen also has a native Claude-Code-shaped hook system configured
 // in `.qwen/settings.json` (top-level "hooks" key, event arrays of matcher
 // groups with command hooks), and emits a `session_id` in every hook payload —
-// so AO captures native session identity and activity from those hooks rather
+// so Kennel captures native session identity and activity from those hooks rather
 // than from transcript/cache scans.
 package qwen
 
@@ -29,11 +29,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Plugin is the Qwen Code agent adapter. It is safe for concurrent use; the
@@ -163,7 +163,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 }
 
 // Qwen Code's append-system-prompt flag accepts inline text only. The manager
-// normally supplies both inline text and an AO-owned file; if only the file is
+// normally supplies both inline text and an Kennel-owned file; if only the file is
 // present, read it and pass the contents inline.
 func launchSystemPromptText(cfg ports.LaunchConfig) (string, error) {
 	return systemPromptTextFrom(cfg.SystemPrompt, cfg.SystemPromptFile)
@@ -180,7 +180,7 @@ func systemPromptTextFrom(inline, file string) (string, error) {
 	if file == "" {
 		return "", nil
 	}
-	data, err := os.ReadFile(file) //nolint:gosec // path is AO-owned launch config
+	data, err := os.ReadFile(file) //nolint:gosec // path is Kennel-owned launch config
 	if err != nil {
 		return "", fmt.Errorf("qwen: read system prompt file: %w", err)
 	}
@@ -232,7 +232,7 @@ func (p *Plugin) qwenBinary(ctx context.Context) (string, error) {
 	return binary, nil
 }
 
-// appendApprovalFlags maps AO's four permission modes onto Qwen Code's
+// appendApprovalFlags maps Kennel's four permission modes onto Qwen Code's
 // `--approval-mode` choices (plan|default|auto-edit|auto|yolo). Default emits no
 // flag so Qwen resolves its starting mode from the user's own config.
 func appendApprovalFlags(cmd *[]string, permissions ports.PermissionMode) {

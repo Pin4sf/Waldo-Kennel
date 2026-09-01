@@ -15,9 +15,9 @@ import (
 	openapi "github.com/swaggest/openapi-go"
 	"github.com/swaggest/openapi-go/openapi31"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/controllers"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/envelope"
+	projectsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
 )
 
 // Build reflects the Go contract types and the operation registry below into
@@ -72,13 +72,13 @@ func Build() ([]byte, error) {
 		*(&openapi31.Tag{Name: "intakes"}).WithDescription(
 			"Shared Home and Work adaptive intake plus explicit responsibility lineage"),
 		*(&openapi31.Tag{Name: "usage"}).WithDescription(
-			"Token usage telemetry for AO sessions"),
+			"Token usage telemetry for Kennel sessions"),
 		*(&openapi31.Tag{Name: "push"}).WithDescription(
 			"Mobile push-device registration for OS push notifications"),
 		*(&openapi31.Tag{Name: "events"}).WithDescription(
 			"Server-sent CDC event stream with durable replay"),
 		*(&openapi31.Tag{Name: "import"}).WithDescription(
-			"Legacy AO project import (availability probe and run)"),
+			"Legacy Kennel project import (availability probe and run)"),
 		*(&openapi31.Tag{Name: "dev"}).WithDescription(
 			"Developer-only maintenance operations"),
 		*(&openapi31.Tag{Name: "mobile"}).WithDescription(
@@ -1908,7 +1908,7 @@ func sessionOperations() []operation {
 		},
 		{
 			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/preview/server", id: "startSessionPreviewServer", tag: "sessions",
-			summary:    "Start a session-owned server from .ao/launch.json and open its application preview",
+			summary:    "Start a session-owned server from .kennel/launch.json and open its application preview",
 			pathParams: []any{controllers.SessionIDParam{}, controllers.BrowserCapabilityHeader{}},
 			reqBody:    controllers.StartPreviewServerRequest{},
 			resps: []respUnit{
@@ -2136,7 +2136,7 @@ func sessionOperations() []operation {
 		},
 		{
 			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/switch-agent", id: "switchSessionAgent", tag: "sessions",
-			summary:    "Switch a logical AO session to another agent harness",
+			summary:    "Switch a logical Kennel session to another agent harness",
 			pathParams: []any{controllers.SessionIDParam{}},
 			reqBody:    controllers.SwitchAgentRequest{},
 			resps: []respUnit{

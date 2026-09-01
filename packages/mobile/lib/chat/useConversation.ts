@@ -250,7 +250,7 @@ export function useMobileConversation(
 
 	const deliver = useCallback(
 		async (pending: PendingSend) => {
-			if (!cfg) throw new Error("No AO server configured");
+			if (!cfg) throw new Error("No Kennel server configured");
 			setPendingSends((old) => upsertPending(old, { ...pending, state: "sending", error: undefined }));
 			try {
 				await sendConversationMessage(cfg, sessionId, {
@@ -385,7 +385,7 @@ export function useMobileConversation(
 }
 
 async function requireConfig<T>(cfg: ServerConfig | null, action: (cfg: ServerConfig) => Promise<T>): Promise<T> {
-	if (!cfg) throw new Error("No AO server configured");
+	if (!cfg) throw new Error("No Kennel server configured");
 	return action(cfg);
 }
 

@@ -103,8 +103,8 @@ describe("app i18next instance", () => {
 		};
 		const english = createAppI18n("en", catalogs);
 		const chinese = createAppI18n("zh-CN", catalogs);
-		expect(english.t("proof.hello", { name: "AO", defaultValue: "proof.hello" })).toBe("Hello, AO!");
-		expect(chinese.t("proof.hello", { name: "AO", defaultValue: "proof.hello" })).toBe("你好，AO！");
+		expect(english.t("proof.hello", { name: "Kennel", defaultValue: "proof.hello" })).toBe("Hello, Kennel!");
+		expect(chinese.t("proof.hello", { name: "Kennel", defaultValue: "proof.hello" })).toBe("你好，Kennel！");
 		expect(english.t("proof.item", { count: 1, defaultValue: "proof.item" })).toBe("1 item");
 		expect(english.t("proof.item", { count: 2, defaultValue: "proof.item" })).toBe("2 items");
 		expect(chinese.t("proof.item", { count: 2, defaultValue: "proof.item" })).toBe("2 项");
@@ -134,7 +134,7 @@ describe("app i18next instance", () => {
 		expect(chinese.t("notify.loadingEarlier")).toBe("正在加载更早的通知…");
 		expect(chinese.t("notify.retry")).toBe("重试");
 		expect(chinese.t("report.cancel")).toBe("取消");
-		expect(chinese.t("shell.openProjectDashboard", { name: "AO" })).toBe("打开 AO 看板");
+		expect(chinese.t("shell.openProjectDashboard", { name: "Kennel" })).toBe("打开 Kennel 看板");
 		expect(chinese.t("shell.renameSession", { title: "任务" })).toBe("重命名任务");
 		expect(chinese.t("shell.versionReady", { version: "9.9.9" })).toBe("v9.9.9 已就绪");
 		expect(chinese.t("pr.unresolvedComments", { count: 2, name: "小明" })).toBe("小明有 2 条未解决的评论");
@@ -173,10 +173,10 @@ describe("app i18next instance", () => {
 		}
 	});
 
-	it("does not expose the inherited AO brand in user-facing locale catalogs", () => {
+	it("does not expose the inherited Kennel brand in user-facing locale catalogs", () => {
 		for (const locale of APP_LOCALES) {
 			for (const [key, message] of Object.entries(allCatalogs[locale])) {
-				expect(String(message), `${locale}.${key} still exposes AO`).not.toMatch(/\bAO\b/);
+				expect(String(message), `${locale}.${key} still exposes Kennel`).not.toMatch(/\bAO\b/);
 			}
 		}
 	});

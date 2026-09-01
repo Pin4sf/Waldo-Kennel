@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // LANManager owns the daemon's second, network-facing HTTP listener. It binds

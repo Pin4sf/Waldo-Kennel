@@ -1,7 +1,7 @@
 // Package notification exposes read-only notification DTOs for REST controllers.
 package notification
 
-import "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+import "github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 
 // TargetKind describes what a dashboard should navigate to for a notification.
 type TargetKind string
@@ -51,7 +51,7 @@ type ListPage struct {
 	NextCursor    string
 	// UnreadCount is the unseen badge count; UnresolvedCount is how many issues
 	// are still open. They are independent: a notification the user has already
-	// seen stays counted as unresolved until AO closes it.
+	// seen stays counted as unresolved until Kennel closes it.
 	UnreadCount     int
 	UnresolvedCount int
 }

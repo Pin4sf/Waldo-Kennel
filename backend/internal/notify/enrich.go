@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 func enrich(intent Intent) (domain.NotificationRecord, error) {

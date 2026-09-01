@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestManifest(t *testing.T) {
@@ -229,7 +229,7 @@ func TestGetLaunchCommandBuildsCustomAgentForSystemPrompt(t *testing.T) {
 	cmd, err := p.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Permissions:      ports.PermissionModeAuto,
 		Prompt:           "add a health check",
-		SystemPrompt:     "follow AO rules",
+		SystemPrompt:     "follow Kennel rules",
 		SystemPromptFile: promptFile,
 		WorkspacePath:    workspace,
 	})
@@ -238,22 +238,22 @@ func TestGetLaunchCommandBuildsCustomAgentForSystemPrompt(t *testing.T) {
 	}
 
 	addDir := filepath.Join(filepath.Dir(promptFile), "vibe")
-	want := []string{"vibe", "--trust", "--workdir", workspace, "--add-dir", addDir, "--agent", "ao-system-prompt", "--auto-approve", "--", "add a health check"}
+	want := []string{"vibe", "--trust", "--workdir", workspace, "--add-dir", addDir, "--agent", "kennel-system-prompt", "--auto-approve", "--", "add a health check"}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
 	}
-	promptData, err := os.ReadFile(filepath.Join(addDir, ".vibe", "prompts", "ao-system-prompt.md"))
+	promptData, err := os.ReadFile(filepath.Join(addDir, ".vibe", "prompts", "kennel-system-prompt.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(promptData) != "follow AO rules\n" {
+	if string(promptData) != "follow Kennel rules\n" {
 		t.Fatalf("prompt file = %q, want inline rules", promptData)
 	}
-	agentData, err := os.ReadFile(filepath.Join(addDir, ".vibe", "agents", "ao-system-prompt.toml"))
+	agentData, err := os.ReadFile(filepath.Join(addDir, ".vibe", "agents", "kennel-system-prompt.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(agentData), `system_prompt_id = "ao-system-prompt"`) {
+	if !strings.Contains(string(agentData), `system_prompt_id = "kennel-system-prompt"`) {
 		t.Fatalf("agent config missing prompt id:\n%s", agentData)
 	}
 }
@@ -274,11 +274,11 @@ func TestGetLaunchCommandBuildsCustomAgentForModelOnly(t *testing.T) {
 	}
 
 	addDir := filepath.Join(dataDir, "prompts", "mer-1", "vibe")
-	want := []string{"vibe", "--trust", "--workdir", workspace, "--add-dir", addDir, "--agent", "ao-system-prompt", "--", "add a health check"}
+	want := []string{"vibe", "--trust", "--workdir", workspace, "--add-dir", addDir, "--agent", "kennel-system-prompt", "--", "add a health check"}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
 	}
-	agentData, err := os.ReadFile(filepath.Join(addDir, ".vibe", "agents", "ao-system-prompt.toml"))
+	agentData, err := os.ReadFile(filepath.Join(addDir, ".vibe", "agents", "kennel-system-prompt.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +340,7 @@ func TestGetLaunchCommandWritesExactModelTOML(t *testing.T) {
 	got := readVibeAgentConfig(t, filepath.Join(dataDir, "prompts", "mer-1", "vibe"))
 	want := strings.Join([]string{
 		`agent_type = "agent"`,
-		`display_name = "AO Session"`,
+		`display_name = "Kennel Session"`,
 		`description = "Kennel session standing instructions."`,
 		`safety = "neutral"`,
 		`active_model = "mistral\n\u0007\u007F"`,
@@ -359,7 +359,7 @@ func TestGetLaunchCommandBuildsCustomAgentForSystemPromptAndModel(t *testing.T) 
 		Config:           ports.AgentConfig{Model: `mistral "medium" \ latest`},
 		Permissions:      ports.PermissionModeAuto,
 		Prompt:           "add a health check",
-		SystemPrompt:     "follow AO rules",
+		SystemPrompt:     "follow Kennel rules",
 		SystemPromptFile: promptFile,
 		WorkspacePath:    workspace,
 	})
@@ -368,20 +368,20 @@ func TestGetLaunchCommandBuildsCustomAgentForSystemPromptAndModel(t *testing.T) 
 	}
 
 	addDir := filepath.Join(filepath.Dir(promptFile), "vibe")
-	want := []string{"vibe", "--trust", "--workdir", workspace, "--add-dir", addDir, "--agent", "ao-system-prompt", "--auto-approve", "--", "add a health check"}
+	want := []string{"vibe", "--trust", "--workdir", workspace, "--add-dir", addDir, "--agent", "kennel-system-prompt", "--auto-approve", "--", "add a health check"}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
 	}
-	agentData, err := os.ReadFile(filepath.Join(addDir, ".vibe", "agents", "ao-system-prompt.toml"))
+	agentData, err := os.ReadFile(filepath.Join(addDir, ".vibe", "agents", "kennel-system-prompt.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	wantConfig := strings.Join([]string{
 		`agent_type = "agent"`,
-		`display_name = "AO Session"`,
+		`display_name = "Kennel Session"`,
 		`description = "Kennel session standing instructions."`,
 		`safety = "neutral"`,
-		`system_prompt_id = "ao-system-prompt"`,
+		`system_prompt_id = "kennel-system-prompt"`,
 		`active_model = "mistral \"medium\" \\ latest"`,
 		"",
 	}, "\n")
@@ -436,7 +436,7 @@ func TestVibeAgentRootRequiresDataDirAndSessionIDForModelOnly(t *testing.T) {
 
 func readVibeAgentConfig(t *testing.T, addDir string) string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(addDir, ".vibe", "agents", "ao-system-prompt.toml"))
+	data, err := os.ReadFile(filepath.Join(addDir, ".vibe", "agents", "kennel-system-prompt.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,7 +461,7 @@ func TestGetLaunchCommandOmitsBlankModelWithoutCustomAgent(t *testing.T) {
 		t.Fatalf("cmd = %#v, want %#v", cmd, want)
 	}
 	addDir := filepath.Join(dataDir, "prompts", "mer-1", "vibe")
-	if _, err := os.Stat(filepath.Join(addDir, ".vibe", "agents", "ao-system-prompt.toml")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(addDir, ".vibe", "agents", "kennel-system-prompt.toml")); !os.IsNotExist(err) {
 		t.Fatalf("blank model wrote custom agent config at %s: %v", addDir, err)
 	}
 }
@@ -472,7 +472,7 @@ func TestGetLaunchCommandCustomAgentAcceptEdits(t *testing.T) {
 	workspace := t.TempDir()
 	cmd, err := p.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Permissions:      ports.PermissionModeAcceptEdits,
-		SystemPrompt:     "follow AO rules",
+		SystemPrompt:     "follow Kennel rules",
 		SystemPromptFile: promptFile,
 		WorkspacePath:    workspace,
 	})
@@ -481,11 +481,11 @@ func TestGetLaunchCommandCustomAgentAcceptEdits(t *testing.T) {
 	}
 
 	addDir := filepath.Join(filepath.Dir(promptFile), "vibe")
-	want := []string{"vibe", "--trust", "--workdir", workspace, "--add-dir", addDir, "--agent", "ao-system-prompt"}
+	want := []string{"vibe", "--trust", "--workdir", workspace, "--add-dir", addDir, "--agent", "kennel-system-prompt"}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
 	}
-	agentData, err := os.ReadFile(filepath.Join(addDir, ".vibe", "agents", "ao-system-prompt.toml"))
+	agentData, err := os.ReadFile(filepath.Join(addDir, ".vibe", "agents", "kennel-system-prompt.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -590,7 +590,7 @@ func TestGetRestoreCommandReappliesSystemPromptAgent(t *testing.T) {
 	workspace := t.TempDir()
 	cmd, ok, err := p.GetRestoreCommand(context.Background(), ports.RestoreConfig{
 		Permissions:      ports.PermissionModeAuto,
-		SystemPrompt:     "restore AO rules",
+		SystemPrompt:     "restore Kennel rules",
 		SystemPromptFile: promptFile,
 		Session: ports.SessionRef{
 			WorkspacePath: workspace,
@@ -605,7 +605,7 @@ func TestGetRestoreCommandReappliesSystemPromptAgent(t *testing.T) {
 	}
 
 	addDir := filepath.Join(filepath.Dir(promptFile), "vibe")
-	want := []string{"vibe", "--trust", "--workdir", workspace, "--add-dir", addDir, "--agent", "ao-system-prompt", "--auto-approve", "--resume", "abcd1234"}
+	want := []string{"vibe", "--trust", "--workdir", workspace, "--add-dir", addDir, "--agent", "kennel-system-prompt", "--auto-approve", "--resume", "abcd1234"}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("cmd = %#v, want %#v", cmd, want)
 	}
@@ -633,11 +633,11 @@ func TestGetRestoreCommandBuildsCustomAgentForModelOnly(t *testing.T) {
 	}
 
 	addDir := filepath.Join(dataDir, "prompts", "mer-1", "vibe")
-	want := []string{"vibe", "--trust", "--workdir", workspace, "--add-dir", addDir, "--agent", "ao-system-prompt", "--auto-approve", "--resume", "abcd1234"}
+	want := []string{"vibe", "--trust", "--workdir", workspace, "--add-dir", addDir, "--agent", "kennel-system-prompt", "--auto-approve", "--resume", "abcd1234"}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("cmd = %#v, want %#v", cmd, want)
 	}
-	agentData, err := os.ReadFile(filepath.Join(addDir, ".vibe", "agents", "ao-system-prompt.toml"))
+	agentData, err := os.ReadFile(filepath.Join(addDir, ".vibe", "agents", "kennel-system-prompt.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -692,11 +692,11 @@ func TestGetAgentHooksInstallsManagedHooksWithoutChangingConfig(t *testing.T) {
 	body := string(hooks)
 	for _, want := range []string{
 		"user-command",
-		`name = "ao-session-metadata"`,
+		`name = "kennel-session-metadata"`,
 		`type = "post_agent"`,
-		`name = "ao-pre-tool"`,
+		`name = "kennel-pre-tool"`,
 		`type = "pre_tool"`,
-		`name = "ao-post-tool"`,
+		`name = "kennel-post-tool"`,
 		`type = "post_tool"`,
 		`match = "*"`,
 		`command = "kennel hooks vibe post-agent"`,

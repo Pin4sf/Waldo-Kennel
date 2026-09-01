@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Cline's hook system is git-style: each lifecycle hook is an executable script
@@ -17,37 +17,37 @@ import (
 // after the hook event (no extension), reading a JSON payload on stdin and
 // writing a JSON result on stdout (see docs.cline.bot hooks reference).
 //
-// AO installs one wrapper script per managed event. Each script forwards the
+// Kennel installs one wrapper script per managed event. Each script forwards the
 // hook payload to `kennel hooks cline <subcommand>` and emits the no-op
 // continuation result Cline expects. Scripts carry a marker line so install is
-// idempotent and uninstall recognizes AO-owned scripts without an embedded
+// idempotent and uninstall recognizes Kennel-owned scripts without an embedded
 // template to diff against; user-authored hooks (lacking the marker) are never
 // touched.
 const (
 	clineHooksDirName = ".clinerules"
 	clineHooksSubDir  = "hooks"
 
-	// clineHookCommandPrefix identifies the hook commands AO owns. The CLI hook
+	// clineHookCommandPrefix identifies the hook commands Kennel owns. The CLI hook
 	// dispatcher routes "kennel hooks cline <subcommand>" to DeriveActivityState.
 	clineHookCommandPrefix = "kennel hooks cline "
 
-	// clineHookMarker tags AO-generated hook scripts so install/uninstall can
+	// clineHookMarker tags Kennel-generated hook scripts so install/uninstall can
 	// distinguish them from user-authored Cline hooks in the same directory.
 	clineHookMarker = "# ao-managed-cline-hook"
 )
 
-// clineHookSpec describes one hook AO installs: the native Cline hook event
-// (used as the script's filename) and the AO sub-command its wrapper forwards
+// clineHookSpec describes one hook Kennel installs: the native Cline hook event
+// (used as the script's filename) and the Kennel sub-command its wrapper forwards
 // to (used by DeriveActivityState).
 type clineHookSpec struct {
 	// Event is the native Cline hook name, which is also the script filename.
 	Event string
-	// Subcommand is the fixed AO hook sub-command name the wrapper invokes.
+	// Subcommand is the fixed Kennel hook sub-command name the wrapper invokes.
 	Subcommand string
 }
 
-// clineManagedHooks is the source of truth for the hooks AO installs. The
-// native Cline events are mapped onto AO's fixed sub-command names so activity
+// clineManagedHooks is the source of truth for the hooks Kennel installs. The
+// native Cline events are mapped onto Kennel's fixed sub-command names so activity
 // derivation stays uniform across adapters:
 //   - TaskStart        -> session-start       (a new task begins: active)
 //   - UserPromptSubmit -> user-prompt-submit  (user message submitted: active)
@@ -60,9 +60,9 @@ var clineManagedHooks = []clineHookSpec{
 	{Event: "TaskCancel", Subcommand: "stop"},
 }
 
-// GetAgentHooks installs AO's Cline hook scripts into the worktree-local
+// GetAgentHooks installs Kennel's Cline hook scripts into the worktree-local
 // `.clinerules/hooks/` directory. Existing user-authored hook scripts are
-// preserved, and re-running install simply rewrites AO-owned scripts in place.
+// preserved, and re-running install simply rewrites Kennel-owned scripts in place.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -76,7 +76,7 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 		return fmt.Errorf("cline.GetAgentHooks: create hook dir: %w", err)
 	}
 
-	// Only scripts AO actually wrote go into the workspace .gitignore: a
+	// Only scripts Kennel actually wrote go into the workspace .gitignore: a
 	// user-authored script at one of these paths must keep counting as dirt so
 	// workspace teardown preserves it.
 	written := make([]string, 0, len(clineManagedHooks))
@@ -98,7 +98,7 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 	return nil
 }
 
-// UninstallHooks removes AO's Cline hook scripts from the workspace-local
+// UninstallHooks removes Kennel's Cline hook scripts from the workspace-local
 // `.clinerules/hooks/` directory, leaving user-authored hooks untouched. A
 // missing directory is a no-op.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
@@ -126,7 +126,7 @@ func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error
 	return nil
 }
 
-// AreHooksInstalled reports whether any AO Cline hook script is present in the
+// AreHooksInstalled reports whether any Kennel Cline hook script is present in the
 // workspace-local hooks directory. A missing directory means none.
 func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (bool, error) {
 	if err := ctx.Err(); err != nil {
@@ -155,14 +155,14 @@ func clineHooksDir(workspacePath string) string {
 }
 
 // renderClineHookScript builds an executable wrapper that forwards the Cline
-// hook payload (JSON on stdin) to the AO CLI hook dispatcher and prints the
+// hook payload (JSON on stdin) to the Kennel CLI hook dispatcher and prints the
 // no-op continuation result Cline expects ({"cancel": false}). The marker line
-// identifies it as AO-owned.
+// identifies it as Kennel-owned.
 func renderClineHookScript(subcommand string) string {
 	var b strings.Builder
 	b.WriteString("#!/usr/bin/env bash\n")
 	b.WriteString(clineHookMarker + "\n")
-	// Forward stdin to the AO dispatcher; ignore its exit code so a missing/old
+	// Forward stdin to the Kennel dispatcher; ignore its exit code so a missing/old
 	// `ao` binary can never block Cline's own execution.
 	b.WriteString(clineHookCommandPrefix + subcommand + " || true\n")
 	// Cline requires a JSON result on stdout; never block the agent.

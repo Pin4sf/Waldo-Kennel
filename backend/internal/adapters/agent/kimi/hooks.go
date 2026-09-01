@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
@@ -22,11 +22,11 @@ const (
 	kimiHooksSentinelEnd   = "# /managed by agent-orchestrator: kimi hooks"
 )
 
-// GetAgentHooks installs AO's standing system prompt through Kimi's
+// GetAgentHooks installs Kennel's standing system prompt through Kimi's
 // project-level instruction file. Kimi has no system-prompt argv flag, and its
-// user-level config lives outside AO's data dir, so a gitignored worktree-local
+// user-level config lives outside Kennel's data dir, so a gitignored worktree-local
 // instruction file is the least invasive session-scoped injection point. It
-// also installs Kimi lifecycle hooks into the Kennel-managed Kimi config so AO can
+// also installs Kimi lifecycle hooks into the Kennel-managed Kimi config so Kennel can
 // capture Kimi's native session id for true resume without mutating the user's
 // global Kimi profile.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
@@ -122,7 +122,7 @@ func seedKimiCredentials(targetHome string) error {
 	if !ok || status != ports.AgentAuthStatusAuthorized {
 		return nil
 	}
-	data, err := os.ReadFile(sourcePath) //nolint:gosec // user Kimi credentials copied into AO's isolated Kimi home.
+	data, err := os.ReadFile(sourcePath) //nolint:gosec // user Kimi credentials copied into Kennel's isolated Kimi home.
 	if err != nil {
 		return fmt.Errorf("read source Kimi credentials %s: %w", sourcePath, err)
 	}
@@ -283,7 +283,7 @@ func kimiSystemPromptText(inline, file string) (string, error) {
 	if strings.TrimSpace(file) == "" {
 		return "", nil
 	}
-	data, err := os.ReadFile(file) //nolint:gosec // path is AO-owned launch config
+	data, err := os.ReadFile(file) //nolint:gosec // path is Kennel-owned launch config
 	if err != nil {
 		return "", fmt.Errorf("read system prompt file: %w", err)
 	}
@@ -308,7 +308,7 @@ func mergeKimiInstructionFile(existing, systemPrompt string) string {
 	endRel := strings.Index(afterStart, kimiInstructionsEnd)
 	if endRel < 0 {
 		// Older Kennel-managed files did not have an end marker. Treat the marker as
-		// owning the rest of the file so stale AO instructions are replaced.
+		// owning the rest of the file so stale Kennel instructions are replaced.
 		return joinKimiInstructionParts(existing[:start], block, "")
 	}
 

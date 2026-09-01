@@ -1,4 +1,4 @@
-// Package kiro adapts Kiro's interactive terminal UI for AO code reviews.
+// Package kiro adapts Kiro's interactive terminal UI for Kennel code reviews.
 package kiro
 
 import (
@@ -9,15 +9,15 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	workeragent "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/kiro"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	workeragent "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/kiro"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
-const reviewerAgentName = "ao-reviewer"
+const reviewerAgentName = "kennel-reviewer"
 
-// Reviewer is Kiro's AO code-review adapter.
+// Reviewer is Kiro's Kennel code-review adapter.
 type Reviewer struct {
 	resolveBinary func(context.Context) (string, error)
 }
@@ -40,8 +40,8 @@ func (*Reviewer) ReviewPromptReadinessHints(ctx context.Context) (ports.PromptRe
 }
 
 // ReviewCommand launches Kiro as a persistent interactive TUI. It deliberately
-// avoids positional input and --no-interactive; AO injects InitialMessage only
-// after the pane exists. The process cwd is an AO-owned empty directory, so
+// avoids positional input and --no-interactive; Kennel injects InitialMessage only
+// after the pane exists. The process cwd is an Kennel-owned empty directory, so
 // project .kiro agents, MCP config, hooks, steering, skills, and AGENTS.md are
 // not inherited. The generated custom agent admits read tools plus a
 // deny-by-default shell policy for review inspection/reporting only.
@@ -86,7 +86,7 @@ func writeReviewerAgent(reviewerDir string, inv ports.ReviewInvocation) error {
 	if inv.SystemPromptFile == "" || inv.WorkspacePath == "" {
 		return fmt.Errorf("kiro reviewer requires system prompt and workspace paths")
 	}
-	system, err := os.ReadFile(inv.SystemPromptFile) //nolint:gosec // AO-owned prompt path
+	system, err := os.ReadFile(inv.SystemPromptFile) //nolint:gosec // Kennel-owned prompt path
 	if err != nil {
 		return fmt.Errorf("read Kiro reviewer system prompt: %w", err)
 	}
@@ -98,7 +98,7 @@ func writeReviewerAgent(reviewerDir string, inv ports.ReviewInvocation) error {
 
 Kiro security and reporting rules:
 - Your process runs outside the checkout. Use the read, glob, and grep tools on the absolute worker checkout path from the task.
-- Shell is deny-by-default. Only the narrow git inspection and review-reporting command shapes configured by AO can run.
+- Shell is deny-by-default. Only the narrow git inspection and review-reporting command shapes configured by Kennel can run.
 - The supported git shell shapes are exactly: status with optional --short; diff with --no-ext-diff --no-textconv; log; and show. Additional arguments must be single whitespace-free refs, options, or paths. Filenames with spaces, extra shell quoting, compound commands, redirections, and complex ref expressions are intentionally unsupported; use read, glob, or grep instead.
 - For each JSON reporting body, base64-encode the UTF-8 JSON yourself and use the task's command with the JSON replaced by the base64 text: printf '%s' '<base64>' | base64 --decode | gh api ... or ... | kennel review submit .... Use base64 -D instead of --decode on systems that require it.
 - Never request or attempt any write, unrestricted shell, commit, push, extension, MCP server, skill, steering, or project agent resource.
@@ -109,7 +109,7 @@ Kiro security and reporting rules:
 
 	config := map[string]any{
 		"name":           reviewerAgentName,
-		"description":    "AO read-only code reviewer",
+		"description":    "Kennel read-only code reviewer",
 		"prompt":         "file://" + filepath.ToSlash(kiroSystemPath),
 		"mcpServers":     map[string]any{},
 		"includeMcpJson": false,

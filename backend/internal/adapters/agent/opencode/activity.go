@@ -1,8 +1,8 @@
 package opencode
 
-import "github.com/aoagents/agent-orchestrator/backend/internal/domain"
+import "github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 
-// DeriveActivityState maps an opencode plugin hook event onto an AO activity
+// DeriveActivityState maps an opencode plugin hook event onto an Kennel activity
 // state. The opencode plugin (assets/kennel-activity.ts) normalizes opencode's
 // native events to "session-start" / "user-prompt-submit" / "stop" before
 // invoking `kennel hooks opencode <event>`. The bool is false when the event

@@ -1,8 +1,8 @@
-// Package claudeacp binds Claude Code to AO's generic ACP Chat driver.
+// Package claudeacp binds Claude Code to Kennel's generic ACP Chat driver.
 //
-// AO ships the protocol adapter and its Node runtime, not Claude Code. The
+// Kennel ships the protocol adapter and its Node runtime, not Claude Code. The
 // adapter receives CLAUDE_CODE_EXECUTABLE pointing at the same user-installed
-// binary used by AO's existing TUI adapter, so login, subscription, settings,
+// binary used by Kennel's existing TUI adapter, so login, subscription, settings,
 // MCP configuration, hooks, and project instructions remain the user's own.
 package claudeacp
 
@@ -18,10 +18,10 @@ import (
 	"strconv"
 	"strings"
 
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	acpdriver "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/acp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 const minimumNodeMajor = 22
@@ -63,7 +63,7 @@ func New(plugin claudePlugin, log *slog.Logger) ports.ChatDriver {
 				return ports.ErrChatAuthRequired
 			}
 			if err != nil && log != nil {
-				// Unknown is not unauthorized. Match AO's runtime probe rule: an
+				// Unknown is not unauthorized. Match Kennel's runtime probe rule: an
 				// inconclusive local probe is not proof the session cannot run.
 				log.Debug("Claude auth probe inconclusive; continuing", "error", err)
 			}
@@ -86,7 +86,7 @@ func New(plugin claudePlugin, log *slog.Logger) ports.ChatDriver {
 				env[key] = value
 			}
 			// This is the line that prevents the adapter's optional native Claude
-			// package from becoming a second installation managed by AO.
+			// package from becoming a second installation managed by Kennel.
 			env["CLAUDE_CODE_EXECUTABLE"] = claudeBinary
 			return acpdriver.Launch{
 				Command: runtimeLaunch.command,
@@ -116,7 +116,7 @@ func claudeSessionMeta(cfg acpdriver.LaunchConfig) map[string]any {
 	if strings.TrimSpace(cfg.SystemPrompt) == "" {
 		return nil
 	}
-	// Append AO's standing instructions to Claude Code's own prompt. Replacing
+	// Append Kennel's standing instructions to Claude Code's own prompt. Replacing
 	// the preset would discard Claude's native coding/tool instructions.
 	return map[string]any{
 		"systemPrompt": map[string]any{
@@ -154,7 +154,7 @@ type runtimeLaunch struct {
 	args    []string
 }
 
-// resolveRuntime finds AO's packaged ACP runtime. Explicit command and path
+// resolveRuntime finds Kennel's packaged ACP runtime. Explicit command and path
 // overrides keep headless development/test installs usable without coupling the
 // backend to Electron's directory layout.
 func resolveRuntime(ctx context.Context) (runtimeLaunch, error) {
@@ -174,7 +174,7 @@ func resolveRuntime(ctx context.Context) (runtimeLaunch, error) {
 		runtimeDir = runtimeDirectoryBesideExecutable()
 	}
 	if runtimeDir == "" {
-		return runtimeLaunch{}, errors.New("AO ACP runtime is not installed")
+		return runtimeLaunch{}, errors.New("Kennel ACP runtime is not installed")
 	}
 	node := filepath.Join(runtimeDir, "node", "bin", "node")
 	if runtime.GOOS == "windows" {
@@ -222,9 +222,9 @@ func requireFile(path, label string) error {
 }
 
 func requireNodeVersion(ctx context.Context, node string) error {
-	// node is the explicit AO override or the validated executable inside AO's
+	// node is the explicit Kennel override or the validated executable inside Kennel's
 	// packaged resources, never prompt/provider input.
-	out, err := aoprocess.CommandContext(ctx, node, "--version").Output() //nolint:gosec // Resolved local executable, not provider input.
+	out, err := kennelprocess.CommandContext(ctx, node, "--version").Output() //nolint:gosec // Resolved local executable, not provider input.
 	if err != nil {
 		return fmt.Errorf("run packaged Node: %w", err)
 	}

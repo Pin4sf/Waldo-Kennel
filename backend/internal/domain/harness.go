@@ -102,7 +102,7 @@ func (h AgentHarness) IsSelectableAsCoordinator() bool {
 //
 // opencode declares continuation capabilities (provider-assigned ids learned
 // from its activity plugin), resolves the state root those ids live in, and
-// probes that state before AO reuses a resume handle, so a switch onto it
+// probes that state before Kennel reuses a resume handle, so a switch onto it
 // either continues a real conversation or truthfully starts fresh. It exposes
 // no per-session transcript file — history lives in its SQLite state — so the
 // switch records the source transcript as unavailable instead of inventing one.

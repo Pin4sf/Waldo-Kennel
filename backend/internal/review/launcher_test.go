@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	sessionmanager "github.com/Pin4sf/Waldo-Kennel/backend/internal/session_manager"
 )
 
 type fakeReviewer struct {
@@ -92,13 +92,13 @@ func TestLauncherSpawnPinsPATHToAOExecutable(t *testing.T) {
 
 	parts := strings.Split(rt.createCfg.Env["PATH"], string(os.PathListSeparator))
 	if len(parts) < 2 || parts[0] != aoDir || parts[1] != "/reviewer/bin" {
-		t.Fatalf("reviewer PATH = %q, want AO dir before adapter PATH", rt.createCfg.Env["PATH"])
+		t.Fatalf("reviewer PATH = %q, want Kennel dir before adapter PATH", rt.createCfg.Env["PATH"])
 	}
 }
 
 func TestLauncherSpawnCreatesAOShimWhenExecutableIsNotNamedAO(t *testing.T) {
 	dataDir := t.TempDir()
-	exe := filepath.Join(t.TempDir(), "ao-dev-daemon")
+	exe := filepath.Join(t.TempDir(), "kennel-dev-daemon")
 	reviewer := &fakeReviewer{env: map[string]string{"PATH": "/reviewer/bin"}}
 	rt := &fakeRuntime{}
 	l := NewLauncher(
@@ -123,10 +123,10 @@ func TestLauncherSpawnCreatesAOShimWhenExecutableIsNotNamedAO(t *testing.T) {
 	}
 	shim, err := os.ReadFile(shimPath)
 	if err != nil {
-		t.Fatalf("read AO shim: %v", err)
+		t.Fatalf("read Kennel shim: %v", err)
 	}
 	if !strings.Contains(string(shim), exe) {
-		t.Fatalf("AO shim = %q, want executable %q", shim, exe)
+		t.Fatalf("Kennel shim = %q, want executable %q", shim, exe)
 	}
 }
 
@@ -141,7 +141,7 @@ func TestLauncherSpawnWarnsWhenPATHPinAndShimFail(t *testing.T) {
 		WithExecutable(func() (string, error) {
 			calls++
 			if calls == 1 {
-				return filepath.Join(t.TempDir(), "ao-dev-daemon"), nil
+				return filepath.Join(t.TempDir(), "kennel-dev-daemon"), nil
 			}
 			return "", errors.New("executable unavailable")
 		}),
@@ -157,7 +157,7 @@ func TestLauncherSpawnWarnsWhenPATHPinAndShimFail(t *testing.T) {
 		t.Fatalf("PATH = %q, want original reviewer PATH", rt.createCfg.Env["PATH"])
 	}
 	warning := rt.createCfg.Env[EnvAOCommandWarning]
-	if !strings.Contains(warning, "PATH pin failed") || !strings.Contains(warning, "AO shim fallback failed") || !strings.Contains(warning, "executable unavailable") {
+	if !strings.Contains(warning, "PATH pin failed") || !strings.Contains(warning, "Kennel shim fallback failed") || !strings.Contains(warning, "executable unavailable") {
 		t.Fatalf("%s = %q, want combined PATH/shim warning", EnvAOCommandWarning, warning)
 	}
 }
@@ -520,7 +520,7 @@ func TestLauncherRestoreTerminalStartsIdlePane(t *testing.T) {
 		"verdict: changes_requested",
 		"GitHub review: 484",
 		"Fix the restore path.",
-		"Wait for AO to send the next review task",
+		"Wait for Kennel to send the next review task",
 	} {
 		if !strings.Contains(reviewer.gotInv.Prompt, want) {
 			t.Fatalf("restore prompt missing %q: %q", want, reviewer.gotInv.Prompt)
@@ -579,7 +579,7 @@ func TestLauncherRestoreTerminalUsesReviewerRestoreCommandWhenAvailable(t *testi
 	}
 	parts := strings.Split(rt.createCfg.Env["PATH"], string(os.PathListSeparator))
 	if len(parts) < 2 || parts[0] != aoDir || parts[1] != "/restore/bin" {
-		t.Fatalf("restore PATH = %q, want AO dir before restore command PATH", rt.createCfg.Env["PATH"])
+		t.Fatalf("restore PATH = %q, want Kennel dir before restore command PATH", rt.createCfg.Env["PATH"])
 	}
 	if rt.createCfg.Env[EnvRunFile] != runFile {
 		t.Fatalf("restore %s = %q, want %q", EnvRunFile, rt.createCfg.Env[EnvRunFile], runFile)

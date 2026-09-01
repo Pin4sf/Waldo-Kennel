@@ -3,12 +3,12 @@ package httpd
 import (
 	"net/http"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/presence"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/presence"
 )
 
 // InstallIDHeader carries the mobile app's stable per-install identifier. The
 // phone sets it on every request; the desktop renderer never does.
-const InstallIDHeader = "X-AO-Install-Id"
+const InstallIDHeader = "X-Kennel-Install-Id"
 
 // presenceMiddleware records each request's install id so the roster can report
 // which phones are running the app right now. It never rejects a request: an

@@ -1,13 +1,13 @@
 // Package copilot adapts the GitHub Copilot CLI worker for persistent,
-// restricted AO code-review sessions.
+// restricted Kennel code-review sessions.
 package copilot
 
 import (
 	"context"
 
-	workeragent "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/copilot"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workeragent "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/copilot"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const availableTools = "bash,view,grep,glob"
@@ -59,7 +59,7 @@ func (r *Reviewer) Harness() domain.ReviewerHarness {
 var _ ports.Reviewer = (*Reviewer)(nil)
 var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 
-// PreLaunch installs only the AO-owned custom-agent profile. Reviewer panes do
+// PreLaunch installs only the Kennel-owned custom-agent profile. Reviewer panes do
 // not use worker lifecycle hooks, so this must not create .github/hooks/kennel.json.
 func (r *Reviewer) PreLaunch(ctx context.Context, inv ports.ReviewInvocation) error {
 	return r.agent.InstallAgentProfile(ctx, ports.WorkspaceHookConfig{

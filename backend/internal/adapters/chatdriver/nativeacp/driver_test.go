@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	acpdriver "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/acp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type fakePlugin struct {
@@ -39,7 +39,7 @@ func TestBindingLaunchesExactUserInstalledBinary(t *testing.T) {
 	launch, err := cfg.Launch(context.Background(), acpdriver.LaunchConfig{
 		SessionID: "session-1", DataDir: "/ao", WorkspacePath: "/worktree",
 		Env: map[string]string{"PATH": "/user/bin", "KEEP": "yes"}, Model: "provider/model",
-		Permissions: ports.PermissionModeAcceptEdits, SystemPrompt: "AO rules",
+		Permissions: ports.PermissionModeAcceptEdits, SystemPrompt: "Kennel rules",
 	})
 	if err != nil {
 		t.Fatalf("Launch: %v", err)
@@ -56,7 +56,7 @@ func TestBindingLaunchesExactUserInstalledBinary(t *testing.T) {
 	}
 	if configured.DataDir != "/ao" || configured.WorkspacePath != "/worktree" ||
 		configured.Model != "provider/model" || configured.Permissions != ports.PermissionModeAcceptEdits ||
-		configured.SystemPrompt != "AO rules" || configured.SessionID != "session-1" {
+		configured.SystemPrompt != "Kennel rules" || configured.SessionID != "session-1" {
 		t.Fatalf("configure input = %#v", configured)
 	}
 	for _, capability := range []ports.ChatCapability{

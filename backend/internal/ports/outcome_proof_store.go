@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 // OutcomeProofStore is the append-only durability boundary for Work E. It is

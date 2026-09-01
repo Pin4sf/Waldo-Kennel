@@ -1951,7 +1951,7 @@ export interface paths {
         /** Get the managed preview server status for a session */
         get: operations["getSessionPreviewServer"];
         put?: never;
-        /** Start a session-owned server from .ao/launch.json and open its application preview */
+        /** Start a session-owned server from .kennel/launch.json and open its application preview */
         post: operations["startSessionPreviewServer"];
         /** Stop the managed preview server for a session */
         delete: operations["stopSessionPreviewServer"];

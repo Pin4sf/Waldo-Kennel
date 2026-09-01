@@ -45,7 +45,7 @@ func newPreviewCommand(ctx *commandContext) *cobra.Command {
 		Long: "Open a URL in the desktop browser panel for the current session.\n\n" +
 			"With no argument it opens the workspace's static entry point, falling\n" +
 			"back to this session's existing preview target when no entry point exists.\n" +
-			"A workspace-relative Markdown or HTML path opens through AO's isolated\n" +
+			"A workspace-relative Markdown or HTML path opens through Kennel's isolated\n" +
 			"file preview. Use `kennel preview start` for a configured dev server and\n" +
 			"`kennel preview clear` to empty the panel.",
 		Example: `  kennel preview
@@ -76,7 +76,7 @@ func newPreviewCommand(ctx *commandContext) *cobra.Command {
 	var startJSON bool
 	startCmd := &cobra.Command{
 		Use:   "start [configuration]",
-		Short: "Start a session-owned dev server from .ao/launch.json and open its preview",
+		Short: "Start a session-owned dev server from .kennel/launch.json and open its preview",
 		Args:  atMostOneArg,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			configuration := ""
@@ -148,7 +148,7 @@ func (c *commandContext) clearPreview(ctx context.Context) error {
 func sessionPreviewPath() (string, error) {
 	sessionID := strings.TrimSpace(os.Getenv("KENNEL_SESSION_ID"))
 	if sessionID == "" {
-		return "", usageError{errors.New("kennel preview must run inside an AO session (KENNEL_SESSION_ID is not set)")}
+		return "", usageError{errors.New("kennel preview must run inside an Kennel session (KENNEL_SESSION_ID is not set)")}
 	}
 	// PathEscape: session ids are already "-"/digit safe, but keep the URL
 	// well-formed regardless.

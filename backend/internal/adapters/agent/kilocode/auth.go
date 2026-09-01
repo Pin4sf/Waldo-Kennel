@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 
 	_ "modernc.org/sqlite" // register sqlite driver for KiloCode auth database probes
 )
@@ -34,7 +34,7 @@ func (p *Plugin) AuthStatus(ctx context.Context) (ports.AgentAuthStatus, error) 
 
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	out, err := aoprocess.CommandContext(probeCtx, binary, "auth", "list").CombinedOutput()
+	out, err := kennelprocess.CommandContext(probeCtx, binary, "auth", "list").CombinedOutput()
 	if probeCtx.Err() != nil {
 		return ports.AgentAuthStatusUnknown, probeCtx.Err()
 	}

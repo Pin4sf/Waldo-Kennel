@@ -15,7 +15,7 @@ import (
 
 	"github.com/pressly/goose/v3"
 
-	sqlitestore "github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/store"
+	sqlitestore "github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/store"
 
 	// modernc.org/sqlite is the pure-Go (CGO-free) SQLite driver — chosen so the
 	// daemon cross-compiles and ships as a static binary with no libsqlite/CGO
@@ -296,8 +296,8 @@ BEGIN SELECT RAISE(ABORT, 'correction decision lineage mismatch'); END;
 
 // reconcileProjectChatProjection repairs the one known cross-repository Goose
 // version collision. Kennel merged its project-chat projection as 0098 before
-// AO assigned the same number to session_native_identity_generation. An
-// AO-derived database can therefore legitimately contain version 98 without
+// Kennel assigned the same number to session_native_identity_generation. An
+// Kennel-derived database can therefore legitimately contain version 98 without
 // these triggers, causing Goose to skip Kennel's file. The physical trigger
 // seam is unambiguous and CREATE TRIGGER IF NOT EXISTS is idempotent, so startup
 // reconciles the missing behavior without rewriting either shipped ledger.

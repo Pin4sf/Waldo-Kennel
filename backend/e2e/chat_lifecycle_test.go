@@ -12,7 +12,7 @@ import (
 //
 // Daemons get restarted, laptops sleep, agents crash. The promise chat mode makes
 // is that a restart is not a data-loss event: the conversation is the provider's
-// and AO reattaches to it, rather than replaying a transcript at a fresh agent and
+// and Kennel reattaches to it, rather than replaying a transcript at a fresh agent and
 // hoping it looks the same.
 
 func TestChatSurvivesADaemonRestartWithNativeContext(t *testing.T) {
@@ -50,7 +50,7 @@ func TestChatSurvivesADaemonRestartWithNativeContext(t *testing.T) {
 	}
 
 	// The real claim: the provider still holds the model context, so the agent can
-	// answer from the earlier turn without AO replaying anything. If AO were
+	// answer from the earlier turn without Kennel replaying anything. If Kennel were
 	// reconstructing context from its own rows, this is where it would show.
 	send(t, restarted, session, "What number did I ask you to remember? Reply with just the number.", "recall")
 	recalled := restarted.awaitConversation(session, 3*time.Minute, "the recall answer",
@@ -102,7 +102,7 @@ func TestChatRestartMidTurnSettlesTheTurnHonestly(t *testing.T) {
 	}
 }
 
-// A message the user typed and AO accepted must not vanish because the daemon
+// A message the user typed and Kennel accepted must not vanish because the daemon
 // died before sending it. Whatever the resolution — delivered later or settled as
 // undelivered — it has to be visible and accounted for, never silently dropped.
 func TestChatQueuedMessageIsAccountedForAcrossARestart(t *testing.T) {

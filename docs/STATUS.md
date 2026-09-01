@@ -48,7 +48,7 @@ As of `main` after PRs #1 and #12-#14 on 2026-08-21, Kennel has a working AO-der
 - `packages/mobile` is an Expo donor, not a currently claimed Kennel mobile product.
 - `packages/cloud-client` is a tested compatibility package, not proof of a deployed Kennel cloud service.
 - Frozen `packages/ao*`, release, pod, and updater helpers remain for controlled compatibility/migration. This foundation does not publish them.
-- The Go module, `backend/cmd/ao`, and some internal AO vocabulary remain deliberate source synchronization seams.
+- The Go module, `backend/cmd/kennel`, and some internal AO vocabulary remain deliberate source synchronization seams.
 
 ## Not shipped
 

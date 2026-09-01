@@ -1,4 +1,4 @@
-// Package devimport copies the native rewrite project registry between AO data
+// Package devimport copies the native rewrite project registry between Kennel data
 // directories. It is intentionally narrower than legacy import: only active
 // project rows and workspace child repo registry are copied.
 package devimport
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 // Store is the storage slice required by the dev project importer.

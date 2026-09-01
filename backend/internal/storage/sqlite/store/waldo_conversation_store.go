@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/gen"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/gen"
 )
 
 // EnsureWaldoConversation returns the existing Project aggregate or creates it.

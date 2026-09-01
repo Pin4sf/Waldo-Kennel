@@ -1,5 +1,5 @@
 // Package claudecode is the claude-code reviewer adapter. claude-code is a
-// prompt-driven agent, so this reviewer feeds AO's review prompt (authored
+// prompt-driven agent, so this reviewer feeds Kennel's review prompt (authored
 // centrally and passed in ReviewInvocation.Prompt) to the worker claude-code
 // adapter's launch-command construction (binary resolution, flags). The reviewer
 // contract stays prompt-agnostic, so a one-shot CLI reviewer (e.g. greptile) can
@@ -10,10 +10,10 @@ import (
 	"context"
 	"time"
 
-	workeragent "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/claudecode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/reviewer/agentrestore"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workeragent "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/claudecode"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/reviewer/agentrestore"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Reviewer is the claude-code code-review adapter.
@@ -70,7 +70,7 @@ var reviewerDisallowedTools = []string{
 
 // ReviewCommand builds a claude-code invocation that reviews the worker's
 // checkout for the PR. Production launches provide the standing instructions
-// through an AO-owned prompt file so only the short task-file reference is
+// through an Kennel-owned prompt file so only the short task-file reference is
 // terminal-visible.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	agentSessionID := workeragent.SessionUUID(inv.ReviewerID)
@@ -120,7 +120,7 @@ func (r *Reviewer) PreLaunch(ctx context.Context, inv ports.ReviewInvocation) er
 }
 
 // ReviewMessage is the text injected into an already-running reviewer pane to
-// review a new commit — AO's central review prompt.
+// review a new commit — Kennel's central review prompt.
 func (r *Reviewer) ReviewMessage(_ context.Context, inv ports.ReviewInvocation) (string, error) {
 	return inv.Prompt, nil
 }

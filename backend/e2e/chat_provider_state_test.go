@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// End-to-end coverage for the provider signal AO used to drop.
+// End-to-end coverage for the provider signal Kennel used to drop.
 //
 // These are here rather than only in the unit tests because the claim is about the
 // whole stack: the driver has to read the notification, the projection has to write
@@ -75,7 +75,7 @@ func TestChatE2EProviderStateFromOneTurn(t *testing.T) {
 			switch step.Status {
 			case "pending", "in_progress", "completed":
 			default:
-				t.Errorf("plan step %d status = %q, want AO's own spelling", i, step.Status)
+				t.Errorf("plan step %d status = %q, want Kennel's own spelling", i, step.Status)
 			}
 		}
 		t.Logf("plan: %d steps, explanation=%q", len(plan.Steps), plan.Explanation)
@@ -128,12 +128,12 @@ func TestChatE2EProviderStateFromOneTurn(t *testing.T) {
 			if file.Path == "" {
 				t.Errorf("changed file has no path: %+v", file)
 			}
-			// The provider spells the change kind as an object. AO's own status is what
+			// The provider spells the change kind as an object. Kennel's own status is what
 			// a client can actually read.
 			switch file.Status {
 			case "added", "modified", "deleted", "renamed":
 			default:
-				t.Errorf("changed file status = %q, want AO's neutral spelling", file.Status)
+				t.Errorf("changed file status = %q, want Kennel's neutral spelling", file.Status)
 			}
 			if file.Patch != "" {
 				sawPatch = true
@@ -274,7 +274,7 @@ func detailString(t *testing.T, a activity, key string) string {
 	return value
 }
 
-// detailFile mirrors what a client reads out of a file_change activity: AO's own
+// detailFile mirrors what a client reads out of a file_change activity: Kennel's own
 // per-file shape, including the patch text that lets a diff render before the turn's
 // aggregate arrives.
 type detailFile struct {

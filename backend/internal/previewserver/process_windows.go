@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 func previewCommand(name string, args ...string) *exec.Cmd {
@@ -62,7 +62,7 @@ func quoteWindowsBatchArg(value string) string {
 }
 
 // errStalePreviewPID reports that a recorded preview PID could not be
-// re-verified as the process AO launched, so nothing was killed.
+// re-verified as the process Kennel launched, so nothing was killed.
 var errStalePreviewPID = errors.New("preview pid is stale or recycled; refusing to signal")
 
 // previewProcessStartTime returns pid's kernel creation time as an opaque
@@ -88,7 +88,7 @@ func previewProcessStartTime(pid int) string {
 }
 
 // killPreviewTree taskkills pid's tree only after re-verifying that the
-// number still identifies the process AO launched. A missing root is a no-op:
+// number still identifies the process Kennel launched. A missing root is a no-op:
 // /T walks the tree from the root, so with the root gone there is nothing
 // left that the daemon can still attribute to itself.
 func killPreviewTree(pid int, recordedStart string, force bool) error {
@@ -109,7 +109,7 @@ func killPreviewTree(pid int, recordedStart string, force bool) error {
 	if force {
 		args = append(args, "/F")
 	}
-	return aoprocess.Command("taskkill", args...).Run()
+	return kennelprocess.Command("taskkill", args...).Run()
 }
 
 // killPreviewRoot terminates only the direct child through os.Process, which

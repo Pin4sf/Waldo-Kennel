@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/store"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	chatsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/chat"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/store"
 )
 
 // historyRecorder is a provider double that CAN do the history operations, so a test
@@ -78,7 +78,7 @@ func (h *historyRecorder) lastForkAnchor() *string {
 }
 
 // SetTitle records the name and, like the real provider, reports it back on the event
-// stream. That echo is the only path by which a title reaches AO's rows.
+// stream. That echo is the only path by which a title reaches Kennel's rows.
 func (h *historyRecorder) SetTitle(_ context.Context, title string) error {
 	h.mu.Lock()
 	if h.setTitleErr != nil {
@@ -152,7 +152,7 @@ func requireMessageTexts(t *testing.T, messages []domain.ConversationMessage, wa
 	}
 }
 
-// The end-to-end shape of an undo: the provider is asked to forget, and AO's timeline
+// The end-to-end shape of an undo: the provider is asked to forget, and Kennel's timeline
 // stops showing what it forgot.
 func TestRollbackDiscardsTheTurnAndEverythingAfterIt(t *testing.T) {
 	recorder := newHistoryRecorder()
@@ -172,8 +172,8 @@ func TestRollbackDiscardsTheTurnAndEverythingAfterIt(t *testing.T) {
 		t.Errorf("discarded = %d, want 1", discarded)
 	}
 
-	// The provider is named by ITS turn id, not AO's: they are different namespaces
-	// and sending AO's would roll back nothing.
+	// The provider is named by ITS turn id, not Kennel's: they are different namespaces
+	// and sending Kennel's would roll back nothing.
 	if targets := recorder.rollbackTargets(); len(targets) != 1 || targets[0] != "provider-turn-2" {
 		t.Fatalf("provider rollback targets = %v, want [provider-turn-2]", targets)
 	}
@@ -233,7 +233,7 @@ func TestRollbackRemovesLaterLegacyCompactionState(t *testing.T) {
 	}
 }
 
-// Refused, not raced. A rollback while the agent is mid-turn would leave AO hiding
+// Refused, not raced. A rollback while the agent is mid-turn would leave Kennel hiding
 // rows the agent is still writing into, so the check happens before the provider is
 // asked at all.
 func TestRollbackIsRefusedWhileATurnIsRunning(t *testing.T) {
@@ -285,7 +285,7 @@ func TestRollbackReportsAnUnsupportedDriver(t *testing.T) {
 	}
 }
 
-// A turn the provider never accepted holds no provider history. Hiding AO's rows for
+// A turn the provider never accepted holds no provider history. Hiding Kennel's rows for
 // it would leave the agent remembering more than the timeline shows, which is the
 // exact disagreement rollback exists to prevent.
 func TestRollbackRefusesATurnTheProviderNeverAccepted(t *testing.T) {
@@ -350,7 +350,7 @@ func TestRollbackClassifiesAProviderRefusal(t *testing.T) {
 		t.Errorf("err = %v, want the provider's explanation carried through", err)
 	}
 
-	// And AO hid nothing: the provider still remembers the turn.
+	// And Kennel hid nothing: the provider still remembers the turn.
 	snapshot, err := h.st.LoadConversationSnapshot(ctx, h.ctrl.ConversationID())
 	if err != nil {
 		t.Fatalf("load snapshot: %v", err)
@@ -361,7 +361,7 @@ func TestRollbackClassifiesAProviderRefusal(t *testing.T) {
 	}
 }
 
-// The title round trip: AO asks, the provider confirms on its own event, and only
+// The title round trip: Kennel asks, the provider confirms on its own event, and only
 // then does the session label move. Nothing is written optimistically.
 func TestSetTitleFlowsThroughTheProviderIntoTheSessionName(t *testing.T) {
 	recorder := newHistoryRecorder()
@@ -392,7 +392,7 @@ func TestSetTitleFlowsThroughTheProviderIntoTheSessionName(t *testing.T) {
 	}
 }
 
-// A title AO never asked for still lands: another client naming the thread is how a
+// A title Kennel never asked for still lands: another client naming the thread is how a
 // provider-derived title arrives at all.
 func TestAProviderRenameFromElsewhereNamesTheSession(t *testing.T) {
 	recorder := newHistoryRecorder()
@@ -432,7 +432,7 @@ func TestAProviderTitleDoesNotOverwriteAUserRename(t *testing.T) {
 	}
 }
 
-// Clearing the thread name is not a reason to strip AO's label.
+// Clearing the thread name is not a reason to strip Kennel's label.
 func TestAClearedProviderTitleLeavesTheSessionNameAlone(t *testing.T) {
 	recorder := newHistoryRecorder()
 	h := newHarnessWithConversation(t, recorder)

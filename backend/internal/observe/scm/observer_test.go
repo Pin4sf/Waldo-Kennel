@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 var (
@@ -687,7 +687,7 @@ func TestPoll_PreservesBranchDiscoveryWithoutHumanIdentity(t *testing.T) {
 		identityErr error
 	}{
 		{name: "lookup error", identityErr: errors.New("identity unavailable")},
-		{name: "bot account", identity: ports.SCMIdentity{Login: "ao-bot", Human: false}},
+		{name: "bot account", identity: ports.SCMIdentity{Login: "kennel-bot", Human: false}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

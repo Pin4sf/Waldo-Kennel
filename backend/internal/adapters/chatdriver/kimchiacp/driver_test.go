@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	acpdriver "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/acp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestConfigureReturnsACPMode(t *testing.T) {
@@ -75,11 +75,11 @@ func TestConfigurePassesModelAndPermissionTogether(t *testing.T) {
 }
 
 func TestConfigureAppendsSystemPromptWhenProvided(t *testing.T) {
-	args, _, err := configure(acpdriver.LaunchConfig{SystemPrompt: "Follow AO worker rules."})
+	args, _, err := configure(acpdriver.LaunchConfig{SystemPrompt: "Follow Kennel worker rules."})
 	if err != nil {
 		t.Fatalf("configure: %v", err)
 	}
-	want := []string{"--mode", "acp", "--append-system-prompt", "Follow AO worker rules."}
+	want := []string{"--mode", "acp", "--append-system-prompt", "Follow Kennel worker rules."}
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("args = %#v, want %#v", args, want)
 	}

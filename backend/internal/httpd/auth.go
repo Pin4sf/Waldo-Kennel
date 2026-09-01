@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	"github.com/aoagents/agent-orchestrator/backend/internal/mobilebridge"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/envelope"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/mobilebridge"
 )
 
 // authState holds the current password hash for the LAN listener. Swapped
@@ -91,7 +91,7 @@ func bearerToken(r *http.Request) string {
 
 // authCookieName carries the connection token for a preview page's in-page
 // subresource requests. See connectionToken / maybeSetPreviewAuthCookie.
-const authCookieName = "ao_conn"
+const authCookieName = "kennel_conn"
 
 // previewFilesMarker is the path segment that identifies a preview-file request
 // (GET /api/v1/sessions/{id}/preview/files/*). The auth cookie is both scoped to

@@ -24,7 +24,7 @@ export type MergeabilityState = (typeof MERGEABILITY_STATES)[number];
 export const KENNEL_REVIEW_RUN_STATUSES = ["running", "complete", "delivered", "failed", "cancelled"] as const;
 export type AOReviewRunStatus = (typeof KENNEL_REVIEW_RUN_STATUSES)[number];
 
-// The empty value is AO's existing stored "no verdict yet" vocabulary.
+// The empty value is Kennel's existing stored "no verdict yet" vocabulary.
 export const KENNEL_REVIEW_VERDICTS = ["", "approved", "changes_requested"] as const;
 export type AOReviewVerdict = (typeof KENNEL_REVIEW_VERDICTS)[number];
 

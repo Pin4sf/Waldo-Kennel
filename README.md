@@ -20,9 +20,9 @@ Kennel is isolated from Agent Orchestrator at every installed-product boundary:
 | Loopback / development / LAN ports | `3031` / `3032` / `3041` |
 | Generated branch namespace | `kennel/` |
 
-Kennel does not read or migrate `~/.ao` or the older `~/.agent-orchestrator` layout. Existing AO installations remain separate, and users add local repositories explicitly through Kennel's supported project flow. Project-local `.ao/attachments` and `.ao/launch.json` names remain temporary upstream compatibility artifacts inside a project; they are not Kennel global state.
+Kennel does not read or migrate `~/.ao` or the older `~/.agent-orchestrator` layout. Earlier installations of the donor project remain separate, and users add local repositories explicitly through Kennel's supported project flow. Project-local `.kennel/attachments` and `.kennel/launch.json` live inside a project; they are not Kennel global state. Those two names moved from `.ao/`, and because both sit inside a user's own repository Kennel still reads the old location when the new one is absent -- a committed `.ao/launch.json` keeps working, and attachments left in a pre-rename worktree are still rescued before it is torn down. Kennel only ever reads those paths; it writes the `.kennel/` names.
 
-The source entrypoint remains `backend/cmd/ao`, and the Go module remains `github.com/aoagents/agent-orchestrator/backend`, as deliberate upstream synchronization seams. Packaged users receive the `kennel` executable and Kennel identifiers. See [identity and state](docs/identity-and-state.md) and [upstream provenance](docs/upstream-provenance.md).
+Kennel is now a standalone application. The source entrypoint is `backend/cmd/kennel`, the Go module is `github.com/Pin4sf/Waldo-Kennel/backend`, and no upstream synchronization seams remain — the donor remote has been removed and every identifier, path, and message names Kennel. See [identity and state](docs/identity-and-state.md) and [upstream provenance](docs/upstream-provenance.md) for the historical record of what Kennel derived from and why.
 
 ## What is present today
 

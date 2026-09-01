@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 func criterion(revision domain.ContractRevisionID, id string, position int64, text string) domain.ContractCriterion {

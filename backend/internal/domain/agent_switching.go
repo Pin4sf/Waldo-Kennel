@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// AgentNativeSessionID is AO's stable reference to one provider-owned
+// AgentNativeSessionID is Kennel's stable reference to one provider-owned
 // conversation. It is deliberately distinct from the provider's native ID.
 type AgentNativeSessionID string
 
@@ -65,7 +65,7 @@ func (f AgentSwitchRequestFingerprint) MatchesRequest(sessionID SessionID, targe
 	return f == AgentSwitchRequestFingerprint(agentSwitchRequestFingerprintPrefix+hex.EncodeToString(sum[:]))
 }
 
-// Valid reports whether a persisted fingerprint uses AO's current canonical
+// Valid reports whether a persisted fingerprint uses Kennel's current canonical
 // encoding. Lowercase hex is required so one digest has one representation.
 func (f AgentSwitchRequestFingerprint) Valid() bool {
 	value := string(f)
@@ -85,8 +85,8 @@ func (f AgentSwitchRequestFingerprint) Valid() bool {
 // native conversation can be used by several generations over its lifetime.
 type AgentGenerationID string
 
-// AgentNativeSession is AO's provider-neutral registry entry for one retained
-// provider conversation. Multiple records with the same AO session and
+// AgentNativeSession is Kennel's provider-neutral registry entry for one retained
+// provider conversation. Multiple records with the same Kennel session and
 // harness are allowed: failed resumes and fresh fallbacks must not overwrite a
 // previously retained conversation.
 type AgentNativeSession struct {
@@ -94,7 +94,7 @@ type AgentNativeSession struct {
 	AOSessionID SessionID            `json:"aoSessionId"`
 	Harness     AgentHarness         `json:"harness"`
 	// ConfigDir is the provider configuration home used for this conversation.
-	// Providers with AO-isolated homes need it to probe or resume the correct
+	// Providers with Kennel-isolated homes need it to probe or resume the correct
 	// native session without consulting ambient process configuration.
 	ConfigDir        string            `json:"configDir,omitempty"`
 	NativeSessionID  string            `json:"nativeSessionId,omitempty"`
@@ -177,7 +177,7 @@ func ValidAgentSwitchTransition(from, to AgentSwitchState) bool {
 	}
 }
 
-// AgentSwitchTargetStartMode records whether AO launched a new provider
+// AgentSwitchTargetStartMode records whether Kennel launched a new provider
 // conversation or resumed a retained one. The empty value means that target
 // selection has not completed yet.
 type AgentSwitchTargetStartMode string
@@ -185,9 +185,9 @@ type AgentSwitchTargetStartMode string
 const (
 	// AgentSwitchTargetStartPending means target selection has not completed.
 	AgentSwitchTargetStartPending AgentSwitchTargetStartMode = ""
-	// AgentSwitchTargetStartFresh means AO created a new native conversation.
+	// AgentSwitchTargetStartFresh means Kennel created a new native conversation.
 	AgentSwitchTargetStartFresh AgentSwitchTargetStartMode = "fresh"
-	// AgentSwitchTargetStartResumed means AO resumed a retained native conversation.
+	// AgentSwitchTargetStartResumed means Kennel resumed a retained native conversation.
 	AgentSwitchTargetStartResumed AgentSwitchTargetStartMode = "resumed"
 )
 
@@ -203,7 +203,7 @@ type AgentHandoffStatus string
 const (
 	// AgentHandoffNotAttempted means semantic enrichment has not been requested.
 	AgentHandoffNotAttempted AgentHandoffStatus = "not_attempted"
-	// AgentHandoffRequested means AO asked the exact source generation for context.
+	// AgentHandoffRequested means Kennel asked the exact source generation for context.
 	AgentHandoffRequested AgentHandoffStatus = "requested"
 	// AgentHandoffReceived means a generation-fenced JSON handoff was accepted.
 	AgentHandoffReceived AgentHandoffStatus = "received"
@@ -229,7 +229,7 @@ func (s AgentHandoffStatus) Valid() bool {
 	}
 }
 
-// AgentSwitchSourceTranscriptStatus records whether AO could safely retain a
+// AgentSwitchSourceTranscriptStatus records whether Kennel could safely retain a
 // provider-owned transcript reference (and, when needed, read its bounded
 // tail) for the finalized switch context. It deliberately carries no path or
 // raw filesystem error.
@@ -242,7 +242,7 @@ const (
 	// AgentSwitchSourceTranscriptAvailable means the provider transcript was
 	// located and, when fallback context was needed, read successfully.
 	AgentSwitchSourceTranscriptAvailable AgentSwitchSourceTranscriptStatus = "available"
-	// AgentSwitchSourceTranscriptUnavailable means AO safely continued without
+	// AgentSwitchSourceTranscriptUnavailable means Kennel safely continued without
 	// the provider transcript, using semantic, terminal, or deterministic facts.
 	AgentSwitchSourceTranscriptUnavailable AgentSwitchSourceTranscriptStatus = "unavailable"
 )
@@ -260,7 +260,7 @@ func (s AgentSwitchSourceTranscriptStatus) Valid() bool {
 	}
 }
 
-// Captured reports whether AO has completed transcript observation at the
+// Captured reports whether Kennel has completed transcript observation at the
 // final source boundary.
 func (s AgentSwitchSourceTranscriptStatus) Captured() bool {
 	return s == AgentSwitchSourceTranscriptAvailable || s == AgentSwitchSourceTranscriptUnavailable
@@ -312,7 +312,7 @@ func (c AgentSwitchErrorCode) Valid() bool {
 }
 
 // AgentSwitch is one durable switch saga. The optional source-authored handoff
-// is tracked independently from the AO-finalized handoff that was actually
+// is tracked independently from the Kennel-finalized handoff that was actually
 // delivered to the target. The finalized artifact also exists for fallback-
 // only switches and is the durable source used to rebuild hidden continuation
 // instructions when the target native session is restored.
@@ -361,14 +361,14 @@ func (s AgentSwitch) RequiresSourceRecovery() bool {
 	return s.RequiresSourceStopRecovery() || s.RequiresSourceRestore()
 }
 
-// RequiresSourceStopRecovery reports that source teardown started, but AO
+// RequiresSourceStopRecovery reports that source teardown started, but Kennel
 // could not prove whether the source runtime stopped.
 func (s AgentSwitch) RequiresSourceStopRecovery() bool {
 	return s.State == AgentSwitchStoppingSource &&
 		s.ErrorCode == AgentSwitchErrorSourceStopUnconfirmed
 }
 
-// RequiresSourceRestore reports that no target owns the session, but AO could
+// RequiresSourceRestore reports that no target owns the session, but Kennel could
 // not relaunch the conclusively stopped source. Retrying this compensation is
 // safe because durable ownership still points at the source provider.
 func (s AgentSwitch) RequiresSourceRestore() bool {

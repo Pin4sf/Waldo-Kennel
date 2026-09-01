@@ -21,7 +21,7 @@ import (
 //     several can share a millisecond, so ordering must not depend on them.
 //
 // The provider conversation remains authoritative for model context. These rows
-// are authoritative for what AO renders and for delivery state — AO never
+// are authoritative for what Kennel renders and for delivery state — Kennel never
 // maintains a second independently writable model transcript.
 
 // ConversationScope says whether a conversation belongs to a project (the
@@ -39,7 +39,7 @@ const (
 type TurnState string
 
 // Turn states. Interrupted is distinct from failed: the provider reports it as
-// its own terminal status when a turn is cancelled, and AO must not relabel it.
+// its own terminal status when a turn is cancelled, and Kennel must not relabel it.
 const (
 	TurnStateQueued      TurnState = "queued"
 	TurnStateRunning     TurnState = "running"
@@ -160,7 +160,7 @@ type ConversationRecord struct {
 	// unbounded timeline on every render.
 	CompactedAt *time.Time `json:"compactedAt,omitempty"`
 	// ProviderTitle is what the provider currently calls this thread. Kept even
-	// when the user has overridden the AO label, because it is the name the
+	// when the user has overridden the Kennel label, because it is the name the
 	// conversation carries in the provider's own history.
 	ProviderTitle string `json:"providerTitle,omitempty"`
 	// ModelReroute records the provider swapping the model mid-conversation. Nil
@@ -179,9 +179,9 @@ type ConversationRecord struct {
 	// because it answers a question the timeline cannot: a tool call that failed
 	// because its server never started is not the agent's mistake.
 	MCPServers []ConversationMCPServer `json:"mcpServers,omitempty"`
-	// AppliedTitle is the last provider title AO wrote into the session's display
-	// name. It is what makes "replace a label AO chose" distinguishable from
-	// "overwrite a label a person chose". Empty means AO has never named it.
+	// AppliedTitle is the last provider title Kennel wrote into the session's display
+	// name. It is what makes "replace a label Kennel chose" distinguishable from
+	// "overwrite a label a person chose". Empty means Kennel has never named it.
 	AppliedTitle string    `json:"-"`
 	CreatedAt    time.Time `json:"createdAt"`
 	UpdatedAt    time.Time `json:"updatedAt"`
@@ -294,7 +294,7 @@ func (l ConversationRateLimits) WorstUsedPercent() float64 {
 // ConversationModelReroute records the provider answering with a model other than
 // the one that was asked for.
 //
-// Durable because it is a correction to a claim AO has already made. The composer
+// Durable because it is a correction to a claim Kennel has already made. The composer
 // says which model it is sending to; if the provider silently substitutes another,
 // every later reading of that turn attributes the answer to the wrong model unless
 // the substitution is written down.
@@ -302,7 +302,7 @@ type ConversationModelReroute struct {
 	FromModel string `json:"fromModel"`
 	ToModel   string `json:"toModel"`
 	// Reason is the provider's own word for why. Carried verbatim rather than
-	// translated: AO cannot improve on the provider's account of its own policy.
+	// translated: Kennel cannot improve on the provider's account of its own policy.
 	Reason string `json:"reason,omitempty"`
 	// ProviderTurnID is the turn the reroute happened on, so a client can point at
 	// the exchange rather than only at the conversation.
@@ -322,21 +322,21 @@ type ConversationAccount struct {
 	AuthMode string `json:"authMode,omitempty"`
 	// PlanLabel is the account tier the provider reports.
 	PlanLabel string `json:"planLabel,omitempty"`
-	// ReauthRequiredAt is when the provider last asked for credentials AO does not
+	// ReauthRequiredAt is when the provider last asked for credentials Kennel does not
 	// hold. Nil means it never has.
 	ReauthRequiredAt *time.Time `json:"reauthRequiredAt,omitempty"`
 	// ReauthReason is the provider's stated reason, e.g. "unauthorized".
 	ReauthReason string `json:"reauthReason,omitempty"`
 }
 
-// ThreadStatus is the provider's own lifecycle state for a thread. It is NOT AO's
+// ThreadStatus is the provider's own lifecycle state for a thread. It is NOT Kennel's
 // session status, which stays derived from durable facts at read time; this is one
 // more such fact.
 type ThreadStatus string
 
 // Thread statuses. These mirror the provider's vocabulary rather than renaming it:
-// a value AO does not recognize is stored as-is rather than being flattened into
-// something AO does understand.
+// a value Kennel does not recognize is stored as-is rather than being flattened into
+// something Kennel does understand.
 const (
 	ThreadStatusActive      ThreadStatus = "active"
 	ThreadStatusIdle        ThreadStatus = "idle"
@@ -357,7 +357,7 @@ type ConversationThreadState struct {
 	// one-way marker.
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
 	// ClosedAt is when the provider dropped the thread. Recorded rather than acted
-	// on: AO has never observed this notification, so tearing a controller down on
+	// on: Kennel has never observed this notification, so tearing a controller down on
 	// the strength of it would be guessing.
 	ClosedAt  *time.Time `json:"closedAt,omitempty"`
 	UpdatedAt time.Time  `json:"updatedAt"`
@@ -377,7 +377,7 @@ type ConversationMCPServer struct {
 // PlanStepStatus is where one plan step stands.
 type PlanStepStatus string
 
-// Plan step statuses. AO's own snake_case spelling, not the provider's camelCase:
+// Plan step statuses. Kennel's own snake_case spelling, not the provider's camelCase:
 // these are persisted and read by clients, and the rest of the durable vocabulary
 // here is snake_case.
 const (
@@ -404,9 +404,9 @@ type ConversationPlanStep struct {
 	Status PlanStepStatus `json:"status"`
 }
 
-// ConversationSettings are the per-turn provider choices AO remembers.
+// ConversationSettings are the per-turn provider choices Kennel remembers.
 //
-// Durable rather than client-side because they must apply to turns AO dispatches
+// Durable rather than client-side because they must apply to turns Kennel dispatches
 // on the user's behalf: a queued message draining after a restart, a relay from
 // `kennel send`. A preference held in the renderer would quietly stop applying the
 // moment the user was not the one pressing send.
@@ -415,7 +415,7 @@ type ConversationSettings struct {
 	Model string `json:"model,omitempty"`
 	// ReasoningEffort is how much thinking to spend, from the model's own list.
 	ReasoningEffort string `json:"reasoningEffort,omitempty"`
-	// ApprovalMode is AO's permission vocabulary, applied per turn.
+	// ApprovalMode is Kennel's permission vocabulary, applied per turn.
 	ApprovalMode PermissionMode `json:"approvalMode,omitempty"`
 }
 
@@ -424,7 +424,7 @@ type ConversationSettings struct {
 type ConversationTurn struct {
 	ID             string `json:"id"`
 	ConversationID string `json:"conversationId"`
-	// HandledBySessionID is the AO session whose controller ran the turn. For a
+	// HandledBySessionID is the Kennel session whose controller ran the turn. For a
 	// project-scoped conversation this changes when the orchestrator is
 	// replaced; the conversation identity does not.
 	HandledBySessionID SessionID `json:"handledBySessionId"`
@@ -437,7 +437,7 @@ type ConversationTurn struct {
 	StartedAt    *time.Time `json:"startedAt,omitempty"`
 	CompletedAt  *time.Time `json:"completedAt,omitempty"`
 	// RolledBackAt is set when a rollback discarded this turn provider-side. The
-	// row survives because AO does not destroy durable facts, but the agent no
+	// row survives because Kennel does not destroy durable facts, but the agent no
 	// longer remembers the exchange, so its messages and activities are left out
 	// of the timeline. The turn itself stays readable so a client can say how much
 	// an undo took back rather than letting the history silently shrink.
@@ -460,7 +460,7 @@ type ConversationTurn struct {
 // answer instead of a stack of repeats.
 type ConversationTurnDiff struct {
 	Files []ConversationDiffFile `json:"files"`
-	// Truncated reports that the file list was cut at AO's cap. A cut list shown
+	// Truncated reports that the file list was cut at Kennel's cap. A cut list shown
 	// as a whole one would understate the size of the change.
 	Truncated bool `json:"truncated,omitempty"`
 }
@@ -485,7 +485,7 @@ type ConversationDiffFile struct {
 	// OldPath is set only for a rename.
 	OldPath string `json:"oldPath,omitempty"`
 	// RolledBackAt is set when a rollback discarded this turn provider-side. The
-	// row survives because AO does not destroy durable facts, but the agent no
+	// row survives because Kennel does not destroy durable facts, but the agent no
 	// longer remembers the exchange, so its messages and activities are left out
 	// of the timeline. The turn itself stays readable so a client can say how much
 	// an undo took back rather than letting the history silently shrink.
@@ -565,7 +565,7 @@ type ConversationActivity struct {
 	// it buys is output while the command is still running, and output at all for a
 	// command that never completes.
 	CommandOutput string `json:"commandOutput,omitempty"`
-	// CommandOutputTruncated reports that accumulation stopped at AO's cap.
+	// CommandOutputTruncated reports that accumulation stopped at Kennel's cap.
 	CommandOutputTruncated bool `json:"commandOutputTruncated,omitempty"`
 	// StreamedText is prose the PROVIDER streamed for this activity, accumulated
 	// from deltas. What it means depends on Kind, because each kind has exactly one
@@ -580,7 +580,7 @@ type ConversationActivity struct {
 	// only ever appended to, while streamed reasoning is REPLACED by the settled
 	// summary when the item completes.
 	StreamedText string `json:"streamedText,omitempty"`
-	// StreamedTextTruncated reports that accumulation stopped at AO's cap.
+	// StreamedTextTruncated reports that accumulation stopped at Kennel's cap.
 	StreamedTextTruncated bool `json:"streamedTextTruncated,omitempty"`
 }
 

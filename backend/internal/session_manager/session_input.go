@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/sessionguard"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/sessionguard"
 )
 
 type agentOperationKind string
@@ -25,7 +25,7 @@ var errAgentOperationInProgress = errors.New("session: another exclusive operati
 var _ sessionguard.InputLease = (*Manager)(nil)
 
 // AcquireSessionInput atomically admits one pane write unless an exclusive
-// operation already owns the AO session. The returned release is idempotent;
+// operation already owns the Kennel session. The returned release is idempotent;
 // callers hold it through the underlying pane write so a later mutation can
 // close admission and wait for every already-admitted write to finish.
 func (m *Manager) AcquireSessionInput(id domain.SessionID) (release func(), ok bool) {
@@ -63,7 +63,7 @@ func (m *Manager) releaseSessionInput(id domain.SessionID) {
 }
 
 // SessionMutationInProgress is consumed by observation-driven lifecycle paths
-// that must not independently terminate a session while AO is replacing or
+// that must not independently terminate a session while Kennel is replacing or
 // relaunching its provider process.
 func (m *Manager) SessionMutationInProgress(id domain.SessionID) bool {
 	id = domain.SessionID(strings.TrimSpace(string(id)))

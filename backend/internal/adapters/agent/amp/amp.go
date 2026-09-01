@@ -1,7 +1,7 @@
 // Package amp implements the Amp agent adapter: launching new interactive Amp
 // sessions and resuming sessions when a native Amp thread id is known.
 //
-// AO injects standing session instructions through a workspace-local Amp
+// Kennel injects standing session instructions through a workspace-local Amp
 // TypeScript plugin. Activity hooks and SessionInfo derivation will likely
 // require more Amp-specific plugin work, so SessionInfo remains a no-op.
 package amp
@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const adapterID = "amp"
@@ -50,7 +50,7 @@ func (p *Plugin) Manifest() adapters.Manifest {
 }
 
 // GetConfigSpec reports Amp's built-in operating modes. Amp deliberately
-// chooses the underlying models for a mode, so AO exposes mode rather than a
+// chooses the underlying models for a mode, so Kennel exposes mode rather than a
 // misleading raw-model field.
 func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 	if err := ctx.Err(); err != nil {
@@ -93,7 +93,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	return cmd, nil
 }
 
-// GetPromptDeliveryStrategy reports that AO should inject prompted Amp tasks
+// GetPromptDeliveryStrategy reports that Kennel should inject prompted Amp tasks
 // into the interactive terminal after startup.
 func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, _ ports.LaunchConfig) (ports.PromptDeliveryStrategy, error) {
 	if err := ctx.Err(); err != nil {
@@ -102,7 +102,7 @@ func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, _ ports.LaunchCo
 	return ports.PromptDeliveryAfterStart, nil
 }
 
-// PromptReadinessHints waits briefly for Amp's interactive prompt before AO
+// PromptReadinessHints waits briefly for Amp's interactive prompt before Kennel
 // injects the worker's first task. Timeout falls back to delivery so startup
 // copy changes do not permanently block a session.
 func (p *Plugin) PromptReadinessHints(ctx context.Context, _ ports.LaunchConfig) (ports.PromptReadinessHints, error) {

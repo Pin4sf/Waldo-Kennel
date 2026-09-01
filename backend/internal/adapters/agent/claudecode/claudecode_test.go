@@ -11,21 +11,21 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hooksjson"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hooksjson"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestNativeConversationIDUsesTheSameClaudeUUIDAcrossInterfaces(t *testing.T) {
 	p := &Plugin{}
 	tuiID, ok, err := p.NativeConversationID(context.Background(), ports.SessionRef{
-		ID: "ao-session-1", Metadata: map[string]string{},
+		ID: "kennel-session-1", Metadata: map[string]string{},
 	}, domain.SessionModeTUI, "")
-	if err != nil || !ok || tuiID != claudeSessionUUID("ao-session-1") {
+	if err != nil || !ok || tuiID != claudeSessionUUID("kennel-session-1") {
 		t.Fatalf("TUI native id = %q ok=%v err=%v", tuiID, ok, err)
 	}
 	chatID, ok, err := p.NativeConversationID(context.Background(), ports.SessionRef{
-		ID: "ao-session-1", Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "stale"},
+		ID: "kennel-session-1", Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "stale"},
 	}, domain.SessionModeChat, tuiID)
 	if err != nil || !ok || chatID != tuiID {
 		t.Fatalf("Chat native id = %q ok=%v err=%v", chatID, ok, err)
@@ -68,7 +68,7 @@ func TestNativeConversationExistsRequiresPersistedClaudeTranscript(t *testing.T)
 	configDir := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", configDir)
 	p := &Plugin{}
-	id := claudeSessionUUID("ao-session-1")
+	id := claudeSessionUUID("kennel-session-1")
 
 	exists, err := p.NativeConversationExists(context.Background(), ports.SessionRef{}, id, nil)
 	if err != nil {
@@ -256,7 +256,7 @@ func TestGetLaunchCommandUsesRequestedNativeSessionID(t *testing.T) {
 	p := &Plugin{resolvedBinary: "claude"}
 	requested := "019f9f7c-53c0-7f10-8d56-a8a979dd7001"
 	cmd, err := p.GetLaunchCommand(context.Background(), ports.LaunchConfig{
-		SessionID:       "stable-ao-session",
+		SessionID:       "stable-kennel-session",
 		NativeSessionID: requested,
 		Prompt:          "continue",
 	})
@@ -266,8 +266,8 @@ func TestGetLaunchCommandUsesRequestedNativeSessionID(t *testing.T) {
 	if !containsSubsequence(cmd, []string{"--session-id", requested}) {
 		t.Fatalf("command %#v missing requested native session id", cmd)
 	}
-	if contains(cmd, claudeSessionUUID("stable-ao-session")) {
-		t.Fatalf("command %#v used AO-derived id despite explicit native id", cmd)
+	if contains(cmd, claudeSessionUUID("stable-kennel-session")) {
+		t.Fatalf("command %#v used Kennel-derived id despite explicit native id", cmd)
 	}
 }
 
@@ -407,7 +407,7 @@ func TestGetAgentHooksInstallsClaudeHooks(t *testing.T) {
 	if err := p.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
-	// A second install must not duplicate AO hook commands.
+	// A second install must not duplicate Kennel hook commands.
 	if err := p.GetAgentHooks(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -501,7 +501,7 @@ func TestUninstallHooksRemovesClaudeHooks(t *testing.T) {
 		t.Fatal(err)
 	}
 	// No managed command survives; the SessionStart/UserPromptSubmit events,
-	// which held only AO hooks, are removed entirely.
+	// which held only Kennel hooks, are removed entirely.
 	for _, spec := range claudeManagedHooks {
 		if got := countClaudeHookCommand(config.Hooks[spec.Event], spec.Command); got != 0 {
 			t.Fatalf("%s command %q count = %d after uninstall, want 0", spec.Event, spec.Command, got)
@@ -576,7 +576,7 @@ func TestSessionInfoFalseWhenNoHookMetadata(t *testing.T) {
 }
 
 // countClaudeHookCommand counts how many hook entries under one event register
-// the given command — used to prove no duplicate AO hooks.
+// the given command — used to prove no duplicate Kennel hooks.
 func countClaudeHookCommand(groups []hooksjson.MatcherGroup, command string) int {
 	count := 0
 	for _, group := range groups {
@@ -605,7 +605,7 @@ func matcherForCommand(groups []hooksjson.MatcherGroup, command string) *string 
 func TestGetRestoreCommandReadsAgentSessionID(t *testing.T) {
 	cmd, ok, err := (&Plugin{resolvedBinary: "claude"}).GetRestoreCommand(context.Background(), ports.RestoreConfig{
 		Permissions: ports.PermissionModeBypassPermissions,
-		Prompt:      "continue from AO",
+		Prompt:      "continue from Kennel",
 		Session: ports.SessionRef{
 			ID:       "sess-r",
 			Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "claude-native-1"},
@@ -615,7 +615,7 @@ func TestGetRestoreCommandReadsAgentSessionID(t *testing.T) {
 		t.Fatalf("restore = (ok=%v, err=%v), want ok", ok, err)
 	}
 	// The hook-captured native id wins over the derived fallback.
-	want := []string{"claude", "--permission-mode", "bypassPermissions", "--resume", "claude-native-1", "--", "continue from AO"}
+	want := []string{"claude", "--permission-mode", "bypassPermissions", "--resume", "claude-native-1", "--", "continue from Kennel"}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("restore cmd\nwant: %#v\n got: %#v", want, cmd)
 	}
@@ -649,7 +649,7 @@ func TestGetRestoreCommandReappendsSystemPromptFromFile(t *testing.T) {
 
 	cmd, ok, err := (&Plugin{resolvedBinary: "claude"}).GetRestoreCommand(context.Background(), ports.RestoreConfig{
 		Permissions:      ports.PermissionModeBypassPermissions,
-		Prompt:           "continue from AO",
+		Prompt:           "continue from Kennel",
 		SystemPrompt:     "inline fallback",
 		SystemPromptFile: promptFile,
 		Session: ports.SessionRef{
@@ -664,7 +664,7 @@ func TestGetRestoreCommandReappendsSystemPromptFromFile(t *testing.T) {
 		"claude", "--permission-mode", "bypassPermissions",
 		"--append-system-prompt-file", promptFile,
 		"--resume", "claude-native-1",
-		"--", "continue from AO",
+		"--", "continue from Kennel",
 	}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("restore cmd\nwant: %#v\n got: %#v", want, cmd)
@@ -685,7 +685,7 @@ func TestGetRestoreCommandRejectsNonRegularSystemPromptFile(t *testing.T) {
 
 func TestGetRestoreCommandFallsBackToDerivedUUID(t *testing.T) {
 	// No agentSessionId captured (pre-hook session) → derive deterministically
-	// from the AO session id, the explicit fallback.
+	// from the Kennel session id, the explicit fallback.
 	cmd, ok, err := (&Plugin{resolvedBinary: "claude"}).GetRestoreCommand(context.Background(), ports.RestoreConfig{
 		Permissions: ports.PermissionModeBypassPermissions,
 		Session:     ports.SessionRef{ID: "sess-r"},

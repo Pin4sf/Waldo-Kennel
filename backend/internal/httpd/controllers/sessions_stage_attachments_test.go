@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
 )
 
 // The staging route is what makes an attachment chip mean something: the bytes have
@@ -37,15 +37,15 @@ func pngBody(count int) string {
 
 func TestStageAttachmentsReturnsTheWorktreePaths(t *testing.T) {
 	svc := newFakeSessionService()
-	svc.stagedPaths = []string{".ao/attachments/attachment-ab12cd34ef.png"}
+	svc.stagedPaths = []string{".kennel/attachments/attachment-ab12cd34ef.png"}
 	srv := stagingServer(t, svc)
 
 	body, status, _ := doRequest(t, srv, http.MethodPost,
-		"/api/v1/sessions/ao-1/attachments", pngBody(1))
+		"/api/v1/sessions/kennel-1/attachments", pngBody(1))
 	if status != http.StatusCreated {
 		t.Fatalf("status = %d, want 201 (%s)", status, body)
 	}
-	if !containsAll(body, `"sessionId":"ao-1"`, `".ao/attachments/attachment-ab12cd34ef.png"`) {
+	if !containsAll(body, `"sessionId":"kennel-1"`, `".kennel/attachments/attachment-ab12cd34ef.png"`) {
 		t.Fatalf("body = %s", body)
 	}
 	if len(svc.staged) != 1 {
@@ -74,7 +74,7 @@ func TestStageAttachmentsRejectsWhatSpawnRejects(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			body, status, _ := doRequest(t, srv, http.MethodPost,
-				"/api/v1/sessions/ao-1/attachments", payload)
+				"/api/v1/sessions/kennel-1/attachments", payload)
 			if status != http.StatusBadRequest {
 				t.Errorf("status = %d, want 400 (%s)", status, body)
 			}
@@ -89,7 +89,7 @@ func TestStageAttachmentsAcceptsAllNonBlockedTypes(t *testing.T) {
 	// PDF should now be accepted
 	pdfBody := `{"attachments":[{"mimeType":"application/pdf","data":"eA=="}]}`
 	body, status, _ := doRequest(t, srv, http.MethodPost,
-		"/api/v1/sessions/ao-1/attachments", pdfBody)
+		"/api/v1/sessions/kennel-1/attachments", pdfBody)
 	if status != http.StatusCreated {
 		t.Errorf("status = %d, want 201 (%s)", status, body)
 	}

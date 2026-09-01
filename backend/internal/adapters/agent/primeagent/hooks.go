@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
@@ -38,7 +38,7 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	existing, err := os.ReadFile(path) //nolint:gosec // stable AO-owned path under DataDir
+	existing, err := os.ReadFile(path) //nolint:gosec // stable Kennel-owned path under DataDir
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return ctxErr
 	}

@@ -22,12 +22,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 // SessionLabel is the label key a worker's own `docker run` should set to
-// `--label kennel.session=$KENNEL_SESSION_ID` so AO can identify containers it owns.
+// `--label kennel.session=$KENNEL_SESSION_ID` so Kennel can identify containers it owns.
 const SessionLabel = "kennel.session"
 
 // SpareLabel opts a container out of reaping even though it carries
@@ -52,7 +52,7 @@ type commandRunner interface {
 type execRunner struct{}
 
 func (execRunner) Output(ctx context.Context, name string, args ...string) ([]byte, error) {
-	cmd := aoprocess.CommandContext(ctx, name, args...)
+	cmd := kennelprocess.CommandContext(ctx, name, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -83,7 +83,7 @@ func newWithRunner(r commandRunner) *Reaper {
 //
 // Any failure to enumerate or inspect containers spares everything found so
 // far and returns the error — reaping is only ever additive-on-certainty,
-// never a best-guess sweep. A missing docker binary is NOT an error: most AO
+// never a best-guess sweep. A missing docker binary is NOT an error: most Kennel
 // installs have no Docker at all, and that must not surface as a kill
 // failure.
 func (r *Reaper) ReapSessionContainers(ctx context.Context, id domain.SessionID) (int, error) {
@@ -137,7 +137,7 @@ func (r *Reaper) ReapSessionContainers(ctx context.Context, id domain.SessionID)
 
 // isDockerUnavailable reports whether err indicates the docker CLI itself is
 // not installed/runnable, as opposed to a real command failure against a
-// present daemon. Most AO installs run without Docker at all; that must
+// present daemon. Most Kennel installs run without Docker at all; that must
 // resolve to "nothing to reap," not a kill-blocking error.
 func isDockerUnavailable(err error) bool {
 	if errors.Is(err, context.DeadlineExceeded) {

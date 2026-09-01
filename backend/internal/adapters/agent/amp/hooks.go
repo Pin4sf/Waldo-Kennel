@@ -8,20 +8,20 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
 	ampPluginDirName  = ".amp"
 	ampPluginSubDir   = "plugins"
-	ampPluginFileName = "ao-system-prompt.ts"
+	ampPluginFileName = "kennel-system-prompt.ts"
 	ampPluginSentinel = "kennel: managed amp system prompt plugin"
 )
 
-// GetAgentHooks installs AO's Amp system-prompt plugin into the worktree-local
+// GetAgentHooks installs Kennel's Amp system-prompt plugin into the worktree-local
 // .amp/plugins directory. Amp has no documented system-prompt argv flag, but
-// its plugin agent.start hook can add hidden context at turn start. AO owns only
+// its plugin agent.start hook can add hidden context at turn start. Kennel owns only
 // ao-system-prompt.ts; other user plugin files are preserved.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	if err := ctx.Err(); err != nil {
@@ -38,7 +38,7 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 			return fmt.Errorf("amp.GetAgentHooks: %w", err)
 		}
 		if !managed {
-			return fmt.Errorf("amp.GetAgentHooks: refusing to overwrite non-AO file at %s", pluginPath)
+			return fmt.Errorf("amp.GetAgentHooks: refusing to overwrite non-Kennel file at %s", pluginPath)
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("amp.GetAgentHooks: stat plugin: %w", err)
@@ -98,9 +98,9 @@ func ampSystemPromptPluginSource(inline, file string) string {
 	b.WriteString("      const content = await readFile(systemPromptFile, \"utf8\");\n")
 	b.WriteString("      const trimmed = content.trim();\n")
 	b.WriteString("      if (trimmed) return trimmed;\n")
-	b.WriteString("      amp.logger.log(\"AO system prompt file is empty\", { systemPromptFile });\n")
+	b.WriteString("      amp.logger.log(\"Kennel system prompt file is empty\", { systemPromptFile });\n")
 	b.WriteString("    } catch (error) {\n")
-	b.WriteString("      amp.logger.log(\"AO system prompt file is unavailable\", { systemPromptFile, error });\n")
+	b.WriteString("      amp.logger.log(\"Kennel system prompt file is unavailable\", { systemPromptFile, error });\n")
 	b.WriteString("    }\n")
 	b.WriteString("  }\n")
 	b.WriteString("  return inlineSystemPrompt.trim();\n")

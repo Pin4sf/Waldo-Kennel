@@ -1,4 +1,4 @@
-// Package crush adapts Crush as an experimental user-approved AO reviewer.
+// Package crush adapts Crush as an experimental user-approved Kennel reviewer.
 package crush
 
 import (
@@ -7,14 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	workercrush "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/crush"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workercrush "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/crush"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // HostTrustWarning documents that Crush relies on its normal interactive
 // approval flow rather than its broad --yolo mode.
-const HostTrustWarning = "experimental user-approved reviewer: Crush uses normal permission prompts; AO deliberately does not enable --yolo"
+const HostTrustWarning = "experimental user-approved reviewer: Crush uses normal permission prompts; Kennel deliberately does not enable --yolo"
 
 // Reviewer builds Crush's persistent interactive reviewer command.
 type Reviewer struct {
@@ -46,7 +46,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 	if strings.TrimSpace(inv.TaskPromptRoot) == "" {
 		return ports.ReviewCommandSpec{Argv: []string{binary}}, nil
 	}
-	message := fmt.Sprintf("Read and follow the AO reviewer role in `%s`, then %s", filepath.ToSlash(inv.SystemPromptFile), strings.TrimSpace(inv.Prompt))
+	message := fmt.Sprintf("Read and follow the Kennel reviewer role in `%s`, then %s", filepath.ToSlash(inv.SystemPromptFile), strings.TrimSpace(inv.Prompt))
 	return ports.ReviewCommandSpec{Argv: []string{binary, "--cwd", inv.WorkspacePath}, InitialMessage: message}, nil
 }
 
@@ -57,7 +57,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 	return cmd, true, err
 }
 
-// ReviewMessage returns the next AO-owned task reference.
+// ReviewMessage returns the next Kennel-owned task reference.
 func (*Reviewer) ReviewMessage(_ context.Context, inv ports.ReviewInvocation) (string, error) {
 	return inv.Prompt, nil
 }

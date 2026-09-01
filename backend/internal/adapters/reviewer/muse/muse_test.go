@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type captureAgent struct {
@@ -50,14 +50,14 @@ func TestReviewCommandUsesMuseNoWriteSandbox(t *testing.T) {
 	got, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{
 		ReviewerID:       "review-w1",
 		WorkspacePath:    "/ws/w1",
-		Prompt:           "Read the AO review task.",
+		Prompt:           "Read the Kennel review task.",
 		SystemPromptFile: "/ao/prompts/reviewer/system.md",
 		DataDir:          "/ao/data",
 	})
 	if err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
 	}
-	want := []string{"muse", "--trust-workspace", "--approval-mode", "never", "--disable-write", "Read the AO review task."}
+	want := []string{"muse", "--trust-workspace", "--approval-mode", "never", "--disable-write", "Read the Kennel review task."}
 	if !slices.Equal(got.Argv, want) {
 		t.Fatalf("argv = %#v, want %#v", got.Argv, want)
 	}

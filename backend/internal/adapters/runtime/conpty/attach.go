@@ -12,7 +12,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 var _ ports.Attacher = (*Runtime)(nil)

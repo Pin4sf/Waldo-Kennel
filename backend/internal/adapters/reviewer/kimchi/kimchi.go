@@ -4,10 +4,10 @@ package kimchi
 import (
 	"context"
 
-	workeragent "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/kimchi"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/reviewer/agentrestore"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workeragent "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/kimchi"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/reviewer/agentrestore"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // HostTrustWarning documents the boundary users accept when selecting Kimchi.
@@ -118,7 +118,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 }
 
 // PreLaunch installs Kimchi's native hooks in the selected review workspace so
-// AO can capture the native conversation id and activity events.
+// Kennel can capture the native conversation id and activity events.
 func (r *Reviewer) PreLaunch(ctx context.Context, inv ports.ReviewInvocation) error {
 	return r.agent.GetAgentHooks(ctx, ports.WorkspaceHookConfig{WorkspacePath: inv.WorkspacePath})
 }

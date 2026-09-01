@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func testReviewer(help, version string) *Reviewer {
@@ -51,7 +51,7 @@ func TestReviewCommandLaunchesHostTrustedInteractiveTUI(t *testing.T) {
 		t.Fatalf("spec = %+v, want argv %#v", spec, want)
 	}
 	if spec.Env["HOME"] != filepath.Join(dataDir, "reviewer-runtime", "review-worker-1", "config") || spec.Env["KENNEL_DATA_DIR"] != dataDir {
-		t.Fatalf("AO-owned environment = %#v", spec.Env)
+		t.Fatalf("Kennel-owned environment = %#v", spec.Env)
 	}
 }
 

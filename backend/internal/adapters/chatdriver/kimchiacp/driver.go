@@ -1,4 +1,4 @@
-// Package kimchiacp binds the user's own Kimchi installation to AO's
+// Package kimchiacp binds the user's own Kimchi installation to Kennel's
 // reusable ACP Chat transport.
 package kimchiacp
 
@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"strings"
 
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/nativeacp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	acpdriver "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/acp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/nativeacp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // New launches `kimchi --mode acp` from the exact binary resolved by the
@@ -66,7 +66,7 @@ func sessionOptions(settings ports.ChatTurnSettings) []acpdriver.SessionOption {
 	return options
 }
 
-// kimchiPermissionMode maps AO's permission vocabulary onto Kimchi's native
+// kimchiPermissionMode maps Kennel's permission vocabulary onto Kimchi's native
 // mode ids ("default", "plan", "auto", "yolo"). These are sent through
 // session/set_config_option with configId "permissions-mode", which Kimchi
 // implements. The legacy session/set_mode path is not used because Kimchi

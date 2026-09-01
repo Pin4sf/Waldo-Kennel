@@ -3,16 +3,16 @@
 // workspace-local activity plugin plus the using-kennel skill, and reading
 // plugin-derived session info.
 //
-// opencode differs from Claude Code and Codex in two ways AO has to bridge:
+// opencode differs from Claude Code and Codex in two ways Kennel has to bridge:
 //   - It has no native command-hook config (no settings.local.json / hooks.json
 //     equivalent). Its only lifecycle-extensibility surface is a JS/TS plugin
-//     loaded from .opencode/plugins/, so GetAgentHooks installs an AO-owned
+//     loaded from .opencode/plugins/, so GetAgentHooks installs an Kennel-owned
 //     plugin file (see hooks.go) instead of merging JSON. The same install also
 //     materializes using-kennel under .opencode/skills/ so opencode's skill tool
 //     can discover it (the data-dir skill path alone is invisible to opencode).
 //   - Its CLI exposes only one approval flag (--dangerously-skip-permissions)
-//     and no system-prompt flag, so AO injects standing instructions by writing
-//     an AO-owned per-session config and selecting the generated agent.
+//     and no system-prompt flag, so Kennel injects standing instructions by writing
+//     an Kennel-owned per-session config and selecting the generated agent.
 //
 // Kennel-managed sessions derive native session identity and display metadata from
 // the opencode plugin's reported events, mirroring the Codex adapter.
@@ -31,12 +31,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 
 	_ "modernc.org/sqlite" // register sqlite driver for opencode session metadata probes
 )
@@ -98,11 +98,11 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 // GetLaunchCommand builds the argv to start a new interactive opencode session.
 // Shape:
 //
-//	[env OPENCODE_CONFIG=<ao-config>] opencode [--dangerously-skip-permissions] [--agent <ao-agent>] [--prompt <prompt>]
+//	[env OPENCODE_CONFIG=<kennel-config>] opencode [--dangerously-skip-permissions] [--agent <kennel-agent>] [--prompt <prompt>]
 //
 // The session runs in the worktree (cwd is set by the runtime, as for Claude
 // Code and Codex). opencode has no CLI flag to set a system prompt, so Kennel writes
-// an opencode config into the AO prompt artifact directory, points OPENCODE_CONFIG
+// an opencode config into the Kennel prompt artifact directory, points OPENCODE_CONFIG
 // at it, and selects the generated agent with --agent. The initial task prompt
 // is delivered via --prompt (its argument, so a leading "-" is not read as a flag).
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
@@ -129,8 +129,8 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 }
 
 // GetRestoreCommand rebuilds the argv that continues an existing opencode
-// session: `[env OPENCODE_CONFIG=<ao-config>] opencode [--dangerously-skip-permissions] [--agent <ao-agent>] --session <agentSessionId>`.
-// It re-applies the permission flag and the generated AO agent config (resume
+// session: `[env OPENCODE_CONFIG=<kennel-config>] opencode [--dangerously-skip-permissions] [--agent <kennel-agent>] --session <agentSessionId>`.
+// It re-applies the permission flag and the generated Kennel agent config (resume
 // otherwise reverts to configured defaults). ok is false when the plugin-derived
 // native session id has not landed yet, so callers fall back to fresh launch
 // behavior — mirroring the Codex adapter.
@@ -197,7 +197,7 @@ func (p *Plugin) AuthStatus(ctx context.Context) (ports.AgentAuthStatus, error) 
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	out, err := aoprocess.CommandContext(probeCtx, binary, "auth", "list").CombinedOutput()
+	out, err := kennelprocess.CommandContext(probeCtx, binary, "auth", "list").CombinedOutput()
 	if probeCtx.Err() != nil {
 		return ports.AgentAuthStatusUnknown, probeCtx.Err()
 	}
@@ -296,7 +296,7 @@ func opencodeDataDirFrom(env map[string]string) (string, bool) {
 // probe reads.
 const opencodeStateDBName = "opencode.db"
 
-// openOpenCodeStateDB opens opencode's state read-only. Read-only matters: AO
+// openOpenCodeStateDB opens opencode's state read-only. Read-only matters: Kennel
 // inspects another tool's live database, and opencode runs it in WAL mode, so
 // the short busy timeout lets a concurrent write settle instead of failing the
 // probe outright.
@@ -399,7 +399,7 @@ func opencodeDBCount(ctx context.Context, db *sql.DB, query string) (int, error)
 	return count, nil
 }
 
-// appendPermissionFlags maps AO's permission modes onto opencode's single
+// appendPermissionFlags maps Kennel's permission modes onto opencode's single
 // approval flag. opencode exposes only --dangerously-skip-permissions (no
 // graduated accept-edits/auto modes), so:
 //   - bypass-permissions → --dangerously-skip-permissions
@@ -460,7 +460,7 @@ func opencodeConfigEnvPrefix(inlinePrompt, promptFile, sessionID string) ([]stri
 	return []string{"env", opencodeConfigEnvVar + "=" + configPath}, agentName, nil
 }
 
-// PrepareACPConfigContent merges AO's standing instructions and any explicit
+// PrepareACPConfigContent merges Kennel's standing instructions and any explicit
 // bypass-permissions choice into OpenCode's inline runtime overlay. The user's
 // OPENCODE_CONFIG path remains untouched, preserving its normal global, custom,
 // project, provider, and credential configuration.
@@ -496,7 +496,7 @@ func PrepareACPConfigContent(
 	}
 	if allowAll {
 		// This is the native config equivalent of OpenCode's TUI auto-approval
-		// flag. Other AO permission modes preserve the user's granular rules.
+		// flag. Other Kennel permission modes preserve the user's granular rules.
 		config["permission"] = "allow"
 	}
 	data, err := json.Marshal(config)
@@ -507,7 +507,7 @@ func PrepareACPConfigContent(
 }
 
 func opencodeAOAgentName(sessionID string) string {
-	const fallback = "ao-system-prompt"
+	const fallback = "kennel-system-prompt"
 	trimmed := strings.TrimSpace(sessionID)
 	if trimmed == "" {
 		return fallback
@@ -529,7 +529,7 @@ func opencodeAOAgentName(sessionID string) string {
 	if name == "" {
 		return fallback
 	}
-	return "ao-" + name
+	return "kennel-" + name
 }
 
 // ResolveOpenCodeBinary returns the path to the opencode binary on this machine,

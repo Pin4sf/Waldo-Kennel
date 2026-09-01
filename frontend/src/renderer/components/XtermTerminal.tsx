@@ -226,7 +226,7 @@ type TerminalContextMenuState = {
 	x: number;
 	y: number;
 	// The web link under the cursor when the menu opened, if any — enables the
-	// "Open in system browser" item (left-click opens it in the AO Browser).
+	// "Open in system browser" item (left-click opens it in the Kennel Browser).
 	link: string | null;
 };
 
@@ -354,7 +354,7 @@ export function XtermTerminal(props: XtermTerminalProps) {
 			callbacksRef.current.onChangeFontSize?.(delta);
 		});
 		const activateLink = (event: MouseEvent, uri: string) => {
-			// Left-click on a web link opens it inside the AO Browser panel (the
+			// Left-click on a web link opens it inside the Kennel Browser panel (the
 			// parent decides how). Non-web schemes (mailto:, etc.) still go to the OS
 			// via the main process's window-open handler. Right-click to open a web
 			// link in the system browser instead — see the context menu below.

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 type fakeStore struct {
@@ -141,7 +141,7 @@ func TestHubProjectFilter(t *testing.T) {
 	}
 }
 
-// Resolution is how a notification leaves the unresolved list: AO observed the
+// Resolution is how a notification leaves the unresolved list: Kennel observed the
 // underlying issue going away. There is no user-facing resolve action.
 func TestManagerResolveClosesSessionNotificationsAndPublishes(t *testing.T) {
 	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)

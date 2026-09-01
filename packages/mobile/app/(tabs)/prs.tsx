@@ -69,7 +69,7 @@ export default function PRsScreen() {
 		return (
 			<View style={styles.screen}>
 				<View style={{ height: insets.top }} />
-				<EmptyState icon="git-pull-request" title="No server" message="Connect to AO in Settings." />
+				<EmptyState icon="git-pull-request" title="No server" message="Connect to Kennel in Settings." />
 			</View>
 		);
 	}

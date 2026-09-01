@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 var (
@@ -27,7 +27,7 @@ var (
 
 // RateLimitError carries the structured backoff hints from a GitLab 429
 // response. GitLab sends Retry-After (seconds) and/or RateLimit-Reset (Unix
-// epoch seconds) headers; AO uses these to apply a provider-level cooldown so
+// epoch seconds) headers; Kennel uses these to apply a provider-level cooldown so
 // the observer does not keep polling every 30s while rate-limited (review
 // finding #4). Callers that only need the category use errors.Is(err,
 // ErrRateLimited); callers needing the exact backoff use errors.As.
@@ -72,7 +72,7 @@ func (e *RateLimitError) GetResetAt() time.Time {
 const (
 	defaultRESTBaseURL = "https://gitlab.com/api/v4"
 	cacheMaxEntries    = 512
-	defaultUserAgent   = "ao-gitlab-scm/1"
+	defaultUserAgent   = "kennel-gitlab-scm/1"
 	// defaultHTTPTimeout bounds every REST call so a hung GitLab API endpoint
 	// does not block the observer's polling goroutine indefinitely (review
 	// finding #4). Matches the observer's DefaultTickInterval.

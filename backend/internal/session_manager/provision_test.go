@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 type fixedBrowserCapability string
@@ -22,7 +22,7 @@ func (f fixedBrowserCapability) Issue(_ domain.SessionID) (string, string, error
 func TestSpawnEnvProjectVarsCannotOverrideInternal(t *testing.T) {
 	env := spawnEnv("mer-1", "mer", "issue-9", "/data", map[string]string{
 		"FOO":        "bar",
-		EnvSessionID: "hacked", // a project must not override AO-internal vars
+		EnvSessionID: "hacked", // a project must not override Kennel-internal vars
 		EnvProjectID: "hacked",
 	})
 	if env["FOO"] != "bar" {
@@ -112,7 +112,7 @@ func TestHookPATH(t *testing.T) {
 			// A daemon binary not named "kennel" cannot anchor `kennel` resolution by
 			// having its directory prepended, so the pin must be refused.
 			name:       "executable not named kennel fails",
-			executable: func() (string, error) { return filepath.Join("/opt", "aod", "ao-daemon"), nil },
+			executable: func() (string, error) { return filepath.Join("/opt", "aod", "kennel-daemon"), nil },
 			daemonPATH: "/usr/bin",
 			wantErr:    true,
 		},

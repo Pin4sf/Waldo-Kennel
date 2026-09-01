@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 // IntakeIdempotency binds a request key to a normalized input fingerprint.

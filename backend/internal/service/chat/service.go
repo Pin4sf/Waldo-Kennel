@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // ErrNoController reports a command for a session with no live Chat controller.
@@ -323,7 +323,7 @@ func (s *Service) Start(ctx context.Context, cfg StartConfig) (*Controller, erro
 			Status:         domain.ActivityStatusCompleted,
 			Summary:        "Started a fresh agent context. Earlier project history remains visible in Kennel but was not loaded into this agent.",
 			Detail:         detail,
-			ProviderItemID: "ao-context-reset:" + string(cfg.SessionID),
+			ProviderItemID: "kennel-context-reset:" + string(cfg.SessionID),
 		}, s.now()); boundaryErr != nil {
 			_ = conv.Close()
 			return nil, fmt.Errorf("record fresh context boundary: %w", boundaryErr)
@@ -339,8 +339,8 @@ func (s *Service) Start(ctx context.Context, cfg StartConfig) (*Controller, erro
 		// Chat. Import it before the live projector starts so the first notification
 		// cannot appear ahead of the older prompt, tool work, and answer it follows.
 		//
-		// Read AO's existing projection too. ACP message/turn ids are opaque, and an
-		// agent may assign a different persisted user id from the id AO supplied at
+		// Read Kennel's existing projection too. ACP message/turn ids are opaque, and an
+		// agent may assign a different persisted user id from the id Kennel supplied at
 		// prompt time. Reconciliation must therefore happen before projection; doing
 		// it in a Claude binding would leave every other ACP harness with the same
 		// restart duplication race.
@@ -880,12 +880,12 @@ var ErrModelsUnsupported = errors.New("chat driver cannot list models")
 
 // ErrConfigOptionsUnsupported reports a conversation whose provider does not
 // advertise live session controls. This is an ordinary capability answer: native
-// drivers can continue using AO's model/settings surface.
+// drivers can continue using Kennel's model/settings surface.
 var ErrConfigOptionsUnsupported = errors.New("chat driver has no session config options")
 
 // Models reports what the provider offers for this session, plus what is selected.
 //
-// Read from the live conversation rather than a table in AO: models are added,
+// Read from the live conversation rather than a table in Kennel: models are added,
 // renamed, hidden per account and gated by entitlement the provider knows about.
 func (s *Service) Models(ctx context.Context, id domain.SessionID) ([]ports.ChatModel, domain.ConversationSettings, error) {
 	if _, err := s.requireChatSession(ctx, id); err != nil {
@@ -906,10 +906,10 @@ func (s *Service) Models(ctx context.Context, id domain.SessionID) ([]ports.Chat
 	return models, controller.Settings(), nil
 }
 
-// ConfigOptions reports the provider's live session controls. Unlike AO's
+// ConfigOptions reports the provider's live session controls. Unlike Kennel's
 // durable turn settings, these are provider-owned session state and are read from
 // the connected conversation so model entitlements and model-dependent choices
-// cannot go stale in an AO table.
+// cannot go stale in an Kennel table.
 func (s *Service) ConfigOptions(ctx context.Context, id domain.SessionID) ([]ports.ChatConfigOption, error) {
 	if _, err := s.requireChatSession(ctx, id); err != nil {
 		return nil, err
@@ -1017,10 +1017,10 @@ func (s *Service) SetTurnSettings(
 	return controller.Settings(), nil
 }
 
-// RelayChatTurn delivers a message AO is carrying for someone else.
+// RelayChatTurn delivers a message Kennel is carrying for someone else.
 //
 // Origin is automation, not human: `kennel send` and an orchestrator writing to a
-// worker are AO acting on the user's instructions, and the timeline attributes
+// worker are Kennel acting on the user's instructions, and the timeline attributes
 // them so rather than passing them off as something the user typed here. The
 // distinction is durable and structural — a reader must not have to infer it
 // from a text prefix.

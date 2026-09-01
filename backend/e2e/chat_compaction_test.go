@@ -93,7 +93,7 @@ func TestChatCompactionReclaimsContextAndSaysSo(t *testing.T) {
 
 	// The figures have to be internally consistent or the reclaim they claim is
 	// meaningless. They are checked rather than required, because a compaction whose
-	// token reports AO never saw honestly does not know what it saved and says
+	// token reports Kennel never saw honestly does not know what it saved and says
 	// nothing instead of inventing a number.
 	if marker.TokensReclaimed != 0 {
 		if marker.TokensBefore <= marker.TokensAfter {

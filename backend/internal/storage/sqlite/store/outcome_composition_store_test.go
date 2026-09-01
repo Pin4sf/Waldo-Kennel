@@ -10,9 +10,9 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
 // seedParent creates a Project-level Outcome whose contract carries two stable

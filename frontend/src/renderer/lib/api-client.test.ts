@@ -136,12 +136,12 @@ describe("apiClient runtime base URL", () => {
 		setApiDaemonStatus({
 			state: "error",
 			code: "exited",
-			message: "AO daemon exited with code 1",
+			message: "Kennel daemon exited with code 1",
 		});
 
 		const { error } = await apiClient.GET("/api/v1/projects");
 
-		expect(error).toEqual({ code: "exited", message: "AO daemon exited with code 1" });
+		expect(error).toEqual({ code: "exited", message: "Kennel daemon exited with code 1" });
 	});
 });
 

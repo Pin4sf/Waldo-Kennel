@@ -3,12 +3,12 @@
 // Cline hooks, and reading hook-derived session info.
 //
 // Cline is an autonomous coding agent that runs in the terminal (binary
-// "cline", installed via `npm i -g cline`). AO opens Cline's normal terminal UI
+// "cline", installed via `npm i -g cline`). Kennel opens Cline's normal terminal UI
 // and delivers prompted worker tasks after startup so dashboard terminal
 // attachments stay readable and Cline's startup command parser is bypassed.
 //
 // Kennel-managed sessions derive native session identity from Cline hooks
-// (the workspace-local `.clinerules/hooks/` executable scripts AO installs)
+// (the workspace-local `.clinerules/hooks/` executable scripts Kennel installs)
 // rather than transcript/cache scans.
 package cline
 
@@ -18,10 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Plugin is the Cline agent adapter. It is safe for concurrent use; the binary
@@ -89,7 +89,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	return cmd, nil
 }
 
-// GetPromptDeliveryStrategy reports that AO should inject prompted Cline tasks
+// GetPromptDeliveryStrategy reports that Kennel should inject prompted Cline tasks
 // into the interactive terminal after startup.
 func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, _ ports.LaunchConfig) (ports.PromptDeliveryStrategy, error) {
 	if err := ctx.Err(); err != nil {
@@ -98,7 +98,7 @@ func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, _ ports.LaunchCo
 	return ports.PromptDeliveryAfterStart, nil
 }
 
-// PromptReadinessHints waits briefly for Cline's interactive prompt before AO
+// PromptReadinessHints waits briefly for Cline's interactive prompt before Kennel
 // injects the worker's first task.
 func (p *Plugin) PromptReadinessHints(ctx context.Context, _ ports.LaunchConfig) (ports.PromptReadinessHints, error) {
 	if err := ctx.Err(); err != nil {

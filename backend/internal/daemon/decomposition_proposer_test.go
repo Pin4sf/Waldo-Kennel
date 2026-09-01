@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/controllers"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // The brief and the route must name the same header. They are separate

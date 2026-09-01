@@ -27,7 +27,7 @@ func browserCLIServer(t *testing.T, capture *browserRequestCapture) *httptest.Se
 		capture.capability = r.Header.Get(browserCapabilityHeader)
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/browser/status" {
-			_, _ = io.WriteString(w, `{"sessionId":"ao-1","connected":true,"transport":"electron-webcontents-debugger"}`)
+			_, _ = io.WriteString(w, `{"sessionId":"kennel-1","connected":true,"transport":"electron-webcontents-debugger"}`)
 			return
 		}
 		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/browser/commands" {
@@ -54,7 +54,7 @@ func browserCLIServer(t *testing.T, capture *browserRequestCapture) *httptest.Se
 		case "network-clear":
 			result = `{"active":true,"metadataOnly":true,"tabId":"t1","requestCount":0,"maxEntries":200}`
 		}
-		_, _ = io.WriteString(w, `{"requestId":"r1","sessionId":"ao-1","action":"`+capture.body.Action+`","result":`+result+`}`)
+		_, _ = io.WriteString(w, `{"requestId":"r1","sessionId":"kennel-1","action":"`+capture.body.Action+`","result":`+result+`}`)
 	}))
 	t.Cleanup(srv.Close)
 	return srv
@@ -62,7 +62,7 @@ func browserCLIServer(t *testing.T, capture *browserRequestCapture) *httptest.Se
 
 func setBrowserIdentity(t *testing.T) {
 	t.Helper()
-	t.Setenv("KENNEL_SESSION_ID", "ao-1")
+	t.Setenv("KENNEL_SESSION_ID", "kennel-1")
 	t.Setenv("KENNEL_BROWSER_CAPABILITY", "capability-1")
 }
 
@@ -78,7 +78,7 @@ func TestBrowserStatusAndSnapshot(t *testing.T) {
 	if err != nil || !strings.Contains(out, "Browser runtime: connected") {
 		t.Fatalf("status err=%v stderr=%s stdout=%s", err, errOut, out)
 	}
-	if capture.path != "/api/v1/browser/status?sessionId=ao-1" {
+	if capture.path != "/api/v1/browser/status?sessionId=kennel-1" {
 		t.Fatalf("status path = %q", capture.path)
 	}
 	if capture.capability != "capability-1" {
@@ -90,7 +90,7 @@ func TestBrowserStatusAndSnapshot(t *testing.T) {
 		!strings.Contains(out, "<<<END UNTRUSTED EXTERNAL CONTENT>>>") {
 		t.Fatalf("snapshot err=%v stderr=%s stdout=%s", err, errOut, out)
 	}
-	if capture.body.SessionID != "ao-1" || capture.body.Action != "snapshot" || capture.body.Args["interactive"] != true {
+	if capture.body.SessionID != "kennel-1" || capture.body.Action != "snapshot" || capture.body.Args["interactive"] != true {
 		t.Fatalf("command = %#v", capture.body)
 	}
 	out, errOut, err = executeCLI(t, deps, "browser", "get", "text")
@@ -373,7 +373,7 @@ func TestBrowserRequiresSessionAndValidWait(t *testing.T) {
 	if _, _, err := executeCLI(t, Deps{}, "browser", "status"); ExitCode(err) != 2 {
 		t.Fatalf("status error = %v code=%d", err, ExitCode(err))
 	}
-	t.Setenv("KENNEL_SESSION_ID", "ao-1")
+	t.Setenv("KENNEL_SESSION_ID", "kennel-1")
 	if _, _, err := executeCLI(t, Deps{}, "browser", "status"); ExitCode(err) != 2 {
 		t.Fatalf("missing capability error = %v code=%d", err, ExitCode(err))
 	}

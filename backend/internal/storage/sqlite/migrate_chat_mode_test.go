@@ -31,7 +31,7 @@ func TestMigration0066BackfillsExistingSessionsToTUI(t *testing.T) {
 		VALUES ('p1', '/tmp/p1', 'proj', ?)`, now); err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
-	for n, id := range []string{"ao-1", "ao-2"} {
+	for n, id := range []string{"kennel-1", "kennel-2"} {
 		if _, err := db.Exec(`INSERT INTO sessions (id, project_id, num, kind, activity_state, activity_last_at, is_terminated, created_at, updated_at)
 			VALUES (?, 'p1', ?, 'worker', 'idle', ?, 0, ?, ?)`, id, n+1, now, now, now); err != nil {
 			t.Fatalf("seed session %s: %v", id, err)
@@ -83,12 +83,12 @@ func TestMigration0066FreshDatabaseDefaultsToTUI(t *testing.T) {
 		t.Fatalf("seed project: %v", err)
 	}
 	if _, err := db.Exec(`INSERT INTO sessions (id, project_id, num, kind, activity_state, activity_last_at, is_terminated, created_at, updated_at)
-		VALUES ('ao-new', 'p1', 1, 'worker', 'idle', ?, 0, ?, ?)`, now, now, now); err != nil {
+		VALUES ('kennel-new', 'p1', 1, 'worker', 'idle', ?, 0, ?, ?)`, now, now, now); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
 
 	var mode string
-	if err := db.QueryRow(`SELECT session_mode FROM sessions WHERE id = 'ao-new'`).Scan(&mode); err != nil {
+	if err := db.QueryRow(`SELECT session_mode FROM sessions WHERE id = 'kennel-new'`).Scan(&mode); err != nil {
 		t.Fatalf("read mode: %v", err)
 	}
 	if mode != "tui" {
@@ -103,7 +103,7 @@ func TestReconcileSchemaRepairsMissingConversationCurrentSessionID(t *testing.T)
 	mustExec(t, db, `INSERT INTO projects (id, path, display_name, registered_at)
 		VALUES ('p1', '/tmp/p1', 'proj', '2026-08-05T00:00:00Z')`)
 	mustExec(t, db, `INSERT INTO sessions (id, project_id, num, kind, activity_state, activity_last_at, is_terminated, created_at, updated_at)
-		VALUES ('ao-1', 'p1', 1, 'worker', 'idle', '2026-08-05T00:00:00Z', 0, '2026-08-05T00:00:00Z', '2026-08-05T00:00:00Z')`)
+		VALUES ('kennel-1', 'p1', 1, 'worker', 'idle', '2026-08-05T00:00:00Z', 0, '2026-08-05T00:00:00Z', '2026-08-05T00:00:00Z')`)
 	mustExec(t, db, `CREATE TABLE conversations (
 		id TEXT PRIMARY KEY,
 		scope TEXT NOT NULL,
@@ -118,7 +118,7 @@ func TestReconcileSchemaRepairsMissingConversationCurrentSessionID(t *testing.T)
 	// boundary so later column repairs can be exercised without a phantom table.
 	mustExec(t, db, `CREATE TABLE conversation_turns (id TEXT PRIMARY KEY)`)
 	mustExec(t, db, `INSERT INTO conversations (id, scope, project_id, session_id, latest_sequence, created_at, updated_at)
-		VALUES ('conv-1', 'session', 'p1', 'ao-1', 0, '2026-08-05T00:00:00Z', '2026-08-05T00:00:00Z')`)
+		VALUES ('conv-1', 'session', 'p1', 'kennel-1', 0, '2026-08-05T00:00:00Z', '2026-08-05T00:00:00Z')`)
 
 	if err := reconcileSchema(db); err != nil {
 		t.Fatalf("reconcile schema: %v", err)
@@ -128,7 +128,7 @@ func TestReconcileSchemaRepairsMissingConversationCurrentSessionID(t *testing.T)
 	if err := db.QueryRow(`SELECT current_session_id FROM conversations WHERE id = 'conv-1'`).Scan(&currentSessionID); err != nil {
 		t.Fatalf("read current_session_id: %v", err)
 	}
-	if currentSessionID != "ao-1" {
+	if currentSessionID != "kennel-1" {
 		t.Fatalf("current_session_id = %q, want session_id backfill", currentSessionID)
 	}
 	if err := reconcileSchema(db); err != nil {
@@ -143,13 +143,13 @@ func TestMigration0066ConversationSchemaConstraints(t *testing.T) {
 	now := time.Now().UTC()
 	mustExec(t, db, `INSERT INTO projects (id, path, display_name, registered_at) VALUES ('p1','/tmp/p1','proj',?)`, now)
 	mustExec(t, db, `INSERT INTO sessions (id, project_id, num, kind, activity_state, activity_last_at, is_terminated, session_mode, created_at, updated_at)
-		VALUES ('ao-1','p1',1,'orchestrator','idle',?,0,'chat',?,?)`, now, now, now)
+		VALUES ('kennel-1','p1',1,'orchestrator','idle',?,0,'chat',?,?)`, now, now, now)
 	mustExec(t, db, `INSERT INTO conversations (id, scope, project_id, session_id, current_session_id, latest_sequence, created_at, updated_at)
-		VALUES ('conv-1','session','p1','ao-1','ao-1',0,?,?)`, now, now)
+		VALUES ('conv-1','session','p1','kennel-1','kennel-1',0,?,?)`, now, now)
 
 	t.Run("one conversation per session", func(t *testing.T) {
 		_, err := db.Exec(`INSERT INTO conversations (id, scope, project_id, session_id, latest_sequence, created_at, updated_at)
-			VALUES ('conv-dup','session','p1','ao-1',0,?,?)`, now, now)
+			VALUES ('conv-dup','session','p1','kennel-1',0,?,?)`, now, now)
 		if err == nil {
 			t.Fatal("a second conversation for the same session was accepted")
 		}
@@ -165,14 +165,14 @@ func TestMigration0066ConversationSchemaConstraints(t *testing.T) {
 
 	t.Run("project scope forbids a session", func(t *testing.T) {
 		_, err := db.Exec(`INSERT INTO conversations (id, scope, project_id, session_id, latest_sequence, created_at, updated_at)
-			VALUES ('conv-bad2','project','p1','ao-1',0,?,?)`, now, now)
+			VALUES ('conv-bad2','project','p1','kennel-1',0,?,?)`, now, now)
 		if err == nil {
 			t.Fatal("a project-scoped conversation carrying a session was accepted")
 		}
 	})
 
 	mustExec(t, db, `INSERT INTO conversation_turns (id, conversation_id, handled_by_session_id, provider_turn_id, state, requested_at)
-		VALUES ('turn-1','conv-1','ao-1','provider-turn-1','running',?)`, now)
+		VALUES ('turn-1','conv-1','kennel-1','provider-turn-1','running',?)`, now)
 
 	t.Run("sequence is unique per conversation", func(t *testing.T) {
 		mustExec(t, db, `INSERT INTO conversation_messages (id, conversation_id, turn_id, sequence, role, origin, text, created_at, updated_at)
@@ -216,16 +216,16 @@ func TestMigration0066ConversationSchemaConstraints(t *testing.T) {
 
 	t.Run("provider events dedupe on provider event id", func(t *testing.T) {
 		mustExec(t, db, `INSERT INTO conversation_provider_events (conversation_id, session_id, provider_event_id, method, payload_json, received_at)
-			VALUES ('conv-1','ao-1','ev-1','item/completed','{}',?)`, now)
+			VALUES ('conv-1','kennel-1','ev-1','item/completed','{}',?)`, now)
 		_, err := db.Exec(`INSERT INTO conversation_provider_events (conversation_id, session_id, provider_event_id, method, payload_json, received_at)
-			VALUES ('conv-1','ao-1','ev-1','item/completed','{}',?)`, now)
+			VALUES ('conv-1','kennel-1','ev-1','item/completed','{}',?)`, now)
 		if err == nil {
 			t.Fatal("a duplicate provider_event_id was accepted")
 		}
 		// Events with no provider id are common and must all be retained.
 		for range 2 {
 			mustExec(t, db, `INSERT INTO conversation_provider_events (conversation_id, session_id, method, payload_json, received_at)
-				VALUES ('conv-1','ao-1','turn/started','{}',?)`, now)
+				VALUES ('conv-1','kennel-1','turn/started','{}',?)`, now)
 		}
 	})
 }
@@ -241,11 +241,11 @@ func TestChatMigrationsEmitConversationCDC(t *testing.T) {
 	now := time.Now().UTC()
 	mustExec(t, db, `INSERT INTO projects (id, path, display_name, registered_at) VALUES ('p1','/tmp/p1','proj',?)`, now)
 	mustExec(t, db, `INSERT INTO sessions (id, project_id, num, kind, activity_state, activity_last_at, is_terminated, session_mode, created_at, updated_at)
-		VALUES ('ao-1','p1',1,'orchestrator','idle',?,0,'chat',?,?)`, now, now, now)
+		VALUES ('kennel-1','p1',1,'orchestrator','idle',?,0,'chat',?,?)`, now, now, now)
 	mustExec(t, db, `INSERT INTO conversations (id, scope, project_id, session_id, current_session_id, latest_sequence, created_at, updated_at)
-		VALUES ('conv-1','session','p1','ao-1','ao-1',0,?,?)`, now, now)
+		VALUES ('conv-1','session','p1','kennel-1','kennel-1',0,?,?)`, now, now)
 	mustExec(t, db, `INSERT INTO conversation_turns (id, conversation_id, handled_by_session_id, state, requested_at)
-		VALUES ('turn-1','conv-1','ao-1','running',?)`, now)
+		VALUES ('turn-1','conv-1','kennel-1','running',?)`, now)
 
 	before := countChangeLog(t, db, "session_updated")
 	mustExec(t, db, `INSERT INTO conversation_messages (id, conversation_id, turn_id, sequence, role, origin, text, created_at, updated_at)

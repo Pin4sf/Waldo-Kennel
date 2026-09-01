@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type captureAgent struct {
@@ -42,9 +42,9 @@ func (a *captureAgent) SessionInfo(context.Context, ports.SessionRef) (ports.Ses
 func TestReviewCommandPreservesAgentAndAppliesReadOnlyPolicy(t *testing.T) {
 	agent := &captureAgent{argv: []string{
 		"env",
-		`KILO_CONFIG_CONTENT={"agent":{"ao-review-w1":{"prompt":"review only"}}}`,
+		`KILO_CONFIG_CONTENT={"agent":{"kennel-review-w1":{"prompt":"review only"}}}`,
 		"kilocode",
-		"--agent", "ao-review-w1",
+		"--agent", "kennel-review-w1",
 		"--prompt", "review it",
 	}}
 	r := &Reviewer{agent: agent}
@@ -83,7 +83,7 @@ func TestReviewCommandPreservesAgentAndAppliesReadOnlyPolicy(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &config); err != nil {
 		t.Fatalf("reviewer config: %v", err)
 	}
-	if _, ok := config.Agent["ao-review-w1"]; !ok {
+	if _, ok := config.Agent["kennel-review-w1"]; !ok {
 		t.Fatalf("generated reviewer agent was lost: %s", raw)
 	}
 	if config.Permission.CatchAll != "deny" || config.Permission.Read != "allow" {
@@ -123,7 +123,7 @@ func TestReviewCommandBuildsKiloCodeArgvWithHiddenPrompts(t *testing.T) {
 	spec, err := New().ReviewCommand(context.Background(), ports.ReviewInvocation{
 		ReviewerID:       "review-w1",
 		WorkspacePath:    t.TempDir(),
-		Prompt:           "Read the AO review task.",
+		Prompt:           "Read the Kennel review task.",
 		SystemPromptFile: systemPath,
 		TaskPromptRoot:   promptRoot,
 	})
@@ -133,8 +133,8 @@ func TestReviewCommandBuildsKiloCodeArgvWithHiddenPrompts(t *testing.T) {
 	joinedArgv := strings.Join(spec.Argv, "\n")
 	for _, want := range []string{
 		"KILO_CONFIG_CONTENT=",
-		"--agent\nao-review-w1",
-		"--prompt\nRead the AO review task.",
+		"--agent\nkennel-review-w1",
+		"--prompt\nRead the Kennel review task.",
 	} {
 		if !strings.Contains(joinedArgv, want) {
 			t.Fatalf("argv missing %q: %#v", want, spec.Argv)
@@ -159,7 +159,7 @@ func TestBashPolicyAllowsEveryParsedReportingPipelineStage(t *testing.T) {
 			},
 		},
 		{
-			name: "AO bookkeeping",
+			name: "Kennel bookkeeping",
 			stages: []string{
 				`printf '%s' '{ "reviews": [] }'`,
 				`kennel review submit --session sess-1 --reviews -`,

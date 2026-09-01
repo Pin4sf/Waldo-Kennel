@@ -14,15 +14,15 @@ func TestStripEnvAssignments(t *testing.T) {
 	}{
 		{
 			name:            "no env prefix returns argv unchanged",
-			argv:            []string{"opencode", "--agent", "ao-x"},
+			argv:            []string{"opencode", "--agent", "kennel-x"},
 			wantAssignments: nil,
-			wantRest:        []string{"opencode", "--agent", "ao-x"},
+			wantRest:        []string{"opencode", "--agent", "kennel-x"},
 		},
 		{
 			name:            "env prefix is split from the real command",
-			argv:            []string{"env", "OPENCODE_CONFIG=C:/cfg.json", "opencode", "--agent", "ao-x"},
+			argv:            []string{"env", "OPENCODE_CONFIG=C:/cfg.json", "opencode", "--agent", "kennel-x"},
 			wantAssignments: []string{"OPENCODE_CONFIG=C:/cfg.json"},
-			wantRest:        []string{"opencode", "--agent", "ao-x"},
+			wantRest:        []string{"opencode", "--agent", "kennel-x"},
 		},
 		{
 			name:            "env with no command left is untouched",

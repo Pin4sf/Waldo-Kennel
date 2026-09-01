@@ -9,10 +9,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const adapterID = "prime-agent"
@@ -51,7 +51,7 @@ func (p *Plugin) Manifest() adapters.Manifest {
 	}
 }
 
-// GetConfigSpec reports the per-project Prime Agent configuration AO exposes.
+// GetConfigSpec reports the per-project Prime Agent configuration Kennel exposes.
 func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 	if err := ctx.Err(); err != nil {
 		return ports.ConfigSpec{}, err
@@ -69,7 +69,7 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 //
 // The explicit separator ensures task text beginning with a hyphen cannot be
 // parsed as an option. Prime Agent has no safe CLI permission-mode equivalent,
-// so AO intentionally emits no permission arguments for any requested mode.
+// so Kennel intentionally emits no permission arguments for any requested mode.
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -113,7 +113,7 @@ func resolveSystemPrompt(ctx context.Context, inline, file string) (string, erro
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	data, err := os.ReadFile(file) //nolint:gosec // path comes from AO-owned launch configuration
+	data, err := os.ReadFile(file) //nolint:gosec // path comes from Kennel-owned launch configuration
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return "", ctxErr
 	}
@@ -126,9 +126,9 @@ func resolveSystemPrompt(ctx context.Context, inline, file string) (string, erro
 	return string(data), nil
 }
 
-// GetRestoreCommand intentionally reports native restore as unavailable. AO
+// GetRestoreCommand intentionally reports native restore as unavailable. Kennel
 // launches with --no-session so Prime cannot leave a detached resident worker
-// alive after AO terminates the owning terminal session.
+// alive after Kennel terminates the owning terminal session.
 func (p *Plugin) GetRestoreCommand(ctx context.Context, _ ports.RestoreConfig) ([]string, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, false, err
@@ -145,7 +145,7 @@ func (p *Plugin) SteersActiveTurn() bool { return true }
 func (p *Plugin) EmitsSubmitActivity() bool { return true }
 
 // EmitsBlockedActivity is false because Prime has no lifecycle signal with the
-// safe pre/post correlation AO requires for automated permission handling.
+// safe pre/post correlation Kennel requires for automated permission handling.
 func (p *Plugin) EmitsBlockedActivity() bool { return false }
 
 var primeAgentBinarySpec = binaryutil.BinarySpec{

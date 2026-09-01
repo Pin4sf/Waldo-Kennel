@@ -14,8 +14,8 @@ import (
 // Both exist because the provider's settled payloads are not enough on their own:
 // aggregatedOutput arrives only at completion and was measured dropping its first
 // chunk, and there is no per-file diff notification at all -- only one aggregated
-// unified diff string per turn, which AO parses. So what these look for is the gap
-// between "the agent did work on disk" and "AO can say what that work was".
+// unified diff string per turn, which Kennel parses. So what these look for is the gap
+// between "the agent did work on disk" and "Kennel can say what that work was".
 
 // commandDetail decodes an activity's typed payload.
 func commandDetail(t *testing.T, a activity) map[string]any {
@@ -133,7 +133,7 @@ func TestChatSlowCommandOutputAppearsBeforeItFinishes(t *testing.T) {
 }
 
 // The changed-file summary has to describe what the turn actually did on disk, with
-// the right kind per file. AO derives all of this by parsing one unified diff string,
+// the right kind per file. Kennel derives all of this by parsing one unified diff string,
 // so every field here is a chance for that parse to be wrong.
 func TestChatTurnDiffReportsChangedFiles(t *testing.T) {
 	requireE2E(t)

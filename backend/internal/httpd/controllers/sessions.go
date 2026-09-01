@@ -23,16 +23,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/attachmentstore"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apispec"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	previewutil "github.com/aoagents/agent-orchestrator/backend/internal/preview"
-	"github.com/aoagents/agent-orchestrator/backend/internal/previewserver"
-	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
-	usagesvc "github.com/aoagents/agent-orchestrator/backend/internal/service/usage"
-	"github.com/aoagents/agent-orchestrator/backend/internal/workspacewatch"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/attachmentstore"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apispec"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/envelope"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	previewutil "github.com/Pin4sf/Waldo-Kennel/backend/internal/preview"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/previewserver"
+	sessionsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/session"
+	usagesvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/usage"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/workspacewatch"
 )
 
 const (
@@ -42,7 +42,7 @@ const (
 	maxDisplayNameLen = 20
 	maxIdempotencyKey = 128
 
-	// Agent-authored handoffs are deliberately bounded. Deterministic AO
+	// Agent-authored handoffs are deliberately bounded. Deterministic Kennel
 	// context is stored separately and does not need to be repeated here.
 	maxAgentHandoffBodyBytes = 256 << 10
 	maxAgentHandoffBytes     = 64 << 10
@@ -229,7 +229,7 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Bound the body before decoding: this route is served on the LAN listener
-	// (AO Mobile), not just loopback, and the attachment caps only run after the
+	// (Kennel Mobile), not just loopback, and the attachment caps only run after the
 	// whole body is decoded. MaxBytesReader stops the read past the limit so an
 	// oversized base64 payload can't allocate in full first.
 	r.Body = http.MaxBytesReader(w, r.Body, maxSpawnBodyBytes)
@@ -1381,7 +1381,7 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 	// They are externally-supplied strings headed for logs and in-memory maps,
 	// so sanitize control chars and cap their length (a truncated id could
 	// never match its pre/post counterpart, so overlong values are dropped by
-	// the CLI; the cap here is defense against non-AO callers).
+	// the CLI; the cap here is defense against non-Kennel callers).
 	sig := ports.ActivitySignal{
 		Valid:                 state != "",
 		State:                 state,
@@ -1455,7 +1455,7 @@ func capActivityText(v string, maxLen int) string {
 	if maxLen <= 0 || len(v) <= maxLen {
 		return v
 	}
-	const marker = "\n[... truncated by AO ...]\n"
+	const marker = "\n[... truncated by Kennel ...]\n"
 	budget := maxLen - len(marker)
 	if budget <= 0 {
 		return ""

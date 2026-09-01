@@ -1,4 +1,4 @@
-// Package continueagent defines AO's experimental host-trusted Continue reviewer.
+// Package continueagent defines Kennel's experimental host-trusted Continue reviewer.
 package continueagent
 
 import (
@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	workercontinue "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/continueagent"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/reviewgateway"
+	workercontinue "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/continueagent"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/reviewgateway"
 )
 
 const (
@@ -45,7 +45,7 @@ var _ ports.Reviewer = (*Reviewer)(nil)
 var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 
 // ReviewCommand launches Continue in readonly mode and injects the task after
-// readiness. CLI discovery and state are redirected to an AO-owned profile.
+// readiness. CLI discovery and state are redirected to an Kennel-owned profile.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	if err := ctx.Err(); err != nil {
 		return ports.ReviewCommandSpec{}, err
@@ -62,7 +62,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 	}
 	env, err := reviewgateway.PrepareHostTrustedEnvironment(inv.DataDir, inv.ReviewerID)
 	if err != nil {
-		return ports.ReviewCommandSpec{}, fmt.Errorf("continue reviewer: prepare AO-owned profile: %w", err)
+		return ports.ReviewCommandSpec{}, fmt.Errorf("continue reviewer: prepare Kennel-owned profile: %w", err)
 	}
 	if err := seedHostContinueConfig(env.ConfigRoot); err != nil {
 		return ports.ReviewCommandSpec{}, err
@@ -126,7 +126,7 @@ func (r *Reviewer) ReviewPreflight(ctx context.Context, _ string) error {
 	return err
 }
 
-// ReviewMessage reuses AO's opaque task reference in the already-running TUI.
+// ReviewMessage reuses Kennel's opaque task reference in the already-running TUI.
 // It neither grants new authority through environment nor restores a prior
 // Continue session.
 func (*Reviewer) ReviewMessage(ctx context.Context, inv ports.ReviewInvocation) (string, error) {

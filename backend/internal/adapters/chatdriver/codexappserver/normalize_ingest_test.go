@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/codexappserver/codexproto"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/codexappserver/codexproto"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
-// Coverage for the notifications AO used to drop.
+// Coverage for the notifications Kennel used to drop.
 //
 // Every params literal below is a frame captured verbatim from codex-cli 0.146.0
 // driving a real account, with paths and ids shortened. Where a method was never
@@ -109,7 +109,7 @@ func TestNormalizeTurnPlanUpdated(t *testing.T) {
 	if ev.Plan.Steps[0].Status != domain.PlanStepCompleted {
 		t.Errorf("step 0 status = %q", ev.Plan.Steps[0].Status)
 	}
-	// The provider's camelCase becomes AO's persisted spelling.
+	// The provider's camelCase becomes Kennel's persisted spelling.
 	if ev.Plan.Steps[2].Status != domain.PlanStepInProgress {
 		t.Errorf("step 2 status = %q, want %q", ev.Plan.Steps[2].Status, domain.PlanStepInProgress)
 	}
@@ -160,7 +160,7 @@ func TestNormalizePlanDeltaIsText(t *testing.T) {
 
 // Captured item/started for a two-file patch. The provider spells the change kind
 // as an object, so passing `changes` through verbatim left a client with nothing it
-// could read as a status — and put a provider DTO on AO's wire.
+// could read as a status — and put a provider DTO on Kennel's wire.
 func TestNormalizeFileChangeItemProducesNeutralFiles(t *testing.T) {
 	ev := normalizeOne(t, codexproto.MethodItemStarted,
 		`{"threadId":"th","turnId":"tu","startedAtMs":1785702980000,"item":{"type":"fileChange","id":"exec-adde2cb3","status":"inProgress","changes":[{"path":"/ws/hello.txt","kind":{"type":"update","move_path":null},"diff":"@@ -2 +2,2 @@\n two\n+three\n"},{"path":"/ws/notes.md","kind":{"type":"add"},"diff":"This is a note.\nIt is short.\n"}]}}`)
@@ -204,7 +204,7 @@ func TestNormalizeFileChangeSummaryNamesOneFile(t *testing.T) {
 	}
 }
 
-// A move arrives as an update carrying the destination. The path AO shows must be
+// A move arrives as an update carrying the destination. The path Kennel shows must be
 // where the file ended up, with the old path recorded as the source.
 func TestNormalizeFileChangeMoveBecomesRename(t *testing.T) {
 	ev := normalizeOne(t, codexproto.MethodItemCompleted,
@@ -432,7 +432,7 @@ func TestNormalizeAutoApprovalReview(t *testing.T) {
 	}
 	// The provider gives a reviewId but no item id. The synthetic key is what makes
 	// started and completed update ONE row instead of creating two.
-	if started.ProviderItemID != "ao-review-5b95c779" {
+	if started.ProviderItemID != "kennel-review-5b95c779" {
 		t.Fatalf("item id = %q", started.ProviderItemID)
 	}
 	if started.Summary != "Reviewing curl -s https://example.com" {

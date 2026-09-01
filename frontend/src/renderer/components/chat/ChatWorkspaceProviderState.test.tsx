@@ -92,7 +92,7 @@ describe("plan", () => {
 		expect(screen.getByLabelText("Run the backend tests — done")).toBeInTheDocument();
 	});
 
-	// A plan whose turn AO never correlated — one from before this controller started.
+	// A plan whose turn Kennel never correlated — one from before this controller started.
 	it("still renders a plan row whose turn carries none", () => {
 		const orphan: ConversationSnapshot = {
 			...chatFixture,

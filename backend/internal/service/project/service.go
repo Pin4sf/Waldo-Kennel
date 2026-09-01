@@ -13,11 +13,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/gitdefault"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/gitdefault"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 // Manager is the controller-facing contract for the /api/v1/projects surface.
@@ -332,7 +332,7 @@ func (m *Service) InitializeRepository(ctx context.Context, in InitializeReposit
 	if _, err := gitOutput(ctx, path, "add", "-A"); err != nil {
 		return InitializeRepositoryResult{}, apierr.Invalid("GIT_ADD_FAILED", "Could not stage files for the initial commit.", map[string]any{"error": err.Error()})
 	}
-	if _, err := gitOutput(ctx, path, "-c", "user.name=Agent Orchestrator", "-c", "user.email=ao@example.com", "commit", "--allow-empty", "-m", "initial commit"); err != nil {
+	if _, err := gitOutput(ctx, path, "-c", "user.name=Kennel", "-c", "user.email=kennel@example.com", "commit", "--allow-empty", "-m", "initial commit"); err != nil {
 		return InitializeRepositoryResult{}, apierr.Invalid("INITIAL_COMMIT_FAILED", "Could not create the initial commit.", map[string]any{"error": err.Error()})
 	}
 	return InitializeRepositoryResult{Path: path}, nil
@@ -571,7 +571,7 @@ func (m *Service) UpdateSettings(ctx context.Context, id domain.ProjectID, in Up
 // EnsureDefaultScratchProject seeds the built-in first-run scratch project when
 // the registry has no active projects. Archived rows do not suppress reseeding:
 // otherwise deleting Scratch can leave first-run users with no non-git path
-// back into AO.
+// back into Kennel.
 func (m *Service) EnsureDefaultScratchProject(ctx context.Context, scratchPath string) (Project, error) {
 	scratchPath = strings.TrimSpace(scratchPath)
 	if scratchPath == "" {
@@ -687,7 +687,7 @@ func validateScratchProjectConfig(cfg domain.ProjectConfig) error {
 // other git error returns an empty string — `project add` must not fail just
 // because no origin is configured (the SCM observer skips such projects).
 func resolveGitOriginURL(path string) string {
-	out, err := aoprocess.Command("git", "-C", path, "remote", "get-url", "origin").Output()
+	out, err := kennelprocess.Command("git", "-C", path, "remote", "get-url", "origin").Output()
 	if err != nil {
 		return ""
 	}
@@ -695,7 +695,7 @@ func resolveGitOriginURL(path string) string {
 }
 
 // resolveDefaultBranch inspects only authoritative local metadata: a cached
-// remote HEAD, or the branch AO recorded when it initialized a remoteless repo.
+// remote HEAD, or the branch Kennel recorded when it initialized a remoteless repo.
 // It deliberately never consults the checked-out branch and never guesses
 // main/master. Live remote lookup stays on the bounded workspace spawn path.
 func resolveDefaultBranch(ctx context.Context, path string) string {
@@ -859,7 +859,7 @@ func samePath(a, b string) bool {
 }
 
 func isGitRepo(path string) bool {
-	cmd := aoprocess.Command("git", "-C", path, "rev-parse", "--show-toplevel")
+	cmd := kennelprocess.Command("git", "-C", path, "rev-parse", "--show-toplevel")
 	out, err := cmd.Output()
 	if err != nil {
 		return false

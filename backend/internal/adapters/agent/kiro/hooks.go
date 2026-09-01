@@ -9,13 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
 	// Kiro reads hooks from a workspace-local agent configuration file at
-	// .kiro/agents/<name>.json. AO installs its hooks into a dedicated agent
+	// .kiro/agents/<name>.json. Kennel installs its hooks into a dedicated agent
 	// file so it never clobbers a user's own agents.
 	// See https://kiro.dev/docs/cli/hooks/ and
 	// https://kiro.dev/docs/cli/custom-agents/configuration-reference#hooks-field
@@ -23,8 +23,8 @@ const (
 	kiroAgentsDirName = "agents"
 	kiroAgentFileName = "kennel.json"
 
-	// kiroHookCommandPrefix identifies the hook commands AO owns, so install
-	// skips duplicates and uninstall recognizes AO entries by prefix without an
+	// kiroHookCommandPrefix identifies the hook commands Kennel owns, so install
+	// skips duplicates and uninstall recognizes Kennel entries by prefix without an
 	// embedded template to diff against.
 	kiroHookCommandPrefix = "kennel hooks kiro "
 
@@ -46,17 +46,17 @@ type kiroHookEntry struct {
 	Command string `json:"command"`
 }
 
-// kiroHookSpec describes one hook AO installs, defined in code rather than read
+// kiroHookSpec describes one hook Kennel installs, defined in code rather than read
 // from an embedded hooks file.
 type kiroHookSpec struct {
 	// Event is the native Kiro hook event name (camelCase).
 	Event string
-	// Command is the AO hook command line.
+	// Command is the Kennel hook command line.
 	Command string
 }
 
-// kiroManagedHooks is the source of truth for the hooks AO installs. The native
-// Kiro events are mapped onto AO hook sub-command names (the trailing word) so
+// kiroManagedHooks is the source of truth for the hooks Kennel installs. The native
+// Kiro events are mapped onto Kennel hook sub-command names (the trailing word) so
 // the CLI hook dispatcher routes them to DeriveActivityState:
 //
 //	agentSpawn       -> session-start       (ActivityActive)
@@ -70,9 +70,9 @@ var kiroManagedHooks = []kiroHookSpec{
 	{Event: "stop", Command: kiroHookCommandPrefix + "stop"},
 }
 
-// GetAgentHooks installs AO's Kiro hooks into the worktree-local
+// GetAgentHooks installs Kennel's Kiro hooks into the worktree-local
 // .kiro/agents/kennel.json file. Existing hook entries are preserved and duplicate
-// AO commands are not appended.
+// Kennel commands are not appended.
 func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfig) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -114,7 +114,7 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 	return nil
 }
 
-// UninstallHooks removes AO's Kiro hooks from the workspace-local
+// UninstallHooks removes Kennel's Kiro hooks from the workspace-local
 // .kiro/agents/kennel.json file, leaving user-defined hooks untouched. A missing
 // file is a no-op.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
@@ -151,7 +151,7 @@ func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error
 	return nil
 }
 
-// AreHooksInstalled reports whether any AO Kiro hook is present in the
+// AreHooksInstalled reports whether any Kennel Kiro hook is present in the
 // workspace-local agent file. A missing file means none are installed.
 func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (bool, error) {
 	if err := ctx.Err(); err != nil {
@@ -189,7 +189,7 @@ func kiroAgentPath(workspacePath string) string {
 }
 
 // readKiroHooks loads the agent file into a top-level raw map plus the decoded
-// "hooks" sub-map, preserving keys AO doesn't manage. A missing or empty file
+// "hooks" sub-map, preserving keys Kennel doesn't manage. A missing or empty file
 // yields empty maps.
 func readKiroHooks(hooksPath string) (topLevel, rawHooks map[string]json.RawMessage, err error) {
 	topLevel = map[string]json.RawMessage{}
@@ -297,7 +297,7 @@ func groupKiroHooksByEvent() map[string][]kiroHookSpec {
 	return byEvent
 }
 
-// kiroManagedEvents returns the distinct Kiro events AO manages, in the order
+// kiroManagedEvents returns the distinct Kiro events Kennel manages, in the order
 // they first appear in kiroManagedHooks.
 func kiroManagedEvents() []string {
 	seen := map[string]bool{}
@@ -315,7 +315,7 @@ func isKiroManagedHook(command string) bool {
 	return strings.HasPrefix(command, kiroHookCommandPrefix)
 }
 
-// removeKiroManagedHooks strips AO hook entries from an event's array.
+// removeKiroManagedHooks strips Kennel hook entries from an event's array.
 func removeKiroManagedHooks(entries []kiroHookEntry) []kiroHookEntry {
 	kept := make([]kiroHookEntry, 0, len(entries))
 	for _, entry := range entries {

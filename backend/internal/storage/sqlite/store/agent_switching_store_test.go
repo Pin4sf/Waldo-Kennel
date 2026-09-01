@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 type agentSwitchFixtureUpdater interface {
@@ -84,7 +84,7 @@ func TestAgentNativeSessionsRetainMultipleConversationsNewestFirst(t *testing.T)
 	seedProject(t, s, "switch-native")
 	session, err := s.CreateSession(ctx, sampleRecord("switch-native"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Kennel session: %v", err)
 	}
 
 	now := time.Now().UTC().Truncate(time.Second)
@@ -111,7 +111,7 @@ func TestAgentNativeSessionsRetainMultipleConversationsNewestFirst(t *testing.T)
 		t.Fatalf("create second same-harness conversation: created=%v err=%v", created, err)
 	}
 
-	// A retry with a new AO id but the same concrete native identity resolves
+	// A retry with a new Kennel id but the same concrete native identity resolves
 	// to the durable original instead of adding a duplicate conversation.
 	duplicate := second
 	duplicate.ID = "retry-generated-id"
@@ -147,7 +147,7 @@ func TestAgentNativeSessionGenerationFence(t *testing.T) {
 	seedProject(t, s, "native-fence")
 	session, err := s.CreateSession(ctx, sampleRecord("native-fence"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Kennel session: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	rec := domain.AgentNativeSession{
@@ -185,7 +185,7 @@ func TestAgentSwitchIdempotencySingleActiveSagaAndGenerationFences(t *testing.T)
 	seedProject(t, s, "switch-saga")
 	session, err := s.CreateSession(ctx, sampleRecord("switch-saga"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Kennel session: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	switchRec := domain.AgentSwitch{
@@ -348,7 +348,7 @@ func TestAgentSwitchTargetStartUnconfirmedMarkerIsNonTerminalAndMonotonic(t *tes
 	rec.Metadata.RuntimeLaunchID = "source-runtime"
 	session, err := s.CreateSession(ctx, rec)
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Kennel session: %v", err)
 	}
 	target := domain.AgentNativeSession{
 		ID: "recovery-target", AOSessionID: session.ID, Harness: domain.HarnessCodex,
@@ -432,7 +432,7 @@ func TestAgentSwitchSourceStopMarkerCanAdvanceOnlyThroughConfirmedBoundary(t *te
 	rec.Metadata.RuntimeLaunchID = "source-runtime"
 	session, err := s.CreateSession(ctx, rec)
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Kennel session: %v", err)
 	}
 	sw, created, err := s.CreateAgentSwitch(ctx, domain.AgentSwitch{
 		ID: "switch-source-stop", SessionID: session.ID, IdempotencyKey: "switch-source-stop",
@@ -487,7 +487,7 @@ func TestAgentSwitchSourceRestoreMarkerCanSettleOnlyAsTerminalFailure(t *testing
 	rec.Metadata.RuntimeLaunchID = "source-runtime"
 	session, err := s.CreateSession(ctx, rec)
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Kennel session: %v", err)
 	}
 	sw, created, err := s.CreateAgentSwitch(ctx, domain.AgentSwitch{
 		ID: "switch-source-restore", SessionID: session.ID, IdempotencyKey: "switch-source-restore",
@@ -542,7 +542,7 @@ func TestAgentHandoffOutcomeIsMonotonicWhenTimeoutWins(t *testing.T) {
 	seedProject(t, s, "handoff-timeout")
 	session, err := s.CreateSession(ctx, sampleRecord("handoff-timeout"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Kennel session: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	switchRec := domain.AgentSwitch{
@@ -696,7 +696,7 @@ func TestAgentSwitchRejectsTargetNativeReferenceWithWrongHarness(t *testing.T) {
 	seedProject(t, s, "switch-harness")
 	session, err := s.CreateSession(ctx, sampleRecord("switch-harness"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Kennel session: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 
@@ -740,7 +740,7 @@ func TestAgentSwitchTargetAcknowledgementIsGenerationFencedAndWriteOnce(t *testi
 	seedProject(t, s, "switch-ack")
 	session, err := s.CreateSession(ctx, sampleRecord("switch-ack"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Kennel session: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	target := domain.AgentNativeSession{
@@ -818,7 +818,7 @@ func TestAgentSwitchDeliveryFailureIsAtomicWithAcknowledgement(t *testing.T) {
 			seedProject(t, s, "switch-delivery-outcome")
 			session, err := s.CreateSession(ctx, sampleRecord("switch-delivery-outcome"))
 			if err != nil {
-				t.Fatalf("create AO session: %v", err)
+				t.Fatalf("create Kennel session: %v", err)
 			}
 			now := time.Now().UTC().Truncate(time.Second)
 			target := domain.AgentNativeSession{
@@ -925,7 +925,7 @@ func TestAgentSwitchSourceStopAndTargetActivationAreAtomicAndNarrow(t *testing.T
 	rec.Metadata.PreviewURL = "http://localhost:3000"
 	session, err := s.CreateSession(ctx, rec)
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Kennel session: %v", err)
 	}
 	conversation, err := s.CreateConversation(ctx, "conversation-switch-activation", domain.ConversationScopeSession, session.ProjectID, session.ID, now)
 	if err != nil {
@@ -1141,7 +1141,7 @@ func TestAgentSwitchOwnershipTransactionsRejectTerminatedSession(t *testing.T) {
 	rec.Metadata.RuntimeLaunchID = "source-runtime"
 	session, err := s.CreateSession(ctx, rec)
 	if err != nil {
-		t.Fatalf("create terminated AO session: %v", err)
+		t.Fatalf("create terminated Kennel session: %v", err)
 	}
 	target := domain.AgentNativeSession{
 		ID: "terminated-target", AOSessionID: session.ID, Harness: domain.HarnessCodex,
@@ -1208,7 +1208,7 @@ func TestAgentSwitchAndOwnerChangesEmitSessionInvalidationCDC(t *testing.T) {
 	seedProject(t, s, "switch-cdc")
 	session, err := s.CreateSession(ctx, sampleRecord("switch-cdc"))
 	if err != nil {
-		t.Fatalf("create AO session: %v", err)
+		t.Fatalf("create Kennel session: %v", err)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	baseSeq, _ := s.LatestSeq(ctx)

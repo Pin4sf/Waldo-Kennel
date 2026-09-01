@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/mobilebridge"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/mobilebridge"
 )
 
 type fakeBridge struct{ enabled bool }
@@ -324,10 +324,10 @@ func newSecureBridge(t *testing.T, info mobilebridge.TailscaleInfo, target func(
 }
 
 // `tailscale serve --https=443 off` is node-global: it removes whatever is on
-// :443, not merely what AO put there. Disabling a bridge that never enabled
-// secure pairing must therefore leave the tailnet proxy strictly alone, or AO
+// :443, not merely what Kennel put there. Disabling a bridge that never enabled
+// secure pairing must therefore leave the tailnet proxy strictly alone, or Kennel
 // silently destroys a serve route its user configured for themselves — or one
-// belonging to another AO instance on the same node.
+// belonging to another Kennel instance on the same node.
 func TestDisableLeavesServeAloneWhenSecurePairingNeverEnabled(t *testing.T) {
 	cleared := 0
 	b := newSecureBridge(t, tsUp, func() int { return 3011 })
@@ -339,11 +339,11 @@ func TestDisableLeavesServeAloneWhenSecurePairingNeverEnabled(t *testing.T) {
 		t.Fatalf("disable: %v", err)
 	}
 	if cleared != 0 {
-		t.Errorf("clearServe called %d times, want 0 — AO must not touch a proxy it never installed", cleared)
+		t.Errorf("clearServe called %d times, want 0 — Kennel must not touch a proxy it never installed", cleared)
 	}
 }
 
-// When AO did install the proxy, disabling must still remove it.
+// When Kennel did install the proxy, disabling must still remove it.
 func TestDisableClearsServeWhenSecurePairingEnabled(t *testing.T) {
 	cleared := 0
 	b := newSecureBridge(t, tsUp, func() int { return 3011 })
@@ -365,7 +365,7 @@ func TestDisableClearsServeWhenSecurePairingEnabled(t *testing.T) {
 // `tailscale serve --bg` outlives this process, so a graceful shutdown that
 // stops only the listener leaves the tailnet routing to a local port with
 // nothing authenticated behind it. Whatever binds that port next would be
-// published to the tailnet in AO's place.
+// published to the tailnet in Kennel's place.
 func TestShutdownServeClearsProxyWhenSecurePairingEnabled(t *testing.T) {
 	cleared := 0
 	b := newSecureBridge(t, tsUp, func() int { return 3011 })

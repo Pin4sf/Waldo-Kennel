@@ -2,9 +2,9 @@
 // sessions and resuming sessions when a native Pi session id is known.
 //
 // Pi (badlogic / "@earendil-works/pi-coding-agent", binary "pi") is a minimal
-// terminal coding harness. AO runs Pi interactively in the session terminal
+// terminal coding harness. Kennel runs Pi interactively in the session terminal
 // pane. The initial prompt is delivered in-command as a trailing positional
-// message; Pi's argument parser does not honor a `--` options terminator, so AO
+// message; Pi's argument parser does not honor a `--` options terminator, so Kennel
 // relies on prompts not beginning with a literal "-".
 //
 // System prompts are appended to Pi's default coding-assistant prompt via
@@ -13,7 +13,7 @@
 // inlined into the flag; a read failure aborts the launch.
 //
 // Permissions: Pi has no permission/approval CLI flags ("No permission popups" --
-// confirmation flows are built via TypeScript extensions), so AO emits no
+// confirmation flows are built via TypeScript extensions), so Kennel emits no
 // permission flag and defers to Pi's own behavior.
 //
 // Restore: Pi persists sessions to ~/.pi/agent/sessions/ and resumes
@@ -24,7 +24,7 @@
 // native id is known (manager falls back to a fresh launch).
 //
 // Hooks/activity: Pi exposes lifecycle hooks only through in-process TypeScript
-// extensions (pi.on("session_start", ...), etc.), not a config file AO can
+// extensions (pi.on("session_start", ...), etc.), not a config file Kennel can
 // install, and it has no Claude Code hook compatibility. There is therefore no
 // Tier A native hook installer nor a Tier B Claude-compat delegation; hook
 // installation and SessionInfo are intentionally no-ops until a Pi-specific
@@ -37,10 +37,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const adapterID = "pi"
@@ -107,7 +107,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	if cfg.SystemPrompt != "" {
 		cmd = append(cmd, "--append-system-prompt", cfg.SystemPrompt)
 	} else if cfg.SystemPromptFile != "" {
-		data, err := os.ReadFile(cfg.SystemPromptFile) //nolint:gosec // path is AO-owned launch config
+		data, err := os.ReadFile(cfg.SystemPromptFile) //nolint:gosec // path is Kennel-owned launch config
 		if err != nil {
 			return nil, err
 		}
@@ -141,7 +141,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 	if cfg.SystemPrompt != "" {
 		cmd = append(cmd, "--append-system-prompt", cfg.SystemPrompt)
 	} else if cfg.SystemPromptFile != "" {
-		data, err := os.ReadFile(cfg.SystemPromptFile) //nolint:gosec // path is AO-owned launch config
+		data, err := os.ReadFile(cfg.SystemPromptFile) //nolint:gosec // path is Kennel-owned launch config
 		if err != nil {
 			return nil, false, err
 		}

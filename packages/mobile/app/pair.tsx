@@ -131,7 +131,7 @@ export default function PairScreen() {
 			<View style={styles.topBar}><MinimalBackButton onPress={back} /></View>
 
 			<View style={styles.steps}>
-				<NumberedStep n={1} title="Open AO on your computer" compact />
+				<NumberedStep n={1} title="Open Kennel on your computer" compact />
 				<NumberedStep n={2} title="Go to Settings → Connect Mobile" compact />
 				<NumberedStep n={3} title="Scan the QR code" compact />
 			</View>
@@ -233,8 +233,8 @@ function CameraGate({
 			<Text style={styles.gateTitle}>Camera access needed</Text>
 			<Text style={styles.gateHint}>
 				{canAskAgain
-					? "AO uses the camera only to read the pairing QR code on your desktop."
-					: "Camera access is turned off for AO. Enable it in system settings, or enter your details manually below."}
+					? "Kennel uses the camera only to read the pairing QR code on your desktop."
+					: "Camera access is turned off for Kennel. Enable it in system settings, or enter your details manually below."}
 			</Text>
 			{canAskAgain ? (
 				<Button title="Allow camera" icon="camera" onPress={onRequest} style={{ marginTop: 18 }} />

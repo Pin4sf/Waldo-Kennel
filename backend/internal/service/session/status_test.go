@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 var statusNow = time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
@@ -27,7 +27,7 @@ func silentRec(age time.Duration) domain.SessionRecord {
 	}
 }
 
-// chatRec marks a record as a Chat-mode session, whose activity reaches AO
+// chatRec marks a record as a Chat-mode session, whose activity reaches Kennel
 // through its own controller rather than an agent hook pipeline.
 func chatRec(rec domain.SessionRecord) domain.SessionRecord {
 	rec.Mode = domain.SessionModeChat
@@ -69,7 +69,7 @@ func TestServiceDerivesStatusFromSessionFactsAndPR(t *testing.T) {
 		// A hook-less harness can never signal: its silence stays idle forever
 		// instead of degrading into a false "needs you".
 		{"hookless-silent-stays-idle", silentRec(2 * noSignalGrace), nil, true, domain.StatusIdle},
-		// A chat session's silence is not evidence of anything. AO owns the
+		// A chat session's silence is not evidence of anything. Kennel owns the
 		// provider connection, so a lost controller arrives as exited; an idle
 		// chat session is simply waiting on the user and must not read as broken.
 		{"chat-silent-stays-idle", chatRec(silentRec(4 * noSignalGrace)), nil, false, domain.StatusIdle},

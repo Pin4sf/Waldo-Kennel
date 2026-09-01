@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"os"
 
-	workeragent "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/codex"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/reviewer/agentrestore"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workeragent "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/codex"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/reviewer/agentrestore"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Reviewer is the codex code-review adapter.
@@ -55,7 +55,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 }
 
 // ReviewRestoreCommand resumes the reviewer Codex conversation captured from
-// Codex hooks when AO recreates the reviewer pane after worker restore.
+// Codex hooks when Kennel recreates the reviewer pane after worker restore.
 func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, bool, error) {
 	cmd, ok, err := agentrestore.Command(ctx, r.agent, inv, agentrestore.Options{Permissions: ports.PermissionModeAuto})
 	if err != nil || !ok {
@@ -109,7 +109,7 @@ func insertBeforeLastArg(argv []string, extra ...string) []string {
 func codexReadOnlyArgs(inv ports.ReviewInvocation) ([]string, error) {
 	extra := []string{"--sandbox", "read-only"}
 	// Shell commands inherit only Codex's core environment by default. Preserve
-	// the AO location overrides the reviewer needs to submit to this daemon.
+	// the Kennel location overrides the reviewer needs to submit to this daemon.
 	values := map[string]string{
 		"KENNEL_PORT":     os.Getenv("KENNEL_PORT"),
 		"KENNEL_DATA_DIR": firstNonEmpty(inv.DataDir, os.Getenv("KENNEL_DATA_DIR")),

@@ -1,12 +1,12 @@
-// Package aider adapts Aider's normal interactive chat TUI for AO reviews.
+// Package aider adapts Aider's normal interactive chat TUI for Kennel reviews.
 package aider
 
 import (
 	"context"
 
-	workeraider "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/aider"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workeraider "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/aider"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Reviewer builds Aider's interactive reviewer command.
@@ -51,7 +51,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 	}
 	message := ""
 	if inv.TaskPromptFile != "" {
-		message = "Follow the AO reviewer role and review task loaded as read-only context."
+		message = "Follow the Kennel reviewer role and review task loaded as read-only context."
 	}
 	return ports.ReviewCommandSpec{Argv: argv, InitialMessage: message}, nil
 }
@@ -63,7 +63,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 	return cmd, true, err
 }
 
-// ReviewMessage returns the next AO-owned task reference.
+// ReviewMessage returns the next Kennel-owned task reference.
 func (*Reviewer) ReviewMessage(_ context.Context, inv ports.ReviewInvocation) (string, error) {
 	return inv.Prompt, nil
 }
@@ -73,7 +73,7 @@ func (*Reviewer) ReviewCancel(context.Context) (ports.ReviewCancelSpec, error) {
 	return ports.ReviewCancelSpec{Mode: ports.ReviewCancelInterrupt, Interrupts: 2}, nil
 }
 
-// ReviewProcessReusable reports false because Aider cannot add future AO-owned
+// ReviewProcessReusable reports false because Aider cannot add future Kennel-owned
 // task files to an existing --read context,
 // so each pass opens a fresh interactive TUI rather than a one-shot process.
 func (*Reviewer) ReviewProcessReusable() bool { return false }

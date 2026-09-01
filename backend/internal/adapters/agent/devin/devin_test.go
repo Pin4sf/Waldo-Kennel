@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestManifest(t *testing.T) {
@@ -432,7 +432,7 @@ func TestGetAgentHooksInstallsLocalDevinConfig(t *testing.T) {
 	}
 	sessionStart := config.Hooks["SessionStart"]
 	if len(sessionStart) != 1 || len(sessionStart[0].Hooks) != 1 {
-		t.Fatalf("SessionStart hooks = %#v, want one AO command", sessionStart)
+		t.Fatalf("SessionStart hooks = %#v, want one Kennel command", sessionStart)
 	}
 	hook := sessionStart[0].Hooks[0]
 	if hook.Type != "command" || hook.Command != "kennel hooks devin session-start" || hook.Timeout != 30 {

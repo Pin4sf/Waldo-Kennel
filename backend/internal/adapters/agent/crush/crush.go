@@ -1,8 +1,8 @@
 // Package crush implements the Crush agent adapter: launching new sessions,
 // resuming sessions by native ID, and reading session info.
 //
-// Crush differs from other agents in that it doesn't yet expose AO-compatible
-// activity hooks. GetAgentHooks only injects AO's standing system prompt through
+// Crush differs from other agents in that it doesn't yet expose Kennel-compatible
+// activity hooks. GetAgentHooks only injects Kennel's standing system prompt through
 // project-local context configuration; activity tracking still falls back to
 // basic session ID management.
 package crush
@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
@@ -57,7 +57,7 @@ func (p *Plugin) Manifest() adapters.Manifest {
 // GetConfigSpec reports the per-project agent config keys Crush understands:
 // a model override. Unlike Claude/Codex (a bare --model flag) or Kiro (a
 // single model key), Crush's .crush.json requires both a provider id and a
-// model id per selection (see mergeCrushModel in hooks.go), so AO's plain
+// model id per selection (see mergeCrushModel in hooks.go), so Kennel's plain
 // Model string must carry the provider too. This declares the expected
 // "<provider>/<model-id>" shape so it is discoverable/validated through the
 // config-spec surface, matching claude-code, codex, and kiro.
@@ -82,14 +82,14 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 //	crush [--cwd <WorkspacePath>] [--yolo]
 //
 // The session runs in the worktree (cwd is set by the runtime). Crush doesn't
-// have a launch-time system-prompt flag, so GetAgentHooks installs AO's system
+// have a launch-time system-prompt flag, so GetAgentHooks installs Kennel's system
 // prompt as a workspace-local context file before launch. Worker task prompts
-// are delivered after startup so AO keeps the interactive TUI; Crush's
+// are delivered after startup so Kennel keeps the interactive TUI; Crush's
 // documented `run` command is intentionally not used here because it is
 // non-interactive. The --yolo flag corresponds to bypass-permissions mode.
 //
 // We intentionally do not pass --session on launch: cfg.SessionID is the
-// AO-internal id, not a Crush-native session id. Letting Crush mint its own
+// Kennel-internal id, not a Crush-native session id. Letting Crush mint its own
 // native session id (captured by hooks into session metadata) keeps launch
 // consistent with GetRestoreCommand, which resumes using that native id.
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
@@ -125,7 +125,7 @@ func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, cfg ports.Launch
 	return ports.PromptDeliveryInCommand, nil
 }
 
-// PromptReadinessHints waits for Crush's ready prompt before AO injects the
+// PromptReadinessHints waits for Crush's ready prompt before Kennel injects the
 // worker's first task.
 func (p *Plugin) PromptReadinessHints(ctx context.Context, _ ports.LaunchConfig) (ports.PromptReadinessHints, error) {
 	if err := ctx.Err(); err != nil {

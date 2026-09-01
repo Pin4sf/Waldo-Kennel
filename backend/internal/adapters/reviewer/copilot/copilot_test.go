@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type captureAgent struct {
@@ -30,7 +30,7 @@ func (a *captureAgent) GetLaunchCommand(_ context.Context, cfg ports.LaunchConfi
 	if a.launchErr != nil {
 		return nil, a.launchErr
 	}
-	return []string{"copilot", "--agent=ao-review-w1", "--interactive", cfg.Prompt}, nil
+	return []string{"copilot", "--agent=kennel-review-w1", "--interactive", cfg.Prompt}, nil
 }
 
 func (a *captureAgent) GetPromptDeliveryStrategy(context.Context, ports.LaunchConfig) (ports.PromptDeliveryStrategy, error) {
@@ -238,7 +238,7 @@ func parsePolicy(t *testing.T, argv []string) parsedPolicy {
 			got.values[arg] = append(got.values[arg], argv[i])
 			continue
 		}
-		if strings.HasPrefix(arg, "--") && arg != "--agent=ao-review-w1" {
+		if strings.HasPrefix(arg, "--") && arg != "--agent=kennel-review-w1" {
 			got.flags[arg] = true
 		}
 	}
@@ -264,7 +264,7 @@ func TestNewReviewerRealCommandSelectsCustomAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
 	}
-	if !slices.Contains(spec.Argv, "--agent=ao-review-w1") {
+	if !slices.Contains(spec.Argv, "--agent=kennel-review-w1") {
 		t.Fatalf("custom agent missing from %#v", spec.Argv)
 	}
 }

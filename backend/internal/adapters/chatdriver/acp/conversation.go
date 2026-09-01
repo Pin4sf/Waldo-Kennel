@@ -15,8 +15,8 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
@@ -185,7 +185,7 @@ func (c *conversation) Capabilities() ports.ChatCapabilities {
 
 func (c *conversation) Events() <-chan ports.ChatEvent { return c.events }
 
-// SendTurn prepares the long-lived ACP prompt request. AO's controller starts it
+// SendTurn prepares the long-lived ACP prompt request. Kennel's controller starts it
 // through StartDeferredTurn only after the provider turn id is durable.
 func (c *conversation) SendTurn(ctx context.Context, msg ports.ChatUserMessage) (ports.ChatTurnRef, error) {
 	if err := ctx.Err(); err != nil {
@@ -299,7 +299,7 @@ func (c *conversation) StartDeferredTurn(providerTurnID string) error {
 func (c *conversation) runTurn(ctx context.Context, sessionID string, turn preparedTurn) {
 	c.emit(ports.ChatEvent{Kind: ports.ChatEventTurnStarted, ProviderTurnID: turn.id})
 	c.emit(ports.ChatEvent{Kind: ports.ChatEventControllerState, ControllerState: ports.ChatControllerBusy})
-	// ACP message ids are opaque idempotency/correlation keys. Preserve AO's
+	// ACP message ids are opaque idempotency/correlation keys. Preserve Kennel's
 	// durable client id when possible so an agent that echoes it from session/load
 	// can be reconciled without provider-specific knowledge. Some agents (notably
 	// claude-agent-acp) assign their own persisted user uuid; the service's history
@@ -416,7 +416,7 @@ func (c *conversation) Interrupt(ctx context.Context, providerTurnID string) err
 	}
 	// session/cancel is a notification: a conforming agent may accept it without
 	// completing the outstanding Prompt RPC. Once the notification is accepted,
-	// cancel AO's local request too so Stop cannot report success while the
+	// cancel Kennel's local request too so Stop cannot report success while the
 	// controller remains busy forever. Do this only after a successful write;
 	// otherwise the caller must see that cancellation was not delivered.
 	if turnCancel != nil {

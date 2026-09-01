@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // RuleBasedAnalyzer is the offline-truth baseline for shared intake. It makes

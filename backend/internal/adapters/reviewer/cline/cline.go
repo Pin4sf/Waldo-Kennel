@@ -1,4 +1,4 @@
-// Package cline adapts Cline as an experimental user-approved AO reviewer.
+// Package cline adapts Cline as an experimental user-approved Kennel reviewer.
 package cline
 
 import (
@@ -7,14 +7,14 @@ import (
 	"os"
 	"strings"
 
-	workercline "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/cline"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workercline "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/cline"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
-// HostTrustWarning documents that Cline retains its normal approval flow. AO
+// HostTrustWarning documents that Cline retains its normal approval flow. Kennel
 // deliberately avoids --auto-approve and --yolo for reviews.
-const HostTrustWarning = "experimental user-approved reviewer: Cline uses normal permission prompts; AO does not enable --auto-approve or --yolo"
+const HostTrustWarning = "experimental user-approved reviewer: Cline uses normal permission prompts; Kennel does not enable --auto-approve or --yolo"
 
 // Reviewer builds Cline's persistent interactive reviewer command.
 type Reviewer struct {
@@ -36,7 +36,7 @@ func (*Reviewer) ReviewPromptReadinessHints(ctx context.Context) (ports.PromptRe
 	return workercline.New().PromptReadinessHints(ctx, ports.LaunchConfig{})
 }
 
-// ReviewCommand starts Cline's normal interactive TUI, injects AO's role using
+// ReviewCommand starts Cline's normal interactive TUI, injects Kennel's role using
 // Cline's native system-prompt flag, and sends the task after startup.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	binary, err := r.resolveBinary(ctx)
@@ -46,7 +46,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 	if strings.TrimSpace(inv.TaskPromptRoot) == "" {
 		return ports.ReviewCommandSpec{Argv: []string{binary}}, nil
 	}
-	systemPrompt, err := os.ReadFile(inv.SystemPromptFile) //nolint:gosec // AO-owned prompt path
+	systemPrompt, err := os.ReadFile(inv.SystemPromptFile) //nolint:gosec // Kennel-owned prompt path
 	if err != nil {
 		return ports.ReviewCommandSpec{}, fmt.Errorf("cline reviewer: read system prompt: %w", err)
 	}
@@ -60,7 +60,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 	return cmd, true, err
 }
 
-// ReviewMessage returns the next AO-owned task reference.
+// ReviewMessage returns the next Kennel-owned task reference.
 func (*Reviewer) ReviewMessage(_ context.Context, inv ports.ReviewInvocation) (string, error) {
 	return inv.Prompt, nil
 }

@@ -17,10 +17,10 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const adapterID = "aider"
@@ -65,13 +65,13 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 //
 // Prompted tasks are delivered after startup by the session manager rather than
 // via `-m`. Aider's `-m <prompt>` mode is one-shot: it runs the message and then
-// exits, which makes AO workers disappear as soon as the answer is printed.
+// exits, which makes Kennel workers disappear as soon as the answer is printed.
 //
-// Aider has no native system-prompt injection mechanism. AO's prompt file is
+// Aider has no native system-prompt injection mechanism. Kennel's prompt file is
 // supplied with --read as read-only context so the agent can see the standing
 // instructions, but this is context fallback rather than system-message
 // replacement. The --no-check-update --no-stream --no-pretty flags keep the
-// terminal output stable in AO's captured-output context.
+// terminal output stable in Kennel's captured-output context.
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
 	binary, err := p.aiderBinary(ctx)
 	if err != nil {
@@ -90,7 +90,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	return cmd, nil
 }
 
-// GetPromptDeliveryStrategy reports that AO should inject prompted Aider tasks
+// GetPromptDeliveryStrategy reports that Kennel should inject prompted Aider tasks
 // into the interactive terminal after startup. Aider's `-m` mode exits after
 // the single message completes.
 func (p *Plugin) GetPromptDeliveryStrategy(ctx context.Context, _ ports.LaunchConfig) (ports.PromptDeliveryStrategy, error) {
@@ -109,9 +109,9 @@ func normalizePermissionMode(mode ports.PermissionMode) ports.PermissionMode {
 	return mode
 }
 
-// appendApprovalFlags maps AO's permission modes onto Aider's flags. The mapping
+// appendApprovalFlags maps Kennel's permission modes onto Aider's flags. The mapping
 // is lossy: Aider has no graduated approval ladder and no sandbox, so multiple
-// AO modes collapse onto the same Aider behavior.
+// Kennel modes collapse onto the same Aider behavior.
 func appendApprovalFlags(cmd *[]string, mode ports.PermissionMode) {
 	switch normalizePermissionMode(mode) {
 	case ports.PermissionModeDefault:

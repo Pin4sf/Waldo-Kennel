@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type captureAgent struct {
@@ -83,7 +83,7 @@ func TestReviewCommandKeepsSystemPromptFileOutOfVisiblePrompt(t *testing.T) {
 	taskPromptFile := filepath.Join(taskPromptRoot, "requests", "batch-1", "run-1", "task.md")
 
 	got, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{
-		Prompt:           "Start the AO review task.",
+		Prompt:           "Start the Kennel review task.",
 		SystemPromptFile: "/ao/prompts/reviewer/system.md",
 		TaskPromptFile:   taskPromptFile,
 		TaskPromptRoot:   taskPromptRoot,
@@ -91,7 +91,7 @@ func TestReviewCommandKeepsSystemPromptFileOutOfVisiblePrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
 	}
-	if agent.got.Prompt != "Start the AO review task." || agent.got.SystemPrompt != "" || agent.got.SystemPromptFile != "/ao/prompts/reviewer/system.md" {
+	if agent.got.Prompt != "Start the Kennel review task." || agent.got.SystemPrompt != "" || agent.got.SystemPromptFile != "/ao/prompts/reviewer/system.md" {
 		t.Fatalf("launch config = %+v", agent.got)
 	}
 	var config struct {
@@ -193,7 +193,7 @@ func TestReviewCommandBuildsBothOpenCodeConfigSources(t *testing.T) {
 	spec, err := New().ReviewCommand(context.Background(), ports.ReviewInvocation{
 		ReviewerID:       "review-w1",
 		WorkspacePath:    t.TempDir(),
-		Prompt:           "Read the AO review task.",
+		Prompt:           "Read the Kennel review task.",
 		SystemPromptFile: systemPath,
 		TaskPromptFile:   taskPath,
 		TaskPromptRoot:   promptDir,
@@ -205,8 +205,8 @@ func TestReviewCommandBuildsBothOpenCodeConfigSources(t *testing.T) {
 	joinedArgv := strings.Join(spec.Argv, "\n")
 	for _, want := range []string{
 		"OPENCODE_CONFIG=" + configPath,
-		"--agent\nao-review-w1",
-		"--prompt\nRead the AO review task.",
+		"--agent\nkennel-review-w1",
+		"--prompt\nRead the Kennel review task.",
 	} {
 		if !strings.Contains(joinedArgv, want) {
 			t.Fatalf("argv missing %q: %#v", want, spec.Argv)

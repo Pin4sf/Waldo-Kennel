@@ -1,4 +1,4 @@
-// Package gitlab observes GitLab merge requests for AO's SCM integrations.
+// Package gitlab observes GitLab merge requests for Kennel's SCM integrations.
 //
 // It implements the provider-neutral scm.Provider interface using the GitLab
 // REST API v4. REST (rather than GraphQL) is a deliberate choice: it provides

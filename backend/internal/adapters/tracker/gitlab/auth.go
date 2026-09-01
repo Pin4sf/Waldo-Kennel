@@ -1,7 +1,7 @@
 package gitlab
 
 import (
-	scmgitlab "github.com/aoagents/agent-orchestrator/backend/internal/adapters/scm/gitlab"
+	scmgitlab "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/scm/gitlab"
 )
 
 // ErrNoToken re-exports the SCM provider's canonical sentinel so the

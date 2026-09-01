@@ -1,4 +1,4 @@
-// Package devin adapts Devin for Terminal as an experimental host-trusted AO
+// Package devin adapts Devin for Terminal as an experimental host-trusted Kennel
 // reviewer. It always runs Devin's visible, long-lived interactive TUI.
 package devin
 
@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	workerdevin "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/devin"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workerdevin "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/devin"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // HostTrustWarning describes the authority retained by Devin's interactive
-// terminal. AO deliberately does not add Devin's --sandbox flag.
+// terminal. Kennel deliberately does not add Devin's --sandbox flag.
 const HostTrustWarning = "experimental host-trusted reviewer: Devin runs its interactive TUI without OS isolation; terminal users can change modes, invoke shell features, or open an external editor"
 
 // Reviewer builds Devin's persistent interactive reviewer command.
@@ -68,7 +68,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 }
 
 // ReviewPromptReadinessHints gives Devin's startup screen enough time to accept
-// pasted task input before AO submits the initial review reference.
+// pasted task input before Kennel submits the initial review reference.
 func (*Reviewer) ReviewPromptReadinessHints(ctx context.Context) (ports.PromptReadinessHints, error) {
 	if err := ctx.Err(); err != nil {
 		return ports.PromptReadinessHints{}, err
@@ -85,7 +85,7 @@ func initialMessage(inv ports.ReviewInvocation) (string, error) {
 		return "", errors.New("devin reviewer: system prompt file is required")
 	}
 	return fmt.Sprintf(
-		"Read and follow the AO reviewer role in `%s`, then %s",
+		"Read and follow the Kennel reviewer role in `%s`, then %s",
 		filepath.ToSlash(inv.SystemPromptFile),
 		strings.TrimSpace(inv.Prompt),
 	), nil

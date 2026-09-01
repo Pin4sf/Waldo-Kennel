@@ -4,10 +4,10 @@ package muse
 import (
 	"context"
 
-	workermuse "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/muse"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/reviewer/agentrestore"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workermuse "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/muse"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/reviewer/agentrestore"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Reviewer is the Muse Code reviewer adapter.
@@ -30,7 +30,7 @@ var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 var _ ports.ReviewerRestorer = (*Reviewer)(nil)
 
 // ReviewCommand launches Muse's interactive TUI with writes disabled. Muse
-// supplies its own sandbox and approval machinery; AO keeps the reviewer in
+// supplies its own sandbox and approval machinery; Kennel keeps the reviewer in
 // auto approval so read/report commands can run unattended while --disable-write
 // prevents non-shell workspace file writes.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
@@ -60,7 +60,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 	return cmd, true, nil
 }
 
-// ReviewMessage returns AO's centrally-authored review task for an existing
+// ReviewMessage returns Kennel's centrally-authored review task for an existing
 // Muse pane.
 func (*Reviewer) ReviewMessage(_ context.Context, inv ports.ReviewInvocation) (string, error) {
 	return inv.Prompt, nil

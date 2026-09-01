@@ -4,7 +4,7 @@
 //
 // Auggie is Augment Code's terminal coding agent (binary "auggie", installed via
 // `npm install -g @augmentcode/auggie`). It exposes a headless one-shot mode via
-// `--print` (alias `-p`) which runs a single instruction and exits -- the mode AO
+// `--print` (alias `-p`) which runs a single instruction and exits -- the mode Kennel
 // uses to drive it unattended.
 //
 // Launch shape:
@@ -13,18 +13,18 @@
 //
 // The prompt is the print-mode positional, passed after `--` so a prompt
 // beginning with "-" is not mistaken for a flag. A system prompt, when supplied
-// as an AO-owned file, is injected via Auggie's `--rules` flag, which appends
+// as an Kennel-owned file, is injected via Auggie's `--rules` flag, which appends
 // guidance to the workspace rules.
 //
 // Permissions: Auggie has no single "approve everything" flag. It governs
 // unattended tool/file approval through granular `--permission <tool>:<allow|deny>`
 // rules (and a read-only `--ask` mode), not a 4-mode bypass like Claude Code.
-// Because there is no verifiable blanket auto-approve flag, every AO permission
+// Because there is no verifiable blanket auto-approve flag, every Kennel permission
 // mode emits no flag and defers to the user's Auggie configuration, rather than
 // guessing a flag that does not exist.
 //
 // Resume: Auggie supports `--resume <sessionId>` (alias `-r`), usable with
-// `--print` for headless resume. AO only has a native session id to resume from
+// `--print` for headless resume. Kennel only has a native session id to resume from
 // when one was captured into session metadata; Auggie exposes no hook/lifecycle
 // system, so that id is not captured automatically yet. GetRestoreCommand
 // therefore returns ok=false until a native session id is present, at which point
@@ -41,10 +41,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const adapterID = "auggie"
@@ -100,7 +100,7 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 //
 // The prompt is passed after `--` so a prompt beginning with "-" is not mistaken
 // for a flag. Auggie's `--instruction` flags are the task input, not a rule or
-// system-prompt surface; AO standing instructions use `--rules` when the
+// system-prompt surface; Kennel standing instructions use `--rules` when the
 // manager provides a prompt file.
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
 	if err := ctx.Err(); err != nil {
@@ -153,7 +153,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 
 // appendModelFlag treats the configured model as opaque: it trims and forwards
 // non-empty values for Auggie to validate. Invalid models intentionally surface
-// Auggie's error; AO does not silently retry with Auggie's default model.
+// Auggie's error; Kennel does not silently retry with Auggie's default model.
 func appendModelFlag(cmd *[]string, cfg ports.AgentConfig) {
 	if model := strings.TrimSpace(cfg.Model); model != "" {
 		*cmd = append(*cmd, "--model", model)
@@ -162,7 +162,7 @@ func appendModelFlag(cmd *[]string, cfg ports.AgentConfig) {
 
 // Auggie has no single blanket auto-approve/bypass flag; unattended tool/file
 // approval is governed by granular `--permission <tool>:<allow|deny>` rules, so
-// AO emits no approval flag and defers every mode to the user's Auggie config.
+// Kennel emits no approval flag and defers every mode to the user's Auggie config.
 // There is therefore no appendApprovalFlags helper for this adapter.
 
 var auggieBinarySpec = binaryutil.BinarySpec{

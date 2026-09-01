@@ -17,7 +17,7 @@ func TestStabilizeWorkingDirectoryChdirsToDataDir(t *testing.T) {
 		}
 	})
 
-	dataDir := filepath.Join(t.TempDir(), "ao-data")
+	dataDir := filepath.Join(t.TempDir(), "kennel-data")
 	if err := stabilizeWorkingDirectory(dataDir); err != nil {
 		t.Fatalf("stabilizeWorkingDirectory: %v", err)
 	}

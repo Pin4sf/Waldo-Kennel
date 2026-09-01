@@ -105,7 +105,7 @@ test("shows a hint instead of a QR when Tailscale is not running", async () => {
 });
 
 // Regression: an empty host used to encode {"v":1,"host":"",...}, which the
-// phone rejects as "not an AO pairing code" — an incoherent error for a QR AO
+// phone rejects as "not an Kennel pairing code" — an incoherent error for a QR Kennel
 // generated itself.
 test("shows a hint instead of an unscannable QR when there is no LAN address", async () => {
 	mobileStatus.host = "";

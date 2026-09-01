@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	codexagent "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/codex"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	codexagent "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/codex"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type transitionStore struct {

@@ -17,7 +17,7 @@ describe("resolveDaemonLaunch", () => {
 	it("runs the backend daemon from source in non-Windows dev without an explicit command", () => {
 		expect(resolveDaemonLaunch({}, false, "/resources", "/repo/frontend", "/home/user", "darwin")).toEqual({
 			command: "go",
-			args: ["run", "./cmd/ao", "daemon"],
+			args: ["run", "./cmd/kennel", "daemon"],
 			cwd: "/repo/frontend/../backend",
 			shell: false,
 			source: "dev",
@@ -77,13 +77,13 @@ describe("resolveDaemonLaunch", () => {
 			resolveDaemonLaunch(
 				{},
 				true,
-				"C:\\Program Files\\AO\\resources",
-				"C:\\Program Files\\AO\\resources\\app.asar",
+				"C:\\Program Files\\Kennel\\resources",
+				"C:\\Program Files\\Kennel\\resources\\app.asar",
 				"C:\\Users\\alice",
 				"win32",
 			),
 		).toEqual({
-			command: "C:\\Program Files\\AO\\resources/daemon/kennel-daemon.exe",
+			command: "C:\\Program Files\\Kennel\\resources/daemon/kennel-daemon.exe",
 			args: ["daemon"],
 			cwd: "C:\\Users\\alice/.kennel",
 			shell: false,
@@ -124,13 +124,13 @@ describe("bundledDaemonIdentityError", () => {
 	it("compares executable paths outside AppImage", () => {
 		const command = "/opt/Kennel/resources/daemon/kennel-daemon";
 		expect(bundledDaemonIdentityError({ executablePath: command }, command, undefined, samePath)).toBeNull();
-		expect(bundledDaemonIdentityError({ executablePath: "/other/ao" }, command, undefined, samePath)).toBe(
-			`Another Kennel daemon is already running from /other/ao; expected ${command}. Stop the other daemon before using this app.`,
+		expect(bundledDaemonIdentityError({ executablePath: "/other/daemon" }, command, undefined, samePath)).toBe(
+			`Another Kennel daemon is already running from /other/daemon; expected ${command}. Stop the other daemon before using this app.`,
 		);
 	});
 
 	it("fails closed outside AppImage when the daemon does not report its binary path", () => {
-		expect(bundledDaemonIdentityError({}, "/opt/ao/resources/daemon/kennel-daemon", undefined, samePath)).toBe(
+		expect(bundledDaemonIdentityError({}, "/opt/Kennel/resources/daemon/kennel-daemon", undefined, samePath)).toBe(
 			"An older Kennel daemon is already running, but it does not report its binary path. Stop it and restart this app.",
 		);
 	});

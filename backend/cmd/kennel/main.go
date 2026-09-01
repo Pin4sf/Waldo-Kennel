@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/cli"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/cli"
 )
 
 func main() {

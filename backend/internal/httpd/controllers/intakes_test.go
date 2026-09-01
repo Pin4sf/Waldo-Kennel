@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
-	intakevc "github.com/aoagents/agent-orchestrator/backend/internal/service/intake"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
+	intakevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intake"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
 func TestSharedIntakeRoutesStartWithSimplePromptAndPreserveConflictEnvelope(t *testing.T) {

@@ -17,7 +17,7 @@ describe("preview workspace identity", () => {
 		});
 
 		const publicFixtureText = JSON.stringify({ mockSessionScmSummaries, mockShellTerminals, mockWorkspaces });
-		expect(publicFixtureText).not.toMatch(/ao-demo|Agent Orchestrator|AO preview/i);
+		expect(publicFixtureText).not.toMatch(/ao-demo|Agent Orchestrator|Kennel preview/i);
 		expect(previewShellWorkingDirectory()).toBe("/Users/demo/Projects/kennel");
 	});
 });

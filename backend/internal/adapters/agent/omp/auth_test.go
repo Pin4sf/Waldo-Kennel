@@ -8,7 +8,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestOMPAuthJSONStatusAuthorizedWithKey(t *testing.T) {

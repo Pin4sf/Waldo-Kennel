@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestGetLaunchCommandBuildsCrossPlatformArgv(t *testing.T) {
@@ -256,7 +256,7 @@ func TestGetAgentHooksInstallsClineHooks(t *testing.T) {
 		}
 		content := string(data)
 		if !strings.Contains(content, clineHookMarker) {
-			t.Fatalf("%s missing AO marker:\n%s", spec.Event, content)
+			t.Fatalf("%s missing Kennel marker:\n%s", spec.Event, content)
 		}
 		if !strings.Contains(content, clineHookCommandPrefix+spec.Subcommand) {
 			t.Fatalf("%s missing forward command %q:\n%s", spec.Event, clineHookCommandPrefix+spec.Subcommand, content)
@@ -276,7 +276,7 @@ func TestGetAgentHooksInstallsClineHooks(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(string(data), clineHookMarker) {
-		t.Fatalf("user PostToolUse hook was overwritten by AO: %s", data)
+		t.Fatalf("user PostToolUse hook was overwritten by Kennel: %s", data)
 	}
 }
 

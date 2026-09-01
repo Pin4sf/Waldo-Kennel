@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	outcomevc "github.com/aoagents/agent-orchestrator/backend/internal/service/outcome"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	outcomevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
 type fakeOutcomeService struct {

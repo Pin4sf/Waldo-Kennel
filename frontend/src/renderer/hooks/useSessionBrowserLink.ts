@@ -5,7 +5,7 @@ import { useUiStore } from "../stores/ui-store";
 import { sessionIsActive, type WorkspaceSession } from "../types/workspace";
 import { workspaceQueryKey } from "./useWorkspaceQuery";
 
-/** Open an HTTP(S) link in the active worker session's AO Browser panel. */
+/** Open an HTTP(S) link in the active worker session's Kennel Browser panel. */
 export function useSessionBrowserLink(session?: WorkspaceSession): (uri: string) => void {
 	const queryClient = useQueryClient();
 	const setInspectorView = useUiStore((state) => state.setInspectorView);

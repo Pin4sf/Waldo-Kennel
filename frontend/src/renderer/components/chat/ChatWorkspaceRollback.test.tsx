@@ -40,7 +40,7 @@ describe("ChatWorkspace rollback", () => {
 		await userEvent.click(within(dialog).getByRole("button", { name: "Roll back" }));
 
 		// The first settled turn in the fixture is turn-1; the daemon must be given
-		// AO's own turn id, which is what the snapshot exposes.
+		// Kennel's own turn id, which is what the snapshot exposes.
 		expect(onRollback).toHaveBeenCalledWith("turn-1");
 	});
 

@@ -1,14 +1,14 @@
 // kennel: managed opencode activity plugin (do not edit)
 //
-// It maps opencode's native lifecycle events onto AO's three normalized
+// It maps opencode's native lifecycle events onto Kennel's three normalized
 // activity events:
 //   session.created                       -> `kennel hooks opencode session-start`
 //   message.updated / message.part.updated -> `kennel hooks opencode user-prompt-submit`
 //   session.status (status.type == idle)   -> `kennel hooks opencode stop`
 //
 // The opencode-native session id (and prompt/model where known) is piped to the
-// hook command as JSON on stdin, run with cwd set to the worktree so AO can
-// correlate the opencode session to its AO session. Every invocation is
+// hook command as JSON on stdin, run with cwd set to the worktree so Kennel can
+// correlate the opencode session to its Kennel session. Every invocation is
 // best-effort and must never crash the user's opencode session: a missing `ao`
 // binary is a guarded no-op (`command -v kennel`), and spawn exceptions, non-zero
 // exit codes, and malformed event payloads are caught and surfaced through
@@ -55,7 +55,7 @@ export const aoActivity: Plugin = async ({ directory, client }) => {
   //   1. Ordering. An async hook yields the event loop; if opencode does not
   //      await the handler's promise, a later event (e.g. message.updated ->
   //      user-prompt-submit) could complete before an in-flight async
-  //      session-start, so AO would see the prompt before the session is
+  //      session-start, so Kennel would see the prompt before the session is
   //      registered. spawnSync blocks opencode's single-threaded loop until the
   //      hook returns, so events are reported strictly in dispatch order.
   //   2. `opencode run` exits on the idle event, so an async stop hook would be
@@ -95,7 +95,7 @@ export const aoActivity: Plugin = async ({ directory, client }) => {
   // Report a user prompt, preferring the one that carries the prompt text.
   // message.updated can arrive before message.part.updated with no text, so an
   // early empty report must NOT dedup away the later text report — otherwise the
-  // prompt never reaches AO and title-from-prompt metadata breaks. Therefore: an
+  // prompt never reaches Kennel and title-from-prompt metadata breaks. Therefore: an
   // empty report fires at most once (so run-mode flows that omit the text part
   // still mark the session active), and a text report fires once and is terminal.
   function reportUserPrompt(sessionID: string, messageID: string, prompt: string) {
@@ -153,7 +153,7 @@ export const aoActivity: Plugin = async ({ directory, client }) => {
           case "session.status": {
             // session.status fires in both TUI and `opencode run`; session.idle
             // is deprecated and not reliably emitted in run mode.
-            // AO's "stop" hook means "the current turn is idle/finished", not
+            // Kennel's "stop" hook means "the current turn is idle/finished", not
             // "the whole native session has terminated", so multi-turn TUI
             // sessions intentionally emit one stop per idle transition.
             const props = (event as any).properties

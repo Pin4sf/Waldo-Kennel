@@ -6,14 +6,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/devimport"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	agentsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/agent"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
-	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/devimport"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	agentsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/agent"
+	projectsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
+	sessionsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/session"
 
-	outcomevc "github.com/aoagents/agent-orchestrator/backend/internal/service/outcome"
+	outcomevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
 // HTTP response envelopes for the projects surface — the SINGLE definition of
@@ -223,7 +223,7 @@ type SpawnSessionResponse struct {
 
 // SwitchAgentRequest is the body of POST /api/v1/sessions/{sessionId}/switch-agent.
 type SwitchAgentRequest struct {
-	TargetHarness  domain.AgentHarness `json:"targetHarness" enum:"codex" description:"Agent harness to continue the logical AO session with. Only continuation-capable harnesses are admitted; worker-only harnesses fail closed."`
+	TargetHarness  domain.AgentHarness `json:"targetHarness" enum:"codex" description:"Agent harness to continue the logical Kennel session with. Only continuation-capable harnesses are admitted; worker-only harnesses fail closed."`
 	Model          string              `json:"model,omitempty" maxLength:"256" description:"Optional model override for the target agent launch or resume."`
 	IdempotencyKey string              `json:"idempotencyKey,omitempty" maxLength:"128" description:"Optional retry key. Reusing it with a different request is rejected."`
 }
@@ -375,13 +375,13 @@ type SetSessionPreviewRequest struct {
 	URL string `json:"url,omitempty" description:"Preview target URL. When empty, the daemon autodetects a static entry point in the session workspace."`
 }
 
-// StartPreviewServerRequest selects one named entry from .ao/launch.json. The
+// StartPreviewServerRequest selects one named entry from .kennel/launch.json. The
 // name may be omitted when the file contains exactly one configuration.
 type StartPreviewServerRequest struct {
 	Configuration string `json:"configuration,omitempty" description:"Named preview configuration. Optional when exactly one configuration exists."`
 }
 
-// PreviewServerStatusResponse reports the deterministic server AO owns for one
+// PreviewServerStatusResponse reports the deterministic server Kennel owns for one
 // session. Logs are bounded to the latest lines and never contain global
 // process or port discovery.
 type PreviewServerStatusResponse struct {
@@ -398,12 +398,12 @@ type PreviewServerStatusResponse struct {
 
 // BrowserStatusQuery selects the session whose logical browser is inspected.
 type BrowserStatusQuery struct {
-	SessionID domain.SessionID `query:"sessionId" description:"AO session identifier."`
+	SessionID domain.SessionID `query:"sessionId" description:"Kennel session identifier."`
 }
 
 // BrowserCapabilityHeader proves that the caller owns the target session.
 type BrowserCapabilityHeader struct {
-	Capability string `header:"X-AO-Browser-Capability" description:"Opaque browser capability injected into the owning AO worker."`
+	Capability string `header:"X-Kennel-Browser-Capability" description:"Opaque browser capability injected into the owning Kennel worker."`
 }
 
 // BrowserStatusResponse reports whether the desktop-owned browser transport is
@@ -825,7 +825,7 @@ type ClaimPRResponse struct {
 }
 
 // SetActivityRequest is the body of POST /api/v1/sessions/{sessionId}/activity.
-// Event/ToolName/ToolUseID are optional correlation facts: which AO hook
+// Event/ToolName/ToolUseID are optional correlation facts: which Kennel hook
 // sub-command produced the state and, for tool-use hooks, which tool call it
 // concerns. Lifecycle uses them to clear a stale blocked state only when the
 // specific approved tool finishes. Absent on old CLIs and on adapters whose
@@ -834,14 +834,14 @@ type ClaimPRResponse struct {
 // AgentSessionID may arrive without State on metadata-only SessionStart hooks.
 type SetActivityRequest struct {
 	State                 string             `json:"state,omitempty" enum:"active,idle,waiting_input,blocked,exited" description:"Agent activity state reported by an agent hook. Optional for metadata-only hooks."`
-	Event                 string             `json:"event,omitempty" description:"AO hook sub-command that produced this state (e.g. post-tool-use)."`
+	Event                 string             `json:"event,omitempty" description:"Kennel hook sub-command that produced this state (e.g. post-tool-use)."`
 	ToolName              string             `json:"toolName,omitempty" description:"Native tool name, for tool-use hook events."`
 	ToolUseID             string             `json:"toolUseId,omitempty" description:"Native tool-use id, for tool-use hook events."`
 	AgentSessionID        string             `json:"agentSessionId,omitempty" description:"Native agent session identifier used to resume its transcript."`
 	LatestUserPrompt      string             `json:"latestUserPrompt,omitempty" maxLength:"16384" description:"Latest real user prompt exposed by the provider hook."`
 	LatestAssistantUpdate string             `json:"latestAssistantUpdate,omitempty" maxLength:"16384" description:"Latest assistant update exposed by the provider hook."`
 	TranscriptPath        string             `json:"transcriptPath,omitempty" maxLength:"4096" description:"Read-only provider-native transcript path exposed by the hook."`
-	LaunchID              string             `json:"launchId,omitempty" description:"AO process generation that produced the signal."`
+	LaunchID              string             `json:"launchId,omitempty" description:"Kennel process generation that produced the signal."`
 	Usage                 *UsageHookMetadata `json:"usage,omitempty" description:"Provider transcript metadata used by the local usage pipeline."`
 }
 
@@ -869,9 +869,9 @@ type SetActivityResponse struct {
 // restore.
 type SetReviewActivityRequest struct {
 	State          string `json:"state,omitempty" enum:"active,idle,waiting_input,blocked,exited" description:"Reviewer activity state reported by a hook. Accepted for forward compatibility, not used for session display state."`
-	Event          string `json:"event,omitempty" description:"AO hook sub-command that produced this signal."`
+	Event          string `json:"event,omitempty" description:"Kennel hook sub-command that produced this signal."`
 	AgentSessionID string `json:"agentSessionId,omitempty" description:"Native reviewer session identifier used to resume its transcript."`
-	LaunchID       string `json:"launchId,omitempty" description:"AO process generation that produced the signal."`
+	LaunchID       string `json:"launchId,omitempty" description:"Kennel process generation that produced the signal."`
 }
 
 // SetReviewActivityResponse is the body of POST /api/v1/reviews/{reviewSessionID}/activity.
@@ -977,7 +977,7 @@ type UsageModelResponse struct {
 	Totals  UsageTotalsResponse `json:"totals"`
 }
 
-// UsageHarnessResponse groups model telemetry under one AO harness.
+// UsageHarnessResponse groups model telemetry under one Kennel harness.
 type UsageHarnessResponse struct {
 	Harness string               `json:"harness"`
 	Totals  UsageTotalsResponse  `json:"totals"`
@@ -1027,7 +1027,7 @@ type NotificationResponse struct {
 	Body      string    `json:"body"`
 	Status    string    `json:"status" enum:"unread,read" description:"Seen state. unread means the user has not opened the notification panel since it arrived."`
 	CreatedAt time.Time `json:"createdAt"`
-	// ResolvedAt is set by AO when the underlying issue goes away (the session
+	// ResolvedAt is set by Kennel when the underlying issue goes away (the session
 	// received its input, the PR stopped waiting on a merge). Absent means the
 	// issue is still open. There is no user-facing action that sets it.
 	ResolvedAt *time.Time         `json:"resolvedAt,omitempty"`
@@ -1396,7 +1396,7 @@ type ConversationTurnSettingsPayload struct {
 }
 
 // ResolveConversationApprovalRequest answers a pending approval. DecisionID must
-// be one the provider offered for that request; AO does not invent options.
+// be one the provider offered for that request; Kennel does not invent options.
 type ResolveConversationApprovalRequest struct {
 	DecisionID string `json:"decisionId"`
 }
@@ -1418,7 +1418,7 @@ type ResolveConversationInputRequest struct {
 type CompactConversationResponse struct {
 	// TokensBefore is the conversation's context position when compaction was
 	// requested. Zero means the provider has not reported one yet, in which case
-	// AO deliberately claims no figure rather than guessing at one.
+	// Kennel deliberately claims no figure rather than guessing at one.
 	TokensBefore int64 `json:"tokensBefore,omitempty"`
 	// TokensAfter is only set by a provider that compacts synchronously. Zero means
 	// the reclaim is still in flight.
@@ -1485,7 +1485,7 @@ type ConversationTurnDiffResponse struct {
 //
 // No patch text. The turn view answers "what did this touch, and by how much";
 // carrying every hunk would put the full diff into a body polled once a second,
-// and AO already has a diff surface for reading the change itself.
+// and Kennel already has a diff surface for reading the change itself.
 type ConversationDiffFileResponse struct {
 	Path      string `json:"path"`
 	Additions int    `json:"additions"`
@@ -1641,7 +1641,7 @@ type ConversationModelReroutePayload struct {
 	FromModel string `json:"fromModel,omitempty"`
 	ToModel   string `json:"toModel"`
 	// Reason is the provider's own word for why, carried verbatim rather than
-	// translated: AO cannot improve on the provider's account of its own policy.
+	// translated: Kennel cannot improve on the provider's account of its own policy.
 	Reason string `json:"reason,omitempty"`
 	// ProviderTurnID is the turn it happened on, so a client can point at the
 	// exchange rather than only at the conversation.
@@ -1746,7 +1746,7 @@ type ConversationConfigIDParam struct {
 
 // ConversationTurnIDParam names one turn in a session's conversation.
 type ConversationTurnIDParam struct {
-	TurnID string `path:"turnId" description:"AO conversation turn identifier, from the snapshot's turns array."`
+	TurnID string `path:"turnId" description:"Kennel conversation turn identifier, from the snapshot's turns array."`
 }
 
 // ConversationBranchIDParam names one durable provider-thread branch.
@@ -1770,8 +1770,8 @@ type SetConversationTitleRequest struct {
 // SetConversationTitleResponse echoes the normalized title.
 //
 // Accepted rather than applied: the provider confirms the name and then reports it
-// back on its own event, and that report is what updates AO's rows. So this is the
-// title AO asked for, which is not yet proof the session label has moved.
+// back on its own event, and that report is what updates Kennel's rows. So this is the
+// title Kennel asked for, which is not yet proof the session label has moved.
 type SetConversationTitleResponse struct {
 	Title string `json:"title"`
 }
@@ -1829,7 +1829,7 @@ type ResolveReviewCommentRequest struct {
 	CommentURL     string `json:"commentUrl" description:"Provider URL of the unresolved review comment to resolve."`
 }
 
-// ResolveReviewCommentResponse is returned after AO resolves a provider review thread.
+// ResolveReviewCommentResponse is returned after Kennel resolves a provider review thread.
 type ResolveReviewCommentResponse struct {
 	OK bool `json:"ok"`
 }
@@ -1840,7 +1840,7 @@ type RequestRereviewRequest struct {
 	ReviewerID     string `json:"reviewerId" description:"Provider login of the reviewer to ask for another review."`
 }
 
-// RequestRereviewResponse is returned after AO asks the SCM provider for another review.
+// RequestRereviewResponse is returned after Kennel asks the SCM provider for another review.
 type RequestRereviewResponse struct {
 	OK bool `json:"ok"`
 }

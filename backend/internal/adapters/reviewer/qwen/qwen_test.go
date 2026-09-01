@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func invocation(t *testing.T) ports.ReviewInvocation {
@@ -26,8 +26,8 @@ func invocation(t *testing.T) ports.ReviewInvocation {
 	return ports.ReviewInvocation{
 		ReviewerID: "review-worker-1", RunID: "run-1", WorkerSessionID: "worker-1",
 		PRURL: "https://github.com/acme/widgets/pull/42", TargetSHA: "0123456789abcdef",
-		WorkspacePath: filepath.Join(root, "checkout"), DataDir: filepath.Join(root, "ao-data"),
-		Prompt: "Read the AO review task reference.", SystemPrompt: "secret system contents",
+		WorkspacePath: filepath.Join(root, "checkout"), DataDir: filepath.Join(root, "kennel-data"),
+		Prompt: "Read the Kennel review task reference.", SystemPrompt: "secret system contents",
 		TaskPromptFile: task, TaskPromptRoot: prompts,
 	}
 }
@@ -164,7 +164,7 @@ func TestReviewCommandRequiresAODataDir(t *testing.T) {
 	inv.DataDir = ""
 	reviewer := New()
 	reviewer.resolveBinary = func(context.Context) (string, error) { return "/opt/qwen/bin/qwen", nil }
-	if _, err := reviewer.ReviewCommand(context.Background(), inv); err == nil || !strings.Contains(err.Error(), "AO data directory is required") {
+	if _, err := reviewer.ReviewCommand(context.Background(), inv); err == nil || !strings.Contains(err.Error(), "Kennel data directory is required") {
 		t.Fatalf("ReviewCommand error = %v", err)
 	}
 }

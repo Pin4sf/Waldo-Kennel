@@ -1,4 +1,4 @@
-// Package kimi adapts Kimi Code CLI as an experimental host-trusted AO
+// Package kimi adapts Kimi Code CLI as an experimental host-trusted Kennel
 // reviewer. It always runs Kimi's visible, long-lived interactive TUI.
 package kimi
 
@@ -10,16 +10,16 @@ import (
 	"path/filepath"
 	"strings"
 
-	workerkimi "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/kimi"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workerkimi "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/kimi"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const skillsDirectoryName = "kimi-reviewer-skills"
 
 // HostTrustWarning describes the authority retained by Kimi's interactive
 // terminal. Plan mode limits Kimi to read-only tools, while auto mode handles
-// approvals and questions without pausing for user input. AO deliberately
+// approvals and questions without pausing for user input. Kennel deliberately
 // does not replace the TUI with print/headless mode or place it in a sandbox.
 const HostTrustWarning = "experimental host-trusted reviewer: Kimi has no OS isolation; terminal users can invoke shell mode, change Plan mode, open an external editor, or alter configuration"
 
@@ -73,7 +73,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 		return ports.ReviewCommandSpec{}, fmt.Errorf("kimi reviewer: create empty skills directory: %w", err)
 	}
 	message := fmt.Sprintf(
-		"Read and follow the AO reviewer role in `%s`, then %s",
+		"Read and follow the Kennel reviewer role in `%s`, then %s",
 		filepath.ToSlash(inv.SystemPromptFile),
 		strings.TrimSpace(inv.Prompt),
 	)

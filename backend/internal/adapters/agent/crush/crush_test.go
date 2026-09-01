@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestGetLaunchCommandBuildsCrossPlatformArgv(t *testing.T) {
@@ -28,7 +28,7 @@ func TestGetLaunchCommandBuildsCrossPlatformArgv(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// cfg.SessionID is the AO-internal id and must NOT be passed as --session on
+	// cfg.SessionID is the Kennel-internal id and must NOT be passed as --session on
 	// launch; Crush mints its own native id, which GetRestoreCommand resumes by.
 	want := []string{
 		"crush",
@@ -253,7 +253,7 @@ func TestGetConfigSpecReportsModelField(t *testing.T) {
 func TestGetAgentHooksInstallsSystemPromptContext(t *testing.T) {
 	workspace := t.TempDir()
 	promptFile := filepath.Join(t.TempDir(), "system.md")
-	if err := os.WriteFile(promptFile, []byte("AO standing instructions\n"), 0o600); err != nil {
+	if err := os.WriteFile(promptFile, []byte("Kennel standing instructions\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -270,7 +270,7 @@ func TestGetAgentHooksInstallsSystemPromptContext(t *testing.T) {
 		t.Fatalf("read system prompt: %v", err)
 	}
 	text := string(data)
-	for _, want := range []string{crushSystemPromptMarker, "AO standing instructions"} {
+	for _, want := range []string{crushSystemPromptMarker, "Kennel standing instructions"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("system prompt missing %q:\n%s", want, text)
 		}
@@ -299,7 +299,7 @@ func TestGetAgentHooksMergesExistingCrushConfig(t *testing.T) {
 	for range 2 {
 		if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 			WorkspacePath: workspace,
-			SystemPrompt:  "AO standing instructions",
+			SystemPrompt:  "Kennel standing instructions",
 		}); err != nil {
 			t.Fatalf("GetAgentHooks err = %v", err)
 		}
@@ -318,7 +318,7 @@ func TestGetAgentHooksMergesExistingCrushConfig(t *testing.T) {
 		t.Fatalf("context_paths = %#v", paths)
 	}
 	if countJSONStrings(paths, crushSystemPromptPath) != 1 {
-		t.Fatalf("context_paths duplicated AO path: %#v", paths)
+		t.Fatalf("context_paths duplicated Kennel path: %#v", paths)
 	}
 }
 
@@ -326,7 +326,7 @@ func TestGetAgentHooksWritesModelOverride(t *testing.T) {
 	workspace := t.TempDir()
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO standing instructions",
+		SystemPrompt:  "Kennel standing instructions",
 		Config:        ports.AgentConfig{Model: "anthropic/claude-sonnet-4-5"},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
@@ -354,7 +354,7 @@ func TestGetAgentHooksPreservesOtherModelFieldsOnOverride(t *testing.T) {
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO standing instructions",
+		SystemPrompt:  "Kennel standing instructions",
 		Config:        ports.AgentConfig{Model: "openai/gpt-5"},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
@@ -391,7 +391,7 @@ func TestGetAgentHooksLeavesModelUntouchedWhenNoOverride(t *testing.T) {
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO standing instructions",
+		SystemPrompt:  "Kennel standing instructions",
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
 	}
@@ -414,7 +414,7 @@ func TestGetAgentHooksInfersProviderForBareModel(t *testing.T) {
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO standing instructions",
+		SystemPrompt:  "Kennel standing instructions",
 		Config:        ports.AgentConfig{Model: "claude-sonnet-4-5"},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
@@ -434,7 +434,7 @@ func TestGetAgentHooksSkipsBareModelWithoutProvider(t *testing.T) {
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO standing instructions",
+		SystemPrompt:  "Kennel standing instructions",
 		Config:        ports.AgentConfig{Model: "claude-sonnet-4-5"},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
@@ -451,7 +451,7 @@ func TestGetAgentHooksSplitsModelOverrideOnFirstSlash(t *testing.T) {
 
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO standing instructions",
+		SystemPrompt:  "Kennel standing instructions",
 		Config:        ports.AgentConfig{Model: "openrouter/anthropic/claude-x"},
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
@@ -467,7 +467,7 @@ func TestGetAgentHooksGitignoresManagedCrushFiles(t *testing.T) {
 	workspace := t.TempDir()
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO standing instructions",
+		SystemPrompt:  "Kennel standing instructions",
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
 	}
@@ -486,8 +486,8 @@ func TestGetAgentHooksGitignoresManagedCrushFiles(t *testing.T) {
 		t.Fatalf(".gitignore should not ignore project config %q:\n%s", crushConfigFileName, text)
 	}
 
-	// AO must not write/own a repo-root .gitignore: EnsureWorkspaceGitignore
-	// is a no-op when a root .gitignore already exists without AO's
+	// Kennel must not write/own a repo-root .gitignore: EnsureWorkspaceGitignore
+	// is a no-op when a root .gitignore already exists without Kennel's
 	// sentinel, and unconditionally overwrites one that does carry it on
 	// every subsequent call — neither is safe for a directory the user (or
 	// their repo) already owns. .crush.json churn in the agent's worktree
@@ -510,12 +510,12 @@ func TestGetAgentHooksRefusesForeignSystemPromptFile(t *testing.T) {
 
 	err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO standing instructions",
+		SystemPrompt:  "Kennel standing instructions",
 	})
 	if err == nil {
 		t.Fatal("expected error for foreign system prompt file")
 	}
-	if !strings.Contains(err.Error(), "refusing to overwrite non-AO file") {
+	if !strings.Contains(err.Error(), "refusing to overwrite non-Kennel file") {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -563,7 +563,7 @@ func TestUninstallHooksRemovesManagedCrushContext(t *testing.T) {
 	}
 	if err := (&Plugin{}).GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO standing instructions",
+		SystemPrompt:  "Kennel standing instructions",
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
 	}
@@ -620,7 +620,7 @@ func TestAreHooksInstalledReportsManagedSystemPrompt(t *testing.T) {
 	}
 	if err := plugin.GetAgentHooks(context.Background(), ports.WorkspaceHookConfig{
 		WorkspacePath: workspace,
-		SystemPrompt:  "AO standing instructions",
+		SystemPrompt:  "Kennel standing instructions",
 	}); err != nil {
 		t.Fatalf("GetAgentHooks err = %v", err)
 	}

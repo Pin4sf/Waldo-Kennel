@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	engine "github.com/aoagents/agent-orchestrator/backend/internal/devimport"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
+	engine "github.com/Pin4sf/Waldo-Kennel/backend/internal/devimport"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 )
 
 // Store is the live target store used by the daemon.
@@ -19,14 +19,14 @@ type Store interface {
 	engine.Store
 }
 
-// SourceStore is an imported AO store opened read-only for the duration of one
+// SourceStore is an imported Kennel store opened read-only for the duration of one
 // import run.
 type SourceStore interface {
 	engine.Store
 	Close() error
 }
 
-// SourceOpener opens an AO data directory as a source store.
+// SourceOpener opens an Kennel data directory as a source store.
 type SourceOpener func(ctx context.Context, dataDir string) (SourceStore, error)
 
 // RunInput configures one project-registry import.
@@ -61,7 +61,7 @@ func New(deps Deps) *Manager {
 	return &Manager{store: deps.Store, targetDataDir: deps.TargetDataDir, openSource: deps.OpenSource}
 }
 
-// RunProjects reads the source AO database read-only and plans or writes into
+// RunProjects reads the source Kennel database read-only and plans or writes into
 // the daemon's live store.
 func (m *Manager) RunProjects(ctx context.Context, in RunInput) (engine.Report, error) {
 	sourceDataDir, err := resolveDataDir(in.SourceDataDir)

@@ -10,18 +10,18 @@ package registry
 import (
 	"log/slog"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/claudecode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/codex"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/droid"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/kimchi"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/opencode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/claudeacp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/codexappserver"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/droidacp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/kimchiacp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/opencodeacp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/claudecode"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/codex"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/droid"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/kimchi"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/opencode"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/claudeacp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/codexappserver"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/droidacp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/kimchiacp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/opencodeacp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Registry maps a harness to its Chat driver.
@@ -46,9 +46,9 @@ func New(drivers ...ports.ChatDriver) *Registry {
 
 // Build returns the drivers the daemon ships.
 //
-// Codex uses its native app-server protocol. Claude Code uses AO's reusable ACP
+// Codex uses its native app-server protocol. Claude Code uses Kennel's reusable ACP
 // transport plus claude-agent-acp, pointed at the user's own Claude executable.
-// OpenCode and Droid expose ACP themselves, so AO launches the exact executable
+// OpenCode and Droid expose ACP themselves, so Kennel launches the exact executable
 // resolved by each existing agent plugin. No path scrapes terminal output or
 // packages a second provider CLI.
 //

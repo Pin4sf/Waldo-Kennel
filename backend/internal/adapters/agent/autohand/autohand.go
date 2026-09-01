@@ -1,11 +1,11 @@
 // Package autohand implements the Autohand Code agent adapter: launching new
-// command-mode sessions, resuming native sessions by id, installing AO's
+// command-mode sessions, resuming native sessions by id, installing Kennel's
 // lifecycle hooks into Autohand's config, and reading hook-derived session info.
 //
 // Autohand ("autohand") is an autonomous coding agent with a non-interactive
 // command mode (`autohand -p <prompt>` / positional prompt), native session
 // resume (`autohand resume <sessionId>`), and a native hook/lifecycle system
-// whose events (session-start, stop, permission-request, ...) AO maps onto
+// whose events (session-start, stop, permission-request, ...) Kennel maps onto
 // activity states. See hooks.go for hook installation.
 package autohand
 
@@ -14,10 +14,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const adapterID = "autohand"
@@ -76,7 +76,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 	agentbase.AppendModelFlag(&cmd, cfg.Config, "--model")
 
 	// Autohand's --sys-prompt accepts either an inline string or a file path,
-	// auto-detected by the CLI; prefer inline instructions when AO has them.
+	// auto-detected by the CLI; prefer inline instructions when Kennel has them.
 	if cfg.SystemPrompt != "" {
 		cmd = append(cmd, "--sys-prompt", cfg.SystemPrompt)
 	} else if cfg.SystemPromptFile != "" {
@@ -135,7 +135,7 @@ func appendWorkspaceFlag(cmd *[]string, workspacePath string) {
 	}
 }
 
-// appendApprovalFlags maps AO's four permission modes onto Autohand's approval
+// appendApprovalFlags maps Kennel's four permission modes onto Autohand's approval
 // flags. Default emits no flag so Autohand resolves its starting mode from the
 // user's own config (permissions.mode). Autohand has no distinct "accept-edits"
 // mode, so it maps to --yes (auto-confirm risky actions) -- the least-privileged

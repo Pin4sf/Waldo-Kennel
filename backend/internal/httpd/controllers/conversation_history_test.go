@@ -9,11 +9,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	chatsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/chat"
 )
 
 // The wire contract for the history operations.
@@ -133,7 +133,7 @@ func TestRollbackRouteReportsWhatWasDiscarded(t *testing.T) {
 	srv := newChatTestServer(t, svc)
 
 	body, status, headers := doRequest(t, srv, "POST",
-		"/api/v1/sessions/ao-1/conversation/turns/turn-7/rollback", "")
+		"/api/v1/sessions/kennel-1/conversation/turns/turn-7/rollback", "")
 	assertJSON(t, headers)
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", status, body)
@@ -157,7 +157,7 @@ func TestEditConversationRouteAcceptsReplacement(t *testing.T) {
 	}}
 	srv := newChatTestServer(t, svc)
 	body, status, headers := doRequest(t, srv, http.MethodPost,
-		"/api/v1/sessions/ao-1/conversation/turns/turn-2/edit",
+		"/api/v1/sessions/kennel-1/conversation/turns/turn-2/edit",
 		`{"text":"edited prompt","clientMessageId":"edit-1"}`)
 	assertJSON(t, headers)
 	if status != http.StatusAccepted {
@@ -199,7 +199,7 @@ func TestEditConversationRouteRefusalsUseEditCodes(t *testing.T) {
 				request = `{"text":"   "}`
 			}
 			body, status, _ := doRequest(t, srv, http.MethodPost,
-				"/api/v1/sessions/ao-1/conversation/turns/turn-2/edit", request)
+				"/api/v1/sessions/kennel-1/conversation/turns/turn-2/edit", request)
 			assertErrorCode(t, body, status, tc.wantStatus, tc.wantCode)
 		})
 	}
@@ -209,7 +209,7 @@ func TestActivateConversationBranchRouteResumesWithoutBody(t *testing.T) {
 	svc := &fakeChatService{activate: "branch-root"}
 	srv := newChatTestServer(t, svc)
 	body, status, _ := doRequest(t, srv, http.MethodPost,
-		"/api/v1/sessions/ao-1/conversation/branches/branch-root/activate", "")
+		"/api/v1/sessions/kennel-1/conversation/branches/branch-root/activate", "")
 	if status != http.StatusAccepted {
 		t.Fatalf("status = %d, body = %s", status, body)
 	}
@@ -222,12 +222,12 @@ func TestActivateConversationBranchRouteReportsMissingBranch(t *testing.T) {
 	svc := &fakeChatService{activateErr: domain.ErrNoConversationBranch}
 	srv := newChatTestServer(t, svc)
 	body, status, _ := doRequest(t, srv, http.MethodPost,
-		"/api/v1/sessions/ao-1/conversation/branches/missing/activate", "")
+		"/api/v1/sessions/kennel-1/conversation/branches/missing/activate", "")
 	assertErrorCode(t, body, status, http.StatusNotFound, "CHAT_BRANCH_NOT_FOUND")
 }
 
 // Every refusal maps to a stable code and a status the client can branch on. A 500
-// anywhere in this table would mean AO reported its own bug for someone else's
+// anywhere in this table would mean Kennel reported its own bug for someone else's
 // ordinary situation.
 func TestConversationHistoryRefusalsAreTypedNeverInternalErrors(t *testing.T) {
 	cases := []struct {
@@ -249,7 +249,7 @@ func TestConversationHistoryRefusalsAreTypedNeverInternalErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := newChatTestServer(t, &fakeChatService{rollback: tc.err})
 			body, status, headers := doRequest(t, srv, "POST",
-				"/api/v1/sessions/ao-1/conversation/turns/turn-1/rollback", "")
+				"/api/v1/sessions/kennel-1/conversation/turns/turn-1/rollback", "")
 			assertJSON(t, headers)
 			assertErrorCode(t, body, status, tc.wantStatus, tc.wantCode)
 		})
@@ -264,7 +264,7 @@ func TestSetTitleRouteAcceptsAndEchoesTheNormalizedTitle(t *testing.T) {
 	srv := newChatTestServer(t, svc)
 
 	body, status, headers := doRequest(t, srv, "PUT",
-		"/api/v1/sessions/ao-1/conversation/title",
+		"/api/v1/sessions/kennel-1/conversation/title",
 		`{"title":"## Fix OAuth Return URL Loss."}`)
 	assertJSON(t, headers)
 	if status != http.StatusAccepted {
@@ -285,7 +285,7 @@ func TestSetTitleRouteAcceptsAndEchoesTheNormalizedTitle(t *testing.T) {
 func TestSetTitleRouteRefusesABlankTitle(t *testing.T) {
 	srv := newChatTestServer(t, &fakeChatService{setTitle: chatsvc.ErrTitleRequired})
 	body, status, headers := doRequest(t, srv, "PUT",
-		"/api/v1/sessions/ao-1/conversation/title", `{"title":"   "}`)
+		"/api/v1/sessions/kennel-1/conversation/title", `{"title":"   "}`)
 	assertJSON(t, headers)
 	assertErrorCode(t, body, status, http.StatusBadRequest, "CHAT_TITLE_REQUIRED")
 }
@@ -293,7 +293,7 @@ func TestSetTitleRouteRefusesABlankTitle(t *testing.T) {
 func TestSetTitleRouteReportsAnUnsupportedProvider(t *testing.T) {
 	srv := newChatTestServer(t, &fakeChatService{setTitle: chatsvc.ErrRenameUnsupported})
 	body, status, headers := doRequest(t, srv, "PUT",
-		"/api/v1/sessions/ao-1/conversation/title", `{"title":"A Name"}`)
+		"/api/v1/sessions/kennel-1/conversation/title", `{"title":"A Name"}`)
 	assertJSON(t, headers)
 	assertErrorCode(t, body, status, http.StatusConflict, "CHAT_RENAME_UNSUPPORTED")
 }
@@ -307,8 +307,8 @@ func TestConversationHistoryRoutesStubWithoutAService(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	for _, tc := range []struct{ method, path, body string }{
-		{"POST", "/api/v1/sessions/ao-1/conversation/turns/turn-1/rollback", ""},
-		{"PUT", "/api/v1/sessions/ao-1/conversation/title", `{"title":"A Name"}`},
+		{"POST", "/api/v1/sessions/kennel-1/conversation/turns/turn-1/rollback", ""},
+		{"PUT", "/api/v1/sessions/kennel-1/conversation/title", `{"title":"A Name"}`},
 	} {
 		body, status, headers := doRequest(t, srv, tc.method, tc.path, tc.body)
 		assertJSON(t, headers)

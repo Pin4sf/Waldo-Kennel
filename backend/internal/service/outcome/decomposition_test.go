@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/service/outcome"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
 func contributionOffer(ref string, claimed ...domain.CriterionID) outcome.ProposedContributionInput {

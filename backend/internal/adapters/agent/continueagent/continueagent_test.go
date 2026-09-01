@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestManifest(t *testing.T) {
@@ -144,13 +144,13 @@ func TestGetLaunchCommandAppendsInlineRule(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "cn"}
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Prompt:           "fix it",
-		SystemPrompt:     "follow AO rules",
+		SystemPrompt:     "follow Kennel rules",
 		SystemPromptFile: "/tmp/system.md",
 	})
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	want := []string{"cn", "--rule", "follow AO rules", "--", "fix it"}
+	want := []string{"cn", "--rule", "follow Kennel rules", "--", "fix it"}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("cmd = %#v, want %#v", cmd, want)
 	}

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 // minimumKimchiVersion is the oldest Kimchi build known to support ACP mode.
@@ -21,18 +21,18 @@ var semverPattern = regexp.MustCompile(`\b(\d+)\.(\d+)\.(\d+)\b`)
 // triplet, and returns an error if the binary is too old or the version
 // output is unparseable.
 func versionProbe(ctx context.Context, bin string) error {
-	output, err := aoprocess.CommandContext(ctx, bin, "--version").CombinedOutput()
+	output, err := kennelprocess.CommandContext(ctx, bin, "--version").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("read Kimchi version: %w", err)
 	}
 	installed, ok := parseSemver(string(output))
 	if !ok {
-		return fmt.Errorf("unrecognized Kimchi version %q (AO requires %s or newer)",
+		return fmt.Errorf("unrecognized Kimchi version %q (Kennel requires %s or newer)",
 			strings.TrimSpace(string(output)), minimumKimchiVersion)
 	}
 	minimum, _ := parseSemver(minimumKimchiVersion)
 	if installed.less(minimum) {
-		return fmt.Errorf("kimchi %s is older than AO's tested minimum %s",
+		return fmt.Errorf("kimchi %s is older than Kennel's tested minimum %s",
 			installed, minimumKimchiVersion)
 	}
 	return nil

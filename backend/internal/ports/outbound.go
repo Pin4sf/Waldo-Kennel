@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 // PRWriter records the PR facts a PR observation carries. The pr table's own DB
@@ -118,7 +118,7 @@ type RuntimeHandle struct {
 	ID string
 }
 
-// SupervisedProcessRef identifies the AO-owned supervisor belonging to one
+// SupervisedProcessRef identifies the Kennel-owned supervisor belonging to one
 // managed agent launch. LaunchID fences process observations from older
 // spawn/restore generations of the same session.
 type SupervisedProcessRef struct {
@@ -138,7 +138,7 @@ type SupervisedProcessInspector interface {
 // ExactSupervisedProcessInspector is the strict launch-generation probe used
 // at agent-switch ownership boundaries. Unlike SupervisedProcessInspector it
 // must never treat an arbitrary child of a preserved shell as the requested
-// AO supervisor. A true result proves the exact session/launch pair and the
+// Kennel supervisor. A true result proves the exact session/launch pair and the
 // supervisor's managed agent child are both alive.
 type ExactSupervisedProcessInspector interface {
 	IsExactSupervisedProcessAlive(ctx context.Context, handle RuntimeHandle, ref SupervisedProcessRef) (bool, error)

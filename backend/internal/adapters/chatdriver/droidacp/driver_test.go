@@ -7,18 +7,18 @@ import (
 	"reflect"
 	"testing"
 
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	acpdriver "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/acp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestConfigureUsesUserDroidACPDaemonAndStandingInstructions(t *testing.T) {
-	args, env, err := configure(acpdriver.LaunchConfig{SystemPrompt: "Follow AO orchestrator rules."})
+	args, env, err := configure(acpdriver.LaunchConfig{SystemPrompt: "Follow Kennel orchestrator rules."})
 	if err != nil {
 		t.Fatalf("configure: %v", err)
 	}
 	want := []string{
 		"exec", "--output-format", "acp-daemon",
-		"--append-system-prompt", "Follow AO orchestrator rules.",
+		"--append-system-prompt", "Follow Kennel orchestrator rules.",
 	}
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("args = %#v, want %#v", args, want)
@@ -64,7 +64,7 @@ func TestConfigureReusesDroidRuntimeModelAndAutonomySettings(t *testing.T) {
 		t.Fatalf("configure: %v", err)
 	}
 	settingsPath := filepath.Join(
-		dataDir, "agent-runtime", "droid", "ao-droid-worker-1-settings.json")
+		dataDir, "agent-runtime", "droid", "kennel-droid-worker-1-settings.json")
 	want := []string{
 		"--settings", settingsPath,
 		"exec", "--output-format", "acp-daemon",
@@ -93,6 +93,6 @@ func TestConfigureReusesDroidRuntimeModelAndAutonomySettings(t *testing.T) {
 func TestConfigureRequiresAODataDirForDroidRuntimeSettings(t *testing.T) {
 	_, _, err := configure(acpdriver.LaunchConfig{Model: "claude-sonnet-5"})
 	if err == nil {
-		t.Fatal("configure succeeded without AO data directory")
+		t.Fatal("configure succeeded without Kennel data directory")
 	}
 }

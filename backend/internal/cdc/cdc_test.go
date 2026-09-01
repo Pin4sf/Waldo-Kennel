@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/cdc"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/cdc"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
 func newStore(t *testing.T) *sqlite.Store {

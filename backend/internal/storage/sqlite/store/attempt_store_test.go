@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
 )
 
 // seedApprovedPlan builds a full Decide & Authorize lineage for one project

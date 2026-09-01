@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	agentregistry "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/registry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	agentregistry "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/registry"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 var (
@@ -21,7 +21,7 @@ var (
 	agentAuthProbeTimeout    = 10 * time.Second
 	agentRefreshMinInterval  = 10 * time.Second
 	modelCatalogLoadTimeout  = 30 * time.Second
-	// How long a cached catalog is trusted before AO asks a cache-first client to
+	// How long a cached catalog is trusted before Kennel asks a cache-first client to
 	// revalidate in the background. Long, because rediscovery runs an agent CLI:
 	// this covers drift a fingerprint cannot see, not routine correctness.
 	modelCatalogTrustWindow = 6 * time.Hour

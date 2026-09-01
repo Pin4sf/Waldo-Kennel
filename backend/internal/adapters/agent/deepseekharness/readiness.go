@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 var _ ports.AgentProfileReadinessChecker = (*Plugin)(nil)
@@ -45,7 +45,7 @@ func (p *Plugin) ProfileReadiness(ctx context.Context, cfg ports.AgentConfig) (p
 
 	probeCtx, cancel := context.WithTimeout(ctx, profileProbeTimeout)
 	defer cancel()
-	output, err := aoprocess.CommandContext(probeCtx, binary, "--profile", profile, "--dump-config").CombinedOutput()
+	output, err := kennelprocess.CommandContext(probeCtx, binary, "--profile", profile, "--dump-config").CombinedOutput()
 	if err != nil {
 		// A probe killed by its own budget is a distinct truth from a CLI that
 		// failed: report the timeout instead of dressing the kill up as an

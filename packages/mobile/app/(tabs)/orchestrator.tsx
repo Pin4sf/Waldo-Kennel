@@ -46,7 +46,7 @@ export default function OrchestratorScreen() {
 		return (
 			<View style={styles.screen}>
 				<View style={{ height: insets.top }} />
-				<EmptyState icon="share-2" title="No server" message="Connect to AO in Settings." />
+				<EmptyState icon="share-2" title="No server" message="Connect to Kennel in Settings." />
 			</View>
 		);
 	}
@@ -77,7 +77,7 @@ export default function OrchestratorScreen() {
 								action={<Button title="Retry" icon="refresh-cw" variant="ghost" onPress={onRefresh} />}
 							/>
 						) : (
-							<EmptyState icon="folder" title="No projects" message="Add a project in AO to get started." />
+							<EmptyState icon="folder" title="No projects" message="Add a project in Kennel to get started." />
 						)
 					) : (
 						projects.map((p) => {

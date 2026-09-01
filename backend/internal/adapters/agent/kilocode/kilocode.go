@@ -4,15 +4,15 @@
 //
 // The Kilo Code CLI (binary "kilocode", also aliased "kilo"; npm package
 // @kilocode/cli) is a fork of sst/opencode and shares its CLI surface and
-// plugin runtime, so AO bridges it the same two ways it bridges opencode:
+// plugin runtime, so Kennel bridges it the same two ways it bridges opencode:
 //   - It has no native command-hook config (no settings.local.json / hooks.json
 //     equivalent). Its only lifecycle-extensibility surface is the @opencode-ai
 //     plugin SDK loaded from a config dir's `{plugin,plugins}/*.{ts,js}` glob,
-//     so GetAgentHooks installs an AO-owned plugin file (see hooks.go) into
+//     so GetAgentHooks installs an Kennel-owned plugin file (see hooks.go) into
 //     .kilocode/plugins/ instead of merging JSON.
 //   - Its interactive TUI exposes no permission flag (the --auto flag lives only
-//     on `kilo run`, not the default TUI command AO launches) and no
-//     system-prompt flag. AO's graduated permission modes and standing
+//     on `kilo run`, not the default TUI command Kennel launches) and no
+//     system-prompt flag. Kennel's graduated permission modes and standing
 //     instructions are delivered via the KILO_CONFIG_CONTENT env var, which Kilo
 //     deep-merges as the highest-precedence inline config.
 //
@@ -28,10 +28,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
@@ -79,7 +79,7 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 			{
 				Key:         "model",
 				Type:        ports.ConfigFieldString,
-				Description: "Model override written to the AO-generated Kilo agent (agent.<name>.model); format provider/model-id (e.g. anthropic/claude-haiku-4-20250514).",
+				Description: "Model override written to the Kennel-generated Kilo agent (agent.<name>.model); format provider/model-id (e.g. anthropic/claude-haiku-4-20250514).",
 			},
 		},
 	}, nil
@@ -88,10 +88,10 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 // GetLaunchCommand builds the argv to start a new interactive Kilo Code session.
 // Shape:
 //
-//	[env KILO_CONFIG_CONTENT=<json>] kilocode [--agent <ao-agent>] [--prompt <prompt>]
+//	[env KILO_CONFIG_CONTENT=<json>] kilocode [--agent <kennel-agent>] [--prompt <prompt>]
 //
 // The session runs in the worktree (cwd is set by the runtime, as for opencode
-// and Codex). Kilo Code has no CLI flag to set a system prompt, so AO injects a
+// and Codex). Kilo Code has no CLI flag to set a system prompt, so Kennel injects a
 // per-session agent prompt through KILO_CONFIG_CONTENT and selects it with
 // --agent. The initial task prompt is delivered via --prompt (its argument, so a
 // leading "-" is not read as a flag). Non-default permission modes use the same
@@ -118,8 +118,8 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 }
 
 // GetRestoreCommand rebuilds the argv that continues an existing Kilo Code
-// session: `[env KILO_CONFIG_CONTENT=<json>] kilocode [--agent <ao-agent>] --session <agentSessionId>`.
-// It re-applies the permission env and per-session AO agent prompt (resume
+// session: `[env KILO_CONFIG_CONTENT=<json>] kilocode [--agent <kennel-agent>] --session <agentSessionId>`.
+// It re-applies the permission env and per-session Kennel agent prompt (resume
 // otherwise reverts to configured defaults). ok is false when the plugin-derived
 // native session id has not landed yet, so callers fall back to fresh launch
 // behavior — mirroring the opencode adapter.
@@ -166,11 +166,11 @@ func (p *Plugin) SessionInfo(ctx context.Context, session ports.SessionRef) (por
 // precedence: global -> KILO_CONFIG -> ./kilo.json -> .kilo/kilo.json ->
 // KILO_CONFIG_CONTENT -> managed; later wins). It is the permission-control
 // surface the interactive TUI honors: the --auto flag exists solely on
-// `kilo run`, not on the default TUI command AO launches, so passing any
+// `kilo run`, not on the default TUI command Kennel launches, so passing any
 // permission flag would make Kilo reject the argv and the session fail to launch.
 const kilocodePermissionEnvVar = "KILO_CONFIG_CONTENT"
 
-// kilocodePermissionConfig maps an AO permission mode onto Kilo's permission
+// kilocodePermissionConfig maps an Kennel permission mode onto Kilo's permission
 // config (tool -> action, values "ask"/"allow"/"deny", verified via
 // `kilocode config check`). Tools left unset fall back to Kilo's own default
 // action ("ask"), so each mode only names the tools it relaxes:
@@ -206,7 +206,7 @@ type kilocodeAgentSettings struct {
 
 // kilocodeConfigEnvPrefix renders permission and system-prompt config as an
 // `env KILO_CONFIG_CONTENT=<json>` argv prefix. The returned agent name is non-
-// empty when the command must select AO's generated agent with --agent.
+// empty when the command must select Kennel's generated agent with --agent.
 //
 // The var must reach Kilo as a process env var, not an argv flag. The runtime
 // runs the argv through a shell, which execs `env`, which sets the var and execs
@@ -223,7 +223,7 @@ func kilocodeConfigEnvPrefix(mode ports.PermissionMode, inlinePrompt, promptFile
 	}
 	model = strings.TrimSpace(model)
 	// A non-default permission mode rides on the permission map alone, but a
-	// system prompt or a role-specific model must be carried on AO's generated
+	// system prompt or a role-specific model must be carried on Kennel's generated
 	// agent (selected with --agent): Kilo Code reads the per-agent model from
 	// agent.<name>.model, and its interactive TUI has no reliable --model flag.
 	if systemPrompt != "" || model != "" {
@@ -252,7 +252,7 @@ func kilocodeSystemPromptText(inline, file string) (string, error) {
 	if file == "" {
 		return "", nil
 	}
-	data, err := os.ReadFile(file) //nolint:gosec // path is AO-owned launch config
+	data, err := os.ReadFile(file) //nolint:gosec // path is Kennel-owned launch config
 	if err != nil {
 		return "", fmt.Errorf("kilocode: read system prompt file: %w", err)
 	}
@@ -260,7 +260,7 @@ func kilocodeSystemPromptText(inline, file string) (string, error) {
 }
 
 func kilocodeAOAgentName(sessionID string) string {
-	const fallback = "ao-system-prompt"
+	const fallback = "kennel-system-prompt"
 	trimmed := strings.TrimSpace(sessionID)
 	if trimmed == "" {
 		return fallback
@@ -282,7 +282,7 @@ func kilocodeAOAgentName(sessionID string) string {
 	if name == "" {
 		return fallback
 	}
-	return "ao-" + name
+	return "kennel-" + name
 }
 
 var kilocodeBinarySpec = binaryutil.BinarySpec{

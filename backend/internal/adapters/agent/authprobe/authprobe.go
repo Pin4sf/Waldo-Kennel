@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 // DefaultCommands are cheap local auth/status probes common across agent CLIs.
@@ -21,7 +21,7 @@ var DefaultCommands = [][]string{
 // CmdRunner runs the command and returns the combined stdout/stderr.
 // It is exposed as a package variable to allow mocking in tests.
 var CmdRunner = func(ctx context.Context, name string, arg ...string) ([]byte, error) {
-	return aoprocess.CommandContext(ctx, name, arg...).CombinedOutput()
+	return kennelprocess.CommandContext(ctx, name, arg...).CombinedOutput()
 }
 
 // CLIStatus runs bounded local CLI probes and classifies their output.

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type captureAgent struct {
@@ -102,12 +102,12 @@ func TestReviewCommandUsesHiddenSystemPromptFile(t *testing.T) {
 	r := &Reviewer{agent: agent}
 
 	if _, err := r.ReviewCommand(context.Background(), ports.ReviewInvocation{
-		Prompt:           "Start the AO review task.",
+		Prompt:           "Start the Kennel review task.",
 		SystemPromptFile: "/ao/prompts/reviewer/system.md",
 	}); err != nil {
 		t.Fatalf("ReviewCommand: %v", err)
 	}
-	if agent.got.Prompt != "Start the AO review task." || agent.got.SystemPrompt != "" || agent.got.SystemPromptFile != "/ao/prompts/reviewer/system.md" {
+	if agent.got.Prompt != "Start the Kennel review task." || agent.got.SystemPrompt != "" || agent.got.SystemPromptFile != "/ao/prompts/reviewer/system.md" {
 		t.Fatalf("launch config = %+v", agent.got)
 	}
 }

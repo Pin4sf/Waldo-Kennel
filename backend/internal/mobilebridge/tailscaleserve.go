@@ -68,7 +68,7 @@ func (s *Serve) Target(ctx context.Context) int {
 	}
 	// parsed.Web is keyed "hostname:port". A user may also run `tailscale serve`
 	// for something unrelated on another port (e.g. --https=8443); skip any site
-	// not on :443 so its handler is never mistaken for AO's proxy target — Go
+	// not on :443 so its handler is never mistaken for Kennel's proxy target — Go
 	// map iteration order would otherwise make that pick random.
 	for key, site := range parsed.Web {
 		if !strings.HasSuffix(key, ":443") {

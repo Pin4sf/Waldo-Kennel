@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/codexappserver/codexproto"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/codexappserver/codexproto"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Conversation history operations: rollback, fork, and the thread title.
@@ -72,7 +72,7 @@ func (e *providerRefusal) Unwrap() error { return e.err }
 // is otherwise healthy.
 func (e *providerRefusal) ChatRefusal() bool { return true }
 
-// refuse builds a refusal AO decided on itself, for the cases where the provider
+// refuse builds a refusal Kennel decided on itself, for the cases where the provider
 // would refuse anyway and saying so locally keeps the message about the caller's
 // input instead of about the protocol.
 func refuse(format string, args ...any) error {
@@ -93,7 +93,7 @@ func asRefusal(err error) error {
 	return err
 }
 
-// providerTurn is the subset of a thread's turn list AO reads.
+// providerTurn is the subset of a thread's turn list Kennel reads.
 type providerTurn struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
@@ -101,7 +101,7 @@ type providerTurn struct {
 
 // ReadHistory returns a settled, provider-neutral replay of the native Codex
 // thread. It is how a TUI -> Chat handoff makes the work already visible in the
-// terminal visible in AO's structured timeline as well; resuming the thread alone
+// terminal visible in Kennel's structured timeline as well; resuming the thread alone
 // preserves model context but does not make app-server re-emit old notifications.
 func (c *conversation) ReadHistory(ctx context.Context) ([]ports.ChatEvent, error) {
 	var resp codexproto.ThreadReadResponse
@@ -242,7 +242,7 @@ func historicalUserText(item codexproto.ThreadItem) string {
 // Keeping that turn would leave the exchange they are trying to take back in the
 // agent's memory, which is the one outcome that makes the button pointless.
 //
-// It changes what the agent remembers. AO's rows have to follow, and that is the
+// It changes what the agent remembers. Kennel's rows have to follow, and that is the
 // caller's job — see the Chat controller.
 func (c *conversation) Rollback(ctx context.Context, providerTurnID string) error {
 	if strings.TrimSpace(providerTurnID) == "" {
@@ -269,7 +269,7 @@ func (c *conversation) Rollback(ctx context.Context, providerTurnID string) erro
 	}
 	if discard == 0 {
 		// Either the turn was already discarded or it belongs to history this thread
-		// no longer holds. Refusing beats guessing: any count AO invented here would
+		// no longer holds. Refusing beats guessing: any count Kennel invented here would
 		// discard turns the user never named.
 		return refuse("turn %q is not in the provider's history", providerTurnID)
 	}
@@ -285,10 +285,10 @@ func (c *conversation) Rollback(ctx context.Context, providerTurnID string) erro
 
 // readTurns is the provider's own turn list for this thread, oldest first.
 //
-// Read from the provider rather than counted from AO's rows because the two sets
-// legitimately differ: AO records a turn whose dispatch the provider rejected, and
+// Read from the provider rather than counted from Kennel's rows because the two sets
+// legitimately differ: Kennel records a turn whose dispatch the provider rejected, and
 // a turn from before a resume may be absent here. thread/rollback counts in the
-// provider's terms, so counting in AO's would discard the wrong number of turns.
+// provider's terms, so counting in Kennel's would discard the wrong number of turns.
 func (c *conversation) readTurns(ctx context.Context) ([]providerTurn, error) {
 	var resp struct {
 		Thread struct {
@@ -336,10 +336,10 @@ func (c *conversation) Fork(ctx context.Context, lastProviderTurnID *string) (st
 
 // SetTitle names the thread provider-side.
 //
-// Nothing is written to AO's rows here. The provider answers a bare {} and then
+// Nothing is written to Kennel's rows here. The provider answers a bare {} and then
 // emits thread/name/updated, and that notification is the single path by which a
-// title reaches AO — including when the name was set by some other client
-// entirely. Writing it optimistically as well would give AO two sources for one
+// title reaches Kennel — including when the name was set by some other client
+// entirely. Writing it optimistically as well would give Kennel two sources for one
 // fact and no way to tell which one lost.
 func (c *conversation) SetTitle(ctx context.Context, title string) error {
 	trimmed := strings.TrimSpace(title)

@@ -15,7 +15,7 @@ import (
 // they asked for the wrong thing, that difference is the whole feature.
 //
 // Optional, like every other capability that not all providers have: a driver that
-// cannot do it simply does not implement ChatSteerer, and AO hides the affordance
+// cannot do it simply does not implement ChatSteerer, and Kennel hides the affordance
 // rather than offering a control that fails.
 
 // ChatSteerer is implemented by drivers whose provider accepts guidance into a
@@ -28,7 +28,7 @@ import (
 //
 // The returned ref is the turn that absorbed the guidance. Against Codex
 // 0.146.0 that is the same turn id, but it is returned rather than assumed: a
-// provider that answered with a new turn would otherwise leave AO attributing the
+// provider that answered with a new turn would otherwise leave Kennel attributing the
 // steer to the wrong one.
 type ChatSteerer interface {
 	Steer(ctx context.Context, providerTurnID string, msg ChatUserMessage) (ChatTurnRef, error)

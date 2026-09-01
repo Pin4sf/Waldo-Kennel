@@ -181,7 +181,7 @@ export function ChatSessionScreen({ session }: { session: MobileChatSession }) {
 		if (resuming) return;
 		setResuming(true);
 		try {
-			if (!config) throw new Error("No AO server configured");
+			if (!config) throw new Error("No Kennel server configured");
 			if (terminated) await restoreSession(config, session.id);
 			else await resumeSessionAgent(config, session.id);
 			await refreshBoard();
@@ -216,7 +216,7 @@ export function ChatSessionScreen({ session }: { session: MobileChatSession }) {
 			"Switch to Terminal UI?",
 			turnWaiting
 				? "This turn is waiting for your input. Finish waits for your answer; stop cancels it and switches now."
-				: "Keep the same AO session, worktree, and native agent conversation.",
+				: "Keep the same Kennel session, worktree, and native agent conversation.",
 			[
 				{ text: "Keep Chat", style: "cancel" },
 				{ text: "Finish, then switch", onPress: () => void startInterfaceSwitch("drain") },
@@ -353,10 +353,10 @@ function ConversationBanners({ snapshot, brokenServers, resuming, terminated, mc
 	const thread = snapshot.threadState;
 	const signIn = signInCommand(snapshot.harness);
 	return <>
-		{snapshot.account?.reauthRequiredAt ? <InlineBanner tone="danger" icon="key" text={`${snapshot.account.reauthReason || "The provider rejected this session's credentials."} ${signIn ? `Run “${signIn}” on the AO host, then try again.` : "Sign in with the agent's CLI on the AO host, then try again."} AO holds no credentials of its own. The worktree is untouched.`} action="Open shell" onPress={onOpenShell} /> : null}
-		{snapshot.controller.state === "stopped" ? <InlineBanner tone="danger" icon="power" text={terminated ? "This AO session is terminated. Its conversation and worktree are preserved." : snapshot.controller.error || "The agent controller is stopped."} action={terminated ? (resuming ? "Restoring…" : "Restore session") : (resuming ? "Resuming…" : "Resume agent")} secondary="Shell" onPress={resuming ? undefined : onResume} onSecondary={onOpenShell} /> : null}
+		{snapshot.account?.reauthRequiredAt ? <InlineBanner tone="danger" icon="key" text={`${snapshot.account.reauthReason || "The provider rejected this session's credentials."} ${signIn ? `Run “${signIn}” on the Kennel host, then try again.` : "Sign in with the agent's CLI on the Kennel host, then try again."} Kennel holds no credentials of its own. The worktree is untouched.`} action="Open shell" onPress={onOpenShell} /> : null}
+		{snapshot.controller.state === "stopped" ? <InlineBanner tone="danger" icon="power" text={terminated ? "This Kennel session is terminated. Its conversation and worktree are preserved." : snapshot.controller.error || "The agent controller is stopped."} action={terminated ? (resuming ? "Restoring…" : "Restore session") : (resuming ? "Resuming…" : "Resume agent")} secondary="Shell" onPress={resuming ? undefined : onResume} onSecondary={onOpenShell} /> : null}
 		{snapshot.controller.state === "recovering" || snapshot.controller.state === "connecting" ? <InlineBanner tone="warning" icon="loader" text={snapshot.controller.state === "recovering" ? "Reconnecting to the agent…" : "Starting the agent controller…"} /> : null}
-		{thread?.status === "system_error" ? <InlineBanner tone="danger" icon="alert-triangle" text={`The provider reports an internal fault in this thread; AO's connection may still be healthy. The conversation and worktree are kept.${thread.waitingOn?.length ? ` Waiting on: ${thread.waitingOn.join(", ")}.` : ""}`} /> : thread?.status === "closed" ? <InlineBanner tone="warning" icon="alert-triangle" text={`The provider closed this thread. AO kept its history, but the agent no longer holds it.${thread.waitingOn?.length ? ` Waiting on: ${thread.waitingOn.join(", ")}.` : ""}`} /> : null}
+		{thread?.status === "system_error" ? <InlineBanner tone="danger" icon="alert-triangle" text={`The provider reports an internal fault in this thread; Kennel's connection may still be healthy. The conversation and worktree are kept.${thread.waitingOn?.length ? ` Waiting on: ${thread.waitingOn.join(", ")}.` : ""}`} /> : thread?.status === "closed" ? <InlineBanner tone="warning" icon="alert-triangle" text={`The provider closed this thread. Kennel kept its history, but the agent no longer holds it.${thread.waitingOn?.length ? ` Waiting on: ${thread.waitingOn.join(", ")}.` : ""}`} /> : null}
 		{brokenServers.length ? <InlineBanner tone="warning" icon="tool" text={`${brokenServers.map(mcpServerFailureLabel).join(", ")} did not start. The agent has none of their tools and will not say so—it works around them silently.${mcpError ? ` Reload failed: ${mcpError}` : ""}`} action={mcpReloadSupported && !turnInFlight ? (mcpReloading ? "Reloading…" : "Reload") : undefined} onPress={mcpReloading ? undefined : onReload} /> : null}
 	</>;
 }

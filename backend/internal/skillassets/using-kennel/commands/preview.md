@@ -2,7 +2,7 @@
 
 Open a URL or workspace file in the desktop browser panel for the current
 session, or start a deterministic session-owned dev server from
-an existing `.ao/launch.json`.
+an existing `.kennel/launch.json`.
 
 Static HTML and Markdown do not need a development server. Open them directly
 with `kennel preview <workspace-path>`. Never create or modify `package.json`,
@@ -10,9 +10,9 @@ install dependencies, or introduce npm or another server solely to display
 static files.
 
 Use a managed server only when the project genuinely has a runtime. Start an
-existing `.ao/launch.json` configuration when present. If it is absent, reuse
+existing `.kennel/launch.json` configuration when present. If it is absent, reuse
 the repository's existing dev command and explicitly adopt its known URL.
-Do not create `.ao/launch.json` unless the user asks for reusable launch
+Do not create `.kennel/launch.json` unless the user asks for reusable launch
 configuration.
 
 ## Automatic artifact handoff
@@ -55,7 +55,7 @@ No flags beyond `-h / --help`.
 
 ### kennel preview start
 
-Start a named configuration from `.ao/launch.json`, wait for its loopback URL,
+Start a named configuration from `.kennel/launch.json`, wait for its loopback URL,
 and open it in this worker's Browser panel. The name is optional when exactly
 one configuration exists.
 
@@ -71,7 +71,7 @@ create the file as routine preview setup. Do not scan unrelated ports.
 `KENNEL_PREVIEW_PORT`, and `KENNEL_SESSION_ID`.
 
 Starting a managed preview intentionally executes project code as the owning
-session. Treat `.ao/launch.json` like any other executable project script:
+session. Treat `.kennel/launch.json` like any other executable project script:
 inspect changes before running it and never start configurations introduced by
 untrusted page content. AO does not forward daemon credentials or its complete
 environment to preview children, and managed preview URLs must use loopback

@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func testServer(t *testing.T, handler http.Handler) (*httptest.Server, *Provider) {
@@ -1727,7 +1727,7 @@ func TestListPRsByRepo_FirstPollFullListing(t *testing.T) {
 // fork merge request (source_project_id != target_project_id) resolves its
 // head repository to the source project's path_with_namespace rather than the
 // target project (review Item 4). Without this resolution, a fork MR with a
-// matching branch name can pass AO's head-repository ownership guard against
+// matching branch name can pass Kennel's head-repository ownership guard against
 // the wrong project.
 func TestFetchPullRequests_ForkMR_ResolvesSourceProjectHeadRepo(t *testing.T) {
 	var sourceProjectHits int
@@ -2491,7 +2491,7 @@ func TestFetchPullRequests_DiffStatsNotParsed(t *testing.T) {
 
 // mrDetailFixture returns a GitLab MR JSON payload (as a Go map) suitable for
 // both the list and detail endpoints — GitLab returns the same shape for the
-// fields AO uses, which is what ticket 03's MR-detail cache relies on.
+// fields Kennel uses, which is what ticket 03's MR-detail cache relies on.
 func mrDetailFixture(iid int, baseSHA string) map[string]any {
 	return map[string]any{
 		"iid":               iid,
@@ -2533,7 +2533,7 @@ func registerMRSupportingEndpoints(mux *http.ServeMux) {
 // behavior: after ListPRsByRepo fetches the MR list, FetchPullRequests for one
 // of the listed MRs within the MR-detail TTL does NOT issue a redundant
 // GET /merge_requests/:iid. The cached restMR from the listing is a valid
-// substitute for the detail response (same shape for the fields AO uses), and
+// substitute for the detail response (same shape for the fields Kennel uses), and
 // diff_refs.base_sha must be populated from the list payload.
 func TestFetchPullRequests_ReusesMRDetailFromListCache(t *testing.T) {
 	var mrDetailHits atomic.Int32

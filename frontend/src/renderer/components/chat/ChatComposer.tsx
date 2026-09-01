@@ -13,7 +13,7 @@
  * settings because the provider takes all three per turn: choosing one changes the
  * next message and never restarts the agent.
  *
- * Three completions live on top of a plain textarea — `/` for AO commands and the
+ * Three completions live on top of a plain textarea — `/` for Kennel commands and the
  * agent's own skills, `@` for worktree files, and pasted or dropped files. It is a textarea and
  * not a rich editor; the reasoning is in composerSuggest.ts, where the logic that
  * would otherwise justify one lives. What matters here is that the original
@@ -142,7 +142,7 @@ export function ChatComposer({
 	commandError?: string;
 	/** A queued-message dock owns the shared rounded top edge. */
 	attachedTop?: boolean;
-	/** Run AO's built-in `/compact` command instead of sending it to the agent. */
+	/** Run Kennel's built-in `/compact` command instead of sending it to the agent. */
 	onCompact?: () => void | Promise<unknown>;
 	/** The provider is already compacting this conversation. */
 	compacting?: boolean;

@@ -49,7 +49,7 @@ func TestEmbeddedPreviewGuidanceDoesNotScaffoldStaticSites(t *testing.T) {
 	for _, required := range []string{
 		"Static HTML and Markdown do not need a development server",
 		"Never create or modify `package.json`",
-		"Do not create `.ao/launch.json` unless the user asks",
+		"Do not create `.kennel/launch.json` unless the user asks",
 		"reuse the repository's existing dev command",
 		"without waiting for a separate \"open it\" request",
 		"Do not steal the browser from an active application",
