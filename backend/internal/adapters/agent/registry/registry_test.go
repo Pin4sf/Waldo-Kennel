@@ -150,7 +150,16 @@ func TestHarnessedExcludesFakeHarness(t *testing.T) {
 	}
 }
 
-func TestEveryProductionHarnessReportsModelOrModeConfig(t *testing.T) {
+// A shipped harness must give the owner some say in what actually runs. Most
+// CLIs spell that as a model or a mode. A few spell it as a profile: DeepSeek
+// Harness boots `dsh --profile <name>`, where the profile is the user-built
+// plugin stack that pins the model, and its adapter deliberately exposes no
+// model field because no dsh model flag has been verified (GetLaunchCommand
+// refuses a stored override rather than guessing one). Accepting `profile`
+// records that seam instead of pressuring an adapter into advertising a flag
+// its CLI does not have. What stays forbidden is a harness that exposes no
+// selection seam at all.
+func TestEveryProductionHarnessReportsASelectionSeam(t *testing.T) {
 	for _, ha := range Harnessed() {
 		t.Run(string(ha.Harness), func(t *testing.T) {
 			spec, err := ha.Agent.GetConfigSpec(context.Background())
@@ -158,11 +167,12 @@ func TestEveryProductionHarnessReportsModelOrModeConfig(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, field := range spec.Fields {
-				if field.Key == "model" || field.Key == "mode" {
+				switch field.Key {
+				case "model", "mode", "profile":
 					return
 				}
 			}
-			t.Fatalf("%s exposes neither model nor mode configuration: %#v", ha.Harness, spec.Fields)
+			t.Fatalf("%s exposes no model, mode, or profile configuration: %#v", ha.Harness, spec.Fields)
 		})
 	}
 }

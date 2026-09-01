@@ -2030,6 +2030,10 @@ type AnalyzeIntakeRequest struct {
 type AnswerIntakeClarificationRequest struct {
 	ExpectedProposalRevision int64  `json:"expectedProposalRevision"`
 	Answer                   string `json:"answer"`
+	// Offline answers through the deterministic baseline instead of asking an
+	// agent, matching AnalyzeIntakeRequest.Offline. An owner who took the
+	// offline proposal needs this to finish the intake the same way.
+	Offline bool `json:"offline,omitempty"`
 }
 
 // ReviseIntakeProposalRequest appends a reviewed immutable proposal.
