@@ -321,7 +321,7 @@ func (s *Service) Start(ctx context.Context, cfg StartConfig) (*Controller, erro
 			ID:             s.newID(),
 			Kind:           domain.ActivityKindSystem,
 			Status:         domain.ActivityStatusCompleted,
-			Summary:        "Started a fresh agent context. Earlier project history remains visible in AO but was not loaded into this agent.",
+			Summary:        "Started a fresh agent context. Earlier project history remains visible in Kennel but was not loaded into this agent.",
 			Detail:         detail,
 			ProviderItemID: "ao-context-reset:" + string(cfg.SessionID),
 		}, s.now()); boundaryErr != nil {

@@ -1429,7 +1429,7 @@ func (c *Controller) Rollback(ctx context.Context, turnID string) (int, error) {
 
 	discarded, err := c.store.RollbackTurns(ctx, c.conversation.ID, turnID, c.now())
 	if err != nil {
-		c.log.Error("chat rollback: provider discarded history but AO rows did not follow",
+		c.log.Error("chat rollback: provider discarded history but Kennel rows did not follow",
 			"session", c.sessionID, "turn", turnID, "error", err)
 		return 0, fmt.Errorf("record rollback of %s: %w", turnID, err)
 	}

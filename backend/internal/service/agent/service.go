@@ -405,7 +405,7 @@ func (s *Service) loadModels(ctx context.Context, agentID, projectID string, mod
 }
 
 func appendCacheWarning(current string) string {
-	const next = "Models loaded, but AO could not update the model cache."
+	const next = "Models loaded, but Kennel could not update the model cache."
 	if current == "" {
 		return next
 	}

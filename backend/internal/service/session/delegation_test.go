@@ -63,7 +63,7 @@ func TestDelegateTaskSpawnsWorkerThenRequestsTitleFromNewestActiveOrchestrator(t
 				t.Fatalf("readiness waits = %#v; want orch-new", cmd.ready)
 			}
 			for _, want := range []string{
-				"AO TASK TITLE UPDATE",
+				"Kennel TASK TITLE UPDATE",
 				"Do not spawn another worker or orchestrator",
 				`kennel session rename mer-9 "<title, max 20 chars>"`,
 				"Worker session id: mer-9",
