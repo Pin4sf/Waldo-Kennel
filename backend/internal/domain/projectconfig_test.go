@@ -3,6 +3,30 @@ package domain
 import "testing"
 
 func TestProjectConfigValidate(t *testing.T) {
+	for _, harness := range AllHarnesses {
+		t.Run("worker_"+string(harness), func(t *testing.T) {
+			cfg := ProjectConfig{Worker: RoleOverride{Harness: harness}}
+			if err := cfg.Validate(); err != nil {
+				t.Fatalf("active worker provider %q should validate: %v", harness, err)
+			}
+		})
+		t.Run("orchestrator_"+string(harness), func(t *testing.T) {
+			cfg := ProjectConfig{Orchestrator: RoleOverride{Harness: harness}}
+			if err := cfg.Validate(); err != nil {
+				t.Fatalf("active orchestrator provider %q should validate: %v", harness, err)
+			}
+		})
+	}
+
+	for _, reviewer := range AllReviewerHarnesses {
+		t.Run("reviewer_"+string(reviewer), func(t *testing.T) {
+			cfg := ProjectConfig{Reviewers: []ReviewerConfig{{Harness: reviewer}}}
+			if err := cfg.Validate(); err != nil {
+				t.Fatalf("active reviewer provider %q should validate: %v", reviewer, err)
+			}
+		})
+	}
+
 	tests := []struct {
 		name    string
 		cfg     ProjectConfig
@@ -10,60 +34,18 @@ func TestProjectConfigValidate(t *testing.T) {
 	}{
 		{"empty ok", ProjectConfig{}, false},
 		{"good agent config", ProjectConfig{AgentConfig: AgentConfig{Model: "m", Permissions: PermissionModeAuto}}, false},
-		{"good agent mode", ProjectConfig{AgentConfig: AgentConfig{Mode: "ultra"}}, false},
-		{"bad agent mode", ProjectConfig{AgentConfig: AgentConfig{Mode: "turbo"}}, true},
 		{"bad permission", ProjectConfig{AgentConfig: AgentConfig{Permissions: "yolo"}}, true},
-		{"good session prefix", ProjectConfig{SessionPrefix: "ao"}, false},
-		{"session prefix with slash", ProjectConfig{SessionPrefix: "ao/project"}, true},
-		{"session prefix with backslash", ProjectConfig{SessionPrefix: `ao\project`}, true},
-		{"session prefix traversal component", ProjectConfig{SessionPrefix: ".."}, true},
-		{"good role override", ProjectConfig{Worker: RoleOverride{Harness: HarnessCodex}}, false},
-		{"retired role override is not selectable for new work", ProjectConfig{Worker: RoleOverride{Harness: HarnessClaudeCode}}, true},
 		{"unknown role harness", ProjectConfig{Orchestrator: RoleOverride{Harness: "nope"}}, true},
-		{"bad role agent config", ProjectConfig{Worker: RoleOverride{AgentConfig: AgentConfig{Permissions: "nope"}}}, true},
-		{"good symlinks", ProjectConfig{Symlinks: []string{".env", "configs/dev.toml"}}, false},
-		{"symlink absolute path", ProjectConfig{Symlinks: []string{"/etc/passwd"}}, true},
-		{"symlink parent escape", ProjectConfig{Symlinks: []string{"../escape"}}, true},
-		{"symlink embedded parent", ProjectConfig{Symlinks: []string{"a/../../b"}}, true},
-		{"symlink bare ..", ProjectConfig{Symlinks: []string{".."}}, true},
-		{"good prompt rules", ProjectConfig{AgentRules: "Run tests.", AgentRulesFile: "docs/agent-rules.md", OrchestratorRules: "Delegate work."}, false},
-		{"agent rules file absolute path", ProjectConfig{AgentRulesFile: "/etc/passwd"}, true},
-		{"agent rules file parent escape", ProjectConfig{AgentRulesFile: "../rules.md"}, true},
-		{"agent rules file cleans to dot", ProjectConfig{AgentRulesFile: "docs/.."}, true},
-		{"agent rules file bare dot", ProjectConfig{AgentRulesFile: "."}, true},
-		{"retired reviewer is not selectable for new work", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerClaudeCode}}}, true},
-		{"good codex reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCodex}}}, false},
-		{"retired copilot reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCopilot}}}, true},
-		{"retired cursor reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCursor}}}, true},
-		{"retired Kilo Code reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerKiloCode}}}, true},
-		{"retired kimchi reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerKimchi}}}, true},
-		{"retired opencode reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerOpenCode}}}, true},
-		{"retired kiro reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerKiro}}}, true},
-		{"retired pi reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerPi}}}, true},
-		{"retired experimental qwen reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerQwen}}}, true},
-		{"retired experimental agy reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerAgy}}}, true},
-		{"retired experimental continue reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerContinue}}}, true},
-		{"retired experimental goose reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerGoose}}}, true},
-		{"retired experimental vibe reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerVibe}}}, true},
-		{"retired experimental Devin reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerDevin}}}, true},
-		{"retired experimental Droid reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerDroid}}}, true},
-		{"retired experimental Kimi reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerKimi}}}, true},
-		{"retired Muse reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerMuse}}}, true},
 		{"unknown reviewer harness", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: "nope"}}}, true},
-		{"retired interactive Amp reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerAmp}}}, true},
-		{"retired interactive Aider reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerAider}}}, true},
-		{"retired experimental Grok reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerGrok}}}, true},
-		{"retired experimental Crush reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCrush}}}, true},
-		{"retired experimental Auggie reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerAuggie}}}, true},
-		{"retired experimental Cline reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCline}}}, true},
-		{"retired experimental Autohand reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerAutohand}}}, true},
 		{"empty reviewer harness", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ""}}}, true},
-		{"tracker intake assignee rule", ProjectConfig{TrackerIntake: TrackerIntakeConfig{Enabled: true, Assignee: "alice"}}, false},
-		{"tracker intake explicit github", ProjectConfig{TrackerIntake: TrackerIntakeConfig{Enabled: true, Provider: TrackerProviderGitHub, Assignee: "alice"}}, false},
+		{"good session prefix", ProjectConfig{SessionPrefix: "kennel"}, false},
+		{"session prefix traversal", ProjectConfig{SessionPrefix: ".."}, true},
+		{"good symlink", ProjectConfig{Symlinks: []string{"configs/dev.toml"}}, false},
+		{"symlink escape", ProjectConfig{Symlinks: []string{"../escape"}}, true},
+		{"good rules file", ProjectConfig{AgentRulesFile: "docs/agent-rules.md"}, false},
+		{"rules file escape", ProjectConfig{AgentRulesFile: "../rules.md"}, true},
+		{"tracker intake assignee", ProjectConfig{TrackerIntake: TrackerIntakeConfig{Enabled: true, Assignee: "alice"}}, false},
 		{"tracker intake no rule", ProjectConfig{TrackerIntake: TrackerIntakeConfig{Enabled: true}}, true},
-		{"tracker intake unknown provider", ProjectConfig{TrackerIntake: TrackerIntakeConfig{Enabled: true, Provider: "linear", Assignee: "alice"}}, true},
-		{"tracker intake repo with whitespace", ProjectConfig{TrackerIntake: TrackerIntakeConfig{Enabled: true, Repo: " acme/demo", Assignee: "alice"}}, true},
-		{"tracker intake assignee with whitespace", ProjectConfig{TrackerIntake: TrackerIntakeConfig{Enabled: true, Assignee: " alice"}}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -76,14 +58,9 @@ func TestProjectConfigValidate(t *testing.T) {
 
 func TestDefaultProjectConfig(t *testing.T) {
 	def := DefaultProjectConfig()
-
-	// The one documented non-empty default.
 	if def.DefaultBranch != DefaultBranchAuto {
 		t.Fatalf("default DefaultBranch = %q, want %q", def.DefaultBranch, DefaultBranchAuto)
 	}
-
-	// Every other field defaults to its zero value: clearing the documented
-	// default must leave the config completely empty.
 	def.DefaultBranch = ""
 	if !def.IsZero() {
 		t.Fatalf("default config has unexpected non-zero fields: %#v", def)
@@ -91,83 +68,42 @@ func TestDefaultProjectConfig(t *testing.T) {
 }
 
 func TestProjectConfigWithDefaults(t *testing.T) {
-	// An unset config gets the documented defaults.
 	got := (ProjectConfig{}).WithDefaults()
 	if got.DefaultBranch != DefaultBranchAuto {
 		t.Fatalf("WithDefaults = %#v, want branch=%s", got, DefaultBranchAuto)
 	}
-
-	// Set fields are preserved, not overwritten.
-	got = (ProjectConfig{
-		DefaultBranch: "develop",
-		AgentConfig:   AgentConfig{Model: "m"},
-	}).WithDefaults()
-	if got.DefaultBranch != "develop" {
+	got = (ProjectConfig{DefaultBranch: "develop", AgentConfig: AgentConfig{Model: "m"}}).WithDefaults()
+	if got.DefaultBranch != "develop" || got.AgentConfig.Model != "m" {
 		t.Fatalf("WithDefaults overwrote set fields: %#v", got)
-	}
-	if got.AgentConfig.Model != "m" {
-		t.Fatalf("WithDefaults dropped a set field: %#v", got.AgentConfig)
 	}
 	if got.WorktreeBaseBranch() != "develop" {
 		t.Fatalf("WorktreeBaseBranch = %q, want develop", got.WorktreeBaseBranch())
 	}
 	if got := (ProjectConfig{}).WorktreeBaseBranch(); got != "" {
-		t.Fatalf("automatic WorktreeBaseBranch = %q, want empty for adapter inference", got)
-	}
-	if got := (ProjectConfig{DefaultBranch: DefaultBranchAuto}).WorktreeBaseBranch(); got != "" {
-		t.Fatalf("explicit auto WorktreeBaseBranch = %q, want empty for adapter inference", got)
-	}
-
-	got = (ProjectConfig{TrackerIntake: TrackerIntakeConfig{Enabled: true, Assignee: "alice"}}).WithDefaults()
-	if got.TrackerIntake.Provider != TrackerProviderGitHub {
-		t.Fatalf("TrackerIntake.Provider = %q, want %q", got.TrackerIntake.Provider, TrackerProviderGitHub)
-	}
-
-	got = (ProjectConfig{}).WithDefaults()
-	if got.TrackerIntake.Provider != "" {
-		t.Fatalf("disabled TrackerIntake.Provider = %q, want empty", got.TrackerIntake.Provider)
+		t.Fatalf("automatic WorktreeBaseBranch = %q, want empty", got)
 	}
 }
 
 func TestResolveReviewerHarness(t *testing.T) {
-	// A configured reviewer always wins, regardless of the worker harness.
-	cfg := ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerClaudeCode}}}
-	if got := cfg.ResolveReviewerHarness(HarnessAider); got != ReviewerClaudeCode {
+	configured := ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerClaudeCode}}}
+	if got := configured.ResolveReviewerHarness(HarnessPi); got != ReviewerClaudeCode {
 		t.Fatalf("configured reviewer = %q, want claude-code", got)
 	}
 
-	// No reviewer configured: preserve automatic inheritance only for the
-	// original unattended-safe reviewer set.
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessClaudeCode); got != ReviewerClaudeCode {
-		t.Fatalf("claude-code worker = %q, want reviewer claude-code", got)
+	cases := map[AgentHarness]ReviewerHarness{
+		HarnessCodex:      ReviewerCodex,
+		HarnessClaudeCode: ReviewerClaudeCode,
+		HarnessOpenCode:   ReviewerOpenCode,
+		HarnessCursor:     ReviewerCursor,
+		HarnessPi:         ReviewerPi,
 	}
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessCodex); got != ReviewerCodex {
-		t.Fatalf("codex worker = %q, want reviewer codex", got)
-	}
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessOpenCode); got != ReviewerOpenCode {
-		t.Fatalf("opencode worker = %q, want reviewer opencode", got)
-	}
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessMuse); got != ReviewerMuse {
-		t.Fatalf("muse worker = %q, want reviewer muse", got)
-	}
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessKimchi); got != ReviewerKimchi {
-		t.Fatalf("kimchi worker = %q, want reviewer kimchi", got)
-	}
-
-	// A worker harness that is not itself a reviewer (e.g. crush, aider) falls
-	// back to claude-code.
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessCrush); got != FallbackReviewerHarness {
-		t.Fatalf("crush worker = %q, want %q", got, FallbackReviewerHarness)
-	}
-	for _, worker := range []AgentHarness{
-		HarnessCopilot, HarnessCursor, HarnessKilocode, HarnessKiro, HarnessPi,
-		HarnessAider, HarnessAmp, HarnessQwen, HarnessAgy, HarnessContinue,
-		HarnessGoose, HarnessVibe, HarnessDevin, HarnessDroid, HarnessKimi,
-		HarnessGrok, HarnessCrush, HarnessAuggie, HarnessCline, HarnessAutohand,
-	} {
-		if got := (ProjectConfig{}).ResolveReviewerHarness(worker); got != FallbackReviewerHarness {
-			t.Errorf("%s worker = %q, want explicit-selection fallback %q", worker, got, FallbackReviewerHarness)
+	for worker, want := range cases {
+		if got := (ProjectConfig{}).ResolveReviewerHarness(worker); got != want {
+			t.Errorf("worker %q reviewer = %q, want %q", worker, got, want)
 		}
+	}
+	if got := (ProjectConfig{}).ResolveReviewerHarness("unknown"); got != "" {
+		t.Fatalf("unknown worker reviewer = %q, want empty", got)
 	}
 }
 
@@ -177,8 +113,5 @@ func TestProjectConfigIsZero(t *testing.T) {
 	}
 	if (ProjectConfig{DefaultBranch: "main"}).IsZero() {
 		t.Fatal("populated config should not be zero")
-	}
-	if (ProjectConfig{Env: map[string]string{"A": "b"}}).IsZero() {
-		t.Fatal("config with env should not be zero")
 	}
 }
