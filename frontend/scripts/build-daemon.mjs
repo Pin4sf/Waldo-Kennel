@@ -23,9 +23,7 @@ if (!minimumGoVersion) {
 
 const versionResult = spawnSync("go", ["version"], { encoding: "utf8", windowsHide: true });
 if (versionResult.error) {
-	console.error(
-		`Go ${minimumGoVersion.join(".")}+ is required, but Go could not be started: ${versionResult.error.message}`,
-	);
+	console.error(`Go ${minimumGoVersion.join(".")}+ is required, but Go could not be started: ${versionResult.error.message}`);
 	process.exit(1);
 }
 const actualGoVersion = parseGoVersion(versionResult.stdout);
@@ -38,10 +36,6 @@ if (versionResult.status !== 0 || !actualGoVersion || !meetsMinimumVersion(actua
 if (isWindowsDev) {
 	mkdirSync(windowsDevOutDir, { recursive: true });
 } else if (process.platform === "win32") {
-	// A running dev daemon may still hold an older dev-* binary open. Keep the
-	// output directory in place and remove only the files that the packaged
-	// build owns; locked dev folders can remain without affecting the bundled
-	// daemon path.
 	mkdirSync(outDir, { recursive: true });
 	rmSync(outPath, { force: true });
 	rmSync(windowsDevManifestPath, { force: true });
@@ -51,7 +45,7 @@ if (isWindowsDev) {
 	mkdirSync(outDir, { recursive: true });
 }
 
-const result = spawnSync("go", ["build", "-o", buildOutPath, "./cmd/ao"], {
+const result = spawnSync("go", ["build", "-o", buildOutPath, "./cmd/kennel"], {
 	cwd: backendRoot,
 	stdio: "inherit",
 	windowsHide: true,
@@ -61,10 +55,7 @@ if (result.error) {
 	console.error(`failed to start go build: ${result.error.message}`);
 	process.exit(1);
 }
-
-if (result.status !== 0) {
-	process.exit(result.status ?? 1);
-}
+if (result.status !== 0) process.exit(result.status ?? 1);
 
 if (isWindowsDev) {
 	writeFileSync(windowsDevManifestPath, `${JSON.stringify({ path: buildOutPath }, null, 2)}\n`);
@@ -90,8 +81,7 @@ function cleanupOldWindowsDevDaemons(activePath) {
 		try {
 			rmSync(entry.dir, { recursive: true, force: true });
 		} catch {
-			// Old session processes can keep their exe locked. They will be cleaned
-			// up by a later dev build after the process exits.
+			// A prior dev process may still hold the executable open on Windows.
 		}
 	}
 }
