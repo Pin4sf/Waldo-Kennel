@@ -1,28 +1,26 @@
 // Package outcome validates an orchestrator-produced outcome plan before it
-// can create workers. It is intentionally deterministic: the model proposes
-// tasks, but AO remains the authority that rejects cycles, missing dependencies,
-// and unavailable harness assignments.
+// can create workers. The model may propose work, but Kennel remains the
+// deterministic authority for graph validity and provider admission.
 package outcome
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
 
-// Plan is the validated worker graph that may be handed to AO's existing
-// session delegation service.
+// Plan is the validated worker graph handed to the execution layer.
 type Plan struct {
 	Outcome domain.Outcome
 	Tasks   []domain.OutcomeTask
 }
 
-// BuildPlan validates an agent-proposed graph and resolves every task to a
-// harness known to be available for this machine. An explicit request is never
-// silently changed: choosing a specific harness is a user/model constraint,
-// while an empty request asks AO to choose deterministically.
+// BuildPlan validates an agent-proposed graph and resolves task providers from
+// the already-admitted providers supplied by the caller. Explicit provider
+// requests are preserved. When a task has no provider request Kennel only
+// chooses automatically if exactly one provider is available; otherwise the
+// ambiguity is surfaced instead of hidden behind a provider brand priority.
 func BuildPlan(outcome domain.Outcome, tasks []domain.OutcomeTask, available []domain.AgentHarness) (Plan, error) {
 	if err := outcome.Validate(); err != nil {
 		return Plan{}, err
@@ -37,7 +35,7 @@ func BuildPlan(outcome domain.Outcome, tasks []domain.OutcomeTask, available []d
 		}
 	}
 	if len(availableSet) == 0 {
-		return Plan{}, fmt.Errorf("outcome plan requires at least one available harness")
+		return Plan{}, fmt.Errorf("outcome plan requires at least one ready provider")
 	}
 
 	byID := make(map[string]domain.OutcomeTask, len(tasks))
@@ -53,17 +51,11 @@ func BuildPlan(outcome domain.Outcome, tasks []domain.OutcomeTask, available []d
 		if _, exists := byID[task.ID]; exists {
 			return Plan{}, fmt.Errorf("outcome plan has duplicate task id %q", task.ID)
 		}
-		if task.RequestedHarness != "" {
-			if !task.RequestedHarness.IsSelectableForNewWork() {
-				return Plan{}, fmt.Errorf("task %q requests harness %q that is not selectable for new work", task.ID, task.RequestedHarness)
-			}
-			if _, ok := availableSet[task.RequestedHarness]; !ok {
-				return Plan{}, fmt.Errorf("task %q requests unavailable harness %q", task.ID, task.RequestedHarness)
-			}
-			task.AssignedHarness = task.RequestedHarness
-		} else {
-			task.AssignedHarness = chooseHarness(availableSet)
+		assigned, err := resolveHarness(task, availableSet)
+		if err != nil {
+			return Plan{}, err
 		}
+		task.AssignedHarness = assigned
 		task.Status = domain.OutcomeTaskStatusPlanned
 		byID[task.ID] = task
 	}
@@ -89,22 +81,23 @@ func BuildPlan(outcome domain.Outcome, tasks []domain.OutcomeTask, available []d
 	return Plan{Outcome: outcome, Tasks: resolved}, nil
 }
 
-func chooseHarness(available map[domain.AgentHarness]struct{}) domain.AgentHarness {
-	// This is deliberately policy, not a hidden model preference. The stable
-	// order makes a reviewed plan reproducible until a project-level routing
-	// policy is added in a later slice.
-	preferred := []domain.AgentHarness{domain.HarnessCodex, domain.HarnessClaudeCode, domain.HarnessOpenCode}
-	for _, harness := range preferred {
-		if _, ok := available[harness]; ok {
-			return harness
+func resolveHarness(task domain.OutcomeTask, available map[domain.AgentHarness]struct{}) (domain.AgentHarness, error) {
+	if task.RequestedHarness != "" {
+		if !task.RequestedHarness.IsSelectableForNewWork() {
+			return "", fmt.Errorf("task %q requests provider %q that Kennel does not support", task.ID, task.RequestedHarness)
 		}
+		if _, ok := available[task.RequestedHarness]; !ok {
+			return "", fmt.Errorf("task %q requests provider %q that is not ready", task.ID, task.RequestedHarness)
+		}
+		return task.RequestedHarness, nil
 	}
-	choices := make([]string, 0, len(available))
+	if len(available) != 1 {
+		return "", fmt.Errorf("task %q requires an explicit provider because %d providers are ready", task.ID, len(available))
+	}
 	for harness := range available {
-		choices = append(choices, string(harness))
+		return harness, nil
 	}
-	sort.Strings(choices)
-	return domain.AgentHarness(choices[0])
+	return "", fmt.Errorf("task %q has no ready provider", task.ID)
 }
 
 func hasCycle(tasks map[string]domain.OutcomeTask) bool {
