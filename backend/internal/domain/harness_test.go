@@ -3,89 +3,48 @@ package domain
 import "testing"
 
 func TestHarnessAdmissionPredicates(t *testing.T) {
-	tests := []struct {
-		name                 string
-		harness              AgentHarness
-		wantRecognized       bool
-		wantSelectableForNew bool
-	}{
-		{name: "codex", harness: HarnessCodex, wantRecognized: true, wantSelectableForNew: true},
-		{name: "historical claude", harness: HarnessClaudeCode, wantRecognized: true, wantSelectableForNew: false},
-		{name: "historical prime agent", harness: HarnessPrimeAgent, wantRecognized: true, wantSelectableForNew: false},
-		{name: "historical fake", harness: HarnessFake, wantRecognized: true, wantSelectableForNew: false},
-		{name: "unknown", harness: "unknown", wantRecognized: false, wantSelectableForNew: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.harness.IsRecognizedPersisted(); got != tt.wantRecognized {
-				t.Fatalf("IsRecognizedPersisted() = %v, want %v", got, tt.wantRecognized)
+	for _, harness := range []AgentHarness{HarnessCodex, HarnessClaudeCode, HarnessOpenCode, HarnessCursor, HarnessPi} {
+		t.Run(string(harness), func(t *testing.T) {
+			if !harness.IsRecognizedPersisted() {
+				t.Fatalf("provider %q should be recognized", harness)
 			}
-			if got := tt.harness.IsSelectableForNewWork(); got != tt.wantSelectableForNew {
-				t.Fatalf("IsSelectableForNewWork() = %v, want %v", got, tt.wantSelectableForNew)
+			if !harness.IsSelectableForNewWork() {
+				t.Fatalf("provider %q should be selectable for new work", harness)
 			}
 		})
+	}
+	if HarnessFake.IsSelectableForNewWork() {
+		t.Fatal("fake harness must never be selectable for product work")
+	}
+	if AgentHarness("aider").IsRecognizedPersisted() || AgentHarness("aider").IsSelectableForNewWork() {
+		t.Fatal("removed providers must not remain in the Kennel vocabulary")
+	}
+	if AgentHarness("unknown").IsKnown() {
+		t.Fatal("unknown provider should not be recognized")
 	}
 }
 
 func TestReviewerHarnessAdmissionPredicates(t *testing.T) {
-	tests := []struct {
-		name                 string
-		harness              ReviewerHarness
-		wantRecognized       bool
-		wantSelectableForNew bool
-	}{
-		{name: "codex", harness: ReviewerCodex, wantRecognized: true, wantSelectableForNew: true},
-		{name: "historical claude", harness: ReviewerClaudeCode, wantRecognized: true, wantSelectableForNew: false},
-		{name: "historical cursor", harness: ReviewerCursor, wantRecognized: true, wantSelectableForNew: false},
-		{name: "unknown", harness: "unknown", wantRecognized: false, wantSelectableForNew: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.harness.IsRecognizedPersisted(); got != tt.wantRecognized {
-				t.Fatalf("IsRecognizedPersisted() = %v, want %v", got, tt.wantRecognized)
-			}
-			if got := tt.harness.IsSelectableForNewWork(); got != tt.wantSelectableForNew {
-				t.Fatalf("IsSelectableForNewWork() = %v, want %v", got, tt.wantSelectableForNew)
+	for _, harness := range []ReviewerHarness{ReviewerCodex, ReviewerClaudeCode, ReviewerOpenCode, ReviewerCursor, ReviewerPi} {
+		t.Run(string(harness), func(t *testing.T) {
+			if !harness.IsRecognizedPersisted() || !harness.IsSelectableForNewWork() {
+				t.Fatalf("review provider %q should be active", harness)
 			}
 		})
 	}
+	if ReviewerHarness("copilot").IsKnown() {
+		t.Fatal("removed reviewer providers must not remain recognized")
+	}
 }
 
-func TestPrimeAgentHarnessIsKnown(t *testing.T) {
-	if HarnessPrimeAgent != AgentHarness("prime-agent") {
-		t.Fatalf("HarnessPrimeAgent = %q, want prime-agent", HarnessPrimeAgent)
+func TestAllHarnessesIsExactlyKennelCore(t *testing.T) {
+	want := []AgentHarness{HarnessCodex, HarnessClaudeCode, HarnessOpenCode, HarnessCursor, HarnessPi}
+	if len(AllHarnesses) != len(want) {
+		t.Fatalf("AllHarnesses len = %d, want %d: %#v", len(AllHarnesses), len(want), AllHarnesses)
 	}
-	if !HarnessPrimeAgent.IsKnown() {
-		t.Fatal("HarnessPrimeAgent.IsKnown() = false, want true")
-	}
-	found := false
-	for _, harness := range AllHarnesses {
-		if harness == HarnessPrimeAgent {
-			found = true
-			break
+	for i := range want {
+		if AllHarnesses[i] != want[i] {
+			t.Fatalf("AllHarnesses[%d] = %q, want %q", i, AllHarnesses[i], want[i])
 		}
-	}
-	if !found {
-		t.Fatal("AllHarnesses does not contain HarnessPrimeAgent")
-	}
-}
-func TestOMPHarnessIsKnown(t *testing.T) {
-	if HarnessOMP != AgentHarness("omp") {
-		t.Fatalf("HarnessOMP = %q, want omp", HarnessOMP)
-	}
-	if !HarnessOMP.IsKnown() {
-		t.Fatal("HarnessOMP.IsKnown() = false, want true")
-	}
-	found := false
-	for _, harness := range AllHarnesses {
-		if harness == HarnessOMP {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatal("AllHarnesses does not contain HarnessOMP")
 	}
 }
