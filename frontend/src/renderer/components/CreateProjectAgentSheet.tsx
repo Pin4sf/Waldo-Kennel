@@ -7,13 +7,15 @@ import {
 import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
 import { TriangleAlert, X, type LucideIcon } from "lucide-react";
-import { memo, useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { components } from "../../api/schema";
 import { agentsQueryKey, agentsQueryOptions, refreshAgents } from "../hooks/useAgentsQuery";
 import {
 	buildRankedAgentOptions,
-	DEFAULT_AGENT_PRIORITY_RANK,
+	CORE_PROVIDER_IDS,
+	singleReadyProvider,
 } from "../lib/agent-select-options";
+import { agentLabel } from "../lib/agent-options";
 import { cn } from "../lib/utils";
 import { AgentAvatar } from "./AgentAvatar";
 import { FieldDefaultHint } from "./FieldDefaultHint";
@@ -27,7 +29,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { appI18n } from "../i18n";
 
 type TrackerIntakeConfig = components["schemas"]["TrackerIntakeConfig"];
-
 type AgentInfo = components["schemas"]["AgentInfo"];
 
 export type CreateProjectAgentSelection = {
@@ -37,6 +38,8 @@ export type CreateProjectAgentSelection = {
 };
 
 const EMPTY_INTAKE: IntakeForm = { enabled: false, repo: "", assignee: "" };
+const CORE_FALLBACK_AGENTS: AgentInfo[] = CORE_PROVIDER_IDS.map((id) => ({ id, label: agentLabel(id) }));
+
 type CreateProjectAgentSheetProps = {
 	error?: string | null;
 	isCreating: boolean;
@@ -64,23 +67,11 @@ function projectSheetError(error: string): SheetError {
 
 	switch (code) {
 		case "PROJECT_PATH_NOT_REPO_ROOT":
-			return {
-				title: appI18n.t("createProject.error.notRepoRootTitle"),
-				message: appI18n.t("createProject.error.notRepoRootBody"),
-				tone: "warning",
-			};
+			return { title: appI18n.t("createProject.error.notRepoRootTitle"), message: appI18n.t("createProject.error.notRepoRootBody"), tone: "warning" };
 		case "PROJECT_BARE_REPOSITORY":
-			return {
-				title: appI18n.t("createProject.error.bareTitle"),
-				message: appI18n.t("createProject.error.bareBody"),
-				tone: "warning",
-			};
+			return { title: appI18n.t("createProject.error.bareTitle"), message: appI18n.t("createProject.error.bareBody"), tone: "warning" };
 		case "UNSUPPORTED_GIT_REPO":
-			return {
-				title: appI18n.t("createProject.error.unsupportedTitle"),
-				message: appI18n.t("createProject.error.unsupportedBody"),
-				tone: "warning",
-			};
+			return { title: appI18n.t("createProject.error.unsupportedTitle"), message: appI18n.t("createProject.error.unsupportedBody"), tone: "warning" };
 		default:
 			return {
 				title: error.toLowerCase().startsWith("setup failed:")
@@ -106,18 +97,24 @@ export function CreateProjectAgentSheet({
 }: CreateProjectAgentSheetProps) {
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
-	const agentsQuery = useQuery({
-		...agentsQueryOptions,
-		enabled: open,
-	});
+	const agentsQuery = useQuery({ ...agentsQueryOptions, enabled: open });
 	const refreshAgentsMutation = useMutation({
 		mutationFn: refreshAgents,
 		onSuccess: (next) => queryClient.setQueryData(agentsQueryKey, next),
 	});
 	const agents = agentsQuery.data;
 	const installedAgents = agents?.installed ?? [];
-	const agentOptions = agents?.authorized ?? [];
-	const supportedAgents = agents?.supported ?? [];
+	const authorizedAgents = agents?.authorized ?? [];
+	const supportedAgents = agents?.supported ?? CORE_FALLBACK_AGENTS;
+	const providerOptions = useMemo(
+		() => buildRankedAgentOptions({
+			supported: supportedAgents,
+			installed: installedAgents,
+			authorized: authorizedAgents,
+			fallbackAgents: CORE_FALLBACK_AGENTS,
+		}),
+		[authorizedAgents, installedAgents, supportedAgents],
+	);
 	const isLoadingAgents = agents === undefined && agentsQuery.isFetching;
 	const agentsError = agentsQuery.isError
 		? agentsQuery.error instanceof Error
@@ -137,23 +134,16 @@ export function CreateProjectAgentSheet({
 	const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
 	const intakeIncomplete = intakeNeedsRule(intake);
 	const canSubmit =
-		canSubmitProjectSetup({
-			workerAgent,
-			orchestratorAgent,
-			intakeEnabled: intake.enabled,
-			intakeAssignee: intake.assignee,
-		}) &&
-		!intakeIncomplete &&
-		!isBusy &&
-		!isLoadingAgents;
+		canSubmitProjectSetup({ workerAgent, orchestratorAgent, intakeEnabled: intake.enabled, intakeAssignee: intake.assignee }) &&
+		!intakeIncomplete && !isBusy && !isLoadingAgents;
 	const sheetError = error ? projectSheetError(error) : null;
 
 	useEffect(() => {
 		if (!open) return;
-		const defaultAgent = defaultAuthorizedAgent(agentOptions);
-		if (!workerAgentTouched) setWorkerAgent(defaultAgent);
-		if (!orchestratorAgentTouched) setOrchestratorAgent(defaultAgent);
-	}, [agentOptions, open, orchestratorAgentTouched, workerAgentTouched]);
+		const onlyReadyProvider = singleReadyProvider(providerOptions);
+		if (!workerAgentTouched) setWorkerAgent(onlyReadyProvider);
+		if (!orchestratorAgentTouched) setOrchestratorAgent(onlyReadyProvider);
+	}, [open, orchestratorAgentTouched, providerOptions, workerAgentTouched]);
 
 	useEffect(() => {
 		if (!open) {
@@ -178,11 +168,7 @@ export function CreateProjectAgentSheet({
 						closeLabel={t("createProject.closeAgents")}
 						disabled={isBusy}
 						path={path ?? ""}
-						title={
-							kind === "workspace"
-								? t("createProject.workspaceAgents")
-								: t("createProject.projectAgents")
-						}
+						title={kind === "workspace" ? t("createProject.workspaceAgents") : t("createProject.projectAgents")}
 					/>
 					<ProjectSetupFormView
 						agentControls={{
@@ -192,17 +178,14 @@ export function CreateProjectAgentSheet({
 									label={t("createProject.workerAgent")}
 									placeholder={t("createProject.selectWorker")}
 									value={workerAgent}
-									authorized={agentOptions}
+									authorized={authorizedAgents}
 									installed={installedAgents}
 									supported={supportedAgents}
 									disabled={isLoadingAgents}
 									labelClassName="agents-sheet-label"
 									triggerClassName="agents-sheet-control"
 									contentClassName="agents-sheet-menu"
-									onChange={(value) => {
-										setWorkerAgent(value);
-										setWorkerAgentTouched(true);
-									}}
+									onChange={(value) => { setWorkerAgent(value); setWorkerAgentTouched(true); }}
 								/>
 							),
 							orchestrator: (
@@ -211,17 +194,14 @@ export function CreateProjectAgentSheet({
 									label={t("createProject.orchestratorAgent")}
 									placeholder={t("createProject.selectOrchestrator")}
 									value={orchestratorAgent}
-									authorized={agentOptions}
+									authorized={authorizedAgents}
 									installed={installedAgents}
 									supported={supportedAgents}
 									disabled={isLoadingAgents}
 									labelClassName="agents-sheet-label"
 									triggerClassName="agents-sheet-control"
 									contentClassName="agents-sheet-menu"
-									onChange={(value) => {
-										setOrchestratorAgent(value);
-										setOrchestratorAgentTouched(true);
-									}}
+									onChange={(value) => { setOrchestratorAgent(value); setOrchestratorAgentTouched(true); }}
 								/>
 							),
 						}}
@@ -231,59 +211,22 @@ export function CreateProjectAgentSheet({
 							loading: isLoadingAgents,
 							loadingMessage: t("createProject.loadingAgents"),
 							onRefresh: () => refreshAgentsMutation.mutate(),
-							refreshLabel: refreshAgentsMutation.isPending
-								? t("createProject.refreshing")
-								: t("createProject.refreshAgents"),
+							refreshLabel: refreshAgentsMutation.isPending ? t("createProject.refreshing") : t("createProject.refreshAgents"),
 							refreshing: refreshAgentsMutation.isPending,
 							retryLabel: t("createProject.retry"),
 						}}
-						alert={
-							sheetError
-								? {
-										...sheetError,
-										icon: (
-											<TriangleAlert
-												className={
-													sheetError.tone === "warning"
-														? "mt-0.5 size-icon-sm shrink-0 text-warning"
-														: "mt-0.5 size-icon-sm shrink-0 text-destructive"
-												}
-												aria-hidden="true"
-											/>
-										),
-									}
-								: null
-						}
+						alert={sheetError ? {
+							...sheetError,
+							icon: <TriangleAlert className={sheetError.tone === "warning" ? "mt-0.5 size-icon-sm shrink-0 text-warning" : "mt-0.5 size-icon-sm shrink-0 text-destructive"} aria-hidden="true" />,
+						} : null}
 						canSubmit={canSubmit}
 						cancelLabel={t("createProject.cancel")}
-						intakeControl={
-							<IntakeFields
-								form={intake}
-								onChange={(patch) => setIntake((f) => ({ ...f, ...patch }))}
-								compact
-								controlClassName="agents-sheet-control"
-								labelClassName="agents-sheet-label"
-							/>
-						}
+						intakeControl={<IntakeFields form={intake} onChange={(patch) => setIntake((f) => ({ ...f, ...patch }))} compact controlClassName="agents-sheet-control" labelClassName="agents-sheet-label" />}
 						isBusy={isBusy}
 						onCancel={() => onOpenChange(false)}
-						onSubmit={() =>
-							void onSubmit({ workerAgent, orchestratorAgent, trackerIntake: buildIntake(intake) })
-						}
-						setupNotice={
-							repositorySetupNeeded
-								? { message: t("createProject.gitSetupNotice"), warning: repositorySetupWarning }
-								: null
-						}
-						submitLabel={
-							isInitializing
-								? t("createProject.settingUp")
-								: isCreating
-									? t("createProject.creating")
-									: kind === "workspace"
-										? t("createProject.createWorkspaceAndStart")
-										: t("createProject.createAndStart")
-						}
+						onSubmit={() => void onSubmit({ workerAgent, orchestratorAgent, trackerIntake: buildIntake(intake) })}
+						setupNotice={repositorySetupNeeded ? { message: t("createProject.gitSetupNotice"), warning: repositorySetupWarning } : null}
+						submitLabel={isInitializing ? t("createProject.settingUp") : isCreating ? t("createProject.creating") : kind === "workspace" ? t("createProject.createWorkspaceAndStart") : t("createProject.createAndStart")}
 					/>
 				</Dialog.Content>
 			</Dialog.Portal>
@@ -291,233 +234,74 @@ export function CreateProjectAgentSheet({
 	);
 }
 
-function ProjectSheetCloseButton({
-	children,
-	disabled,
-	"aria-label": ariaLabel,
-}: {
-	children: ReactNode;
-	disabled: boolean;
-	"aria-label": string;
-}) {
-	return (
-		<Dialog.Close asChild>
-			<button
-				type="button"
-				className="settings-close-button"
-				aria-label={ariaLabel}
-				disabled={disabled}
-			>
-				{children}
-			</button>
-		</Dialog.Close>
-	);
+function ProjectSheetCloseButton({ children, disabled, "aria-label": ariaLabel }: { children: ReactNode; disabled: boolean; "aria-label": string }) {
+	return <Dialog.Close asChild><button type="button" className="settings-close-button" aria-label={ariaLabel} disabled={disabled}>{children}</button></Dialog.Close>;
 }
 
 export const RequiredAgentField = memo(function RequiredAgentField({
-	authorized,
-	disabled = false,
-	hint,
-	icon,
-	id,
-	invalid = false,
-	installed,
-	label,
-	onChange,
-	placeholder,
-	supported,
-	triggerClassName,
-	labelClassName,
-	contentClassName,
-	value,
-	variant = "stacked",
+	authorized, disabled = false, hint, icon, id, invalid = false, installed, label, onChange,
+	placeholder, supported, triggerClassName, labelClassName, contentClassName, value, variant = "stacked",
 }: {
-	authorized?: AgentInfo[];
-	disabled?: boolean;
-	/** Caption beside the label, e.g. naming where a preselected default came from. */
-	hint?: string;
-	icon?: LucideIcon;
-	id: string;
-	invalid?: boolean;
-	installed?: AgentInfo[];
-	label: string;
-	onChange: (value: string) => void;
-	placeholder: string;
-	supported?: AgentInfo[];
-	triggerClassName?: string;
-	labelClassName?: string;
-	contentClassName?: string;
-	value: string;
+	authorized?: AgentInfo[]; disabled?: boolean; hint?: string; icon?: LucideIcon; id: string; invalid?: boolean;
+	installed?: AgentInfo[]; label: string; onChange: (value: string) => void; placeholder: string; supported?: AgentInfo[];
+	triggerClassName?: string; labelClassName?: string; contentClassName?: string; value: string;
 	variant?: "stacked" | "settings-row" | "chip";
 }) {
-	const fallbackAgents: AgentInfo[] = [{ id: "codex", label: "Codex" }];
-	const selectableSupported = (supported ?? fallbackAgents).filter((agent) => agent.id === "codex");
 	const options = buildRankedAgentOptions({
-		supported: selectableSupported.length > 0 ? selectableSupported : fallbackAgents,
-		installed: installed?.filter((agent) => agent.id === "codex"),
-		authorized: authorized?.filter((agent) => agent.id === "codex"),
-		priorityRank: DEFAULT_AGENT_PRIORITY_RANK,
-		fallbackAgents,
+		supported: supported ?? CORE_FALLBACK_AGENTS,
+		installed,
+		authorized,
+		fallbackAgents: CORE_FALLBACK_AGENTS,
 	});
+	const selectedOption = options.find((agent) => agent.id === value);
+	const menuOptions = options.map((agent) => ({ value: agent.id, label: agent.label, disabled: agent.disabled }));
+
+	const renderMenuItem = (option: { value: string; label: string }, selected: boolean) => {
+		const agent = options.find((entry) => entry.id === option.value);
+		if (!agent) return option.label;
+		return <AgentSelectMenuItem agentId={agent.id} label={agent.label} selected={selected} status={agent.status} statusTone={agent.statusTone} disabled={agent.disabled} />;
+	};
 
 	if (variant === "settings-row") {
-		const menuOptions = options.map((agent) => ({
-			value: agent.id,
-			label: agent.label,
-			disabled: agent.disabled,
-		}));
-
 		return (
 			<SettingsRow icon={icon} label={label}>
-				<SettingsOptionMenu
-					aria-label={label}
-					value={value}
-					placeholder={placeholder}
-					options={menuOptions}
-					disabled={disabled}
-					onChange={onChange}
-					triggerClassName={invalid ? "text-error" : undefined}
-					menuClassName="settings-agent-menu-surface"
+				<SettingsOptionMenu aria-label={label} value={value} placeholder={placeholder} options={menuOptions} disabled={disabled}
+					onChange={onChange} triggerClassName={invalid ? "text-error" : undefined} menuClassName="settings-agent-menu-surface"
 					menuItemClassName="settings-agent-menu-item"
-					renderTrigger={(selected, triggerPlaceholder) => (
-						<>
-							{selected ? <AgentAvatar provider={selected.value} className="size-icon-lg" /> : null}
-							<span className="min-w-0 truncate">{selected?.label ?? triggerPlaceholder}</span>
-						</>
-					)}
-					renderMenuItem={(option, selected) => {
-						const agent = options.find((entry) => entry.id === option.value);
-						if (!agent) return option.label;
-						return (
-							<AgentSelectMenuItem
-								agentId={agent.id}
-								label={agent.label}
-								selected={selected}
-								status={agent.status}
-								statusTone={agent.statusTone}
-								disabled={agent.disabled}
-							/>
-						);
-					}}
+					renderTrigger={(selected, triggerPlaceholder) => <>{selected ? <AgentAvatar provider={selected.value} className="size-icon-lg" /> : null}<span className="min-w-0 truncate">{selected?.label ?? triggerPlaceholder}</span></>}
+					renderMenuItem={renderMenuItem}
 				/>
 			</SettingsRow>
 		);
 	}
 
-	const selectedOption = options.find((agent) => agent.id === value);
-
-	// Chip: the value reads as part of a sentence ("Runs with Codex") rather than
-	// as a form field, so the label is carried by that sentence, not by a <Label>.
-	// Built on the same SettingsOptionMenu as the settings-row variant (and the
-	// model chip beside it) so both halves of the pill share one dropdown
-	// component instead of a Select-based menu and a DropdownMenu-based one.
 	if (variant === "chip") {
-		const menuOptions = options.map((agent) => ({
-			value: agent.id,
-			label: agent.label,
-			disabled: agent.disabled,
-		}));
-
 		return (
-			<SettingsOptionMenu
-				aria-label={label}
-				value={value}
-				placeholder={placeholder}
-				options={menuOptions}
-				disabled={disabled}
-				onChange={onChange}
-				menuAlign="start"
-				triggerClassName={cn(
-					"composer-chip composer-toolbar-option w-full justify-between",
-					invalid && "text-error",
-					triggerClassName,
-				)}
-				menuClassName={contentClassName}
-				renderTrigger={() => (
-					<span className="flex min-w-0 items-center gap-2">
-						{selectedOption ? (
-							<AgentAvatar provider={selectedOption.id} className="size-icon-base" decorative />
-						) : null}
-						<span className="min-w-0 truncate text-control text-foreground" title={selectedOption?.label ?? placeholder}>
-							{selectedOption?.label ?? placeholder}
-						</span>
-					</span>
-				)}
-				renderMenuItem={(option, selected) => {
-					const agent = options.find((entry) => entry.id === option.value);
-					if (!agent) return option.label;
-					return (
-						<AgentSelectMenuItem
-							agentId={agent.id}
-							label={agent.label}
-							selected={selected}
-							status={agent.status}
-							statusTone={agent.statusTone}
-							disabled={agent.disabled}
-						/>
-					);
-				}}
+			<SettingsOptionMenu aria-label={label} value={value} placeholder={placeholder} options={menuOptions} disabled={disabled} onChange={onChange}
+				menuAlign="start" triggerClassName={cn("composer-chip composer-toolbar-option w-full justify-between", invalid && "text-error", triggerClassName)} menuClassName={contentClassName}
+				renderTrigger={() => <span className="flex min-w-0 items-center gap-2">{selectedOption ? <AgentAvatar provider={selectedOption.id} className="size-icon-base" decorative /> : null}<span className="min-w-0 truncate text-control text-foreground" title={selectedOption?.label ?? placeholder}>{selectedOption?.label ?? placeholder}</span></span>}
+				renderMenuItem={renderMenuItem}
 			/>
 		);
 	}
 
 	return (
 		<div className="flex flex-col gap-1.5">
-			<div className="flex min-w-0 items-baseline gap-1.5">
-				<Label htmlFor={id} className={cn("text-xs font-medium text-muted-foreground", labelClassName)}>
-					{label}
-				</Label>
-				{hint && <FieldDefaultHint text={hint} />}
-			</div>
+			<div className="flex min-w-0 items-baseline gap-1.5"><Label htmlFor={id} className={cn("text-xs font-medium text-muted-foreground", labelClassName)}>{label}</Label>{hint && <FieldDefaultHint text={hint} />}</div>
 			<Select value={value} onValueChange={onChange} disabled={disabled}>
-				<SelectTrigger
-					id={id}
-					size="sm"
-					className={cn("w-full text-control", triggerClassName)}
-					aria-label={label}
-					aria-invalid={invalid || undefined}
-				>
-					{/* Radix would otherwise clone the whole menu row into the trigger,
-					    dragging the selected checkmark and install status with it. */}
-					<SelectValue placeholder={placeholder}>
-						{selectedOption ? (
-							<span className="flex min-w-0 items-center gap-3">
-								<AgentAvatar provider={selectedOption.id} className="size-icon-lg" decorative />
-								<span className="min-w-0 truncate">{selectedOption.label}</span>
-							</span>
-						) : null}
-					</SelectValue>
+				<SelectTrigger id={id} size="sm" className={cn("w-full text-control", triggerClassName)} aria-label={label} aria-invalid={invalid || undefined}>
+					<SelectValue placeholder={placeholder}>{selectedOption ? <span className="flex min-w-0 items-center gap-3"><AgentAvatar provider={selectedOption.id} className="size-icon-lg" decorative /><span className="min-w-0 truncate">{selectedOption.label}</span></span> : null}</SelectValue>
 				</SelectTrigger>
-				<SelectContent
-					position="popper"
-					side="bottom"
-					align="start"
-					sideOffset={4}
-					className={cn("max-h-select-menu-max!", contentClassName)}
-				>
-					{options.map((agent) => (
-						<SelectItem
-							key={agent.id}
-							value={agent.id}
-							disabled={agent.disabled}
-							className="[&>span:last-child]:w-full"
-						>
-							<AgentSelectMenuItem
-								agentId={agent.id}
-								label={agent.label}
-								selected={value === agent.id}
-								status={agent.status}
-								statusTone={agent.statusTone}
-								disabled={agent.disabled}
-							/>
-						</SelectItem>
-					))}
+				<SelectContent position="popper" side="bottom" align="start" sideOffset={4} className={cn("max-h-select-menu-max!", contentClassName)}>
+					{options.map((agent) => <SelectItem key={agent.id} value={agent.id} disabled={agent.disabled} className="[&>span:last-child]:w-full"><AgentSelectMenuItem agentId={agent.id} label={agent.label} selected={value === agent.id} status={agent.status} statusTone={agent.statusTone} disabled={agent.disabled} /></SelectItem>)}
 				</SelectContent>
 			</Select>
 		</div>
 	);
 });
 
+// Preserve the exported helper for tests/callers, but make it brand-neutral.
+// A default is safe only when the user has exactly one ready choice.
 export function defaultAuthorizedAgent(authorizedAgents: AgentInfo[]): string {
-	return authorizedAgents.some((agent) => agent.id === "codex") ? "codex" : "";
+	return authorizedAgents.length === 1 ? authorizedAgents[0].id : "";
 }
