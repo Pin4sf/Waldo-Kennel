@@ -24,13 +24,7 @@ export function resolveDaemonLaunch(
 ): DaemonLaunchSpec | null {
 	const configuredCommand = env.KENNEL_DAEMON_COMMAND?.trim();
 	if (configuredCommand) {
-		return {
-			command: configuredCommand,
-			args: [],
-			cwd: appPath,
-			shell: true,
-			source: "configured",
-		};
+		return { command: configuredCommand, args: [], cwd: appPath, shell: true, source: "configured" };
 	}
 
 	if (!isPackaged) {
@@ -45,7 +39,7 @@ export function resolveDaemonLaunch(
 		}
 		return {
 			command: "go",
-			args: ["run", "./cmd/ao", "daemon"],
+			args: ["run", "./cmd/kennel", "daemon"],
 			cwd: joinPath(appPath, "..", "backend"),
 			shell: false,
 			source: "dev",
@@ -66,16 +60,6 @@ export type BundledDaemonProbe = {
 	appImagePath?: string;
 };
 
-/**
- * Identity check for a bundled daemon. Under AppImage the executable path is a
- * random /tmp/.mount_* path regenerated on every launch, so identity is the
- * stable outer .AppImage file path the daemon reports (KENNEL_APPIMAGE, echoed as
- * appImagePath) — compared against this process's own APPIMAGE. Outside
- * AppImage the packaged executable path is stable and compared directly.
- *
- * Returns an error message, or null when the probed daemon belongs to this
- * install. A probe that cannot prove its identity (missing field) fails closed.
- */
 export function bundledDaemonIdentityError(
 	probe: BundledDaemonProbe,
 	expectedCommand: string,
