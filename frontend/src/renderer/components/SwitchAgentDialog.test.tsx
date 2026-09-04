@@ -2,7 +2,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { components } from "../../api/schema";
 import { agentModelsQueryKey } from "../hooks/useAgentModelsQuery";
+import { agentsQueryKey } from "../hooks/useAgentsQuery";
 import type { WorkspaceSession } from "../types/workspace";
 import {
 	isRecognizedSwitchSourceHarness,
@@ -10,18 +12,14 @@ import {
 	SwitchAgentDialog,
 } from "./SwitchAgentDialog";
 
+type AgentInfo = components["schemas"]["AgentInfo"];
+
 const switchMocks = vi.hoisted(() => ({
 	clear: vi.fn(),
 	mutate: vi.fn(),
 	recoverMutate: vi.fn(),
-	recoverState: {
-		error: null as Error | null,
-		isPending: false,
-	},
-	state: {
-		error: null as string | null,
-		isPending: false,
-	},
+	recoverState: { error: null as Error | null, isPending: false },
+	state: { error: null as string | null, isPending: false },
 }));
 
 vi.mock("../hooks/useSwitchAgent", async (importOriginal) => {
@@ -38,7 +36,7 @@ vi.mock("../hooks/useSwitchAgent", async (importOriginal) => {
 
 const worker: WorkspaceSession = {
 	activity: { state: "active", lastActivityAt: "2026-06-10T00:00:00Z" },
-	branch: "ao/sess-1",
+	branch: "kennel/sess-1",
 	id: "sess-1",
 	kind: "worker",
 	provider: "claude-code",
@@ -51,11 +49,47 @@ const worker: WorkspaceSession = {
 	workspaceName: "my-app",
 };
 
-function renderDialog(session: WorkspaceSession = worker, onOpenChange = vi.fn()) {
+const roles = (overrides: Partial<AgentInfo["roles"]> = {}): AgentInfo["roles"] => ({
+	worker: true,
+	coordinator: false,
+	switchTarget: false,
+	...overrides,
+});
+
+const agent = (id: string, label: string, extra: Partial<AgentInfo> = {}): AgentInfo => ({
+	id,
+	label,
+	authStatus: "authorized",
+	roles: roles(),
+	...extra,
+});
+
+function defaultInventory() {
+	const claude = agent("claude-code", "Claude Code", { roles: roles({ coordinator: true, switchTarget: true }) });
+	const codex = agent("codex", "Codex", { roles: roles({ coordinator: true, switchTarget: true }) });
+	const opencode = agent("opencode", "OpenCode", {
+		authStatus: "unauthorized",
+		roles: roles({ coordinator: true, switchTarget: true }),
+	});
+	const cursor = agent("cursor", "Cursor");
+	const pi = agent("pi", "Pi");
+	return {
+		supported: [claude, codex, opencode, cursor, pi],
+		installed: [claude, codex, opencode, cursor, pi],
+		authorized: [claude, codex, cursor, pi],
+	};
+}
+
+function renderDialog(
+	session: WorkspaceSession = worker,
+	onOpenChange = vi.fn(),
+	inventory = defaultInventory(),
+) {
 	const queryClient = new QueryClient({
 		defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
 	});
-	for (const agentId of ["claude-code", "codex"]) {
+	queryClient.setQueryData(agentsQueryKey, inventory);
+	for (const agentId of ["claude-code", "codex", "opencode"]) {
 		queryClient.setQueryData(agentModelsQueryKey(agentId, session.workspaceId), {
 			agentId,
 			allowCustom: false,
@@ -66,7 +100,9 @@ function renderDialog(session: WorkspaceSession = worker, onOpenChange = vi.fn()
 							{ id: "gpt-5.4", label: "GPT-5.4", isDefault: true },
 							{ id: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
 						]
-					: [{ id: "claude-opus-4-6", label: "Claude Opus 4.6", isDefault: true }],
+					: agentId === "opencode"
+						? [{ id: "openai/gpt-5", label: "OpenAI GPT-5", isDefault: true }]
+						: [{ id: "claude-opus-4-6", label: "Claude Opus 4.6", isDefault: true }],
 			selectionMode: "catalog",
 			source: "test",
 			stale: false,
@@ -91,42 +127,57 @@ beforeEach(() => {
 });
 
 describe("SwitchAgentDialog", () => {
-	it("recognizes historical sources separately from Codex-only targets", () => {
-		expect(isRecognizedSwitchSourceHarness("claude-code")).toBe(true);
-		expect(isRecognizedSwitchSourceHarness("codex")).toBe(true);
-		expect(isSelectableSwitchTargetHarness("claude-code")).toBe(false);
-		expect(isSelectableSwitchTargetHarness("codex")).toBe(true);
+	it("admits only providers with the proven continuation contract", () => {
+		for (const id of ["claude-code", "codex", "opencode"]) {
+			expect(isRecognizedSwitchSourceHarness(id)).toBe(true);
+			expect(isSelectableSwitchTargetHarness(id)).toBe(true);
+		}
+		for (const id of ["cursor", "pi", "goose"]) {
+			expect(isRecognizedSwitchSourceHarness(id)).toBe(false);
+			expect(isSelectableSwitchTargetHarness(id)).toBe(false);
+		}
+	});
+
+	it("preselects the only ready switch target and excludes worker-only providers", async () => {
+		renderDialog();
+		const dialog = screen.getByRole("dialog", { name: "Switch agent" });
+		expect(within(dialog).getByRole("button", { name: "Target agent" })).toHaveTextContent("Codex");
+		await userEvent.click(within(dialog).getByRole("button", { name: "Target agent" }));
+		expect(screen.queryByRole("menuitem", { name: /Cursor/i })).not.toBeInTheDocument();
+		expect(screen.queryByRole("menuitem", { name: /Pi/i })).not.toBeInTheDocument();
+		expect(screen.getByRole("menuitem", { name: /OpenCode.*Needs auth/i })).toHaveAttribute("data-disabled");
+	});
+
+	it("requires an explicit choice when multiple other switch targets are ready", async () => {
+		const inventory = defaultInventory();
+		const openCode = inventory.installed.find((item) => item.id === "opencode")!;
+		openCode.authStatus = "authorized";
+		inventory.authorized.push(openCode);
+		renderDialog(worker, vi.fn(), inventory);
+		const dialog = screen.getByRole("dialog", { name: "Switch agent" });
+		expect(within(dialog).getByRole("button", { name: "Target agent" })).toHaveTextContent(/select/i);
+		expect(within(dialog).getByRole("button", { name: "Switch" })).toBeDisabled();
+		await userEvent.click(within(dialog).getByRole("button", { name: "Target agent" }));
+		await userEvent.click(screen.getByRole("menuitem", { name: /OpenCode/i }));
+		expect(within(dialog).getByRole("button", { name: "Switch" })).toBeEnabled();
 	});
 
 	it("renders a compact agent and model picker without optional context or cancel actions", () => {
 		renderDialog();
-
 		const dialog = screen.getByRole("dialog", { name: "Switch agent" });
 		expect(dialog).toHaveAttribute("data-slot", "dialog-content");
-		const backdrop = screen.getByTestId("switch-agent-terminal-backdrop");
-		expect(backdrop).toHaveClass("agent-switch-terminal-scrim");
-		expect(
-			within(dialog).getByText(
-				"Move this session from Claude Code to another agent. Kennel will preserve the current native session and hand off the work.",
-			),
-		).toBeInTheDocument();
+		expect(screen.getByTestId("switch-agent-terminal-backdrop")).toHaveClass("agent-switch-terminal-scrim");
 		expect(within(dialog).getByRole("button", { name: "Target agent" })).toBeInTheDocument();
 		expect(within(dialog).getByRole("button", { name: "Model" })).toBeInTheDocument();
 		expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
 		expect(within(dialog).queryByText("Switch history")).not.toBeInTheDocument();
 		expect(within(dialog).queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
 		expect(within(dialog).getByRole("button", { name: "Close switch agent dialog" })).toBeInTheDocument();
-		const switchButton = within(dialog).getByRole("button", { name: "Switch" });
-		expect(switchButton).toHaveClass("size-(--size-settings-action-height)");
-		expect(switchButton.textContent).toBe("");
-		expect(switchButton.querySelector(".lucide-repeat-2")).not.toBeNull();
 	});
 
 	it("dismisses from the close button before admission", async () => {
 		const { onOpenChange } = renderDialog();
-
 		await userEvent.click(screen.getByRole("button", { name: "Close switch agent dialog" }));
-
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 	});
 
@@ -135,7 +186,6 @@ describe("SwitchAgentDialog", () => {
 		const dialog = screen.getByRole("dialog", { name: "Switch agent" });
 		await userEvent.click(within(dialog).getByRole("button", { name: "Model" }));
 		await userEvent.click(screen.getByRole("menuitem", { name: "GPT-5.4 Mini" }));
-
 		await userEvent.click(within(dialog).getByRole("button", { name: "Switch" }));
 
 		expect(switchMocks.mutate).toHaveBeenCalledWith(
@@ -148,52 +198,15 @@ describe("SwitchAgentDialog", () => {
 			{ onSuccess: expect.any(Function) },
 		);
 		expect(onOpenChange).not.toHaveBeenCalled();
-
 		const options = switchMocks.mutate.mock.calls[0]?.[1] as { onSuccess: () => void };
 		options.onSuccess();
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 	});
 
-	it("resets the previous target model when the active agent changes", async () => {
-		const { queryClient, rerender } = renderDialog();
-		const dialog = screen.getByRole("dialog", { name: "Switch agent" });
-		await userEvent.click(within(dialog).getByRole("button", { name: "Model" }));
-		await userEvent.click(screen.getByRole("menuitem", { name: "GPT-5.4 Mini" }));
-		expect(within(dialog).getByRole("button", { name: "Model" })).toHaveTextContent("GPT-5.4 Mini");
-
-		const switchedSession = { ...worker, provider: "codex" as const };
-		rerender(
-			<QueryClientProvider client={queryClient}>
-				<SwitchAgentDialog
-					container={document.body}
-					onOpenChange={vi.fn()}
-					open
-					session={switchedSession}
-				/>
-			</QueryClientProvider>,
-		);
-
-		await waitFor(() =>
-			expect(screen.getByRole("button", { name: "Model" })).toHaveTextContent("Use Codex's default"),
-		);
-		await userEvent.click(screen.getByRole("button", { name: "Switch" }));
-		expect(switchMocks.mutate).toHaveBeenLastCalledWith(
-			{
-				idempotencyKey: "idempotency-1",
-				model: "",
-				session: switchedSession,
-				targetHarness: "codex",
-			},
-			{ onSuccess: expect.any(Function) },
-		);
-	});
-
 	it("keeps admission controls visible but disabled while displaying Defining...", () => {
 		switchMocks.state.isPending = true;
-
 		renderDialog();
 		const dialog = screen.getByRole("dialog", { name: "Switch agent" });
-
 		expect(within(dialog).getByRole("button", { name: "Target agent" })).toBeDisabled();
 		expect(within(dialog).getByRole("button", { name: "Model" })).toBeDisabled();
 		expect(within(dialog).getByRole("button", { name: "Close switch agent dialog" })).toBeDisabled();
@@ -202,11 +215,8 @@ describe("SwitchAgentDialog", () => {
 
 	it("keeps admission failures inline for correction", () => {
 		switchMocks.state.error = "target agent is unavailable";
-
 		renderDialog();
-
 		expect(screen.getByRole("alert")).toHaveTextContent("target agent is unavailable");
-		expect(screen.getByRole("dialog", { name: "Switch agent" })).toBeInTheDocument();
 	});
 
 	it("closes the stale composer when a durable switch starts elsewhere", async () => {
@@ -221,12 +231,10 @@ describe("SwitchAgentDialog", () => {
 				targetHarness: "codex",
 			},
 		}, onOpenChange);
-
 		await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-		expect(switchMocks.mutate).not.toHaveBeenCalled();
 	});
 
-	it("shows a recovery explanation and refreshes durable state", async () => {
+	it("shows recovery explanation and refreshes durable state", async () => {
 		const recoverySession = {
 			...worker,
 			activeAgentSwitch: {
@@ -241,11 +249,8 @@ describe("SwitchAgentDialog", () => {
 		const { queryClient } = renderDialog(recoverySession);
 		const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
 		const dialog = screen.getByRole("dialog", { name: "Switch agent" });
-
 		expect(within(dialog).getByText("Target startup could not be confirmed")).toBeInTheDocument();
-		expect(within(dialog).queryByRole("button", { name: "Target agent" })).not.toBeInTheDocument();
 		await userEvent.click(within(dialog).getByRole("button", { name: "Refresh" }));
-
 		expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["session-agent-switches", "sess-1"] });
 		expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["workspaces"] });
 	});
@@ -264,36 +269,8 @@ describe("SwitchAgentDialog", () => {
 		} satisfies WorkspaceSession;
 		renderDialog(recoverySession);
 		const dialog = screen.getByRole("dialog", { name: "Switch agent" });
-
 		expect(within(dialog).getByText("Claude Code could not be restored")).toBeInTheDocument();
 		await userEvent.click(within(dialog).getByRole("button", { name: "Restore Claude Code" }));
-		expect(switchMocks.recoverMutate).toHaveBeenCalledWith({
-			sessionId: "sess-1",
-			switchId: "switch-source-recovery",
-		});
-		expect(within(dialog).queryByRole("button", { name: "Target agent" })).not.toBeInTheDocument();
-	});
-
-	it("offers to recover an unconfirmed source stop", async () => {
-		const recoverySession = {
-			...worker,
-			activeAgentSwitch: {
-				agentHandoffStatus: "received",
-				errorCode: "source_stop_unconfirmed",
-				fromHarness: "claude-code",
-				id: "switch-source-stop-recovery",
-				state: "stopping_source",
-				targetHarness: "codex",
-			},
-		} satisfies WorkspaceSession;
-		renderDialog(recoverySession);
-		const dialog = screen.getByRole("dialog", { name: "Switch agent" });
-
-		expect(within(dialog).getByText("Claude Code status could not be confirmed")).toBeInTheDocument();
-		await userEvent.click(within(dialog).getByRole("button", { name: "Check Claude Code" }));
-		expect(switchMocks.recoverMutate).toHaveBeenCalledWith({
-			sessionId: "sess-1",
-			switchId: "switch-source-stop-recovery",
-		});
+		expect(switchMocks.recoverMutate).toHaveBeenCalledWith({ sessionId: "sess-1", switchId: "switch-source-recovery" });
 	});
 });

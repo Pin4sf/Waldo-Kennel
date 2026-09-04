@@ -1,6 +1,6 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, Repeat2, TriangleAlert, X } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
 	agentSwitchesQueryKey,
@@ -9,6 +9,7 @@ import {
 	agentSwitchNeedsSourceRestore,
 	isTerminalAgentSwitch,
 } from "../hooks/useAgentSwitches";
+import { agentsQueryOptions } from "../hooks/useAgentsQuery";
 import {
 	createSwitchAgentIdempotencyKey,
 	clearSwitchAgentState,
@@ -19,9 +20,15 @@ import {
 } from "../hooks/useSwitchAgent";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { agentLabel } from "../lib/agent-options";
+import {
+	buildRankedAgentOptions,
+	singleReadyProvider,
+	type RankedAgentOption,
+} from "../lib/agent-select-options";
 import type { WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
 import { AgentModelPicker } from "./AgentModelPicker";
+import { AgentSelectMenuItem } from "./settings/AgentSelectMenuItem";
 import { SettingsOptionMenu } from "./settings/SettingsOptionMenu";
 import { Button } from "./ui/button";
 import {
@@ -32,37 +39,36 @@ import {
 	DialogTitle,
 } from "./ui/dialog";
 
-export const SWITCH_AGENT_OPTIONS = [
-	{ value: "codex", label: "Codex" },
-] as const satisfies ReadonlyArray<{ value: SwitchAgentHarness; label: string }>;
+export const SWITCH_AGENT_OPTIONS = ["codex", "claude-code", "opencode"] as const satisfies ReadonlyArray<SwitchAgentHarness>;
 
-// Historical sessions can still be displayed as switch sources, but generated
-// write-contract targets are deliberately narrower: only Codex starts new work.
 export function isRecognizedSwitchSourceHarness(value: string): boolean {
-	return value === "claude-code" || value === "codex";
+	return value === "codex" || value === "claude-code" || value === "opencode";
 }
 
 export function isSelectableSwitchTargetHarness(value: string): value is SwitchAgentHarness {
-	return value === "codex";
+	return value === "codex" || value === "claude-code" || value === "opencode";
 }
 
 function SwitchTargetPicker({
 	currentHarness,
 	disabled,
 	onChange,
+	options,
 	value,
 }: {
 	currentHarness: string;
 	disabled: boolean;
 	onChange: (value: SwitchAgentHarness) => void;
-	value: SwitchAgentHarness;
+	options: RankedAgentOption[];
+	value: SwitchAgentHarness | "";
 }) {
 	const { t } = useTranslation();
-	const options = SWITCH_AGENT_OPTIONS.map((option) => ({
-		...option,
-		disabled: option.value === currentHarness,
+	const menuOptions = options.map((option) => ({
+		value: option.id,
+		label: option.label,
+		disabled: option.disabled || option.id === currentHarness,
 	}));
-	const selected = options.find((option) => option.value === value);
+	const selected = options.find((option) => option.id === value);
 	return (
 		<SettingsOptionMenu
 			aria-label={t("switchAgent.targetLabel")}
@@ -73,27 +79,28 @@ function SwitchTargetPicker({
 			onChange={(nextValue) => {
 				if (isSelectableSwitchTargetHarness(nextValue) && nextValue !== currentHarness) onChange(nextValue);
 			}}
-			options={options}
-			renderMenuItem={(option) => {
-				const current = option.value === currentHarness;
+			options={menuOptions}
+			placeholder={t("switchAgent.selectTarget", { defaultValue: "Select agent" })}
+			renderMenuItem={(option, selectedOption) => {
+				const candidate = options.find((entry) => entry.id === option.value);
+				if (!candidate) return option.label;
+				const current = candidate.id === currentHarness;
 				return (
-					<span className="flex w-full min-w-0 items-center gap-2">
-						<AgentAvatar className="size-icon-base" decorative provider={option.value} />
-						<span className="min-w-0 flex-1 truncate">{option.label}</span>
-						{current ? (
-							<span className="shrink-0 text-micro text-settings-muted">
-								<span className="sr-only">, </span>
-								{t("switchAgent.current")}
-							</span>
-						) : null}
-					</span>
+					<AgentSelectMenuItem
+						agentId={candidate.id}
+						label={candidate.label}
+						selected={selectedOption}
+						status={current ? t("switchAgent.current") : candidate.status}
+						statusTone={current ? "muted" : candidate.statusTone}
+						disabled={option.disabled}
+					/>
 				);
 			}}
-			renderTrigger={() => (
+			renderTrigger={(_selected, placeholder) => (
 				<span className="flex min-w-0 items-center gap-2">
-					<AgentAvatar className="size-icon-base" decorative provider={value} />
-					<span className="min-w-0 truncate text-control text-foreground" title={selected?.label}>
-						{selected?.label}
+					{selected ? <AgentAvatar className="size-icon-base" decorative provider={selected.id} /> : null}
+					<span className="min-w-0 truncate text-control text-foreground" title={selected?.label ?? placeholder}>
+						{selected?.label ?? placeholder}
 					</span>
 				</span>
 			)}
@@ -113,8 +120,25 @@ type SwitchAgentDialogProps = {
 export function SwitchAgentDialog({ container, open, session, onOpenChange }: SwitchAgentDialogProps) {
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
-	const defaultTargetHarness: SwitchAgentHarness = "codex";
-	const [targetHarness, setTargetHarness] = useState<SwitchAgentHarness>(defaultTargetHarness);
+	const agentsQuery = useQuery({ ...agentsQueryOptions, enabled: open });
+	const agentInventory = agentsQuery.data;
+	const switchOptions = useMemo(
+		() =>
+			buildRankedAgentOptions({
+				supported: agentInventory?.supported ?? [],
+				installed: agentInventory?.installed ?? [],
+				authorized: agentInventory?.authorized ?? [],
+				fallbackAgents: [],
+				filter: (candidate) => candidate.roles.switchTarget,
+			}),
+		[agentInventory?.authorized, agentInventory?.installed, agentInventory?.supported],
+	);
+	const readyOtherTargets = useMemo(
+		() => switchOptions.filter((option) => option.id !== session.provider),
+		[session.provider, switchOptions],
+	);
+	const defaultTarget = singleReadyProvider(readyOtherTargets);
+	const [targetHarness, setTargetHarness] = useState<SwitchAgentHarness | "">("");
 	const [model, setModel] = useState("");
 	const [mode, setMode] = useState("");
 	const [modelWarning, setModelWarning] = useState<string | undefined>();
@@ -127,9 +151,7 @@ export function SwitchAgentDialog({ container, open, session, onOpenChange }: Sw
 	const sourceStopRecoveryRequired = durableSwitch ? agentSwitchNeedsSourceStopRecovery(durableSwitch) : false;
 	const sourceRestoreRequired = durableSwitch ? agentSwitchNeedsSourceRestore(durableSwitch) : false;
 	const sourceRecoveryRequired = sourceStopRecoveryRequired || sourceRestoreRequired;
-	const sourceLabel = durableSwitch
-		? agentLabel(durableSwitch.fromHarness)
-		: agentLabel(session.provider);
+	const sourceLabel = durableSwitch ? agentLabel(durableSwitch.fromHarness) : agentLabel(session.provider);
 	const recoveryTitleKey = sourceStopRecoveryRequired
 		? "switchAgent.sourceStopRecovery.title"
 		: sourceRestoreRequired
@@ -147,20 +169,20 @@ export function SwitchAgentDialog({ container, open, session, onOpenChange }: Sw
 		: recoverAgentSwitch.isPending
 			? "switchAgent.sourceRecovery.restoring"
 			: "switchAgent.sourceRecovery.action";
-	const durableSwitching = Boolean(
-		durableSwitch && !isTerminalAgentSwitch(durableSwitch) && !recoveryRequired,
-	);
+	const durableSwitching = Boolean(durableSwitch && !isTerminalAgentSwitch(durableSwitch) && !recoveryRequired);
 	const [refreshingRecovery, setRefreshingRecovery] = useState(false);
 	const operationPending = admissionPending || recoverAgentSwitch.isPending;
+
 	useEffect(() => {
-		setTargetHarness("codex");
+		setTargetHarness(isSelectableSwitchTargetHarness(defaultTarget) ? defaultTarget : "");
 		setModel("");
 		setMode("");
 		setModelWarning(undefined);
-	}, [session.provider]);
+	}, [defaultTarget, session.provider]);
 	useEffect(() => {
 		if (open && durableSwitching) onOpenChange(false);
 	}, [durableSwitching, onOpenChange, open]);
+
 	const clearFailedAttempt = () => {
 		if (!switchMutation.error) return;
 		clearSwitchAgentState(queryClient, session.id);
@@ -176,7 +198,7 @@ export function SwitchAgentDialog({ container, open, session, onOpenChange }: Sw
 
 	const submit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		if (admissionPending || durableSwitching || recoveryRequired) return;
+		if (admissionPending || durableSwitching || recoveryRequired || !targetHarness) return;
 		switchAgent.mutate(
 			{
 				session,
@@ -205,7 +227,7 @@ export function SwitchAgentDialog({ container, open, session, onOpenChange }: Sw
 		<Dialog
 			modal={false}
 			onOpenChange={(nextOpen) => {
-			if (!nextOpen && operationPending) return;
+				if (!nextOpen && operationPending) return;
 				onOpenChange(nextOpen);
 			}}
 			open={open}
@@ -222,84 +244,63 @@ export function SwitchAgentDialog({ container, open, session, onOpenChange }: Sw
 				showCloseButton={false}
 				className="absolute left-1/2 top-1/2 z-overlay w-[min(var(--size-dialog-md),calc(100%-var(--space-8)))] max-w-none -translate-x-1/2 -translate-y-1/2 gap-0 overflow-hidden rounded-xl border border-border-strong bg-surface/95 p-0 text-foreground shadow-xl shadow-black/20 data-[state=open]:animate-modal-in data-[state=closed]:animate-modal-out motion-reduce:animate-none"
 			>
-					<DialogClose asChild>
-						<button
-							aria-label={t("switchAgent.close")}
-							className="settings-dialog-close-button settings-close-button"
-							disabled={operationPending}
-							type="button"
-						>
-							<X className="size-icon-base" aria-hidden="true" />
-						</button>
-					</DialogClose>
-					<DialogTitle className="settings-dialog-title px-4 pr-12 pt-3">
-						{t("switchAgent.title")}
-					</DialogTitle>
-					<DialogDescription className="px-4 pr-12 pt-0.5 text-caption leading-4 text-muted-foreground">
-						{t("switchAgent.description", { current: agentLabel(session.provider) })}
-					</DialogDescription>
+				<DialogClose asChild>
+					<button
+						aria-label={t("switchAgent.close")}
+						className="settings-dialog-close-button settings-close-button"
+						disabled={operationPending}
+						type="button"
+					>
+						<X className="size-icon-base" aria-hidden="true" />
+					</button>
+				</DialogClose>
+				<DialogTitle className="settings-dialog-title px-4 pr-12 pt-3">{t("switchAgent.title")}</DialogTitle>
+				<DialogDescription className="px-4 pr-12 pt-0.5 text-caption leading-4 text-muted-foreground">
+					{t("switchAgent.description", { current: agentLabel(session.provider) })}
+				</DialogDescription>
 
-					{recoveryRequired ? (
-						<div className="flex flex-col gap-4 px-4 pb-4 pt-4">
-							<div className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/5 px-3 py-3">
-								<TriangleAlert aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-warning" />
-								<div className="min-w-0">
-									<p className="font-mono text-control font-medium text-foreground">
-										{t(recoveryTitleKey, { source: sourceLabel })}
-									</p>
-									<p className="mt-1 text-caption leading-4 text-muted-foreground">
-										{t(recoveryDescriptionKey, { source: sourceLabel })}
-									</p>
-									{sourceRecoveryRequired && recoverAgentSwitch.error instanceof Error ? (
-										<p className="mt-2 text-caption leading-4 text-error" role="alert">
-											{recoverAgentSwitch.error.message}
-										</p>
-									) : null}
-								</div>
+				{recoveryRequired ? (
+					<div className="flex flex-col gap-4 px-4 pb-4 pt-4">
+						<div className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/5 px-3 py-3">
+							<TriangleAlert aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-warning" />
+							<div className="min-w-0">
+								<p className="font-mono text-control font-medium text-foreground">{t(recoveryTitleKey, { source: sourceLabel })}</p>
+								<p className="mt-1 text-caption leading-4 text-muted-foreground">{t(recoveryDescriptionKey, { source: sourceLabel })}</p>
+								{sourceRecoveryRequired && recoverAgentSwitch.error instanceof Error ? (
+									<p className="mt-2 text-caption leading-4 text-error" role="alert">{recoverAgentSwitch.error.message}</p>
+								) : null}
 							</div>
-							{sourceRecoveryRequired && durableSwitch ? (
-								<Button
-									className="self-end"
-									disabled={recoverAgentSwitch.isPending}
-									onClick={() =>
-										recoverAgentSwitch.mutate({
-											sessionId: session.id,
-											switchId: durableSwitch.id,
-										})
-									}
-									type="button"
-									variant="outline"
-								>
-									{recoverAgentSwitch.isPending ? (
-										<LoaderCircle aria-hidden="true" className="size-icon-sm animate-spin" />
-									) : null}
-									{t(sourceRecoveryActionKey, { source: sourceLabel })}
-								</Button>
-							) : (
-								<Button
-									className="self-end"
-									disabled={refreshingRecovery}
-									onClick={() => void refreshRecovery()}
-									type="button"
-									variant="outline"
-								>
-									{refreshingRecovery ? <LoaderCircle aria-hidden="true" className="size-icon-sm animate-spin" /> : null}
-									{t("settings.project.refresh")}
-								</Button>
-							)}
 						</div>
-					) : (
-						<form className="flex flex-col gap-3 px-4 pb-4 pt-4" onSubmit={submit}>
+						{sourceRecoveryRequired && durableSwitch ? (
+							<Button
+								className="self-end"
+								disabled={recoverAgentSwitch.isPending}
+								onClick={() => recoverAgentSwitch.mutate({ sessionId: session.id, switchId: durableSwitch.id })}
+								type="button"
+								variant="outline"
+							>
+								{recoverAgentSwitch.isPending ? <LoaderCircle aria-hidden="true" className="size-icon-sm animate-spin" /> : null}
+								{t(sourceRecoveryActionKey, { source: sourceLabel })}
+							</Button>
+						) : (
+							<Button
+								className="self-end"
+								disabled={refreshingRecovery}
+								onClick={() => void refreshRecovery()}
+								type="button"
+								variant="outline"
+							>
+								{refreshingRecovery ? <LoaderCircle aria-hidden="true" className="size-icon-sm animate-spin" /> : null}
+								{t("settings.project.refresh")}
+							</Button>
+						)}
+					</div>
+				) : (
+					<form className="flex flex-col gap-3 px-4 pb-4 pt-4" onSubmit={submit}>
 						{error || modelWarning ? (
 							<div>
-								{error ? (
-									<p className="text-caption leading-4 text-error" role="alert">
-										{error}
-									</p>
-								) : null}
-								{!error && modelWarning ? (
-									<p className="text-caption text-warning">{modelWarning}</p>
-								) : null}
+								{error ? <p className="text-caption leading-4 text-error" role="alert">{error}</p> : null}
+								{!error && modelWarning ? <p className="text-caption text-warning">{modelWarning}</p> : null}
 							</div>
 						) : null}
 
@@ -308,52 +309,60 @@ export function SwitchAgentDialog({ container, open, session, onOpenChange }: Sw
 								<div className="composer-toolbar-slot">
 									<SwitchTargetPicker
 										currentHarness={session.provider}
-										disabled={admissionPending}
+										disabled={admissionPending || agentsQuery.isFetching}
 										onChange={changeTarget}
+										options={switchOptions}
 										value={targetHarness}
 									/>
 								</div>
 								<span className="composer-toolbar-divider" aria-hidden="true" />
 								<div className="composer-toolbar-slot">
-									<AgentModelPicker
-										agentId={targetHarness}
-										agentLabel={agentLabel(targetHarness)}
-										disabled={admissionPending}
-										mode={mode}
-										onModeChange={(value) => {
-											clearFailedAttempt();
-											setMode(value);
-											setModel("");
-										}}
-										onModelChange={(value) => {
-											clearFailedAttempt();
-											setModel(value);
-											setMode("");
-										}}
-										onWarningChange={setModelWarning}
-										projectId={session.workspaceId}
-										value={model}
-									/>
+									{targetHarness ? (
+										<AgentModelPicker
+											agentId={targetHarness}
+											agentLabel={agentLabel(targetHarness)}
+											disabled={admissionPending}
+											mode={mode}
+											onModeChange={(value) => {
+												clearFailedAttempt();
+												setMode(value);
+												setModel("");
+											}}
+											onModelChange={(value) => {
+												clearFailedAttempt();
+												setModel(value);
+												setMode("");
+											}}
+											onWarningChange={setModelWarning}
+											projectId={session.workspaceId}
+											value={model}
+										/>
+									) : (
+										<button
+											aria-label={t("newTask.model")}
+											className="composer-chip composer-toolbar-option w-full justify-between opacity-50"
+											disabled
+											type="button"
+										>
+											<span>{t("newTask.model")}</span>
+										</button>
+									)}
 								</div>
 							</div>
 							<Button
 								aria-label={admissionPending ? t("newTask.starting") : t("switchAgent.confirm")}
 								className="size-(--size-settings-action-height)"
-								disabled={admissionPending}
+								disabled={admissionPending || !targetHarness}
 								size="none"
 								title={admissionPending ? t("newTask.starting") : t("switchAgent.confirm")}
 								type="submit"
 								variant="primary"
 							>
-								{admissionPending ? (
-									<LoaderCircle className="size-icon-base animate-spin" aria-hidden="true" />
-								) : (
-									<Repeat2 className="size-4 stroke-[1.8]" aria-hidden="true" />
-								)}
+								{admissionPending ? <LoaderCircle className="size-icon-base animate-spin" aria-hidden="true" /> : <Repeat2 className="size-4 stroke-[1.8]" aria-hidden="true" />}
 							</Button>
 						</div>
-						</form>
-					)}
+					</form>
+				)}
 			</DialogContent>
 		</Dialog>
 	);
