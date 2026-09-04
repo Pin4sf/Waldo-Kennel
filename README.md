@@ -1,70 +1,127 @@
-# Kennel
+# Waldo Kennel
 
-Kennel is an independently maintained, AO-derived desktop foundation for supervising coding-agent work. This repository currently ships the orchestration chassis: a Go loopback daemon and `kennel` CLI, an Electron/React supervisor, provider adapters, durable session and terminal infrastructure, worktree/SCM coordination, and a prototype Outcome-oriented UI overlay.
+Waldo Kennel is a local-first desktop control plane for delegated coding-agent work. It keeps the durable responsibility above provider sessions: the user manages **Outcomes**, while Kennel validates, schedules, records, recovers, and explains the execution required to make those Outcomes true.
 
-This is a foundation, not a completed Waldo personal agent. The accepted Waldo Kennel ontology, exact lineages, governance, and first Outcome slice are documented in the [product architecture](docs/product/kennel-v1-product-architecture.md), but they are not yet implemented. The existing Outcome screens are an inherited/prototype product surface; they are not evidence that the accepted architecture has shipped.
+The repository is an independently maintained, AO-derived foundation that has evolved into a standalone Kennel codebase. The current `beta` already contains a Go daemon, SQLite/change-log persistence, Electron/React supervisor, worktrees, provider sessions, recovery, terminal/chat/browser/PR supervision, and the canonical Outcome lifecycle through explicit user Acceptance. The next kernel program adds the WorkUnit DAG, truthful scheduler/workspace leases, structured receipts, and the final Outcome-first Work projections.
 
-## Foundation contract
+## Start here
 
-Kennel is isolated from Agent Orchestrator at every installed-product boundary:
+Coding agents and contributors should **not** recursively ingest every historical document in this repository. Use the authority chain:
+
+1. [`AGENTS.md`](AGENTS.md)
+2. [`docs/product/kennel-v1-product-architecture.md`](docs/product/kennel-v1-product-architecture.md)
+3. [`docs/adr/0008-responsibility-composition-and-workunit-execution-dag.md`](docs/adr/0008-responsibility-composition-and-workunit-execution-dag.md)
+4. [`docs/adr/0009-workunit-scheduling-workspace-leases-and-effect-fencing.md`](docs/adr/0009-workunit-scheduling-workspace-leases-and-effect-fencing.md)
+5. [`docs/STATUS.md`](docs/STATUS.md)
+6. [`docs/product/kennel-build-program.md`](docs/product/kennel-build-program.md)
+7. [`docs/superpowers/plans/2026-09-04-kennel-builds-kennel.md`](docs/superpowers/plans/2026-09-04-kennel-builds-kennel.md)
+
+The docs index at [`docs/README.md`](docs/README.md) explains precedence, historical material, and future product lanes.
+
+## Product mental model
+
+```text
+Waldo proposes / interprets / recommends
+              ↓
+Kennel validates / schedules / records / enforces
+              ↓
+Providers execute
+```
+
+Canonical Work lineage:
+
+```text
+Project
+├── ProjectBriefRevision*
+└── Outcome*
+    └── ContractRevision
+        ├── DecompositionRevision → Contributing Outcomes
+        └── PlanRevision → WorkUnit DAG
+                              ↓
+                           Attempt*
+                              ↓
+                       AgentSessionRef
+                              ↓
+                    receipts / artifacts
+                              ↓
+                 Evidence → Verification
+                              ↓
+                       user Acceptance
+```
+
+Key rule:
+
+> **Create another Outcome when responsibility splits. Create another WorkUnit when execution splits.**
+
+Provider Sessions are execution machinery, never the durable responsibility object.
+
+## Provider surface
+
+PR #92 established exactly five active first-class provider identities for new Kennel work:
+
+- Codex
+- Claude Code
+- OpenCode
+- Cursor
+- Pi
+
+Readiness is machine-aware. Role admission is capability-driven; the five identities do not imply identical structured-control capabilities. Explicit provider choice never silently falls back to Codex or another provider.
+
+## Installed identity and state
 
 | Boundary | Kennel value |
 | --- | --- |
-| Product / executable / CLI | `Kennel` / `kennel` |
-| macOS bundle and application ID | `in.heywaldo.kennel` |
+| Product / CLI | `Kennel` / `kennel` |
+| macOS bundle ID | `in.heywaldo.kennel` |
 | Deep-link protocol | `kennel-app` |
 | Global state root | `~/.kennel` |
 | Updater cache | `kennel-updater` |
 | Release repository | `Pin4sf/Waldo-Kennel` |
 | Environment namespace | `KENNEL_*` |
-| Loopback / development / LAN ports | `3031` / `3032` / `3041` |
 | Generated branch namespace | `kennel/` |
 
-Kennel does not read or migrate `~/.ao` or the older `~/.agent-orchestrator` layout. Earlier installations of the donor project remain separate, and users add local repositories explicitly through Kennel's supported project flow. Project-local `.kennel/attachments` and `.kennel/launch.json` live inside a project; they are not Kennel global state. Those two names moved from `.ao/`, and because both sit inside a user's own repository Kennel still reads the old location when the new one is absent -- a committed `.ao/launch.json` keeps working, and attachments left in a pre-rename worktree are still rescued before it is torn down. Kennel only ever reads those paths; it writes the `.kennel/` names.
+Kennel is standalone. Historical AO source/provenance remains documented where useful, but AO product/provider/task ontology is not current Kennel authority.
 
-Kennel is now a standalone application. The source entrypoint is `backend/cmd/kennel`, the Go module is `github.com/Pin4sf/Waldo-Kennel/backend`, and no upstream synchronization seams remain — the donor remote has been removed and every identifier, path, and message names Kennel. See [identity and state](docs/identity-and-state.md) and [upstream provenance](docs/upstream-provenance.md) for the historical record of what Kennel derived from and why.
+## What exists today
 
-## What is present today
+See [`docs/STATUS.md`](docs/STATUS.md) for the precise shipped/target boundary. Current `beta` includes:
 
-- A local Go daemon with HTTP/SSE/WebSocket APIs, SQLite persistence, lifecycle handling, and change-data capture.
-- An Electron desktop supervisor connected through the generated API client.
-- Codex for fresh v0 work through a provider-neutral admission boundary, plus readable historical provider identities/adapters, terminals, worktrees, browser preview, PR/review facts, and recovery machinery.
-- Desktop packaging with asserted Kennel bundle, executable, protocol, updater, release-target, and state identities.
-- An Outcome clarification and planning overlay which remains a prototype, not the next product architecture.
-- Additive migration compatibility for databases that traversed the colliding AO/Kennel migration 0098 histories.
-- Reproducible bootstrap, foundation, dependency, package-identity, and security checks.
+- local Go daemon with HTTP/SSE/WebSocket surfaces;
+- SQLite persistence, additive migrations, trigger-backed CDC;
+- thin `kennel` CLI;
+- Electron/React desktop supervisor;
+- project/session lifecycle and worktrees;
+- terminal/native chat/browser/diff/PR/check/review surfaces;
+- restart/recovery foundations;
+- first-class Codex, Claude Code, OpenCode, Cursor, Pi provider registry/readiness;
+- durable Outcome/Contract/Plan/Attempt/Evidence/Verification/Acceptance foundations;
+- composed Outcomes and Mission Control destination;
+- bounded Project Waldo conversation.
 
-Some AO-derived surfaces remain in the tree as donors or compatibility seams and are not current Kennel product promises: `frontend/src/landing`, `packages/mobile`, `packages/cloud-client`, the frozen `packages/ao*` npm packages, and release/pod helper scripts. They stay buildable or inspectable while their future is decided explicitly; they are not published by this foundation work.
+Not yet shipped as the final kernel: `ProjectBriefRevision`, a real multi-WorkUnit DAG, WorkUnit scheduler/WorkspaceLease concurrency, canonical SessionReceipt/WorkUnitReceipt flow, truthful final Mission Graph, final external ingress, and self-hosting proof.
 
 ## Development
 
-Use Node 22.23.2, npm 10.9.8, and Go 1.25.7. From a clean checkout:
+Use the versions pinned by the repository/toolchain. From a clean checkout, the common verification path is:
 
 ```sh
 npm run bootstrap
-npm run test:foundation
-npm run audit:production
+npm run lint
+npm run frontend:typecheck
+cd backend && go build ./... && go test ./... && go test -race ./... && go vet ./...
+cd ../frontend && npm run typecheck && npm run build
 ```
 
-Narrow checks are documented in [the development guide](docs/development.md). API changes require `npm run api`; SQLite query/schema changes require `npm run sqlc`.
+API changes require `npm run api`. SQLite source changes require `npm run sqlc`. See [`AGENTS.md`](AGENTS.md) for hard boundaries and [`docs/development.md`](docs/development.md) for development detail.
 
-Do not launch an older packaged build to validate this branch: it can use the pre-isolation identity. Package without launching, then run:
+Product/kernel branches start from `beta` and target `beta`. A docs/spec/UX artifact is not evidence that runtime behavior has shipped; update `docs/STATUS.md` when implementation truth changes.
 
-```sh
-npm --prefix frontend run package
-npm --prefix frontend run package:identity
-```
+## Self-hosting target
 
-## Upstream and next step
+The first kernel milestone is **Kennel builds Kennel**: use Kennel to implement a real repository Outcome with a real WorkUnit DAG, concurrent isolated work where safe, provider recovery, structured receipts/evidence, Ready for Review, and explicit user Acceptance—while the user primarily supervises Board/Mission Control rather than raw provider transcripts.
 
-[`upstream.json`](upstream.json) pins the AO source tree, and [`scripts/compare-upstream.sh`](scripts/compare-upstream.sh) supports reviewed, non-destructive synchronization. The repositories do not share Git ancestry; repairing published ancestry would rewrite `main` and therefore requires a separate approved migration.
-
-The foundation and bounded donor cleanup are accepted on `main`. Product contributors must start with the [canonical product architecture](docs/product/kennel-v1-product-architecture.md), the [build program](docs/product/kennel-build-program.md), and the issue-specific implementation plan. Work and the separately owned Home/Personal Agent lane may proceed in parallel through their documented shared contracts; governed capture is required, Home persistence is dependency-gated, and durable Memory, hosted attachment, Health-aware mobile, and orchestration-policy learning retain their separate later gates.
-
-Contributor branches start from `beta` and open PRs back to `beta`. After integrated verification, maintainers promote `beta` to `main` through a separate PR. Neither branch movement authorizes release or deployment.
-
-See the dated [foundation acceptance record](docs/foundation-acceptance-2026-08-18.md) for exact evidence and exclusions.
+See [`docs/product/kennel-dogfood-acceptance-matrix.md`](docs/product/kennel-dogfood-acceptance-matrix.md).
 
 ## License
 
-Kennel is licensed under Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache-2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).

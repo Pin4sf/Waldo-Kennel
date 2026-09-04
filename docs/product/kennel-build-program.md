@@ -1,100 +1,307 @@
-# Waldo Kennel build program
+# Kennel builds Kennel — kernel implementation program
 
-- **Status:** Architecture and issue planning complete; issue-scoped beta implementation is in progress, while this document remains coordination authority rather than implementation authorization
-- **Date:** 2026-08-25
-- **Current base:** refresh `origin/beta` before every implementation issue; historical planning bases are not execution targets
+- **Status:** Active implementation program
+- **Date:** 2026-09-04
+- **Baseline:** `beta` after merged provider-core PR #92
+- **Goal:** reach a truthful self-hosting local Kennel kernel that can implement real Kennel work while the user supervises Outcomes rather than provider transcripts
+- **Architecture authority:** `kennel-v1-product-architecture.md`, ADR 0008, ADR 0009
 
-## Integration branch policy
+This program replaces the earlier broad “12-week v1”/first-Outcome delivery sequencing for the Work kernel. Home, personal Memory, capture, mobile, and learned automation remain separately governed future/parallel lanes and do not block this program.
 
-- `main` is the tested promotion branch and remains the default/release source.
-- `beta` is the shared integration branch. Contributors do not push commits directly to it; each assigned issue uses a focused branch created from the latest `origin/beta` and a PR back to `beta`.
-- The integration owner sequences PRs that touch shared routes, DTO/spec generation, migrations, RunBrief contracts, or product vocabulary. A PR refreshes from current `beta` before final verification.
-- After the milestone acceptance matrix passes on integrated `beta`, a maintainer opens a separate `beta` -> `main` promotion PR. Promotion does not itself authorize publication, release, or deployment.
-- Emergency hotfixes or release-only branches that bypass `beta` require explicit maintainer authorization and a reconciliation PR back into `beta`.
+## Program rule
 
-## Canonical inputs
+Do not optimize for feature count or a polished graph before the runtime can support it.
 
-| Lane | Specification | Implementation plan | Gate |
-| --- | --- | --- | --- |
-| Foundation identity | [AO retirement audit](ao-legacy-retirement-audit.md) | [AO retirement plan](../superpowers/plans/2026-08-21-ao-legacy-retirement.md) | active product vocabulary, donor independence, package identity, provenance preserved |
-| Work | [First Outcome slice](kennel-v0-first-outcome-slice.md) | [First Outcome handoff](../superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) | one real Focus Ledger Outcome through explicit Acceptance and Re-entry |
-| Work control plane | [Canonical Work flow](../superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md) + [screen/interaction spec](../superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md) | [Work control-plane delivery](../superpowers/plans/2026-08-25-work-control-plane-delivery.md) | Board -> Outcome Mission Control -> Session Inspector, durable Project conversation, adaptive Contract, bounded continuation, and one evaluated adaptive Mission. Its "adaptive multi-Work-Unit Mission" slice is superseded by [ADR 0007](../adr/0007-composed-outcomes.md): `PlanRevision` stays at one direct Work Unit and the contributing-Outcome layer carries the topology |
-| Home/Personal Agent | [Home design](../superpowers/specs/2026-08-21-home-personal-agent-memory-design.md) | [Home foundations plan](../superpowers/plans/2026-08-21-home-personal-agent-foundations.md) | useful Home, explicit closure, governed capture, candidate-only memory, deletion non-resurrection |
-| Learning L1 | [Learning design](../superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md) | [Experience Ledger plan](../superpowers/plans/2026-08-21-learning-experience-ledger.md) | attributable shadow episodes/candidates with no responsibility/proof mutation |
-| Learning L2 | same | [Experiment/Evaluation plan](../superpowers/plans/2026-08-21-learning-experiment-evaluation.md) | locked evaluator, hidden held-out no-regression, isolation and cleanup |
-| Learning L3 | same | [Skill Registry plan](../superpowers/plans/2026-08-21-learning-skill-registry.md) | one explicitly promoted provisional Project skill with receipts and rollback |
-| Composed Outcomes | [ADR 0007](../adr/0007-composed-outcomes.md) | [Composed Outcomes program](../superpowers/plans/2026-08-29-composed-outcomes-program.md) | one Project-level Outcome decomposed into independently governed contributing Outcomes, with criterion-bound roll-up and no rise in supervision cost |
-| Later ecosystem | [ADR 0006](../adr/0006-one-durable-waldo-multiple-governed-presences.md) | Not implementation-ready by design | local gates, attachment protocol, health threat model, custody migration, and mobile specification |
+Each slice must:
 
-## Dependency and parallelism
+1. start from current `beta` (or explicitly documented dependent branch);
+2. read the canonical architecture + relevant ADR + `STATUS.md`;
+3. produce a concrete current-code delta map;
+4. run baseline tests for the touched subsystem;
+5. implement backend/domain truth before frontend projection;
+6. add/extend narrow conformance/invariant tests;
+7. regenerate sqlc/OpenAPI/frontend contracts when source contracts change;
+8. run touched-area and repo-wide gates;
+9. commit a coherent checkpoint;
+10. stop instead of weakening an invariant to “finish the slice.”
+
+No single agent should attempt the entire program as one patch.
+
+## Slice 0 — provider-core convergence — DONE
+
+Merged PR #92 established:
+
+- exactly five active first-class providers: Codex, Claude Code, OpenCode, Cursor, Pi;
+- machine-aware readiness;
+- dynamic provider-selection surfaces;
+- no hidden Codex fallback as product policy;
+- removal of the broad donor provider registry from active new-work paths;
+- preserved historical provider compatibility where required.
+
+Remaining provider role depth belongs to Slice 4.
+
+## Slice 1 — architecture/docs gate — THIS PR
+
+### Objective
+
+Make the repository teach one product/kernel architecture before runtime migration starts.
+
+### Deliverables
+
+- canonical `AGENTS.md` read order and hard rules;
+- concise canonical v1 Work/kernel architecture;
+- ADR 0008: responsibility composition vs WorkUnit execution DAG;
+- ADR 0009: scheduler, WorkspaceLease, effect fencing;
+- factual `STATUS.md`;
+- aligned control-plane and interaction specs;
+- self-hosting acceptance matrix;
+- runtime/provider reference index;
+- removal of stale handoffs/prototypes/delivery plans that directly contradict the new authority.
+
+### Exit gate
+
+A new coding session can read the authority chain without encountering a current instruction that says `PlanRevision` must remain one WorkUnit or that dependencies belong only between contributing Outcomes.
+
+## Slice 2 — domain + persistence: Project Brief and WorkUnit DAG
+
+### Objective
+
+Make the canonical objects real before building concurrency/UI on top.
+
+### Domain work
+
+- add immutable/versioned `ProjectBriefRevision`;
+- widen `PlanRevision` from exactly one `direct` WorkUnit to a bounded ordered WorkUnit set + dependency edges;
+- give each WorkUnit stable identity and requirements needed by the scheduler/evidence path;
+- deterministic validation for duplicate IDs, unknown/self dependencies, cycles, capability requirements, and invalid graph shape;
+- preserve direct-vs-decomposed Outcome exclusivity;
+- preserve ADR 0007 contribution/authority/proof semantics;
+- update RunBrief core digest so the exact authorized WorkUnit and relevant dependency inputs are frozen independently;
+- define Plan/Contract staleness for multiple WorkUnits without rewriting historical Attempts/Evidence.
+
+### Persistence/API work
+
+- add the next additive SQLite migration after inspecting the current ledger; never edit merged migrations;
+- add queries/store/service methods for Project Brief revisions, WorkUnits, dependency edges, and current Plan projection;
+- maintain trigger-backed CDC;
+- expose typed daemon DTO/API operations;
+- regenerate sqlc, OpenAPI, and frontend schema.
+
+### Tests
+
+- Project Brief revision immutability/current projection;
+- direct Plan with independent branches;
+- duplicate/unknown/self/cycle rejection;
+- stable graph ordering/digest behavior;
+- Contract revision stales affected Plan but does not invent completion/death;
+- decomposed parent still cannot own direct Plan execution;
+- contributing child can own its own WorkUnit DAG.
+
+### Exit gate
+
+The daemon can persist/read/authorize a direct Outcome with at least four WorkUnits and two independent branches, while all existing Outcome/Acceptance invariants still pass.
+
+## Slice 3 — WorkspaceLease + dependency scheduler
+
+### Objective
+
+Turn the DAG into truthful execution rather than a stored diagram.
+
+### Runtime work
+
+- introduce durable/inspectable WorkspaceLease state;
+- implement staged repository/worktree provisioning with stage-specific failure;
+- replace the Project-wide execution fence with narrower write/integration/effect boundaries;
+- add dependency-aware runnable calculation and concurrency budget;
+- create Attempts only after admission gates pass;
+- track workspace/process/preview/cleanup custody;
+- reconcile after daemon/provider/renderer failure;
+- preserve `unknown`/`unconfirmed` rather than guessing;
+- implement conservative cleanup/debris inspection.
+
+### Git/non-Git rule
+
+- Git-backed Projects can run independent write WorkUnits in isolated worktrees;
+- new Projects may initialize Git before parallel writes are enabled;
+- non-Git folders remain useful for context/research/single-writer work and show the limitation truthfully.
+
+### Tests
+
+- two independent write WorkUnits run concurrently in separate worktrees;
+- downstream node waits for dependencies;
+- transient Git lock retry is bounded/safe;
+- dirty/unknown worktree is not force-deleted;
+- daemon restart does not duplicate Attempt;
+- surviving provider session can be reconciled when identity is trustworthy;
+- unknown effect/Attempt blocks unsafe retry;
+- shared integration boundary serializes only integration, not all Project work.
+
+### Exit gate
+
+A direct Outcome with two independent write branches genuinely runs concurrently and can survive deliberate process failure without corruption or duplicate Attempts.
+
+## Slice 4 — structured provider drivers and capability-derived role admission
+
+### Objective
+
+Normalize control at the capability boundary without flattening all providers to the weakest interface.
+
+### Provider targets
+
+- **Codex:** prefer structured app-server control; pin/test the exact protocol surface used.
+- **Claude Code:** let the user's Claude installation own authentication; harden structured/headless/session/hook behavior without turning Kennel into a subscription credential broker.
+- **OpenCode:** use server/SDK/ACP/plugin surfaces where they provide stronger structured state.
+- **Cursor:** add/finish ACP driver conformance before enabling coordinator/switch/review roles.
+- **Pi:** add/finish RPC/SDK structured driver conformance; Kennel owns sandbox/workspace/effect containment.
+
+### Capability model
+
+Conformance should cover only features Kennel actually admits, such as start, stable identity, resume/reconcile, steer/send, interrupt/cancel, approvals, events, child identity, usage/structured output, and external ingress hooks.
+
+Do not hardcode permanent role membership by provider name. Registry/provider manifests expose capability; policy admits a role only after tests prove it.
+
+### Exit gate
+
+A single-provider user can run the self-hosting DAG with any supported provider whose required role capabilities are proven, and an explicit unavailable capability fails with a truthful explanation rather than fallback.
+
+## Slice 5 — SessionReceipt, WorkUnitReceipt, artifacts, evidence, Outcome brief
+
+### Objective
+
+Make transcript reconstruction unnecessary for routine supervision.
+
+### Work
+
+- normalize structured provider events + workspace facts into provenance-bearing `SessionReceipt`;
+- aggregate retained Attempt result(s) into `WorkUnitReceipt`;
+- record artifacts and checks with exact Attempt/WorkUnit lineage;
+- propose/bind Evidence to current criterion identity;
+- preserve contradictions and stale-subject proof;
+- produce concise Outcome current brief/ledger from canonical state + receipts;
+- create Project Context learning candidates with provenance, without automatic promotion.
+
+### Exit gate
+
+For a five-WorkUnit Outcome with retries, Waldo can explain what changed, what was retained, what failed/recovered, and what remains to prove without the user opening provider transcripts.
+
+## Slice 6 — canonical Board/List + Project Brief UI + donor overlay removal
+
+### Objective
+
+Make the default product surface match canonical responsibility objects.
+
+### Work
+
+- Board/List project top-level active Outcomes from daemon facts;
+- global Work and Project-filtered Work use the same Outcome store;
+- Project Brief view/edit/revision history;
+- no special Primary Outcome card;
+- remove donor `OutcomeTask` / `completed` overlay and marker-derived lifecycle leftovers;
+- sidebar shows Projects + a small attention/pinned Outcome shortlist, not a recursive session tree;
+- cards show Plan progress and proof separately;
+- provider/session indicators remain subordinate.
+
+### Exit gate
+
+A user can create/update Project Brief, create several independent Outcomes, and supervise their attention state with no donor task lifecycle or PrimaryOutcome semantics.
+
+## Slice 7 — Mission Control `Contract | Graph`
+
+### Objective
+
+Expose one Outcome's governing Contract and real execution topology.
+
+### Work
+
+- Contract projection: desired state, criteria/proof, constraints/non-goals, authority, pause triggers, current Plan or contributing Outcomes;
+- Graph projection backed only by daemon topology/scheduler state;
+- direct Outcome opens on WorkUnit DAG;
+- decomposed Outcome shows contributing layer then child DAG;
+- WorkUnit node expands Attempts/Sessions only on demand;
+- progress ring is Plan structure/progress, not guessed agent completion;
+- Session Inspector remains the deep technical escape hatch.
+
+### Exit gate
+
+Graph exactly matches scheduler truth during a real parallel dogfood Outcome, including failure/retry without creating fake Outcome nodes.
+
+## Slice 8 — external provider ingress
+
+### Objective
+
+Let provider sessions cooperate with Kennel without inventing lineage.
+
+### Work
+
+- define a versioned execution/activity envelope;
+- one daemon-owned agent-facing control contract (MCP-like where suitable);
+- thin provider shims/plugins/hooks;
+- explicit `Governed | Observed | Untracked` state;
+- explicit binding to Project/Outcome/WorkUnit/Attempt where authorized;
+- no fuzzy auto-attachment;
+- observed research can propose attach/new Outcome/new WorkUnit/Project learning candidate.
+
+### Exit gate
+
+An external integrated session can be observed and explicitly attached/promoted without provider/plugin code writing canonical storage directly.
+
+## Slice 9 — Waldo Island consequence projection
+
+### Objective
+
+Make ambient supervision Outcome-first.
+
+### Work
+
+- project existing daemon attention/receipt/recovery projections into Island;
+- collapsed state prioritizes “needs you” and active Outcome count;
+- expanded state names consequence and smallest user decision;
+- deep links open the relevant Outcome/WorkUnit/Session;
+- no Island-specific execution database.
+
+### Exit gate
+
+Closing/reopening the renderer/Island does not change Attempt truth, and Island notifications describe responsibility consequences rather than raw provider events.
+
+## Slice 10 — Kennel builds Kennel dogfood
+
+### Objective
+
+Use the kernel to implement a real Kennel change end to end.
+
+Recommended first self-hosting candidate: remove/finish removal of the donor `OutcomeTask` overlay or another real beta issue whose success can be criterion-tested.
+
+Required flow:
 
 ```text
-AO identity replacement ───────────────┐
-                                      ├─> all product surfaces use Kennel/Waldo truth
-Work A Enter -> B Contract -> C Plan -> D Attempt -> E Proof/Acceptance
-       │           │                         │             │
-       │           ├─> Home OpenLoop ───────┼─> Home-to-Work link
-       │           └─> shared intake ───────┘
-       └─> Home fixture shell
-Home OpenLoop -> Home flows -> Capture/source plane -> MemoryCandidate gate
-Work result facts + Home/source refs -> Learning L1 -> L2 -> L3
-Work D/E + shared Intake + durable Project conversation -> Work Mission Control
-Work Mission Control + first-slice evaluation -> composed Outcomes (ADR 0007)
-Home durable-memory gate + L3 evidence + attachment/health specs -> ADR 0006 ecosystem work
+Project Brief
+→ define Outcome
+→ Contract
+→ Plan with real WorkUnit DAG
+→ user authorization
+→ parallel/scheduled Attempts
+→ deliberate failure/restart exercise
+→ receipts + artifacts
+→ Evidence + Verification
+→ Ready for Review
+→ explicit user Acceptance
 ```
 
-AO donor detachment can run beside Work/Home. The destructive donor removal waits for its exact consumer proof and confirmation. Home shell can run immediately; Home persistence waits for shared ResponsibilitySpace. Learning L1 waits for current canonical identifiers and enough trustworthy result facts to label incomplete/verified outcomes honestly. L2 waits for L1; L3 waits for L2 and Work proof semantics.
+The user should primarily operate Board/Mission Control and open Session Inspector only for exceptional debugging.
 
-## Shared ownership
+### Exit gate
 
-| Shared surface | Integration owner | Consumers |
-| --- | --- | --- |
-| `ResponsibilitySpace` and IDs | Work Contract PR | Home, Learning |
-| Shared `IntakeSession` state machine | Home Task 4, reviewed by Work owner | Home and Work controllers |
-| `ResponsibilityLink` | Home Task 4 | Work read projection |
-| Outcome/Attempt/Evidence/Verification/Acceptance facts | Work | Home projection, Learning sources |
-| `DecompositionRevision`, `ContributionLink`, `ContributionDependency` | Composed Outcomes vertical | Board/Mission Control, attention roll-up, Learning attribution |
-| Source/deletion generations | Home capture/memory | Learning and future attachment |
-| RunBrief skill/context references | Work integration owner | Home retrieval, Learning L3, provider adapters |
-| Project Waldo conversation and continuation receipts | new Conversation Runtime vertical | Work intake, Mission Control, later Home relationship surface |
-| Project default-agent preference and role resolution | new Project role-resolution vertical | Intake analyzer, Mission planner, Session Inspector |
-| Work adaptive intake composition | shared Intake owner #32 plus Work consumer | Outcome Contract and Mission Control |
-| SQLite migration allocation | named integration owner per merge window | every lane |
-| DTO/spec/routes/OpenAPI/generated TS | named integration owner per shared PR | daemon, CLI, desktop |
-| Product vocabulary/brand allowlist | AO retirement Task 1 | all lanes |
+Pass the acceptance matrix in `kennel-dogfood-acceptance-matrix.md` over repeated real work. If supervision cost does not improve, treat that as product evidence rather than adding ontology to hide it.
 
-One PR owns a shared file at a time. Parallel branches do not independently edit DTO registry, route registration, migration numbers, generated API files, or shared RunBrief contracts.
+## Contribution/release gate after dogfood
 
-Current route integration convention: `/work` is the Work-first Enter destination, `/home` is the Personal Home Today destination, and the global mode control remembers the last meaningful route within each lane. The inherited `/` orchestration board remains a valid remembered Work route after it has been visited. Generated `routeTree.gen.ts` conflicts are resolved from the route source files and regenerated; neither lane selects its generated side wholesale.
+Do not market the kernel as self-building or invite broad architecture contributions until:
 
-Migrations `0099-0105` are present on the 2026-08-29 `beta` baseline; the next free number is `0106`. Older numeric reservations for Home and Learning are historical coordination evidence, not live claims. Every unmerged vertical must inspect current `origin/beta`, claim the next unused migration in its issue/PR lease before editing schema, and renumber its own unmerged work when another integration lands first.
+- the dogfood invariants have run repeatedly;
+- verification commands are reproducible;
+- `beta` merge quality is protected by an agreed CI/review policy;
+- contributor docs point to this authority chain;
+- provider/version gaps are labeled;
+- failure/recovery debris can be inspected rather than silently discarded.
 
-## Milestones
-
-1. **v0 Foundation — Kennel Identity & AO Retirement**
-2. **v0 Work — First Verified Outcome**
-3. **v0 Home — Personal Agent Foundations**
-4. **v0 Learning — First Evaluated Project Skill**
-5. **Later Gates — Durable Memory, Mobile, Hosted**
-
-The first four milestones contain issue-sized implementation work. The fifth contains architecture/evaluation gates only; it is not a promise that durable hosted Waldo, the Health-aware mobile app, or orchestration-policy learning can start before their prerequisites pass.
-
-### GitHub execution map
-
-| Milestone | Canonical issues |
-| --- | --- |
-| Foundation | [#16 active identity](https://github.com/Pin4sf/Waldo-Kennel/issues/16), [#22 donor consumers](https://github.com/Pin4sf/Waldo-Kennel/issues/22), [#27 bounded donor removal](https://github.com/Pin4sf/Waldo-Kennel/issues/27), [#34 docs](https://github.com/Pin4sf/Waldo-Kennel/issues/34), [#37 compatibility seams](https://github.com/Pin4sf/Waldo-Kennel/issues/37) |
-| Work | [#17 Enter](https://github.com/Pin4sf/Waldo-Kennel/issues/17), [#21 contract](https://github.com/Pin4sf/Waldo-Kennel/issues/21), [#26 authority](https://github.com/Pin4sf/Waldo-Kennel/issues/26), [#31 execution](https://github.com/Pin4sf/Waldo-Kennel/issues/31), [#35 proof and acceptance](https://github.com/Pin4sf/Waldo-Kennel/issues/35), [#38 evaluation](https://github.com/Pin4sf/Waldo-Kennel/issues/38), [#40 Home integration](https://github.com/Pin4sf/Waldo-Kennel/issues/40) |
-| Home | [#18 shell](https://github.com/Pin4sf/Waldo-Kennel/issues/18), [#23 capture and Open Loops](https://github.com/Pin4sf/Waldo-Kennel/issues/23), [#29 Home projections](https://github.com/Pin4sf/Waldo-Kennel/issues/29), [#32 shared intake](https://github.com/Pin4sf/Waldo-Kennel/issues/32), [#36 governed capture](https://github.com/Pin4sf/Waldo-Kennel/issues/36), [#39 MemoryCandidate review](https://github.com/Pin4sf/Waldo-Kennel/issues/39), [#41 gate](https://github.com/Pin4sf/Waldo-Kennel/issues/41) |
-| Learning | [#19 L1 Experience Ledger](https://github.com/Pin4sf/Waldo-Kennel/issues/19), [#25 L2 experiments](https://github.com/Pin4sf/Waldo-Kennel/issues/25), [#30 L3 skill registry](https://github.com/Pin4sf/Waldo-Kennel/issues/30) |
-| Later gates | [#20 durable Memory](https://github.com/Pin4sf/Waldo-Kennel/issues/20), [#24 hosted attachment](https://github.com/Pin4sf/Waldo-Kennel/issues/24), [#28 Health-aware mobile](https://github.com/Pin4sf/Waldo-Kennel/issues/28), [#33 L4 policy learning](https://github.com/Pin4sf/Waldo-Kennel/issues/33) |
-
-Foundation, Work, and Home use one issue per implementation-plan task. Learning uses one issue per gated L1/L2/L3 plan, with that plan's four tasks serving as the issue checklist. The later milestone contains gates, not implementation promises. Closed AO-era issues [#2-#10](https://github.com/Pin4sf/Waldo-Kennel/issues?q=is%3Aissue+is%3Aclosed+number%3A2..10) retain their completion or supersession comments rather than being rewritten.
-
-The 2026-08-25 issue audit found the canonical Outcome and learning lineages covered by the existing issues above. The Work control-plane specification requires separately reviewed vertical issues for durable Project conversation, Project agent-role resolution, adaptive Work intake composition, Outcome Mission Control/Session Inspector, and a later evaluated adaptive multi-WorkUnit Mission. That last slice is superseded by [ADR 0007](../adr/0007-composed-outcomes.md), which puts the topology in the contributing-Outcome layer instead; the Composed Outcomes program replaces it. The remaining slices must not be smuggled into #31, #32, or #40 without an explicit issue-scope decision.
-
-## Completion definition
-
-Planning is complete when canonical docs link to these plans, ADRs 0003-0006 are consistent, GitHub issues map to every authorized plan or plan task at the granularity above, old issues are closed with completion/supersession evidence, and no plan represents a prototype or competitor feature as shipped Waldo behavior.
-
-Implementation begins only from an authorized issue in an issue-specific worktree. No document authorizes merge, push, deployment, publication, release, health-data processing, hosted attachment, or destructive donor deletion without its named gate.
+The product earns expansion by reducing supervision and preserving truth, not by supporting the largest number of providers or graph nodes.
