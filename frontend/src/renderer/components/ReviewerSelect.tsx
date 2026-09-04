@@ -1,25 +1,25 @@
 import type { components } from "../../api/schema";
 import { agentLabel } from "../lib/agent-options";
-import { buildRankedAgentOptions } from "../lib/agent-select-options";
+import { buildRankedAgentOptions, CORE_PROVIDER_IDS } from "../lib/agent-select-options";
 import { AgentAvatar } from "./AgentAvatar";
 import { AgentSelectMenuItem } from "./settings/AgentSelectMenuItem";
 import { SettingsOptionMenu } from "./settings/SettingsOptionMenu";
 
-const REVIEWER_AGENT_PRIORITY = ["claude-code", "codex", "cursor", "opencode", "muse", "aider"] as const;
-const REVIEWER_AGENT_PRIORITY_RANK = new Map<string, number>(
-	REVIEWER_AGENT_PRIORITY.map((agent, index) => [agent, index]),
-);
+type AgentInfo = components["schemas"]["AgentInfo"];
 
-const HOST_TRUSTED_REVIEWERS = new Set(["agy", "continue", "devin", "droid", "goose", "kimchi", "kimi", "qwen", "vibe"]);
-const USER_APPROVED_REVIEWERS = new Set(["auggie", "autohand", "cline", "crush", "grok"]);
+const REVIEWER_FALLBACK_AGENTS: AgentInfo[] = CORE_PROVIDER_IDS.map((id) => ({
+	id,
+	label: agentLabel(id),
+	roles: {
+		worker: true,
+		coordinator: id === "codex" || id === "claude-code" || id === "opencode",
+		switchTarget: id === "codex" || id === "claude-code" || id === "opencode",
+	},
+}));
 
-export function reviewerTrustWarning(harness: string): string | null {
-	if (HOST_TRUSTED_REVIEWERS.has(harness)) {
-		return "Experimental host-trusted reviewer: this agent is not OS-isolated and may retain shell, plugin, editor, and network access.";
-	}
-	if (USER_APPROVED_REVIEWERS.has(harness)) {
-		return "Experimental user-approved reviewer: Kennel keeps the agent's native permission prompts enabled; review execution may pause for your approval.";
-	}
+// Security and permission behavior is enforced by the daemon/reviewer adapter.
+// The renderer deliberately does not classify providers by name.
+export function reviewerTrustWarning(_harness: string): string | null {
 	return null;
 }
 
@@ -27,11 +27,7 @@ export function ReviewerSelect({
 	value,
 	onChange,
 	triggerClassName,
-	// The same picker serves the project default and a one-off override for the
-	// next run, so the caller names it.
 	ariaLabel = "Default reviewer agent",
-	// Naming what "project default" resolves to matters when nothing has run yet,
-	// so the picker can say which agent that actually is.
 	defaultHarness,
 	defaultOptionLabel,
 	defaultTriggerLabel,
@@ -53,29 +49,16 @@ export function ReviewerSelect({
 	showDefaultOption?: boolean;
 	contentAlign?: "start" | "end";
 	disabled?: boolean;
-	authorized?: components["schemas"]["AgentInfo"][];
-	installed?: components["schemas"]["AgentInfo"][];
-	supported?: components["schemas"]["AgentInfo"][];
+	authorized?: AgentInfo[];
+	installed?: AgentInfo[];
+	supported?: AgentInfo[];
 	excludedHarness?: string;
 }) {
-	// Until the daemon's catalog arrives these entries carry the whole menu, so
-	// label them the way the catalog would rather than printing bare ids: without
-	// this the same row reads "claude-code" now and "Claude Code" a moment later.
-	const fallbackAgents: components["schemas"]["AgentInfo"][] = [
-		{
-			id: "codex",
-			label: agentLabel("codex"),
-			roles: { worker: true, coordinator: true, switchTarget: true },
-		},
-	];
-	const filteredSupported = (supported ?? fallbackAgents).filter((a) => a.id === "codex");
-	const supportedAgents = filteredSupported.length > 0 ? filteredSupported : fallbackAgents;
 	const options = buildRankedAgentOptions({
-		supported: supportedAgents,
-		installed: installed?.filter((agent) => agent.id === "codex"),
-		authorized: authorized?.filter((agent) => agent.id === "codex"),
-		priorityRank: REVIEWER_AGENT_PRIORITY_RANK,
-		fallbackAgents,
+		supported: supported ?? REVIEWER_FALLBACK_AGENTS,
+		installed,
+		authorized,
+		fallbackAgents: REVIEWER_FALLBACK_AGENTS,
 	});
 	const selectableOptions = options.filter((agent) => agent.id !== excludedHarness);
 
@@ -95,7 +78,7 @@ export function ReviewerSelect({
 			menuItemClassName="reviews-agent-menu-item"
 			menuAlign={contentAlign}
 			triggerClassName={triggerClassName}
-			onChange={(v) => onChange(v === "__default__" ? "" : v)}
+			onChange={(next) => onChange(next === "__default__" ? "" : next)}
 			renderTrigger={(selected) => (
 				<>
 					{selected && selected.value !== "__default__" ? (
