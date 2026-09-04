@@ -1,116 +1,87 @@
 package domain
 
-// AgentHarness identifies which agent CLI/runtime a session drives.
+// AgentHarness identifies which local coding harness executes a Kennel session.
 type AgentHarness string
 
-// Supported agent harnesses.
+// Active Kennel provider harnesses.
 const (
 	HarnessClaudeCode AgentHarness = "claude-code"
 	HarnessCodex      AgentHarness = "codex"
-	HarnessAider      AgentHarness = "aider"
 	HarnessOpenCode   AgentHarness = "opencode"
-	HarnessGrok       AgentHarness = "grok"
-	HarnessDroid      AgentHarness = "droid"
-	HarnessAmp        AgentHarness = "amp"
-	HarnessAgy        AgentHarness = "agy"
-	HarnessCrush      AgentHarness = "crush"
 	HarnessCursor     AgentHarness = "cursor"
-	HarnessQwen       AgentHarness = "qwen"
-	HarnessCopilot    AgentHarness = "copilot"
-	HarnessGoose      AgentHarness = "goose"
-	HarnessAuggie     AgentHarness = "auggie"
-	HarnessContinue   AgentHarness = "continue"
-	HarnessDevin      AgentHarness = "devin"
-	HarnessCline      AgentHarness = "cline"
-	HarnessKimi       AgentHarness = "kimi"
-	HarnessMuse       AgentHarness = "muse"
-	HarnessKiro       AgentHarness = "kiro"
-	HarnessKilocode   AgentHarness = "kilocode"
-	HarnessVibe       AgentHarness = "vibe"
 	HarnessPi         AgentHarness = "pi"
-	HarnessKimchi     AgentHarness = "kimchi"
-	HarnessPrimeAgent AgentHarness = "prime-agent"
-	HarnessAutohand   AgentHarness = "autohand"
-	HarnessOMP        AgentHarness = "omp"
-	// HarnessDeepSeekHarness is the DeepSeek Harness CLI ("dsh").
-	HarnessDeepSeekHarness AgentHarness = "deepseek-harness"
-	// HarnessFake is retained for existing test fixtures and historical session
-	// rows, but is not user-selectable.
+
+	// HarnessFake is test-only. It is not part of the product provider surface.
 	HarnessFake AgentHarness = "fake"
 )
 
-// AllHarnesses lists every supported harness. It is the canonical set used to
-// validate user-supplied harness names (e.g. per-project role overrides).
+// AllHarnesses is the complete provider vocabulary shipped by Kennel.
+// Installation, authentication, project configuration and per-role readiness
+// are runtime facts and must not be encoded by adding dormant provider ids here.
 var AllHarnesses = []AgentHarness{
-	HarnessClaudeCode, HarnessCodex, HarnessAider, HarnessOpenCode, HarnessGrok,
-	HarnessDroid, HarnessAmp, HarnessAgy, HarnessCrush, HarnessCursor, HarnessQwen,
-	HarnessCopilot, HarnessGoose, HarnessAuggie, HarnessContinue, HarnessDevin,
-	HarnessCline, HarnessKimi, HarnessMuse, HarnessKiro, HarnessKilocode, HarnessVibe, HarnessPi,
-	HarnessKimchi, HarnessPrimeAgent, HarnessAutohand,
-	HarnessOMP,
-	HarnessDeepSeekHarness,
+	HarnessCodex,
+	HarnessClaudeCode,
+	HarnessOpenCode,
+	HarnessCursor,
+	HarnessPi,
 }
 
-// IsRecognizedPersisted reports whether h is an identity that existing durable
-// rows and recovery paths may continue to read.
+// IsRecognizedPersisted reports whether h is an active Kennel provider identity.
+// HarnessFake remains recognized only so focused tests can construct fixtures.
+// Kennel intentionally carries no historical provider compatibility vocabulary.
 func (h AgentHarness) IsRecognizedPersisted() bool {
 	if h == HarnessFake {
 		return true
 	}
-	for _, k := range AllHarnesses {
-		if h == k {
+	for _, candidate := range AllHarnesses {
+		if h == candidate {
 			return true
 		}
 	}
 	return false
 }
 
-// IsSelectableForNewWork reports whether h may start new work in this build.
-// Codex remains the recommended zero-configuration default; DeepSeek Harness
-// is admitted alongside it as a worker once its profile-readiness checks pass,
-// through the same fail-closed adapter admission (a missing dsh binary is
-// "not ready", never silently skipped). opencode is admitted on the same terms:
-// it resolves its own binary, reports authorization, and delivers the task
-// prompt at launch, so a missing or unauthorized install fails closed here
-// rather than producing a session that cannot run.
+// IsSelectableForNewWork reports build support for fresh worker execution.
+// Local installation/auth/profile readiness is checked by the agent inventory
+// and again authoritatively at spawn; this predicate never expresses provider
+// preference or machine state.
 func (h AgentHarness) IsSelectableForNewWork() bool {
-	return h == HarnessCodex || h == HarnessDeepSeekHarness || h == HarnessOpenCode
+	for _, candidate := range AllHarnesses {
+		if h == candidate {
+			return true
+		}
+	}
+	return false
 }
 
-// IsSelectableAsCoordinator reports whether h may run as a project
-// orchestrator — the Mission coordinator role. This is capability-gated, not a
-// permanent provider allowlist: coordinating requires verified stable session
-// identity, structured chat, and recovery support, which DeepSeek Harness has
-// not demonstrated yet. When those capabilities pass their own admission, this
-// predicate widens without touching the worker admission above.
-//
-// opencode satisfies all three: the workspace activity plugin reports its
-// native session id (stable identity), it speaks ACP through a registered chat
-// driver (structured chat), and it resumes that id with `--session` backed by a
-// native-session probe (recovery).
+// IsSelectableAsCoordinator reports whether the provider has the structured
+// interaction and recovery contract Kennel requires for coordinator-class
+// roles. Codex, Claude Code and OpenCode have registered structured chat
+// drivers; Cursor and Pi remain worker-only until equivalent support exists.
 func (h AgentHarness) IsSelectableAsCoordinator() bool {
-	return h == HarnessCodex || h == HarnessOpenCode
+	switch h {
+	case HarnessCodex, HarnessClaudeCode, HarnessOpenCode:
+		return true
+	default:
+		return false
+	}
 }
 
-// IsSelectableAsSwitchTarget reports whether h may be the destination of an
-// agent switch on an existing logical session. Switching continues a prior
-// conversation, so it requires verified continuation identity (native resume)
-// and prompt-delivery support from the target adapter. DeepSeek Harness has
-// neither yet — its restore path reports ok=false pending the dsh hook
-// contract — so admitting it here would advertise switches that can only fail.
-// Worker spawns are unaffected: they start fresh by design.
-//
-// opencode declares continuation capabilities (provider-assigned ids learned
-// from its activity plugin), resolves the state root those ids live in, and
-// probes that state before Kennel reuses a resume handle, so a switch onto it
-// either continues a real conversation or truthfully starts fresh. It exposes
-// no per-session transcript file — history lives in its SQLite state — so the
-// switch records the source transcript as unavailable instead of inventing one.
+// IsSelectableAsSwitchTarget reports whether the provider implements Kennel's
+// complete continuation contract for replacing the provider beneath one stable
+// logical session. The session manager still validates the concrete adapter at
+// runtime before any source session is stopped.
 func (h AgentHarness) IsSelectableAsSwitchTarget() bool {
-	return h == HarnessCodex || h == HarnessOpenCode
+	switch h {
+	case HarnessCodex, HarnessClaudeCode, HarnessOpenCode:
+		return true
+	default:
+		return false
+	}
 }
 
-// IsKnown is retained as a compatibility alias for persisted identity checks.
+// IsKnown is the canonical provider-identity predicate used by persisted domain
+// validation and project configuration.
 func (h AgentHarness) IsKnown() bool {
 	return h.IsRecognizedPersisted()
 }
