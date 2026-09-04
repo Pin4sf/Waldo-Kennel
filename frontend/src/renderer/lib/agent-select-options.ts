@@ -2,10 +2,12 @@ import type { components } from "../../api/schema";
 
 type AgentInfo = components["schemas"]["AgentInfo"];
 
-export const DEFAULT_AGENT_PRIORITY = ["claude-code", "codex", "cursor", "opencode", "aider"] as const;
-export const DEFAULT_AGENT_PRIORITY_RANK = new Map<string, number>(
-	DEFAULT_AGENT_PRIORITY.map((agent, index) => [agent, index]),
-);
+export const CORE_PROVIDER_IDS = ["codex", "claude-code", "opencode", "cursor", "pi"] as const;
+
+// Kept as compatibility exports while picker call sites migrate. Kennel does
+// not encode a provider-brand preference in the renderer.
+export const DEFAULT_AGENT_PRIORITY: readonly string[] = [];
+export const DEFAULT_AGENT_PRIORITY_RANK = new Map<string, number>();
 
 export type AgentStatusTone = "success" | "warning" | "muted";
 
@@ -21,60 +23,79 @@ export function agentLabelCompare(a: AgentInfo, b: AgentInfo): number {
 	return a.label.localeCompare(b.label) || a.id.localeCompare(b.id);
 }
 
-function agentStatus(
-	installedAgent: AgentInfo | undefined,
-	isAuthorized: boolean,
-	isAuthUnknown: boolean,
-): Pick<RankedAgentOption, "status" | "statusTone"> {
-	if (!installedAgent) {
-		return { status: "Needs install", statusTone: "muted" };
+function agentStatus({
+	installedAgent,
+	isAuthorized,
+	isAuthUnknown,
+	isProfileReady,
+}: {
+	installedAgent: AgentInfo | undefined;
+	isAuthorized: boolean;
+	isAuthUnknown: boolean;
+	isProfileReady: boolean;
+}): Pick<RankedAgentOption, "status" | "statusTone"> {
+	if (!installedAgent) return { status: "Needs install", statusTone: "muted" };
+	if (!isProfileReady) {
+		return {
+			status: installedAgent.readyDetail?.trim() || "Needs setup",
+			statusTone: "warning",
+		};
 	}
+	if (!isAuthorized && !isAuthUnknown) return { status: "Needs auth", statusTone: "warning" };
 	if (isAuthUnknown) {
-		return { status: "Auth unknown", statusTone: "warning" };
+		return {
+			status: installedAgent.readyDetail?.trim() || "Auth unknown",
+			statusTone: "warning",
+		};
 	}
-	if (!isAuthorized) {
-		return { status: "Needs auth", statusTone: "warning" };
-	}
-	// Authorized agents stay clean — only surface problem statuses in the menu.
-	return { status: "", statusTone: "success" };
+	return { status: "Ready", statusTone: "success" };
 }
 
+// buildRankedAgentOptions renders daemon-owned provider facts. Build support,
+// local installation, auth/profile readiness and role eligibility are distinct
+// concepts; no provider id is special-cased here.
 export function buildRankedAgentOptions({
 	supported,
 	installed,
 	authorized,
-	priorityRank,
 	fallbackAgents,
 	filter,
 }: {
 	supported?: AgentInfo[];
 	installed?: AgentInfo[];
 	authorized?: AgentInfo[];
-	priorityRank: Map<string, number>;
+	priorityRank?: Map<string, number>;
 	fallbackAgents: AgentInfo[];
 	filter?: (agent: AgentInfo) => boolean;
 }): RankedAgentOption[] {
-	const supportedAgents = (supported ?? fallbackAgents).filter((agent) => (filter ? filter(agent) : true));
-	const installedAgents = installed ?? supportedAgents;
-	const authorizedAgents = authorized ?? supportedAgents;
-	const authorizedIds = new Set(authorizedAgents.map((agent) => agent.id));
-	const installedById = new Map(installedAgents.map((agent) => [agent.id, agent]));
+	const supportedAgents = (supported ?? fallbackAgents).filter((candidate) => (filter ? filter(candidate) : true));
+	const installedAgents = installed ?? [];
+	const authorizedAgents = authorized ?? [];
+	const authorizedIds = new Set(authorizedAgents.map((candidate) => candidate.id));
+	const installedById = new Map(installedAgents.map((candidate) => [candidate.id, candidate]));
 
 	return supportedAgents
-		.map((agent) => {
-			const installedAgent = installedById.get(agent.id);
+		.map((candidate) => {
+			const installedAgent = installedById.get(candidate.id);
 			const authStatus = installedAgent?.authStatus;
-			const isAuthorized = authorizedIds.has(agent.id) || authStatus === "authorized";
+			const isAuthorized = authorizedIds.has(candidate.id) || authStatus === "authorized";
 			const isAuthUnknown = Boolean(installedAgent) && !isAuthorized && authStatus !== "unauthorized";
-			const isSelectable = isAuthorized || isAuthUnknown;
-			const rank = isAuthorized ? 0 : isAuthUnknown ? 1 : installedAgent ? 2 : 3;
+			const isProfileReady = installedAgent?.ready !== false;
+			const isSelectable = Boolean(installedAgent) && isProfileReady && (isAuthorized || isAuthUnknown);
+			const rank = isSelectable ? 0 : installedAgent ? 1 : 2;
 			return {
-				...agent,
+				...candidate,
+				...installedAgent,
 				disabled: !isSelectable,
-				priorityRank: priorityRank.get(agent.id) ?? Number.MAX_SAFE_INTEGER,
+				priorityRank: Number.MAX_SAFE_INTEGER,
 				rank,
-				...agentStatus(installedAgent, isAuthorized, isAuthUnknown),
+				...agentStatus({ installedAgent, isAuthorized, isAuthUnknown, isProfileReady }),
 			};
 		})
-		.sort((a, b) => a.rank - b.rank || a.priorityRank - b.priorityRank || agentLabelCompare(a, b));
+		.sort((a, b) => a.rank - b.rank || agentLabelCompare(a, b));
+}
+
+export function singleReadyProvider(options: RankedAgentOption[]): string {
+	const ready = options.filter((option) => !option.disabled);
+	return ready.length === 1 ? ready[0].id : "";
 }
