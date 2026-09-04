@@ -1,330 +1,292 @@
-# Work Control Plane and Canonical User Flow
+# Work Control Plane — canonical flow and daemon contract
 
-- **Status:** Approved written specification
-- **Date:** 2026-08-25
-- **Target baseline:** `origin/beta` at `d461a125ca90b76893367cdbfbac092217fdf6f9`
-- **Scope:** Work-side Project navigation, persistent Project conversation, adaptive Outcome intake, Mission planning, provider-role resolution, bounded session continuity, Mission Control, Session Inspector, proof, acceptance, and governed Project learning
-- **Implementation status:** Partly represented by the merged preview and first three Outcome stages; durable conversation, adaptive intake, execution, proof, Mission Control, and learning remain issue-gated
-- **Authority:** This specification records product and architecture decisions. It does not authorize merge, release, deployment, hosted attachment, ambient capture activation, or automatic learning promotion.
+- **Status:** Canonical Work control-plane companion specification
+- **Original date:** 2026-08-25
+- **Consolidated:** 2026-09-04
+- **Parent authority:** `docs/product/kennel-v1-product-architecture.md`, ADR 0008, ADR 0009
+- **Implementation truth:** `docs/STATUS.md`
 
-The companion [Work Experience Screen and Interaction Specification](2026-08-25-work-experience-screen-interaction-spec.md) translates this control-plane contract into the complete designer/implementation brief: global shell, every screen and form, visible states, transitions, micro-interactions, responsive composition, backend truth requirements, and design-review matrix.
+This document describes how a user responsibility moves through the Kennel control plane. It does not claim every state is already implemented.
 
-## 1. Product decision
+## 1. Control-plane principle
 
-There is one Waldo identity. Kennel is Waldo's local desktop presence and execution control plane. Codex, DeepSeek Harness, Claude Code, and future providers are replaceable execution capabilities; none owns the Project, Outcome, Mission, Evidence, or acceptance truth.
-
-Work is board-first:
+There is one durable Waldo relationship, one local Kennel daemon authority, and replaceable provider execution.
 
 ```text
-Project Board
-  -> Outcome Mission Control
-    -> Work Unit / Attempt
-      -> individual Agent Session Inspector
+User intent
+  ↓
+Waldo understanding / recommendation
+  ↓
+canonical daemon validation + state
+  ↓
+WorkUnit scheduler / WorkspaceLease / provider Attempt
+  ↓
+receipts / artifacts / evidence / verification
+  ↓
+user Acceptance or Reopen
 ```
 
-The Project Board and List are Outcome projections. An Outcome is the durable result the user wants to make true, not a provider session. One Outcome may have no session yet, one direct session, multiple concurrent sessions, replacement Attempts, or several providers over time.
+The daemon is the always-running coordinator **control plane**. A planner/coordinator LLM is only a bounded provider role inside an Attempt; it is not the canonical scheduler or writer.
 
-The canonical execution lineage remains:
+## 2. Project entry
+
+The user may:
+
+- open an existing Git repository;
+- open a working folder;
+- start a new Project.
+
+Project registration creates/records Project identity and runtime/config facts. It does not create an immortal Project Outcome.
+
+### 2.1 Project Brief
+
+A Project has versioned `ProjectBriefRevision`s containing durable context such as direction, architecture, conventions, setup/run/test expectations, and provenance.
+
+The Brief grounds Waldo's understanding but does not grant runtime authority or acceptance. Enforcement-critical criteria/constraints/effects belong in finite Outcome Contracts.
+
+### 2.2 Workspace capability
+
+Git-backed Projects support the v1 parallel-write isolation path. A non-Git folder may be used for context/research/single-writer work but cannot claim parallel worktree isolation. Starting a new Project can initialize Git before parallel writes are enabled.
+
+## 3. Provider readiness and Project preferences
+
+Project onboarding reads provider inventory/readiness from the daemon for exactly the current first-class identities: Codex, Claude Code, OpenCode, Cursor, Pi.
+
+A Project default provider is a preference, not permanent execution identity.
+
+The UI may show non-ready providers with:
+
+- Ready;
+- needs authentication/configuration;
+- not installed;
+- installed but missing a required capability.
+
+An explicit selected provider never silently falls back to another provider.
+
+Mission/WorkUnit admission intersects:
 
 ```text
-Outcome
-  -> ContractRevision
-  -> PlanRevision / Mission projection
-  -> WorkUnit
-  -> Attempt
-  -> AgentSessionRef
-  -> EvidenceItem
-  -> VerificationRun
-  -> user AcceptanceDecision or Reopen
+user/Project preference
+∩ installed + locally ready providers
+∩ required provider capabilities
+∩ WorkUnit role/runtime needs
+∩ authority/effect policy
+∩ concurrency/budget policy
 ```
 
-## 2. Canonical Work user flow
+Current provider role depth is reported by `STATUS.md`; do not assume all five providers have identical structured control.
 
-### 2.1 Add and configure a Project
+## 4. Start an Outcome
 
-The user selects a repository, folder, or workspace and chooses one **Default coding agent**. Project creation performs a live readiness check and asks only for configuration required by the selected harness, such as a DeepSeek `dsh` profile. Separate analyzer, coordinator, worker, and verifier preferences remain optional Advanced Settings.
+The user states what should become true inside a selected Project.
 
-The selection is a Project preference, not a permanent LLM session. At Mission-planning time Kennel resolves actual roles from the intersection of Project preference, installed and ready adapters, role capabilities, Outcome requirements, cost/concurrency policy, and explicit user authority. The Mission review always exposes the resolved assignments. There is no silent provider fallback.
+The initial UI should be compact: Project + desired result + Analyze/Continue. Submission begins bounded intake/understanding; it does not need to force the user through ontology fields first.
 
-### 2.2 Start an Outcome
+Waldo/analysis may classify the request, ask one material question at a time, and propose a Contract. A structured proposal reaches the daemon API/callback and passes the same validation as a hand-authored proposal. Model text itself is not canonical state.
 
-Project hover or keyboard focus exposes **New Outcome**. The compact modal contains only:
+## 5. Contracting
 
-- selected Project;
-- **What would you like to make true?**;
-- **Analyze Outcome**;
-- cancel.
+`ContractRevision` freezes what the finite Outcome means:
 
-Submitting begins an `IntakeSession`; it does not create an Outcome. The daemon first classifies whether the statement is a clear Outcome, an ambiguous Outcome, a Project question, a correction/follow-up, or something outside the selected Project. Project questions remain conversation. Out-of-scope personal requests may be explicitly redirected to Home. Nothing moves or shares context silently.
+- desired state;
+- observable success criteria;
+- Evidence expectations;
+- review/verification expectation;
+- constraints/non-goals;
+- authority ceiling;
+- stop/escalation conditions;
+- material clarification/assumptions.
 
-### 2.3 Compile bounded context
+The user may edit/re-analyze before confirmation. Confirmation atomically creates/advances the Outcome + immutable Contract revision according to the service contract.
 
-The daemon compiles the smallest Project-scoped packet required for the intake purpose:
+Provider assignment is not Contract truth; it belongs in execution planning.
 
-1. current user statement and explicit edits;
-2. selected Project identity, policy, configuration, and workspace snapshot;
-3. high-signal repository rules and entry documents;
-4. current related Outcomes and explicit lineage;
-5. attributed prior-session summaries when already available;
-6. admitted Project knowledge and promoted Project-scoped skills;
-7. provenance, freshness, omissions, and a retrieval receipt.
+## 6. Decide whether responsibility or execution splits
 
-The daemon does not replay every transcript or place all historical Outcomes into every prompt. User intent and current canonical revisions outrank every retrieved source and model inference.
+Waldo can propose topology, but the semantic decision follows ADR 0008.
 
-### 2.4 Produce an adaptive Contract proposal
+### Responsibility split
 
-The Contract has a stable governable core and adaptive facets. The analyzer may vary presentation, examples, number of criteria, and relevant specialized facets; it may not invent an arbitrary canonical schema.
-
-The stable core is:
+Use contributing Outcomes when pieces have independently meaningful desired states, Contracts, proof, authority, and acceptance.
 
 ```text
-OutcomeContract
-  identity and Project binding
-  desired state
-  observable success criteria
-  criterion-bound Evidence expectations
-  review and acceptance method
-  constraints and non-goals
-  initial authority ceiling
-  stop and escalation conditions
-  material assumptions and clarifications
-  optional time condition
-  adaptive typed facets
+Parent Outcome
+└── DecompositionRevision
+    ├── Contributing Outcome A
+    ├── Contributing Outcome B
+    └── Contributing Outcome C
 ```
 
-Adaptive facets may cover software implementation, research, design, documentation, investigation, evaluation, or consequential operations. Kennel asks at most one active material question at a time, and only when the answer changes meaning, scope, success, authority, cost, risk, Evidence, Verification, or responsibility placement.
+Contribution remains criterion-bound and child authority cannot widen parent authority.
 
-The user may edit, re-analyze, relate the proposal to an earlier Outcome, dismiss it, or continue discussing it. Confirmation atomically creates the `Outcome` and immutable `ContractRevision 1`. Agent assignments are excluded from the Contract and belong in the Mission Plan.
+### Execution split
 
-### 2.5 Propose and authorize the Mission
-
-Kennel proposes the smallest sufficient topology and explains why. A model may propose decomposition and role assignments, but deterministic daemon policy validates dependencies, overlapping ownership, adapter readiness, authority, Evidence, Verification, budget, cost visibility, stop, and recovery requirements.
-
-Examples:
+Use WorkUnits when one direct Outcome needs multiple execution nodes under one Contract/acceptance.
 
 ```text
-Small:   one default-agent Attempt -> deterministic check -> owner review
-Medium:  implementer Attempt -> fresh verifier Attempt -> owner review
-Complex: planner/coordinator -> isolated parallel workers -> integrator -> verifier
+Direct Outcome
+└── PlanRevision
+    ├── WorkUnit A
+    ├── WorkUnit B depends A
+    ├── WorkUnit C
+    └── WorkUnit D depends B,C
 ```
 
-Small and medium Outcomes normally reuse the Project's default harness, but independent roles use separate provider sessions and RunBriefs. Complex Outcomes may use multiple admitted providers when installed, ready, justified, and explicitly authorized. A single admitted harness may still execute multiple roles through separate sessions and worktrees.
+A decomposed parent does not also own direct WorkUnits in v1. Each direct child may own its own DAG.
 
-The graph is adaptive across Outcomes but revisioned within one Outcome. A material topology, provider/model, authority, cost, workspace ownership, or dependency change creates a new `PlanRevision`; the graph never silently rewrites itself in place.
+## 7. Plan proposal and authorization
 
-### 2.6 Execute and observe
+Waldo/provider may propose the smallest sufficient Plan topology. Deterministic daemon validation checks:
 
-Authorization binds the current Contract and Plan revisions. Kennel compiles a frozen provider-neutral RunBrief for every Work Unit, then an admitted adapter compiles the provider-specific form. Each write-capable Attempt owns one isolated worktree. Each Attempt receives one stable `AgentSessionRef` after provider-native identity is confirmed.
+- WorkUnit identity and shape;
+- dependency existence/self-dependency/cycles;
+- overlap/conflicting write/effect scope where knowable;
+- provider capability/readiness;
+- Contract authority containment;
+- grants/effects/budget;
+- evidence/verification obligations;
+- workspace requirements;
+- stale revision binding.
 
-The Project Board summarizes Outcome responsibility. The separate Project Sessions view summarizes operational provider activity across Outcomes. Provider completion is an observation or candidate Evidence, never Outcome completion.
+Authorization freezes the current Plan revision. A material topology/dependency/provider-role/authority/workspace/effect change becomes a new PlanRevision rather than a silent graph edit.
 
-### 2.7 Verify and accept or reopen
+## 8. WorkUnit admission and scheduling
 
-Evidence is mapped to the exact criterion and subject revision. Verification declares its actual independence class: deterministic, producer self-check, fresh same-provider session, cross-provider/model, or owner walkthrough. Only the user creates `AcceptanceDecision`.
-
-If the user says the result is incomplete, the Outcome remains open. Feedback becomes correction or counter-evidence and may require a replacement Attempt, revised Work Unit, new PlanRevision, or new ContractRevision. Acceptance may later be followed by an explicit Reopen decision or a successor Outcome.
-
-## 3. Screen and interaction contract
-
-### 3.1 Project Board and List
-
-Each card or row represents one Outcome and may summarize:
-
-- lifecycle stage and next safe action;
-- Needs You, Action Required, Waiting, or Ready for Acceptance;
-- active Work Units and session count;
-- current provider/role assignments;
-- blockers, recovery, and latest verified progress;
-- criterion Evidence coverage.
-
-Board columns are attention/lifecycle projections, not stored Outcome status and not provider-process columns.
-
-### 3.2 Outcome Mission Control
-
-Selecting an Outcome opens one adaptive, re-enterable workspace containing:
-
-- Outcome header, Project binding, custody, and revision truth;
-- Contract and clarification surface;
-- current Plan/Mission graph and rationale;
-- Work Units, dependencies, roles, Attempts, and session health;
-- decisions, grants, budgets, stop, and recovery conditions;
-- Evidence, Verification, Acceptance, Reopen, and lineage.
-
-Before Contract confirmation the adaptive intake surface is primary. Before authorization the Plan review is primary. During execution the Mission graph is primary. During proof the criterion/Evidence view is primary. The graph remains available throughout but is not forced as the main screen when it would obscure the current decision.
-
-### 3.3 Session Inspector
-
-Selecting a Work Unit, Attempt, or agent node opens the individual Session Inspector with provider transcript, terminal/browser where available, worktree, activity, artifacts, instructions, recovery state, and pause/resume/cancel/takeover controls.
-
-Normal user input attaches to the exact Outcome-level `DecisionRequest`; Kennel routes the canonical answer to every affected Work Unit/session. Direct session instruction is an explicit advanced action. Tactical instruction within authority may be delivered and recorded. A material scope, Plan, permission, or effect change raises the corresponding revision or approval boundary.
-
-### 3.4 Persistent Project conversation
-
-Work exposes one persistent Waldo conversation for the selected Project. It is a continuity projection over bounded conversation episodes and provider turns, not one immortal model context window and not canonical responsibility truth.
-
-When an Outcome is selected, the visible context chip becomes, for example:
+A WorkUnit is runnable only when the ADR 0009 gates pass:
 
 ```text
-Waldo · kennel-design
-Context: Outcome "Build screenshot-ready dashboard"
+dependencies satisfied
+AND authority exists
+AND provider capability exists
+AND provider locally ready
+AND workspace lease available
+AND concurrency budget available
+AND prior Attempts reconciled
+AND write/effect constraints allow execution
 ```
 
-When inspecting a session, Waldo may show `Inspecting: DeepSeek · Attempt 1`, but direct provider chat remains in the Session Inspector. Personal/general conversation belongs in Home. Moving a draft between Home and Work requires an explicit scope change and carries only the user-approved message/context.
+Then the daemon creates an Attempt, provisions/allocates the workspace, compiles a bounded RunBrief, launches the provider, confirms/records provider-native identity, observes events, and reconciles the result.
 
-## 4. Coordinator, role, and provider model
+The scheduler never asks an LLM whether a dependency cycle is acceptable or whether an unknown effect can be repeated.
 
-The always-running coordinator is the Kennel daemon control plane, not an LLM. It owns canonical state, context compilation, policy validation, routing, persistence, recovery, and attention projections.
+## 9. Workspace and effect custody
 
-An analyzer, planner, coordinator, executor, integrator, verifier, or recovery agent is a capability-based Mission role filled by one bounded provider Attempt. Codex may fill all roles when it is the only admitted harness. DeepSeek may fill worker roles after profile readiness. Later providers may fill additional roles only after their required capability tests pass.
+Each write-capable Attempt operates inside an explicit WorkspaceLease. Independent writes may overlap in isolated Git worktrees.
 
-Changing Project defaults affects future proposals. It does not rewrite an approved Plan, replace a running Attempt, or change historical provider identity.
+Repository integration/merge is a separate boundary. Consequential external effects are separately frozen/authorized/fenced.
 
-## 5. Bounded context and automatic session continuation
+A provider session process is not the lease authority. Renderer death does not release an Attempt. Missing provider events do not prove death/completion.
 
-### 5.1 Principle
+## 10. RunBrief and bounded context
 
-The persistent Waldo relationship and Outcome continuity must survive provider context exhaustion, process loss, adapter upgrades, provider changes, and deliberate fresh-review boundaries. Provider sessions are replaceable executors.
+Every WorkUnit/Attempt receives purpose-built context rather than the full Project transcript.
 
-### 5.2 Automatic criteria
+Inputs include:
 
-The daemon may prepare a replacement session at a safe checkpoint when any of these is true:
+1. exact Project/Outcome/Contract/Plan/WorkUnit IDs and revisions;
+2. WorkUnit objective/output expectations;
+3. relevant Project Brief/setup/rules;
+4. admitted dependency receipts/artifacts;
+5. exact grants/authority/effect limits;
+6. workspace/base revision facts;
+7. evidence/verification expectations;
+8. provenance/freshness/known omissions.
 
-- the provider reports insufficient remaining context for the reserved response/tool budget;
-- a provider does not expose a trustworthy context meter and the adapter's conservative turn, summary-size, or compaction threshold is reached;
-- the current Contract, Plan, Work Unit, workspace snapshot, authority, or admitted knowledge digest materially changed;
-- the native session identity is lost, unhealthy, non-resumable, or fails reconciliation/readmission;
-- the role or purpose changes, such as implementer to verifier, where inherited conclusions would contaminate independence;
-- a user requests a fresh context or source deletion/revocation invalidates material context;
-- repeated compaction produces unresolved contradictions or cannot preserve the minimum RunBrief.
+Provider-specific adapters compile that provider-neutral brief into the appropriate native form.
 
-No threshold is invented when a provider does not expose token/cost facts. Adapters publish trustworthy meters where available and conservative operational limits otherwise.
+## 11. Provider session continuity and handoff
 
-### 5.3 Background rollover versus user decision
+Provider sessions are replaceable executors.
 
-Rollover may happen automatically and non-disruptively only when all of these remain unchanged:
+### Same-provider continuation
 
-- Project, Outcome, ContractRevision, PlanRevision, WorkUnit, provider, model/profile, role, authority, budget ceiling, worktree ownership, and consequential-effect policy;
-- no tool call or external effect has an unknown outcome;
-- the daemon can produce a provenance-bearing continuation packet and confirm the replacement provider-native identity;
-- the old Attempt can be paused/contained or fenced so duplicate canonical writes and effects are impossible.
+Use native resume/reconcile when the provider capability is proven and canonical scope/authority/workspace/effects remain compatible.
 
-The daemon records a compact continuation/recovery receipt and may notify the user: **Waldo refreshed this agent's working context; scope and authority did not change.** The user does not need to authorize a purely mechanical, same-authority continuation.
+### Context rollover
 
-The user must decide when rollover changes provider/model/role, raises cost or concurrency, changes authority/workspace, cannot safely fence the old session, encounters an unknown effect, loses material context, or requires a new Attempt/Plan. The UI shows what changed, what remains known, the recommendation, alternatives, and the safest next action.
+A mechanical context refresh may occur without a user decision only if Project/Outcome/Contract/Plan/WorkUnit/provider/model/profile/role/authority/budget/workspace/effect policy remain materially unchanged, old execution is safely contained/reconciled, and an attributed continuation packet can be produced.
 
-If replacement identity is ambiguous, the Attempt becomes `unconfirmed`; Kennel reconciles before any retry and never starts a plausible duplicate session.
+### Cross-provider handoff
 
-### 5.4 Continuation packet
+Create a new Attempt and pass a bounded receipt/handoff packet. Do not claim hidden provider state was migrated losslessly.
 
-A bounded continuation packet contains:
+A provider/model/role/authority/cost/workspace/effect change that is material becomes the appropriate explicit user/Plan decision.
 
-- exact canonical IDs and revision/digest bindings;
-- current Work Unit objective and remaining work;
-- explicit user decisions and authority;
-- verified dependency outputs;
-- exact workspace/worktree and fence facts;
-- attributed artifacts, observations, Evidence candidates, and contradictions;
-- unresolved questions and known omissions;
-- source references and freshness, not an assertion of lossless transcript memory.
+## 12. Act & Observe
 
-## 6. Context and communication between agents
+The Board shows responsibility. Mission Control shows the selected Outcome Contract/graph. Session Inspector shows deep provider execution.
 
-Agents do not coordinate by sharing one unbounded transcript. Every Work Unit receives a purpose-built RunBrief. Dependencies communicate through durable, attributed handoff packets, artifacts, observations, decisions, Evidence candidates, verification results, and recovery receipts.
+Provider completion, commit, check, PR, or process exit is an observation. It may support a WorkUnit receipt/evidence candidate but does not close the Outcome.
 
-Coordinator output is advisory until admitted through typed Mission or decision contracts. A coordinator cannot widen authority, mutate the Contract/Plan, self-promote a skill, accept an Outcome, or hide a failed Attempt. If a coordinator session fails, the Mission remains and Kennel can create a replacement Attempt.
+Important runtime state must be explainable: blocked by which dependency, waiting on which lease, which prior Attempt is unknown, what recovery superseded what failure.
 
-## 7. Project learning and Memory boundary
+## 13. Receipts and evidence
 
-Paxel-style observation and AutoResearch-style evaluation attach beside the execution lineage:
+Structured provider events + workspace facts produce `SessionReceipt`. Retained Attempt results aggregate into `WorkUnitReceipt`.
+
+Receipts carry provenance and may generate Evidence candidates. Evidence binds to exact current criterion/revision identity. Contradictory or stale evidence remains visible; it is not silently repurposed.
+
+Verification declares its actual independence class. A verifier/model cannot create Acceptance.
+
+## 14. Prove & Close
+
+Outcome Plan execution may complete while proof remains incomplete.
+
+The daemon derives `Ready for Review` only when the current Contract's required proof/review conditions are satisfied according to policy.
+
+The user can:
+
+- Accept;
+- request rework / create recovery or revised Plan;
+- revise the Contract when responsibility changed;
+- Reopen later;
+- create a successor Outcome.
+
+Only explicit user action creates the immutable AcceptanceDecision.
+
+## 15. Composed Outcome close
+
+Contributing Outcomes retain independent proof and Acceptance decisions. Parent readiness rolls up criterion-bound contribution and any parent-retained proof.
+
+The product may batch the user's review interaction, but it does not fan one decision into N immutable Acceptance records automatically. All contributors accepted makes the parent ready for its own owner decision; it does not imply parent Acceptance.
+
+## 16. External provider activity
+
+Integrated external activity is explicitly:
+
+- Governed — exact Kennel binding;
+- Observed — Project/session known, no canonical work binding;
+- Untracked — no integration/consent/capability.
+
+Waldo may recommend binding/creating work/learning, but no fuzzy auto-attachment mutates lineage.
+
+Provider integrations call daemon APIs. They do not write SQLite directly.
+
+## 17. Project continuity and learning boundary
+
+Canonical continuity path:
 
 ```text
-attributed session/workspace observations
-  + Outcome/Contract/Plan/WorkUnit/Attempt references
-  + Evidence/Verification/Acceptance/Reopen facts
-  + user corrections
-  -> LearningEpisode
-  -> LearningCandidate
-  -> bounded ExperimentCampaign when required
-  -> Evaluation
-  -> explicit PromotionDecision
-  -> Project-scoped SkillRevision, context rule, or later orchestration policy
+SessionReceipt
+→ WorkUnitReceipt
+→ Outcome brief/ledger
+→ Project Context candidate
+→ explicit governed promotion
 ```
 
-A `LearningEpisode` is not Memory. A `MemoryCandidate` is not admitted Memory. Outcome Acceptance is the strongest result label but does not prove which procedure caused success. No model or experiment promotes itself.
+The Project Waldo conversation is a durable bounded interaction history, not one immortal model context and not the source of Outcome truth.
 
-There is one governed Waldo Memory system with scoped records, not competing Project/Kennel/Home databases:
+ADR 0005 governs later learning/skill promotion. No trace automatically becomes an active rule or skill.
 
-- Outcome facts remain canonical Outcome lineage and are not copied into Memory;
-- Project-scoped admitted knowledge, corrections, and skills may inform future Project Outcomes;
-- user/Home-scoped Memory remains purpose- and consent-bound and is not automatically disclosed to Work;
-- Kennel operational state—provider profiles, sessions, worktrees, recovery, and capability inventory—is not personal Memory.
+## 18. Recovery invariants
 
-SQLite remains canonical for identity, provenance, scope, revisions, admission, correction, expiry, deletion, and retrieval receipts. Encrypted blobs and user-readable Markdown are subordinate storage/projections. A Markdown edit returns as a candidate revision; raw transcripts do not automatically become durable Memory.
+- renderer crash does not end execution;
+- daemon restart reconciles before retry;
+- provider crash creates truthful failed/interrupted/unconfirmed state according to evidence;
+- unknown is never silently completed;
+- dirty/unknown workspaces are not force-deleted;
+- retries create new Attempts;
+- recovery never changes Outcome identity;
+- only a responsibility change creates/revises Outcome/Contract semantics.
 
-Home may later link personal Open Loops and Work Outcomes through explicit `ResponsibilityLink`s. It does not merge their contracts or silently transfer personal context into Project execution.
-
-## 8. Backend and renderer responsibilities
-
-### Daemon
-
-- Project preferences, adapter inventory, role/readiness resolution;
-- durable conversation episodes/turns and context attachments;
-- Intake lifecycle, context compilation, analyzer boundary, proposal revision, and confirmation;
-- Contract/Plan validation, authority, RunBrief compilation, execution admission;
-- Attempt/session correlation, continuation, fencing, recovery, and attention;
-- Evidence, Verification, Acceptance/Reopen, learning attribution, Memory/skill admission;
-- SQLite single-writer persistence, trigger CDC, typed errors, request IDs, and idempotency.
-
-### Renderer
-
-- Board/List, Outcome Mission Control, Session Inspector, Waldo rail, context chips, proposal and approval surfaces;
-- typed user intent and explicit decisions;
-- disposable drafts, open/closed state, selection, scroll, focus return, and preview-only fixtures;
-- no direct model/provider call, raw context compilation, canonical status, provider-derived acceptance, or parallel persistence.
-
-## 9. Failure and honesty contract
-
-- Analyzer unavailable: preserve intent, allow retry/manual proposal, create no Outcome.
-- Concurrent proposal/revision: typed conflict and compare/reload; never overwrite.
-- Plan stale after Contract change: block authorization/start until re-proposed.
-- Provider unavailable/not ready: exact Action Required, no silent fallback.
-- Start/rollover ambiguous: Unconfirmed and reconcile before replacement.
-- Session exits or reports done: preserve lineage and propose next safe action; never accept.
-- Missing/contradicting Evidence: block readiness or expose an explicit exception decision.
-- Conversation unavailable: preserve unsent draft locally without fabricating durable dialogue.
-- Daemon restart: restore exact Intake, Outcome, Plan, Attempt/session, continuation receipt, and next safe action.
-
-## 10. Delivery ownership and issue map
-
-Existing issue ownership remains authoritative:
-
-- #21 Contract lineage; #26 Plan/WorkUnit/authority; #31 Attempt/AgentSessionRef/recovery and bounded continuation; #35 Evidence/Verification/Acceptance; #38 complete Work evaluation;
-- #32 shared IntakeSession/ResponsibilityLink; #40 Work-side consumption and Home integration;
-- #19 LearningEpisode/candidates; #25 experiments/evaluation; #30 skill registry/promotion; #33 later orchestration-policy learning;
-- #39 candidate Memory review/retrieval; #41 Home privacy/recovery/usefulness gate.
-
-Missing implementation work must be published as dependency-aware vertical slices for:
-
-1. durable Project/Waldo conversation episodes, turns, context attachments, and continuation;
-2. Project default-agent onboarding plus capability-based role resolution;
-3. adaptive Work intake and stable-core Contract proposal over the shared Intake contract;
-4. Board -> Outcome Mission Control -> Session Inspector composition;
-5. one adaptive multi-WorkUnit Mission vertical after the first direct-Outcome gate passes. **Superseded 2026-08-29 by [ADR 0007](../../adr/0007-composed-outcomes.md):** a Project-level Outcome decomposes into contributing Outcomes instead, and `PlanRevision` stays at one direct Work Unit.
-
-Each slice must cross domain/storage/CDC/service/API/UI/restart/evaluation as needed, own one migration/API lease window, and branch from freshly fetched `origin/beta`. Existing issue bodies are not silently broadened; shared-contract alignment is recorded in comments and missing slices receive separately reviewed issues.
-
-## 11. Completion boundary
-
-The Work control plane is complete only when a user can:
-
-1. add a Project and select a ready default coding agent;
-2. open Project-scoped Waldo conversation or click Project **New Outcome**;
-3. state intent once and receive a correctable adaptive Contract proposal;
-4. confirm the Outcome, inspect an adaptive Mission, and authorize exact roles/authority;
-5. observe one or many provider sessions through Mission Control and inspect/intervene in a leaf session;
-6. survive provider loss or context rollover without reconstructing truth from transcripts or duplicating effects;
-7. review criterion-bound Evidence and Verification and explicitly accept or reopen;
-8. contribute only consented, attributed learning candidates to future Project work;
-9. restart and return to the exact canonical state and next safe action.
-
-The design is falsified if sessions become Outcomes, chat becomes authority, automatic rollover changes material scope without review, all transcripts are injected into every prompt, provider completion closes work, learning silently activates, Markdown becomes a competing writer, or Home context enters Work without explicit scope and provenance.
+The first self-hosting acceptance cases are listed in `docs/product/kennel-dogfood-acceptance-matrix.md`.

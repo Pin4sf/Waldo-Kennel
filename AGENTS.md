@@ -1,28 +1,182 @@
 # AGENTS.md
 
-Operational guidance for coding agents working in this repository. Keep changes small, match the current rewrite architecture, and prefer the documented daemon/API boundaries over behavior from the old TypeScript implementation.
+Operational authority for coding agents working in Waldo Kennel. Read this file before changing product ontology, daemon behavior, storage, provider adapters, scheduling, recovery, or Work UI.
 
-## Repo layout
+## Canonical read order
 
-- `backend/` — Go chassis: Cobra `kennel` CLI (source entrypoint `cmd/kennel`), loopback HTTP daemon, services, SQLite storage, lifecycle/reaper, runtime/workspace/agent/tracker adapters, terminal mux, and tests. Historically derived from agent-orchestrator; Kennel is now standalone with no upstream remote.
-- `frontend/` — Electron + React supervisor wired to the daemon via the generated typed client. Treat it as a thin supervisor/UI surface; do not move daemon logic into it.
-- `docs/` — current architecture/status notes. Start here before changing lifecycle, CLI, agents, storage, or daemon behavior.
-- `test/` — external smoke/e2e assets, including the CLI fresh-install container check.
-- `.github/workflows/` — CI definitions. Mirror these commands locally when possible.
+For kernel/Work implementation, read in this order and stop when you have enough context for the task:
 
-## Commands
+1. `AGENTS.md` — repository rules and non-negotiable boundaries.
+2. `docs/product/kennel-v1-product-architecture.md` — canonical product/kernel ontology and user-facing hierarchy.
+3. `docs/adr/0008-responsibility-composition-and-workunit-execution-dag.md` — responsibility decomposition vs execution decomposition.
+4. `docs/adr/0009-workunit-scheduling-workspace-leases-and-effect-fencing.md` — scheduler, workspace custody, concurrency, effects, and recovery.
+5. `docs/STATUS.md` — what is actually implemented on `beta` versus accepted target behavior.
+6. `docs/product/kennel-build-program.md` and `docs/superpowers/plans/2026-09-04-kennel-builds-kennel.md` — implementation order and verification gates.
+7. `docs/architecture.md` — chassis/package/lifecycle technical reference when needed.
+8. `docs/research/2026-09-04-kernel-runtime-reference-index.md` — provider protocols and benchmark runtime patterns when touching adapters, scheduler, workspace, receipts, or external ingress.
 
-From the repo root unless noted:
+The two current Work specifications are implementation companions:
 
-```bash
-npm run lint                         # backend go test ./... + golangci-lint v2.12.2
-npm run frontend:typecheck           # frontend TypeScript check
-npm run sqlc                         # regenerate backend/internal/storage/sqlite/gen from queries/schema
-npm run api                          # regenerate OpenAPI spec + frontend TS types (see API contract changes below)
-npx @redwoodjs/agent-ci run --all    # local workflow validation; requires Docker socket
+- `docs/superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md`
+- `docs/superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md`
+
+Older dated plans, handoffs, prototypes, Home/Memory research, and historical ADRs do **not** override the authority chain above. Load them only when a task explicitly targets that lane or the canonical docs link to them for provenance.
+
+## Product invariant
+
+> **The user manages Outcomes. Kennel manages the sessions required to make those Outcomes true.**
+
+Provider sessions are execution machinery. They are never the durable user-owned responsibility.
+
+The canonical Work lineage is:
+
+```text
+Project
+├── ProjectBriefRevision*                 persistent context; never “done”
+└── Outcome*                              finite responsibility
+    └── ContractRevision
+        ├── DecompositionRevision         when responsibility splits
+        │   └── Contributing Outcome*     each owns its own Contract/Plan
+        └── PlanRevision                  for a direct Outcome
+            └── WorkUnit DAG
+                └── Attempt*
+                    └── AgentSessionRef
+                        └── SessionReceipt
+                └── WorkUnitReceipt
+            └── EvidenceItem*
+                └── VerificationRun*
+                    └── AcceptanceDecision
 ```
 
-Backend-specific checks:
+An Outcome is exactly one of two v1 shapes:
+
+- **Direct:** owns a `PlanRevision` whose execution topology is a bounded WorkUnit DAG.
+- **Decomposed:** owns a `DecompositionRevision` and contributing Outcomes; the parent does not also own direct WorkUnits in v1.
+
+The distinction is mandatory:
+
+> **Create another Outcome when responsibility splits. Create another WorkUnit when execution splits.**
+
+ADR 0008 supersedes ADR 0007 only where ADR 0007 treated Outcome composition and a WorkUnit DAG as competing mechanisms. ADR 0007 remains authoritative for criterion-bound contribution, authority narrowing, stale-parent handling, independent child proof, user-only acceptance, and the v1 composition-depth cap.
+
+## Waldo, Kennel, and providers
+
+The responsibility boundary is:
+
+```text
+Waldo proposes / interprets / recommends
+              ↓
+Kennel validates / schedules / records / enforces
+              ↓
+Providers execute
+```
+
+Models may propose contracts, plans, decompositions, context candidates, or next actions. Deterministic daemon policy decides whether a proposal is structurally valid, authorized, runnable, recoverable, and truthfully representable.
+
+Never move authority, acceptance, dependency validation, idempotency, recovery fencing, effect reconciliation, or evidence binding into model prompts.
+
+## Supported provider surface
+
+PR #92 established exactly five first-class provider identities for new Kennel work:
+
+- Codex
+- Claude Code
+- OpenCode
+- Cursor
+- Pi
+
+Historical provider IDs may remain readable for migration/recovery compatibility, but they are not active product providers.
+
+Provider admission is capability-derived and machine-aware. Do not add provider-name folklore such as “Claude for planning” or hidden fallback such as “if anything fails, use Codex.” An explicit user provider choice either admits truthfully or fails with a reason.
+
+Current role capability may lag the five-provider identity surface. `docs/STATUS.md` is the source of truth for what has passed conformance **today**. New coordinator, reviewer, switch, resume, fork, approval, or external-ingress roles require provider-specific conformance tests before admission.
+
+Across providers, “switch” means a new Attempt with an attributed continuation/handoff packet unless a provider-native protocol genuinely supports the requested continuation. Never claim hidden provider state was losslessly migrated.
+
+## Workspaces, concurrency, and effects
+
+The target scheduler is WorkUnit-scoped, not Project-serialized. ADR 0009 is authoritative.
+
+Core rules:
+
+- read/reason-only work may run concurrently;
+- write-capable WorkUnits require isolated `WorkspaceLease`s;
+- Git-backed Projects use worktrees as the v1 parallel-write isolation boundary;
+- a new Project may initialize Git before parallel writes are enabled;
+- a non-Git folder may support understanding/research/single-writer work, but must not pretend it has worktree isolation;
+- Git integration/merge is a separate controlled boundary;
+- consequential external effects such as PR mutation, deployment, sending, or external API writes are separately authorized and fenced;
+- an unknown prior effect or ambiguous surviving Attempt blocks duplicate execution until reconciliation;
+- cleanup failure leaves inspectable debris state; never delete unknown user work to make the UI look clean.
+
+Do not render a Mission Graph that visually implies concurrency before the daemon can truthfully schedule that concurrency.
+
+## User-facing Work hierarchy
+
+The canonical navigation is:
+
+```text
+Waldo Island
+    ↓
+Global Work / Project Board or List       Outcomes
+    ↓
+Mission Control                           Contract | Graph
+    ↓
+WorkUnit                                  execution node
+    ↓
+Attempt / Session Inspector               technical escape hatch
+```
+
+Board/List show top-level active Outcomes by default, not sessions. Mission Control represents one selected Outcome. Session Inspector contains provider transcript/terminal/diff/browser/runtime detail and should not be required for ordinary supervision.
+
+Only the user creates an `AcceptanceDecision`. Provider completion, process exit, commits, PRs, green checks, or verifier success may move an Outcome toward `Ready for Review`; none accepts it.
+
+## Durable state and context rules
+
+- SQLite in the daemon is the canonical writer for Work responsibility and execution facts.
+- Frontend, Island, CLI, MCP/provider shims, and notifications are clients/projections of daemon state.
+- Do not parse model prose or transcript markers to determine canonical Outcome/Plan/approval state.
+- Agent-authored structured proposals call daemon APIs and pass the same validation as human-authored proposals.
+- Provider-native subagents remain provider-native by default. Promote them to Kennel WorkUnits only when they need independent scheduling, authority, workspace/effect boundaries, retry semantics, artifacts, dependencies, or proof.
+- Sessions produce bounded receipts. Do not grow one immortal Project transcript or replay every historical session into every prompt.
+- Project learnings are provenance-bearing candidates until governed promotion; raw session text is not Project truth.
+- External activity is explicitly `Governed`, `Observed`, or `Untracked`. Never fuzzy-auto-attach external work to an Outcome.
+- `unknown` / `unconfirmed` is a valid runtime state. Absence of a process probe or provider event is not proof of completion or death.
+
+## Repository layout
+
+- `backend/` — Go daemon, services, domain, storage, runtime/workspace/provider adapters, CLI, recovery, and tests.
+- `frontend/` — Electron + React supervisor using generated daemon contracts. Keep it thin; orchestration authority stays in the daemon.
+- `docs/` — current authority, ADRs, specs, implementation program, and scoped future research.
+- `packages/kennel-island/` — ambient projection of the same canonical daemon/event state.
+- `test/` — external smoke/e2e assets.
+- `.github/workflows/` — CI definitions.
+
+### Code entry points
+
+- domain vocabulary/invariants: `backend/internal/domain/`
+- service read/write boundaries: `backend/internal/service/`
+- ports: `backend/internal/ports/`
+- provider adapters/registries: `backend/internal/adapters/`
+- HTTP controllers/DTOs: `backend/internal/httpd/controllers/`
+- SQLite migrations/queries/store: `backend/internal/storage/sqlite/`
+- lifecycle/recovery/runtime: `backend/internal/lifecycle/` and relevant runtime packages
+- frontend daemon client/projections: `frontend/src/`
+
+## Required commands
+
+From repository root unless noted:
+
+```bash
+npm run bootstrap
+npm run lint
+npm run frontend:typecheck
+npm run sqlc
+npm run api
+npx @redwoodjs/agent-ci run --all
+```
+
+Backend checks:
 
 ```bash
 cd backend
@@ -30,10 +184,9 @@ go build ./...
 go test ./...
 go test -race ./...
 go vet ./...
-go run ./cmd/kennel start # source seam; reports and installs as kennel
 ```
 
-Frontend-specific checks:
+Frontend checks:
 
 ```bash
 cd frontend
@@ -41,116 +194,45 @@ npm run typecheck
 npm run build
 ```
 
-When showing or demoing frontend changes, run `kennel preview [url]` from inside the session so the change renders in the desktop browser panel (the inspector rail's Browser tab); do not just describe it.
+For user-visible frontend work, also run the real-daemon preview path described in the repo docs and visually verify the changed flow. Do not claim a fixture-only screen proves daemon behavior.
 
-To drive the renderer against a REAL daemon from a browser (screenshots, DOM
-assertions, no Electron shell):
+## Hard engineering boundaries
 
-```bash
-KENNEL_DEV_API_TARGET=http://127.0.0.1:<daemon-port> npm --prefix frontend run dev:web:live
-```
-
-`dev:web` stays on demo fixtures. `dev:web:live` points the dev server's proxy
-at a running daemon and keeps renderer requests same-origin so that proxy is
-actually used. Known limitation: a hard page load of `/work?...` does not mount
-that route in browser preview — navigate to it by clicking through the app.
-
-## Where to look first
-
-- `README.md` — current run/config/test quickstart.
-- `docs/README.md` — docs index.
-- `docs/architecture.md` — backend mental model, package layout, lifecycle/session/service boundaries, and load-bearing rules.
-- `docs/STATUS.md` — what is shipped on `main` today and what is still in flight.
-- `docs/product/kennel-v1-product-architecture.md` — canonical Waldo Kennel product ontology, exact responsibility/execution/evidence lineages, custody, governance, and phase boundaries. Read it before changing Outcome, Home, Work, authority, evidence, verification, acceptance, or continuity semantics.
-- `docs/product/kennel-v0-first-outcome-slice.md` — locked first vertical proof and its falsifiable acceptance/recovery contract.
-- `docs/adr/0007-composed-outcomes.md` and `docs/superpowers/plans/2026-08-29-composed-outcomes-program.md` — the composed-Outcome ontology and its phased delivery. Read both before changing decomposition, contribution binding, proof roll-up, or acceptance.
-- `docs/cli/README.md` — intended CLI shape: thin Cobra client over daemon HTTP, never direct storage/runtime access.
-- `docs/plans/island-app-unification.md` — the implementation record for Kennel Island as a window of the desktop app's single Electron process. Read it before touching `packages/kennel-island/`, Island lifecycle/settings, or session deep-link handling.
-- `CLAUDE.md` — compatibility pointer for Claude Code; it directs agents back to `AGENTS.md`.
-
-For code entry points:
-
-- CLI commands: `backend/internal/cli/*.go`; follow nearby command/test patterns before adding a new style.
-- HTTP controllers and DTOs: `backend/internal/httpd/controllers/`.
-- Service read/write boundaries: `backend/internal/service/`.
-- Domain vocabulary: `backend/internal/domain/`.
-- Port contracts: `backend/internal/ports/`.
-- SQLite queries/migrations/store: `backend/internal/storage/sqlite/`.
-- Generated sqlc code: `backend/internal/storage/sqlite/gen/`.
-
-## Distribution
-
-- The **desktop app** is the intended canonical, auto-updating install path. The foundation gate does not establish or publish a Kennel release; do not point users at inherited AO artifacts.
-- **Do not publish the frozen AO npm packages.** `packages/ao*` are inherited compatibility artifacts, not Kennel's install path. The Kennel desktop release path targets `Pin4sf/Waldo-Kennel`, but no release is authorized by the foundation gate.
-- **Exactly one publisher.** Only the designated release conductor runs a real publish, on any channel. Divergent artifacts from multiple publishers made the 28-29 Jul macOS incident unreadable. Use the fork dev loop for test builds. Full rule and rationale: `frontend/docs/desktop-release.md`, "Hard rule: exactly one publisher".
-- **Verify macOS artifacts with `frontend/scripts/verify-mac-artifact.sh`, never by hand.** It extracts with `ditto -x -k` and runs `codesign --verify --deep --strict`, `spctl -a -vv -t exec`, `xcrun stapler validate`. Plain `unzip` breaks the seal and yields a convincing false failure; `spctl` without `-vv` prints nothing at all on success.
-- **macOS ships both a `.zip` and a `.dmg`.** The dmg is first install only. The zip and `latest-mac.yml` must keep publishing forever: electron-updater cannot install an update from a dmg. macOS differential updates are permanently disabled (full download only); see issues #3151 and #3267.
-
-## Coding conventions
-
-- Keep every change surgical and directly tied to the task. Avoid drive-by cleanup, broad renames, formatting churn, speculative abstractions, and architectural refactors unless the task explicitly asks for them.
-- Follow existing Go package boundaries. CLI code should call daemon HTTP routes through shared CLI client helpers; it should not open SQLite, spawn runtimes, or call adapters directly.
-- Keep Cobra commands in the relevant command file and table-test them in the style of `backend/internal/cli/*_test.go`.
-- Mirror existing response/request DTOs in the CLI instead of importing HTTP controller packages into CLI code, unless the package already establishes that dependency.
-- Return usage errors as `usageError` so CLI misuse exits 2; runtime/daemon failures should exit 1.
-- Preserve API error envelopes and request IDs when surfacing daemon errors.
-- Use `context.Context` as the first argument for functions that do I/O or blocking work.
-- Do not add abstractions for one-off use cases. Add helpers only when they remove duplication across real call sites.
-- Tests should cover the user-visible behavior and boundary being changed: happy path, validation/missing args, daemon error envelopes, and any destructive confirmation path.
-
-## Hard rules and boundaries
-
-- The daemon's **primary (loopback) listener** stays bound to `127.0.0.1` and unauthenticated. Do not change its bind host or add auth to it.
-- The daemon MAY run a **second, opt-in LAN listener** (the "Connect Mobile" feature) that binds `0.0.0.0` **only while explicitly enabled**, **only** behind the bearer-password `authMiddleware`, serving the app API but never the loopback-gated control routes (`/shutdown`, telemetry, mobile control). It is plaintext and home-network-only by deliberate decision — see `docs/adr/0001-lan-listener-for-mobile.md` and `CONTEXT.md`. Do not add any other network-facing bind.
-- The CLI is a thin client. Do not port old in-process TypeScript CLI behavior that bypasses daemon HTTP routes.
-- The current `OutcomeTask`/`completed` overlay is donor code, not the accepted product ontology. New product work must preserve `Outcome -> ContractRevision -> PlanRevision -> WorkUnit -> Attempt -> AgentSessionRef -> EvidenceItem -> VerificationRun -> AcceptanceDecision`; provider/session completion, commits, PRs, or checks cannot accept or close an Outcome.
-- An Outcome may instead be **decomposed** into contributing Outcomes ([ADR 0007](docs/adr/0007-composed-outcomes.md)). A decomposed Outcome owns a `DecompositionRevision` in place of a `PlanRevision` and never starts an Attempt; each contributing Outcome runs the full lineage above and earns its own `AcceptanceDecision`. Composition is two levels deep, contribution is criterion-bound, and a child's authority ceiling never exceeds its parent's. Do not add a second decomposition mechanism: `PlanRevision` stays at one direct `WorkUnit`, and dependencies live between contributing Outcomes.
-- Agent-authored proposals (decomposition today, intake later) reach the daemon by **callback**, never by parsing model text, and pass the **same** validation as a hand-authored one — there is no trusted-proposer path. Their callback token is **scoping, not authentication**: the loopback listener is unauthenticated by design, so the token exists to stop a confused agent posting for the wrong Outcome or twice, not to stop a hostile local process. Do not describe it as auth or rely on it as such. See `docs/adr/0007-composed-outcomes.md`.
-- Do not store derived/display session status. Status is derived from durable facts (`activity_state`, `is_terminated`, PR/check/comment facts) at service read time.
-- Do not treat failed/unknown runtime probes as proof a session is dead.
+- Primary daemon listener remains loopback `127.0.0.1`; preserve the separately governed opt-in LAN listener rules in ADR 0001.
+- CLI is a thin daemon client. Do not open SQLite or spawn providers directly from CLI commands.
+- Add SQLite migrations; never rewrite already-merged migrations.
+- Edit sqlc source queries/schema, never generated `backend/internal/storage/sqlite/gen/*` by hand.
+- CDC comes from SQLite triggers into `change_log`; do not invent a parallel manual event authority without an ADR.
+- API source is code-first; regenerate OpenAPI and frontend TypeScript contracts together after DTO/route changes.
+- Do not store display-only Outcome/session status when it can be derived from durable facts.
 - Do not force-delete dirty registered worktrees.
-- Do not modify already-merged SQLite migrations. Add a new migration instead.
-- Do not hand-edit `backend/internal/storage/sqlite/gen/*`; change `backend/internal/storage/sqlite/queries/*` or migrations and run `npm run sqlc`.
-- SQLite change events come from DB triggers into `change_log`; do not add parallel manual CDC emission from store methods unless the architecture changes explicitly.
-- Keep generated OpenAPI/API DTO drift in mind: controller response shapes live in `backend/internal/httpd/controllers/dto.go` and tests may assert CLI/HTTP wire compatibility.
-- Do not add network calls to tests unless the package already has an integration/e2e pattern for them. Prefer `httptest`, fakes, and injected dependencies.
-- Do not commit local run state, daemon data, temporary worktrees, build outputs, or credentials.
-- All app state lives under `~/.kennel` only. The daemon's data dir, `running.json`, worktrees, and the Electron supervisor's `userData` (Chromium cache, cookies, local/session storage, crash dumps) must resolve under `~/.kennel` (overridable via `KENNEL_DATA_DIR`/`KENNEL_RUN_FILE`). Never write to or read from `~/Library/Application Support` or any other OS default app-data location. `main.ts` pins Electron's `userData` to `~/.kennel/electron`; do not remove that override or rely on Electron's default path.
+- Do not create duplicate Attempts after restart/retry because a provider appears quiet.
+- Do not treat verification as acceptance.
+- Do not allow child/contributing authority to exceed the parent Contract ceiling.
+- Do not let models bypass DAG cycle checks, capability checks, stale-revision checks, evidence requirements, idempotency, or effect fences.
+- All application state remains under `~/.kennel` (or documented overrides), including Electron `userData`.
 
 ## API contract changes
 
-The daemon API is code-first. The OpenAPI spec and frontend TypeScript types are generated artifacts — edit the source, then regenerate.
+Daemon API contracts are generated from source. When changing request/response shapes:
 
-**Source files to edit:**
+1. edit `backend/internal/httpd/controllers/dto.go` and operation/spec sources;
+2. run `npm run api`;
+3. commit generated `backend/internal/httpd/apispec/openapi.yaml` and `frontend/src/api/schema.ts` together;
+4. run HTTP/spec parity tests.
 
-- `backend/internal/httpd/controllers/dto.go` — request/response shapes.
-- `backend/internal/httpd/apispec/specgen/build.go` — operation registry; add a `schemaNames` entry for any new named type.
+When changing SQLite contracts, update migrations/queries and run `npm run sqlc`.
 
-**Regenerate after editing:**
+## PR and implementation discipline
 
-```bash
-npm run api          # runs api:spec then api:ts in sequence
-```
+- Product/kernel work branches from latest `beta` and targets `beta`.
+- Use issue-sized or slice-sized PRs. Do not implement the entire kernel program as one uncontrolled patch.
+- Before a slice, read `docs/STATUS.md` and the relevant ADR/spec; produce a current-code delta map.
+- Run baseline tests before changing a load-bearing subsystem.
+- Implement backend truth before frontend projections that depend on it.
+- Verify narrow tests first, then repo-wide gates for touched areas.
+- Stop rather than weakening an invariant or hiding a failing test to finish a long run.
+- Use conventional commits.
+- Document intentional omissions and provider capability gaps explicitly.
 
-This is equivalent to running:
-
-```bash
-npm run api:spec     # cd backend && go generate ./internal/httpd/apispec/...
-npm run api:ts       # npx openapi-typescript@7.4.4 backend/internal/httpd/apispec/openapi.yaml -o frontend/src/api/schema.ts
-```
-
-**Verify:**
-
-```bash
-cd backend && go test ./internal/httpd/...    # spec drift + route/spec parity tests (does not cover schema.ts — that is checked by the api-drift CI job)
-```
-
-Commit `openapi.yaml` and `frontend/src/api/schema.ts` together with the Go changes. CI will regenerate both files and fail if the committed versions are out of date. The CLI hand-mirrored DTOs remain a deliberate manual boundary and are not generated.
-
-## PR hygiene
-
-- Product and documentation work branches from the latest `beta` and opens a PR back to `beta`, unless explicitly continuing an existing PR. `main` advances through a separately reviewed and tested `beta` -> `main` promotion PR; release/hotfix exceptions require explicit maintainer direction.
-- Keep one issue per PR. If asked for separate work, create a separate branch and PR.
-- Use conventional commit messages (`feat:`, `fix:`, `docs:`, `test:`, `chore:`).
-- Explain intentional omissions in the PR body, especially when the TypeScript original had more behavior than the Go rewrite domain currently supports.
-- Run the narrowest relevant tests first, then the repo/CI commands that match the touched area.
+The dogfood objective is not “finish a Kanban.” It is to use Kennel to implement real Kennel work while the user interacts primarily with Outcomes and only opens provider Sessions when deep inspection is needed.

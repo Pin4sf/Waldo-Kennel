@@ -1,134 +1,140 @@
 # ADR 0007: Composed Outcomes
 
-- Status: Accepted
-- Date: 2026-08-29
-- Scope: Work-lane responsibility ontology, decomposition authority, proof roll-up, and acceptance interaction
-- Amends: the canonical ontology, Work Outcome lineage, Outcome state model, and Work control-plane composition of the [v0/v1 product architecture](../product/kennel-v1-product-architecture.md)
-- Program plan: [Composed Outcomes](../superpowers/plans/2026-08-29-composed-outcomes-program.md)
+- **Status:** Accepted; **superseded in part by ADR 0008**
+- **Date:** 2026-08-29
+- **Consolidated note:** 2026-09-04
+- **Scope still authoritative:** responsibility composition, criterion-bound contribution, authority narrowing, stale-parent handling, independent child proof, user-only acceptance, v1 composition-depth cap
+- **Superseded mechanism:** the former claim that Outcome composition replaces/competes with an internal WorkUnit graph
+- **Current mechanism authority:** [`0008-responsibility-composition-and-workunit-execution-dag.md`](0008-responsibility-composition-and-workunit-execution-dag.md)
+
+The original accepted ADR text remains available in Git history. This consolidated record preserves the decisions that still govern v1 while making the supersession explicit for future coding agents.
 
 ## Context
 
-The accepted architecture decomposes a delegated responsibility exactly once, and one level down: an `Outcome` owns a `PlanRevision`, and that plan owns `WorkUnit`s. Everything below the plan — Attempts, sessions, Evidence, Verification — hangs off that single Outcome, and a single `AcceptanceDecision` concludes it.
+Kennel needs to represent a delegated responsibility that itself separates into several independently meaningful results. Those parts may require different success criteria, evidence, risk, authority, recovery, and human acceptance. Encoding all of them as anonymous execution steps under one responsibility would make proof and governance ambiguous.
 
-That shape is implemented and durable on `beta` (migrations `0099`–`0105`), but it is narrower still than the architecture allows: `PlanRevision.Validate` requires exactly one `WorkUnit` of kind `direct`, and `ProposePlan` derives that unit deterministically from the contract rather than proposing it. Kennel today supports exactly one shape — one Outcome, one contract, one work unit, one Attempt, one acceptance.
+ADR 0007 therefore introduced **contributing Outcomes**: a parent Outcome can be decomposed into child Outcomes that are full responsibilities in their own right.
 
-Real delegated work does not arrive in that shape. "Ship authentication" is not one bounded unit of work with one evidence obligation; it is several results that each have to become true, each with its own success criteria, its own proof, and its own risk of being wrong. Expressing that as WorkUnits inside one plan forces every part to share one contract, one authority ceiling, one staleness fate, and one accept-or-reopen decision. A single weak part reopens the whole delegated goal.
+The original ADR also chose composition *instead of* a WorkUnit graph. That part is no longer current. ADR 0008 clarifies that the two structures operate at different semantic layers:
 
-Two mechanisms could carry the missing structure: widen `PlanRevision` into a Work Unit graph with dependencies, roles, and per-unit providers; or let an Outcome be composed of contributing Outcomes. Building both would create two decomposition systems with two authority models, two staleness rules, and two places a reader must look to learn how a result is being pursued.
+- contributing Outcomes = **responsibility decomposition**;
+- WorkUnit DAG = **execution decomposition** inside one direct Outcome.
 
-## Decision
+## Decision still in force
 
-### Composition
+### 1. A decomposed Outcome owns a DecompositionRevision
 
-An `Outcome` may be decomposed into contributing `Outcome`s. A contributing Outcome is a full responsibility: it owns its own `ContractRevision`s, its own plan, its own Attempts, its own Evidence and Verification, and its own `AcceptanceDecision`.
+A v1 Outcome is either:
 
-The parent holds a `ContractRevision` and a `DecompositionRevision`. It holds no plan and no Attempt of its own — **its decomposition is its plan**.
+- **Direct:** owns a PlanRevision and executes through a WorkUnit DAG; or
+- **Decomposed:** owns a DecompositionRevision and contributing Outcomes, and does not also own direct WorkUnits in v1.
 
-An Outcome is therefore exactly one of two shapes, and never both:
+Each contributing Outcome is a complete responsibility with its own Contract, direct Plan/DAG when applicable, Attempts, Evidence, Verification, and AcceptanceDecision.
 
-- **Direct** — no children; owns `PlanRevision`s and `Attempt`s. Every Outcome that exists today is direct, and its behavior is unchanged.
-- **Decomposed** — has children; owns a `DecompositionRevision`; may never start an Attempt.
+### 2. Composition depth is capped in v1
 
-### The contributing layer is the graph
+A top-level/decomposed Outcome may have one contributing layer. A contributing Outcome may not recursively decompose again in v1.
 
-`PlanRevision` stays at exactly one direct `WorkUnit`. Dependencies, ordering, and role assignment live **between** contributing Outcomes, not between Work Units inside a plan.
+The cap is a governance/product limit, not a storage claim. Raise it only after dogfood demonstrates a real need.
 
-This is the mechanism choice, made once: composition carries the structure that a Work Unit graph would otherwise carry. Widening `PlanRevision` remains available later if a single contributing Outcome is ever *proven* to need internal branching, but it may not be introduced as a second, parallel way to express the same thing.
+### 3. Contribution is criterion-bound
 
-### Depth
+Every contributing Outcome declares which exact parent `CriterionID`s it contributes to through immutable contribution lineage.
 
-Composition is capped at two levels: a Project-level Outcome and its contributing Outcomes. A contributing Outcome may not itself be decomposed. Storage carries headroom; the domain rejects deeper nesting.
+Every parent criterion must be either:
 
-The cap is a governance decision, not a schema limitation. Each additional level multiplies authority intersection, staleness cascade, coverage validation, and attention roll-up, and no evidence yet shows a third level is needed. Raising it requires evidence, not convenience.
+- claimed by at least one contributor; or
+- explicitly parent-retained.
 
-### Contribution must be criterion-bound
+Authorization fails closed when a criterion is unclassified.
 
-Every contributing Outcome declares, in an immutable `ContributionLink`, which parent `CriterionID`s it contributes to. Without that binding, "contributing" is decorative and the parent's proof roll-up is fiction.
+Parent-retained means the parent keeps the proof obligation. It never means the criterion can be ignored.
 
-Every parent criterion is either claimed by at least one contributing Outcome, or explicitly marked **parent-retained** in the `DecompositionRevision`. Authorization fails closed on any criterion that is neither. Retention decides *who proves a criterion*, never *whether it is proved*: a retained criterion carries its own Evidence and Verification obligation, and the parent cannot reach Ready for Acceptance while one is unproved.
+### 4. Authority never widens downward
 
-An unclassified criterion is exactly how a project would report itself done while missing something material. There is no third state.
+A contributing Outcome's authority ceiling must be a subset/intersection of its parent's authority. A child may narrow authority; it may never widen it.
 
-### Authority never widens downward
+The same principle continues downward through Plan grants, provider capability, workspace/effect custody, and runtime admission.
 
-A contributing Outcome's `AuthorityCeiling` must be a subset of its parent's. A child may narrow; it may never widen. This is the existing intersection rule — effective authority is the intersection of every layer, and a lower layer may only narrow — applied to a layer that did not previously exist.
+### 5. Parent Contract changes stale composition safely
 
-### Staleness cascades
+A new parent ContractRevision supersedes the DecompositionRevision bound to the prior revision and makes the old contribution binding stale for new authorization/proof decisions.
 
-A new parent `ContractRevision` supersedes the `DecompositionRevision` bound to the prior one, and every contributing Outcome bound through it becomes **stale**. A stale child's plan cannot be approved and its Attempts cannot start until it is re-bound.
+A stale parent does **not** prove an already-running child Attempt is dead. In-flight execution is reconciled/fenced according to ADR 0009 and remains historical/provenance-bearing.
 
-The cascade blocks *new* authorization only. A running Attempt keeps its tactical freedom and reconciles at its own fence, matching the existing lease design: a superseded parent contract is not proof that in-flight work is dead.
+### 6. Child proof remains independently inspectable
 
-### Acceptance: batched interaction, unbatched authority
+A contributing Outcome earns its own criterion-bound Evidence and Verification. Parent proof/readiness can roll up contribution only through explicit criterion bindings and current valid proof.
 
-Contributing Outcomes reach Ready for Acceptance independently and wait. The parent's Prove & Close surface presents every ready contributor together, each with its criteria, Evidence, Verification result, and declared independence class visible and separately inspectable. One human sitting produces **N separate immutable `AcceptanceDecision` records, one per Outcome accepted** — never one decision fanned out, and never a parent decision that implies its children.
+A weak/contradicted child cannot be hidden by sibling success.
 
-The daemon's only power over the batch is **exclusion**. A contributing Outcome whose Evidence is contradicted or missing, or whose Verification carries a weaker independence class than its own contract required, is withheld from the batch and escalated individually with the reason named. The daemon may withhold; it may not approve.
+### 7. Acceptance authority is never delegated to automation
 
-All contributors accepted makes a parent **Ready for Acceptance**, never Accepted. Reopening a parent does not reopen its children; it produces a successor or a new contributing Outcome.
+The product may batch the user's review interaction for several ready contributors, but each responsibility retains its own immutable AcceptanceDecision.
 
-No automated actor creates an `AcceptanceDecision`. This decision batches keystrokes, not authority.
+No model, provider session, verifier, CI result, or daemon policy may create AcceptanceDecision on the user's behalf.
 
-### Agent-authored proposals reach the daemon by callback
+All contributors becoming accepted can make the parent **Ready for Review**; it does not implicitly accept the parent. The parent still requires its own explicit user decision.
 
-The daemon has no synchronous model call: every provider interaction is
-spawn-a-session-and-observe. A model-authored decomposition therefore arrives
-the same way the reviewer's results do — the daemon opens a durable
-**decomposition request**, spawns a bounded coordinator session, and the agent
-POSTs a structured proposal back against that request.
+### 8. Agent-authored decomposition proposals are untrusted proposals
 
-An agent proposal passes through the **identical** validation as a
-hand-authored one: coverage, authority containment, criterion existence, and
-cycle detection. There is deliberately no trusted-proposer path. The moment a
-model's output skips a gate, the gate stops meaning anything.
+A provider/model may propose a decomposition through the daemon's structured callback/API path. It passes the same deterministic validation as a human-authored proposal:
 
-A refused proposal is retained on the request as opaque JSON alongside the
-daemon's stated reason, so the owner can correct one wrong field instead of
-regenerating. It is stored as a draft, never as a `DecompositionRevision`.
+- criterion coverage;
+- authority containment;
+- criterion identity;
+- dependency/cycle rules where applicable;
+- stale-revision binding;
+- idempotency/request scope.
 
-**Security limit, stated plainly.** The callback carries a single-use,
-expiring token bound to one Outcome and one contract revision. That token is
-**scoping, not authentication.** The primary listener is loopback and
-unauthenticated by deliberate decision (see [ADR 0001](0001-lan-listener-for-mobile.md)),
-so any process on the machine can already reach every endpoint; the token
-cannot change that and must not be described as if it does. What it does
-prevent is the realistic failure this mechanism introduces: a confused,
-retrying, or misrouted agent posting a proposal for the **wrong Outcome**, for
-a superseded contract revision, or twice. Only the digest is stored.
+There is no trusted-proposer bypass.
 
-If the loopback listener ever gains real authentication, this token should be
-revisited as a capability rather than left as the only thing standing between
-an agent and another Outcome's decomposition.
+Any callback token used for request scoping on the unauthenticated loopback listener is a **scoping/idempotency mechanism, not authentication**. Do not describe it as a security boundary against hostile local processes.
+
+## Superseded decision
+
+The original ADR stated that the contributing-Outcome layer should be the only graph and that `PlanRevision` should remain exactly one direct WorkUnit.
+
+That decision is superseded by ADR 0008.
+
+Current rule:
+
+> **Create another Outcome when responsibility splits. Create another WorkUnit when execution splits.**
+
+A direct Outcome may therefore own a bounded WorkUnit DAG without weakening any of the contribution, authority, proof, staleness, or acceptance rules above.
 
 ## Consequences
 
-### Benefits
+### Benefits retained
 
-- Failure is contained. A contributing Outcome can be reopened, replanned, or abandoned without disturbing the project goal or its siblings.
-- Proof composes. The parent's readiness is the union of criterion-bound child proof, so a project goal never has to be re-derived from transcripts.
-- The ontology matches how work is actually delegated, rather than forcing several results into one bounded unit.
-- The change is additive. Every existing Outcome is the `direct` case, and no shipped behavior changes.
-- One decomposition mechanism, so authority, staleness, and topology have a single reading.
+- independently meaningful results receive independent governance and proof;
+- child failure/replanning does not rewrite sibling responsibility identity;
+- parent proof can be explained criterion by criterion;
+- authority narrowing is explicit;
+- human closure remains conscious and auditable.
 
-### Costs
+### Costs retained
 
-- **Acceptance multiplies**, and that directly attacks the product's primary success measure — median active supervision minutes per accepted Outcome, which must stay at least 30% below the direct-Codex baseline. Batched interaction is the answer, and it is a claim to be *measured*, not assumed. If supervision cost rises, this decision is reported as failing its gate rather than relabeled.
-- Batching only pays when contributors converge in time. A contributor that finishes days early either waits or is accepted alone, and the sitting never forms.
-- Coverage validation, authority intersection, and the staleness cascade are new fail-closed paths that can block work; each needs the offender named, or it becomes an unexplainable refusal.
-- Attention roll-up must attribute every item to the contributing Outcome it came from, or the parent becomes a second undifferentiated activity feed.
-- Migrations, DTO registry, route registration, and generated API contracts are shared surfaces; composition PRs need a named integration owner.
+- contribution coverage and staleness are fail-closed paths that require clear error attribution;
+- several child responsibilities can multiply review burden, so composition should be used only when the responsibility truly splits;
+- composition depth and supervision cost remain dogfood/evaluation concerns.
 
-### Rejected alternatives
+## Rejected alternatives still rejected
 
-1. **Widen `PlanRevision` into a Work Unit graph.** Rejected as the primary mechanism: WorkUnits share one contract, one authority ceiling, and one acceptance, so a graph of them cannot give each part independent governance. Retained as a possible *later* refinement inside a single contributing Outcome, never as a parallel decomposition system.
-2. **Build both a Work Unit graph and Outcome composition.** Rejected. Two decomposition mechanisms means two authority models, two staleness rules, and two places to look.
-3. **Unbounded nesting depth.** Rejected without evidence of need. The cost is paid in every governance path, not just in storage.
-4. **Delegated or policy-driven child acceptance.** Rejected. Pre-authorizing an acceptance rule and letting it fire later would let an automated actor conclude a responsibility, which no measure of convenience justifies.
-5. **Per-child acceptance with no batching.** Rejected as the default because it converts one delegated result into N interruptions, attacking the supervision-cost measure the product is judged by. It remains the fallback if Phase 6 shows batching does not form in practice.
-6. **Implicit parent acceptance when all children are accepted.** Rejected. A set of proved parts is not proof that the whole goal became true, and only the user accepts.
+- unbounded recursive Outcome nesting without evidence;
+- implicit parent Acceptance when children are accepted;
+- model/policy-driven Acceptance;
+- contribution without criterion binding;
+- child authority wider than parent authority.
 
-## Implementation boundary
+## Current implementation references
 
-The phased delivery, invariants, storage shape, and evaluation gate live in the [Composed Outcomes program plan](../superpowers/plans/2026-08-29-composed-outcomes-program.md).
+For current architecture and sequencing use:
 
-This ADR authorizes the ontology and its implementation planning. It does not by itself authorize a code PR, merge, push, release, deployment, or a migration against a user's existing data.
+- [`../product/kennel-v1-product-architecture.md`](../product/kennel-v1-product-architecture.md)
+- [`0008-responsibility-composition-and-workunit-execution-dag.md`](0008-responsibility-composition-and-workunit-execution-dag.md)
+- [`0009-workunit-scheduling-workspace-leases-and-effect-fencing.md`](0009-workunit-scheduling-workspace-leases-and-effect-fencing.md)
+- [`../product/kennel-build-program.md`](../product/kennel-build-program.md)
+- [`../superpowers/plans/2026-09-04-kennel-builds-kennel.md`](../superpowers/plans/2026-09-04-kennel-builds-kennel.md)
+
+The historical 2026-08-29 program path is retained only as a superseded pointer; the verbatim original ADR/program are available in Git history when provenance is needed.
