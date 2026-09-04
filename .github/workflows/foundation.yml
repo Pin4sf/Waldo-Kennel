@@ -10,27 +10,6 @@ on:
     branches: [beta]
 
 jobs:
-  codegen:
-    runs-on: macos-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: backend/go.mod
-      - name: Bootstrap dependencies
-        run: npm run bootstrap
-      - name: Generate sqlc
-        run: npm run sqlc
-      - name: Upload generated sqlc output
-        uses: actions/upload-artifact@v4
-        with:
-          name: project-brief-sqlc
-          path: backend/internal/storage/sqlite/gen
-
   foundation:
     runs-on: macos-latest
     timeout-minutes: 45
