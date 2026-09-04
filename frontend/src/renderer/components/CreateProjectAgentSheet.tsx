@@ -7,13 +7,16 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./
 import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
 import { TriangleAlert, X, type LucideIcon } from "lucide-react";
-import { memo, useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { components } from "../../api/schema";
 import { agentsQueryKey, agentsQueryOptions, refreshAgents } from "../hooks/useAgentsQuery";
 import {
 	buildRankedAgentOptions,
-	DEFAULT_AGENT_PRIORITY_RANK,
+	CORE_PROVIDER_IDS,
+	singleReadyProvider,
+	type RankedAgentOption,
 } from "../lib/agent-select-options";
+import { agentLabel } from "../lib/agent-options";
 import { cn } from "../lib/utils";
 import { AgentAvatar } from "./AgentAvatar";
 import { FieldDefaultHint } from "./FieldDefaultHint";
@@ -28,18 +31,28 @@ import { appI18n } from "../i18n";
 import { useUiStore } from "../stores/ui-store";
 
 type TrackerIntakeConfig = components["schemas"]["TrackerIntakeConfig"];
-
 type AgentInfo = components["schemas"]["AgentInfo"];
 
 export type CreateProjectAgentSelection = {
 	workerAgent: string;
-	// Optional: omitted unless the owner explicitly chose a coordinator
-	// override under Advanced Settings.
+	// Optional explicit coordinator override. Empty means no provider has been
+	// chosen for that role; the daemon may reuse the worker only when it is
+	// coordinator-capable, but must never substitute a brand-specific fallback.
 	orchestratorAgent?: string;
 	trackerIntake?: TrackerIntakeConfig;
 };
 
 const EMPTY_INTAKE: IntakeForm = { enabled: false, repo: "", assignee: "" };
+const CORE_FALLBACK_AGENTS: AgentInfo[] = CORE_PROVIDER_IDS.map((id) => ({
+	id,
+	label: agentLabel(id),
+	roles: {
+		worker: true,
+		coordinator: id === "codex" || id === "claude-code" || id === "opencode",
+		switchTarget: id === "codex" || id === "claude-code" || id === "opencode",
+	},
+}));
+
 type CreateProjectAgentSheetProps = {
 	error?: string | null;
 	isCreating: boolean;
@@ -119,9 +132,24 @@ export function CreateProjectAgentSheet({
 	});
 	const agents = agentsQuery.data;
 	const installedAgents = agents?.installed ?? [];
-	const agentOptions = agents?.authorized ?? [];
+	const authorizedAgents = agents?.authorized ?? [];
+	const supportedAgents = agents?.supported ?? CORE_FALLBACK_AGENTS;
 	const preferredAgentId = useUiStore((state) => state.defaultAgentId);
-	const supportedAgents = agents?.supported ?? [];
+	const workerOptions = useMemo(
+		() =>
+			buildRankedAgentOptions({
+				supported: supportedAgents,
+				installed: installedAgents,
+				authorized: authorizedAgents,
+				fallbackAgents: CORE_FALLBACK_AGENTS,
+				filter: (candidate) => candidate.roles.worker,
+			}),
+		[authorizedAgents, installedAgents, supportedAgents],
+	);
+	const coordinatorCapable = useMemo(
+		() => new Set(supportedAgents.filter((candidate) => candidate.roles.coordinator).map((candidate) => candidate.id)),
+		[supportedAgents],
+	);
 	const isLoadingAgents = agents === undefined && agentsQuery.isFetching;
 	const agentsError = agentsQuery.isError
 		? agentsQuery.error instanceof Error
@@ -136,31 +164,16 @@ export function CreateProjectAgentSheet({
 	const [workerAgent, setWorkerAgent] = useState("");
 	const [orchestratorAgent, setOrchestratorAgent] = useState("");
 	const [workerAgentTouched, setWorkerAgentTouched] = useState(false);
-	// Coordinator admission comes from the daemon's inventory roles; optional
-	// chaining tolerates stale catalogs. An empty set keeps the picker unfiltered
-	// rather than offering nothing at all.
-	const coordinatorCapable = new Set(
-		supportedAgents.filter((agent) => agent.roles?.coordinator).map((agent) => agent.id),
-	);
-	// The coordinator override stays EMPTY until the owner explicitly chooses
-	// one under Advanced Settings. An omitted override lets the daemon apply
-	// its canonical default at creation; display and submission therefore
-	// always read the same raw value.
 	const isBusy = isCreating || isInitializing;
 	const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
 	const intakeIncomplete = intakeNeedsRule(intake);
-	const canSubmit =
-		workerAgent !== "" &&
-		!intakeIncomplete &&
-		!isBusy &&
-		!isLoadingAgents;
+	const canSubmit = workerAgent !== "" && !intakeIncomplete && !isBusy && !isLoadingAgents;
 	const sheetError = error ? projectSheetError(error) : null;
 
 	useEffect(() => {
-		if (!open) return;
-		const defaultAgent = preferredDefaultAgent(agentOptions, preferredAgentId);
-		if (!workerAgentTouched) setWorkerAgent(defaultAgent);
-	}, [agentOptions, open, preferredAgentId, workerAgentTouched]);
+		if (!open || workerAgentTouched) return;
+		setWorkerAgent(preferredDefaultAgent(workerOptions, preferredAgentId));
+	}, [open, preferredAgentId, workerAgentTouched, workerOptions]);
 
 	useEffect(() => {
 		if (!open) {
@@ -184,11 +197,7 @@ export function CreateProjectAgentSheet({
 						closeLabel={t("createProject.closeAgents")}
 						disabled={isBusy}
 						path={path ?? ""}
-						title={
-							kind === "workspace"
-								? t("createProject.workspaceAgents")
-								: t("createProject.projectAgents")
-						}
+						title={kind === "workspace" ? t("createProject.workspaceAgents") : t("createProject.projectAgents")}
 					/>
 					<ProjectSetupFormView
 						agentControls={{
@@ -198,7 +207,7 @@ export function CreateProjectAgentSheet({
 									label={t("createProject.defaultCodingAgent")}
 									placeholder={t("createProject.selectWorker")}
 									value={workerAgent}
-									authorized={agentOptions}
+									authorized={authorizedAgents}
 									installed={installedAgents}
 									supported={supportedAgents}
 									disabled={isLoadingAgents}
@@ -223,11 +232,11 @@ export function CreateProjectAgentSheet({
 											</p>
 											<RequiredAgentField
 												id="newProjectOrchestratorAgent"
-												selectableIds={coordinatorCapable.size > 0 ? coordinatorCapable : undefined}
+												selectableIds={coordinatorCapable}
 												label={t("createProject.orchestratorAgent")}
 												placeholder={t("createProject.selectOrchestrator")}
 												value={orchestratorAgent}
-												authorized={agentOptions}
+												authorized={authorizedAgents}
 												installed={installedAgents}
 												supported={supportedAgents}
 												disabled={isLoadingAgents}
@@ -285,10 +294,10 @@ export function CreateProjectAgentSheet({
 						onCancel={() => onOpenChange(false)}
 						onSubmit={() =>
 							void onSubmit({
-									workerAgent,
-									...(orchestratorAgent ? { orchestratorAgent } : {}),
-									trackerIntake: buildIntake(intake),
-								})
+								workerAgent,
+								...(orchestratorAgent ? { orchestratorAgent } : {}),
+								trackerIntake: buildIntake(intake),
+							})
 						}
 						setupNotice={
 							repositorySetupNeeded
@@ -355,7 +364,6 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 }: {
 	authorized?: AgentInfo[];
 	disabled?: boolean;
-	/** Caption beside the label, e.g. naming where a preselected default came from. */
 	hint?: string;
 	icon?: LucideIcon;
 	id: string;
@@ -370,30 +378,20 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	contentClassName?: string;
 	value: string;
 	variant?: "stacked" | "settings-row" | "chip";
-	/** Restrict offered options to these harness ids (role-gated fields). */
 	selectableIds?: ReadonlySet<string>;
 }) {
-	const fallbackAgents: AgentInfo[] = [
-		{
-			id: "codex",
-			label: "Codex",
-			roles: { worker: true, coordinator: true, switchTarget: true },
-		},
-	];
-	// The daemon only returns capability-admitted harnesses in `supported`, so
-	// every entry is offered here with its real auth state. Callers narrow the
-	// set for role-gated fields (e.g. the orchestrator picker passes the ids
-	// whose inventory entry admits the coordinator role). Codex remains the
-	// preferred default via defaultAuthorizedAgent/preferredDefaultAgent below.
-	const admittedAgents = selectableIds
-		? (supported ?? fallbackAgents).filter((agent) => selectableIds.has(agent.id))
-		: (supported ?? fallbackAgents);
+	const baseSupported = supported ?? CORE_FALLBACK_AGENTS;
+	const filteredSupported = selectableIds
+		? baseSupported.filter((candidate) => selectableIds.has(candidate.id))
+		: baseSupported;
+	const filteredFallback = selectableIds
+		? CORE_FALLBACK_AGENTS.filter((candidate) => selectableIds.has(candidate.id))
+		: CORE_FALLBACK_AGENTS;
 	const options = buildRankedAgentOptions({
-		supported: admittedAgents.length > 0 ? admittedAgents : fallbackAgents,
+		supported: filteredSupported,
 		installed,
 		authorized,
-		priorityRank: DEFAULT_AGENT_PRIORITY_RANK,
-		fallbackAgents,
+		fallbackAgents: filteredFallback,
 	});
 
 	if (variant === "settings-row") {
@@ -442,11 +440,6 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 
 	const selectedOption = options.find((agent) => agent.id === value);
 
-	// Chip: the value reads as part of a sentence ("Runs with Codex") rather than
-	// as a form field, so the label is carried by that sentence, not by a <Label>.
-	// Built on the same SettingsOptionMenu as the settings-row variant (and the
-	// model chip beside it) so both halves of the pill share one dropdown
-	// component instead of a Select-based menu and a DropdownMenu-based one.
 	if (variant === "chip") {
 		const menuOptions = options.map((agent) => ({
 			value: agent.id,
@@ -474,7 +467,10 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 						{selectedOption ? (
 							<AgentAvatar provider={selectedOption.id} className="size-icon-base" decorative />
 						) : null}
-						<span className="min-w-0 truncate text-control text-foreground" title={selectedOption?.label ?? placeholder}>
+						<span
+							className="min-w-0 truncate text-control text-foreground"
+							title={selectedOption?.label ?? placeholder}
+						>
 							{selectedOption?.label ?? placeholder}
 						</span>
 					</span>
@@ -513,8 +509,6 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 					aria-label={label}
 					aria-invalid={invalid || undefined}
 				>
-					{/* Radix would otherwise clone the whole menu row into the trigger,
-					    dragging the selected checkmark and install status with it. */}
 					<SelectValue placeholder={placeholder}>
 						{selectedOption ? (
 							<span className="flex min-w-0 items-center gap-3">
@@ -554,18 +548,10 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	);
 });
 
-export function defaultAuthorizedAgent(authorizedAgents: AgentInfo[]): string {
-	return authorizedAgents.some((agent) => agent.id === "codex") ? "codex" : "";
-}
-
-/**
- * The agent a person chose in the setup tour wins over the built-in preference,
- * but only while it is still authorized here — a stored pick for an agent that
- * has since been uninstalled would seed a form that cannot be submitted.
- */
-export function preferredDefaultAgent(authorizedAgents: AgentInfo[], preferredAgentId: string): string {
-	if (preferredAgentId && authorizedAgents.some((agent) => agent.id === preferredAgentId)) {
-		return preferredAgentId;
+export function preferredDefaultAgent(options: RankedAgentOption[], preferredAgentId: string): string {
+	if (preferredAgentId) {
+		const preferred = options.find((option) => option.id === preferredAgentId);
+		if (preferred && !preferred.disabled) return preferred.id;
 	}
-	return defaultAuthorizedAgent(authorizedAgents);
+	return singleReadyProvider(options);
 }
