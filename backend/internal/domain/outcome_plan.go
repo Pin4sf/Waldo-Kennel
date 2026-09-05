@@ -106,19 +106,24 @@ func (k WorkUnitKind) Valid() bool {
 
 // WorkUnit is the single planned unit of execution bound to one contract
 // revision. It states what will be produced, how success will be evidenced,
-// and where the unit must stop — before any agent is admitted (#31).
+// where the unit must stop, and which explicit provider was authorized before
+// any agent is admitted (#31). Provider may be empty only on legacy rows that
+// predate provider binding; execution admission treats that as unbound.
 type WorkUnit struct {
 	ID                      WorkUnitID
 	Kind                    WorkUnitKind
 	Title                   string
 	ContractRevisionNumber  int64
+	Provider                AgentHarness
 	OutputSummary           string
 	EvidenceChecks          []string
 	VerificationRequirement string
 	StopConditions          []string
 }
 
-// Validate checks intrinsic work-unit invariants.
+// Validate checks intrinsic work-unit invariants. Provider is intentionally not
+// required here so historical plans created before provider binding remain
+// readable; proposal/approval/execution services enforce binding for new work.
 func (w WorkUnit) Validate() error {
 	if w.ID.IsZero() {
 		return fmt.Errorf("work unit id is required")
@@ -326,6 +331,7 @@ type runBriefCore struct {
 	NonGoals                []string `json:"nonGoals"`
 	Clarification           string   `json:"clarification"`
 	WorkUnitTitle           string   `json:"workUnitTitle"`
+	WorkUnitProvider        string   `json:"workUnitProvider,omitempty"`
 	WorkUnitOutput          string   `json:"workUnitOutput"`
 	EvidenceChecks          []string `json:"evidenceChecks"`
 	VerificationRequirement string   `json:"verificationRequirement"`
@@ -334,7 +340,7 @@ type runBriefCore struct {
 }
 
 // ComputeRunBriefCoreDigest freezes the contract content together with the
-// single Work Unit and grants into the provider-neutral core digest. Any
+// single Work Unit, its provider binding, and grants into the core digest. Any
 // material change to those inputs yields a different digest, which is what
 // forces a fresh brief (and therefore a fresh authorization) downstream.
 func ComputeRunBriefCoreDigest(revision ContractRevision, unit WorkUnit, grants []CapabilityGrant) (string, error) {
@@ -365,6 +371,7 @@ func ComputeRunBriefCoreDigest(revision ContractRevision, unit WorkUnit, grants 
 		NonGoals:                nonGoals,
 		Clarification:           revision.Clarification,
 		WorkUnitTitle:           unit.Title,
+		WorkUnitProvider:        string(unit.Provider),
 		WorkUnitOutput:          unit.OutputSummary,
 		EvidenceChecks:          checks,
 		VerificationRequirement: unit.VerificationRequirement,
