@@ -45,9 +45,10 @@ func v0StopConditionList() []string {
 
 // ProposePlan builds the v0 deterministic proposal for the Outcome's current
 // contract: one smallest-sufficient direct Work Unit whose evidence binds the
-// contract's success criteria, plus the worktree-local capability trio,
-// frozen by the RunBrief core digest. Re-proposing the same revision replays
-// the existing proposed plan instead of stacking duplicates.
+// contract's success criteria, the Project's explicit worker provider, plus the
+// worktree-local capability trio, frozen by the RunBrief core digest.
+// Re-proposing replays only when both contract revision and provider binding
+// still match; changing the Project worker requires a fresh authorization.
 func (s *Service) ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) (PlanView, error) {
 	outcome, ok, err := s.store.GetOutcome(ctx, outcomeID)
 	if err != nil {
@@ -74,14 +75,26 @@ func (s *Service) ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, e
 	if err != nil {
 		return PlanView{}, err
 	}
-
-	if existing, ok, err := s.store.LatestProposedPlanRevision(ctx, outcomeID, revision.Number); err != nil {
+	provider, err := s.projectWorkerProvider(ctx, outcomeID)
+	if err != nil {
 		return PlanView{}, err
-	} else if ok {
-		return PlanView{Outcome: outcome, Plan: existing}, nil
 	}
 
-	unit := s.v0WorkUnit(outcome, revision)
+	if existing, found, err := s.store.LatestProposedPlanRevision(ctx, outcomeID, revision.Number); err != nil {
+		return PlanView{}, err
+	} else if found {
+		existing, err = s.hydratePlanProvider(ctx, existing)
+		if err != nil {
+			return PlanView{}, err
+		}
+		if len(existing.WorkUnits) == 1 && existing.WorkUnits[0].Provider == provider {
+			return PlanView{Outcome: outcome, Plan: existing}, nil
+		}
+		// Legacy provider-less proposals and proposals for a previous Project
+		// worker remain immutable history. Create a fresh proposal instead.
+	}
+
+	unit := s.v0WorkUnit(outcome, revision, provider)
 	grants := s.v0Grants()
 	if err := s.authorizeCapabilities(grants); err != nil {
 		return PlanView{}, err
@@ -101,7 +114,7 @@ func (s *Service) ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, e
 		Grants:                 grants,
 		RunBriefCoreDigest:     digest,
 	}
-	saved, err := s.store.AppendPlanRevision(ctx, outcomeID, proposal)
+	saved, err := s.appendProviderBoundPlan(ctx, outcomeID, proposal)
 	if err != nil {
 		return PlanView{}, err
 	}
@@ -111,7 +124,8 @@ func (s *Service) ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, e
 // ApprovePlan authorizes a proposed plan. The plan must still bind the
 // Outcome's current contract revision — any material change forces a fresh
 // proposal and therefore a fresh RunBrief — and every grant must still be
-// allowed by all authority layers at the moment of approval.
+// allowed by all authority layers at the moment of approval. A legacy plan
+// without a provider binding cannot become newly executable.
 func (s *Service) ApprovePlan(ctx context.Context, outcomeID domain.OutcomeID, in ApprovePlanInput) (AuthorizedPlanView, error) {
 	outcome, ok, err := s.store.GetOutcome(ctx, outcomeID)
 	if err != nil {
@@ -141,6 +155,13 @@ func (s *Service) ApprovePlan(ctx context.Context, outcomeID domain.OutcomeID, i
 	if !found {
 		return AuthorizedPlanView{}, apierr.NotFound("PLAN_NOT_FOUND", "That plan does not exist")
 	}
+	plan, err = s.hydratePlanProvider(ctx, plan)
+	if err != nil {
+		return AuthorizedPlanView{}, err
+	}
+	if len(plan.WorkUnits) != 1 || plan.WorkUnits[0].Provider == "" {
+		return AuthorizedPlanView{}, providerUnboundError(outcomeID)
+	}
 	if !plan.BindsCurrentContract(outcome.CurrentRevisionNumber) {
 		return AuthorizedPlanView{}, apierr.New(apierr.KindConflict, "PLAN_CONTRACT_STALE",
 			fmt.Sprintf("Plan binds contract revision %s; the Outcome is at %s — propose a new plan",
@@ -163,6 +184,10 @@ func (s *Service) ApprovePlan(ctx context.Context, outcomeID domain.OutcomeID, i
 	if !found {
 		return AuthorizedPlanView{}, apierr.NotFound("PLAN_NOT_FOUND", "That plan does not exist")
 	}
+	approved, err = s.hydratePlanProvider(ctx, approved)
+	if err != nil {
+		return AuthorizedPlanView{}, err
+	}
 	return AuthorizedPlanView{Outcome: outcome, Plan: approved}, nil
 }
 
@@ -182,6 +207,10 @@ func (s *Service) GetLatestPlan(ctx context.Context, outcomeID domain.OutcomeID)
 	if !found {
 		return PlanView{}, apierr.NotFound("PLAN_NOT_FOUND", "This Outcome has no plan yet")
 	}
+	plan, err = s.hydratePlanProvider(ctx, plan)
+	if err != nil {
+		return PlanView{}, err
+	}
 	return PlanView{Outcome: outcome, Plan: plan}, nil
 }
 
@@ -200,9 +229,10 @@ func (s *Service) currentRevision(ctx context.Context, outcome domain.Outcome) (
 }
 
 // v0WorkUnit derives the smallest-sufficient direct unit from the frozen
-// contract. Deterministic by construction: identical contracts yield
-// identical units and therefore identical RunBrief digests.
-func (s *Service) v0WorkUnit(outcome domain.Outcome, revision domain.ContractRevision) domain.WorkUnit {
+// contract and explicit Project worker. Deterministic by construction apart
+// from identity: identical contract/provider inputs yield identical RunBrief
+// semantics even though WorkUnit IDs differ.
+func (s *Service) v0WorkUnit(outcome domain.Outcome, revision domain.ContractRevision, provider domain.AgentHarness) domain.WorkUnit {
 	checks := make([]string, len(revision.SuccessCriteria))
 	copy(checks, revision.SuccessCriteria)
 	return domain.WorkUnit{
@@ -210,6 +240,7 @@ func (s *Service) v0WorkUnit(outcome domain.Outcome, revision domain.ContractRev
 		Kind:                    domain.WorkUnitDirect,
 		Title:                   "Deliver \"" + outcome.Title + "\"",
 		ContractRevisionNumber:  revision.Number,
+		Provider:                provider,
 		OutputSummary:           "The finished result, built and verified inside the isolated project worktree.",
 		EvidenceChecks:          checks,
 		VerificationRequirement: revision.Review,
