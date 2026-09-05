@@ -469,7 +469,7 @@ func TestCollectorIgnoresIneligibleHooks(t *testing.T) {
 	}{
 		{"terminated session", "process-exited", domain.HarnessClaudeCode, domain.ActivityIdle, true, true},
 		{"terminal recovery without source", "process-exited", domain.HarnessClaudeCode, domain.ActivityExited, false, false},
-		{"unsupported harness", "post-tool-use", domain.HarnessAider, domain.ActivityIdle, false, false},
+		{"unsupported harness", "post-tool-use", domain.HarnessCursor, domain.ActivityIdle, false, false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -957,7 +957,7 @@ func TestCollectorBackfillsOnlyNonTerminatedSupportedSessions(t *testing.T) {
 	store := collectorTestStore(t)
 	active := collectorTestSession(t, store, domain.HarnessClaudeCode, "active-native", false)
 	_ = collectorTestSession(t, store, domain.HarnessClaudeCode, "terminated-native", true)
-	_ = collectorTestSession(t, store, domain.HarnessAider, "unsupported-native", false)
+	_ = collectorTestSession(t, store, domain.HarnessCursor, "unsupported-native", false)
 	root := filepath.Join(t.TempDir(), "projects")
 	path := filepath.Join(root, "workspace", "active-native.jsonl")
 	mustNoError(t, os.MkdirAll(filepath.Dir(path), 0o700))

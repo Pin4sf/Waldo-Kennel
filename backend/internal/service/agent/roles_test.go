@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
-	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/deepseekharness"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/cursor"
 	agentregistry "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/registry"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
@@ -39,19 +39,19 @@ func (f captureProfileAgent) ProfileReadiness(_ context.Context, cfg ports.Agent
 
 // TestServiceResolveMissionRolesUsesProjectConfigForReadiness proves the
 // Project-config profile reaches the readiness gate: a worker override
-// carrying AgentConfig.Profile flips the honored DeepSeek preference to
+// carrying AgentConfig.Profile flips the honored Cursor preference to
 // ready, and the adapter observed exactly that profile.
 func TestServiceResolveMissionRolesUsesProjectConfigForReadiness(t *testing.T) {
 	captured := ports.AgentConfig{}
 	plugin := captureProfileAgent{fakeAgent: fakeAgent{}, ready: false, captured: &captured}
 	svc := NewWithAgents([]agentregistry.HarnessAgent{
-		{Harness: domain.HarnessDeepSeekHarness, Manifest: adapters.Manifest{ID: "deepseek-harness"}, Agent: plugin},
+		{Harness: domain.HarnessCursor, Manifest: adapters.Manifest{ID: "cursor"}, Agent: plugin},
 	})
 	cfg := domain.ProjectConfig{
-		Worker: domain.RoleOverride{Harness: domain.HarnessDeepSeekHarness, AgentConfig: domain.AgentConfig{Profile: "waldo-profile"}},
+		Worker: domain.RoleOverride{Harness: domain.HarnessCursor, AgentConfig: domain.AgentConfig{Profile: "waldo-profile"}},
 	}
 	roles := svc.ResolveMissionRoles(context.Background(),
-		domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}, cfg)
+		domain.ProjectAgentPreferences{DefaultWorker: "cursor"}, cfg)
 	if captured.Profile != "waldo-profile" {
 		t.Fatalf("adapter observed profile %q, want waldo-profile from the role override", captured.Profile)
 	}
@@ -75,7 +75,7 @@ func TestServiceResolveMissionRolesMismatchedOverrideHarnessIsCleared(t *testing
 	captured := ports.AgentConfig{}
 	plugin := captureProfileAgent{fakeAgent: fakeAgent{}, ready: false, captured: &captured}
 	svc := NewWithAgents([]agentregistry.HarnessAgent{
-		{Harness: domain.HarnessDeepSeekHarness, Manifest: adapters.Manifest{ID: "deepseek-harness"}, Agent: plugin},
+		{Harness: domain.HarnessCursor, Manifest: adapters.Manifest{ID: "cursor"}, Agent: plugin},
 	})
 	cfg := domain.ProjectConfig{
 		AgentConfig: domain.AgentConfig{Model: "shared-model", Mode: "medium", Profile: "shared-profile", Permissions: domain.PermissionModeAuto},
@@ -84,7 +84,7 @@ func TestServiceResolveMissionRolesMismatchedOverrideHarnessIsCleared(t *testing
 		}},
 	}
 	roles := svc.ResolveMissionRoles(context.Background(),
-		domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}, cfg)
+		domain.ProjectAgentPreferences{DefaultWorker: "cursor"}, cfg)
 	if got := captured.Profile; got != "" {
 		t.Fatalf("readiness probed profile %q from a mismatched override; want empty", got)
 	}
@@ -112,7 +112,7 @@ func TestServiceResolveMissionRolesEmptyOverrideHarnessIsCleared(t *testing.T) {
 	captured := ports.AgentConfig{}
 	plugin := captureProfileAgent{fakeAgent: fakeAgent{}, ready: false, readyWithProfile: true, captured: &captured}
 	svc := NewWithAgents([]agentregistry.HarnessAgent{
-		{Harness: domain.HarnessDeepSeekHarness, Manifest: adapters.Manifest{ID: "deepseek-harness"}, Agent: plugin},
+		{Harness: domain.HarnessCursor, Manifest: adapters.Manifest{ID: "cursor"}, Agent: plugin},
 	})
 	cfg := domain.ProjectConfig{
 		AgentConfig: domain.AgentConfig{Model: "shared-model", Mode: "medium", Profile: "shared-profile", Permissions: domain.PermissionModeAuto},
@@ -121,7 +121,7 @@ func TestServiceResolveMissionRolesEmptyOverrideHarnessIsCleared(t *testing.T) {
 		}},
 	}
 	roles := svc.ResolveMissionRoles(context.Background(),
-		domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}, cfg)
+		domain.ProjectAgentPreferences{DefaultWorker: "cursor"}, cfg)
 	if got := captured.Profile; got != "" {
 		t.Fatalf("unset-harness override leaked profile %q into readiness; want empty", got)
 	}
@@ -144,19 +144,19 @@ func TestServiceResolveMissionRolesEmptyOverrideHarnessIsCleared(t *testing.T) {
 
 // TestServiceResolveMissionRolesMatchingHarnessRetainsSharedProfile proves
 // spawn parity: a shared profile is retained when the stored role harness
-// matches the resolved DeepSeek Harness.
+// matches the resolved Cursor Harness.
 func TestServiceResolveMissionRolesMatchingHarnessRetainsSharedProfile(t *testing.T) {
 	captured := ports.AgentConfig{}
 	plugin := captureProfileAgent{fakeAgent: fakeAgent{}, ready: false, readyWithProfile: true, captured: &captured}
 	svc := NewWithAgents([]agentregistry.HarnessAgent{
-		{Harness: domain.HarnessDeepSeekHarness, Manifest: adapters.Manifest{ID: "deepseek-harness"}, Agent: plugin},
+		{Harness: domain.HarnessCursor, Manifest: adapters.Manifest{ID: "cursor"}, Agent: plugin},
 	})
 	cfg := domain.ProjectConfig{
 		AgentConfig: domain.AgentConfig{Model: "shared-model", Mode: "medium", Profile: "shared-profile", Permissions: domain.PermissionModeAuto},
-		Worker:      domain.RoleOverride{Harness: domain.HarnessDeepSeekHarness},
+		Worker:      domain.RoleOverride{Harness: domain.HarnessCursor},
 	}
 	roles := svc.ResolveMissionRoles(context.Background(),
-		domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}, cfg)
+		domain.ProjectAgentPreferences{DefaultWorker: "cursor"}, cfg)
 	if got := captured.Profile; got != "shared-profile" {
 		t.Fatalf("matching harness dropped shared profile %q; want shared-profile", got)
 	}
@@ -170,17 +170,17 @@ func TestServiceResolveMissionRolesMatchingHarnessRetainsSharedProfile(t *testin
 		t.Fatalf("matching harness dropped provider-neutral permissions %q; want %q", got, domain.PermissionModeAuto)
 	}
 	if !roles.Worker.Ready {
-		t.Fatalf("matching DeepSeek Harness with a shared profile must be ready: %+v", roles.Worker)
+		t.Fatalf("matching Cursor Harness with a shared profile must be ready: %+v", roles.Worker)
 	}
 }
 
 func TestEnrichMissionRolesFailsClosedWithoutProfile(t *testing.T) {
-	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}})
+	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "cursor"}})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
-		domain.HarnessDeepSeekHarness: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(false), AuthApplicable: true, Auth: ports.AgentAuthStatusAuthorized},
+		domain.HarnessCursor: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(false), AuthApplicable: true, Auth: ports.AgentAuthStatusAuthorized},
 	}
 	got := EnrichMissionRoles(base, facts)
-	if got.Worker.Harness != domain.HarnessDeepSeekHarness {
+	if got.Worker.Harness != domain.HarnessCursor {
 		t.Fatalf("fail-closed must never silently fall back: %+v", got.Worker)
 	}
 	if got.Worker.Ready {
@@ -211,9 +211,9 @@ func TestEnrichMissionRolesFailsClosedWhenAuthorizationNotGranted(t *testing.T) 
 }
 
 func TestEnrichMissionRolesStacksIndependentBlockers(t *testing.T) {
-	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}})
+	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "cursor"}})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
-		domain.HarnessDeepSeekHarness: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(false), AuthApplicable: true, Auth: ports.AgentAuthStatusUnauthorized},
+		domain.HarnessCursor: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(false), AuthApplicable: true, Auth: ports.AgentAuthStatusUnauthorized},
 	}
 	got := EnrichMissionRoles(base, facts)
 	lower := strings.ToLower(got.Worker.Reason)
@@ -225,21 +225,21 @@ func TestEnrichMissionRolesStacksIndependentBlockers(t *testing.T) {
 	}
 }
 
-// TestEnrichMissionRolesDeepSeekReadyAfterProfile proves the canonical unlock
-// path: DeepSeek Harness deliberately does not implement the auth checker, so
+// TestEnrichMissionRolesCursorReadyAfterProfile proves the canonical unlock
+// path: Cursor Harness deliberately does not implement the auth checker, so
 // once it is installed and its profile is ready — exactly what the #60
 // Profile contract will compose — the honored worker preference becomes ready.
-func TestEnrichMissionRolesDeepSeekReadyAfterProfile(t *testing.T) {
-	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}})
+func TestEnrichMissionRolesCursorReadyAfterProfile(t *testing.T) {
+	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "cursor"}})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
-		domain.HarnessDeepSeekHarness: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(true), AuthApplicable: false, Auth: ports.AgentAuthStatusUnknown},
+		domain.HarnessCursor: {Installed: true, RequiresProfile: true, ProfileReady: boolPtr(true), AuthApplicable: false, Auth: ports.AgentAuthStatusUnknown},
 	}
 	got := EnrichMissionRoles(base, facts)
-	if got.Worker.Harness != domain.HarnessDeepSeekHarness {
+	if got.Worker.Harness != domain.HarnessCursor {
 		t.Fatalf("preference harness must be preserved: %+v", got.Worker)
 	}
 	if !got.Worker.Ready {
-		t.Fatalf("profile-ready DeepSeek worker must become ready: %+v", got.Worker)
+		t.Fatalf("profile-ready Cursor worker must become ready: %+v", got.Worker)
 	}
 	lower := strings.ToLower(got.Worker.Reason)
 	for _, blocker := range []string{"not installed", "profile", "authorization"} {
@@ -278,17 +278,17 @@ func TestEnrichMissionRolesPassesReadyRolesThrough(t *testing.T) {
 
 func TestServiceResolveMissionRolesProbesLiveInventory(t *testing.T) {
 	svc := NewWithAgents([]agentregistry.HarnessAgent{
-		{Harness: domain.HarnessDeepSeekHarness, Manifest: adapters.Manifest{ID: "deepseek-harness"}, Agent: &deepseekharness.Plugin{}},
+		{Harness: domain.HarnessCursor, Manifest: adapters.Manifest{ID: "cursor"}, Agent: &cursor.Plugin{}},
 		{Harness: domain.HarnessCodex, Manifest: adapters.Manifest{ID: "codex"}, Agent: fakeAuthAgent{fakeAgent: fakeAgent{}, status: ports.AgentAuthStatusAuthorized}},
 	})
-	roles := svc.ResolveMissionRoles(context.Background(), domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}, domain.ProjectConfig{})
+	roles := svc.ResolveMissionRoles(context.Background(), domain.ProjectAgentPreferences{DefaultWorker: "cursor"}, domain.ProjectConfig{})
 	// The real dsh binary is absent on this machine's test PATH and no profile
 	// is configured: the preference is honored but readiness fails closed.
-	if roles.Worker.Harness != domain.HarnessDeepSeekHarness {
+	if roles.Worker.Harness != domain.HarnessCursor {
 		t.Fatalf("preference harness must be preserved: %+v", roles.Worker)
 	}
 	if roles.Worker.Ready {
-		t.Fatalf("deepseek worker must fail closed without binary+profile: %+v", roles.Worker)
+		t.Fatalf("cursor worker must fail closed without binary+profile: %+v", roles.Worker)
 	}
 	if !strings.Contains(strings.ToLower(roles.Worker.Reason), "not installed") &&
 		!strings.Contains(strings.ToLower(roles.Worker.Reason), "profile") {
@@ -305,7 +305,7 @@ func TestServiceResolveMissionRolesProbesLiveInventory(t *testing.T) {
 // stored non-coordinator preference still falls back to the same canonical
 // default with identical proposals.
 func TestResolveMissionRolesCoordinatorFallbackIgnoresCandidateOrder(t *testing.T) {
-	prefs := domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}
+	prefs := domain.ProjectAgentPreferences{DefaultWorker: "cursor"}
 	build := func(order []domain.AgentHarness) *Service {
 		items := make([]agentregistry.HarnessAgent, 0, len(order))
 		for _, harness := range order {
@@ -315,17 +315,17 @@ func TestResolveMissionRolesCoordinatorFallbackIgnoresCandidateOrder(t *testing.
 				Agent:    fakeAuthAgent{fakeAgent: fakeAgent{}, status: ports.AgentAuthStatusAuthorized},
 			})
 		}
-		// The real DeepSeek adapter carries its own profile gate; keep one in
+		// The real Cursor adapter carries its own profile gate; keep one in
 		// the inventory so the worker role exercises the profile path too.
 		return NewWithAgents(append(items, agentregistry.HarnessAgent{
-			Harness:  domain.HarnessDeepSeekHarness,
-			Manifest: adapters.Manifest{ID: "deepseek-harness"},
-			Agent:    &deepseekharness.Plugin{},
+			Harness:  domain.HarnessCursor,
+			Manifest: adapters.Manifest{ID: "cursor"},
+			Agent:    &cursor.Plugin{},
 		}))
 	}
 	orderings := [][]domain.AgentHarness{
-		{domain.HarnessCodex, domain.HarnessClaudeCode, domain.HarnessAider},
-		{domain.HarnessAider, domain.HarnessCodex, domain.HarnessClaudeCode},
+		{domain.HarnessCodex, domain.HarnessClaudeCode, domain.HarnessOpenCode},
+		{domain.HarnessOpenCode, domain.HarnessCodex, domain.HarnessClaudeCode},
 	}
 	var baseline domain.ResolvedMissionRoles
 	for i, order := range orderings {
@@ -333,8 +333,8 @@ func TestResolveMissionRolesCoordinatorFallbackIgnoresCandidateOrder(t *testing.
 		if got.Coordinator.Harness != domain.HarnessCodex || got.Coordinator.Source != domain.RoleSourceDefault {
 			t.Fatalf("ordering %d coordinator = %+v, want canonical codex/default", i, got.Coordinator)
 		}
-		if got.Worker.Harness != domain.HarnessDeepSeekHarness || got.Worker.Source != domain.RoleSourcePreference {
-			t.Fatalf("ordering %d worker = %+v, want honored deepseek-harness preference", i, got.Worker)
+		if got.Worker.Harness != domain.HarnessCursor || got.Worker.Source != domain.RoleSourcePreference {
+			t.Fatalf("ordering %d worker = %+v, want honored cursor-harness preference", i, got.Worker)
 		}
 		if i == 0 {
 			baseline = got

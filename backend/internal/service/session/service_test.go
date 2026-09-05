@@ -509,7 +509,7 @@ func TestSessionSetReviewerHarnessRejectsHistoricalHarness(t *testing.T) {
 	st := newFakeStore()
 	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
 
-	if _, err := (&Service{store: st}).SetReviewerHarness(context.Background(), "mer-1", domain.ReviewerOpenCode); err == nil {
+	if _, err := (&Service{store: st}).SetReviewerHarness(context.Background(), "mer-1", domain.ReviewerHarness("aider")); err == nil {
 		t.Fatal("SetReviewerHarness succeeded, want non-selectable reviewer rejection")
 	}
 	if got := st.sessions["mer-1"].ReviewerHarness; got != "" {
@@ -526,7 +526,7 @@ func TestSessionSetReviewerHarnessRejectsEmptyHistoricalFallbackWithoutWriting(t
 		ReviewerHarness: domain.ReviewerCodex,
 	}
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
-		Reviewers: []domain.ReviewerConfig{{Harness: domain.ReviewerClaudeCode}},
+		Reviewers: []domain.ReviewerConfig{{Harness: domain.ReviewerHarness("aider")}},
 	}}
 
 	if _, err := (&Service{store: st}).SetReviewerHarness(context.Background(), "mer-1", ""); err == nil {

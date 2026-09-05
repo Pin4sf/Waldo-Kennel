@@ -97,28 +97,8 @@ func TestWiring_AgentResolverResolvesRealAdapters(t *testing.T) {
 		{domain.HarnessClaudeCode, "claude-code"},
 		{domain.HarnessCodex, "codex"},
 		{domain.HarnessOpenCode, "opencode"},
-		{domain.HarnessGrok, "grok"},
 		{domain.HarnessCursor, "cursor"},
-		{domain.HarnessQwen, "qwen"},
-		{domain.HarnessCopilot, "copilot"},
-		{domain.HarnessKimi, "kimi"},
-		{domain.HarnessMuse, "muse"},
-		{domain.HarnessDroid, "droid"},
-		{domain.HarnessAmp, "amp"},
-		{domain.HarnessAgy, "agy"},
-		{domain.HarnessCrush, "crush"},
-		{domain.HarnessAider, "aider"},
-		{domain.HarnessGoose, "goose"},
-		{domain.HarnessAuggie, "auggie"},
-		{domain.HarnessContinue, "continue"},
-		{domain.HarnessDevin, "devin"},
-		{domain.HarnessCline, "cline"},
-		{domain.HarnessKiro, "kiro"},
-		{domain.HarnessKilocode, "kilocode"},
-		{domain.HarnessVibe, "vibe"},
 		{domain.HarnessPi, "pi"},
-		{domain.HarnessPrimeAgent, "prime-agent"},
-		{domain.HarnessAutohand, "autohand"},
 	} {
 		agent, ok := resolver.Agent(tc.harness)
 		if !ok {
@@ -157,10 +137,7 @@ func TestWiring_ActiveTurnSteeringComesFromAdapters(t *testing.T) {
 	if !steers(domain.HarnessCodex) {
 		t.Error("codex declares SteersActiveTurn; want true from the adapter-backed policy")
 	}
-	if !steers(domain.HarnessPrimeAgent) {
-		t.Error("prime-agent declares SteersActiveTurn; want true from the adapter-backed policy")
-	}
-	for _, harness := range []domain.AgentHarness{domain.HarnessClaudeCode, domain.HarnessAider, "definitely-not-an-agent", ""} {
+	for _, harness := range []domain.AgentHarness{domain.HarnessClaudeCode, domain.HarnessPi, "definitely-not-an-agent", ""} {
 		if steers(harness) {
 			t.Errorf("harness %q must not be steerable mid-turn", harness)
 		}

@@ -389,7 +389,7 @@ func TestTriggerSpawnsNewReviewerAndRecordsRunAfterLaunch(t *testing.T) {
 func TestTriggerRejectsHistoricalEffectiveReviewerBeforeReviewStateChanges(t *testing.T) {
 	store := &fakeStore{}
 	worker := liveWorker()
-	worker.ReviewerHarness = domain.ReviewerClaudeCode
+	worker.ReviewerHarness = domain.ReviewerHarness("aider")
 	launcher := &fakeLauncher{handle: "review-mer-1"}
 	eng := newEngineForTest(store, fakeSessions{rec: worker, ok: true}, prAt("sha1"), fakeProjects{}, launcher)
 
@@ -407,7 +407,7 @@ func TestSwitchReviewerRejectsEmptyHistoricalFallbackBeforeMutation(t *testing.T
 	worker := liveWorker()
 	worker.ReviewerHarness = domain.ReviewerCodex
 	launcher := &fakeLauncher{handle: "historical-review"}
-	projects := fakeProjects{cfg: domain.ProjectConfig{Reviewers: []domain.ReviewerConfig{{Harness: domain.ReviewerClaudeCode}}}}
+	projects := fakeProjects{cfg: domain.ProjectConfig{Reviewers: []domain.ReviewerConfig{{Harness: domain.ReviewerHarness("aider")}}}}
 	eng := newEngineForTest(store, fakeSessions{rec: worker, ok: true}, prAt("sha1"), projects, launcher)
 
 	_, err := eng.SwitchReviewer(context.Background(), worker.ID, "")

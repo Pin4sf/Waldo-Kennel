@@ -1379,9 +1379,9 @@ func TestSwitchAgentRejectsCursorAndKimiBeforeMutation(t *testing.T) {
 		target domain.AgentHarness
 	}{
 		{name: "cursor target", source: domain.HarnessClaudeCode, target: domain.HarnessCursor},
-		{name: "kimi target", source: domain.HarnessClaudeCode, target: domain.HarnessKimi},
+		{name: "pi target", source: domain.HarnessClaudeCode, target: domain.HarnessPi},
 		{name: "cursor source", source: domain.HarnessCursor, target: domain.HarnessCodex},
-		{name: "kimi source", source: domain.HarnessKimi, target: domain.HarnessCodex},
+		{name: "pi source", source: domain.HarnessPi, target: domain.HarnessCodex},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1415,7 +1415,7 @@ func TestSwitchAgentRejectsHistoricalTargetBeforeMutation(t *testing.T) {
 	store.sessions[rec.ID] = rec
 
 	_, err := switchAgentSynchronously(context.Background(), manager, rec.ID, SwitchAgentConfig{
-		TargetHarness: domain.HarnessClaudeCode, IdempotencyKey: "historical-target",
+		TargetHarness: domain.AgentHarness("aider"), IdempotencyKey: "historical-target",
 	})
 	if !errors.Is(err, ErrUnsupportedSwitchHarness) {
 		t.Fatalf("SwitchAgent error = %v, want ErrUnsupportedSwitchHarness", err)
@@ -1425,13 +1425,16 @@ func TestSwitchAgentRejectsHistoricalTargetBeforeMutation(t *testing.T) {
 	}
 }
 
-// DeepSeek Harness is admitted for fresh worker spawns, but a switch continues
-// a prior conversation and its restore path cannot verify continuation identity
-// yet. Worker admission must not leak into the switch-target gate: targeting it
-// is refused with ErrUnsupportedSwitchHarness before any mutation.
-func TestSwitchAgentRejectsDeepSeekHarnessTargetBeforeMutation(t *testing.T) {
-	if !domain.HarnessDeepSeekHarness.IsSelectableForNewWork() {
-		t.Fatal("precondition: deepseek-harness must be selectable for new work; otherwise this test pins nothing")
+// cursor is admitted for fresh worker spawns, but a switch continues a prior
+// conversation and cursor declares no continuation capability. Worker admission
+// must not leak into the switch-target gate: targeting it is refused with
+// ErrUnsupportedSwitchHarness before any mutation.
+func TestSwitchAgentRejectsWorkerOnlyHarnessTargetBeforeMutation(t *testing.T) {
+	if !domain.HarnessCursor.IsSelectableForNewWork() {
+		t.Fatal("precondition: cursor must be selectable for new work; otherwise this test pins nothing")
+	}
+	if domain.HarnessCursor.IsSelectableAsSwitchTarget() {
+		t.Fatal("precondition: cursor must NOT be switch-target admitted; otherwise this test pins nothing")
 	}
 	runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
 	manager, store, _ := newSwitchTestManager(t, runtime)
@@ -1440,7 +1443,7 @@ func TestSwitchAgentRejectsDeepSeekHarnessTargetBeforeMutation(t *testing.T) {
 	store.sessions[rec.ID] = rec
 
 	_, err := switchAgentSynchronously(context.Background(), manager, rec.ID, SwitchAgentConfig{
-		TargetHarness: domain.HarnessDeepSeekHarness, IdempotencyKey: "deepseek-switch-target",
+		TargetHarness: domain.HarnessCursor, IdempotencyKey: "cursor-switch-target",
 	})
 	if !errors.Is(err, ErrUnsupportedSwitchHarness) {
 		t.Fatalf("SwitchAgent error = %v, want ErrUnsupportedSwitchHarness", err)
@@ -1966,7 +1969,7 @@ func TestSwitchAgentUnknownResumeEvidenceStartsFresh(t *testing.T) {
 	}
 }
 
-func TestSwitchAgentModelCodexToClaudeIsRejected(t *testing.T) {
+func TestSwitchAgentModelCodexToWorkerOnlyTargetIsRejected(t *testing.T) {
 	runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
 	manager, store, _ := newSwitchTestManager(t, runtime)
 	rec := store.sessions["proj-1"]
@@ -1977,8 +1980,8 @@ func TestSwitchAgentModelCodexToClaudeIsRejected(t *testing.T) {
 	project.Config.Worker.AgentConfig.Model = "gpt-5.4-mini"
 	store.projects[project.ID] = project
 	_, err := switchAgentSynchronously(context.Background(), manager, rec.ID, SwitchAgentConfig{
-		TargetHarness:  domain.HarnessClaudeCode,
-		IdempotencyKey: "codex-to-claude-drops-model",
+		TargetHarness:  domain.HarnessCursor,
+		IdempotencyKey: "codex-to-cursor-drops-model",
 	})
 	if !errors.Is(err, ErrUnsupportedSwitchHarness) {
 		t.Fatalf("SwitchAgent error = %v, want ErrUnsupportedSwitchHarness", err)

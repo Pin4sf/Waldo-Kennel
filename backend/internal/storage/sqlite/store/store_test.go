@@ -62,7 +62,7 @@ func TestSessionCreateAllowsPrimeAgentHarness(t *testing.T) {
 	ctx := context.Background()
 	seedProject(t, s, "mer")
 	rec := sampleRecord("mer")
-	rec.Harness = domain.HarnessPrimeAgent
+	rec.Harness = domain.AgentHarness("prime-agent")
 	if _, err := s.CreateSession(ctx, rec); err != nil {
 		t.Fatalf("create prime-agent-harness session: %v", err)
 	}
@@ -217,14 +217,15 @@ func TestRecordSessionLatestUserPromptIsNarrowAndMonotonic(t *testing.T) {
 	}
 }
 
-// Regression: the sessions.harness CHECK must allow the 'kimchi' harness (added
-// in migration 0054) so Kimchi sessions can be created.
+// Regression: the sessions.harness CHECK must still allow 'kimchi' (added in
+// migration 0054). The Go constant is retired, but the column is not: rows
+// persisted before the five-provider narrowing must stay readable and writable.
 func TestSessionCreateAllowsKimchiHarness(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	seedProject(t, s, "mer")
 	rec := sampleRecord("mer")
-	rec.Harness = domain.HarnessKimchi
+	rec.Harness = domain.AgentHarness("kimchi")
 	if _, err := s.CreateSession(ctx, rec); err != nil {
 		t.Fatalf("create kimchi-harness session: %v", err)
 	}

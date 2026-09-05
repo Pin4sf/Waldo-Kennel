@@ -1575,12 +1575,12 @@ func TestManager_SetConfigPersistsAgentPreferences(t *testing.T) {
 
 	proj, err := m.SetConfig(ctx, "scratch", project.SetConfigInput{Config: domain.ProjectConfig{
 		AgentConfig:      domain.AgentConfig{Model: "m"},
-		AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"},
+		AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "cursor"},
 	}})
 	if err != nil {
 		t.Fatalf("SetConfig with agent preferences: %v", err)
 	}
-	if proj.Config == nil || proj.Config.AgentPreferences.DefaultWorker != "deepseek-harness" {
+	if proj.Config == nil || proj.Config.AgentPreferences.DefaultWorker != "cursor" {
 		t.Fatalf("preferences not echoed back: %#v", proj.Config)
 	}
 
@@ -1588,7 +1588,7 @@ func TestManager_SetConfigPersistsAgentPreferences(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.Project.Config == nil || got.Project.Config.AgentPreferences.DefaultWorker != "deepseek-harness" {
+	if got.Project.Config == nil || got.Project.Config.AgentPreferences.DefaultWorker != "cursor" {
 		t.Fatalf("preferences not persisted: %#v", got.Project.Config)
 	}
 }
@@ -1607,7 +1607,7 @@ func TestManager_SetConfigRejectsInadmissibleRolePreference(t *testing.T) {
 	}
 
 	_, err = m.SetConfig(ctx, "scratch", project.SetConfigInput{Config: domain.ProjectConfig{
-		AgentPreferences: domain.ProjectAgentPreferences{Coordinator: "deepseek-harness"},
+		AgentPreferences: domain.ProjectAgentPreferences{Coordinator: "cursor"},
 	}})
 	wantCode(t, err, "INVALID_PROJECT_CONFIG")
 }
@@ -1621,7 +1621,7 @@ func TestManager_ResolvedMissionRolesDelegatesToInventory(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	resolver := &stubRoleResolver{roles: domain.ResolvedMissionRoles{
-		Worker: domain.ResolvedAgentRole{Harness: domain.HarnessDeepSeekHarness, Source: domain.RoleSourcePreference,
+		Worker: domain.ResolvedAgentRole{Harness: domain.HarnessCursor, Source: domain.RoleSourcePreference,
 			Eligible: true, Ready: false, Reason: "profile readiness fails closed"},
 	}}
 	m := project.NewWithDeps(project.Deps{Store: store, Roles: resolver})
@@ -1630,7 +1630,7 @@ func TestManager_ResolvedMissionRolesDelegatesToInventory(t *testing.T) {
 		t.Fatalf("EnsureDefaultScratchProject: %v", err)
 	}
 	if _, err := m.SetConfig(ctx, "scratch", project.SetConfigInput{Config: domain.ProjectConfig{
-		AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "deepseek-harness"},
+		AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "cursor"},
 	}}); err != nil {
 		t.Fatalf("SetConfig: %v", err)
 	}

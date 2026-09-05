@@ -4,11 +4,11 @@ import "testing"
 
 func TestHarnessAdmissionPredicates(t *testing.T) {
 	tests := []struct {
-		name            string
-		harness         AgentHarness
-		worker          bool
-		coordinator     bool
-		switchTarget    bool
+		name         string
+		harness      AgentHarness
+		worker       bool
+		coordinator  bool
+		switchTarget bool
 	}{
 		{name: "codex", harness: HarnessCodex, worker: true, coordinator: true, switchTarget: true},
 		{name: "claude-code", harness: HarnessClaudeCode, worker: true, coordinator: true, switchTarget: true},
