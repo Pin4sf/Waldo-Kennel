@@ -307,8 +307,15 @@ func TestFullLifecycleSpawnToTermination(t *testing.T) {
 		t.Fatalf("timeline script failed: %v\n%s", err, out)
 	}
 	elapsed := time.Since(start)
-	if elapsed > 5*time.Second {
-		t.Fatalf("sped-up run took %v, want well under a second (speedup not applied?)", elapsed)
+	// The bound proves the speedup was applied, not that the machine was idle.
+	// Six phases at 2s each is ~12s unspeeded; sped up they are ~1ms, and what
+	// remains is process spawn — one `sh` plus seven shim execs. Under a fully
+	// parallel `go test ./...` that spawn cost alone has been measured at >5s on
+	// a saturated machine, so a 5s bound made this the one flaky test in the
+	// suite. 10s still fails loudly if the speedup stops working (~12s) while
+	// tolerating contention, and a flaky gate is worse than a loose one.
+	if elapsed > 10*time.Second {
+		t.Fatalf("sped-up run took %v, want well under the ~12s unspeeded run (speedup not applied?)", elapsed)
 	}
 
 	raw, err := os.ReadFile(hookLog) //nolint:gosec // path is under the test's own TempDir

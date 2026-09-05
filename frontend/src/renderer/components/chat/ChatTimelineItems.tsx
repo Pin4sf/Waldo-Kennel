@@ -89,7 +89,13 @@ const ORIGIN_REPORT_PREVIEW_LENGTH = 240;
 // its durable history.
 const ATTACHMENT_REFERENCE_BLOCK =
 	/(?:^|\n\n)(?:Attached files \(read these files in the workspace(?: for context)?\)|Attached images \(read these files in the workspace for visual context\)):\n((?:- [^\n]+(?:\n|$))+)$/;
-const STAGED_ATTACHMENT_PATH = /^\.ao\/attachments\/(?:attachment|image)-[A-Za-z0-9][A-Za-z0-9._-]*$/;
+// The daemon stages attachments under `.kennel/attachments` (attachmentstore.
+// WorkspaceDir). It used to stage them under `.ao/attachments`, and the rename
+// updated the writer but not this reader, so every staged image rendered as raw
+// prompt text instead of an image. Accept both: conversations recorded before
+// the rename still carry `.ao/` paths in their durable history, and rewriting
+// that history to fix rendering would be the worse trade.
+const STAGED_ATTACHMENT_PATH = /^\.(?:kennel|ao)\/attachments\/(?:attachment|image)-[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const IMAGE_ATTACHMENT_PATH = /\.(?:png|jpe?g|gif|webp|bmp)$/i;
 
 function humanMessageParts(text: string): { body: string; attachments: string[] } {
