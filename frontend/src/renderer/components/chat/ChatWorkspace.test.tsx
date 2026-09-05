@@ -164,6 +164,24 @@ describe("HumanMessage attachments", () => {
 		);
 	});
 
+	// Conversations recorded before the .ao -> .kennel rename still carry the old
+	// staging path in their durable history. The reader accepts both so that
+	// history keeps rendering; only the daemon's writer moved.
+	it("still renders attachments staged under the historical .ao path", () => {
+		render(
+			<HumanMessage
+				message={humanMessage(
+					"check again\n\nAttached files (read these files in the workspace):\n- .ao/attachments/attachment-d9014f798f.png",
+				)}
+				sessionId="kennel session/1"
+			/>,
+		);
+		expect(screen.getByRole("img", { name: "attachment-d9014f798f.png" })).toHaveAttribute(
+			"src",
+			"http://127.0.0.1:3001/api/v1/sessions/kennel%20session%2F1/preview/files/.ao/attachments/attachment-d9014f798f.png",
+		);
+	});
+
 	it.each([
 		[
 			"spawn",
