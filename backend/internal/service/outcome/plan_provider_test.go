@@ -8,8 +8,9 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
-// GetProject gives the shared plan/attempt fake an explicit non-Codex worker.
-// Existing tests should therefore prove that no hidden Codex fixture remains.
+// GetProject gives the shared plan/attempt fake an EXPLICIT worker. Keeping
+// Codex here preserves older broad fixtures while the dedicated tests below
+// prove non-Codex identities bind without any runtime fallback.
 func (f *planFakeStore) GetProject(_ context.Context, id string) (domain.ProjectRecord, bool, error) {
 	if id != "mer" {
 		return domain.ProjectRecord{}, false, nil
@@ -18,7 +19,7 @@ func (f *planFakeStore) GetProject(_ context.Context, id string) (domain.Project
 		ID:   "mer",
 		Path: "/tmp/mer",
 		Config: domain.ProjectConfig{
-			Worker: domain.RoleOverride{Harness: domain.HarnessClaudeCode},
+			Worker: domain.RoleOverride{Harness: domain.HarnessCodex},
 		},
 	}, true, nil
 }
@@ -59,8 +60,15 @@ func seedPlanServiceWithProject(t *testing.T, project domain.ProjectRecord) (*ou
 	return svc, store, view.Outcome.ID
 }
 
-func TestProposePlanBindsExplicitProjectWorker(t *testing.T) {
-	svc, _, outcomeID := newPlanTestService(t)
+func TestProposePlanBindsExplicitNonCodexProjectWorker(t *testing.T) {
+	project := domain.ProjectRecord{
+		ID:   "claude-project",
+		Path: "/tmp/claude-project",
+		Config: domain.ProjectConfig{
+			Worker: domain.RoleOverride{Harness: domain.HarnessClaudeCode},
+		},
+	}
+	svc, _, outcomeID := seedPlanServiceWithProject(t, project)
 	view, err := svc.ProposePlan(context.Background(), outcomeID, 1)
 	if err != nil {
 		t.Fatalf("propose: %v", err)
