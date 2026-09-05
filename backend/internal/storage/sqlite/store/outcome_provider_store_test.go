@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
 )
 
 func providerBoundPlanFixture(t *testing.T, provider domain.AgentHarness) (*domain.PlanRevision, domain.ContractRevision, *domain.WorkUnit, []domain.CapabilityGrant) {
@@ -50,7 +51,7 @@ func providerBoundPlanFixture(t *testing.T, provider domain.AgentHarness) (*doma
 	return plan, revision, &unit, grants
 }
 
-func seedProviderPlanOutcome(t *testing.T, s outcomeTestStore) {
+func seedProviderPlanOutcome(t *testing.T, s *sqlite.Store) {
 	t.Helper()
 	ctx := context.Background()
 	seedProject(t, s, "provider-project")
@@ -65,11 +66,6 @@ func seedProviderPlanOutcome(t *testing.T, s outcomeTestStore) {
 	if err := s.CreateOutcomeWithContract(ctx, outcome, revision, "req-provider-plan"); err != nil {
 		t.Fatalf("create provider plan outcome: %v", err)
 	}
-}
-
-type outcomeTestStore interface {
-	EnsureWorkResponsibilitySpace(context.Context, domain.ProjectID) (domain.ResponsibilitySpace, error)
-	CreateOutcomeWithContract(context.Context, domain.Outcome, domain.ContractRevision, string) error
 }
 
 func TestOutcomeStore_WorkUnitProviderBindingRoundTrips(t *testing.T) {
