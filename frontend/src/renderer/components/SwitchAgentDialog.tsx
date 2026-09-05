@@ -21,6 +21,7 @@ import {
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { agentLabel } from "../lib/agent-options";
 import {
+	admitsRole,
 	buildRankedAgentOptions,
 	singleReadyProvider,
 	type RankedAgentOption,
@@ -129,7 +130,7 @@ export function SwitchAgentDialog({ container, open, session, onOpenChange }: Sw
 				installed: agentInventory?.installed ?? [],
 				authorized: agentInventory?.authorized ?? [],
 				fallbackAgents: [],
-				filter: (candidate) => candidate.roles.switchTarget,
+				filter: (candidate) => admitsRole(candidate, "switchTarget"),
 			}),
 		[agentInventory?.authorized, agentInventory?.installed, agentInventory?.supported],
 	);
@@ -302,6 +303,20 @@ export function SwitchAgentDialog({ container, open, session, onOpenChange }: Sw
 								{error ? <p className="text-caption leading-4 text-error" role="alert">{error}</p> : null}
 								{!error && modelWarning ? <p className="text-caption text-warning">{modelWarning}</p> : null}
 							</div>
+						) : null}
+
+						{/*
+						  An empty target list is not the same as "no switch is possible", and a
+						  disabled picker with nothing in it says neither. Name the reason: the
+						  catalog failed to load, or it loaded and no other provider can continue
+						  this conversation.
+						*/}
+						{!agentsQuery.isFetching && readyOtherTargets.length === 0 ? (
+							<p className="text-caption leading-4 text-warning" role="status">
+								{agentsQuery.isError
+									? t("switchAgent.catalogUnavailable")
+									: t("switchAgent.noContinuationTargets")}
+							</p>
 						) : null}
 
 						<div className="composer-toolbar p-0!">

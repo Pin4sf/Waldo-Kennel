@@ -248,9 +248,19 @@ async function openCreateProjectDialog(
 	await user.click(screen.getByLabelText("New project"));
 	await user.click(screen.getByRole("button", { name: /^Project/i }));
 	await screen.findByText(path);
-	await chooseOption(screen.getByRole("combobox", { name: "Worker agent" }), "Codex");
-	await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 	return user;
+}
+
+/**
+ * Opens the "Advanced settings" accordion that now holds the orchestrator
+ * override. Radix unmounts collapsed content, so the control does not exist in
+ * the DOM until this runs.
+ */
+async function openAdvancedSettings(user: ReturnType<typeof userEvent.setup>) {
+	const trigger = screen.queryByRole("button", { name: "Advanced settings" });
+	if (trigger && trigger.getAttribute("aria-expanded") !== "true") {
+		await user.click(trigger);
+	}
 }
 
 beforeEach(() => {
@@ -858,13 +868,12 @@ describe("Sidebar", () => {
 				expect.objectContaining({
 					path: "/repo/new-project",
 					workerAgent: "codex",
-					orchestratorAgent: "codex",
 				}),
 			),
 		);
 	});
 
-	it("defaults a new project to Codex when the catalog includes DeepSeek Harness", async () => {
+	it("defaults a new project to Codex when the catalog includes a worker-only provider", async () => {
 		const user = userEvent.setup();
 		const onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler;
 		window.kennel!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
@@ -877,8 +886,8 @@ describe("Sidebar", () => {
 						roles: { worker: true, coordinator: true, switchTarget: true },
 					},
 					{
-						id: "deepseek-harness",
-						label: "DeepSeek Harness",
+						id: "pi",
+						label: "Pi",
 						requiresProfile: true,
 						roles: { worker: true, coordinator: false, switchTarget: false },
 					},
@@ -907,25 +916,25 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Project/i }));
 		expect(await screen.findByText("/repo/new-project")).toBeInTheDocument();
-		expect(screen.getByRole("combobox", { name: "Worker agent" })).toHaveTextContent("Codex");
-		expect(screen.getByRole("combobox", { name: "Orchestrator agent" })).toHaveTextContent("Codex");
+		expect(screen.getByRole("combobox", { name: "Default coding agent" })).toHaveTextContent("Codex");
+		await openAdvancedSettings(user);
+		expect(screen.getByRole("combobox", { name: "Orchestrator agent" })).toHaveTextContent(
+			"Select orchestrator agent",
+		);
 
-		await user.click(screen.getByRole("combobox", { name: "Worker agent" }));
+		await user.click(screen.getByRole("combobox", { name: "Default coding agent" }));
 		// Codex stays the default; the admitted worker appears with its real
 		// needs-install state (avatar-initial fallback, no logo asset yet).
 		expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
 			"Codex",
-			"DDeepSeek HarnessNeeds install",
+			"PiNeeds install",
 		]);
 		await user.keyboard("{Escape}");
 
 		await user.click(screen.getByRole("button", { name: "Create and start" }));
 		await waitFor(() =>
 			expect(onCreateProject).toHaveBeenCalledWith(
-				expect.objectContaining({
-					workerAgent: "codex",
-					orchestratorAgent: "codex",
-				}),
+				expect.objectContaining({ workerAgent: "codex" }),
 			),
 		);
 	});
@@ -1031,7 +1040,8 @@ describe("Sidebar", () => {
 		expect(await screen.findByText("/repo/workspace")).toBeInTheDocument();
 		expect(window.kennel!.app.chooseDirectory).toHaveBeenCalledWith("Choose a workspace folder");
 		expect(screen.getByRole("dialog", { name: "Workspace agents" })).toBeInTheDocument();
-		await chooseOption(screen.getByRole("combobox", { name: "Worker agent" }), "Codex");
+		await chooseOption(screen.getByRole("combobox", { name: "Default coding agent" }), "Codex");
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
@@ -1061,6 +1071,7 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
@@ -1109,6 +1120,7 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
@@ -1160,6 +1172,7 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
@@ -1182,6 +1195,7 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
@@ -1220,6 +1234,7 @@ describe("Sidebar", () => {
 				"If this folder needs Git setup, Kennel will initialize it and create the first commit before starting.",
 			),
 		).toBeInTheDocument();
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
@@ -1253,8 +1268,8 @@ describe("Sidebar", () => {
 						roles: { worker: true, coordinator: true, switchTarget: true },
 					},
 					{
-						id: "deepseek-harness",
-						label: "DeepSeek Harness",
+						id: "pi",
+						label: "Pi",
 						requiresProfile: true,
 						roles: { worker: true, coordinator: false, switchTarget: false },
 					},
@@ -1273,6 +1288,7 @@ describe("Sidebar", () => {
 		await user.click(screen.getByRole("button", { name: /^Project/i }));
 		expect(await screen.findByText("/repo/new-project")).toBeInTheDocument();
 
+		await openAdvancedSettings(user);
 		await user.click(screen.getByRole("combobox", { name: "Orchestrator agent" }));
 		const options = await screen.findAllByRole("option");
 		expect(options.map((option) => option.textContent)).toEqual(["Codex"]);
@@ -1282,7 +1298,9 @@ describe("Sidebar", () => {
 		await user.click(screen.getByRole("button", { name: "Create and start" }));
 
 		await waitFor(() =>
-			expect(onCreateProject).toHaveBeenCalledWith(expect.objectContaining({ orchestratorAgent: "codex" })),
+			expect(onCreateProject).toHaveBeenCalledWith(
+				expect.not.objectContaining({ orchestratorAgent: expect.anything() }),
+			),
 		);
 	});
 
@@ -1336,6 +1354,7 @@ describe("Sidebar", () => {
 			error: undefined,
 		});
 
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create and start" }));
 

@@ -9,6 +9,22 @@ export const CORE_PROVIDER_IDS = ["codex", "claude-code", "opencode", "cursor", 
 export const DEFAULT_AGENT_PRIORITY: readonly string[] = [];
 export const DEFAULT_AGENT_PRIORITY_RANK = new Map<string, number>();
 
+type AgentRole = keyof NonNullable<AgentInfo["roles"]>;
+
+/**
+ * Reads one role admission off a catalog entry, failing CLOSED.
+ *
+ * `roles` is required by the generated schema, but a daemon on a different
+ * version — or a partial catalog entry — can omit it, and a renderer that
+ * dereferences it directly takes the whole surface down with a TypeError
+ * instead of degrading. An entry that does not state a role is not admitted
+ * for it; the daemon refuses the spawn either way, so the honest client
+ * behaviour is to hide the option rather than crash or assume yes.
+ */
+export function admitsRole(agent: AgentInfo, role: AgentRole): boolean {
+	return agent.roles?.[role] === true;
+}
+
 export type AgentStatusTone = "success" | "warning" | "muted";
 
 export type RankedAgentOption = AgentInfo & {
@@ -48,7 +64,12 @@ function agentStatus({
 			statusTone: "warning",
 		};
 	}
-	return { status: "Ready", statusTone: "success" };
+	// A healthy agent carries no badge. The menu exists to surface PROBLEMS —
+	// needs install, needs setup, needs auth — and stamping "Ready" on every
+	// other row turns the one signal that should stand out into noise. It also
+	// changes each option's accessible name, so a screen reader announces
+	// "Codex Ready" for the unremarkable case.
+	return { status: "", statusTone: "success" };
 }
 
 // buildRankedAgentOptions renders daemon-owned provider facts. Build support,

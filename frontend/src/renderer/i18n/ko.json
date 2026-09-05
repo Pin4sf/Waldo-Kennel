@@ -2212,5 +2212,7 @@
 	"waldo.project.error.episode": "Could not start a bounded conversation episode",
 	"waldo.project.error.save": "Could not save this turn",
 	"waldo.project.error.attach": "Could not attach Project context",
-	"waldo.project.error.detach": "Could not detach Project context"
+	"waldo.project.error.detach": "Could not detach Project context",
+	"switchAgent.catalogUnavailable": "Kennel이 에이전트 카탈로그를 불러오지 못해 전환 대상을 제공할 수 없습니다. 데몬이 응답하면 다시 시도하세요.",
+	"switchAgent.noContinuationTargets": "이 대화를 이어갈 수 있는 다른 설치된 제공자가 없습니다."
 }

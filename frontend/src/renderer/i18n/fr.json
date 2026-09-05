@@ -2228,5 +2228,7 @@
 	"waldo.project.error.episode": "Could not start a bounded conversation episode",
 	"waldo.project.error.save": "Could not save this turn",
 	"waldo.project.error.attach": "Could not attach Project context",
-	"waldo.project.error.detach": "Could not detach Project context"
+	"waldo.project.error.detach": "Could not detach Project context",
+	"switchAgent.catalogUnavailable": "Kennel n'a pas pu charger le catalogue d'agents et ne peut donc pas proposer de cible de bascule. Réessayez lorsque le démon répondra.",
+	"switchAgent.noContinuationTargets": "Aucun autre fournisseur installé ne peut poursuivre cette conversation."
 }

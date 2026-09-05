@@ -21,6 +21,10 @@ const agent = (id: string, label: string, extra: Partial<AgentInfo> = {}): Agent
 	...extra,
 });
 
+// NOTE: SettingsOptionMenu renders DropdownMenuItem, so these options expose
+// role="menuitem" with no aria-checked. A single-select value picker should be
+// menuitemradio + aria-checked; that is a separate accessibility change across
+// all ten pickers (~90 call sites) and is deliberately not made here.
 describe("ReviewerSelect", () => {
 	it("does not derive security warnings from provider names", () => {
 		expect(reviewerTrustWarning("codex")).toBeNull();
@@ -49,7 +53,7 @@ describe("ReviewerSelect", () => {
 
 		await userEvent.click(screen.getByRole("button", { name: "Default reviewer agent" }));
 		for (const label of ["Claude Code", "Codex", "Cursor", "OpenCode", "Pi"]) {
-			expect(screen.getByRole("menuitemradio", { name: new RegExp(label, "i") })).toBeInTheDocument();
+			expect(screen.getByRole("menuitem", { name: new RegExp(label, "i") })).toBeInTheDocument();
 		}
 	});
 
@@ -68,7 +72,7 @@ describe("ReviewerSelect", () => {
 		);
 
 		await userEvent.click(screen.getByRole("button", { name: "Default reviewer agent" }));
-		const piOption = screen.getByRole("menuitemradio", { name: /Pi.*Select a Pi profile/i });
+		const piOption = screen.getByRole("menuitem", { name: /Pi.*Select a Pi profile/i });
 		expect(piOption).toHaveAttribute("aria-disabled", "true");
 	});
 });

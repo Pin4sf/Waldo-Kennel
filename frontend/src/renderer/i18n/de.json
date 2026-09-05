@@ -2212,5 +2212,7 @@
 	"waldo.project.error.episode": "Could not start a bounded conversation episode",
 	"waldo.project.error.save": "Could not save this turn",
 	"waldo.project.error.attach": "Could not attach Project context",
-	"waldo.project.error.detach": "Could not detach Project context"
+	"waldo.project.error.detach": "Could not detach Project context",
+	"switchAgent.catalogUnavailable": "Kennel konnte den Agentenkatalog nicht laden und kann daher kein Wechselziel anbieten. Erneut versuchen, sobald der Daemon antwortet.",
+	"switchAgent.noContinuationTargets": "Kein anderer installierter Anbieter kann diese Unterhaltung fortsetzen."
 }

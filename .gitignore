@@ -1,4 +1,18 @@
+# Trailing slashes match directories only, and a SYMLINK to a directory is not a
+# directory to git — a linked node_modules (worktrees, pnpm-style setups) slips
+# straight past `node_modules/` and gets committed by `git add -A`. Match both.
+node_modules
 node_modules/
+
+# Toolchain caches and agent worktrees. These lived only in .git/info/exclude,
+# which is never cloned, so a fresh checkout that runs the toolchain had ~40GB
+# untracked and unignored.
+.gocache/
+.gomodcache/
+.gopath/
+.npm-cache/
+.worktrees/
+.claude/
 out/
 dist/
 coverage/

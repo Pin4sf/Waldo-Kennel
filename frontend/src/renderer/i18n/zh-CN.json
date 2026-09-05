@@ -2194,5 +2194,7 @@
 	"waldo.project.error.episode": "Could not start a bounded conversation episode",
 	"waldo.project.error.save": "Could not save this turn",
 	"waldo.project.error.attach": "Could not attach Project context",
-	"waldo.project.error.detach": "Could not detach Project context"
+	"waldo.project.error.detach": "Could not detach Project context",
+	"switchAgent.catalogUnavailable": "Kennel 无法加载代理目录，因此无法提供切换目标。请在守护进程响应后重试。",
+	"switchAgent.noContinuationTargets": "没有其他已安装的提供方可以继续此对话。"
 }
