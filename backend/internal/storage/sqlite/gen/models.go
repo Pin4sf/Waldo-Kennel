@@ -648,6 +648,29 @@ type Project struct {
 	Kind          string
 }
 
+type ProjectBriefHead struct {
+	ProjectID             string
+	CurrentRevisionNumber int64
+	UpdatedAt             time.Time
+}
+
+type ProjectBriefRevision struct {
+	ID                  string
+	ProjectID           string
+	RevisionNumber      int64
+	Purpose             string
+	ProductContext      string
+	TechnicalContext    string
+	ArchitectureSummary string
+	ConventionsJson     string
+	ConstraintsJson     string
+	SetupExpectations   string
+	RunExpectations     string
+	TestExpectations    string
+	ProvenanceJson      string
+	CreatedAt           time.Time
+}
+
 type ResponsibilityLink struct {
 	ID                   string
 	ProjectID            string

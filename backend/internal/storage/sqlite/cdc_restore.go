@@ -24,7 +24,13 @@ var changeLogWriters = []struct {
 	// is restored only when the subject table and every dependency physically
 	// exist, so partially migrated profiles never carry half-built triggers.
 	deps []string
-	sql  string
+	// since is the migration filename prefix that introduced this writer, for
+	// writers added after the 0106 rebuild-detach guard began. A rebuild
+	// migration cannot be expected to detach a writer that did not exist when
+	// it shipped, and merged migrations must never be edited to add one.
+	// Empty means the writer predates the guard and every rebuild must drop it.
+	since string
+	sql   string
 }{
 	{
 		name:  "agent_switches_cdc_insert",
@@ -366,6 +372,14 @@ var changeLogWriters = []struct {
 		name:  "waldo_continuation_receipts_cdc_insert",
 		table: "waldo_continuation_receipts",
 		sql:   "CREATE TRIGGER waldo_continuation_receipts_cdc_insert\nAFTER INSERT ON waldo_continuation_receipts\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'waldo_conversation_continuation_recorded', json_object('conversationId', NEW.conversation_id, 'receiptId', NEW.id, 'fromEpisodeId', NEW.from_episode_id, 'toEpisodeId', COALESCE(NEW.to_episode_id, ''), 'action', NEW.action, 'reason', NEW.reason, 'materialChange', json(CASE WHEN NEW.material_change THEN 'true' ELSE 'false' END)), NEW.created_at);\nEND;",
+	},
+	// Durable Project Brief revisions (#94). Identifier-only payload: the Brief's
+	// prose is durable Project context, not a change-feed fact.
+	{
+		name:  "project_brief_revisions_cdc_insert",
+		table: "project_brief_revisions",
+		since: "0111",
+		sql:   "CREATE TRIGGER project_brief_revisions_cdc_insert\nAFTER INSERT ON project_brief_revisions\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        NEW.project_id,\n        NULL,\n        'project_brief_revised',\n        json_object('revisionId', NEW.id, 'revision', NEW.revision_number),\n        NEW.created_at\n    );\nEND;",
 	},
 }
 

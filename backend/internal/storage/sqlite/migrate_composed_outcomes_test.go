@@ -194,9 +194,13 @@ func declaredRelations(t *testing.T) []string {
 // and every fixture here missed, because fixtures never had the full writer
 // set attached when the rebuild ran.
 func TestChangeLogRebuildsDetachEveryCanonicalWriter(t *testing.T) {
-	canonical := make([]string, 0, len(changeLogWriters))
+	// A writer introduced by migration N cannot have been detached by a rebuild
+	// that shipped before N, and merged migrations are never edited to add one.
+	// Hold each rebuild only to the writers that existed when it shipped.
+	type canonicalWriter struct{ name, since string }
+	canonical := make([]canonicalWriter, 0, len(changeLogWriters))
 	for _, writer := range changeLogWriters {
-		canonical = append(canonical, writer.name)
+		canonical = append(canonical, canonicalWriter{name: writer.name, since: writer.since})
 	}
 	if len(canonical) == 0 {
 		t.Fatal("no canonical writers found; this test would be vacuous")
@@ -230,12 +234,73 @@ func TestChangeLogRebuildsDetachEveryCanonicalWriter(t *testing.T) {
 			dropped[match[1]] = struct{}{}
 		}
 		for _, writer := range canonical {
-			if _, ok := dropped[writer]; !ok {
-				t.Errorf("%s rebuilds change_log but never detaches %q; a live database would strand it", entry.Name(), writer)
+			if writer.since != "" && entry.Name() < writer.since {
+				continue
+			}
+			if _, ok := dropped[writer.name]; !ok {
+				t.Errorf("%s rebuilds change_log but never detaches %q; a live database would strand it", entry.Name(), writer.name)
 			}
 		}
 	}
 	if checked == 0 {
 		t.Fatal("no rebuild migrations examined; the guard would be vacuous")
+	}
+}
+
+// The drop-side guard above proves a rebuild detaches every registered writer.
+// It cannot prove the converse, and the converse is what actually bites: a
+// migration that CREATES a change_log writer without registering it in
+// changeLogWriters leaves a trigger that restoreChangeLogWriters will never
+// reattach. The next rebuild then either strands it on the dropped table or
+// drops it for good, and the feature's change feed silently stops.
+//
+// #94 shipped exactly that: project_brief_revisions_cdc_insert existed only in
+// its migration.
+func TestEveryMigrationChangeLogWriterIsRegistered(t *testing.T) {
+	registered := make(map[string]struct{}, len(changeLogWriters))
+	for _, writer := range changeLogWriters {
+		registered[writer.name] = struct{}{}
+	}
+	if len(registered) == 0 {
+		t.Fatal("no canonical writers found; this guard would be vacuous")
+	}
+
+	entries, err := os.ReadDir("migrations")
+	if err != nil {
+		t.Fatalf("read migrations: %v", err)
+	}
+	// A trigger is a change_log writer when its body inserts into change_log.
+	createPattern := regexp.MustCompile(`CREATE TRIGGER (\w+)\b`)
+	checked := 0
+	for _, entry := range entries {
+		body, err := os.ReadFile(filepath.Join("migrations", entry.Name()))
+		if err != nil {
+			t.Fatalf("read %s: %v", entry.Name(), err)
+		}
+		text := string(body)
+		// Only the Up half declares writers; the Down half tears them down.
+		if idx := strings.Index(text, "-- +goose Down"); idx != -1 {
+			text = text[:idx]
+		}
+		for _, match := range createPattern.FindAllStringSubmatchIndex(text, -1) {
+			name := text[match[2]:match[3]]
+			// Scope to this trigger's body: from its CREATE to the next END;.
+			tail := text[match[0]:]
+			if end := strings.Index(tail, "END;"); end != -1 {
+				tail = tail[:end]
+			}
+			if !strings.Contains(tail, "INSERT INTO change_log") {
+				continue
+			}
+			checked++
+			if _, ok := registered[name]; !ok {
+				t.Errorf("%s creates change_log writer %q but it is absent from changeLogWriters; "+
+					"restoreChangeLogWriters would never reattach it after the next rebuild",
+					entry.Name(), name)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no change_log writers found in migrations; the guard would be vacuous")
 	}
 }
