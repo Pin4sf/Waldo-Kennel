@@ -124,7 +124,7 @@ function submitSettings() {
 const agentCatalogResponse = {
 	data: {
 		// Mirrors the real daemon: `supported` contains only harnesses admitted
-		// for fresh work (codex + deepseek-harness); historical identities below
+		// for fresh work (codex + cursor); historical identities below
 		// remain readable in installed/authorized but are never offered. Role
 		// admission and profile requirements mirror the daemon's AgentInfo.
 		supported: [
@@ -134,8 +134,8 @@ const agentCatalogResponse = {
 				roles: { worker: true, coordinator: true, switchTarget: true },
 			},
 			{
-				id: "deepseek-harness",
-				label: "DeepSeek Harness",
+				id: "cursor",
+				label: "Cursor",
 				requiresProfile: true,
 				roles: { worker: true, coordinator: false, switchTarget: false },
 			},
@@ -183,7 +183,7 @@ const resolvedMissionRolesResponse = {
 		reason: "no preference recorded; using the capability-admitted default",
 	},
 	worker: {
-		harness: "deepseek-harness",
+		harness: "cursor",
 		source: "preference",
 		eligible: true,
 		ready: false,
@@ -805,7 +805,7 @@ describe("ProjectSettingsForm", () => {
 		expect(screen.getByRole("button", { name: "Default orchestrator agent" })).toBeDisabled();
 	});
 
-	it("offers only Codex to configure a reviewer", async () => {
+	it("offers every reviewer the daemon reports as supported", async () => {
 		mockProject({
 			id: "proj-1",
 			name: "Project One",
@@ -823,7 +823,7 @@ describe("ProjectSettingsForm", () => {
 		const reviewer = await screen.findByRole("button", { name: "Default reviewer agent" });
 		await userEvent.click(reviewer);
 		const labels = (await screen.findAllByRole("menuitem")).map((option) => option.textContent);
-		expect(labels).toEqual(["Project default", "Codex"]);
+		expect(labels).toEqual(["Project default", "Codex", "Cursor"]);
 	});
 
 	it("does not offer a historical catalog entry as a reviewer", async () => {
@@ -844,7 +844,10 @@ describe("ProjectSettingsForm", () => {
 			if (path === "/api/v1/agents") {
 				return {
 					data: {
-						supported: [...agentCatalogResponse.data.supported, muse],
+						// A retired identity stays INSTALLED locally but the daemon no
+						// longer reports it as supported. The picker offers what the
+						// daemon supports, never everything that happens to be on disk.
+						supported: agentCatalogResponse.data.supported,
 						installed: [...agentCatalogResponse.data.installed, muse],
 						authorized: [...agentCatalogResponse.data.authorized, muse],
 					},
@@ -880,7 +883,7 @@ describe("ProjectSettingsForm", () => {
 		expect(screen.getByRole("menuitem", { name: /Codex/ })).toBeInTheDocument();
 	});
 
-	it("orders reviewers using the default agent priority", async () => {
+	it("lists reviewers in label order without a renderer-side provider ranking", async () => {
 		mockProject({
 			id: "proj-1",
 			name: "Project One",
@@ -901,92 +904,7 @@ describe("ProjectSettingsForm", () => {
 			.map((option) => option.textContent)
 			.filter((label) => label !== "Project default");
 
-		expect(reviewerLabels).toEqual(["Codex"]);
-	});
-
-	it("offers the experimental host-trusted reviewer set", async () => {
-		const project = {
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: { worker: { agent: "qwen" }, orchestrator: { agent: "claude-code" } },
-		};
-		const qwen = { id: "qwen", label: "Qwen Code", authStatus: "authorized" };
-		const devin = { id: "devin", label: "Devin", authStatus: "authorized" };
-		const droid = { id: "droid", label: "Droid", authStatus: "authorized" };
-		const kimi = { id: "kimi", label: "Kimi", authStatus: "authorized" };
-		const aider = { id: "aider", label: "Aider", authStatus: "authorized" };
-		const amp = { id: "amp", label: "Amp", authStatus: "authorized" };
-		const experimental = [
-			{ id: "agy", label: "Agy", authStatus: "authorized" },
-			{ id: "auggie", label: "Auggie", authStatus: "authorized" },
-			{ id: "autohand", label: "Autohand", authStatus: "authorized" },
-			{ id: "cline", label: "Cline", authStatus: "authorized" },
-			{ id: "continue", label: "Continue", authStatus: "authorized" },
-			{ id: "crush", label: "Crush", authStatus: "authorized" },
-			{ id: "grok", label: "Grok", authStatus: "authorized" },
-			{ id: "vibe", label: "Vibe", authStatus: "authorized" },
-		];
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") {
-				return {
-					data: {
-						supported: [...agentCatalogResponse.data.supported, qwen, devin, droid, kimi, aider, amp, ...experimental],
-						installed: [...agentCatalogResponse.data.installed, qwen, devin, droid, kimi, aider, amp, ...experimental],
-						authorized: [...agentCatalogResponse.data.authorized, qwen, devin, droid, kimi, aider, amp, ...experimental],
-					},
-					error: undefined,
-				};
-			}
-			return { data: { status: "ok", project }, error: undefined };
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		const reviewer = await screen.findByRole("button", { name: "Default reviewer agent" });
-		await userEvent.click(reviewer);
-		const options = await screen.findAllByRole("menuitem");
-		const labels = options.map((option) => option.textContent);
-		expect(labels).toEqual(["Project default", "Codex"]);
-	});
-
-	it("does not offer an experimental reviewer", async () => {
-		const kimchi = { id: "kimchi", label: "Kimchi", authStatus: "authorized" };
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") {
-				return {
-					data: {
-						supported: [...agentCatalogResponse.data.supported, kimchi],
-						installed: [...agentCatalogResponse.data.installed, kimchi],
-						authorized: [...agentCatalogResponse.data.authorized, kimchi],
-					},
-					error: undefined,
-				};
-			}
-			return {
-				data: {
-					status: "ok",
-					project: {
-						id: "proj-1",
-						name: "Project One",
-						kind: "single_repo",
-						path: "/repo/project-one",
-						repo: "",
-						defaultBranch: "main",
-						config: { worker: { agent: "codex" }, orchestrator: { agent: "claude-code" } },
-					},
-				},
-				error: undefined,
-			};
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-		await userEvent.click(await screen.findByRole("button", { name: "Default reviewer agent" }));
-		expect(screen.queryByRole("menuitem", { name: /Kimchi/ })).not.toBeInTheDocument();
-		expect(screen.getByRole("menuitem", { name: /Codex/ })).toBeInTheDocument();
+		expect(reviewerLabels).toEqual(["Codex", "Cursor"]);
 	});
 
 	it("shows only admitted agents as selectable in project settings", async () => {
@@ -1010,7 +928,7 @@ describe("ProjectSettingsForm", () => {
 		const options = await screen.findAllByRole("menuitem");
 		expect(options.map((option) => option.textContent)).toEqual([
 			"Codex",
-			"DDeepSeek HarnessNeeds install",
+			"Cursor",
 		]);
 		expect(options[0]).not.toHaveAttribute("aria-disabled", "true");
 	});
@@ -1028,9 +946,9 @@ describe("ProjectSettingsForm", () => {
 				orchestrator: { agent: "codex" },
 			},
 		};
-		const installedDeepSeek = {
-			id: "deepseek-harness",
-			label: "DeepSeek Harness",
+		const installedWorkerOnly = {
+			id: "cursor",
+			label: "Cursor",
 			authStatus: "authorized",
 			requiresProfile: true,
 			roles: { worker: true, coordinator: false, switchTarget: false },
@@ -1040,8 +958,8 @@ describe("ProjectSettingsForm", () => {
 				return {
 					data: {
 						supported: agentCatalogResponse.data.supported,
-						installed: [...agentCatalogResponse.data.installed, installedDeepSeek],
-						authorized: [...agentCatalogResponse.data.authorized, installedDeepSeek],
+						installed: [...agentCatalogResponse.data.installed, installedWorkerOnly],
+						authorized: [...agentCatalogResponse.data.authorized, installedWorkerOnly],
 					},
 					error: undefined,
 				};
@@ -1071,10 +989,10 @@ describe("ProjectSettingsForm", () => {
 
 		// Selecting the profile-gated harness reveals the field bound to
 		// AgentConfig.Profile — the value spawn reads as the dsh profile.
-		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "DeepSeek Harness");
+		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "Cursor");
 
 		const profileInput = screen.getByLabelText("Profile");
-		await userEvent.type(profileInput, "dsh-main");
+		await userEvent.type(profileInput, "cursor-main");
 
 		submitSettings();
 
@@ -1084,7 +1002,7 @@ describe("ProjectSettingsForm", () => {
 			expect.objectContaining({
 				body: expect.objectContaining({
 					config: expect.objectContaining({
-						worker: { agent: "deepseek-harness", agentConfig: { profile: "dsh-main" } },
+						worker: { agent: "cursor", agentConfig: { profile: "cursor-main" } },
 					}),
 				}),
 			}),
@@ -1098,12 +1016,12 @@ describe("ProjectSettingsForm", () => {
 		// value was cleared at the harness boundary, so the saved request must
 		// not carry any stale profile. Wait for the SECOND PUT specifically —
 		// the first is the pre-switch save that carried the profile.
-		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "DeepSeek Harness");
+		await chooseOption(screen.getByRole("button", { name: "Default worker agent" }), "Cursor");
 		const callsBefore = putMock.mock.calls.length;
 		submitSettings();
 		await waitFor(() => expect(putMock.mock.calls.length).toBe(callsBefore + 1));
 		const cleared = putMock.mock.calls[callsBefore]?.[1]?.body;
-		expect(cleared.config.worker).toEqual({ agent: "deepseek-harness" });
+		expect(cleared.config.worker).toEqual({ agent: "cursor" });
 		expect(cleared.config.worker.agentConfig).toBeUndefined();
 	});
 
@@ -1141,86 +1059,6 @@ describe("ProjectSettingsForm", () => {
 		);
 	});
 
-	it("falls back to Codex when the catalog only contains a retired reviewer", async () => {
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") {
-				return {
-					data: {
-						supported: [{ id: "copilot", label: "GitHub Copilot" }],
-						installed: [],
-						authorized: [],
-					},
-					error: undefined,
-				};
-			}
-			return {
-				data: {
-					status: "ok",
-					project: {
-						id: "proj-1",
-						name: "Project One",
-						kind: "single_repo",
-						path: "/repo/project-one",
-						repo: "",
-						defaultBranch: "main",
-						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "claude-code" },
-						},
-					},
-				},
-				error: undefined,
-			};
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		await userEvent.click(await screen.findByRole("button", { name: "Default reviewer agent" }));
-		const options = await screen.findAllByRole("menuitem");
-		expect(options.map((option) => option.textContent)).toEqual(["Project default", "CodexNeeds install"]);
-		expect(options[1]).toHaveAttribute("aria-disabled", "true");
-	});
-
-	it("keeps the Codex fallback selectable when retired catalog metadata is stale", async () => {
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") {
-				return {
-					data: {
-						supported: [{ id: "copilot", label: "GitHub Copilot" }],
-						installed: [{ id: "copilot", label: "GitHub Copilot", authStatus: "unknown" }],
-						authorized: [],
-					},
-					error: undefined,
-				};
-			}
-			return {
-				data: {
-					status: "ok",
-					project: {
-						id: "proj-1",
-						name: "Project One",
-						kind: "single_repo",
-						path: "/repo/project-one",
-						repo: "",
-						defaultBranch: "main",
-						config: {
-							worker: { agent: "codex" },
-							orchestrator: { agent: "claude-code" },
-						},
-					},
-				},
-				error: undefined,
-			};
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		await userEvent.click(await screen.findByRole("button", { name: "Default reviewer agent" }));
-		const options = await screen.findAllByRole("menuitem");
-		expect(options.map((option) => option.textContent)).toEqual(["Project default", "CodexNeeds install"]);
-		expect(options[1]).toHaveAttribute("aria-disabled", "true");
-	});
-
 	it("offers Codex as the configured reviewer", async () => {
 		mockProject({
 			id: "proj-1",
@@ -1240,39 +1078,6 @@ describe("ProjectSettingsForm", () => {
 		const reviewer = await screen.findByRole("button", { name: "Default reviewer agent" });
 		await userEvent.click(reviewer);
 		expect(await screen.findByRole("menuitem", { name: "Codex" })).toBeEnabled();
-	});
-
-	it("does not offer an experimental Agy reviewer", async () => {
-		const project = {
-			id: "proj-1",
-			name: "Project One",
-			kind: "single_repo",
-			path: "/repo/project-one",
-			repo: "",
-			defaultBranch: "main",
-			config: { worker: { agent: "agy" }, orchestrator: { agent: "claude-code" } },
-		};
-		const agy = { id: "agy", label: "Agy", authStatus: "authorized" };
-		getMock.mockImplementation(async (path: string) => {
-			if (path === "/api/v1/agents") {
-				return {
-					data: {
-						supported: [...agentCatalogResponse.data.supported, agy],
-						installed: [...agentCatalogResponse.data.installed, agy],
-						authorized: [...agentCatalogResponse.data.authorized, agy],
-					},
-					error: undefined,
-				};
-			}
-			return { data: { status: "ok", project }, error: undefined };
-		});
-
-		renderSettings("proj-1", undefined, "workflow");
-
-		const reviewerAgent = await screen.findByRole("button", { name: "Default reviewer agent" });
-		await userEvent.click(reviewerAgent);
-		const options = await screen.findAllByRole("menuitem");
-		expect(options.map((option) => option.textContent)).toEqual(["Project default", "Codex"]);
 	});
 
 	it("shows scratch identity and saves only scratch-supported settings", async () => {
@@ -1561,13 +1366,13 @@ describe("ProjectSettingsForm", () => {
 		// The stored verifier preference hydrates the form; choosing a worker
 		// preference and saving persists exactly the non-blank fields.
 		const workerPref = screen.getByRole("button", { name: "Preferred worker" });
-		await chooseOption(workerPref, "DeepSeek Harness");
+		await chooseOption(workerPref, "Cursor");
 		submitSettings();
 
 		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
 		const body = putMock.mock.calls[0]?.[1]?.body;
 		expect(body.config.agentPreferences).toEqual({
-			defaultWorker: "deepseek-harness",
+			defaultWorker: "cursor",
 			verifier: "codex",
 		});
 	});

@@ -11,6 +11,7 @@ import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { components } from "../../api/schema";
 import { agentsQueryKey, agentsQueryOptions, refreshAgents } from "../hooks/useAgentsQuery";
 import {
+	admitsRole,
 	buildRankedAgentOptions,
 	CORE_PROVIDER_IDS,
 	singleReadyProvider,
@@ -142,12 +143,12 @@ export function CreateProjectAgentSheet({
 				installed: installedAgents,
 				authorized: authorizedAgents,
 				fallbackAgents: CORE_FALLBACK_AGENTS,
-				filter: (candidate) => candidate.roles.worker,
+				filter: (candidate) => admitsRole(candidate, "worker"),
 			}),
 		[authorizedAgents, installedAgents, supportedAgents],
 	);
 	const coordinatorCapable = useMemo(
-		() => new Set(supportedAgents.filter((candidate) => candidate.roles.coordinator).map((candidate) => candidate.id)),
+		() => new Set(supportedAgents.filter((candidate) => admitsRole(candidate, "coordinator")).map((candidate) => candidate.id)),
 		[supportedAgents],
 	);
 	const isLoadingAgents = agents === undefined && agentsQuery.isFetching;

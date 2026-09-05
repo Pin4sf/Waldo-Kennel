@@ -27,7 +27,8 @@ func TestProjectConfigValidate(t *testing.T) {
 		{"session prefix with backslash", ProjectConfig{SessionPrefix: `ao\project`}, true},
 		{"session prefix traversal component", ProjectConfig{SessionPrefix: ".."}, true},
 		{"good role override", ProjectConfig{Worker: RoleOverride{Harness: HarnessCodex}}, false},
-		{"retired role override is not selectable for new work", ProjectConfig{Worker: RoleOverride{Harness: HarnessClaudeCode}}, true},
+		{"shipped role override is selectable", ProjectConfig{Worker: RoleOverride{Harness: HarnessClaudeCode}}, false},
+		{"retired role override is not selectable for new work", ProjectConfig{Worker: RoleOverride{Harness: AgentHarness("aider")}}, true},
 		{"unknown role harness", ProjectConfig{Orchestrator: RoleOverride{Harness: "nope"}}, true},
 		{"bad role agent config", ProjectConfig{Worker: RoleOverride{AgentConfig: AgentConfig{Permissions: "nope"}}}, true},
 		{"good symlinks", ProjectConfig{Symlinks: []string{".env", "configs/dev.toml"}}, false},
@@ -40,32 +41,14 @@ func TestProjectConfigValidate(t *testing.T) {
 		{"agent rules file parent escape", ProjectConfig{AgentRulesFile: "../rules.md"}, true},
 		{"agent rules file cleans to dot", ProjectConfig{AgentRulesFile: "docs/.."}, true},
 		{"agent rules file bare dot", ProjectConfig{AgentRulesFile: "."}, true},
-		{"retired reviewer is not selectable for new work", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerClaudeCode}}}, true},
 		{"good codex reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCodex}}}, false},
-		{"retired copilot reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCopilot}}}, true},
-		{"retired cursor reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCursor}}}, true},
-		{"retired Kilo Code reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerKiloCode}}}, true},
-		{"retired kimchi reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerKimchi}}}, true},
-		{"retired opencode reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerOpenCode}}}, true},
-		{"retired kiro reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerKiro}}}, true},
-		{"retired pi reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerPi}}}, true},
-		{"retired experimental qwen reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerQwen}}}, true},
-		{"retired experimental agy reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerAgy}}}, true},
-		{"retired experimental continue reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerContinue}}}, true},
-		{"retired experimental goose reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerGoose}}}, true},
-		{"retired experimental vibe reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerVibe}}}, true},
-		{"retired experimental Devin reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerDevin}}}, true},
-		{"retired experimental Droid reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerDroid}}}, true},
-		{"retired experimental Kimi reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerKimi}}}, true},
-		{"retired Muse reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerMuse}}}, true},
+		// Every shipped provider has a reviewer adapter and is admitted as one.
+		{"claude-code reviewer is admitted", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerClaudeCode}}}, false},
+		{"opencode reviewer is admitted", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerOpenCode}}}, false},
+		{"cursor reviewer is admitted", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCursor}}}, false},
+		{"pi reviewer is admitted", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerPi}}}, false},
+		{"retired reviewer identity is refused", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerHarness("muse")}}}, true},
 		{"unknown reviewer harness", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: "nope"}}}, true},
-		{"retired interactive Amp reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerAmp}}}, true},
-		{"retired interactive Aider reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerAider}}}, true},
-		{"retired experimental Grok reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerGrok}}}, true},
-		{"retired experimental Crush reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCrush}}}, true},
-		{"retired experimental Auggie reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerAuggie}}}, true},
-		{"retired experimental Cline reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerCline}}}, true},
-		{"retired experimental Autohand reviewer", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerAutohand}}}, true},
 		{"empty reviewer harness", ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ""}}}, true},
 		{"tracker intake assignee rule", ProjectConfig{TrackerIntake: TrackerIntakeConfig{Enabled: true, Assignee: "alice"}}, false},
 		{"tracker intake explicit github", ProjectConfig{TrackerIntake: TrackerIntakeConfig{Enabled: true, Provider: TrackerProviderGitHub, Assignee: "alice"}}, false},
@@ -141,42 +124,31 @@ func TestProjectConfigWithDefaults(t *testing.T) {
 func TestResolveReviewerHarness(t *testing.T) {
 	// A configured reviewer always wins, regardless of the worker harness.
 	cfg := ProjectConfig{Reviewers: []ReviewerConfig{{Harness: ReviewerClaudeCode}}}
-	if got := cfg.ResolveReviewerHarness(HarnessAider); got != ReviewerClaudeCode {
+	if got := cfg.ResolveReviewerHarness(HarnessCursor); got != ReviewerClaudeCode {
 		t.Fatalf("configured reviewer = %q, want claude-code", got)
 	}
 
-	// No reviewer configured: preserve automatic inheritance only for the
-	// original unattended-safe reviewer set.
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessClaudeCode); got != ReviewerClaudeCode {
-		t.Fatalf("claude-code worker = %q, want reviewer claude-code", got)
-	}
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessCodex); got != ReviewerCodex {
-		t.Fatalf("codex worker = %q, want reviewer codex", got)
-	}
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessOpenCode); got != ReviewerOpenCode {
-		t.Fatalf("opencode worker = %q, want reviewer opencode", got)
-	}
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessMuse); got != ReviewerMuse {
-		t.Fatalf("muse worker = %q, want reviewer muse", got)
-	}
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessKimchi); got != ReviewerKimchi {
-		t.Fatalf("kimchi worker = %q, want reviewer kimchi", got)
+	// No reviewer configured: every SHIPPED worker reviews with its own provider,
+	// so resolution never routes work from one live brand onto another.
+	for _, tc := range []struct {
+		worker AgentHarness
+		want   ReviewerHarness
+	}{
+		{HarnessClaudeCode, ReviewerClaudeCode},
+		{HarnessCodex, ReviewerCodex},
+		{HarnessOpenCode, ReviewerOpenCode},
+		{HarnessCursor, ReviewerCursor},
+		{HarnessPi, ReviewerPi},
+	} {
+		if got := (ProjectConfig{}).ResolveReviewerHarness(tc.worker); got != tc.want {
+			t.Errorf("%s worker = %q, want reviewer %q", tc.worker, got, tc.want)
+		}
 	}
 
-	// A worker harness that is not itself a reviewer (e.g. crush, aider) falls
-	// back to claude-code.
-	if got := (ProjectConfig{}).ResolveReviewerHarness(HarnessCrush); got != FallbackReviewerHarness {
-		t.Fatalf("crush worker = %q, want %q", got, FallbackReviewerHarness)
-	}
-	for _, worker := range []AgentHarness{
-		HarnessCopilot, HarnessCursor, HarnessKilocode, HarnessKiro, HarnessPi,
-		HarnessAider, HarnessAmp, HarnessQwen, HarnessAgy, HarnessContinue,
-		HarnessGoose, HarnessVibe, HarnessDevin, HarnessDroid, HarnessKimi,
-		HarnessGrok, HarnessCrush, HarnessAuggie, HarnessCline, HarnessAutohand,
-	} {
-		if got := (ProjectConfig{}).ResolveReviewerHarness(worker); got != FallbackReviewerHarness {
-			t.Errorf("%s worker = %q, want explicit-selection fallback %q", worker, got, FallbackReviewerHarness)
-		}
+	// The fallback is now reachable only for a persisted worker identity this
+	// build no longer ships — not as routing between two live providers.
+	if got := (ProjectConfig{}).ResolveReviewerHarness(AgentHarness("crush")); got != FallbackReviewerHarness {
+		t.Fatalf("retired worker identity = %q, want %q", got, FallbackReviewerHarness)
 	}
 }
 
@@ -204,9 +176,9 @@ func TestProjectAgentPreferencesValidateRejectsUnsupportedRoles(t *testing.T) {
 			wantErr: "coordinator",
 		},
 		{
-			name:    "claude-code is not admitted for fresh worker spawns",
-			prefs:   ProjectAgentPreferences{DefaultWorker: "claude-code"},
-			wantErr: "worker",
+			name:    "cursor ships but is not admitted as a coordinator",
+			prefs:   ProjectAgentPreferences{Coordinator: "cursor"},
+			wantErr: "coordinator",
 		},
 		{
 			name:    "unknown harness names are rejected",
@@ -229,7 +201,7 @@ func TestProjectAgentPreferencesValidateRejectsUnsupportedRoles(t *testing.T) {
 
 func TestProjectAgentPreferencesValidateAcceptsEligibleCombinations(t *testing.T) {
 	prefs := ProjectAgentPreferences{
-		DefaultWorker: "deepseek-harness",
+		DefaultWorker: "opencode",
 		Coordinator:   "codex",
 		Verifier:      "codex",
 	}
@@ -242,8 +214,8 @@ func TestProjectAgentPreferencesValidateAcceptsEligibleCombinations(t *testing.T
 }
 
 func TestResolveMissionRolesDistinguishesPreferenceFromDefault(t *testing.T) {
-	roles := ResolveMissionRoles(ProjectConfig{AgentPreferences: ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}})
-	if roles.Worker.Harness != HarnessDeepSeekHarness || roles.Worker.Source != RoleSourcePreference {
+	roles := ResolveMissionRoles(ProjectConfig{AgentPreferences: ProjectAgentPreferences{DefaultWorker: "opencode"}})
+	if roles.Worker.Harness != HarnessOpenCode || roles.Worker.Source != RoleSourcePreference {
 		t.Fatalf("worker should honor the preference: %+v", roles.Worker)
 	}
 	if roles.Coordinator.Harness != HarnessCodex || roles.Coordinator.Source != RoleSourceDefault {
@@ -260,7 +232,7 @@ func TestResolveMissionRolesDistinguishesPreferenceFromDefault(t *testing.T) {
 
 func TestProjectConfigRoundTripsAgentPreferences(t *testing.T) {
 	cfg := ProjectConfig{}
-	cfg.AgentPreferences = ProjectAgentPreferences{DefaultWorker: "deepseek-harness"}
+	cfg.AgentPreferences = ProjectAgentPreferences{DefaultWorker: "opencode"}
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -269,7 +241,7 @@ func TestProjectConfigRoundTripsAgentPreferences(t *testing.T) {
 	if err := json.Unmarshal(data, &back); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if back.AgentPreferences.DefaultWorker != string(HarnessDeepSeekHarness) {
+	if back.AgentPreferences.DefaultWorker != string(HarnessOpenCode) {
 		t.Fatalf("preferences lost across JSON round-trip: %+v", back.AgentPreferences)
 	}
 	if err := back.Validate(); err != nil {

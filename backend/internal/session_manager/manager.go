@@ -2659,10 +2659,6 @@ func (m *Manager) send(ctx context.Context, id domain.SessionID, message, client
 		return err
 	}
 
-	message, err := m.prepareOutboundMessage(ctx, id, message)
-	if err != nil {
-		return err
-	}
 	var afterWrite func(context.Context) error
 	if strings.TrimSpace(message) != "" {
 		if recorder, ok := m.store.(latestUserPromptRecorder); ok {
@@ -2712,39 +2708,6 @@ func (m *Manager) send(ctx context.Context, id domain.SessionID, message, client
 		m.confirmActive(ctx, m.messenger, id)
 	}
 	return nil
-}
-
-func (m *Manager) prepareOutboundMessage(ctx context.Context, id domain.SessionID, message string) (string, error) {
-	rec, ok, err := m.store.GetSession(ctx, id)
-	if err != nil {
-		return "", fmt.Errorf("send %s: session: %w", id, err)
-	}
-	if !ok {
-		return message, nil
-	}
-	if rec.Harness != domain.HarnessCopilot || rec.Kind != domain.KindOrchestrator {
-		return message, nil
-	}
-	return copilotOrchestratorMessage(rec.ProjectID, message), nil
-}
-
-func copilotOrchestratorMessage(projectID domain.ProjectID, message string) string {
-	project := strings.TrimSpace(string(projectID))
-	if project == "" {
-		project = "<project>"
-	}
-	return fmt.Sprintf(`KENNEL ORCHESTRATOR DIRECTIVE
-
-You are acting as the Kennel orchestrator for project %s. Do not implement code changes, edit files, run implementation tests, or complete the user's task yourself.
-
-Your next action for any implementation, fix, UI change, test, PR, or code-review task must be to spawn or redirect a worker session. Use:
-
-kennel spawn --project %s --name "<label, max 20 chars>" --prompt "<clear worker task>"
-
-If a suitable worker already exists, use kennel send to redirect that worker instead. After spawning or redirecting, report the worker session id and stop. Do not do the worker's task in this orchestrator session.
-
-USER MESSAGE:
-%s`, project, project, message)
 }
 
 // harnessNudgeSafe reports whether the session's harness is safe to nudge with
@@ -3366,19 +3329,22 @@ func (m *Manager) prepareSystemPromptFile(id domain.SessionID, harness domain.Ag
 	return "", nil
 }
 
+// systemPromptFileRequired reports whether a harness can ONLY receive its
+// standing instructions through a file, so failing to write that file must fail
+// the spawn rather than silently degrade to an inline prompt.
+//
+// This is a provider-capability question living in the session manager, which is
+// the wrong place for it: it belongs behind an adapter method (a
+// SystemPromptDelivery mode). It is left as a switch here only because the six
+// other harnesses it used to name have been retired and opencode is the sole
+// remaining member — narrowing it is not the moment to also move it.
+//
+// Known gap: cursor exposes no system-prompt flag at all (see the cursor
+// adapter), so its standing instructions are dropped rather than delivered. That
+// is a missing capability, not a file-vs-inline choice, and returning true here
+// would fail every cursor spawn instead of fixing it.
 func systemPromptFileRequired(harness domain.AgentHarness) bool {
-	switch harness {
-	case domain.HarnessAider,
-		domain.HarnessAgy,
-		domain.HarnessAuggie,
-		domain.HarnessKiro,
-		domain.HarnessOpenCode,
-		domain.HarnessCopilot,
-		domain.HarnessVibe:
-		return true
-	default:
-		return false
-	}
+	return harness == domain.HarnessOpenCode
 }
 
 func (m *Manager) systemPromptDir(id domain.SessionID) string {

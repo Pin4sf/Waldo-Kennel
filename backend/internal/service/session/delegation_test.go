@@ -86,7 +86,7 @@ func TestDelegateTaskRejectsHistoricalRequestedAgentBeforeSpawn(t *testing.T) {
 	cmd := &fakeCommander{}
 
 	_, err := (&Service{store: st, manager: cmd}).DelegateTask(context.Background(), DelegateTaskInput{
-		ProjectID: "ao", Brief: "Review the branch", RequestedAgent: domain.HarnessClaudeCode,
+		ProjectID: "ao", Brief: "Review the branch", RequestedAgent: domain.AgentHarness("aider"),
 	})
 	if err == nil || !strings.Contains(err.Error(), "not selectable for new work") {
 		t.Fatalf("DelegateTask() error = %v, want non-selectable agent rejection", err)

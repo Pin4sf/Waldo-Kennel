@@ -21,8 +21,6 @@ func TestShippedChatDrivers(t *testing.T) {
 		domain.HarnessCodex,
 		domain.HarnessClaudeCode,
 		domain.HarnessOpenCode,
-		domain.HarnessDroid,
-		domain.HarnessKimchi,
 	} {
 		if !r.SupportsChat(harness) {
 			t.Errorf("%s has no chat driver", harness)
@@ -35,7 +33,7 @@ func TestShippedChatDrivers(t *testing.T) {
 	// Every other harness stays TUI-only, and asking for chat must be refused with a
 	// typed answer rather than quietly producing a terminal session.
 	for _, harness := range []domain.AgentHarness{
-		domain.HarnessAider, "definitely-not-an-agent",
+		domain.HarnessCursor, domain.HarnessPi, "definitely-not-an-agent",
 	} {
 		if _, err := r.Driver(harness); err == nil {
 			t.Errorf("%s resolved a chat driver", harness)

@@ -705,7 +705,7 @@ func TestProjectsAPI_ResolvedMissionRoles(t *testing.T) {
 
 	// An admitted worker preference is honored; coordinator-class preferences
 	// stay within their narrower admission (codex only today).
-	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/roles/config", `{"config":{"agentPreferences":{"defaultWorker":"deepseek-harness","verifier":"codex"}}}`)
+	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/roles/config", `{"config":{"agentPreferences":{"defaultWorker":"cursor","verifier":"codex"}}}`)
 	if status != http.StatusOK {
 		t.Fatalf("PUT agentPreferences = %d, want 200; body=%s", status, body)
 	}
@@ -714,7 +714,7 @@ func TestProjectsAPI_ResolvedMissionRoles(t *testing.T) {
 		t.Fatalf("GET roles after preferences = %d, want 200; body=%s", status, body)
 	}
 	mustJSON(t, body, &got)
-	if got.Roles.Worker.Harness != "deepseek-harness" || got.Roles.Worker.Source != "preference" {
+	if got.Roles.Worker.Harness != "cursor" || got.Roles.Worker.Source != "preference" {
 		t.Fatalf("worker after preference = %#v, want deepseek-harness/preference", got.Roles.Worker)
 	}
 	if got.Roles.Verifier.Harness != "codex" || got.Roles.Verifier.Source != "preference" {
@@ -723,7 +723,7 @@ func TestProjectsAPI_ResolvedMissionRoles(t *testing.T) {
 
 	// Coordinator-class roles refuse a harness that has not demonstrated
 	// coordination capabilities: rejected at SetConfig, never persisted.
-	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/roles/config", `{"config":{"agentPreferences":{"analyzer":"deepseek-harness"}}}`)
+	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/roles/config", `{"config":{"agentPreferences":{"analyzer":"cursor"}}}`)
 	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_PROJECT_CONFIG")
 
 	// Unknown harness names are refused the same way.
@@ -736,7 +736,7 @@ func TestProjectsAPI_ResolvedMissionRoles(t *testing.T) {
 		t.Fatalf("GET roles after rejects = %d, want 200; body=%s", status, body)
 	}
 	mustJSON(t, body, &got)
-	if got.Roles.Worker.Harness != "deepseek-harness" || got.Roles.Analyzer.Source != "default" {
+	if got.Roles.Worker.Harness != "cursor" || got.Roles.Analyzer.Source != "default" {
 		t.Fatalf("roles after rejects drifted: %#v", got.Roles)
 	}
 
@@ -762,7 +762,7 @@ func TestProjectsAPI_ResolvedMissionRolesLiveFailures(t *testing.T) {
 	repo := gitRepo(t, "mission-roles-live")
 	roles := domain.ResolvedMissionRoles{
 		Worker: domain.ResolvedAgentRole{
-			Harness: domain.HarnessDeepSeekHarness, Source: domain.RoleSourcePreference, Eligible: true,
+			Harness: domain.HarnessCursor, Source: domain.RoleSourcePreference, Eligible: true,
 			Reason: "profile waldo-profile fails closed; agent authorization is not granted",
 		},
 		Analyzer:    domain.ResolvedAgentRole{Harness: domain.HarnessCodex, Source: domain.RoleSourceDefault, Eligible: true, Ready: true},
@@ -791,7 +791,7 @@ func TestProjectsAPI_ResolvedMissionRolesLiveFailures(t *testing.T) {
 	}
 	var got resolvedRolesBody
 	mustJSON(t, body, &got)
-	if got.Roles.Worker.Harness != "deepseek-harness" || got.Roles.Worker.Source != "preference" {
+	if got.Roles.Worker.Harness != "cursor" || got.Roles.Worker.Source != "preference" {
 		t.Fatalf("worker must honor the preference while failing closed: %#v", got.Roles.Worker)
 	}
 	if got.Roles.Worker.Ready {
@@ -941,7 +941,7 @@ func TestProjectsAPI_ResolvedMissionRolesStoredNonCoordinatorPreference(t *testi
 
 	// deepseek-harness is admitted for worker roles but not as a coordinator;
 	// SetConfig accepts the preference and resolution must fall back.
-	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/noncoord/config", `{"config":{"agentPreferences":{"defaultWorker":"deepseek-harness"}}}`)
+	body, status, _ = doRequest(t, srv, "PUT", "/api/v1/projects/noncoord/config", `{"config":{"agentPreferences":{"defaultWorker":"cursor"}}}`)
 	if status != http.StatusOK {
 		t.Fatalf("PUT agentPreferences = %d, want 200; body=%s", status, body)
 	}
@@ -954,7 +954,7 @@ func TestProjectsAPI_ResolvedMissionRolesStoredNonCoordinatorPreference(t *testi
 		}
 		var got resolvedRolesBody
 		mustJSON(t, body, &got)
-		if got.Roles.Worker.Harness != "deepseek-harness" || got.Roles.Worker.Source != "preference" {
+		if got.Roles.Worker.Harness != "cursor" || got.Roles.Worker.Source != "preference" {
 			t.Fatalf("worker preference = %#v, want deepseek-harness/preference", got.Roles.Worker)
 		}
 		if got.Roles.Coordinator.Harness != "codex" || got.Roles.Coordinator.Source != "default" || !got.Roles.Coordinator.Ready {

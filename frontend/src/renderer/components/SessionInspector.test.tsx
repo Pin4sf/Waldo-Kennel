@@ -2548,8 +2548,10 @@ describe("SessionInspector summary reviews", () => {
       name: /Select reviewer agent/,
     });
     await userEvent.click(picker);
+    // Every provider the daemon supports is offered as a reviewer; the renderer
+    // no longer filters the catalog by provider name. What matters here is that
+    // codex appears exactly once and is selectable.
     expect(screen.getAllByRole("menuitem", { name: /codex/i })).toHaveLength(1);
-    expect(screen.queryByRole("menuitem", { name: /opencode/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("menuitem", { name: /Codex/ }));
 
     await waitFor(() =>

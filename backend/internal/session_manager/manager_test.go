@@ -22,6 +22,25 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
+// fakeMessenger records outbound sends for the tests that assert delivery.
+type fakeMessenger struct {
+	msgs   []string
+	err    error
+	errFor func(domain.SessionID, string) error
+	onSend func(domain.SessionID, string)
+}
+
+func (m *fakeMessenger) Send(_ context.Context, id domain.SessionID, msg string) error {
+	m.msgs = append(m.msgs, msg)
+	if m.onSend != nil {
+		m.onSend(id, msg)
+	}
+	if m.errFor != nil {
+		return m.errFor(id, msg)
+	}
+	return m.err
+}
+
 var ctx = context.Background()
 
 type fakeStore struct {
@@ -883,94 +902,6 @@ func fakeWorkspaceRepoName(info ports.WorkspaceInfo) string {
 	}
 	return filepath.Base(info.Path)
 }
-
-type fakeMessenger struct {
-	msgs   []string
-	err    error
-	errFor func(domain.SessionID, string) error
-	onSend func(domain.SessionID, string)
-}
-
-func (m *fakeMessenger) Send(_ context.Context, id domain.SessionID, msg string) error {
-	m.msgs = append(m.msgs, msg)
-	if m.onSend != nil {
-		m.onSend(id, msg)
-	}
-	if m.errFor != nil {
-		return m.errFor(id, msg)
-	}
-	return m.err
-}
-
-func TestSend_WrapsCopilotOrchestratorMessageWithDelegationDirective(t *testing.T) {
-	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{
-		ID:        "mer-1",
-		ProjectID: "mer",
-		Kind:      domain.KindOrchestrator,
-		Harness:   domain.HarnessCopilot,
-	}
-	msg := &fakeMessenger{}
-	m := New(Deps{Store: st, Messenger: msg})
-
-	if err := m.Send(ctx, "mer-1", "make the button red", nil); err != nil {
-		t.Fatal(err)
-	}
-	if len(msg.msgs) != 1 {
-		t.Fatalf("messages = %d, want 1", len(msg.msgs))
-	}
-	got := msg.msgs[0]
-	for _, want := range []string{
-		"KENNEL ORCHESTRATOR DIRECTIVE",
-		"Do not implement code changes",
-		"kennel spawn --project mer",
-		"After spawning or redirecting, report the worker session id and stop",
-		"USER MESSAGE:\nmake the button red",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("wrapped message missing %q:\n%s", want, got)
-		}
-	}
-}
-
-func TestSend_DoesNotWrapCopilotWorkerMessage(t *testing.T) {
-	st := newFakeStore()
-	st.sessions["mer-2"] = domain.SessionRecord{
-		ID:        "mer-2",
-		ProjectID: "mer",
-		Kind:      domain.KindWorker,
-		Harness:   domain.HarnessCopilot,
-	}
-	msg := &fakeMessenger{}
-	m := New(Deps{Store: st, Messenger: msg})
-
-	if err := m.Send(ctx, "mer-2", "make the button red", nil); err != nil {
-		t.Fatal(err)
-	}
-	if got := msg.msgs[0]; got != "make the button red" {
-		t.Fatalf("worker message = %q, want original", got)
-	}
-}
-
-func TestSend_DoesNotWrapNonCopilotOrchestratorMessage(t *testing.T) {
-	st := newFakeStore()
-	st.sessions["mer-1"] = domain.SessionRecord{
-		ID:        "mer-1",
-		ProjectID: "mer",
-		Kind:      domain.KindOrchestrator,
-		Harness:   domain.HarnessClaudeCode,
-	}
-	msg := &fakeMessenger{}
-	m := New(Deps{Store: st, Messenger: msg})
-
-	if err := m.Send(ctx, "mer-1", "make the button red", nil); err != nil {
-		t.Fatal(err)
-	}
-	if got := msg.msgs[0]; got != "make the button red" {
-		t.Fatalf("non-copilot orchestrator message = %q, want original", got)
-	}
-}
-
 func TestSend_WritesAttachmentAndAppendsReference(t *testing.T) {
 	dir := t.TempDir()
 	st := newFakeStore()
@@ -3460,9 +3391,12 @@ func TestSpawnWorker_PromptFileFailureBlocksFileOnlyHarness(t *testing.T) {
 		LookPath:  lookPath,
 	})
 
-	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessAider, Prompt: "do it"})
-	if err == nil || !strings.Contains(err.Error(), "not selectable for new work") {
-		t.Fatalf("Spawn err = %v, want non-selectable harness rejection", err)
+	// opencode is the sole file-only harness: it cannot fall back to an inline
+	// system prompt, so a prompt-file write failure must fail the spawn outright
+	// rather than launch it without its standing instructions.
+	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessOpenCode, Prompt: "do it"})
+	if err == nil {
+		t.Fatal("Spawn succeeded, want the prompt-file failure to block a file-only harness")
 	}
 	if _, ok := st.sessions["mer-1"]; ok {
 		t.Fatal("seed row still exists after prompt-file failure")
@@ -3759,7 +3693,7 @@ func TestRestore_FallsBackToInlineWhenPromptFileUnavailable(t *testing.T) {
 func TestRestore_PromptFileFailureBlocksFileOnlyHarness(t *testing.T) {
 	st := newFakeStore()
 	st.sessions["mer-1"] = domain.SessionRecord{
-		ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessAider, IsTerminated: true,
+		ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessOpenCode, IsTerminated: true,
 		Metadata: domain.SessionMetadata{WorkspacePath: "/ws/mer-1", Branch: "b", AgentSessionID: "agent-x", Prompt: "do it"},
 	}
 	agent := &recordingAgent{}
@@ -3928,14 +3862,11 @@ func TestRestore_OpenCodeWithoutAgentSessionIDFallsBackToSavedPrompt(t *testing.
 	}
 }
 
-func TestRestore_AgyAndCopilotWithoutAgentSessionIDFallBackToSavedPrompt(t *testing.T) {
+func TestRestore_WithoutAgentSessionIDFallsBackToSavedPrompt(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		harness domain.AgentHarness
-	}{
-		{name: "agy", harness: domain.HarnessAgy},
-		{name: "copilot", harness: domain.HarnessCopilot},
-	} {
+	}{} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newFakeStore()
 			st.sessions["mer-1"] = domain.SessionRecord{
@@ -3980,10 +3911,7 @@ func TestRestore_AgyAndCopilotWithAgentSessionIDUseNativeResume(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		harness domain.AgentHarness
-	}{
-		{name: "agy", harness: domain.HarnessAgy},
-		{name: "copilot", harness: domain.HarnessCopilot},
-	} {
+	}{} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newFakeStore()
 			st.sessions["mer-1"] = domain.SessionRecord{
@@ -4032,10 +3960,7 @@ func TestRestore_AgyAndCopilotPromptlessWorkersWithoutAgentSessionIDNotResumable
 	for _, tc := range []struct {
 		name    string
 		harness domain.AgentHarness
-	}{
-		{name: "agy", harness: domain.HarnessAgy},
-		{name: "copilot", harness: domain.HarnessCopilot},
-	} {
+	}{} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newFakeStore()
 			st.sessions["mer-1"] = domain.SessionRecord{
@@ -4658,10 +4583,11 @@ func TestSpawn_RejectsHistoricalHarnessBeforeCreatingStateOrWorkspace(t *testing
 	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
 		ProjectID: "mer",
 		Kind:      domain.KindWorker,
-		Harness:   domain.HarnessClaudeCode,
+		// A retired identity: still readable on persisted rows, never startable.
+		Harness: domain.AgentHarness("aider"),
 	})
-	if err == nil || !strings.Contains(err.Error(), "not selectable for new work") {
-		t.Fatalf("Spawn() error = %v, want non-selectable harness rejection", err)
+	if err == nil || !errors.Is(err, ErrUnknownHarness) {
+		t.Fatalf("Spawn() error = %v, want retired-harness rejection", err)
 	}
 	if len(st.sessions) != 0 {
 		t.Fatalf("rejected harness must not create a session row, got %d", len(st.sessions))
@@ -4685,7 +4611,7 @@ func TestResumeAgent_ProfileNotReadyFailsBeforeRuntime(t *testing.T) {
 	// boundary.
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
 		Worker: domain.RoleOverride{
-			Harness:     domain.HarnessDeepSeekHarness,
+			Harness:     domain.HarnessCursor,
 			AgentConfig: domain.AgentConfig{Profile: "waldo"},
 		},
 	}}
@@ -4693,7 +4619,7 @@ func TestResumeAgent_ProfileNotReadyFailsBeforeRuntime(t *testing.T) {
 		ID:        "mer-1",
 		ProjectID: "mer",
 		Kind:      domain.KindWorker,
-		Harness:   domain.HarnessDeepSeekHarness,
+		Harness:   domain.HarnessCursor,
 		Activity:  domain.Activity{State: domain.ActivityExited},
 		Metadata: domain.SessionMetadata{
 			WorkspacePath:   "/ws/mer-1",
@@ -4750,7 +4676,7 @@ func TestSpawn_ProfileNotReadyFailsBeforeDurableState(t *testing.T) {
 	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
 		ProjectID:   "mer",
 		Kind:        domain.KindWorker,
-		Harness:     domain.HarnessDeepSeekHarness,
+		Harness:     domain.HarnessCursor,
 		AgentConfig: ports.AgentConfig{Profile: "waldo"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "is not ready") {
@@ -4794,14 +4720,14 @@ func TestSpawn_ReadyProfileProceedsPastPreflight(t *testing.T) {
 	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
 		ProjectID:   "mer",
 		Kind:        domain.KindWorker,
-		Harness:     domain.HarnessDeepSeekHarness,
+		Harness:     domain.HarnessCursor,
 		AgentConfig: ports.AgentConfig{Profile: "waldo"},
 		Prompt:      "do it",
 	})
 	if err != nil {
 		t.Fatalf("Spawn() err = %v, want a ready profile to pass preflight (failure must not be the readiness gate)", err)
 	}
-	if rec.Harness != domain.HarnessDeepSeekHarness {
+	if rec.Harness != domain.HarnessCursor {
 		t.Fatalf("harness = %q, want deepseek-harness", rec.Harness)
 	}
 	if agent.probeCalls != 1 {
@@ -4838,7 +4764,7 @@ func TestSpawn_RejectsNonCoordinatorHarnessAsOrchestrator(t *testing.T) {
 	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
 		ProjectID: "mer",
 		Kind:      domain.KindOrchestrator,
-		Harness:   domain.HarnessDeepSeekHarness,
+		Harness:   domain.HarnessCursor,
 	})
 	if err == nil || !strings.Contains(err.Error(), "not admitted as an orchestrator coordinator") {
 		t.Fatalf("Spawn() error = %v, want orchestrator-coordinator rejection", err)
