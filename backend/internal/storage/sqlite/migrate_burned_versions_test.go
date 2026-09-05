@@ -114,6 +114,7 @@ var shippedMigrations = map[int64]string{
 	108: "0108_contribution_dependency_waivers.sql",
 	109: "0109_decomposition_requests.sql",
 	110: "0110_intake_analysis_requests.sql",
+	111: "0111_project_brief_revisions.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they
