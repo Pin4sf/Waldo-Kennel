@@ -90,9 +90,12 @@ type ReviewerConfig struct {
 const FallbackReviewerHarness = ReviewerClaudeCode
 
 // ResolveReviewerHarness picks the reviewer harness for a worker. A configured
-// reviewer wins. Otherwise only the original, unattended-safe reviewer set is
-// inherited from the worker. Every other reviewer requires explicit selection,
-// so adding an experimental adapter never silently changes an existing project.
+// reviewer wins. Otherwise the worker's own provider reviews its work, which
+// keeps review on a provider the project has already proven it can run.
+//
+// Every shipped provider has a reviewer adapter, so FallbackReviewerHarness is
+// reached only for a persisted worker identity this build no longer ships —
+// never as brand routing between two different live providers.
 func (c ProjectConfig) ResolveReviewerHarness(worker AgentHarness) ReviewerHarness {
 	if len(c.Reviewers) > 0 {
 		return c.Reviewers[0].Harness
@@ -104,10 +107,10 @@ func (c ProjectConfig) ResolveReviewerHarness(worker AgentHarness) ReviewerHarne
 		return ReviewerCodex
 	case HarnessOpenCode:
 		return ReviewerOpenCode
-	case HarnessMuse:
-		return ReviewerMuse
-	case HarnessKimchi:
-		return ReviewerKimchi
+	case HarnessCursor:
+		return ReviewerCursor
+	case HarnessPi:
+		return ReviewerPi
 	}
 	return FallbackReviewerHarness
 }

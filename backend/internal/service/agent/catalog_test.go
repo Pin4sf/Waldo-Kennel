@@ -267,9 +267,12 @@ func TestListReturnsInitialSupportedInventoryWithoutProbing(t *testing.T) {
 }
 
 func TestInventoryExposesOnlyHarnessesSelectableForNewWork(t *testing.T) {
+	// "aider" is a persisted identity this build no longer ships. Keeping it in
+	// the fixture is what stops this test passing vacuously: without a
+	// non-selectable member, "exposes ONLY selectable harnesses" asserts nothing.
 	svc := NewWithAgents([]agentregistry.HarnessAgent{
 		harnessAuthAgent("codex", "Codex", ports.AgentAuthStatusAuthorized, nil),
-		harnessAuthAgent("claude-code", "Claude Code", ports.AgentAuthStatusAuthorized, nil),
+		harnessAuthAgent("aider", "Aider", ports.AgentAuthStatusAuthorized, nil),
 	})
 
 	initial, err := svc.List(context.Background())
@@ -300,9 +303,9 @@ func TestDefaultCatalogExposesAdmittedHarnessesForNewWork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Sorted by id: Codex (the v0 dogfood default), DeepSeek Harness, and
-	// opencode, each admitted through the same fail-closed checks.
-	wantIDs := []string{"codex", "deepseek-harness", "opencode"}
+	// Sorted by id: the five shipped providers, each admitted through the same
+	// fail-closed checks.
+	wantIDs := []string{"claude-code", "codex", "cursor", "opencode", "pi"}
 	if len(got.Supported) != len(wantIDs) {
 		t.Fatalf("default supported = %#v, want %v", got.Supported, wantIDs)
 	}
@@ -344,12 +347,13 @@ func TestRefreshReportsAuthorizedInstalledAgents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Refresh: %v", err)
 	}
-	// Codex and opencode are both admitted and installed here; claude-code is
-	// not admitted for new work, and broken-auth fails its probe. Authorization
-	// is the narrower set: opencode's stub carries no auth checker, so it stays
-	// installed-but-unauthorized rather than being promoted on installation.
-	if len(got.Supported) != 2 || len(got.Installed) != 2 {
-		t.Fatalf("inventory = %#v, want codex and opencode", got)
+	// codex, claude-code and opencode are all admitted and installed here;
+	// broken-auth fails its probe and is excluded. Authorization is the narrower
+	// set: only codex reports authorized, opencode's stub carries no auth checker
+	// so it stays installed-but-unauthorized rather than being promoted on
+	// installation, and claude-code reports unauthorized outright.
+	if len(got.Supported) != 3 || len(got.Installed) != 3 {
+		t.Fatalf("inventory = %#v, want codex, claude-code and opencode", got)
 	}
 	if len(got.Authorized) != 1 || got.Authorized[0].ID != "codex" {
 		t.Fatalf("authorized = %#v, want only codex", got.Authorized)

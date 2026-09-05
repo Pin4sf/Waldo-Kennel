@@ -150,7 +150,7 @@ func TestEffectiveHarnessAndAgentConfig(t *testing.T) {
 	}
 
 	// Explicit harness always wins.
-	if h := effectiveHarness(domain.HarnessAider, domain.KindWorker, cfg); h != domain.HarnessAider {
+	if h := effectiveHarness(domain.AgentHarness("aider"), domain.KindWorker, cfg); h != domain.AgentHarness("aider") {
 		t.Fatalf("explicit harness = %q, want aider", h)
 	}
 	// Empty harness falls back to the role override per kind.

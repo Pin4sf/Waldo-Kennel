@@ -13,7 +13,7 @@ func (allChatHarnesses) SupportsChat(domain.AgentHarness) bool { return true }
 func TestChatHarnessesExcludesHistoricalCandidates(t *testing.T) {
 	svc := New(nil, allChatHarnesses{}, nil)
 
-	got := svc.ChatHarnesses([]domain.AgentHarness{domain.HarnessClaudeCode, domain.HarnessCodex})
+	got := svc.ChatHarnesses([]domain.AgentHarness{domain.AgentHarness("aider"), domain.HarnessCodex})
 	if len(got) != 1 || got[0] != domain.HarnessCodex {
 		t.Fatalf("ChatHarnesses() = %#v, want only Codex", got)
 	}
