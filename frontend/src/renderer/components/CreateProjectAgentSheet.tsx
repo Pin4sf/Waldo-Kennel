@@ -174,6 +174,19 @@ export function CreateProjectAgentSheet({
 	// truthful "configure later" path.
 	const canSubmit = !intakeIncomplete && !isBusy;
 	const sheetError = error ? projectSheetError(error) : null;
+	const providerSetupNeeded =
+		agents !== undefined && !isLoadingAgents && workerOptions.length > 0 && workerOptions.every((option) => option.disabled);
+	const providerSetupAlert: SheetError | null = providerSetupNeeded
+		? {
+				title: t("createProject.providerSetupRequiredTitle", { defaultValue: "Agent setup required" }),
+				message: t("createProject.providerSetupRequiredBody", {
+					defaultValue:
+						"No coding provider is ready yet. Finish authentication or configuration in the provider CLI, then refresh agents. You can still create this project now and configure the provider later.",
+				}),
+				tone: "warning",
+			}
+		: null;
+	const effectiveAlert = sheetError ?? providerSetupAlert;
 
 	useEffect(() => {
 		if (!open || workerAgentTouched) return;
@@ -268,13 +281,13 @@ export function CreateProjectAgentSheet({
 							retryLabel: t("createProject.retry"),
 						}}
 						alert={
-							sheetError
+							effectiveAlert
 								? {
-										...sheetError,
+										...effectiveAlert,
 										icon: (
 											<TriangleAlert
 												className={
-													sheetError.tone === "warning"
+													effectiveAlert.tone === "warning"
 														? "mt-0.5 size-icon-sm shrink-0 text-warning"
 														: "mt-0.5 size-icon-sm shrink-0 text-destructive"
 												}
