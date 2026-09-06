@@ -27,7 +27,7 @@ function ExternalLink(props: ComponentProps<"a">) {
 }
 
 describe("project models", () => {
-	it("validates settings in user-action order", () => {
+	it("validates settings without requiring provider configuration", () => {
 		expect(
 			validateProjectSettings({
 				displayName: "",
@@ -36,29 +36,38 @@ describe("project models", () => {
 				intakeEnabled: true,
 				intakeAssignee: "",
 			}),
-		).toBe("agents_required");
+		).toBe("name_required");
 		expect(
 			validateProjectSettings({
 				displayName: "Project",
-				workerAgent: "codex",
-				orchestratorAgent: "claude-code",
+				workerAgent: "",
+				orchestratorAgent: "",
 				intakeEnabled: true,
 				intakeAssignee: "",
 			}),
 		).toBe("intake_assignee_required");
+		expect(
+			validateProjectSettings({
+				displayName: "Project",
+				workerAgent: "",
+				orchestratorAgent: "",
+				intakeEnabled: false,
+				intakeAssignee: "",
+			}),
+		).toBeNull();
 	});
 
-	it("gates project setup on agents and intake eligibility", () => {
+	it("gates project setup only on intake eligibility", () => {
+		expect(canSubmitProjectSetup({ workerAgent: "", orchestratorAgent: "" })).toBe(true);
 		expect(canSubmitProjectSetup({ workerAgent: "codex", orchestratorAgent: "claude-code" })).toBe(true);
 		expect(
 			canSubmitProjectSetup({
-				workerAgent: "codex",
-				orchestratorAgent: "claude-code",
+				workerAgent: "",
+				orchestratorAgent: "",
 				intakeEnabled: true,
 			}),
 		).toBe(false);
 	});
-
 });
 
 describe("project presentation", () => {
@@ -139,5 +148,4 @@ describe("project presentation", () => {
 		);
 		expect(screen.getByText("apps/web · acme/web")).toBeInTheDocument();
 	});
-
 });
