@@ -2,28 +2,32 @@ import { describe, expect, it } from "vitest";
 import { createProjectConfig } from "../routes/_shell";
 
 describe("createProjectConfig", () => {
-	it("omits the coordinator override on the default path so the daemon applies its canonical default", () => {
+	it("keeps a provider-less Project provider-less", () => {
+		expect(createProjectConfig({ workerAgent: "" })).toEqual({});
+	});
+
+	it("persists an explicit worker without manufacturing a coordinator", () => {
 		expect(
 			createProjectConfig({
-				workerAgent: "codex",
+				workerAgent: "opencode",
 			}),
 		).toEqual({
-			worker: { agent: "codex" },
-			agentPreferences: { defaultWorker: "codex" },
+			worker: { agent: "opencode" },
+			agentPreferences: { defaultWorker: "opencode" },
 		});
 	});
 
-	it("persists the worker preference and an explicit Advanced Settings coordinator override together", () => {
+	it("persists worker and coordinator only when both were explicitly selected", () => {
 		expect(
 			createProjectConfig({
-				workerAgent: "codex",
-				orchestratorAgent: "claude-code",
+				workerAgent: "claude-code",
+				orchestratorAgent: "opencode",
 				trackerIntake: { enabled: true, provider: "github", assignee: "octocat" },
 			}),
 		).toEqual({
-			worker: { agent: "codex" },
-			orchestrator: { agent: "claude-code" },
-			agentPreferences: { defaultWorker: "codex" },
+			worker: { agent: "claude-code" },
+			orchestrator: { agent: "opencode" },
+			agentPreferences: { defaultWorker: "claude-code" },
 			trackerIntake: { enabled: true, provider: "github", assignee: "octocat" },
 		});
 	});
