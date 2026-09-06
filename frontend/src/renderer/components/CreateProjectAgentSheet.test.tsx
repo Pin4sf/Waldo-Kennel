@@ -114,6 +114,24 @@ describe("CreateProjectAgentSheet", () => {
 		expect(onSubmit).toHaveBeenCalledWith({ workerAgent: "", trackerIntake: undefined });
 	});
 
+	it("explains how to recover when no coding provider is ready without blocking Project creation", () => {
+		const codex = agent("codex", "Codex", {
+			authStatus: "unauthorized",
+			roles: roles({ coordinator: true, switchTarget: true }),
+		});
+		renderSheet(undefined, {
+			supported: [codex],
+			installed: [codex],
+			authorized: [],
+		});
+
+		expect(screen.getByText("Agent setup required")).toBeInTheDocument();
+		expect(
+			screen.getByText(/finish authentication or configuration in the provider CLI, then refresh agents/i),
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Create and start" })).toBeEnabled();
+	});
+
 	it("still preselects the only ready worker without creating a hidden coordinator override", async () => {
 		const codex = agent("codex", "Codex", { roles: roles({ coordinator: true, switchTarget: true }) });
 		const claude = agent("claude-code", "Claude Code", {
