@@ -35,10 +35,11 @@ type TrackerIntakeConfig = components["schemas"]["TrackerIntakeConfig"];
 type AgentInfo = components["schemas"]["AgentInfo"];
 
 export type CreateProjectAgentSelection = {
+	// Empty is an explicit "configure later" choice. Project registration is
+	// independent of provider installation/auth/profile readiness.
 	workerAgent: string;
-	// Optional explicit coordinator override. Empty means no provider has been
-	// chosen for that role; the daemon may reuse the worker only when it is
-	// coordinator-capable, but must never substitute a brand-specific fallback.
+	// Optional explicit coordinator override. Empty means no coordinator is
+	// configured; the worker is never promoted into this role by omission.
 	orchestratorAgent?: string;
 	trackerIntake?: TrackerIntakeConfig;
 };
@@ -168,7 +169,10 @@ export function CreateProjectAgentSheet({
 	const isBusy = isCreating || isInitializing;
 	const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
 	const intakeIncomplete = intakeNeedsRule(intake);
-	const canSubmit = workerAgent !== "" && !intakeIncomplete && !isBusy && !isLoadingAgents;
+	// Provider inventory/readiness must never block durable Project creation.
+	// If no worker is selectable yet, submitting with an empty worker is the
+	// truthful "configure later" path.
+	const canSubmit = !intakeIncomplete && !isBusy;
 	const sheetError = error ? projectSheetError(error) : null;
 
 	useEffect(() => {
