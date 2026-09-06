@@ -59,9 +59,6 @@ import type { components } from "../../api/schema";
 import { useAgentInventoryTelemetry } from "../hooks/useAgentInventoryTelemetry";
 
 export const Route = createFileRoute("/_shell")({
-	// Prefetch the workspace list for the whole shell (parent loaders run before
-	// children); pairs with the router's defaultPreload: "intent" so a hovered
-	// nav target is warm before the click.
 	loader: async ({ context }) => {
 		await refreshDaemonStatus().catch(() => undefined);
 		if (!usesPreviewWorkspaceData && !hasTrustedApiBaseUrl()) return;
@@ -83,20 +80,22 @@ function errorMessage(error: unknown) {
 }
 
 type CreateProjectConfigInput = {
+	// Empty means the Project is registered now and provider setup is deferred.
 	workerAgent: string;
-	// Optional: present only after an explicit Advanced Settings choice. When
-	// omitted the daemon applies its canonical coordinator default.
+	// Optional: present only after an explicit Advanced Settings choice. Empty
+	// means no coordinator is configured; the worker is never reused implicitly.
 	orchestratorAgent?: string;
 	trackerIntake?: components["schemas"]["TrackerIntakeConfig"];
 };
 
 export function createProjectConfig(input: CreateProjectConfigInput): components["schemas"]["ProjectConfig"] {
 	return {
-		worker: { agent: input.workerAgent as components["schemas"]["RoleOverride"]["agent"] },
-		// Task 1 contract: project creation chooses and persists one default
-		// coding agent, so the Mission-role preference is recorded at the same
-		// moment the legacy role override is written.
-		agentPreferences: { defaultWorker: input.workerAgent },
+		...(input.workerAgent
+			? {
+					worker: { agent: input.workerAgent as components["schemas"]["RoleOverride"]["agent"] },
+					agentPreferences: { defaultWorker: input.workerAgent },
+				}
+			: {}),
 		...(input.orchestratorAgent
 			? { orchestrator: { agent: input.orchestratorAgent as components["schemas"]["RoleOverride"]["agent"] } }
 			: {}),
@@ -110,14 +109,9 @@ const isLinux = isLinuxPlatform();
 const framedAppTopbar = usesFramedAppTopbar();
 const shellTopbarHiddenByPlatform = hidesShellTopbar();
 
-// Persistent app shell: the Sidebar + shared state survive route changes; only
-// the <Outlet> content (board / session / settings / …) swaps. Lifted out of
-// the old single <App>, with selection now owned by the router (route params)
-// instead of Zustand. The daemon-status effect runs here exactly once.
 function ShellLayout() {
 	const { t } = useTranslation();
 	const waldo = useWaldoRail();
-	// Reports how many agents this install has available, once per launch.
 	useAgentInventoryTelemetry();
 	const navigate = useNavigate();
 	const matchRoute = useMatchRoute();
@@ -136,10 +130,7 @@ function ShellLayout() {
 	const newShellTerminalNonce = useUiStore((state) => state.newShellTerminalNonce);
 	const setActiveShellTerminal = useUiStore((state) => state.setActiveShellTerminal);
 	const openShellTerminal = useOpenShellTerminal();
-	// Single subscription for sidebar clearance + drag strip (macOS no-ops inside the hook).
 	const isFullScreen = useWindowFullScreen();
-	// Drag is on immediately for a normal windowed launch. After leaving fullscreen,
-	// wait for the pad/height transition so the growing strip cannot steal clicks.
 	const [trafficLightDragActive, setTrafficLightDragActive] = useState(isMac);
 	const leftFullScreenRef = useRef(false);
 	useEffect(() => {
@@ -162,11 +153,7 @@ function ShellLayout() {
 		const timer = window.setTimeout(() => setTrafficLightDragActive(true), 200);
 		return () => window.clearTimeout(timer);
 	}, [isFullScreen]);
-	// Seeded to the current value so a mount never opens a terminal unasked.
 	const handledShellNonceRef = useRef(newShellTerminalNonce);
-	// Lives in ui-store, not local state: WorkShell's bottom-left help button
-	// opens this exact dialog too, and a store slice is the shared channel every
-	// other one-shot cross-component signal in this file already uses.
 	const isKeyboardShortcutsOpen = useUiStore((state) => state.isKeyboardShortcutsOpen);
 	const setIsKeyboardShortcutsOpen = useUiStore((state) => state.setKeyboardShortcutsOpen);
 	const [isKeyboardShortcutsSettingsOpen, setIsKeyboardShortcutsSettingsOpen] = useState(false);
@@ -201,9 +188,6 @@ function ShellLayout() {
 		document.addEventListener("click", handleModifierLinkClick);
 		return () => document.removeEventListener("click", handleModifierLinkClick);
 	}, []);
-	// Project in scope for a new-session shortcut: the route's project, or the
-	// workspace owning the open session (so the shortcut works from a worker's
-	// detail view, where the URL carries only a sessionId).
 	const scopedProjectId = routeParams.projectId
 		? routeParams.projectId
 		: routeParams.sessionId
@@ -213,9 +197,6 @@ function ShellLayout() {
 		? workspaces.find((workspace) => workspace.id === scopedProjectId)?.name ?? scopedProjectId
 		: undefined;
 	const scopedOutcome = useOutcome(workOutcomeId).outcome;
-	// Warms the New Task composer's model-catalog cache while the user is just
-	// looking at the project, so the picker never shows a loading flash the
-	// first time they actually open the dialog.
 	useEffect(() => {
 		if (!scopedProjectId) return;
 		const projectQueryKey = ["project", scopedProjectId];
@@ -243,15 +224,11 @@ function ShellLayout() {
 	const isProjectBoardRoute = Boolean(matchRoute({ to: "/projects/$projectId" }));
 	const isProjectSessionRoute = Boolean(matchRoute({ to: "/projects/$projectId/sessions/$sessionId" }));
 	const isOutcomeWorkRoute = Boolean(matchRoute({ to: "/work" }));
-	// First-launch root board only (no projects in scope).
 	const isWelcomeBoard =
 		isRootBoardRoute &&
 		workspaceStartupState === "ready" &&
 		workspaceQuery.isSuccess &&
 		workspaces.length === 0;
-	// Board, the Outcome lifecycle, and project sessions are one Work flow. Keep
-	// their project tree and shell stable while the center surface changes; the
-	// prior route-only switch made the sidebar change design mid-Outcome.
 	const usesWorkProjectShell =
 		((isRootBoardRoute || isProjectBoardRoute) && !isWelcomeBoard) ||
 		isProjectSessionRoute ||
@@ -263,9 +240,6 @@ function ShellLayout() {
 	const waldoWorkContext = routeParams.sessionId
 		? t("waldo.rail.workSessionContext")
 		: t("waldo.rail.workContext");
-	// Welcome/settings always self-frame. Platforms that hide the shell-owned
-	// topbar (macOS) use the same full-height inset; session actions mount
-	// inside SessionView.
 	const selfFramedCenterPanel = isWelcomeBoard || isSettingsRoute || isHomeRoute;
 	const hideShellTopbar = selfFramedCenterPanel || shellTopbarHiddenByPlatform;
 	const setProjectRestarting = useUiStore((state) => state.setProjectRestarting);
@@ -333,7 +307,6 @@ function ShellLayout() {
 		async (input: {
 			path: string;
 			workerAgent: string;
-			// Optional: only after an explicit Advanced Settings choice.
 			orchestratorAgent?: string;
 			trackerIntake?: components["schemas"]["TrackerIntakeConfig"];
 			asWorkspace?: boolean;
@@ -380,13 +353,22 @@ function ShellLayout() {
 			void captureRendererEvent("kennel.renderer.project_add_succeeded", { project_id: workspace.id });
 			updateWorkspaces((current) => [workspace, ...current.filter((item) => item.id !== workspace.id)]);
 			setOrchestratorStartupError(workspace.id, null);
+
+			// Project existence is independent of provider setup. If no coordinator
+			// was explicitly chosen, registration is complete and there is nothing
+			// to spawn. In particular, never send an empty harness and never reuse
+			// the worker as an implicit coordinator.
+			if (!input.orchestratorAgent) {
+				await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
+				void navigate({ to: "/projects/$projectId", params: { projectId: workspace.id } });
+				return;
+			}
+
 			try {
 				void captureRendererEvent("kennel.renderer.orchestrator_spawn_requested", {
 					project_id: workspace.id,
 					source: "project_add",
 				});
-				// No seeding prompt: Outcome shaping belongs to the Understand stage
-				// over the daemon contract, not to a transcript-marker orientation.
 				const {
 					data: spawnData,
 					error: spawnError,
@@ -437,8 +419,7 @@ function ShellLayout() {
 
 	const removeProject = useCallback(
 		async (projectId: string) => {
-			const isLastWorkspace =
-              workspaces.length === 1 && workspaces[0]?.id === projectId;
+			const isLastWorkspace = workspaces.length === 1 && workspaces[0]?.id === projectId;
 			void addRendererExceptionStep("Project removal requested", {
 				source: "project-remove",
 				operation: "project_remove",
@@ -462,8 +443,8 @@ function ShellLayout() {
 			void captureRendererEvent("kennel.renderer.project_removed", { project_id: projectId });
 			updateWorkspaces((current) => current.filter((item) => item.id !== projectId));
 			if (isLastWorkspace) {
-              void navigate({ to: "/" });
-}
+				void navigate({ to: "/" });
+			}
 		},
 		[navigate, updateWorkspaces, workspaces],
 	);
@@ -493,10 +474,6 @@ function ShellLayout() {
 		applyDocumentThemeStyle(themeStyle);
 	}, [themeStyle]);
 
-	// A daemon port is not enough to render a trustworthy empty state: the
-	// route loader may have cached [] before Electron reported the port. Fetch
-	// once against each ready daemon before allowing the board to decide
-	// between projects and the first-run import flow.
 	useEffect(() => {
 		let active = true;
 		if (usesPreviewWorkspaceData) {
@@ -531,10 +508,6 @@ function ShellLayout() {
 		};
 	}, [daemonStatus.port, daemonStatus.state, queryClient]);
 
-	// The first confirmed fetch may fail transiently even though the daemon is
-	// ready. React Query keeps polling and the event transport may invalidate
-	// the workspace query later, so let a newer successful result recover the
-	// shell without requiring a daemon restart or port change.
 	useEffect(() => {
 		if (
 			usesPreviewWorkspaceData ||
@@ -553,10 +526,6 @@ function ShellLayout() {
 		workspaceStartupState,
 	]);
 
-	// Keep Electron's nativeTheme in step with the shell so the embedded preview
-	// WebContentsView (which follows prefers-color-scheme) flips at the same time.
-	// Send the preference, not the resolved theme, so "system" keeps both surfaces
-	// following the OS instead of freezing matchMedia to a forced value.
 	useEffect(() => {
 		void aoBridge.theme?.set(themePreference);
 	}, [themePreference]);
@@ -575,9 +544,6 @@ function ShellLayout() {
 		const handlePointerMove = (event: PointerEvent) => {
 			const target = event.target instanceof Element ? event.target : null;
 			const isInSidebarPortal = Boolean(target?.closest('[role="dialog"], [role="listbox"], [role="menu"]'));
-			// TitlebarNav / WindowTitlebar sit above the peek in z-order; keep the
-			// preview open while the pointer is on those controls so hover→click
-			// to pin still works.
 			const isInTitlebarChrome = Boolean(
 				target?.closest("[data-slot='titlebar-nav'], .window-titlebar"),
 			);
@@ -611,8 +577,6 @@ function ShellLayout() {
 		void queryClient.fetchQuery({ ...agentsQueryOptions, queryFn: refreshAgents });
 	}, [daemonStatus.port, daemonStatus.state, queryClient]);
 
-	// Follow OS appearance while the user keeps Theme on System — updates
-	// resolvedTheme (and thus React consumers) without writing light/dark to storage.
 	useEffect(() => {
 		if (themePreference !== "system") return;
 
@@ -641,10 +605,6 @@ function ShellLayout() {
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [navigate, toggleSidebar, workspaces]);
 
-	// New session (⌘N / Ctrl+Shift+N) is detected in the main process and
-	// delivered here, so it fires even when focus is inside xterm or a native
-	// Browser-preview view. The shell owns the routing: open the New Task flow
-	// for the in-scope project, else fall back to create-project.
 	useEffect(
 		() =>
 			aoBridge.app.onNewSessionShortcut(() => {
@@ -659,21 +619,8 @@ function ShellLayout() {
 
 	useEffect(() => aoBridge.app.onKeyboardShortcutsHelp(() => setIsKeyboardShortcutsOpen(true)), []);
 
-	// New standalone terminal (⌘T / Ctrl+T), also detected in the main process so it
-	// fires from inside a terminal pane. It raises the same store signal as the
-	// tab-strip + button so the two cannot drift apart.
 	useEffect(() => aoBridge.app.onNewShellTerminalShortcut(() => requestNewShellTerminal()), [requestNewShellTerminal]);
 
-	// The shell layout is the single consumer of that signal, because it is the
-	// only component mounted on EVERY route. Owning it here is what lets the
-	// button and the keyboard shortcut work from the board, a project page, or a session alike
-	// — when the session view owned it, both silently did nothing outside a
-	// session, since nothing was listening.
-	//
-	// Where the new shell becomes visible depends on where the user is: inside a
-	// session it joins that pane's tab strip, anywhere else it gets the
-	// standalone /terminals view. Either way the store records it as active, and
-	// whichever view is on screen selects it.
 	useEffect(() => {
 		if (handledShellNonceRef.current === newShellTerminalNonce) return;
 		handledShellNonceRef.current = newShellTerminalNonce;
@@ -745,197 +692,145 @@ function ShellLayout() {
 					open={isKeyboardShortcutsSettingsOpen}
 					onOpenChange={setIsKeyboardShortcutsSettingsOpen}
 				/>
-				<TerminalCacheProvider
-					daemonReady={daemonStatus.state === "ready"}
-					theme={resolvedTheme}
-				>
-
-			{/* Shell chrome: Win/Linux hang the sidebar under a topbar. macOS uses a
-          titlebar strip above the off-canvas sidebar. Session and board actions
-          render inside the center panel when the shell topbar is hidden. */}
-			<div
-				className={cn(
-					"flex h-screen min-h-0 flex-col bg-sidebar text-foreground",
-					usesWorkProjectShell && "figma-board-shell",
-					isWindows && "platform-windows",
-					isLinux && "platform-linux",
-					isFullScreen && "native-fullscreen",
-				)}
-			>
-				{/* Windows-only custom title bar (sidebar toggle + File/Edit/View/…
-            menu); paints the chrome the frameless window drops. Renders null on
-            macOS/Linux. */}
-				<WindowTitlebar onSidebarPreviewEnter={previewSidebar} />
-				{/* App routes render their topbar inside the framed panel, matching the board chrome across platforms while leaving OS titlebars native. */}
-				{!usesWorkProjectShell && !framedAppTopbar && !hideShellTopbar && !routeParams.sessionId ? <ShellTopbar /> : null}
-				{/* Controlled by the ui-store so TitlebarNav / Topbar toggles (which
-            call the store directly) stay in sync. --sidebar-width chains to
-            the drag-resizable --ao-sidebar-w set on :root by useResizable. */}
-				<SidebarProvider
-					className="min-h-0 flex-1 flex-col overflow-x-hidden"
-					keyboardShortcut={false}
-					onOpenChange={(open) => {
-						cancelSidebarPeekClose();
-						setIsSidebarPeekOpen(false);
-						if (open !== isSidebarOpen) toggleSidebar();
-					}}
-					open={!isStartupLoading && (usesWorkProjectShell || isSidebarOpen || isSidebarPeekOpen)}
-					style={
-						{
-							"--sidebar-width": usesWorkProjectShell
-								? "271px"
-								: "var(--ao-sidebar-w, var(--size-sidebar-default))",
-							"--sidebar-width-icon": "var(--size-sidebar-icon)",
-						} as CSSProperties
-					}
-				>
-				<div className="relative flex min-h-0 w-full flex-1 overflow-x-hidden" data-testid="shell-content-row">
-				{/* macOS + Linux reserve a titlebar band for the fixed TitlebarNav
-              cluster above a full-height sidebar; Windows hangs the sidebar
-              below its custom titlebar. */}
-				<Sidebar
-					figmaBoard={usesWorkProjectShell}
-					hideEdgeBorder={isWelcomeBoard || usesWorkProjectShell}
-					isOverlay={isSidebarPeekOpen && !isSidebarOpen}
-					onPreviewLeave={scheduleSidebarPeekClose}
-					underTopbar={!usesWorkProjectShell && (isMac || isWindows || isLinux)}
-					topbarOffset={isWindows ? "titlebar" : hideShellTopbar ? "trafficLights" : "toolbar"}
-						onCreateProject={createProject}
-						onInitializeProject={initializeProjectRepository}
-						onRemoveProject={removeProject}
-						workspaceError={workspaceQuery.isError ? errorMessage(workspaceQuery.error) : undefined}
-						workspaces={workspaces}
-					/>
-					<main
+				<TerminalCacheProvider daemonReady={daemonStatus.state === "ready"} theme={resolvedTheme}>
+					<div
 						className={cn(
-							"relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
-							// The Figma board routes paint their own full-bleed shell, so the
-							// collapsed-sidebar inset that every other route needs would double
-							// up on them — hence the route guard alongside beta's launcher pad.
-							!usesWorkProjectShell && !isSidebarOpen && "sidebar-hidden",
-							!isHomeRoute && "waldo-launcher-reserved",
+							"flex h-screen min-h-0 flex-col bg-sidebar text-foreground",
+							usesWorkProjectShell && "figma-board-shell",
+							isWindows && "platform-windows",
+							isLinux && "platform-linux",
+							isFullScreen && "native-fullscreen",
 						)}
 					>
-						<div className="min-h-0 flex-1 overflow-x-hidden">
-							{/* Board/session routes render inside the same inset box the welcome board and settings paint for themselves, so every screen sits within the app's outer boundary. */}
-							{usesWorkProjectShell ? (
-								<CenterPanelShell className="center-panel-shell--figma-board">
-									{/* WorkShell (mounted by every /work branch) carries its own
-									    full topbar row — ShellTopbar has no concept of the Work
-									    destination and falls back to a bare "Board" crumb, so it
-									    would double up rather than complement it. Board/session
-									    routes are unaffected: they still get ShellTopbar wherever
-									    the platform doesn't hide it. */}
-									{hideShellTopbar || isOutcomeWorkRoute ? null : <ShellTopbar />}
-									<div className="flex min-h-0 flex-1 flex-col">
-										<Outlet />
+						<WindowTitlebar onSidebarPreviewEnter={previewSidebar} />
+						{!usesWorkProjectShell && !framedAppTopbar && !hideShellTopbar && !routeParams.sessionId ? <ShellTopbar /> : null}
+						<SidebarProvider
+							className="min-h-0 flex-1 flex-col overflow-x-hidden"
+							keyboardShortcut={false}
+							onOpenChange={(open) => {
+								cancelSidebarPeekClose();
+								setIsSidebarPeekOpen(false);
+								if (open !== isSidebarOpen) toggleSidebar();
+							}}
+							open={!isStartupLoading && (usesWorkProjectShell || isSidebarOpen || isSidebarPeekOpen)}
+							style={
+								{
+									"--sidebar-width": usesWorkProjectShell
+										? "271px"
+										: "var(--ao-sidebar-w, var(--size-sidebar-default))",
+									"--sidebar-width-icon": "var(--size-sidebar-icon)",
+								} as CSSProperties
+							}
+						>
+							<div className="relative flex min-h-0 w-full flex-1 overflow-x-hidden" data-testid="shell-content-row">
+								<Sidebar
+									figmaBoard={usesWorkProjectShell}
+									hideEdgeBorder={isWelcomeBoard || usesWorkProjectShell}
+									isOverlay={isSidebarPeekOpen && !isSidebarOpen}
+									onPreviewLeave={scheduleSidebarPeekClose}
+									underTopbar={!usesWorkProjectShell && (isMac || isWindows || isLinux)}
+									topbarOffset={isWindows ? "titlebar" : hideShellTopbar ? "trafficLights" : "toolbar"}
+									onCreateProject={createProject}
+									onInitializeProject={initializeProjectRepository}
+									onRemoveProject={removeProject}
+									workspaceError={workspaceQuery.isError ? errorMessage(workspaceQuery.error) : undefined}
+									workspaces={workspaces}
+								/>
+								<main
+									className={cn(
+										"relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
+										!usesWorkProjectShell && !isSidebarOpen && "sidebar-hidden",
+										!isHomeRoute && "waldo-launcher-reserved",
+									)}
+								>
+									<div className="min-h-0 flex-1 overflow-x-hidden">
+										{usesWorkProjectShell ? (
+											<CenterPanelShell className="center-panel-shell--figma-board">
+												{hideShellTopbar || isOutcomeWorkRoute ? null : <ShellTopbar />}
+												<div className="flex min-h-0 flex-1 flex-col">
+													<Outlet />
+												</div>
+											</CenterPanelShell>
+										) : hideShellTopbar ? (
+											selfFramedCenterPanel ? (
+												<Outlet />
+											) : (
+												<CenterPanelShell className={routeParams.sessionId ? "center-panel-shell--session" : undefined}>
+													<div className="flex min-h-0 flex-1 flex-col">
+														<Outlet />
+													</div>
+												</CenterPanelShell>
+											)
+										) : framedAppTopbar ? (
+											<CenterPanelShell className={routeParams.sessionId ? "center-panel-shell--session" : undefined}>
+												{routeParams.sessionId ? null : <ShellTopbar />}
+												<div className="flex min-h-0 flex-1 flex-col">
+													<Outlet />
+												</div>
+											</CenterPanelShell>
+										) : (
+											<CenterPanelShell className={routeParams.sessionId ? "center-panel-shell--session" : undefined}>
+												<div className="flex min-h-0 flex-1 flex-col">
+													<Outlet />
+												</div>
+											</CenterPanelShell>
+										)}
 									</div>
-								</CenterPanelShell>
-							) : hideShellTopbar ? (
-								selfFramedCenterPanel ? (
-									<Outlet />
-								) : (
-							// Platform hides shell topbar: full-height panel; session mounts actions in-panel.
-							<CenterPanelShell className={routeParams.sessionId ? "center-panel-shell--session" : undefined}>
-								<div className="flex min-h-0 flex-1 flex-col">
-									<Outlet />
-								</div>
-							</CenterPanelShell>
-						)
-					) : framedAppTopbar ? (
-						<CenterPanelShell className={routeParams.sessionId ? "center-panel-shell--session" : undefined}>
-							{routeParams.sessionId ? null : (
-								<ShellTopbar />
-							)}
-							<div className="flex min-h-0 flex-1 flex-col">
-								<Outlet />
+									<div className="pointer-events-none absolute right-2 top-1.5 z-titlebar">
+										<WaldoLauncher className="pointer-events-auto" />
+									</div>
+									{!isHomeRoute ? (
+										<WaldoShellRail
+											contextLabel={waldoWorkContext}
+											daemonReady={daemonStatus.state === "ready"}
+											onOpenHome={() => {
+												waldo.close();
+												void navigate({ to: "/home" });
+											}}
+											onReturnToInspector={routeParams.sessionId
+												? () => setInspectorOpen(routeParams.sessionId!, true)
+												: undefined}
+											previewEnabled={usesWaldoUiPreview}
+											outcomeId={workOutcomeId}
+											outcomeTitle={scopedOutcome?.title}
+											projectId={scopedProjectId}
+											projectName={scopedProjectName}
+										/>
+									) : null}
+								</main>
 							</div>
-						</CenterPanelShell>
-					) : (
-						<CenterPanelShell className={routeParams.sessionId ? "center-panel-shell--session" : undefined}>
-							<div className="flex min-h-0 flex-1 flex-col">
-								<Outlet />
-							</div>
-						</CenterPanelShell>
+							<DaemonFailureBanner status={daemonStatus} />
+							{hideShellTopbar && isMac ? (
+								<div
+									aria-hidden="true"
+									className={cn(
+										"fixed top-0 left-0 z-chrome w-(--sidebar-width) transition-[height] duration-200 ease-out motion-reduce:transition-none",
+										isFullScreen ? "pointer-events-none h-0" : "h-traffic-light-clearance",
+									)}
+									style={trafficLightDragActive ? ({ WebkitAppRegion: "drag" } as CSSProperties) : undefined}
+								/>
+							) : null}
+							{usesWorkProjectShell ? null : (
+								<TitlebarNav
+									hasSessionTopbar={Boolean(routeParams.sessionId)}
+									historyLocked={isWelcomeBoard}
+									isFullScreen={isFullScreen}
+									onSidebarPreviewEnter={previewSidebar}
+								/>
 							)}
-						</div>
-						<div className="pointer-events-none absolute right-2 top-1.5 z-titlebar">
-							<WaldoLauncher className="pointer-events-auto" />
-						</div>
-						{!isHomeRoute ? (
-							<WaldoShellRail
-								contextLabel={waldoWorkContext}
-								daemonReady={daemonStatus.state === "ready"}
-								onOpenHome={() => {
-									waldo.close();
-									void navigate({ to: "/home" });
-								}}
-								onReturnToInspector={routeParams.sessionId
-									? () => setInspectorOpen(routeParams.sessionId!, true)
-									: undefined}
-								previewEnabled={usesWaldoUiPreview}
-								outcomeId={workOutcomeId}
-								outcomeTitle={scopedOutcome?.title}
-								projectId={scopedProjectId}
-								projectName={scopedProjectName}
-							/>
-						) : null}
-					</main>
+						</SidebarProvider>
+						<OrchestratorReplacementDialog
+							error={replacementErrorProjectId ? orchestratorReplacementErrors[replacementErrorProjectId] : undefined}
+							onOpenChange={(open) => {
+								if (!open && replacementErrorProjectId) setOrchestratorReplacementError(replacementErrorProjectId, null);
+							}}
+							onRetry={(projectId) => void restartOrchestrator(projectId)}
+							onRetryAsTui={(projectId) => void restartOrchestrator(projectId, "tui")}
+							projectId={replacementErrorProjectId}
+							workspaces={workspaces}
+						/>
+						<CommandPalette />
 					</div>
-					<DaemonFailureBanner status={daemonStatus} />
-					{/* When ShellTopbar is hidden, keep a macOS window-drag strip over
-              the traffic-light band only. The fixed TitlebarNav renders after
-              this strip so its no-drag buttons remain clickable. */}
-					{hideShellTopbar && isMac ? (
-						<div
-							aria-hidden="true"
-							className={cn(
-								"fixed top-0 left-0 z-chrome w-(--sidebar-width) transition-[height] duration-200 ease-out motion-reduce:transition-none",
-								isFullScreen ? "pointer-events-none h-0" : "h-traffic-light-clearance",
-							)}
-							style={trafficLightDragActive ? ({ WebkitAppRegion: "drag" } as CSSProperties) : undefined}
-						/>
-					) : null}
-					{/* Fixed macOS titlebar cluster beside the traffic lights — rendered
-              once here so the toggle/history buttons never move when the
-              sidebar collapses or expands. History arrows stay visible but
-              locked on the empty start page. MUST come after the drag strip
-              (ShellTopbar or the welcome substitute) in the DOM: Electron
-              builds the window-drag region in document order (drag rects add,
-              no-drag rects subtract), so the cluster's no-drag holes only
-              survive if they're processed after the drag strips they overlap.
-              Rendered first, real clicks get swallowed by window-drag even
-              though DOM hit-testing looks correct. */}
-					{/* Every figma-board route (Kanban/session AND Work) paints its own
-					    back/forward + sidebar-toggle inline instead of this fixed
-					    cluster: on Work specifically, WorkShell groups them with
-					    search and the notification bell in one left-aligned row
-					    (Figma's Board/Enter screenshots), which this fixed-position
-					    cluster — anchored to reserve space for real native traffic
-					    lights that don't exist in browser preview — cannot do. Round 3
-					    special-cased Work to render this cluster instead; superseded
-					    by WorkShell's own inline controls. */}
-					{usesWorkProjectShell ? null : (
-						<TitlebarNav
-							hasSessionTopbar={Boolean(routeParams.sessionId)}
-							historyLocked={isWelcomeBoard}
-							isFullScreen={isFullScreen}
-							onSidebarPreviewEnter={previewSidebar}
-						/>
-					)}
-				</SidebarProvider>
-				<OrchestratorReplacementDialog
-					error={replacementErrorProjectId ? orchestratorReplacementErrors[replacementErrorProjectId] : undefined}
-					onOpenChange={(open) => {
-						if (!open && replacementErrorProjectId) setOrchestratorReplacementError(replacementErrorProjectId, null);
-					}}
-					onRetry={(projectId) => void restartOrchestrator(projectId)}
-					onRetryAsTui={(projectId) => void restartOrchestrator(projectId, "tui")}
-					projectId={replacementErrorProjectId}
-					workspaces={workspaces}
-				/>
-					<CommandPalette />
-				</div>
 				</TerminalCacheProvider>
 			</SessionTopbarProvider>
 		</ShellProvider>
