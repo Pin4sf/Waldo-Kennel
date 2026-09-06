@@ -33,7 +33,20 @@ describe("buildRankedAgentOptions", () => {
 		expect(options.map((option) => option.label)).toEqual(["Claude Code", "Codex", "Cursor", "OpenCode", "Pi"]);
 	});
 
-	it("keeps unavailable providers visible and disables them with daemon readiness detail", () => {
+	it("keeps unavailable providers visible and gives an actionable install recovery", () => {
+		const supported = [agent("codex", "Codex"), agent("pi", "Pi")];
+		const options = buildRankedAgentOptions({
+			supported,
+			installed: [supported[0]],
+			authorized: [supported[0]],
+			fallbackAgents: [],
+		});
+		const pi = options.find((option) => option.id === "pi");
+		expect(pi?.disabled).toBe(true);
+		expect(pi?.status).toBe("Not installed · Install the provider, then refresh");
+	});
+
+	it("preserves daemon readiness detail and tells the user to finish setup then refresh", () => {
 		const supported = [
 			agent("codex", "Codex"),
 			agent("pi", "Pi", { ready: false, readyDetail: "Select a Pi model profile" }),
@@ -41,7 +54,19 @@ describe("buildRankedAgentOptions", () => {
 		const options = buildRankedAgentOptions({ supported, installed: supported, authorized: supported, fallbackAgents: [] });
 		const pi = options.find((option) => option.id === "pi");
 		expect(pi?.disabled).toBe(true);
-		expect(pi?.status).toBe("Select a Pi model profile");
+		expect(pi?.status).toBe("Select a Pi model profile · Complete setup, then refresh");
+	});
+
+	it("gives unauthorized providers a truthful CLI-authentication recovery without inventing a command", () => {
+		const codex = agent("codex", "Codex", { authStatus: "unauthorized" });
+		const options = buildRankedAgentOptions({
+			supported: [codex],
+			installed: [codex],
+			authorized: [],
+			fallbackAgents: [],
+		});
+		expect(options[0]?.disabled).toBe(true);
+		expect(options[0]?.status).toBe("Authentication required · Authenticate in the provider CLI, then refresh");
 	});
 
 	it("filters by daemon role capability instead of provider id", () => {
