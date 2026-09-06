@@ -115,6 +115,7 @@ var shippedMigrations = map[int64]string{
 	109: "0109_decomposition_requests.sql",
 	110: "0110_intake_analysis_requests.sql",
 	111: "0111_project_brief_revisions.sql",
+	112: "0112_work_unit_provider_bindings.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they
@@ -292,6 +293,5 @@ INSERT INTO projects (
 			if columns != 1 {
 				t.Fatalf("%s.%s count = %d, want exactly 1 after repair", table, column, columns)
 			}
-		}
 	}
 }
