@@ -29,7 +29,40 @@ BEGIN
 END;
 -- +goose StatementEnd
 
+-- Heal the exact split state created by pre-0112 builds. Only the latest ask
+-- for the intake's CURRENT proposal revision may drive the repair; if the owner
+-- has already started a newer retry, that newer request wins and remains live.
+-- +goose StatementBegin
+UPDATE intake_sessions
+SET status = 'analysis_failed',
+    failure_code = 'INTAKE_ANALYSIS_EXPIRED',
+    updated_at = COALESCE(
+        (
+            SELECT latest.answered_at
+            FROM intake_analysis_requests AS latest
+            WHERE latest.intake_id = intake_sessions.id
+              AND latest.expected_proposal_revision = intake_sessions.current_proposal_revision
+            ORDER BY latest.created_at DESC, latest.id DESC
+            LIMIT 1
+        ),
+        intake_sessions.updated_at
+    )
+WHERE intake_sessions.status = 'analyzing'
+  AND 'expired' = (
+      SELECT latest.status
+      FROM intake_analysis_requests AS latest
+      WHERE latest.intake_id = intake_sessions.id
+        AND latest.expected_proposal_revision = intake_sessions.current_proposal_revision
+      ORDER BY latest.created_at DESC, latest.id DESC
+      LIMIT 1
+  );
+-- +goose StatementEnd
+
 -- +goose Down
 -- +goose StatementBegin
 DROP TRIGGER IF EXISTS intake_analysis_request_expiry_fails_matching_intake;
 -- +goose StatementEnd
+
+-- Down intentionally does not resurrect rows repaired by the one-time backfill:
+-- once the durable provider ask is expired, returning its intake to `analyzing`
+-- would recreate the inconsistent state this migration removes.
