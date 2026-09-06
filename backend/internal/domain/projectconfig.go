@@ -381,7 +381,7 @@ func validateNameComponent(name, value string) error {
 	if trimmed == "" {
 		return nil
 	}
-	if strings.ContainsAny(trimmed, `/\\`) || trimmed == "." || trimmed == ".." {
+	if strings.ContainsAny(trimmed, `/\`) || trimmed == "." || trimmed == ".." {
 		return fmt.Errorf("%s: must not contain path separators or traversal components", name)
 	}
 	return nil
@@ -396,7 +396,7 @@ func validateRepoRelative(p string) error {
 	if trimmed == "" {
 		return nil
 	}
-	if filepath.IsAbs(trimmed) || strings.HasPrefix(trimmed, "/") || strings.HasPrefix(trimmed, `\\`) {
+	if filepath.IsAbs(trimmed) || strings.HasPrefix(trimmed, "/") || strings.HasPrefix(trimmed, `\`) {
 		return fmt.Errorf("path must be repo-relative and must not escape the project root")
 	}
 	clean := filepath.Clean(trimmed)
