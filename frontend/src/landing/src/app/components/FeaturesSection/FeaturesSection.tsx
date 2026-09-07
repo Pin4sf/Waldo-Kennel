@@ -4,6 +4,7 @@ import { FeatureDemo } from "./components/FeatureDemo";
 import { DelegationDemo } from "./components/DelegationDemo/DelegationDemo";
 import { FeedbackLoopDemo } from "./components/FeedbackLoopDemo/FeedbackLoopDemo";
 import { FleetBoardDemo } from "./components/FleetBoardDemo/FleetBoardDemo";
+import { IslandDemo } from "./components/IslandDemo/IslandDemo";
 import { MobileAppDemo } from "./components/MobileAppDemo/MobileAppDemo";
 import { ProjectAgentsDemo } from "./components/ProjectAgentsDemo/ProjectAgentsDemo";
 import { FEATURES } from "./constants";
@@ -14,6 +15,7 @@ const DEMO_COMPONENTS = [
 	FeedbackLoopDemo,
 	ProjectAgentsDemo,
 	MobileAppDemo,
+	IslandDemo,
 ];
 
 const FEATURE_BACKGROUNDS = [
@@ -22,6 +24,7 @@ const FEATURE_BACKGROUNDS = [
 	"/optimized/feature4.webp",
 	"/optimized/feature2.webp",
 	"/optimized/feature3.webp",
+	"/optimized/feature.webp",
 ] as const;
 
 export function FeaturesSection() {

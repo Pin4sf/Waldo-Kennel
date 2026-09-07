@@ -36,7 +36,7 @@ type browserCommandResponseDTO struct {
 	Result    map[string]any `json:"result"`
 }
 
-const browserCapabilityHeader = "X-AO-Browser-Capability"
+const browserCapabilityHeader = "X-Kennel-Browser-Capability"
 const maxBrowserWaitMillis = 55_000
 const (
 	browserUntrustedBegin = "<<<BEGIN UNTRUSTED EXTERNAL CONTENT>>>"
@@ -47,8 +47,8 @@ func newBrowserCommand(ctx *commandContext) *cobra.Command {
 	var jsonOutput bool
 	cmd := &cobra.Command{
 		Use:   "browser",
-		Short: "Inspect and control this AO session's shared desktop browser",
-		Long: "Inspect and control the target-isolated browser owned by the current AO session.\n\n" +
+		Short: "Inspect and control this Kennel session's shared desktop browser",
+		Long: "Inspect and control the target-isolated browser owned by the current Kennel session.\n\n" +
 			"The desktop app must be open. Commands operate the same live page the user sees,\n" +
 			"including while the Browser panel is hidden.",
 		Args: noArgs,
@@ -524,7 +524,7 @@ func rangeArgs(minimum, maximum int) cobra.PositionalArgs {
 func currentBrowserIdentity() (string, string, error) {
 	sessionID := strings.TrimSpace(os.Getenv("KENNEL_SESSION_ID"))
 	if sessionID == "" {
-		return "", "", usageError{errors.New("kennel browser must run inside an AO session (KENNEL_SESSION_ID is not set)")}
+		return "", "", usageError{errors.New("kennel browser must run inside an Kennel session (KENNEL_SESSION_ID is not set)")}
 	}
 	capability := strings.TrimSpace(os.Getenv("KENNEL_BROWSER_CAPABILITY"))
 	if capability == "" {
@@ -651,7 +651,7 @@ func writeBrowserResult(cmd *cobra.Command, action string, result map[string]any
 
 func browserUntrustedText(value string) string {
 	// Page-controlled text must not be able to inject a delimiter that looks
-	// like the end of AO's trust boundary. Escape only exact marker collisions;
+	// like the end of Kennel's trust boundary. Escape only exact marker collisions;
 	// the surrounding fixed markers remain easy for humans and agents to parse.
 	value = strings.ReplaceAll(value, browserUntrustedBegin, `\u003c`+browserUntrustedBegin[1:])
 	value = strings.ReplaceAll(value, browserUntrustedEnd, `\u003c`+browserUntrustedEnd[1:])

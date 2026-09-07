@@ -16,37 +16,40 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/modelcatalog"
-	chatdriverregistry "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/registry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/runtimeselect"
-	"github.com/aoagents/agent-orchestrator/backend/internal/autoreview"
-	"github.com/aoagents/agent-orchestrator/backend/internal/browserruntime"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/daemon/supervisor"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/mobilebridge"
-	"github.com/aoagents/agent-orchestrator/backend/internal/notify"
-	usagepipeline "github.com/aoagents/agent-orchestrator/backend/internal/observe/usage"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/presence"
-	"github.com/aoagents/agent-orchestrator/backend/internal/preview"
-	"github.com/aoagents/agent-orchestrator/backend/internal/previewserver"
-	"github.com/aoagents/agent-orchestrator/backend/internal/push"
-	"github.com/aoagents/agent-orchestrator/backend/internal/runfile"
-	agentsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/agent"
-	browsersvc "github.com/aoagents/agent-orchestrator/backend/internal/service/browser"
-	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
-	devimportsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/devimport"
-	notificationsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/notification"
-	prsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/pr"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
-	settingssvc "github.com/aoagents/agent-orchestrator/backend/internal/service/settings"
-	usagesvc "github.com/aoagents/agent-orchestrator/backend/internal/service/usage"
-	"github.com/aoagents/agent-orchestrator/backend/internal/skillassets"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
-	"github.com/aoagents/agent-orchestrator/backend/internal/terminal"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/modelcatalog"
+	chatdriverregistry "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/registry"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/runtime/runtimeselect"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/autoreview"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/browserruntime"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/daemon/supervisor"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/controllers"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/mobilebridge"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/notify"
+	usagepipeline "github.com/Pin4sf/Waldo-Kennel/backend/internal/observe/usage"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/presence"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/preview"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/previewserver"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/push"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/runfile"
+	agentsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/agent"
+	browsersvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/browser"
+	chatsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/chat"
+	devimportsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/devimport"
+	intakevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intake"
+	notificationsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/notification"
+	outcomevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
+	prsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/pr"
+	projectsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
+	settingssvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/settings"
+	usagesvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/usage"
+	waldovc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/waldoconversation"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/skillassets"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/terminal"
 )
 
 // Run starts the daemon and blocks until it exits. SIGINT/SIGTERM drive
@@ -255,7 +258,16 @@ func Run() error {
 	lcStack.LCM.SetSessionInputLease(sessMgr)
 	lcStack.LCM.SetSessionOperationGate(sessMgr)
 	termMgr.SetSessionInputLease(sessMgr)
-	projectSvc := projectsvc.NewWithDeps(projectsvc.Deps{Store: store, Sessions: sessionSvc, DefaultHarness: domain.HarnessCodex, Telemetry: telemetrySink})
+	// The agent catalog service is constructed before the project service so
+	// Mission-role resolution can enrich stored preferences with live adapter
+	// admission (installed binary, authorization, profile readiness).
+	agentSvc := agentsvc.NewWithDeps(agentsvc.Deps{Cache: store, Discoverer: modelcatalog.Discoverer{}, Projects: store})
+	go func() {
+		if _, err := agentSvc.Refresh(ctx); err != nil {
+			log.Warn("initial agent catalog refresh failed", "err", err)
+		}
+	}()
+	projectSvc := projectsvc.NewWithDeps(projectsvc.Deps{Store: store, Sessions: sessionSvc, DefaultHarness: domain.HarnessCodex, Telemetry: telemetrySink, Roles: agentSvc})
 	if err := seedScratchProjectOnBoot(ctx, cfg, projectSvc); err != nil {
 		stop()
 		lcStack.Stop()
@@ -265,13 +277,6 @@ func Run() error {
 		return err
 	}
 	lcStack.trackerDone = startTrackerIntake(ctx, store, sessionSvc, log)
-
-	agentSvc := agentsvc.NewWithDeps(agentsvc.Deps{Cache: store, Discoverer: modelcatalog.Discoverer{}, Projects: store})
-	go func() {
-		if _, err := agentSvc.Refresh(ctx); err != nil {
-			log.Warn("initial agent catalog refresh failed", "err", err)
-		}
-	}()
 
 	// Connect Mobile: the bridge service needs the LAN listener, but the LAN
 	// listener needs the built router's handler, which only exists once srv is
@@ -338,7 +343,7 @@ func Run() error {
 	}
 
 	// Durable agent-switch reconciliation is a startup safety boundary. The
-	// in-memory input fence disappeared with the previous daemon; if AO cannot
+	// in-memory input fence disappeared with the previous daemon; if Kennel cannot
 	// prove and recover every active saga, do not bind a usable API with user
 	// input accidentally reopened. This runs after session-scoped shell wiring
 	// (ordinary recovery may tear down a worktree) but before HTTP is bound.
@@ -396,28 +401,110 @@ func Run() error {
 		go dispatcher.Run(ctx)
 	}
 
+	// Act & Observe (#31): the attempt service rides the existing session
+	// spawn path (readiness probed with the same checker/config spawn uses)
+	// and the store doubles as the heartbeat-facts source. The liveness hook
+	// runs on the daemon's reconcile cadence and stops with ctx.
+	attemptSvc := outcomevc.NewWithExecution(store, nil,
+		attemptSpawner{sessions: sessionSvc, projects: store, agents: agents}, store)
+	go runAttemptLivenessLoop(ctx, attemptSvc, log)
+
+	// Composed Outcomes (ADR 0007): agent-authored decomposition rides the same
+	// spawn path, on the analyzer role, and answers on the daemon's own
+	// loopback origin. Requests that expired while the daemon was down are
+	// swept once here — the deadline is durable, not an in-memory timer.
+	reaper := sessionReaper{sessions: sessionSvc}
+	outcomeSvc := outcomevc.New(store, nil).WithAnalystSessionReaper(reaper).WithDecompositionProposer(agentDecompositionProposer{
+		sessions:     sessionSvc,
+		projects:     store,
+		agents:       agents,
+		callbackBase: fmt.Sprintf("http://%s:%d", config.LoopbackHost, cfg.Port),
+	})
+	if expired, err := outcomeSvc.ExpireStaleDecompositionRequests(ctx); err != nil {
+		log.Warn("could not sweep expired decomposition requests", "error", err)
+	} else if expired > 0 {
+		log.Info("closed decomposition requests that expired while the daemon was down", "count", expired)
+	}
+	// Agent-authored Contract proposals. Unlike the decomposition proposer
+	// beside it, this NEVER fails closed: intake is the entry point to the
+	// product, so every reason an agent cannot be asked degrades to the
+	// deterministic baseline rather than blocking Outcome creation.
+	intakeSvc := intakevc.New(store, agentIntakeAnalyzer{
+		sessions:     sessionSvc,
+		projects:     store,
+		agents:       agents,
+		offline:      intakevc.NewRuleBasedAnalyzer(),
+		callbackBase: fmt.Sprintf("http://%s:%d", config.LoopbackHost, cfg.Port),
+	}, nil).WithAnalystSessionReaper(reaper)
+	// Order matters. Expiry runs FIRST: it closes asks whose deadline passed
+	// while the daemon was down and returns their intakes to a retryable
+	// failure. Only then does the interrupted-analysis sweep run, which skips
+	// intakes that still have an OPEN ask — an agent's analysis is meant to
+	// outlive a restart, and reaping it would kill the work this exists to do.
+	if expired, err := intakeSvc.ExpireStaleAnalysisRequests(ctx); err != nil {
+		log.Warn("could not sweep expired intake analysis requests", "error", err)
+	} else if expired > 0 {
+		log.Info("closed intake analysis requests that expired while the daemon was down", "count", expired)
+	}
+	if _, err := intakeSvc.RecoverInterruptedAnalyses(ctx); err != nil {
+		return fmt.Errorf("recover interrupted intake analysis: %w", err)
+	}
+	// Expiry is a durable deadline, so it also has to be enforced while the
+	// daemon KEEPS running: without this an intake whose agent stopped
+	// answering would read as "still working" until the next restart. The
+	// owner can always cancel out of that by hand, but they should not have
+	// to in order to learn that nothing is coming.
+	go func() {
+		ticker := time.NewTicker(intakeAnalysisSweepInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if expired, err := intakeSvc.ExpireStaleAnalysisRequests(ctx); err != nil {
+					log.Warn("could not sweep expired intake analysis requests", "error", err)
+				} else if expired > 0 {
+					log.Info("closed intake analysis requests that expired", "count", expired)
+				}
+			}
+		}
+	}()
+	responsibilityLinkSvc := intakevc.NewResponsibilityLinks(store, nil)
+	waldoConversationSvc := waldovc.New(store, nil, nil)
+	if receipts, err := waldoConversationSvc.RecoverPendingContinuations(ctx); err != nil {
+		return fmt.Errorf("recover interrupted Waldo continuations: %w", err)
+	} else if len(receipts) > 0 {
+		log.Warn("recovered interrupted Waldo continuations into durable owner decisions", "count", len(receipts))
+	}
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
-		Projects:           projectSvc,
-		Agents:             agentSvc,
-		Sessions:           sessionSvc,
-		PRs:                prActions,
-		Reviews:            reviewSvc,
-		Notifications:      notifier,
-		NotificationStream: notificationHub,
-		Push:               pushRegistry,
-		Presence:           presenceTracker,
-		DeviceRoster:       deviceRoster,
-		DeviceLive:         presenceTracker,
-		ShellTerminals:     shellTermSvc,
-		Conversations:      chatSvc,
-		Settings:           settingsSvc,
-		CDC:                store,
-		Events:             cdcPipe.Broadcaster,
-		Activity:           lcStack.LCM,
-		UsageHooks:         usageCollector,
-		UsageSummary:       usagesvc.NewSummaryReader(store),
-		Telemetry:          telemetrySink,
-		Mobile:             mc,
+		Projects:            projectSvc,
+		Agents:              agentSvc,
+		Sessions:            sessionSvc,
+		PRs:                 prActions,
+		Reviews:             reviewSvc,
+		Notifications:       notifier,
+		Outcomes:            outcomeSvc,
+		Intakes:             intakeSvc,
+		WaldoConversations:  waldoConversationSvc,
+		ResponsibilityLinks: responsibilityLinkSvc,
+		Attempts:            attemptSvc,
+		Proof:               outcomeSvc,
+		NotificationStream:  notificationHub,
+		Push:                pushRegistry,
+		Presence:            presenceTracker,
+		DeviceRoster:        deviceRoster,
+		DeviceLive:          presenceTracker,
+		ShellTerminals:      shellTermSvc,
+		Conversations:       chatSvc,
+		Settings:            settingsSvc,
+		CDC:                 store,
+		Events:              cdcPipe.Broadcaster,
+		Activity:            lcStack.LCM,
+		UsageHooks:          usageCollector,
+		UsageSummary:        usagesvc.NewSummaryReader(store),
+		Telemetry:           telemetrySink,
+		Mobile:              mc,
 		DevImport: devimportsvc.New(devimportsvc.Deps{
 			Store:         store,
 			TargetDataDir: cfg.DataDir,

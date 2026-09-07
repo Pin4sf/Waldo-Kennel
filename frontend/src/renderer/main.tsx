@@ -23,7 +23,7 @@ if (import.meta.env.DEV) {
 	w.__qc = queryClient;
 	// __testNotif("needs_input") — simulates a real notification:
 	//   bell count + dock badge update immediately; dock bounces after 3s
-	//   (gives you time to click away from AO so the bounce is visible)
+	//   (gives you time to click away from Kennel so the bounce is visible)
 	const testNotifTitles: Record<string, string> = {
 		needs_input: "Agent needs your input",
 		ready_to_merge: "Ready to merge",
@@ -50,7 +50,7 @@ if (import.meta.env.DEV) {
 			target: { kind: "session", sessionId: "" },
 			status: "unread",
 		});
-		console.log("[testNotif] bell updated - click away from AO now, bounce fires in 3s");
+		console.log("[testNotif] bell updated - click away from Kennel now, bounce fires in 3s");
 		setTimeout(() => {
 			void window.kennel?.notifications.devBounce();
 			// Restore normal stale time after bounce

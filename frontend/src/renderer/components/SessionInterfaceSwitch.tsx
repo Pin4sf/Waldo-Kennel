@@ -163,7 +163,7 @@ export function SessionInterfaceSwitchDialog({
 						Switch to {targetName}?
 					</DialogTitle>
 					<DialogDescription className="pt-1 text-xs leading-5">
-						The same AO session, worktree, and agent-native conversation continue in the other interface.
+						The same Kennel session, worktree, and agent-native conversation continue in the other interface.
 						Completed messages and tool work stay in the agent's context.
 					</DialogDescription>
 				</DialogHeader>
@@ -177,7 +177,7 @@ export function SessionInterfaceSwitchDialog({
 					>
 						<strong className="block text-sm font-medium text-foreground">Finish work, then switch</strong>
 						<span className="mt-1 block text-xs leading-5 text-muted-foreground">
-							Wait for the running turn and anything already queued to finish. New AO messages wait safely
+							Wait for the running turn and anything already queued to finish. New Kennel messages wait safely
 							for {targetName}.
 						</span>
 					</button>

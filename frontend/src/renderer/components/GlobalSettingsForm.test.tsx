@@ -28,6 +28,10 @@ const {
 	getKeybindings,
 	setKeybindings,
 	setKeybindingRecording,
+	getIslandState,
+	setIslandVisible,
+	openIslandSettings,
+	onIslandState,
 } = vi.hoisted(() => ({
 	getUpdate: vi.fn(),
 	setUpdate: vi.fn(),
@@ -49,6 +53,10 @@ const {
 	getKeybindings: vi.fn(),
 	setKeybindings: vi.fn(),
 	setKeybindingRecording: vi.fn(),
+	getIslandState: vi.fn(),
+	setIslandVisible: vi.fn(),
+	openIslandSettings: vi.fn(),
+	onIslandState: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -70,6 +78,12 @@ vi.mock("../lib/bridge", () => ({
 			get: getKeybindings,
 			set: setKeybindings,
 			setRecording: setKeybindingRecording,
+		},
+		island: {
+			getState: getIslandState,
+			setVisible: setIslandVisible,
+			openSettings: openIslandSettings,
+			onState: onIslandState,
 		},
 		updates: {
 			getStatus: updGetStatus,
@@ -115,6 +129,10 @@ beforeEach(async () => {
 		getKeybindings,
 		setKeybindings,
 		setKeybindingRecording,
+		getIslandState,
+		setIslandVisible,
+		openIslandSettings,
+		onIslandState,
 	]) {
 		m.mockReset();
 	}
@@ -139,6 +157,15 @@ beforeEach(async () => {
 	getKeybindings.mockResolvedValue({});
 	setKeybindings.mockImplementation(async (overrides) => overrides);
 	setKeybindingRecording.mockResolvedValue(undefined);
+	getIslandState.mockResolvedValue({ supported: true, enabled: true, visible: true, shortcut: "⌘`" });
+	setIslandVisible.mockImplementation(async (visible: boolean) => ({
+		supported: true,
+		enabled: visible,
+		visible,
+		shortcut: "⌘`",
+	}));
+	openIslandSettings.mockResolvedValue({ open: true });
+	onIslandState.mockReturnValue(() => undefined);
 	// Locale defaults to English so existing copy assertions stay green.
 	await appI18n.changeLanguage("en");
 	useLocaleStore.setState({ locale: "en", loaded: false, saving: false, saveError: false });
@@ -167,6 +194,30 @@ describe("GlobalSettingsForm", () => {
 		for (const row of [connectMobile, keyboardShortcuts]) {
 			expect(row).toHaveClass("settings-row-bar", "settings-link-row");
 		}
+	});
+
+	it("updates Island visibility immediately and opens its detailed settings", async () => {
+		const user = userEvent.setup();
+		renderForm();
+
+		const toggle = await screen.findByRole("switch", { name: "Show Island" });
+		expect(toggle).toHaveAttribute("aria-checked", "true");
+
+		await user.click(toggle);
+		expect(toggle).toHaveAttribute("aria-checked", "false");
+		expect(setIslandVisible).toHaveBeenCalledWith(false);
+
+		await user.click(screen.getByRole("button", { name: "Open Island settings" }));
+		expect(openIslandSettings).toHaveBeenCalledTimes(1);
+	});
+
+	it("disables Island controls with clear copy on unsupported hardware", async () => {
+		getIslandState.mockResolvedValue({ supported: false, enabled: false, visible: false, shortcut: "⌘`" });
+		renderForm();
+
+		expect(await screen.findByRole("switch", { name: "Show Island" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Open Island settings" })).toBeDisabled();
+		expect(screen.getByText("Island is available on Macs with a built-in display notch.")).toBeInTheDocument();
 	});
 
 	it("persists Developer Mode and reveals Feature Releases", async () => {
@@ -374,14 +425,14 @@ describe("GlobalSettingsForm", () => {
 		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
 		const copied = writeText.mock.calls[0][0] as string;
 		expect(copied).toContain("Create project fails");
-		expect(copied).toContain("AO version: 9.9.9-test");
+		expect(copied).toContain("Kennel version: 9.9.9-test");
 		expect(copied).toContain("Daemon: ready");
 		expect(copied).toContain("[redacted-local-path]");
 		expect(copied).toContain("[redacted-local-url]");
 		expect(copied).not.toContain("/Users/alice");
 		expect(copied).not.toContain("local-secret");
 		expect(copied).not.toContain("## Type");
-		expect(copied).not.toContain("Generated locally by AO");
+		expect(copied).not.toContain("Generated locally by Kennel");
 		expect(openExternal).toHaveBeenCalledWith(
 			expect.stringContaining("https://github.com/Pin4sf/Waldo-Kennel/issues/new"),
 		);
@@ -407,7 +458,7 @@ describe("GlobalSettingsForm", () => {
 		expect(screen.queryByRole("button", { name: /copy & open email/i })).not.toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: /copy & open discord/i }));
 		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-		expect(writeText.mock.calls[0][0]).toContain("**AO feedback**");
+		expect(writeText.mock.calls[0][0]).toContain("**Waldo feedback**");
 		expect(screen.getByText("Discord draft copied.")).toBeInTheDocument();
 		expect(screen.getByLabelText("Title")).toHaveValue("");
 		expect(screen.getByLabelText("What happened?")).toHaveValue("");
@@ -424,7 +475,7 @@ describe("GlobalSettingsForm", () => {
 		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
 		expect(writeText.mock.calls[0][0]).toContain("Daemon: unknown");
 		expect(writeText.mock.calls[1][0]).toContain("To: prateek@untrivial.ai");
-		expect(writeText.mock.calls[1][0]).toContain("AO feedback");
+		expect(writeText.mock.calls[1][0]).toContain("Waldo feedback");
 		expect(openExternal).toHaveBeenCalledWith("https://discord.com/invite/UZv7JjxbwG");
 		expect(openExternal).toHaveBeenCalledWith(expect.stringContaining("mailto:prateek@untrivial.ai"));
 		expect(open).not.toHaveBeenCalled();

@@ -54,39 +54,40 @@ const repoName = "Untrivial-ai/agent-orchestrator";
 const repoAvatar = "https://github.com/Untrivial-ai.png?size=64";
 
 const previewTokenStyle = {
-	// Exact dark-theme values from frontend/src/styles/tokens.css (:root).
-	"--preview-background": "oklch(0.185 0.006 285.885)", // --background
-	"--preview-foreground": "oklch(0.985 0 0)", // --foreground
-	"--preview-card": "oklch(0.24 0.008 285.885)", // --card / --surface
-	"--preview-card-foreground": "oklch(0.985 0 0)", // --card-foreground
-	"--preview-primary": "oklch(0.92 0.004 286.32)", // --primary / accent-strong
-	"--preview-primary-foreground": "oklch(0.21 0.006 285.885)", // --primary-foreground
-	"--preview-muted": "oklch(0.274 0.006 286.033)", // --muted / --raised
-	"--preview-muted-foreground": "oklch(0.705 0.015 286.067)", // --muted-foreground
-	"--preview-accent": "oklch(0.274 0.006 286.033)", // --accent / --sidebar-accent
-	"--preview-border": "oklch(1 0 0 / 7%)", // --border
-	"--preview-border-strong": "oklch(1 0 0 / 4%)", // --input / --color-border-strong
-	"--preview-divider": "oklch(1 0 0 / 4%)", // --input / --color-border-strong (column + topbar rules)
-	"--preview-input": "oklch(1 0 0 / 4%)", // --input
-	"--preview-ring": "oklch(0.552 0.016 285.938)", // --ring
-	"--preview-sidebar": "oklch(0.155 0.005 285.823)", // --sidebar
-	"--preview-sidebar-foreground": "oklch(0.985 0 0)", // --sidebar-foreground
-	"--preview-sidebar-accent": "oklch(0.274 0.006 286.033)", // --sidebar-accent
-	"--preview-sidebar-hover": "color-mix(in oklch, oklch(0.985 0 0) 4%, transparent)", // --color-interactive-hover
-	"--preview-sidebar-border": "oklch(1 0 0 / 7%)", // --sidebar-border → --border
-	"--preview-passive": "oklch(0.442 0.017 285.786)", // --chart-3 / --color-text-passive
-	"--preview-raised": "oklch(0.274 0.006 286.033)", // --color-raised → --muted
+	// Exact dark-theme values from frontend/src/styles/tokens.css (:root) —
+	// the Kennel orchestrator system. Keep in step when those tokens change.
+	"--preview-background": "#151515", // --background
+	"--preview-foreground": "#fafaf8", // --foreground
+	"--preview-card": "#272725", // --card / --surface
+	"--preview-card-foreground": "#fafaf8", // --card-foreground
+	"--preview-primary": "#fafaf8", // --primary / accent-strong
+	"--preview-primary-foreground": "#272725", // --primary-foreground
+	"--preview-muted": "#1e1e1e", // --muted / --raised
+	"--preview-muted-foreground": "#9a9a96", // --muted-foreground
+	"--preview-accent": "#272725", // --accent / --sidebar-accent
+	"--preview-border": "rgb(255 255 255 / 8%)", // --border
+	"--preview-border-strong": "rgb(255 255 255 / 10%)", // --input / --color-border-strong
+	"--preview-divider": "rgb(255 255 255 / 10%)", // --input / --color-border-strong (column + topbar rules)
+	"--preview-input": "rgb(255 255 255 / 10%)", // --input
+	"--preview-ring": "#2388ff", // --ring
+	"--preview-sidebar": "#161616", // --sidebar
+	"--preview-sidebar-foreground": "#fafaf8", // --sidebar-foreground
+	"--preview-sidebar-accent": "#1e1e1e", // --sidebar-accent
+	"--preview-sidebar-hover": "#1e1e1e", // --color-interactive-hover
+	"--preview-sidebar-border": "rgb(255 255 255 / 8%)", // --sidebar-border → --border
+	"--preview-passive": "#6b6b68", // --chart-3 / --color-text-passive
+	"--preview-raised": "#353533", // --color-raised → --muted
 } as CSSProperties;
 
 // From --color-status-* in frontend/src/styles/tokens.css
 const STATUS_COLORS = {
-	idle: "oklch(0.705 0.015 286.067)", // --muted-foreground
-	working: "#60a5fa",
-	needsYou: "#fb923c",
-	inReview: "#facc15",
-	ready: "#4ade80",
-	merged: "oklch(0.92 0.004 286.32)", // --primary
-	unknown: "oklch(0.37 0.013 285.805)", // --chart-4
+	idle: "#6b6b68", // --muted-foreground
+	working: "#2388ff",
+	needsYou: "#fb8404",
+	inReview: "#fbbc04",
+	ready: "#00cc6e",
+	merged: "#00cc6e", // --primary
+	unknown: "#8338ec", // --chart-4
 } as const;
 
 const SIDEBAR_DEFAULT_WIDTH = 208;
@@ -288,10 +289,10 @@ const columns = [
 ] satisfies PreviewColumn[];
 
 const COLUMN_COLORS: Record<BoardColumnId, string> = {
-	working: "#60a5fa", // --color-status-working
-	action: "#fb923c", // --color-status-needs-you
-	pending: "#facc15", // --color-status-in-review
-	merge: "#4ade80", // --color-status-ready
+	working: "#2388ff", // --color-status-working
+	action: "#fb8404", // --color-status-needs-you
+	pending: "#fbbc04", // --color-status-in-review
+	merge: "#00cc6e", // --color-status-ready
 };
 
 const projectItems: TrackItem[] = [
@@ -1547,7 +1548,7 @@ function CircleProgressIcon({ pass, total }: { pass: number; total: number }) {
 	const ratio = total > 0 ? pass / total : 0;
 	const dash = ratio * circ;
 	const trackColor = "#374151";
-	const fillColor = ratio >= 1 ? "#4ade80" : ratio < 0.5 ? "#fb923c" : "#e5e7eb";
+	const fillColor = ratio >= 1 ? "#00cc6e" : ratio < 0.5 ? "#fb8404" : "#e5e7eb";
 	return (
 		<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
 			<circle cx="6" cy="6" r={r} stroke={trackColor} strokeWidth="1.5" />
@@ -1612,9 +1613,9 @@ function BoardCard({
 	const attentionBorder = isWaiting
 		? isReviewFlag
 			? "border-[#f87171]/70"
-			: "border-[#fb923c]/60"
+			: "border-[#fb8404]/60"
 		: "border-[var(--preview-border)]";
-	const badgeColor = isReviewFlag ? "bg-[#f87171]" : "bg-[#fb923c]";
+	const badgeColor = isReviewFlag ? "bg-[#f87171]" : "bg-[#fb8404]";
 	const attentionAnim = isWaiting && isPulsing ? "ao-attention-pulse" : "";
 
 	return (
@@ -1693,14 +1694,14 @@ function BoardCard({
 					) : null}
 					{card.column === "pending" && card.testResults ? (
 						<span
-							className={`text-[10px] ${card.testResults.pass < card.testResults.total ? "text-[#fb923c]" : "text-[var(--preview-muted-foreground)]"}`}
+							className={`text-[10px] ${card.testResults.pass < card.testResults.total ? "text-[#fb8404]" : "text-[var(--preview-muted-foreground)]"}`}
 						>
 							{card.testResults.pass}/{card.testResults.total} tests
 						</span>
 					) : null}
 					{card.prComments !== undefined ? (
 						<span
-							className={`ml-auto text-[10px] ${card.prComments > 0 ? "text-[#fb923c]" : "text-[var(--preview-muted-foreground)]"}`}
+							className={`ml-auto text-[10px] ${card.prComments > 0 ? "text-[#fb8404]" : "text-[var(--preview-muted-foreground)]"}`}
 						>
 							{card.prComments === 0
 								? "no comments"
@@ -1765,7 +1766,7 @@ function BoardColumn({
 					{count}
 				</div>
 				{extraWaiting > 0 ? (
-					<div className="inline-flex items-center gap-1 rounded-[4px] bg-[#fb923c]/10 px-1.5 py-0.5 text-[9px] font-semibold text-[#fb923c]">
+					<div className="inline-flex items-center gap-1 rounded-[4px] bg-[#fb8404]/10 px-1.5 py-0.5 text-[9px] font-semibold text-[#fb8404]">
 						<WaitingIcon className="h-2.5 w-2.5" />
 						{extraWaiting} waiting
 					</div>
@@ -1843,10 +1844,10 @@ function OrchestratorView({
 				<div className="mt-4 min-h-0 flex-1 rounded-[10px] border border-[var(--preview-border)] bg-[var(--preview-card)] p-4 font-mono text-[11px] leading-5 text-[var(--preview-muted-foreground)]">
 					<div className="text-[var(--preview-muted-foreground)]">ao orchestrator</div>
 					<div className="mt-3 text-[var(--preview-foreground)]">
-						<span className="text-[#60a5fa]">track</span> {selectedTrack.id}
+						<span className="text-[#2388ff]">track</span> {selectedTrack.id}
 					</div>
 					<div className="mt-2 text-[var(--preview-foreground)]">
-						<span className="text-[#60a5fa]">next</span>{" "}
+						<span className="text-[#2388ff]">next</span>{" "}
 						{leadWorker ? `watch ${leadWorker.branch}` : "spawn first worker"}
 					</div>
 					<div className="mt-2 text-[var(--preview-muted-foreground)]">

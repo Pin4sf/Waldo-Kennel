@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Options configures the scratch workspace adapter.
@@ -17,7 +17,7 @@ type Options struct {
 	ManagedRoot string
 }
 
-// Workspace creates per-session plain directories under AO's managed root.
+// Workspace creates per-session plain directories under Kennel's managed root.
 type Workspace struct {
 	managedRoot string
 }
@@ -89,7 +89,7 @@ func (w *Workspace) Destroy(_ context.Context, info ports.WorkspaceInfo) error {
 	return nil
 }
 
-// ForceDestroy intentionally follows Destroy semantics for scratch. Normal AO
+// ForceDestroy intentionally follows Destroy semantics for scratch. Normal Kennel
 // paths must never force-delete non-empty scratch work.
 func (w *Workspace) ForceDestroy(ctx context.Context, info ports.WorkspaceInfo) error {
 	return w.Destroy(ctx, info)

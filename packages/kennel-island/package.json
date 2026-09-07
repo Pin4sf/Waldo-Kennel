@@ -1,0 +1,29 @@
+{
+  "name": "kennel-island",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A native macOS notch companion for live Kennel agent sessions.",
+  "author": "Waldo",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit --pretty false",
+    "test:desktop": "node --test desktop/*.test.mjs",
+    "test:renderer": "node --experimental-strip-types --test src/island/*.test.ts",
+    "test": "npm run test:desktop && npm run test:renderer",
+    "preview": "vite preview",
+    "build:helpers": "node scripts/build-helpers.mjs"
+  },
+  "devDependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "motion": "^12.43.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "typescript": "^5.6.0",
+    "vite": "^8.0.16"
+  }
+}

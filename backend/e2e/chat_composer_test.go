@@ -21,7 +21,7 @@ import (
 // the provider or the filesystem will not honour.
 
 // The skill catalog has to come from the provider, because it is assembled from the
-// user's own config and the repo's own files — neither of which AO is told about.
+// user's own config and the repo's own files — neither of which Kennel is told about.
 func TestChatSkillsComeFromTheProvider(t *testing.T) {
 	requireE2E(t)
 	d := startDaemon(t, t.TempDir())
@@ -112,8 +112,8 @@ func TestChatAttachmentIsStagedIntoTheWorktreeAndReadableByTheAgent(t *testing.T
 		t.Fatalf("staged %d paths, want 1: %+v", len(staged.Paths), staged.Paths)
 	}
 	path := staged.Paths[0]
-	if !strings.HasPrefix(path, ".ao/attachments/") || !strings.HasSuffix(path, ".png") {
-		t.Errorf("staged path = %q, want a .png under .ao/attachments/", path)
+	if !strings.HasPrefix(path, ".kennel/attachments/") || !strings.HasSuffix(path, ".png") {
+		t.Errorf("staged path = %q, want a .png under .kennel/attachments/", path)
 	}
 
 	// Names must not collide across messages: a chat session attaches repeatedly, and
@@ -138,7 +138,7 @@ func TestChatAttachmentIsStagedIntoTheWorktreeAndReadableByTheAgent(t *testing.T
 		t.Fatalf("the agent could not see the staged image at %s:\n%s", path, describe(snap))
 	}
 
-	// The images must not dirty the worktree: AO derives session state from durable
+	// The images must not dirty the worktree: Kennel derives session state from durable
 	// git facts, and an attachment that reads as an uncommitted change would make a
 	// clean session look like it has work in it.
 	var files struct {
@@ -149,7 +149,7 @@ func TestChatAttachmentIsStagedIntoTheWorktreeAndReadableByTheAgent(t *testing.T
 	}
 	d.mustCall("GET", "/sessions/"+session+"/workspace/files", http.StatusOK, nil, &files)
 	for _, file := range files.Files {
-		if strings.HasPrefix(file.Path, ".ao/attachments/") {
+		if strings.HasPrefix(file.Path, ".kennel/attachments/") {
 			t.Errorf("staged attachment %q shows up as a workspace change (%s)", file.Path, file.Status)
 		}
 	}

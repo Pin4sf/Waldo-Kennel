@@ -11,7 +11,7 @@ import (
 
 // Scenarios for the conversation history operations against a real provider.
 //
-// Rollback is the one worth running for real. Every unit test can prove AO sends
+// Rollback is the one worth running for real. Every unit test can prove Kennel sends
 // the right frame and hides the right rows; only a live provider can prove the
 // agent actually FORGOT. That is the whole claim, and the way it fails in
 // production is subtle: the timeline looks right and the agent answers as though
@@ -33,11 +33,11 @@ func rollback(t *testing.T, d *daemon, session, turnID string) int {
 }
 
 // The claim in full: after an undo the agent cannot recall what was discarded, and
-// AO's timeline does not show it either.
+// Kennel's timeline does not show it either.
 //
 // The secret is the instrument. A word the agent only ever learned inside the
 // discarded turn is the one thing that distinguishes "the provider dropped the
-// history" from "the provider still has it and AO is merely hiding rows".
+// history" from "the provider still has it and Kennel is merely hiding rows".
 func TestChatRollbackMakesTheAgentForget(t *testing.T) {
 	requireE2E(t)
 	d := startDaemon(t, t.TempDir())
@@ -70,7 +70,7 @@ func TestChatRollbackMakesTheAgentForget(t *testing.T) {
 
 	after := d.conversation(session)
 
-	// AO's side: the turn rows survive, marked; their prose is gone.
+	// Kennel's side: the turn rows survive, marked; their prose is gone.
 	marked := 0
 	for _, tn := range after.Turns {
 		if tn.RolledBack {
@@ -97,7 +97,7 @@ func TestChatRollbackMakesTheAgentForget(t *testing.T) {
 		func(s snapshot) bool { return terminal(s.Turns[len(s.Turns)-1].State) })
 	answer := strings.ToUpper(asked.assistantText())
 	if strings.Contains(answer, "ZEPHYRINE") {
-		t.Errorf("the agent still remembers a turn AO says was rolled back:\n%s", describe(asked))
+		t.Errorf("the agent still remembers a turn Kennel says was rolled back:\n%s", describe(asked))
 	}
 	if !strings.Contains(answer, "NO-SECRET") {
 		t.Errorf("the agent gave no clear answer after the rollback:\n%s", describe(asked))
@@ -116,7 +116,7 @@ func TestChatRollbackMakesTheAgentForget(t *testing.T) {
 }
 
 // Rolling back mid-turn must be refused, not raced. Discarding history the agent is
-// still writing into would leave AO's rows and the agent's memory describing
+// still writing into would leave Kennel's rows and the agent's memory describing
 // different conversations, with nothing to reconcile them.
 func TestChatRollbackIsRefusedWhileATurnIsRunning(t *testing.T) {
 	requireE2E(t)
@@ -172,7 +172,7 @@ func TestChatRollbackRefusesTurnsItCannotUndo(t *testing.T) {
 	}
 }
 
-// The title round trip. AO asks the provider to name the thread; the provider
+// The title round trip. Kennel asks the provider to name the thread; the provider
 // confirms on its own notification; the daemon adopts it as the session's label.
 // Nothing is written optimistically, so a successful call is not the assertion —
 // the label moving is.

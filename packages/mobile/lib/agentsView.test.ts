@@ -166,12 +166,12 @@ describe("showBranch", () => {
 		expect(showBranch("feat/add-login", "Add Login")).toBe(false);
 	});
 
-	// The rule this was narrowed to, twice. AO names worktree branches
+	// The rule this was narrowed to, twice. Kennel names worktree branches
 	// `ao/<session-id>/<slug>`; earlier versions normalised that scaffolding away
 	// and so hid the branch on every unnamed session. But it IS the worktree, the
 	// card names it nowhere else, and desktop's sameLabel has no knowledge of
 	// `ao/` so desktop shows it.
-	it("keeps AO worktree branches, named session or not", () => {
+	it("keeps Kennel worktree branches, named session or not", () => {
 		expect(showBranch("ao/agent-orchestrator-mo-17/root", "mobile-ui-revamp")).toBe(true);
 		expect(showBranch("ao/meetyou-2/chat-experience", "chat-ux")).toBe(true);
 		expect(showBranch("ao/meetyou-7/root", "meetyou-7")).toBe(true);

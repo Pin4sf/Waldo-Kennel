@@ -35,7 +35,7 @@ const CONTEXT_CRITICAL = 0.9;
  *
  * A full context degrades gracefully: history gets compacted and the conversation
  * continues. Exhausted quota does not degrade at all, it just stops, and it stops
- * for a window measured in days on the accounts AO sees. So the warning arrives
+ * for a window measured in days on the accounts Kennel sees. So the warning arrives
  * earlier, while the user still has the option of pacing themselves.
  */
 const QUOTA_WARN = 75;
@@ -56,7 +56,7 @@ function quotaSeverity(percent: number): Severity {
 }
 
 /**
- * Normal usage is informational rather than session activity, so it uses AO's
+ * Normal usage is informational rather than session activity, so it uses Kennel's
  * logo blue. Warning and critical retain the established status colours: amber
  * means "a human should look", and red means the next turn is at risk.
  */
@@ -201,9 +201,17 @@ function ContextReadout({ usage }: { usage: ConversationUsage }) {
 					aria-label="Context window used"
 				>
 					<div className="h-1.5 w-16 overflow-hidden rounded-full bg-border">
+						{/*
+						 * The fill is a full-width bar scaled down, not a bar whose width
+						 * is animated: scaleX composites, width relayouts the row on every
+						 * frame while tokens are streaming in.
+						 */}
 						<div
-							className={cn("h-full rounded-full transition-[width] duration-300", FILL[severity])}
-							style={{ width: `${Math.max(fraction * 100, 2)}%` }}
+							className={cn(
+								"h-full w-full origin-left rounded-full transition-transform duration-normal ease-out motion-reduce:transition-none",
+								FILL[severity],
+							)}
+							style={{ transform: `scaleX(${Math.max(fraction, 0.02)})` }}
 						/>
 					</div>
 					<span className={cn("tabular-nums text-[11px]", TEXT[severity])}>{percent}%</span>

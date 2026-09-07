@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestWorkspaceIntegrationCreateRestoreDestroy(t *testing.T) {
@@ -187,7 +187,7 @@ func TestWorkspaceIntegrationDestroyDirtyWorktree(t *testing.T) {
 		t.Fatalf("dirty worktree was not preserved: %v", statErr)
 	}
 
-	// With the real work gone, only the ignored AO files remain — git considers
+	// With the real work gone, only the ignored Kennel files remain — git considers
 	// the worktree clean and Destroy succeeds without --force.
 	if err := os.Remove(wip); err != nil {
 		t.Fatalf("remove wip: %v", err)
@@ -236,7 +236,7 @@ func TestWorkspaceIntegrationRestoreRecreatesSiblingsIndependently(t *testing.T)
 	}
 
 	// Simulate the out-of-band deletion #2775 hit: the directory is gone, the
-	// git registration (and, in production, AO's DB row) is not.
+	// git registration (and, in production, Kennel's DB row) is not.
 	if err := os.RemoveAll(infoA.Path); err != nil {
 		t.Fatalf("remove A dir: %v", err)
 	}
@@ -527,10 +527,10 @@ func TestWorkspaceIntegrationAutoUsesAOInitializedRemotelessDefault(t *testing.T
 	ctx := context.Background()
 	info, err := ws.Create(ctx, ports.WorkspaceConfig{ProjectID: "proj", SessionID: "sess", Branch: "ao/proj-1"})
 	if err != nil {
-		t.Fatalf("create in AO-initialized repo: %v", err)
+		t.Fatalf("create in Kennel-initialized repo: %v", err)
 	}
 	if got := gitOutput(t, git, info.Path, "merge-base", "HEAD", "refs/heads/main"); got != gitOutput(t, git, repo, "rev-parse", "refs/heads/main") {
-		t.Fatalf("worktree base = %s, want AO-recorded main", got)
+		t.Fatalf("worktree base = %s, want Kennel-recorded main", got)
 	}
 	if err := ws.Destroy(ctx, info); err != nil {
 		t.Fatalf("destroy: %v", err)

@@ -65,7 +65,7 @@ var (
 	ErrUsageSourceEventConflict    = errors.New("usage source event conflict")
 )
 
-// UsageBindingRecord binds one AO session to one native root session/thread.
+// UsageBindingRecord binds one Kennel session to one native root session/thread.
 type UsageBindingRecord struct {
 	ID             int64
 	SessionID      SessionID
@@ -159,7 +159,7 @@ type ModelUsageSummary struct {
 	Totals  UsageMetricTotals
 }
 
-// HarnessUsageSummary groups model summaries by AO harness.
+// HarnessUsageSummary groups model summaries by Kennel harness.
 type HarnessUsageSummary struct {
 	Harness AgentHarness
 	Totals  UsageMetricTotals

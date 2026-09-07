@@ -35,7 +35,7 @@ describe("ChatMarkdown", () => {
 		expect(boxes).toHaveLength(2);
 		expect(boxes[0]!.checked).toBe(true);
 		expect(boxes[1]!.checked).toBe(false);
-		// Clicking must not imply AO can rewrite the agent's plan.
+		// Clicking must not imply Kennel can rewrite the agent's plan.
 		expect(boxes[0]!.readOnly).toBe(true);
 	});
 
@@ -80,7 +80,7 @@ describe("ChatMarkdown", () => {
 		expect(code).toHaveClass("text-markdown-code");
 	});
 
-	it("uses the AO logo colour for file paths and inline notation", () => {
+	it("uses the Kennel logo colour for file paths and inline notation", () => {
 		render(
 			<ChatMarkdown
 				text={"See `backend/internal/adapters/agent/` and then pass `--resume` to `ao`."}
@@ -116,7 +116,7 @@ describe("ChatMarkdown", () => {
 		expect(link.getAttribute("rel")).toContain("noreferrer");
 	});
 
-	it("routes a plain web-link click to the AO Browser handler", async () => {
+	it("routes a plain web-link click to the Kennel Browser handler", async () => {
 		const user = userEvent.setup();
 		const onLinkOpen = vi.fn();
 		const openExternal = vi.spyOn(aoBridge.app, "openExternal").mockResolvedValue(undefined);

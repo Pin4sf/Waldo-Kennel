@@ -89,10 +89,16 @@ import { isAllowedAppExternalURL, openAllowedAppExternalURL } from "./main/exter
 import { shouldSignalAttention, shouldToast } from "./main/notification-signals";
 import { buildWindowsAppMenuTemplate } from "./main/menu";
 import { ancestorRepositorySetupWarning, scanImportFolder } from "./main/import-folder-scan";
+import { createIslandController, type IslandController } from "./main/island/window";
+import { parseIslandSessionDeepLink } from "./main/island/session-link";
+import { createIslandSessionRouter } from "./main/island/session-router";
+import { createSessionLinkQueue } from "./main/island/session-link-queue";
 
 // Globals injected at compile time by @electron-forge/plugin-vite.
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
+declare const ISLAND_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
+declare const ISLAND_WINDOW_VITE_NAME: string;
 
 // Windows GUI launches (e.g. from a Start-menu/desktop shortcut) have no attached
 // console, so process.stdout and process.stderr are dead pipes. The daemon-output
@@ -135,6 +141,8 @@ app.setPath(
 );
 
 let mainWindow: BaseWindow | null = null;
+let islandController: IslandController | null = null;
+let islandInitPromise: Promise<void> | null = null;
 let trayController: TrayController | null = null;
 const trayLifecycle = createTrayLifecycle({
 	getWindow: () => null,
@@ -148,12 +156,26 @@ let daemonRestartAfterExitProcess: ChildProcess | null = null;
 let daemonStartPromise: Promise<DaemonStatus> | null = null;
 let daemonStartEpoch = 0;
 let daemonStatus: DaemonStatus = { state: "stopped" };
+const islandSessionRouter = createIslandSessionRouter({
+	getConnection: readyDaemonConnection,
+	fetch: (url, init) => net.fetch(url, init),
+	openSession: trayLifecycle.openSession,
+});
+const sessionDeepLinks = createSessionLinkQueue({
+	isReady: () => readyDaemonConnection() !== null,
+	focusSession: islandSessionRouter.focusSession,
+	log: (message, error) => {
+		if (error === undefined) console.warn(message);
+		else console.warn(message, error);
+	},
+});
 let daemonOutput = "";
 let browserViewHost: BrowserViewHost | null = null;
 let windowComposition: WindowComposition | null = null;
 const browserCleanupPromises = new Set<Promise<void>>();
 let browserQuitCleanupPromise: Promise<void> | null = null;
 let browserCleanupComplete = false;
+let islandCleanupComplete = false;
 let browserQuitRequested = false;
 let createWindowPromise: Promise<void> | null = null;
 let browserRuntimeLink: BrowserRuntimeLinkHandle | null = null;
@@ -185,6 +207,7 @@ const TITLEBAR_HEIGHT = 36;
 // natural macOS titlebar band (TitlebarNav is h-traffic-light-clearance).
 const MAC_WINDOW_BUTTON_X = 14;
 const MAC_WINDOW_BUTTON_Y = 12;
+const ISLAND_QUIT_WAIT_MS = 2_000;
 
 const RENDERER_SCHEME = "app";
 const RENDERER_HOST = "renderer";
@@ -257,12 +280,23 @@ function rendererUrl(): string {
 	return `${RENDERER_ORIGIN}/index.html`;
 }
 
+function islandRendererUrl(): string {
+	if (typeof ISLAND_WINDOW_VITE_DEV_SERVER_URL !== "undefined" && ISLAND_WINDOW_VITE_DEV_SERVER_URL) {
+		return ISLAND_WINDOW_VITE_DEV_SERVER_URL;
+	}
+	return "app://island/index.html";
+}
+
 function preloadPath(): string {
 	return path.join(__dirname, "preload.js");
 }
 
 function annotatePreloadPath(): string {
 	return path.join(__dirname, "annotate-preload.js");
+}
+
+function islandPreloadPath(): string {
+	return path.join(__dirname, "island-preload.js");
 }
 
 // Runtime window/taskbar icon for Linux and Windows. macOS ignores this and
@@ -300,10 +334,45 @@ function focusMainWindow(): void {
 	mainWindow.focus();
 }
 
+function waitAtMost(promise: Promise<unknown>, timeoutMs: number): Promise<void> {
+	return new Promise((resolve) => {
+		const timer = setTimeout(resolve, timeoutMs);
+		void promise.then(
+			() => {
+				clearTimeout(timer);
+				resolve();
+			},
+			() => {
+				clearTimeout(timer);
+				resolve();
+			},
+		);
+	});
+}
+
+function readyDaemonConnection(): { port: number; pid?: number } | null {
+	if (
+		daemonStatus.state !== "ready" ||
+		!Number.isInteger(daemonStatus.port) ||
+		Number(daemonStatus.port) < 1 ||
+		Number(daemonStatus.port) > 65_535
+	) {
+		return null;
+	}
+	return {
+		port: Number(daemonStatus.port),
+		...(Number.isInteger(daemonStatus.pid) && Number(daemonStatus.pid) > 0
+			? { pid: Number(daemonStatus.pid) }
+			: {}),
+	};
+}
+
 function setDaemonStatus(nextStatus: DaemonStatus): void {
 	if (nextStatus.state !== "ready") disposeBrowserRuntimeLink();
 	daemonStatus = nextStatus;
 	getShellWebContents()?.send("daemon:status", daemonStatus);
+	islandController?.setDaemonStatus(daemonStatus);
+	sessionDeepLinks.readinessChanged();
 	if (nextStatus.state === "ready" && browserViewHost) {
 		establishBrowserRuntimeLink();
 	}
@@ -747,12 +816,12 @@ function daemonIdentityError(launch: DaemonLaunchSpec, probe: DaemonProbe): stri
 			: false;
 		const executableMatches = probe.executablePath ? pathInside(probe.executablePath, launch.cwd) : false;
 		if (!probe.workingDirectory && !probe.startupWorkingDirectory && !probe.executablePath) {
-			return "An older AO daemon is already running, but it does not report its checkout identity. Stop it and restart this app.";
+			return "An older Kennel daemon is already running, but it does not report its checkout identity. Stop it and restart this app.";
 		}
 		if (!cwdMatches && !startupCwdMatches && !executableMatches) {
 			const actual =
 				probe.startupWorkingDirectory ?? probe.workingDirectory ?? probe.executablePath ?? "an unknown location";
-			return `Another AO daemon is already running from ${actual}; expected this checkout at ${launch.cwd}. Stop the other daemon before using this checkout.`;
+			return `Another Kennel daemon is already running from ${actual}; expected this checkout at ${launch.cwd}. Stop the other daemon before using this checkout.`;
 		}
 		return null;
 	}
@@ -911,7 +980,7 @@ async function refreshDaemonStatus(): Promise<DaemonStatus> {
 	) {
 		setDaemonStatus({
 			state: "stopped",
-			message: "AO daemon is no longer reachable.",
+			message: "Kennel daemon is no longer reachable.",
 			code: "daemon_unreachable",
 		});
 	}
@@ -1081,7 +1150,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	// may still be holding the port. The only reachable case here is a hung/wedged
 	// holder whose run-file PID is still alive but is not answering /healthz (e.g.
 	// our own daemon that bound the port and then deadlocked). Two cases are
-	// intentionally NOT handled: an identity-mismatched but healthy AO daemon is
+	// intentionally NOT handled: an identity-mismatched but healthy Kennel daemon is
 	// already surfaced as an error status upstream by resolveDaemonFromPort (not
 	// killed here), and a foreign non-AO process holding the port with a dead
 	// run-file PID is not replaced (out of scope). When no holder is detectable,
@@ -1139,7 +1208,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 	if (launch.source === "bundled" && !existsSync(launch.command)) {
 		setDaemonStatus({
 			state: "error",
-			message: `Bundled AO daemon binary was not found at ${launch.command}. Rebuild the desktop package.`,
+			message: `Bundled Kennel daemon binary was not found at ${launch.command}. Rebuild the desktop package.`,
 			code: "binary_missing",
 		});
 		return daemonStatus;
@@ -1157,7 +1226,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 			// and leave the UI stuck on "starting". Report it as a failure instead.
 			setDaemonStatus({
 				state: "error",
-				message: `Could not create the AO data directory at ${launch.cwd}: ${(err as Error).message}`,
+				message: `Could not create the Kennel data directory at ${launch.cwd}: ${(err as Error).message}`,
 				code: "datadir_unwritable",
 			});
 			return daemonStatus;
@@ -1333,7 +1402,7 @@ async function startDaemonInner(startEpoch: number): Promise<DaemonStatus> {
 		fallbackTimer = undefined;
 		setDaemonStatus({
 			state: "error",
-			message: "AO daemon did not finish starting within 30 seconds.",
+			message: "Kennel daemon did not finish starting within 30 seconds.",
 			details:
 				daemonOutput.trim() ||
 				[
@@ -1476,7 +1545,7 @@ async function restartDaemon(): Promise<DaemonStatus> {
 		// a replacement instead of collapsing back to a code-less stopped state.
 		setDaemonStatus({
 			state: "error",
-			message: "AO daemon is still stopping. It will restart automatically when shutdown completes.",
+			message: "Kennel daemon is still stopping. It will restart automatically when shutdown completes.",
 			details: daemonOutput.trim() || undefined,
 			code: "not_ready",
 		});
@@ -1900,11 +1969,43 @@ function notifyRenderersOfCloudSession(account: import("./shared/cloud-account")
 installCloudIPC(cloudDataDir, notifyRenderersOfCloudSession);
 
 function focusCloudWindow(): void {
-	const window = BaseWindow.getAllWindows()[0];
-	if (!window) return;
-	if (window.isMinimized()) window.restore();
-	window.show();
-	window.focus();
+	focusMainWindow();
+}
+
+function handleSessionDeepLink(target: { projectId: string; sessionId: string }): void {
+	sessionDeepLinks.enqueue(target);
+}
+
+async function initializeIsland(): Promise<void> {
+	try {
+		const controller = await createIslandController({
+			rendererUrl: islandRendererUrl,
+			rendererName: ISLAND_WINDOW_VITE_NAME,
+			preloadPath: islandPreloadPath(),
+			getMainContents: getShellWebContents,
+			focusMainWindow,
+			focusSession: islandSessionRouter.focusSession,
+		});
+		if (browserQuitRequested) {
+			await controller.dispose();
+			return;
+		}
+		islandController = controller;
+		controller.setDaemonStatus(daemonStatus);
+	} catch (error) {
+		// The Island is an ambient companion. A helper, display, or renderer
+		// failure must never prevent the orchestration workspace from opening.
+		console.error("Kennel Island failed to initialize:", error);
+	}
+}
+
+async function handleAppDeepLinkAndFocus(url: string): Promise<void> {
+	const sessionTarget = parseIslandSessionDeepLink(url, AUTH_PROTOCOL);
+	if (sessionTarget) {
+		handleSessionDeepLink(sessionTarget);
+		return;
+	}
+	await handleCloudDeepLinkAndFocus(url);
 }
 
 async function handleCloudDeepLinkAndFocus(url: string): Promise<void> {
@@ -1924,20 +2025,16 @@ async function handleCloudDeepLinkAndFocus(url: string): Promise<void> {
 // on first launch (handled in app.whenReady below).
 app.on("open-url", (event, url) => {
 	event.preventDefault();
-	void handleCloudDeepLinkAndFocus(url);
+	void handleAppDeepLinkAndFocus(url);
 });
 
 app.on("second-instance", (_event, argv) => {
 	const deepLink = argv.find((value) => value.startsWith(`${AUTH_PROTOCOL}://`));
 	if (deepLink) {
-		void handleCloudDeepLinkAndFocus(deepLink);
+		void handleAppDeepLinkAndFocus(deepLink);
 		return;
 	}
-	const window = BaseWindow.getAllWindows()[0];
-	if (!window) return;
-	if (window.isMinimized()) window.restore();
-	window.show();
-	window.focus();
+	focusMainWindow();
 });
 // (see forge.config.ts publishers). In dev there is no feed, so it is skipped.
 // A live updater additionally requires a signed + notarized build — see
@@ -2015,6 +2112,7 @@ app.whenReady().then(async () => {
 		const bundlePath = resolveBundlePath();
 		const action = decideRelocation({
 			inApplicationsFolder: app.isInApplicationsFolder(),
+			runningBundleIdentifier: APP_ID,
 			runningVersion: app.getVersion(),
 			...inspectInstalledBundle(bundlePath),
 		});
@@ -2057,6 +2155,7 @@ app.whenReady().then(async () => {
 
 	registerRendererProtocol();
 	applyRuntimeAppIcon();
+	islandInitPromise = initializeIsland();
 	if (isTrayEnabled(process.platform, app.isPackaged, app.getVersion())) {
 		const initialUiSettings = keybindingRunFile ? await readUiSettings(path.dirname(keybindingRunFile)) : { locale: "en" as const };
 		trayController = createTrayController({
@@ -2073,13 +2172,15 @@ app.whenReady().then(async () => {
 	// process.argv entry (e.g. kennel-app://callback?token=...).
 	const deepLinkArg = process.argv.find((a) => a.startsWith(`${AUTH_PROTOCOL}://`));
 	if (deepLinkArg) {
-		void handleCloudDeepLinkAndFocus(deepLinkArg);
+		void handleAppDeepLinkAndFocus(deepLinkArg);
 	}
 
 	app.on("activate", () => {
-		if (BaseWindow.getAllWindows().length === 0) {
+		if (!mainWindow || mainWindow.isDestroyed()) {
 			void createWindow().catch((error) => console.error("failed to recreate main window:", error));
+			return;
 		}
+		focusMainWindow();
 	});
 });
 
@@ -2090,13 +2191,25 @@ app.whenReady().then(async () => {
 app.on("before-quit", (event) => {
 	browserQuitRequested = true;
 	disposeBrowserRuntimeLink();
+	sessionDeepLinks.dispose();
 	trayLifecycle.dispose();
 	trayController = null;
-	if (!browserCleanupComplete) {
+	if (!browserCleanupComplete || !islandCleanupComplete) {
 		event.preventDefault();
 		if (!browserQuitCleanupPromise) {
-			browserQuitCleanupPromise = disposeAllBrowserViewHosts().finally(() => {
+			const disposeIsland = waitAtMost(
+				islandInitPromise ?? Promise.resolve(),
+				ISLAND_QUIT_WAIT_MS,
+			).then(() => islandController?.dispose() ?? Promise.resolve());
+			browserQuitCleanupPromise = Promise.all([
+				disposeAllBrowserViewHosts(),
+				disposeIsland,
+			]).then(() => undefined).catch((error) => {
+				console.error("desktop cleanup failed:", error);
+			}).finally(() => {
 				browserCleanupComplete = true;
+				islandCleanupComplete = true;
+				islandController = null;
 				browserQuitCleanupPromise = null;
 				app.quit();
 			});

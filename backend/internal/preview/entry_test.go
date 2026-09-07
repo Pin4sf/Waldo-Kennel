@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 func writeEntryFile(t *testing.T, path, contents string, mod time.Time) {
@@ -135,7 +135,7 @@ func TestIsMarkdownPath(t *testing.T) {
 }
 
 func TestFileURLUsesIsolatedLocalhostOrigin(t *testing.T) {
-	id := domain.SessionID("ao-1")
+	id := domain.SessionID("kennel-1")
 	raw := mustFileURL(t, "http://127.0.0.1:3001", id, "dist/index.html")
 	parsed, err := url.Parse(raw)
 	if err != nil {
@@ -175,7 +175,7 @@ func TestSessionIDFromHostSupportsLongUnicodeIDs(t *testing.T) {
 }
 
 func TestFileURLPreservesSpecialCharactersInEntryPath(t *testing.T) {
-	raw := mustFileURL(t, "http://127.0.0.1:3001", "ao-1", "dist/my report #1.html")
+	raw := mustFileURL(t, "http://127.0.0.1:3001", "kennel-1", "dist/my report #1.html")
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		t.Fatalf("parse FileURL: %v", err)
@@ -189,7 +189,7 @@ func TestFileURLPreservesSpecialCharactersInEntryPath(t *testing.T) {
 }
 
 func TestFileURLPreservesLeadingAndTrailingSpacesInEntryPath(t *testing.T) {
-	raw := mustFileURL(t, "http://127.0.0.1:3001", "ao-1", "dist/ report.html ")
+	raw := mustFileURL(t, "http://127.0.0.1:3001", "kennel-1", "dist/ report.html ")
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		t.Fatalf("parse FileURL: %v", err)
@@ -200,7 +200,7 @@ func TestFileURLPreservesLeadingAndTrailingSpacesInEntryPath(t *testing.T) {
 }
 
 func TestFileURLRejectsHostnameOverDNSLimit(t *testing.T) {
-	accepted := domain.SessionID(strings.Repeat("x", 142))
+	accepted := domain.SessionID(strings.Repeat("x", 140))
 	raw := mustFileURL(t, "http://127.0.0.1:3001", accepted, "index.html")
 	parsed, err := url.Parse(raw)
 	if err != nil {
@@ -213,14 +213,14 @@ func TestFileURLRejectsHostnameOverDNSLimit(t *testing.T) {
 		t.Fatalf("boundary hostname round trip = %q, %v; want %q, true", decoded, ok, accepted)
 	}
 
-	_, err = FileURL("http://127.0.0.1:3001", domain.SessionID(strings.Repeat("x", 143)), "index.html")
+	_, err = FileURL("http://127.0.0.1:3001", domain.SessionID(strings.Repeat("x", 141)), "index.html")
 	if !errors.Is(err, ErrPreviewHostUnsupported) {
 		t.Fatalf("FileURL error = %v, want ErrPreviewHostUnsupported", err)
 	}
 }
 
 func TestSessionIDFromHostRejectsHostnameOverDNSLimit(t *testing.T) {
-	host := "ao-preview." + strings.Repeat("a.", 120) + "localhost:3001"
+	host := "kennel-preview." + strings.Repeat("a.", 120) + "localhost:3001"
 	if id, ok := SessionIDFromHost(host); ok {
 		t.Fatalf("SessionIDFromHost(overlong) = %q, true; want false", id)
 	}
@@ -231,16 +231,16 @@ func TestStoredWorkspaceEntryPreservesLegacyAndRelativeTargets(t *testing.T) {
 		raw  string
 		want string
 	}{
-		{raw: "http://127.0.0.1:3001/api/v1/sessions/ao-1/preview/files/docs/report.html", want: "docs/report.html"},
+		{raw: "http://127.0.0.1:3001/api/v1/sessions/kennel-1/preview/files/docs/report.html", want: "docs/report.html"},
 		{raw: "docs/report.html", want: "docs/report.html"},
 		{raw: " docs/report.html ", want: " docs/report.html "},
 	} {
-		got, ok := StoredWorkspaceEntry(tc.raw, "ao-1")
+		got, ok := StoredWorkspaceEntry(tc.raw, "kennel-1")
 		if !ok || got != tc.want {
 			t.Errorf("StoredWorkspaceEntry(%q) = %q, %v; want %q, true", tc.raw, got, ok, tc.want)
 		}
 	}
-	if got, ok := StoredWorkspaceEntry("https://example.com/api/v1/sessions/ao-1/preview/files/docs/report.html", "ao-1"); ok {
+	if got, ok := StoredWorkspaceEntry("https://example.com/api/v1/sessions/kennel-1/preview/files/docs/report.html", "kennel-1"); ok {
 		t.Fatalf("external lookalike URL = %q, true; want false", got)
 	}
 }
@@ -255,7 +255,7 @@ func mustFileURL(t *testing.T, baseURL string, id domain.SessionID, entry string
 }
 
 func TestSessionIDFromHostRejectsOrdinaryHosts(t *testing.T) {
-	for _, host := range []string{"127.0.0.1:3001", "localhost:3001", "ao-preview.invalid.localhost:3001", "example.com"} {
+	for _, host := range []string{"127.0.0.1:3001", "localhost:3001", "kennel-preview.invalid.localhost:3001", "example.com"} {
 		if id, ok := SessionIDFromHost(host); ok {
 			t.Errorf("SessionIDFromHost(%q) = %q, true; want false", host, id)
 		}

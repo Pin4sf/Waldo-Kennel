@@ -74,16 +74,16 @@ var (
 func buildDaemon(t *testing.T) string {
 	t.Helper()
 	buildOnce.Do(func() {
-		dir, err := os.MkdirTemp("", "ao-e2e-bin-")
+		dir, err := os.MkdirTemp("", "kennel-e2e-bin-")
 		if err != nil {
 			buildErr = err
 			return
 		}
 		out := filepath.Join(dir, "ao")
-		cmd := exec.Command("go", "build", "-o", out, "./cmd/ao")
+		cmd := exec.Command("go", "build", "-o", out, "./cmd/kennel")
 		cmd.Dir = ".."
 		if combined, err := cmd.CombinedOutput(); err != nil {
-			buildErr = fmt.Errorf("go build ./cmd/ao: %w\n%s", err, combined)
+			buildErr = fmt.Errorf("go build ./cmd/kennel: %w\n%s", err, combined)
 			return
 		}
 		aoBinary = out
@@ -314,9 +314,10 @@ func (d *daemon) mustCall(method, path string, want int, body, out any) {
 // apiError is the daemon's error envelope. Asserting on `code` rather than on
 // prose keeps these tests from breaking when a message is reworded.
 type apiError struct {
-	Error   string `json:"error"`
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Error   string         `json:"error"`
+	Code    string         `json:"code"`
+	Message string         `json:"message"`
+	Details map[string]any `json:"details,omitempty"`
 }
 
 func (d *daemon) callExpectingError(method, path string, body any) (int, apiError) {
@@ -347,8 +348,8 @@ func seedProject(t *testing.T, d *daemon, name string) string {
 		cmd := exec.Command(args[0], args[1:]...)
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(),
-			"GIT_AUTHOR_NAME=ao-e2e", "GIT_AUTHOR_EMAIL=e2e@example.com",
-			"GIT_COMMITTER_NAME=ao-e2e", "GIT_COMMITTER_EMAIL=e2e@example.com",
+			"GIT_AUTHOR_NAME=kennel-e2e", "GIT_AUTHOR_EMAIL=e2e@example.com",
+			"GIT_COMMITTER_NAME=kennel-e2e", "GIT_COMMITTER_EMAIL=e2e@example.com",
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("%v: %v\n%s", args, err, out)
@@ -376,7 +377,7 @@ func seedProject(t *testing.T, d *daemon, name string) string {
 }
 
 // setPermissions sets the project's agent permission mode. Approvals are only
-// reachable through it: AO maps permission mode onto the provider's approval
+// reachable through it: Kennel maps permission mode onto the provider's approval
 // policy at launch, and the default posture deliberately never asks.
 func setPermissions(t *testing.T, d *daemon, projectID, mode string) {
 	t.Helper()
@@ -557,7 +558,7 @@ type accountState struct {
 }
 
 // threadState is the PROVIDER lifecycle view of the thread, not the session status
-// AO derives. Both are readable from one snapshot, which is why they are separate.
+// Kennel derives. Both are readable from one snapshot, which is why they are separate.
 type threadState struct {
 	Status     string   `json:"status"`
 	WaitingOn  []string `json:"waitingOn"`
@@ -787,7 +788,7 @@ func harnessWithoutChatDriver(t *testing.T, d *daemon) string {
 	for _, harness := range settings.ChatHarnesses {
 		supported[harness] = true
 	}
-	// Any real harness will do; these are simply ones with no machine protocol AO
+	// Any real harness will do; these are simply ones with no machine protocol Kennel
 	// drives. The loop is what keeps the test honest if one of them ever gains a
 	// driver.
 	for _, candidate := range []string{"aider", "goose", "continue", "cline", "amp"} {

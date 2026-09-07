@@ -16,9 +16,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 const (
@@ -45,7 +45,7 @@ type WorkspaceCompareMode string
 const (
 	// WorkspaceCompareBase means diffs are against the session's recorded base.
 	WorkspaceCompareBase WorkspaceCompareMode = "base"
-	// WorkspaceCompareHeadFallback means AO could not resolve a base and used the
+	// WorkspaceCompareHeadFallback means Kennel could not resolve a base and used the
 	// previous HEAD-only behavior.
 	WorkspaceCompareHeadFallback WorkspaceCompareMode = "head_fallback"
 )
@@ -294,7 +294,7 @@ func resolveWorkspaceCompare(ctx context.Context, root, recordedSHA, recordedRef
 		}
 	}
 	// A local remote-tracking ref (e.g. origin/main) can go stale: nothing in
-	// AO fetches a session worktree, so if the branch later merges a newer
+	// Kennel fetches a session worktree, so if the branch later merges a newer
 	// main in (e.g. to resolve a conflict) without that ref moving, the merge
 	// base above still resolves but lands earlier than the branch's true fork
 	// point, pulling unrelated main commits into the diff. Prefer the PR's
@@ -1472,7 +1472,7 @@ func truncateUTF8(in string, limit int) (string, bool) {
 }
 
 func gitWorkspaceOutput(ctx context.Context, root string, args ...string) (string, error) {
-	cmd := aoprocess.CommandContext(ctx, "git", append([]string{"-C", root}, args...)...)
+	cmd := kennelprocess.CommandContext(ctx, "git", append([]string{"-C", root}, args...)...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

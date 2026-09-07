@@ -973,13 +973,13 @@ describe("XtermTerminal", () => {
 		expect(onInput).toHaveBeenLastCalledWith("\x1b[5~", "wheel");
 	});
 
-	it("routes web links to the AO browser and does not open the system browser", () => {
+	it("routes web links to the Kennel browser and does not open the system browser", () => {
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
 		const onLinkOpen = vi.fn();
 		render(<XtermTerminal onLinkOpen={onLinkOpen} theme="dark" />);
 
 		// A left-click on an http(s) link is reported to the parent (which shows it
-		// in the AO Browser panel); it must NOT spawn a system-browser window.
+		// in the Kennel Browser panel); it must NOT spawn a system-browser window.
 		expect(state.linkHandler).toBeTypeOf("function");
 		state.linkHandler!({} as MouseEvent, "https://example.com");
 
@@ -988,7 +988,7 @@ describe("XtermTerminal", () => {
 		open.mockRestore();
 	});
 
-	it("routes OSC 8 web links to the AO browser without a system-browser window", () => {
+	it("routes OSC 8 web links to the Kennel browser without a system-browser window", () => {
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
 		const onLinkOpen = vi.fn();
 		render(<XtermTerminal onLinkOpen={onLinkOpen} theme="dark" />);
@@ -1015,7 +1015,7 @@ describe("XtermTerminal", () => {
 		expect(onLinkOpen).not.toHaveBeenCalled();
 	});
 
-	it("opens non-web links (mailto:) in the system browser, not the AO browser", () => {
+	it("opens non-web links (mailto:) in the system browser, not the Kennel browser", () => {
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
 		const onLinkOpen = vi.fn();
 		render(<XtermTerminal onLinkOpen={onLinkOpen} theme="dark" />);

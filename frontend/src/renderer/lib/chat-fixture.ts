@@ -219,7 +219,7 @@ export const chatFixture: ConversationSnapshot = {
 						// A new file's patch is its contents, with no hunk header.
 						patch:
 							"package ports\n\n" +
-							"// ChatDriver is one provider's conversation, in AO's vocabulary.\n" +
+							"// ChatDriver is one provider's conversation, in Kennel's vocabulary.\n" +
 							"type ChatDriver interface {\n" +
 							"\tSend(ctx context.Context, msg ChatUserMessage) (ChatTurnRef, error)\n" +
 							"}\n",
@@ -421,7 +421,7 @@ export const chatFixture: ConversationSnapshot = {
 			turnId: "turn-2",
 			sequence: 13,
 			revision: 0,
-			// A `system` activity by storage and the user's own words by meaning. AO
+			// A `system` activity by storage and the user's own words by meaning. Kennel
 			// records a steer as an activity because a message would have opened a second
 			// turn; the timeline reads the `event` discriminator, not the kind.
 			activityKind: "system",
@@ -633,7 +633,7 @@ const SUBJECTS = ["conversation", "session_manager", "httpd", "ports"];
  * reasoning item per tool call whether or not summaries are configured, and writes a
  * body only when the user's own `~/.codex/config.toml` asks for one — measured on
  * codex-cli 0.146.0 as six empty items by default against ten items with nine bodies
- * once the setting was on. AO does not rewrite that file, so the UI has to explain
+ * once the setting was on. Kennel does not rewrite that file, so the UI has to explain
  * the emptiness rather than look broken.
  */
 export const chatFixtureReasoningEmpty: ConversationSnapshot = {
@@ -714,7 +714,7 @@ export const chatFixtureRerouted: ConversationSnapshot = {
 /**
  * The provider wants credentials the daemon does not hold.
  *
- * Nothing the user does inside AO will help, and every turn they send until they fix
+ * Nothing the user does inside Kennel will help, and every turn they send until they fix
  * it will fail — which is why this is the loudest thing the surface can say, and why
  * it names the command instead of telling them to re-authenticate.
  */
@@ -749,10 +749,10 @@ export const chatFixtureReauth: ConversationSnapshot = {
 };
 
 /**
- * The provider's own thread is broken while AO's controller is fine.
+ * The provider's own thread is broken while Kennel's controller is fine.
  *
  * The combination is the point: the controller banner says nothing, because from
- * AO's side the connection is healthy. Only the provider knows the thread behind it
+ * Kennel's side the connection is healthy. Only the provider knows the thread behind it
  * has faulted, and without this the session reads as an agent that went quiet.
  */
 export const chatFixtureThreadError: ConversationSnapshot = {

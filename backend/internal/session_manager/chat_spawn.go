@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // The chat-mode controller launch.
@@ -38,7 +38,7 @@ type ChatLauncher interface {
 	// paste-and-Enter equivalent in chat mode: the provider either accepts the
 	// turn or reports why.
 	StartChatTurn(ctx context.Context, id domain.SessionID, text string) (string, error)
-	// RelayChatTurn delivers a message AO is carrying on someone else's behalf —
+	// RelayChatTurn delivers a message Kennel is carrying on someone else's behalf —
 	// `kennel send`, an orchestrator writing to a worker, an automation — as a turn
 	// attributed to automation rather than to the human at the keyboard.
 	RelayChatTurn(ctx context.Context, id domain.SessionID, text string) (string, error)

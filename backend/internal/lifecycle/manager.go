@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/sessionguard"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/sessionguard"
 )
 
 type sessionStore interface {
@@ -243,7 +243,7 @@ func (m *Manager) SetSessionInputLease(lease sessionguard.InputLease) {
 }
 
 // SetSessionOperationGate prevents observation-driven terminal facts from
-// racing AO's deliberate provider replacement/relaunch operations.
+// racing Kennel's deliberate provider replacement/relaunch operations.
 func (m *Manager) SetSessionOperationGate(gate sessionOperationGate) {
 	m.operationGateMu.Lock()
 	m.operationGate = gate
@@ -438,7 +438,7 @@ func (m *Manager) ApplyActivitySignal(ctx context.Context, id domain.SessionID, 
 	s.TranscriptPath = strings.TrimSpace(s.TranscriptPath)
 	s.LaunchID = strings.TrimSpace(s.LaunchID)
 	s.ControllerGeneration = strings.TrimSpace(s.ControllerGeneration)
-	// A response or Stop hook produced by AO's optional source handoff request
+	// A response or Stop hook produced by Kennel's optional source handoff request
 	// may contain last_assistant_message without echoing the internal prompt.
 	// From collection through source teardown, do not let that coordination
 	// response replace the latest user-facing assistant update used by the
@@ -733,7 +733,7 @@ type toolFlight struct {
 // turn-boundary clearing (fail-safe).
 const maxInflightTools = 128
 
-// isToolUseEvent reports whether the AO hook event is one of the tool-use
+// isToolUseEvent reports whether the Kennel hook event is one of the tool-use
 // trio whose signals must not demote a sticky state on their own.
 func isToolUseEvent(event string) bool {
 	return event == "pre-tool-use" || isPostToolUseEvent(event)
@@ -741,7 +741,7 @@ func isToolUseEvent(event string) bool {
 
 func isPostToolUseEvent(event string) bool {
 	// post-tool-use-fail is retained for Kimchi hook files installed before the
-	// adapter switched to AO's canonical failure event name.
+	// adapter switched to Kennel's canonical failure event name.
 	return event == "post-tool-use" || event == "post-tool-use-failure" || event == "post-tool-use-fail"
 }
 
@@ -1171,7 +1171,7 @@ func (m *Manager) MarkTerminated(ctx context.Context, id domain.SessionID) error
 // RetireForReplacement, and tracker-driven termination - funnels through
 // here, so this single hook covers every terminal-state path rather than
 // only explicit kennel session kill. Best-effort: logged on failure, never
-// returned, matching the rest of AO's terminal-state teardown. A project-load
+// returned, matching the rest of Kennel's terminal-state teardown. A project-load
 // error skips reaping rather than guessing - the package's stated bias is to
 // spare on ambiguity, not to reap on it.
 func (m *Manager) reapSessionContainers(ctx context.Context, id domain.SessionID) {
@@ -1262,7 +1262,7 @@ func mergeMetadata(base, in domain.SessionMetadata) domain.SessionMetadata {
 	set(&base.BrowserCapabilityVerifier, in.BrowserCapabilityVerifier)
 	// The chat controller's resume handle. Without this a restart has no thread to
 	// resume and the conversation is stranded — the provider still holds it, but
-	// AO no longer knows its id.
+	// Kennel no longer knows its id.
 	set(&base.ProviderConversationID, in.ProviderConversationID)
 	// Assigned rather than set: a relaunch rotates the generation, and the whole
 	// point is that the new value replaces the old one so events from the

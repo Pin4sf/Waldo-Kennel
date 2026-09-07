@@ -296,7 +296,7 @@ export async function streamGlobalConversationEvents(
 	});
 	if (!res.ok) throw await streamError(res);
 	if (!res.body) throw new Error("The mobile network stack did not provide an event stream");
-	const advertisedAfterHeader = res.headers.get("X-AO-Event-After");
+	const advertisedAfterHeader = res.headers.get("X-Kennel-Event-After");
 	const advertisedAfter = advertisedAfterHeader === null ? Number.NaN : Number(advertisedAfterHeader);
 	const effectiveAfter = Number.isSafeInteger(advertisedAfter) && advertisedAfter >= 0
 		? advertisedAfter

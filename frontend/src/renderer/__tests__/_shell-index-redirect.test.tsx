@@ -76,6 +76,6 @@ describe("shell index route", () => {
 	it("does not offer the retired legacy import flow", async () => {
 		await renderIndex();
 
-		expect(screen.queryByText(/Import projects from your earlier AO/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/Import projects from your earlier Kennel/i)).not.toBeInTheDocument();
 	});
 });

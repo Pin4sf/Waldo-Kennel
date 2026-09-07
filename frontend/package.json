@@ -20,6 +20,7 @@
 		"predev": "npm run build:daemon -- --dev && node ./scripts/ensure-browser-runtime.mjs && npm run build:acp-runtime",
 		"dev": "electron-forge start",
 		"dev:web": "VITE_NO_ELECTRON=1 vite --config vite.renderer.config.ts",
+		"dev:web:live": "VITE_NO_ELECTRON=1 VITE_KENNEL_LIVE_PREVIEW=1 KENNEL_DEV_API_TARGET=${KENNEL_DEV_API_TARGET:-http://127.0.0.1:3031} vite --config vite.renderer.config.ts",
 		"prepackage": "npm run build:daemon && npm run browser-runtime:prepare && npm run build:acp-runtime",
 		"package": "electron-forge package",
 		"package:identity": "node ./scripts/assert-package-identity.mjs",

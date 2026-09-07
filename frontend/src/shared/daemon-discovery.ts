@@ -110,7 +110,7 @@ export function parseRunFile(contents: string): RunFileInfo | null {
 
 /**
  * Where the daemon writes running.json when KENNEL_RUN_FILE is unset. Matches
- * backend/internal/config's canonical AO home default so the supervisor reads
+ * backend/internal/config's canonical Kennel home default so the supervisor reads
  * the same file the daemon writes. Returns null when the user home directory
  * cannot be resolved.
  */

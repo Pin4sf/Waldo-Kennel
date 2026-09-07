@@ -24,6 +24,7 @@ vi.mock("../../lib/spawn-orchestrator", () => ({
 
 vi.mock("../../lib/api-client", () => ({
 	apiClient: { GET: getMock, POST: vi.fn() },
+	apiErrorCode: () => undefined,
 	apiErrorMessage: (e: unknown) => (e instanceof Error ? e.message : "error"),
 	hasTrustedApiBaseUrl: () => true,
 }));
@@ -48,9 +49,11 @@ function respondWith(
 	projects: Project[],
 	sessions: Session[],
 	conversation?: { controller: string; messages: Array<{ role: string; text: string }> },
+	outcomes: Session[] = [],
 ) {
 	getMock.mockImplementation(async (url: string) => {
 		if (url === "/api/v1/projects") return { data: { projects }, error: undefined };
+		if (url === "/api/v1/projects/{id}/outcomes") return { data: { outcomes }, error: undefined };
 		if (url === "/api/v1/sessions") return { data: { sessions }, error: undefined };
 		if (url === "/api/v1/sessions/{sessionId}/conversation") {
 			return { data: conversation ?? { controller: "ready", messages: [] }, error: undefined };
@@ -114,13 +117,14 @@ function renderBoard(ui: ReactNode) {
 }
 
 // The kanban columns render as <section> elements; the empty states render none.
-const columnCount = () => document.querySelectorAll("section").length;
+const columnCount = () => document.querySelectorAll('[data-testid="board-column"]').length;
 
 beforeEach(() => {
 	vi.clearAllMocks();
 	createProjectMock.mockResolvedValue(undefined);
 	initializeProjectRepositoryMock.mockResolvedValue(undefined);
 	useUiStore.setState({
+		newTaskRequest: null,
 		orchestratorReplacementErrors: {},
 		orchestratorStartupErrors: {},
 		restartingProjectIds: new Set(),
@@ -147,6 +151,7 @@ describe("global board first launch", () => {
 		);
 
 		expect(await screen.findByTestId("daemon-startup-loader")).toHaveClass("ao-startup-screen");
+		expect(screen.getByTestId("waldo-brand-mark")).toHaveAttribute("data-brand", "waldo");
 		expect(screen.getByRole("status", { name: "Kennel is starting" })).toBeInTheDocument();
 		expect(screen.getByText("Kennel")).toBeInTheDocument();
 		expect(screen.getByText("Starting local services")).toHaveAttribute("aria-hidden", "true");
@@ -241,20 +246,57 @@ describe("project board with no sessions", () => {
 		expect(columnCount()).toBe(0);
 	});
 
-	it("shows codebase exploration while the Chat orchestrator is working", async () => {
+	it("opens durable Outcome Understand from the empty project invitation", async () => {
+		respondWith([project], []);
+		renderBoard(<SessionsBoard projectId="proj-1" />);
+
+		await userEvent.click(await screen.findByRole("button", { name: "Define outcome" }));
+
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "proj-1" },
+		});
+		expect(useUiStore.getState().newTaskRequest).toBeNull();
+	});
+
+	it("does not treat a project as empty when a daemon-backed Outcome exists, even before a worker session does", async () => {
+		// The board no longer shows its own Outcomes summary card (WorkShell,
+		// the sidebar's project/outcome tree, and its Outcomes destination
+		// replaced it) — this test's remaining job is the empty-state gate
+		// itself: an Outcome existing must still keep the board out of its
+		// "Start by defining an outcome" empty state.
+		respondWith([project], [], undefined, [
+			{
+				id: "outcome-1",
+				title: "Explain Waldo clearly",
+				currentRevisionNumber: 1,
+			},
+		]);
+		renderBoard(<SessionsBoard projectId="proj-1" />);
+
+		await waitFor(() => expect(screen.getByRole("tablist", { name: "Session view" })).toBeInTheDocument());
+		expect(screen.queryByText("Start by defining an outcome")).not.toBeInTheDocument();
+		expect(screen.queryByText("Explain Waldo clearly")).not.toBeInTheDocument();
+		expect(columnCount()).toBe(4);
+	});
+
+	it("shows the active orchestrator in the running board", async () => {
+		// The daemon-backed session is the operational projection. It stays
+		// visible while active instead of being replaced by an empty-state card.
 		respondWith(
 			[project],
 			[{ ...orchestratorSession, harness: "codex", mode: "chat", activity: { state: "active", lastActivityAt: "2026-07-04T10:00:00Z" } }],
-			{ controller: "busy", messages: [] },
 		);
 		renderBoard(<SessionsBoard projectId="proj-1" />);
 
-		expect(await screen.findByText("Exploring codebase")).toBeInTheDocument();
-		expect(screen.getByText(/Codex is building a high-level understanding/)).toBeInTheDocument();
-		expect(columnCount()).toBe(0);
+		await waitFor(() => expect(document.querySelector('[data-session-id="proj-1-orchestrator"]')).not.toBeNull());
+		expect(screen.getByRole("tablist", { name: "Session view" })).toBeInTheDocument();
+		expect(columnCount()).toBe(4);
 	});
 
-	it("shows completed suggestions and opens a prefilled Outcome", async () => {
+	it("never turns transcript markers into Outcome suggestions", async () => {
+		// The marker flow is retired: Understand owns Outcome intake through the
+		// daemon contract, so suggestion markers in a transcript are inert text.
 		respondWith(
 			[project],
 			[{ ...orchestratorSession, harness: "codex", mode: "chat" }],
@@ -265,38 +307,21 @@ describe("project board with no sessions", () => {
 		);
 		renderBoard(<SessionsBoard projectId="proj-1" />);
 
-		await userEvent.click(await screen.findByRole("button", { name: "Add resilient offline recovery" }));
-		expect(useUiStore.getState().newTaskRequest).toMatchObject({
-			projectId: "proj-1",
-			initialPrompt: "Add resilient offline recovery",
-		});
+		await waitFor(() => expect(document.querySelector('[data-session-id="proj-1-orchestrator"]')).not.toBeNull());
+		expect(screen.queryByRole("button", { name: "Add resilient offline recovery" })).not.toBeInTheDocument();
+		expect(useUiStore.getState().newTaskRequest).toBeNull();
 	});
 
-	it("replaces the empty board with structured clarifying questions", async () => {
+	it("never renders clarifying questions from transcript markers", async () => {
+		// Structured questions come from the Understand stage over the daemon
+		// API now; a KENNEL_OUTCOME_QUESTIONS_JSON marker must not resurrect the
+		// retired intake panel here.
 		respondWith(
 			[project],
-			[
-				{
-					...workerSession,
-					id: "archived-worker",
-					status: "terminated",
-					isTerminated: true,
-				},
-				{
-					...orchestratorSession,
-					displayName: "Outcome: Ship reliable offline mode",
-					harness: "codex",
-					mode: "chat",
-					activity: { state: "active", lastActivityAt: "2026-07-04T10:00:00Z" },
-				},
-			],
+			[{ ...orchestratorSession, harness: "codex", mode: "chat" }],
 			{
 				controller: "ready",
 				messages: [
-					{
-						role: "user",
-						text: "KENNEL OUTCOME INTAKE\n\nThe user wants this outcome:\nShip reliable offline mode\n\nDo not spawn workers or begin implementation yet.",
-					},
 					{
 						role: "assistant",
 						text: 'KENNEL_OUTCOME_QUESTIONS_JSON: {"questions":[{"id":"scope","prompt":"Which offline scope should ship first?","options":[{"id":"read","label":"Read-only cache","description":"Lower risk","recommended":true},{"id":"full","label":"Full offline editing","description":"Broader capability"}]}]}',
@@ -306,9 +331,9 @@ describe("project board with no sessions", () => {
 		);
 		renderBoard(<SessionsBoard projectId="proj-1" />);
 
-		expect(await screen.findByText("Which offline scope should ship first?")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: /Read-only cache/ })).toBeInTheDocument();
-		expect(screen.queryByText("Outcome sent to Codex")).not.toBeInTheDocument();
+		await waitFor(() => expect(document.querySelector('[data-session-id="proj-1-orchestrator"]')).not.toBeNull());
+		expect(screen.queryByText("Which offline scope should ship first?")).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /Read-only cache/ })).not.toBeInTheDocument();
 	});
 
 	it.skip("legacy orchestrator spawner surfaces daemon failures", async () => {
@@ -424,7 +449,7 @@ describe("project board with no sessions", () => {
 			);
 		renderBoard(<SessionsBoard projectId="proj-1" />);
 
-		await screen.findByText("Start by defining an outcome");
+		await waitFor(() => expect(document.querySelector('[data-session-id="proj-1-orchestrator"]')).not.toBeNull());
 		await waitFor(() => expect(useUiStore.getState().orchestratorStartupErrors["proj-1"]).toBeUndefined());
 		expect(screen.queryByText(/Project added, but orchestrator did not start/)).not.toBeInTheDocument();
 	});

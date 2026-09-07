@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/codexappserver/codexproto"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/codexappserver/codexproto"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Scripted replies must be single-line JSON: readFrame is newline-delimited, so a
@@ -137,7 +137,7 @@ func TestSteerWithoutAnyTurnIsTypedAndNeverReachesTheProvider(t *testing.T) {
 		t.Fatalf("err = %v, want ErrChatNoSteerableTurn", err)
 	}
 	if srv.sentMethod(codexproto.MethodTurnSteer) {
-		t.Error("asked the provider to steer a turn AO does not have")
+		t.Error("asked the provider to steer a turn Kennel does not have")
 	}
 }
 
@@ -190,7 +190,7 @@ func TestSteerTranslatesNotSteerableRefusalFromItsStructuredPayload(t *testing.T
 	}
 }
 
-// A refusal AO does not model must stay a plain failure rather than being
+// A refusal Kennel does not model must stay a plain failure rather than being
 // mistranslated into "nothing to steer", which would tell the user to resend
 // guidance the agent may already have.
 func TestSteerLeavesUnknownProviderErrorsAlone(t *testing.T) {
@@ -254,7 +254,7 @@ func TestLiveSteerKeepsTheTurnAndItsWork(t *testing.T) {
 	defer cancel()
 
 	opened, err := d.Start(ctx, ports.ChatStartConfig{
-		SessionID:     "ao-live-steer",
+		SessionID:     "kennel-live-steer",
 		WorkspacePath: workspace,
 		Env:           envMap(),
 		Permissions:   ports.PermissionModeDefault,

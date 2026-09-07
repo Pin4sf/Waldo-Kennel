@@ -31,14 +31,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/runfile"
-	agentsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/agent"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/controllers"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/runfile"
+	agentsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/agent"
+	projectsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
 )
 
 // fakeSessionService captures the ports.SpawnConfig the controller decodes from
@@ -105,6 +105,12 @@ type fakeProjectManager struct {
 }
 
 var _ projectsvc.Manager = (*fakeProjectManager)(nil)
+
+// ResolvedMissionRoles satisfies the Manager surface added by #72; the drift
+// test only exercises config persistence, so an empty proposal suffices.
+func (f *fakeProjectManager) ResolvedMissionRoles(context.Context, domain.ProjectID) (domain.ResolvedMissionRoles, error) {
+	return domain.ResolvedMissionRoles{}, nil
+}
 
 func (f *fakeProjectManager) List(context.Context) ([]projectsvc.Summary, error) {
 	return nil, nil

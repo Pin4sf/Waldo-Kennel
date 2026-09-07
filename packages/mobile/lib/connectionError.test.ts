@@ -136,12 +136,12 @@ describe("describeConnectionFailure", () => {
 
 	it("points at the desktop logs on a server error", () => {
 		const d = describeConnectionFailure("server-error", target());
-		expect(d.message).toContain("AO logs");
+		expect(d.message).toContain("Kennel logs");
 	});
 
-	it("rejects a non-AO QR code without mentioning the network", () => {
+	it("rejects a non-Kennel QR code without mentioning the network", () => {
 		const d = describeConnectionFailure("not-ao-qr", target());
-		expect(d.message).toContain("isn't an AO pairing code");
+		expect(d.message).toContain("isn't an Kennel pairing code");
 		expect(d.showLocalNetworkHint).toBe(false);
 	});
 

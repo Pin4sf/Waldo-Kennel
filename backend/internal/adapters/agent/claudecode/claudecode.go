@@ -2,15 +2,15 @@
 //
 // It builds the argv to launch `claude` as an interactive session inside a
 // session's worktree, installs worktree-local hooks that report normalized
-// session metadata (native id, title, summary) back into AO's store,
-// and supports resume: GetLaunchCommand pins either AO's requested native UUID
-// or a stable AO-session-derived fallback so GetRestoreCommand can rebuild
+// session metadata (native id, title, summary) back into Kennel's store,
+// and supports resume: GetLaunchCommand pins either Kennel's requested native UUID
+// or a stable Kennel-session-derived fallback so GetRestoreCommand can rebuild
 // `claude --resume <uuid>`. SessionInfo reads the
 // hook-captured metadata from the store — it does not parse transcripts.
 // GetConfigSpec remains a no-op (no agent-specific config keys yet).
 //
 // Claude Code starts an interactive session by default (no -p/--print), which
-// is exactly what AO wants: a live agent the user can attach to in the
+// is exactly what Kennel wants: a live agent the user can attach to in the
 // browser terminal or via `tmux attach`. The initial task prompt is passed
 // as the positional argument; the orchestrator system prompt (if any) is
 // appended to Claude's default system prompt so its built-in coding
@@ -31,14 +31,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/terminalui"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
-	"github.com/aoagents/agent-orchestrator/backend/pkg/agentruntime"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/terminalui"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/pkg/agentruntime"
 )
 
 const (
@@ -61,7 +61,7 @@ func New() *Plugin {
 }
 
 // EmitsSubmitActivity signals that Claude Code fires a user-prompt-submit hook
-// under AO's launch, so Activity.State can flip to active after a prompt is
+// under Kennel's launch, so Activity.State can flip to active after a prompt is
 // accepted. See ports.SubmitActivitySignaler.
 func (p *Plugin) EmitsSubmitActivity() bool { return true }
 
@@ -143,13 +143,13 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 //	       [-- <prompt>]
 //
 // --session-id pins Claude's native session UUID to LaunchConfig.NativeSessionID
-// when AO requests a distinct provider conversation, otherwise to a value
-// derived from the AO session id for the legacy one-conversation path. This
+// when Kennel requests a distinct provider conversation, otherwise to a value
+// derived from the Kennel session id for the legacy one-conversation path. This
 // makes the session resumable later (see
 // GetRestoreCommand) and its transcript is locatable (see SessionInfo) without
 // a separate capture step.
 //
-// <mode> is acceptEdits, auto, or bypassPermissions. AO's "default"
+// <mode> is acceptEdits, auto, or bypassPermissions. Kennel's "default"
 // mode emits no --permission-mode flag, so Claude's TUI resolves the starting
 // mode from ~/.claude/settings.json exactly as a normal launch.
 //
@@ -192,11 +192,11 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 // PreLaunch is an optional capability the spawn engine invokes (via type
 // assertion) immediately before creating the session. Claude Code shows a
 // blocking "do you trust this folder?" dialog the first time it runs in any
-// directory. Every AO worktree is a fresh path, so without this the
+// directory. Every Kennel worktree is a fresh path, so without this the
 // agent would hang at that prompt with no one to answer it.
 //
-// An AO worktree is derived from the repo the user is already running
-// AO in, so it is inherently trusted. PreLaunch records that trust in
+// An Kennel worktree is derived from the repo the user is already running
+// Kennel in, so it is inherently trusted. PreLaunch records that trust in
 // ~/.claude.json before launch, additively and atomically, so it cannot
 // clobber a concurrently-running Claude instance's config.
 func (p *Plugin) PreLaunch(ctx context.Context, cfg ports.LaunchConfig) error {
@@ -217,7 +217,7 @@ func (p *Plugin) PreLaunch(ctx context.Context, cfg ports.LaunchConfig) error {
 // session: `claude [--permission-mode <mode>] --resume <agentSessionId>`. It
 // prefers the hook-captured native session id from
 // cfg.Session.Metadata["agentSessionId"]; for sessions created before hooks
-// captured it, it falls back to the deterministic UUID AO pins via
+// captured it, it falls back to the deterministic UUID Kennel pins via
 // --session-id at launch. ok is false only when neither is available, so the
 // caller fresh-spawns. The command re-applies the permission mode and current
 // standing system instructions. When Prompt is present it is passed as the
@@ -253,7 +253,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 }
 
 // SessionInfo surfaces the normalized session metadata that the Claude Code
-// hooks persisted into AO's store: the native session id, the title (the
+// hooks persisted into Kennel's store: the native session id, the title (the
 // first user prompt), and the summary (the final assistant message). It reads
 // only from session.Metadata — never from transcript files — and returns
 // ok=false when none of those fields are present. Metadata is intentionally nil:
@@ -267,7 +267,7 @@ func (p *Plugin) SessionInfo(ctx context.Context, session ports.SessionRef) (por
 }
 
 // NativeConversationID bridges Claude Code's terminal and ACP surfaces. Both
-// use the same native Claude session UUID. AO terminal sessions pin a
+// use the same native Claude session UUID. Kennel terminal sessions pin a
 // deterministic UUID, while Chat persists the id returned by claude-agent-acp.
 func (p *Plugin) NativeConversationID(
 	ctx context.Context,
@@ -297,7 +297,7 @@ func (p *Plugin) NativeConversationID(
 //
 // The Agent SDK documents local transcripts at
 // ~/.claude/projects/<project-key>/<session-id>.jsonl (or beneath
-// CLAUDE_CONFIG_DIR). We only test for a non-empty top-level transcript; AO does
+// CLAUDE_CONFIG_DIR). We only test for a non-empty top-level transcript; Kennel does
 // not parse or project provider files here.
 func (p *Plugin) NativeConversationExists(
 	ctx context.Context,
@@ -371,7 +371,7 @@ func (p *Plugin) AuthStatus(ctx context.Context) (ports.AgentAuthStatus, error) 
 	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	out, err := aoprocess.CommandContext(probeCtx, binary, "auth", "status").CombinedOutput()
+	out, err := kennelprocess.CommandContext(probeCtx, binary, "auth", "status").CombinedOutput()
 	if probeCtx.Err() != nil {
 		return ports.AgentAuthStatusUnknown, probeCtx.Err()
 	}
@@ -461,14 +461,14 @@ func claudeConfigAuthStatus(path string) (ports.AgentAuthStatus, bool, error) {
 	return ports.AgentAuthStatusUnknown, false, nil
 }
 
-// claudeSessionUUID maps an AO session id onto a stable Claude Code
-// session UUID via UUIDv5 over a fixed namespace, so the same AO session
+// claudeSessionUUID maps an Kennel session id onto a stable Claude Code
+// session UUID via UUIDv5 over a fixed namespace, so the same Kennel session
 // always resolves to the same Claude session.
 func claudeSessionUUID(aoSessionID string) string {
 	return agentruntime.ClaudeSessionID(aoSessionID)
 }
 
-// SessionUUID maps an AO session id onto the native Claude Code session UUID
+// SessionUUID maps an Kennel session id onto the native Claude Code session UUID
 // used by --session-id and --resume.
 func SessionUUID(aoSessionID string) string {
 	return claudeSessionUUID(aoSessionID)

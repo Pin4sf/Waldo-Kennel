@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestOpenCodeLocalAuthStatusAuthorizedWithEnv(t *testing.T) {
@@ -380,7 +380,7 @@ func TestGetLaunchCommandBuildsArgv(t *testing.T) {
 		Prompt:           "-fix this",
 		SessionID:        "sess/1",
 		SystemPromptFile: promptFile,
-		SystemPrompt:     "follow AO rules",
+		SystemPrompt:     "follow Kennel rules",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -391,7 +391,7 @@ func TestGetLaunchCommandBuildsArgv(t *testing.T) {
 		"env", "OPENCODE_CONFIG=" + configPath,
 		"opencode",
 		"--dangerously-skip-permissions",
-		"--agent", "ao-sess-1",
+		"--agent", "kennel-sess-1",
 		"--prompt", "-fix this",
 	}
 	if !reflect.DeepEqual(cmd, want) {
@@ -405,8 +405,8 @@ func TestGetLaunchCommandBuildsArgv(t *testing.T) {
 	if err := json.Unmarshal(data, &config); err != nil {
 		t.Fatal(err)
 	}
-	agent := config.Agent["ao-sess-1"]
-	if agent.Mode != "primary" || agent.Prompt != "follow AO rules" {
+	agent := config.Agent["kennel-sess-1"]
+	if agent.Mode != "primary" || agent.Prompt != "follow Kennel rules" {
 		t.Fatalf("agent config = %#v, want primary inline prompt", agent)
 	}
 }
@@ -424,7 +424,7 @@ func TestGetLaunchCommandSystemPromptFileConfig(t *testing.T) {
 	}
 
 	configPath := filepath.Join(filepath.Dir(promptFile), "opencode.json")
-	want := []string{"env", "OPENCODE_CONFIG=" + configPath, "opencode", "--agent", "ao-sess-2"}
+	want := []string{"env", "OPENCODE_CONFIG=" + configPath, "opencode", "--agent", "kennel-sess-2"}
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("unexpected command\nwant: %#v\n got: %#v", want, cmd)
 	}
@@ -436,7 +436,7 @@ func TestGetLaunchCommandSystemPromptFileConfig(t *testing.T) {
 	if err := json.Unmarshal(data, &config); err != nil {
 		t.Fatal(err)
 	}
-	if got := config.Agent["ao-sess-2"].Prompt; got != "{file:./system.md}" {
+	if got := config.Agent["kennel-sess-2"].Prompt; got != "{file:./system.md}" {
 		t.Fatalf("agent prompt = %q, want file reference", got)
 	}
 }
@@ -512,7 +512,7 @@ func TestGetAgentHooksInstallsPlugin(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "opencode"}
 	workspace := t.TempDir()
 
-	// A user's own plugin in the same dir must survive AO's install untouched.
+	// A user's own plugin in the same dir must survive Kennel's install untouched.
 	pluginDir := filepath.Dir(opencodePluginPath(workspace))
 	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -543,7 +543,7 @@ func TestGetAgentHooksInstallsPlugin(t *testing.T) {
 	}
 	body := string(data)
 	if !strings.Contains(body, opencodePluginSentinel) {
-		t.Fatalf("installed plugin missing AO sentinel:\n%s", body)
+		t.Fatalf("installed plugin missing Kennel sentinel:\n%s", body)
 	}
 	// Every normalized activity event must be wired via `kennel hooks opencode <event>`.
 	for _, event := range opencodeManagedEvents {
@@ -603,7 +603,7 @@ func TestGetAgentHooksRefusesToClobberForeignFile(t *testing.T) {
 	workspace := t.TempDir()
 	ctx := context.Background()
 
-	// A non-Kennel file occupying AO's exact path must NOT be silently overwritten.
+	// A non-Kennel file occupying Kennel's exact path must NOT be silently overwritten.
 	pluginPath := opencodePluginPath(workspace)
 	if err := os.MkdirAll(filepath.Dir(pluginPath), 0o755); err != nil {
 		t.Fatal(err)
@@ -656,13 +656,13 @@ func TestUninstallHooksRemovesPlugin(t *testing.T) {
 		t.Fatalf("AreHooksInstalled after uninstall = (%v, %v), want (false, nil)", installed, err)
 	}
 	if _, err := os.Stat(opencodePluginPath(workspace)); !os.IsNotExist(err) {
-		t.Fatalf("AO plugin still present after uninstall: err=%v", err)
+		t.Fatalf("Kennel plugin still present after uninstall: err=%v", err)
 	}
 	if _, err := os.Stat(opencodeSkillDir(workspace)); !os.IsNotExist(err) {
-		t.Fatalf("AO using-kennel skill still present after uninstall: err=%v", err)
+		t.Fatalf("Kennel using-kennel skill still present after uninstall: err=%v", err)
 	}
 	if _, err := os.Stat(opencodeSkillMarkerPath(workspace)); !os.IsNotExist(err) {
-		t.Fatalf("AO skill marker still present after uninstall: err=%v", err)
+		t.Fatalf("Kennel skill marker still present after uninstall: err=%v", err)
 	}
 	if _, err := os.Stat(userPlugin); err != nil {
 		t.Fatalf("user plugin removed by uninstall: %v", err)
@@ -754,7 +754,7 @@ func TestUninstallHooksLeavesForeignFile(t *testing.T) {
 	workspace := t.TempDir()
 	ctx := context.Background()
 
-	// A non-Kennel file occupying AO's filename must NOT be deleted by uninstall.
+	// A non-Kennel file occupying Kennel's filename must NOT be deleted by uninstall.
 	pluginPath := opencodePluginPath(workspace)
 	if err := os.MkdirAll(filepath.Dir(pluginPath), 0o755); err != nil {
 		t.Fatal(err)
@@ -812,7 +812,7 @@ func TestGetRestoreCommandReappliesSystemPromptConfig(t *testing.T) {
 	promptFile := filepath.Join(t.TempDir(), "system.md")
 
 	cmd, ok, err := plugin.GetRestoreCommand(context.Background(), ports.RestoreConfig{
-		SystemPrompt:     "restore AO rules",
+		SystemPrompt:     "restore Kennel rules",
 		SystemPromptFile: promptFile,
 		Session: ports.SessionRef{
 			ID:       "sess-1",
@@ -829,7 +829,7 @@ func TestGetRestoreCommandReappliesSystemPromptConfig(t *testing.T) {
 	want := []string{
 		"env", "OPENCODE_CONFIG=" + configPath,
 		"opencode",
-		"--agent", "ao-sess-1",
+		"--agent", "kennel-sess-1",
 		"--session", "ses_abc123",
 	}
 	if !reflect.DeepEqual(cmd, want) {
@@ -843,7 +843,7 @@ func TestGetRestoreCommandReappliesSystemPromptConfig(t *testing.T) {
 	if err := json.Unmarshal(data, &config); err != nil {
 		t.Fatal(err)
 	}
-	if got := config.Agent["ao-sess-1"].Prompt; got != "restore AO rules" {
+	if got := config.Agent["kennel-sess-1"].Prompt; got != "restore Kennel rules" {
 		t.Fatalf("agent prompt = %q, want restore rules", got)
 	}
 }

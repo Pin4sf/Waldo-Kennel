@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type fakePlugin struct {
@@ -208,7 +208,7 @@ func TestStartCompletesHandshakeAndOpensThread(t *testing.T) {
 	d, srv := newTestDriver(t)
 
 	conv, err := d.Start(context.Background(), ports.ChatStartConfig{
-		SessionID:     "ao-1",
+		SessionID:     "kennel-1",
 		WorkspacePath: "/tmp/ws",
 		Permissions:   ports.PermissionModeDefault,
 		SystemPrompt:  "standing rules",
@@ -241,7 +241,7 @@ func TestStartCompletesHandshakeAndOpensThread(t *testing.T) {
 	if params.DeveloperInstructions != "standing rules" {
 		t.Errorf("developerInstructions = %q", params.DeveloperInstructions)
 	}
-	// Default permissions must match what AO already gives a Codex TUI session.
+	// Default permissions must match what Kennel already gives a Codex TUI session.
 	if params.ApprovalPolicy != "never" || params.Sandbox != "danger-full-access" {
 		t.Errorf("default posture = %q/%q, want never/danger-full-access", params.ApprovalPolicy, params.Sandbox)
 	}
@@ -316,7 +316,7 @@ func TestSendTurnRejectsEmptyText(t *testing.T) {
 }
 
 // The whole approval design in one test: the provider blocks on a server->client
-// request, AO surfaces it with the provider's own decision list, and the user's
+// request, Kennel surfaces it with the provider's own decision list, and the user's
 // choice is what unblocks the turn.
 func TestApprovalIsParkedUntilResolved(t *testing.T) {
 	d, srv := newTestDriver(t)
@@ -382,7 +382,7 @@ func TestApprovalIsParkedUntilResolved(t *testing.T) {
 // A structured decision must round-trip exactly, or the provider rejects it.
 // A structured decision must round-trip with the parameters the provider attached
 // to it. The client sends an id and nothing else — it has no way to reconstruct
-// an execpolicy amendment — so AO answers with the provider's own payload for the
+// an execpolicy amendment — so Kennel answers with the provider's own payload for the
 // option that was offered.
 func TestStructuredDecisionIsAnsweredWithTheProvidersOwnPayload(t *testing.T) {
 	d, srv := newTestDriver(t)
@@ -408,7 +408,7 @@ func TestStructuredDecisionIsAnsweredWithTheProvidersOwnPayload(t *testing.T) {
 	}
 }
 
-// A decision the provider never offered is consent AO would be inventing. It must
+// A decision the provider never offered is consent Kennel would be inventing. It must
 // be refused, and — just as important — the request must stay pending so the
 // user's real answer still has something to answer.
 func TestDecisionNotOfferedIsRefusedAndLeavesTheRequestPending(t *testing.T) {
@@ -470,7 +470,7 @@ func TestResolveUnknownRequestIsRefused(t *testing.T) {
 	}
 }
 
-// Answering a request AO does not model could consent to something on the user's
+// Answering a request Kennel does not model could consent to something on the user's
 // behalf, so it must be refused with an error instead.
 func TestUnmodelledServerRequestIsRefused(t *testing.T) {
 	d, srv := newTestDriver(t)
@@ -559,7 +559,7 @@ func TestResumeFailureDoesNotFallBackToStart(t *testing.T) {
 	}()
 
 	_, err := d.Resume(context.Background(), ports.ChatResumeConfig{
-		SessionID:              "ao-1",
+		SessionID:              "kennel-1",
 		ProviderConversationID: "thread-gone",
 		WorkspacePath:          "/tmp/ws",
 	})
@@ -579,10 +579,10 @@ func TestResumeFailureDoesNotFallBackToStart(t *testing.T) {
 func TestResumeReappliesWorkspaceAndStandingInstructions(t *testing.T) {
 	d, srv := newTestDriver(t)
 	conv, err := d.Resume(context.Background(), ports.ChatResumeConfig{
-		SessionID:              "ao-1",
+		SessionID:              "kennel-1",
 		ProviderConversationID: "thread-1",
 		WorkspacePath:          "/tmp/ws",
-		SystemPrompt:           "current AO standing instructions",
+		SystemPrompt:           "current Kennel standing instructions",
 	})
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
@@ -601,7 +601,7 @@ func TestResumeReappliesWorkspaceAndStandingInstructions(t *testing.T) {
 	if params.ThreadID != "thread-1" || params.Cwd != "/tmp/ws" {
 		t.Fatalf("thread resume identity = %#v", params)
 	}
-	if params.DeveloperInstructions != "current AO standing instructions" {
+	if params.DeveloperInstructions != "current Kennel standing instructions" {
 		t.Fatalf("developerInstructions = %q", params.DeveloperInstructions)
 	}
 }
@@ -624,7 +624,7 @@ func TestProbeReportsAuthRequired(t *testing.T) {
 	}
 }
 
-// An inconclusive auth probe is not proof of failure, matching how AO already
+// An inconclusive auth probe is not proof of failure, matching how Kennel already
 // treats runtime probes.
 func TestProbeTreatsUnknownAuthAsUsable(t *testing.T) {
 	d, _ := newTestDriver(t)
@@ -1044,7 +1044,7 @@ func TestCompactionIsReportedOncePerTurn(t *testing.T) {
 	}
 }
 
-// AO has no context figure until the provider reports one, so a compaction right
+// Kennel has no context figure until the provider reports one, so a compaction right
 // after a restart genuinely does not know what it saved. Claiming "reclaimed 0
 // tokens" would be a lie rather than a gap.
 func TestCompactionClaimsNoFiguresItDoesNotHave(t *testing.T) {
@@ -1071,7 +1071,7 @@ func TestCompactionIsAdvertised(t *testing.T) {
 	}
 }
 
-// AO's session env is an overlay, not a whole environment. Replacing the process
+// Kennel's session env is an overlay, not a whole environment. Replacing the process
 // env with it launched the provider with no HOME, USER, TMPDIR or SSH_AUTH_SOCK --
 // and every shell command the agent runs inherits that same env, so `git push` over
 // SSH and every toolchain cache would fail. The provider survived it because its
@@ -1098,7 +1098,7 @@ func TestEnvSliceMergesOverTheDaemonEnvironment(t *testing.T) {
 	if got["SSH_AUTH_SOCK"] != "/tmp/agent.sock" {
 		t.Errorf("SSH_AUTH_SOCK = %q; without it the agent cannot push over SSH", got["SSH_AUTH_SOCK"])
 	}
-	// AO's overlay wins: a session must not inherit a stale id.
+	// Kennel's overlay wins: a session must not inherit a stale id.
 	if got["KENNEL_SESSION"] != "p1-1" {
 		t.Errorf("KENNEL_SESSION = %q, want the session's own id to win", got["KENNEL_SESSION"])
 	}

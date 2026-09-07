@@ -13,11 +13,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apispec"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	chatsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/chat"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apispec"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/envelope"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	chatsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/chat"
 )
 
 // maxConversationBody bounds a chat message. Large context belongs in files the
@@ -158,7 +158,7 @@ func writeConversationEditError(w http.ResponseWriter, r *http.Request, err erro
 }
 
 // configOptions serves every live control the provider advertises. Empty is a
-// real capability answer and keeps native drivers free to use AO's older typed
+// real capability answer and keeps native drivers free to use Kennel's older typed
 // model/settings surface.
 func (c *ConversationsController) configOptions(w http.ResponseWriter, r *http.Request) {
 	if c.Svc == nil {
@@ -261,7 +261,7 @@ func (c *ConversationsController) rollback(w http.ResponseWriter, r *http.Reques
 // setTitle names the provider's thread.
 //
 // 202 rather than 200: the provider accepts the name and then reports it back on its
-// own event, and that report is what moves AO's session label. Claiming 200 would
+// own event, and that report is what moves Kennel's session label. Claiming 200 would
 // promise a change that has not happened yet.
 func (c *ConversationsController) setTitle(w http.ResponseWriter, r *http.Request) {
 	if c.Svc == nil {
@@ -682,7 +682,7 @@ func writeConversationError(w http.ResponseWriter, r *http.Request, err error) {
 		// Retryable, unlike every other refusal here: the same request works once
 		// the agent finishes. Rolling back mid-turn is refused rather than raced,
 		// because discarding history the agent is still writing into would leave
-		// AO's timeline and the agent's memory describing different conversations.
+		// Kennel's timeline and the agent's memory describing different conversations.
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict",
 			"CHAT_TURN_RUNNING",
 			"stop the agent before rolling back: it is in the middle of a turn", nil)
@@ -755,7 +755,7 @@ func writeConversationError(w http.ResponseWriter, r *http.Request, err error) {
 
 	case errors.Is(err, ports.ErrChatResumeFailed):
 		// Deliberately not a silent recovery: the client must offer the user a
-		// choice rather than have AO invent a fresh conversation.
+		// choice rather than have Kennel invent a fresh conversation.
 		envelope.WriteAPIError(w, r, http.StatusConflict, "conflict",
 			"CHAT_RESUME_FAILED",
 			"the stored provider conversation could not be resumed", nil)
@@ -956,7 +956,7 @@ func turnPlanPayload(plan *domain.ConversationPlan) *ConversationPlanResponse {
 // modelReroutePayload maps a model substitution onto the wire shape.
 //
 // Absent means the provider never swapped the model, which is why it is not folded
-// into the settings payload: settings say what AO asked for, and this says what
+// into the settings payload: settings say what Kennel asked for, and this says what
 // answered. Collapsing them would leave a client unable to tell "I chose this" from
 // "this replied".
 func modelReroutePayload(reroute *domain.ConversationModelReroute) *ConversationModelReroutePayload {

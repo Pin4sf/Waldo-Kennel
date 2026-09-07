@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GeneralSettingsSection } from "./settings/GeneralSettingsSection";
+import { IslandSettingsSection } from "./settings/IslandSettingsSection";
 import { ReportProblemDialog } from "./settings/ReportProblemDialog";
 import { SettingsLinkRow } from "./settings/SettingsRow";
 import { SettingsSection } from "./settings/SettingsSection";
 import { UpdatesSection } from "./settings/UpdatesSection";
+import { useUiStore } from "../stores/ui-store";
 
 export type GlobalSettingsSection = "general" | "updates" | "help" | "all";
 
@@ -19,6 +21,8 @@ export function GlobalSettingsForm({
 }) {
 	const { t } = useTranslation();
 	const [reportProblemOpen, setReportProblemOpen] = useState(false);
+	const closeSettings = useUiStore((state) => state.closeSettings);
+	const openOnboarding = useUiStore((state) => state.openOnboarding);
 	// One section per page means the dialog header already names it, so the
 	// page's leading heading would just repeat that title. Only "all" (no
 	// single-page header) shows every section's own heading.
@@ -42,7 +46,17 @@ export function GlobalSettingsForm({
 								label={t("settings.keyboardShortcuts")}
 								onClick={() => onOpenKeyboardShortcuts?.()}
 							/>
+							{/* Settings has to get out of the way first: the tour is a modal,
+							    and two stacked modals leave no way back to the one beneath. */}
+							<SettingsLinkRow
+								label={t("settings.welcomeTour")}
+								onClick={() => {
+									closeSettings();
+									openOnboarding();
+								}}
+							/>
 						</SettingsSection>
+						<IslandSettingsSection />
 					</>
 				)}
 				{(section === "all" || section === "updates") && <UpdatesSection titleHidden={leadingTitleHidden} />}

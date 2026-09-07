@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // TestLiveCodexAppServer drives a real `codex app-server`. It is skipped unless
@@ -50,7 +50,7 @@ func TestLiveCodexAppServer(t *testing.T) {
 	defer cancel()
 
 	conv, err := d.Start(ctx, ports.ChatStartConfig{
-		SessionID:     "ao-live",
+		SessionID:     "kennel-live",
 		WorkspacePath: workspace,
 		Env:           envMap(),
 		Permissions:   ports.PermissionModeDefault,
@@ -121,7 +121,7 @@ collect:
 	}
 
 	resumed, err := d.Resume(ctx, ports.ChatResumeConfig{
-		SessionID:              "ao-live",
+		SessionID:              "kennel-live",
 		ProviderConversationID: threadID,
 		WorkspacePath:          workspace,
 		Env:                    envMap(),
@@ -138,7 +138,7 @@ collect:
 	t.Logf("resumed thread %s on a fresh app-server process", threadID)
 }
 
-// livePlugin stands in for AO's Codex agent plugin so this test exercises the
+// livePlugin stands in for Kennel's Codex agent plugin so this test exercises the
 // driver rather than binary discovery.
 type livePlugin struct{ bin string }
 

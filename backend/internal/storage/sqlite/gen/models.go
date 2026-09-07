@@ -8,9 +8,22 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/cdc"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/cdc"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
+
+type AcceptanceDecision struct {
+	ID                  string
+	OutcomeID           string
+	ContractRevisionID  string
+	Kind                string
+	ActorType           string
+	Summary             string
+	ResourceDisposition string
+	RequestKey          string
+	RequestFingerprint  string
+	CreatedAt           time.Time
+}
 
 type AgentModelCatalog struct {
 	AgentID       string
@@ -65,6 +78,67 @@ type AppSetting struct {
 	UpdatedAt          time.Time
 }
 
+type Attempt struct {
+	ID                     domain.AttemptID
+	OutcomeID              domain.OutcomeID
+	PlanRevisionID         domain.PlanRevisionID
+	WorkUnitID             domain.WorkUnitID
+	Number                 int64
+	Status                 domain.AttemptStatus
+	ContractRevisionNumber int64
+	RequestKey             sql.NullString
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+type AttemptFence struct {
+	ID            string
+	Subject       string
+	AttemptID     domain.AttemptID
+	IssuedAt      time.Time
+	LastRenewedAt time.Time
+	ReleasedAt    sql.NullTime
+	ReleaseReason string
+}
+
+type AttemptObservation struct {
+	ID        string
+	AttemptID domain.AttemptID
+	Seq       int64
+	Kind      string
+	Payload   string
+	CreatedAt time.Time
+}
+
+type AttemptRecoveryReceipt struct {
+	ID                   string
+	AttemptID            domain.AttemptID
+	Resolution           string
+	ReplacementAttemptID string
+	Detail               string
+	CreatedAt            time.Time
+}
+
+type AttemptSession struct {
+	ID                     string
+	AttemptID              domain.AttemptID
+	Seq                    int64
+	SessionID              string
+	Harness                domain.AgentHarness
+	Mode                   domain.SessionMode
+	RunBriefCoreDigest     string
+	RunBriefCompiledDigest string
+	AdmissionSnapshot      string
+	BoundAt                time.Time
+}
+
+type CapabilityGrant struct {
+	ID             domain.CapabilityGrantID
+	PlanRevisionID domain.PlanRevisionID
+	Name           string
+	Scope          string
+}
+
 type ChangeLog struct {
 	Seq       int64
 	ProjectID domain.ProjectID
@@ -72,6 +146,62 @@ type ChangeLog struct {
 	EventType cdc.EventType
 	Payload   string
 	CreatedAt time.Time
+}
+
+type ContractCriterium struct {
+	ID                 string
+	ContractRevisionID string
+	Position           int64
+	Text               string
+}
+
+type ContractRevision struct {
+	ID              domain.ContractRevisionID
+	OutcomeID       domain.OutcomeID
+	Number          int64
+	Goal            string
+	SuccessCriteria string
+	Review          string
+	Constraints     string
+	NonGoals        string
+	Clarification   string
+	CreatedAt       time.Time
+}
+
+type ContractRevisionIntakeCore struct {
+	ContractRevisionID   string
+	EvidenceExpectations string
+	AuthorityCeiling     string
+	StopConditions       string
+	TemporalCondition    sql.NullString
+	Facets               string
+	CreatedAt            time.Time
+}
+
+type ContributionDependency struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	FromRef         string
+	ToRef           string
+}
+
+type ContributionDependencyWaiver struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	FromRef         string
+	ToRef           string
+	Reason          string
+	WaivedBy        string
+	CreatedAt       time.Time
+}
+
+type ContributionLink struct {
+	ID                       string
+	ParentOutcomeID          string
+	ChildOutcomeID           string
+	ParentContractRevisionID string
+	ParentCriterionID        string
+	CreatedAt                time.Time
 }
 
 type Conversation struct {
@@ -191,6 +321,160 @@ type ConversationTurn struct {
 	PromotedToTurnID     sql.NullString
 }
 
+type DecompositionContribution struct {
+	ID              string
+	DecompositionID domain.DecompositionRevisionID
+	Ref             string
+	Position        int64
+	Title           string
+	Goal            string
+	SuccessCriteria string
+	Review          string
+	Constraints     string
+	NonGoals        string
+	Authority       string
+	ClaimedCriteria string
+	ChildOutcomeID  *domain.OutcomeID
+}
+
+type DecompositionRequest struct {
+	ID                  domain.DecompositionRequestID
+	OutcomeID           domain.OutcomeID
+	ContractRevisionID  domain.ContractRevisionID
+	Status              domain.DecompositionRequestStatus
+	CallbackTokenDigest string
+	SessionID           string
+	ExpiresAt           time.Time
+	RawProposal         string
+	RefusalReason       string
+	DecompositionID     sql.NullString
+	CreatedAt           time.Time
+	AnsweredAt          sql.NullTime
+}
+
+type DecompositionRetainedCriterium struct {
+	ID                string
+	DecompositionID   domain.DecompositionRevisionID
+	ParentCriterionID domain.CriterionID
+}
+
+type DecompositionRevision struct {
+	ID                 domain.DecompositionRevisionID
+	OutcomeID          domain.OutcomeID
+	Number             int64
+	ContractRevisionID domain.ContractRevisionID
+	Status             domain.DecompositionStatus
+	Rationale          string
+	CreatedAt          time.Time
+	AuthorizedAt       sql.NullTime
+}
+
+type EvidenceItem struct {
+	ID                 string
+	OutcomeID          string
+	ContractRevisionID string
+	CriterionID        string
+	SubjectType        string
+	SubjectID          string
+	SubjectRevision    string
+	Kind               string
+	SourceType         string
+	SourceRef          string
+	ProducerType       string
+	ProducerRef        string
+	Summary            string
+	ContentDigest      string
+	RequestKey         string
+	RequestFingerprint string
+	CreatedAt          time.Time
+}
+
+type IntakeAnalysisRequest struct {
+	ID                       domain.IntakeAnalysisRequestID
+	IntakeID                 string
+	ExpectedProposalRevision int64
+	Status                   domain.IntakeAnalysisRequestStatus
+	CallbackTokenDigest      string
+	SessionID                string
+	Harness                  domain.AgentHarness
+	ExpiresAt                time.Time
+	RawProposal              string
+	RefusalReason            string
+	CreatedAt                time.Time
+	AnsweredAt               sql.NullTime
+}
+
+type IntakeClarification struct {
+	ID                  string
+	IntakeID            string
+	Question            string
+	Reason              string
+	Recommendation      string
+	Alternatives        string
+	DeferralConsequence string
+	CreatedAt           time.Time
+}
+
+type IntakeClarificationAnswer struct {
+	ClarificationID string
+	Answer          string
+	AnsweredAt      time.Time
+}
+
+type IntakeConfirmation struct {
+	IntakeID           string
+	ProposalRevision   int64
+	OutcomeID          string
+	ContractRevisionID string
+	RequestKey         string
+	RequestFingerprint string
+	ConfirmedAt        time.Time
+}
+
+type IntakeConversationRef struct {
+	IntakeID  string
+	EpisodeID string
+	TurnID    string
+	Position  int64
+}
+
+type IntakeProposalRevision struct {
+	ID                 string
+	IntakeID           string
+	Revision           int64
+	Title              string
+	DesiredState       string
+	Criteria           string
+	ReviewMethod       string
+	Constraints        string
+	NonGoals           string
+	AuthorityCeiling   string
+	StopConditions     string
+	ClarificationNotes string
+	TemporalCondition  sql.NullString
+	Facets             string
+	CreatedAt          time.Time
+}
+
+type IntakeSession struct {
+	ID                      string
+	SourceSurface           string
+	Purpose                 string
+	ProjectID               sql.NullString
+	SourceOpenLoopID        sql.NullString
+	Statement               string
+	Status                  string
+	CurrentProposalRevision int64
+	ClarificationCount      int64
+	ConfirmedOutcomeID      sql.NullString
+	FailureCode             string
+	CancellationReason      string
+	RequestKey              string
+	RequestFingerprint      string
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
+}
+
 type ModelUsageEvent struct {
 	ID                  int64
 	BindingID           int64
@@ -216,6 +500,28 @@ type Notification struct {
 	Status     domain.NotificationStatus
 	CreatedAt  time.Time
 	ResolvedAt sql.NullTime
+}
+
+type Outcome struct {
+	ID                    domain.OutcomeID
+	SpaceID               domain.ResponsibilitySpaceID
+	Title                 string
+	CurrentRevisionNumber int64
+	IdempotencyKey        sql.NullString
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	ParentOutcomeID       sql.NullString
+}
+
+type OutcomeCorrection struct {
+	ID                 string
+	DecisionID         string
+	OutcomeID          string
+	ContractRevisionID string
+	Feedback           string
+	TargetType         string
+	TargetID           string
+	CreatedAt          time.Time
 }
 
 type PR struct {
@@ -319,6 +625,18 @@ type PRURLAlias struct {
 	CanonicalURL string
 }
 
+type PlanRevision struct {
+	ID                     domain.PlanRevisionID
+	OutcomeID              domain.OutcomeID
+	Number                 int64
+	ContractRevisionNumber int64
+	Status                 string
+	Summary                string
+	RunBriefCoreDigest     string
+	RunBriefCompiledDigest string
+	CreatedAt              time.Time
+}
+
 type Project struct {
 	ID            domain.ProjectID
 	Path          string
@@ -328,6 +646,51 @@ type Project struct {
 	ArchivedAt    sql.NullTime
 	Config        sql.NullString
 	Kind          string
+}
+
+type ProjectBriefHead struct {
+	ProjectID             string
+	CurrentRevisionNumber int64
+	UpdatedAt             time.Time
+}
+
+type ProjectBriefRevision struct {
+	ID                  string
+	ProjectID           string
+	RevisionNumber      int64
+	Purpose             string
+	ProductContext      string
+	TechnicalContext    string
+	ArchitectureSummary string
+	ConventionsJson     string
+	ConstraintsJson     string
+	SetupExpectations   string
+	RunExpectations     string
+	TestExpectations    string
+	ProvenanceJson      string
+	CreatedAt           time.Time
+}
+
+type ResponsibilityLink struct {
+	ID                   string
+	ProjectID            string
+	SourceOpenLoopID     string
+	DestinationOutcomeID string
+	Creator              string
+	Reason               string
+	RequestKey           string
+	RequestFingerprint   string
+	CreatedAt            time.Time
+	EndedAt              sql.NullTime
+	EndedBy              string
+	EndedReason          string
+}
+
+type ResponsibilitySpace struct {
+	ID        domain.ResponsibilitySpaceID
+	Kind      domain.ResponsibilitySpaceKind
+	ProjectID domain.ProjectID
+	CreatedAt time.Time
 }
 
 type Review struct {
@@ -516,6 +879,171 @@ type UsageSource struct {
 	NextRetryAt     sql.NullTime
 	LastErrorCode   string
 	UpdatedAt       time.Time
+}
+
+type VerificationRun struct {
+	ID                 string
+	OutcomeID          string
+	ContractRevisionID string
+	CriterionID        string
+	SubjectType        string
+	SubjectID          string
+	SubjectRevision    string
+	EvidenceItemIds    string
+	Method             string
+	IndependenceClass  string
+	Result             string
+	ProducerRef        string
+	VerifierRef        string
+	ProducerProvider   string
+	VerifierProvider   string
+	Detail             string
+	RequestKey         string
+	RequestFingerprint string
+	CreatedAt          time.Time
+}
+
+type WaldoContextAttachment struct {
+	ID                       string
+	ConversationID           string
+	ProjectID                string
+	Kind                     string
+	ObjectID                 string
+	ObjectRevision           string
+	ProvenanceKind           string
+	ProvenanceRef            string
+	AttachedRevision         int64
+	AttachRequestKey         string
+	AttachRequestFingerprint string
+	CreatedAt                time.Time
+	DetachedRevision         sql.NullInt64
+	DetachedAt               sql.NullTime
+	DetachReason             string
+	DetachRequestKey         sql.NullString
+	DetachRequestFingerprint string
+}
+
+type WaldoContinuationOperation struct {
+	ID                           string
+	ConversationID               string
+	ProjectID                    string
+	FromEpisodeID                string
+	FromAgentSessionRefID        string
+	ExpectedConversationRevision int64
+	State                        string
+	Reason                       string
+	ReasonDetail                 string
+	TriggerEvidenceKind          string
+	TriggerEvidenceRef           string
+	MaterialChange               int64
+	ChangedFields                string
+	ContextDigest                string
+	ContextRefs                  string
+	PreviousBindings             string
+	ReplacementBindings          string
+	EffectsKnown                 int64
+	LostMaterialContext          int64
+	SourceRevoked                int64
+	FreshVerifier                int64
+	TriggerConfirmed             int64
+	FenceReceiptRef              string
+	ReconciliationRef            string
+	NeedsUserReason              string
+	RequestKey                   string
+	RequestFingerprint           string
+	CreatedAt                    time.Time
+	UpdatedAt                    time.Time
+}
+
+type WaldoContinuationReceipt struct {
+	ID                           string
+	OperationID                  string
+	ConversationID               string
+	ProjectID                    string
+	FromEpisodeID                string
+	ToEpisodeID                  sql.NullString
+	FromAgentSessionRefID        string
+	ToAgentSessionRefID          sql.NullString
+	Action                       string
+	Reason                       string
+	ReasonDetail                 string
+	TriggerEvidenceKind          string
+	TriggerEvidenceRef           string
+	MaterialChange               int64
+	ChangedFields                string
+	ContextDigest                string
+	ContextRefs                  string
+	PreviousBindings             string
+	ReplacementBindings          string
+	EffectsKnown                 int64
+	OldSessionFenced             int64
+	ReplacementIdentityConfirmed int64
+	FenceReceiptRef              string
+	ReconciliationRef            string
+	NeedsUserReason              string
+	RequestKey                   string
+	RequestFingerprint           string
+	CreatedAt                    time.Time
+}
+
+type WaldoConversation struct {
+	ID                 string
+	ProjectID          string
+	Revision           int64
+	LatestTurnSequence int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type WaldoConversationEpisode struct {
+	ID                     string
+	ConversationID         string
+	ProjectID              string
+	Ordinal                int64
+	State                  string
+	Provider               string
+	ProviderConversationID string
+	TranscriptRef          string
+	RequestKey             string
+	RequestFingerprint     string
+	CreatedAt              time.Time
+	SealedAt               sql.NullTime
+	SealReason             string
+}
+
+type WaldoConversationTurn struct {
+	ID                     string
+	ConversationID         string
+	EpisodeID              string
+	ProjectID              string
+	Sequence               int64
+	Role                   string
+	Message                string
+	Provider               string
+	ProviderConversationID string
+	ProviderTurnID         string
+	TranscriptRef          string
+	RequestKey             string
+	RequestFingerprint     string
+	CreatedAt              time.Time
+}
+
+type WaldoTurnContextRef struct {
+	TurnID       string
+	AttachmentID string
+	Position     int64
+}
+
+type WorkUnit struct {
+	ID                      domain.WorkUnitID
+	PlanRevisionID          domain.PlanRevisionID
+	Kind                    string
+	Title                   string
+	ContractRevisionNumber  int64
+	OutputSummary           string
+	EvidenceChecks          string
+	VerificationRequirement string
+	StopConditions          string
 }
 
 type WorkspaceRepo struct {

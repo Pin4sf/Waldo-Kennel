@@ -27,6 +27,8 @@ export type SettingsModal =
 
 /** Worker detail view toggles — Changes (Git rail) is the default. */
 export type WorkbenchTab = "changes" | "files" | "terminal";
+/** Board or List reading of the same session lanes. */
+export type SessionsViewMode = "board" | "list";
 export type InspectorView = "summary" | "reviews" | "browser" | "files";
 
 export type InspectorSessionState = {
@@ -44,9 +46,32 @@ export type InspectorSessionState = {
 // state, and the active workbench tab within a session.
 type UiState = {
 	workbenchTab: WorkbenchTab;
+	/** Which reading of the sessions lanes is showing. Sticky across launches:
+	 *  a person picks board or list once and expects it to stay picked. */
+	sessionsViewMode: SessionsViewMode;
+	/** Board or List reading of one Outcome's attempt lineage (Act & Observe).
+	 *  Sticky across launches, same as sessionsViewMode, but scoped separately
+	 *  since it governs a different lane model (attempts, not sessions). */
+	outcomeRunViewMode: SessionsViewMode;
+	/** The current attempt's drill-in terminal panel (Figma's terminal-toggle
+	 *  icon in the Work destination's persistent top bar). Ephemeral like the
+	 *  command palette: it opens on demand and never persists across launches,
+	 *  and it is shared between the WorkShell toggle button and the Board/List
+	 *  "Instruct"/"Engage" card actions so both open the exact same panel. */
+	isOutcomeAttemptPanelOpen: boolean;
+	/** Agent seeded into new project and session forms. Empty means "let the app
+	 *  pick", which is what a person who skipped the setup tour gets. */
+	defaultAgentId: string;
+	/** The setup tour has run to the end (or been skipped) at least once. */
+	hasCompletedOnboarding: boolean;
+	isOnboardingOpen: boolean;
 	isSidebarOpen: boolean;
 	inspectorSessions: Record<string, InspectorSessionState>;
 	isCommandPaletteOpen: boolean;
+	/** The global keyboard-shortcuts reference dialog. Lives here (not local
+	 *  component state) so any surface — the ⌘/ shortcut, the settings menu,
+	 *  WorkShell's bottom-left help button — can open the exact same dialog. */
+	isKeyboardShortcutsOpen: boolean;
 	settingsModal: SettingsModal | null;
 	themePreference: ThemePreference;
 	/** Resolved light/dark for React consumers; may track OS while preference is system. */
@@ -83,6 +108,14 @@ type UiState = {
 	// need that distinction, and SessionView's own target is local state.
 	visibleTerminalKindBySession: Record<string, TerminalTarget["kind"]>;
 	setWorkbenchTab: (tab: WorkbenchTab) => void;
+	setSessionsViewMode: (mode: SessionsViewMode) => void;
+	setOutcomeRunViewMode: (mode: SessionsViewMode) => void;
+	openOutcomeAttemptPanel: () => void;
+	closeOutcomeAttemptPanel: () => void;
+	toggleOutcomeAttemptPanel: () => void;
+	setDefaultAgentId: (agentId: string) => void;
+	openOnboarding: () => void;
+	closeOnboarding: () => void;
 	setThemePreference: (theme: ThemePreference) => void;
 	setThemeStyle: (style: ThemeStyle) => void;
 	setDeveloperMode: (enabled: boolean) => void;
@@ -98,6 +131,7 @@ type UiState = {
 	setBrowserContentRevealed: (sessionId: string, revealed: boolean) => void;
 	setBrowserUnseen: (sessionId: string, unseen: boolean) => void;
 	setCommandPaletteOpen: (open: boolean) => void;
+	setKeyboardShortcutsOpen: (open: boolean) => void;
 	setProjectRestarting: (projectId: string, restarting: boolean) => void;
 	setOrchestratorReplacementError: (projectId: string, failure: OrchestratorReplacementFailure | null) => void;
 	setOrchestratorStartupError: (projectId: string, message: string | null) => void;
@@ -116,6 +150,10 @@ export type OrchestratorReplacementFailure = {
 };
 
 const sidebarStorageKey = "kennel.sidebar.open";
+const sessionsViewModeStorageKey = "kennel.sessions.viewMode";
+const outcomeRunViewModeStorageKey = "kennel.outcome.runViewMode";
+const defaultAgentStorageKey = "kennel.agent.default";
+const onboardingStorageKey = "kennel.onboarding.completed";
 const developerModeStorageKey = "kennel.developerMode";
 function getLocalStorage() {
 	if (typeof window === "undefined" || !window.localStorage) return null;
@@ -124,6 +162,22 @@ function getLocalStorage() {
 
 function initialSidebarOpen() {
 	return getLocalStorage()?.getItem(sidebarStorageKey) !== "false";
+}
+
+function initialSessionsViewMode(): SessionsViewMode {
+	return getLocalStorage()?.getItem(sessionsViewModeStorageKey) === "list" ? "list" : "board";
+}
+
+function initialOutcomeRunViewMode(): SessionsViewMode {
+	return getLocalStorage()?.getItem(outcomeRunViewModeStorageKey) === "list" ? "list" : "board";
+}
+
+function initialDefaultAgentId() {
+	return getLocalStorage()?.getItem(defaultAgentStorageKey) ?? "";
+}
+
+function initialHasCompletedOnboarding() {
+	return getLocalStorage()?.getItem(onboardingStorageKey) === "true";
 }
 
 function initialDeveloperMode() {
@@ -139,9 +193,16 @@ const initialThemeStyle = readStoredThemeStyle();
 
 export const useUiStore = create<UiState>((set, get) => ({
 	workbenchTab: "changes",
+	sessionsViewMode: initialSessionsViewMode(),
+	outcomeRunViewMode: initialOutcomeRunViewMode(),
+	isOutcomeAttemptPanelOpen: false,
+	defaultAgentId: initialDefaultAgentId(),
+	hasCompletedOnboarding: initialHasCompletedOnboarding(),
+	isOnboardingOpen: false,
 	isSidebarOpen: initialSidebarOpen(),
 	inspectorSessions: {},
 	isCommandPaletteOpen: false,
+	isKeyboardShortcutsOpen: false,
 	settingsModal: null,
 	themePreference: initialThemePreference,
 	resolvedTheme: resolveTheme(initialThemePreference),
@@ -156,6 +217,29 @@ export const useUiStore = create<UiState>((set, get) => ({
 	activeShellTerminalHandleId: null,
 	visibleTerminalKindBySession: {},
 	setWorkbenchTab: (workbenchTab) => set({ workbenchTab }),
+	setSessionsViewMode: (sessionsViewMode) => {
+		getLocalStorage()?.setItem(sessionsViewModeStorageKey, sessionsViewMode);
+		set({ sessionsViewMode });
+	},
+	setOutcomeRunViewMode: (outcomeRunViewMode) => {
+		getLocalStorage()?.setItem(outcomeRunViewModeStorageKey, outcomeRunViewMode);
+		set({ outcomeRunViewMode });
+	},
+	openOutcomeAttemptPanel: () => set({ isOutcomeAttemptPanelOpen: true }),
+	closeOutcomeAttemptPanel: () => set({ isOutcomeAttemptPanelOpen: false }),
+	toggleOutcomeAttemptPanel: () =>
+		set((state) => ({ isOutcomeAttemptPanelOpen: !state.isOutcomeAttemptPanelOpen })),
+	setDefaultAgentId: (defaultAgentId) => {
+		getLocalStorage()?.setItem(defaultAgentStorageKey, defaultAgentId);
+		set({ defaultAgentId });
+	},
+	openOnboarding: () => set({ isOnboardingOpen: true }),
+	// Closing is the completion event whichever exit was used: a person who
+	// dismisses the tour has answered it, and should not meet it again on relaunch.
+	closeOnboarding: () => {
+		getLocalStorage()?.setItem(onboardingStorageKey, "true");
+		set({ isOnboardingOpen: false, hasCompletedOnboarding: true });
+	},
 	setThemePreference: (themePreference) => {
 		if (get().themePreference === themePreference) return;
 		runThemeTransition(() => {
@@ -254,6 +338,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 			};
 		}),
 	setCommandPaletteOpen: (isCommandPaletteOpen) => set({ isCommandPaletteOpen }),
+	setKeyboardShortcutsOpen: (isKeyboardShortcutsOpen) => set({ isKeyboardShortcutsOpen }),
 	setProjectRestarting: (projectId, restarting) =>
 		set((state) => {
 			const restartingProjectIds = new Set(state.restartingProjectIds);

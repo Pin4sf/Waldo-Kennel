@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
@@ -24,7 +24,7 @@ const (
 	interfaceDeliveryIdlePoll           = 30 * time.Second
 )
 
-var errDrainQuiescenceUnverified = errors.New("AO could not verify that the terminal was idle after the latest input. The source interface was left untouched; retry after the terminal settles")
+var errDrainQuiescenceUnverified = errors.New("Kennel could not verify that the terminal was idle after the latest input. The source interface was left untouched; retry after the terminal settles")
 
 // interfaceTransitionStore is optional so the existing narrow Manager Store
 // port and its many focused fakes do not grow methods unrelated to their tests.
@@ -341,7 +341,7 @@ func (m *Manager) runInterfaceTransition(
 	// be proven stopped, do not launch either controller: recovery is safer than
 	// two writers racing on one native conversation.
 	if err := m.stopSourceControllerConclusive(rec); err != nil {
-		detail := "AO could not prove that the old controller stopped. Restart AO to reconcile this session before sending more work: " + err.Error()
+		detail := "Kennel could not prove that the old controller stopped. Restart Kennel to reconcile this session before sending more work: " + err.Error()
 		_ = m.finishInterfaceTransition(transition.ID, domain.SessionInterfaceTransitionRecovery,
 			"SOURCE_STOP_UNCERTAIN", detail)
 		return
@@ -861,7 +861,7 @@ func (m *Manager) deliverTransitionMessages(
 	lastTerminalInputAt, releaseTerminalInput := m.beginTerminalInputDrain(rec)
 	if releaseTerminalInput != nil {
 		defer releaseTerminalInput()
-		// Closing the raw-input gate and rechecking readiness makes queued AO
+		// Closing the raw-input gate and rechecking readiness makes queued Kennel
 		// delivery the next instruction accepted by the TUI controller.
 		if _, err := m.waitForTransitionDeliveryReady(ctx, transition.SessionID, lastTerminalInputAt); err != nil {
 			return fmt.Errorf("recheck transition %s delivery readiness: %w", transition.ID, err)
@@ -1078,7 +1078,7 @@ func (m *Manager) recoverInterruptedInterfaceTransitions(
 	}
 	for i := range active {
 		transition := &active[i]
-		detail := "The daemon restarted during the interface switch; AO recovered the session from its last committed mode."
+		detail := "The daemon restarted during the interface switch; Kennel recovered the session from its last committed mode."
 		moved, err := store.AdvanceSessionInterfaceTransition(
 			ctx,
 			transition.ID,

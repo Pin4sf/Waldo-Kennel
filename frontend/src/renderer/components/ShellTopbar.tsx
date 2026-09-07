@@ -38,6 +38,7 @@ import {
 	deriveSessionAgentSwitchPresentation,
 } from "../lib/agent-switch-presentation";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { NewShellTerminalButton } from "./NewShellTerminalButton";
 
 const isMac = isMacPlatform();
 const boardActionsInPanel = usesBoardActionsInPanel();
@@ -78,7 +79,6 @@ export function ShellTopbar({
 		currentSessionId ? (state.inspectorSessions[currentSessionId]?.isOpen ?? true) : false,
 	);
 	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
-	const requestNewTask = useUiStore((state) => state.requestNewTask);
 	const isSidebarOpen = useUiStore((state) => state.isSidebarOpen);
 	const isFullScreen = useWindowFullScreen();
 	const prefersReducedMotion = useReducedMotion();
@@ -135,7 +135,7 @@ export function ShellTopbar({
 
 	const openNewTask = () => {
 		if (!projectId || isProjectRestarting) return;
-		requestNewTask(projectId);
+		void navigate({ to: "/work", search: { project: projectId } });
 	};
 
 	const openOrchestrator = async () => {
@@ -281,6 +281,7 @@ export function ShellTopbar({
 							</TooltipTrigger>
 							<TooltipContent side="bottom">{t("shell.newTask")}</TooltipContent>
 						</Tooltip>
+						<NewShellTerminalButton style={noDragStyle} />
 						{orchestrator ? <Tooltip>
 							<TooltipTrigger asChild>
 								<span className="inline-flex" style={noDragStyle}>

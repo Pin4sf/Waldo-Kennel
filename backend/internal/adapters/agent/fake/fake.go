@@ -36,10 +36,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // SpeedupEnv is the environment variable that divides every phase duration. A
@@ -151,7 +151,7 @@ func (p *Plugin) ResolveBinary(ctx context.Context) (string, error) {
 	return path, nil
 }
 
-// DeriveActivityState maps a fake hook sub-command name onto an AO activity
+// DeriveActivityState maps a fake hook sub-command name onto an Kennel activity
 // state. The bool is false when the event carries no activity signal. It is the
 // deriver registered for the "fake" token in activitydispatch, and it mirrors
 // the events timelineScript emits, chosen so the fake can exercise every
@@ -239,7 +239,7 @@ func timelineScript(sleepSeconds float64) string {
 	phase("active", "user-prompt-submit", true)
 	// Print a realistic PR URL on the push line: real agents surface a link here,
 	// and the desktop watches terminal output for URLs to glow the Browser tab.
-	phase("pushed PR https://github.com/aoagents/agent-orchestrator/pull/2483", "pr-push", true)
+	phase("pushed PR https://github.com/Pin4sf/Waldo-Kennel/pull/2483", "pr-push", true)
 	phase("blocked", "permission-request", true)
 	phase("done", "session-end", false)
 	return b.String()

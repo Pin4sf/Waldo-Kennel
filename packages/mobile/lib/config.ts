@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useState } from "react";
 
-// The user points the app at their AO daemon (over Tailscale/LAN). We store the
+// The user points the app at their Kennel daemon (over Tailscale/LAN). We store the
 // host + API port; HTTP and WS URLs are derived from them. The Go daemon serves
 // both the REST API and the terminal mux (`/mux`) on the same port, so muxPort is
 // kept only for back-compat and no longer used to build the mux URL.

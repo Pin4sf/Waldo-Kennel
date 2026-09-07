@@ -104,7 +104,7 @@ export default function FleetScreen() {
 					// one action that fixes it, going straight to the scanner rather
 					// than sending them to Settings to hunt for a field.
 					title="No desktop paired"
-					message="Scan the pairing code from AO → Settings → Connect Mobile to drive your agents from here."
+					message="Scan the pairing code from Kennel → Settings → Connect Mobile to drive your agents from here."
 					action={<Button title="Scan pairing code" icon="maximize" onPress={() => router.push("/pair")} />}
 				/>
 			</View>

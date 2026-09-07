@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Fixtures here are verbatim captures from `codex app-server` (codex-cli 0.146.0),
@@ -232,7 +232,7 @@ func TestNormalizeTruncatedTurnDiffCarriesTheMarker(t *testing.T) {
 // on the turn. Two accounts of the same edits would be a problem only if both wrote
 // the same row, and neither does. See normalize_ingest_test.go for their payloads.
 //
-// The client-driven exec API stays unhandled: AO never asks the server to run
+// The client-driven exec API stays unhandled: Kennel never asks the server to run
 // anything, so an agent tool call never arrives on those methods.
 func TestNormalizeItemFileChangeStreamsLandOnTheItem(t *testing.T) {
 	patch := normalizeOne(t, "item/fileChange/patchUpdated",

@@ -11,7 +11,7 @@ export function BlogCard({ post }: BlogCardProps) {
 
 	return (
 		<Link href={post.url} className="block group h-full">
-			<article className="flex flex-col h-full border border-border bg-background p-6 transition-all hover:bg-muted/50 hover:border-foreground/20">
+			<article className="flex flex-col h-full border border-border bg-background p-6 transition-[background-color,border-color] duration-normal ease-out group-active:border-foreground/30 hover:bg-muted/50 hover:border-foreground/20">
 				<div className="flex items-center gap-3 mb-3">
 					<span className="text-xs font-mono text-muted-foreground tracking-[0.5px]">
 						{post.category}

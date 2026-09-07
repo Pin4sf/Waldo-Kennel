@@ -25,7 +25,7 @@ describe("formatVersion", () => {
 describe("bugReportBody", () => {
 	it("names the build and platform so a report is actionable", () => {
 		const body = bugReportBody({ version: "1.2.0", build: "42" }, "ios", "18.2");
-		expect(body).toContain("AO mobile: 1.2.0 (42)");
+		expect(body).toContain("Kennel mobile: 1.2.0 (42)");
 		expect(body).toContain("Platform: ios 18.2");
 	});
 

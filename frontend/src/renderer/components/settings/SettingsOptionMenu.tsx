@@ -98,7 +98,7 @@ export function SettingsOptionMenu<T extends string>({
 						</>
 					)}
 				<ChevronDown
-					className="size-icon-sm shrink-0 transition-transform duration-300 ease-out group-data-[state=open]/settings-option-trigger:rotate-180"
+					className="size-icon-sm shrink-0 transition-transform duration-normal ease-out group-data-[state=open]/settings-option-trigger:rotate-180"
 					aria-hidden="true"
 				/>
 				</button>

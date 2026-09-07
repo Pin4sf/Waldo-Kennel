@@ -17,7 +17,7 @@ func TestAgentProcessSuperviseReportsExitAndPreservesOutput(t *testing.T) {
 	out, errOut, err := executeCLI(t, Deps{
 		In:           strings.NewReader(""),
 		ProcessAlive: func(int) bool { return true },
-	}, "agent-process", "supervise", "--session", "ao-7", "--launch", "launch-3", "--", "sh", "-c", "printf supervised; exit 23")
+	}, "agent-process", "supervise", "--session", "kennel-7", "--launch", "launch-3", "--", "sh", "-c", "printf supervised; exit 23")
 	if err != nil {
 		t.Fatalf("supervise returned child exit as command failure: %v\nstderr=%s", err, errOut)
 	}
@@ -35,7 +35,7 @@ func TestAgentProcessSuperviseReportsExitAndPreservesOutput(t *testing.T) {
 }
 
 func TestAgentProcessSuperviseRejectsInvalidGeneration(t *testing.T) {
-	_, _, err := executeCLI(t, Deps{}, "agent-process", "supervise", "--session", "ao-7", "--launch", "../stale", "--", "true")
+	_, _, err := executeCLI(t, Deps{}, "agent-process", "supervise", "--session", "kennel-7", "--launch", "../stale", "--", "true")
 	if err == nil {
 		t.Fatal("invalid launch id should be rejected before starting the child")
 	}

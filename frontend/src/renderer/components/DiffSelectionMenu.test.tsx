@@ -271,13 +271,13 @@ describe("DiffSelectionMenu", () => {
 	});
 
 	it("shows an error status and does not auto-close when the send fails", async () => {
-		postMock.mockResolvedValue({ error: { message: "AO daemon is not ready." } });
+		postMock.mockResolvedValue({ error: { message: "Kennel daemon is not ready." } });
 		const onOpenChange = vi.fn();
 		renderMenu({ onOpenChange });
 
 		await userEvent.click(screen.getByRole("menuitem", { name: "Explain" }));
 
-		expect(await screen.findByText("AO daemon is not ready.")).toBeInTheDocument();
+		expect(await screen.findByText("Kennel daemon is not ready.")).toBeInTheDocument();
 		expect(onOpenChange).not.toHaveBeenCalledWith(false);
 	});
 
@@ -293,48 +293,48 @@ describe("DiffSelectionMenu", () => {
 	});
 
 	it("clears the stale error text when switching to Make changes after a failed send", async () => {
-		postMock.mockResolvedValue({ error: { message: "AO daemon is not ready." } });
+		postMock.mockResolvedValue({ error: { message: "Kennel daemon is not ready." } });
 		renderMenu();
 
 		await userEvent.click(screen.getByRole("menuitem", { name: "Explain" }));
-		expect(await screen.findByText("AO daemon is not ready.")).toBeInTheDocument();
+		expect(await screen.findByText("Kennel daemon is not ready.")).toBeInTheDocument();
 
 		await userEvent.click(screen.getByRole("menuitem", { name: "Make changes" }));
 
 		expect(screen.getByRole("textbox", { name: "Describe the change" })).toBeInTheDocument();
-		expect(screen.queryByText("AO daemon is not ready.")).not.toBeInTheDocument();
+		expect(screen.queryByText("Kennel daemon is not ready.")).not.toBeInTheDocument();
 	});
 
 	it("clears the stale error text when pressing Escape from the input after a failed send", async () => {
-		postMock.mockResolvedValue({ error: { message: "AO daemon is not ready." } });
+		postMock.mockResolvedValue({ error: { message: "Kennel daemon is not ready." } });
 		renderMenu();
 
 		await userEvent.click(screen.getByRole("menuitem", { name: "Make changes" }));
 		const input = await screen.findByRole("textbox", { name: "Describe the change" });
 		await userEvent.type(input, "Rename this to bar{Enter}");
 
-		expect(await screen.findByText("AO daemon is not ready.")).toBeInTheDocument();
+		expect(await screen.findByText("Kennel daemon is not ready.")).toBeInTheDocument();
 
 		await userEvent.keyboard("{Escape}");
 
 		expect(screen.getByRole("menuitem", { name: "Copy" })).toBeInTheDocument();
-		expect(screen.queryByText("AO daemon is not ready.")).not.toBeInTheDocument();
+		expect(screen.queryByText("Kennel daemon is not ready.")).not.toBeInTheDocument();
 	});
 
 	it("resets to the action list when reopened after a prior error", async () => {
-		postMock.mockResolvedValue({ error: { message: "AO daemon is not ready." } });
+		postMock.mockResolvedValue({ error: { message: "Kennel daemon is not ready." } });
 		const onOpenChange = vi.fn();
 		const { rerender, props } = renderMenu({ onOpenChange });
 
 		await userEvent.click(screen.getByRole("menuitem", { name: "Explain" }));
-		expect(await screen.findByText("AO daemon is not ready.")).toBeInTheDocument();
+		expect(await screen.findByText("Kennel daemon is not ready.")).toBeInTheDocument();
 
 		rerender(<DiffSelectionMenu {...props} onOpenChange={onOpenChange} open={false} />);
 		rerender(<DiffSelectionMenu {...props} onOpenChange={onOpenChange} open />);
 
 		expect(screen.getByRole("menuitem", { name: "Copy" })).toBeInTheDocument();
 		expect(screen.getByRole("menuitem", { name: "Explain" })).toBeInTheDocument();
-		expect(screen.queryByText("AO daemon is not ready.")).not.toBeInTheDocument();
+		expect(screen.queryByText("Kennel daemon is not ready.")).not.toBeInTheDocument();
 	});
 
 	it("resets to the action list when reopened after switching to input mode", async () => {

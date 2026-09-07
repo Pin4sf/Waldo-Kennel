@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 // The Chat controller contract.
@@ -29,7 +29,7 @@ var (
 	// bridge is missing.
 	ErrChatDriverUnavailable = errors.New("chat driver unavailable")
 	// ErrChatDriverIncompatible means the installed provider speaks a protocol
-	// version AO does not support.
+	// version Kennel does not support.
 	ErrChatDriverIncompatible = errors.New("chat driver incompatible")
 	// ErrChatAuthRequired means the provider is installed but not authenticated.
 	ErrChatAuthRequired = errors.New("chat driver requires authentication")
@@ -37,7 +37,7 @@ var (
 	// resumed. Callers must surface a recovery choice, never silently start a
 	// new provider conversation.
 	ErrChatResumeFailed = errors.New("chat conversation resume failed")
-	// ErrChatNoActiveTurn means an interrupt found nothing to cancel — either AO
+	// ErrChatNoActiveTurn means an interrupt found nothing to cancel — either Kennel
 	// has no turn in flight, or the provider no longer considers the named turn
 	// active. A driver must translate its provider's refusal into this rather than
 	// letting a protocol error escape: pressing stop a moment too late is an
@@ -50,7 +50,7 @@ var (
 	ErrChatRequestNotPending = errors.New("chat request is not pending")
 	// ErrChatDecisionNotOffered means the decision is not one the provider offered
 	// for that request. It must be refused and the request left pending: consent
-	// AO invented is not consent, and consuming the request on a bad decision
+	// Kennel invented is not consent, and consuming the request on a bad decision
 	// would leave the real answer with nothing to answer.
 	ErrChatDecisionNotOffered = errors.New("chat decision was not offered for this request")
 	// ErrChatConfigOptionInvalid means a client named an unknown option, sent the
@@ -58,11 +58,11 @@ var (
 	ErrChatConfigOptionInvalid = errors.New("chat config option value is invalid")
 )
 
-// ChatCapability names something a driver may or may not be able to do. AO gates
+// ChatCapability names something a driver may or may not be able to do. Kennel gates
 // features on these rather than on the harness name.
 type ChatCapability string
 
-// The capabilities AO currently checks.
+// The capabilities Kennel currently checks.
 const (
 	ChatCapabilityStreaming ChatCapability = "streaming"
 	ChatCapabilityTools     ChatCapability = "tools"
@@ -88,7 +88,7 @@ const (
 	ChatCapabilityRollback ChatCapability = "rollback"
 	// ChatCapabilityFork means a conversation can be branched.
 	ChatCapabilityFork ChatCapability = "fork"
-	// ChatCapabilityRename means the thread carries a title AO can set.
+	// ChatCapabilityRename means the thread carries a title Kennel can set.
 	ChatCapabilityRename ChatCapability = "rename"
 	// ChatCapabilitySkills means named skills can be enumerated and invoked.
 	ChatCapabilitySkills ChatCapability = "skills"
@@ -100,7 +100,7 @@ const (
 	// rather than offering it and reading the refusal.
 	ChatCapabilityMCPReload ChatCapability = "mcp_reload"
 	// ChatCapabilityImages means the provider accepts native image content in a
-	// prompt. AO may still stage a worktree copy for durable/local context, but it
+	// prompt. Kennel may still stage a worktree copy for durable/local context, but it
 	// must not reduce an image to a path when this capability is available.
 	ChatCapabilityImages ChatCapability = "images"
 	// ChatCapabilityEmbeddedContext means the provider accepts embedded resources
@@ -115,7 +115,7 @@ const (
 	ChatCapabilityNestedAgents ChatCapability = "nested_agents"
 	// ChatCapabilityTerminalOutput means command results include the provider's
 	// terminal identity/output metadata. It is read-only transcript richness, not
-	// permission for the provider to execute through AO's terminal runtime.
+	// permission for the provider to execute through Kennel's terminal runtime.
 	ChatCapabilityTerminalOutput ChatCapability = "terminal_output"
 )
 
@@ -125,7 +125,7 @@ type ChatCapabilities map[ChatCapability]bool
 // Has reports whether the capability is present and enabled.
 func (c ChatCapabilities) Has(capability ChatCapability) bool { return c[capability] }
 
-// chatProductionFloor is the minimum a driver must support before AO will let a
+// chatProductionFloor is the minimum a driver must support before Kennel will let a
 // session that can mutate a workspace run in Chat mode. Without approvals a
 // mutating agent has no gate; without interrupt the user cannot stop it; without
 // resume a daemon restart silently loses the conversation.
@@ -151,27 +151,27 @@ func MissingProductionCapabilities(caps ChatCapabilities) []ChatCapability {
 // ChatStartConfig is what a driver needs to open a new provider conversation.
 type ChatStartConfig struct {
 	SessionID domain.SessionID
-	// DataDir is AO's state root. Provider bindings may write process-scoped
+	// DataDir is Kennel's state root. Provider bindings may write process-scoped
 	// configuration beneath it, but must never use the worktree or an OS-default
-	// application-data directory for AO-owned state.
+	// application-data directory for Kennel-owned state.
 	DataDir string
 	// WorkspacePath is the session worktree. Always absolute: app-server-style
 	// drivers resolve a relative path against their own process directory.
 	WorkspacePath string
 	// Env is the environment for the driver process and, transitively, for the
-	// shell commands the agent runs. AO passes a HookPATH-augmented copy so the
+	// shell commands the agent runs. Kennel passes a HookPATH-augmented copy so the
 	// agent can invoke `ao` — that is how an orchestrator delegates.
 	Env map[string]string
 	// Model is optional; empty defers to the provider's configured default.
 	Model string
-	// Permissions is AO's existing per-session approval policy. Drivers map it
+	// Permissions is Kennel's existing per-session approval policy. Drivers map it
 	// onto their provider's native approval and sandbox settings.
 	Permissions PermissionMode
-	// SystemPrompt carries AO's standing instructions for the session.
+	// SystemPrompt carries Kennel's standing instructions for the session.
 	SystemPrompt string
 	// AdditionalDirectories are extra absolute workspace roots the provider may
 	// access alongside WorkspacePath. Workspace projects use this for child repo
-	// worktrees; it is not a replacement for AO's worktree ownership.
+	// worktrees; it is not a replacement for Kennel's worktree ownership.
 	AdditionalDirectories []string
 	// MCPServers are client-supplied tool servers for this provider conversation.
 	// User/provider configuration still loads normally; these are additive.
@@ -194,7 +194,7 @@ type ChatResumeConfig struct {
 }
 
 // ChatMCPServerConfig is the provider-neutral session-setup shape for a tool
-// server supplied by AO. Exactly one transport is meaningful according to Type.
+// server supplied by Kennel. Exactly one transport is meaningful according to Type.
 // Secrets stay in Env/Headers and are sent only to the local provider process;
 // this value is never part of a conversation snapshot.
 type ChatMCPServerConfig struct {
@@ -250,7 +250,7 @@ type ChatTurnSettings struct {
 	Model string
 	// Effort is how much reasoning to spend, from ChatModel.Efforts.
 	Effort string
-	// Approval is AO's permission mode for this turn. The driver maps it onto
+	// Approval is Kennel's permission mode for this turn. The driver maps it onto
 	// whatever approval policy and sandbox its provider understands.
 	Approval PermissionMode
 }
@@ -263,9 +263,9 @@ func (s ChatTurnSettings) IsZero() bool {
 
 // ChatModel is one model the provider offers for a conversation.
 //
-// The list comes from the provider, never from a table in AO. A hardcoded catalog
+// The list comes from the provider, never from a table in Kennel. A hardcoded catalog
 // is wrong within a week: models are added, renamed, hidden per account, and
-// gated by entitlement the provider knows about and AO does not.
+// gated by entitlement the provider knows about and Kennel does not.
 type ChatModel struct {
 	ID          string
 	DisplayName string
@@ -287,7 +287,7 @@ type ChatModelLister interface {
 
 // ChatConfigOptionType is the interaction an advertised provider setting needs.
 // ACP currently standardizes selects and is incubating booleans; keeping both in
-// AO's vocabulary prevents protocol DTOs from leaking out of the adapter.
+// Kennel's vocabulary prevents protocol DTOs from leaking out of the adapter.
 type ChatConfigOptionType string
 
 const (
@@ -319,7 +319,7 @@ type ChatConfigOptionChoice struct {
 //
 // Category is a presentation hint (model, thought_level, mode, or a provider
 // extension), never a correctness discriminator. Unknown categories must still
-// render: that is how a newly released agent feature reaches AO without an AO
+// render: that is how a newly released agent feature reaches Kennel without an Kennel
 // release adding a new hardcoded setting.
 type ChatConfigOption struct {
 	ID          string
@@ -413,7 +413,7 @@ type ChatAccount struct {
 	AuthMode  string
 	PlanLabel string
 	// ReauthRequired means the provider asked for credentials the client is
-	// expected to supply. AO does not hold provider credentials, so this is
+	// expected to supply. Kennel does not hold provider credentials, so this is
 	// reported to the user rather than answered.
 	ReauthRequired bool
 	// ReauthReason is the provider's stated reason, e.g. "unauthorized".
@@ -422,9 +422,9 @@ type ChatAccount struct {
 
 // ChatThreadState is the provider's lifecycle view of the thread.
 type ChatThreadState struct {
-	// Status is AO's neutral spelling of the provider's state.
+	// Status is Kennel's neutral spelling of the provider's state.
 	Status domain.ThreadStatus
-	// WaitingOn are the provider's active flags in AO's spelling.
+	// WaitingOn are the provider's active flags in Kennel's spelling.
 	WaitingOn []string
 	// Archived is tri-state: nil means this report says nothing about archiving,
 	// which is different from saying it is not archived.
@@ -452,7 +452,7 @@ type ChatSkill struct {
 	// message text beginning with /Name.
 	InputHint string
 	// Source says where it came from (built-in, a plugin, the project), so a user
-	// can tell an AO-provided skill from one the provider ships.
+	// can tell an Kennel-provided skill from one the provider ships.
 	Source string
 }
 
@@ -465,7 +465,7 @@ type ChatCompactionResult struct {
 }
 
 // Optional driver interfaces. Each is feature-detected, so a driver that cannot do
-// one of these simply does not offer it and AO hides the affordance rather than
+// one of these simply does not offer it and Kennel hides the affordance rather than
 // showing a control that fails.
 type (
 	// ChatCompactor summarizes earlier history to reclaim context. Without it a
@@ -515,7 +515,7 @@ type ChatTurnRef struct {
 // ChatDeferredTurnStarter is implemented by protocols whose prompt call is the
 // whole lifetime of a turn rather than a quick "accepted" request. SendTurn
 // prepares such a turn and returns its id; the controller calls StartDeferredTurn
-// only after that id is durably bound to AO's turn row. This prevents a fast
+// only after that id is durably bound to Kennel's turn row. This prevents a fast
 // provider notification from racing ahead of the correlation record needed to
 // project it.
 //
@@ -523,7 +523,7 @@ type ChatTurnRef struct {
 // app-server, for example) do not implement this interface.
 type ChatDeferredTurnStarter interface {
 	StartDeferredTurn(providerTurnID string) error
-	// DiscardDeferredTurn releases a prepared turn when AO could not persist its
+	// DiscardDeferredTurn releases a prepared turn when Kennel could not persist its
 	// correlation id. No provider request has started at this point.
 	DiscardDeferredTurn(providerTurnID string)
 }
@@ -568,7 +568,7 @@ func (a ChatInputAction) Valid() bool {
 	return a == ChatInputActionAccept || a == ChatInputActionDecline || a == ChatInputActionCancel
 }
 
-// ChatInputMode distinguishes the two ACP elicitation shapes AO supports.
+// ChatInputMode distinguishes the two ACP elicitation shapes Kennel supports.
 type ChatInputMode string
 
 const (
@@ -602,7 +602,7 @@ type ChatInputRequest struct {
 }
 
 // ChatInputResponder is optional because not every machine protocol supports
-// structured user input. AO gates the route/UI on the negotiated capability.
+// structured user input. Kennel gates the route/UI on the negotiated capability.
 type ChatInputResponder interface {
 	ResolveInput(ctx context.Context, requestID string, response ChatInputResponse) error
 }
@@ -619,7 +619,7 @@ const (
 	// ChatEventUserMessageCompleted is a settled user message recovered from the
 	// provider's native history. Live sends are already durable before dispatch and
 	// therefore never emit this event; history readers use it to reconstruct turns
-	// AO did not originally render (for example, work completed in the TUI).
+	// Kennel did not originally render (for example, work completed in the TUI).
 	ChatEventUserMessageCompleted ChatEventKind = "message.user.completed"
 	ChatEventMessageDelta         ChatEventKind = "message.delta"
 	ChatEventMessageCompleted     ChatEventKind = "message.completed"
@@ -632,7 +632,7 @@ const (
 	ChatEventControllerState      ChatEventKind = "controller.state"
 	ChatEventError                ChatEventKind = "error"
 
-	// Kinds below carry provider signal AO previously discarded. Each is modelled
+	// Kinds below carry provider signal Kennel previously discarded. Each is modelled
 	// rather than folded into an activity so a reader can tell "the agent produced
 	// output" from "the conversation itself changed".
 
@@ -674,7 +674,7 @@ const (
 	// while a different one is answering.
 	ChatEventModelRerouted ChatEventKind = "model.rerouted"
 	// ChatEventAccountChanged reports the provider account's auth mode, plan, or its
-	// need for credentials AO does not hold.
+	// need for credentials Kennel does not hold.
 	ChatEventAccountChanged ChatEventKind = "account.changed"
 	// ChatEventThreadState reports the provider's own lifecycle view of the thread:
 	// working, idle, archived, closed.
@@ -689,7 +689,7 @@ const (
 type ChatControllerState string
 
 // Controller states. Unknown is not death: a failed probe is not proof a session
-// is gone, matching how AO already treats runtime probes.
+// is gone, matching how Kennel already treats runtime probes.
 const (
 	ChatControllerConnecting ChatControllerState = "connecting"
 	ChatControllerReady      ChatControllerState = "ready"
@@ -789,7 +789,7 @@ type ChatDriver interface {
 	// Probe checks the local install without creating anything: is the binary
 	// present, is it authenticated, what can it do. It must be safe to call
 	// before any durable session or worktree exists, so an unsupported request
-	// can be rejected before AO commits resources.
+	// can be rejected before Kennel commits resources.
 	Probe(ctx context.Context) (ChatCapabilities, error)
 	// Start opens a new provider conversation.
 	Start(ctx context.Context, cfg ChatStartConfig) (ChatConversation, error)
@@ -801,7 +801,7 @@ type ChatDriver interface {
 // ChatConversation is one live controller. Exactly one exists per Chat session,
 // and it is the only writer to its provider conversation.
 type ChatConversation interface {
-	// ProviderConversationID is the opaque identifier AO persists so a later
+	// ProviderConversationID is the opaque identifier Kennel persists so a later
 	// process can resume this conversation.
 	ProviderConversationID() string
 	// Capabilities is what this conversation actually negotiated, which can be

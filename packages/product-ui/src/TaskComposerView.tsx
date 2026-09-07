@@ -14,10 +14,15 @@ import {
 	XIcon as X,
 } from "./icons";
 
+/** Mirrors the daemon's AgentInfo DTO; keep in sync when the API schema changes. */
 export type TaskComposerAgentOption = {
 	authStatus?: "authorized" | "unauthorized" | "unknown";
 	id: string;
 	label: string;
+	ready?: boolean | null;
+	readyDetail?: string;
+	requiresProfile?: boolean;
+	roles: { coordinator: boolean; switchTarget: boolean; worker: boolean };
 };
 
 export type TaskComposerAgentControl = {
@@ -103,6 +108,8 @@ export type TaskComposerViewProps = {
 	model: Omit<TaskComposerModelControl, "id">;
 	onPromptChange: (value: string) => void;
 	prompt: string;
+	/** Inline setup guidance shown under the run controls, e.g. a missing launch profile. */
+	profileHint?: string;
 	renderAgentControl: (control: TaskComposerAgentControl) => ReactNode;
 	renderModelControl: (control: TaskComposerModelControl) => ReactNode;
 	submission: TaskComposerSubmission;
@@ -117,6 +124,7 @@ export function TaskComposerView({
 	model,
 	onPromptChange,
 	prompt,
+	profileHint,
 	renderAgentControl,
 	renderModelControl,
 	submission,
@@ -284,6 +292,9 @@ export function TaskComposerView({
 					)}
 				</button>
 			</div>
+			{profileHint && (
+				<p className="px-3 pb-2 text-caption text-warning" role="status">{profileHint}</p>
+			)}
 		</form>
 	);
 }

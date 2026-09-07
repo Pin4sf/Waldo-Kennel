@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/codexappserver/codexproto"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/codexappserver/codexproto"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // eventBuffer bounds the normalized event stream. Deltas are dropped when a
@@ -22,7 +22,7 @@ const eventBuffer = 4096
 
 // approvalWait bounds how long the provider is left blocked on an unanswered
 // request. Codex holds its turn until the client replies, so an approval nobody
-// resolves would hang the session indefinitely. On expiry AO refuses rather than
+// resolves would hang the session indefinitely. On expiry Kennel refuses rather than
 // deciding on the user's behalf.
 const approvalWait = 30 * time.Minute
 
@@ -31,7 +31,7 @@ var errConversationClosed = errors.New("conversation closed")
 
 // approvalMethods are the server->client requests that represent a decision the
 // user must make. Anything else the provider asks is refused: answering a request
-// AO does not model risks consenting to something on the user's behalf.
+// Kennel does not model risks consenting to something on the user's behalf.
 var approvalMethods = map[string]domain.ActivityKind{
 	codexproto.MethodItemCommandExecutionRequestApproval: domain.ActivityKindCommand,
 	codexproto.MethodItemFileChangeRequestApproval:       domain.ActivityKindFileChange,
@@ -123,7 +123,7 @@ func (c *conversation) start(threadID, model, effort string) {
 	go c.pump()
 }
 
-// ProviderConversationID is the Codex thread id AO persists for resume.
+// ProviderConversationID is the Codex thread id Kennel persists for resume.
 func (c *conversation) ProviderConversationID() string { return c.threadID }
 
 // Capabilities reports what this conversation can do.
@@ -173,7 +173,7 @@ func (c *conversation) pump() {
 			}
 			if ev.Kind == ports.ChatEventApprovalResolved {
 				// The provider resolved it (possibly via another client), so any
-				// card AO is still showing is stale.
+				// card Kennel is still showing is stale.
 				c.discardPending(ev.RequestID)
 			}
 			c.emit(ev)
@@ -299,7 +299,7 @@ func turnSandboxPolicy(sandbox string) map[string]any {
 // ListModels asks the provider which models this account may use.
 //
 // The provider is the only honest source: models get added, renamed, hidden per
-// account, and gated by entitlement that AO cannot see. A table in AO would be
+// account, and gated by entitlement that Kennel cannot see. A table in Kennel would be
 // wrong within a week.
 func (c *conversation) ListModels(ctx context.Context) ([]ports.ChatModel, error) {
 	var resp struct {
@@ -472,7 +472,7 @@ func (c *conversation) settleCompaction(ev ports.ChatEvent) (ports.ChatEvent, bo
 
 // compactionSummary labels the reclaim for a timeline row.
 //
-// It only claims a number it actually has. AO has no context figure until the
+// It only claims a number it actually has. Kennel has no context figure until the
 // provider reports one, so a compaction right after a restart genuinely does not
 // know what it saved, and "reclaimed 0 tokens" would be a lie rather than a gap.
 func compactionSummary(before, after int64) string {
@@ -536,7 +536,7 @@ func isNoActiveTurn(err error) bool {
 //
 // The decision is checked against the set the provider offered for THIS request,
 // and the request stays parked unless a valid answer is actually going through.
-// Both halves matter: forwarding an invented decision is consent AO made up, and
+// Both halves matter: forwarding an invented decision is consent Kennel made up, and
 // consuming the request on a bad one would leave the user's real answer with
 // nothing left to answer while the provider waits out its timeout.
 func (c *conversation) ResolveRequest(ctx context.Context, requestID string, decision ports.ChatDecision) error {
@@ -575,7 +575,7 @@ func (c *conversation) ResolveRequest(ctx context.Context, requestID string, dec
 // Keeping the provider's own payload for each decision is what makes structured
 // decisions answerable at all: some arrive as objects carrying parameters
 // (acceptWithExecpolicyAmendment), and a client that only knows the id cannot
-// reconstruct them. AO echoes what the provider sent rather than rebuilding it.
+// reconstruct them. Kennel echoes what the provider sent rather than rebuilding it.
 type parkedRequest struct {
 	ch      chan ports.ChatDecision
 	method  string
@@ -612,7 +612,7 @@ func (p *parkedRequest) offeredIDs() []string {
 // handleServerRequest parks a provider request until a decision arrives.
 //
 // The provider blocks its turn on the reply, so this deliberately waits rather
-// than answering immediately. Everything AO does not model is refused with an
+// than answering immediately. Everything Kennel does not model is refused with an
 // error, never with a fabricated decision.
 func (c *conversation) handleServerRequest(ctx context.Context, req serverRequest) (any, error) {
 	switch req.Method {
@@ -677,7 +677,7 @@ func (c *conversation) handleServerRequest(ctx context.Context, req serverReques
 // reportAuthRefreshRequest surfaces the provider asking for ChatGPT credentials and
 // returns the refusal to send back.
 //
-// AO does not hold provider credentials. Codex owns its own ChatGPT OAuth tokens
+// Kennel does not hold provider credentials. Codex owns its own ChatGPT OAuth tokens
 // (authMode `chatgpt`) and refreshes them itself; this request belongs to authMode
 // `chatgptAuthTokens`, where an external host app supplies them, and the generated
 // schema marks that mode OpenAI-internal. So the honest answer is an error — but the
@@ -685,18 +685,18 @@ func (c *conversation) handleServerRequest(ctx context.Context, req serverReques
 // session has stopped working for a reason no retry will fix.
 //
 // NEVER OBSERVED live: reaching it requires the provider to take a 401 while running
-// in a mode AO does not use, which a test cannot arrange without breaking real auth.
+// in a mode Kennel does not use, which a test cannot arrange without breaking real auth.
 func (c *conversation) reportAuthRefreshRequest(params json.RawMessage) error {
 	var p codexproto.ChatgptAuthTokensRefreshParams
 	// A payload this build cannot parse still means the same thing: the provider
-	// asked for credentials AO cannot supply.
+	// asked for credentials Kennel cannot supply.
 	_ = json.Unmarshal(params, &p)
 
 	reason := string(p.Reason)
 	if reason == "" {
 		reason = "unauthorized"
 	}
-	c.log.Warn("app-server asked for ChatGPT auth tokens AO does not hold", "reason", reason)
+	c.log.Warn("app-server asked for ChatGPT auth tokens Kennel does not hold", "reason", reason)
 	c.emit(ports.ChatEvent{
 		Kind: ports.ChatEventAccountChanged,
 		Account: &ports.ChatAccount{
@@ -708,16 +708,16 @@ func (c *conversation) reportAuthRefreshRequest(params json.RawMessage) error {
 		ports.ErrChatAuthRequired, reason)
 }
 
-// refuseDynamicToolCall declines a request to run a tool AO never offered.
+// refuseDynamicToolCall declines a request to run a tool Kennel never offered.
 //
 // `item/tool/call` asks the CLIENT to execute a tool the client declared during
-// initialize. AO declares none, so a well-behaved provider will never send this and
-// one that does is asking AO to run something it has no definition for. Refusing is
+// initialize. Kennel declares none, so a well-behaved provider will never send this and
+// one that does is asking Kennel to run something it has no definition for. Refusing is
 // the only safe answer: inventing a result would feed the model a fabrication.
 func (c *conversation) refuseDynamicToolCall(params json.RawMessage) error {
 	var p codexproto.DynamicToolCallParams
 	_ = json.Unmarshal(params, &p)
-	c.log.Warn("refusing dynamic tool call: AO declares no client-side tools",
+	c.log.Warn("refusing dynamic tool call: Kennel declares no client-side tools",
 		"tool", p.Tool, "callId", p.CallID)
 	return fmt.Errorf("client declares no tools; %q is not available", p.Tool)
 }
@@ -729,7 +729,7 @@ func (c *conversation) refuseDynamicToolCall(params json.RawMessage) error {
 // only way to recover a tool the agent needs is to throw the conversation away. The
 // provider re-announces every server's startup state as notifications afterwards, so
 // the returned list is a convenience for the caller that asked, not the only path by
-// which AO learns the outcome.
+// which Kennel learns the outcome.
 func (c *conversation) ReloadMCPServers(ctx context.Context) ([]ports.ChatMCPServer, error) {
 	// config/mcpServer/reload takes no params, verified against a live app-server.
 	if err := c.conn.request(ctx, codexproto.MethodConfigMcpServerReload, map[string]any{}, nil); err != nil {
@@ -744,7 +744,7 @@ func (c *conversation) ReloadMCPServers(ctx context.Context) ([]ports.ChatMCPSer
 	}
 	if err := c.conn.request(ctx, codexproto.MethodMcpServerStatusList, map[string]any{
 		// The summary form: the full one returns every tool's JSON Schema, which for a
-		// handful of servers is hundreds of kilobytes AO would immediately discard.
+		// handful of servers is hundreds of kilobytes Kennel would immediately discard.
 		"detail":   "summary",
 		"threadId": c.threadID,
 	}, &resp); err != nil {
@@ -799,7 +799,7 @@ func (c *conversation) Close() error {
 	return nil
 }
 
-// approvalPayload is the subset of an approval request AO renders.
+// approvalPayload is the subset of an approval request Kennel renders.
 type approvalPayload struct {
 	ThreadID string `json:"threadId"`
 	TurnID   string `json:"turnId"`

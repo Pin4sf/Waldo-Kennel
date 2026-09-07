@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/runfile"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/runfile"
 )
 
 const defaultStopTimeout = 10 * time.Second
@@ -23,7 +23,7 @@ func newStopCommand(ctx *commandContext) *cobra.Command {
 	opts := stopOptions{timeout: defaultStopTimeout}
 	cmd := &cobra.Command{
 		Use:   "stop",
-		Short: "Stop the AO daemon",
+		Short: "Stop the Kennel daemon",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			st, err := ctx.stopDaemon(cmd.Context(), opts)
@@ -34,7 +34,7 @@ func newStopCommand(ctx *commandContext) *cobra.Command {
 				return writeJSON(cmd.OutOrStdout(), st)
 			}
 			if st.State == stateStopped {
-				_, err = fmt.Fprintln(cmd.OutOrStdout(), "AO daemon stopped")
+				_, err = fmt.Fprintln(cmd.OutOrStdout(), "Kennel daemon stopped")
 				return err
 			}
 			return writeStatus(cmd, st)

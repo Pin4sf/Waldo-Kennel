@@ -1131,7 +1131,7 @@ cd backend && go build ./... && go test ./... && go test -race ./internal/httpd/
 Then a manual smoke:
 
 ```bash
-go run ./cmd/ao start &   # daemon up
+go run ./cmd/kennel start &   # daemon up
 curl -s -XPOST localhost:3001/api/v1/mobile/enable | tee /tmp/enable.json   # returns password + port
 # NOTE: envelope.WriteJSON encodes the DTO directly (no "data" wrapper).
 PW=$(python3 -c "import json;print(json.load(open('/tmp/enable.json'))['password'])")

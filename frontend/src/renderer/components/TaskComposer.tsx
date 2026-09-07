@@ -5,7 +5,7 @@ import {
 	type TaskComposerModelCatalog,
 	type TaskComposerModelControl,
 } from "@pin4sf/kennel-product-ui";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { RequiredAgentField } from "./CreateProjectAgentSheet";
@@ -21,10 +21,10 @@ import {
 	revalidateAgentModels,
 } from "../hooks/useAgentModelsQuery";
 import { cn } from "../lib/utils";
+import { resolvePreferredOutcomeAgent } from "../lib/execution-preferences";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { findProjectOrchestrator } from "../types/workspace";
 import { aoBridge } from "../lib/bridge";
-import { extractOutcomeSuggestions } from "../lib/outcome-suggestions";
 import { AgentModelCombobox } from "./settings/AgentModelCombobox";
 import { SettingsOptionMenu } from "./settings/SettingsOptionMenu";
 
@@ -90,31 +90,6 @@ export function TaskComposer({
 	const workspaces = useWorkspaceQuery().data ?? [];
 	const orchestrator = projectId ? findProjectOrchestrator(workspaces, projectId) : undefined;
 	const { settings } = useSettings();
-	const suggestionsQuery = useQuery({
-		queryKey: ["outcome-suggestions", orchestrator?.id],
-		enabled: Boolean(orchestrator?.id && orchestrator.mode === "chat"),
-		refetchInterval: 2_000,
-		queryFn: async () => {
-			const { data, error: apiError } = await apiClient.GET("/api/v1/sessions/{sessionId}/conversation", {
-				params: { path: { sessionId: orchestrator?.id ?? "" } },
-			});
-			if (apiError) throw new Error(apiErrorMessage(apiError));
-			return data;
-		},
-	});
-	const orientationRequestedFor = useRef<string | null>(null);
-	useEffect(() => {
-		if (!orchestrator || orchestrator.mode !== "chat" || suggestionsQuery.data?.controller !== "ready") return;
-		if ((suggestionsQuery.data.messages ?? []).length > 0 || orientationRequestedFor.current === orchestrator.id) return;
-		orientationRequestedFor.current = orchestrator.id;
-		void apiClient.POST("/api/v1/sessions/{sessionId}/conversation/messages", {
-			params: { path: { sessionId: orchestrator.id } },
-			body: {
-				text: "Perform Kennel's read-only high-level codebase orientation now. Do not change files or spawn workers. Return 2-4 useful outcome ideas, each on its own line prefixed exactly KENNEL_OUTCOME_SUGGESTION:.",
-			},
-		});
-	}, [orchestrator, suggestionsQuery.data]);
-	const outcomeSuggestions = extractOutcomeSuggestions(suggestionsQuery.data?.messages ?? []);
 	const {
 		attachments,
 		error: attachmentError,
@@ -195,21 +170,34 @@ export function TaskComposer({
 			if (next) queryClient.setQueryData(agentsQueryKey, next);
 		});
 	}, [queryClient]);
-	// The composer preselects the agent and model a spawn would actually use
-	// instead of parking the controls on a "default" label the user has to
-	// remember. Both resolved values remain directly editable.
+	const agentCatalog = agentsQuery.data;
+	// Project configuration supplies a baseline preference only. If the Project
+	// has no supported worker, the Outcome remains unconfigured rather than
+	// receiving a branded fallback. WT3 may later recommend a provider/model
+	// from the Outcome contract and Mission requirements.
 	const projectWorkerAgent = projectQuery.data?.config?.worker?.agent ?? "";
-	// Project/global defaults can be historical persisted identities. They remain
-	// display/history data, never a fresh task selection.
-	const defaultWorkerAgent: string = "codex";
-	const selectedAgent = agent === "codex" ? agent : defaultWorkerAgent;
+	const supportedAgentIds = (agentCatalog?.supported ?? []).map((item) => item.id);
+	const defaultWorkerAgent = resolvePreferredOutcomeAgent(projectWorkerAgent, supportedAgentIds);
+	const selectedAgent = agent === "" ? defaultWorkerAgent : agent;
 	const defaultWorkerModel =
 		projectQuery.data?.config?.worker?.agentConfig?.model ?? projectQuery.data?.config?.agentConfig?.model ?? "";
 	const defaultWorkerMode =
 		projectQuery.data?.config?.worker?.agentConfig?.mode ?? projectQuery.data?.config?.agentConfig?.mode ?? "";
-	const projectModelForSelectedAgent = selectedAgent === "codex" && projectWorkerAgent === "codex" ? defaultWorkerModel : "";
-	const projectModeForSelectedAgent = selectedAgent === "codex" && projectWorkerAgent === "codex" ? defaultWorkerMode : "";
-	const agentCatalog = agentsQuery.data;
+	const defaultWorkerProfile =
+		projectQuery.data?.config?.worker?.agentConfig?.profile ?? projectQuery.data?.config?.agentConfig?.profile ?? "";
+	const selectedMatchesProjectWorker = projectWorkerAgent !== "" && selectedAgent === projectWorkerAgent;
+	const projectModelForSelectedAgent = selectedMatchesProjectWorker ? defaultWorkerModel : "";
+	const projectModeForSelectedAgent = selectedMatchesProjectWorker ? defaultWorkerMode : "";
+	const projectProfileForSelectedAgent = selectedMatchesProjectWorker ? defaultWorkerProfile : "";
+	// Profile-required agents (deepseek-harness) launch only through a
+	// user-selected dsh profile persisted as AgentConfig.Profile. The
+	// daemon's inventory flags this authoritatively via `requiresProfile` and
+	// rejects profile-less spawns at request time, so block the Define outcome
+	// action early and explain the missing setup instead of failing after
+	// submit.
+	const selectedAgentRequiresProfile =
+		agentCatalog?.supported?.find((item) => item.id === selectedAgent)?.requiresProfile === true;
+	const profileMissing = selectedAgentRequiresProfile && projectProfileForSelectedAgent === "";
 
 	// Shares the picker's query key, so this is the same fetch, not a second one.
 	const modelCatalogQuery = useQuery(agentModelsQueryOptions(selectedAgent, projectId ?? ""));
@@ -288,7 +276,7 @@ export function TaskComposer({
 	useEffect(() => () => clearAttachments(), [clearAttachments]);
 
 	const submitTask = async (interfaceMode?: "tui") => {
-		if (!projectId || isSubmitting) return;
+		if (!projectId || isSubmitting || profileMissing) return;
 
 		const cleanModel = model.trim();
 		const cleanMode = mode.trim();
@@ -306,8 +294,8 @@ export function TaskComposer({
 			const sessionId = await createTask({
 				projectId,
 				brief: prompt,
-				// The visible selection is authoritative: it is either the user's pick
-				// or the resolved default, so spawning names it explicitly.
+				// For Outcome intake this is a user preference, not immutable
+				// execution authority. Empty intentionally stays empty.
 				agent: selectedAgent ? (selectedAgent as CreateTaskInput["agent"]) : undefined,
 				model: requestedModel,
 				mode: interfaceMode,
@@ -345,25 +333,7 @@ export function TaskComposer({
 	return (
 		<div>
 			<div className="px-4 pb-1 text-xs text-muted-foreground">
-				{outcomeSuggestions.length > 0 ? (
-					<>
-						<p className="mb-2 font-medium text-foreground">{t("newTask.suggestionsTitle")}</p>
-						<div className="flex flex-wrap gap-2">
-							{outcomeSuggestions.map((suggestion) => (
-								<button key={suggestion} type="button" className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-left hover:bg-muted" onClick={() => setPrompt(suggestion)}>
-									{suggestion}
-								</button>
-							))}
-						</div>
-					</>
-				) : orchestrator?.mode === "chat" ? (
-					<p className="flex items-center gap-2" role="status">
-						<Loader2 className="size-3.5 animate-spin text-accent" aria-hidden="true" />
-						{t("newTask.exploringCodebase")}
-					</p>
-				) : (
-					<p role="status">{t("newTask.suggestionsRequireChat")}</p>
-				)}
+				<p role="status">{t("newTask.description")}</p>
 			</div>
 			{canInstallTmux ? (
 				<div className="mx-4 mb-2 flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2 text-xs">
@@ -374,76 +344,77 @@ export function TaskComposer({
 				</div>
 			) : null}
 			<TaskComposerView
-			autoFocusPrompt={autoFocusTitle}
-			canSubmit={Boolean(projectId && prompt.trim())}
-			prompt={prompt}
-			onPromptChange={setPrompt}
-			labels={{
-				addFile: t("newTask.addFile"),
-				createAsTui: t("newTask.createAsTui"),
-				removeFile: (name) => t("newTask.removeFile", { name }),
-				runsWith: t("newTask.runsWith"),
-				start: t("newTask.start"),
-				starting: t("newTask.starting"),
-				task: t("newTask.task"),
-				taskPlaceholder: t("newTask.taskPlaceholder"),
-			}}
-			agent={{
-				label: t("newTask.agent"),
-				placeholder: t("newTask.selectAgent"),
-				value: selectedAgent,
-				authorized: agentCatalog?.authorized,
-				installed: agentCatalog?.installed,
-				supported: agentCatalog?.supported,
-				disabled: agentsQuery.isFetching && agentCatalog === undefined,
-				onChange: (value) => {
-					setAgent(value);
-					setAgentTouched(true);
-					setModel("");
-					setMode("");
-					setModelTouched(false);
-				},
-			}}
-			model={{
-				agentId: selectedAgent,
-				agentLabel: selectedAgentLabel,
-				projectId: projectId ?? "",
-				value: model,
-				mode,
-				catalog: modelCatalog,
-				fetching: modelCatalogQuery.isFetching,
-				loading:
-					selectedAgent !== "" &&
-					modelCatalogQuery.isFetching &&
-					modelCatalogQuery.data === undefined,
-				refreshing: false,
-				onModelChange: (value) => {
-					setModel(value);
-					setMode("");
-					setModelTouched(true);
-				},
-				onModeChange: (value) => {
-					setMode(value);
-					setModel("");
-					setModelTouched(true);
-				},
-			}}
-			attachments={{
-				items: attachments.map(({ id, name, dataUrl }) => ({ id, name, previewUrl: dataUrl })),
-				error: attachmentError,
-				onAddFiles: (files) => void addFiles(files),
-				onRemove: removeAttachment,
-			}}
-			submission={{
-				canCreateAsTui: canCreateAsTUI,
-				error,
-				isSubmitting,
-				modelWarning,
-				onSubmit: () => void submitTask(requiresTuiFallback ? "tui" : undefined),
-				onSubmitAsTui: () => void submitTask("tui"),
-			}}
-			renderAgentControl={(control) => <DesktopAgentControl {...control} />}
-			renderModelControl={(control) => <TaskModelPicker {...control} />}
+				autoFocusPrompt={autoFocusTitle}
+				canSubmit={Boolean(projectId && prompt.trim()) && !profileMissing}
+				prompt={prompt}
+				onPromptChange={setPrompt}
+				profileHint={profileMissing ? t("newTask.profileRequired") : undefined}
+				labels={{
+					addFile: t("newTask.addFile"),
+					createAsTui: t("newTask.createAsTui"),
+					removeFile: (name) => t("newTask.removeFile", { name }),
+					runsWith: t("newTask.runsWith"),
+					start: t("newTask.start"),
+					starting: t("newTask.starting"),
+					task: t("newTask.task"),
+					taskPlaceholder: t("newTask.taskPlaceholder"),
+				}}
+				agent={{
+					label: t("newTask.agent"),
+					placeholder: t("newTask.selectAgent"),
+					value: selectedAgent,
+					authorized: agentCatalog?.authorized,
+					installed: agentCatalog?.installed,
+					supported: agentCatalog?.supported,
+					disabled: agentsQuery.isFetching && agentCatalog === undefined,
+					onChange: (value) => {
+						setAgent(value);
+						setAgentTouched(true);
+						setModel("");
+						setMode("");
+						setModelTouched(false);
+					},
+				}}
+				model={{
+					agentId: selectedAgent,
+					agentLabel: selectedAgentLabel,
+					projectId: projectId ?? "",
+					value: model,
+					mode,
+					catalog: modelCatalog,
+					fetching: modelCatalogQuery.isFetching,
+					loading:
+						selectedAgent !== "" &&
+						modelCatalogQuery.isFetching &&
+						modelCatalogQuery.data === undefined,
+					refreshing: false,
+					onModelChange: (value) => {
+						setModel(value);
+						setMode("");
+						setModelTouched(true);
+					},
+					onModeChange: (value) => {
+						setMode(value);
+						setModel("");
+						setModelTouched(true);
+					},
+				}}
+				attachments={{
+					items: attachments.map(({ id, name, dataUrl }) => ({ id, name, previewUrl: dataUrl })),
+					error: attachmentError,
+					onAddFiles: (files) => void addFiles(files),
+					onRemove: removeAttachment,
+				}}
+				submission={{
+					canCreateAsTui: canCreateAsTUI,
+					error,
+					isSubmitting,
+					modelWarning,
+					onSubmit: () => void submitTask(requiresTuiFallback ? "tui" : undefined),
+					onSubmitAsTui: () => void submitTask("tui"),
+				}}
+				renderAgentControl={(control) => <DesktopAgentControl {...control} />}
+				renderModelControl={(control) => <TaskModelPicker {...control} />}
 			/>
 		</div>
 	);

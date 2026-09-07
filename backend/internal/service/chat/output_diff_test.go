@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/store"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/store"
 )
 
 // Projection of streamed command output and the turn's running diff.
@@ -364,7 +364,7 @@ func TestEmptyTurnDiffClearsThePreviousOne(t *testing.T) {
 	}
 }
 
-// A diff naming a turn AO never recorded is dropped rather than attributed to
+// A diff naming a turn Kennel never recorded is dropped rather than attributed to
 // whichever turn happened to be nearby. This is the post-restart case, where a
 // controller reattaches to a provider turn that predates it.
 func TestTurnDiffForUnknownTurnIsDropped(t *testing.T) {

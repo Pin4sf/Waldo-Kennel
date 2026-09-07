@@ -13,8 +13,8 @@ func TestListenUnixUsesShortAliasForLongDataPath(t *testing.T) {
 	runtimeDir := filepath.Join(t.TempDir(), strings.Repeat("long-data-directory-", 6))
 	runFilePath := filepath.Join(runtimeDir, "running.json")
 	// t.TempDir inherits TMPDIR, which can itself exceed sockaddr_un's limit in
-	// a normal AO worktree. Use the same deliberately short spelling as Listen.
-	aliasRoot, err := os.MkdirTemp("/tmp", "ao-br-test-")
+	// a normal Kennel worktree. Use the same deliberately short spelling as Listen.
+	aliasRoot, err := os.MkdirTemp("/tmp", "kennel-br-test-")
 	if err != nil {
 		t.Fatalf("create short alias root: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestListenUnixUsesShortAliasForLongDataPath(t *testing.T) {
 }
 
 func TestCleanupStaleRuntimeAliasesRemovesOnlyDeadOwnedLinks(t *testing.T) {
-	root, err := os.MkdirTemp("/tmp", "ao-br-cleanup-test-")
+	root, err := os.MkdirTemp("/tmp", "kennel-br-cleanup-test-")
 	if err != nil {
 		t.Fatalf("create short alias root: %v", err)
 	}
@@ -58,10 +58,10 @@ func TestCleanupStaleRuntimeAliasesRemovesOnlyDeadOwnedLinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	links := map[string]string{
-		"ao-brd-101-aaaaaaaaaaaaaaaa": runtimeDir,
-		"ao-brd-202-bbbbbbbbbbbbbbbb": runtimeDir,
-		"ao-brd-303-cccccccccccccccc": foreignDir,
-		"ao-br-not-owned":             runtimeDir,
+		"kennel-brd-101-aaaaaaaaaaaaaaaa": runtimeDir,
+		"kennel-brd-202-bbbbbbbbbbbbbbbb": runtimeDir,
+		"kennel-brd-303-cccccccccccccccc": foreignDir,
+		"kennel-br-not-owned":             runtimeDir,
 	}
 	for name, target := range links {
 		if err := os.Symlink(target, filepath.Join(root, name)); err != nil {
@@ -80,9 +80,9 @@ func TestCleanupStaleRuntimeAliasesRemovesOnlyDeadOwnedLinks(t *testing.T) {
 		got = append(got, entry.Name())
 	}
 	want := []string{
-		"ao-br-not-owned",
-		"ao-brd-202-bbbbbbbbbbbbbbbb",
-		"ao-brd-303-cccccccccccccccc",
+		"kennel-br-not-owned",
+		"kennel-brd-202-bbbbbbbbbbbbbbbb",
+		"kennel-brd-303-cccccccccccccccc",
 	}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("remaining aliases = %v, want %v", got, want)

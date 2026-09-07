@@ -25,7 +25,7 @@ Non-trivial work? Comment on the issue or ping Discord first. Get a thumbs-up, t
 
 1. **Join Discord** — say hi and get guidance
 2. **Read the contract** — [AGENTS.md](AGENTS.md) (layout, commands, hard rules, PR hygiene)
-3. **Pick something focused** — [open issues](https://github.com/AgentWrapper/agent-orchestrator/issues); prefer `good-first-issue` / `help wanted`
+3. **Pick something focused** — [open issues](https://github.com/Pin4sf/Waldo-Kennel/issues); prefer an assigned issue in the current milestone
 4. **Claim it** — comment `I'd like to work on this` and wait for assignment
 5. **Open a clear PR** — narrow change, link the issue, user-visible impact, tests
 6. **Iterate** — address review; maintainers merge
@@ -42,15 +42,24 @@ Two onboarding notes matter on current `main`:
 ### Bugs and features
 
 Use the GitHub issue forms (**Bug report** / **Feature request**) so reports stay reproducible.
-Bug reports should include AO version, environment, repro steps, and expected vs actual behavior.
+Bug reports should include the Kennel version or commit, environment, repro steps, and expected vs actual behavior.
 
 ### Pull requests
 
-New PRs are prefilled from [`.github/pull_request_template.md`](.github/pull_request_template.md).
-Also follow **PR hygiene** in [AGENTS.md](AGENTS.md): branch from `main`, one issue per PR, conventional commits, explain intentional omissions, and keep CI green for the area you touched.
+Follow **PR hygiene** in [AGENTS.md](AGENTS.md): one issue per PR, conventional commits, explicit dependencies and shared-file ownership, intentional omissions, and verification evidence.
+
+Kennel uses `beta` as its integration branch:
+
+1. Refresh `origin/beta` before starting an assigned issue.
+2. Create one issue branch from that commit; do not commit directly to `beta` or `main`.
+3. Open the implementation PR against `beta` and wait for its required tests and review.
+4. Coordinate shared files, generated API artifacts, and migration numbers with the integration owner before editing.
+5. Maintainers test the integrated `beta` branch and promote it through a separate `beta` -> `main` PR.
+
+Releases are cut only from tested `main` by the designated release conductor. A merge to `beta` is not a release or deployment authorization.
 
 ## Code of Conduct
 
 Be respectful, constructive, and assume good intent. Report problems to maintainers via Discord DM.
 
-Thanks for making agent-orchestrator better for the next person who shows up.
+Thanks for making Waldo Kennel better for the next person who shows up.

@@ -1,0 +1,441 @@
+// Package outcome owns the canonical Understand contract (#21): the daemon-side
+// authority for ResponsibilitySpaces, Outcomes, and their immutable
+// ContractRevisions. It deliberately knows nothing about plans, attempts,
+// evidence, or acceptance — those belong to later Work slices — and nothing
+// about providers: no provider message, session state, check, or commit can
+// create, revise, or conclude an Outcome.
+package outcome
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+)
+
+// Manager is the controller-facing boundary for the Outcome contract.
+type Manager interface {
+	// Create records a new Outcome with ContractRevision 1 in the project's
+	// Work responsibility space. Replaying a delivered RequestKey resolves to
+	// the original Outcome without writing anything.
+	Create(ctx context.Context, in CreateInput) (OutcomeView, error)
+
+	// ReviseContract appends ContractRevision n+1 and moves the
+	// current-revision pointer from ExpectedRevision to it. A stale pointer is
+	// reported as *ports.OutcomeConflictError; prior revisions stay untouched.
+	ReviseContract(ctx context.Context, id domain.OutcomeID, in ReviseContractInput) (OutcomeView, error)
+
+	// Get reads the Outcome view: canonical facts plus full revision history.
+	Get(ctx context.Context, id domain.OutcomeID) (OutcomeView, error)
+
+	// ListByProject returns every canonical Outcome and current immutable
+	// contract belonging to the project's Work responsibility space.
+	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]OutcomeView, error)
+
+	// ProposeDecomposition validates a decomposition and records it as a
+	// proposal. It creates no Outcome and no binding: a refused proposal
+	// leaves nothing behind, and an accepted one is still only an offer.
+	ProposeDecomposition(ctx context.Context, parentID domain.OutcomeID, in ProposeDecompositionInput) (DecompositionView, error)
+
+	// AuthorizeDecomposition is the owner decision that creates the
+	// contributing Outcomes a proposal described. It re-runs every gate
+	// against the parent's current contract rather than trusting what passed
+	// at propose time.
+	AuthorizeDecomposition(ctx context.Context, parentID domain.OutcomeID, decompositionID domain.DecompositionRevisionID) (DecompositionView, error)
+
+	// LatestDecomposition reads the newest decomposition and whether the
+	// parent contract has moved past it.
+	LatestDecomposition(ctx context.Context, parentID domain.OutcomeID) (DecompositionView, error)
+
+	// WaiveContributionDependency records the owner's explicit override of a
+	// declared ordering. Only the owner may waive, and the reason is durable.
+	WaiveContributionDependency(ctx context.Context, parentID domain.OutcomeID, in WaiveDependencyInput) (DecompositionView, error)
+
+	// AskForDecomposition opens a durable request and starts an agent working
+	// on it. The proposal arrives later, over the API: the daemon has no
+	// synchronous model call.
+	AskForDecomposition(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) (DecompositionRequestView, error)
+
+	// SubmitAgentProposal is the callback an agent-authored proposal arrives
+	// on. It passes the SAME gates a hand-authored proposal does.
+	SubmitAgentProposal(ctx context.Context, requestID domain.DecompositionRequestID, token string, in ProposeDecompositionInput, raw string) (DecompositionRequestView, error)
+
+	// LatestDecompositionRequest reads an Outcome's newest ask.
+	LatestDecompositionRequest(ctx context.Context, outcomeID domain.OutcomeID) (DecompositionRequestView, error)
+
+	// CreateContribution adds one contributing Outcome beneath parentID. It is
+	// the transactional primitive authorization builds on; it is deliberately
+	// NOT exposed over HTTP, because an ad-hoc contribution would bypass the
+	// coverage, containment, and ordering gates.
+	CreateContribution(ctx context.Context, parentID domain.OutcomeID, in CreateContributionInput) (OutcomeView, error)
+
+	// Composition reports derived shape, contributing Outcomes, and criterion
+	// coverage. A direct Outcome answers shape "direct" with no contributors.
+	Composition(ctx context.Context, id domain.OutcomeID) (CompositionView, error)
+
+	// ProposePlan deterministically derives the smallest-sufficient direct
+	// Work Unit from the Outcome's current contract revision, freezes it into
+	// a RunBrief core digest, and records it as a proposed PlanRevision.
+	ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) (PlanView, error)
+
+	// ApprovePlan authorizes a proposed plan after re-checking that it still
+	// binds the current contract revision and that every capability grant
+	// survives all authority layers.
+	ApprovePlan(ctx context.Context, outcomeID domain.OutcomeID, in ApprovePlanInput) (AuthorizedPlanView, error)
+
+	// GetLatestPlan reads the newest plan of any status for re-entry.
+	GetLatestPlan(ctx context.Context, outcomeID domain.OutcomeID) (PlanView, error)
+}
+
+// CreateInput carries one user-authored Understand statement. RequestKey is the
+// client's idempotency key for exactly-once creation.
+type CreateInput struct {
+	ProjectID       domain.ProjectID
+	Title           string
+	Goal            string
+	SuccessCriteria []string
+	Review          string
+	Constraints     []string
+	NonGoals        []string
+	Clarification   string
+	RequestKey      string
+}
+
+// ReviseContractInput supersedes the current contract. ExpectedRevision must
+// name the current revision; anything else conflicts.
+type ReviseContractInput struct {
+	ExpectedRevision int64
+	Goal             string
+	SuccessCriteria  []string
+	Review           string
+	Constraints      []string
+	NonGoals         []string
+	Clarification    string
+}
+
+// OutcomeView is the read model over one Outcome's durable facts. LatestPlan is
+// populated for project listings so re-entry can derive stage and next action
+// without provider transcripts. Stage labels themselves are never persisted.
+type OutcomeView struct {
+	Outcome    domain.Outcome
+	Current    domain.ContractRevision
+	History    []domain.ContractRevision
+	LatestPlan *domain.PlanRevision
+}
+
+// Service implements Manager over ports.OutcomeStore.
+type Service struct {
+	store ports.OutcomeStore
+	proof ports.OutcomeProofStore
+	// proposer starts agent-authored decomposition work. Nil means unwired.
+	proposer ports.DecompositionProposer
+	// reaper ends a proposing session once its ask is closed. Optional.
+	reaper ports.AnalystSessionReaper
+	clock  func() time.Time
+
+	// PolicyLayers optionally narrows the authority ceiling for tests and
+	// constrained environments. Empty means the v0 default: the worktree-local
+	// capability trio. Authorization intersects every layer and fails closed.
+	PolicyLayers [][]string
+
+	// Act & Observe seams (#31). spawner adapts the real session spawn path;
+	// heartbeats resolves bound-session facts for derived presentation. A nil
+	// spawner keeps every attempt admission refused (the controller answers
+	// 501) rather than half-wired.
+	spawner    ports.AttemptSessionSpawner
+	heartbeats heartbeatSource
+
+	// staleHeartbeat bounds how long a non-sticky running session may stay
+	// without activity before deriving unconfirmed. Zero uses the domain
+	// default; tests shrink it.
+	staleHeartbeat time.Duration
+}
+
+// WithStaleHeartbeat overrides the recency window used to derive unconfirmed
+// liveness. Positive durations only.
+func (s *Service) WithStaleHeartbeat(d time.Duration) *Service {
+	if d > 0 {
+		s.staleHeartbeat = d
+	}
+	return s
+}
+
+// New builds the service. clock may be nil for wall-clock time.
+func New(store ports.OutcomeStore, clock func() time.Time) *Service {
+	if clock == nil {
+		clock = func() time.Time { return time.Now().UTC() }
+	}
+	service := &Service{store: store, clock: clock}
+	if proof, ok := store.(ports.OutcomeProofStore); ok {
+		service.proof = proof
+	}
+	return service
+}
+
+// WithAnalystSessionReaper wires session cleanup for answered asks. A
+// proposing session has one job and is finished when its answer lands; leaving
+// it running holds a worktree and a runtime name the next spawn collides with.
+func (s *Service) WithAnalystSessionReaper(reaper ports.AnalystSessionReaper) *Service {
+	s.reaper = reaper
+	return s
+}
+
+// WithDecompositionProposer wires agent-authored decomposition. A nil proposer
+// leaves the ask refused with a truthful "not wired" answer rather than
+// pretending a request was started, mirroring every other unwired capability.
+func (s *Service) WithDecompositionProposer(proposer ports.DecompositionProposer) *Service {
+	s.proposer = proposer
+	return s
+}
+
+// WithProofStore supplies the append-only Work E proof boundary. Production
+// stores implement it directly; the explicit seam keeps older unit fakes small.
+func (s *Service) WithProofStore(proof ports.OutcomeProofStore) *Service {
+	s.proof = proof
+	return s
+}
+
+var _ Manager = (*Service)(nil)
+
+// Create records a new Outcome with ContractRevision 1, resolving replays by
+// request key.
+func (s *Service) Create(ctx context.Context, in CreateInput) (OutcomeView, error) {
+	if strings.TrimSpace(string(in.ProjectID)) == "" {
+		return OutcomeView{}, apierr.Invalid("PROJECT_REQUIRED", "Choose the project this Outcome belongs to", nil)
+	}
+	if strings.TrimSpace(in.RequestKey) == "" {
+		return OutcomeView{}, apierr.Invalid("REQUEST_KEY_REQUIRED", "Provide an idempotency key for this create", nil)
+	}
+	content := normalizeContractContent(in.RequestKey, in.Title, in.Goal, in.SuccessCriteria, in.Review, in.Constraints, in.NonGoals, in.Clarification)
+	if err := validateTitle(content.title); err != nil {
+		return OutcomeView{}, err
+	}
+	if err := validateContractCore(content); err != nil {
+		return OutcomeView{}, err
+	}
+
+	// Replay first: a delivered create never writes twice.
+	if existing, ok, err := s.store.FindOutcomeByIdempotencyKey(ctx, content.requestKey); err != nil {
+		return OutcomeView{}, err
+	} else if ok {
+		return s.Get(ctx, existing.ID)
+	}
+
+	space, err := s.store.EnsureWorkResponsibilitySpace(ctx, in.ProjectID)
+	if err != nil {
+		return OutcomeView{}, mapStoreSpaceError(err)
+	}
+	now := s.clock()
+	outcomeRecord := domain.Outcome{
+		ID:      domain.OutcomeID("out-" + uuid.NewString()),
+		SpaceID: space.ID,
+		Title:   content.title,
+	}
+	first := domain.ContractRevision{
+		ID:              domain.ContractRevisionID("cr-" + uuid.NewString()),
+		OutcomeID:       outcomeRecord.ID,
+		Goal:            content.goal,
+		SuccessCriteria: content.criteria,
+		Review:          content.review,
+		Constraints:     content.constraints,
+		NonGoals:        content.nonGoals,
+		Clarification:   content.clarification,
+		CreatedAt:       now,
+	}
+	first.Criteria = stableCriteria(first.ID, first.SuccessCriteria)
+	if err := s.store.CreateOutcomeWithContract(ctx, outcomeRecord, first, content.requestKey); err != nil {
+		// Either a genuine failure or a lost replay race against an identical
+		// request; resolve through the key so both paths serve the winner.
+		if existing, ok, findErr := s.store.FindOutcomeByIdempotencyKey(ctx, content.requestKey); findErr == nil && ok {
+			return s.Get(ctx, existing.ID)
+		}
+		return OutcomeView{}, err
+	}
+	return s.Get(ctx, outcomeRecord.ID)
+}
+
+func (s *Service) ListByProject(ctx context.Context, projectID domain.ProjectID) ([]OutcomeView, error) {
+	if strings.TrimSpace(string(projectID)) == "" {
+		return nil, apierr.Invalid("PROJECT_REQUIRED", "Choose the project whose Outcomes should be listed", nil)
+	}
+	records, err := s.store.ListOutcomesByProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	views := make([]OutcomeView, 0, len(records))
+	for _, record := range records {
+		view, err := s.Get(ctx, record.ID)
+		if err != nil {
+			return nil, err
+		}
+		latestPlan, found, err := s.store.GetLatestPlanRevision(ctx, record.ID)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			view.LatestPlan = &latestPlan
+		}
+		views = append(views, view)
+	}
+	return views, nil
+}
+
+// ReviseContract appends the next immutable revision under an optimistic
+// pointer guard.
+func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in ReviseContractInput) (OutcomeView, error) {
+	if in.ExpectedRevision < 1 {
+		return OutcomeView{}, apierr.Invalid("EXPECTED_REVISION_REQUIRED", "State which contract revision this edit supersedes", nil)
+	}
+	content := normalizeContractContent("", "", in.Goal, in.SuccessCriteria, in.Review, in.Constraints, in.NonGoals, in.Clarification)
+	if err := validateContractCore(content); err != nil {
+		return OutcomeView{}, err
+	}
+
+	if _, ok, err := s.store.GetOutcome(ctx, id); err != nil {
+		return OutcomeView{}, err
+	} else if !ok {
+		return OutcomeView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
+	}
+
+	next := domain.ContractRevision{
+		ID:              domain.ContractRevisionID("cr-" + uuid.NewString()),
+		OutcomeID:       id,
+		Goal:            content.goal,
+		SuccessCriteria: content.criteria,
+		Review:          content.review,
+		Constraints:     content.constraints,
+		NonGoals:        content.nonGoals,
+		Clarification:   content.clarification,
+		CreatedAt:       s.clock(),
+	}
+	next.Criteria = stableCriteria(next.ID, next.SuccessCriteria)
+	number, err := s.store.AppendContractRevision(ctx, id, in.ExpectedRevision, next)
+	if err != nil {
+		var conflict *ports.OutcomeConflictError
+		if errors.As(err, &conflict) {
+			return OutcomeView{}, apierr.New(apierr.KindConflict, "OUTCOME_CONTRACT_CONFLICT",
+				fmt.Sprintf("Contract moved to revision %s; reload and retry against it",
+					strconv.FormatInt(conflict.CurrentRevisionNum, 10)),
+				map[string]any{
+					"outcomeId":        string(id),
+					"expectedRevision": conflict.ExpectedRevisionNum,
+					"currentRevision":  conflict.CurrentRevisionNum,
+				})
+		}
+		return OutcomeView{}, err
+	}
+	_ = number
+	return s.Get(ctx, id)
+}
+
+func stableCriteria(revisionID domain.ContractRevisionID, texts []string) []domain.ContractCriterion {
+	criteria := make([]domain.ContractCriterion, 0, len(texts))
+	for i, text := range texts {
+		criteria = append(criteria, domain.ContractCriterion{
+			ID:                 domain.CriterionID("crit-" + uuid.NewString()),
+			ContractRevisionID: revisionID,
+			Position:           int64(i + 1),
+			Text:               text,
+		})
+	}
+	return criteria
+}
+
+// Get reads one Outcome's canonical facts plus full revision history.
+func (s *Service) Get(ctx context.Context, id domain.OutcomeID) (OutcomeView, error) {
+	record, ok, err := s.store.GetOutcome(ctx, id)
+	if err != nil {
+		return OutcomeView{}, err
+	}
+	if !ok {
+		return OutcomeView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
+	}
+	history, err := s.store.ListContractRevisions(ctx, id)
+	if err != nil {
+		return OutcomeView{}, err
+	}
+	for _, rev := range history {
+		if rev.Number == record.CurrentRevisionNumber {
+			return OutcomeView{Outcome: record, Current: rev, History: history}, nil
+		}
+	}
+	return OutcomeView{}, fmt.Errorf("outcome %s points at missing revision %d", id, record.CurrentRevisionNumber)
+}
+
+// contractContent is trimmed, validated Understand input.
+type contractContent struct {
+	requestKey    string
+	title         string
+	goal          string
+	criteria      []string
+	review        string
+	constraints   []string
+	nonGoals      []string
+	clarification string
+}
+
+func normalizeContractContent(requestKey, title, goal string, criteria []string, review string, constraints, nonGoals []string, clarification string) contractContent {
+	trimList := func(in []string) []string {
+		out := make([]string, 0, len(in))
+		for _, v := range in {
+			v = strings.TrimSpace(v)
+			if v != "" {
+				out = append(out, v)
+			}
+		}
+		return out
+	}
+	return contractContent{
+		requestKey:    strings.TrimSpace(requestKey),
+		title:         strings.TrimSpace(title),
+		goal:          strings.TrimSpace(goal),
+		criteria:      trimList(criteria),
+		review:        strings.TrimSpace(review),
+		constraints:   trimList(constraints),
+		nonGoals:      trimList(nonGoals),
+		clarification: strings.TrimSpace(clarification),
+	}
+}
+
+func validateTitle(title string) error {
+	const maxTitleLen = 200
+	switch {
+	case title == "":
+		return apierr.Invalid("OUTCOME_TITLE_REQUIRED", "Give the Outcome a short title", nil)
+	case len(title) > maxTitleLen:
+		return apierr.Invalid("OUTCOME_TITLE_TOO_LONG", fmt.Sprintf("Keep the title under %d characters", maxTitleLen), nil)
+	}
+	return nil
+}
+
+// validateContractCore applies the Goal/Success/Review requirements every
+// immutable revision must satisfy.
+func validateContractCore(c contractContent) error {
+	switch {
+	case c.goal == "":
+		return apierr.Invalid("OUTCOME_GOAL_REQUIRED", "State the goal this Outcome pursues", nil)
+	case len(c.criteria) == 0:
+		return apierr.Invalid("OUTCOME_CRITERIA_REQUIRED", "Name at least one success criterion", nil)
+	case c.review == "":
+		return apierr.Invalid("OUTCOME_REVIEW_REQUIRED", "Describe how the result will be reviewed", nil)
+	}
+	return nil
+}
+
+// mapStoreSpaceError translates foreign-key failures on unknown projects into
+// the shared not-found envelope.
+func mapStoreSpaceError(err error) error {
+	lower := strings.ToLower(err.Error())
+	if strings.Contains(lower, "foreign key") || strings.Contains(lower, "no such table") {
+		return apierr.NotFound("PROJECT_NOT_FOUND", "Register that project before recording Outcomes")
+	}
+	return err
+}

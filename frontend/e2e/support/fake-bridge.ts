@@ -35,13 +35,25 @@ export type FakeBridgeOptions = {
 	daemonPort?: number;
 };
 
+async function installEmptyAgentCatalog(page: Page, daemonPort: number) {
+	const response = { supported: [], installed: [], authorized: [] };
+	await page.route(`http://127.0.0.1:${daemonPort}/api/v1/agents`, (route) =>
+		route.fulfill({ json: response }),
+	);
+	await page.route(`http://127.0.0.1:${daemonPort}/api/v1/agents/refresh`, (route) =>
+		route.fulfill({ json: response }),
+	);
+}
+
 export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}): Promise<void> {
 	const version = opts.version ?? "9.9.9-test";
 	const daemonState = opts.daemonState ?? "ready";
 	const daemonPort = opts.daemonPort ?? 8080;
+	if (daemonState === "ready") await installEmptyAgentCatalog(page, daemonPort);
 
 	await page.addInitScript(
 		({ version, daemonState, daemonPort }) => {
+			window.localStorage.setItem("kennel.onboarding.completed", "true");
 			const unsubscribe = () => () => undefined;
 			const status: DaemonStatus =
 				daemonState === "ready" ? { state: "ready", port: daemonPort } : { state: daemonState };
@@ -62,6 +74,10 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					getVersion: async () => version,
 					chooseDirectory: async () => null,
 					openExternal: async () => undefined,
+					installTmux: async () => ({
+						status: "failed" as const,
+						message: "Installing tmux requires the desktop app.",
+					}),
 					scanImportFolder: async ({ path }: { path: string }) => ({ path, repos: [] }),
 					checkAncestorRepo: async () => undefined,
 					onNewSessionShortcut: unsubscribe,
@@ -85,6 +101,12 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					setOverlay: async () => undefined,
 					isFullScreen: async () => false,
 					onFullScreen: () => () => undefined,
+				},
+				island: {
+					getState: async () => ({ supported: false, enabled: false, visible: false, shortcut: "⌘`" }),
+					setVisible: async (visible: boolean) => ({ supported: false, enabled: visible, visible: false, shortcut: "⌘`" }),
+					openSettings: async () => ({ open: false }),
+					onState: () => () => undefined,
 				},
 				theme: { set: async () => undefined },
 				menu: { action: async () => undefined, notifyShellFocus: () => undefined },
@@ -198,7 +220,7 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					onSessionChanged: unsubscribe,
 				},
 			} satisfies AoBridge;
-			(window as unknown as { ao: unknown }).ao = ao;
+			(window as unknown as { kennel: unknown }).kennel = ao;
 		},
 		{ version, daemonState, daemonPort },
 	);
@@ -280,6 +302,7 @@ declare global {
 export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}): Promise<void> {
 	const version = opts.version ?? "9.9.9-test";
 	const daemonPort = opts.daemonPort ?? 8080;
+	await installEmptyAgentCatalog(page, daemonPort);
 	const projectId = opts.projectId ?? "fake-proj";
 	const projectName = opts.projectName ?? "fake-proj";
 	const platform = opts.platform ?? null;
@@ -287,6 +310,7 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 
 	await page.addInitScript(
 		({ version, daemonPort, projectId, projectName, platform, workers }) => {
+			window.localStorage.setItem("kennel.onboarding.completed", "true");
 			if (platform) {
 				try {
 					Object.defineProperty(navigator, "platform", { get: () => platform, configurable: true });
@@ -483,7 +507,7 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 			const navState = (viewId: string, url = "", error?: string) => ({
 				viewId,
 				url,
-				title: url ? "AO preview" : "",
+				title: url ? "Kennel preview" : "",
 				canGoBack: false,
 				canGoForward: false,
 				isLoading: false,
@@ -494,6 +518,10 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 					getVersion: async () => version,
 					chooseDirectory: async () => null,
 					openExternal: async () => undefined,
+					installTmux: async () => ({
+						status: "failed" as const,
+						message: "Installing tmux requires the desktop app.",
+					}),
 					scanImportFolder: async ({ path }: { path: string }) => ({ path, repos: [] }),
 					checkAncestorRepo: async () => undefined,
 					onNewSessionShortcut: unsubscribe,
@@ -517,6 +545,12 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 					setOverlay: async () => undefined,
 					isFullScreen: async () => false,
 					onFullScreen: () => () => undefined,
+				},
+				island: {
+					getState: async () => ({ supported: false, enabled: false, visible: false, shortcut: "⌘`" }),
+					setVisible: async (visible: boolean) => ({ supported: false, enabled: visible, visible: false, shortcut: "⌘`" }),
+					openSettings: async () => ({ open: false }),
+					onState: () => () => undefined,
 				},
 				theme: { set: async () => undefined },
 				menu: { action: async () => undefined, notifyShellFocus: () => undefined },
@@ -620,7 +654,7 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 					onSessionChanged: unsubscribe,
 				},
 			} satisfies AoBridge;
-			(window as unknown as { ao: unknown }).ao = ao;
+			(window as unknown as { kennel: unknown }).kennel = ao;
 		},
 		{ version, daemonPort, projectId, projectName, platform, workers },
 	);

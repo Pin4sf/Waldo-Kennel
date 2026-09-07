@@ -3,7 +3,7 @@ package codex
 import (
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 func TestDetectTerminalActivity(t *testing.T) {

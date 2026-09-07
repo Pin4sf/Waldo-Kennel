@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // TestAddExcludeTakesEffectInLinkedWorktree exercises AddExclude against a REAL
@@ -36,13 +36,13 @@ func TestAddExcludeTakesEffectInLinkedWorktree(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	pattern := "/.ao/attachments/"
+	pattern := "/.kennel/attachments/"
 	if err := ws.AddExclude(ctx, info, pattern); err != nil {
 		t.Fatalf("AddExclude: %v", err)
 	}
 
 	// Drop a file that matches the excluded pattern into the worktree.
-	attachDir := filepath.Join(info.Path, ".ao", "attachments")
+	attachDir := filepath.Join(info.Path, ".kennel", "attachments")
 	if err := os.MkdirAll(attachDir, 0o750); err != nil {
 		t.Fatalf("mkdir attachments: %v", err)
 	}

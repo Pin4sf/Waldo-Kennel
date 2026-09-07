@@ -1,5 +1,5 @@
 // Package agentruntime contains the provider-specific process mechanics shared
-// by AO's desktop adapters and remote Linux workers.
+// by Kennel's desktop adapters and remote Linux workers.
 package agentruntime
 
 import (
@@ -22,7 +22,7 @@ const (
 	HarnessCursor     Harness = "cursor"
 )
 
-// PermissionPolicy is AO's provider-neutral approval policy.
+// PermissionPolicy is Kennel's provider-neutral approval policy.
 type PermissionPolicy string
 
 // Provider-neutral permission policies.
@@ -64,7 +64,7 @@ type LaunchConfig struct {
 	AllowedTools     []string
 	DisallowedTools  []string
 	// ProviderArgs are trusted host-owned flags inserted before model and
-	// prompt arguments. Desktop AO uses these for its Codex activity hooks;
+	// prompt arguments. Desktop Kennel uses these for its Codex activity hooks;
 	// workers normally leave them empty.
 	ProviderArgs []string
 }
@@ -127,7 +127,7 @@ func BuildRestoreCommand(cfg RestoreConfig) ([]string, bool, error) {
 }
 
 // RestoreIdentity resolves the native provider identity used by a restore.
-// Claude Code can deterministically recover pre-hook sessions from the AO
+// Claude Code can deterministically recover pre-hook sessions from the Kennel
 // session id; Codex and Cursor require their hook-captured identity.
 func RestoreIdentity(harness Harness, sessionID string, metadata map[string]string) (string, bool) {
 	if identity := strings.TrimSpace(metadata[MetadataKeyAgentSessionID]); identity != "" {
@@ -139,7 +139,7 @@ func RestoreIdentity(harness Harness, sessionID string, metadata map[string]stri
 	return "", false
 }
 
-// ClaudeSessionID maps an AO session id to the stable UUID used by Claude
+// ClaudeSessionID maps an Kennel session id to the stable UUID used by Claude
 // Code's --session-id and --resume flags.
 func ClaudeSessionID(sessionID string) string {
 	return uuid.NewSHA1(claudeSessionNamespace, []byte(sessionID)).String()
@@ -170,7 +170,7 @@ func PermissionPolicyForMode(mode SessionMode) PermissionPolicy {
 	}
 }
 
-// ClaudePermissionArgs maps AO policy onto Claude Code flags.
+// ClaudePermissionArgs maps Kennel policy onto Claude Code flags.
 func ClaudePermissionArgs(policy PermissionPolicy) []string {
 	switch NormalizePermissionPolicy(policy) {
 	case PermissionAcceptEdits:
@@ -184,7 +184,7 @@ func ClaudePermissionArgs(policy PermissionPolicy) []string {
 	}
 }
 
-// CodexPermissionArgs maps AO policy onto Codex approval flags.
+// CodexPermissionArgs maps Kennel policy onto Codex approval flags.
 func CodexPermissionArgs(policy PermissionPolicy) []string {
 	switch NormalizePermissionPolicy(policy) {
 	case PermissionAcceptEdits:
@@ -196,7 +196,7 @@ func CodexPermissionArgs(policy PermissionPolicy) []string {
 	}
 }
 
-// CursorPermissionArgs maps AO policy onto Cursor agent flags.
+// CursorPermissionArgs maps Kennel policy onto Cursor agent flags.
 func CursorPermissionArgs(policy PermissionPolicy) []string {
 	switch NormalizePermissionPolicy(policy) {
 	case PermissionAuto:

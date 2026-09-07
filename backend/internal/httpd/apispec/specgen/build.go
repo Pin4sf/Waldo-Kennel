@@ -15,9 +15,9 @@ import (
 	openapi "github.com/swaggest/openapi-go"
 	"github.com/swaggest/openapi-go/openapi31"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/controllers"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/envelope"
+	projectsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
 )
 
 // Build reflects the Go contract types and the operation registry below into
@@ -67,14 +67,18 @@ func Build() ([]byte, error) {
 			"Code-review runs and findings"),
 		*(&openapi31.Tag{Name: "notifications"}).WithDescription(
 			"Durable dashboard notifications"),
+		*(&openapi31.Tag{Name: "outcomes"}).WithDescription(
+			"Canonical Work Outcome contracts and immutable revisions"),
+		*(&openapi31.Tag{Name: "intakes"}).WithDescription(
+			"Shared Home and Work adaptive intake plus explicit responsibility lineage"),
 		*(&openapi31.Tag{Name: "usage"}).WithDescription(
-			"Token usage telemetry for AO sessions"),
+			"Token usage telemetry for Kennel sessions"),
 		*(&openapi31.Tag{Name: "push"}).WithDescription(
 			"Mobile push-device registration for OS push notifications"),
 		*(&openapi31.Tag{Name: "events"}).WithDescription(
 			"Server-sent CDC event stream with durable replay"),
 		*(&openapi31.Tag{Name: "import"}).WithDescription(
-			"Legacy AO project import (availability probe and run)"),
+			"Legacy Kennel project import (availability probe and run)"),
 		*(&openapi31.Tag{Name: "dev"}).WithDescription(
 			"Developer-only maintenance operations"),
 		*(&openapi31.Tag{Name: "mobile"}).WithDescription(
@@ -195,9 +199,14 @@ var schemaNames = map[string]string{
 	"DomainContainerReapConfig":       "ContainerReapConfig",
 	"DomainAgentConfig":               "AgentConfig",
 	"DomainRoleOverride":              "RoleOverride",
+	"DomainProjectAgentPreferences":   "ProjectAgentPreferences",
+	"DomainResolvedMissionRoles":      "ResolvedMissionRoles",
+	"DomainResolvedAgentRole":         "ResolvedAgentRole",
+	"DomainRoleSource":                "RoleSource",
 	// httpd/controllers (wire envelopes)
 	"ControllersListProjectsResponse":                     "ListProjectsResponse",
 	"ControllersProjectResponse":                          "ProjectResponse",
+	"ControllersResolvedMissionRolesResponse":             "ResolvedMissionRolesResponse",
 	"ControllersAgentIDParam":                             "AgentIDParam",
 	"ControllersGetProjectResponse":                       "ProjectGetResponse",
 	"ControllersProjectOrDegraded":                        "ProjectOrDegraded",
@@ -282,6 +291,108 @@ var schemaNames = map[string]string{
 	"ControllersNotificationTarget":                       "NotificationTarget",
 	"ControllersNotificationResponse":                     "NotificationResponse",
 	"ControllersListNotificationsResponse":                "ListNotificationsResponse",
+	"ControllersCreateOutcomeRequest":                     "CreateOutcomeRequest",
+	"ControllersCreateIntakeRequest":                      "CreateIntakeRequest",
+	"ControllersAnalyzeIntakeRequest":                     "AnalyzeIntakeRequest",
+	"ControllersAnswerIntakeClarificationRequest":         "AnswerIntakeClarificationRequest",
+	"ControllersReviseIntakeProposalRequest":              "ReviseIntakeProposalRequest",
+	"ControllersConfirmIntakeRequest":                     "ConfirmIntakeRequest",
+	"ControllersCancelIntakeRequest":                      "CancelIntakeRequest",
+	"ControllersIntakeEnvelope":                           "IntakeEnvelope",
+	"ControllersIntakeSnapshotResponse":                   "IntakeSnapshotResponse",
+	"ControllersIntakeSessionResponse":                    "IntakeSessionResponse",
+	"ControllersIntakeProposalInput":                      "IntakeProposalInput",
+	"ControllersIntakeProposalResponse":                   "IntakeProposalResponse",
+	"ControllersIntakeClarificationResponse":              "IntakeClarificationResponse",
+	"ControllersIntakeIDParam":                            "IntakeIDParam",
+	"ControllersCreateResponsibilityLinkRequest":          "CreateResponsibilityLinkRequest",
+	"ControllersEndResponsibilityLinkRequest":             "EndResponsibilityLinkRequest",
+	"ControllersResponsibilityLinkEnvelope":               "ResponsibilityLinkEnvelope",
+	"ControllersResponsibilityLinkResponse":               "ResponsibilityLinkResponse",
+	"ControllersResponsibilityLinkIDParam":                "ResponsibilityLinkIDParam",
+	"ControllersOpenWaldoEpisodeRequest":                  "OpenWaldoEpisodeRequest",
+	"ControllersAppendWaldoTurnRequest":                   "AppendWaldoTurnRequest",
+	"ControllersAttachWaldoContextRequest":                "AttachWaldoContextRequest",
+	"ControllersDetachWaldoContextRequest":                "DetachWaldoContextRequest",
+	"ControllersContinueWaldoConversationRequest":         "ContinueWaldoConversationRequest",
+	"ControllersWaldoConversationResponse":                "WaldoConversationResponse",
+	"ControllersWaldoProviderEpisodeRefResponse":          "WaldoProviderEpisodeRefResponse",
+	"ControllersWaldoProviderTurnRefResponse":             "WaldoProviderTurnRefResponse",
+	"ControllersWaldoConversationEpisodeResponse":         "WaldoConversationEpisodeResponse",
+	"ControllersWaldoContextProvenanceResponse":           "WaldoContextProvenanceResponse",
+	"ControllersWaldoContextRefResponse":                  "WaldoContextRefResponse",
+	"ControllersWaldoContextAttachmentResponse":           "WaldoContextAttachmentResponse",
+	"ControllersWaldoConversationTurnResponse":            "WaldoConversationTurnResponse",
+	"ControllersWaldoContinuationEvidenceResponse":        "WaldoContinuationEvidenceResponse",
+	"ControllersWaldoContinuationBindingsResponse":        "WaldoContinuationBindingsResponse",
+	"ControllersWaldoContinuationReceiptResponse":         "WaldoContinuationReceiptResponse",
+	"ControllersWaldoConversationSnapshotResponse":        "WaldoConversationSnapshotResponse",
+	"ControllersWaldoConversationEnvelope":                "WaldoConversationEnvelope",
+	"ControllersWaldoTurnEnvelope":                        "WaldoTurnEnvelope",
+	"ControllersWaldoContinuationEnvelope":                "WaldoContinuationEnvelope",
+	"ControllersWaldoContextAttachmentIDParam":            "WaldoContextAttachmentIDParam",
+	"ControllersReviseOutcomeContractRequest":             "ReviseOutcomeContractRequest",
+	"ControllersOutcomeCompositionEnvelope":               "OutcomeCompositionEnvelope",
+	"ControllersOutcomeCompositionResponse":               "OutcomeCompositionResponse",
+	"ControllersContributorResponse":                      "ContributorResponse",
+	"ControllersContributionLinkResponse":                 "ContributionLinkResponse",
+	"ControllersCriterionClaimResponse":                   "CriterionClaimResponse",
+	"ControllersProposeDecompositionRequest":              "ProposeDecompositionRequest",
+	"ControllersProposedContributionRequest":              "ProposedContributionRequest",
+	"ControllersContributionDependencyRequest":            "ContributionDependencyRequest",
+	"ControllersProposedContributionResponse":             "ProposedContributionResponse",
+	"ControllersContributionDependencyResponse":           "ContributionDependencyResponse",
+	"ControllersDecompositionResponse":                    "DecompositionResponse",
+	"ControllersDecompositionEnvelope":                    "DecompositionEnvelope",
+	"ControllersWaiveContributionDependencyRequest":       "WaiveContributionDependencyRequest",
+	"ControllersUpstreamBlockResponse":                    "UpstreamBlockResponse",
+	"ControllersContributorAttentionResponse":             "ContributorAttentionResponse",
+	"ControllersParentAttentionResponse":                  "ParentAttentionResponse",
+	"ControllersAcceptContributorBatchRequest":            "AcceptContributorBatchRequest",
+	"ControllersBatchEntryVerdictResponse":                "BatchEntryVerdictResponse",
+	"ControllersBatchEligibilityEnvelope":                 "BatchEligibilityEnvelope",
+	"ControllersAcceptBatchResponse":                      "AcceptBatchResponse",
+	"ControllersAcceptBatchEnvelope":                      "AcceptBatchEnvelope",
+	"ControllersAskForDecompositionRequest":               "AskForDecompositionRequest",
+	"ControllersSubmitAgentProposalRequest":               "SubmitAgentProposalRequest",
+	"ControllersDecompositionRequestResponse":             "DecompositionRequestResponse",
+	"ControllersDecompositionRequestEnvelope":             "DecompositionRequestEnvelope",
+	"ControllersOutcomeEnvelope":                          "OutcomeEnvelope",
+	"ControllersOutcomesEnvelope":                         "OutcomesEnvelope",
+	"ControllersOutcomeResponse":                          "OutcomeResponse",
+	"ControllersPlanEnvelope":                             "PlanEnvelope",
+	"ControllersPlanRevisionResponse":                     "PlanRevisionResponse",
+	"ControllersPlanWorkUnitResponse":                     "PlanWorkUnitResponse",
+	"ControllersCapabilityGrantResponse":                  "CapabilityGrantResponse",
+	"ControllersProposePlanRequest":                       "ProposePlanRequest",
+	"ControllersApprovePlanRequest":                       "ApprovePlanRequest",
+	"ControllersContractRevisionResponse":                 "ContractRevisionResponse",
+	"ControllersContractCriterionResponse":                "ContractCriterionResponse",
+	"ControllersOutcomeIDParam":                           "OutcomeIDParam",
+	"ControllersRecordEvidenceRequest":                    "RecordEvidenceRequest",
+	"ControllersRecordVerificationRequest":                "RecordVerificationRequest",
+	"ControllersDecideAcceptanceRequest":                  "DecideAcceptanceRequest",
+	"ControllersOutcomeProofEnvelope":                     "OutcomeProofEnvelope",
+	"ControllersOutcomeProofResponse":                     "OutcomeProofResponse",
+	"ControllersCriterionProofResponse":                   "CriterionProofResponse",
+	"ControllersEvidenceItemResponse":                     "EvidenceItemResponse",
+	"ControllersVerificationRunResponse":                  "VerificationRunResponse",
+	"ControllersAcceptanceDecisionResponse":               "AcceptanceDecisionResponse",
+	"ControllersOutcomeCorrectionResponse":                "OutcomeCorrectionResponse",
+	"ControllersStartOutcomeAttemptRequest":               "StartOutcomeAttemptRequest",
+	"ControllersRecordObservationRequest":                 "RecordObservationRequest",
+	"ControllersAttemptRecoveryRequest":                   "AttemptRecoveryRequest",
+	"ControllersAttemptEnvelope":                          "AttemptEnvelope",
+	"ControllersAttemptListEnvelope":                      "AttemptListEnvelope",
+	"ControllersObservationEnvelope":                      "ObservationEnvelope",
+	"ControllersAttemptRecoveryEnvelope":                  "AttemptRecoveryEnvelope",
+	"ControllersAttemptResponse":                          "AttemptResponse",
+	"ControllersAttemptPresentationResponse":              "AttemptPresentationResponse",
+	"ControllersAttemptSessionRefResponse":                "AttemptSessionRefResponse",
+	"ControllersAttemptObservationResponse":               "AttemptObservationResponse",
+	"ControllersRecoveryReceiptResponse":                  "RecoveryReceiptResponse",
+	"ControllersAttemptFenceResponse":                     "AttemptFenceResponse",
+	"ControllersAttemptIDParam":                           "AttemptIDParam",
 	"ControllersMarkNotificationReadRequest":              "MarkNotificationReadRequest",
 	"ControllersNotificationEnvelope":                     "NotificationEnvelope",
 	"ControllersMarkAllNotificationsReadRequest":          "MarkAllNotificationsReadRequest",
@@ -431,6 +542,8 @@ func operations() []operation {
 	ops = append(ops, prOperations()...)
 	ops = append(ops, reviewOperations()...)
 	ops = append(ops, notificationOperations()...)
+	ops = append(ops, intakeOperations()...)
+	ops = append(ops, waldoConversationOperations()...)
 	ops = append(ops, usageOperations()...)
 	ops = append(ops, pushOperations()...)
 	ops = append(ops, devOperations()...)
@@ -439,6 +552,49 @@ func operations() []operation {
 	ops = append(ops, browserOperations()...)
 	ops = append(ops, shellTerminalOperations()...)
 	return ops
+}
+
+func waldoConversationOperations() []operation {
+	standard := func(successes []respUnit) []respUnit {
+		return append(successes,
+			respUnit{http.StatusBadRequest, envelope.APIError{}},
+			respUnit{http.StatusConflict, envelope.APIError{}},
+			respUnit{http.StatusNotFound, envelope.APIError{}},
+			respUnit{http.StatusInternalServerError, envelope.APIError{}},
+			respUnit{http.StatusNotImplemented, envelope.APIError{}},
+		)
+	}
+	project := []any{controllers.ProjectIDParam{}}
+	return []operation{
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/waldo-conversation", id: "openProjectWaldoConversation", tag: "waldo-conversations", summary: "Open the one durable Waldo conversation for a Project", pathParams: project, resps: standard([]respUnit{{http.StatusCreated, controllers.WaldoConversationEnvelope{}}})},
+		{method: http.MethodGet, path: "/api/v1/projects/{id}/waldo-conversation", id: "getProjectWaldoConversation", tag: "waldo-conversations", summary: "Read exact restart-safe Project Waldo conversation truth", pathParams: project, resps: standard([]respUnit{{http.StatusOK, controllers.WaldoConversationEnvelope{}}})},
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/waldo-conversation/episodes", id: "openProjectWaldoEpisode", tag: "waldo-conversations", summary: "Open one bounded provider-neutral conversation episode", pathParams: project, reqBody: controllers.OpenWaldoEpisodeRequest{}, resps: standard([]respUnit{{http.StatusCreated, controllers.WaldoConversationEnvelope{}}})},
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/waldo-conversation/turns", id: "appendProjectWaldoTurn", tag: "waldo-conversations", summary: "Append one ordered idempotent Project-bound turn", pathParams: project, reqBody: controllers.AppendWaldoTurnRequest{}, resps: standard([]respUnit{{http.StatusCreated, controllers.WaldoTurnEnvelope{}}, {http.StatusOK, controllers.WaldoTurnEnvelope{}}})},
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/waldo-conversation/context", id: "attachProjectWaldoContext", tag: "waldo-conversations", summary: "Explicitly attach provenance-bearing canonical context", pathParams: project, reqBody: controllers.AttachWaldoContextRequest{}, resps: standard([]respUnit{{http.StatusCreated, controllers.WaldoConversationEnvelope{}}})},
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/waldo-conversation/context/{attachmentId}/detach", id: "detachProjectWaldoContext", tag: "waldo-conversations", summary: "Explicitly detach context from future turns", pathParams: []any{controllers.ProjectIDParam{}, controllers.WaldoContextAttachmentIDParam{}}, reqBody: controllers.DetachWaldoContextRequest{}, resps: standard([]respUnit{{http.StatusOK, controllers.WaldoConversationEnvelope{}}})},
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/waldo-conversation/continuations", id: "continueProjectWaldoConversation", tag: "waldo-conversations", summary: "Evaluate and durably record bounded provider continuation policy", pathParams: project, reqBody: controllers.ContinueWaldoConversationRequest{}, resps: standard([]respUnit{{http.StatusCreated, controllers.WaldoContinuationEnvelope{}}})},
+	}
+}
+
+func intakeOperations() []operation {
+	standard := func(success int, body any) []respUnit {
+		return []respUnit{{success, body}, {http.StatusBadRequest, envelope.APIError{}}, {http.StatusConflict, envelope.APIError{}}, {http.StatusNotFound, envelope.APIError{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}}
+	}
+	return []operation{
+		{method: http.MethodPost, path: "/api/v1/projects/{id}/intakes", id: "createOutcomeIntake", tag: "intakes", summary: "Capture one simple natural-language Outcome statement", pathParams: []any{controllers.ProjectIDParam{}}, reqBody: controllers.CreateIntakeRequest{}, resps: standard(http.StatusCreated, controllers.IntakeEnvelope{})},
+		{method: http.MethodGet, path: "/api/v1/intakes/{intakeId}", id: "getIntake", tag: "intakes", summary: "Read durable shared intake state", pathParams: []any{controllers.IntakeIDParam{}}, resps: standard(http.StatusOK, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/intakes/{intakeId}/analysis", id: "analyzeIntake", tag: "intakes", summary: "Analyze intent into one material question or a Contract proposal", pathParams: []any{controllers.IntakeIDParam{}}, reqBody: controllers.AnalyzeIntakeRequest{}, resps: standard(http.StatusOK, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/intakes/{intakeId}/clarification", id: "answerIntakeClarification", tag: "intakes", summary: "Answer the intake's single material clarification", pathParams: []any{controllers.IntakeIDParam{}}, reqBody: controllers.AnswerIntakeClarificationRequest{}, resps: standard(http.StatusOK, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/intakes/{intakeId}/proposals", id: "reviseIntakeProposal", tag: "intakes", summary: "Append an edited immutable Contract proposal revision", pathParams: []any{controllers.IntakeIDParam{}}, reqBody: controllers.ReviseIntakeProposalRequest{}, resps: standard(http.StatusOK, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/intakes/{intakeId}/confirmation", id: "confirmIntakeOutcome", tag: "intakes", summary: "Atomically confirm exactly one Outcome and ContractRevision", pathParams: []any{controllers.IntakeIDParam{}}, reqBody: controllers.ConfirmIntakeRequest{}, resps: standard(http.StatusCreated, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/intakes/{intakeId}/cancellation", id: "cancelIntake", tag: "intakes", summary: "Consciously release an unconfirmed intake", pathParams: []any{controllers.IntakeIDParam{}}, reqBody: controllers.CancelIntakeRequest{}, resps: standard(http.StatusOK, controllers.IntakeEnvelope{})},
+		{method: http.MethodGet, path: "/api/v1/intakes/{intakeId}/analysis-request", id: "getLatestIntakeAnalysisRequest", tag: "intakes", summary: "Read the newest agent analysis ask and what became of it", pathParams: []any{controllers.IntakeIDParam{}}, resps: standard(http.StatusOK, controllers.IntakeAnalysisRequestEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/intakes/{intakeId}/analysis-request/cancellation", id: "cancelIntakeAnalysisRequest", tag: "intakes", summary: "Stop waiting for an agent and return the intake to a retryable state", pathParams: []any{controllers.IntakeIDParam{}}, resps: standard(http.StatusOK, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/intake-analysis-requests/{requestId}/proposal", id: "submitIntakeAnalysisProposal", tag: "intakes", summary: "Callback: a spawned agent submits its proposed Contract", pathParams: []any{controllers.IntakeAnalysisRequestIDParam{}}, reqBody: controllers.SubmitIntakeAnalysisRequest{}, resps: standard(http.StatusOK, controllers.IntakeEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/responsibility-links", id: "createResponsibilityLink", tag: "intakes", summary: "Preserve explicit Home Open Loop to Work Outcome lineage", reqBody: controllers.CreateResponsibilityLinkRequest{}, resps: standard(http.StatusCreated, controllers.ResponsibilityLinkEnvelope{})},
+		{method: http.MethodGet, path: "/api/v1/responsibility-links/{responsibilityLinkId}", id: "getResponsibilityLink", tag: "intakes", summary: "Read explicit responsibility lineage", pathParams: []any{controllers.ResponsibilityLinkIDParam{}}, resps: standard(http.StatusOK, controllers.ResponsibilityLinkEnvelope{})},
+		{method: http.MethodPost, path: "/api/v1/responsibility-links/{responsibilityLinkId}/end", id: "endResponsibilityLink", tag: "intakes", summary: "End lineage without changing either responsibility lifecycle", pathParams: []any{controllers.ResponsibilityLinkIDParam{}}, reqBody: controllers.EndResponsibilityLinkRequest{}, resps: standard(http.StatusOK, controllers.ResponsibilityLinkEnvelope{})},
+	}
 }
 
 func browserOperations() []operation {
@@ -1023,6 +1179,346 @@ func notificationOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/outcomes", id: "listProjectOutcomes", tag: "outcomes",
+			summary:    "List canonical Outcomes and current contracts for one Project",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomesEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{id}/outcomes", id: "createOutcome", tag: "outcomes",
+			summary:    "Create an Outcome with its first immutable contract revision",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			reqBody:    controllers.CreateOutcomeRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.OutcomeEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}", id: "getOutcome", tag: "outcomes",
+			summary:    "Read one Outcome with its full revision history",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/revisions", id: "reviseOutcomeContract", tag: "outcomes",
+			summary:    "Append an immutable contract revision (optimistic concurrency)",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.ReviseOutcomeContractRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/composition", id: "getOutcomeComposition", tag: "outcomes",
+			summary:    "Read derived shape, contributing Outcomes, and criterion coverage",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeCompositionEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/decompositions", id: "proposeOutcomeDecomposition", tag: "outcomes",
+			summary:    "Propose a decomposition into contributing Outcomes (creates nothing)",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.ProposeDecompositionRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.DecompositionEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/decompositions/{decompositionId}/authorization", id: "authorizeOutcomeDecomposition", tag: "outcomes",
+			summary:    "Authorize a decomposition, creating its contributing Outcomes",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.DecompositionIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.DecompositionEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/decomposition/waivers", id: "waiveOutcomeContributionDependency", tag: "outcomes",
+			summary:    "Waive one declared contribution ordering, with a durable reason",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.WaiveContributionDependencyRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.DecompositionEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/decomposition-requests", id: "askForOutcomeDecomposition", tag: "outcomes",
+			summary:    "Ask an agent to propose a decomposition (answers later on the callback route)",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.AskForDecompositionRequest{},
+			resps: []respUnit{
+				{http.StatusAccepted, controllers.DecompositionRequestEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/decomposition-request", id: "getLatestOutcomeDecompositionRequest", tag: "outcomes",
+			summary:    "Read the newest decomposition ask and what became of it",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.DecompositionRequestEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/decomposition-requests/{requestId}/proposal", id: "submitOutcomeDecompositionProposal", tag: "outcomes",
+			summary:    "Callback: a spawned agent submits its proposed decomposition",
+			pathParams: []any{controllers.DecompositionRequestIDParam{}},
+			reqBody:    controllers.SubmitAgentProposalRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.DecompositionRequestEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/decomposition", id: "getLatestOutcomeDecomposition", tag: "outcomes",
+			summary:    "Read the newest decomposition and whether the parent contract moved past it",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.DecompositionEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/plans", id: "proposeOutcomePlan", tag: "outcomes",
+			summary:    "Propose the direct Work Unit plan bound to the current contract revision",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.ProposePlanRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.PlanEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/plans/{planId}/approval", id: "approveOutcomePlan", tag: "outcomes",
+			summary:    "Authorize a proposed plan (owner authority gate; fails closed on narrowed authority)",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.PlanIDParam{}},
+			reqBody:    controllers.ApprovePlanRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.PlanEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/plan", id: "getLatestOutcomePlan", tag: "outcomes",
+			summary:    "Read the newest plan of any status for this Outcome",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.PlanEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/proof", id: "getOutcomeProof", tag: "outcomes",
+			summary:    "Read criterion-bound Evidence, Verification, explicit decisions, and derived proof state",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeProofEnvelope{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/evidence", id: "recordOutcomeEvidence", tag: "outcomes",
+			summary:    "Append provenance-bearing Evidence to an exact current criterion and subject revision",
+			pathParams: []any{controllers.OutcomeIDParam{}}, reqBody: controllers.RecordEvidenceRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.OutcomeProofEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/verifications", id: "recordOutcomeVerification", tag: "outcomes",
+			summary:    "Append a Verification result with its actual independence class",
+			pathParams: []any{controllers.OutcomeIDParam{}}, reqBody: controllers.RecordVerificationRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.OutcomeProofEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/acceptance-decisions", id: "decideOutcomeAcceptance", tag: "outcomes",
+			summary:    "Append the user's explicit accept, request-rework, or reopen decision",
+			pathParams: []any{controllers.OutcomeIDParam{}}, reqBody: controllers.DecideAcceptanceRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.OutcomeProofEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/acceptance-batch", id: "getOutcomeAcceptanceBatchEligibility", tag: "outcomes",
+			summary:    "Report which contributing Outcomes could be accepted together right now",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.BatchEligibilityEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/acceptance-batch", id: "acceptOutcomeContributorBatch", tag: "outcomes",
+			summary:    "Accept every eligible contributing Outcome in one sitting, as separate decisions",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.AcceptContributorBatchRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.AcceptBatchEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/attempts", id: "startOutcomeAttempt", tag: "outcomes",
+			summary:    "Admit an approved plan onto a real provider session (fail-closed; idempotent by requestKey)",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.StartOutcomeAttemptRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.AttemptEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/attempts", id: "listOutcomeAttempts", tag: "outcomes",
+			summary:    "Read the Outcome's attempt lineage with derived presentation",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.AttemptListEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/attempts/{attemptId}", id: "getOutcomeAttempt", tag: "outcomes",
+			summary:    "Read one attempt: lineage, observations, receipts, custody, derived state",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.AttemptIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.AttemptEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/observations", id: "recordOutcomeAttemptObservation", tag: "outcomes",
+			summary:    "Append one ordered observation (insertable on any attempt state; never mutates current truth)",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.AttemptIDParam{}},
+			reqBody:    controllers.RecordObservationRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.ObservationEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/cancel", id: "cancelOutcomeAttempt", tag: "outcomes",
+			summary:    "Cancel an active attempt by owner decision",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.AttemptIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.AttemptEnvelope{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/attempts/{attemptId}/recovery", id: "recoverOutcomeAttempt", tag: "outcomes",
+			summary:    "Contain, reconcile, resume, replace, or escalate an attempt (custody-safe recovery)",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.AttemptIDParam{}},
+			reqBody:    controllers.AttemptRecoveryRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.AttemptRecoveryEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodGet, path: "/api/v1/notifications/stream", id: "streamNotifications", tag: "notifications",
 			summary:    "Stream created notifications",
 			pathParams: []any{controllers.NotificationStreamQuery{}},
@@ -1258,6 +1754,18 @@ func projectOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/resolved-mission-roles", id: "getResolvedMissionRoles", tag: "projects",
+			summary:    "Read the daemon-resolved Mission-role proposal for one Project",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.ResolvedMissionRolesResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodPut, path: "/api/v1/projects/{id}", id: "updateProjectSettings", tag: "projects",
 			summary:    "Atomically replace a project's display name and config",
 			pathParams: []any{controllers.ProjectIDParam{}},
@@ -1400,7 +1908,7 @@ func sessionOperations() []operation {
 		},
 		{
 			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/preview/server", id: "startSessionPreviewServer", tag: "sessions",
-			summary:    "Start a session-owned server from .ao/launch.json and open its application preview",
+			summary:    "Start a session-owned server from .kennel/launch.json and open its application preview",
 			pathParams: []any{controllers.SessionIDParam{}, controllers.BrowserCapabilityHeader{}},
 			reqBody:    controllers.StartPreviewServerRequest{},
 			resps: []respUnit{
@@ -1628,7 +2136,7 @@ func sessionOperations() []operation {
 		},
 		{
 			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/switch-agent", id: "switchSessionAgent", tag: "sessions",
-			summary:    "Switch a logical AO session to another agent harness",
+			summary:    "Switch a logical Kennel session to another agent harness",
 			pathParams: []any{controllers.SessionIDParam{}},
 			reqBody:    controllers.SwitchAgentRequest{},
 			resps: []respUnit{

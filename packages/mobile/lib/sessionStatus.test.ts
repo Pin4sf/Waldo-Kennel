@@ -21,8 +21,8 @@ const session = (over: Partial<DashboardSession> = {}): DashboardSession =>
 
 describe("sessionTitle", () => {
 	it("prefers displayName, then issueId", () => {
-		expect(sessionTitle(session({ displayName: "Fix auth", issueId: "AO-12" }))).toBe("Fix auth");
-		expect(sessionTitle(session({ issueId: "AO-12" }))).toBe("AO-12");
+		expect(sessionTitle(session({ displayName: "Fix auth", issueId: "Kennel-12" }))).toBe("Fix auth");
+		expect(sessionTitle(session({ issueId: "Kennel-12" }))).toBe("Kennel-12");
 	});
 
 	// The id is the only field guaranteed to be present, so it is what a session
@@ -35,7 +35,7 @@ describe("sessionTitle", () => {
 	// stopped on it and rendered a card with no title at all.
 	it("treats a whitespace-only name as absent", () => {
 		expect(sessionTitle(session({ displayName: "   " }))).toBe("proj-7");
-		expect(sessionTitle(session({ displayName: "\t\n" , issueId: "AO-12" }))).toBe("AO-12");
+		expect(sessionTitle(session({ displayName: "\t\n" , issueId: "Kennel-12" }))).toBe("Kennel-12");
 	});
 
 	it("trims a name that has content", () => {

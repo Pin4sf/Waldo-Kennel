@@ -599,7 +599,7 @@ func (g *generator) renderMethods(b *strings.Builder) {
 	b.WriteString(")\n\n")
 
 	// A table rather than a switch: the driver's conformance test walks it to
-	// assert that every method AO claims to handle still exists upstream.
+	// assert that every method Kennel claims to handle still exists upstream.
 	b.WriteString("// MethodInfo describes one method's direction and payload types.\ntype MethodInfo struct {\n")
 	b.WriteString("\tName      string\n\tDirection string\n\t// Params and Result name the generated types, empty when the method has none.\n")
 	b.WriteString("\tParams string\n\tResult string\n}\n\n")

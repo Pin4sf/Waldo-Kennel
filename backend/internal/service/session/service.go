@@ -12,11 +12,11 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	sessionmanager "github.com/aoagents/agent-orchestrator/backend/internal/session_manager"
-	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	sessionmanager "github.com/Pin4sf/Waldo-Kennel/backend/internal/session_manager"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/telemetrymeta"
 )
 
 // Store is the read-only persistence surface needed to assemble controller-facing session read models.
@@ -114,13 +114,13 @@ const (
 	RestoreModeViewFresh RestoreModeView = "fresh"
 )
 
-// RestoreOutcome reports the restored read model and how AO relaunched it.
+// RestoreOutcome reports the restored read model and how Kennel relaunched it.
 type RestoreOutcome struct {
 	Session domain.Session  `json:"session"`
 	Mode    RestoreModeView `json:"restoreMode"`
 }
 
-// ResumeAgentOutcome reports the resumed read model and how AO relaunched it.
+// ResumeAgentOutcome reports the resumed read model and how Kennel relaunched it.
 type ResumeAgentOutcome struct {
 	Session domain.Session  `json:"session"`
 	Mode    RestoreModeView `json:"resumeMode"`
@@ -435,7 +435,7 @@ func (s *Service) activeOrchestrators(ctx context.Context, projectID domain.Proj
 	return s.List(ctx, ListFilter{ProjectID: projectID, Active: &active, OrchestratorOnly: true})
 }
 
-const orchestratorRetireNotice = "AO is replacing this project orchestrator. Stop coordinating new work now; a fresh orchestrator will take over in a new workspace."
+const orchestratorRetireNotice = "Kennel is replacing this project orchestrator. Stop coordinating new work now; a fresh orchestrator will take over in a new workspace."
 
 func (s *Service) sendRetireNotice(ctx context.Context, id domain.SessionID) error {
 	if err := s.manager.Send(ctx, id, orchestratorRetireNotice, nil); err != nil {
@@ -673,7 +673,7 @@ func (s *Service) SetTerminateOnPRMerge(ctx context.Context, id domain.SessionID
 	return s.Get(ctx, id)
 }
 
-// SetAutoInjectReview persists whether new SCM and AO review feedback should be sent to the session.
+// SetAutoInjectReview persists whether new SCM and Kennel review feedback should be sent to the session.
 func (s *Service) SetAutoInjectReview(ctx context.Context, id domain.SessionID, autoInject bool) (domain.Session, error) {
 	updated, err := s.store.SetSessionAutoInjectReview(ctx, id, autoInject, time.Now().UTC())
 	if err != nil {
@@ -921,7 +921,7 @@ func toAPIError(err error) error {
 			"The agent has not exposed a native conversation that can resume in the other interface", nil)
 	case errors.Is(err, sessionmanager.ErrInterfaceTransitionNotCancellable):
 		return apierr.Conflict("INTERFACE_TRANSITION_NOT_CANCELLABLE",
-			"The source controller has already stopped; AO must finish or recover the switch", nil)
+			"The source controller has already stopped; Kennel must finish or recover the switch", nil)
 	case errors.Is(err, sessionmanager.ErrInterfaceAlreadySelected):
 		return apierr.Conflict("INTERFACE_ALREADY_SELECTED",
 			"The session is already using the requested interface", nil)
@@ -937,6 +937,12 @@ func toAPIError(err error) error {
 			"This session has no saved agent session or prompt to resume from", nil)
 	case errors.Is(err, sessionmanager.ErrProjectNotResolvable):
 		return apierr.Invalid("PROJECT_NOT_RESOLVABLE", "Project is not registered or has no repo. Register it with `kennel project add`", nil)
+	case errors.Is(err, sessionmanager.ErrAgentProfileNotReady):
+		return apierr.Invalid("AGENT_PROFILE_NOT_READY", err.Error(), nil)
+	case errors.Is(err, sessionmanager.ErrNotCoordinatorAdmitted):
+		return apierr.Invalid("COORDINATOR_NOT_ADMITTED", err.Error(), nil)
+	case errors.Is(err, sessionmanager.ErrNotSwitchAdmitted):
+		return apierr.Invalid("SWITCH_TARGET_NOT_ADMITTED", err.Error(), nil)
 	case errors.Is(err, sessionmanager.ErrUnknownHarness):
 		return apierr.Invalid("UNKNOWN_HARNESS", err.Error(), nil)
 	case errors.Is(err, sessionmanager.ErrMissingHarness):
@@ -963,19 +969,19 @@ func toAPIError(err error) error {
 			"The handoff is stale or its collection window has closed", nil)
 	case errors.Is(err, sessionmanager.ErrInvalidAgentHandoff):
 		return apierr.Invalid("INVALID_AGENT_HANDOFF",
-			"The handoff does not satisfy AO's semantic handoff schema", nil)
+			"The handoff does not satisfy Kennel's semantic handoff schema", nil)
 	case errors.Is(err, sessionmanager.ErrSwitchDeliveryUnconfirmed):
 		return apierr.Conflict("AGENT_SWITCH_DELIVERY_UNCONFIRMED",
-			"The target agent started, but AO could not confirm that it accepted the continuation", nil)
+			"The target agent started, but Kennel could not confirm that it accepted the continuation", nil)
 	case errors.Is(err, sessionmanager.ErrSwitchInProgress):
 		return apierr.Conflict("AGENT_SWITCH_IN_PROGRESS",
 			"This session already has an agent switch in progress", nil)
 	case errors.Is(err, sessionmanager.ErrSwitchShuttingDown):
 		return apierr.Conflict("AGENT_SWITCH_UNAVAILABLE",
-			"AO is shutting down and cannot start another agent switch", nil)
+			"Kennel is shutting down and cannot start another agent switch", nil)
 	case errors.Is(err, sessionmanager.ErrSwitchUnavailable):
 		return apierr.Conflict("AGENT_SWITCH_UNAVAILABLE",
-			"Agent switching is unavailable in this AO instance", nil)
+			"Agent switching is unavailable in this Kennel instance", nil)
 	case errors.Is(err, domain.ErrAgentSwitchIdempotencyConflict):
 		return apierr.Conflict("AGENT_SWITCH_IDEMPOTENCY_CONFLICT",
 			"The idempotency key is already associated with a different agent switch", nil)

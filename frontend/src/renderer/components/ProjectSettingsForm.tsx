@@ -137,33 +137,26 @@ function SettingsBody({
 	const workspace = workspaceQuery.data?.find((item) => item.id === projectId);
 	const activeOrchestrator = newestActiveOrchestrator(workspace?.sessions ?? []);
 	const intake: TrackerIntakeConfig = config.trackerIntake ?? {};
-	const persistedHarnesses = [config.worker?.agent, config.orchestrator?.agent, config.reviewers?.[0]?.harness];
-	const hasRetiredProviderConfig = persistedHarnesses.some((harness) => harness !== undefined && harness !== "codex");
-	const hasRetiredRoleConfig =
-		(config.worker?.agent !== undefined && config.worker.agent !== "codex") ||
-		(config.orchestrator?.agent !== undefined && config.orchestrator.agent !== "codex");
-	const workerRoleMigrates = config.worker?.agent !== undefined && config.worker.agent !== "codex";
-	const orchestratorRoleMigrates = config.orchestrator?.agent !== undefined && config.orchestrator.agent !== "codex";
 	const [form, setForm] = useState({
 		displayName: project.name,
 		defaultBranch: config.defaultBranch ?? DEFAULT_BRANCH_AUTO,
 		sessionPrefix: config.sessionPrefix ?? "",
-		workerAgent: "codex",
-		orchestratorAgent: "codex",
-		workerModel: workerRoleMigrates
-			? ""
-			: config.worker?.agentConfig?.model ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.model ?? ""),
-		orchestratorModel: orchestratorRoleMigrates
-			? ""
-			: config.orchestrator?.agentConfig?.model ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.model ?? ""),
-		workerMode: workerRoleMigrates
-			? ""
-			: config.worker?.agentConfig?.mode ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.mode ?? ""),
-		orchestratorMode: orchestratorRoleMigrates
-			? ""
-			: config.orchestrator?.agentConfig?.mode ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.mode ?? ""),
+		workerAgent: config.worker?.agent ?? "",
+		orchestratorAgent: config.orchestrator?.agent ?? "",
+		workerModel: config.worker?.agentConfig?.model ?? "",
+		orchestratorModel: config.orchestrator?.agentConfig?.model ?? "",
+		workerMode: config.worker?.agentConfig?.mode ?? "",
+		workerProfile: config.worker?.agentConfig?.profile ?? "",
+		orchestratorMode: config.orchestrator?.agentConfig?.mode ?? "",
+		orchestratorProfile: config.orchestrator?.agentConfig?.profile ?? "",
 		permissions: config.agentConfig?.permissions ?? "",
-		reviewerHarness: "codex",
+		agentPreferences: {
+			defaultWorker: config.agentPreferences?.defaultWorker ?? "",
+			analyzer: config.agentPreferences?.analyzer ?? "",
+			coordinator: config.agentPreferences?.coordinator ?? "",
+			verifier: config.agentPreferences?.verifier ?? "",
+		},
+		reviewerHarness: config.reviewers?.[0]?.harness ?? "",
 		intakeEnabled: intake.enabled ?? false,
 		intakeRepo: intake.repo ?? "",
 		intakeAssignee: intake.assignee ?? "",
@@ -172,10 +165,23 @@ function SettingsBody({
 	const [showSaving, setShowSaving] = useState(false);
 	const [replacementError, setReplacementError] = useState<string | null>(null);
 	const [validationError, setValidationError] = useState<string | null>(null);
-	const initialOrchestratorAgent = "codex";
-	const missingRequiredAgent = form.workerAgent === "" || form.orchestratorAgent === "";
+	const initialOrchestratorAgent = config.orchestrator?.agent ?? "";
 	const agentsQuery = useQuery(agentsQueryOptions);
 	const agentCatalog = agentsQuery.data;
+	// The daemon-resolved Mission-role proposal: stored preferences enriched
+	// with live adapter admission. Advisory read-only truth for this project.
+	const resolvedRolesQuery = useQuery({
+		queryKey: ["project", projectId, "resolved-mission-roles"],
+		queryFn: async () => {
+			const { data, error } = await apiClient.GET("/api/v1/projects/{id}/resolved-mission-roles", {
+				params: { path: { id: projectId } },
+			});
+			if (error) throw new Error(apiErrorMessage(error));
+			return data.roles;
+		},
+	});
+	const patchPreference = (role: "defaultWorker" | "analyzer" | "coordinator" | "verifier", value: string) =>
+		setForm((f) => ({ ...f, agentPreferences: { ...f.agentPreferences, [role]: value } }));
 	const refreshAgentsMutation = useMutation({
 		mutationFn: refreshAgents,
 		onSuccess: (next) => queryClient.setQueryData(agentsQueryKey, next),
@@ -196,6 +202,21 @@ function SettingsBody({
 	const effectiveIntakeRepo = form.intakeRepo.trim() || deriveGitHubRepo(project.repo);
 	const reviewerWarning = reviewerTrustWarning(form.reviewerHarness);
 
+	// Role admission and profile requirements come from the daemon's agent
+	// inventory; the UI never re-derives them from provider names. Optional
+	// chaining keeps stale catalogs (or old fixtures) from crashing the form.
+	const supportedAgents = agentCatalog?.supported ?? [];
+	const coordinatorCapable = new Set(
+		supportedAgents.filter((agent) => agent.roles?.coordinator).map((agent) => agent.id),
+	);
+	const workerSelectable = supportedAgents.filter((agent) => agent.roles?.worker).map((agent) => agent.id);
+	// Preference menus present catalog labels (never raw ids) and only
+	// admission-admitted harnesses, mirroring what SetConfig will accept.
+	const toPreferenceOptions = (ids: string[]) =>
+		ids.map((id) => ({ id, label: supportedAgents.find((agent) => agent.id === id)?.label ?? id }));
+	const workerRequiresProfile =
+		supportedAgents.find((agent) => agent.id === form.workerAgent)?.requiresProfile === true;
+
 	const mutation = useMutation({
 		mutationFn: async () => {
 			void captureRendererEvent("kennel.renderer.settings_save_requested", { project_id: projectId });
@@ -205,27 +226,30 @@ function SettingsBody({
 				mode: _legacyMode,
 				...sharedAgentConfig
 			} = config.agentConfig ?? {};
+			const worker = buildRoleOverride(
+				config.worker,
+				form.workerAgent,
+				form.workerModel,
+				form.workerMode,
+				form.workerProfile,
+			);
+			const orchestrator = buildRoleOverride(
+				config.orchestrator,
+				form.orchestratorAgent,
+				form.orchestratorModel,
+				form.orchestratorMode,
+				form.orchestratorProfile,
+			);
 			const next: ProjectConfig = isScratchProject
 				? {
 						...scratchSupportedConfig(config),
-						worker: {
-							...config.worker,
-							agent: form.workerAgent,
-							agentConfig: buildRoleAgentConfig(config.worker?.agentConfig, form.workerModel, form.workerMode),
-						},
-						orchestrator: {
-							...config.orchestrator,
-							agent: form.orchestratorAgent,
-							agentConfig: buildRoleAgentConfig(
-								config.orchestrator?.agentConfig,
-								form.orchestratorModel,
-								form.orchestratorMode,
-							),
-						},
+						worker,
+						orchestrator,
 						agentConfig: blankToUndefined({
 							...sharedAgentConfig,
 							permissions: form.permissions || undefined,
 						}),
+						agentPreferences: preferencesPayload(form.agentPreferences),
 					}
 				: {
 						...config,
@@ -234,24 +258,13 @@ function SettingsBody({
 								? undefined
 								: form.defaultBranch || undefined,
 						sessionPrefix: form.sessionPrefix || undefined,
-						worker: {
-							...config.worker,
-							agent: form.workerAgent,
-							agentConfig: buildRoleAgentConfig(config.worker?.agentConfig, form.workerModel, form.workerMode),
-						},
-						orchestrator: {
-							...config.orchestrator,
-							agent: form.orchestratorAgent,
-							agentConfig: buildRoleAgentConfig(
-								config.orchestrator?.agentConfig,
-								form.orchestratorModel,
-								form.orchestratorMode,
-							),
-						},
+						worker,
+						orchestrator,
 						agentConfig: blankToUndefined({
 							...sharedAgentConfig,
 							permissions: form.permissions || undefined,
 						}),
+						agentPreferences: preferencesPayload(form.agentPreferences),
 						reviewers: form.reviewerHarness ? [{ harness: form.reviewerHarness }] : undefined,
 						trackerIntake: buildIntake(intakeForm),
 					};
@@ -260,9 +273,13 @@ function SettingsBody({
 				body: { displayName, config: next },
 			});
 			if (error) throw new Error(apiErrorMessage(error));
+			// Coordinator configuration is optional. Only an explicitly selected
+			// coordinator may trigger a replacement/start; clearing or leaving the
+			// role empty never reuses the worker and never manufactures a provider.
 			if (
-				form.orchestratorAgent !== initialOrchestratorAgent ||
-				(!hasRetiredProviderConfig && activeOrchestrator && activeOrchestrator.provider !== form.orchestratorAgent)
+				form.orchestratorAgent !== "" &&
+				(form.orchestratorAgent !== initialOrchestratorAgent ||
+					Boolean(activeOrchestrator && activeOrchestrator.provider !== form.orchestratorAgent))
 			) {
 				try {
 					const sessionId = await spawnOrchestrator(projectId, "settings", true);
@@ -376,11 +393,11 @@ function SettingsBody({
 				const validation = validateProjectSettings(form, { validateIntake: !isScratchProject });
 				if (validation) {
 					setValidationError(
-						validation === "agents_required"
-							? t("settings.project.agentsRequired")
-							: validation === "name_required"
-								? t("settings.project.nameRequired")
-								: t("settings.project.intakeAssigneeRequired"),
+						validation === "name_required"
+							? t("settings.project.nameRequired")
+							: validation === "intake_assignee_required"
+								? t("settings.project.intakeAssigneeRequired")
+								: t("settings.project.agentsRequired"),
 					);
 					return;
 				}
@@ -388,11 +405,6 @@ function SettingsBody({
 				mutation.mutate();
 			}}
 		>
-			{hasRetiredProviderConfig ? (
-				<p className="px-1 text-xs text-settings-muted" role="status">
-					{t("settings.project.retiredProviderMigration")}
-				</p>
-			) : null}
 			{section === "general" && (
 				<>
 					<ProjectGeneralSettingsView
@@ -441,9 +453,14 @@ function SettingsBody({
 								installed={agentCatalog?.installed}
 								supported={agentCatalog?.supported}
 								disabled={agentsQuery.isFetching && agentCatalog === undefined}
-								invalid={validationError !== null && form.workerAgent === ""}
 								onChange={(v) =>
-									setForm((f) => ({ ...f, workerAgent: v, workerModel: "", workerMode: "" }))
+									setForm((f) => ({
+										...f,
+										workerAgent: v,
+										workerModel: "",
+										workerMode: "",
+										workerProfile: "",
+									}))
 								}
 							/>
 						}
@@ -454,13 +471,17 @@ function SettingsBody({
 								projectId={projectId}
 								model={form.workerModel}
 								mode={form.workerMode}
+								profile={form.workerProfile}
+								requiresProfile={workerRequiresProfile}
 								onModelChange={(workerModel) => setForm((f) => ({ ...f, workerModel }))}
 								onModeChange={(workerMode) => setForm((f) => ({ ...f, workerMode }))}
+								onProfileChange={(workerProfile) => setForm((f) => ({ ...f, workerProfile }))}
 							/>
 						}
 						orchestratorArea={
 							<RequiredAgentField
 								id="orchestratorAgent"
+								selectableIds={coordinatorCapable.size > 0 ? coordinatorCapable : undefined}
 								variant="settings-row"
 								value={form.orchestratorAgent}
 								placeholder={t("settings.project.selectOrchestrator")}
@@ -469,13 +490,13 @@ function SettingsBody({
 								installed={agentCatalog?.installed}
 								supported={agentCatalog?.supported}
 								disabled={agentsQuery.isFetching && agentCatalog === undefined}
-								invalid={validationError !== null && form.orchestratorAgent === ""}
 								onChange={(v) =>
 									setForm((f) => ({
 										...f,
 										orchestratorAgent: v,
 										orchestratorModel: "",
 										orchestratorMode: "",
+										orchestratorProfile: "",
 									}))
 								}
 							/>
@@ -487,8 +508,10 @@ function SettingsBody({
 								projectId={projectId}
 								model={form.orchestratorModel}
 								mode={form.orchestratorMode}
+								profile={form.orchestratorProfile}
 								onModelChange={(orchestratorModel) => setForm((f) => ({ ...f, orchestratorModel }))}
 								onModeChange={(orchestratorMode) => setForm((f) => ({ ...f, orchestratorMode }))}
+								onProfileChange={(orchestratorProfile) => setForm((f) => ({ ...f, orchestratorProfile }))}
 							/>
 						}
 						permissions={{
@@ -524,10 +547,45 @@ function SettingsBody({
 									: t("settings.project.refreshFailed")
 								: null
 						}
-						missingRequiredMessage={
-							missingRequiredAgent ? t("settings.project.agentsRequired") : null
-						}
+						missingRequiredMessage={null}
 					/>
+					<div className="mt-5 rounded-card border border-border bg-card p-4 hairline">
+						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+							{t("settings.project.missionRoles")}
+						</p>
+						<p className="mt-1 text-xs leading-body text-muted-foreground">
+							{t("settings.project.missionRolesHint")}
+						</p>
+						<div className="mt-3 grid gap-3 sm:grid-cols-2">
+							<MissionRolePreference
+								label={t("settings.project.missionRoleWorker")}
+								value={form.agentPreferences.defaultWorker}
+								options={toPreferenceOptions(workerSelectable)}
+								onChange={(v) => patchPreference("defaultWorker", v)}
+							/>
+							<MissionRolePreference
+								label={t("settings.project.missionRoleAnalyzer")}
+								value={form.agentPreferences.analyzer}
+								options={toPreferenceOptions([...coordinatorCapable])}
+								onChange={(v) => patchPreference("analyzer", v)}
+							/>
+							<MissionRolePreference
+								label={t("settings.project.missionRoleCoordinator")}
+								value={form.agentPreferences.coordinator}
+								options={toPreferenceOptions([...coordinatorCapable])}
+								onChange={(v) => patchPreference("coordinator", v)}
+							/>
+							<MissionRolePreference
+								label={t("settings.project.missionRoleVerifier")}
+								value={form.agentPreferences.verifier}
+								options={toPreferenceOptions([...coordinatorCapable])}
+								onChange={(v) => patchPreference("verifier", v)}
+							/>
+						</div>
+						{resolvedRolesQuery.data ? (
+							<ResolvedMissionRolesList roles={resolvedRolesQuery.data} />
+						) : null}
+					</div>
 				</>
 			)}
 
@@ -604,16 +662,23 @@ function AgentModelField({
 	projectId,
 	model,
 	mode,
+	profile,
+	requiresProfile = false,
 	onModelChange,
 	onModeChange,
+	onProfileChange,
 }: {
 	role: "worker" | "orchestrator";
 	agentId: string;
 	projectId: string;
 	model: string;
 	mode: string;
+	profile: string;
+	/** Daemon-declared launch requirement: this adapter boots a user-selected profile (AgentConfig.Profile). */
+	requiresProfile?: boolean;
 	onModelChange: (value: string) => void;
 	onModeChange: (value: string) => void;
+	onProfileChange: (value: string) => void;
 }) {
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
@@ -688,6 +753,9 @@ function AgentModelField({
 	const hasCatalog = catalog?.selectionMode === "catalog" && (catalog.models?.length ?? 0) > 0;
 	const modelIsInCatalog = catalog?.models?.some((item) => item.id === model) ?? false;
 	const showCustomInput = hasCatalog && (customAgentId === agentId || (model !== "" && !modelIsInCatalog));
+	// Profile-required harnesses carry their launch profile in AgentConfig.Profile,
+	// entered as free text beside the model field.
+	const profileLabel = t("settings.project.profile");
 	const selectCatalogModel = (value: string) => {
 		setCustomAgentId(null);
 		onModelChange(value);
@@ -748,6 +816,18 @@ function AgentModelField({
 					)}
 				</div>
 			</SettingsRow>
+			{requiresProfile && (
+				<SettingsRow label={profileLabel}>
+					<input
+						id={`${role}-profile`}
+						aria-label={profileLabel}
+						className="settings-inline-input settings-model-control"
+						value={profile}
+						disabled={agentId === ""}
+						onChange={(event) => onProfileChange(event.target.value)}
+					/>
+				</SettingsRow>
+			)}
 			{warning && <p className="px-1 text-xs leading-row text-warning">{warning}</p>}
 		</>
 	);
@@ -851,15 +931,124 @@ function blankToUndefined<T extends object>(obj: T): T | undefined {
 	return Object.values(obj).some((v) => v !== undefined) ? obj : undefined;
 }
 
+function preferencesPayload(prefs: {
+	defaultWorker: string;
+	analyzer: string;
+	coordinator: string;
+	verifier: string;
+}): components["schemas"]["ProjectAgentPreferences"] | undefined {
+	const next = {
+		defaultWorker: prefs.defaultWorker || undefined,
+		analyzer: prefs.analyzer || undefined,
+		coordinator: prefs.coordinator || undefined,
+		verifier: prefs.verifier || undefined,
+	};
+	return Object.values(next).some((v) => v !== undefined) ? next : undefined;
+}
+
+// MissionRolePreference edits one optional role preference. An empty value
+// means no preference; the daemon may inherit the matching explicit Project
+// role selection, otherwise the role remains unassigned.
+function MissionRolePreference({
+	label,
+	value,
+	options,
+	onChange,
+}: {
+	label: string;
+	value: string;
+	options: { id: string; label: string }[];
+	onChange: (value: string) => void;
+}) {
+	const { t } = useTranslation();
+	const menuOptions = [
+		{ value: "__none__", label: t("settings.project.missionRoleNoPreference") },
+		...options.map((option) => ({ value: option.id, label: option.label })),
+	];
+	return (
+		<label className="flex flex-col gap-1 text-xs font-medium">
+			{label}
+			<SettingsOptionMenu
+				aria-label={label}
+				value={value || "__none__"}
+				options={menuOptions}
+				onChange={(v) => onChange(v === "__none__" ? "" : v)}
+			/>
+		</label>
+	);
+}
+
+// ResolvedMissionRolesList renders the daemon's advisory resolution for each
+// Mission role, including unassigned state and readiness reasons. It never
+// re-derives admission client-side.
+function ResolvedMissionRolesList({ roles }: { roles: components["schemas"]["ResolvedMissionRoles"] }) {
+	const { t } = useTranslation();
+	const rows = [
+		{ label: t("settings.project.defaultWorker"), role: roles.worker },
+		{ label: t("settings.project.missionRoleAnalyzer"), role: roles.analyzer },
+		{ label: t("settings.project.missionRoleCoordinator"), role: roles.coordinator },
+		{ label: t("settings.project.missionRoleVerifier"), role: roles.verifier },
+	];
+	return (
+		<dl className="mt-4 grid gap-2 border-t border-border pt-3 text-xs leading-snug">
+			{rows.map(({ label, role }) => {
+				const unassigned = !role.harness;
+				return (
+					<div key={label} className="flex items-baseline justify-between gap-3">
+						<dt className="text-muted-foreground">{label}</dt>
+						<dd className="flex items-baseline gap-2 text-right">
+							<span>{role.harness || t("settings.project.missionRoleNoPreference")}</span>
+							<span
+								className={
+									role.source === "preference"
+										? "rounded-xs bg-[--color-status-ready] px-1.5 py-0.5 text-2xs text-background"
+										: "rounded-xs bg-popover px-1.5 py-0.5 text-2xs text-muted-foreground"
+								}
+							>
+								{role.source === "preference"
+									? t("settings.project.missionRoleFromPreference")
+									: unassigned
+										? t("settings.project.missionRoleNoPreference")
+										: t("settings.project.missionRoleFromDefault")}
+							</span>
+							{!role.ready && role.reason ? (
+								<span className="text-2xs text-muted-foreground">{role.reason}</span>
+							) : null}
+						</dd>
+					</div>
+				);
+			})}
+		</dl>
+	);
+}
+
+function buildRoleOverride(
+	existing: components["schemas"]["RoleOverride"] | undefined,
+	agent: string,
+	model: string,
+	mode: string,
+	profile: string,
+): components["schemas"]["RoleOverride"] | undefined {
+	if (!agent) return undefined;
+	return {
+		...existing,
+		agent,
+		agentConfig: buildRoleAgentConfig(existing?.agentConfig, model, mode, profile),
+	};
+}
+
 function buildRoleAgentConfig(
 	existing: components["schemas"]["AgentConfig"] | undefined,
 	model: string,
 	mode: string,
+	profile: string,
 ): components["schemas"]["AgentConfig"] | undefined {
 	const next = { ...existing };
 	if (model) next.model = model;
 	else delete next.model;
 	if (mode) next.mode = mode;
 	else delete next.mode;
+	if (profile) next.profile = profile;
+	else delete next.profile;
 	return Object.keys(next).length > 0 ? next : undefined;
 }

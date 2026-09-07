@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	agentregistry "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/registry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	agentregistry "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/registry"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 var (
@@ -21,7 +21,7 @@ var (
 	agentAuthProbeTimeout    = 10 * time.Second
 	agentRefreshMinInterval  = 10 * time.Second
 	modelCatalogLoadTimeout  = 30 * time.Second
-	// How long a cached catalog is trusted before AO asks a cache-first client to
+	// How long a cached catalog is trusted before Kennel asks a cache-first client to
 	// revalidate in the background. Long, because rediscovery runs an agent CLI:
 	// this covers drift a fingerprint cannot see, not routine correctness.
 	modelCatalogTrustWindow = 6 * time.Hour
@@ -66,6 +66,26 @@ type Info struct {
 	ID         string                `json:"id"`
 	Label      string                `json:"label"`
 	AuthStatus ports.AgentAuthStatus `json:"authStatus,omitempty" enum:"authorized,unauthorized,unknown" description:"Advisory local auth probe result. authorized means a recent local probe passed; spawn remains the authoritative validation point."`
+	// Ready is the advisory profile-readiness probe for adapters whose launch
+	// depends on user-selected configuration beyond a resolved binary. Absent
+	// means the probe does not apply to this adapter. Spawn remains the
+	// authoritative validation point.
+	Ready       *bool  `json:"ready,omitempty" description:"Advisory profile-readiness probe for adapters whose launch needs more than an installed binary. Absent means the probe does not apply."`
+	ReadyDetail string `json:"readyDetail,omitempty" description:"Adapter-explained readiness context: what was verified or what is missing."`
+	// RequiresProfile mirrors the adapter's readiness capability: launch depends
+	// on user-selected configuration (e.g. a dsh profile), so UIs must collect
+	// it before offering this agent. The daemon enforces the same check at
+	// spawn; this flag exists so clients never duplicate that policy.
+	RequiresProfile bool `json:"requiresProfile,omitempty" description:"Launch requires user-selected profile configuration beyond an installed binary."`
+	// Roles are the daemon's authoritative role admission for this harness.
+	Roles AgentRoles `json:"roles" description:"Role admission derived from daemon policy. Clients must not re-derive it from provider names."`
+}
+
+// AgentRoles reports which responsibilities a harness is admitted for.
+type AgentRoles struct {
+	Worker       bool `json:"worker"`
+	Coordinator  bool `json:"coordinator"`
+	SwitchTarget bool `json:"switchTarget"`
 }
 
 // Inventory describes all daemon-supported agents and best-effort local probe
@@ -385,7 +405,7 @@ func (s *Service) loadModels(ctx context.Context, agentID, projectID string, mod
 }
 
 func appendCacheWarning(current string) string {
-	const next = "Models loaded, but AO could not update the model cache."
+	const next = "Models loaded, but Kennel could not update the model cache."
 	if current == "" {
 		return next
 	}
@@ -496,6 +516,10 @@ func (s *Service) probeAgent(ctx context.Context, item agentregistry.HarnessAgen
 	if info.Label == "" {
 		info.Label = info.ID
 	}
+	info.Roles = agentRoles(item.Harness)
+	if _, ok := item.Agent.(ports.AgentProfileReadinessChecker); ok {
+		info.RequiresProfile = true
+	}
 	probeCtx, cancel := context.WithTimeout(ctx, agentInstallProbeTimeout)
 	defer cancel()
 	resolver, ok := item.Agent.(ports.AgentBinaryResolver)
@@ -511,7 +535,29 @@ func (s *Service) probeAgent(ctx context.Context, item agentregistry.HarnessAgen
 	authCtx, authCancel := context.WithTimeout(ctx, agentAuthProbeTimeout)
 	defer authCancel()
 	info.AuthStatus = authStatus(authCtx, item.Agent)
+	// Profile readiness is advisory and probed with an empty config: it can
+	// only describe the no-selection baseline ("what is missing"). A project's
+	// configured profile is validated authoritatively at spawn.
+	if checker, ok := item.Agent.(ports.AgentProfileReadinessChecker); ok {
+		readinessCtx, readinessCancel := context.WithTimeout(ctx, agentInstallProbeTimeout)
+		defer readinessCancel()
+		if readiness, err := checker.ProfileReadiness(readinessCtx, ports.AgentConfig{}); err == nil {
+			ready := readiness.Ready
+			info.Ready = &ready
+			info.ReadyDetail = readiness.Detail
+		}
+	}
 	return probeResult{info: info, installed: true, authorized: info.AuthStatus == ports.AgentAuthStatusAuthorized}
+}
+
+// agentRoles derives the authoritative role admission for a harness from the
+// domain predicates, so API consumers never re-implement provider policy.
+func agentRoles(harness domain.AgentHarness) AgentRoles {
+	return AgentRoles{
+		Worker:       harness.IsSelectableForNewWork(),
+		Coordinator:  harness.IsSelectableAsCoordinator(),
+		SwitchTarget: harness.IsSelectableAsSwitchTarget(),
+	}
 }
 
 func authStatus(ctx context.Context, a ports.Agent) ports.AgentAuthStatus {
@@ -538,4 +584,231 @@ func sortInfos(infos []Info) {
 	sort.Slice(infos, func(i, j int) bool {
 		return infos[i].ID < infos[j].ID
 	})
+}
+
+// RoleInventoryFact is the live adapter admission truth for one harness,
+// probed from the same inventory primitive the agents list serves. Auth is
+// part of admission ONLY where the adapter implements the auth checker: an
+// adapter without one (DeepSeek Harness deliberately does not) signals its
+// readiness through installation and profile facts instead, so a missing
+// probe must never read as a refused grant.
+type RoleInventoryFact struct {
+	Installed       bool
+	RequiresProfile bool
+	ProfileReady    *bool
+	// AuthApplicable reports whether this adapter participates in authorization.
+	AuthApplicable bool
+	// AuthOptional reports whether the adapter can work without a grant, so an
+	// inconclusive probe is its healthy state rather than a missing
+	// precondition. Meaningful only when AuthApplicable.
+	AuthOptional bool
+	// Auth is the probed grant status; meaningful only when AuthApplicable.
+	Auth ports.AgentAuthStatus
+}
+
+func (s *Service) agentFor(harness domain.AgentHarness) (agentregistry.HarnessAgent, bool) {
+	for _, item := range s.agents {
+		if item.Harness == harness {
+			return item, true
+		}
+	}
+	return agentregistry.HarnessAgent{}, false
+}
+
+// InventoryRoleFacts probes installation, authorization, and advisory profile
+// readiness for each named harness through probeAgent — the same primitive
+// that serves the agents catalog — so both paths report identical truth. The
+// caller's context bounds every probe; child timeouts derive from it.
+func (s *Service) InventoryRoleFacts(ctx context.Context, harnesses []domain.AgentHarness) map[domain.AgentHarness]RoleInventoryFact {
+	out := make(map[domain.AgentHarness]RoleInventoryFact, len(harnesses))
+	for _, harness := range harnesses {
+		fact := RoleInventoryFact{Auth: ports.AgentAuthStatusUnknown}
+		item, ok := s.agentFor(harness)
+		if ok {
+			fact.AuthApplicable = isAuthApplicable(item)
+			fact.AuthOptional = isAuthOptional(item)
+			res := s.probeAgent(ctx, item)
+			fact.Installed = res.installed
+			fact.RequiresProfile = res.info.RequiresProfile
+			fact.ProfileReady = res.info.Ready
+			if res.info.AuthStatus != "" {
+				fact.Auth = res.info.AuthStatus
+			}
+		}
+		out[harness] = fact
+	}
+	return out
+}
+
+// isAuthApplicable reports whether the adapter participates in authorization:
+// adapters without an auth checker (DeepSeek Harness by design) are exempt,
+// and their readiness is installation + profile only.
+func isAuthApplicable(item agentregistry.HarnessAgent) bool {
+	_, ok := item.Agent.(ports.AgentAuthChecker)
+	return ok
+}
+
+// isAuthOptional reports whether the adapter declares that a provider grant is
+// information rather than a precondition (opencode, which ships usable free
+// models). Adapters that say nothing keep the strict default.
+func isAuthOptional(item agentregistry.HarnessAgent) bool {
+	reporter, ok := item.Agent.(ports.AgentOptionalAuth)
+	return ok && reporter.AuthOptional()
+}
+
+// authBlocksReadiness decides whether a probed grant status should stop a role
+// from being ready. An affirmative refusal always blocks. An inconclusive probe
+// blocks only for adapters that need a grant to run at all: for one that
+// declares auth optional, "no credential found" is its working state, and
+// treating that as refusal would gate an agent that runs fine without one.
+func authBlocksReadiness(fact RoleInventoryFact) bool {
+	if fact.Auth == ports.AgentAuthStatusUnauthorized {
+		return true
+	}
+	if fact.AuthOptional {
+		return false
+	}
+	return fact.Auth != ports.AgentAuthStatusAuthorized
+}
+
+// EnrichMissionRoles layers live inventory truth onto the pure capability
+// proposal. Readiness failures never substitute another harness — they flip
+// Ready to false and name every blocking gate, so callers fail closed instead
+// of silently falling back. Authorization fails closed only where the gate
+// applies: an adapter that does not implement the auth checker (DeepSeek
+// Harness) proves readiness through installation and profile facts instead,
+// while a probed unknown or refused grant blocks.
+func EnrichMissionRoles(base domain.ResolvedMissionRoles, facts map[domain.AgentHarness]RoleInventoryFact) domain.ResolvedMissionRoles {
+	enrich := func(role domain.ResolvedAgentRole) domain.ResolvedAgentRole {
+		fact, known := facts[role.Harness]
+		if !known {
+			return role
+		}
+		if !fact.Installed {
+			role.Ready = false
+			role.Reason += "; harness is not installed"
+		}
+		if fact.RequiresProfile && (fact.ProfileReady == nil || !*fact.ProfileReady) {
+			role.Ready = false
+			role.Reason += "; profile readiness fails closed (no composed profile)"
+		}
+		if fact.AuthApplicable && authBlocksReadiness(fact) {
+			role.Ready = false
+			role.Reason += "; agent authorization is not granted"
+		}
+		return role
+	}
+	base.Worker = enrich(base.Worker)
+	base.Analyzer = enrich(base.Analyzer)
+	base.Coordinator = enrich(base.Coordinator)
+	base.Verifier = enrich(base.Verifier)
+	return base
+}
+
+// ResolveMissionRoles combines stored preferences with live inventory truth
+// into one daemon-resolved role proposal. Assignments are proposals for
+// future Missions; historical sessions and approved Plans keep their
+// immutable provider identity regardless of what this returns.
+func withPreferences(cfg domain.ProjectConfig, prefs domain.ProjectAgentPreferences) domain.ProjectConfig {
+	// Callers pass preferences separately from the config they came from; the
+	// resolver now needs both in one place, and the explicit argument wins.
+	cfg.AgentPreferences = prefs
+	return cfg
+}
+
+func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences, cfg domain.ProjectConfig) domain.ResolvedMissionRoles {
+	base := domain.ResolveMissionRoles(withPreferences(cfg, prefs))
+	facts := s.InventoryRoleFacts(ctx, s.uniqueHarnesses(base))
+	// Profile readiness is Project-config-aware: each role is probed with the
+	// AgentConfig that launch would actually merge (role override when set,
+	// otherwise the shared base), so a persisted profile flips readiness here
+	// instead of the UI reporting "no profile selected" after a save.
+	for _, role := range []struct {
+		harness         domain.AgentHarness
+		overrideHarness domain.AgentHarness
+		override        domain.AgentConfig
+	}{
+		{base.Worker.Harness, cfg.Worker.Harness, cfg.Worker.AgentConfig},
+		{base.Analyzer.Harness, cfg.Orchestrator.Harness, cfg.Orchestrator.AgentConfig},
+		{base.Coordinator.Harness, cfg.Orchestrator.Harness, cfg.Orchestrator.AgentConfig},
+		{base.Verifier.Harness, cfg.Orchestrator.Harness, cfg.Orchestrator.AgentConfig},
+	} {
+		fact := facts[role.harness]
+		if !fact.RequiresProfile || fact.ProfileReady != nil && *fact.ProfileReady {
+			continue
+		}
+		item, ok := s.agentFor(role.harness)
+		if !ok {
+			continue
+		}
+		checker, ok := item.Agent.(ports.AgentProfileReadinessChecker)
+		if !ok {
+			continue
+		}
+		// Spawn clears provider-owned fields after merging the role override when
+		// the stored role harness does not match the launch harness
+		// (session_manager.freshAgentConfig). Readiness applies the identical
+		// rule so the two can never disagree.
+		override := role.override
+		applies := overrideAppliesTo(role.overrideHarness, role.harness)
+		if !applies {
+			override = domain.AgentConfig{}
+		}
+		probeConfig := roleConfig(cfg, override)
+		if !applies {
+			probeConfig.Model = ""
+			probeConfig.Mode = ""
+			probeConfig.Profile = ""
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, agentInstallProbeTimeout)
+		readiness, err := checker.ProfileReadiness(probeCtx, probeConfig)
+		cancel()
+		if err != nil {
+			continue
+		}
+		ready := readiness.Ready
+		fact.ProfileReady = &ready
+		facts[role.harness] = fact
+	}
+	return EnrichMissionRoles(base, facts)
+}
+
+func (s *Service) uniqueHarnesses(base domain.ResolvedMissionRoles) []domain.AgentHarness {
+	seen := map[domain.AgentHarness]struct{}{
+		base.Analyzer.Harness:    {},
+		base.Coordinator.Harness: {},
+		base.Worker.Harness:      {},
+		base.Verifier.Harness:    {},
+	}
+	names := make([]domain.AgentHarness, 0, len(seen))
+	for harness := range seen {
+		names = append(names, harness)
+	}
+	return names
+}
+
+// overrideAppliesTo mirrors session_manager's freshAgentConfig rule exactly:
+// an override whose harness differs from the resolved launch harness —
+// including an UNSET harness — is cleared before launch, so it must be
+// treated as cleared here too. Only an explicit harness match carries the
+// override's Model/Mode/Profile forward.
+func overrideAppliesTo(overrideHarness, resolved domain.AgentHarness) bool {
+	return overrideHarness != "" && overrideHarness == resolved
+}
+
+// roleConfig merges a role override over the shared base; set fields win.
+func roleConfig(cfg domain.ProjectConfig, override domain.AgentConfig) domain.AgentConfig {
+	if override.Profile != "" {
+		cfg.AgentConfig.Profile = override.Profile
+	}
+	if override.Model != "" {
+		cfg.AgentConfig.Model = override.Model
+	}
+	if override.Mode != "" {
+		cfg.AgentConfig.Mode = override.Mode
+	}
+	if override.Permissions != "" {
+		cfg.AgentConfig.Permissions = override.Permissions
+	}
+	return cfg.AgentConfig
 }

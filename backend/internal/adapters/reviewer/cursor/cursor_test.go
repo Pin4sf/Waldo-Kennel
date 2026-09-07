@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type captureAgent struct {
@@ -55,7 +55,7 @@ func TestReviewCommandBuildsPersistentInteractiveInvocation(t *testing.T) {
 		ReviewerID:       "review-w1",
 		WorkspacePath:    "/ws/w1",
 		DataDir:          dataDir,
-		Prompt:           "complete the AO review task in `/ao/prompts/reviewer/requests/batch-1/run-1/task.md`.",
+		Prompt:           "complete the Kennel review task in `/ao/prompts/reviewer/requests/batch-1/run-1/task.md`.",
 		SystemPrompt:     "secret system content must not enter argv",
 		SystemPromptFile: "/ao/prompts/reviewer/system.md",
 		TaskPromptFile:   "/ao/prompts/reviewer/requests/batch-1/run-1/task.md",
@@ -65,7 +65,7 @@ func TestReviewCommandBuildsPersistentInteractiveInvocation(t *testing.T) {
 		t.Fatalf("ReviewCommand: %v", err)
 	}
 
-	wantPrompt := "Read and follow the AO reviewer role in `/ao/prompts/reviewer/system.md`, then complete the AO review task in `/ao/prompts/reviewer/requests/batch-1/run-1/task.md`."
+	wantPrompt := "Read and follow the Kennel reviewer role in `/ao/prompts/reviewer/system.md`, then complete the Kennel review task in `/ao/prompts/reviewer/requests/batch-1/run-1/task.md`."
 	want := []string{
 		"cursor-agent", "--trust",
 		"--add-dir", "/ao/prompts/reviewer",
@@ -95,7 +95,7 @@ func TestReviewCommandBuildsPersistentInteractiveInvocation(t *testing.T) {
 	}
 	profileDir := filepath.Join(dataDir, "cursor-reviewers", "c442045692db6092")
 	if !reflect.DeepEqual(got.Env, map[string]string{cursorDataDirEnv: profileDir}) {
-		t.Fatalf("env = %#v, want AO-owned profile %q", got.Env, profileDir)
+		t.Fatalf("env = %#v, want Kennel-owned profile %q", got.Env, profileDir)
 	}
 }
 

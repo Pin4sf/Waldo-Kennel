@@ -2,25 +2,45 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type { components } from "../../api/schema";
 import { agentsQueryKey } from "../hooks/useAgentsQuery";
-import { CreateProjectAgentSheet, defaultAuthorizedAgent, RequiredAgentField } from "./CreateProjectAgentSheet";
+import {
+	CreateProjectAgentSheet,
+	preferredDefaultAgent,
+	RequiredAgentField,
+} from "./CreateProjectAgentSheet";
 
-function renderSheet(onSubmit = vi.fn().mockResolvedValue(undefined)) {
+type AgentInfo = components["schemas"]["AgentInfo"];
+
+const roles = (overrides: Partial<AgentInfo["roles"]> = {}): AgentInfo["roles"] => ({
+	worker: true,
+	coordinator: false,
+	switchTarget: false,
+	...overrides,
+});
+
+const agent = (id: string, label: string, extra: Partial<AgentInfo> = {}): AgentInfo => ({
+	id,
+	label,
+	authStatus: "authorized",
+	roles: roles(),
+	...extra,
+});
+
+function renderSheet(
+	onSubmit = vi.fn().mockResolvedValue(undefined),
+	inventory: {
+		supported: AgentInfo[];
+		installed: AgentInfo[];
+		authorized: AgentInfo[];
+	} = (() => {
+		const codex = agent("codex", "Codex", { roles: roles({ coordinator: true, switchTarget: true }) });
+		const claude = agent("claude-code", "Claude Code", { roles: roles({ coordinator: true, switchTarget: true }) });
+		return { supported: [claude, codex], installed: [claude, codex], authorized: [claude, codex] };
+	})(),
+) {
 	const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-	queryClient.setQueryData(agentsQueryKey, {
-		supported: [
-			{ id: "claude-code", label: "claude-code" },
-			{ id: "codex", label: "codex" },
-		],
-		installed: [
-			{ id: "claude-code", label: "claude-code", authStatus: "authorized" },
-			{ id: "codex", label: "codex", authStatus: "authorized" },
-		],
-		authorized: [
-			{ id: "claude-code", label: "claude-code", authStatus: "authorized" },
-			{ id: "codex", label: "codex", authStatus: "authorized" },
-		],
-	});
+	queryClient.setQueryData(agentsQueryKey, inventory);
 	render(
 		<QueryClientProvider client={queryClient}>
 			<CreateProjectAgentSheet
@@ -43,22 +63,21 @@ async function chooseOption(trigger: HTMLElement, optionName: string) {
 }
 
 describe("CreateProjectAgentSheet", () => {
-	it("chooses the highest-priority authorized default agent", () => {
-		expect(
-			defaultAuthorizedAgent([
-				{ id: "opencode", label: "OpenCode", authStatus: "authorized" },
-				{ id: "codex", label: "Codex", authStatus: "authorized" },
-			]),
-		).toBe("codex");
+	it("does not invent a provider default when multiple providers are ready", () => {
+		const options = [
+			{ ...agent("opencode", "OpenCode"), disabled: false, priorityRank: Number.MAX_SAFE_INTEGER, rank: 0, status: "Ready", statusTone: "success" as const },
+			{ ...agent("codex", "Codex"), disabled: false, priorityRank: Number.MAX_SAFE_INTEGER, rank: 0, status: "Ready", statusTone: "success" as const },
+		];
+		expect(preferredDefaultAgent(options, "")).toBe("");
 	});
 
-	it("does not select a retired authorized agent", () => {
-		expect(
-			defaultAuthorizedAgent([
-				{ id: "goose", label: "Goose", authStatus: "authorized" },
-				{ id: "devin", label: "Devin", authStatus: "authorized" },
-			]),
-		).toBe("");
+	it("honors a stored preferred provider only while that exact provider is ready", () => {
+		const options = [
+			{ ...agent("opencode", "OpenCode"), disabled: false, priorityRank: Number.MAX_SAFE_INTEGER, rank: 0, status: "Ready", statusTone: "success" as const },
+			{ ...agent("codex", "Codex"), disabled: true, priorityRank: Number.MAX_SAFE_INTEGER, rank: 1, status: "Needs auth", statusTone: "warning" as const },
+		];
+		expect(preferredDefaultAgent(options, "opencode")).toBe("opencode");
+		expect(preferredDefaultAgent(options, "codex")).toBe("opencode");
 	});
 
 	it("uses the compact trigger size for agent fields", () => {
@@ -81,47 +100,102 @@ describe("CreateProjectAgentSheet", () => {
 		);
 
 		await userEvent.click(screen.getByLabelText("Agent"));
-
 		expect(await screen.findByRole("listbox")).toHaveClass("max-h-select-menu-max!");
 	});
 
-	it("creates without intake when the toggle is left off", async () => {
+	it("allows Project creation with no provider selected", async () => {
 		const onSubmit = renderSheet();
+		const submit = screen.getByRole("button", { name: "Create and start" });
+		expect(submit).toBeEnabled();
+		expect(screen.getByLabelText("Default coding agent")).toHaveTextContent(/select/i);
 
+		await userEvent.click(submit);
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+		expect(onSubmit).toHaveBeenCalledWith({ workerAgent: "", trackerIntake: undefined });
+	});
+
+	it("explains how to recover when no coding provider is ready without blocking Project creation", () => {
+		const codex = agent("codex", "Codex", {
+			authStatus: "unauthorized",
+			roles: roles({ coordinator: true, switchTarget: true }),
+		});
+		renderSheet(undefined, {
+			supported: [codex],
+			installed: [codex],
+			authorized: [],
+		});
+
+		expect(screen.getByText("Agent setup required")).toBeInTheDocument();
+		expect(
+			screen.getByText(/finish authentication or configuration in the provider CLI, then refresh agents/i),
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Create and start" })).toBeEnabled();
+	});
+
+	it("still preselects the only ready worker without creating a hidden coordinator override", async () => {
+		const codex = agent("codex", "Codex", { roles: roles({ coordinator: true, switchTarget: true }) });
+		const claude = agent("claude-code", "Claude Code", {
+			authStatus: "unauthorized",
+			roles: roles({ coordinator: true, switchTarget: true }),
+		});
+		const onSubmit = renderSheet(undefined, {
+			supported: [claude, codex],
+			installed: [claude, codex],
+			authorized: [codex],
+		});
+
+		await userEvent.click(screen.getByRole("button", { name: "Create and start" }));
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+		expect(onSubmit).toHaveBeenCalledWith({
+			workerAgent: "codex",
+			trackerIntake: undefined,
+		});
+	});
+
+	it("lets the owner select worker and coordinator independently from ready role-capable providers", async () => {
+		const onSubmit = renderSheet();
+		await chooseOption(screen.getByLabelText("Default coding agent"), "Claude Code");
+		await userEvent.click(screen.getByRole("button", { name: "Advanced settings" }));
+		await chooseOption(await screen.findByLabelText("Orchestrator agent"), "Codex");
 		await userEvent.click(screen.getByRole("button", { name: "Create and start" }));
 
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
 		expect(onSubmit).toHaveBeenCalledWith({
-			workerAgent: "codex",
+			workerAgent: "claude-code",
 			orchestratorAgent: "codex",
 			trackerIntake: undefined,
 		});
 	});
 
-	it("blocks submit when intake is enabled with no assignee, then passes the intake payload once one is set", async () => {
-		const onSubmit = renderSheet();
-		await chooseOption(screen.getByLabelText("Worker agent"), "codex");
-		await chooseOption(screen.getByLabelText("Orchestrator agent"), "codex");
+	it("keeps worker-only providers out of the coordinator picker", async () => {
+		const codex = agent("codex", "Codex", { roles: roles({ coordinator: true, switchTarget: true }) });
+		const cursor = agent("cursor", "Cursor", { roles: roles({ coordinator: false, switchTarget: false }) });
+		renderSheet(undefined, { supported: [cursor, codex], installed: [cursor, codex], authorized: [cursor, codex] });
 
+		await chooseOption(screen.getByLabelText("Default coding agent"), "Cursor");
+		await userEvent.click(screen.getByRole("button", { name: "Advanced settings" }));
+		await userEvent.click(await screen.findByLabelText("Orchestrator agent"));
+		expect(screen.queryByRole("option", { name: /Cursor/i })).not.toBeInTheDocument();
+		expect(screen.getByRole("option", { name: /Codex/i })).toBeInTheDocument();
+	});
+
+	it("blocks submit when intake is enabled with no assignee, then passes the payload once one is set", async () => {
+		const onSubmit = renderSheet();
+		await chooseOption(screen.getByLabelText("Default coding agent"), "Codex");
 		await userEvent.click(screen.getByLabelText("Enable issue intake"));
-		// Enabled with no eligibility rule → submit stays disabled (compact sheet
-		// carries no inline guard prose; gating is the disabled button).
 		expect(screen.getByRole("button", { name: "Create and start" })).toBeDisabled();
 
 		await userEvent.type(screen.getByLabelText("Assignee"), "octocat");
 		await userEvent.click(screen.getByRole("button", { name: "Create and start" }));
-
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
 		expect(onSubmit).toHaveBeenCalledWith({
 			workerAgent: "codex",
-			orchestratorAgent: "codex",
 			trackerIntake: { enabled: true, provider: "github", assignee: "octocat" },
 		});
 	});
 
-	it("keeps the create sheet minimal: info tooltip instead of prose, no repo row or credential hint", async () => {
+	it("keeps the create sheet minimal", async () => {
 		renderSheet();
-		// Info affordance is present even before enabling; the descriptive prose is not.
 		expect(screen.getByLabelText("What does enabling issue intake do?")).toBeInTheDocument();
 		expect(screen.queryByText(/Auto-spawn worker sessions from matching tracker issues/)).not.toBeInTheDocument();
 

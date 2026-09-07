@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Every scripted reply below is a SINGLE line. readFrame is newline-delimited, so a
@@ -327,7 +327,7 @@ func TestSetTitleRefusesABlankName(t *testing.T) {
 	}
 }
 
-// A title AO did not set still has to reach it: another client naming the thread is
+// A title Kennel did not set still has to reach it: another client naming the thread is
 // how a provider-derived title arrives at all.
 func TestThreadRenamedNotificationBecomesATitleEvent(t *testing.T) {
 	conv, srv := openConversation(t)

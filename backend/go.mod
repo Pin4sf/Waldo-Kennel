@@ -1,4 +1,4 @@
-module github.com/aoagents/agent-orchestrator/backend
+module github.com/Pin4sf/Waldo-Kennel/backend
 
 go 1.25.7
 

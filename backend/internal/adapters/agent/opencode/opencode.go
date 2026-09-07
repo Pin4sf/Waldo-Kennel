@@ -3,16 +3,16 @@
 // workspace-local activity plugin plus the using-kennel skill, and reading
 // plugin-derived session info.
 //
-// opencode differs from Claude Code and Codex in two ways AO has to bridge:
+// opencode differs from Claude Code and Codex in two ways Kennel has to bridge:
 //   - It has no native command-hook config (no settings.local.json / hooks.json
 //     equivalent). Its only lifecycle-extensibility surface is a JS/TS plugin
-//     loaded from .opencode/plugins/, so GetAgentHooks installs an AO-owned
+//     loaded from .opencode/plugins/, so GetAgentHooks installs an Kennel-owned
 //     plugin file (see hooks.go) instead of merging JSON. The same install also
 //     materializes using-kennel under .opencode/skills/ so opencode's skill tool
 //     can discover it (the data-dir skill path alone is invisible to opencode).
 //   - Its CLI exposes only one approval flag (--dangerously-skip-permissions)
-//     and no system-prompt flag, so AO injects standing instructions by writing
-//     an AO-owned per-session config and selecting the generated agent.
+//     and no system-prompt flag, so Kennel injects standing instructions by writing
+//     an Kennel-owned per-session config and selecting the generated agent.
 //
 // Kennel-managed sessions derive native session identity and display metadata from
 // the opencode plugin's reported events, mirroring the Codex adapter.
@@ -31,12 +31,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agentbase"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/binaryutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 
 	_ "modernc.org/sqlite" // register sqlite driver for opencode session metadata probes
 )
@@ -75,6 +75,7 @@ func New() *Plugin {
 var _ adapters.Adapter = (*Plugin)(nil)
 var _ ports.Agent = (*Plugin)(nil)
 var _ ports.AgentAuthChecker = (*Plugin)(nil)
+var _ ports.AgentOptionalAuth = (*Plugin)(nil)
 
 // Manifest returns the adapter's static self-description.
 func (p *Plugin) Manifest() adapters.Manifest {
@@ -97,11 +98,11 @@ func (p *Plugin) GetConfigSpec(ctx context.Context) (ports.ConfigSpec, error) {
 // GetLaunchCommand builds the argv to start a new interactive opencode session.
 // Shape:
 //
-//	[env OPENCODE_CONFIG=<ao-config>] opencode [--dangerously-skip-permissions] [--agent <ao-agent>] [--prompt <prompt>]
+//	[env OPENCODE_CONFIG=<kennel-config>] opencode [--dangerously-skip-permissions] [--agent <kennel-agent>] [--prompt <prompt>]
 //
 // The session runs in the worktree (cwd is set by the runtime, as for Claude
 // Code and Codex). opencode has no CLI flag to set a system prompt, so Kennel writes
-// an opencode config into the AO prompt artifact directory, points OPENCODE_CONFIG
+// an opencode config into the Kennel prompt artifact directory, points OPENCODE_CONFIG
 // at it, and selects the generated agent with --agent. The initial task prompt
 // is delivered via --prompt (its argument, so a leading "-" is not read as a flag).
 func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (cmd []string, err error) {
@@ -128,8 +129,8 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 }
 
 // GetRestoreCommand rebuilds the argv that continues an existing opencode
-// session: `[env OPENCODE_CONFIG=<ao-config>] opencode [--dangerously-skip-permissions] [--agent <ao-agent>] --session <agentSessionId>`.
-// It re-applies the permission flag and the generated AO agent config (resume
+// session: `[env OPENCODE_CONFIG=<kennel-config>] opencode [--dangerously-skip-permissions] [--agent <kennel-agent>] --session <agentSessionId>`.
+// It re-applies the permission flag and the generated Kennel agent config (resume
 // otherwise reverts to configured defaults). ok is false when the plugin-derived
 // native session id has not landed yet, so callers fall back to fresh launch
 // behavior — mirroring the Codex adapter.
@@ -173,6 +174,13 @@ func (p *Plugin) SessionInfo(ctx context.Context, session ports.SessionRef) (por
 	return info, ok, nil
 }
 
+// AuthOptional reports that opencode does not need a provider grant to run.
+// `opencode models` lists usable free models (opencode/*-free) with zero
+// credentials configured, so an install with no login is fully working rather
+// than half-configured. This keeps the unknown status below from reading as a
+// missing precondition; an affirmative unauthorized result still blocks.
+func (p *Plugin) AuthOptional() bool { return true }
+
 // AuthStatus checks whether opencode has a configured provider credential.
 // Missing credentials remain unknown because opencode can still run its public
 // free models without a provider login.
@@ -189,7 +197,7 @@ func (p *Plugin) AuthStatus(ctx context.Context) (ports.AgentAuthStatus, error) 
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	out, err := aoprocess.CommandContext(probeCtx, binary, "auth", "list").CombinedOutput()
+	out, err := kennelprocess.CommandContext(probeCtx, binary, "auth", "list").CombinedOutput()
 	if probeCtx.Err() != nil {
 		return ports.AgentAuthStatusUnknown, probeCtx.Err()
 	}
@@ -241,7 +249,7 @@ func opencodeLocalAuthStatus(ctx context.Context) (ports.AgentAuthStatus, bool, 
 	if jsonOK && jsonStatus == ports.AgentAuthStatusAuthorized {
 		return jsonStatus, true, nil
 	}
-	if status, ok, err := opencodeDBAuthStatus(ctx, filepath.Join(dataDir, "opencode.db")); err != nil || ok {
+	if status, ok, err := opencodeDBAuthStatus(ctx, filepath.Join(dataDir, opencodeStateDBName)); err != nil || ok {
 		return status, ok, err
 	}
 	if jsonOK {
@@ -251,17 +259,53 @@ func opencodeLocalAuthStatus(ctx context.Context) (ports.AgentAuthStatus, bool, 
 }
 
 func opencodeDataDir() (string, bool) {
-	if dataDir := strings.TrimSpace(os.Getenv("OPENCODE_DATA_DIR")); dataDir != "" {
-		return dataDir, true
+	return opencodeDataDirFrom(nil)
+}
+
+// opencodeDataDirFrom resolves opencode's state root, preferring an explicit
+// launch environment over the daemon's own so a session pinned to its own data
+// dir is inspected against the state it actually runs with. Precedence follows
+// opencode: OPENCODE_DATA_DIR, then XDG_DATA_HOME/opencode, then
+// ~/.local/share/opencode. A nil env resolves purely from the process
+// environment, which is what the auth probe has always done.
+func opencodeDataDirFrom(env map[string]string) (string, bool) {
+	lookup := func(key string) string {
+		if value, ok := env[key]; ok {
+			return strings.TrimSpace(value)
+		}
+		return strings.TrimSpace(os.Getenv(key))
 	}
-	if dataHome := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); dataHome != "" {
+	if dataDir := lookup("OPENCODE_DATA_DIR"); dataDir != "" {
+		return filepath.Clean(dataDir), true
+	}
+	if dataHome := lookup("XDG_DATA_HOME"); dataHome != "" {
 		return filepath.Join(dataHome, "opencode"), true
+	}
+	if home := lookup("HOME"); home != "" {
+		return filepath.Join(home, ".local", "share", "opencode"), true
 	}
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return "", false
 	}
 	return filepath.Join(home, ".local", "share", "opencode"), true
+}
+
+// opencodeStateDBName is opencode's SQLite state file, which holds both the
+// account records the auth probe reads and the session records the continuation
+// probe reads.
+const opencodeStateDBName = "opencode.db"
+
+// openOpenCodeStateDB opens opencode's state read-only. Read-only matters: Kennel
+// inspects another tool's live database, and opencode runs it in WAL mode, so
+// the short busy timeout lets a concurrent write settle instead of failing the
+// probe outright.
+func openOpenCodeStateDB(path string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?mode=ro&_pragma=busy_timeout(1000)")
+	if err != nil {
+		return nil, fmt.Errorf("opencode: open session state: %w", err)
+	}
+	return db, nil
 }
 
 func opencodeAuthJSONStatus(path string) (ports.AgentAuthStatus, bool, error) {
@@ -305,7 +349,7 @@ func opencodeDBAuthStatus(ctx context.Context, path string) (ports.AgentAuthStat
 		return ports.AgentAuthStatusUnknown, false, err
 	}
 
-	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?mode=ro&_pragma=busy_timeout(1000)")
+	db, err := openOpenCodeStateDB(path)
 	if err != nil {
 		return ports.AgentAuthStatusUnknown, false, err
 	}
@@ -355,7 +399,7 @@ func opencodeDBCount(ctx context.Context, db *sql.DB, query string) (int, error)
 	return count, nil
 }
 
-// appendPermissionFlags maps AO's permission modes onto opencode's single
+// appendPermissionFlags maps Kennel's permission modes onto opencode's single
 // approval flag. opencode exposes only --dangerously-skip-permissions (no
 // graduated accept-edits/auto modes), so:
 //   - bypass-permissions → --dangerously-skip-permissions
@@ -416,7 +460,7 @@ func opencodeConfigEnvPrefix(inlinePrompt, promptFile, sessionID string) ([]stri
 	return []string{"env", opencodeConfigEnvVar + "=" + configPath}, agentName, nil
 }
 
-// PrepareACPConfigContent merges AO's standing instructions and any explicit
+// PrepareACPConfigContent merges Kennel's standing instructions and any explicit
 // bypass-permissions choice into OpenCode's inline runtime overlay. The user's
 // OPENCODE_CONFIG path remains untouched, preserving its normal global, custom,
 // project, provider, and credential configuration.
@@ -452,7 +496,7 @@ func PrepareACPConfigContent(
 	}
 	if allowAll {
 		// This is the native config equivalent of OpenCode's TUI auto-approval
-		// flag. Other AO permission modes preserve the user's granular rules.
+		// flag. Other Kennel permission modes preserve the user's granular rules.
 		config["permission"] = "allow"
 	}
 	data, err := json.Marshal(config)
@@ -463,7 +507,7 @@ func PrepareACPConfigContent(
 }
 
 func opencodeAOAgentName(sessionID string) string {
-	const fallback = "ao-system-prompt"
+	const fallback = "kennel-system-prompt"
 	trimmed := strings.TrimSpace(sessionID)
 	if trimmed == "" {
 		return fallback
@@ -485,7 +529,7 @@ func opencodeAOAgentName(sessionID string) string {
 	if name == "" {
 		return fallback
 	}
-	return "ao-" + name
+	return "kennel-" + name
 }
 
 // ResolveOpenCodeBinary returns the path to the opencode binary on this machine,

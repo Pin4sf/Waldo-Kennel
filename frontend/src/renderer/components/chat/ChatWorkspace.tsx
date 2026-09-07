@@ -146,7 +146,7 @@ export interface ChatWorkspaceProps {
 	snapshot: ConversationSnapshot;
 	/** The session title from the sidebar (matches what users see in the left sidebar) */
 	sessionTitle?: string;
-	/** The AO role using this shared conversation surface. */
+	/** The Kennel role using this shared conversation surface. */
 	sessionRole?: SessionKind;
 	/** Session-level actions owned above the conversation surface. */
 	headerActions?: ReactNode;
@@ -176,13 +176,13 @@ export interface ChatWorkspaceProps {
 	onOpenShell?: () => void;
 	openingShell?: boolean;
 	shellError?: string;
-	/** Open an HTTP(S) link in this session's AO Browser panel. */
+	/** Open an HTTP(S) link in this session's Kennel Browser panel. */
 	onLinkOpen?: (url: string) => void;
 	/** A send or decision is in flight. */
 	busy?: boolean;
 	/** The provider's model catalog. Empty hides the model control. */
 	models?: ChatModel[];
-	/** The AO session this surface renders for. Used to attach the reviewer pane. */
+	/** The Kennel session this surface renders for. Used to attach the reviewer pane. */
 	session?: WorkspaceSession;
 	/** The selected reviewer pane. Kept even while its tab is temporarily unavailable. */
 	reviewerTarget?: ReviewerTerminalTarget;
@@ -1906,12 +1906,12 @@ function TimelineItem({
 		return <CompactionMarker activity={item} />;
 	}
 	// Read by the event, not the kind: a steer is stored as a `system` activity
-	// because that is AO's only durable write that can attach to a turn in flight,
+	// because that is Kennel's only durable write that can attach to a turn in flight,
 	// but it is the user speaking and the timeline shows it that way.
 	if (isSteer(item)) {
 		return <SteerMessage activity={item} />;
 	}
-	// A plan whose turn AO never correlated — one from before this controller
+	// A plan whose turn Kennel never correlated — one from before this controller
 	// started. The turn-level checklist cannot show it, so the row carries it.
 	if (item.activityKind === "plan") {
 		const plan = activityPlan(item);
@@ -2054,9 +2054,9 @@ function groupByTurn(snapshot: ConversationSnapshot): TimelineGroup[] {
 	for (const item of snapshot.items) {
 		if (item.turnId === undefined) {
 			// Consecutive turn-less items share one group rather than getting one each.
-			// A provider can run a turn AO never dispatched — a compaction, or a turn
+			// A provider can run a turn Kennel never dispatched — a compaction, or a turn
 			// resumed inside the provider's own history — and every item it emits then
-			// correlates to no AO turn. One group per item made `runsOf` see no two
+			// correlates to no Kennel turn. One group per item made `runsOf` see no two
 			// adjacent activities, so a wall of tool calls stopped collapsing and the
 			// conversation turned back into a log. Grouping must not depend on
 			// correlation succeeding.

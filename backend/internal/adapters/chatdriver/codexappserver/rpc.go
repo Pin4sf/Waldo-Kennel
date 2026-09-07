@@ -1,5 +1,5 @@
 // Package codexappserver drives Codex through `codex app-server` over stdio and
-// normalizes its notifications into AO's provider-neutral Chat events.
+// normalizes its notifications into Kennel's provider-neutral Chat events.
 //
 // Transport: newline-delimited JSON. There is no "jsonrpc" version field — a
 // frame is a request ({id, method, params}), a response ({id, result|error}), a

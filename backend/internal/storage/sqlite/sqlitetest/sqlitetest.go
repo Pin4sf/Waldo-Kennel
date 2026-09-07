@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
 )
 
 var databaseTemplate struct {
@@ -72,7 +72,7 @@ func templateDatabase() ([]byte, error) {
 }
 
 func buildTemplateDatabase() ([]byte, error) {
-	dataDir, err := os.MkdirTemp("", "ao-sqlite-test-template-")
+	dataDir, err := os.MkdirTemp("", "kennel-sqlite-test-template-")
 	if err != nil {
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}

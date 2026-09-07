@@ -69,7 +69,7 @@ function normalizeTerm(term: string | undefined): string {
 	return trimmed;
 }
 
-// Base = shell env, overlaid by processEnv so Electron/AO runtime vars win, then
+// Base = shell env, overlaid by processEnv so Electron/Kennel runtime vars win, then
 // PATH forced to the shell's PATH (with floor), TERM forced to a tmux-usable
 // value, then explicit overrides.
 //

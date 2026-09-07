@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/gitdefault"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/gitdefault"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 const (
@@ -418,7 +418,7 @@ func (w *Workspace) StashUncommitted(ctx context.Context, info ports.WorkspaceIn
 	// We must NOT pre-create the file: git requires GIT_INDEX_FILE to either not
 	// exist (it creates it) or be a valid git index. os.CreateTemp gives us a
 	// unique name; we close and remove it immediately so git gets an absent path.
-	tmpIdx, err := os.CreateTemp("", "ao-preserve-idx-*")
+	tmpIdx, err := os.CreateTemp("", "kennel-preserve-idx-*")
 	if err != nil {
 		return "", fmt.Errorf("gitworktree: reserve temp index path: %w", err)
 	}
@@ -431,14 +431,14 @@ func (w *Workspace) StashUncommitted(ctx context.Context, info ports.WorkspaceIn
 
 	// Stage all tracked and non-ignored untracked files into the temp index.
 	// GIT_INDEX_FILE overrides the index so the real index is never touched.
-	addCmd := aoprocess.CommandContext(ctx, w.binary, addAllTempIndexArgs(path)...)
+	addCmd := kennelprocess.CommandContext(ctx, w.binary, addAllTempIndexArgs(path)...)
 	addCmd.Env = append(os.Environ(), "GIT_INDEX_FILE="+tmpIdxPath)
 	if out, err := addCmd.CombinedOutput(); err != nil {
 		return "", commandError{args: append([]string{w.binary}, addAllTempIndexArgs(path)...), output: string(out), err: err}
 	}
 
 	// Write the staged tree to get a tree SHA.
-	writeTreeCmd := aoprocess.CommandContext(ctx, w.binary, writeTreeArgs(path)...)
+	writeTreeCmd := kennelprocess.CommandContext(ctx, w.binary, writeTreeArgs(path)...)
 	writeTreeCmd.Env = append(os.Environ(), "GIT_INDEX_FILE="+tmpIdxPath)
 	treeOut, err := writeTreeCmd.CombinedOutput()
 	if err != nil {
@@ -710,7 +710,7 @@ func parseObservedWorkspaceCommits(output string) []ports.WorkspaceCommit {
 // returned commandError. Exit code detection happens in the caller.
 func (w *Workspace) runCherryPickNoCommit(ctx context.Context, worktree, commitSHA string) error {
 	args := cherryPickNoCommitArgs(worktree, commitSHA)
-	cmd := aoprocess.CommandContext(ctx, w.binary, args...)
+	cmd := kennelprocess.CommandContext(ctx, w.binary, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return commandError{args: append([]string{w.binary}, args...), output: string(out), err: err}
@@ -804,7 +804,7 @@ func (w *Workspace) existingWorktree(ctx context.Context, repo, path string, cfg
 			//
 			// Unlike Restore, Create deliberately recreates on cfg.Branch and
 			// not on rec.Branch. Restore is re-attaching to a live session
-			// whose branch may have moved on past what AO recorded, so the
+			// whose branch may have moved on past what Kennel recorded, so the
 			// registration is the better source of truth there; Create is
 			// materializing a NEW session, where a registration at this path is
 			// a leftover from a prior session of the same name and its branch
@@ -823,7 +823,7 @@ func (w *Workspace) existingWorktree(ctx context.Context, repo, path string, cfg
 // registeredWorktreeDirMissing reports whether a git-registered worktree's
 // directory no longer exists on disk. A worktree registration (and the
 // session's DB row) can outlive its directory when something removes the path
-// out of band of AO's own teardown (issue #2775: session agent-orchestrator-78
+// out of band of Kennel's own teardown (issue #2775: session agent-orchestrator-78
 // kept its branches and worktree registration but its directory was gone, so
 // handing that path straight to the runtime made the tmux launch command's
 // `cd <path> || exit` guard exit instantly with no diagnostic). When it reports
@@ -1570,7 +1570,7 @@ func moveStrayPathAside(path string) (string, error) {
 }
 
 func runCommand(ctx context.Context, binary string, args ...string) ([]byte, error) {
-	cmd := aoprocess.CommandContext(ctx, binary, args...)
+	cmd := kennelprocess.CommandContext(ctx, binary, args...)
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=Never")
 	out, err := cmd.CombinedOutput()
 	if err != nil {

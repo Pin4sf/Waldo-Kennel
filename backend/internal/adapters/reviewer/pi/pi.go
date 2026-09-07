@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	agentpi "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/pi"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
-	"github.com/aoagents/agent-orchestrator/backend/internal/reviewgateway"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	agentpi "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/pi"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/reviewgateway"
 )
 
 const extensionFilename = "kennel-pi-reviewer.ts"
@@ -47,7 +47,7 @@ func New() *Reviewer {
 	return &Reviewer{
 		resolveBinary: agentpi.ResolvePiBinary,
 		runHelp: func(ctx context.Context, binary string) ([]byte, error) {
-			return aoprocess.CommandContext(ctx, binary, "--help").CombinedOutput()
+			return kennelprocess.CommandContext(ctx, binary, "--help").CombinedOutput()
 		},
 	}
 }

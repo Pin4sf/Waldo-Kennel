@@ -8,8 +8,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestDelegateTaskSpawnsWorkerThenRequestsTitleFromNewestActiveOrchestrator(t *testing.T) {
@@ -63,7 +63,7 @@ func TestDelegateTaskSpawnsWorkerThenRequestsTitleFromNewestActiveOrchestrator(t
 				t.Fatalf("readiness waits = %#v; want orch-new", cmd.ready)
 			}
 			for _, want := range []string{
-				"AO TASK TITLE UPDATE",
+				"Kennel TASK TITLE UPDATE",
 				"Do not spawn another worker or orchestrator",
 				`kennel session rename mer-9 "<title, max 20 chars>"`,
 				"Worker session id: mer-9",
@@ -86,7 +86,7 @@ func TestDelegateTaskRejectsHistoricalRequestedAgentBeforeSpawn(t *testing.T) {
 	cmd := &fakeCommander{}
 
 	_, err := (&Service{store: st, manager: cmd}).DelegateTask(context.Background(), DelegateTaskInput{
-		ProjectID: "ao", Brief: "Review the branch", RequestedAgent: domain.HarnessClaudeCode,
+		ProjectID: "ao", Brief: "Review the branch", RequestedAgent: domain.AgentHarness("aider"),
 	})
 	if err == nil || !strings.Contains(err.Error(), "not selectable for new work") {
 		t.Fatalf("DelegateTask() error = %v, want non-selectable agent rejection", err)

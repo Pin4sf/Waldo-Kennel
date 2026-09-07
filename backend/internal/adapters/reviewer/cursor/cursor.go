@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	workeragent "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/cursor"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workeragent "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/cursor"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Reviewer is the Cursor code-review adapter.
@@ -36,7 +36,7 @@ var _ ports.Reviewer = (*Reviewer)(nil)
 var _ ports.ReviewerCanceller = (*Reviewer)(nil)
 
 // PreLaunch installs the reviewer-only Cursor permissions into its isolated
-// AO-owned data directory without touching the checkout or user configuration.
+// Kennel-owned data directory without touching the checkout or user configuration.
 func (r *Reviewer) PreLaunch(ctx context.Context, inv ports.ReviewInvocation) error {
 	if err := installReviewerConfig(ctx, inv); err != nil {
 		return err
@@ -51,7 +51,7 @@ func (r *Reviewer) PreLaunch(ctx context.Context, inv ports.ReviewInvocation) er
 
 // ReviewCommand launches Cursor's normal persistent interactive TUI. Cursor
 // has no system-prompt flag, so the short initial prompt points it at the
-// AO-owned system file and then carries the already-short task-file reference.
+// Kennel-owned system file and then carries the already-short task-file reference.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	prompt := cursorPrompt(inv)
 	argv, err := r.agent.GetLaunchCommand(ctx, ports.LaunchConfig{
@@ -74,7 +74,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 }
 
 // ReviewRestoreCommand restores a recorded Cursor reviewer pane by relaunching
-// with the AO-owned profile and current task context.
+// with the Kennel-owned profile and current task context.
 func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, bool, error) {
 	cmd, err := r.ReviewCommand(ctx, inv)
 	return cmd, true, err
@@ -83,7 +83,7 @@ func (r *Reviewer) ReviewRestoreCommand(ctx context.Context, inv ports.ReviewInv
 func cursorPrompt(inv ports.ReviewInvocation) string {
 	if inv.SystemPromptFile != "" {
 		return fmt.Sprintf(
-			"Read and follow the AO reviewer role in `%s`, then %s",
+			"Read and follow the Kennel reviewer role in `%s`, then %s",
 			filepath.ToSlash(inv.SystemPromptFile),
 			strings.TrimSpace(inv.Prompt),
 		)

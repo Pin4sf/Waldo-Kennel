@@ -14,6 +14,7 @@ cd "$repo_root"
 )
 
 npm run shared:check
+npm run test:island
 npm --prefix frontend run typecheck
 npm --prefix frontend test
 npm --prefix frontend/src/landing run build

@@ -3,35 +3,36 @@
 import type { CSSProperties, ReactNode } from "react";
 
 export const featurePreviewTokens = {
-	// Exact dark-theme values from frontend/src/styles/tokens.css (:root).
-	"--preview-background": "oklch(0.185 0.006 285.885)",
-	"--preview-foreground": "oklch(0.985 0 0)",
-	"--preview-card": "oklch(0.24 0.008 285.885)",
-	"--preview-card-foreground": "oklch(0.985 0 0)",
-	"--preview-primary": "oklch(0.92 0.004 286.32)",
-	"--preview-primary-foreground": "oklch(0.21 0.006 285.885)",
-	"--preview-muted": "oklch(0.274 0.006 286.033)",
-	"--preview-muted-foreground": "oklch(0.705 0.015 286.067)",
-	"--preview-accent": "oklch(0.274 0.006 286.033)",
-	"--preview-border": "oklch(1 0 0 / 7%)",
-	"--preview-border-strong": "oklch(1 0 0 / 4%)",
-	"--preview-ring": "oklch(0.552 0.016 285.938)",
-	"--preview-divider": "oklch(1 0 0 / 4%)",
-	"--preview-input": "oklch(1 0 0 / 4%)",
-	"--preview-sidebar": "oklch(0.155 0.005 285.823)",
-	"--preview-sidebar-foreground": "oklch(0.985 0 0)",
-	"--preview-sidebar-accent": "oklch(0.274 0.006 286.033)",
-	"--preview-sidebar-hover": "color-mix(in oklch, oklch(0.985 0 0) 4%, transparent)",
-	"--preview-passive": "oklch(0.442 0.017 285.786)",
-	"--preview-raised": "oklch(0.274 0.006 286.033)",
+	// Exact dark-theme values from frontend/src/styles/tokens.css (:root) —
+	// the Kennel orchestrator system. Keep in step when those tokens change.
+	"--preview-background": "#151515",
+	"--preview-foreground": "#fafaf8",
+	"--preview-card": "#272725",
+	"--preview-card-foreground": "#fafaf8",
+	"--preview-primary": "#fafaf8",
+	"--preview-primary-foreground": "#272725",
+	"--preview-muted": "#1e1e1e",
+	"--preview-muted-foreground": "#9a9a96",
+	"--preview-accent": "#272725",
+	"--preview-border": "rgb(255 255 255 / 8%)",
+	"--preview-border-strong": "rgb(255 255 255 / 10%)",
+	"--preview-ring": "#2388ff",
+	"--preview-divider": "rgb(255 255 255 / 10%)",
+	"--preview-input": "rgb(255 255 255 / 10%)",
+	"--preview-sidebar": "#161616",
+	"--preview-sidebar-foreground": "#fafaf8",
+	"--preview-sidebar-accent": "#1e1e1e",
+	"--preview-sidebar-hover": "#1e1e1e",
+	"--preview-passive": "#6b6b68",
+	"--preview-raised": "#353533",
 } as CSSProperties;
 
 export const previewStatus = {
-	working: "#60a5fa", // --color-status-working
-	warning: "#fb923c", // --color-status-needs-you
-	success: "#4ade80", // --color-status-ready
+	working: "#2388ff", // --color-status-working
+	warning: "#fb8404", // --color-status-needs-you
+	success: "#00cc6e", // --color-status-ready
 	error: "oklch(0.704 0.191 22.216)", // --destructive
-	accent: "#60a5fa",
+	accent: "#2388ff",
 } as const;
 
 export function FeaturePreviewShell({

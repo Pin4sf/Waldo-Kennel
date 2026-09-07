@@ -143,7 +143,7 @@ describe("HumanMessage attachments", () => {
 	function renderImageAttachment(header: string, name: string) {
 		render(
 			<HumanMessage
-				message={humanMessage(`check again\n\n${header}\n- .ao/attachments/${name}`)}
+				message={humanMessage(`check again\n\n${header}\n- .kennel/attachments/${name}`)}
 				sessionId="kennel session/1"
 			/>,
 		);
@@ -151,7 +151,7 @@ describe("HumanMessage attachments", () => {
 		const image = screen.getByRole("img", { name });
 		expect(image).toHaveAttribute(
 			"src",
-			`http://127.0.0.1:3001/api/v1/sessions/kennel%20session%2F1/preview/files/.ao/attachments/${name}`,
+			`http://127.0.0.1:3001/api/v1/sessions/kennel%20session%2F1/preview/files/.kennel/attachments/${name}`,
 		);
 		expect(screen.getByText("check again")).toBeInTheDocument();
 		expect(screen.queryByText(/Attached (?:files|images) \(read these files/)).not.toBeInTheDocument();
@@ -161,6 +161,24 @@ describe("HumanMessage attachments", () => {
 		renderImageAttachment(
 			"Attached files (read these files in the workspace):",
 			"attachment-d9014f798f.png",
+		);
+	});
+
+	// Conversations recorded before the .ao -> .kennel rename still carry the old
+	// staging path in their durable history. The reader accepts both so that
+	// history keeps rendering; only the daemon's writer moved.
+	it("still renders attachments staged under the historical .ao path", () => {
+		render(
+			<HumanMessage
+				message={humanMessage(
+					"check again\n\nAttached files (read these files in the workspace):\n- .ao/attachments/attachment-d9014f798f.png",
+				)}
+				sessionId="kennel session/1"
+			/>,
+		);
+		expect(screen.getByRole("img", { name: "attachment-d9014f798f.png" })).toHaveAttribute(
+			"src",
+			"http://127.0.0.1:3001/api/v1/sessions/kennel%20session%2F1/preview/files/.ao/attachments/attachment-d9014f798f.png",
 		);
 	});
 
@@ -184,7 +202,7 @@ describe("HumanMessage attachments", () => {
 		const { container } = render(
 			<HumanMessage
 				message={humanMessage(
-					`${authoredBody}\n\nAttached files (read these files in the workspace):\n- .ao/attachments/attachment-ab12.png`,
+					`${authoredBody}\n\nAttached files (read these files in the workspace):\n- .kennel/attachments/attachment-ab12.png`,
 				)}
 				sessionId="ao-1"
 			/>,
@@ -197,7 +215,7 @@ describe("HumanMessage attachments", () => {
 		render(
 			<HumanMessage
 				message={humanMessage(
-					"inspect these\n\nAttached files (read these files in the workspace):\n- .ao/attachments/attachment-ab12.png\n- .ao/attachments/attachment-cd34.pdf",
+					"inspect these\n\nAttached files (read these files in the workspace):\n- .kennel/attachments/attachment-ab12.png\n- .kennel/attachments/attachment-cd34.pdf",
 				)}
 				sessionId="ao-1"
 			/>,

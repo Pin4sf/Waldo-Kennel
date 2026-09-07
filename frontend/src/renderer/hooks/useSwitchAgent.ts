@@ -10,7 +10,10 @@ import {
 } from "./useConversation";
 import { workspaceQueryKey } from "./useWorkspaceQuery";
 
-export type SwitchAgentHarness = components["schemas"]["SwitchAgentRequest"]["targetHarness"];
+// Keep this explicit until the generated schema is refreshed from the Go DTO.
+// These are the three providers whose adapters prove Kennel's continuation
+// contract and are admitted by domain.AgentHarness.IsSelectableAsSwitchTarget.
+export type SwitchAgentHarness = "codex" | "claude-code" | "opencode";
 
 export type SwitchAgentInput = {
 	session: WorkspaceSession;
@@ -30,7 +33,7 @@ type SwitchAgentMutationState = {
 };
 
 function useSwitchAgentMutations() {
-	return useMutationState<SwitchAgentMutationState>({
+	const mutations = useMutationState<SwitchAgentMutationState>({
 		filters: { mutationKey: switchAgentMutationKey },
 		select: (mutation) => ({
 			error: mutation.state.error,
@@ -39,6 +42,7 @@ function useSwitchAgentMutations() {
 			submittedAt: mutation.state.submittedAt,
 		}),
 	});
+	return mutations;
 }
 
 export function useSwitchAgentState(sessionId: string) {
@@ -48,19 +52,14 @@ export function useSwitchAgentState(sessionId: string) {
 	for (const mutation of mutations) {
 		if (mutation.input?.session.id !== sessionId) continue;
 		if (!latest || mutation.submittedAt > latest.submittedAt) latest = mutation;
-		if (
-			mutation.status === "pending" &&
-			(!pending || mutation.submittedAt > pending.submittedAt)
-		) {
+		if (mutation.status === "pending" && (!pending || mutation.submittedAt > pending.submittedAt)) {
 			pending = mutation;
 		}
 	}
 
 	return {
 		error:
-			!pending &&
-			latest?.status === "error" &&
-			latest.error instanceof Error
+			!pending && latest?.status === "error" && latest.error instanceof Error
 				? latest.error.message
 				: null,
 		input: pending?.input,
@@ -87,13 +86,18 @@ export function useSwitchAgent() {
 	return useMutation({
 		mutationKey: switchAgentMutationKey,
 		mutationFn: async ({ session, targetHarness, model, idempotencyKey }: SwitchAgentInput) => {
-			const body: {
+			const request: {
 				targetHarness: SwitchAgentHarness;
 				model?: string;
 				idempotencyKey: string;
 			} = { targetHarness, idempotencyKey };
 			const normalizedModel = model.trim();
-			if (normalizedModel) body.model = normalizedModel;
+			if (normalizedModel) request.model = normalizedModel;
+
+			// The checked-in generated client still reflects beta's old Codex-only
+			// enum until `npm run api` is regenerated from the updated Go DTO. The
+			// runtime request shape is identical; this cast is removed by generation.
+			const body = request as unknown as components["schemas"]["SwitchAgentRequest"];
 			const { data, error, response } = await apiClient.POST(
 				"/api/v1/sessions/{sessionId}/switch-agent",
 				{
@@ -102,9 +106,7 @@ export function useSwitchAgent() {
 				},
 			);
 			if (error || response.status !== 202 || !data?.switch) {
-				const fallback = response
-					? `Failed to switch agent (${response.status})`
-					: "Failed to switch agent";
+				const fallback = response ? `Failed to switch agent (${response.status})` : "Failed to switch agent";
 				throw new Error(apiErrorMessage(error, fallback));
 			}
 			return data.switch;
@@ -117,9 +119,7 @@ export function useSwitchAgent() {
 			);
 			void queryClient.invalidateQueries({ queryKey: conversationQueryKey(variables.session.id) });
 			void queryClient.invalidateQueries({ queryKey: conversationModelsQueryKey(variables.session.id) });
-			void queryClient.invalidateQueries({
-				queryKey: conversationConfigOptionsQueryKey(variables.session.id),
-			});
+			void queryClient.invalidateQueries({ queryKey: conversationConfigOptionsQueryKey(variables.session.id) });
 		},
 		onSettled: (_data, _error, variables) => {
 			void queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
@@ -138,9 +138,7 @@ export function useRecoverAgentSwitch() {
 				{ params: { path: { sessionId, switchId } } },
 			);
 			if (error || response.status !== 202 || !data?.switch) {
-				const fallback = response
-					? `Failed to recover agent switch (${response.status})`
-					: "Failed to recover agent switch";
+				const fallback = response ? `Failed to recover agent switch (${response.status})` : "Failed to recover agent switch";
 				throw new Error(apiErrorMessage(error, fallback));
 			}
 			return data.switch;

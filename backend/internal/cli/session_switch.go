@@ -150,7 +150,7 @@ func newSessionHandoffSubmitCommand(ctx *commandContext) *cobra.Command {
 			return ctx.submitSessionAgentHandoff(cmd.Context(), cmd, opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.session, "session", "", "AO session id (default: KENNEL_SESSION_ID)")
+	cmd.Flags().StringVar(&opts.session, "session", "", "Kennel session id (default: KENNEL_SESSION_ID)")
 	cmd.Flags().StringVar(&opts.switchID, "switch", "", "Agent switch id (required)")
 	cmd.Flags().StringVar(&opts.sourceGenerationID, "source-generation", "", "Source agent generation id (required)")
 	cmd.Flags().StringVar(&opts.file, "file", "", "Path to the JSON handoff document (required)")

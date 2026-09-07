@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	reviewcore "github.com/aoagents/agent-orchestrator/backend/internal/review"
-	reviewsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/review"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	reviewcore "github.com/Pin4sf/Waldo-Kennel/backend/internal/review"
+	reviewsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/review"
 )
 
 type fakeReviewService struct {
@@ -196,7 +196,7 @@ func TestReviewsListIncludesReviewStates(t *testing.T) {
 		t.Fatalf("body missing review states/handle: %s", body)
 	}
 	if !strings.Contains(string(body), `"autoInjectReview":false`) {
-		t.Fatalf("body missing stored AO injection decision: %s", body)
+		t.Fatalf("body missing stored Kennel injection decision: %s", body)
 	}
 	if strings.Contains(string(body), `"items"`) || strings.Contains(string(body), `"reviewItems"`) || strings.Contains(string(body), `"reviewRuns"`) {
 		t.Fatalf("body contains deprecated review item aliases: %s", body)

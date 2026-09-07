@@ -337,7 +337,7 @@ describe("end-to-end against a real daemon server", () => {
 	});
 
 	// Stand up a server on an ephemeral port. `service` lets us simulate a foreign
-	// (non-AO) server squatting on the port.
+	// (non-Kennel) server squatting on the port.
 	function startServer(opts: {
 		pid: number;
 		service?: string;
@@ -438,7 +438,7 @@ describe("end-to-end against a real daemon server", () => {
 		expect(result).toBeNull();
 	});
 
-	it("does NOT attach to a foreign (non-AO) server squatting on the port", async () => {
+	it("does NOT attach to a foreign (non-Kennel) server squatting on the port", async () => {
 		const port = await startServer({ pid: 1, service: "some-other-service" });
 		const result = await resolveDaemonFromPort({
 			expectedPort: port,
@@ -448,10 +448,10 @@ describe("end-to-end against a real daemon server", () => {
 		expect(result).toBeNull();
 	});
 
-	// A foreign AO daemon (correct service, wrong binary) serving the port. The
+	// A foreign Kennel daemon (correct service, wrong binary) serving the port. The
 	// identity check must surface an error rather than silently attach — the same
 	// guard the run-file path enforces, now enforced on the port-probe path too.
-	it("surfaces an identity error for a foreign AO binary serving the port (does not silently attach)", async () => {
+	it("surfaces an identity error for a foreign Kennel binary serving the port (does not silently attach)", async () => {
 		const port = await startServer({ pid: 909, executablePath: "/old/build/ao", workingDirectory: "/old/build" });
 		const result = await startupDecision({
 			runFileContents: null, // run-file diverged, so we reach the port probe

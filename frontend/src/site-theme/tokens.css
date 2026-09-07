@@ -41,6 +41,35 @@
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-serif: Georgia, "Times New Roman", Times, serif;
   --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
+
+  /*
+   * Motion. Same curves and clock as the desktop renderer
+   * (frontend/src/renderer/styles.css) so the marketing site and the product
+   * it sells don't move differently. Redefining `--ease-out` here replaces
+   * Tailwind's default keyword, which is too soft to read as deliberate.
+   * DESIGN.md → Motion: enter ease-out, exit ease-in, move ease-in-out.
+   */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+/* Duration tokens; `duration-*` has no theme namespace in Tailwind, so the
+   utilities are defined by hand against the same values the app uses. */
+:root {
+  --duration-fast: 120ms;
+  --duration-normal: 150ms;
+  --duration-slow: 240ms;
+}
+
+@utility duration-fast {
+  transition-duration: var(--duration-fast);
+}
+@utility duration-normal {
+  transition-duration: var(--duration-normal);
+}
+@utility duration-slow {
+  transition-duration: var(--duration-slow);
 }
 
 @theme inline {
@@ -115,6 +144,28 @@
   [role="button"] {
     user-select: none;
     -webkit-user-select: none;
+  }
+}
+
+/*
+ * Touch devices synthesise a hover on tap and then leave it stuck until the
+ * next tap somewhere else, so a card that lightens on hover stays lit after a
+ * phone user touches it. Gating the variant here fixes every `hover:` utility
+ * on the site at once rather than per component.
+ */
+@custom-variant hover {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      @slot;
+    }
+  }
+}
+
+@custom-variant group-hover {
+  @media (hover: hover) and (pointer: fine) {
+    &:is(:where(.group):hover *) {
+      @slot;
+    }
   }
 }
 

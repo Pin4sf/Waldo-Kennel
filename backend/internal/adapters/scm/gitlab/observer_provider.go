@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
@@ -202,7 +202,7 @@ func (p *Provider) ListPRsByRepo(ctx context.Context, repo ports.SCMRepo, update
 		for i := range mrs {
 			// Store the full restMR into the MR-detail cache (ticket 03). The
 			// list and detail MR responses share the same shape for the fields
-			// AO uses, so the cached restMR is a valid substitute for the detail
+			// Kennel uses, so the cached restMR is a valid substitute for the detail
 			// response when fetchSingleMR consults the cache seconds later in the
 			// same cycle. diff_refs.base_sha is populated from the list response
 			// via the nested-struct field (ticket 02's fix), so the cached entry
@@ -449,7 +449,7 @@ func (p *Provider) fetchSingleMR(ctx context.Context, ref ports.SCMPRRef) (ports
 	// entirely. On a miss (entry expired, or the MR was not in the listing —
 	// e.g. a brand-new MR that appeared between listing and fetch), fall back
 	// to the HTTP fetch. GitLab's list and detail MR responses share the same
-	// shape for the fields AO uses, so the cached restMR is a valid
+	// shape for the fields Kennel uses, so the cached restMR is a valid
 	// substitute.
 	//
 	// diff_refs guard (finding #2): GitLab's project MR listing does not
@@ -1015,7 +1015,7 @@ func mergeabilityFromMR(mr *restMR, ciState, reviewDecision string) ports.SCMMer
 
 	switch ms {
 	// Mergeable (current + legacy aliases). GitLab reports these when the
-	// branch can merge cleanly; AO still layers CI/review/draft blockers on top.
+	// branch can merge cleanly; Kennel still layers CI/review/draft blockers on top.
 	case "mergeable", "can_be_merged":
 		mergeable := true
 		if ciState == string(domain.CIFailing) {

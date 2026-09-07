@@ -5,7 +5,7 @@
  * that failed to start produces no rows at all — the agent simply never calls those
  * tools, which reads as a choice. A provider demanding credentials leaves every
  * later turn failing for a reason that looks generic. A thread the provider has put
- * into `system_error` looks, from AO's side, like an agent that has gone quiet.
+ * into `system_error` looks, from Kennel's side, like an agent that has gone quiet.
  *
  * They live above the scroller rather than in it because they are current state:
  * scrolling away from them must not scroll away from the reason the session is
@@ -24,7 +24,7 @@ import type { ConversationAccount, ConversationThreadState, McpServer } from "..
  * The loudest thing on the surface, on purpose: nothing else the user does will
  * help, and every turn they send until they fix it will fail. It names the command
  * because "re-authenticate" is not an action anyone can take — the credentials live
- * with the agent's own CLI, not with AO, which is exactly why the daemon could not
+ * with the agent's own CLI, not with Kennel, which is exactly why the daemon could not
  * fix this itself.
  */
 export const ReauthBanner = memo(function ReauthBanner({
@@ -59,11 +59,11 @@ export const ReauthBanner = memo(function ReauthBanner({
 							<code className="rounded bg-background px-1 py-0.5 font-mono text-[10.5px] text-foreground">
 								{command}
 							</code>{" "}
-							in a terminal, then send your message again. AO holds no credentials of its own.
+							in a terminal, then send your message again. Kennel holds no credentials of its own.
 						</>
 					) : (
 						<>
-							Sign in with the agent&rsquo;s own CLI, then send your message again. AO holds no
+							Sign in with the agent&rsquo;s own CLI, then send your message again. Kennel holds no
 							credentials of its own.
 						</>
 					)}
@@ -96,7 +96,7 @@ function signInCommand(harness: string): string | undefined {
  * The provider's own view of the thread, when it is bad.
  *
  * Deliberately separate from the controller banner and worded so the two cannot be
- * confused: the controller is AO's connection to the agent process, this is what the
+ * confused: the controller is Kennel's connection to the agent process, this is what the
  * provider says about the conversation behind it. They disagree routinely — a
  * healthy controller can be attached to a thread the provider has already given up
  * on, and that combination is precisely the one a user cannot diagnose unaided.
@@ -117,11 +117,11 @@ export const ThreadStateBanner = memo(function ThreadStateBanner({
 		status === "system_error"
 			? {
 					title: "The agent's thread hit an internal error",
-					body: "The provider reported a fault in this thread, not in AO's connection to it. New turns will usually fail; the conversation and the worktree are kept.",
+					body: "The provider reported a fault in this thread, not in Kennel's connection to it. New turns will usually fail; the conversation and the worktree are kept.",
 				}
 			: {
 					title: "The agent closed this thread",
-					body: "The provider dropped the conversation on its side. AO kept the history, but the agent no longer holds it.",
+					body: "The provider dropped the conversation on its side. Kennel kept the history, but the agent no longer holds it.",
 				};
 
 	return (

@@ -15,6 +15,7 @@ if (major !== 22 || minor < 23 || (minor === 23 && patch < 2)) {
 npm ci
 npm --prefix packages/product-ui ci
 npm --prefix packages/cloud-client ci
+npm --prefix packages/kennel-island ci
 npm --prefix frontend/acp-runtime ci --ignore-scripts
 npm --prefix frontend ci
 npm --prefix frontend/src/landing ci

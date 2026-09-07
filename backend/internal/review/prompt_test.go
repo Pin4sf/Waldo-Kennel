@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestReviewTextsIncludesMultiPRQueue(t *testing.T) {
@@ -20,7 +20,7 @@ func TestReviewTextsIncludesMultiPRQueue(t *testing.T) {
 
 	prompt, _ := reviewTexts(spec)
 	for _, want := range []string{
-		"AO created 2 review tasks",
+		"Kennel created 2 review tasks",
 		"Review every queued PR, then submit all results together",
 		"Complete every review task in the queue autonomously",
 		"Do not ask the user whether to continue to the next PR",

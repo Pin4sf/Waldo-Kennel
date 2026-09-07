@@ -162,11 +162,11 @@ test("renderer: board renders all status columns @T0 @BRD", async ({ page }) => 
 	await page.goto("/");
 	const columns = page.getByTestId("board-column");
 	await expect(columns).toHaveCount(4);
-	// Left→right flow: work → needs-you → review → merge.
-	await expect(page.locator('[data-testid="board-column"][data-column="working"]')).toContainText("Working");
-	await expect(page.locator('[data-testid="board-column"][data-column="action"]')).toContainText("Needs you");
-	await expect(page.locator('[data-testid="board-column"][data-column="pending"]')).toContainText("In review");
-	await expect(page.locator('[data-testid="board-column"][data-column="merge"]')).toContainText("Ready to merge");
+	// Left→right flow in the landed Figma board vocabulary.
+	await expect(page.locator('[data-testid="board-column"][data-column="working"]')).toContainText("Running");
+	await expect(page.locator('[data-testid="board-column"][data-column="action"]')).toContainText("Needs Choice");
+	await expect(page.locator('[data-testid="board-column"][data-column="pending"]')).toContainText("Needs Input");
+	await expect(page.locator('[data-testid="board-column"][data-column="merge"]')).toContainText("Ready");
 });
 
 // #2483 BRD-012.
@@ -176,8 +176,8 @@ test("renderer: route nav home to board to session detail and back @T0 @BRD", as
 	await expect(page.getByTestId("board")).toBeVisible();
 
 	// → project board
-	await page.locator('[data-sidebar="menu-button"]').filter({ hasText: "ao-demo" }).first().click();
-	await expect(page).toHaveURL(/projects\/ao-demo/);
+	await page.locator('[data-sidebar="menu-button"]').filter({ hasText: "kennel-design" }).first().click();
+	await expect(page).toHaveURL(/projects\/kennel-design/);
 	await expect(page.getByTestId("board")).toBeVisible();
 
 	// → session detail (open the first card on the board)
@@ -187,7 +187,7 @@ test("renderer: route nav home to board to session detail and back @T0 @BRD", as
 
 	// ← back to the project board
 	await page.goBack();
-	await expect(page).toHaveURL(/projects\/ao-demo$/);
+	await expect(page).toHaveURL(/projects\/kennel-design$/);
 	await expect(page.getByTestId("board")).toBeVisible();
 });
 

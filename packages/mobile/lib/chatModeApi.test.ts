@@ -65,7 +65,7 @@ describe("mobile Chat API boundaries", () => {
 		expect(orchestrator.mode).toBe("tui");
 	});
 
-	it("resumes a stopped Chat controller without restoring the AO session", async () => {
+	it("resumes a stopped Chat controller without restoring the Kennel session", async () => {
 		vi.mocked(fetch).mockResolvedValue(response({ ok: true }));
 		await resumeSessionAgent(cfg, "chat-1");
 		const [url, init] = vi.mocked(fetch).mock.calls[0];
@@ -187,7 +187,7 @@ describe("mobile Chat API boundaries", () => {
 	it("accepts the daemon's reset cursor after its event database is replaced", async () => {
 		vi.mocked(expoFetch).mockResolvedValue(new Response(
 			'id: 1\ndata: {"seq":1,"projectId":"p-1","sessionId":"w-1","type":"session_updated","createdAt":"2026-08-11"}\n\n',
-			{ headers: { "X-AO-Event-After": "0" } },
+			{ headers: { "X-Kennel-Event-After": "0" } },
 		) as unknown as Awaited<ReturnType<typeof expoFetch>>);
 		const received: number[] = [];
 

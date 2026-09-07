@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/nativeconfig"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/nativeconfig"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const codexHomeEnv = "CODEX_HOME"
@@ -24,7 +24,7 @@ var (
 
 // ContinuationCapabilities reports that Codex accepts current developer
 // instructions on fresh launch and `codex resume`. Codex itself assigns fresh
-// conversation ids, which AO captures through SessionStart hooks.
+// conversation ids, which Kennel captures through SessionStart hooks.
 func (p *Plugin) ContinuationCapabilities() ports.ContinuationCapabilities {
 	return ports.ContinuationCapabilities{
 		FreshNativeSessionID: ports.FreshNativeSessionIDProviderAssigned,

@@ -33,7 +33,7 @@ func TestRegisterThenList(t *testing.T) {
 	setupHome(t)
 	withFakePidAlive(t, func(int) bool { return true })
 
-	e := Entry{SessionID: "s1", PtyHostPID: 1234, PipePath: `\\.\pipe\ao-s1`, RegisteredAt: nowRFC3339()}
+	e := Entry{SessionID: "s1", PtyHostPID: 1234, PipePath: `\\.\pipe\kennel-s1`, RegisteredAt: nowRFC3339()}
 	if err := Register(e); err != nil {
 		t.Fatal(err)
 	}
@@ -51,8 +51,8 @@ func TestRegisterReplaceSameID(t *testing.T) {
 	setupHome(t)
 	withFakePidAlive(t, func(int) bool { return true })
 
-	e1 := Entry{SessionID: "s1", PtyHostPID: 111, PipePath: `\\.\pipe\ao-s1-a`, RegisteredAt: nowRFC3339()}
-	e2 := Entry{SessionID: "s1", PtyHostPID: 222, PipePath: `\\.\pipe\ao-s1-b`, RegisteredAt: nowRFC3339()}
+	e1 := Entry{SessionID: "s1", PtyHostPID: 111, PipePath: `\\.\pipe\kennel-s1-a`, RegisteredAt: nowRFC3339()}
+	e2 := Entry{SessionID: "s1", PtyHostPID: 222, PipePath: `\\.\pipe\kennel-s1-b`, RegisteredAt: nowRFC3339()}
 	if err := Register(e1); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestUnregisterRemoves(t *testing.T) {
 	setupHome(t)
 	withFakePidAlive(t, func(int) bool { return true })
 
-	e := Entry{SessionID: "s1", PtyHostPID: 1234, PipePath: `\\.\pipe\ao-s1`, RegisteredAt: nowRFC3339()}
+	e := Entry{SessionID: "s1", PtyHostPID: 1234, PipePath: `\\.\pipe\kennel-s1`, RegisteredAt: nowRFC3339()}
 	if err := Register(e); err != nil {
 		t.Fatal(err)
 	}
@@ -108,8 +108,8 @@ func TestListPrunesDeadPIDs(t *testing.T) {
 	alive := map[int]bool{1: true, 2: false}
 	withFakePidAlive(t, func(pid int) bool { return alive[pid] })
 
-	e1 := Entry{SessionID: "s1", PtyHostPID: 1, PipePath: `\\.\pipe\ao-s1`, RegisteredAt: nowRFC3339()}
-	e2 := Entry{SessionID: "s2", PtyHostPID: 2, PipePath: `\\.\pipe\ao-s2`, RegisteredAt: nowRFC3339()}
+	e1 := Entry{SessionID: "s1", PtyHostPID: 1, PipePath: `\\.\pipe\kennel-s1`, RegisteredAt: nowRFC3339()}
+	e2 := Entry{SessionID: "s2", PtyHostPID: 2, PipePath: `\\.\pipe\kennel-s2`, RegisteredAt: nowRFC3339()}
 	if err := Register(e1); err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestEmptyResultDeletesFile(t *testing.T) {
 	regPath := setupHome(t)
 	withFakePidAlive(t, func(int) bool { return true })
 
-	e := Entry{SessionID: "s1", PtyHostPID: 1, PipePath: `\\.\pipe\ao-s1`, RegisteredAt: nowRFC3339()}
+	e := Entry{SessionID: "s1", PtyHostPID: 1, PipePath: `\\.\pipe\kennel-s1`, RegisteredAt: nowRFC3339()}
 	if err := Register(e); err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestClearDeletesFile(t *testing.T) {
 	regPath := setupHome(t)
 	withFakePidAlive(t, func(int) bool { return true })
 
-	e := Entry{SessionID: "s1", PtyHostPID: 1, PipePath: `\\.\pipe\ao-s1`, RegisteredAt: nowRFC3339()}
+	e := Entry{SessionID: "s1", PtyHostPID: 1, PipePath: `\\.\pipe\kennel-s1`, RegisteredAt: nowRFC3339()}
 	if err := Register(e); err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func TestAtomicWriteProducesValidJSON(t *testing.T) {
 	regPath := setupHome(t)
 	withFakePidAlive(t, func(int) bool { return true })
 
-	e := Entry{SessionID: "s1", PtyHostPID: 99, PipePath: `\\.\pipe\ao-s1`, RegisteredAt: nowRFC3339()}
+	e := Entry{SessionID: "s1", PtyHostPID: 99, PipePath: `\\.\pipe\kennel-s1`, RegisteredAt: nowRFC3339()}
 	if err := Register(e); err != nil {
 		t.Fatal(err)
 	}

@@ -10,7 +10,7 @@ export type ReviewsResponse = components["schemas"]["ListReviewsResponse"];
 export type ReviewRunFacts = components["schemas"]["ReviewRun"];
 
 /**
- * Shared query options for a session's AO review states. The query key is the
+ * Shared query options for a session's Kennel review states. The query key is the
  * single source of truth for review data — the SessionInspector Reviews tab
  * and the command palette both subscribe through this, so React Query shares
  * one cache entry per session and one fetch path (including the preview mock).
@@ -204,7 +204,7 @@ function mockReviewsResponse(session: WorkspaceSession): ReviewsResponse {
 function mockReviewTitle(prNumber: number): string {
 	switch (prNumber) {
 		case 319:
-			return "Browser preview rail renders inside AO";
+			return "Browser preview rail renders inside Kennel";
 		case 320:
 			return "Review tab keeps stacked PR rows visible";
 		case 321:

@@ -1,5 +1,5 @@
 // Package browserruntime brokers browser commands between the loopback daemon
-// and the Electron process that owns AO's per-session WebContentsView targets.
+// and the Electron process that owns Kennel's per-session WebContentsView targets.
 package browserruntime
 
 import (
@@ -20,7 +20,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 const (
@@ -110,7 +110,7 @@ type pendingResult struct {
 }
 
 // Broker owns the single active Electron runtime connection. Commands are
-// correlated by request id, so independent AO sessions may use the bridge
+// correlated by request id, so independent Kennel sessions may use the bridge
 // concurrently without sharing browser targets or results.
 type Broker struct {
 	log *slog.Logger

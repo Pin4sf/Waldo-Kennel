@@ -93,6 +93,8 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 	useMatchRoute: () => () => false,
 	useNavigate: () => shellMocks.navigate,
 	useParams: () => shellMocks.state.routeParams,
+	useRouterState: ({ select }: { select: (state: { location: { pathname: string; search: Record<string, unknown> } }) => unknown }) =>
+		select({ location: { pathname: Object.keys(shellMocks.state.routeSearch).length > 0 ? "/work" : "/", search: shellMocks.state.routeSearch } }),
 	useSearch: () => shellMocks.state.routeSearch,
 }));
 
@@ -130,6 +132,10 @@ vi.mock("../hooks/useDaemonStatus", () => ({
 	useDaemonStatus: () => shellMocks.state.daemonStatus,
 }));
 
+vi.mock("../hooks/useOutcome", () => ({
+	useOutcome: () => ({ outcome: undefined, isLoading: false }),
+}));
+
 // The shell layout opens standalone terminals; this suite only covers the
 // shortcut subscriptions, so the mutation is stubbed rather than driven.
 vi.mock("../hooks/useShellTerminals", () => ({
@@ -151,6 +157,7 @@ vi.mock("../components/NotificationCenter", () => ({ NotificationRuntime: () => 
 vi.mock("../components/CommandPalette", () => ({ CommandPalette: () => null }));
 vi.mock("../components/OrchestratorReplacementDialog", () => ({ OrchestratorReplacementDialog: () => null }));
 vi.mock("../components/ShellTopbar", () => ({ ShellTopbar: () => null }));
+vi.mock("../components/HomeWorkModeSwitch", () => ({ HomeWorkModeSwitch: () => null }));
 vi.mock("../components/TitlebarNav", async () => {
 	const { useUiStore: useStore } = await vi.importActual<typeof import("../stores/ui-store")>("../stores/ui-store");
 	return {
@@ -260,6 +267,10 @@ function emitShortcut() {
 }
 
 beforeEach(() => {
+	// These cover sidebar and shortcut behaviour on a shell a person already set
+	// up. Leaving onboarding unfinished would float the setup tour over every one
+	// of them and swallow the pointer events they assert on.
+	useUiStore.setState({ hasCompletedOnboarding: true, isOnboardingOpen: false });
 	shellMocks.navigate.mockReset();
 	shellMocks.onNewSessionShortcut.mockClear();
 	shellMocks.onKeyboardShortcutsHelp.mockClear();

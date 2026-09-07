@@ -25,7 +25,7 @@ type ProjectConfig struct {
 	SessionPrefix string `json:"sessionPrefix,omitempty"`
 
 	// Env are extra environment variables forwarded into worker session
-	// runtimes. AO-internal vars (KENNEL_SESSION, KENNEL_PROJECT_ID, …) always win.
+	// runtimes. Kennel-internal vars (KENNEL_SESSION, KENNEL_PROJECT_ID, …) always win.
 	Env map[string]string `json:"env,omitempty"`
 	// Symlinks are repo-relative paths symlinked into each session workspace.
 	Symlinks []string `json:"symlinks,omitempty"`
@@ -43,6 +43,11 @@ type ProjectConfig struct {
 
 	// AgentConfig is the default agent config for the project.
 	AgentConfig AgentConfig `json:"agentConfig,omitempty"`
+	// AgentPreferences records the project's preferred Mission-role harnesses
+	// (default worker plus optional analyzer/coordinator/verifier). They are
+	// proposals resolved against live capability admission at planning time —
+	// never a rewrite of historical sessions or approved Plans.
+	AgentPreferences ProjectAgentPreferences `json:"agentPreferences,omitempty"`
 	// Worker and Orchestrator are role-specific harness/agent-config overrides.
 	Worker       RoleOverride `json:"worker,omitempty"`
 	Orchestrator RoleOverride `json:"orchestrator,omitempty"`
@@ -56,7 +61,7 @@ type ProjectConfig struct {
 	// tracker is not commented on or transitioned.
 	TrackerIntake TrackerIntakeConfig `json:"trackerIntake,omitempty"`
 
-	// ContainerReap controls whether AO reaps a worker session's kennel.session-
+	// ContainerReap controls whether Kennel reaps a worker session's kennel.session-
 	// labeled Docker containers on terminal state / kill. Enabled by default;
 	// set Disabled to opt a project out entirely. Per-container sparing uses
 	// the kennel.spare=true label instead (see dockerreap.SpareLabel) so the
@@ -85,9 +90,12 @@ type ReviewerConfig struct {
 const FallbackReviewerHarness = ReviewerClaudeCode
 
 // ResolveReviewerHarness picks the reviewer harness for a worker. A configured
-// reviewer wins. Otherwise only the original, unattended-safe reviewer set is
-// inherited from the worker. Every other reviewer requires explicit selection,
-// so adding an experimental adapter never silently changes an existing project.
+// reviewer wins. Otherwise the worker's own provider reviews its work, which
+// keeps review on a provider the project has already proven it can run.
+//
+// Every shipped provider has a reviewer adapter, so FallbackReviewerHarness is
+// reached only for a persisted worker identity this build no longer ships —
+// never as brand routing between two different live providers.
 func (c ProjectConfig) ResolveReviewerHarness(worker AgentHarness) ReviewerHarness {
 	if len(c.Reviewers) > 0 {
 		return c.Reviewers[0].Harness
@@ -99,10 +107,10 @@ func (c ProjectConfig) ResolveReviewerHarness(worker AgentHarness) ReviewerHarne
 		return ReviewerCodex
 	case HarnessOpenCode:
 		return ReviewerOpenCode
-	case HarnessMuse:
-		return ReviewerMuse
-	case HarnessKimchi:
-		return ReviewerKimchi
+	case HarnessCursor:
+		return ReviewerCursor
+	case HarnessPi:
+		return ReviewerPi
 	}
 	return FallbackReviewerHarness
 }
@@ -117,7 +125,7 @@ const (
 	// DefaultBranchAuto tells callers to infer the Git default branch for each
 	// repository instead of naming one branch for the whole project.
 	DefaultBranchAuto = "auto"
-	// DefaultBranchName is the branch AO selects when it creates a repository.
+	// DefaultBranchName is the branch Kennel selects when it creates a repository.
 	// Automatic resolution never uses it as a guess for existing repositories.
 	DefaultBranchName = "main"
 )
@@ -172,6 +180,12 @@ func (c ProjectConfig) Validate() error {
 		if ro.Harness != "" && !ro.Harness.IsSelectableForNewWork() {
 			return fmt.Errorf("%s.agent: harness %q is not selectable for new work", role, ro.Harness)
 		}
+		// Coordinating is capability-gated beyond plain worker admission: a
+		// harness that cannot yet coordinate (see IsSelectableAsCoordinator)
+		// must not be persisted as a project's orchestrator default either.
+		if role == "orchestrator" && ro.Harness != "" && !ro.Harness.IsSelectableAsCoordinator() {
+			return fmt.Errorf("%s.agent: harness %q is not admitted as an orchestrator coordinator", role, ro.Harness)
+		}
 		if err := ro.AgentConfig.Validate(); err != nil {
 			return fmt.Errorf("%s.%w", role, err)
 		}
@@ -192,7 +206,164 @@ func (c ProjectConfig) Validate() error {
 	if err := c.TrackerIntake.Validate(); err != nil {
 		return err
 	}
+	if err := c.AgentPreferences.Validate(); err != nil {
+		return fmt.Errorf("agentPreferences: %w", err)
+	}
 	return nil
+}
+
+// RoleSource names where a resolved Mission-role assignment came from.
+type RoleSource string
+
+const (
+	// RoleSourcePreference marks an assignment that honors explicit Project configuration.
+	RoleSourcePreference RoleSource = "preference"
+	// RoleSourceDefault is retained for wire compatibility with historical projections.
+	RoleSourceDefault RoleSource = "default"
+	// RoleSourceUnassigned means no explicit, capability-admitted provider is bound.
+	RoleSourceUnassigned RoleSource = "unassigned"
+)
+
+// ProjectAgentPreferences records the project's preferred Mission-role
+// harnesses. Empty fields mean "no preference". Resolution may inherit the
+// corresponding explicit Project role selection, but it never manufactures a
+// brand-specific provider. Preferences are proposals for future Missions — they
+// never rewrite historical sessions or approved Plans, whose provider identity
+// stays immutable.
+//
+// The zero value carries no preference and always validates.
+type ProjectAgentPreferences struct {
+	// DefaultWorker is the harness fresh worker spawns should prefer.
+	DefaultWorker string `json:"defaultWorker,omitempty"`
+	// Analyzer is the preferred harness for intake analysis roles.
+	Analyzer string `json:"analyzer,omitempty"`
+	// Coordinator is the preferred harness for Mission coordination roles.
+	Coordinator string `json:"coordinator,omitempty"`
+	// Verifier is the preferred harness for verification roles.
+	Verifier string `json:"verifier,omitempty"`
+}
+
+// Validate rejects preferences the daemon's capability admission cannot honor:
+// unknown harness names, worker roles outside IsSelectableForNewWork, and
+// analyzer/coordinator/verifier roles outside IsSelectableAsCoordinator (the
+// capability-gated roles). Readiness/profile gates are checked later against
+// the live adapter inventory; this only refuses what could never be honored.
+func (p ProjectAgentPreferences) Validate() error {
+	for role, value := range map[string]string{
+		"worker":      p.DefaultWorker,
+		"analyzer":    p.Analyzer,
+		"coordinator": p.Coordinator,
+		"verifier":    p.Verifier,
+	} {
+		harness := AgentHarness(strings.TrimSpace(value))
+		if harness == "" {
+			continue
+		}
+		if !harness.IsKnown() {
+			return fmt.Errorf("%s: harness %q is not a known agent", role, value)
+		}
+		eligible := harness.IsSelectableForNewWork()
+		if role != "worker" {
+			eligible = harness.IsSelectableAsCoordinator()
+		}
+		if !eligible {
+			return fmt.Errorf("%s: harness %q is not admitted for this role by capability admission", role, value)
+		}
+	}
+	return nil
+}
+
+// ResolvedAgentRole is one Mission-role proposal. Eligible reports domain
+// capability admission for an explicitly resolved harness; adapter installation,
+// authorization, and profile readiness are layered on by the service against
+// the live inventory and reported through Reason when they fail closed.
+type ResolvedAgentRole struct {
+	Harness  AgentHarness `json:"harness"`
+	Source   RoleSource   `json:"source"`
+	Eligible bool         `json:"eligible"`
+	// Ready reports live adapter admission layered on by the service layer.
+	// Unassigned roles are never ready.
+	Ready  bool   `json:"ready"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// ResolvedMissionRoles is the daemon-resolved role proposal for one Project.
+type ResolvedMissionRoles struct {
+	Analyzer    ResolvedAgentRole `json:"analyzer"`
+	Coordinator ResolvedAgentRole `json:"coordinator"`
+	Worker      ResolvedAgentRole `json:"worker"`
+	Verifier    ResolvedAgentRole `json:"verifier"`
+}
+
+// ResolveMissionRoles turns stored preferences into role proposals without
+// touching any live adapter. An admissible role-specific preference wins; when
+// that preference is absent, the corresponding explicit Project role selection
+// may be inherited. Missing or inadmissible configuration stays unassigned.
+// No provider identity is ever synthesized as a fallback.
+func ResolveMissionRoles(cfg ProjectConfig) ResolvedMissionRoles {
+	prefs := cfg.AgentPreferences
+
+	selected := func(role RoleOverride, eligible func(AgentHarness) bool) (AgentHarness, bool) {
+		harness := AgentHarness(strings.TrimSpace(string(role.Harness)))
+		if harness == "" || !harness.IsKnown() || !eligible(harness) {
+			return "", false
+		}
+		return harness, true
+	}
+
+	unassigned := func(reason string) ResolvedAgentRole {
+		return ResolvedAgentRole{
+			Source:   RoleSourceUnassigned,
+			Eligible: false,
+			Ready:    false,
+			Reason:   reason,
+		}
+	}
+
+	resolve := func(value string, eligible func(AgentHarness) bool, chosen RoleOverride) ResolvedAgentRole {
+		harness := AgentHarness(strings.TrimSpace(value))
+		if harness == "" {
+			if picked, ok := selected(chosen, eligible); ok {
+				return ResolvedAgentRole{
+					Harness:  picked,
+					Source:   RoleSourcePreference,
+					Eligible: true,
+					Ready:    true,
+					Reason:   "no Mission-role preference recorded; using the explicit Project role selection",
+				}
+			}
+			return unassigned("no explicit provider is configured for this role")
+		}
+		if harness.IsKnown() && eligible(harness) {
+			return ResolvedAgentRole{
+				Harness:  harness,
+				Source:   RoleSourcePreference,
+				Eligible: true,
+				Ready:    true,
+				Reason:   "honors the project preference",
+			}
+		}
+		if picked, ok := selected(chosen, eligible); ok {
+			return ResolvedAgentRole{
+				Harness:  picked,
+				Source:   RoleSourcePreference,
+				Eligible: true,
+				Ready:    true,
+				Reason:   "preferred harness \"" + value + "\" is not admitted for this role; using the explicit Project role selection",
+			}
+		}
+		return unassigned("preferred harness \"" + value + "\" is not admitted for this role and no explicit Project role selection is available")
+	}
+
+	// Worker follows only the Project worker selection. Coordinator-class roles
+	// follow only the Project orchestrator selection, so a worker-only provider
+	// can never be promoted into coordinator authority by omission.
+	return ResolvedMissionRoles{
+		Worker:      resolve(prefs.DefaultWorker, AgentHarness.IsSelectableForNewWork, cfg.Worker),
+		Analyzer:    resolve(prefs.Analyzer, AgentHarness.IsSelectableAsCoordinator, cfg.Orchestrator),
+		Coordinator: resolve(prefs.Coordinator, AgentHarness.IsSelectableAsCoordinator, cfg.Orchestrator),
+		Verifier:    resolve(prefs.Verifier, AgentHarness.IsSelectableAsCoordinator, cfg.Orchestrator),
+	}
 }
 
 func validateNoWhitespaceField(name, value string) error {

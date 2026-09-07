@@ -18,15 +18,19 @@ import {
 	SIDEBAR_DEFAULT_WIDTH,
 	SIDEBAR_MIN_WIDTH,
 } from "./Sidebar";
+import { TooltipProvider } from "./ui/tooltip";
 import type { WorkspaceSession, WorkspaceSummary } from "../types/workspace";
 import { agentsQueryKey } from "../hooks/useAgentsQuery";
 import { useUiStore } from "../stores/ui-store";
 
-const { getMock, navigateMock, mockParams, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
+const { getMock, navigateMock, mockParams, mockPathname, mockSearch, projectOutcomesQueryMock, renameSessionMock, spawnMock, updateStatusMock, commandPaletteEnabled } = vi.hoisted(
 	() => ({
 		getMock: vi.fn(),
 		navigateMock: vi.fn(),
 		mockParams: { projectId: undefined as string | undefined, sessionId: undefined as string | undefined },
+		mockPathname: { current: "/" },
+		mockSearch: { current: {} as Record<string, unknown> },
+		projectOutcomesQueryMock: vi.fn(),
 		renameSessionMock: vi.fn().mockResolvedValue(undefined),
 		spawnMock: vi.fn(),
 		updateStatusMock: vi.fn(),
@@ -41,14 +45,22 @@ vi.mock("../hooks/useCommandPaletteEnabled", () => ({
 	useCommandPaletteEnabled: () => commandPaletteEnabled.current,
 }));
 
+vi.mock("../hooks/useOutcome", () => ({
+	useProjectOutcomes: projectOutcomesQueryMock,
+}));
+
 vi.mock("@tanstack/react-router", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@tanstack/react-router")>();
 	return {
 		...actual,
+		Link: ({ children, to, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }) => (
+			<a href={`#${to}`} {...props}>{children}</a>
+		),
 		useNavigate: () => navigateMock,
 		useParams: () => ({ ...mockParams }),
-		useRouterState: ({ select }: { select: (state: { location: { pathname: string } }) => unknown }) =>
-			select({ location: { pathname: "/" } }),
+		useRouter: () => ({ history: { push: vi.fn() } }),
+		useRouterState: ({ select }: { select: (state: { location: { href: string; pathname: string; search: Record<string, unknown> } }) => unknown }) =>
+			select({ location: { pathname: mockPathname.current, search: mockSearch.current, href: mockPathname.current } }),
 	};
 });
 
@@ -124,7 +136,7 @@ function sidebarPR(overrides: Partial<WorkspaceSession["prs"][number]> = {}): Wo
 type CreateProjectInput = {
 	path: string;
 	workerAgent: string;
-	orchestratorAgent: string;
+	orchestratorAgent?: string;
 	trackerIntake?: unknown;
 	asWorkspace?: boolean;
 };
@@ -136,6 +148,7 @@ function renderSidebar({
 	onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler,
 	onInitializeProject = vi.fn().mockResolvedValue(undefined) as InitializeProjectHandler,
 	onRemoveProject = vi.fn().mockResolvedValue(undefined) as RemoveProjectHandler,
+	figmaBoard = false,
 	seedAgents = true,
 	workspaces = [workspace],
 	initialOpen = true,
@@ -143,6 +156,7 @@ function renderSidebar({
 	onCreateProject?: CreateProjectHandler;
 	onInitializeProject?: InitializeProjectHandler;
 	onRemoveProject?: RemoveProjectHandler;
+	figmaBoard?: boolean;
 	seedAgents?: boolean;
 	workspaces?: WorkspaceSummary[];
 	initialOpen?: boolean;
@@ -154,7 +168,11 @@ function renderSidebar({
 		queryClient.setQueryData(agentsQueryKey, {
 			supported: [
 				{ id: "claude-code", label: "Claude Code" },
-				{ id: "codex", label: "Codex" },
+				{
+					id: "codex",
+					label: "Codex",
+					roles: { worker: true, coordinator: true, switchTarget: true },
+				},
 			],
 			installed: [
 				{ id: "claude-code", label: "Claude Code" },
@@ -168,18 +186,26 @@ function renderSidebar({
 	}
 	render(
 		<QueryClientProvider client={queryClient}>
-			<SidebarProvider defaultOpen={initialOpen}>
-				<Sidebar
-					onCreateProject={onCreateProject}
-					onInitializeProject={onInitializeProject}
-					onRemoveProject={onRemoveProject}
-					workspaces={workspaces}
-				/>
-			</SidebarProvider>
+			<TooltipProvider delayDuration={0}>
+				<SidebarProvider defaultOpen={initialOpen}>
+					<Sidebar
+						figmaBoard={figmaBoard}
+						onCreateProject={onCreateProject}
+						onInitializeProject={onInitializeProject}
+						onRemoveProject={onRemoveProject}
+						workspaces={workspaces}
+					/>
+				</SidebarProvider>
+			</TooltipProvider>
 		</QueryClientProvider>,
 	);
 	return onRemoveProject;
 }
+
+it("uses the Waldo brand mark in the desktop sidebar", () => {
+	renderSidebar();
+	expect(screen.getByTestId("waldo-sidebar-mark")).toHaveAttribute("data-brand", "waldo");
+});
 
 /** Projects render collapsed; open one to list all of its sessions. */
 
@@ -222,9 +248,19 @@ async function openCreateProjectDialog(
 	await user.click(screen.getByLabelText("New project"));
 	await user.click(screen.getByRole("button", { name: /^Project/i }));
 	await screen.findByText(path);
-	await chooseOption(screen.getByRole("combobox", { name: "Worker agent" }), "Codex");
-	await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 	return user;
+}
+
+/**
+ * Opens the "Advanced settings" accordion that now holds the orchestrator
+ * override. Radix unmounts collapsed content, so the control does not exist in
+ * the DOM until this runs.
+ */
+async function openAdvancedSettings(user: ReturnType<typeof userEvent.setup>) {
+	const trigger = screen.queryByRole("button", { name: "Advanced settings" });
+	if (trigger && trigger.getAttribute("aria-expanded") !== "true") {
+		await user.click(trigger);
+	}
 }
 
 beforeEach(() => {
@@ -237,7 +273,11 @@ beforeEach(() => {
 		data: {
 			supported: [
 				{ id: "claude-code", label: "Claude Code" },
-				{ id: "codex", label: "Codex" },
+				{
+					id: "codex",
+					label: "Codex",
+					roles: { worker: true, coordinator: true, switchTarget: true },
+				},
 			],
 			installed: [
 				{ id: "claude-code", label: "Claude Code" },
@@ -250,12 +290,15 @@ beforeEach(() => {
 		},
 		error: undefined,
 	});
+	projectOutcomesQueryMock.mockReset().mockReturnValue({ outcomes: [], isLoading: false });
 	navigateMock.mockReset();
 	renameSessionMock.mockReset().mockResolvedValue(undefined);
 	spawnMock.mockReset();
 	updateStatusMock.mockReset().mockResolvedValue({ state: "idle" });
 	mockParams.projectId = undefined;
 	mockParams.sessionId = undefined;
+	mockPathname.current = "/";
+	mockSearch.current = {};
 });
 
 afterEach(() => {
@@ -263,6 +306,161 @@ afterEach(() => {
 });
 
 describe("Sidebar", () => {
+	it("keeps keyboard-accessible Add Project available in the Figma Work sidebar", async () => {
+		const user = userEvent.setup();
+		renderSidebar({ figmaBoard: true });
+
+		const newProject = screen.getByRole("button", { name: "New project" });
+		act(() => newProject.focus());
+		expect(newProject).toHaveFocus();
+		await user.keyboard("{Enter}");
+
+		expect(await screen.findByRole("dialog", { name: "Import to Kennel" })).toBeInTheDocument();
+	});
+
+	it("keeps the global Home and Work choice inside the sidebar", () => {
+		renderSidebar({ figmaBoard: true });
+
+		const modeSwitch = screen.getByRole("navigation", { name: "Waldo mode" });
+		expect(within(modeSwitch).getByRole("button", { name: "Home" })).toBeInTheDocument();
+		expect(within(modeSwitch).getByRole("button", { name: "Work" })).toHaveAttribute("aria-pressed", "true");
+		expect(modeSwitch.closest('[data-slot="sidebar"]')).toBeInTheDocument();
+	});
+
+	it("treats beta's Work entry route as an active Work destination", () => {
+		mockPathname.current = "/work";
+		renderSidebar();
+
+		expect(screen.getByRole("button", { name: "Orchestrator board" })).toHaveClass(
+			"group-data-[collapsible=icon]:bg-interactive-active",
+		);
+	});
+
+	it("keeps the selected project and Outcome visible during durable Work re-entry", async () => {
+		mockPathname.current = "/work";
+		mockSearch.current = { project: "proj-1", stage: "decide_authorize", outcome: "outcome-1" };
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [{ id: "outcome-1", title: "Explain Waldo clearly", currentRevisionNumber: 1 }],
+			isLoading: false,
+		});
+
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		const outcome = await screen.findByRole("button", { name: "Continue Explain Waldo clearly" });
+		expect(outcome).toHaveAttribute("aria-current", "page");
+		expect(screen.getByText("Project One").closest("button")).toHaveAttribute("data-active", "true");
+		expect(screen.getByText("Outcomes")).toBeInTheDocument();
+		// The "SESSIONS" section caption was removed as chrome noise — the
+		// session rows themselves stay, unlabeled, right under the outcomes.
+		expect(screen.queryByText("Sessions")).not.toBeInTheDocument();
+		expect(screen.getByText(session.title)).toBeInTheDocument();
+	});
+
+	it("opens a direct Outcome on Decide & Authorize", async () => {
+		const user = userEvent.setup();
+		mockPathname.current = "/work";
+		mockSearch.current = { project: "proj-1" };
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [{ id: "outcome-1", title: "Explain Waldo clearly", currentRevisionNumber: 1 }],
+			isLoading: false,
+		});
+
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		await user.click(await screen.findByRole("button", { name: "Continue Explain Waldo clearly" }));
+
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "proj-1", stage: "decide_authorize", outcome: "outcome-1" },
+		});
+	});
+
+	it("opens a decomposed parent on Mission Control and nests its contributors", async () => {
+		const user = userEvent.setup();
+		mockPathname.current = "/work";
+		mockSearch.current = { project: "proj-1" };
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [
+				{ id: "parent-1", title: "Ship the importer", currentRevisionNumber: 1 },
+				{ id: "child-1", title: "Parse the archive", currentRevisionNumber: 1, parentId: "parent-1" },
+			],
+			isLoading: false,
+		});
+
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		await user.click(await screen.findByRole("button", { name: "Continue Ship the importer" }));
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "proj-1", stage: "decompose", outcome: "parent-1" },
+		});
+
+		// A contributor answers for its own contract, so it keeps the ordinary
+		// destination — and is indented under the parent that claims it.
+		const contributor = screen.getByRole("button", { name: "Continue Parse the archive" });
+		expect(contributor.closest("li")).toHaveClass("pl-8");
+		await user.click(contributor);
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "proj-1", stage: "decide_authorize", outcome: "child-1" },
+		});
+	});
+
+	it("reaches Mission Control for an Outcome nobody has decomposed yet", async () => {
+		const user = userEvent.setup();
+		mockPathname.current = "/work";
+		mockSearch.current = { project: "proj-1" };
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [{ id: "outcome-1", title: "Explain Waldo clearly", currentRevisionNumber: 1 }],
+			isLoading: false,
+		});
+
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		await user.click(await screen.findByRole("button", { name: "Mission control for Explain Waldo clearly" }));
+
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "proj-1", stage: "decompose", outcome: "outcome-1" },
+		});
+	});
+
+	it("offers no decomposition action on a contributing Outcome", async () => {
+		mockPathname.current = "/work";
+		mockSearch.current = { project: "proj-1" };
+		projectOutcomesQueryMock.mockReturnValue({
+			outcomes: [
+				{ id: "parent-1", title: "Ship the importer", currentRevisionNumber: 1 },
+				{ id: "child-1", title: "Parse the archive", currentRevisionNumber: 1, parentId: "parent-1" },
+			],
+			isLoading: false,
+		});
+
+		renderSidebar({ workspaces: [{ ...workspace, sessions: [session] }] });
+
+		expect(await screen.findByRole("button", { name: "Mission control for Ship the importer" })).toBeInTheDocument();
+		// The depth limit is two levels: a contributor cannot be decomposed
+		// again, so it must not offer the action.
+		expect(screen.queryByRole("button", { name: "Mission control for Parse the archive" })).not.toBeInTheDocument();
+	});
+
+	it("shows personal destinations without the Work project tree in Home", () => {
+		mockPathname.current = "/home";
+		renderSidebar();
+
+		const navigation = screen.getByRole("navigation", { name: "Home destinations" });
+		expect(within(navigation).getByRole("link", { name: "Today" })).toBeInTheDocument();
+		expect(within(navigation).getByRole("link", { name: "Open Loops" })).toBeInTheDocument();
+		expect(within(navigation).queryByRole("link", { name: "Memory" })).not.toBeInTheDocument();
+		const continuity = within(navigation).getByRole("group", { name: "Review and continuity" });
+		expect(within(continuity).getByRole("link", { name: "Daily Close" })).toBeInTheDocument();
+		expect(within(continuity).getByRole("link", { name: "Memory Review" })).toBeInTheDocument();
+		expect(within(continuity).getByRole("link", { name: "Insights" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Search" })).not.toBeInTheDocument();
+		expect(screen.queryByText("Projects")).not.toBeInTheDocument();
+		expect(screen.queryByText("Project One")).not.toBeInTheDocument();
+	});
+
 	it("suppresses focus chrome without removing keyboard focusability", () => {
 		renderSidebar();
 
@@ -433,6 +631,7 @@ describe("Sidebar", () => {
 
 	it("keeps the create-project shortcut available when there are no projects", async () => {
 		renderSidebar({ workspaces: [] });
+		expect(screen.getByRole("button", { name: "New project" })).toBeVisible();
 
 		act(() => {
 			useUiStore.getState().requestCreateProject();
@@ -447,6 +646,50 @@ describe("Sidebar", () => {
 		expect(screen.queryByLabelText("Open Project One dashboard")).not.toBeInTheDocument();
 		expect(screen.getByLabelText("Spawn Project One orchestrator")).toBeInTheDocument();
 		expect(screen.getByLabelText("Project actions for Project One")).toBeInTheDocument();
+	});
+
+	it("opens project-scoped Outcome intake from the keyboard-accessible project action", async () => {
+		const user = userEvent.setup();
+		renderSidebar({ figmaBoard: true });
+
+		const newOutcome = screen.getByRole("button", { name: "New Outcome" });
+		act(() => newOutcome.focus());
+		expect(newOutcome).toHaveFocus();
+		await user.keyboard("{Enter}");
+
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/work", search: { project: "proj-1" } });
+	});
+
+	it("reveals project-scoped New Outcome on row hover with its specified tooltip", async () => {
+		const user = userEvent.setup();
+		renderSidebar();
+
+		const projectRow = screen.getByText("Project One").closest<HTMLElement>('button, [role="button"]');
+		const newOutcome = screen.getByRole("button", { name: "New Outcome" });
+		if (!projectRow) throw new Error("Project row button not found");
+
+		expect(newOutcome).toHaveClass("pointer-events-none", "opacity-0");
+		await user.hover(projectRow);
+		expect(newOutcome).toHaveClass("pointer-events-auto", "opacity-100");
+		fireEvent.pointerMove(newOutcome, { pointerType: "mouse" });
+		expect(await screen.findByRole("tooltip", { name: "New Outcome" })).toBeInTheDocument();
+	});
+
+	it("reveals standard-sidebar New Outcome on keyboard focus and activates it", async () => {
+		const user = userEvent.setup();
+		renderSidebar();
+
+		const projectRow = screen.getByText("Project One").closest<HTMLElement>('button, [role="button"]');
+		const newOutcome = screen.getByRole("button", { name: "New Outcome" });
+		if (!projectRow) throw new Error("Project row button not found");
+
+		expect(newOutcome).toHaveClass("pointer-events-none", "opacity-0");
+		act(() => projectRow.focus());
+		expect(newOutcome).toHaveClass("pointer-events-auto", "opacity-100");
+		act(() => newOutcome.focus());
+		await user.keyboard("{Enter}");
+
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/work", search: { project: "proj-1" } });
 	});
 
 	it("toggles project sessions from the folder icon without selecting the project first", async () => {
@@ -550,6 +793,7 @@ describe("Sidebar", () => {
 			workspaces: [{ ...workspace, sessions: [orchestrator, session] }],
 		});
 
+		expect(screen.getByLabelText("Open Orchestrator")).toBeInTheDocument();
 		expect(screen.getByLabelText("Open fix login")).toBeInTheDocument();
 
 		await user.click(screen.getByText("Project One"));
@@ -624,25 +868,29 @@ describe("Sidebar", () => {
 				expect.objectContaining({
 					path: "/repo/new-project",
 					workerAgent: "codex",
-					orchestratorAgent: "codex",
 				}),
 			),
 		);
 	});
 
-	it("uses Codex for a new project when the catalog retains historical agents", async () => {
+	it("defaults a new project to Codex when the catalog includes a worker-only provider", async () => {
 		const user = userEvent.setup();
 		const onCreateProject = vi.fn().mockResolvedValue(undefined) as CreateProjectHandler;
 		window.kennel!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
 		getMock.mockResolvedValueOnce({
 			data: {
 				supported: [
-					{ id: "codex", label: "Codex" },
-					{ id: "goose", label: "Goose" },
-					{ id: "devin", label: "Devin" },
-					{ id: "aider", label: "Aider" },
-					{ id: "opencode", label: "OpenCode" },
-					{ id: "cursor", label: "Cursor" },
+					{
+						id: "codex",
+						label: "Codex",
+						roles: { worker: true, coordinator: true, switchTarget: true },
+					},
+					{
+						id: "pi",
+						label: "Pi",
+						requiresProfile: true,
+						roles: { worker: true, coordinator: false, switchTarget: false },
+					},
 				],
 				installed: [
 					{ id: "codex", label: "Codex", authStatus: "authorized" },
@@ -668,22 +916,25 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Project/i }));
 		expect(await screen.findByText("/repo/new-project")).toBeInTheDocument();
-		expect(screen.getByRole("combobox", { name: "Worker agent" })).toHaveTextContent("Codex");
-		expect(screen.getByRole("combobox", { name: "Orchestrator agent" })).toHaveTextContent("Codex");
+		expect(screen.getByRole("combobox", { name: "Default coding agent" })).toHaveTextContent("Codex");
+		await openAdvancedSettings(user);
+		expect(screen.getByRole("combobox", { name: "Orchestrator agent" })).toHaveTextContent(
+			"Select orchestrator agent",
+		);
 
-		await user.click(screen.getByRole("combobox", { name: "Worker agent" }));
+		await user.click(screen.getByRole("combobox", { name: "Default coding agent" }));
+		// Codex stays the default; the admitted worker appears with its real
+		// needs-install state (avatar-initial fallback, no logo asset yet).
 		expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
 			"Codex",
+			"PiNeeds install",
 		]);
 		await user.keyboard("{Escape}");
 
 		await user.click(screen.getByRole("button", { name: "Create and start" }));
 		await waitFor(() =>
 			expect(onCreateProject).toHaveBeenCalledWith(
-				expect.objectContaining({
-					workerAgent: "codex",
-					orchestratorAgent: "codex",
-				}),
+				expect.objectContaining({ workerAgent: "codex" }),
 			),
 		);
 	});
@@ -710,7 +961,7 @@ describe("Sidebar", () => {
 			path: "/repo/parent/universe",
 			repos: [],
 			setupWarning:
-				"Selected folder is inside an existing Git repository at /repo/parent. AO will initialize this folder as a separate repository.",
+				"Selected folder is inside an existing Git repository at /repo/parent. Kennel will initialize this folder as a separate repository.",
 		});
 		renderSidebar({ onCreateProject, onInitializeProject });
 
@@ -789,7 +1040,8 @@ describe("Sidebar", () => {
 		expect(await screen.findByText("/repo/workspace")).toBeInTheDocument();
 		expect(window.kennel!.app.chooseDirectory).toHaveBeenCalledWith("Choose a workspace folder");
 		expect(screen.getByRole("dialog", { name: "Workspace agents" })).toBeInTheDocument();
-		await chooseOption(screen.getByRole("combobox", { name: "Worker agent" }), "Codex");
+		await chooseOption(screen.getByRole("combobox", { name: "Default coding agent" }), "Codex");
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
@@ -819,6 +1071,7 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
@@ -849,7 +1102,7 @@ describe("Sidebar", () => {
 					remote: "",
 					hasRemote: false,
 					status: "error",
-					reason: "Repository name is reserved by AO.",
+					reason: "Repository name is reserved by Kennel.",
 				},
 				{
 					name: "api",
@@ -867,13 +1120,14 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
 		expect(await screen.findByText(/Import failed · workspace not registered/i)).toBeInTheDocument();
 		expect(screen.getByText("workspace not registered")).toBeInTheDocument();
 		expect(screen.getByText("web")).toBeInTheDocument();
-		expect(screen.getByText("Repository name is reserved by AO.")).toBeInTheDocument();
+		expect(screen.getByText("Repository name is reserved by Kennel.")).toBeInTheDocument();
 		expect(screen.getByText("api")).toBeInTheDocument();
 		expect(screen.getByText("main github.com/acme/api")).toBeInTheDocument();
 		expect(screen.getByText("Resolve 1 failed repository to continue")).toBeInTheDocument();
@@ -918,6 +1172,7 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
@@ -931,7 +1186,7 @@ describe("Sidebar", () => {
 
 	it("does not rescan folders for non-validation create failures", async () => {
 		const user = userEvent.setup();
-		const onCreateProject = vi.fn().mockRejectedValue(new Error("AO daemon is not ready.")) as CreateProjectHandler;
+		const onCreateProject = vi.fn().mockRejectedValue(new Error("Kennel daemon is not ready.")) as CreateProjectHandler;
 		window.kennel!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/workspace");
 		window.kennel!.app.checkAncestorRepo = vi.fn().mockResolvedValue(undefined);
 		window.kennel!.app.scanImportFolder = vi.fn();
@@ -940,10 +1195,11 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
-		expect(await screen.findByText("AO daemon is not ready.")).toBeInTheDocument();
+		expect(await screen.findByText("Kennel daemon is not ready.")).toBeInTheDocument();
 		// checkAncestorRepo is called once during the preflight (chooseDirectory),
 		// but scanImportFolder is never called (shouldScanCreateFailure returns false for this error)
 		expect(window.kennel!.app.checkAncestorRepo).toHaveBeenCalledWith("/repo/workspace");
@@ -961,7 +1217,7 @@ describe("Sidebar", () => {
 		window.kennel!.app.checkAncestorRepo = vi
 			.fn()
 			.mockResolvedValue(
-				"Selected folder is inside an existing Git repository at /repo. AO will initialize this folder as a separate repository.",
+				"Selected folder is inside an existing Git repository at /repo. Kennel will initialize this folder as a separate repository.",
 			);
 		renderSidebar({ onCreateProject, onInitializeProject });
 
@@ -970,14 +1226,15 @@ describe("Sidebar", () => {
 		await screen.findByRole("dialog", { name: "Workspace agents" });
 		expect(
 			screen.getByText(
-				"Selected folder is inside an existing Git repository at /repo. AO will initialize this folder as a separate repository.",
+				"Selected folder is inside an existing Git repository at /repo. Kennel will initialize this folder as a separate repository.",
 			),
 		).toBeInTheDocument();
 		expect(
 			screen.getByText(
-				"If this folder needs Git setup, AO will initialize it and create the first commit before starting.",
+				"If this folder needs Git setup, Kennel will initialize it and create the first commit before starting.",
 			),
 		).toBeInTheDocument();
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create workspace and start" }));
 
@@ -1005,15 +1262,21 @@ describe("Sidebar", () => {
 		getMock.mockResolvedValueOnce({
 			data: {
 				supported: [
-					{ id: "codex", label: "Codex" },
-					{ id: "claude-code", label: "Claude Code" },
-					{ id: "cursor", label: "Cursor" },
-					{ id: "aider", label: "Aider" },
+					{
+						id: "codex",
+						label: "Codex",
+						roles: { worker: true, coordinator: true, switchTarget: true },
+					},
+					{
+						id: "pi",
+						label: "Pi",
+						requiresProfile: true,
+						roles: { worker: true, coordinator: false, switchTarget: false },
+					},
 				],
 				installed: [
 					{ id: "codex", label: "Codex", authStatus: "authorized" },
-					{ id: "claude-code", label: "Claude Code", authStatus: "authorized" },
-					{ id: "cursor", label: "Cursor", authStatus: "unauthorized" },
+					{ id: "deepseek-harness", label: "DeepSeek Harness", authStatus: "unauthorized" },
 				],
 				authorized: [{ id: "codex", label: "Codex", authStatus: "authorized" }],
 			},
@@ -1025,6 +1288,7 @@ describe("Sidebar", () => {
 		await user.click(screen.getByRole("button", { name: /^Project/i }));
 		expect(await screen.findByText("/repo/new-project")).toBeInTheDocument();
 
+		await openAdvancedSettings(user);
 		await user.click(screen.getByRole("combobox", { name: "Orchestrator agent" }));
 		const options = await screen.findAllByRole("option");
 		expect(options.map((option) => option.textContent)).toEqual(["Codex"]);
@@ -1034,7 +1298,9 @@ describe("Sidebar", () => {
 		await user.click(screen.getByRole("button", { name: "Create and start" }));
 
 		await waitFor(() =>
-			expect(onCreateProject).toHaveBeenCalledWith(expect.objectContaining({ orchestratorAgent: "codex" })),
+			expect(onCreateProject).toHaveBeenCalledWith(
+				expect.not.objectContaining({ orchestratorAgent: expect.anything() }),
+			),
 		);
 	});
 
@@ -1044,7 +1310,11 @@ describe("Sidebar", () => {
 		window.kennel!.app.chooseDirectory = vi.fn().mockResolvedValue("/repo/new-project");
 		let resolveAgents!: (value: {
 			data: {
-				supported: { id: string; label: string }[];
+				supported: {
+					id: string;
+					label: string;
+					roles?: { worker: boolean; coordinator: boolean; switchTarget: boolean };
+				}[];
 				installed: { id: string; label: string }[];
 				authorized: { id: string; label: string; authStatus: "authorized" }[];
 			};
@@ -1066,7 +1336,11 @@ describe("Sidebar", () => {
 			data: {
 				supported: [
 					{ id: "claude-code", label: "Claude Code" },
-					{ id: "codex", label: "Codex" },
+					{
+						id: "codex",
+						label: "Codex",
+						roles: { worker: true, coordinator: true, switchTarget: true },
+					},
 				],
 				installed: [
 					{ id: "claude-code", label: "Claude Code" },
@@ -1080,6 +1354,7 @@ describe("Sidebar", () => {
 			error: undefined,
 		});
 
+		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
 		await user.click(screen.getByRole("button", { name: "Create and start" }));
 
@@ -1176,7 +1451,7 @@ describe("Sidebar", () => {
 		expect(screen.getByLabelText("Open fix login")).toBeInTheDocument();
 	});
 
-	it("always shows action icons and reserves padding for them", () => {
+	it("always shows all three action icons and reserves padding for them", () => {
 		renderSidebar();
 
 		const projectRow = screen.getByText("Project One").closest('button, [role="button"]');
@@ -1186,7 +1461,8 @@ describe("Sidebar", () => {
 		expect(projectRow).toHaveClass("pr-sidebar-project-actions");
 		expect(actionCluster).toHaveAttribute("data-project-actions");
 		expect(actionCluster).toHaveClass("right-0.5", "gap-px");
-		expect(within(actionCluster as HTMLElement).getAllByRole("button")).toHaveLength(2);
+		expect(within(actionCluster as HTMLElement).getAllByRole("button")).toHaveLength(3);
+		expect(screen.getByLabelText("New Outcome")).toHaveClass("opacity-0");
 		expect(screen.getByLabelText("Project actions for Project One")).not.toHaveClass("opacity-0");
 	});
 

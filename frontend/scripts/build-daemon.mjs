@@ -51,7 +51,7 @@ if (isWindowsDev) {
 	mkdirSync(outDir, { recursive: true });
 }
 
-const result = spawnSync("go", ["build", "-o", buildOutPath, "./cmd/ao"], {
+const result = spawnSync("go", ["build", "-o", buildOutPath, "./cmd/kennel"], {
 	cwd: backendRoot,
 	stdio: "inherit",
 	windowsHide: true,

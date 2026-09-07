@@ -1,10 +1,12 @@
 import { memo, useEffect, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	SessionsArchiveView,
 	SessionsBoardGridView,
+	SessionsListView,
+	SessionsViewSwitch,
 	archiveToggleOffsetClassName,
 } from "@pin4sf/kennel-product-ui";
 import { AlertTriangle, LayoutDashboard, Plus, RotateCw } from "lucide-react";
@@ -13,7 +15,6 @@ import {
 	hasConfiguredOrchestratorAgent,
 	newestActiveOrchestrator,
 	orchestratorHealth,
-	workerSessions,
 } from "../types/workspace";
 import {
 	boardAttentionZoneOrder,
@@ -24,6 +25,7 @@ import {
 	useSessionUsageSummaries,
 	type SessionUsageSummary,
 } from "../hooks/useSessionUsageSummaries";
+import { useProjectOutcomes } from "../hooks/useOutcome";
 import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useTerminateSession } from "../hooks/useTerminateSession";
 import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
@@ -38,20 +40,6 @@ import { restartProjectOrchestrator } from "../lib/restart-orchestrator";
 import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { isLinuxPlatform, isMacPlatform, usesBoardActionsInPanel } from "../lib/platform";
 import { cn } from "../lib/utils";
-import { agentLabel } from "../lib/agent-options";
-import {
-	extractLatestSubmittedOutcome,
-	extractOutcomeFromSessionTitle,
-	extractOutcomeSuggestions,
-} from "../lib/outcome-suggestions";
-import {
-	buildOutcomeAnswersMessage,
-	buildOutcomePlanApprovalMessage,
-	buildOutcomePlanRevisionMessage,
-	deriveOutcomeCoordinationState,
-	type OutcomePlan,
-} from "../lib/outcome-coordination";
-import { apiClient, apiErrorMessage } from "../lib/api-client";
 import { useUiStore } from "../stores/ui-store";
 import { RestoreUnavailableDialog } from "./RestoreUnavailableDialog";
 import { DaemonStartupLoader } from "./DaemonStartupLoader";
@@ -59,10 +47,11 @@ import { useShellMaybe } from "../lib/shell-context";
 import {
 	ArchivedSessionCardAdapter,
 	BoardSessionCardAdapter,
+	BoardSessionRowAdapter,
 	sessionsBoardLabels,
 } from "./SessionsBoardAdapters";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { OutcomeIntakePanel } from "./OutcomeIntakePanel";
+import { NewShellTerminalButton } from "./NewShellTerminalButton";
 
 type SessionsBoardProps = {
 	/** When set, the board shows only this project's sessions. */
@@ -90,6 +79,8 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const workspaceQuery = useWorkspaceQuery();
 	const shell = useShellMaybe();
 	const usageBySession = useSessionUsageSummaries(projectId).data ?? emptyUsageBySession;
+	const projectOutcomesQuery = useProjectOutcomes(projectId);
+	const projectOutcomes = projectOutcomesQuery.outcomes;
 	// Evaluated at render so platform mocks in tests can flip the in-panel chrome.
 	const boardActionsInPanel = usesBoardActionsInPanel();
 	/** Bell lives in the board action row when the shell topbar does not host it. */
@@ -99,42 +90,22 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const workspace = projectId ? workspaces[0] : undefined;
 	// Board chrome stays route-oriented; project context remains in the sidebar.
 	const boardLabel = t("shell.board");
-	const sessions = workspaces.flatMap((workspace) => workerSessions(workspace.sessions));
+	// The board is the project's operational projection, so every live Kennel
+	// session belongs here. Orchestrators are not Outcome truth, but hiding them
+	// made an active, waiting Outcome look empty and removed the Board/List switch.
+	const sessions = workspaces.flatMap((workspace) => workspace.sessions);
 	const orchestrator = projectId ? newestActiveOrchestrator(workspaces[0]?.sessions ?? []) : undefined;
-	const outcomeConversation = useQuery({
-		queryKey: ["outcome-suggestions", orchestrator?.id],
-		enabled: Boolean(orchestrator?.id && orchestrator.mode === "chat"),
-		refetchInterval: 2_000,
-		queryFn: async () => {
-			const { data, error } = await apiClient.GET("/api/v1/sessions/{sessionId}/conversation", {
-				params: { path: { sessionId: orchestrator?.id ?? "" } },
-			});
-			if (error) throw new Error(apiErrorMessage(error));
-			return data;
-		},
-	});
-	const outcomeMessages = outcomeConversation.data?.messages ?? [];
-	const outcomeSuggestions = extractOutcomeSuggestions(outcomeMessages);
-	const outcomeDefinition =
-		extractLatestSubmittedOutcome(outcomeMessages) ??
-		(orchestrator ? extractOutcomeFromSessionTitle(orchestrator.title) : undefined);
-	const outcomeCoordination = deriveOutcomeCoordinationState(outcomeMessages);
-	const orchestratorBusy =
-		orchestrator?.activity?.state === "active" ||
-		outcomeConversation.data?.controller === "busy" ||
-		outcomeConversation.data?.controller === "connecting" ||
-		outcomeConversation.data?.controller === "recovering";
-	const isExploringCodebase = Boolean(
-		orchestrator && !outcomeDefinition && outcomeSuggestions.length === 0 && (orchestratorBusy || outcomeConversation.isLoading),
-	);
+	// Outcome shaping no longer lives on this board: the Understand stage owns it
+	// through the daemon contract, so the board derives only what its own durable
+	// facts say — an active orchestrator session — and never parses transcripts.
+	const orchestratorBusy = orchestrator?.activity?.state === "active";
+	const isExploringCodebase = Boolean(orchestrator && orchestratorBusy);
 	const [isSpawning, setIsSpawning] = useState(false);
 	const [spawnError, setSpawnError] = useState<string | null>(null);
 	const [canCreateAsTui, setCanCreateAsTui] = useState(false);
 	const [canInstallTmux, setCanInstallTmux] = useState(false);
 	const [isInstallingTmux, setIsInstallingTmux] = useState(false);
 	const [tmuxInstallMessage, setTmuxInstallMessage] = useState<string | null>(null);
-	const [isSendingOutcomeResponse, setIsSendingOutcomeResponse] = useState(false);
-	const [outcomeResponseError, setOutcomeResponseError] = useState<string | undefined>();
 	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
 	const orchestratorStartupError = useUiStore((state) =>
 		projectId ? (state.orchestratorStartupErrors[projectId] ?? null) : null,
@@ -142,7 +113,8 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 	const setProjectRestarting = useUiStore((state) => state.setProjectRestarting);
 	const setOrchestratorReplacementError = useUiStore((state) => state.setOrchestratorReplacementError);
 	const setOrchestratorStartupError = useUiStore((state) => state.setOrchestratorStartupError);
-	const requestNewTask = useUiStore((state) => state.requestNewTask);
+	const sessionsViewMode = useUiStore((state) => state.sessionsViewMode);
+	const setSessionsViewMode = useUiStore((state) => state.setSessionsViewMode);
 	const isProjectRestarting = projectId ? restartingProjectIds.has(projectId) : false;
 	const health = workspace ? orchestratorHealth(workspace, isProjectRestarting) : { state: "ok" as const };
 	const visibleSpawnError = spawnError ?? orchestratorStartupError;
@@ -187,48 +159,30 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 		!daemonHasFailed &&
 		(!isDaemonReady || workspaceStartupState === "loading" || (!workspaceQuery.isSuccess && !workspaceQuery.isError));
 	const showWelcome = !projectId && isLoaded && all.length === 0;
-	// Archived workers remain available below the board, but they must not hide
+	// Archived sessions remain available below the board, but they must not hide
 	// the active Outcome intake/review surface when no work is currently running.
 	const showProjectEmpty =
-		projectId !== undefined && isLoaded && workspaces.length > 0 && activeSessions.length === 0;
+		projectId !== undefined &&
+		isLoaded &&
+		workspaces.length > 0 &&
+		activeSessions.length === 0 &&
+		projectOutcomes.length === 0 &&
+		!projectOutcomesQuery.isLoading &&
+		!projectOutcomesQuery.failure;
 	const hasArchive = archived.length > 0;
 	const terminateSession = useTerminateSession();
 	const activeProjectIdRef = useRef(projectId);
 	activeProjectIdRef.current = projectId;
-
-	const sendOutcomeResponse = async (text: string) => {
-		if (!orchestrator || orchestrator.mode !== "chat" || isSendingOutcomeResponse) return;
-		setIsSendingOutcomeResponse(true);
-		setOutcomeResponseError(undefined);
-		try {
-			const { error } = await apiClient.POST("/api/v1/sessions/{sessionId}/conversation/messages", {
-				params: { path: { sessionId: orchestrator.id } },
-				body: { text },
-			});
-			if (error) throw new Error(apiErrorMessage(error));
-			await outcomeConversation.refetch();
-			await queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
-		} catch (error) {
-			setOutcomeResponseError(error instanceof Error ? error.message : "Could not send the response");
-		} finally {
-			setIsSendingOutcomeResponse(false);
-		}
-	};
-
-	useEffect(() => {
-		if (outcomeCoordination.stage !== "approved" || activeSessions.length > 0) return;
-		const timer = window.setInterval(() => {
-			void queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
-		}, 2_000);
-		return () => window.clearInterval(timer);
-	}, [activeSessions.length, outcomeCoordination.stage, queryClient]);
 
 	const openSession = (session: WorkspaceSession) =>
 		void navigate({
 			to: "/projects/$projectId/sessions/$sessionId",
 			params: { projectId: session.workspaceId, sessionId: session.id },
 		});
-
+	const openOutcomeUnderstand = () => {
+		if (!projectId) return;
+		void navigate({ to: "/work", search: { project: projectId } });
+	};
 	const openOrchestrator = async (mode?: "tui") => {
 		if (!projectId || isProjectRestarting) return;
 		if (orchestrator) {
@@ -330,7 +284,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 							className="topbar-control--labeled outcome-primary-action"
 							data-priority="primary"
 							disabled={isProjectRestarting}
-							onClick={() => projectId && requestNewTask(projectId)}
+							onClick={openOutcomeUnderstand}
 							variant="primary"
 						>
 							<Plus className="size-icon-md" aria-hidden="true" />
@@ -340,6 +294,7 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 				</TooltipTrigger>
 				<TooltipContent side="bottom">{t("shell.newTask")}</TooltipContent>
 			</Tooltip>
+			<NewShellTerminalButton />
 			{orchestrator ? <Tooltip>
 				<TooltipTrigger asChild>
 					<span className="inline-flex">
@@ -429,49 +384,74 @@ export function SessionsBoard({ projectId }: SessionsBoardProps) {
 					<p className="py-10 text-center text-xs text-passive">{t("shell.couldNotLoadSessions")}</p>
 				) : showWelcome ? (
 					<BoardWelcome />
-				) : showProjectEmpty && outcomeDefinition && orchestrator?.mode === "chat" ? (
-					<OutcomeIntakePanel
-						agentLabel={agentLabel(orchestrator.provider)}
-						busy={isSendingOutcomeResponse}
-						error={outcomeResponseError}
-						onApprove={(plan: OutcomePlan) => sendOutcomeResponse(buildOutcomePlanApprovalMessage(plan))}
-						onRequestRevision={(instructions) => sendOutcomeResponse(buildOutcomePlanRevisionMessage(instructions))}
-						onSubmitAnswers={(answers) => sendOutcomeResponse(buildOutcomeAnswersMessage(answers))}
-						outcomeDefinition={outcomeDefinition}
-						state={outcomeCoordination}
-					/>
 				) : showProjectEmpty ? (
 					<ProjectBoardEmpty
 						isExploring={isExploringCodebase}
 						isSpawning={isSpawning}
 						isInstallingTmux={isInstallingTmux}
-						isOutcomeWaiting={Boolean(outcomeDefinition && orchestratorBusy)}
 						isProjectRestarting={isProjectRestarting}
-						onNewTask={() => projectId && requestNewTask(projectId)}
-						onOpenOrchestrator={orchestrator ? () => void openOrchestrator() : undefined}
-						onSuggestion={(suggestion) => projectId && requestNewTask(projectId, suggestion)}
+						onNewTask={openOutcomeUnderstand}
 						onInstallTmux={canInstallTmux && isMacPlatform() ? () => void installTmuxAndRetry() : undefined}
-						orchestratorLabel={orchestrator ? agentLabel(orchestrator.provider) : undefined}
-						outcomeDefinition={outcomeDefinition}
-						outcomeSuggestions={outcomeSuggestions}
 						tmuxInstallMessage={tmuxInstallMessage}
 						spawnError={visibleSpawnError}
 					/>
 				) : (
-					<SessionsBoardGridView
-						columns={columns}
-						key={projectId ?? "all"}
-						labels={boardLabels}
-						renderSessionCard={(session) => (
-							<BoardSessionCardAdapter
-								onOpen={() => openSession(session)}
-								onTerminate={() => terminateSession.mutate(session)}
-								session={session}
-								usage={usageBySession.get(session.id)}
+					<div className="flex h-full min-h-0 flex-col">
+						{/* This board no longer shows its own Outcomes summary: WorkShell
+						    (components/outcome/WorkShell.tsx) is the persistent Work
+						    chrome now, with the sidebar's project/outcome tree and the
+						    Outcomes destination reachable from its top bar — a second,
+						    disconnected "Outcomes" card here duplicated that navigation
+						    and, before WorkShell existed, was the only way back into an
+						    authorized plan. `projectOutcomes`/`projectOutcomesQuery` are
+						    still read below only to decide whether this project's board
+						    is genuinely empty (no sessions AND no outcomes). */}
+						{/* The view switch heads the lanes rather than the window: it
+						    changes what is below it, so it belongs to that region. */}
+						<div className="flex shrink-0 items-center gap-2 px-2.5 pb-2.5 pt-2.5">
+							<SessionsViewSwitch
+								labels={{
+									ariaLabel: t("shell.viewSwitchAria"),
+									board: t("shell.viewBoard"),
+									list: t("shell.viewList"),
+								}}
+								onChange={setSessionsViewMode}
+								value={sessionsViewMode}
 							/>
-						)}
-						sessions={activeSessions}
-					/>
+						</div>
+						<div className="min-h-0 flex-1">
+							{sessionsViewMode === "list" ? (
+								<SessionsListView
+									columns={columns}
+									key={`list-${projectId ?? "all"}`}
+									labels={boardLabels}
+									renderSessionRow={(session) => (
+										<BoardSessionRowAdapter
+											onOpen={() => openSession(session)}
+											session={session}
+											usage={usageBySession.get(session.id)}
+										/>
+									)}
+									sessions={activeSessions}
+								/>
+							) : (
+								<SessionsBoardGridView
+									columns={columns}
+									key={projectId ?? "all"}
+									labels={boardLabels}
+									renderSessionCard={(session) => (
+										<BoardSessionCardAdapter
+											onOpen={() => openSession(session)}
+											onTerminate={() => terminateSession.mutate(session)}
+											session={session}
+											usage={usageBySession.get(session.id)}
+										/>
+									)}
+									sessions={activeSessions}
+								/>
+							)}
+						</div>
+					</div>
 				)}
 			</div>
 

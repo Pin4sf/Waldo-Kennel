@@ -19,7 +19,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 const (
@@ -33,7 +33,7 @@ const (
 
 var nativeUsageIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
-// ErrUsageSessionNotFound reports that hook metadata targeted no durable AO session.
+// ErrUsageSessionNotFound reports that hook metadata targeted no durable Kennel session.
 var ErrUsageSessionNotFound = errors.New("usage session not found")
 
 type validatedSourceArtifact struct {
@@ -42,7 +42,7 @@ type validatedSourceArtifact struct {
 	size     int64
 }
 
-// HookSignal is the usage-specific metadata carried by an AO agent hook.
+// HookSignal is the usage-specific metadata carried by an Kennel agent hook.
 type HookSignal struct {
 	Harness                domain.AgentHarness
 	Event                  string
@@ -54,7 +54,7 @@ type HookSignal struct {
 	SubagentTranscriptPath string
 }
 
-// SourceRoots are the provider-owned directories from which AO may read usage
+// SourceRoots are the provider-owned directories from which Kennel may read usage
 // transcripts.
 type SourceRoots struct {
 	ClaudeProjects string
@@ -171,7 +171,7 @@ func (c *Collector) FinalizeSession(
 	return nil
 }
 
-// ReactivateSession resumes collection for the native session relaunched by AO.
+// ReactivateSession resumes collection for the native session relaunched by Kennel.
 // Existing cursors and events remain untouched; the source inventory is merely
 // made watchable again so hooks are not required for continued accounting.
 func (c *Collector) ReactivateSession(
@@ -464,7 +464,7 @@ func (c *Collector) validateHookArtifact(
 	return &validatedSourceArtifact{path: resolved, identity: identity, size: size}, nil
 }
 
-// BackfillActive discovers transcript files only for live/resumable AO
+// BackfillActive discovers transcript files only for live/resumable Kennel
 // sessions. It deliberately does not import terminated session history.
 func (c *Collector) BackfillActive(ctx context.Context) error {
 	c.mu.Lock()

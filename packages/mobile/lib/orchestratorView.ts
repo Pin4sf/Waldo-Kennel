@@ -47,7 +47,7 @@ export type LaunchIntent = { clean: boolean; label: string; confirm: boolean };
  * doing nothing at all.
  *
  * Only `clean: true` restarts — and it is destructive: every live orchestrator
- * for the project is sent a retire notice ("AO is replacing this project
+ * for the project is sent a retire notice ("Kennel is replacing this project
  * orchestrator. Stop coordinating new work now") and replaced. That is worth a
  * confirmation, which it never had.
  */

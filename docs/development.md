@@ -24,13 +24,13 @@ npm run bootstrap
 
 `bootstrap` uses `npm ci` for the root, product UI, cloud client, ACP runtime, desktop, retained landing donor, and repository scripts. It does not launch Electron or publish anything.
 
-Create one focused branch per change. Keep `main` clean and preserve uncommitted user work.
+Create one focused branch per change from the latest `origin/beta`, and open the PR back to `beta`. Keep both `beta` and `main` free of direct contributor commits and preserve uncommitted user work. Maintainers promote a tested integration state through a separate `beta` -> `main` PR.
 
 ## Repository layout
 
 ```text
 backend/                    Go daemon and thin CLI source
-  cmd/ao/                   retained source/upstream compatibility entrypoint
+  cmd/kennel/                   retained source/upstream compatibility entrypoint
   internal/                 domain, services, ports, adapters, HTTP, storage
 frontend/                   Electron supervisor and React renderer
   acp-runtime/              packaged provider bridge runtime
@@ -64,10 +64,10 @@ go build ./...
 go test ./...
 go test -race ./...
 go vet ./...
-go run ./cmd/ao --help
+go run ./cmd/kennel --help
 ```
 
-`backend/cmd/ao` is the retained source path. Builds and packages emit a `kennel` executable. The CLI remains a daemon HTTP client; do not move storage, runtime, or adapter behavior into it.
+`backend/cmd/kennel` is the retained source path. Builds and packages emit a `kennel` executable. The CLI remains a daemon HTTP client; do not move storage, runtime, or adapter behavior into it.
 
 For API DTO or controller changes:
 
@@ -107,7 +107,7 @@ The assertion must pass before any release work. It verifies Kennel's bundle ID,
 
 Kennel global state belongs under `~/.kennel` or explicit `KENNEL_*` overrides. It must never fall back to `~/.ao` or the operating system's default Electron application-data directory. Use a task-specific temporary directory when a test needs state; do not repurpose `$HOME`.
 
-Project-local `.ao/attachments` and `.ao/launch.json` are documented compatibility formats, not global state. See [identity and state](identity-and-state.md).
+Project-local `.kennel/attachments` and `.kennel/launch.json` are documented compatibility formats, not global state. See [identity and state](identity-and-state.md).
 
 ## Upstream updates
 

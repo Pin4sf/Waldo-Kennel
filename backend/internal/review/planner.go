@@ -3,21 +3,21 @@ package review
 import (
 	"sort"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/pkg/contract"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/pkg/contract"
 )
 
 // StateStatus is the per-PR review planning state.
 type StateStatus = contract.AOReviewState
 
 const (
-	// ReviewStateNeedsReview means an eligible PR has no current AO approval or running pass.
+	// ReviewStateNeedsReview means an eligible PR has no current Kennel approval or running pass.
 	ReviewStateNeedsReview = contract.AOReviewNeedsReview
 	// ReviewStateRunning means a review run is already active for the PR's current head.
 	ReviewStateRunning = contract.AOReviewRunning
-	// ReviewStateUpToDate means AO approved the PR's current head.
+	// ReviewStateUpToDate means Kennel approved the PR's current head.
 	ReviewStateUpToDate = contract.AOReviewUpToDate
-	// ReviewStateChangesRequested means AO requested changes on the PR's current head.
+	// ReviewStateChangesRequested means Kennel requested changes on the PR's current head.
 	ReviewStateChangesRequested = contract.AOReviewChangesRequested
 	// ReviewStateIneligible means the PR is draft, closed, merged, or missing required facts.
 	ReviewStateIneligible = contract.AOReviewIneligible

@@ -515,7 +515,7 @@ const statusColorFor = (t: Theme): Record<MuxStatus, string> => ({
 function terminalInterfacePhaseLabel(phase?: string): string {
 	switch (phase) {
 		case "draining":
-			return "Waiting for the current terminal turn to finish. New AO messages are queued safely.";
+			return "Waiting for the current terminal turn to finish. New Kennel messages are queued safely.";
 		case "source_stopping":
 			return "Stopping the terminal controller before Chat starts.";
 		case "source_stopped":
@@ -855,7 +855,7 @@ export default function TerminalScreen() {
 	// Send the composed text to the selected route. The agent route can still
 	// auto-engage the terminal route when the daemon reports a blocked prompt.
 	//
-	// AO's /send is the right route for a message: the daemon hands it to the
+	// Kennel's /send is the right route for a message: the daemon hands it to the
 	// harness and submits it. But it sanitises control characters and refuses
 	// outright while a session is paused on a permission prompt — answering 409
 	// SESSION_AWAITING_DECISION with the advice "answer it in the session
@@ -985,7 +985,7 @@ export default function TerminalScreen() {
 			"Switch to Chat?",
 			known?.activity === "waiting_input" || known?.activity === "blocked"
 				? "This turn is waiting for your input. Finish waits for your answer; stop cancels it and switches now."
-				: "Keep the same AO session, worktree, and native agent conversation.",
+				: "Keep the same Kennel session, worktree, and native agent conversation.",
 			[
 				{ text: "Keep Terminal UI", style: "cancel" },
 				{ text: "Finish, then switch", onPress: () => void startInterfaceSwitch("drain") },

@@ -45,7 +45,7 @@ export function resolveDaemonLaunch(
 		}
 		return {
 			command: "go",
-			args: ["run", "./cmd/ao", "daemon"],
+			args: ["run", "./cmd/kennel", "daemon"],
 			cwd: joinPath(appPath, "..", "backend"),
 			shell: false,
 			source: "dev",

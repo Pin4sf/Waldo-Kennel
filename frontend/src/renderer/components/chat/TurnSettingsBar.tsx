@@ -5,8 +5,8 @@
  * message and never restarts the agent — the running turn keeps what it was
  * dispatched with. That is why this sits in the composer rather than in settings.
  *
- * The catalog comes from the provider, not from a list in AO. Models are added,
- * renamed, hidden per account and gated by entitlement AO cannot see, so a
+ * The catalog comes from the provider, not from a list in Kennel. Models are added,
+ * renamed, hidden per account and gated by entitlement Kennel cannot see, so a
  * hardcoded list would be wrong within a week. An agent whose provider cannot
  * enumerate models reports none and the model control hides itself.
  */
@@ -35,7 +35,7 @@ import type {
 } from "../../types/conversation";
 
 /**
- * AO's four approval modes, in increasing order of what the agent may do without
+ * Kennel's four approval modes, in increasing order of what the agent may do without
  * asking. The hints say what each actually permits rather than naming a policy.
  */
 const APPROVAL_COPY: Record<ApprovalMode, { label: string; hint: string }> = {

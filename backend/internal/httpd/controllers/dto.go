@@ -6,12 +6,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/devimport"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	agentsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/agent"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
-	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/devimport"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	agentsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/agent"
+	projectsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
+	sessionsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/session"
+
+	outcomevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
 // HTTP response envelopes for the projects surface — the SINGLE definition of
@@ -82,6 +84,15 @@ func (p ProjectOrDegraded) MarshalJSON() ([]byte, error) {
 // Manager-contract violation. newGetProjectResponse returns it so the handler
 // can map it to a 500 before any response bytes are written.
 var errEmptyProjectOrDegraded = errors.New("controllers: GetResult has neither Project nor Degraded set")
+
+// ResolvedMissionRolesResponse is the { roles } body of
+// GET /projects/{id}/resolved-mission-roles: the daemon-resolved Mission-role
+// proposal for one project (stored preferences enriched with live adapter
+// admission). Advisory for future Missions only; it never rewrites historical
+// sessions or approved Plans.
+type ResolvedMissionRolesResponse struct {
+	Roles domain.ResolvedMissionRoles `json:"roles"`
+}
 
 // JSONSchemaOneOf is read by swaggest's reflector (apispec.Build) to emit the
 // oneOf for this field; it is not used at runtime.
@@ -163,7 +174,7 @@ type SpawnSessionRequest struct {
 	IssueID         domain.IssueID         `json:"issueId,omitempty"`
 	TrackerProvider domain.TrackerProvider `json:"trackerProvider,omitempty" enum:"github,gitlab"`
 	Kind            domain.SessionKind     `json:"kind,omitempty" enum:"worker,orchestrator"`
-	Harness         domain.AgentHarness    `json:"harness,omitempty" enum:"codex"`
+	Harness         domain.AgentHarness    `json:"harness,omitempty" enum:"codex,deepseek-harness"`
 	Branch          string                 `json:"branch,omitempty"`
 	// Mode picks the conversation controller: chat talks to the agent over a
 	// structured connection, tui opens the agent's native terminal interface.
@@ -212,7 +223,7 @@ type SpawnSessionResponse struct {
 
 // SwitchAgentRequest is the body of POST /api/v1/sessions/{sessionId}/switch-agent.
 type SwitchAgentRequest struct {
-	TargetHarness  domain.AgentHarness `json:"targetHarness" enum:"codex" description:"Agent harness to continue the logical AO session with."`
+	TargetHarness  domain.AgentHarness `json:"targetHarness" enum:"codex" description:"Agent harness to continue the logical Kennel session with. Only continuation-capable harnesses are admitted; worker-only harnesses fail closed."`
 	Model          string              `json:"model,omitempty" maxLength:"256" description:"Optional model override for the target agent launch or resume."`
 	IdempotencyKey string              `json:"idempotencyKey,omitempty" maxLength:"128" description:"Optional retry key. Reusing it with a different request is rejected."`
 }
@@ -364,13 +375,13 @@ type SetSessionPreviewRequest struct {
 	URL string `json:"url,omitempty" description:"Preview target URL. When empty, the daemon autodetects a static entry point in the session workspace."`
 }
 
-// StartPreviewServerRequest selects one named entry from .ao/launch.json. The
+// StartPreviewServerRequest selects one named entry from .kennel/launch.json. The
 // name may be omitted when the file contains exactly one configuration.
 type StartPreviewServerRequest struct {
 	Configuration string `json:"configuration,omitempty" description:"Named preview configuration. Optional when exactly one configuration exists."`
 }
 
-// PreviewServerStatusResponse reports the deterministic server AO owns for one
+// PreviewServerStatusResponse reports the deterministic server Kennel owns for one
 // session. Logs are bounded to the latest lines and never contain global
 // process or port discovery.
 type PreviewServerStatusResponse struct {
@@ -387,12 +398,12 @@ type PreviewServerStatusResponse struct {
 
 // BrowserStatusQuery selects the session whose logical browser is inspected.
 type BrowserStatusQuery struct {
-	SessionID domain.SessionID `query:"sessionId" description:"AO session identifier."`
+	SessionID domain.SessionID `query:"sessionId" description:"Kennel session identifier."`
 }
 
 // BrowserCapabilityHeader proves that the caller owns the target session.
 type BrowserCapabilityHeader struct {
-	Capability string `header:"X-AO-Browser-Capability" description:"Opaque browser capability injected into the owning AO worker."`
+	Capability string `header:"X-Kennel-Browser-Capability" description:"Opaque browser capability injected into the owning Kennel worker."`
 }
 
 // BrowserStatusResponse reports whether the desktop-owned browser transport is
@@ -588,7 +599,7 @@ type DelegateTaskRequest struct {
 	// Outcome routes the brief through Kennel's orchestrator intake and approval
 	// gate instead of immediately spawning an implementation worker.
 	Outcome bool                `json:"outcome,omitempty"`
-	Agent   domain.AgentHarness `json:"agent,omitempty" enum:"codex"`
+	Agent   domain.AgentHarness `json:"agent,omitempty" enum:"codex,deepseek-harness"`
 	Model   string              `json:"model,omitempty" maxLength:"256"`
 	// Mode is omitted for the daemon-owned default. The UI sends tui only when
 	// the user explicitly accepts the fallback after Chat preflight fails.
@@ -814,7 +825,7 @@ type ClaimPRResponse struct {
 }
 
 // SetActivityRequest is the body of POST /api/v1/sessions/{sessionId}/activity.
-// Event/ToolName/ToolUseID are optional correlation facts: which AO hook
+// Event/ToolName/ToolUseID are optional correlation facts: which Kennel hook
 // sub-command produced the state and, for tool-use hooks, which tool call it
 // concerns. Lifecycle uses them to clear a stale blocked state only when the
 // specific approved tool finishes. Absent on old CLIs and on adapters whose
@@ -823,14 +834,14 @@ type ClaimPRResponse struct {
 // AgentSessionID may arrive without State on metadata-only SessionStart hooks.
 type SetActivityRequest struct {
 	State                 string             `json:"state,omitempty" enum:"active,idle,waiting_input,blocked,exited" description:"Agent activity state reported by an agent hook. Optional for metadata-only hooks."`
-	Event                 string             `json:"event,omitempty" description:"AO hook sub-command that produced this state (e.g. post-tool-use)."`
+	Event                 string             `json:"event,omitempty" description:"Kennel hook sub-command that produced this state (e.g. post-tool-use)."`
 	ToolName              string             `json:"toolName,omitempty" description:"Native tool name, for tool-use hook events."`
 	ToolUseID             string             `json:"toolUseId,omitempty" description:"Native tool-use id, for tool-use hook events."`
 	AgentSessionID        string             `json:"agentSessionId,omitempty" description:"Native agent session identifier used to resume its transcript."`
 	LatestUserPrompt      string             `json:"latestUserPrompt,omitempty" maxLength:"16384" description:"Latest real user prompt exposed by the provider hook."`
 	LatestAssistantUpdate string             `json:"latestAssistantUpdate,omitempty" maxLength:"16384" description:"Latest assistant update exposed by the provider hook."`
 	TranscriptPath        string             `json:"transcriptPath,omitempty" maxLength:"4096" description:"Read-only provider-native transcript path exposed by the hook."`
-	LaunchID              string             `json:"launchId,omitempty" description:"AO process generation that produced the signal."`
+	LaunchID              string             `json:"launchId,omitempty" description:"Kennel process generation that produced the signal."`
 	Usage                 *UsageHookMetadata `json:"usage,omitempty" description:"Provider transcript metadata used by the local usage pipeline."`
 }
 
@@ -858,9 +869,9 @@ type SetActivityResponse struct {
 // restore.
 type SetReviewActivityRequest struct {
 	State          string `json:"state,omitempty" enum:"active,idle,waiting_input,blocked,exited" description:"Reviewer activity state reported by a hook. Accepted for forward compatibility, not used for session display state."`
-	Event          string `json:"event,omitempty" description:"AO hook sub-command that produced this signal."`
+	Event          string `json:"event,omitempty" description:"Kennel hook sub-command that produced this signal."`
 	AgentSessionID string `json:"agentSessionId,omitempty" description:"Native reviewer session identifier used to resume its transcript."`
-	LaunchID       string `json:"launchId,omitempty" description:"AO process generation that produced the signal."`
+	LaunchID       string `json:"launchId,omitempty" description:"Kennel process generation that produced the signal."`
 }
 
 // SetReviewActivityResponse is the body of POST /api/v1/reviews/{reviewSessionID}/activity.
@@ -966,7 +977,7 @@ type UsageModelResponse struct {
 	Totals  UsageTotalsResponse `json:"totals"`
 }
 
-// UsageHarnessResponse groups model telemetry under one AO harness.
+// UsageHarnessResponse groups model telemetry under one Kennel harness.
 type UsageHarnessResponse struct {
 	Harness string               `json:"harness"`
 	Totals  UsageTotalsResponse  `json:"totals"`
@@ -1016,7 +1027,7 @@ type NotificationResponse struct {
 	Body      string    `json:"body"`
 	Status    string    `json:"status" enum:"unread,read" description:"Seen state. unread means the user has not opened the notification panel since it arrived."`
 	CreatedAt time.Time `json:"createdAt"`
-	// ResolvedAt is set by AO when the underlying issue goes away (the session
+	// ResolvedAt is set by Kennel when the underlying issue goes away (the session
 	// received its input, the PR stopped waiting on a merge). Absent means the
 	// issue is still open. There is no user-facing action that sets it.
 	ResolvedAt *time.Time         `json:"resolvedAt,omitempty"`
@@ -1385,7 +1396,7 @@ type ConversationTurnSettingsPayload struct {
 }
 
 // ResolveConversationApprovalRequest answers a pending approval. DecisionID must
-// be one the provider offered for that request; AO does not invent options.
+// be one the provider offered for that request; Kennel does not invent options.
 type ResolveConversationApprovalRequest struct {
 	DecisionID string `json:"decisionId"`
 }
@@ -1407,7 +1418,7 @@ type ResolveConversationInputRequest struct {
 type CompactConversationResponse struct {
 	// TokensBefore is the conversation's context position when compaction was
 	// requested. Zero means the provider has not reported one yet, in which case
-	// AO deliberately claims no figure rather than guessing at one.
+	// Kennel deliberately claims no figure rather than guessing at one.
 	TokensBefore int64 `json:"tokensBefore,omitempty"`
 	// TokensAfter is only set by a provider that compacts synchronously. Zero means
 	// the reclaim is still in flight.
@@ -1474,7 +1485,7 @@ type ConversationTurnDiffResponse struct {
 //
 // No patch text. The turn view answers "what did this touch, and by how much";
 // carrying every hunk would put the full diff into a body polled once a second,
-// and AO already has a diff surface for reading the change itself.
+// and Kennel already has a diff surface for reading the change itself.
 type ConversationDiffFileResponse struct {
 	Path      string `json:"path"`
 	Additions int    `json:"additions"`
@@ -1630,7 +1641,7 @@ type ConversationModelReroutePayload struct {
 	FromModel string `json:"fromModel,omitempty"`
 	ToModel   string `json:"toModel"`
 	// Reason is the provider's own word for why, carried verbatim rather than
-	// translated: AO cannot improve on the provider's account of its own policy.
+	// translated: Kennel cannot improve on the provider's account of its own policy.
 	Reason string `json:"reason,omitempty"`
 	// ProviderTurnID is the turn it happened on, so a client can point at the
 	// exchange rather than only at the conversation.
@@ -1735,7 +1746,7 @@ type ConversationConfigIDParam struct {
 
 // ConversationTurnIDParam names one turn in a session's conversation.
 type ConversationTurnIDParam struct {
-	TurnID string `path:"turnId" description:"AO conversation turn identifier, from the snapshot's turns array."`
+	TurnID string `path:"turnId" description:"Kennel conversation turn identifier, from the snapshot's turns array."`
 }
 
 // ConversationBranchIDParam names one durable provider-thread branch.
@@ -1759,8 +1770,8 @@ type SetConversationTitleRequest struct {
 // SetConversationTitleResponse echoes the normalized title.
 //
 // Accepted rather than applied: the provider confirms the name and then reports it
-// back on its own event, and that report is what updates AO's rows. So this is the
-// title AO asked for, which is not yet proof the session label has moved.
+// back on its own event, and that report is what updates Kennel's rows. So this is the
+// title Kennel asked for, which is not yet proof the session label has moved.
 type SetConversationTitleResponse struct {
 	Title string `json:"title"`
 }
@@ -1818,7 +1829,7 @@ type ResolveReviewCommentRequest struct {
 	CommentURL     string `json:"commentUrl" description:"Provider URL of the unresolved review comment to resolve."`
 }
 
-// ResolveReviewCommentResponse is returned after AO resolves a provider review thread.
+// ResolveReviewCommentResponse is returned after Kennel resolves a provider review thread.
 type ResolveReviewCommentResponse struct {
 	OK bool `json:"ok"`
 }
@@ -1829,7 +1840,7 @@ type RequestRereviewRequest struct {
 	ReviewerID     string `json:"reviewerId" description:"Provider login of the reviewer to ask for another review."`
 }
 
-// RequestRereviewResponse is returned after AO asks the SCM provider for another review.
+// RequestRereviewResponse is returned after Kennel asks the SCM provider for another review.
 type RequestRereviewResponse struct {
 	OK bool `json:"ok"`
 }
@@ -1862,4 +1873,1707 @@ type MuteDeviceRequest struct {
 // routes.
 type InstallIDParam struct {
 	InstallID string `path:"installId" description:"The device's stable install id."`
+}
+
+// OutcomeIDParam is the {outcomeId} path parameter shared by the /outcomes routes.
+type OutcomeIDParam struct {
+	OutcomeID string `path:"outcomeId" description:"Outcome identifier, e.g. out-<uuid>."`
+}
+
+// DecompositionIDParam is the {decompositionId} path parameter on the
+// decomposition authorization route.
+type DecompositionIDParam struct {
+	DecompositionID string `path:"decompositionId" description:"Decomposition revision identifier, e.g. dec-<uuid>."`
+}
+
+// AttemptIDParam is the {attemptId} path parameter shared by the attempt routes.
+type AttemptIDParam struct {
+	AttemptID string `path:"attemptId" description:"Attempt identifier, e.g. att-<uuid>."`
+}
+
+// CreateOutcomeRequest is the body for POST /projects/{id}/outcomes.
+type CreateOutcomeRequest struct {
+	Title           string   `json:"title"`
+	Goal            string   `json:"goal"`
+	SuccessCriteria []string `json:"successCriteria"`
+	Review          string   `json:"review"`
+	Constraints     []string `json:"constraints,omitempty"`
+	NonGoals        []string `json:"nonGoals,omitempty"`
+	Clarification   string   `json:"clarification,omitempty"`
+	RequestKey      string   `json:"requestKey"`
+}
+
+// ReviseOutcomeContractRequest is the body for POST
+// /outcomes/{outcomeId}/revisions. ExpectedRevision must name the current
+// contract revision; anything else is a 409 conflict.
+type ReviseOutcomeContractRequest struct {
+	ExpectedRevision int64    `json:"expectedRevision"`
+	Goal             string   `json:"goal"`
+	SuccessCriteria  []string `json:"successCriteria"`
+	Review           string   `json:"review"`
+	Constraints      []string `json:"constraints,omitempty"`
+	NonGoals         []string `json:"nonGoals,omitempty"`
+	Clarification    string   `json:"clarification,omitempty"`
+}
+
+// ContractRevisionResponse is one immutable contract revision.
+type ContractRevisionResponse struct {
+	ID                   string                              `json:"id"`
+	Number               int64                               `json:"number"`
+	Goal                 string                              `json:"goal"`
+	Criteria             []ContractCriterionResponse         `json:"criteria"`
+	SuccessCriteria      []string                            `json:"successCriteria"`
+	Review               string                              `json:"review"`
+	Constraints          []string                            `json:"constraints"`
+	NonGoals             []string                            `json:"nonGoals"`
+	Clarification        string                              `json:"clarification,omitempty"`
+	EvidenceExpectations []IntakeEvidenceExpectationResponse `json:"evidenceExpectations,omitempty"`
+	AuthorityCeiling     IntakeAuthority                     `json:"authorityCeiling,omitempty"`
+	StopConditions       []string                            `json:"stopConditions,omitempty"`
+	TemporalCondition    *string                             `json:"temporalCondition,omitempty"`
+	Facets               []IntakeFacet                       `json:"facets,omitempty"`
+	CreatedAt            time.Time                           `json:"createdAt"`
+}
+
+// ContractCriterionResponse exposes stable criterion identity. Proof binds
+// (contractRevisionId, criterionId), never mutable display text alone.
+type ContractCriterionResponse struct {
+	CriterionID        string `json:"criterionId"`
+	ContractRevisionID string `json:"contractRevisionId"`
+	Position           int64  `json:"position"`
+	Text               string `json:"text"`
+}
+
+// OutcomeResponse is the canonical Outcome read model: durable facts plus the
+// full immutable revision history. Project listings also include the latest
+// durable plan fact so callers can derive stage without transcript inspection.
+type OutcomeResponse struct {
+	ID      string `json:"id"`
+	SpaceID string `json:"spaceId"`
+	// ParentID names the Outcome this one contributes to, absent for a
+	// Project-level Outcome (ADR 0007).
+	ParentID              string                     `json:"parentId,omitempty"`
+	Title                 string                     `json:"title"`
+	CurrentRevisionNumber int64                      `json:"currentRevisionNumber"`
+	Current               ContractRevisionResponse   `json:"currentRevision"`
+	History               []ContractRevisionResponse `json:"history"`
+	LatestPlan            *PlanRevisionResponse      `json:"latestPlan,omitempty"`
+	CreatedAt             time.Time                  `json:"createdAt"`
+	UpdatedAt             time.Time                  `json:"updatedAt"`
+}
+
+// OutcomeEnvelope is the { outcome } response body for Outcome reads and writes.
+type OutcomeEnvelope struct {
+	Outcome OutcomeResponse `json:"outcome"`
+}
+
+// OutcomesEnvelope is the stable project-scoped collection response. Each
+// entry carries its current immutable contract so dashboard re-entry never
+// depends on provider transcripts.
+type OutcomesEnvelope struct {
+	Outcomes []OutcomeResponse `json:"outcomes"`
+}
+
+func contractRevisionResponse(rev domain.ContractRevision) ContractRevisionResponse {
+	criteria := make([]ContractCriterionResponse, 0, len(rev.Criteria))
+	for _, criterion := range rev.Criteria {
+		criteria = append(criteria, contractCriterionResponse(criterion))
+	}
+	evidence := make([]IntakeEvidenceExpectationResponse, 0, len(rev.EvidenceExpectations))
+	for _, expectation := range rev.EvidenceExpectations {
+		evidence = append(evidence, IntakeEvidenceExpectationResponse{CriterionID: string(expectation.CriterionID), Descriptions: expectation.Descriptions})
+	}
+	return ContractRevisionResponse{
+		ID:                   string(rev.ID),
+		Number:               rev.Number,
+		Goal:                 rev.Goal,
+		Criteria:             criteria,
+		SuccessCriteria:      rev.SuccessCriteria,
+		Review:               rev.Review,
+		Constraints:          rev.Constraints,
+		NonGoals:             rev.NonGoals,
+		Clarification:        rev.Clarification,
+		EvidenceExpectations: evidence,
+		AuthorityCeiling:     intakeAuthority(rev.AuthorityCeiling), StopConditions: rev.StopConditions,
+		TemporalCondition: rev.TemporalCondition, Facets: intakeFacets(rev.Facets),
+		CreatedAt: rev.CreatedAt,
+	}
+}
+
+// CreateIntakeRequest captures one statement and identifier-only provenance.
+// Transcript bodies never cross this persistence contract.
+type CreateIntakeRequest struct {
+	SourceSurface    string                       `json:"sourceSurface" enum:"home,work"`
+	Statement        string                       `json:"statement" maxLength:"4096"`
+	SourceOpenLoopID string                       `json:"sourceOpenLoopId,omitempty"`
+	ConversationRefs []IntakeConversationRefInput `json:"conversationRefs,omitempty"`
+	RequestKey       string                       `json:"requestKey"`
+}
+
+// IntakeConversationRefInput references an owning episode and turn.
+type IntakeConversationRefInput struct {
+	EpisodeID string `json:"episodeId"`
+	TurnID    string `json:"turnId"`
+	Position  int64  `json:"position"`
+}
+
+// AnalyzeIntakeRequest guards analysis with an expected proposal revision.
+type AnalyzeIntakeRequest struct {
+	ExpectedProposalRevision int64 `json:"expectedProposalRevision"`
+	// Offline runs the deterministic baseline instead of asking an agent. It
+	// is how a person stops waiting and takes the proposal that is always
+	// available, and it asks no agent anything.
+	Offline bool `json:"offline,omitempty"`
+}
+
+// AnswerIntakeClarificationRequest answers the single material question.
+type AnswerIntakeClarificationRequest struct {
+	ExpectedProposalRevision int64  `json:"expectedProposalRevision"`
+	Answer                   string `json:"answer"`
+}
+
+// ReviseIntakeProposalRequest appends a reviewed immutable proposal.
+type ReviseIntakeProposalRequest struct {
+	ExpectedProposalRevision int64               `json:"expectedProposalRevision"`
+	Proposal                 IntakeProposalInput `json:"proposal"`
+}
+
+// ConfirmIntakeRequest explicitly confirms the current proposal revision.
+type ConfirmIntakeRequest struct {
+	ExpectedProposalRevision int64  `json:"expectedProposalRevision"`
+	RequestKey               string `json:"requestKey"`
+}
+
+// CancelIntakeRequest consciously releases an unconfirmed intake.
+type CancelIntakeRequest struct {
+	ExpectedProposalRevision int64  `json:"expectedProposalRevision"`
+	Reason                   string `json:"reason"`
+}
+
+// IntakeProposalInput is the editable typed Contract proposal stable core.
+type IntakeProposalInput struct {
+	Title              string                 `json:"title"`
+	DesiredState       string                 `json:"desiredState"`
+	Criteria           []IntakeCriterionInput `json:"criteria"`
+	ReviewMethod       string                 `json:"reviewMethod"`
+	Constraints        []string               `json:"constraints,omitempty"`
+	NonGoals           []string               `json:"nonGoals,omitempty"`
+	AuthorityCeiling   IntakeAuthority        `json:"authorityCeiling"`
+	StopConditions     []string               `json:"stopConditions"`
+	ClarificationNotes []string               `json:"clarificationNotes,omitempty"`
+	TemporalCondition  *string                `json:"temporalCondition,omitempty"`
+	Facets             []IntakeFacet          `json:"facets"`
+}
+
+// IntakeCriterionInput carries stable identity and expected evidence.
+type IntakeCriterionInput struct {
+	ID               string   `json:"id,omitempty"`
+	Text             string   `json:"text"`
+	EvidenceExpected []string `json:"evidenceExpected"`
+}
+
+// IntakeAuthority is the proposed least-privilege ceiling.
+type IntakeAuthority struct {
+	ReadWorkspace  bool `json:"readWorkspace"`
+	WriteWorkspace bool `json:"writeWorkspace"`
+	ExecuteLocal   bool `json:"executeLocal"`
+	UseNetwork     bool `json:"useNetwork"`
+	CommitLocal    bool `json:"commitLocal"`
+	CreatePR       bool `json:"createPr"`
+	Deploy         bool `json:"deploy"`
+	ExternalEffect bool `json:"externalEffect"`
+}
+
+// IntakeFacet is one adaptive, typed extension of the stable core.
+type IntakeFacet struct {
+	Kind         string   `json:"kind" enum:"software,research,design,documentation,investigation,evaluation,operations"`
+	Summary      string   `json:"summary"`
+	Requirements []string `json:"requirements,omitempty"`
+}
+
+// IntakeSessionResponse is the durable shared Home/Work state machine value.
+type IntakeSessionResponse struct {
+	ID                      string    `json:"id"`
+	SourceSurface           string    `json:"sourceSurface"`
+	Purpose                 string    `json:"purpose"`
+	ProjectID               string    `json:"projectId,omitempty"`
+	SourceOpenLoopID        string    `json:"sourceOpenLoopId,omitempty"`
+	Statement               string    `json:"statement"`
+	Status                  string    `json:"status"`
+	CurrentProposalRevision int64     `json:"currentProposalRevision"`
+	ClarificationCount      int64     `json:"clarificationCount"`
+	ConfirmedOutcomeID      string    `json:"confirmedOutcomeId,omitempty"`
+	FailureCode             string    `json:"failureCode,omitempty"`
+	CancellationReason      string    `json:"cancellationReason,omitempty"`
+	CreatedAt               time.Time `json:"createdAt"`
+	UpdatedAt               time.Time `json:"updatedAt"`
+}
+
+// IntakeConversationRefResponse returns provenance identifiers only.
+type IntakeConversationRefResponse struct {
+	EpisodeID string `json:"episodeId"`
+	TurnID    string `json:"turnId"`
+	Position  int64  `json:"position"`
+}
+
+// IntakeCriterionResponse returns one proposed criterion and evidence needs.
+type IntakeCriterionResponse struct {
+	ID               string   `json:"id"`
+	Text             string   `json:"text"`
+	EvidenceExpected []string `json:"evidenceExpected"`
+}
+
+// IntakeProposalResponse returns an immutable typed proposal revision.
+type IntakeProposalResponse struct {
+	ID                 string                    `json:"id"`
+	Revision           int64                     `json:"revision"`
+	Title              string                    `json:"title"`
+	DesiredState       string                    `json:"desiredState"`
+	Criteria           []IntakeCriterionResponse `json:"criteria"`
+	ReviewMethod       string                    `json:"reviewMethod"`
+	Constraints        []string                  `json:"constraints"`
+	NonGoals           []string                  `json:"nonGoals"`
+	AuthorityCeiling   IntakeAuthority           `json:"authorityCeiling"`
+	StopConditions     []string                  `json:"stopConditions"`
+	ClarificationNotes []string                  `json:"clarificationNotes"`
+	TemporalCondition  *string                   `json:"temporalCondition,omitempty"`
+	Facets             []IntakeFacet             `json:"facets"`
+	CreatedAt          time.Time                 `json:"createdAt"`
+}
+
+// IntakeClarificationResponse returns the bounded material question.
+type IntakeClarificationResponse struct {
+	ID                  string     `json:"id"`
+	Question            string     `json:"question"`
+	Reason              string     `json:"reason"`
+	Recommendation      string     `json:"recommendation"`
+	Alternatives        []string   `json:"alternatives"`
+	DeferralConsequence string     `json:"deferralConsequence"`
+	Answer              string     `json:"answer,omitempty"`
+	AnsweredAt          *time.Time `json:"answeredAt,omitempty"`
+}
+
+// IntakeOutcomeResponse identifies the canonical Outcome created on confirmation.
+type IntakeOutcomeResponse struct {
+	ID                    string    `json:"id"`
+	SpaceID               string    `json:"spaceId"`
+	Title                 string    `json:"title"`
+	CurrentRevisionNumber int64     `json:"currentRevisionNumber"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
+}
+
+// IntakeSnapshotResponse is the complete shared intake read model.
+type IntakeSnapshotResponse struct {
+	Session           IntakeSessionResponse           `json:"session"`
+	ConversationRefs  []IntakeConversationRefResponse `json:"conversationRefs"`
+	Proposal          *IntakeProposalResponse         `json:"proposal,omitempty"`
+	Clarification     *IntakeClarificationResponse    `json:"clarification,omitempty"`
+	ConfirmedOutcome  *IntakeOutcomeResponse          `json:"confirmedOutcome,omitempty"`
+	ConfirmedContract *ContractRevisionResponse       `json:"confirmedContract,omitempty"`
+}
+
+// SubmitIntakeAnalysisRequest is what a spawned agent posts back on the
+// intake callback. It carries the SAME proposal shape a hand-authored revision
+// uses: an agent gets no special vocabulary, so its draft passes exactly the
+// same validation.
+//
+// Exactly one of Proposal or Clarification may be present, matching the
+// at-most-one-material-question rule the offline analyzer already obeys.
+type SubmitIntakeAnalysisRequest struct {
+	Proposal      *IntakeProposalInput      `json:"proposal,omitempty"`
+	Clarification *IntakeClarificationInput `json:"clarification,omitempty"`
+}
+
+// IntakeClarificationInput is one bounded material question an agent may ask
+// instead of proposing.
+type IntakeClarificationInput struct {
+	Question            string   `json:"question"`
+	Reason              string   `json:"reason"`
+	Recommendation      string   `json:"recommendation"`
+	Alternatives        []string `json:"alternatives,omitempty"`
+	DeferralConsequence string   `json:"deferralConsequence"`
+}
+
+// IntakeAnalysisRequestResponse is one durable ask for an agent-authored
+// Contract proposal, and what became of it.
+//
+// The callback token is deliberately absent: only its digest is ever stored,
+// and the raw token exists solely inside the brief handed to the one session
+// asked to answer.
+type IntakeAnalysisRequestResponse struct {
+	ID                       string    `json:"id"`
+	IntakeID                 string    `json:"intakeId"`
+	ExpectedProposalRevision int64     `json:"expectedProposalRevision"`
+	Status                   string    `json:"status"`
+	SessionID                string    `json:"sessionId,omitempty"`
+	Harness                  string    `json:"harness,omitempty"`
+	ExpiresAt                time.Time `json:"expiresAt"`
+	// Expired is derived from the clock rather than stored, so a request that
+	// timed out while the daemon was down still reads as expired.
+	Expired       bool       `json:"expired"`
+	RawProposal   string     `json:"rawProposal,omitempty"`
+	RefusalReason string     `json:"refusalReason,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	AnsweredAt    *time.Time `json:"answeredAt,omitempty"`
+}
+
+// IntakeAnalysisRequestIDParam is the {requestId} path parameter on the intake
+// callback route. The callback is addressed by REQUEST rather than by intake:
+// the answering agent knows only the request it was given.
+type IntakeAnalysisRequestIDParam struct {
+	RequestID string `path:"requestId" description:"Intake analysis request identifier, e.g. ireq-<uuid>."`
+}
+
+// IntakeAnalysisRequestEnvelope wraps one ask.
+type IntakeAnalysisRequestEnvelope struct {
+	Request IntakeAnalysisRequestResponse `json:"request"`
+}
+
+// IntakeEnvelope wraps an intake API response.
+type IntakeEnvelope struct {
+	Intake IntakeSnapshotResponse `json:"intake"`
+}
+
+// OpenWaldoEpisodeRequest starts one bounded provider-neutral episode.
+type OpenWaldoEpisodeRequest struct {
+	ExpectedRevision int64                            `json:"expectedRevision"`
+	ProviderRef      *WaldoProviderEpisodeRefResponse `json:"providerRef,omitempty"`
+	RequestKey       string                           `json:"requestKey"`
+}
+
+// AppendWaldoTurnRequest appends one visible ordered turn.
+type AppendWaldoTurnRequest struct {
+	ExpectedRevision     int64                         `json:"expectedRevision"`
+	EpisodeID            string                        `json:"episodeId"`
+	Role                 string                        `json:"role" enum:"user,waldo"`
+	Message              string                        `json:"message" maxLength:"65536"`
+	ProviderRef          *WaldoProviderTurnRefResponse `json:"providerRef,omitempty"`
+	ContextAttachmentIDs []string                      `json:"contextAttachmentIds,omitempty"`
+	RequestKey           string                        `json:"requestKey"`
+}
+
+// AttachWaldoContextRequest explicitly attaches a canonical Project object.
+type AttachWaldoContextRequest struct {
+	ExpectedRevision int64                   `json:"expectedRevision"`
+	Ref              WaldoContextRefResponse `json:"ref"`
+	RequestKey       string                  `json:"requestKey"`
+}
+
+// DetachWaldoContextRequest consciously releases context from future turns.
+type DetachWaldoContextRequest struct {
+	ExpectedRevision int64  `json:"expectedRevision"`
+	Reason           string `json:"reason"`
+	RequestKey       string `json:"requestKey"`
+}
+
+// ContinueWaldoConversationRequest asks daemon policy to evaluate a bounded
+// provider continuation. Caller values are proposals; canonical facts decide.
+type ContinueWaldoConversationRequest struct {
+	FromAgentSessionRef string                            `json:"fromAgentSessionRef"`
+	Reason              string                            `json:"reason"`
+	ReasonDetail        string                            `json:"reasonDetail"`
+	TriggerEvidence     WaldoContinuationEvidenceResponse `json:"triggerEvidence"`
+	ContextDigest       string                            `json:"contextDigest"`
+	ContextRefs         []WaldoContextRefResponse         `json:"contextRefs,omitempty"`
+	PreviousBindings    WaldoContinuationBindingsResponse `json:"previousBindings"`
+	ReplacementBindings WaldoContinuationBindingsResponse `json:"replacementBindings"`
+	EffectsKnown        bool                              `json:"effectsKnown"`
+	LostMaterialContext bool                              `json:"lostMaterialContext"`
+	SourceRevoked       bool                              `json:"sourceRevoked"`
+	FreshVerifier       bool                              `json:"freshVerifier"`
+	RequestKey          string                            `json:"requestKey"`
+}
+
+// WaldoConversationResponse is the durable Project aggregate root.
+type WaldoConversationResponse struct {
+	ID                 string    `json:"id"`
+	ProjectID          string    `json:"projectId"`
+	Revision           int64     `json:"revision"`
+	LatestTurnSequence int64     `json:"latestTurnSequence"`
+	CreatedAt          time.Time `json:"createdAt"`
+	UpdatedAt          time.Time `json:"updatedAt"`
+}
+
+// WaldoProviderEpisodeRefResponse identifies a provider-native episode without copying its transcript.
+type WaldoProviderEpisodeRefResponse struct {
+	Provider               string `json:"provider"`
+	ProviderConversationID string `json:"providerConversationId,omitempty"`
+	TranscriptRef          string `json:"transcriptRef,omitempty"`
+}
+
+// WaldoProviderTurnRefResponse identifies one provider-native turn without copying its transcript.
+type WaldoProviderTurnRefResponse struct {
+	Provider               string `json:"provider"`
+	ProviderConversationID string `json:"providerConversationId,omitempty"`
+	ProviderTurnID         string `json:"providerTurnId"`
+	TranscriptRef          string `json:"transcriptRef,omitempty"`
+}
+
+// WaldoConversationEpisodeResponse describes one bounded provider-neutral conversation episode.
+type WaldoConversationEpisodeResponse struct {
+	ID             string                           `json:"id"`
+	ConversationID string                           `json:"conversationId"`
+	ProjectID      string                           `json:"projectId"`
+	Ordinal        int64                            `json:"ordinal"`
+	State          string                           `json:"state"`
+	ProviderRef    *WaldoProviderEpisodeRefResponse `json:"providerRef,omitempty"`
+	CreatedAt      time.Time                        `json:"createdAt"`
+	SealedAt       *time.Time                       `json:"sealedAt,omitempty"`
+	SealReason     string                           `json:"sealReason,omitempty"`
+}
+
+// WaldoContextProvenanceResponse records why a canonical object was attached.
+type WaldoContextProvenanceResponse struct {
+	Kind     string `json:"kind"`
+	SourceID string `json:"sourceId"`
+}
+
+// WaldoContextRefResponse identifies a canonical Project-bound object at an exact revision.
+type WaldoContextRefResponse struct {
+	Kind       string                         `json:"kind"`
+	ObjectID   string                         `json:"objectId"`
+	Revision   string                         `json:"revision,omitempty"`
+	Provenance WaldoContextProvenanceResponse `json:"provenance"`
+}
+
+// WaldoContextAttachmentResponse describes the explicit attach and detach lifecycle of one context ref.
+type WaldoContextAttachmentResponse struct {
+	ID               string                  `json:"id"`
+	ConversationID   string                  `json:"conversationId"`
+	ProjectID        string                  `json:"projectId"`
+	Ref              WaldoContextRefResponse `json:"ref"`
+	AttachedRevision int64                   `json:"attachedRevision"`
+	DetachedRevision int64                   `json:"detachedRevision,omitempty"`
+	Active           bool                    `json:"active"`
+	CreatedAt        time.Time               `json:"createdAt"`
+	DetachedAt       *time.Time              `json:"detachedAt,omitempty"`
+	DetachReason     string                  `json:"detachReason,omitempty"`
+}
+
+// WaldoConversationTurnResponse is one ordered visible Project conversation turn.
+type WaldoConversationTurnResponse struct {
+	ID             string                        `json:"id"`
+	ConversationID string                        `json:"conversationId"`
+	EpisodeID      string                        `json:"episodeId"`
+	ProjectID      string                        `json:"projectId"`
+	Sequence       int64                         `json:"sequence"`
+	Role           string                        `json:"role"`
+	Message        string                        `json:"message"`
+	ProviderRef    *WaldoProviderTurnRefResponse `json:"providerRef,omitempty"`
+	ContextRefs    []WaldoContextRefResponse     `json:"contextRefs"`
+	CreatedAt      time.Time                     `json:"createdAt"`
+}
+
+// WaldoContinuationEvidenceResponse identifies the exact continuation trigger evidence.
+type WaldoContinuationEvidenceResponse struct {
+	Kind      string `json:"kind"`
+	Reference string `json:"reference"`
+}
+
+// WaldoContinuationBindingsResponse captures canonical facts that must remain equal for automatic continuation.
+type WaldoContinuationBindingsResponse struct {
+	ProjectID          string `json:"projectId"`
+	OutcomeID          string `json:"outcomeId"`
+	ContractRevisionID string `json:"contractRevisionId"`
+	PlanRevisionID     string `json:"planRevisionId"`
+	WorkUnitID         string `json:"workUnitId"`
+	AttemptID          string `json:"attemptId"`
+	Provider           string `json:"provider"`
+	Model              string `json:"model"`
+	Profile            string `json:"profile"`
+	Role               string `json:"role"`
+	AuthorityDigest    string `json:"authorityDigest"`
+	BudgetDigest       string `json:"budgetDigest"`
+	WorkspaceOwner     string `json:"workspaceOwner"`
+	EffectPolicyDigest string `json:"effectPolicyDigest"`
+}
+
+// WaldoContinuationReceiptResponse records the durable decision and replacement lineage for one continuation.
+type WaldoContinuationReceiptResponse struct {
+	ID                           string                            `json:"id"`
+	OperationID                  string                            `json:"operationId"`
+	ConversationID               string                            `json:"conversationId"`
+	ProjectID                    string                            `json:"projectId"`
+	FromEpisodeID                string                            `json:"fromEpisodeId"`
+	ToEpisodeID                  string                            `json:"toEpisodeId,omitempty"`
+	FromAgentSessionRef          string                            `json:"fromAgentSessionRef"`
+	ToAgentSessionRef            string                            `json:"toAgentSessionRef,omitempty"`
+	Action                       string                            `json:"action"`
+	Reason                       string                            `json:"reason"`
+	ReasonDetail                 string                            `json:"reasonDetail"`
+	TriggerEvidence              WaldoContinuationEvidenceResponse `json:"triggerEvidence"`
+	MaterialChange               bool                              `json:"materialChange"`
+	ChangedFields                []string                          `json:"changedFields"`
+	ContextDigest                string                            `json:"contextDigest"`
+	ContextRefs                  []WaldoContextRefResponse         `json:"contextRefs"`
+	PreviousBindings             WaldoContinuationBindingsResponse `json:"previousBindings"`
+	ReplacementBindings          WaldoContinuationBindingsResponse `json:"replacementBindings"`
+	EffectsKnown                 bool                              `json:"effectsKnown"`
+	OldSessionFenced             bool                              `json:"oldSessionFenced"`
+	ReplacementIdentityConfirmed bool                              `json:"replacementIdentityConfirmed"`
+	FenceReceiptRef              string                            `json:"fenceReceiptRef,omitempty"`
+	ReconciliationRef            string                            `json:"reconciliationRef,omitempty"`
+	NeedsUserReason              string                            `json:"needsUserReason,omitempty"`
+	CreatedAt                    time.Time                         `json:"createdAt"`
+}
+
+// WaldoConversationSnapshotResponse is exact restart-safe daemon truth.
+type WaldoConversationSnapshotResponse struct {
+	Conversation         WaldoConversationResponse          `json:"conversation"`
+	Episodes             []WaldoConversationEpisodeResponse `json:"episodes"`
+	Turns                []WaldoConversationTurnResponse    `json:"turns"`
+	ContextAttachments   []WaldoContextAttachmentResponse   `json:"contextAttachments"`
+	ContinuationReceipts []WaldoContinuationReceiptResponse `json:"continuationReceipts"`
+}
+
+// WaldoConversationEnvelope wraps the current durable conversation snapshot.
+type WaldoConversationEnvelope struct {
+	WaldoConversation WaldoConversationSnapshotResponse `json:"waldoConversation"`
+}
+
+// WaldoTurnEnvelope wraps an appended turn and the resulting canonical snapshot.
+type WaldoTurnEnvelope struct {
+	Turn              WaldoConversationTurnResponse     `json:"turn"`
+	WaldoConversation WaldoConversationSnapshotResponse `json:"waldoConversation"`
+}
+
+// WaldoContinuationEnvelope wraps one durable continuation receipt.
+type WaldoContinuationEnvelope struct {
+	ContinuationReceipt WaldoContinuationReceiptResponse `json:"continuationReceipt"`
+}
+
+// WaldoContextAttachmentIDParam describes the context attachment route parameter.
+type WaldoContextAttachmentIDParam struct {
+	AttachmentID string `path:"attachmentId"`
+}
+
+// IntakeIDParam describes the intake route parameter.
+type IntakeIDParam struct {
+	IntakeID string `path:"intakeId"`
+}
+
+// CreateResponsibilityLinkRequest explicitly records Home-to-Work lineage.
+type CreateResponsibilityLinkRequest struct {
+	ProjectID            string `json:"projectId"`
+	SourceOpenLoopID     string `json:"sourceOpenLoopId"`
+	DestinationOutcomeID string `json:"destinationOutcomeId"`
+	Reason               string `json:"reason"`
+	RequestKey           string `json:"requestKey"`
+}
+
+// EndResponsibilityLinkRequest ends lineage without changing responsibilities.
+type EndResponsibilityLinkRequest struct {
+	Reason string `json:"reason"`
+}
+
+// ResponsibilityLinkResponse returns explicit independent lineage.
+type ResponsibilityLinkResponse struct {
+	ID                   string     `json:"id"`
+	SourceOpenLoopID     string     `json:"sourceOpenLoopId"`
+	DestinationOutcomeID string     `json:"destinationOutcomeId"`
+	Creator              string     `json:"creator"`
+	Reason               string     `json:"reason"`
+	CreatedAt            time.Time  `json:"createdAt"`
+	EndedAt              *time.Time `json:"endedAt,omitempty"`
+	EndedBy              string     `json:"endedBy,omitempty"`
+	EndedReason          string     `json:"endedReason,omitempty"`
+}
+
+// ResponsibilityLinkEnvelope wraps a lineage API response.
+type ResponsibilityLinkEnvelope struct {
+	ResponsibilityLink ResponsibilityLinkResponse `json:"responsibilityLink"`
+}
+
+// ResponsibilityLinkIDParam describes the lineage route parameter.
+type ResponsibilityLinkIDParam struct {
+	ResponsibilityLinkID string `path:"responsibilityLinkId"`
+}
+
+// IntakeEvidenceExpectationResponse maps evidence needs to stable criteria.
+type IntakeEvidenceExpectationResponse struct {
+	CriterionID  string   `json:"criterionId"`
+	Descriptions []string `json:"descriptions"`
+}
+
+func intakeAuthority(value domain.ProposedAuthority) IntakeAuthority {
+	return IntakeAuthority{ReadWorkspace: value.ReadWorkspace, WriteWorkspace: value.WriteWorkspace, ExecuteLocal: value.ExecuteLocal, UseNetwork: value.UseNetwork, CommitLocal: value.CommitLocal, CreatePR: value.CreatePR, Deploy: value.Deploy, ExternalEffect: value.ExternalEffect}
+}
+
+// proposedAuthority is intakeAuthority's inverse, for request bodies that
+// state a ceiling rather than report one.
+func proposedAuthority(value IntakeAuthority) domain.ProposedAuthority {
+	return domain.ProposedAuthority{ReadWorkspace: value.ReadWorkspace, WriteWorkspace: value.WriteWorkspace, ExecuteLocal: value.ExecuteLocal, UseNetwork: value.UseNetwork, CommitLocal: value.CommitLocal, CreatePR: value.CreatePR, Deploy: value.Deploy, ExternalEffect: value.ExternalEffect}
+}
+
+func intakeFacets(values []domain.ContractFacet) []IntakeFacet {
+	out := make([]IntakeFacet, 0, len(values))
+	for _, value := range values {
+		out = append(out, IntakeFacet{Kind: string(value.Kind), Summary: value.Summary, Requirements: value.Requirements})
+	}
+	return out
+}
+
+func contractCriterionResponse(criterion domain.ContractCriterion) ContractCriterionResponse {
+	return ContractCriterionResponse{
+		CriterionID: string(criterion.ID), ContractRevisionID: string(criterion.ContractRevisionID),
+		Position: criterion.Position, Text: criterion.Text,
+	}
+}
+
+// RecordEvidenceRequest appends one provenance-bearing fact to an exact
+// current criterion and subject revision.
+type RecordEvidenceRequest struct {
+	ExpectedContractRevision int64  `json:"expectedContractRevision"`
+	ContractRevisionID       string `json:"contractRevisionId"`
+	CriterionID              string `json:"criterionId"`
+	SubjectType              string `json:"subjectType"`
+	SubjectID                string `json:"subjectId"`
+	SubjectRevision          string `json:"subjectRevision"`
+	Kind                     string `json:"kind"`
+	SourceType               string `json:"sourceType"`
+	SourceRef                string `json:"sourceRef"`
+	ProducerType             string `json:"producerType"`
+	ProducerRef              string `json:"producerRef"`
+	Summary                  string `json:"summary"`
+	ContentDigest            string `json:"contentDigest"`
+	RequestKey               string `json:"requestKey"`
+}
+
+// RecordVerificationRequest declares what was checked and the verifier's
+// actual independence from the producer. It cannot accept an Outcome.
+type RecordVerificationRequest struct {
+	ExpectedContractRevision int64    `json:"expectedContractRevision"`
+	ContractRevisionID       string   `json:"contractRevisionId"`
+	CriterionID              string   `json:"criterionId"`
+	SubjectType              string   `json:"subjectType"`
+	SubjectID                string   `json:"subjectId"`
+	SubjectRevision          string   `json:"subjectRevision"`
+	EvidenceItemIDs          []string `json:"evidenceItemIds"`
+	Method                   string   `json:"method"`
+	IndependenceClass        string   `json:"independenceClass"`
+	Result                   string   `json:"result"`
+	ProducerRef              string   `json:"producerRef,omitempty"`
+	VerifierRef              string   `json:"verifierRef"`
+	ProducerProvider         string   `json:"producerProvider,omitempty"`
+	VerifierProvider         string   `json:"verifierProvider,omitempty"`
+	Detail                   string   `json:"detail,omitempty"`
+	RequestKey               string   `json:"requestKey"`
+}
+
+// DecideAcceptanceRequest is the sole API authority that may append a user
+// AcceptanceDecision. Rework/reopen require explicit re-entry lineage.
+type DecideAcceptanceRequest struct {
+	ExpectedContractRevision int64  `json:"expectedContractRevision"`
+	ContractRevisionID       string `json:"contractRevisionId"`
+	Kind                     string `json:"kind"`
+	Summary                  string `json:"summary"`
+	ResourceDisposition      string `json:"resourceDisposition"`
+	ReentryTargetType        string `json:"reentryTargetType,omitempty"`
+	ReentryTargetID          string `json:"reentryTargetId,omitempty"`
+	RequestKey               string `json:"requestKey"`
+}
+
+// EvidenceItemResponse exposes immutable Evidence provenance and binding.
+type EvidenceItemResponse struct {
+	ID                 string    `json:"id"`
+	ContractRevisionID string    `json:"contractRevisionId"`
+	CriterionID        string    `json:"criterionId"`
+	SubjectType        string    `json:"subjectType"`
+	SubjectID          string    `json:"subjectId"`
+	SubjectRevision    string    `json:"subjectRevision"`
+	Kind               string    `json:"kind"`
+	SourceType         string    `json:"sourceType"`
+	SourceRef          string    `json:"sourceRef"`
+	ProducerType       string    `json:"producerType"`
+	ProducerRef        string    `json:"producerRef"`
+	Summary            string    `json:"summary"`
+	ContentDigest      string    `json:"contentDigest"`
+	CreatedAt          time.Time `json:"createdAt"`
+}
+
+// VerificationRunResponse exposes the actual method and independence class.
+type VerificationRunResponse struct {
+	ID                 string    `json:"id"`
+	ContractRevisionID string    `json:"contractRevisionId"`
+	CriterionID        string    `json:"criterionId"`
+	SubjectType        string    `json:"subjectType"`
+	SubjectID          string    `json:"subjectId"`
+	SubjectRevision    string    `json:"subjectRevision"`
+	EvidenceItemIDs    []string  `json:"evidenceItemIds"`
+	Method             string    `json:"method"`
+	IndependenceClass  string    `json:"independenceClass"`
+	Independent        bool      `json:"independent"`
+	Result             string    `json:"result"`
+	ProducerRef        string    `json:"producerRef,omitempty"`
+	VerifierRef        string    `json:"verifierRef"`
+	ProducerProvider   string    `json:"producerProvider,omitempty"`
+	VerifierProvider   string    `json:"verifierProvider,omitempty"`
+	Detail             string    `json:"detail,omitempty"`
+	CreatedAt          time.Time `json:"createdAt"`
+}
+
+// AcceptanceDecisionResponse exposes one explicit user decision.
+type AcceptanceDecisionResponse struct {
+	ID                  string    `json:"id"`
+	ContractRevisionID  string    `json:"contractRevisionId"`
+	Kind                string    `json:"kind"`
+	ActorType           string    `json:"actorType"`
+	Summary             string    `json:"summary"`
+	ResourceDisposition string    `json:"resourceDisposition"`
+	CreatedAt           time.Time `json:"createdAt"`
+}
+
+// OutcomeCorrectionResponse exposes the durable Work re-entry target.
+type OutcomeCorrectionResponse struct {
+	ID                 string    `json:"id"`
+	DecisionID         string    `json:"decisionId"`
+	ContractRevisionID string    `json:"contractRevisionId"`
+	Feedback           string    `json:"feedback"`
+	TargetType         string    `json:"targetType"`
+	TargetID           string    `json:"targetId"`
+	CreatedAt          time.Time `json:"createdAt"`
+}
+
+// CriterionProofResponse groups proof facts for one stable criterion.
+type CriterionProofResponse struct {
+	CriterionID        string                    `json:"criterionId"`
+	ContractRevisionID string                    `json:"contractRevisionId"`
+	Position           int64                     `json:"position"`
+	Text               string                    `json:"text"`
+	Ready              bool                      `json:"ready"`
+	Gap                string                    `json:"gap,omitempty"`
+	Evidence           []EvidenceItemResponse    `json:"evidence"`
+	Verifications      []VerificationRunResponse `json:"verifications"`
+}
+
+// OutcomeProofResponse is the daemon-derived Prove & Close read model.
+type OutcomeProofResponse struct {
+	OutcomeID    string                       `json:"outcomeId"`
+	Contract     ContractRevisionResponse     `json:"contractRevision"`
+	Status       string                       `json:"status"`
+	NextAction   string                       `json:"nextAction"`
+	Criteria     []CriterionProofResponse     `json:"criteria"`
+	Decisions    []AcceptanceDecisionResponse `json:"decisions"`
+	Corrections  []OutcomeCorrectionResponse  `json:"corrections"`
+	ProofHorizon *time.Time                   `json:"proofHorizon,omitempty"`
+}
+
+// OutcomeProofEnvelope wraps the canonical proof response.
+type OutcomeProofEnvelope struct {
+	Proof OutcomeProofResponse `json:"proof"`
+}
+
+func outcomeProofResponse(view outcomevc.ProofView) OutcomeProofResponse {
+	response := OutcomeProofResponse{
+		OutcomeID: string(view.OutcomeID), Contract: contractRevisionResponse(view.Contract),
+		Status: string(view.Status), NextAction: view.NextAction,
+		Criteria:    make([]CriterionProofResponse, 0, len(view.Criteria)),
+		Decisions:   make([]AcceptanceDecisionResponse, 0, len(view.Decisions)),
+		Corrections: make([]OutcomeCorrectionResponse, 0, len(view.Corrections)),
+	}
+	if !view.ProofHorizon.IsZero() {
+		horizon := view.ProofHorizon
+		response.ProofHorizon = &horizon
+	}
+	for _, criterion := range view.Criteria {
+		item := CriterionProofResponse{
+			CriterionID: string(criterion.Criterion.ID), ContractRevisionID: string(criterion.Criterion.ContractRevisionID),
+			Position: criterion.Criterion.Position, Text: criterion.Criterion.Text, Ready: criterion.Ready, Gap: criterion.Gap,
+			Evidence: make([]EvidenceItemResponse, 0, len(criterion.Evidence)), Verifications: make([]VerificationRunResponse, 0, len(criterion.Verifications)),
+		}
+		for _, evidence := range criterion.Evidence {
+			item.Evidence = append(item.Evidence, evidenceItemResponse(evidence))
+		}
+		for _, verification := range criterion.Verifications {
+			item.Verifications = append(item.Verifications, verificationRunResponse(verification))
+		}
+		response.Criteria = append(response.Criteria, item)
+	}
+	for _, decision := range view.Decisions {
+		response.Decisions = append(response.Decisions, acceptanceDecisionResponse(decision))
+	}
+	for _, correction := range view.Corrections {
+		response.Corrections = append(response.Corrections, OutcomeCorrectionResponse{
+			ID: string(correction.ID), DecisionID: string(correction.DecisionID), ContractRevisionID: string(correction.ContractRevisionID),
+			Feedback: correction.Feedback, TargetType: string(correction.TargetType), TargetID: correction.TargetID, CreatedAt: correction.CreatedAt,
+		})
+	}
+	return response
+}
+
+func evidenceItemResponse(item domain.EvidenceItem) EvidenceItemResponse {
+	return EvidenceItemResponse{
+		ID: string(item.ID), ContractRevisionID: string(item.ContractRevisionID), CriterionID: string(item.CriterionID),
+		SubjectType: string(item.SubjectType), SubjectID: item.SubjectID, SubjectRevision: item.SubjectRevision,
+		Kind: string(item.Kind), SourceType: string(item.SourceType), SourceRef: item.SourceRef,
+		ProducerType: string(item.ProducerType), ProducerRef: item.ProducerRef, Summary: item.Summary,
+		ContentDigest: item.ContentDigest, CreatedAt: item.CreatedAt,
+	}
+}
+
+func verificationRunResponse(run domain.VerificationRun) VerificationRunResponse {
+	ids := make([]string, 0, len(run.EvidenceItemIDs))
+	for _, id := range run.EvidenceItemIDs {
+		ids = append(ids, string(id))
+	}
+	return VerificationRunResponse{
+		ID: string(run.ID), ContractRevisionID: string(run.ContractRevisionID), CriterionID: string(run.CriterionID),
+		SubjectType: string(run.SubjectType), SubjectID: run.SubjectID, SubjectRevision: run.SubjectRevision,
+		EvidenceItemIDs: ids, Method: run.Method, IndependenceClass: string(run.IndependenceClass), Independent: run.IsIndependent(), Result: string(run.Result),
+		ProducerRef: run.ProducerRef, VerifierRef: run.VerifierRef, ProducerProvider: run.ProducerProvider, VerifierProvider: run.VerifierProvider,
+		Detail: run.Detail, CreatedAt: run.CreatedAt,
+	}
+}
+
+func outcomeResponse(view outcomevc.OutcomeView) OutcomeResponse {
+	history := make([]ContractRevisionResponse, 0, len(view.History))
+	for _, rev := range view.History {
+		history = append(history, contractRevisionResponse(rev))
+	}
+	resp := OutcomeResponse{
+		ID:                    string(view.Outcome.ID),
+		SpaceID:               string(view.Outcome.SpaceID),
+		ParentID:              string(view.Outcome.ParentID),
+		Title:                 view.Outcome.Title,
+		CurrentRevisionNumber: view.Outcome.CurrentRevisionNumber,
+		Current:               contractRevisionResponse(view.Current),
+		History:               history,
+		CreatedAt:             view.Outcome.CreatedAt,
+		UpdatedAt:             view.Outcome.UpdatedAt,
+	}
+	if resp.History == nil {
+		resp.History = []ContractRevisionResponse{}
+	}
+	if view.LatestPlan != nil {
+		plan := planRevisionResponse(*view.LatestPlan)
+		resp.LatestPlan = &plan
+	}
+	return resp
+}
+
+// PlanIDParam is the {planId} path parameter shared by the plan approval route.
+type PlanIDParam struct {
+	PlanID string `path:"planId" description:"Plan revision identifier, e.g. plan-<uuid>."`
+}
+
+// ProposePlanRequest is the body for POST /outcomes/{outcomeId}/plans.
+// ExpectedContractRevision must name the current revision the plan executes.
+type ProposePlanRequest struct {
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+}
+
+// ApprovePlanRequest is the body for POST
+// /outcomes/{outcomeId}/plans/{planId}/approval. ExpectedContractRevision
+// guards against approving while the contract moved ahead unseen.
+type ApprovePlanRequest struct {
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+}
+
+// PlanWorkUnitResponse is the single planned unit inside a PlanRevision.
+type PlanWorkUnitResponse struct {
+	ID                      string   `json:"id"`
+	Kind                    string   `json:"kind"`
+	Title                   string   `json:"title"`
+	ContractRevisionNumber  int64    `json:"contractRevisionNumber"`
+	OutputSummary           string   `json:"outputSummary"`
+	EvidenceChecks          []string `json:"evidenceChecks"`
+	VerificationRequirement string   `json:"verificationRequirement"`
+	StopConditions          []string `json:"stopConditions"`
+}
+
+// CapabilityGrantResponse is one scoped capability the plan authorizes.
+type CapabilityGrantResponse struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Scope string `json:"scope"`
+}
+
+// PlanRevisionResponse is the canonical Decide & Authorize read model: the
+// frozen Work Unit, active-on-approval grants, and the RunBrief core digest.
+type PlanRevisionResponse struct {
+	ID                     string                    `json:"id"`
+	OutcomeID              string                    `json:"outcomeId"`
+	Number                 int64                     `json:"number"`
+	ContractRevisionNumber int64                     `json:"contractRevisionNumber"`
+	Status                 string                    `json:"status"`
+	Summary                string                    `json:"summary"`
+	WorkUnits              []PlanWorkUnitResponse    `json:"workUnits"`
+	Grants                 []CapabilityGrantResponse `json:"grants"`
+	RunBriefCoreDigest     string                    `json:"runBriefCoreDigest"`
+	RunBriefCompiledDigest string                    `json:"runBriefCompiledDigest,omitempty"`
+	CreatedAt              time.Time                 `json:"createdAt"`
+}
+
+// PlanEnvelope is the { plan } response body for plan reads and writes.
+type PlanEnvelope struct {
+	Plan PlanRevisionResponse `json:"plan"`
+}
+
+func workUnitResponse(unit domain.WorkUnit) PlanWorkUnitResponse {
+	return PlanWorkUnitResponse{
+		ID:                      string(unit.ID),
+		Kind:                    string(unit.Kind),
+		Title:                   unit.Title,
+		ContractRevisionNumber:  unit.ContractRevisionNumber,
+		OutputSummary:           unit.OutputSummary,
+		EvidenceChecks:          unit.EvidenceChecks,
+		VerificationRequirement: unit.VerificationRequirement,
+		StopConditions:          unit.StopConditions,
+	}
+}
+
+func capabilityGrantResponse(grant domain.CapabilityGrant) CapabilityGrantResponse {
+	return CapabilityGrantResponse{
+		ID:    string(grant.ID),
+		Name:  grant.Name,
+		Scope: grant.Scope,
+	}
+}
+
+func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
+	units := make([]PlanWorkUnitResponse, 0, len(plan.WorkUnits))
+	for _, unit := range plan.WorkUnits {
+		units = append(units, workUnitResponse(unit))
+	}
+	grants := make([]CapabilityGrantResponse, 0, len(plan.Grants))
+	for _, grant := range plan.Grants {
+		grants = append(grants, capabilityGrantResponse(grant))
+	}
+	return PlanRevisionResponse{
+		ID:                     string(plan.ID),
+		OutcomeID:              string(plan.OutcomeID),
+		Number:                 plan.Number,
+		ContractRevisionNumber: plan.ContractRevisionNumber,
+		Status:                 string(plan.Status),
+		Summary:                plan.Summary,
+		WorkUnits:              units,
+		Grants:                 grants,
+		RunBriefCoreDigest:     plan.RunBriefCoreDigest,
+		RunBriefCompiledDigest: plan.RunBriefCompiledDigest,
+		CreatedAt:              plan.CreatedAt,
+	}
+}
+
+// StartOutcomeAttemptRequest is the body for POST
+// /outcomes/{outcomeId}/attempts. RequestKey makes admission exactly-once:
+// replaying a delivered key resolves the original attempt. Harness is the
+// optional worker provider; empty uses the daemon's v0 default (Codex-first)
+// so provider naming stays a server-side policy.
+type StartOutcomeAttemptRequest struct {
+	PlanRevisionID string `json:"planRevisionId"`
+	Harness        string `json:"harness,omitempty"`
+	RequestKey     string `json:"requestKey"`
+}
+
+// RecordObservationRequest is the body for POST
+// /outcomes/{outcomeId}/attempts/{attemptId}/observations.
+type RecordObservationRequest struct {
+	Kind    string `json:"kind"`
+	Payload string `json:"payload,omitempty" description:"Optional JSON object with observation detail."`
+}
+
+// AttemptRecoveryRequest is the body for POST
+// /outcomes/{outcomeId}/attempts/{attemptId}/recovery.
+type AttemptRecoveryRequest struct {
+	Action string `json:"action" description:"One of contain, reconcile, replace, attention." enum:"contain,reconcile,replace,attention"`
+	// ConfirmProviderStopped is the owner's explicit assertion that the bound
+	// provider session is stopped. It unlocks custody release without machine
+	// proof and is recorded as an auditable containment observation.
+	ConfirmProviderStopped bool `json:"confirmProviderStopped,omitempty"`
+}
+
+// AttemptPresentationResponse is the DERIVED read-time truth about an
+// attempt: phase, whether liveness is unproven, and whether it ended without
+// a result classification. Never stored; always computed from durable facts.
+type AttemptPresentationResponse struct {
+	Phase             domain.AttemptPhase `json:"phase" enum:"awaiting_start,executing,suspended,unconfirmed,needs_input,ended_unclassified,halted_failed,halted_cancelled,suspect_lost,succeeded"`
+	Unconfirmed       bool                `json:"unconfirmed"`
+	EndedUnclassified bool                `json:"endedUnclassified"`
+	// Attention names the durable activity behind needs_input.
+	Attention  string `json:"attention,omitempty" enum:"waiting_input,blocked"`
+	NextAction string `json:"nextAction"`
+}
+
+// AttemptSessionRefResponse is one immutable provider-session binding.
+type AttemptSessionRefResponse struct {
+	ID                     string    `json:"id"`
+	Seq                    int64     `json:"seq"`
+	SessionID              string    `json:"sessionId"`
+	Harness                string    `json:"harness"`
+	Mode                   string    `json:"mode,omitempty"`
+	RunBriefCoreDigest     string    `json:"runBriefCoreDigest"`
+	RunBriefCompiledDigest string    `json:"runBriefCompiledDigest,omitempty"`
+	BoundAt                time.Time `json:"boundAt"`
+}
+
+// AttemptObservationResponse is one ordered, append-only observation.
+type AttemptObservationResponse struct {
+	ID        string    `json:"id"`
+	Seq       int64     `json:"seq"`
+	Kind      string    `json:"kind"`
+	Payload   string    `json:"payload,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// RecoveryReceiptResponse records one reconcile verdict.
+type RecoveryReceiptResponse struct {
+	ID                   string    `json:"id"`
+	Resolution           string    `json:"resolution" description:"resumed | replacement_attempt | needs_attention." enum:"resumed,replacement_attempt,needs_attention"`
+	ReplacementAttemptID string    `json:"replacementAttemptId,omitempty"`
+	CreatedAt            time.Time `json:"createdAt"`
+}
+
+// AttemptFenceResponse is the custody lock over one worktree subject while it
+// is open for this attempt. lastRenewedAt is the renewable lease stamp: a
+// stale renewal flags custody that may outlive its provider.
+type AttemptFenceResponse struct {
+	ID            string     `json:"id"`
+	Subject       string     `json:"subject"`
+	IssuedAt      time.Time  `json:"issuedAt"`
+	LastRenewedAt time.Time  `json:"lastRenewedAt"`
+	ReleasedAt    *time.Time `json:"releasedAt,omitempty"`
+}
+
+// AttemptResponse is the Act & Observe read model: durable lineage plus
+// derived presentation. Provider completion is never presented as success.
+type AttemptResponse struct {
+	ID                     string                       `json:"id"`
+	OutcomeID              string                       `json:"outcomeId"`
+	PlanRevisionID         string                       `json:"planRevisionId"`
+	WorkUnitID             string                       `json:"workUnitId"`
+	Number                 int64                        `json:"number"`
+	Status                 string                       `json:"status" enum:"queued,running,paused,succeeded,failed,cancelled,lost,reconciled"`
+	ContractRevisionNumber int64                        `json:"contractRevisionNumber"`
+	Sessions               []AttemptSessionRefResponse  `json:"sessions"`
+	Observations           []AttemptObservationResponse `json:"observations"`
+	Receipts               []RecoveryReceiptResponse    `json:"receipts"`
+	Fence                  *AttemptFenceResponse        `json:"fence,omitempty"`
+	Presentation           AttemptPresentationResponse  `json:"presentation"`
+	CreatedAt              time.Time                    `json:"createdAt"`
+	UpdatedAt              time.Time                    `json:"updatedAt"`
+}
+
+// AttemptEnvelope is the { attempt } response body.
+type AttemptEnvelope struct {
+	Attempt AttemptResponse `json:"attempt"`
+}
+
+// AttemptListEnvelope is the { attempts } response body.
+type AttemptListEnvelope struct {
+	Attempts []AttemptResponse `json:"attempts"`
+}
+
+// ObservationEnvelope is the { observation } response body.
+type ObservationEnvelope struct {
+	Observation AttemptObservationResponse `json:"observation"`
+}
+
+// AttemptRecoveryEnvelope pairs the post-recovery attempt with its verdict
+// receipt when one was recorded.
+type AttemptRecoveryEnvelope struct {
+	Attempt AttemptResponse          `json:"attempt"`
+	Receipt *RecoveryReceiptResponse `json:"receipt,omitempty"`
+}
+
+func attemptSessionRefResponse(ref domain.AttemptSessionRef) AttemptSessionRefResponse {
+	return AttemptSessionRefResponse{
+		ID:                     string(ref.ID),
+		Seq:                    ref.Seq,
+		SessionID:              ref.SessionID,
+		Harness:                string(ref.Harness),
+		Mode:                   string(ref.Mode),
+		RunBriefCoreDigest:     ref.RunBriefCoreDigest,
+		RunBriefCompiledDigest: ref.RunBriefCompiledDigest,
+		BoundAt:                ref.BoundAt,
+	}
+}
+
+func attemptObservationResponse(obs domain.AttemptObservation) AttemptObservationResponse {
+	return AttemptObservationResponse{
+		ID:        obs.ID,
+		Seq:       obs.Seq,
+		Kind:      obs.Kind,
+		Payload:   obs.Payload,
+		CreatedAt: obs.CreatedAt,
+	}
+}
+
+func recoveryReceiptResponse(receipt domain.AttemptRecoveryReceipt) RecoveryReceiptResponse {
+	return RecoveryReceiptResponse{
+		ID:                   receipt.ID,
+		Resolution:           string(receipt.Resolution),
+		ReplacementAttemptID: string(receipt.ReplacementAttemptID),
+		CreatedAt:            receipt.CreatedAt,
+	}
+}
+
+func attemptResponse(view outcomevc.AttemptView) AttemptResponse {
+	sessions := make([]AttemptSessionRefResponse, 0, len(view.Sessions))
+	for _, ref := range view.Sessions {
+		sessions = append(sessions, attemptSessionRefResponse(ref))
+	}
+	observations := make([]AttemptObservationResponse, 0, len(view.Observations))
+	for _, obs := range view.Observations {
+		observations = append(observations, attemptObservationResponse(obs))
+	}
+	receipts := make([]RecoveryReceiptResponse, 0, len(view.Receipts))
+	for _, receipt := range view.Receipts {
+		receipts = append(receipts, recoveryReceiptResponse(receipt))
+	}
+	resp := AttemptResponse{
+		ID:                     string(view.Attempt.ID),
+		OutcomeID:              string(view.Attempt.OutcomeID),
+		PlanRevisionID:         string(view.Attempt.PlanRevisionID),
+		WorkUnitID:             string(view.Attempt.WorkUnitID),
+		Number:                 view.Attempt.Number,
+		Status:                 string(view.Attempt.Status),
+		ContractRevisionNumber: view.Attempt.ContractRevisionNumber,
+		Sessions:               sessions,
+		Observations:           observations,
+		Receipts:               receipts,
+		Presentation: AttemptPresentationResponse{
+			Phase:             view.Presentation.Phase,
+			Unconfirmed:       view.Presentation.Unconfirmed,
+			EndedUnclassified: view.Presentation.EndedUnclassified,
+			Attention:         view.Presentation.Attention,
+			NextAction:        view.Presentation.NextAction,
+		},
+		CreatedAt: view.Attempt.CreatedAt,
+		UpdatedAt: view.Attempt.UpdatedAt,
+	}
+	if view.Fence != nil {
+		var releasedAt *time.Time
+		if !view.Fence.ReleasedAt.IsZero() {
+			released := view.Fence.ReleasedAt
+			releasedAt = &released
+		}
+		resp.Fence = &AttemptFenceResponse{
+			ID:            view.Fence.ID,
+			Subject:       view.Fence.Subject,
+			IssuedAt:      view.Fence.IssuedAt,
+			LastRenewedAt: view.Fence.LastRenewedAt,
+			ReleasedAt:    releasedAt,
+		}
+	}
+	return resp
+}
+
+// --- Composed Outcomes (ADR 0007) ---
+
+// ContributionLinkResponse is one immutable criterion binding.
+type ContributionLinkResponse struct {
+	ID                       string    `json:"id"`
+	ParentOutcomeID          string    `json:"parentOutcomeId"`
+	ChildOutcomeID           string    `json:"childOutcomeId"`
+	ParentContractRevisionID string    `json:"parentContractRevisionId"`
+	ParentCriterionID        string    `json:"parentCriterionId"`
+	CreatedAt                time.Time `json:"createdAt"`
+}
+
+// ContributorResponse is one contributing Outcome and its bindings.
+type ContributorResponse struct {
+	Outcome OutcomeResponse            `json:"outcome"`
+	Links   []ContributionLinkResponse `json:"links"`
+	// Stale reports a binding to a superseded parent revision. It blocks new
+	// authorization; it does not mean running work is dead.
+	Stale bool `json:"stale"`
+	// BlockedBy names declared upstream contributions that are not yet
+	// accepted; Waived names those the owner explicitly overrode. A waived
+	// dependency stays visible: it is overridden, not forgotten.
+	BlockedBy []UpstreamBlockResponse      `json:"blockedBy"`
+	Waived    []UpstreamBlockResponse      `json:"waived"`
+	Attention ContributorAttentionResponse `json:"attention"`
+}
+
+// UpstreamBlockResponse is one unmet or waived dependency.
+type UpstreamBlockResponse struct {
+	Ref       string `json:"ref"`
+	OutcomeID string `json:"outcomeId,omitempty"`
+	Title     string `json:"title,omitempty"`
+	Reason    string `json:"reason"`
+}
+
+// ContributorAttentionResponse is one roll-up item.
+type ContributorAttentionResponse struct {
+	OutcomeID  string `json:"outcomeId"`
+	Title      string `json:"title"`
+	Kind       string `json:"kind"`
+	Reason     string `json:"reason"`
+	NextAction string `json:"nextAction,omitempty"`
+}
+
+// ParentAttentionResponse summarises a decomposed Outcome for its owner.
+type ParentAttentionResponse struct {
+	Headline     string                         `json:"headline,omitempty"`
+	Items        []ContributorAttentionResponse `json:"items"`
+	Counts       map[string]int                 `json:"counts"`
+	AcceptedOf   int                            `json:"acceptedOf"`
+	Contributors int                            `json:"contributors"`
+}
+
+// WaiveContributionDependencyRequest is the body for POST
+// /outcomes/{outcomeId}/decomposition/waivers. The reason is required and
+// durable: a waiver nobody can explain later is indistinguishable from a
+// mistake.
+type WaiveContributionDependencyRequest struct {
+	FromRef string `json:"fromRef"`
+	ToRef   string `json:"toRef"`
+	Reason  string `json:"reason"`
+}
+
+// CriterionClaimResponse is one parent criterion and who claims it. An empty
+// claimedBy is a truthful report of an incomplete decomposition, not an error.
+type CriterionClaimResponse struct {
+	CriterionID string   `json:"criterionId"`
+	Position    int64    `json:"position"`
+	Text        string   `json:"text"`
+	ClaimedBy   []string `json:"claimedBy"`
+}
+
+// OutcomeCompositionResponse is the derived composition read model. Shape and
+// attention are computed from durable facts and are never stored.
+type OutcomeCompositionResponse struct {
+	Shape        string                   `json:"shape"`
+	ParentID     string                   `json:"parentId,omitempty"`
+	Contributors []ContributorResponse    `json:"contributors"`
+	Coverage     []CriterionClaimResponse `json:"coverage"`
+	// Attention rolls each contributor's situation up to the parent, most
+	// demanding first, every item naming the contributor it came from.
+	Attention ParentAttentionResponse `json:"attention"`
+	// UnclaimedCriteria repeats the criteria nothing claims, so a caller does
+	// not have to re-derive the one fact that decides whether a decomposition
+	// is complete.
+	UnclaimedCriteria []CriterionClaimResponse `json:"unclaimedCriteria"`
+}
+
+// OutcomeCompositionEnvelope is the { composition } response body.
+type OutcomeCompositionEnvelope struct {
+	Composition OutcomeCompositionResponse `json:"composition"`
+}
+
+func contributionLinkResponse(link domain.ContributionLink) ContributionLinkResponse {
+	return ContributionLinkResponse{
+		ID:                       string(link.ID),
+		ParentOutcomeID:          string(link.ParentOutcomeID),
+		ChildOutcomeID:           string(link.ChildOutcomeID),
+		ParentContractRevisionID: string(link.ParentContractRevisionID),
+		ParentCriterionID:        string(link.ParentCriterionID),
+		CreatedAt:                link.CreatedAt,
+	}
+}
+
+func criterionClaimResponse(claim domain.CriterionClaim) CriterionClaimResponse {
+	claimedBy := make([]string, 0, len(claim.ClaimedBy))
+	for _, id := range claim.ClaimedBy {
+		claimedBy = append(claimedBy, string(id))
+	}
+	return CriterionClaimResponse{
+		CriterionID: string(claim.CriterionID),
+		Position:    claim.Position,
+		Text:        claim.Text,
+		ClaimedBy:   claimedBy,
+	}
+}
+
+func outcomeCompositionResponse(view outcomevc.CompositionView, contributors []outcomevc.OutcomeView) OutcomeCompositionResponse {
+	resp := OutcomeCompositionResponse{
+		Shape:             string(view.Shape),
+		Contributors:      make([]ContributorResponse, 0, len(view.Contributors)),
+		Coverage:          make([]CriterionClaimResponse, 0, len(view.Coverage)),
+		UnclaimedCriteria: make([]CriterionClaimResponse, 0),
+	}
+	if view.Parent != nil {
+		resp.ParentID = string(view.Parent.ID)
+	}
+	resp.Attention = parentAttentionResponse(view.Attention)
+	for i, contributor := range view.Contributors {
+		links := make([]ContributionLinkResponse, 0, len(contributor.Links))
+		for _, link := range contributor.Links {
+			links = append(links, contributionLinkResponse(link))
+		}
+		entry := ContributorResponse{
+			Links: links, Stale: contributor.Stale,
+			BlockedBy: upstreamBlocks(contributor.Gate.Blocked),
+			Waived:    upstreamBlocks(contributor.Gate.Waived),
+			Attention: contributorAttentionResponse(contributor.Attention),
+		}
+		if i < len(contributors) {
+			entry.Outcome = outcomeResponse(contributors[i])
+		}
+		resp.Contributors = append(resp.Contributors, entry)
+	}
+	for _, claim := range view.Coverage {
+		resp.Coverage = append(resp.Coverage, criterionClaimResponse(claim))
+	}
+	for _, claim := range view.Unclaimed() {
+		resp.UnclaimedCriteria = append(resp.UnclaimedCriteria, criterionClaimResponse(claim))
+	}
+	return resp
+}
+
+// --- Decomposition authority (ADR 0007 phase 2) ---
+
+// ProposeDecompositionRequest is the body for POST
+// /outcomes/{outcomeId}/decompositions. Omitting contributors asks the daemon
+// for its deterministic starting point: one contributing Outcome per parent
+// criterion, which the owner then corrects.
+type ProposeDecompositionRequest struct {
+	// ExpectedContractRevision must name the parent's current revision.
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+	// Rationale explains the topology in plain language. A decomposition the
+	// owner cannot evaluate is not reviewable.
+	Rationale    string                        `json:"rationale,omitempty"`
+	Contributors []ProposedContributionRequest `json:"contributors,omitempty"`
+	// RetainedCriteria are parent criteria the owner will prove directly
+	// rather than delegate.
+	RetainedCriteria []string                        `json:"retainedCriteria,omitempty"`
+	Dependencies     []ContributionDependencyRequest `json:"dependencies,omitempty"`
+}
+
+// ProposedContributionRequest is one contributing Outcome as offered. It
+// carries a whole contract because a contributing Outcome is a full
+// responsibility, not a task.
+type ProposedContributionRequest struct {
+	Ref             string          `json:"ref,omitempty"`
+	Title           string          `json:"title"`
+	Goal            string          `json:"goal"`
+	SuccessCriteria []string        `json:"successCriteria"`
+	Review          string          `json:"review"`
+	Constraints     []string        `json:"constraints,omitempty"`
+	NonGoals        []string        `json:"nonGoals,omitempty"`
+	Authority       IntakeAuthority `json:"authority,omitempty"`
+	ClaimedCriteria []string        `json:"claimedCriteria"`
+}
+
+// ContributionDependencyRequest declares that fromRef must finish before toRef
+// starts.
+type ContributionDependencyRequest struct {
+	FromRef string `json:"fromRef"`
+	ToRef   string `json:"toRef"`
+}
+
+// ProposedContributionResponse is one contributing Outcome as recorded.
+// ChildOutcomeID is absent until authorization creates the Outcome.
+type ProposedContributionResponse struct {
+	Ref             string          `json:"ref"`
+	Position        int64           `json:"position"`
+	Title           string          `json:"title"`
+	Goal            string          `json:"goal"`
+	SuccessCriteria []string        `json:"successCriteria"`
+	Review          string          `json:"review"`
+	Constraints     []string        `json:"constraints"`
+	NonGoals        []string        `json:"nonGoals"`
+	Authority       IntakeAuthority `json:"authority"`
+	ClaimedCriteria []string        `json:"claimedCriteria"`
+	ChildOutcomeID  string          `json:"childOutcomeId,omitempty"`
+}
+
+// ContributionDependencyResponse is one recorded ordering.
+type ContributionDependencyResponse struct {
+	ID      string `json:"id"`
+	FromRef string `json:"fromRef"`
+	ToRef   string `json:"toRef"`
+}
+
+// DecompositionResponse is one decomposition revision: a decomposed Outcome's
+// plan. Proposed means nothing exists yet; authorized means the contributing
+// Outcomes were created.
+type DecompositionResponse struct {
+	ID                 string                           `json:"id"`
+	OutcomeID          string                           `json:"outcomeId"`
+	Number             int64                            `json:"number"`
+	ContractRevisionID string                           `json:"contractRevisionId"`
+	Status             string                           `json:"status"`
+	Rationale          string                           `json:"rationale"`
+	Contributors       []ProposedContributionResponse   `json:"contributors"`
+	RetainedCriteria   []string                         `json:"retainedCriteria"`
+	Dependencies       []ContributionDependencyResponse `json:"dependencies"`
+	// Stale reports that the parent contract moved on after this
+	// decomposition was proposed. A stale proposal cannot be authorized.
+	Stale        bool       `json:"stale"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	AuthorizedAt *time.Time `json:"authorizedAt,omitempty"`
+}
+
+// DecompositionEnvelope is the { decomposition } response body.
+type DecompositionEnvelope struct {
+	Decomposition DecompositionResponse `json:"decomposition"`
+}
+
+func proposeDecompositionInput(req ProposeDecompositionRequest) outcomevc.ProposeDecompositionInput {
+	contributors := make([]outcomevc.ProposedContributionInput, 0, len(req.Contributors))
+	for _, contributor := range req.Contributors {
+		claimed := make([]domain.CriterionID, 0, len(contributor.ClaimedCriteria))
+		for _, id := range contributor.ClaimedCriteria {
+			claimed = append(claimed, domain.CriterionID(id))
+		}
+		contributors = append(contributors, outcomevc.ProposedContributionInput{
+			Ref: contributor.Ref, Title: contributor.Title, Goal: contributor.Goal,
+			SuccessCriteria: contributor.SuccessCriteria, Review: contributor.Review,
+			Constraints: contributor.Constraints, NonGoals: contributor.NonGoals,
+			Authority: proposedAuthority(contributor.Authority), ClaimedCriteria: claimed,
+		})
+	}
+	retained := make([]domain.CriterionID, 0, len(req.RetainedCriteria))
+	for _, id := range req.RetainedCriteria {
+		retained = append(retained, domain.CriterionID(id))
+	}
+	dependencies := make([]outcomevc.ContributionDependencyInput, 0, len(req.Dependencies))
+	for _, dependency := range req.Dependencies {
+		dependencies = append(dependencies, outcomevc.ContributionDependencyInput{FromRef: dependency.FromRef, ToRef: dependency.ToRef})
+	}
+	return outcomevc.ProposeDecompositionInput{
+		ExpectedContractRevision: req.ExpectedContractRevision,
+		Rationale:                req.Rationale,
+		Contributors:             contributors,
+		RetainedCriteria:         retained,
+		Dependencies:             dependencies,
+	}
+}
+
+func decompositionResponse(view outcomevc.DecompositionView) DecompositionResponse {
+	revision := view.Decomposition
+	resp := DecompositionResponse{
+		ID: string(revision.ID), OutcomeID: string(revision.OutcomeID), Number: revision.Number,
+		ContractRevisionID: string(revision.ContractRevisionID), Status: string(revision.Status),
+		Rationale:        revision.Rationale,
+		Contributors:     make([]ProposedContributionResponse, 0, len(revision.Contributors)),
+		RetainedCriteria: make([]string, 0, len(revision.RetainedCriteria)),
+		Dependencies:     make([]ContributionDependencyResponse, 0, len(revision.Dependencies)),
+		Stale:            view.Stale,
+		CreatedAt:        revision.CreatedAt,
+		AuthorizedAt:     revision.AuthorizedAt,
+	}
+	for _, contributor := range revision.Contributors {
+		claimed := make([]string, 0, len(contributor.ClaimedCriteria))
+		for _, id := range contributor.ClaimedCriteria {
+			claimed = append(claimed, string(id))
+		}
+		resp.Contributors = append(resp.Contributors, ProposedContributionResponse{
+			Ref: contributor.Ref, Position: contributor.Position, Title: contributor.Title,
+			Goal: contributor.Goal, SuccessCriteria: nonNilList(contributor.SuccessCriteria),
+			Review: contributor.Review, Constraints: nonNilList(contributor.Constraints),
+			NonGoals: nonNilList(contributor.NonGoals), Authority: intakeAuthority(contributor.Authority),
+			ClaimedCriteria: claimed, ChildOutcomeID: string(contributor.ChildOutcomeID),
+		})
+	}
+	for _, id := range revision.RetainedCriteria {
+		resp.RetainedCriteria = append(resp.RetainedCriteria, string(id))
+	}
+	for _, dependency := range revision.Dependencies {
+		resp.Dependencies = append(resp.Dependencies, ContributionDependencyResponse{
+			ID: dependency.ID, FromRef: dependency.FromRef, ToRef: dependency.ToRef,
+		})
+	}
+	return resp
+}
+
+func nonNilList(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
+func upstreamBlocks(blocks []domain.UpstreamBlock) []UpstreamBlockResponse {
+	out := make([]UpstreamBlockResponse, 0, len(blocks))
+	for _, block := range blocks {
+		out = append(out, UpstreamBlockResponse{
+			Ref: block.Ref, OutcomeID: string(block.OutcomeID),
+			Title: block.Title, Reason: block.Reason,
+		})
+	}
+	return out
+}
+
+func contributorAttentionResponse(item domain.ContributorAttention) ContributorAttentionResponse {
+	return ContributorAttentionResponse{
+		OutcomeID: string(item.OutcomeID), Title: item.Title,
+		Kind: string(item.Kind), Reason: item.Reason, NextAction: item.NextAction,
+	}
+}
+
+func parentAttentionResponse(summary domain.ParentAttention) ParentAttentionResponse {
+	resp := ParentAttentionResponse{
+		Headline:     string(summary.Headline),
+		Items:        make([]ContributorAttentionResponse, 0, len(summary.Items)),
+		Counts:       make(map[string]int, len(summary.Counts)),
+		AcceptedOf:   summary.AcceptedOf,
+		Contributors: summary.Contributors,
+	}
+	for _, item := range summary.Items {
+		resp.Items = append(resp.Items, contributorAttentionResponse(item))
+	}
+	for kind, count := range summary.Counts {
+		resp.Counts[string(kind)] = count
+	}
+	return resp
+}
+
+// --- Batched parent acceptance (ADR 0007 phase 4) ---
+
+// AcceptContributorBatchRequest is one owner sitting over a decomposed
+// Outcome's ready contributors. It produces one immutable decision per
+// Outcome accepted, never one merged decision.
+type AcceptContributorBatchRequest struct {
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+	// OutcomeIds narrows the sitting; omit for every eligible contributor.
+	OutcomeIds []string `json:"outcomeIds,omitempty"`
+	Summary    string   `json:"summary"`
+	// AcceptParent also accepts the Project-level Outcome, permitted only
+	// when this batch leaves every parent criterion proved.
+	AcceptParent        bool   `json:"acceptParent,omitempty"`
+	ResourceDisposition string `json:"resourceDisposition"`
+	RequestKey          string `json:"requestKey"`
+}
+
+// BatchEntryVerdictResponse is the daemon's answer on one contributor. The
+// daemon may only withhold; it never accepts.
+type BatchEntryVerdictResponse struct {
+	OutcomeID string `json:"outcomeId"`
+	Title     string `json:"title"`
+	Eligible  bool   `json:"eligible"`
+	Reason    string `json:"reason"`
+	Remedy    string `json:"remedy,omitempty"`
+}
+
+// BatchEligibilityEnvelope reports who could be accepted right now.
+type BatchEligibilityEnvelope struct {
+	Contributors []BatchEntryVerdictResponse `json:"contributors"`
+}
+
+// AcceptBatchResponse reports what one sitting decided and what it withheld.
+type AcceptBatchResponse struct {
+	Accepted       []AcceptanceDecisionResponse `json:"accepted"`
+	Excluded       []BatchEntryVerdictResponse  `json:"excluded"`
+	ParentAccepted *AcceptanceDecisionResponse  `json:"parentAccepted,omitempty"`
+	Parent         OutcomeProofResponse         `json:"parent"`
+}
+
+// AcceptBatchEnvelope is the { batch } response body.
+type AcceptBatchEnvelope struct {
+	Batch AcceptBatchResponse `json:"batch"`
+}
+
+func batchEntryVerdictResponse(verdict domain.BatchEntryVerdict) BatchEntryVerdictResponse {
+	return BatchEntryVerdictResponse{
+		OutcomeID: string(verdict.OutcomeID), Title: verdict.Title,
+		Eligible: verdict.Eligible, Reason: verdict.Reason, Remedy: verdict.Remedy,
+	}
+}
+
+func batchEntryVerdicts(verdicts []domain.BatchEntryVerdict) []BatchEntryVerdictResponse {
+	out := make([]BatchEntryVerdictResponse, 0, len(verdicts))
+	for _, verdict := range verdicts {
+		out = append(out, batchEntryVerdictResponse(verdict))
+	}
+	return out
+}
+
+func acceptBatchResponse(view outcomevc.AcceptBatchView) AcceptBatchResponse {
+	resp := AcceptBatchResponse{
+		Accepted: make([]AcceptanceDecisionResponse, 0, len(view.Accepted)),
+		Excluded: batchEntryVerdicts(view.Excluded),
+		Parent:   outcomeProofResponse(view.Parent),
+	}
+	for _, decision := range view.Accepted {
+		resp.Accepted = append(resp.Accepted, acceptanceDecisionResponse(decision))
+	}
+	if view.ParentAccepted != nil {
+		parent := acceptanceDecisionResponse(*view.ParentAccepted)
+		resp.ParentAccepted = &parent
+	}
+	return resp
+}
+
+func acceptanceDecisionResponse(decision domain.AcceptanceDecision) AcceptanceDecisionResponse {
+	return AcceptanceDecisionResponse{
+		ID: string(decision.ID), ContractRevisionID: string(decision.ContractRevisionID),
+		Kind: string(decision.Kind), ActorType: string(decision.ActorType),
+		Summary: decision.Summary, ResourceDisposition: string(decision.ResourceDisposition),
+		CreatedAt: decision.CreatedAt,
+	}
+}
+
+// --- Agent-authored decomposition asks (ADR 0007 phase 2b) ---
+
+// DecompositionRequestIDParam is the {requestId} path parameter on the
+// callback route. The callback is addressed by REQUEST rather than by Outcome:
+// the answering agent knows only the request it was given.
+type DecompositionRequestIDParam struct {
+	RequestID string `path:"requestId" description:"Decomposition request identifier, e.g. dreq-<uuid>."`
+}
+
+// AskForDecompositionRequest opens a durable ask. The proposal arrives later
+// over the callback route; this returns as soon as an agent has been started.
+type AskForDecompositionRequest struct {
+	ExpectedContractRevision int64 `json:"expectedContractRevision"`
+}
+
+// SubmitAgentProposalRequest is the body a spawned agent POSTs back. It is the
+// same shape a person would author, because an agent proposal passes exactly
+// the same gates — there is no trusted-proposer path.
+type SubmitAgentProposalRequest struct {
+	Rationale        string                          `json:"rationale"`
+	Contributors     []ProposedContributionRequest   `json:"contributors"`
+	RetainedCriteria []string                        `json:"retainedCriteria,omitempty"`
+	Dependencies     []ContributionDependencyRequest `json:"dependencies,omitempty"`
+}
+
+// DecompositionRequestResponse reports one ask and what became of it.
+type DecompositionRequestResponse struct {
+	ID                 string `json:"id"`
+	OutcomeID          string `json:"outcomeId"`
+	ContractRevisionID string `json:"contractRevisionId"`
+	Status             string `json:"status"`
+	// Expired is derived from the clock, so an ask that timed out while the
+	// daemon was down still reads as expired.
+	Expired bool `json:"expired"`
+	// RefusalReason carries the daemon's own words when it turned a proposal
+	// down, and RawProposal the draft it turned down — kept so the owner can
+	// correct one field instead of regenerating.
+	RefusalReason   string     `json:"refusalReason,omitempty"`
+	RawProposal     string     `json:"rawProposal,omitempty"`
+	DecompositionID string     `json:"decompositionId,omitempty"`
+	SessionID       string     `json:"sessionId,omitempty"`
+	ExpiresAt       time.Time  `json:"expiresAt"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	AnsweredAt      *time.Time `json:"answeredAt,omitempty"`
+}
+
+// DecompositionRequestEnvelope is the { request } response body.
+type DecompositionRequestEnvelope struct {
+	Request DecompositionRequestResponse `json:"request"`
+}
+
+func decompositionRequestResponse(view outcomevc.DecompositionRequestView) DecompositionRequestResponse {
+	request := view.Request
+	resp := DecompositionRequestResponse{
+		ID: string(request.ID), OutcomeID: string(request.OutcomeID),
+		ContractRevisionID: string(request.ContractRevisionID),
+		Status:             string(request.Status),
+		Expired:            view.Expired,
+		RefusalReason:      request.RefusalReason,
+		RawProposal:        request.RawProposal,
+		DecompositionID:    string(request.DecompositionID),
+		SessionID:          request.SessionID,
+		ExpiresAt:          request.ExpiresAt,
+		CreatedAt:          request.CreatedAt,
+		AnsweredAt:         request.AnsweredAt,
+	}
+	return resp
+}
+
+// agentProposalInput maps a callback body onto the same input a person's
+// proposal uses. ExpectedContractRevision is deliberately absent: the request
+// already froze which revision was asked about, and letting the agent name one
+// would let it answer a different question than it was given.
+func agentProposalInput(req SubmitAgentProposalRequest) outcomevc.ProposeDecompositionInput {
+	return proposeDecompositionInput(ProposeDecompositionRequest{
+		Rationale:        req.Rationale,
+		Contributors:     req.Contributors,
+		RetainedCriteria: req.RetainedCriteria,
+		Dependencies:     req.Dependencies,
+	})
 }

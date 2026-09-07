@@ -173,8 +173,8 @@ describe("native WorkOS authentication", () => {
 
     expect(mocks.showMessageBox).toHaveBeenCalledWith({
       type: "error",
-      title: "AO Cloud sign-in failed",
-      message: "Unable to sign in to AO Cloud",
+      title: "Waldo Cloud sign-in failed",
+      message: "Unable to sign in to Waldo Cloud",
       detail:
         "The WorkOS sign-in request expired. Start sign-in again to continue.",
     });

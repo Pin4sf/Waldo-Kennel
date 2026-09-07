@@ -64,7 +64,7 @@ export function ConnectMobileGetApp() {
 			<div
 				data-testid="testflight-qr"
 				className={cn(
-					"grid transition-[grid-template-rows] duration-300 ease-out",
+					"grid transition-[grid-template-rows] duration-slow ease-out",
 					showQR ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
 				)}
 				aria-hidden={!showQR}
@@ -72,7 +72,7 @@ export function ConnectMobileGetApp() {
 				<div className="overflow-hidden px-4">
 					<div
 						className={cn(
-							"flex flex-col items-center pt-3 transition-opacity duration-300 ease-out",
+							"flex flex-col items-center pt-3 transition-opacity duration-slow ease-out",
 							showQR ? "opacity-100" : "opacity-0",
 						)}
 					>

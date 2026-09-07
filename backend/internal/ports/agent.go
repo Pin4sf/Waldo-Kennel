@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 // ErrAgentBinaryNotFound is returned by agent adapters when neither PATH nor
@@ -35,18 +35,18 @@ const (
 // must satisfy. It supplies the argv and process configuration the Session
 // Manager needs to launch, restore, and read back a native agent session.
 type Agent interface {
-	// GetConfigSpec describes the agent-specific config keys AO can
-	// expose to users in the AO config.
+	// GetConfigSpec describes the agent-specific config keys Kennel can
+	// expose to users in the Kennel config.
 	GetConfigSpec(ctx context.Context) (ConfigSpec, error)
 
-	// GetLaunchCommand builds the argv AO should run to start this agent.
+	// GetLaunchCommand builds the argv Kennel should run to start this agent.
 	GetLaunchCommand(ctx context.Context, cfg LaunchConfig) (cmd []string, err error)
 
-	// GetPromptDeliveryStrategy tells AO whether the prompt is included in
+	// GetPromptDeliveryStrategy tells Kennel whether the prompt is included in
 	// the launch command or must be sent after the agent process starts.
 	GetPromptDeliveryStrategy(ctx context.Context, cfg LaunchConfig) (PromptDeliveryStrategy, error)
 
-	// GetAgentHooks installs or merges AO hooks into the agent's
+	// GetAgentHooks installs or merges Kennel hooks into the agent's
 	// native workspace-local hook config. It must preserve user-defined hooks.
 	GetAgentHooks(ctx context.Context, cfg WorkspaceHookConfig) error
 
@@ -63,6 +63,46 @@ type Agent interface {
 // a cheap local authentication status probe.
 type AgentAuthChecker interface {
 	AuthStatus(ctx context.Context) (AgentAuthStatus, error)
+}
+
+// AgentOptionalAuth is the optional declaration that a provider grant is not a
+// precondition for running the agent, only useful information about it.
+//
+// It separates two things AgentAuthChecker alone conflates. Reporting auth
+// status is worth doing for any agent that can report it; requiring a grant
+// before Kennel will run the agent is a different claim. Most agents cannot do
+// anything without credentials, so an inconclusive probe has to fail closed
+// for them. opencode ships usable free models and works with no credential at
+// all, so for it AgentAuthStatusUnknown is the ordinary healthy state rather
+// than a missing precondition.
+//
+// Declaring optional auth only softens the inconclusive case: a probe that
+// affirmatively reports AgentAuthStatusUnauthorized still blocks, because that
+// is evidence of refusal rather than absence of evidence.
+type AgentOptionalAuth interface {
+	// AuthOptional reports whether the agent can do useful work without a
+	// provider grant.
+	AuthOptional() bool
+}
+
+// AgentProfileReadiness is the advisory result of an adapter's profile-level
+// readiness probe: whether the agent's own configuration beyond binary
+// presence is sufficient to attempt a launch. Spawn remains the authoritative
+// validation point.
+type AgentProfileReadiness struct {
+	// Ready reports whether the probed configuration looks launchable.
+	Ready bool `json:"ready"`
+	// Detail explains what is missing or what was verified, in the adapter's
+	// own words. It is display context, never a machine contract.
+	Detail string `json:"detail,omitempty"`
+}
+
+// AgentProfileReadinessChecker is the optional capability for adapters whose
+// launch depends on user-selected configuration (a profile, a workspace
+// login target) beyond a resolved binary. Probes must be cheap, read-only,
+// and side-effect free.
+type AgentProfileReadinessChecker interface {
+	ProfileReadiness(ctx context.Context, cfg AgentConfig) (AgentProfileReadiness, error)
 }
 
 // AgentBinaryResolver is the optional capability adapters expose when their
@@ -119,14 +159,14 @@ type AgentModelInfo struct {
 	IsDefault bool   `json:"isDefault,omitempty"`
 }
 
-// AgentModelCatalog is AO's normalized model-picker response.
+// AgentModelCatalog is Kennel's normalized model-picker response.
 type AgentModelCatalog struct {
 	AgentID       string             `json:"agentId"`
 	SelectionMode ModelSelectionMode `json:"selectionMode" enum:"catalog,text,mode"`
 	Models        []AgentModelInfo   `json:"models"`
 	AllowCustom   bool               `json:"allowCustom"`
 	Source        string             `json:"source"`
-	// BinaryVersion is the legacy wire name for AO's non-sensitive executable
+	// BinaryVersion is the legacy wire name for Kennel's non-sensitive executable
 	// and configuration metadata fingerprint.
 	BinaryVersion string    `json:"binaryVersion,omitempty"`
 	FetchedAt     time.Time `json:"fetchedAt"`
@@ -178,12 +218,12 @@ type AgentModelDiscoverer interface {
 	Manual(agentID string) AgentModelCatalog
 }
 
-// AgentExitDetectionMode describes how AO learns that an agent CLI process
+// AgentExitDetectionMode describes how Kennel learns that an agent CLI process
 // ended while its terminal runtime remains alive.
 type AgentExitDetectionMode string
 
 const (
-	// AgentExitDetectionSupervisor means AO must wrap the CLI in its generic
+	// AgentExitDetectionSupervisor means Kennel must wrap the CLI in its generic
 	// process supervisor because the adapter has no reliable exit hook.
 	AgentExitDetectionSupervisor AgentExitDetectionMode = "supervisor"
 )
@@ -195,7 +235,7 @@ type AgentExitDetector interface {
 }
 
 // AgentPromptReadinessProvider is an optional capability for interactive
-// adapters that receive their first task after startup. It lets AO wait until a
+// adapters that receive their first task after startup. It lets Kennel wait until a
 // terminal UI is ready before injecting text through the runtime. When the
 // adapter also implements TerminalActivityDetector, an authoritative idle
 // detection takes precedence over the fallback text patterns.
@@ -229,7 +269,7 @@ type ContinuousTerminalActivityDetector interface {
 
 // PromptReadinessHints describes when an after-start prompt should be sent.
 // Empty patterns mean "send immediately" unless the adapter also implements
-// TerminalActivityDetector, in which case AO waits for an authoritative idle
+// TerminalActivityDetector, in which case Kennel waits for an authoritative idle
 // detection. A non-positive timeout always preserves immediate delivery.
 type PromptReadinessHints struct {
 	InitialDelay time.Duration
@@ -291,7 +331,7 @@ type BlockedActivitySignaler interface {
 
 // ActiveTurnSteerer is an OPTIONAL capability an Agent adapter implements when
 // submitting input while its harness is mid-turn STEERS the running turn rather
-// than being swallowed, queued, or applied to a dialog. AO uses it to decide
+// than being swallowed, queued, or applied to a dialog. Kennel uses it to decide
 // whether an unsolicited coordination message may be written into an active
 // session. Adapters that do not implement it are treated as unsafe to steer, so
 // an unknown harness is only ever written to while idle.
@@ -320,7 +360,7 @@ const (
 // share one definition without a translation layer.
 type AgentConfig = domain.AgentConfig
 
-// ConfigSpec describes the agent-specific config keys AO can expose to users.
+// ConfigSpec describes the agent-specific config keys Kennel can expose to users.
 type ConfigSpec struct {
 	Fields []ConfigField
 }
@@ -335,7 +375,7 @@ type ConfigField struct {
 	Enum        []string
 }
 
-// ConfigFieldType is the primitive value kind AO expects for a field.
+// ConfigFieldType is the primitive value kind Kennel expects for a field.
 type ConfigFieldType string
 
 // The primitive value kinds a ConfigField can declare.
@@ -358,7 +398,7 @@ type LaunchConfig struct {
 	SessionID   string
 	// NativeSessionID optionally asks an adapter that supports caller-assigned
 	// native identities to use this id for a fresh provider conversation. It is
-	// deliberately separate from SessionID: one stable AO session may create
+	// deliberately separate from SessionID: one stable Kennel session may create
 	// several provider-native conversations over its lifetime. Adapters whose
 	// CLI assigns native ids ignore this field and report the id through hooks.
 	NativeSessionID string
@@ -408,7 +448,7 @@ type RestoreConfig struct {
 	SystemPromptFile string
 }
 
-// SessionRef identifies an AO session whose agent-owned metadata may be read.
+// SessionRef identifies an Kennel session whose agent-owned metadata may be read.
 type SessionRef struct {
 	ID            string
 	Metadata      map[string]string
@@ -454,7 +494,7 @@ func NormalizePermissionMode(mode PermissionMode) PermissionMode {
 	}
 }
 
-// PromptDeliveryStrategy describes how AO should deliver the initial prompt.
+// PromptDeliveryStrategy describes how Kennel should deliver the initial prompt.
 type PromptDeliveryStrategy string
 
 // How the orchestrator hands the initial prompt to a freshly launched agent.

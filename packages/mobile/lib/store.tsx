@@ -147,7 +147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	// Warm the install id cache as early as possible so the first REST poll tick
-	// (fired from the config effect below) can send X-AO-Install-Id synchronously
+	// (fired from the config effect below) can send X-Kennel-Install-Id synchronously
 	// via cachedInstallId() in api.ts's req(). A module-load side effect would run
 	// this before React Native's AsyncStorage native module is guaranteed ready;
 	// a mount-time effect matches this file's existing pattern (see the active

@@ -12,7 +12,7 @@
  *   - Grammars are shipped, never fetched. Nothing here reaches the network, and
  *     the language set is deliberately short — see `code-highlight-engine.ts`.
  *   - Tokens come out as class names, not inline colours. `code-theme.css` maps
- *     them onto the terminal palette, so AO's light/dark switch costs nothing:
+ *     them onto the terminal palette, so Kennel's light/dark switch costs nothing:
  *     no second theme in the bundle and no re-tokenizing when the theme flips.
  *
  * Tokenizing is memoized because the timeline re-renders on every poll (one

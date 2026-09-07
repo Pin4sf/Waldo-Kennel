@@ -53,7 +53,7 @@ func TestReapPersistedProcessesRefusesMismatchedIdentity(t *testing.T) {
 
 	dataDir := t.TempDir()
 	registry, err := json.Marshal([]persistedProcess{{
-		SessionID: "ao-1",
+		SessionID: "kennel-1",
 		PID:       cmd.Process.Pid,
 		Port:      4173,
 		StartedAt: time.Now().UTC(),
@@ -81,7 +81,7 @@ func TestReapPersistedProcessesSkipsLegacyEntriesWithoutStartTime(t *testing.T) 
 
 	dataDir := t.TempDir()
 	registry, err := json.Marshal([]persistedProcess{{
-		SessionID: "ao-1",
+		SessionID: "kennel-1",
 		PID:       cmd.Process.Pid,
 		Port:      4173,
 		StartedAt: time.Now().UTC(),
@@ -111,7 +111,7 @@ func TestReapPersistedProcessesKillsVerifiedProcess(t *testing.T) {
 
 	dataDir := t.TempDir()
 	registry, err := json.Marshal([]persistedProcess{{
-		SessionID: "ao-1",
+		SessionID: "kennel-1",
 		PID:       cmd.Process.Pid,
 		Port:      4173,
 		StartedAt: time.Now().UTC(),
@@ -157,7 +157,7 @@ func TestSignalPreviewGroupKillsVerifiedGroup(t *testing.T) {
 		"verified preview group was not killed")
 }
 
-// Once the root is reaped, the PID no longer provably belongs to AO's
+// Once the root is reaped, the PID no longer provably belongs to Kennel's
 // preview, so no group kill may happen even though descendants survive: a
 // leaked preview process is safer than a group kill landing on a recycled
 // PID. The orphan must still be alive after the escalation call.

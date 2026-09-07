@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/modelcatalog"
-	agentregistry "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/registry"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/modelcatalog"
+	agentregistry "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/registry"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type fakeAgent struct {
@@ -267,9 +267,12 @@ func TestListReturnsInitialSupportedInventoryWithoutProbing(t *testing.T) {
 }
 
 func TestInventoryExposesOnlyHarnessesSelectableForNewWork(t *testing.T) {
+	// "aider" is a persisted identity this build no longer ships. Keeping it in
+	// the fixture is what stops this test passing vacuously: without a
+	// non-selectable member, "exposes ONLY selectable harnesses" asserts nothing.
 	svc := NewWithAgents([]agentregistry.HarnessAgent{
 		harnessAuthAgent("codex", "Codex", ports.AgentAuthStatusAuthorized, nil),
-		harnessAuthAgent("claude-code", "Claude Code", ports.AgentAuthStatusAuthorized, nil),
+		harnessAuthAgent("aider", "Aider", ports.AgentAuthStatusAuthorized, nil),
 	})
 
 	initial, err := svc.List(context.Background())
@@ -295,13 +298,21 @@ func TestInventoryExposesOnlyHarnessesSelectableForNewWork(t *testing.T) {
 	}
 }
 
-func TestDefaultCatalogExposesCodexForNewWork(t *testing.T) {
+func TestDefaultCatalogExposesAdmittedHarnessesForNewWork(t *testing.T) {
 	got, err := New().List(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Supported) != 1 || got.Supported[0].ID != "codex" || got.Supported[0].Label != "Codex" {
-		t.Fatalf("default supported = %#v, want only Codex", got.Supported)
+	// Sorted by id: the five shipped providers, each admitted through the same
+	// fail-closed checks.
+	wantIDs := []string{"claude-code", "codex", "cursor", "opencode", "pi"}
+	if len(got.Supported) != len(wantIDs) {
+		t.Fatalf("default supported = %#v, want %v", got.Supported, wantIDs)
+	}
+	for i, wantID := range wantIDs {
+		if got.Supported[i].ID != wantID {
+			t.Fatalf("default supported[%d] = %#v, want id %q", i, got.Supported[i], wantID)
+		}
 	}
 }
 
@@ -336,8 +347,13 @@ func TestRefreshReportsAuthorizedInstalledAgents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Refresh: %v", err)
 	}
-	if len(got.Supported) != 1 || len(got.Installed) != 1 {
-		t.Fatalf("inventory = %#v, want only codex", got)
+	// codex, claude-code and opencode are all admitted and installed here;
+	// broken-auth fails its probe and is excluded. Authorization is the narrower
+	// set: only codex reports authorized, opencode's stub carries no auth checker
+	// so it stays installed-but-unauthorized rather than being promoted on
+	// installation, and claude-code reports unauthorized outright.
+	if len(got.Supported) != 3 || len(got.Installed) != 3 {
+		t.Fatalf("inventory = %#v, want codex, claude-code and opencode", got)
 	}
 	if len(got.Authorized) != 1 || got.Authorized[0].ID != "codex" {
 		t.Fatalf("authorized = %#v, want only codex", got.Authorized)
@@ -349,6 +365,9 @@ func TestRefreshReportsAuthorizedInstalledAgents(t *testing.T) {
 	}
 	if byID["codex"].AuthStatus != ports.AgentAuthStatusAuthorized {
 		t.Fatalf("codex authStatus = %q", byID["codex"].AuthStatus)
+	}
+	if byID["opencode"].AuthStatus != ports.AgentAuthStatusUnknown {
+		t.Fatalf("opencode authStatus = %q, want unknown without an auth checker", byID["opencode"].AuthStatus)
 	}
 }
 

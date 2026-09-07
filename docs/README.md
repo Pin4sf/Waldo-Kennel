@@ -1,44 +1,67 @@
-# Kennel documentation
+# Waldo Kennel documentation
 
-Kennel currently consists of an AO-derived Go daemon and Electron supervisor plus a prototype Outcome UI. The documents below separate that shipped foundation from the accepted, still-unimplemented Waldo Kennel desktop launch architecture. Home, Open Loops, Communication Loops, Daily Snapshot, Mission, personal continuity, Waldo authority/verification semantics, and named reference adaptations are not shipped.
+This directory contains both current architecture authority and historical/future research. They are **not** equal sources of truth.
 
-## Foundation first
+## Kernel authority order
 
-| Document | Purpose |
-| --- | --- |
-| [Foundation acceptance — 2026-08-18](foundation-acceptance-2026-08-18.md) | F0-F6 scope, evidence, exclusions, dev-dependency debt, and the next architecture boundary. |
-| [Identity and state](identity-and-state.md) | Kennel-owned bundle, executable, protocol, updater, state, environment, port, branch, and renderer identities. |
-| [Upstream provenance](upstream-provenance.md) | Pinned AO source, license, non-destructive sync seam, and the separately approved ancestry-repair plan. |
-| [Status](STATUS.md) | Current chassis capabilities, donor surfaces, and work that is not shipped. |
-| [Development](development.md) | Reproducible bootstrap and verification commands. |
+For Work/kernel implementation, use this order:
 
-## Accepted product architecture
+1. [`../AGENTS.md`](../AGENTS.md) — repository rules and non-negotiable boundaries.
+2. [`product/kennel-v1-product-architecture.md`](product/kennel-v1-product-architecture.md) — canonical v1 kernel/product ontology.
+3. [`adr/0008-responsibility-composition-and-workunit-execution-dag.md`](adr/0008-responsibility-composition-and-workunit-execution-dag.md) — Outcome composition vs WorkUnit DAG.
+4. [`adr/0009-workunit-scheduling-workspace-leases-and-effect-fencing.md`](adr/0009-workunit-scheduling-workspace-leases-and-effect-fencing.md) — scheduling, workspaces, concurrency, effects, and recovery.
+5. [`STATUS.md`](STATUS.md) — what exists on `beta` today.
+6. [`product/kennel-build-program.md`](product/kennel-build-program.md) — ordered implementation slices and gates.
+7. [`superpowers/plans/2026-09-04-kennel-builds-kennel.md`](superpowers/plans/2026-09-04-kennel-builds-kennel.md) — next-session implementation plan.
+8. [`product/kennel-dogfood-acceptance-matrix.md`](product/kennel-dogfood-acceptance-matrix.md) — falsifiable self-hosting acceptance tests.
 
-| Document | Purpose |
-| --- | --- |
-| [Waldo Kennel v0 dogfood and provider-neutral v1 architecture](product/kennel-v1-product-architecture.md) | Canonical three-destination, five-stage local Home + Work thesis, responsibility ontology, governance, provider-neutral adapter/conformance seam, v0 Codex-only testing constraint, RunBrief compilation, dogfood gate, and implementation entry. It is a design baseline, not a shipped-feature claim. |
-| [v0 dogfood and provider-neutral v1 team review packet](product/kennel-v1-team-review-packet.md) | Shareable founder/product/design/engineering/privacy review of the converged lifecycle, ontology, lineage, governance, adaptive surfaces, failures, scope, and PR entry boundary. |
-| [Clickable five-stage review prototype](product/kennel-v1-review-prototype.html) | Presenter-ready low-fidelity walkthrough with the five-stage spine, complete F01-F27 plus F02A screen atlas, per-screen problem/purpose/states, Work-first entry, AO-style Work/Kanban, Home -> Work lineage, inspector, and control overlays. It is not product code or a shipped UI. |
-| [Five-stage Excalidraw session seed](product/kennel-v1-excalidraw-session-seed.md) | Five adaptive lifecycle frames organizing the complete detailed screen subframes, destination/context rail, canonical lineage strips, failure injections, Focus Ledger overlay, privacy defaults, and facilitation agenda. |
-| [First complete Outcome slice](product/kennel-v0-first-outcome-slice.md) | Locked Local Focus Ledger contract and evaluation protocol across Enter, Understand, Decide & Authorize, Act & Observe, and Prove & Close. |
-| [ADR 0003: Local-first Waldo Core](adr/0003-local-first-waldo-core.md) | Accepted v1 deployment and custody decision: Waldo Core inside the Kennel daemon, local canonical storage, user-authenticated providers, and later explicit hosted attachment. |
-| [PR convergence and architecture gate plan](superpowers/plans/2026-08-20-pr-convergence-and-architecture-gate.md) | Completed prerequisite record for F0-F6 and the bounded PR #11 donor extraction, plus the still-current first-feature gate. |
-| [First Outcome execution handoff](superpowers/plans/2026-08-20-first-outcome-execution-handoff.md) | Exact new-session PR/issue sequence, file ownership, tests, dependencies, acceptance, falsifiers, and handoff constraints for the five-stage Focus Ledger milestone. |
+Companion Work specifications:
 
-## Chassis references
+- [`superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md`](superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md)
+- [`superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md`](superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md)
 
-These documents describe the inherited and currently working orchestration implementation. AO vocabulary can remain where it identifies a source compatibility seam; it is not Kennel's installed identity.
+Technical references:
 
-| Document | Purpose |
-| --- | --- |
-| [Architecture](architecture.md) | Backend model, persistence/CDC, lifecycle, API, terminal, browser, and load-bearing boundaries. |
-| [Backend code structure](backend-code-structure.md) | Go package ownership and dependency rules. |
-| [CLI](cli/README.md) | The `kennel` thin client over daemon HTTP. |
-| [Stack](stack.md) | Accepted and pending runtime/library choices inherited by the chassis. |
-| [Telemetry](telemetry.md) | Current optional telemetry behavior and privacy safeguards. |
-| [Cloud development](cloud-development.md) | Retained optional cloud donor/compatibility work; not a deployed Kennel cloud claim. |
-| [Cloud refactor](cloud-refactor.md) | Existing shared contracts and donor boundaries. |
+- [`architecture.md`](architecture.md) — current Go daemon/package/lifecycle chassis.
+- [`research/2026-09-04-kernel-runtime-reference-index.md`](research/2026-09-04-kernel-runtime-reference-index.md) — provider protocols, runtime references, and implementation patterns.
+- [`cli/README.md`](cli/README.md) — thin CLI contract.
+- [`plans/island-app-unification.md`](plans/island-app-unification.md) — Island/Electron process integration when working on Island lifecycle.
 
-## Architectural rule
+## ADR precedence
 
-Persist durable facts and derive display status. Session activity, termination, PR/check/review facts, and change-log events are durable; a display label is not. Product architecture added after the foundation must preserve truthful, inspectable evidence and explicit human authority.
+ADRs are historical decisions and may be superseded by later ADRs. Do not infer authority from the highest amount of detail in an older ADR.
+
+For the current Work ontology:
+
+- ADR 0007 remains useful for composed-Outcome governance, but its claim that Outcome composition and a WorkUnit graph are competing mechanisms is superseded by ADR 0008.
+- ADR 0008 defines responsibility decomposition vs execution decomposition.
+- ADR 0009 defines WorkUnit scheduling and workspace/effect custody.
+- Earlier local-first, LAN-listener, Home, learning, and durable-Waldo ADRs remain authoritative only inside their stated scope unless a newer ADR says otherwise.
+
+## Future product lanes
+
+Home, personal capture, durable Memory, communication, learning/skill evolution, mobile/health, hosted attachment, and cross-device work are future or parallel lanes. Their research/specifications remain in the repository for scoped tasks, but **kernel coding agents must not load them by default** or use them to override the Work authority chain.
+
+Notable future-lane documents include:
+
+- `superpowers/specs/2026-08-21-home-personal-agent-memory-design.md`
+- `superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md`
+- `adr/0005-governed-project-learning-and-skill-evolution.md`
+- `adr/0006-one-durable-waldo-multiple-governed-presences.md`
+
+## Historical documents
+
+Dated plans/specs not linked from the kernel authority order are historical implementation records unless their header explicitly says otherwise. Git history preserves removed handoffs, review packets, prototypes, and superseded delivery plans.
+
+Rules for agents:
+
+- do not recursively ingest all of `docs/` into context;
+- do not resurrect a rule solely because an older handoff says it was once approved;
+- prefer a current ADR over an older plan;
+- prefer `STATUS.md` for implemented reality;
+- prefer the canonical architecture for accepted target semantics;
+- when current code and accepted target differ, implement only through the ordered build program and preserve compatibility/recovery explicitly.
+
+## One-sentence mental model
+
+> Provider Sessions are execution machinery; Outcomes are what the user owns; Kennel keeps that machinery coherently moving toward the user's definition of done.

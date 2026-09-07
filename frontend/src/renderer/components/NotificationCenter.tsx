@@ -295,7 +295,7 @@ export function NotificationCenter({ style }: NotificationCenterProps) {
 						<Bell className="size-icon-base" aria-hidden="true" />
 					)}
 					{unreadCount > 0 ? (
-						<span className="pointer-events-none absolute right-px top-px grid h-3 min-w-3 place-items-center rounded-full bg-accent-strong px-0.5 font-mono text-[7px] font-semibold leading-none text-accent-foreground shadow-sm ring-1 ring-background">
+						<span className="pointer-events-none absolute right-px top-px grid h-3 min-w-3 place-items-center rounded-full bg-accent-strong px-0.5 text-[7px] font-semibold leading-none text-accent-foreground shadow-sm ring-1 ring-background">
 							{unreadCount > 99 ? "99+" : unreadCount}
 						</span>
 					) : null}
@@ -549,7 +549,7 @@ function NotificationItem({
 				</div>
 				{/* Time + restore share the same icon-height band so they stay level. */}
 				<div className="flex h-notification-icon shrink-0 items-center gap-1">
-					<time className="shrink-0 font-mono text-[9px] leading-none text-passive" dateTime={notification.createdAt}>
+					<time className="shrink-0 text-[9px] leading-none text-passive" dateTime={notification.createdAt}>
 						{formatTimeCompact(notification.createdAt)}
 					</time>
 					{offerRestore && sessionId ? (

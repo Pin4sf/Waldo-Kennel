@@ -83,13 +83,19 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
 const ORIGIN_REPORT_COLLAPSE_AT = 600;
 const ORIGIN_REPORT_PREVIEW_LENGTH = 240;
 
-// These are AO-owned prompt suffixes, not general markdown. Chat and spawn used
+// These are Kennel-owned prompt suffixes, not general markdown. Chat and spawn used
 // slightly different wording, and older conversations used "Attached images";
 // accepting every shipped form lets the transcript improve without rewriting
 // its durable history.
 const ATTACHMENT_REFERENCE_BLOCK =
 	/(?:^|\n\n)(?:Attached files \(read these files in the workspace(?: for context)?\)|Attached images \(read these files in the workspace for visual context\)):\n((?:- [^\n]+(?:\n|$))+)$/;
-const STAGED_ATTACHMENT_PATH = /^\.ao\/attachments\/(?:attachment|image)-[A-Za-z0-9][A-Za-z0-9._-]*$/;
+// The daemon stages attachments under `.kennel/attachments` (attachmentstore.
+// WorkspaceDir). It used to stage them under `.ao/attachments`, and the rename
+// updated the writer but not this reader, so every staged image rendered as raw
+// prompt text instead of an image. Accept both: conversations recorded before
+// the rename still carry `.ao/` paths in their durable history, and rewriting
+// that history to fix rendering would be the worse trade.
+const STAGED_ATTACHMENT_PATH = /^\.(?:kennel|ao)\/attachments\/(?:attachment|image)-[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const IMAGE_ATTACHMENT_PATH = /\.(?:png|jpe?g|gif|webp|bmp)$/i;
 
 function humanMessageParts(text: string): { body: string; attachments: string[] } {
@@ -100,13 +106,13 @@ function humanMessageParts(text: string): { body: string; attachments: string[] 
 		.trimEnd()
 		.split("\n")
 		.map((line) => line.slice(2));
-	// Only reinterpret paths AO itself stages. A user can write an identically
+	// Only reinterpret paths Kennel itself stages. A user can write an identically
 	// worded example about docs/screenshot.png; that prose must remain untouched.
 	if (attachments.length === 0 || attachments.some((path) => !STAGED_ATTACHMENT_PATH.test(path))) {
 		return { body: text, attachments: [] };
 	}
 	// The match begins at the generated separator, so slicing at its index
-	// removes only AO-owned text and preserves the authored body byte-for-byte.
+	// removes only Kennel-owned text and preserves the authored body byte-for-byte.
 	return { body: text.slice(0, match.index), attachments };
 }
 
@@ -365,7 +371,7 @@ export function AssistantMessage({
 
 /**
  * Delivery state, stated rather than implied. `uncertain` is its own outcome:
- * the provider may have accepted the turn while AO lost the connection, and
+ * the provider may have accepted the turn while Kennel lost the connection, and
  * pretending otherwise in either direction would be a lie.
  */
 function DeliveryNote({ state }: { state: DeliveryState }) {
@@ -552,7 +558,7 @@ function TerminalInput({ text, truncated }: { text: string; truncated?: boolean 
 			</pre>
 			{truncated ? (
 				<p className="text-[10px] text-muted-foreground/70">
-					AO stopped recording keystrokes at its cap; more were sent.
+					Kennel stopped recording keystrokes at its cap; more were sent.
 				</p>
 			) : null}
 		</div>
@@ -582,7 +588,7 @@ function CommandOutput({ activity }: { activity: ConversationActivity }) {
 	const pre = useRef<HTMLPreElement>(null);
 	const detail = activity.detail;
 	// Older ACP-backed conversations may contain the provider's structured
-	// rawOutput even though AO's view model promises a string. New events are
+	// rawOutput even though Kennel's view model promises a string. New events are
 	// normalized at the adapter boundary; this compatibility read keeps those
 	// already-durable rows from taking down the entire session surface.
 	const raw = commandOutputText(detail?.output as unknown);
@@ -611,7 +617,7 @@ function CommandOutput({ activity }: { activity: ConversationActivity }) {
 			</pre>
 			{detail?.outputTruncated ? (
 				<p className="text-[10px] leading-relaxed text-warning">
-					This command printed more than AO stores, so the output above stops early. Open a shell in
+					This command printed more than Kennel stores, so the output above stops early. Open a shell in
 					the worktree to see the rest.
 				</p>
 			) : detail?.outputMayBePartial ? (
@@ -834,7 +840,7 @@ function Patch({ patch, truncated }: { patch: string; truncated?: boolean }) {
 			</pre>
 			{truncated ? (
 				<p className="border-t border-border px-2.5 py-1.5 text-[10px] leading-relaxed text-warning">
-					This patch is longer than AO stores, so it stops early. The whole change is in the
+					This patch is longer than Kennel stores, so it stops early. The whole change is in the
 					worktree and in the turn&rsquo;s diff.
 				</p>
 			) : null}
@@ -883,7 +889,7 @@ function ReasoningBlock({ activity }: { activity: ConversationActivity }) {
 				<ChatMarkdown text={text} streaming={streaming} muted />
 				{activity.detail?.textTruncated ? (
 					<p className="mt-1 text-[10px] text-muted-foreground/70">
-						This summary is longer than AO stores, so it stops early.
+						This summary is longer than Kennel stores, so it stops early.
 					</p>
 				) : null}
 			</div>
@@ -1045,7 +1051,7 @@ function truncationNote(value: unknown): string | undefined {
 	const record = value as { truncated?: unknown; bytes?: unknown; note?: unknown };
 	if (record.truncated !== true) return undefined;
 	const bytes = typeof record.bytes === "number" ? ` (${formatBytes(record.bytes)})` : "";
-	return `This payload${bytes} was larger than AO stores, so it was not kept.`;
+	return `This payload${bytes} was larger than Kennel stores, so it was not kept.`;
 }
 
 function formatBytes(bytes: number): string {
@@ -1337,7 +1343,7 @@ function readJsonStringField(raw: string, field: "message" | "additionalDetails"
 	}
 }
 
-/** AO used to persist `provider error: {…}`; parse the JSON object even when prefixed. */
+/** Kennel used to persist `provider error: {…}`; parse the JSON object even when prefixed. */
 function parseJsonObjectSuffix(raw: string): Record<string, unknown> | undefined {
 	const start = raw.indexOf("{");
 	if (start < 0) return undefined;
@@ -1496,7 +1502,7 @@ export function ApprovalCard({
 						))}
 						{decisions.length === 0 ? (
 							<p className="text-[11px] text-warning">
-								The agent offered no decisions AO can present. Open diagnostics.
+								The agent offered no decisions Kennel can present. Open diagnostics.
 							</p>
 						) : null}
 					</div>
@@ -1659,7 +1665,7 @@ export function TurnChangedFiles({ diff, live }: { diff: TurnDiff; live?: boolea
 					})}
 					{diff.truncated ? (
 						<li className="px-3.5 py-2 text-[10px] leading-relaxed text-warning">
-							This turn changed more files than AO lists here. Use the Diff tab for the whole change.
+							This turn changed more files than Kennel lists here. Use the Diff tab for the whole change.
 						</li>
 					) : null}
 				</ul>

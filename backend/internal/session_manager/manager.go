@@ -19,12 +19,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/attachmentstore"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
-	"github.com/aoagents/agent-orchestrator/backend/internal/sessionguard"
-	"github.com/aoagents/agent-orchestrator/backend/internal/skillassets"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/attachmentstore"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/sessionguard"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/skillassets"
 )
 
 // Sentinel errors returned by the Session Manager; callers match them with
@@ -49,6 +49,14 @@ var (
 	// ErrScratchBranchUnsupported means a caller tried to force git branch
 	// semantics onto a scratch project.
 	ErrScratchBranchUnsupported = errors.New("session: scratch projects do not support branches")
+	// ErrAgentProfileNotReady wraps an adapter's readiness detail: the harness
+	// is admitted, but its user-selected configuration (e.g. a dsh profile)
+	// cannot launch right now. Surfaces as a corrective 422, never a 500.
+	ErrAgentProfileNotReady = errors.New("agent profile is not ready")
+	// ErrNotCoordinatorAdmitted means the harness is worker-admitted only.
+	ErrNotCoordinatorAdmitted = errors.New("harness is not admitted as an orchestrator coordinator")
+	// ErrNotSwitchAdmitted means the target harness lacks continuation support.
+	ErrNotSwitchAdmitted = errors.New("harness is not admitted as a switch target")
 	// ErrNotResumable means a terminated session cannot be relaunched: its adapter
 	// cannot natively resume it AND it has no prompt to fresh-launch from, and it is
 	// not an orchestrator (orchestrators are promptless by design and relaunch fresh
@@ -66,7 +74,7 @@ var (
 	// admission, so no new switch can be accepted safely.
 	ErrSwitchShuttingDown = errors.New("session: agent switching unavailable during shutdown")
 	// ErrUnsupportedSwitchHarness keeps the first release deliberately bounded
-	// to providers whose standing-instruction and native-resume behavior AO has
+	// to providers whose standing-instruction and native-resume behavior Kennel has
 	// verified end to end.
 	ErrUnsupportedSwitchHarness = errors.New("session: harness does not support agent switching")
 	// ErrUnsupportedSwitchKind keeps the first implementation scoped to worker
@@ -77,18 +85,18 @@ var (
 	// local auth probe conclusively reports missing or invalid credentials.
 	// Unknown/probe failures remain advisory and are allowed to reach launch.
 	ErrTargetAgentUnauthorized = errors.New("session: target agent is not authenticated")
-	// ErrSwitchDeliveryUnconfirmed means AO wrote the continuation turn but did
+	// ErrSwitchDeliveryUnconfirmed means Kennel wrote the continuation turn but did
 	// not receive the target generation's prompt-submit hook before the bounded
-	// acknowledgement window expired. AO never resends this ambiguous turn.
+	// acknowledgement window expired. Kennel never resends this ambiguous turn.
 	ErrSwitchDeliveryUnconfirmed = errors.New("session: target continuation delivery was not acknowledged")
 	// ErrSwitchSourceStopUnconfirmed means runtime teardown returned an error and
-	// AO could not prove whether the source still owns the session. No target is
+	// Kennel could not prove whether the source still owns the session. No target is
 	// launched in this case.
 	ErrSwitchSourceStopUnconfirmed = errors.New("session: source agent stop could not be confirmed")
 	// ErrAlreadyUsingHarness rejects a no-op replacement that would otherwise
 	// create a misleading switch record and restart the same process.
 	ErrAlreadyUsingHarness = errors.New("session: already using requested harness")
-	// ErrSwitchNotFound is returned for a switch id outside the requested AO
+	// ErrSwitchNotFound is returned for a switch id outside the requested Kennel
 	// session (the same response is used for absent and cross-session ids).
 	ErrSwitchNotFound = errors.New("session: agent switch not found")
 	// ErrSwitchRecoveryNotRequired rejects recovery requests for switches that
@@ -98,7 +106,7 @@ var (
 	// generation or after the collection window has closed.
 	ErrStaleHandoff = errors.New("session: stale agent handoff")
 	// ErrInvalidAgentHandoff reports a generation-valid semantic report that did
-	// not satisfy AO's bounded provider-neutral schema. Collection is settled as
+	// not satisfy Kennel's bounded provider-neutral schema. Collection is settled as
 	// rejected before this error is returned.
 	ErrInvalidAgentHandoff = errors.New("session: invalid agent handoff")
 	// ErrInterfaceHandoffUnsupported means the harness has not proven that its
@@ -132,7 +140,7 @@ var (
 
 // Env vars a spawned process reads to learn who it is. A worker that starts
 // its own Docker containers (a database, a queue, any ad-hoc service) should
-// label them `--label kennel.session=$KENNEL_SESSION_ID` so AO's container reaper
+// label them `--label kennel.session=$KENNEL_SESSION_ID` so Kennel's container reaper
 // (dockerreap) removes them on session kill/terminal state — see #2652. Add
 // `--label kennel.spare=true` to a deliberately shared container that must
 // survive past this session.
@@ -142,11 +150,11 @@ const (
 	EnvIssueID   = "KENNEL_ISSUE_ID"
 	// EnvRuntimeLaunchID identifies the current supervised agent generation.
 	EnvRuntimeLaunchID = "KENNEL_RUNTIME_LAUNCH_ID"
-	// EnvSupervisedProcess tells terminal runtimes that the AO supervisor owns
+	// EnvSupervisedProcess tells terminal runtimes that the Kennel supervisor owns
 	// this launch. When it exits, tmux must park on a non-interpreting input sink
 	// instead of exposing its historical interactive-shell fallback.
 	EnvSupervisedProcess = "KENNEL_SUPERVISED_PROCESS"
-	// EnvDataDir tells a spawned agent's AO hook commands where the store lives.
+	// EnvDataDir tells a spawned agent's Kennel hook commands where the store lives.
 	EnvDataDir = "KENNEL_DATA_DIR"
 	// EnvBrowserCapability proves ownership of the session's browser target.
 	EnvBrowserCapability = "KENNEL_BROWSER_CAPABILITY"
@@ -229,15 +237,15 @@ type runtimeController interface {
 }
 
 // RestoreMode reports whether a restore continued an agent-native transcript or
-// relaunched from AO's saved task prompt.
+// relaunched from Kennel's saved task prompt.
 type RestoreMode string
 
 const (
-	// RestoreModeNative means AO relaunched through the agent's native transcript resume command.
+	// RestoreModeNative means Kennel relaunched through the agent's native transcript resume command.
 	RestoreModeNative RestoreMode = "native"
-	// RestoreModeSavedPrompt means AO relaunched a new conversation from the saved task prompt.
+	// RestoreModeSavedPrompt means Kennel relaunched a new conversation from the saved task prompt.
 	RestoreModeSavedPrompt RestoreMode = "saved_prompt"
-	// RestoreModeFresh means AO relaunched without a saved task prompt.
+	// RestoreModeFresh means Kennel relaunched without a saved task prompt.
 	RestoreModeFresh RestoreMode = "fresh"
 )
 
@@ -507,7 +515,7 @@ type BrowserCapabilityIssuer interface {
 }
 
 // sendConfirmConfig bounds the best-effort activity-confirmation loop run after
-// Send. AO has no delivery ack: kennel send returns 200 the moment tmux send-keys
+// Send. Kennel has no delivery ack: kennel send returns 200 the moment tmux send-keys
 // exits 0, and for a large multiline paste the single Enter may not submit the
 // prompt — so UserPromptSubmit never fires and the orchestrator cannot tell the
 // worker started. confirmActive observes the durable Activity.State (written by
@@ -683,16 +691,42 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	if !cfg.Harness.IsSelectableForNewWork() {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: harness %q is not selectable for new work", cfg.Harness)
 	}
+	// Coordinator admission is capability-gated separately from worker
+	// admission: DeepSeek Harness may execute Work Units before it has
+	// demonstrated the stable session identity, structured chat, and recovery
+	// support that coordinating a project requires.
+	if cfg.Kind == domain.KindOrchestrator && !cfg.Harness.IsSelectableAsCoordinator() {
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: %q", ErrNotCoordinatorAdmitted, cfg.Harness)
+	}
 
 	// Reject an unknown harness before any durable state is created. Doing this
 	// after CreateSession would leave a terminated orphan row and waste a
 	// worktree on a spawn that can never launch.
-	if _, ok := m.agents.Agent(cfg.Harness); !ok {
+	agent, ok := m.agents.Agent(cfg.Harness)
+	if !ok {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: %q", ErrUnknownHarness, cfg.Harness)
 	}
 
+	// Profile readiness is enforced here, before any session row, worktree, or
+	// runtime exists — the same fail-early reasoning as the harness checks
+	// above. The probe uses exactly the config the launch would use (project
+	// role defaults plus explicit request overrides), so "ready" here means
+	// "launchable", not merely installed. Spawn remains the authoritative
+	// validation point; this preflight only moves the truthful failure earlier.
+	if checker, ok := agent.(ports.AgentProfileReadinessChecker); ok {
+		probeConfig := freshAgentConfig(cfg.Kind, cfg.Harness, project.Config)
+		probeConfig = applySpawnAgentConfig(probeConfig, cfg.AgentConfig)
+		readiness, err := checker.ProfileReadiness(ctx, probeConfig)
+		if err != nil {
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %s readiness: %w", cfg.Harness, err)
+		}
+		if !readiness.Ready {
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: %s", ErrAgentProfileNotReady, readiness.Detail)
+		}
+	}
+
 	// Resolve the controller mode here, before anything durable is created, for
-	// the same reason an unknown harness is rejected above: a chat request AO
+	// the same reason an unknown harness is rejected above: a chat request Kennel
 	// cannot honor should cost nothing, not leave a terminated row and a worktree
 	// behind. It never falls back to TUI — that would put the user in a terminal
 	// they deliberately did not ask for.
@@ -792,8 +826,9 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return rec, promptBytes, systemPromptBytes, nil
 	}
 
-	agent, ok := m.agents.Agent(cfg.Harness)
-	if !ok {
+	// Defensive re-lookup: the adapter resolved before any durable state was
+	// created above; this guards against registry churn during provisioning.
+	if _, ok := m.agents.Agent(cfg.Harness); !ok {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: no agent adapter for harness %q", id, cfg.Harness)
 	}
@@ -1031,7 +1066,7 @@ func spawnDiffBaseRefCandidates(defaultBranch string) []string {
 }
 
 func spawnGitSingleLine(ctx context.Context, root string, args ...string) (string, bool) {
-	cmd := aoprocess.CommandContext(ctx, "git", append([]string{"-C", root}, args...)...)
+	cmd := kennelprocess.CommandContext(ctx, "git", append([]string{"-C", root}, args...)...)
 	out, err := cmd.Output()
 	if err != nil {
 		return "", false
@@ -1127,21 +1162,26 @@ func effectiveAgentConfig(kind domain.SessionKind, cfg domain.ProjectConfig) por
 	if override.Mode != "" {
 		merged.Mode = override.Mode
 	}
+	if override.Profile != "" {
+		merged.Profile = override.Profile
+	}
 	if override.Permissions != "" {
 		merged.Permissions = override.Permissions
 	}
 	return merged
 }
 
-// freshAgentConfig resolves project defaults for a new launch. Model and mode
-// belong to the provider that stored the role configuration, so they must not
-// cross a harness boundary; permissions remain provider-neutral. Explicit
+// freshAgentConfig resolves project defaults for a new launch. Model, mode,
+// and profile belong to the provider that stored the role configuration, so
+// they must not cross a harness boundary; permissions remain
+// provider-neutral. Explicit
 // request overrides are applied by the caller after this compatibility guard.
 func freshAgentConfig(kind domain.SessionKind, harness domain.AgentHarness, cfg domain.ProjectConfig) ports.AgentConfig {
 	config := effectiveAgentConfig(kind, cfg)
 	if roleOverride(kind, cfg).Harness != harness {
 		config.Model = ""
 		config.Mode = ""
+		config.Profile = ""
 	}
 	return config
 }
@@ -1152,6 +1192,9 @@ func applySpawnAgentConfig(base, override ports.AgentConfig) ports.AgentConfig {
 	}
 	if override.Mode != "" {
 		base.Mode = override.Mode
+	}
+	if override.Profile != "" {
+		base.Profile = override.Profile
 	}
 	if override.Permissions != "" {
 		base.Permissions = override.Permissions
@@ -1540,7 +1583,7 @@ func (m *Manager) retireWorkspaceProjectForReplacement(ctx context.Context, rec 
 	return nil
 }
 
-// RestoreWithMode relaunches a torn-down session and reports whether AO used
+// RestoreWithMode relaunches a torn-down session and reports whether Kennel used
 // native resume, a saved-prompt fallback, or a fresh launch. The fallible I/O
 // runs before any durable session write, so a failure never resurrects the row
 // or destroys the worktree (it may hold the agent's prior work).
@@ -1695,6 +1738,18 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	agent, ok := m.agents.Agent(rec.Harness)
 	if !ok {
 		return RestoreResult{}, fmt.Errorf("%s %s: no agent adapter for harness %q", operation, rec.ID, rec.Harness)
+	}
+	// Resume/relaunch enforces the same profile-readiness contract as spawn:
+	// an admitted harness whose selected configuration can no longer launch
+	// fails closed here, before any runtime or terminal state is touched.
+	if checker, ok := agent.(ports.AgentProfileReadinessChecker); ok {
+		readiness, err := checker.ProfileReadiness(ctx, freshAgentConfig(rec.Kind, rec.Harness, project.Config))
+		if err != nil {
+			return RestoreResult{}, fmt.Errorf("%s %s: %s readiness: %w", operation, rec.ID, rec.Harness, err)
+		}
+		if !readiness.Ready {
+			return RestoreResult{}, fmt.Errorf("%s %s: %w: %s", operation, rec.ID, ErrAgentProfileNotReady, readiness.Detail)
+		}
 	}
 	// Recompute standing instructions, then reapply the durable finalized inbound
 	// handoff for this exact native conversation when one exists.
@@ -2560,7 +2615,7 @@ func (m *Manager) applyWorkspaceProjectPreserved(ctx context.Context, rows []por
 // it. The guard refuses delivery into a session that is gone, terminated, has
 // an exited agent, or is paused on a permission decision;
 // those refusals surface as typed sentinels so the API reports why instead of
-// silently dropping the message. AO has no delivery ack: the messenger returns
+// silently dropping the message. Kennel has no delivery ack: the messenger returns
 // nil the moment the runtime paste + Enter commands exit 0, and for a large
 // multiline prompt a single Enter may not submit (claude-code leaves it as an
 // unsubmitted draft). confirmActive observes the durable Activity.State
@@ -2604,10 +2659,6 @@ func (m *Manager) send(ctx context.Context, id domain.SessionID, message, client
 		return err
 	}
 
-	message, err := m.prepareOutboundMessage(ctx, id, message)
-	if err != nil {
-		return err
-	}
 	var afterWrite func(context.Context) error
 	if strings.TrimSpace(message) != "" {
 		if recorder, ok := m.store.(latestUserPromptRecorder); ok {
@@ -2657,39 +2708,6 @@ func (m *Manager) send(ctx context.Context, id domain.SessionID, message, client
 		m.confirmActive(ctx, m.messenger, id)
 	}
 	return nil
-}
-
-func (m *Manager) prepareOutboundMessage(ctx context.Context, id domain.SessionID, message string) (string, error) {
-	rec, ok, err := m.store.GetSession(ctx, id)
-	if err != nil {
-		return "", fmt.Errorf("send %s: session: %w", id, err)
-	}
-	if !ok {
-		return message, nil
-	}
-	if rec.Harness != domain.HarnessCopilot || rec.Kind != domain.KindOrchestrator {
-		return message, nil
-	}
-	return copilotOrchestratorMessage(rec.ProjectID, message), nil
-}
-
-func copilotOrchestratorMessage(projectID domain.ProjectID, message string) string {
-	project := strings.TrimSpace(string(projectID))
-	if project == "" {
-		project = "<project>"
-	}
-	return fmt.Sprintf(`KENNEL ORCHESTRATOR DIRECTIVE
-
-You are acting as the Kennel orchestrator for project %s. Do not implement code changes, edit files, run implementation tests, or complete the user's task yourself.
-
-Your next action for any implementation, fix, UI change, test, PR, or code-review task must be to spawn or redirect a worker session. Use:
-
-kennel spawn --project %s --name "<label, max 20 chars>" --prompt "<clear worker task>"
-
-If a suitable worker already exists, use kennel send to redirect that worker instead. After spawning or redirecting, report the worker session id and stop. Do not do the worker's task in this orchestrator session.
-
-USER MESSAGE:
-%s`, project, project, message)
 }
 
 // harnessNudgeSafe reports whether the session's harness is safe to nudge with
@@ -3232,7 +3250,7 @@ func (m *Manager) buildSystemPrompt(ctx context.Context, kind domain.SessionKind
 // aoSkillPointer is appended to every agent system prompt. It points the agent
 // at the using-kennel skill the daemon installs under the data dir, rather than
 // inlining the whole CLI catalog. The path is absolute so it resolves from any
-// project's worktree, not just the AO repo (the only place a repo-relative
+// project's worktree, not just the Kennel repo (the only place a repo-relative
 // skills/ path would exist). The skill file carries exact flags and examples,
 // so the standing prompt stays a short pointer rather than a command dump.
 func (m *Manager) aoSkillPointer() string {
@@ -3243,10 +3261,10 @@ func (m *Manager) aoSkillPointer() string {
 	previewFile := filepath.ToSlash(filepath.Join(dir, "commands", "preview.md"))
 	return "\n\n" + "## Using the ao CLI\n\n" +
 		"When using `ao`, read `" + skillFile + "` and only the relevant file under `" + commandsGlob + "`; do not load unrelated command guides.\n\n" +
-		"## AO desktop Browser panel\n\n" +
-		"For frontend work, read `" + previewFile + "` before previewing or starting an app: open static HTML or Markdown directly; Never create or modify `package.json` or install dependencies solely to display static files. Do not create `.ao/launch.json` unless the user asks. Automatically open the primary requested browser-displayable artifact immediately after creating or materially updating it, but do not replace an active application preview with a supporting asset. " +
-		"For page inspection or interaction, read `" + browserFile + "` and use `kennel browser` from this AO session. Browser network capture is optional and off by default; follow that guide and never enable it for routine browser actions. " +
-		"Do not use Codex/host in-app browser connectors, `agent.browsers.get(\"iab\")`, or a browser MCP for the AO Browser panel: those are separate browser runtimes and cannot see or control AO's session-owned page. " +
+		"## Kennel desktop Browser panel\n\n" +
+		"For frontend work, read `" + previewFile + "` before previewing or starting an app: open static HTML or Markdown directly; Never create or modify `package.json` or install dependencies solely to display static files. Do not create `.kennel/launch.json` unless the user asks. Automatically open the primary requested browser-displayable artifact immediately after creating or materially updating it, but do not replace an active application preview with a supporting asset. " +
+		"For page inspection or interaction, read `" + browserFile + "` and use `kennel browser` from this Kennel session. Browser network capture is optional and off by default; follow that guide and never enable it for routine browser actions. " +
+		"Do not use Codex/host in-app browser connectors, `agent.browsers.get(\"iab\")`, or a browser MCP for the Kennel Browser panel: those are separate browser runtimes and cannot see or control Kennel's session-owned page. " +
 		"`kennel browser` operates the same live page the user sees in that panel."
 }
 
@@ -3311,19 +3329,22 @@ func (m *Manager) prepareSystemPromptFile(id domain.SessionID, harness domain.Ag
 	return "", nil
 }
 
+// systemPromptFileRequired reports whether a harness can ONLY receive its
+// standing instructions through a file, so failing to write that file must fail
+// the spawn rather than silently degrade to an inline prompt.
+//
+// This is a provider-capability question living in the session manager, which is
+// the wrong place for it: it belongs behind an adapter method (a
+// SystemPromptDelivery mode). It is left as a switch here only because the six
+// other harnesses it used to name have been retired and opencode is the sole
+// remaining member — narrowing it is not the moment to also move it.
+//
+// Known gap: cursor exposes no system-prompt flag at all (see the cursor
+// adapter), so its standing instructions are dropped rather than delivered. That
+// is a missing capability, not a file-vs-inline choice, and returning true here
+// would fail every cursor spawn instead of fixing it.
 func systemPromptFileRequired(harness domain.AgentHarness) bool {
-	switch harness {
-	case domain.HarnessAider,
-		domain.HarnessAgy,
-		domain.HarnessAuggie,
-		domain.HarnessKiro,
-		domain.HarnessOpenCode,
-		domain.HarnessCopilot,
-		domain.HarnessVibe:
-		return true
-	default:
-		return false
-	}
+	return harness == domain.HarnessOpenCode
 }
 
 func (m *Manager) systemPromptDir(id domain.SessionID) string {
@@ -3375,7 +3396,7 @@ func workspaceRepoList(repos []domain.WorkspaceRepoRecord) string {
 }
 
 // spawnEnv builds the runtime environment: the per-project env vars first, then
-// the AO-internal vars last so they always win (a project cannot override
+// the Kennel-internal vars last so they always win (a project cannot override
 // KENNEL_SESSION_ID and friends).
 func spawnEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueID, dataDir string, projectEnv map[string]string) map[string]string {
 	env := make(map[string]string, len(projectEnv)+4)
@@ -3547,9 +3568,9 @@ func runPostCreate(ctx context.Context, workspacePath string, commands []string)
 		}
 		var cmd *exec.Cmd
 		if runtime.GOOS == "windows" {
-			cmd = aoprocess.CommandContext(ctx, "cmd", "/c", command)
+			cmd = kennelprocess.CommandContext(ctx, "cmd", "/c", command)
 		} else {
-			cmd = aoprocess.CommandContext(ctx, "sh", "-c", command)
+			cmd = kennelprocess.CommandContext(ctx, "sh", "-c", command)
 		}
 		cmd.Dir = workspacePath
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -3568,7 +3589,7 @@ type preLauncher interface {
 }
 
 // workspaceCleaner is an optional Agent capability for durable agent-side state
-// that should be released only after AO has actually removed the workspace.
+// that should be released only after Kennel has actually removed the workspace.
 type workspaceCleaner interface {
 	CleanupWorkspace(ctx context.Context, cfg ports.WorkspaceHookConfig) error
 }
@@ -3645,7 +3666,7 @@ func (m *Manager) cleanupAgentWorkspace(ctx context.Context, rec domain.SessionR
 	if project, err := m.loadProject(ctx, rec.ProjectID); err == nil {
 		env = m.runtimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env)
 	} else {
-		m.logger.Warn("workspace cleanup: project env unavailable; agent cleanup using AO env only",
+		m.logger.Warn("workspace cleanup: project env unavailable; agent cleanup using Kennel env only",
 			"sessionID", rec.ID, "projectID", rec.ProjectID, "error", err)
 	}
 	if strings.TrimSpace(workspacePath) != "" {
@@ -4107,7 +4128,7 @@ func (m *Manager) superviseAgentProcess(agent ports.Agent, id domain.SessionID, 
 	return m.superviseAgentProcessMode(agent, id, env, argv, switchingCapable)
 }
 
-// superviseAgentProcessForSwitch always installs AO's generation-bearing
+// superviseAgentProcessForSwitch always installs Kennel's generation-bearing
 // wrapper. Native hooks still report activity, while the wrapper gives crash
 // recovery a process-level proof that a surviving workload belongs to the
 // target generation rather than the provider that was stopped.

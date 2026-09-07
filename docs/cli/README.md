@@ -2,13 +2,13 @@
 
 `kennel` is a thin Go/Cobra client for Kennel. It opens the desktop app and discovers, inspects, and stops the app-owned local daemon through loopback HTTP and the `running.json` handshake. It must not open SQLite directly or call runtime, workspace, tracker, or provider adapters in-process.
 
-The source entrypoint remains `backend/cmd/ao` as an audited AO synchronization seam. Local and packaged builds name the executable `kennel`; `ao` is not a supported alias for Kennel.
+The source entrypoint remains `backend/cmd/kennel` as an audited AO synchronization seam. Local and packaged builds name the executable `kennel`; `ao` is not a supported alias for Kennel.
 
 ## Build from source
 
 ```sh
 cd backend
-go build -o ./bin/kennel ./cmd/ao
+go build -o ./bin/kennel ./cmd/kennel
 ./bin/kennel --help
 ```
 
@@ -47,11 +47,11 @@ Provider switching, handoff, PR, review, preview, and browser subcommands retain
 
 ## Preview project formats
 
-`kennel preview [target]` resolves the active session from `KENNEL_SESSION_ID`. An explicit URL opens directly; supported files can be served to the session Browser panel. `kennel preview start` may read the project-local `.ao/launch.json` compatibility format. Agents must not create that file or install a framework/dev server unless the task calls for it.
+`kennel preview [target]` resolves the active session from `KENNEL_SESSION_ID`. An explicit URL opens directly; supported files can be served to the session Browser panel. `kennel preview start` may read the project-local `.kennel/launch.json` compatibility format. Agents must not create that file or install a framework/dev server unless the task calls for it.
 
 `kennel browser` controls only the selected session's Electron browser surface. Its snapshots and references are session/tab scoped. Network metadata capture is off by default, bounded, excludes bodies and sensitive header values, and redacts URL credentials, fragments, and query values.
 
-Project-local `.ao/launch.json` and `.ao/attachments` are inherited file-format names, not a path to AO global state.
+Project-local `.kennel/launch.json` and `.kennel/attachments` are inherited file-format names, not a path to AO global state.
 
 ## Configuration
 
@@ -74,7 +74,7 @@ This test starts only the CLI-built daemon with temporary Kennel paths; it does 
 
 ```sh
 cd backend
-go build -o /tmp/kennel ./cmd/ao
+go build -o /tmp/kennel ./cmd/kennel
 
 KENNEL_TEST_ROOT=$(mktemp -d)
 export KENNEL_RUN_FILE="$KENNEL_TEST_ROOT/running.json"

@@ -15,9 +15,9 @@ import {
 	UPDATER_CACHE_DIRECTORY_NAME,
 } from "./src/shared/product-identity";
 
-// Default GitHub release target (production). Releases land on Untrivial-ai
-// (the org the repo was transferred to in July 2026; AgentWrapper and aoagents
-// are prior homes). Builds cut by CI must NOT rely on this fallback: the
+// Default GitHub release target (production): Kennel's own repository, which
+// is the single source of truth in product-identity. Builds cut by CI must NOT
+// rely on this fallback: the
 // workflows set KENNEL_RELEASE_REPO to the repo they run in, and the package
 // asserts the baked app-update.yml matches it, so a future org/repo rename
 // fails the build instead of stranding the fleet on a redirect (#3523).
@@ -59,8 +59,10 @@ const config: ForgeConfig = {
 		icon: "assets/icon",
 		extraResource: [
 			"daemon",
-				"agent-browser",
-				"resources/acp-runtime",
+			"agent-browser",
+			"resources/acp-runtime",
+			"../packages/kennel-island/desktop/helpers/kennel-haptics",
+			"../packages/kennel-island/desktop/helpers/kennel-notch",
 			"assets/icon.png",
 			"assets/icon.ico",
 			"assets/trayIconTemplate.png",
@@ -123,6 +125,12 @@ const config: ForgeConfig = {
 		// and macOS reports the app as "damaged". owner/repo are baked from
 		// KENNEL_RELEASE_REPO at build time.
 		prePackage: async () => {
+			// The native helpers are best-effort: the script deliberately succeeds on
+			// non-macOS hosts and on Macs without a Swift toolchain. When available,
+			// Forge copies the resulting binaries beside app.asar via extraResource.
+			execFileSync(process.execPath, ["../packages/kennel-island/scripts/build-helpers.mjs"], {
+				stdio: "inherit",
+			});
 			const { owner, name } = parseReleaseRepo(process.env.KENNEL_RELEASE_REPO);
 			const yml = [
 				"provider: github",
@@ -250,9 +258,13 @@ const config: ForgeConfig = {
 			build: [
 				{ entry: "src/main.ts", config: "vite.main.config.ts", target: "main" },
 				{ entry: "src/preload.ts", config: "vite.preload.config.ts", target: "preload" },
+				{ entry: "src/island-preload.ts", config: "vite.preload.config.ts", target: "preload" },
 				{ entry: "src/annotate-preload.ts", config: "vite.preload.config.ts", target: "preload" },
 			],
-			renderer: [{ name: "main_window", config: "vite.renderer.config.ts" }],
+			renderer: [
+				{ name: "main_window", config: "vite.renderer.config.ts" },
+				{ name: "island_window", config: "vite.island.renderer.config.ts" },
+			],
 		}),
 	],
 };

@@ -18,8 +18,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/codex"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/codex"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
 )
 
 type doctorLevel string
@@ -50,8 +50,8 @@ const (
 	doctorSectionGitHub         = "GitHub"
 	doctorSectionGitLab         = "GitLab"
 	minGitVersion               = "2.25.0"
-	githubDoctorUserAgent       = "ao-agent-orchestrator/doctor"
-	gitlabDoctorUserAgent       = "ao-agent-orchestrator/doctor"
+	githubDoctorUserAgent       = "kennel/doctor"
+	gitlabDoctorUserAgent       = "kennel/doctor"
 	defaultDoctorGitHubRESTBase = "https://api.github.com"
 	defaultDoctorGitLabRESTBase = "https://gitlab.com/api/v4"
 )
@@ -73,7 +73,7 @@ func newDoctorCommand(ctx *commandContext) *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "doctor",
-		Short: "Run local AO health checks",
+		Short: "Run local Kennel health checks",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			checks := ctx.runDoctor(cmd.Context())
@@ -237,7 +237,7 @@ func checkDataDirWritable(dataDir string) doctorCheck {
 // warning about every other context (manual runs, foreign panes), not a hard
 // failure.
 func (c *commandContext) checkAOBinary() doctorCheck {
-	const name = "ao-binary"
+	const name = "kennel-binary"
 	self, err := c.deps.Executable()
 	if err != nil {
 		return doctorCheck{Level: doctorWarn, Section: doctorSectionTools, Name: name, Message: fmt.Sprintf("could not resolve the running executable: %v", err)}
@@ -290,7 +290,7 @@ func (c *commandContext) checkGit(ctx context.Context) doctorCheck {
 		return doctorCheck{Level: doctorWarn, Section: doctorSectionTools, Name: "git", Message: fmt.Sprintf("%s (version unknown: %s)", path, firstOutputLine(out))}
 	}
 	if cmp < 0 {
-		return doctorCheck{Level: doctorWarn, Section: doctorSectionTools, Name: "git", Message: fmt.Sprintf("%s (version %s; AO expects >= %s for worktrees)", path, version, minGitVersion)}
+		return doctorCheck{Level: doctorWarn, Section: doctorSectionTools, Name: "git", Message: fmt.Sprintf("%s (version %s; Kennel expects >= %s for worktrees)", path, version, minGitVersion)}
 	}
 	return doctorCheck{Level: doctorPass, Section: doctorSectionTools, Name: "git", Message: fmt.Sprintf("%s (version %s; supports worktrees)", path, version)}
 }
@@ -334,7 +334,7 @@ func (c *commandContext) checkTmux(ctx context.Context) doctorCheck {
 func checkHooksLog(dataDir string, now time.Time) doctorCheck {
 	const name = "hooks-log"
 	path := filepath.Join(dataDir, hooksLogName)
-	data, err := os.ReadFile(path) //nolint:gosec // path rooted in AO's own data dir
+	data, err := os.ReadFile(path) //nolint:gosec // path rooted in Kennel's own data dir
 	if errors.Is(err, fs.ErrNotExist) {
 		return doctorCheck{Level: doctorPass, Section: doctorSectionCore, Name: name, Message: "no hook delivery failures recorded"}
 	}
@@ -402,9 +402,9 @@ func (c *commandContext) checkHarness(ctx context.Context, harness harnessProbe)
 	return doctorCheck{Level: doctorPass, Section: doctorSectionAgents, Name: harness.Name, Message: fmt.Sprintf("%s resolves to %s (%s)", harness.BinaryName, path, version)}
 }
 
-// checkCodexLaunchFlags smoke-tests AO's codex launch surface against the
+// checkCodexLaunchFlags smoke-tests Kennel's codex launch surface against the
 // installed binary: the hook-trust bypass flag and the `-c` session-flag
-// config AO injects at spawn (activity hooks, worktree trust, nudge
+// config Kennel injects at spawn (activity hooks, worktree trust, nudge
 // suppression). Codex has no stable hook-config contract, so a codex upgrade
 // can silently break activity tracking; this canary turns that breakage into
 // a doctor warning. The probes come from the codex adapter itself so they
@@ -422,17 +422,17 @@ func (c *commandContext) checkCodexLaunchFlags(ctx context.Context) doctorCheck 
 		if err != nil {
 			return doctorCheck{
 				Level: doctorWarn, Section: doctorSectionAgents, Name: name,
-				Message: fmt.Sprintf("codex rejected AO's launch flags (`codex %s`: %v) — codex sessions may spawn without activity hooks; a codex CLI update likely changed its flag/config surface", strings.Join(probe, " "), err),
+				Message: fmt.Sprintf("codex rejected Kennel's launch flags (`codex %s`: %v) — codex sessions may spawn without activity hooks; a codex CLI update likely changed its flag/config surface", strings.Join(probe, " "), err),
 			}
 		}
 		if strings.Contains(string(out), "unknown configuration field") {
 			return doctorCheck{
 				Level: doctorWarn, Section: doctorSectionAgents, Name: name,
-				Message: fmt.Sprintf("codex no longer recognizes one of AO's config overrides (%s) — codex sessions may spawn without activity hooks", firstOutputLine(out)),
+				Message: fmt.Sprintf("codex no longer recognizes one of Kennel's config overrides (%s) — codex sessions may spawn without activity hooks", firstOutputLine(out)),
 			}
 		}
 	}
-	return doctorCheck{Level: doctorPass, Section: doctorSectionAgents, Name: name, Message: "codex accepts AO's hook/trust launch flags"}
+	return doctorCheck{Level: doctorPass, Section: doctorSectionAgents, Name: name, Message: "codex accepts Kennel's hook/trust launch flags"}
 }
 
 func (c *commandContext) checkGitHubToken(ctx context.Context) doctorCheck {

@@ -34,8 +34,12 @@ export interface RelocationInputs {
 	inApplicationsFolder: boolean;
 	/** A bundle already occupies /Applications/<our bundle name>. */
 	installedPresent: boolean;
+	/** That bundle's CFBundleIdentifier, or null when unreadable. */
+	installedBundleIdentifier: string | null;
 	/** That bundle's CFBundleShortVersionString, or null when unreadable. */
 	installedVersion: string | null;
+	/** The current build's canonical bundle identifier. */
+	runningBundleIdentifier: string;
 	/** app.getVersion(). */
 	runningVersion: string;
 }
@@ -50,6 +54,12 @@ export interface RelocationInputs {
 export function decideRelocation(inputs: RelocationInputs): RelocationAction {
 	if (inputs.inApplicationsFolder) return "stay";
 	if (!inputs.installedPresent) return "relocate";
+	// A same-named app is not necessarily this product. In particular, the legacy
+	// Agent Orchestrator bundle also shipped as Kennel.app. Never hand a launch to
+	// it (or trash it automatically) just because its display version compares as
+	// equal; run the requested build in place and let an explicit install replace
+	// the collision.
+	if (inputs.installedBundleIdentifier !== inputs.runningBundleIdentifier) return "stay";
 
 	const installed = semver.valid(inputs.installedVersion ?? "");
 	const running = semver.valid(inputs.runningVersion);
@@ -71,15 +81,22 @@ export function installedBundlePath(runningBundlePath: string): string {
  * Forge writes this plist as XML (verified on a packaged build).
  */
 export function readBundleVersion(bundlePath: string): string | null {
+	return readBundlePlistString(bundlePath, "CFBundleShortVersionString");
+}
+
+/** CFBundleIdentifier out of a Forge-written XML Info.plist. */
+export function readBundleIdentifier(bundlePath: string): string | null {
+	return readBundlePlistString(bundlePath, "CFBundleIdentifier");
+}
+
+function readBundlePlistString(bundlePath: string, key: string): string | null {
 	try {
 		const plist = readFileSync(
 			path.join(bundlePath, "Contents", "Info.plist"),
 			"utf8",
 		);
-		const match =
-			/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]*)<\/string>/.exec(
-				plist,
-			);
+		const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+		const match = new RegExp(`<key>${escapedKey}<\\/key>\\s*<string>([^<]*)<\\/string>`).exec(plist);
 		return match?.[1]?.trim() || null;
 	} catch {
 		return null;
@@ -92,13 +109,15 @@ export function readBundleVersion(bundlePath: string): string | null {
  */
 export function inspectInstalledBundle(runningBundlePath: string): {
 	installedPresent: boolean;
+	installedBundleIdentifier: string | null;
 	installedVersion: string | null;
 } {
 	const installed = installedBundlePath(runningBundlePath);
 	if (!existsSync(installed))
-		return { installedPresent: false, installedVersion: null };
+		return { installedPresent: false, installedBundleIdentifier: null, installedVersion: null };
 	return {
 		installedPresent: true,
+		installedBundleIdentifier: readBundleIdentifier(installed),
 		installedVersion: readBundleVersion(installed),
 	};
 }

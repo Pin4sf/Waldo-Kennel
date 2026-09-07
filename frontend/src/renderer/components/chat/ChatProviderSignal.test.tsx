@@ -63,7 +63,7 @@ describe("reasoning", () => {
 				})}
 			/>,
 		);
-		expect(screen.getByText(/longer than AO stores/i)).toBeInTheDocument();
+		expect(screen.getByText(/longer than Kennel stores/i)).toBeInTheDocument();
 	});
 
 	// The default install sends the item with no body. A labelled empty row teaches
@@ -147,7 +147,7 @@ describe("MCP tool call", () => {
 			/>,
 		);
 		await userEvent.click(screen.getByRole("button"));
-		expect(screen.getByText(/larger than AO stores/i)).toBeInTheDocument();
+		expect(screen.getByText(/larger than Kennel stores/i)).toBeInTheDocument();
 		expect(screen.getByText(/2\.0 MB/)).toBeInTheDocument();
 	});
 
@@ -303,10 +303,10 @@ describe("provider error", () => {
 		turnId: "019ffd9d-714c-7d31-932f-4e7c10cf5a82",
 		willRetry: true,
 	});
-	// What AO persists: the Codex envelope, prefixed, in summary and detail.error.
+	// What Kennel persists: the Codex envelope, prefixed, in summary and detail.error.
 	const stored = `provider error: ${envelope.length > 400 ? `${envelope.slice(0, 400)}…` : envelope}`;
 
-	it("unwraps the truncated prefixed payload AO actually stores", () => {
+	it("unwraps the truncated prefixed payload Kennel actually stores", () => {
 		expect(envelope.length).toBeGreaterThan(400);
 		render(
 			<ActivityRow
@@ -490,7 +490,7 @@ describe("file changes", () => {
 		// The row's own header names the single file too, so the file's disclosure is
 		// the last of the two.
 		await userEvent.click(screen.getAllByRole("button", { name: /src\/big\.ts/ }).at(-1)!);
-		expect(screen.getByText(/longer than AO stores/i)).toBeInTheDocument();
+		expect(screen.getByText(/longer than Kennel stores/i)).toBeInTheDocument();
 	});
 
 	// Rows written by earlier builds carry no status. The file is still drawn, as a

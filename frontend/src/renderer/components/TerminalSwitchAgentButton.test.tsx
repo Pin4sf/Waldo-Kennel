@@ -7,6 +7,7 @@ import {
 	deriveAgentSwitchPresentation,
 	type AgentSwitchPresentation,
 } from "../lib/agent-switch-presentation";
+import { agentsQueryKey } from "../hooks/useAgentsQuery";
 import type { AgentSwitchSummary, WorkspaceSession } from "../types/workspace";
 import { TerminalSwitchAgentButton } from "./TerminalSwitchAgentButton";
 import { TooltipProvider } from "./ui/tooltip";
@@ -105,6 +106,18 @@ function renderControl(
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
 	});
+	// The dialog derives every switch target from this catalog. Seeding it is what
+	// makes the target picker exist at all: with no catalog the dialog correctly
+	// refuses to offer a target, which is a different behaviour and has its own test.
+	const switchCatalog = [
+		{ id: "claude-code", label: "Claude Code", roles: { worker: true, coordinator: true, switchTarget: true } },
+		{ id: "codex", label: "Codex", roles: { worker: true, coordinator: true, switchTarget: true } },
+	];
+	queryClient.setQueryData(agentsQueryKey, {
+		supported: switchCatalog,
+		installed: switchCatalog,
+		authorized: switchCatalog,
+	});
 	const control = (nextSession: WorkspaceSession, nextPresentation = presentation) => (
 		<QueryClientProvider client={queryClient}>
 			<TooltipProvider>
@@ -191,8 +204,11 @@ describe("TerminalSwitchAgentButton", () => {
 		const targetAgent = within(dialog).getByRole("button", { name: "Target agent" });
 		expect(targetAgent).toHaveTextContent("Codex");
 		await userEvent.click(targetAgent);
-		expect(screen.getAllByRole("menuitem")).toHaveLength(1);
-		expect(screen.getByRole("menuitem", { name: "Codex" })).toBeInTheDocument();
+		// The session's current provider stays listed but disabled, so the menu
+		// shows where you are as well as where you can go.
+		expect(screen.getAllByRole("menuitem")).toHaveLength(2);
+		expect(screen.getByRole("menuitem", { name: /Claude Code.*Current/ })).toHaveAttribute("aria-disabled", "true");
+		expect(screen.getByRole("menuitem", { name: "Codex" })).not.toHaveAttribute("aria-disabled", "true");
 		await userEvent.keyboard("{Escape}");
 		expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
 		await userEvent.click(within(dialog).getByRole("button", { name: "Switch" }));

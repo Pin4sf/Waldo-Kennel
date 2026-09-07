@@ -33,7 +33,7 @@ type ProjectRecord struct {
 	RegisteredAt  time.Time
 	ArchivedAt    time.Time
 	Kind          ProjectKind
-	// Config holds the typed per-project configuration AO resolves at spawn. An
+	// Config holds the typed per-project configuration Kennel resolves at spawn. An
 	// IsZero value means unset.
 	Config ProjectConfig
 }

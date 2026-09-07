@@ -14,8 +14,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/activitydispatch"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/activitydispatch"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 // sessionIDPattern bounds the KENNEL_SESSION_ID we will place in a request path to
@@ -36,7 +36,7 @@ const (
 
 // setActivityAPIRequest mirrors the daemon's SetActivityRequest body for
 // POST /api/v1/sessions/{id}/activity. The CLI keeps its own copy so it need
-// not import httpd. Event carries the AO hook sub-command that produced the
+// not import httpd. Event carries the Kennel hook sub-command that produced the
 // state; ToolName/ToolUseID are the tool-use correlation facts lifted from the
 // native payload when present. All four are optional: an old daemon decodes
 // the body leniently and simply ignores them.
@@ -181,10 +181,10 @@ func hookConversationFacts(payload []byte) hookConversationSnapshot {
 	_ = json.Unmarshal(payload, &p)
 	userPrompt := firstHookValue(p.Prompt, p.UserPrompt, p.UserPromptCamel)
 	assistant := firstHookValue(p.LastAssistantMessage, p.LastAssistantMessageCamel, p.AssistantMessage, p.AssistantMessageCamel)
-	// AO's own handoff request and continuation kickoff are coordination turns,
+	// Kennel's own handoff request and continuation kickoff are coordination turns,
 	// not the latest real user instruction. They remain in provider history but
 	// must not overwrite deterministic user intent.
-	if strings.HasPrefix(strings.TrimSpace(userPrompt), "<ao-handoff-request") {
+	if strings.HasPrefix(strings.TrimSpace(userPrompt), "<kennel-handoff-request") {
 		assistant = ""
 	}
 	if isAOCoordinationMessage(userPrompt) {
@@ -208,8 +208,8 @@ func firstHookValue(values ...string) string {
 
 func isAOCoordinationMessage(value string) bool {
 	value = strings.TrimSpace(value)
-	return strings.HasPrefix(value, "<ao-handoff-request") ||
-		strings.HasPrefix(value, "AO transferred the previous agent's context in hidden system instructions.")
+	return strings.HasPrefix(value, "<kennel-handoff-request") ||
+		strings.HasPrefix(value, "Kennel transferred the previous agent's context in hidden system instructions.")
 }
 
 func capHookText(value string, limit int) string {
@@ -217,7 +217,7 @@ func capHookText(value string, limit int) string {
 	if limit <= 0 || len(value) <= limit {
 		return value
 	}
-	const marker = "\n[... truncated by AO ...]\n"
+	const marker = "\n[... truncated by Kennel ...]\n"
 	budget := limit - len(marker)
 	if budget <= 0 {
 		return ""
@@ -236,11 +236,11 @@ type sessionStartHookOutput struct {
 
 // newHooksCommand builds the hidden `kennel hooks <agent> <event>` command that
 // agent CLIs invoke from their workspace-local hook config. It reads the native
-// hook payload from stdin and the AO session id from KENNEL_SESSION_ID, derives an
+// hook payload from stdin and the Kennel session id from KENNEL_SESSION_ID, derives an
 // activity state for the event, and reports it to the daemon.
 //
 // It is best-effort by design: a hook must never break the user's agent, so a
-// non-AO session (no KENNEL_SESSION_ID), an event that carries no activity signal,
+// non-Kennel session (no KENNEL_SESSION_ID), an event that carries no activity signal,
 // or an unreachable daemon all exit 0 rather than erroring.
 func newHooksCommand(ctx *commandContext) *cobra.Command {
 	return &cobra.Command{
@@ -418,7 +418,7 @@ func appendHooksLog(dataDir, line string) {
 	if info, err := os.Stat(path); err == nil && info.Size() > maxHooksLogBytes {
 		flags = os.O_TRUNC | os.O_CREATE | os.O_WRONLY
 	}
-	f, err := os.OpenFile(path, flags, 0o600) //nolint:gosec // path is rooted in AO's own data dir
+	f, err := os.OpenFile(path, flags, 0o600) //nolint:gosec // path is rooted in Kennel's own data dir
 	if err != nil {
 		return
 	}

@@ -13,11 +13,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/gitdefault"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/gitdefault"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 )
 
 // Manager is the controller-facing contract for the /api/v1/projects surface.
@@ -46,6 +46,11 @@ type Manager interface {
 	// Remove unregisters a project, stopping its sessions and reclaiming
 	// managed workspaces.
 	Remove(ctx context.Context, id domain.ProjectID) (RemoveResult, error)
+
+	// ResolvedMissionRoles returns the daemon-resolved Mission-role proposal
+	// for one project: stored preferences enriched with live adapter admission.
+	// The proposal is advisory and never rewrites historical sessions or Plans.
+	ResolvedMissionRoles(ctx context.Context, id domain.ProjectID) (domain.ResolvedMissionRoles, error)
 }
 
 // SessionTeardowner is the narrow session-service surface project removal
@@ -58,6 +63,7 @@ type SessionTeardowner interface {
 type Service struct {
 	store          Store
 	sessions       SessionTeardowner
+	roles          RoleResolver
 	clock          func() time.Time
 	telemetry      ports.EventSink
 	defaultHarness domain.AgentHarness
@@ -82,6 +88,17 @@ type Deps struct {
 	Sessions       SessionTeardowner
 	Clock          func() time.Time
 	Telemetry      ports.EventSink
+	// Roles resolves stored agent preferences against the live adapter
+	// inventory. Optional: when nil, ResolvedMissionRoles falls back to the
+	// pure capability-based domain resolution.
+	Roles RoleResolver
+}
+
+// RoleResolver is the narrow boundary toward the daemon's capability-based
+// Mission-role resolution (implemented by the agent inventory service). The
+// caller's context bounds every live probe.
+type RoleResolver interface {
+	ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences, cfg domain.ProjectConfig) domain.ResolvedMissionRoles
 }
 
 // New returns a project service backed by the given durable store.
@@ -98,6 +115,7 @@ func NewWithDeps(d Deps) *Service {
 	s := &Service{
 		store:          d.Store,
 		sessions:       d.Sessions,
+		roles:          d.Roles,
 		clock:          d.Clock,
 		telemetry:      d.Telemetry,
 		defaultHarness: defaultHarness,
@@ -236,10 +254,10 @@ func (m *Service) Add(ctx context.Context, in AddInput) (Project, error) {
 		return p, nil
 	}
 	if !isGitRepo(path) {
-		return Project{}, apierr.Invalid("NOT_A_GIT_REPO", "AO needs a Git repository with an initial commit before it can create agent workspaces.", nil)
+		return Project{}, apierr.Invalid("NOT_A_GIT_REPO", "Kennel needs a Git repository with an initial commit before it can create agent workspaces.", nil)
 	}
 	if !repoHasCommit(ctx, path) {
-		return Project{}, apierr.Invalid("PROJECT_UNBORN", "AO needs a Git repository with an initial commit before it can create agent workspaces.", map[string]any{
+		return Project{}, apierr.Invalid("PROJECT_UNBORN", "Kennel needs a Git repository with an initial commit before it can create agent workspaces.", map[string]any{
 			"path":         path,
 			"suggestedFix": "Run `git commit --allow-empty -m \"initial commit\"` in this folder, then try again.",
 		})
@@ -314,7 +332,7 @@ func (m *Service) InitializeRepository(ctx context.Context, in InitializeReposit
 	if _, err := gitOutput(ctx, path, "add", "-A"); err != nil {
 		return InitializeRepositoryResult{}, apierr.Invalid("GIT_ADD_FAILED", "Could not stage files for the initial commit.", map[string]any{"error": err.Error()})
 	}
-	if _, err := gitOutput(ctx, path, "-c", "user.name=Agent Orchestrator", "-c", "user.email=ao@example.com", "commit", "--allow-empty", "-m", "initial commit"); err != nil {
+	if _, err := gitOutput(ctx, path, "-c", "user.name=Kennel", "-c", "user.email=kennel@example.com", "commit", "--allow-empty", "-m", "initial commit"); err != nil {
 		return InitializeRepositoryResult{}, apierr.Invalid("INITIAL_COMMIT_FAILED", "Could not create the initial commit.", map[string]any{"error": err.Error()})
 	}
 	return InitializeRepositoryResult{Path: path}, nil
@@ -324,7 +342,7 @@ func classifyRepositorySetupTarget(ctx context.Context, path string) (repository
 	if isBareGitRepository(ctx, path) {
 		return repositorySetupPlainFolder, apierr.Invalid("PROJECT_BARE_REPOSITORY", "Selected folder must be a non-bare Git repository or a plain folder.", map[string]any{
 			"path":         path,
-			"suggestedFix": "Use a normal checkout, or select a plain folder for AO to initialize.",
+			"suggestedFix": "Use a normal checkout, or select a plain folder for Kennel to initialize.",
 		})
 	}
 
@@ -336,7 +354,7 @@ func classifyRepositorySetupTarget(ctx context.Context, path string) (repository
 	}
 
 	if hasGitMetadata(path) {
-		return repositorySetupPlainFolder, apierr.Invalid("UNSUPPORTED_GIT_REPO", "Selected folder contains Git metadata that AO could not inspect.", map[string]any{
+		return repositorySetupPlainFolder, apierr.Invalid("UNSUPPORTED_GIT_REPO", "Selected folder contains Git metadata that Kennel could not inspect.", map[string]any{
 			"path":         path,
 			"suggestedFix": "Repair the Git repository or select a plain folder.",
 		})
@@ -368,7 +386,7 @@ func validateRepositorySetupPathSafety(path string) error {
 
 	aoState := comparablePath(filepath.Join(home, ".kennel"))
 	if samePath(clean, aoState) || isDescendantPath(clean, aoState) {
-		return unsafeRepositorySetupPathError(path, "AO state directory")
+		return unsafeRepositorySetupPathError(path, "Kennel state directory")
 	}
 	return nil
 }
@@ -553,7 +571,7 @@ func (m *Service) UpdateSettings(ctx context.Context, id domain.ProjectID, in Up
 // EnsureDefaultScratchProject seeds the built-in first-run scratch project when
 // the registry has no active projects. Archived rows do not suppress reseeding:
 // otherwise deleting Scratch can leave first-run users with no non-git path
-// back into AO.
+// back into Kennel.
 func (m *Service) EnsureDefaultScratchProject(ctx context.Context, scratchPath string) (Project, error) {
 	scratchPath = strings.TrimSpace(scratchPath)
 	if scratchPath == "" {
@@ -629,6 +647,28 @@ func (m *Service) SetConfig(ctx context.Context, id domain.ProjectID, in SetConf
 	return m.projectFromRow(ctx, row), nil
 }
 
+// ResolvedMissionRoles returns the daemon-resolved role proposal for one
+// project: stored preferences enriched with live adapter admission. The
+// proposal is advisory for future Missions and never rewrites historical
+// sessions or approved Plans.
+func (m *Service) ResolvedMissionRoles(ctx context.Context, id domain.ProjectID) (domain.ResolvedMissionRoles, error) {
+	if err := validateProjectID(id); err != nil {
+		return domain.ResolvedMissionRoles{}, err
+	}
+	row, ok, err := m.store.GetProject(ctx, string(id))
+	if err != nil {
+		return domain.ResolvedMissionRoles{}, apierr.Internal("PROJECT_LOAD_FAILED", "Failed to load project")
+	}
+	if !ok || !row.ArchivedAt.IsZero() {
+		return domain.ResolvedMissionRoles{}, apierr.NotFound("PROJECT_NOT_FOUND", "Unknown project")
+	}
+	prefs := row.Config.AgentPreferences
+	if m.roles != nil {
+		return m.roles.ResolveMissionRoles(ctx, prefs, row.Config), nil
+	}
+	return domain.ResolveMissionRoles(row.Config), nil
+}
+
 func validateScratchProjectConfig(cfg domain.ProjectConfig) error {
 	if strings.TrimSpace(cfg.DefaultBranch) != "" {
 		return errors.New("scratch projects do not support defaultBranch")
@@ -647,7 +687,7 @@ func validateScratchProjectConfig(cfg domain.ProjectConfig) error {
 // other git error returns an empty string — `project add` must not fail just
 // because no origin is configured (the SCM observer skips such projects).
 func resolveGitOriginURL(path string) string {
-	out, err := aoprocess.Command("git", "-C", path, "remote", "get-url", "origin").Output()
+	out, err := kennelprocess.Command("git", "-C", path, "remote", "get-url", "origin").Output()
 	if err != nil {
 		return ""
 	}
@@ -655,7 +695,7 @@ func resolveGitOriginURL(path string) string {
 }
 
 // resolveDefaultBranch inspects only authoritative local metadata: a cached
-// remote HEAD, or the branch AO recorded when it initialized a remoteless repo.
+// remote HEAD, or the branch Kennel recorded when it initialized a remoteless repo.
 // It deliberately never consults the checked-out branch and never guesses
 // main/master. Live remote lookup stays on the bounded workspace spawn path.
 func resolveDefaultBranch(ctx context.Context, path string) string {
@@ -819,7 +859,7 @@ func samePath(a, b string) bool {
 }
 
 func isGitRepo(path string) bool {
-	cmd := aoprocess.Command("git", "-C", path, "rev-parse", "--show-toplevel")
+	cmd := kennelprocess.Command("git", "-C", path, "rev-parse", "--show-toplevel")
 	out, err := cmd.Output()
 	if err != nil {
 		return false

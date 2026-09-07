@@ -28,7 +28,7 @@ export function bugReportBody(info: BuildInfo, platform: string, osVersion: stri
 		"",
 		"",
 		"---",
-		`AO mobile: ${formatVersion(info)}`,
+		`Kennel mobile: ${formatVersion(info)}`,
 		`Platform: ${platform} ${osVersion}`,
 	].join("\n");
 }

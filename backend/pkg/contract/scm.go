@@ -27,10 +27,10 @@ const (
 	PRCheckCancelled  PRCheckStatus = "cancelled"
 )
 
-// AOReviewRunStatus is the lifecycle state of one AO review pass.
+// AOReviewRunStatus is the lifecycle state of one Kennel review pass.
 type AOReviewRunStatus string
 
-// AO review-run states.
+// Kennel review-run states.
 const (
 	AOReviewRunRunning   AOReviewRunStatus = "running"
 	AOReviewRunComplete  AOReviewRunStatus = "complete"
@@ -39,11 +39,11 @@ const (
 	AOReviewRunCancelled AOReviewRunStatus = "cancelled"
 )
 
-// AOReviewVerdict is the outcome of an AO review pass. An empty verdict means
+// AOReviewVerdict is the outcome of an Kennel review pass. An empty verdict means
 // the pass has not produced an outcome.
 type AOReviewVerdict string
 
-// AO review verdicts.
+// Kennel review verdicts.
 const (
 	AOReviewVerdictNone             AOReviewVerdict = ""
 	AOReviewVerdictApproved         AOReviewVerdict = "approved"
@@ -55,10 +55,10 @@ func (v AOReviewVerdict) Valid() bool {
 	return v == AOReviewVerdictApproved || v == AOReviewVerdictChangesRequested
 }
 
-// AOReviewState is the current AO review state for one pull request head.
+// AOReviewState is the current Kennel review state for one pull request head.
 type AOReviewState string
 
-// AO review states for the current pull-request head.
+// Kennel review states for the current pull-request head.
 const (
 	AOReviewNeedsReview      AOReviewState = "needs_review"
 	AOReviewRunning          AOReviewState = "running"
@@ -160,7 +160,7 @@ type PullRequestSummary struct {
 	ReviewObservedAt time.Time                      `json:"reviewObservedAt"`
 }
 
-// AOReviewRun is one transport-neutral AO review pass.
+// AOReviewRun is one transport-neutral Kennel review pass.
 type AOReviewRun struct {
 	ID               string            `json:"id"`
 	ReviewID         string            `json:"reviewId"`
@@ -178,7 +178,7 @@ type AOReviewRun struct {
 	AutoInjectReview bool              `json:"autoInjectReview"`
 }
 
-// AOPullRequestReviewState is AO's current review state for one PR head.
+// AOPullRequestReviewState is Kennel's current review state for one PR head.
 type AOPullRequestReviewState struct {
 	PRURL          string        `json:"pullRequestUrl"`
 	PRNumber       int           `json:"pullRequestNumber"`

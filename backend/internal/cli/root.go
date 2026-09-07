@@ -14,10 +14,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/daemon"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
-	"github.com/aoagents/agent-orchestrator/backend/internal/processalive"
-	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/daemon"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/processalive"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/telemetrymeta"
 )
 
 // Execute runs the Kennel CLI with process stdio.
@@ -102,11 +102,11 @@ func DefaultDeps() Deps {
 }
 
 func commandOutput(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return aoprocess.CommandContext(ctx, name, args...).CombinedOutput()
+	return kennelprocess.CommandContext(ctx, name, args...).CombinedOutput()
 }
 
 func commandOutputInDir(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
-	cmd := aoprocess.CommandContext(ctx, name, args...)
+	cmd := kennelprocess.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	return cmd.CombinedOutput()
 }

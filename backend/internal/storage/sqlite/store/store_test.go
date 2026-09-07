@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
 func newTestStore(t *testing.T) *sqlite.Store {
@@ -62,7 +62,7 @@ func TestSessionCreateAllowsPrimeAgentHarness(t *testing.T) {
 	ctx := context.Background()
 	seedProject(t, s, "mer")
 	rec := sampleRecord("mer")
-	rec.Harness = domain.HarnessPrimeAgent
+	rec.Harness = domain.AgentHarness("prime-agent")
 	if _, err := s.CreateSession(ctx, rec); err != nil {
 		t.Fatalf("create prime-agent-harness session: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestSessionPersistsDeterministicHandoffInputs(t *testing.T) {
 	rec := sampleRecord("handoff-inputs")
 	rec.Metadata.LatestUserPrompt = "Please finish the duplicate-listener test."
 	rec.Metadata.LatestAssistantUpdate = "The generation fence is implemented; the test is unfinished."
-	rec.Metadata.NativeTranscriptPath = "/ao/transcripts/claude/session.jsonl"
+	rec.Metadata.NativeTranscriptPath = "/kennel/transcripts/claude/session.jsonl"
 
 	created, err := s.CreateSession(ctx, rec)
 	if err != nil {
@@ -147,7 +147,7 @@ func TestSessionPersistsDeterministicHandoffInputs(t *testing.T) {
 
 	got.Metadata.LatestUserPrompt = "Now run the focused tests."
 	got.Metadata.LatestAssistantUpdate = "The regression test has been added."
-	got.Metadata.NativeTranscriptPath = "/ao/transcripts/codex/session.jsonl"
+	got.Metadata.NativeTranscriptPath = "/kennel/transcripts/codex/session.jsonl"
 	got.UpdatedAt = got.UpdatedAt.Add(time.Second)
 	if err := s.UpdateSession(ctx, got); err != nil {
 		t.Fatalf("update session: %v", err)
@@ -217,14 +217,15 @@ func TestRecordSessionLatestUserPromptIsNarrowAndMonotonic(t *testing.T) {
 	}
 }
 
-// Regression: the sessions.harness CHECK must allow the 'kimchi' harness (added
-// in migration 0054) so Kimchi sessions can be created.
+// Regression: the sessions.harness CHECK must still allow 'kimchi' (added in
+// migration 0054). The Go constant is retired, but the column is not: rows
+// persisted before the five-provider narrowing must stay readable and writable.
 func TestSessionCreateAllowsKimchiHarness(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	seedProject(t, s, "mer")
 	rec := sampleRecord("mer")
-	rec.Harness = domain.HarnessKimchi
+	rec.Harness = domain.AgentHarness("kimchi")
 	if _, err := s.CreateSession(ctx, rec); err != nil {
 		t.Fatalf("create kimchi-harness session: %v", err)
 	}
@@ -337,7 +338,7 @@ func TestProjectScratchKindAndArchivedCount(t *testing.T) {
 	if err := s.UpsertProject(ctx, domain.ProjectRecord{
 		ID:           "scratch",
 		DisplayName:  "Scratch",
-		Path:         "/ao/scratch/default",
+		Path:         "/kennel/scratch/default",
 		Kind:         domain.ProjectKindScratch,
 		RegisteredAt: now,
 	}); err != nil {
@@ -420,16 +421,16 @@ func TestSessionCreateAssignsPerProjectID(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	seedProject(t, s, "mer")
-	seedProject(t, s, "ao")
+	seedProject(t, s, "kennel")
 
 	r1, err := s.CreateSession(ctx, sampleRecord("mer"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	r2, _ := s.CreateSession(ctx, sampleRecord("mer"))
-	r3, _ := s.CreateSession(ctx, sampleRecord("ao"))
-	if r1.ID != "mer-1" || r2.ID != "mer-2" || r3.ID != "ao-1" {
-		t.Fatalf("ids = %s, %s, %s; want mer-1, mer-2, ao-1", r1.ID, r2.ID, r3.ID)
+	r3, _ := s.CreateSession(ctx, sampleRecord("kennel"))
+	if r1.ID != "mer-1" || r2.ID != "mer-2" || r3.ID != "kennel-1" {
+		t.Fatalf("ids = %s, %s, %s; want mer-1, mer-2, kennel-1", r1.ID, r2.ID, r3.ID)
 	}
 	got, ok, err := s.GetSession(ctx, "mer-1")
 	if err != nil || !ok {
@@ -1441,8 +1442,8 @@ func TestSessionWorktreesRoundTrip(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 	rows := []domain.SessionWorktreeRecord{
-		{SessionID: rec.ID, RepoName: domain.RootWorkspaceRepoName, Branch: "ao/ws-1", BaseSHA: "root-base", BaseRef: "refs/remotes/origin/trunk", WorktreePath: "/managed/ws/ws-1", State: "active"},
-		{SessionID: rec.ID, RepoName: "api", Branch: "ao/ws-1", BaseSHA: "api-base", BaseRef: "refs/remotes/origin/dev", WorktreePath: "/managed/ws/ws-1/api", PreservedRef: "refs/kennel/preserved/ws-1", State: "removed"},
+		{SessionID: rec.ID, RepoName: domain.RootWorkspaceRepoName, Branch: "kennel/ws-1", BaseSHA: "root-base", BaseRef: "refs/remotes/origin/trunk", WorktreePath: "/managed/ws/ws-1", State: "active"},
+		{SessionID: rec.ID, RepoName: "api", Branch: "kennel/ws-1", BaseSHA: "api-base", BaseRef: "refs/remotes/origin/dev", WorktreePath: "/managed/ws/ws-1/api", PreservedRef: "refs/kennel/preserved/ws-1", State: "removed"},
 	}
 	for _, row := range rows {
 		if err := s.UpsertSessionWorktree(ctx, row); err != nil {
@@ -1496,7 +1497,7 @@ func TestUpsertSessionWorktreeEmptyStateDefaultsToActive(t *testing.T) {
 	row := domain.SessionWorktreeRecord{
 		SessionID:    rec.ID,
 		RepoName:     domain.RootWorkspaceRepoName,
-		Branch:       "ao/sw-1",
+		Branch:       "kennel/sw-1",
 		BaseSHA:      "abc123",
 		WorktreePath: "/managed/sw/sw-1",
 	}

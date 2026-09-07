@@ -126,6 +126,16 @@ export function GitPullRequestIcon(props: IconProps) {
 	);
 }
 
+export function LaneMenuIcon(props: IconProps) {
+	return (
+		<Icon name="lane-menu" {...props}>
+			<path d="M4 7h16" />
+			<path d="M4 12h12" />
+			<path d="M4 17h8" />
+		</Icon>
+	);
+}
+
 export function LoaderCircleIcon(props: IconProps) {
 	return (
 		<Icon name="loader-circle" {...props}>

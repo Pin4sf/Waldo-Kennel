@@ -11,9 +11,9 @@ import (
 
 	_ "embed"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/skillassets"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/skillassets"
 )
 
 const (
@@ -25,7 +25,7 @@ const (
 	opencodePluginDirName = ".opencode"
 	opencodePluginSubDir  = "plugins"
 
-	// opencodePluginFileName is the AO-owned plugin file. Kennel fully owns this
+	// opencodePluginFileName is the Kennel-owned plugin file. Kennel fully owns this
 	// filename: install overwrites it and uninstall deletes it (guarded by the
 	// sentinel), so user-authored plugins in other files are never touched.
 	// It is TypeScript (opencode runs on Bun); the file's only import is a
@@ -77,8 +77,8 @@ var opencodeManagedEvents = []string{"session-start", "user-prompt-submit", "sto
 // .opencode/plugins/ directory, and materializes the using-kennel skill into
 // .opencode/skills/using-kennel/ so opencode's native `skill` tool can discover it.
 // Unlike Claude Code and Codex, opencode has no native command-hook config to
-// merge into; its only lifecycle-extensibility surface is a JS/TS plugin. AO
-// therefore writes a dedicated, AO-owned plugin file. The write is atomic and
+// merge into; its only lifecycle-extensibility surface is a JS/TS plugin. Kennel
+// therefore writes a dedicated, Kennel-owned plugin file. The write is atomic and
 // idempotent: re-installing overwrites Kennel's own file with identical content. It
 // refuses to overwrite a file that is NOT Kennel-managed (no sentinel), so a user
 // plugin that happens to occupy our path is never silently destroyed — install
@@ -125,7 +125,7 @@ func (p *Plugin) GetAgentHooks(ctx context.Context, cfg ports.WorkspaceHookConfi
 
 // UninstallHooks removes Kennel's opencode plugin and the Kennel-managed using-kennel skill
 // from the workspace-local .opencode/ tree. It deletes the plugin only when it
-// carries the AO sentinel, and the skill directory only when the Kennel marker is
+// carries the Kennel sentinel, and the skill directory only when the Kennel marker is
 // present, so user files that happen to share those paths are left in place. A
 // missing file is a no-op.
 func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error {
@@ -154,7 +154,7 @@ func (p *Plugin) UninstallHooks(ctx context.Context, workspacePath string) error
 
 // AreHooksInstalled reports whether Kennel's opencode plugin is present in the
 // workspace-local plugin dir. A missing file, or a same-named file without the
-// AO sentinel, means none are installed.
+// Kennel sentinel, means none are installed.
 func (p *Plugin) AreHooksInstalled(ctx context.Context, workspacePath string) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
@@ -273,7 +273,7 @@ func uninstallUsingKennelSkill(workspacePath string) error {
 	return nil
 }
 
-// isKennelManagedPlugin reports whether the file at path exists and carries the AO
+// isKennelManagedPlugin reports whether the file at path exists and carries the Kennel
 // sentinel. A missing file yields (false, nil).
 func isKennelManagedPlugin(path string) (bool, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path built from caller-owned workspace dir

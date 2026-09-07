@@ -167,7 +167,7 @@ function ConnectionSection({
 		>
 			<SettingsRow
 				icon="link"
-				label="Connect AO"
+				label="Connect Kennel"
 				value={paired ? `${cfg.host}:${cfg.httpPort}` : "Not connected"}
 				leading={paired ? <Dot color={dotColor} size={7} breathing={connection === "connecting"} /> : undefined}
 				onPress={() => router.navigate("/pair")}
@@ -215,7 +215,7 @@ function NotificationsSection() {
 		if (toggle.blocked) {
 			Alert.alert(
 				"Notifications are blocked",
-				"Allow notifications for AO in your system settings, then come back.",
+				"Allow notifications for Kennel in your system settings, then come back.",
 				[{ text: "Not now", style: "cancel" }, { text: "Open settings", onPress: openNotificationSettings }],
 			);
 			return;

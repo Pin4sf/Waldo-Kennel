@@ -11,7 +11,8 @@ export type ShellContextValue = {
 	createProject: (input: {
 		path: string;
 		workerAgent: string;
-		orchestratorAgent: string;
+		// Optional: present only after an explicit Advanced Settings choice.
+		orchestratorAgent?: string;
 		trackerIntake?: components["schemas"]["TrackerIntakeConfig"];
 		asWorkspace?: boolean;
 	}) => Promise<void>;

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/controllers"
+	sessionsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/session"
 )
 
 type timeoutProbeSessionService struct {
@@ -73,7 +73,7 @@ func TestSwitchAgentRouteUsesOrdinaryTimeoutAndReturnsAccepted(t *testing.T) {
 
 	switchRequest := httptest.NewRequest(
 		http.MethodPost,
-		"/api/v1/sessions/ao-1/switch-agent",
+		"/api/v1/sessions/kennel-1/switch-agent",
 		bytes.NewBufferString(`{"targetHarness":"codex"}`),
 	)
 	switchRequest.Header.Set("Content-Type", "application/json")

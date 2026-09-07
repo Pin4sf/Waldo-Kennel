@@ -41,4 +41,11 @@ export const FEATURES: Feature[] = [
       "Pair the AO mobile app with your desktop over LAN or Tailscale. Watch every session, open a terminal, and get notified when an agent needs you - while execution and code stay on your machine.",
     colors: ["#2563eb", "#1d4ed8", "#1e3a8a", "#1a1a2e"],
   },
+  {
+    tag: "Kennel Island",
+    title: "Your fleet lives in the notch",
+    description:
+      "A native macOS companion that turns the notch into a live status board: what's working, what needs you, and what's ready to merge, one glance from the menu bar. Hover to peek, click to act, no window to switch to.",
+    colors: ["#c2410c", "#9a3412", "#451a03", "#1a1a2e"],
+  },
 ];

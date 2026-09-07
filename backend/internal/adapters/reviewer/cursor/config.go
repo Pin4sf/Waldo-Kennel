@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/hookutil"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/hookutil"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
@@ -69,7 +69,7 @@ func installReviewerConfig(ctx context.Context, inv ports.ReviewInvocation) erro
 	}
 	profileDir := reviewerProfileDir(inv)
 	if profileDir == "" {
-		return errors.New("cursor reviewer: AO data directory is required")
+		return errors.New("cursor reviewer: Kennel data directory is required")
 	}
 	if err := os.MkdirAll(profileDir, 0o700); err != nil {
 		return fmt.Errorf("cursor reviewer: create profile: %w", err)

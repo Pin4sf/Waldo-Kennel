@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 type fakeStore struct {
@@ -286,7 +286,7 @@ func TestGuard_CoordinationUnderMutationRechecksActivityAndBypassesInputGate(t *
 
 func TestGuard_CoordinationUnderMutationCheckedRejectsBeforeRuntimeWrite(t *testing.T) {
 	rec := record(domain.ActivityIdle, false)
-	rec.Harness = domain.HarnessKimi
+	rec.Harness = domain.HarnessCursor
 	messenger := &fakeMessenger{}
 	g := New(&fakeStore{rec: rec, ok: true}, messenger, nil)
 	g.SetInputLease(fixedInputLease(false))

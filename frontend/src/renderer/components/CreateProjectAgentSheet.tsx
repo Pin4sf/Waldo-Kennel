@@ -1,21 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-	canSubmitProjectSetup,
 	ProjectSetupFormView,
 	ProjectSetupHeaderView,
 } from "@pin4sf/kennel-product-ui";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
 import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
 import { TriangleAlert, X, type LucideIcon } from "lucide-react";
-import { memo, useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { components } from "../../api/schema";
 import { agentsQueryKey, agentsQueryOptions, refreshAgents } from "../hooks/useAgentsQuery";
 import {
+	admitsRole,
 	buildRankedAgentOptions,
-	DEFAULT_AGENT_PRIORITY_RANK,
+	CORE_PROVIDER_IDS,
+	singleReadyProvider,
+	type RankedAgentOption,
 } from "../lib/agent-select-options";
+import { agentLabel } from "../lib/agent-options";
 import { cn } from "../lib/utils";
 import { AgentAvatar } from "./AgentAvatar";
+import { AgentModelPicker } from "./AgentModelPicker";
 import { FieldDefaultHint } from "./FieldDefaultHint";
 import { buildIntake, type IntakeForm, IntakeFields, intakeNeedsRule } from "./IntakeFields";
 import { AgentSelectMenuItem } from "./settings/AgentSelectMenuItem";
@@ -25,18 +30,38 @@ import type { ProjectKind } from "../types/workspace";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { appI18n } from "../i18n";
+import { useUiStore } from "../stores/ui-store";
 
 type TrackerIntakeConfig = components["schemas"]["TrackerIntakeConfig"];
-
 type AgentInfo = components["schemas"]["AgentInfo"];
 
 export type CreateProjectAgentSelection = {
+	// Empty is an explicit "configure later" choice. Project registration is
+	// independent of provider installation/auth/profile readiness.
 	workerAgent: string;
-	orchestratorAgent: string;
+	// Optional preferences are scoped to their selected provider. Empty means
+	// let the provider/Kennel choose; it is never a hidden provider or model lock.
+	workerModel?: string;
+	workerMode?: string;
+	// Optional explicit coordinator override. Empty means no coordinator is
+	// configured; the worker is never promoted into this role by omission.
+	orchestratorAgent?: string;
+	orchestratorModel?: string;
+	orchestratorMode?: string;
 	trackerIntake?: TrackerIntakeConfig;
 };
 
 const EMPTY_INTAKE: IntakeForm = { enabled: false, repo: "", assignee: "" };
+const CORE_FALLBACK_AGENTS: AgentInfo[] = CORE_PROVIDER_IDS.map((id) => ({
+	id,
+	label: agentLabel(id),
+	roles: {
+		worker: true,
+		coordinator: id === "codex" || id === "claude-code" || id === "opencode",
+		switchTarget: id === "codex" || id === "claude-code" || id === "opencode",
+	},
+}));
+
 type CreateProjectAgentSheetProps = {
 	error?: string | null;
 	isCreating: boolean;
@@ -116,8 +141,24 @@ export function CreateProjectAgentSheet({
 	});
 	const agents = agentsQuery.data;
 	const installedAgents = agents?.installed ?? [];
-	const agentOptions = agents?.authorized ?? [];
-	const supportedAgents = agents?.supported ?? [];
+	const authorizedAgents = agents?.authorized ?? [];
+	const supportedAgents = agents?.supported ?? CORE_FALLBACK_AGENTS;
+	const preferredAgentId = useUiStore((state) => state.defaultAgentId);
+	const workerOptions = useMemo(
+		() =>
+			buildRankedAgentOptions({
+				supported: supportedAgents,
+				installed: installedAgents,
+				authorized: authorizedAgents,
+				fallbackAgents: CORE_FALLBACK_AGENTS,
+				filter: (candidate) => admitsRole(candidate, "worker"),
+			}),
+		[authorizedAgents, installedAgents, supportedAgents],
+	);
+	const coordinatorCapable = useMemo(
+		() => new Set(supportedAgents.filter((candidate) => admitsRole(candidate, "coordinator")).map((candidate) => candidate.id)),
+		[supportedAgents],
+	);
 	const isLoadingAgents = agents === undefined && agentsQuery.isFetching;
 	const agentsError = agentsQuery.isError
 		? agentsQuery.error instanceof Error
@@ -130,40 +171,63 @@ export function CreateProjectAgentSheet({
 			: t("createProject.couldNotRefreshAgents")
 		: agentsError;
 	const [workerAgent, setWorkerAgent] = useState("");
+	const [workerModel, setWorkerModel] = useState("");
+	const [workerMode, setWorkerMode] = useState("");
+	const [workerModelWarning, setWorkerModelWarning] = useState<string | undefined>();
 	const [orchestratorAgent, setOrchestratorAgent] = useState("");
+	const [orchestratorModel, setOrchestratorModel] = useState("");
+	const [orchestratorMode, setOrchestratorMode] = useState("");
+	const [orchestratorModelWarning, setOrchestratorModelWarning] = useState<string | undefined>();
 	const [workerAgentTouched, setWorkerAgentTouched] = useState(false);
-	const [orchestratorAgentTouched, setOrchestratorAgentTouched] = useState(false);
 	const isBusy = isCreating || isInitializing;
 	const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
 	const intakeIncomplete = intakeNeedsRule(intake);
-	const canSubmit =
-		canSubmitProjectSetup({
-			workerAgent,
-			orchestratorAgent,
-			intakeEnabled: intake.enabled,
-			intakeAssignee: intake.assignee,
-		}) &&
-		!intakeIncomplete &&
-		!isBusy &&
-		!isLoadingAgents;
+	// Provider and model inventory/readiness must never block durable Project
+	// creation. Empty provider/model values mean configure or route later.
+	const canSubmit = !intakeIncomplete && !isBusy;
 	const sheetError = error ? projectSheetError(error) : null;
+	const providerSetupNeeded =
+		agents !== undefined && !isLoadingAgents && workerOptions.length > 0 && workerOptions.every((option) => option.disabled);
+	const providerSetupAlert: SheetError | null = providerSetupNeeded
+		? {
+				title: t("createProject.providerSetupRequiredTitle", { defaultValue: "Agent setup required" }),
+				message: t("createProject.providerSetupRequiredBody", {
+					defaultValue:
+						"No coding provider is ready yet. Finish authentication or configuration in the provider CLI, then refresh agents. You can still create this project now and configure the provider later.",
+				}),
+				tone: "warning",
+			}
+		: null;
+	const effectiveAlert = sheetError ?? providerSetupAlert;
 
 	useEffect(() => {
-		if (!open) return;
-		const defaultAgent = defaultAuthorizedAgent(agentOptions);
-		if (!workerAgentTouched) setWorkerAgent(defaultAgent);
-		if (!orchestratorAgentTouched) setOrchestratorAgent(defaultAgent);
-	}, [agentOptions, open, orchestratorAgentTouched, workerAgentTouched]);
+		if (!open || workerAgentTouched) return;
+		const nextWorker = preferredDefaultAgent(workerOptions, preferredAgentId);
+		if (workerAgent === nextWorker) return;
+		setWorkerAgent(nextWorker);
+		setWorkerModel("");
+		setWorkerMode("");
+		setWorkerModelWarning(undefined);
+	}, [open, preferredAgentId, workerAgent, workerAgentTouched, workerOptions]);
 
 	useEffect(() => {
 		if (!open) {
 			setWorkerAgent("");
+			setWorkerModel("");
+			setWorkerMode("");
+			setWorkerModelWarning(undefined);
 			setOrchestratorAgent("");
+			setOrchestratorModel("");
+			setOrchestratorMode("");
+			setOrchestratorModelWarning(undefined);
 			setWorkerAgentTouched(false);
-			setOrchestratorAgentTouched(false);
 			setIntake(EMPTY_INTAKE);
 		}
 	}, [open, path]);
+
+	const modelPreferenceHint = t("createProject.modelPreferenceHint", {
+		defaultValue: "Optional preference. Kennel can recommend a different model for an Outcome.",
+	});
 
 	return (
 		<Dialog.Root open={open} onOpenChange={(next) => !isBusy && onOpenChange(next)}>
@@ -178,51 +242,97 @@ export function CreateProjectAgentSheet({
 						closeLabel={t("createProject.closeAgents")}
 						disabled={isBusy}
 						path={path ?? ""}
-						title={
-							kind === "workspace"
-								? t("createProject.workspaceAgents")
-								: t("createProject.projectAgents")
-						}
+						title={kind === "workspace" ? t("createProject.workspaceAgents") : t("createProject.projectAgents")}
 					/>
 					<ProjectSetupFormView
 						agentControls={{
 							worker: (
-								<RequiredAgentField
-									id="newProjectWorkerAgent"
-									label={t("createProject.workerAgent")}
-									placeholder={t("createProject.selectWorker")}
-									value={workerAgent}
-									authorized={agentOptions}
-									installed={installedAgents}
-									supported={supportedAgents}
-									disabled={isLoadingAgents}
-									labelClassName="agents-sheet-label"
-									triggerClassName="agents-sheet-control"
-									contentClassName="agents-sheet-menu"
-									onChange={(value) => {
-										setWorkerAgent(value);
-										setWorkerAgentTouched(true);
-									}}
-								/>
+								<div className="flex flex-col gap-3">
+									<RequiredAgentField
+										id="newProjectWorkerAgent"
+										label={t("createProject.defaultCodingAgent")}
+										placeholder={t("createProject.selectWorker")}
+										value={workerAgent}
+										authorized={authorizedAgents}
+										installed={installedAgents}
+										supported={supportedAgents}
+										disabled={isLoadingAgents}
+										labelClassName="agents-sheet-label"
+										triggerClassName="agents-sheet-control"
+										contentClassName="agents-sheet-menu"
+										onChange={(value) => {
+											setWorkerAgent(value);
+											setWorkerAgentTouched(true);
+											setWorkerModel("");
+											setWorkerMode("");
+											setWorkerModelWarning(undefined);
+										}}
+									/>
+									{workerAgent ? (
+										<ModelPreferenceField
+											agentId={workerAgent}
+											label={t("createProject.preferredModel", { defaultValue: "Preferred model" })}
+											model={workerModel}
+											mode={workerMode}
+											hint={modelPreferenceHint}
+											warning={workerModelWarning}
+											disabled={isBusy}
+											onModelChange={setWorkerModel}
+											onModeChange={setWorkerMode}
+											onWarningChange={setWorkerModelWarning}
+										/>
+									) : null}
+								</div>
 							),
 							orchestrator: (
-								<RequiredAgentField
-									id="newProjectOrchestratorAgent"
-									label={t("createProject.orchestratorAgent")}
-									placeholder={t("createProject.selectOrchestrator")}
-									value={orchestratorAgent}
-									authorized={agentOptions}
-									installed={installedAgents}
-									supported={supportedAgents}
-									disabled={isLoadingAgents}
-									labelClassName="agents-sheet-label"
-									triggerClassName="agents-sheet-control"
-									contentClassName="agents-sheet-menu"
-									onChange={(value) => {
-										setOrchestratorAgent(value);
-										setOrchestratorAgentTouched(true);
-									}}
-								/>
+								<Accordion type="single" collapsible className="rounded-lg border border-border">
+									<AccordionItem value="advanced" className="border-none">
+										<AccordionTrigger className="px-3 text-xs font-medium">
+											{t("createProject.advancedSettings")}
+										</AccordionTrigger>
+										<AccordionContent className="flex flex-col gap-3 px-3 pb-3">
+											<p className="text-xs leading-snug text-muted-foreground">
+												{t("createProject.orchestratorAutoNotice")}
+											</p>
+											<RequiredAgentField
+												id="newProjectOrchestratorAgent"
+												selectableIds={coordinatorCapable}
+												label={t("createProject.orchestratorAgent")}
+												placeholder={t("createProject.selectOrchestrator")}
+												value={orchestratorAgent}
+												authorized={authorizedAgents}
+												installed={installedAgents}
+												supported={supportedAgents}
+												disabled={isLoadingAgents}
+												labelClassName="agents-sheet-label"
+												triggerClassName="agents-sheet-control"
+												contentClassName="agents-sheet-menu"
+												onChange={(value) => {
+													setOrchestratorAgent(value);
+													setOrchestratorModel("");
+													setOrchestratorMode("");
+													setOrchestratorModelWarning(undefined);
+												}}
+											/>
+											{orchestratorAgent ? (
+												<ModelPreferenceField
+													agentId={orchestratorAgent}
+													label={t("createProject.preferredCoordinatorModel", {
+														defaultValue: "Preferred coordinator model",
+													})}
+													model={orchestratorModel}
+													mode={orchestratorMode}
+													hint={modelPreferenceHint}
+													warning={orchestratorModelWarning}
+													disabled={isBusy}
+													onModelChange={setOrchestratorModel}
+													onModeChange={setOrchestratorMode}
+													onWarningChange={setOrchestratorModelWarning}
+												/>
+											) : null}
+										</AccordionContent>
+									</AccordionItem>
+								</Accordion>
 							),
 						}}
 						agents={{
@@ -238,13 +348,13 @@ export function CreateProjectAgentSheet({
 							retryLabel: t("createProject.retry"),
 						}}
 						alert={
-							sheetError
+							effectiveAlert
 								? {
-										...sheetError,
+										...effectiveAlert,
 										icon: (
 											<TriangleAlert
 												className={
-													sheetError.tone === "warning"
+													effectiveAlert.tone === "warning"
 														? "mt-0.5 size-icon-sm shrink-0 text-warning"
 														: "mt-0.5 size-icon-sm shrink-0 text-destructive"
 												}
@@ -268,7 +378,15 @@ export function CreateProjectAgentSheet({
 						isBusy={isBusy}
 						onCancel={() => onOpenChange(false)}
 						onSubmit={() =>
-							void onSubmit({ workerAgent, orchestratorAgent, trackerIntake: buildIntake(intake) })
+							void onSubmit({
+								workerAgent,
+								...(workerModel ? { workerModel } : {}),
+								...(workerMode ? { workerMode } : {}),
+								...(orchestratorAgent ? { orchestratorAgent } : {}),
+								...(orchestratorAgent && orchestratorModel ? { orchestratorModel } : {}),
+								...(orchestratorAgent && orchestratorMode ? { orchestratorMode } : {}),
+								trackerIntake: buildIntake(intake),
+							})
 						}
 						setupNotice={
 							repositorySetupNeeded
@@ -288,6 +406,51 @@ export function CreateProjectAgentSheet({
 				</Dialog.Content>
 			</Dialog.Portal>
 		</Dialog.Root>
+	);
+}
+
+function ModelPreferenceField({
+	agentId,
+	disabled,
+	hint,
+	label,
+	model,
+	mode,
+	onModelChange,
+	onModeChange,
+	onWarningChange,
+	warning,
+}: {
+	agentId: string;
+	disabled: boolean;
+	hint: string;
+	label: string;
+	model: string;
+	mode: string;
+	onModelChange: (value: string) => void;
+	onModeChange: (value: string) => void;
+	onWarningChange: (warning: string | undefined) => void;
+	warning?: string;
+}) {
+	return (
+		<div className="flex flex-col gap-1.5">
+			<div className="flex min-w-0 items-baseline gap-1.5">
+				<Label className="agents-sheet-label text-xs font-medium text-muted-foreground">{label}</Label>
+				<FieldDefaultHint text={hint} />
+			</div>
+			<AgentModelPicker
+				agentId={agentId}
+				agentLabel={agentLabel(agentId)}
+				projectId=""
+				value={model}
+				mode={mode}
+				disabled={disabled}
+				onModelChange={onModelChange}
+				onModeChange={onModeChange}
+				onWarningChange={onWarningChange}
+			/>
+			{warning ? <p className="text-xs leading-snug text-warning">{warning}</p> : null}
+		</div>
 	);
 }
 
@@ -326,6 +489,7 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	onChange,
 	placeholder,
 	supported,
+	selectableIds,
 	triggerClassName,
 	labelClassName,
 	contentClassName,
@@ -334,7 +498,6 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 }: {
 	authorized?: AgentInfo[];
 	disabled?: boolean;
-	/** Caption beside the label, e.g. naming where a preselected default came from. */
 	hint?: string;
 	icon?: LucideIcon;
 	id: string;
@@ -349,15 +512,20 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	contentClassName?: string;
 	value: string;
 	variant?: "stacked" | "settings-row" | "chip";
+	selectableIds?: ReadonlySet<string>;
 }) {
-	const fallbackAgents: AgentInfo[] = [{ id: "codex", label: "Codex" }];
-	const selectableSupported = (supported ?? fallbackAgents).filter((agent) => agent.id === "codex");
+	const baseSupported = supported ?? CORE_FALLBACK_AGENTS;
+	const filteredSupported = selectableIds
+		? baseSupported.filter((candidate) => selectableIds.has(candidate.id))
+		: baseSupported;
+	const filteredFallback = selectableIds
+		? CORE_FALLBACK_AGENTS.filter((candidate) => selectableIds.has(candidate.id))
+		: CORE_FALLBACK_AGENTS;
 	const options = buildRankedAgentOptions({
-		supported: selectableSupported.length > 0 ? selectableSupported : fallbackAgents,
-		installed: installed?.filter((agent) => agent.id === "codex"),
-		authorized: authorized?.filter((agent) => agent.id === "codex"),
-		priorityRank: DEFAULT_AGENT_PRIORITY_RANK,
-		fallbackAgents,
+		supported: filteredSupported,
+		installed,
+		authorized,
+		fallbackAgents: filteredFallback,
 	});
 
 	if (variant === "settings-row") {
@@ -406,11 +574,6 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 
 	const selectedOption = options.find((agent) => agent.id === value);
 
-	// Chip: the value reads as part of a sentence ("Runs with Codex") rather than
-	// as a form field, so the label is carried by that sentence, not by a <Label>.
-	// Built on the same SettingsOptionMenu as the settings-row variant (and the
-	// model chip beside it) so both halves of the pill share one dropdown
-	// component instead of a Select-based menu and a DropdownMenu-based one.
 	if (variant === "chip") {
 		const menuOptions = options.map((agent) => ({
 			value: agent.id,
@@ -438,7 +601,10 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 						{selectedOption ? (
 							<AgentAvatar provider={selectedOption.id} className="size-icon-base" decorative />
 						) : null}
-						<span className="min-w-0 truncate text-control text-foreground" title={selectedOption?.label ?? placeholder}>
+						<span
+							className="min-w-0 truncate text-control text-foreground"
+							title={selectedOption?.label ?? placeholder}
+						>
 							{selectedOption?.label ?? placeholder}
 						</span>
 					</span>
@@ -477,8 +643,6 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 					aria-label={label}
 					aria-invalid={invalid || undefined}
 				>
-					{/* Radix would otherwise clone the whole menu row into the trigger,
-					    dragging the selected checkmark and install status with it. */}
 					<SelectValue placeholder={placeholder}>
 						{selectedOption ? (
 							<span className="flex min-w-0 items-center gap-3">
@@ -518,6 +682,10 @@ export const RequiredAgentField = memo(function RequiredAgentField({
 	);
 });
 
-export function defaultAuthorizedAgent(authorizedAgents: AgentInfo[]): string {
-	return authorizedAgents.some((agent) => agent.id === "codex") ? "codex" : "";
+export function preferredDefaultAgent(options: RankedAgentOption[], preferredAgentId: string): string {
+	if (preferredAgentId) {
+		const preferred = options.find((option) => option.id === preferredAgentId);
+		if (preferred && !preferred.disabled) return preferred.id;
+	}
+	return singleReadyProvider(options);
 }

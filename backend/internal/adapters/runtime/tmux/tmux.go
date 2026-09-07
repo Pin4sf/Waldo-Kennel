@@ -17,9 +17,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/runtime/ptyexec"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/runtime/ptyexec"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
@@ -521,7 +521,7 @@ func (r *Runtime) IsAlive(ctx context.Context, handle ports.RuntimeHandle) (bool
 
 // IsSupervisedProcessAlive reports whether the managed workload for ref is
 // still a descendant of this tmux pane. The initial launch is identified by
-// its exact AO supervisor. After that supervisor exits and leaves the
+// its exact Kennel supervisor. After that supervisor exits and leaves the
 // interactive shell behind, a child launched from that shell is treated as a
 // manually resumed workload. Command failures remain inconclusive.
 func (r *Runtime) IsSupervisedProcessAlive(ctx context.Context, handle ports.RuntimeHandle, ref ports.SupervisedProcessRef) (bool, error) {
@@ -532,7 +532,7 @@ func (r *Runtime) IsSupervisedProcessAlive(ctx context.Context, handle ports.Run
 	return containsManagedWorkload(entries, panePID, string(ref.SessionID), ref.LaunchID), nil
 }
 
-// IsExactSupervisedProcessAlive reports only the AO supervisor matching ref
+// IsExactSupervisedProcessAlive reports only the Kennel supervisor matching ref
 // while that supervisor still owns a live managed child. It deliberately
 // excludes both the manual-child fallback used by the ordinary reaper probe
 // and a supervisor that is merely waiting to durably report its child's exit:
@@ -616,7 +616,7 @@ func (r *Runtime) SendMessage(ctx context.Context, handle ports.RuntimeHandle, m
 		// their own timeout instead): abandoning mid-pause would strand an
 		// unsubmitted draft that a retried send would then double-paste.
 		// Errors reported by tmux after it accepts a chunk still return to the
-		// caller; they are not retried because AO cannot safely distinguish
+		// caller; they are not retried because Kennel cannot safely distinguish
 		// whether tmux applied the failed command.
 		if r.enterDelay > 0 {
 			select {
@@ -712,7 +712,7 @@ func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, 
 //
 // -u forces tmux's client-side CLIENT_UTF8 flag on. Without it, tmux infers
 // UTF-8 capability from LC_ALL/LC_CTYPE/LANG in the attaching process's env
-// (see tmux's main()); AO's daemon is typically started without an
+// (see tmux's main()); Kennel's daemon is typically started without an
 // interactive shell's locale, so that inference silently fails. A non-UTF8
 // client makes tmux's tty_check_codeset (tty.c) replace any character it
 // can't map through the legacy ACS table with underscores matching the
@@ -722,7 +722,7 @@ func (r *Runtime) Attach(ctx context.Context, handle ports.RuntimeHandle, rows, 
 // rewritten to "_", which is the underscore corruption reported in #2484.
 // Confirmed byte-for-byte: attaching with a stripped, locale-less env
 // reproduces "_ _ _" for those glyphs; adding -u fixes it, with no observable
-// difference for the still-correct box-drawing case. AO already treats the
+// difference for the still-correct box-drawing case. Kennel already treats the
 // PTY byte stream as UTF-8 end to end, so forcing the flag is always
 // correct here regardless of the daemon's own environment.
 func (r *Runtime) attachCommand(handle ports.RuntimeHandle) ([]string, error) {
@@ -732,7 +732,7 @@ func (r *Runtime) attachCommand(handle ports.RuntimeHandle) ([]string, error) {
 	}
 	// The embedded xterm renderer supports 24-bit SGR colors. Tell this tmux
 	// client explicitly so tmux forwards RGB instead of quantizing it to the
-	// xterm-256color palette. -T is available in AO's minimum tmux version (3.2).
+	// xterm-256color palette. -T is available in Kennel's minimum tmux version (3.2).
 	return []string{r.binary, "-u", "-T", "RGB", "attach-session", "-t", id}, nil
 }
 
@@ -1107,7 +1107,7 @@ func buildLaunchCommand(cfg ports.RuntimeConfig) string {
 		b.WriteString(shellQuote(cfg.Env[key]))
 		b.WriteString("; ")
 	}
-	// The AO web terminal and tmux attach client both support 24-bit SGR color.
+	// The Kennel web terminal and tmux attach client both support 24-bit SGR color.
 	// Export this after caller env so agent color detection cannot accidentally
 	// downgrade rich syntax/diff colors to ANSI-256.
 	b.WriteString("export COLORTERM='truecolor'; ")

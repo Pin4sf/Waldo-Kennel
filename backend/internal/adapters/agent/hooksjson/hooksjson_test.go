@@ -127,7 +127,7 @@ func TestManagerPreservesManagedHookExtensionsOnReconcile(t *testing.T) {
         "command": "kennel hooks test notification",
         "timeout": 7,
         "async": true,
-        "commandWindows": "ao-hooks.cmd"
+        "commandWindows": "kennel-hooks.cmd"
       }]
     }]
   }
@@ -162,7 +162,7 @@ func TestManagerPreservesManagedHookExtensionsOnReconcile(t *testing.T) {
 		t.Fatalf("group extension changed: %#v", group["groupExtension"])
 	}
 	hook := group["hooks"].([]any)[0].(map[string]any)
-	if hook["timeout"] != float64(30) || hook["async"] != true || hook["commandWindows"] != "ao-hooks.cmd" {
+	if hook["timeout"] != float64(30) || hook["async"] != true || hook["commandWindows"] != "kennel-hooks.cmd" {
 		t.Fatalf("managed hook fields = %#v", hook)
 	}
 }

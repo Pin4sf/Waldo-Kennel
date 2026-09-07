@@ -65,7 +65,7 @@ describe("ACP session config options", () => {
 		for (const name of ["Model", "Effort", "Permission mode", "Fast mode", "Agent"]) {
 			expect(screen.getByRole("button", { name }).querySelectorAll("svg")).toHaveLength(1);
 		}
-		// The generic permission option owns this choice; AO's separate approval
+		// The generic permission option owns this choice; Kennel's separate approval
 		// picker must not be duplicated beside it.
 		expect(screen.queryByText("Provider default")).not.toBeInTheDocument();
 	});

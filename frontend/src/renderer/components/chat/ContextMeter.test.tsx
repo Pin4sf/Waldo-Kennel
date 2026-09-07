@@ -31,7 +31,7 @@ function limits(over: Partial<ConversationRateLimits> = {}): ConversationRateLim
 	};
 }
 
-/** The fill element inside the track, whose width and colour are the encoding. */
+/** The fill element inside the track, whose scale and colour are the encoding. */
 function fill(): HTMLElement {
 	const inner = screen.getByRole("progressbar").firstElementChild?.firstElementChild;
 	if (!inner) throw new Error("meter has no fill element");
@@ -48,20 +48,22 @@ describe("ContextMeter", () => {
 		expect(screen.queryByText(/18,055 tokens/)).not.toBeInTheDocument();
 	});
 
-	it("encodes fullness in the fill width as well as the number", () => {
+	it("encodes fullness in the fill length as well as the number", () => {
 		render(<ContextMeter usage={usage({ contextUsed: 129200 })} />);
-		expect(fill().style.width).toBe("50%");
+		// A full-width bar scaled down, so the fill composites instead of
+		// relaying out the row on every streamed token.
+		expect(fill().style.transform).toBe("scaleX(0.5)");
 	});
 
 	it("keeps a nearly-empty conversation's fill visible rather than zero-width", () => {
 		render(<ContextMeter usage={usage({ contextUsed: 100 })} />);
-		// A hairline still reads as "a meter that is nearly empty"; a zero-width fill
-		// reads as a broken component.
-		expect(fill().style.width).toBe("2%");
+		// A hairline still reads as "a meter that is nearly empty"; a fill scaled
+		// to zero reads as a broken component.
+		expect(fill().style.transform).toBe("scaleX(0.02)");
 	});
 
 	describe("threshold colours", () => {
-		it("uses the AO logo accent below 70%", () => {
+		it("uses the Kennel logo accent below 70%", () => {
 			render(<ContextMeter usage={usage({ contextUsed: 172_000 })} />);
 			expect(fill().className).toContain("bg-logo-accent");
 		});
@@ -83,7 +85,7 @@ describe("ContextMeter", () => {
 	it("clamps a provider that overreports past its own window", () => {
 		render(<ContextMeter usage={usage({ contextUsed: 300_000 })} />);
 		// Full, not overflowing the track and not claiming 116%.
-		expect(fill().style.width).toBe("100%");
+		expect(fill().style.transform).toBe("scaleX(1)");
 		expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
 	});
 
@@ -98,7 +100,7 @@ describe("ContextMeter", () => {
 	it("renders nothing before the provider has reported anything", () => {
 		const { container } = render(<ContextMeter />);
 		// Absent is distinct from zero: an empty meter for an unreported conversation
-		// would be a claim AO has not earned.
+		// would be a claim Kennel has not earned.
 		expect(container).toBeEmptyDOMElement();
 	});
 

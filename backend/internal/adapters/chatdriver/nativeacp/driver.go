@@ -1,5 +1,5 @@
-// Package nativeacp binds a user-installed AO agent plugin to the reusable ACP
-// transport. It contains the invariant shared by native ACP harnesses: AO never
+// Package nativeacp binds a user-installed Kennel agent plugin to the reusable ACP
+// transport. It contains the invariant shared by native ACP harnesses: Kennel never
 // downloads, packages, or substitutes the provider CLI.
 package nativeacp
 
@@ -9,9 +9,9 @@ import (
 	"log/slog"
 	"time"
 
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	acpdriver "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/acp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Plugin is the existing agent-plugin surface native ACP bindings reuse for

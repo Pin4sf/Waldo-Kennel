@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 const (
@@ -26,7 +26,7 @@ const (
 	handoffTranscriptMaxLines  = 600
 	handoffTranscriptMaxBytes  = 64 << 10
 	transcriptOmittedMarker    = "[... earlier provider transcript content omitted ...]"
-	transcriptPartialMarker    = "[... newest provider transcript record exceeded AO's excerpt limit; showing its bounded suffix ...]"
+	transcriptPartialMarker    = "[... newest provider transcript record exceeded Kennel's excerpt limit; showing its bounded suffix ...]"
 	transcriptIncompleteMarker = "[... incomplete final provider transcript record omitted ...]"
 	finalizedHandoffMaxBytes   = 256 << 10
 )
@@ -60,8 +60,8 @@ type switchWorkspaceFact struct {
 
 // switchTranscriptFact is an ephemeral verified source-transcript reference
 // for the target continuation. Tail is populated through a read-only descriptor
-// only when no semantic handoff exists and AO needs bounded fallback context.
-// It is captured only after the source has conclusively stopped; AO never
+// only when no semantic handoff exists and Kennel needs bounded fallback context.
+// It is captured only after the source has conclusively stopped; Kennel never
 // rewrites the provider file or persists the potentially large tail.
 type switchTranscriptFact struct {
 	Path      string
@@ -69,9 +69,9 @@ type switchTranscriptFact struct {
 	Truncated bool
 }
 
-// deterministicSwitchContext is the context AO can build without asking a
+// deterministicSwitchContext is the context Kennel can build without asking a
 // model. It is intentionally assembled in memory and rendered directly into
-// the target continuation. Operational switch state remains durable, but AO
+// the target continuation. Operational switch state remains durable, but Kennel
 // does not retain a second canonical conversation or deterministic transcript.
 type deterministicSwitchContext struct {
 	OriginalTask          string
@@ -90,7 +90,7 @@ type writtenAgentHandoff struct {
 	Hash string
 }
 
-// finalizedAgentHandoff is the one permanent, AO-owned context snapshot for a
+// finalizedAgentHandoff is the one permanent, Kennel-owned context snapshot for a
 // completed switch. Continuation is the exact bounded historical context added
 // to the target's hidden system instructions. Keeping that exact text makes a
 // later native restore deterministic without retaining a second conversation.
@@ -149,7 +149,7 @@ func readNativeTranscriptTailWithOpen(ctx context.Context, path, configDir strin
 	}
 	// Close the validation/open race as far as portable os APIs permit: resolve
 	// the path again and require that it still names the exact file descriptor
-	// AO already opened beneath the provider config directory.
+	// Kennel already opened beneath the provider config directory.
 	if ctx.Err() != nil {
 		return "", false, false
 	}
@@ -267,7 +267,7 @@ func normalizeHistoricalContext(data []byte) string {
 
 func (m *Manager) handoffDirectory(sessionID domain.SessionID, switchID string) (string, error) {
 	if strings.TrimSpace(m.dataDir) == "" {
-		return "", errors.New("agent switch: AO data directory is unavailable")
+		return "", errors.New("agent switch: Kennel data directory is unavailable")
 	}
 	if !handoffPathComponent(string(sessionID)) || !handoffPathComponent(switchID) {
 		return "", errors.New("agent switch: invalid handoff path identity")
@@ -284,8 +284,8 @@ func handoffPathComponent(value string) bool {
 }
 
 // prepareAgentHandoffPaths creates the private per-switch directory and returns
-// the source-writable candidate and AO-owned accepted semantic-handoff paths.
-// Both are temporary inputs to AO's finalized handoff; handoff.json is the sole
+// the source-writable candidate and Kennel-owned accepted semantic-handoff paths.
+// Both are temporary inputs to Kennel's finalized handoff; handoff.json is the sole
 // permanent artifact after a successful switch.
 func (m *Manager) prepareAgentHandoffPaths(ctx context.Context, sessionID domain.SessionID, switchID string) (candidatePath, finalPath string, err error) {
 	if err := ctx.Err(); err != nil {
@@ -296,14 +296,14 @@ func (m *Manager) prepareAgentHandoffPaths(ctx context.Context, sessionID domain
 		return "", "", err
 	}
 	if err := os.MkdirAll(m.dataDir, 0o700); err != nil {
-		return "", "", fmt.Errorf("agent switch: create AO data directory: %w", err)
+		return "", "", fmt.Errorf("agent switch: create Kennel data directory: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
 		return "", "", err
 	}
 	dataInfo, err := os.Lstat(m.dataDir)
 	if err != nil || !dataInfo.IsDir() || dataInfo.Mode()&os.ModeSymlink != 0 {
-		return "", "", fmt.Errorf("agent switch: AO data path is not a real directory")
+		return "", "", fmt.Errorf("agent switch: Kennel data path is not a real directory")
 	}
 	for _, directory := range []string{filepath.Dir(filepath.Dir(dir)), filepath.Dir(dir), dir} {
 		if err := ctx.Err(); err != nil {
@@ -367,7 +367,7 @@ func validateHandoffDirectoryChain(dir string) error {
 }
 
 // writeAgentHandoffFile temporarily persists the validated source-authored
-// semantic report. After source stop AO embeds it in handoff.json and removes
+// semantic report. After source stop Kennel embeds it in handoff.json and removes
 // this intermediate file.
 func (m *Manager) writeAgentHandoffFile(ctx context.Context, sessionID domain.SessionID, switchID string, body json.RawMessage) (writtenAgentHandoff, error) {
 	if err := ctx.Err(); err != nil {
@@ -466,7 +466,7 @@ func writeAtomicImmutableFile(ctx context.Context, path string, body []byte) err
 		}
 		return fmt.Errorf("agent switch: immutable handoff already exists with different contents: %s", path)
 	}
-	f, err := os.CreateTemp(dir, ".agent-handoff-*.tmp") //nolint:gosec // private AO-owned directory.
+	f, err := os.CreateTemp(dir, ".agent-handoff-*.tmp") //nolint:gosec // private Kennel-owned directory.
 	if err != nil {
 		return fmt.Errorf("agent switch: create temporary handoff: %w", err)
 	}
@@ -512,7 +512,7 @@ func syncHandoffDirectory(ctx context.Context, dir string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	dirHandle, err := os.Open(dir) //nolint:gosec // validated AO-owned directory.
+	dirHandle, err := os.Open(dir) //nolint:gosec // validated Kennel-owned directory.
 	if err != nil {
 		return fmt.Errorf("agent switch: open handoff directory for sync: %w", err)
 	}
@@ -524,7 +524,7 @@ func syncHandoffDirectory(ctx context.Context, dir string) error {
 }
 
 // readRegularFileWithoutSymlink reads only the exact regular file observed by
-// Lstat. It rejects symlinks and replacement races so an agent cannot make AO
+// Lstat. It rejects symlinks and replacement races so an agent cannot make Kennel
 // follow a pre-created handoff path outside the private switch directory.
 func readRegularFileWithoutSymlink(ctx context.Context, path string, limit int64) ([]byte, bool, error) {
 	if err := ctx.Err(); err != nil {
@@ -540,7 +540,7 @@ func readRegularFileWithoutSymlink(ctx context.Context, path string, limit int64
 	if !pathInfo.Mode().IsRegular() {
 		return nil, false, errors.New("handoff path is not a regular file")
 	}
-	f, err := os.Open(path) //nolint:gosec // exact AO-owned path validated with Lstat and SameFile.
+	f, err := os.Open(path) //nolint:gosec // exact Kennel-owned path validated with Lstat and SameFile.
 	if err != nil {
 		return nil, false, err
 	}
@@ -565,7 +565,7 @@ func readRegularFileWithoutSymlink(ctx context.Context, path string, limit int64
 	return body, true, nil
 }
 
-// readVerifiedAgentHandoffForDelivery reopens the AO-owned semantic file after the
+// readVerifiedAgentHandoffForDelivery reopens the Kennel-owned semantic file after the
 // source process has stopped and proves it still matches the durable digest.
 // Durable status remains provenance; callers use this result only to decide
 // whether semantic context is safe and available for this target delivery.
@@ -651,8 +651,8 @@ func (m *Manager) cleanupAgentHandoffArtifacts(ctx context.Context, sw domain.Ag
 	} else if err != nil {
 		return err
 	}
-	// Never traverse a source-replaced symlink while deleting even fixed AO
-	// filenames. Cleanup is best effort and fails closed if any AO-owned
+	// Never traverse a source-replaced symlink while deleting even fixed Kennel
+	// filenames. Cleanup is best effort and fails closed if any Kennel-owned
 	// directory below dataDir changed type.
 	if err := validateHandoffDirectoryChain(dir); err != nil {
 		return fmt.Errorf("agent switch: refuse unsafe handoff cleanup: %w", err)
@@ -687,7 +687,7 @@ func (m *Manager) cleanupAgentHandoffArtifacts(ctx context.Context, sw domain.Ag
 	}
 	if removeErr := os.Remove(dir); removeErr == nil {
 		sessionDir := filepath.Dir(dir)
-		_ = os.Remove(sessionDir) // succeeds only when this AO-owned directory is empty.
+		_ = os.Remove(sessionDir) // succeeds only when this Kennel-owned directory is empty.
 	}
 	return errors.Join(errs...)
 }

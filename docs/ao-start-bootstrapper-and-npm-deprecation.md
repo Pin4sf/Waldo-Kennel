@@ -5,7 +5,7 @@
 > Every "current state" claim carries a `file:line` reference.
 >
 > **This is NOT a new JS launcher package.** The `ao` binary that npm ships is the
-> existing Go cobra CLI (`backend/cmd/ao`). This effort rewrites one subcommand,
+> existing Go cobra CLI (`backend/cmd/kennel`). This effort rewrites one subcommand,
 > `ao start`, to fetch and open the desktop app. Everything else in the CLI is
 > already wired and rides along.
 
@@ -67,7 +67,7 @@ Setup.exe` (per-user installer); Linux `maker-deb`/`maker-rpm` →
 
 - Frontend `frontend/package.json` `version: "0.0.0"`; daemon
   `backend/internal/cli/version.go:12` `Version = "dev"`; `build-daemon.mjs` runs
-  `go build ./cmd/ao` with **no `-ldflags`**. No real semver anywhere.
+  `go build ./cmd/kennel` with **no `-ldflags`**. No real semver anywhere.
 
 ### 1.4 Signing / notarization / auto-update
 
@@ -97,7 +97,7 @@ Setup.exe` (per-user installer); Linux `maker-deb`/`maker-rpm` →
 
 ### 1.6 npm delivery of the Go binary (the packaging gap)
 
-- The `ao` binary is `backend/cmd/ao` (`cmd/ao/main.go` → `cli.Execute()`); the
+- The `ao` binary is `backend/cmd/kennel` (`cmd/kennel/main.go` → `cli.Execute()`); the
   same binary serves as both the CLI and `ao daemon`. `build-daemon.mjs` builds it
   to `frontend/daemon/ao` and bundles it into the desktop app.
 - **This repo has no npm-registry publish path for the `ao` binary** (only
@@ -111,7 +111,7 @@ Setup.exe` (per-user installer); Linux `maker-deb`/`maker-rpm` →
 
 ### 1.7 The Go `ao` CLI surface (already wired)
 
-`backend/cmd/ao/main.go` → `backend/internal/cli`. Cobra root (`root.go:154-202`)
+`backend/cmd/kennel/main.go` → `backend/internal/cli`. Cobra root (`root.go:154-202`)
 registers **all** of: `daemon` (hidden), **`start`**, `stop`, `status`, `doctor`,
 `spawn`, `send`, `preview`, `hooks`, `launch`, `ptyhost`, `import`, `project`,
 `session`, `orchestrator`, `review`, `completion`, `version`. These are real

@@ -4,7 +4,7 @@
 // real binary and drives it (start/status/doctor/stop + the daemon-control HTTP
 // surface) against fully isolated state — a per-test temp run-file, data dir,
 // and an OS-assigned free loopback port — so it never touches a developer's real
-// AO install. Unlike the Linux-only container smoke test, this runs natively on
+// Kennel install. Unlike the Linux-only container smoke test, this runs natively on
 // every OS in CI (ubuntu/macos/windows), which is the only way to exercise the
 // unix setsid vs Windows CREATE_NEW_PROCESS_GROUP detach paths and the per-OS
 // os.UserConfigDir resolution.
@@ -33,7 +33,7 @@ import (
 var aoBin string
 
 func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "ao-e2e-bin")
+	dir, err := os.MkdirTemp("", "kennel-e2e-bin")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "e2e: mktemp:", err)
 		os.Exit(1)
@@ -42,7 +42,7 @@ func TestMain(m *testing.M) {
 	if runtime.GOOS == "windows" {
 		aoBin += ".exe"
 	}
-	build := exec.Command("go", "build", "-o", aoBin, "github.com/aoagents/agent-orchestrator/backend/cmd/ao")
+	build := exec.Command("go", "build", "-o", aoBin, "github.com/Pin4sf/Waldo-Kennel/backend/cmd/kennel")
 	build.Stdout, build.Stderr = os.Stderr, os.Stderr
 	if err := build.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "e2e: build ao:", err)

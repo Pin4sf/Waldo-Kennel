@@ -47,7 +47,7 @@ export function AgentPickerSheet({
 			keyExtractor={(a) => a.id}
 			contentContainerStyle={SHEET_SCROLL_CONTENT}
 			ListEmptyComponent={
-				<Text style={s.empty}>No agents reported. Check that AO is running on your computer, then refresh.</Text>
+				<Text style={s.empty}>No agents reported. Check that Kennel is running on your computer, then refresh.</Text>
 			}
 			ListHeaderComponent={
 				<>

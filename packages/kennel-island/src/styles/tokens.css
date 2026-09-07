@@ -1,0 +1,72 @@
+:root {
+  color-scheme: dark;
+  font-family: "SF Pro Rounded", "SF Pro Display", "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+
+  --island-black: #000000;
+  --island-surface: #161616;
+  --island-surface-raised: #1e1e1e;
+  --island-tab: #353533;
+  --island-text: #fafaf8;
+  --island-muted: #9a9a96;
+  --island-subdued: #6b6b68;
+  --island-blue: #2388ff;
+  --island-yellow: #fbbc04;
+  --island-orange: #fb8404;
+  --island-purple: #8338ec;
+  --island-success: #00cc6e;
+  --island-delete: #ff2530;
+  --island-border: rgba(255, 255, 255, 0.08);
+  --stage-orange: #fb943f;
+  /* Media has no session state behind it, so it gets its own accent rather
+     than borrowing one that means something else. */
+  --island-media: #a3e635;
+
+  /* Shape. The fillet radius is shared with the stage, which reserves it as
+     padding so the concave corners stay inside the island's hit target. */
+  --island-fillet: 12px;
+  --island-shadow: 0 14px 30px -8px rgba(0, 0, 0, 0.62);
+
+  /* The peek is a few points of swell, so its corners and its shadow are both
+     scaled down: a panel-sized curve on a 6pt growth reads as a defect. */
+  --island-peek-radius: 12px;
+  --island-peek-fillet: 6px;
+  --island-peek-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.7);
+
+  /* Deliberately not one of the status colours. The calibration outline is a
+     measuring tool and has to be unmistakable against black, not meaningful. */
+  --island-calibration: #ff43d0;
+
+  /* The settings window is opaque and lit a shade above the island, so a form
+     open in front of the notch never reads as part of it. */
+  --settings-bg: #131313;
+  --settings-chrome: #1a1a1a;
+
+  /* Type. Authored at 1x: these are the sizes that reach the screen. */
+  --fs-title: 12.5px;
+  --fs-body: 12px;
+  --fs-meta: 11px;
+  --fs-micro: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}

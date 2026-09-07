@@ -5,12 +5,12 @@ import (
 	"log/slog"
 	"strings"
 
-	scmgitlab "github.com/aoagents/agent-orchestrator/backend/internal/adapters/scm/gitlab"
-	trackergithub "github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/github"
-	trackergitlab "github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/gitlab"
-	trackermulti "github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/multi"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	scmgitlab "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/scm/gitlab"
+	trackergithub "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/tracker/github"
+	trackergitlab "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/tracker/gitlab"
+	trackermulti "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/tracker/multi"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func newGitHubTracker() (ports.Tracker, error) {

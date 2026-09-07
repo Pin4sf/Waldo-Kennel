@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/daemonmeta"
-	"github.com/aoagents/agent-orchestrator/backend/internal/runfile"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/daemonmeta"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/runfile"
 )
 
 // healthzBody returns a handler that answers /healthz with the given service

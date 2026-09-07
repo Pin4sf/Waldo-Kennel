@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	workeragent "github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/opencode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/reviewer/agentrestore"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workeragent "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/opencode"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/reviewer/agentrestore"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Reviewer is the opencode code-review adapter.
@@ -37,7 +37,7 @@ var _ ports.ReviewerRestorer = (*Reviewer)(nil)
 // ReviewCommand launches the reviewer with an inline permission policy that
 // permits inspection and the two reporting commands while denying edits and
 // every other tool. Production launches provide the system role through an
-// AO-owned prompt file; direct callers without one retain the inline fallback.
+// Kennel-owned prompt file; direct callers without one retain the inline fallback.
 func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation) (ports.ReviewCommandSpec, error) {
 	prompt := inv.Prompt
 	if inv.SystemPromptFile == "" {
@@ -64,7 +64,7 @@ func (r *Reviewer) ReviewCommand(ctx context.Context, inv ports.ReviewInvocation
 }
 
 // buildReviewerConfig keeps OpenCode read-only while allowing it to read the
-// AO-owned task prompts outside the worker checkout. The exception is scoped
+// Kennel-owned task prompts outside the worker checkout. The exception is scoped
 // to the stable reviewer prompt root so a long-lived process can read future
 // request-scoped tasks; every other external path remains denied.
 func buildReviewerConfig(taskPromptRoot string) (string, error) {

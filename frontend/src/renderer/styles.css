@@ -52,7 +52,9 @@
 	--radius-sm: var(--radius-sm);
 	--radius-md: var(--radius-md);
 	--radius-lg: var(--radius-lg);
+	--radius-card: var(--radius-card);
 	--radius-panel: var(--radius-panel);
+	--radius-group: var(--radius-group);
 	--radius-welcome-panel: var(--radius-welcome-panel);
 	--radius-agents-sheet: var(--radius-agents-sheet);
 	--radius-full: var(--radius-full);
@@ -107,7 +109,10 @@
 	--color-card-foreground: var(--color-text-primary);
 	--color-raised: var(--color-bg-tertiary);
 	--color-overlay: var(--color-bg-elevated);
-	--color-popover: var(--color-bg-secondary);
+	/* The raised plane (#353533), not the card: chips, menus and popovers sit one
+	   step above a card in the design, and aliasing this to the card collapsed
+	   that step everywhere `bg-popover` is used. */
+	--color-popover: var(--color-bg-elevated);
 	--color-popover-foreground: var(--color-text-primary);
 	--color-input: var(--bridge-border);
 	--color-sidebar: var(--color-bg-sidebar);
@@ -153,6 +158,7 @@
 
 	/* Icon chrome — size-icon-* utilities */
 	--size-icon-2xs: var(--size-icon-2xs);
+	--size-icon-agent: var(--size-icon-agent);
 	--size-icon-xs: var(--size-icon-xs);
 	--size-icon-sm: var(--size-icon-sm);
 	--size-icon-md: var(--size-icon-md);
@@ -184,6 +190,7 @@
 
 	--duration-fast: var(--duration-fast);
 	--duration-normal: var(--duration-normal);
+	--duration-slow: var(--duration-slow);
 
 	/* Motion — press-feedback scale for interactive elements */
 	--scale-press: 0.97;
@@ -201,6 +208,8 @@
 	--spacing-control-sm: var(--size-control-sm);
 	--spacing-control-form: var(--size-control-form);
 	--spacing-control-md: var(--size-control-md);
+	--spacing-control-chip: var(--size-control-chip);
+	--spacing-control-segment: var(--size-control-segment);
 	--spacing-control-lg: var(--size-control-lg);
 	--spacing-control-xl: var(--size-control-xl);
 	--spacing-control-board-sm: var(--size-control-board-sm);
@@ -232,6 +241,9 @@
 	--spacing-textarea-min: var(--size-textarea-min);
 	--spacing-sidebar-project-actions: var(--size-sidebar-project-actions);
 	--spacing-row-md: var(--size-row-md);
+	--spacing-row-list: var(--size-row-list);
+	--spacing-onboarding-body: var(--size-onboarding-body);
+	--spacing-list-time: var(--size-list-time);
 	--spacing-empty-offset-y: var(--size-empty-offset-y);
 	--spacing-kv-label: var(--size-kv-label);
 	--spacing-branch-chip: var(--size-branch-chip);
@@ -239,6 +251,11 @@
 	--color-muted: var(--muted);
 	--color-muted-foreground: var(--muted-foreground);
 	--color-passive: var(--color-text-passive);
+	--color-meta: var(--bridge-text-meta);
+	--color-shell: var(--bridge-bg-shell);
+	--color-link: var(--bridge-link);
+	--color-link-hover: var(--bridge-link-hover);
+	--color-branch: var(--bridge-branch);
 	--color-logo-accent: var(--color-brand-logo);
 	--color-logo-accent-foreground: var(--color-brand-logo-foreground);
 	--color-markdown-code: var(--color-text-markdown-code);
@@ -281,17 +298,54 @@
 	--color-interactive-hover: var(--bridge-interactive-hover);
 	--color-interactive-active: var(--bridge-interactive-active);
 
+	/* DESIGN.md → Motion: enter ease-out, exit ease-in, move ease-in-out. The
+	   built-in CSS keywords are too soft to read as intentional, so each one is
+	   pinned to an explicit curve here and referenced by name everywhere else. */
 	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ease-in: cubic-bezier(0.4, 0, 1, 1);
 	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+	/* Panels that travel an edge settle differently from panels that scale in
+	   place; this is the iOS drawer curve (long tail, no overshoot). */
+	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
-	--animate-status-pulse: status-pulse 1.8s ease-in-out infinite;
+	--animate-status-pulse: status-pulse 1.8s var(--ease-in-out) infinite;
 	--animate-overlay-in: overlay-in 80ms var(--ease-out);
 	--animate-modal-in: modal-in 120ms var(--ease-out);
 	--animate-popover-in: popover-in 150ms var(--ease-out);
+	/* A tooltip is smaller and cheaper than a popover, so it gets there sooner. */
+	--animate-tooltip-in: popover-in 125ms var(--ease-out);
 	/* Exits are shorter than entries: the system is responding, not deciding. */
-	--animate-overlay-out: overlay-out 60ms ease-in;
-	--animate-modal-out: modal-out 70ms cubic-bezier(0.4, 0, 1, 1);
-	--animate-popover-out: popover-out 100ms cubic-bezier(0.4, 0, 1, 1);
+	--animate-overlay-out: overlay-out 60ms var(--ease-in);
+	--animate-modal-out: modal-out 70ms var(--ease-in);
+	--animate-popover-out: popover-out 100ms var(--ease-in);
+	--animate-tooltip-out: popover-out 90ms var(--ease-in);
+
+	/* Sheets travel a full edge, so they run on the slow token and the drawer
+	   curve rather than the modal's scale timing. */
+	--animate-sheet-in-right: sheet-in-right var(--duration-slow) var(--ease-drawer);
+	--animate-sheet-out-right: sheet-out-right var(--duration-normal) var(--ease-in);
+	--animate-sheet-in-left: sheet-in-left var(--duration-slow) var(--ease-drawer);
+	--animate-sheet-out-left: sheet-out-left var(--duration-normal) var(--ease-in);
+	--animate-sheet-in-top: sheet-in-top var(--duration-slow) var(--ease-drawer);
+	--animate-sheet-out-top: sheet-out-top var(--duration-normal) var(--ease-in);
+	--animate-sheet-in-bottom: sheet-in-bottom var(--duration-slow) var(--ease-drawer);
+	--animate-sheet-out-bottom: sheet-out-bottom var(--duration-normal) var(--ease-in);
+}
+
+/*
+ * Duration utilities. Tailwind's `duration-*` reads bare numbers only — it has
+ * no `--duration-*` theme namespace — so `duration-fast` in markup silently
+ * compiled to nothing. These bind the utility names to the motion tokens so a
+ * component never has to spell a millisecond value inline.
+ */
+@utility duration-fast {
+	transition-duration: var(--duration-fast);
+}
+@utility duration-normal {
+	transition-duration: var(--duration-normal);
+}
+@utility duration-slow {
+	transition-duration: var(--duration-slow);
 }
 
 /* Full-viewport modal/sheet scrim — dim + blur everything behind pop panels. */
@@ -385,6 +439,48 @@
 	background-color: color-mix(in srgb, var(--color-bg-primary) 35%, transparent);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   Kennel orchestrator design system — Figma "Waldo" node 2984-17556.
+   Utilities for the two things Tailwind cannot express from tokens alone:
+   the 0.6px stroke every plane is drawn with, and the column shell's
+   downward fade.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* The design strokes cards, chips and buttons at 0.6px — heavy enough to read
+   as an edge on a 2x panel, light enough not to become a frame.
+   These names deliberately sit outside Tailwind's `border-*` / `bg-*`
+   namespaces. tailwind-merge classifies any unrecognised token inside a
+   namespace as that namespace's utility, so an earlier `border-fine` beside a
+   later `border-border` in one cn() call was dropped as a duplicate — and every
+   card in the app silently rendered at border-width 0. A name the merger cannot
+   place is a name it cannot discard. */
+@utility hairline {
+	border-width: var(--size-hairline-fine);
+	border-style: solid;
+}
+
+@utility hairline-t {
+	border-top-width: var(--size-hairline-fine);
+	border-top-style: solid;
+}
+
+@utility hairline-b {
+	border-bottom-width: var(--size-hairline-fine);
+	border-bottom-style: solid;
+}
+
+/* Board column plate: solid at the header, gone by the foot, so a short
+   column does not draw a box around empty space. */
+@utility column-shell {
+	background-image: linear-gradient(to bottom, var(--color-bg-shell) 0%, transparent 100%);
+}
+
+/* Horizontal fade used to truncate a list-row cell into the row plate
+   instead of clipping mid-glyph. */
+@utility list-cell-fade {
+	background-image: linear-gradient(to right, transparent 0%, var(--color-bg-secondary) 30%);
+}
+
 @utility bg-settings-dialog {
 	background-color: var(--color-bg-settings-dialog);
 }
@@ -451,6 +547,655 @@
 	transition:
 		border-color 280ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
 		border-radius 280ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Personal Home / Today: an editorial brief and a decision workspace share one
+ * continuous surface. The cool field gives the brief identity without turning
+ * the page into a stack of cards; the right pane stays on the neutral app ramp. */
+.home-today-layout {
+	position: relative;
+	display: flex;
+	min-height: 0;
+	flex: 1 1 0%;
+	flex-direction: column;
+}
+
+.home-today-context-pane:has(.waldo-rail) {
+	display: flex;
+	min-height: 0;
+}
+
+.home-today-brief-pane {
+	background-color: color-mix(in oklch, var(--color-bg-primary) 91%, var(--color-status-working));
+	background-image: radial-gradient(
+		circle at 18% 8%,
+		color-mix(in oklch, var(--color-status-working) 14%, transparent),
+		transparent 54%
+	);
+}
+
+.home-destination-surface {
+	position: relative;
+	background-color: color-mix(in oklch, var(--color-bg-primary) 94%, var(--color-status-working));
+	background-image: radial-gradient(
+		circle at 16% 4%,
+		color-mix(in oklch, var(--color-status-working) 9%, transparent),
+		transparent 48%
+	);
+}
+
+.home-chat-workspace {
+	position: relative;
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+	flex: 1 1 0%;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.home-chat-compact-trigger,
+.home-chat-compact-layer {
+	display: none;
+}
+
+.home-chat-grid {
+	display: grid;
+	grid-template-columns: minmax(12.5rem, 14rem) minmax(25rem, 1fr) minmax(16rem, 18rem);
+	overflow: hidden;
+}
+
+.home-chat-side-rail,
+.home-chat-inspector {
+	min-width: 0;
+	min-height: 0;
+	overflow-y: auto;
+	background: color-mix(in oklch, var(--color-bg-sidebar) 52%, var(--color-bg-primary));
+}
+
+.home-chat-side-rail {
+	border-right: 1px solid var(--color-border);
+}
+
+.home-chat-inspector {
+	border-left: 1px solid var(--color-border);
+}
+
+.home-chat-primary {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+	flex-direction: column;
+	background: var(--color-bg-primary);
+}
+
+.home-chat-transcript {
+	min-width: 0;
+	min-height: 0;
+	flex: 1 1 0%;
+	overflow-y: auto;
+}
+
+.home-chat-source {
+	display: inline-flex;
+	min-height: 1.75rem;
+	align-items: center;
+	gap: 0.375rem;
+	border: 1px solid var(--color-border);
+	border-radius: 0.5rem;
+	padding: 0.25rem 0.5rem;
+	font-size: var(--text-xs);
+	font-weight: 500;
+	color: var(--color-fg-primary);
+}
+
+.home-chat-source:hover {
+	background: var(--color-bg-interactive-hover);
+}
+
+@media (max-width: 1240px) {
+	.home-chat-grid {
+		grid-template-columns: minmax(12.5rem, 14rem) minmax(0, 1fr);
+	}
+
+	.home-chat-inspector {
+		display: none;
+	}
+
+	.home-chat-compact-trigger {
+		display: inline-flex;
+	}
+
+	.home-chat-compact-layer {
+		position: absolute;
+		inset: 0;
+		z-index: var(--z-index-overlay);
+		display: flex;
+		width: auto;
+		max-width: none;
+		min-height: 0;
+		padding: 0;
+		flex-direction: column;
+		gap: 0;
+		border: 0;
+		border-radius: 0;
+		background: var(--color-bg-primary);
+		box-shadow: none;
+		transform: none;
+	}
+}
+
+@media (max-width: 860px) {
+	.home-chat-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.home-chat-side-rail {
+		display: none;
+	}
+}
+
+.waldo-home-layer {
+	position: absolute;
+	inset: 0 0 0 auto;
+	z-index: var(--z-index-overlay);
+	display: flex;
+	width: min(27.5rem, 100%);
+	min-height: 0;
+	border-left: 1px solid var(--color-border);
+	background: var(--color-bg-primary);
+	box-shadow: -1rem 0 2.5rem color-mix(in oklch, var(--color-bg-primary) 65%, transparent);
+}
+
+.waldo-shell-rail {
+	position: absolute;
+	inset: 0 0 0 auto;
+	z-index: var(--z-index-overlay);
+	display: flex;
+	width: min(27.5rem, 100%);
+	min-height: 0;
+	border-left: 1px solid var(--color-border);
+	background: var(--color-bg-primary);
+	box-shadow: -1rem 0 2.5rem color-mix(in oklch, var(--color-bg-primary) 65%, transparent);
+	animation: waldo-rail-enter 160ms ease-out both;
+}
+
+/* Waldo overlaps Work's native draggable topbar. Explicitly subtract both the
+ * launcher and the open rail so Electron delivers pointer input to their
+ * controls instead of initiating a window drag. */
+.waldo-native-interactive {
+	-webkit-app-region: no-drag;
+}
+
+/* Work owns actions and notifications inside its route-level topbars while
+ * Waldo is shell-owned. Reserve one fixed launcher lane so both remain fully
+ * visible and independently clickable. */
+.waldo-launcher-reserved .workspace-topbar-container {
+	padding-right: calc(var(--space-2) + var(--size-topbar-control) + var(--space-3));
+}
+
+.waldo-rail-back-label {
+	display: none;
+}
+
+@keyframes waldo-rail-enter {
+	from {
+		opacity: 0;
+		transform: translateX(0.75rem);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+@media (max-width: 959px) {
+	.waldo-shell-rail {
+		inset: 0;
+		width: 100%;
+		border-left: 0;
+		box-shadow: none;
+	}
+
+	.waldo-rail-close {
+		width: auto;
+		padding-inline: 0.5rem;
+	}
+
+	.waldo-rail-back-label {
+		display: inline;
+		font-size: var(--text-xs);
+		font-weight: 500;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.waldo-shell-rail {
+		animation: none;
+	}
+}
+
+@container center-panel (max-width: 959px) {
+	.home-today-context-pane:has(.waldo-rail) {
+		position: absolute;
+		inset: 0;
+		z-index: var(--z-index-overlay);
+		min-height: 0;
+		border-top: 0;
+		background: var(--color-bg-primary);
+	}
+
+	.home-today-context-pane .waldo-rail-close {
+		width: auto;
+		padding-inline: 0.5rem;
+	}
+
+	.home-today-context-pane .waldo-rail-back-label {
+		display: inline;
+		font-size: var(--text-xs);
+		font-weight: 500;
+	}
+
+	.waldo-home-layer {
+		inset: 0;
+		width: 100%;
+		border-left: 0;
+		box-shadow: none;
+	}
+
+	.waldo-home-layer .waldo-rail-close {
+		width: auto;
+		padding-inline: 0.5rem;
+	}
+
+	.waldo-home-layer .waldo-rail-back-label {
+		display: inline;
+		font-size: var(--text-xs);
+		font-weight: 500;
+	}
+}
+
+.home-today-catch-up-pane {
+	background-color: color-mix(in oklch, var(--color-bg-primary) 88%, var(--color-bg-sidebar));
+}
+
+.home-open-loops-desk {
+	display: grid;
+	grid-template-columns: minmax(14rem, 0.78fr) minmax(0, 1.5fr);
+	gap: 2rem;
+	margin-top: 1.75rem;
+}
+
+.home-open-loops-detail {
+	border-left: 1px solid var(--color-border);
+	padding-left: 2rem;
+}
+
+.home-open-loops-back {
+	display: none;
+}
+
+.home-daily-close-review-grid,
+.home-daily-close-receipt {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	column-gap: 2.5rem;
+}
+
+.home-daily-close-review-grid > :nth-child(2) {
+	border-top: 0;
+	border-left: 1px solid var(--color-border);
+	padding-left: 2.5rem;
+}
+
+.home-daily-close-receipt > :nth-child(even) {
+	border-left: 1px solid var(--color-border);
+	padding-left: 2.5rem;
+}
+
+.home-daily-close-receipt > :nth-child(2) {
+	border-top: 0;
+}
+
+.home-memory-review-desk {
+	display: grid;
+	grid-template-columns: minmax(14rem, 0.78fr) minmax(0, 1.5fr);
+	gap: 2rem;
+}
+
+.home-memory-review-detail {
+	border-left: 1px solid var(--color-border);
+	padding-left: 2rem;
+}
+
+.home-memory-review-back {
+	display: none;
+}
+
+.home-history-desk {
+	display: grid;
+	grid-template-columns: minmax(15rem, 0.85fr) minmax(0, 1.5fr);
+	gap: 2rem;
+}
+
+.home-history-detail {
+	border-left: 1px solid var(--color-border);
+	padding-left: 2rem;
+}
+
+.home-history-back {
+	display: none;
+}
+
+.home-history-marker {
+	border-radius: 999px;
+}
+
+.home-history-marker[data-kind="correction"] {
+	border-radius: 2px;
+}
+
+.home-history-marker[data-kind="work_link_preview"],
+.home-history-marker[data-kind="close_receipt_preview"] {
+	border-radius: 2px;
+	transform: rotate(45deg);
+}
+
+@container center-panel (max-width: 760px) {
+	.home-open-loops-desk {
+		display: block;
+	}
+
+	.home-open-loops-detail {
+		border-left: 0;
+		padding-left: 0;
+	}
+
+	.home-open-loops-back {
+		display: inline-flex;
+	}
+
+	.home-open-loops-desk[data-mobile-view="index"] .home-open-loops-detail,
+	.home-open-loops-desk[data-mobile-view="detail"] .home-open-loops-index {
+		display: none;
+	}
+
+	.home-daily-close-review-grid,
+	.home-daily-close-receipt {
+		display: block;
+	}
+
+	.home-daily-close-review-grid > :nth-child(2),
+	.home-daily-close-receipt > :nth-child(even) {
+		border-left: 0;
+		padding-left: 0;
+	}
+
+	.home-memory-review-desk {
+		display: block;
+	}
+
+	.home-memory-review-detail {
+		border-left: 0;
+		padding-left: 0;
+	}
+
+	.home-memory-review-back {
+		display: inline-flex;
+	}
+
+	.home-memory-review-desk[data-mobile-view="index"] .home-memory-review-detail,
+	.home-memory-review-desk[data-mobile-view="detail"] .home-memory-review-index {
+		display: none;
+	}
+
+	.home-history-desk {
+		display: block;
+	}
+
+	.home-history-detail {
+		border-left: 0;
+		padding-left: 0;
+	}
+
+	.home-history-back {
+		display: inline-flex;
+	}
+
+	.home-history-desk[data-mobile-view="index"] .home-history-detail,
+	.home-history-desk[data-mobile-view="detail"] .home-history-spine {
+		display: none;
+	}
+}
+
+@container center-panel (min-width: 960px) {
+	.home-today-layout {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 27.5rem);
+		overflow: hidden;
+	}
+
+	.home-today-brief-pane {
+		min-height: 0;
+		overflow-y: auto;
+	}
+
+	.home-today-catch-up-pane {
+		min-height: 0;
+		overflow: hidden;
+		border-top: 0;
+		border-left: 1px solid var(--color-border);
+	}
+}
+
+/* Figma Board/List desktop shell (nodes 2948:15618, 2960:16130, 2996:1945).
+ * This is deliberately route-scoped: sessions, settings, terminals and the
+ * first-run importer keep the standard resizable/framed application chrome. */
+.figma-board-shell .center-panel-shell.center-panel-shell--figma-board {
+	padding: 0;
+	background: var(--color-bg-primary);
+}
+
+.figma-board-shell .center-panel-shell--figma-board > .center-panel-surface {
+	border: 0;
+	border-radius: 0;
+}
+
+.figma-board-sidebar {
+	border: 0 !important;
+}
+
+.figma-board-sidebar [data-sidebar="sidebar"] {
+	background: #161616;
+}
+
+.figma-board-sidebar__header {
+	flex: 0 0 auto;
+	padding: 51px 19px 11px;
+}
+
+.figma-board-sidebar__brand {
+	width: fit-content;
+	color: #f4f4f3;
+	font-size: 18px;
+	font-weight: 600;
+	letter-spacing: -0.2px;
+	line-height: 22px;
+	text-align: left;
+}
+
+.figma-board-sidebar__mode-switch {
+	padding: 0 12px 15px;
+}
+
+.figma-board-sidebar__mode-switch [data-slot="home-work-mode-switch"] {
+	height: 32px;
+	border-color: #2f2f2d;
+	background: #1a1a19;
+	box-shadow: none;
+}
+
+.figma-board-sidebar__section-heading {
+	display: flex;
+	height: 28px;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 19px;
+	color: #8c8c89;
+	font-size: 14px;
+	font-weight: 400;
+	line-height: 20px;
+}
+
+.figma-board-sidebar__section-icons {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+}
+
+.figma-board-sidebar__section-icons svg {
+	width: 12px;
+	height: 12px;
+	stroke-width: 1.5;
+}
+
+.figma-board-sidebar__content {
+	padding: 0 12px;
+}
+
+.figma-board-sidebar__tree {
+	gap: 1px;
+	border-radius: 0;
+}
+
+.figma-board-sidebar__project-row {
+	position: relative;
+	height: 28px;
+	gap: 6px;
+	border: 0;
+	border-radius: 6px;
+	padding: 0 50px 0 7px;
+	color: #8f8f8c;
+	font-size: 14px;
+	font-weight: 400;
+	line-height: 20px;
+	box-shadow: none;
+}
+
+.figma-board-sidebar__project-row:hover,
+.figma-board-sidebar__project-row:active {
+	background: #222221;
+}
+
+.figma-board-sidebar__project-row[data-active="true"] {
+	background: #292927;
+	color: #a8a8a5;
+	box-shadow: none;
+}
+
+.figma-board-sidebar__project-row [data-project-label] {
+	transform: none;
+}
+
+.figma-board-sidebar__folder {
+	width: 14px !important;
+	height: 14px !important;
+	flex: 0 0 auto;
+}
+
+.figma-board-sidebar__project-chevron {
+	position: absolute;
+	right: 7px;
+	width: 12px !important;
+	height: 12px !important;
+	flex: 0 0 auto;
+	transition: transform 140ms ease-out;
+}
+
+.figma-board-sidebar__project-new-outcome {
+	position: absolute;
+	top: 4px;
+	right: 26px;
+	z-index: 20;
+	display: grid;
+	width: 20px;
+	height: 20px;
+	place-items: center;
+	border-radius: 4px;
+	color: #8f8f8c;
+	opacity: 0;
+	pointer-events: none;
+	transition:
+		background-color 120ms ease-out,
+		color 120ms ease-out,
+		opacity 120ms ease-out;
+}
+
+[data-project-press]:hover .figma-board-sidebar__project-new-outcome,
+[data-project-press]:focus-within .figma-board-sidebar__project-new-outcome {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.figma-board-sidebar__project-new-outcome:hover,
+.figma-board-sidebar__project-new-outcome:focus-visible {
+	background: #333330;
+	color: #d8d8d4;
+}
+
+.figma-board-sidebar__project-new-outcome:focus-visible {
+	outline: 1px solid var(--ring);
+	outline-offset: 1px;
+}
+
+.figma-board-sidebar__project-new-outcome svg {
+	width: 12px;
+	height: 12px;
+	stroke-width: 1.5;
+}
+
+.figma-board-sidebar__sessions {
+	gap: 0;
+	padding: 1px 0 4px;
+}
+
+.figma-board-sidebar__session-item {
+	padding: 0;
+}
+
+.figma-board-sidebar__session-item [data-session-row] {
+	height: 26px;
+	border-radius: 6px;
+}
+
+.figma-board-sidebar__session-item [data-session-row] > div:first-child > button {
+	height: 26px;
+	gap: 0;
+	padding: 0 0 0 27px;
+	font-size: 14px;
+	line-height: 20px;
+}
+
+.figma-board-sidebar__session-item [data-session-row] > div:first-child > button > span {
+	gap: 0;
+}
+
+.figma-board-sidebar__show-more {
+	display: flex;
+	height: 25px;
+	width: 100%;
+	align-items: center;
+	padding-left: 27px;
+	color: #646461;
+	font-size: 12px;
+	line-height: 16px;
+	text-align: left;
+}
+
+.figma-board-sidebar__show-more:hover {
+	color: #92928f;
 }
 
 /* A fully hidden sidebar no longer contributes a left layout gutter. Restore
@@ -1266,6 +2011,7 @@ body {
 	font-family: var(--font-sans);
 	font-size: var(--font-size-md);
 	line-height: var(--line-height-normal);
+	letter-spacing: var(--tracking-base);
 	-webkit-font-smoothing: antialiased;
 	-webkit-user-select: none;
 	user-select: none;
@@ -1724,6 +2470,76 @@ textarea,
 	to {
 		opacity: 0;
 		scale: 0.98;
+	}
+}
+
+/*
+ * Sheets. Percentage translates are relative to the element's own box, so one
+ * keyframe per edge covers every sheet width we ship — no size-coupled pixel
+ * offsets to keep in sync with the `w-3/4 sm:max-w-sm` content rules.
+ */
+@keyframes sheet-in-right {
+	from {
+		transform: translateX(100%);
+	}
+	to {
+		transform: translateX(0);
+	}
+}
+@keyframes sheet-out-right {
+	from {
+		transform: translateX(0);
+	}
+	to {
+		transform: translateX(100%);
+	}
+}
+@keyframes sheet-in-left {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(0);
+	}
+}
+@keyframes sheet-out-left {
+	from {
+		transform: translateX(0);
+	}
+	to {
+		transform: translateX(-100%);
+	}
+}
+@keyframes sheet-in-top {
+	from {
+		transform: translateY(-100%);
+	}
+	to {
+		transform: translateY(0);
+	}
+}
+@keyframes sheet-out-top {
+	from {
+		transform: translateY(0);
+	}
+	to {
+		transform: translateY(-100%);
+	}
+}
+@keyframes sheet-in-bottom {
+	from {
+		transform: translateY(100%);
+	}
+	to {
+		transform: translateY(0);
+	}
+}
+@keyframes sheet-out-bottom {
+	from {
+		transform: translateY(0);
+	}
+	to {
+		transform: translateY(100%);
 	}
 }
 

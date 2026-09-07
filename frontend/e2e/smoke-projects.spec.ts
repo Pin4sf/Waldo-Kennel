@@ -12,18 +12,18 @@ import { expect, test } from "@playwright/test";
 
 // #2483 PRJ-005.
 test("renderer: added project appears in the sidebar and board @T0 @PRJ", async ({ page }) => {
-	// dev:web serves lib/mock-data.ts (ao-demo, docs-site). A registered project
+	// dev:web serves lib/mock-data.ts (kennel-design, docs-site). A registered project
 	// must show as a sidebar row AND drive the board it opens.
 	await page.goto("/#/");
 	await expect(page.getByText("Projects")).toBeVisible();
 
 	// Sidebar row for the project.
-	const projectRow = page.locator('[data-sidebar="menu-button"]').filter({ hasText: "ao-demo" }).first();
+	const projectRow = page.locator('[data-sidebar="menu-button"]').filter({ hasText: "kennel-design" }).first();
 	await expect(projectRow).toBeVisible();
 
 	// Opening it renders that project's board with its session cards.
 	await projectRow.click();
-	await expect(page).toHaveURL(/projects\/ao-demo/);
+	await expect(page).toHaveURL(/projects\/kennel-design/);
 	await expect(page.getByTestId("board")).toBeVisible();
 	await expect(page.getByTestId("board-session-card").first()).toBeVisible();
 });

@@ -15,8 +15,8 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // SessionReader is the single store read the guard needs: the session's
@@ -161,7 +161,7 @@ func (g *Guard) DeliverWithPostWrite(ctx context.Context, id domain.SessionID, m
 }
 
 // DeliverUnderMutation applies the same just-in-time session safety checks as
-// Deliver but intentionally bypasses input admission. It is only for an AO
+// Deliver but intentionally bypasses input admission. It is only for an Kennel
 // mutation that already owns the session's exclusive operation fence and must
 // write its own handoff or startup prompt while ordinary input stays gated.
 func (g *Guard) DeliverUnderMutation(ctx context.Context, id domain.SessionID, msg string) (Outcome, error) {
@@ -170,7 +170,7 @@ func (g *Guard) DeliverUnderMutation(ctx context.Context, id domain.SessionID, m
 	})
 }
 
-// CoordinationUnderMutation writes an AO coordination message while the caller
+// CoordinationUnderMutation writes an Kennel coordination message while the caller
 // owns the session's exclusive mutation fence. It intentionally bypasses the
 // ordinary input lease (which the mutation has already closed), but re-reads
 // activity at the pane-write boundary. Idle is always safe. waiting_input is
@@ -227,7 +227,7 @@ func (g *Guard) coordinationUnderMutation(
 	}, preWrite)
 }
 
-// Nudge writes an AO-initiated (unsolicited) message into a live agent. Its
+// Nudge writes an Kennel-initiated (unsolicited) message into a live agent. Its
 // activity-specific policy refuses whenever the session awaits the human — blocked on a
 // decision or waiting at the prompt — because an automated paste+Enter there
 // either answers a dialog or submits text the user never saw.
@@ -237,7 +237,7 @@ func (g *Guard) Nudge(ctx context.Context, id domain.SessionID, msg string) (Out
 	})
 }
 
-// NudgeCoordination writes an AO-initiated coordination message under the full
+// NudgeCoordination writes an Kennel-initiated coordination message under the full
 // delivery policy, re-evaluated here — at the write boundary — rather than from
 // a caller's earlier snapshot. It refuses whenever the session awaits the human,
 // and additionally while it is mid-turn on a harness that cannot safely steer an

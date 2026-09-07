@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const buildForge = vi.fn<(forge: { dir: string }, options: any) => Promise<string[]>>(
-	async () => ["/out/make/Agent-Orchestrator.AppImage"],
+	async () => ["/out/make/Kennel.AppImage"],
 );
 vi.mock("app-builder-lib", () => ({ buildForge }));
 

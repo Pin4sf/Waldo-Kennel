@@ -1,4 +1,4 @@
-// Package settings owns AO's daemon-side user preferences.
+// Package settings owns Kennel's daemon-side user preferences.
 //
 // It exists so every spawn surface — desktop, mobile, `kennel spawn`, headless —
 // resolves one value. A renderer-held preference would look correct in Settings
@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Store is the durable preference surface.

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // The payloads here are shaped after frames captured from a real
@@ -49,7 +49,7 @@ func TestNormalizeTurnLifecycle(t *testing.T) {
 	}
 }
 
-// The provider reports a cancelled turn with its own terminal status. AO must
+// The provider reports a cancelled turn with its own terminal status. Kennel must
 // carry that through rather than calling it completed or failed.
 func TestNormalizeInterruptedTurnKeepsItsOwnState(t *testing.T) {
 	ev := normalizeOne(t, "turn/completed", `{"threadId":"th1","turn":{"id":"tu2","status":"interrupted","items":[]}}`)
@@ -92,7 +92,7 @@ func TestNormalizeAgentMessageStartedIsIgnored(t *testing.T) {
 	normalizeNone(t, "item/started", `{"turnId":"tu1","item":{"id":"msg_1","type":"agentMessage","text":""}}`)
 }
 
-// AO persists the user's message when it accepts the send. The provider echoing
+// Kennel persists the user's message when it accepts the send. The provider echoing
 // it back as an item must not create a duplicate timeline entry.
 func TestNormalizeUserMessageEchoIsIgnored(t *testing.T) {
 	normalizeNone(t, "item/completed", `{"turnId":"tu1","item":{"id":"um_1","type":"userMessage","content":[]}}`)
@@ -195,17 +195,17 @@ func TestNormalizeIgnoresProviderBookkeeping(t *testing.T) {
 		"thread/goal/cleared",
 		"thread/started",
 		// The provider says when a model is being buffered for safety review. It
-		// affects latency, not the conversation, and AO has nothing to do with it.
+		// affects latency, not the conversation, and Kennel has nothing to do with it.
 		"model/safetyBuffering/updated",
 		// guardianWarning restates an auto-approval decision in prose. The
 		// autoApprovalReview pair carries the same rationale as structure, so reading
 		// both would put one decision on the timeline twice.
 		"guardianWarning",
-		// The client-driven exec API. AO never asks the server to run anything, so an
+		// The client-driven exec API. Kennel never asks the server to run anything, so an
 		// agent tool call never arrives on these.
 		"command/exec/outputDelta",
 		"process/outputDelta",
-		// The voice surface. AO has none.
+		// The voice surface. Kennel has none.
 		"thread/realtime/transcript/delta",
 		"thread/realtime/outputAudio/delta",
 		"someMethodAddedNextRelease",
@@ -378,7 +378,7 @@ func TestUnwrapShellLeavesPlainCommands(t *testing.T) {
 
 // A current app-server reports compaction ONLY as a contextCompaction item. The
 // schema still declares a thread/compacted notification and marks it deprecated;
-// 0.146.0 never sends it. Reading only the notification would mean AO silently
+// 0.146.0 never sends it. Reading only the notification would mean Kennel silently
 // never noticed a compaction, and a conversation that quietly lost half its
 // history with nothing to mark where reads as if the agent simply forgot.
 func TestNormalizeContextCompactionItem(t *testing.T) {

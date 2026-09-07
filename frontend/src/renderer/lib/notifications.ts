@@ -82,7 +82,7 @@ function mergeRecentNotification(queryClient: QueryClient, notification: Notific
 }
 
 /**
- * AO resolved the issue behind a notification. Update the row in unread/all
+ * Kennel resolved the issue behind a notification. Update the row in unread/all
  * caches; the seen state is a separate axis and is deliberately left untouched.
  */
 export function applyResolvedNotification(queryClient: QueryClient, notification: NotificationDTO): void {
@@ -331,7 +331,7 @@ export function createNotificationsTransport(
 							});
 						}
 					});
-					// AO closed the underlying issue (the session got its input, the
+					// Kennel closed the underlying issue (the session got its input, the
 					// PR stopped waiting on a merge). Patch the row live so an open
 					// panel reflects that without waiting for a refetch.
 					source.addEventListener("notification_resolved", (event) => {

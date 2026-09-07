@@ -53,7 +53,7 @@ func TestServeClearIssuesOff(t *testing.T) {
 }
 
 // serveStatusMultiSiteJSON simulates a tailnet where the user also runs an
-// unrelated `tailscale serve --https=8443 ...` alongside AO's :443 proxy.
+// unrelated `tailscale serve --https=8443 ...` alongside Kennel's :443 proxy.
 // Target must key off the ":443" suffix, not just "some Web entry", or Go's
 // randomized map iteration could return the unrelated handler's port instead.
 const serveStatusMultiSiteJSON = `{

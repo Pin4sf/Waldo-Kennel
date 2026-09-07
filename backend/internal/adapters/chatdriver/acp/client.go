@@ -12,14 +12,14 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/google/uuid"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
-// AO deliberately advertises neither client-side filesystem nor terminal
+// Kennel deliberately advertises neither client-side filesystem nor terminal
 // capabilities. Claude's ACP adapter uses Claude Code's native tools inside the
 // worktree; routing those operations through Electron or the daemon would create
-// a second execution/security model beside AO's existing one.
+// a second execution/security model beside Kennel's existing one.
 func (c *conversation) ReadTextFile(context.Context, acpsdk.ReadTextFileRequest) (acpsdk.ReadTextFileResponse, error) {
 	return acpsdk.ReadTextFileResponse{}, errClientCapability
 }
@@ -110,7 +110,7 @@ func (c *conversation) RequestPermission(
 	}
 }
 
-// UnstableCreateElicitation bridges ACP's structured input request into AO's
+// UnstableCreateElicitation bridges ACP's structured input request into Kennel's
 // ordinary durable conversation/event path. The JSON-RPC call remains parked
 // until a client answers, exactly like a permission request, but it has a
 // separate response contract so form data can never be mistaken for consent.
@@ -203,7 +203,7 @@ func (c *conversation) UnstableCompleteElicitation(
 	acpsdk.UnstableCompleteElicitationNotification,
 ) error {
 	// URL completion describes provider-side progress after the user has already
-	// consented. The actionable AO request was resolved when that consent was sent.
+	// consented. The actionable Kennel request was resolved when that consent was sent.
 	return nil
 }
 
@@ -592,7 +592,7 @@ func (c *conversation) toolEvent(turnID string, tool *toolState, completed bool)
 	}
 }
 
-// toolOutputText translates ACP's provider-defined rawOutput into AO's neutral
+// toolOutputText translates ACP's provider-defined rawOutput into Kennel's neutral
 // command-detail contract, where output is always text. ACP deliberately permits
 // any JSON value here; OpenCode, for example, wraps the text as
 // {"output":"...","metadata":{...}}. Persisting that object unchanged makes the

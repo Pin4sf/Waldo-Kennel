@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	acpdriver "github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/acp"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	acpdriver "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/acp"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type fakePlugin struct {
@@ -39,7 +39,7 @@ func TestBindingLaunchesExactUserInstalledBinary(t *testing.T) {
 	launch, err := cfg.Launch(context.Background(), acpdriver.LaunchConfig{
 		SessionID: "session-1", DataDir: "/ao", WorkspacePath: "/worktree",
 		Env: map[string]string{"PATH": "/user/bin", "KEEP": "yes"}, Model: "provider/model",
-		Permissions: ports.PermissionModeAcceptEdits, SystemPrompt: "AO rules",
+		Permissions: ports.PermissionModeAcceptEdits, SystemPrompt: "Kennel rules",
 	})
 	if err != nil {
 		t.Fatalf("Launch: %v", err)
@@ -56,7 +56,7 @@ func TestBindingLaunchesExactUserInstalledBinary(t *testing.T) {
 	}
 	if configured.DataDir != "/ao" || configured.WorkspacePath != "/worktree" ||
 		configured.Model != "provider/model" || configured.Permissions != ports.PermissionModeAcceptEdits ||
-		configured.SystemPrompt != "AO rules" || configured.SessionID != "session-1" {
+		configured.SystemPrompt != "Kennel rules" || configured.SessionID != "session-1" {
 		t.Fatalf("configure input = %#v", configured)
 	}
 	for _, capability := range []ports.ChatCapability{
@@ -74,7 +74,7 @@ func TestBindingLaunchesExactUserInstalledBinary(t *testing.T) {
 
 func TestBindingMapsPluginDiscoveryAndAuth(t *testing.T) {
 	t.Run("incomplete provider binding", func(t *testing.T) {
-		cfg := buildConfig(fakePlugin{binary: "/user/provider"}, Config{Harness: domain.HarnessDroid}, nil)
+		cfg := buildConfig(fakePlugin{binary: "/user/provider"}, Config{Harness: domain.HarnessPi}, nil)
 		if err := cfg.Probe(context.Background()); !errors.Is(err, ports.ErrChatDriverUnavailable) {
 			t.Fatalf("Probe error = %v", err)
 		}
@@ -85,7 +85,7 @@ func TestBindingMapsPluginDiscoveryAndAuth(t *testing.T) {
 
 	t.Run("missing user binary", func(t *testing.T) {
 		cfg := buildConfig(fakePlugin{binErr: ports.ErrAgentBinaryNotFound}, Config{
-			Harness: domain.HarnessDroid, Configure: func(acpdriver.LaunchConfig) ([]string, map[string]string, error) {
+			Harness: domain.HarnessPi, Configure: func(acpdriver.LaunchConfig) ([]string, map[string]string, error) {
 				return []string{"exec"}, nil, nil
 			},
 		}, nil)
@@ -97,7 +97,7 @@ func TestBindingMapsPluginDiscoveryAndAuth(t *testing.T) {
 
 	t.Run("installed but logged out", func(t *testing.T) {
 		cfg := buildConfig(fakePlugin{binary: "/user/droid", status: ports.AgentAuthStatusUnauthorized}, Config{
-			Harness: domain.HarnessDroid, Configure: func(acpdriver.LaunchConfig) ([]string, map[string]string, error) {
+			Harness: domain.HarnessPi, Configure: func(acpdriver.LaunchConfig) ([]string, map[string]string, error) {
 				return []string{"exec"}, nil, nil
 			},
 		}, nil)

@@ -85,7 +85,7 @@ func TestTurnStateTerminal(t *testing.T) {
 		{TurnStateRunning, false},
 		{TurnStateCompleted, true},
 		// Interrupted is terminal but is not a failure: the provider reports it
-		// as its own status and AO must not relabel it as an error.
+		// as its own status and Kennel must not relabel it as an error.
 		{TurnStateInterrupted, true},
 		{TurnStateFailed, true},
 	} {

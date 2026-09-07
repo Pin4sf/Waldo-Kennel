@@ -50,8 +50,8 @@ func newAgentProcessSuperviseCommand(ctx *commandContext) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&sessionID, "session", "", "AO session id")
-	cmd.Flags().StringVar(&launchID, "launch", "", "AO process launch id")
+	cmd.Flags().StringVar(&sessionID, "session", "", "Kennel session id")
+	cmd.Flags().StringVar(&launchID, "launch", "", "Kennel process launch id")
 	return cmd
 }
 

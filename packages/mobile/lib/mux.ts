@@ -1,6 +1,6 @@
 import { authHeaders, muxUrl, type ServerConfig } from "./config";
 
-// Mirrors AO's mux-protocol.ts (the bits we use).
+// Mirrors Kennel's mux-protocol.ts (the bits we use).
 export type SessionPatch = {
 	id: string;
 	status: string;
@@ -93,7 +93,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 /**
- * Thin client over AO's mux WebSocket. One socket multiplexes session-status
+ * Thin client over Kennel's mux WebSocket. One socket multiplexes session-status
  * snapshots and per-session terminal I/O. Auto-reconnects with backoff.
  */
 export class MuxClient {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/mobilebridge"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/controllers"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/mobilebridge"
 )
 
 // fakeLAN is a minimal httpd.LANController fake for exercising
@@ -16,7 +16,7 @@ type fakeLAN struct {
 	port    int
 	// returnPort, when non-zero, is what Start returns instead of the port it
 	// was asked for — simulating LANManager's ephemeral-port fallback when the
-	// requested port is already taken (e.g. by another AO instance). Left zero,
+	// requested port is already taken (e.g. by another Kennel instance). Left zero,
 	// Start behaves like a normal listener and echoes the requested port back.
 	returnPort int
 }
@@ -79,10 +79,10 @@ func TestRestoreDisabledDoesNotStart(t *testing.T) {
 // TestRestoreAppliesServeToStartReturnedPort is the regression test for the
 // bridge's named primary failure mode: LANManager.Start falls back to an
 // ephemeral port when its persisted default is taken (observed live: asked
-// for 3011, got 54014 because another AO instance held 3011). A `tailscale
+// for 3011, got 54014 because another Kennel instance held 3011). A `tailscale
 // serve` config pinned to the stale persisted port is exactly what secure
 // pairing exists to prevent — and serve's config persists inside tailscaled
-// across AO restarts, so a stale entry silently proxies the tailnet at this
+// across Kennel restarts, so a stale entry silently proxies the tailnet at this
 // machine's hostname to whatever now holds that dead port.
 //
 // fakeLAN.returnPort is deliberately set to diverge from the requested port

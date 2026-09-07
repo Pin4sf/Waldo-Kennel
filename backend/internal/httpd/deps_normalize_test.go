@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/mobilebridge"
-	"github.com/aoagents/agent-orchestrator/backend/internal/presence"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/mobilebridge"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/presence"
 )
 
 // TestNormalizeAPIDepsDefaultsDeviceLiveToPresence pins finding 2(a): a caller

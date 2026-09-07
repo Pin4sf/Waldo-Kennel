@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// SessionInterfaceTransitionPolicy decides what AO does with work already in
+// SessionInterfaceTransitionPolicy decides what Kennel does with work already in
 // flight when moving a live session between its terminal and Chat controllers.
 type SessionInterfaceTransitionPolicy string
 

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	workspacerouter "github.com/aoagents/agent-orchestrator/backend/internal/adapters/workspace/router"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	workspacerouter "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/workspace/router"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type projectStore struct {
@@ -154,14 +154,14 @@ func TestRouterDelegatesLifecycleMethodsByProjectKind(t *testing.T) {
 	if err := r.ApplyPreserved(context.Background(), scratchInfo, "ref/scratch-1"); err != nil {
 		t.Fatalf("ApplyPreserved scratch: %v", err)
 	}
-	if err := r.AddExclude(context.Background(), scratchInfo, "/.ao/attachments/"); err != nil {
+	if err := r.AddExclude(context.Background(), scratchInfo, "/.kennel/attachments/"); err != nil {
 		t.Fatalf("AddExclude scratch: %v", err)
 	}
 	if scratch.destroyCalls != 1 || scratch.forceDestroyCalls != 1 || scratch.stashCalls != 1 || scratch.applyCalls != 1 || scratch.addExcludeCalls != 1 {
 		t.Fatalf("scratch lifecycle calls destroy/force/stash/apply/exclude = %d/%d/%d/%d/%d, want all 1", scratch.destroyCalls, scratch.forceDestroyCalls, scratch.stashCalls, scratch.applyCalls, scratch.addExcludeCalls)
 	}
-	if len(scratch.lastPatterns) != 1 || scratch.lastPatterns[0] != "/.ao/attachments/" {
-		t.Fatalf("scratch exclude patterns = %#v, want /.ao/attachments/", scratch.lastPatterns)
+	if len(scratch.lastPatterns) != 1 || scratch.lastPatterns[0] != "/.kennel/attachments/" {
+		t.Fatalf("scratch exclude patterns = %#v, want /.kennel/attachments/", scratch.lastPatterns)
 	}
 	if git.destroyCalls != 0 || git.forceDestroyCalls != 0 || git.stashCalls != 0 || git.applyCalls != 0 || git.addExcludeCalls != 0 {
 		t.Fatalf("git lifecycle calls for scratch = %d/%d/%d/%d/%d, want all 0", git.destroyCalls, git.forceDestroyCalls, git.stashCalls, git.applyCalls, git.addExcludeCalls)
@@ -171,7 +171,7 @@ func TestRouterDelegatesLifecycleMethodsByProjectKind(t *testing.T) {
 	if err := r.Destroy(context.Background(), repoInfo); err != nil {
 		t.Fatalf("Destroy repo: %v", err)
 	}
-	if err := r.AddExclude(context.Background(), repoInfo, "/.ao/attachments/"); err != nil {
+	if err := r.AddExclude(context.Background(), repoInfo, "/.kennel/attachments/"); err != nil {
 		t.Fatalf("AddExclude repo: %v", err)
 	}
 	if git.destroyCalls != 1 || git.addExcludeCalls != 1 {

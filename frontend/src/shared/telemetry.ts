@@ -32,7 +32,7 @@ export function parseDisabledEvents(raw: string | undefined): string[] {
 /**
  * Whether the renderer may export to PostHog.
  *
- * All builds are off by default so Kennel cannot inherit AO's analytics stream.
+ * All builds are off by default so Kennel cannot inherit Kennel's analytics stream.
  * Setting `KENNEL_TELEMETRY_RENDERER=on` opts in deliberately.
  */
 export function rendererTelemetryEnabled(

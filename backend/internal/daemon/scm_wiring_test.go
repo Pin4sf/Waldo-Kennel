@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"testing"
 
-	scmmulti "github.com/aoagents/agent-orchestrator/backend/internal/adapters/scm/multi"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	scmobserve "github.com/aoagents/agent-orchestrator/backend/internal/observe/scm"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	scmmulti "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/scm/multi"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	scmobserve "github.com/Pin4sf/Waldo-Kennel/backend/internal/observe/scm"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // TestSCMWiring_MultiProviderSatisfiesScopedIdentityResolver verifies that the

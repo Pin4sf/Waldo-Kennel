@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/gitdefault"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/service/project"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/sqlitetest"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/gitdefault"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
 // newManager builds a Manager over a real, isolated sqlite store cloned from a
@@ -97,7 +97,7 @@ func gitRepoWithOriginHead(t *testing.T, defaultBranch, featureBranch string) st
 
 func commitEmpty(t *testing.T, dir string) {
 	t.Helper()
-	if out, err := exec.Command("git", "-C", dir, "-c", "user.email=ao@example.com", "-c", "user.name=AO Test", "commit", "--allow-empty", "-m", "initial").CombinedOutput(); err != nil {
+	if out, err := exec.Command("git", "-C", dir, "-c", "user.email=ao@example.com", "-c", "user.name=Kennel Test", "commit", "--allow-empty", "-m", "initial").CombinedOutput(); err != nil {
 		t.Fatalf("git commit: %v (%s)", err, out)
 	}
 }
@@ -572,13 +572,13 @@ func TestManager_UpdateSettings(t *testing.T) {
 		AgentConfig:       domain.AgentConfig{Model: "claude-opus-4-5"},
 	}
 	proj, err := m.UpdateSettings(ctx, "ao", project.UpdateSettingsInput{
-		DisplayName: "  AO Project  ",
+		DisplayName: "  Kennel Project  ",
 		Config:      cfg,
 	})
 	if err != nil {
 		t.Fatalf("UpdateSettings: %v", err)
 	}
-	if proj.Name != "AO Project" || proj.Config == nil || proj.Config.AgentConfig.Model != "claude-opus-4-5" {
+	if proj.Name != "Kennel Project" || proj.Config == nil || proj.Config.AgentConfig.Model != "claude-opus-4-5" {
 		t.Fatalf("returned project = %#v", proj)
 	}
 	if proj.DefaultBranch != "develop" {
@@ -590,7 +590,7 @@ func TestManager_UpdateSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.Project == nil || got.Project.Name != "AO Project" || got.Project.Config == nil || got.Project.Config.Env["FOO"] != "bar" {
+	if got.Project == nil || got.Project.Name != "Kennel Project" || got.Project.Config == nil || got.Project.Config.Env["FOO"] != "bar" {
 		t.Fatalf("Get project = %#v", got.Project)
 	}
 	if got.Project.Config.AgentRules != "Run focused tests." || got.Project.Config.OrchestratorRules != "Delegate implementation." {
@@ -607,7 +607,7 @@ func TestManager_UpdateSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get after rejected update: %v", err)
 	}
-	if got.Project == nil || got.Project.Name != "AO Project" || got.Project.Config == nil || got.Project.Config.AgentConfig.Model != "claude-opus-4-5" {
+	if got.Project == nil || got.Project.Name != "Kennel Project" || got.Project.Config == nil || got.Project.Config.AgentConfig.Model != "claude-opus-4-5" {
 		t.Fatalf("project changed after rejected update = %#v", got.Project)
 	}
 	_, err = m.UpdateSettings(ctx, "ao", project.UpdateSettingsInput{DisplayName: "  ", Config: cfg})
@@ -704,7 +704,7 @@ func TestManager_InitializeRepositoryRecovery(t *testing.T) {
 			t.Fatalf("Add after init: %v", err)
 		}
 		if proj.DefaultBranch != domain.DefaultBranchName {
-			t.Fatalf("AO-initialized default branch = %q, want %q", proj.DefaultBranch, domain.DefaultBranchName)
+			t.Fatalf("Kennel-initialized default branch = %q, want %q", proj.DefaultBranch, domain.DefaultBranchName)
 		}
 	})
 
@@ -847,7 +847,7 @@ func TestManager_InitializeRepositoryRecovery(t *testing.T) {
 		_, err := m.InitializeRepository(ctx, project.InitializeRepositoryInput{Path: dir})
 		wantCode(t, err, "PROJECT_SETUP_PATH_UNSAFE")
 		if _, statErr := os.Lstat(filepath.Join(dir, ".git")); !errors.Is(statErr, os.ErrNotExist) {
-			t.Fatalf("unexpected .git after rejected AO worktree setup: %v", statErr)
+			t.Fatalf("unexpected .git after rejected Kennel worktree setup: %v", statErr)
 		}
 	})
 
@@ -1015,9 +1015,9 @@ func TestManager_GetUpdateRemoveErrors(t *testing.T) {
 
 func configureCommitter(t *testing.T) {
 	t.Helper()
-	t.Setenv("GIT_AUTHOR_NAME", "AO Test")
+	t.Setenv("GIT_AUTHOR_NAME", "Kennel Test")
 	t.Setenv("GIT_AUTHOR_EMAIL", "ao@example.com")
-	t.Setenv("GIT_COMMITTER_NAME", "AO Test")
+	t.Setenv("GIT_COMMITTER_NAME", "Kennel Test")
 	t.Setenv("GIT_COMMITTER_EMAIL", "ao@example.com")
 }
 
@@ -1079,7 +1079,7 @@ func TestManager_AddWorkspaceInsideAncestorRepo(t *testing.T) {
 		t.Fatalf("Kind = %q, want workspace", proj.Kind)
 	}
 	if proj.DefaultBranch != domain.DefaultBranchName {
-		t.Fatalf("AO-initialized workspace root default = %q, want %q", proj.DefaultBranch, domain.DefaultBranchName)
+		t.Fatalf("Kennel-initialized workspace root default = %q, want %q", proj.DefaultBranch, domain.DefaultBranchName)
 	}
 	if len(proj.WorkspaceRepos) != 2 {
 		t.Fatalf("expected 2 child repos, got %d", len(proj.WorkspaceRepos))
@@ -1307,7 +1307,7 @@ func TestManager_AddWorkspaceAdoptsExistingParent(t *testing.T) {
 		t.Fatalf("git log: %v (%s)", err, logOut)
 	}
 	lines := strings.Split(strings.TrimSpace(string(logOut)), "\n")
-	// Expect: AO workspace commit + "add gitignore" + "initial" = 3 commits.
+	// Expect: Kennel workspace commit + "add gitignore" + "initial" = 3 commits.
 	if len(lines) != 3 {
 		t.Fatalf("expected 3 commits, got %d:\n%s", len(lines), logOut)
 	}
@@ -1558,4 +1558,111 @@ func TestManager_AddWorkspaceRejectsBareParent(t *testing.T) {
 
 	_, err := m.Add(ctx, project.AddInput{Path: bareParent, ProjectID: ptr("bare"), AsWorkspace: true})
 	wantCode(t, err, "WORKSPACE_PARENT_BARE")
+}
+
+func TestManager_SetConfigPersistsAgentPreferences(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlitetest.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	m := project.NewWithDeps(project.Deps{Store: store})
+	scratchPath := filepath.Join(t.TempDir(), "scratch", "default")
+	if _, err := m.EnsureDefaultScratchProject(ctx, scratchPath); err != nil {
+		t.Fatalf("EnsureDefaultScratchProject: %v", err)
+	}
+
+	proj, err := m.SetConfig(ctx, "scratch", project.SetConfigInput{Config: domain.ProjectConfig{
+		AgentConfig:      domain.AgentConfig{Model: "m"},
+		AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "cursor"},
+	}})
+	if err != nil {
+		t.Fatalf("SetConfig with agent preferences: %v", err)
+	}
+	if proj.Config == nil || proj.Config.AgentPreferences.DefaultWorker != "cursor" {
+		t.Fatalf("preferences not echoed back: %#v", proj.Config)
+	}
+
+	got, err := m.Get(ctx, "scratch")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Project.Config == nil || got.Project.Config.AgentPreferences.DefaultWorker != "cursor" {
+		t.Fatalf("preferences not persisted: %#v", got.Project.Config)
+	}
+}
+
+func TestManager_SetConfigRejectsInadmissibleRolePreference(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlitetest.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	m := project.NewWithDeps(project.Deps{Store: store})
+	scratchPath := filepath.Join(t.TempDir(), "scratch", "default")
+	if _, err := m.EnsureDefaultScratchProject(ctx, scratchPath); err != nil {
+		t.Fatalf("EnsureDefaultScratchProject: %v", err)
+	}
+
+	_, err = m.SetConfig(ctx, "scratch", project.SetConfigInput{Config: domain.ProjectConfig{
+		AgentPreferences: domain.ProjectAgentPreferences{Coordinator: "cursor"},
+	}})
+	wantCode(t, err, "INVALID_PROJECT_CONFIG")
+}
+
+func TestManager_ResolvedMissionRolesDelegatesToInventory(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlitetest.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	resolver := &stubRoleResolver{roles: domain.ResolvedMissionRoles{
+		Worker: domain.ResolvedAgentRole{Harness: domain.HarnessCursor, Source: domain.RoleSourcePreference,
+			Eligible: true, Ready: false, Reason: "profile readiness fails closed"},
+	}}
+	m := project.NewWithDeps(project.Deps{Store: store, Roles: resolver})
+	scratchPath := filepath.Join(t.TempDir(), "scratch", "default")
+	if _, err := m.EnsureDefaultScratchProject(ctx, scratchPath); err != nil {
+		t.Fatalf("EnsureDefaultScratchProject: %v", err)
+	}
+	if _, err := m.SetConfig(ctx, "scratch", project.SetConfigInput{Config: domain.ProjectConfig{
+		AgentPreferences: domain.ProjectAgentPreferences{DefaultWorker: "cursor"},
+	}}); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	roles, err := m.ResolvedMissionRoles(ctx, "scratch")
+	if err != nil {
+		t.Fatalf("ResolvedMissionRoles: %v", err)
+	}
+	if !resolver.called {
+		t.Fatal("inventory resolver was not consulted")
+	}
+	if roles.Worker.Ready || !strings.Contains(strings.ToLower(roles.Worker.Reason), "profile") {
+		t.Fatalf("inventory truth not passed through: %+v", roles.Worker)
+	}
+
+	_, missErr := m.ResolvedMissionRoles(ctx, "missing")
+	if !wantCodeErr(missErr, "PROJECT_NOT_FOUND") {
+		t.Fatalf("unknown project must 404 with PROJECT_NOT_FOUND, got %v", missErr)
+	}
+}
+
+type stubRoleResolver struct {
+	roles  domain.ResolvedMissionRoles
+	called bool
+}
+
+func (s *stubRoleResolver) ResolveMissionRoles(_ context.Context, _ domain.ProjectAgentPreferences, _ domain.ProjectConfig) domain.ResolvedMissionRoles {
+	s.called = true
+	return s.roles
+}
+
+func wantCodeErr(err error, code string) bool {
+	var apiErr *apierr.Error
+	return errors.As(err, &apiErr) && apiErr.Code == code
 }

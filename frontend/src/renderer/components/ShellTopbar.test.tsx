@@ -346,6 +346,18 @@ describe("ShellTopbar orchestrator actions", () => {
 		});
 	});
 
+	it("opens durable Outcome Understand from the project Board action", async () => {
+		renderTopbarSessions([orchestrator], "");
+
+		await userEvent.click(screen.getByRole("button", { name: "Define outcome" }));
+
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/work",
+			search: { project: "proj-1" },
+		});
+		expect(useUiStore.getState().newTaskRequest).toBeNull();
+	});
+
 	it("keeps the orchestrator control hidden when no orchestrator agent is configured", () => {
 		useWorkspaceQueryMock.mockReturnValue({
 			data: [

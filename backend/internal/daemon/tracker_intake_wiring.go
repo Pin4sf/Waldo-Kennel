@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
-	trackergithub "github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/github"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	trackerintake "github.com/aoagents/agent-orchestrator/backend/internal/observe/trackerintake"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
-	sessionsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/session"
-	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
+	trackergithub "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/tracker/github"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	trackerintake "github.com/Pin4sf/Waldo-Kennel/backend/internal/observe/trackerintake"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
+	sessionsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/session"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
 )
 
 // startTrackerIntake wires the opt-in GitHub issue-intake loop. The observer
@@ -118,7 +118,7 @@ func (s *trackerTokenSource) Token(ctx context.Context) (string, error) {
 	}
 	cmdCtx, cancel := context.WithTimeout(ctx, trackerTokenCommandTimeout)
 	defer cancel()
-	out, err := aoprocess.CommandContext(cmdCtx, "gh", "auth", "token").Output()
+	out, err := kennelprocess.CommandContext(cmdCtx, "gh", "auth", "token").Output()
 	if err != nil {
 		return "", err
 	}

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestCommandArgs(t *testing.T) {
@@ -135,13 +135,13 @@ func TestOrchestratorManagedPath(t *testing.T) {
 			ProjectID:     "proj",
 			SessionID:     "proj-1",
 			Kind:          domain.KindOrchestrator,
-			SessionPrefix: "ao-agents",
+			SessionPrefix: "kennel-agents",
 		}
 		path, err := ws.managedPath(cfg)
 		if err != nil {
 			t.Fatalf("managed path: %v", err)
 		}
-		want := filepath.Join(ws.managedRoot, "proj", "orchestrator", "ao-agents-orchestrator")
+		want := filepath.Join(ws.managedRoot, "proj", "orchestrator", "kennel-agents-orchestrator")
 		if path != want {
 			t.Fatalf("path = %q, want %q", path, want)
 		}
@@ -364,7 +364,7 @@ func TestRestoreRecreatesMissingRegisteredWorktreeWithForce(t *testing.T) {
 // TestRestoreRecreatesOnRegisteredBranchNotCfgBranch is the regression test
 // for the real #2775 case: session agent-orchestrator-78 had its worktree
 // registered on a child branch (ao/agent-orchestrator-78/gh-pages-landing),
-// not the root branch AO would pass as cfg.Branch. When the directory is
+// not the root branch Kennel would pass as cfg.Branch. When the directory is
 // missing and Restore falls through to recreate the worktree, it must
 // recreate it on the registration's OWN branch, not cfg.Branch: otherwise a
 // session on a child branch is silently checked out on root instead, which
@@ -380,7 +380,7 @@ func TestRestoreRecreatesOnRegisteredBranchNotCfgBranch(t *testing.T) {
 	const registeredBranch = "ao/proj-orchestrator/gh-pages-landing"
 	// cfg.Branch deliberately differs from the stale registration's branch
 	// (and is not a prefix of it, so a substring match on the recorded git
-	// invocations cannot accidentally pass either way), mirroring how AO
+	// invocations cannot accidentally pass either way), mirroring how Kennel
 	// passes the session's root branch through Restore while the on-disk
 	// worktree may have been registered on a child branch.
 	cfg := ports.WorkspaceConfig{

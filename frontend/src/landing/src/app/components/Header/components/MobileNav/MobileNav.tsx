@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -17,6 +17,9 @@ interface MobileNavProps {
 export function MobileNav({ ctaButtons }: MobileNavProps) {
 	const [isOpen, setIsOpen] = useState(false);
 	const close = () => setIsOpen(false);
+	// Reduced motion means gentler, not absent: the backdrop still fades so the
+	// page behind visibly recedes, but the panel stops travelling.
+	const reduceMotion = useReducedMotion();
 
 	// Lock the page behind the panel and let Escape dismiss it.
 	useEffect(() => {
@@ -55,7 +58,7 @@ export function MobileNav({ ctaButtons }: MobileNavProps) {
 			</div>
 			<button
 				type="button"
-				className="-mr-2.5 grid size-11 place-items-center text-muted-foreground hover:text-foreground transition-colors"
+				className="-mr-2.5 grid size-11 place-items-center text-muted-foreground hover:text-foreground transition-[color,transform] duration-fast ease-out active:scale-[0.97]"
 				onClick={() => setIsOpen((prev) => !prev)}
 				aria-label={isOpen ? "Close menu" : "Open menu"}
 				aria-expanded={isOpen}
@@ -81,9 +84,9 @@ export function MobileNav({ ctaButtons }: MobileNavProps) {
 							key="mobile-nav-panel"
 							id="mobile-nav"
 							className="absolute inset-x-0 top-14 z-50 overflow-hidden border-t border-border bg-background"
-							initial={{ height: 0 }}
+							initial={reduceMotion ? false : { height: 0 }}
 							animate={{ height: "auto" }}
-							exit={{ height: 0 }}
+							exit={reduceMotion ? { opacity: 0 } : { height: 0 }}
 							transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
 						>
 							<div className="max-h-[calc(100dvh-3.5rem)] overflow-y-auto overscroll-contain px-4 pb-[env(safe-area-inset-bottom)] sm:px-8 lg:px-[30px]">

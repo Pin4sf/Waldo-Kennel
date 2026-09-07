@@ -509,7 +509,7 @@ export async function sanitizeRendererProperties(
 			}
 			break;
 		case "kennel.renderer.agents_available": {
-			// Counts and a fixed-vocabulary id list only. Agent ids come from AO's own
+			// Counts and a fixed-vocabulary id list only. Agent ids come from Kennel's own
 			// registry, never from user input, so they carry no user data.
 			for (const key of ["installed_count", "authorized_count", "supported_count"] as const) {
 				if (typeof properties?.[key] === "number") safe[key] = properties[key];
@@ -614,18 +614,18 @@ export function buildPostHogConfig(distinctId: string): PostHogInitOptions {
 		capture_exceptions: false,
 		capture_performance: false,
 		// Session replay is billed per recording, not per event, so it bypasses
-		// every limiter in this file. AO never watches replays, so keep the
+		// every limiter in this file. Kennel never watches replays, so keep the
 		// recorder off in the client instead of relying on the project-side
 		// toggle staying off.
 		disable_session_recording: true,
-		// AO reads no feature flags and ships no surveys. Both of these poll
+		// Kennel reads no feature flags and ships no surveys. Both of these poll
 		// PostHog on init, and /flags requests are billed, so every one of these
 		// requests is pure cost for data nothing consumes.
 		advanced_disable_flags: true,
 		disable_surveys: true,
-		// AO owns the stable random installation ID. Memory-only SDK
+		// Kennel owns the stable random installation ID. Memory-only SDK
 		// persistence prevents legacy identified state from replacing it after
-		// an upgrade; the AO-owned heartbeat and route reservations continue to
+		// an upgrade; the Kennel-owned heartbeat and route reservations continue to
 		// use window.localStorage independently.
 		persistence: "memory",
 		person_profiles: "never",

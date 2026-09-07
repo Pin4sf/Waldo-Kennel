@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // ErrSkillsUnsupported reports a driver whose provider cannot enumerate skills.
@@ -18,7 +18,7 @@ var ErrSkillsUnsupported = errors.New("chat driver cannot list skills")
 //
 // Read from the live conversation for the same reason models are: skills come from
 // the user's own Codex config and the repo's own files, both of which change
-// without AO being told. A list AO cached at build time would offer commands that
+// without Kennel being told. A list Kennel cached at build time would offer commands that
 // no longer exist and hide ones the user just wrote.
 func (s *Service) Skills(ctx context.Context, id domain.SessionID) ([]ports.ChatSkill, error) {
 	if _, err := s.requireChatSession(ctx, id); err != nil {

@@ -63,7 +63,7 @@ export function PRSummaryMeta({
 		return null;
 	}
 	return (
-		<div className={cn("min-w-0 font-mono text-2xs leading-4", className)}>
+		<div className={cn("min-w-0 text-2xs leading-4", className)}>
 			{primary.length > 0 ? (
 				<div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-muted-foreground">
 					{primary.map((part, index) => (
@@ -203,7 +203,7 @@ export function PRCardStatusSummary({
 								</div>
 							) : null}
 							{presentation.primary.links.length > 0 ? (
-								<div className="mt-1 flex min-w-0 flex-wrap gap-x-1.5 gap-y-1 font-mono text-2xs">
+								<div className="mt-1 flex min-w-0 flex-wrap gap-x-1.5 gap-y-1 text-2xs">
 									{presentation.primary.links.slice(0, 3).map((link, index) => (
 										<SummaryLink
 											className={toneClass[presentation.primary.tone]}
@@ -219,7 +219,7 @@ export function PRCardStatusSummary({
 					</div>
 					{supporting.length > 0 ? (
 						<div className="min-w-0 pl-4">
-							<div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 font-mono text-2xs">
+							<div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-2xs">
 								{supporting.map((status) => (
 									<span
 										className={cn("inline-flex items-center gap-1", toneClass[status.tone])}
@@ -292,8 +292,8 @@ export function PRSummaryParts({
 		<div
 			className={cn(
 				stacked
-					? "flex flex-col gap-1.5 font-mono text-2xs leading-4"
-					: "flex flex-wrap gap-x-3 gap-y-1 font-mono text-2xs",
+					? "flex flex-col gap-1.5 text-2xs leading-4"
+					: "flex flex-wrap gap-x-3 gap-y-1 text-2xs",
 				className,
 			)}
 		>

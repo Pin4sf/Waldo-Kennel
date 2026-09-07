@@ -84,8 +84,8 @@ func TestLoadAbsolutizesRelativeOverrides(t *testing.T) {
 
 func TestLoadOverrides(t *testing.T) {
 	overrideDir := t.TempDir()
-	runFilePath := filepath.Join(overrideDir, "ao-test-running.json")
-	dataDir := filepath.Join(overrideDir, "ao-test-data")
+	runFilePath := filepath.Join(overrideDir, "kennel-test-running.json")
+	dataDir := filepath.Join(overrideDir, "kennel-test-data")
 
 	t.Setenv("KENNEL_PORT", "4002")
 	t.Setenv("KENNEL_REQUEST_TIMEOUT", "5s")

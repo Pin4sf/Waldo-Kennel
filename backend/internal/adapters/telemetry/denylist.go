@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // DenylistSink drops named event streams before they reach the sink it wraps.

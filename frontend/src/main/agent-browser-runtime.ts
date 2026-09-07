@@ -238,7 +238,7 @@ export class AgentBrowserRuntime {
 			await this.run(sessionId, ["screenshot", target, "--json"], provider, signal);
 			const image = await readFile(target);
 			if (image.length > MAX_SCREENSHOT_BYTES) {
-				throw runtimeError("AGENT_BROWSER_OUTPUT_TOO_LARGE", "Browser screenshot exceeded AO's size limit");
+				throw runtimeError("AGENT_BROWSER_OUTPUT_TOO_LARGE", "Browser screenshot exceeded Kennel's size limit");
 			}
 			const { width, height } = pngDimensions(image);
 			return { data: image.toString("base64"), width, height, untrustedExternalContent: true };
@@ -470,7 +470,7 @@ export class AgentBrowserRuntime {
 		} catch {
 			throw runtimeError(
 				"AGENT_BROWSER_NOT_INSTALLED",
-				`AO's browser automation component was not found at ${this.options.binaryPath}. Reinstall or rebuild the desktop app.`,
+				`Kennel's browser automation component was not found at ${this.options.binaryPath}. Reinstall or rebuild the desktop app.`,
 			);
 		}
 	}
@@ -803,22 +803,22 @@ export function validateAgentBrowserArguments(args: string[]): void {
 	}
 	const command = args[0].toLowerCase();
 	if (!ALLOWED_COMMANDS.has(command)) {
-		throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", `agent-browser command is not enabled in AO: ${command}`);
+		throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", `agent-browser command is not enabled in Kennel: ${command}`);
 	}
 	for (const arg of args) {
 		const lower = arg.toLowerCase();
 		if (FORBIDDEN_FLAGS.some((flag) => lower === flag || lower.startsWith(`${flag}=`))) {
-			throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", `agent-browser flag is managed by AO: ${arg}`);
+			throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", `agent-browser flag is managed by Kennel: ${arg}`);
 		}
 	}
 	if (command === "open" && args[1] && !args[1].startsWith("-")) {
 		assertHTTPURL(args[1]);
 	}
 	if (command === "diff" && args[1]?.toLowerCase() !== "snapshot") {
-		throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", "Only snapshot diff is enabled in AO");
+		throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", "Only snapshot diff is enabled in Kennel");
 	}
 	if (command === "get" && args[1]?.toLowerCase() === "cdp-url") {
-		throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", "The private AO CDP endpoint cannot be displayed");
+		throw runtimeError("AGENT_BROWSER_COMMAND_BLOCKED", "The private Kennel CDP endpoint cannot be displayed");
 	}
 }
 
@@ -857,7 +857,7 @@ async function runNativeProcess(
 		): Buffer<ArrayBufferLike> => {
 			if (current.length + chunk.length > MAX_OUTPUT_BYTES) {
 				child.kill();
-				finish(runtimeError("AGENT_BROWSER_OUTPUT_TOO_LARGE", "agent-browser output exceeded AO's limit"));
+				finish(runtimeError("AGENT_BROWSER_OUTPUT_TOO_LARGE", "agent-browser output exceeded Kennel's limit"));
 				return current;
 			}
 			return Buffer.concat([current, chunk]);
@@ -916,7 +916,7 @@ function assertAgentBrowserSocketPath(socketDir: string, namespace: string, plat
 	if (byteLength > AGENT_BROWSER_UNIX_SOCKET_PATH_MAX_BYTES) {
 		throw runtimeError(
 			"AGENT_BROWSER_START_FAILED",
-			`Agent Browser socket path is ${byteLength} bytes; Unix supports at most ${AGENT_BROWSER_UNIX_SOCKET_PATH_MAX_BYTES}. AO needs a shorter socket directory.`,
+			`Agent Browser socket path is ${byteLength} bytes; Unix supports at most ${AGENT_BROWSER_UNIX_SOCKET_PATH_MAX_BYTES}. Kennel needs a shorter socket directory.`,
 		);
 	}
 }

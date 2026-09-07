@@ -7,33 +7,41 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/attachmentstore"
-	"github.com/aoagents/agent-orchestrator/backend/internal/cdc"
-	"github.com/aoagents/agent-orchestrator/backend/internal/config"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apispec"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/controllers"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
-	"github.com/aoagents/agent-orchestrator/backend/internal/presence"
-	prsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/pr"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
-	reviewsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/review"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/attachmentstore"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/cdc"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apispec"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/controllers"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/envelope"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/presence"
+	prsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/pr"
+	projectsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
+	reviewsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/review"
 )
 
 // APIDeps bundles every service the API layer's controllers depend on.
 type APIDeps struct {
-	Agents             controllers.AgentCatalog
-	Projects           projectsvc.Manager
-	Sessions           controllers.SessionService
-	Activity           controllers.ActivityRecorder
-	UsageHooks         controllers.UsageHookRecorder
-	UsageSummary       controllers.UsageSummaryService
-	PRs                prsvc.ActionManager
-	Reviews            reviewsvc.Manager
-	Notifications      controllers.NotificationService
-	NotificationStream controllers.NotificationStream
-	Push               controllers.PushRegistry
-	ShellTerminals     controllers.ShellTerminalService
+	Agents              controllers.AgentCatalog
+	Projects            projectsvc.Manager
+	Sessions            controllers.SessionService
+	Activity            controllers.ActivityRecorder
+	UsageHooks          controllers.UsageHookRecorder
+	UsageSummary        controllers.UsageSummaryService
+	PRs                 prsvc.ActionManager
+	Reviews             reviewsvc.Manager
+	Notifications       controllers.NotificationService
+	NotificationStream  controllers.NotificationStream
+	Outcomes            controllers.OutcomeService
+	Intakes             controllers.IntakeService
+	WaldoConversations  controllers.WaldoConversationService
+	ResponsibilityLinks controllers.ResponsibilityLinkService
+	// Attempts is nil until Act & Observe execution is wired; the attempt
+	// routes then answer 501, matching every other optional surface.
+	Attempts       controllers.AttemptManager
+	Proof          controllers.ProofManager
+	Push           controllers.PushRegistry
+	ShellTerminals controllers.ShellTerminalService
 	// Conversations is nil until a Chat driver is wired; the controller then
 	// answers 501 rather than panicking, matching the other optional surfaces.
 	Conversations controllers.ConversationService
@@ -96,6 +104,9 @@ type API struct {
 	prs           *controllers.PRsController
 	reviews       *controllers.ReviewsController
 	notifications *controllers.NotificationsController
+	outcomes      *controllers.OutcomesController
+	intakes       *controllers.IntakesController
+	waldo         *controllers.WaldoConversationsController
 	push          *controllers.PushController
 	shellTerms    *controllers.ShellTerminalsController
 	conversations *controllers.ConversationsController
@@ -130,6 +141,9 @@ func NewAPI(cfg config.Config, deps APIDeps) *API {
 		prs:           &controllers.PRsController{Svc: deps.PRs},
 		reviews:       &controllers.ReviewsController{Svc: deps.Reviews},
 		notifications: &controllers.NotificationsController{Svc: deps.Notifications, Stream: deps.NotificationStream},
+		outcomes:      &controllers.OutcomesController{Svc: deps.Outcomes, Attempts: deps.Attempts, Proof: deps.Proof},
+		intakes:       &controllers.IntakesController{Svc: deps.Intakes, Links: deps.ResponsibilityLinks},
+		waldo:         &controllers.WaldoConversationsController{Svc: deps.WaldoConversations},
 		push:          &controllers.PushController{Registry: deps.Push},
 		shellTerms:    &controllers.ShellTerminalsController{Svc: deps.ShellTerminals},
 		conversations: &controllers.ConversationsController{Svc: deps.Conversations},
@@ -161,6 +175,9 @@ func (a *API) Register(root chi.Router) {
 			a.prs.Register(r)
 			a.reviews.Register(r)
 			a.notifications.Register(r)
+			a.outcomes.Register(r)
+			a.intakes.Register(r)
+			a.waldo.Register(r)
 			a.push.Register(r)
 			a.shellTerms.Register(r)
 			a.conversations.Register(r)

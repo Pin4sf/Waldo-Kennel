@@ -1,6 +1,6 @@
 // Package activitydispatch is the single source of truth mapping the agent
 // token in `kennel hooks <agent> <event>` onto the function that interprets that
-// agent's hook callbacks as an AO activity state.
+// agent's hook callbacks as an Kennel activity state.
 //
 // The hidden `kennel hooks` CLI command dispatches a live callback through it. Every
 // adapter that installs `kennel hooks <tok>` callbacks must have a deriver
@@ -9,21 +9,15 @@
 package activitydispatch
 
 import (
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/activitystate"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/agy"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/claudecode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/codex"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/droid"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/fake"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/kimchi"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/muse"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/opencode"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/primeagent"
-	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/vibe"
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/activitystate"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/claudecode"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/codex"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/fake"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/opencode"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
-// DeriveFunc maps a native agent hook event and its raw stdin payload onto an AO
+// DeriveFunc maps a native agent hook event and its raw stdin payload onto an Kennel
 // activity state. ok=false means the event carries no activity signal.
 type DeriveFunc func(event string, payload []byte) (domain.ActivityState, bool)
 
@@ -33,26 +27,12 @@ var Derivers = map[string]DeriveFunc{
 	// Adapters that parse hook payloads for finer-grained state keep their own
 	// deriver; the rest share the name-only StandardDeriveActivityState.
 	"claude-code": claudecode.DeriveActivityState,
-	"grok":        claudecode.DeriveActivityState,
-	"muse":        muse.DeriveActivityState,
 	"codex":       codex.DeriveActivityState,
-	"droid":       droid.DeriveActivityState,
-	"agy":         agy.DeriveActivityState,
-	"kimchi":      kimchi.DeriveActivityState,
 	"opencode":    opencode.DeriveActivityState,
-	"prime-agent": primeagent.DeriveActivityState,
-	"goose":       activitystate.StandardDeriveActivityState,
-	"devin":       activitystate.StandardDeriveActivityState,
 	"cursor":      activitystate.StandardDeriveActivityState,
-	"qwen":        activitystate.StandardDeriveActivityState,
-	"copilot":     activitystate.StandardDeriveActivityState,
-	"kimi":        activitystate.StandardDeriveActivityState,
-	"cline":       activitystate.StandardDeriveActivityState,
-	"kiro":        activitystate.StandardDeriveActivityState,
-	"kilocode":    activitystate.StandardDeriveActivityState,
-	"autohand":    activitystate.StandardDeriveActivityState,
-	"vibe":        vibe.DeriveActivityState,
-	"fake":        fake.DeriveActivityState,
+	// pi installs no hook callbacks (it exposes lifecycle only through in-process
+	// extensions), so it has no deriver and SupportsHarness reports false for it.
+	"fake": fake.DeriveActivityState,
 }
 
 // Derive looks up the deriver for an agent token and applies it. ok=false when

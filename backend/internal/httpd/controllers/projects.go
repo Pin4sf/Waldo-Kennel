@@ -10,10 +10,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apispec"
-	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
-	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apispec"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/envelope"
+	projectsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/project"
 )
 
 // ProjectsController owns the /projects routes. The controller depends only on
@@ -28,6 +28,7 @@ func (c *ProjectsController) Register(r chi.Router) {
 	r.Post("/projects", c.add)
 	r.Post("/projects/initialize", c.initialize)
 	r.Get("/projects/{id}", c.get)
+	r.Get("/projects/{id}/resolved-mission-roles", c.resolvedMissionRoles)
 	r.Put("/projects/{id}", c.updateSettings)
 	r.Put("/projects/{id}/config", c.setConfig)
 	r.Delete("/projects/{id}", c.remove)
@@ -47,6 +48,22 @@ func (c *ProjectsController) list(w http.ResponseWriter, r *http.Request) {
 		projects = []projectsvc.Summary{}
 	}
 	envelope.WriteJSON(w, http.StatusOK, ListProjectsResponse{Projects: projects})
+}
+
+// resolvedMissionRoles serves GET /projects/{id}/resolved-mission-roles: the
+// daemon-resolved Mission-role proposal (stored preferences enriched with live
+// adapter admission). Advisory read-only surface — it never mutates config.
+func (c *ProjectsController) resolvedMissionRoles(w http.ResponseWriter, r *http.Request) {
+	if c.Mgr == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/projects/{id}/resolved-mission-roles")
+		return
+	}
+	roles, err := c.Mgr.ResolvedMissionRoles(r.Context(), domain.ProjectID(chi.URLParam(r, "id")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, ResolvedMissionRolesResponse{Roles: roles})
 }
 
 func (c *ProjectsController) add(w http.ResponseWriter, r *http.Request) {

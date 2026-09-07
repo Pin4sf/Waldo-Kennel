@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Asserted here so a refactor cannot silently drop skill listing: the service
@@ -12,10 +12,10 @@ import (
 // "this agent has no skills" with nothing to notice.
 var _ ports.ChatSkillLister = (*conversation)(nil)
 
-// skillsListResponse is the subset of `skills/list` AO reads.
+// skillsListResponse is the subset of `skills/list` Kennel reads.
 //
 // The provider groups results by working directory because a client may ask about
-// several at once. AO asks about one, so the groups are flattened.
+// several at once. Kennel asks about one, so the groups are flattened.
 type skillsListResponse struct {
 	Data []struct {
 		Cwd    string `json:"cwd"`

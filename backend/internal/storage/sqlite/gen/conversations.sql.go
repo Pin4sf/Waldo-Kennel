@@ -10,7 +10,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 const activateConversationBranch = `-- name: ActivateConversationBranch :execrows
@@ -50,7 +50,7 @@ type AdoptProviderConversationTurnParams struct {
 	StartedAt            sql.NullTime
 }
 
-// A turn the PROVIDER started that AO never dispatched: a compaction runs as its
+// A turn the PROVIDER started that Kennel never dispatched: a compaction runs as its
 // own turn, and so does work resumed inside the provider's own history. Without a
 // row every item it emits correlates to no turn, which silently unpicks the
 // timeline. INSERT OR IGNORE because the provider re-announces a turn on resume.
@@ -193,7 +193,7 @@ type AppendConversationMessageDeltaParams struct {
 
 // Folding a streaming delta: append to the existing text and bump the revision
 // so a client can detect a gap. The provider item id is the correlation key
-// because AO does not know the message id the provider will use.
+// because Kennel does not know the message id the provider will use.
 func (q *Queries) AppendConversationMessageDelta(ctx context.Context, arg AppendConversationMessageDeltaParams) error {
 	_, err := q.db.ExecContext(ctx, appendConversationMessageDelta,
 		arg.Text,
@@ -223,7 +223,7 @@ type ApplyConversationTitleToSessionParams struct {
 //
 // One statement, not a read followed by a write: a manual rename landing between the
 // two would be silently discarded. The guard admits exactly two cases - the session
-// has no label yet, or it still carries the title AO last wrote - so anything a user
+// has no label yet, or it still carries the title Kennel last wrote - so anything a user
 // typed wins by simply not matching.
 //
 // It lives with the conversation queries rather than the session ones because it is
@@ -266,7 +266,7 @@ type AttachLegacyCompactionsToRollbackAnchorParams struct {
 	TargetConversationID string
 }
 
-// Older AO builds stored compaction boundaries without their provider turn.
+// Older Kennel builds stored compaction boundaries without their provider turn.
 // Correlate those at or after the rollback anchor so the normal rolled-back-turn
 // filter hides facts the provider has now forgotten.
 func (q *Queries) AttachLegacyCompactionsToRollbackAnchor(ctx context.Context, arg AttachLegacyCompactionsToRollbackAnchorParams) error {
@@ -367,7 +367,7 @@ type CompleteQueuedConversationTurnPromotionParams struct {
 	ConversationID   string
 }
 
-// The provider has accepted the guidance. Link the durable source to the AO turn
+// The provider has accepted the guidance. Link the durable source to the Kennel turn
 // that absorbed it and take it out of the queue in the same transaction that
 // inserts the visible steer activity.
 func (q *Queries) CompleteQueuedConversationTurnPromotion(ctx context.Context, arg CompleteQueuedConversationTurnPromotionParams) (int64, error) {
@@ -922,7 +922,7 @@ type RecomputeConversationCompactedAtParams struct {
 }
 
 // Conversation state must describe the latest compaction that still exists in
-// provider history after rollback, not the latest one AO ever observed.
+// provider history after rollback, not the latest one Kennel ever observed.
 func (q *Queries) RecomputeConversationCompactedAt(ctx context.Context, arg RecomputeConversationCompactedAtParams) error {
 	_, err := q.db.ExecContext(ctx, recomputeConversationCompactedAt, arg.UpdatedAt, arg.TargetConversationID)
 	return err
@@ -990,7 +990,7 @@ type ResetConversationAgentOverridesForSessionParams struct {
 }
 
 // An agent switch starts a new provider/model scope. Clear only the source
-// harness choices; approval posture is AO-owned and remains applicable.
+// harness choices; approval posture is Kennel-owned and remains applicable.
 func (q *Queries) ResetConversationAgentOverridesForSession(ctx context.Context, arg ResetConversationAgentOverridesForSessionParams) error {
 	_, err := q.db.ExecContext(ctx, resetConversationAgentOverridesForSession, arg.UpdatedAt, arg.CurrentSessionID)
 	return err
@@ -1606,7 +1606,7 @@ ORDER BY conversation_messages.sequence
 // agent has no memory of is the one way this feature can lie.
 //
 // Rows with turn_id IS NULL survive the filter on purpose. Those are items the
-// provider never attributed to a turn, and hiding what AO cannot prove belonged to
+// provider never attributed to a turn, and hiding what Kennel cannot prove belonged to
 // the discarded range would be a guess dressed up as a fact.
 // NOTE: keep these comments ASCII. sqlc locates its star-expansion edits by byte
 // offset, so a multi-byte character here silently corrupts later queries.
@@ -2039,8 +2039,8 @@ type SelectConversationUserMessageByTurnParams struct {
 	ProviderTurnID string
 }
 
-// A native history import has the provider turn identity but not AO's turn id.
-// Looking through the turn also detects a message AO wrote before dispatch, which
+// A native history import has the provider turn identity but not Kennel's turn id.
+// Looking through the turn also detects a message Kennel wrote before dispatch, which
 // prevents a Chat -> TUI -> Chat cycle from rendering the same prompt twice.
 func (q *Queries) SelectConversationUserMessageByTurn(ctx context.Context, arg SelectConversationUserMessageByTurnParams) (ConversationMessage, error) {
 	row := q.db.QueryRowContext(ctx, selectConversationUserMessageByTurn, arg.ConversationID, arg.ProviderTurnID)
@@ -2183,7 +2183,7 @@ type SelectReservedConversationTurnForPromotionRow struct {
 	DeliveryContentJson string
 }
 
-// The content is loaded after the compare-and-set, from AO's durable message
+// The content is loaded after the compare-and-set, from Kennel's durable message
 // rather than from a client request that could be stale or substituted.
 func (q *Queries) SelectReservedConversationTurnForPromotion(ctx context.Context, arg SelectReservedConversationTurnForPromotionParams) (SelectReservedConversationTurnForPromotionRow, error) {
 	row := q.db.QueryRowContext(ctx, selectReservedConversationTurnForPromotion, arg.ID, arg.ConversationID)
@@ -2368,7 +2368,7 @@ type UpdateConversationAccountParams struct {
 }
 
 // The provider account this conversation runs under, including the moment it last
-// asked for credentials AO does not hold. Latest wins.
+// asked for credentials Kennel does not hold. Latest wins.
 func (q *Queries) UpdateConversationAccount(ctx context.Context, arg UpdateConversationAccountParams) error {
 	_, err := q.db.ExecContext(ctx, updateConversationAccount, arg.AccountJson, arg.UpdatedAt, arg.ID)
 	return err
@@ -2386,8 +2386,8 @@ type UpdateConversationAppliedTitleParams struct {
 	ID           string
 }
 
-// The last title AO pushed into sessions.display_name. It is the compare-and-set
-// witness that lets a later provider title replace a label AO wrote while never
+// The last title Kennel pushed into sessions.display_name. It is the compare-and-set
+// witness that lets a later provider title replace a label Kennel wrote while never
 // replacing one a person chose.
 func (q *Queries) UpdateConversationAppliedTitle(ctx context.Context, arg UpdateConversationAppliedTitleParams) error {
 	_, err := q.db.ExecContext(ctx, updateConversationAppliedTitle, arg.AppliedTitle, arg.UpdatedAt, arg.ID)
@@ -2472,7 +2472,7 @@ type UpdateConversationProviderTitleParams struct {
 }
 
 // The thread title the provider reports for this conversation. Kept even when the
-// user has overridden the AO label, because it is the name the conversation has in
+// user has overridden the Kennel label, because it is the name the conversation has in
 // the provider's own history.
 // NOTE: keep these comments ASCII. sqlc locates its star-expansion edits by byte
 // offset, so a multi-byte character here silently corrupts later queries.
@@ -2579,7 +2579,7 @@ type UpdateConversationTurnPlanParams struct {
 // so the latest payload is the complete answer and there is nothing to merge.
 //
 // execrows so the caller can tell "recorded" from "no such turn", which is a real
-// case after a restart: a plan can arrive for a provider turn AO never recorded.
+// case after a restart: a plan can arrive for a provider turn Kennel never recorded.
 // NOTE: keep these comments ASCII. sqlc locates its star-expansion edits by byte
 // offset, so a multi-byte character here silently corrupts later queries.
 func (q *Queries) UpdateConversationTurnPlan(ctx context.Context, arg UpdateConversationTurnPlanParams) (int64, error) {

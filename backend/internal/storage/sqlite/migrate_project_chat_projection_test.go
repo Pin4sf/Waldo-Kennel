@@ -7,12 +7,12 @@ import (
 )
 
 // TestMigrateRepairsProjectChatProjectionAfterUpstreamVersionCollision models
-// an AO-derived database that applied AO's own migration 0098 before Kennel
+// an Kennel-derived database that applied Kennel's own migration 0098 before Kennel
 // opened it. Goose sees version 98 in the ledger and therefore skips Kennel's
 // different 0098 migration; startup must reconcile the physical trigger seam
 // instead of silently losing project-chat assistant projections.
 func TestMigrateRepairsProjectChatProjectionAfterUpstreamVersionCollision(t *testing.T) {
-	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "ao-derived.db")+pragmas)
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "kennel-derived.db")+pragmas)
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
@@ -20,17 +20,17 @@ func TestMigrateRepairsProjectChatProjectionAfterUpstreamVersionCollision(t *tes
 	t.Cleanup(func() { _ = db.Close() })
 
 	upTo(t, db, 97)
-	// AO's upstream 0098 adds this column and records the same Goose version
+	// Kennel's upstream 0098 adds this column and records the same Goose version
 	// Kennel historically used for its project-chat projection triggers.
 	mustExec(t, db, `ALTER TABLE sessions ADD COLUMN agent_session_id_launch_id TEXT NOT NULL DEFAULT ''`)
 	mustExec(t, db, `INSERT INTO goose_db_version (version_id, is_applied) VALUES (98, 1)`)
-	// AO's next migration may also be present when Kennel imports a newer
+	// Kennel's next migration may also be present when Kennel imports a newer
 	// chassis database. Keep that out-of-order ledger fact intact as well.
 	mustExec(t, db, `ALTER TABLE session_interface_transitions ADD COLUMN notice_acknowledged_at TIMESTAMP`)
 	mustExec(t, db, `INSERT INTO goose_db_version (version_id, is_applied) VALUES (99, 1)`)
 
 	if err := migrate(db); err != nil {
-		t.Fatalf("migrate AO-derived database: %v", err)
+		t.Fatalf("migrate Kennel-derived database: %v", err)
 	}
 
 	for _, name := range []string{
@@ -50,6 +50,6 @@ func TestMigrateRepairsProjectChatProjectionAfterUpstreamVersionCollision(t *tes
 
 	// Reconciliation is safe on every subsequent startup.
 	if err := migrate(db); err != nil {
-		t.Fatalf("repeat migrate AO-derived database: %v", err)
+		t.Fatalf("repeat migrate Kennel-derived database: %v", err)
 	}
 }

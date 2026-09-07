@@ -15,7 +15,7 @@ import (
 
 	"github.com/pressly/goose/v3"
 
-	sqlitestore "github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/store"
+	sqlitestore "github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/store"
 
 	// modernc.org/sqlite is the pure-Go (CGO-free) SQLite driver — chosen so the
 	// daemon cross-compiles and ships as a static binary with no libsqlite/CGO
@@ -159,16 +159,145 @@ func migrate(db *sql.DB) error {
 	if err := goose.Up(db, "migrations", goose.WithAllowMissing()); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
+	if err := reconcileOutcomeProofSchema(db); err != nil {
+		return fmt.Errorf("reconcile outcome proof schema: %w", err)
+	}
+	// Migration 0099 rebuilds the checked change_log relation and detaches the
+	// inherited CDC writers; restore them (and heal degraded profiles whose
+	// subject tables arrive through repairs) before anything reads the stream.
+	if err := restoreChangeLogWriters(db); err != nil {
+		return fmt.Errorf("restore change log writers: %w", err)
+	}
+	if err := reconcileComposedOutcomesSchema(db); err != nil {
+		return fmt.Errorf("reconcile composed outcomes schema: %w", err)
+	}
 	if err := reconcileProjectChatProjection(db); err != nil {
 		return fmt.Errorf("reconcile project chat projection: %w", err)
 	}
 	return reconcileSchema(db)
 }
 
+// composedOutcomesDDL is the composition schema, shared verbatim with sqlc so
+// generated code and the running database cannot disagree.
+//
+//go:embed schema/composed_outcomes.sql
+var composedOutcomesDDL string
+
+// reconcileComposedOutcomesSchema installs the composition schema migration
+// 0106 deliberately does not (ADR 0007).
+//
+// It lives here for the same reason reconcileOutcomeProofSchema does: a burned
+// 0099 ledger entry marks the version applied while leaving `outcomes` and
+// `contract_criteria` physically absent, and ALTER TABLE cannot be made
+// conditional inside migration SQL. On a complete profile this adds the parent
+// column, the contribution_links table, and the fail-closed guards; on a
+// degraded one it defers without inventing composition state.
+//
+// Every statement is idempotent, so a repaired profile heals on the next start.
+func reconcileComposedOutcomesSchema(db *sql.DB) error {
+	for _, table := range []string{"outcomes", "contract_revisions", "contract_criteria"} {
+		var present int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table,
+		).Scan(&present); err != nil {
+			return err
+		}
+		if present == 0 {
+			return nil
+		}
+	}
+
+	var hasParent int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM pragma_table_info('outcomes') WHERE name = 'parent_outcome_id'`,
+	).Scan(&hasParent); err != nil {
+		return err
+	}
+	if hasParent == 0 {
+		// Default NULL is required: SQLite forbids ADD COLUMN with a
+		// REFERENCES clause unless the default is NULL. It is also the correct
+		// default — an existing Outcome contributes to nothing.
+		if _, err := db.Exec(`ALTER TABLE outcomes ADD COLUMN parent_outcome_id TEXT REFERENCES outcomes (id)`); err != nil {
+			return err
+		}
+	}
+
+	_, err := db.Exec(composedOutcomesDDL)
+	return err
+}
+
+// reconcileOutcomeProofSchema performs the one conditional data-copy SQLite
+// migration SQL cannot express safely when a burned 0099 ledger entry leaves
+// contract_revisions absent. On complete profiles it backfills stable
+// criterion identity and installs cross-column lineage guards; on degraded
+// profiles it defers without inventing Outcome state.
+func reconcileOutcomeProofSchema(db *sql.DB) error {
+	for _, table := range []string{"outcomes", "contract_revisions", "contract_criteria", "evidence_items", "verification_runs", "acceptance_decisions", "outcome_corrections"} {
+		var present int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table,
+		).Scan(&present); err != nil {
+			return err
+		}
+		if present == 0 {
+			return nil
+		}
+	}
+
+	_, err := db.Exec(`
+INSERT OR IGNORE INTO contract_criteria (id, contract_revision_id, position, text)
+SELECT 'crit-' || cr.id || '-' || printf('%04d', CAST(j.key AS INTEGER) + 1),
+       cr.id,
+       CAST(j.key AS INTEGER) + 1,
+       CAST(j.value AS TEXT)
+FROM contract_revisions cr, json_each(cr.success_criteria) j
+ORDER BY cr.id, CAST(j.key AS INTEGER);
+
+DROP TRIGGER IF EXISTS evidence_items_contract_lineage;
+CREATE TRIGGER evidence_items_contract_lineage
+BEFORE INSERT ON evidence_items
+WHEN NOT EXISTS (
+    SELECT 1 FROM contract_revisions
+    WHERE id = NEW.contract_revision_id AND outcome_id = NEW.outcome_id
+)
+BEGIN SELECT RAISE(ABORT, 'evidence contract lineage mismatch'); END;
+
+DROP TRIGGER IF EXISTS verification_runs_contract_lineage;
+CREATE TRIGGER verification_runs_contract_lineage
+BEFORE INSERT ON verification_runs
+WHEN NOT EXISTS (
+    SELECT 1 FROM contract_revisions
+    WHERE id = NEW.contract_revision_id AND outcome_id = NEW.outcome_id
+)
+BEGIN SELECT RAISE(ABORT, 'verification contract lineage mismatch'); END;
+
+DROP TRIGGER IF EXISTS acceptance_decisions_contract_lineage;
+CREATE TRIGGER acceptance_decisions_contract_lineage
+BEFORE INSERT ON acceptance_decisions
+WHEN NOT EXISTS (
+    SELECT 1 FROM contract_revisions
+    WHERE id = NEW.contract_revision_id AND outcome_id = NEW.outcome_id
+)
+BEGIN SELECT RAISE(ABORT, 'acceptance contract lineage mismatch'); END;
+
+DROP TRIGGER IF EXISTS outcome_corrections_decision_lineage;
+CREATE TRIGGER outcome_corrections_decision_lineage
+BEFORE INSERT ON outcome_corrections
+WHEN NOT EXISTS (
+    SELECT 1 FROM acceptance_decisions
+    WHERE id = NEW.decision_id
+      AND outcome_id = NEW.outcome_id
+      AND contract_revision_id = NEW.contract_revision_id
+)
+BEGIN SELECT RAISE(ABORT, 'correction decision lineage mismatch'); END;
+`)
+	return err
+}
+
 // reconcileProjectChatProjection repairs the one known cross-repository Goose
 // version collision. Kennel merged its project-chat projection as 0098 before
-// AO assigned the same number to session_native_identity_generation. An
-// AO-derived database can therefore legitimately contain version 98 without
+// Kennel assigned the same number to session_native_identity_generation. An
+// Kennel-derived database can therefore legitimately contain version 98 without
 // these triggers, causing Goose to skip Kennel's file. The physical trigger
 // seam is unambiguous and CREATE TRIGGER IF NOT EXISTS is idempotent, so startup
 // reconciles the missing behavior without rewriting either shipped ledger.

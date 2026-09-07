@@ -10,19 +10,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
-	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 func TestNativeConversationIDRequiresCapturedCodexThreadForTUI(t *testing.T) {
 	p := &Plugin{}
 	if id, ok, err := p.NativeConversationID(context.Background(), ports.SessionRef{
-		ID: "ao-session-1", Metadata: map[string]string{},
+		ID: "kennel-session-1", Metadata: map[string]string{},
 	}, domain.SessionModeTUI, ""); err != nil || ok || id != "" {
 		t.Fatalf("uncaptured TUI native id = %q ok=%v err=%v", id, ok, err)
 	}
 	tuiID, ok, err := p.NativeConversationID(context.Background(), ports.SessionRef{
-		ID:       "ao-session-1",
+		ID:       "kennel-session-1",
 		Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "codex-thread-1"},
 	}, domain.SessionModeTUI, "")
 	if err != nil || !ok || tuiID != "codex-thread-1" {
@@ -135,7 +135,7 @@ func canonicalTempDir(t *testing.T) string {
 
 // sessionHookFlags mirrors the `-c` hook config appendSessionHookFlags emits,
 // asserted literally so accidental format drift fails loudly: Codex parses
-// these values as TOML. The absolute AO executable is load-bearing because
+// these values as TOML. The absolute Kennel executable is load-bearing because
 // Codex invokes hooks through a login shell, which may replace PATH.
 func sessionHookFlags(t *testing.T) []string {
 	t.Helper()
@@ -642,7 +642,7 @@ func TestGetConfigSpecReportsModelField(t *testing.T) {
 	}
 }
 
-// legacyHooksJSON builds a hooks.json in the shape older AO versions wrote:
+// legacyHooksJSON builds a hooks.json in the shape older Kennel versions wrote:
 // Kennel-managed entries plus one user-defined Stop hook.
 func legacyHooksJSON() string {
 	return `{
@@ -726,10 +726,10 @@ func TestGetAgentHooksStripsLegacyAOEntries(t *testing.T) {
 		t.Fatalf("user Stop hook not preserved: %#v", config.Hooks["Stop"])
 	}
 	if _, ok := config.Hooks["UserPromptSubmit"]; ok {
-		t.Fatalf("UserPromptSubmit left behind after its only entry was AO's: %#v", config.Hooks)
+		t.Fatalf("UserPromptSubmit left behind after its only entry was Kennel's: %#v", config.Hooks)
 	}
 	if !strings.Contains(string(data), "unmanagedKey") {
-		t.Fatalf("top-level keys AO doesn't manage were dropped: %s", data)
+		t.Fatalf("top-level keys Kennel doesn't manage were dropped: %s", data)
 	}
 }
 
@@ -818,7 +818,7 @@ func TestGetRestoreCommandReadsAgentSessionID(t *testing.T) {
 
 	cmd, ok, err := plugin.GetRestoreCommand(context.Background(), ports.RestoreConfig{
 		Permissions:      ports.PermissionModeAuto,
-		Prompt:           "continue from AO",
+		Prompt:           "continue from Kennel",
 		SystemPrompt:     "restore inline fallback",
 		SystemPromptFile: systemFile,
 		Session: ports.SessionRef{
@@ -850,7 +850,7 @@ func TestGetRestoreCommandReadsAgentSessionID(t *testing.T) {
 		"-c", `projects={`+codexTOMLConfigString(workspace)+`={trust_level="trusted"}}`,
 		"-c", "model_instructions_file="+systemFile,
 		"thread-123",
-		"--", "continue from AO",
+		"--", "continue from Kennel",
 	)
 	if !reflect.DeepEqual(cmd, want) {
 		t.Fatalf("restore cmd\nwant: %#v\n got: %#v", want, cmd)

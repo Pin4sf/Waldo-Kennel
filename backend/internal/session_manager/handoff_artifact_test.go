@@ -12,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 func readNativeTranscriptTail(path, configDir string) (tail string, truncated, ok bool) {
@@ -263,7 +263,7 @@ func TestWriteAgentHandoffFileIsPrivateAtomicAndImmutable(t *testing.T) {
 }
 
 func TestPrepareAgentHandoffPathsHonorsCancelledContext(t *testing.T) {
-	dataDir := filepath.Join(t.TempDir(), "ao-data")
+	dataDir := filepath.Join(t.TempDir(), "kennel-data")
 	m := &Manager{dataDir: dataDir}
 	cancelled, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -333,7 +333,7 @@ func TestWriteFinalizedHandoffFilePersistsExactContinuation(t *testing.T) {
 	if _, _, err := m.prepareAgentHandoffPaths(context.Background(), sw.SessionID, string(sw.ID)); err != nil {
 		t.Fatal(err)
 	}
-	continuation := `<ao-continuation switch-id="switch-final">hidden context</ao-continuation>`
+	continuation := `<kennel-continuation switch-id="switch-final">hidden context</kennel-continuation>`
 	written, err := m.writeFinalizedHandoffFile(context.Background(), sw, continuation)
 	if err != nil {
 		t.Fatal(err)
@@ -396,7 +396,7 @@ func TestReadVerifiedAgentHandoffForDeliveryRejectsChangedSemanticFile(t *testin
 		AgentHandoffPath: written.Path, AgentHandoffHash: written.Hash,
 	}
 	if _, ok := m.readVerifiedAgentHandoffForDelivery(context.Background(), sw); !ok {
-		t.Fatal("fresh AO-owned semantic handoff did not verify")
+		t.Fatal("fresh Kennel-owned semantic handoff did not verify")
 	}
 	if err := os.WriteFile(written.Path, []byte(`{"schemaVersion":1,"goal":"replaced","progressSummary":"tampered"}`+"\n"), 0o600); err != nil {
 		t.Fatal(err)
