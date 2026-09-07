@@ -152,6 +152,10 @@ type ContractRevision struct {
 	StopConditions       []string
 	TemporalCondition    *string
 	Facets               []ContractFacet
+	// ExecutionPreference is optional planning input owned by this immutable
+	// revision. When present it overrides the Project worker preference as a
+	// complete provider/model pair; it never authorizes execution by itself.
+	ExecutionPreference *ExecutionPreference
 	CreatedAt            time.Time
 }
 
@@ -237,6 +241,11 @@ func (r ContractRevision) Validate() error {
 	}
 	for _, facet := range r.Facets {
 		if err := facet.Validate(); err != nil {
+			return err
+		}
+	}
+	if r.ExecutionPreference != nil {
+		if err := r.ExecutionPreference.Validate(); err != nil {
 			return err
 		}
 	}
