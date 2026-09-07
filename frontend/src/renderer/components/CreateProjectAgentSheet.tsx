@@ -20,6 +20,7 @@ import {
 import { agentLabel } from "../lib/agent-options";
 import { cn } from "../lib/utils";
 import { AgentAvatar } from "./AgentAvatar";
+import { AgentModelPicker } from "./AgentModelPicker";
 import { FieldDefaultHint } from "./FieldDefaultHint";
 import { buildIntake, type IntakeForm, IntakeFields, intakeNeedsRule } from "./IntakeFields";
 import { AgentSelectMenuItem } from "./settings/AgentSelectMenuItem";
@@ -35,11 +36,18 @@ type TrackerIntakeConfig = components["schemas"]["TrackerIntakeConfig"];
 type AgentInfo = components["schemas"]["AgentInfo"];
 
 export type CreateProjectAgentSelection = {
+	// Empty is an explicit "configure later" choice. Project registration is
+	// independent of provider installation/auth/profile readiness.
 	workerAgent: string;
-	// Optional explicit coordinator override. Empty means no provider has been
-	// chosen for that role; the daemon may reuse the worker only when it is
-	// coordinator-capable, but must never substitute a brand-specific fallback.
+	// Optional preferences are scoped to their selected provider. Empty means
+	// let the provider/Kennel choose; it is never a hidden provider or model lock.
+	workerModel?: string;
+	workerMode?: string;
+	// Optional explicit coordinator override. Empty means no coordinator is
+	// configured; the worker is never promoted into this role by omission.
 	orchestratorAgent?: string;
+	orchestratorModel?: string;
+	orchestratorMode?: string;
 	trackerIntake?: TrackerIntakeConfig;
 };
 
@@ -163,27 +171,63 @@ export function CreateProjectAgentSheet({
 			: t("createProject.couldNotRefreshAgents")
 		: agentsError;
 	const [workerAgent, setWorkerAgent] = useState("");
+	const [workerModel, setWorkerModel] = useState("");
+	const [workerMode, setWorkerMode] = useState("");
+	const [workerModelWarning, setWorkerModelWarning] = useState<string | undefined>();
 	const [orchestratorAgent, setOrchestratorAgent] = useState("");
+	const [orchestratorModel, setOrchestratorModel] = useState("");
+	const [orchestratorMode, setOrchestratorMode] = useState("");
+	const [orchestratorModelWarning, setOrchestratorModelWarning] = useState<string | undefined>();
 	const [workerAgentTouched, setWorkerAgentTouched] = useState(false);
 	const isBusy = isCreating || isInitializing;
 	const [intake, setIntake] = useState<IntakeForm>(EMPTY_INTAKE);
 	const intakeIncomplete = intakeNeedsRule(intake);
-	const canSubmit = workerAgent !== "" && !intakeIncomplete && !isBusy && !isLoadingAgents;
+	// Provider and model inventory/readiness must never block durable Project
+	// creation. Empty provider/model values mean configure or route later.
+	const canSubmit = !intakeIncomplete && !isBusy;
 	const sheetError = error ? projectSheetError(error) : null;
+	const providerSetupNeeded =
+		agents !== undefined && !isLoadingAgents && workerOptions.length > 0 && workerOptions.every((option) => option.disabled);
+	const providerSetupAlert: SheetError | null = providerSetupNeeded
+		? {
+				title: t("createProject.providerSetupRequiredTitle", { defaultValue: "Agent setup required" }),
+				message: t("createProject.providerSetupRequiredBody", {
+					defaultValue:
+						"No coding provider is ready yet. Finish authentication or configuration in the provider CLI, then refresh agents. You can still create this project now and configure the provider later.",
+				}),
+				tone: "warning",
+			}
+		: null;
+	const effectiveAlert = sheetError ?? providerSetupAlert;
 
 	useEffect(() => {
 		if (!open || workerAgentTouched) return;
-		setWorkerAgent(preferredDefaultAgent(workerOptions, preferredAgentId));
-	}, [open, preferredAgentId, workerAgentTouched, workerOptions]);
+		const nextWorker = preferredDefaultAgent(workerOptions, preferredAgentId);
+		if (workerAgent === nextWorker) return;
+		setWorkerAgent(nextWorker);
+		setWorkerModel("");
+		setWorkerMode("");
+		setWorkerModelWarning(undefined);
+	}, [open, preferredAgentId, workerAgent, workerAgentTouched, workerOptions]);
 
 	useEffect(() => {
 		if (!open) {
 			setWorkerAgent("");
+			setWorkerModel("");
+			setWorkerMode("");
+			setWorkerModelWarning(undefined);
 			setOrchestratorAgent("");
+			setOrchestratorModel("");
+			setOrchestratorMode("");
+			setOrchestratorModelWarning(undefined);
 			setWorkerAgentTouched(false);
 			setIntake(EMPTY_INTAKE);
 		}
 	}, [open, path]);
+
+	const modelPreferenceHint = t("createProject.modelPreferenceHint", {
+		defaultValue: "Optional preference. Kennel can recommend a different model for an Outcome.",
+	});
 
 	return (
 		<Dialog.Root open={open} onOpenChange={(next) => !isBusy && onOpenChange(next)}>
@@ -203,23 +247,42 @@ export function CreateProjectAgentSheet({
 					<ProjectSetupFormView
 						agentControls={{
 							worker: (
-								<RequiredAgentField
-									id="newProjectWorkerAgent"
-									label={t("createProject.defaultCodingAgent")}
-									placeholder={t("createProject.selectWorker")}
-									value={workerAgent}
-									authorized={authorizedAgents}
-									installed={installedAgents}
-									supported={supportedAgents}
-									disabled={isLoadingAgents}
-									labelClassName="agents-sheet-label"
-									triggerClassName="agents-sheet-control"
-									contentClassName="agents-sheet-menu"
-									onChange={(value) => {
-										setWorkerAgent(value);
-										setWorkerAgentTouched(true);
-									}}
-								/>
+								<div className="flex flex-col gap-3">
+									<RequiredAgentField
+										id="newProjectWorkerAgent"
+										label={t("createProject.defaultCodingAgent")}
+										placeholder={t("createProject.selectWorker")}
+										value={workerAgent}
+										authorized={authorizedAgents}
+										installed={installedAgents}
+										supported={supportedAgents}
+										disabled={isLoadingAgents}
+										labelClassName="agents-sheet-label"
+										triggerClassName="agents-sheet-control"
+										contentClassName="agents-sheet-menu"
+										onChange={(value) => {
+											setWorkerAgent(value);
+											setWorkerAgentTouched(true);
+											setWorkerModel("");
+											setWorkerMode("");
+											setWorkerModelWarning(undefined);
+										}}
+									/>
+									{workerAgent ? (
+										<ModelPreferenceField
+											agentId={workerAgent}
+											label={t("createProject.preferredModel", { defaultValue: "Preferred model" })}
+											model={workerModel}
+											mode={workerMode}
+											hint={modelPreferenceHint}
+											warning={workerModelWarning}
+											disabled={isBusy}
+											onModelChange={setWorkerModel}
+											onModeChange={setWorkerMode}
+											onWarningChange={setWorkerModelWarning}
+										/>
+									) : null}
+								</div>
 							),
 							orchestrator: (
 								<Accordion type="single" collapsible className="rounded-lg border border-border">
@@ -244,8 +307,29 @@ export function CreateProjectAgentSheet({
 												labelClassName="agents-sheet-label"
 												triggerClassName="agents-sheet-control"
 												contentClassName="agents-sheet-menu"
-												onChange={setOrchestratorAgent}
+												onChange={(value) => {
+													setOrchestratorAgent(value);
+													setOrchestratorModel("");
+													setOrchestratorMode("");
+													setOrchestratorModelWarning(undefined);
+												}}
 											/>
+											{orchestratorAgent ? (
+												<ModelPreferenceField
+													agentId={orchestratorAgent}
+													label={t("createProject.preferredCoordinatorModel", {
+														defaultValue: "Preferred coordinator model",
+													})}
+													model={orchestratorModel}
+													mode={orchestratorMode}
+													hint={modelPreferenceHint}
+													warning={orchestratorModelWarning}
+													disabled={isBusy}
+													onModelChange={setOrchestratorModel}
+													onModeChange={setOrchestratorMode}
+													onWarningChange={setOrchestratorModelWarning}
+												/>
+											) : null}
 										</AccordionContent>
 									</AccordionItem>
 								</Accordion>
@@ -264,13 +348,13 @@ export function CreateProjectAgentSheet({
 							retryLabel: t("createProject.retry"),
 						}}
 						alert={
-							sheetError
+							effectiveAlert
 								? {
-										...sheetError,
+										...effectiveAlert,
 										icon: (
 											<TriangleAlert
 												className={
-													sheetError.tone === "warning"
+													effectiveAlert.tone === "warning"
 														? "mt-0.5 size-icon-sm shrink-0 text-warning"
 														: "mt-0.5 size-icon-sm shrink-0 text-destructive"
 												}
@@ -296,7 +380,11 @@ export function CreateProjectAgentSheet({
 						onSubmit={() =>
 							void onSubmit({
 								workerAgent,
+								...(workerModel ? { workerModel } : {}),
+								...(workerMode ? { workerMode } : {}),
 								...(orchestratorAgent ? { orchestratorAgent } : {}),
+								...(orchestratorAgent && orchestratorModel ? { orchestratorModel } : {}),
+								...(orchestratorAgent && orchestratorMode ? { orchestratorMode } : {}),
 								trackerIntake: buildIntake(intake),
 							})
 						}
@@ -318,6 +406,51 @@ export function CreateProjectAgentSheet({
 				</Dialog.Content>
 			</Dialog.Portal>
 		</Dialog.Root>
+	);
+}
+
+function ModelPreferenceField({
+	agentId,
+	disabled,
+	hint,
+	label,
+	model,
+	mode,
+	onModelChange,
+	onModeChange,
+	onWarningChange,
+	warning,
+}: {
+	agentId: string;
+	disabled: boolean;
+	hint: string;
+	label: string;
+	model: string;
+	mode: string;
+	onModelChange: (value: string) => void;
+	onModeChange: (value: string) => void;
+	onWarningChange: (warning: string | undefined) => void;
+	warning?: string;
+}) {
+	return (
+		<div className="flex flex-col gap-1.5">
+			<div className="flex min-w-0 items-baseline gap-1.5">
+				<Label className="agents-sheet-label text-xs font-medium text-muted-foreground">{label}</Label>
+				<FieldDefaultHint text={hint} />
+			</div>
+			<AgentModelPicker
+				agentId={agentId}
+				agentLabel={agentLabel(agentId)}
+				projectId=""
+				value={model}
+				mode={mode}
+				disabled={disabled}
+				onModelChange={onModelChange}
+				onModeChange={onModeChange}
+				onWarningChange={onWarningChange}
+			/>
+			{warning ? <p className="text-xs leading-snug text-warning">{warning}</p> : null}
+		</div>
 	);
 }
 

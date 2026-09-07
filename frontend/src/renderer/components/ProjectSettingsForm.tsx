@@ -137,32 +137,17 @@ function SettingsBody({
 	const workspace = workspaceQuery.data?.find((item) => item.id === projectId);
 	const activeOrchestrator = newestActiveOrchestrator(workspace?.sessions ?? []);
 	const intake: TrackerIntakeConfig = config.trackerIntake ?? {};
-	const persistedHarnesses = [config.worker?.agent, config.orchestrator?.agent, config.reviewers?.[0]?.harness];
-	const hasRetiredProviderConfig = persistedHarnesses.some((harness) => harness !== undefined && harness !== "codex");
-	const hasRetiredRoleConfig =
-		(config.worker?.agent !== undefined && config.worker.agent !== "codex") ||
-		(config.orchestrator?.agent !== undefined && config.orchestrator.agent !== "codex");
-	const workerRoleMigrates = config.worker?.agent !== undefined && config.worker.agent !== "codex";
-	const orchestratorRoleMigrates = config.orchestrator?.agent !== undefined && config.orchestrator.agent !== "codex";
 	const [form, setForm] = useState({
 		displayName: project.name,
 		defaultBranch: config.defaultBranch ?? DEFAULT_BRANCH_AUTO,
 		sessionPrefix: config.sessionPrefix ?? "",
-		workerAgent: "codex",
-		orchestratorAgent: "codex",
-		workerModel: workerRoleMigrates
-			? ""
-			: config.worker?.agentConfig?.model ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.model ?? ""),
-		orchestratorModel: orchestratorRoleMigrates
-			? ""
-			: config.orchestrator?.agentConfig?.model ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.model ?? ""),
-		workerMode: workerRoleMigrates
-			? ""
-			: config.worker?.agentConfig?.mode ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.mode ?? ""),
+		workerAgent: config.worker?.agent ?? "",
+		orchestratorAgent: config.orchestrator?.agent ?? "",
+		workerModel: config.worker?.agentConfig?.model ?? "",
+		orchestratorModel: config.orchestrator?.agentConfig?.model ?? "",
+		workerMode: config.worker?.agentConfig?.mode ?? "",
 		workerProfile: config.worker?.agentConfig?.profile ?? "",
-		orchestratorMode: orchestratorRoleMigrates
-			? ""
-			: config.orchestrator?.agentConfig?.mode ?? (hasRetiredRoleConfig ? "" : config.agentConfig?.mode ?? ""),
+		orchestratorMode: config.orchestrator?.agentConfig?.mode ?? "",
 		orchestratorProfile: config.orchestrator?.agentConfig?.profile ?? "",
 		permissions: config.agentConfig?.permissions ?? "",
 		agentPreferences: {
@@ -171,7 +156,7 @@ function SettingsBody({
 			coordinator: config.agentPreferences?.coordinator ?? "",
 			verifier: config.agentPreferences?.verifier ?? "",
 		},
-		reviewerHarness: "codex",
+		reviewerHarness: config.reviewers?.[0]?.harness ?? "",
 		intakeEnabled: intake.enabled ?? false,
 		intakeRepo: intake.repo ?? "",
 		intakeAssignee: intake.assignee ?? "",
@@ -180,8 +165,7 @@ function SettingsBody({
 	const [showSaving, setShowSaving] = useState(false);
 	const [replacementError, setReplacementError] = useState<string | null>(null);
 	const [validationError, setValidationError] = useState<string | null>(null);
-	const initialOrchestratorAgent = "codex";
-	const missingRequiredAgent = form.workerAgent === "" || form.orchestratorAgent === "";
+	const initialOrchestratorAgent = config.orchestrator?.agent ?? "";
 	const agentsQuery = useQuery(agentsQueryOptions);
 	const agentCatalog = agentsQuery.data;
 	// The daemon-resolved Mission-role proposal: stored preferences enriched
@@ -242,24 +226,25 @@ function SettingsBody({
 				mode: _legacyMode,
 				...sharedAgentConfig
 			} = config.agentConfig ?? {};
+			const worker = buildRoleOverride(
+				config.worker,
+				form.workerAgent,
+				form.workerModel,
+				form.workerMode,
+				form.workerProfile,
+			);
+			const orchestrator = buildRoleOverride(
+				config.orchestrator,
+				form.orchestratorAgent,
+				form.orchestratorModel,
+				form.orchestratorMode,
+				form.orchestratorProfile,
+			);
 			const next: ProjectConfig = isScratchProject
 				? {
 						...scratchSupportedConfig(config),
-						worker: {
-							...config.worker,
-							agent: form.workerAgent,
-							agentConfig: buildRoleAgentConfig(config.worker?.agentConfig, form.workerModel, form.workerMode, form.workerProfile),
-						},
-						orchestrator: {
-							...config.orchestrator,
-							agent: form.orchestratorAgent,
-							agentConfig: buildRoleAgentConfig(
-									config.orchestrator?.agentConfig,
-									form.orchestratorModel,
-									form.orchestratorMode,
-									form.orchestratorProfile,
-								),
-						},
+						worker,
+						orchestrator,
 						agentConfig: blankToUndefined({
 							...sharedAgentConfig,
 							permissions: form.permissions || undefined,
@@ -273,21 +258,8 @@ function SettingsBody({
 								? undefined
 								: form.defaultBranch || undefined,
 						sessionPrefix: form.sessionPrefix || undefined,
-						worker: {
-							...config.worker,
-							agent: form.workerAgent,
-							agentConfig: buildRoleAgentConfig(config.worker?.agentConfig, form.workerModel, form.workerMode, form.workerProfile),
-						},
-						orchestrator: {
-							...config.orchestrator,
-							agent: form.orchestratorAgent,
-							agentConfig: buildRoleAgentConfig(
-									config.orchestrator?.agentConfig,
-									form.orchestratorModel,
-									form.orchestratorMode,
-									form.orchestratorProfile,
-								),
-						},
+						worker,
+						orchestrator,
 						agentConfig: blankToUndefined({
 							...sharedAgentConfig,
 							permissions: form.permissions || undefined,
@@ -301,9 +273,13 @@ function SettingsBody({
 				body: { displayName, config: next },
 			});
 			if (error) throw new Error(apiErrorMessage(error));
+			// Coordinator configuration is optional. Only an explicitly selected
+			// coordinator may trigger a replacement/start; clearing or leaving the
+			// role empty never reuses the worker and never manufactures a provider.
 			if (
-				form.orchestratorAgent !== initialOrchestratorAgent ||
-				(!hasRetiredProviderConfig && activeOrchestrator && activeOrchestrator.provider !== form.orchestratorAgent)
+				form.orchestratorAgent !== "" &&
+				(form.orchestratorAgent !== initialOrchestratorAgent ||
+					Boolean(activeOrchestrator && activeOrchestrator.provider !== form.orchestratorAgent))
 			) {
 				try {
 					const sessionId = await spawnOrchestrator(projectId, "settings", true);
@@ -417,11 +393,11 @@ function SettingsBody({
 				const validation = validateProjectSettings(form, { validateIntake: !isScratchProject });
 				if (validation) {
 					setValidationError(
-						validation === "agents_required"
-							? t("settings.project.agentsRequired")
-							: validation === "name_required"
-								? t("settings.project.nameRequired")
-								: t("settings.project.intakeAssigneeRequired"),
+						validation === "name_required"
+							? t("settings.project.nameRequired")
+							: validation === "intake_assignee_required"
+								? t("settings.project.intakeAssigneeRequired")
+								: t("settings.project.agentsRequired"),
 					);
 					return;
 				}
@@ -429,11 +405,6 @@ function SettingsBody({
 				mutation.mutate();
 			}}
 		>
-			{hasRetiredProviderConfig ? (
-				<p className="px-1 text-xs text-settings-muted" role="status">
-					{t("settings.project.retiredProviderMigration")}
-				</p>
-			) : null}
 			{section === "general" && (
 				<>
 					<ProjectGeneralSettingsView
@@ -482,7 +453,6 @@ function SettingsBody({
 								installed={agentCatalog?.installed}
 								supported={agentCatalog?.supported}
 								disabled={agentsQuery.isFetching && agentCatalog === undefined}
-								invalid={validationError !== null && form.workerAgent === ""}
 								onChange={(v) =>
 									setForm((f) => ({
 										...f,
@@ -520,13 +490,13 @@ function SettingsBody({
 								installed={agentCatalog?.installed}
 								supported={agentCatalog?.supported}
 								disabled={agentsQuery.isFetching && agentCatalog === undefined}
-								invalid={validationError !== null && form.orchestratorAgent === ""}
 								onChange={(v) =>
 									setForm((f) => ({
 										...f,
 										orchestratorAgent: v,
 										orchestratorModel: "",
 										orchestratorMode: "",
+										orchestratorProfile: "",
 									}))
 								}
 							/>
@@ -577,9 +547,7 @@ function SettingsBody({
 									: t("settings.project.refreshFailed")
 								: null
 						}
-						missingRequiredMessage={
-							missingRequiredAgent ? t("settings.project.agentsRequired") : null
-						}
+						missingRequiredMessage={null}
 					/>
 					<div className="mt-5 rounded-card border border-border bg-card p-4 hairline">
 						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -785,8 +753,8 @@ function AgentModelField({
 	const hasCatalog = catalog?.selectionMode === "catalog" && (catalog.models?.length ?? 0) > 0;
 	const modelIsInCatalog = catalog?.models?.some((item) => item.id === model) ?? false;
 	const showCustomInput = hasCatalog && (customAgentId === agentId || (model !== "" && !modelIsInCatalog));
-	// Profile-required harnesses (deepseek-harness) carry their launch profile
-	// in AgentConfig.Profile, entered as free text beside the model field.
+	// Profile-required harnesses carry their launch profile in AgentConfig.Profile,
+	// entered as free text beside the model field.
 	const profileLabel = t("settings.project.profile");
 	const selectCatalogModel = (value: string) => {
 		setCustomAgentId(null);
@@ -979,7 +947,8 @@ function preferencesPayload(prefs: {
 }
 
 // MissionRolePreference edits one optional role preference. An empty value
-// means "no preference": the daemon resolves the capability-admitted default.
+// means no preference; the daemon may inherit the matching explicit Project
+// role selection, otherwise the role remains unassigned.
 function MissionRolePreference({
 	label,
 	value,
@@ -1010,8 +979,8 @@ function MissionRolePreference({
 }
 
 // ResolvedMissionRolesList renders the daemon's advisory resolution for each
-// Mission role, including why a preference was not honored or why a harness is
-// not ready. It never re-derives admission client-side.
+// Mission role, including unassigned state and readiness reasons. It never
+// re-derives admission client-side.
 function ResolvedMissionRolesList({ roles }: { roles: components["schemas"]["ResolvedMissionRoles"] }) {
 	const { t } = useTranslation();
 	const rows = [
@@ -1022,30 +991,50 @@ function ResolvedMissionRolesList({ roles }: { roles: components["schemas"]["Res
 	];
 	return (
 		<dl className="mt-4 grid gap-2 border-t border-border pt-3 text-xs leading-snug">
-			{rows.map(({ label, role }) => (
-				<div key={label} className="flex items-baseline justify-between gap-3">
-					<dt className="text-muted-foreground">{label}</dt>
-					<dd className="flex items-baseline gap-2 text-right">
-						<span>{role.harness}</span>
-						<span
-							className={
-								role.source === "preference"
-									? "rounded-xs bg-[--color-status-ready] px-1.5 py-0.5 text-2xs text-background"
-									: "rounded-xs bg-popover px-1.5 py-0.5 text-2xs text-muted-foreground"
-							}
-						>
-							{role.source === "preference"
-								? t("settings.project.missionRoleFromPreference")
-								: t("settings.project.missionRoleFromDefault")}
-						</span>
-						{!role.ready && role.reason ? (
-							<span className="text-2xs text-muted-foreground">{role.reason}</span>
-						) : null}
-					</dd>
-				</div>
-			))}
+			{rows.map(({ label, role }) => {
+				const unassigned = !role.harness;
+				return (
+					<div key={label} className="flex items-baseline justify-between gap-3">
+						<dt className="text-muted-foreground">{label}</dt>
+						<dd className="flex items-baseline gap-2 text-right">
+							<span>{role.harness || t("settings.project.missionRoleNoPreference")}</span>
+							<span
+								className={
+									role.source === "preference"
+										? "rounded-xs bg-[--color-status-ready] px-1.5 py-0.5 text-2xs text-background"
+										: "rounded-xs bg-popover px-1.5 py-0.5 text-2xs text-muted-foreground"
+								}
+							>
+								{role.source === "preference"
+									? t("settings.project.missionRoleFromPreference")
+									: unassigned
+										? t("settings.project.missionRoleNoPreference")
+										: t("settings.project.missionRoleFromDefault")}
+							</span>
+							{!role.ready && role.reason ? (
+								<span className="text-2xs text-muted-foreground">{role.reason}</span>
+							) : null}
+						</dd>
+					</div>
+				);
+			})}
 		</dl>
 	);
+}
+
+function buildRoleOverride(
+	existing: components["schemas"]["RoleOverride"] | undefined,
+	agent: string,
+	model: string,
+	mode: string,
+	profile: string,
+): components["schemas"]["RoleOverride"] | undefined {
+	if (!agent) return undefined;
+	return {
+		...existing,
+		agent,
+		agentConfig: buildRoleAgentConfig(existing?.agentConfig, model, mode, profile),
+	};
 }
 
 function buildRoleAgentConfig(

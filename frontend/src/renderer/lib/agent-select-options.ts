@@ -50,25 +50,34 @@ function agentStatus({
 	isAuthUnknown: boolean;
 	isProfileReady: boolean;
 }): Pick<RankedAgentOption, "status" | "statusTone"> {
-	if (!installedAgent) return { status: "Needs install", statusTone: "muted" };
+	if (!installedAgent) {
+		return {
+			status: "Not installed · Install the provider, then refresh",
+			statusTone: "muted",
+		};
+	}
 	if (!isProfileReady) {
+		const detail = installedAgent.readyDetail?.trim();
 		return {
-			status: installedAgent.readyDetail?.trim() || "Needs setup",
+			status: detail ? `${detail} · Complete setup, then refresh` : "Setup required · Complete setup, then refresh",
 			statusTone: "warning",
 		};
 	}
-	if (!isAuthorized && !isAuthUnknown) return { status: "Needs auth", statusTone: "warning" };
+	if (!isAuthorized && !isAuthUnknown) {
+		return {
+			status: "Authentication required · Authenticate in the provider CLI, then refresh",
+			statusTone: "warning",
+		};
+	}
 	if (isAuthUnknown) {
+		const detail = installedAgent.readyDetail?.trim();
 		return {
-			status: installedAgent.readyDetail?.trim() || "Auth unknown",
+			status: detail ? `${detail} · Check provider setup, then refresh` : "Authentication unknown · Check provider setup, then refresh",
 			statusTone: "warning",
 		};
 	}
-	// A healthy agent carries no badge. The menu exists to surface PROBLEMS —
-	// needs install, needs setup, needs auth — and stamping "Ready" on every
-	// other row turns the one signal that should stand out into noise. It also
-	// changes each option's accessible name, so a screen reader announces
-	// "Codex Ready" for the unremarkable case.
+	// A healthy agent carries no badge. The menu exists to surface problems;
+	// healthy rows stay quiet so remediation is the signal that stands out.
 	return { status: "", statusTone: "success" };
 }
 

@@ -23,6 +23,10 @@ export type ProjectSettingsValues = {
 	intakeAssignee: string;
 };
 
+// `agents_required` remains in the exported vocabulary for compatibility with
+// downstream consumers built against earlier product-ui versions. Current
+// Project settings no longer return it: Project identity is valid before agent
+// setup, and execution admission owns provider readiness.
 export type ProjectSettingsValidationCode =
 	| "agents_required"
 	| "name_required"
@@ -35,7 +39,6 @@ export function validateProjectSettings(
 	>,
 	options: { validateIntake?: boolean } = {},
 ): ProjectSettingsValidationCode | null {
-	if (values.workerAgent === "" || values.orchestratorAgent === "") return "agents_required";
 	if (values.displayName.trim() === "") return "name_required";
 	if (options.validateIntake !== false && values.intakeEnabled && values.intakeAssignee.trim() === "") {
 		return "intake_assignee_required";
@@ -50,10 +53,9 @@ export type ProjectSetupSelection = {
 	intakeAssignee?: string;
 };
 
+// Repository/Project registration is independent of provider readiness. Agent
+// selections may therefore both be empty; the only setup-local refusal is an
+// incomplete enabled intake rule.
 export function canSubmitProjectSetup(selection: ProjectSetupSelection): boolean {
-	return (
-		selection.workerAgent !== "" &&
-		selection.orchestratorAgent !== "" &&
-		(!selection.intakeEnabled || (selection.intakeAssignee?.trim() ?? "") !== "")
-	);
+	return !selection.intakeEnabled || (selection.intakeAssignee?.trim() ?? "") !== "";
 }

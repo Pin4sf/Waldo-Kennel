@@ -10,7 +10,7 @@ import {
 	RequiredAgentField,
 } from "./CreateProjectAgentSheet";
 
- type AgentInfo = components["schemas"]["AgentInfo"];
+type AgentInfo = components["schemas"]["AgentInfo"];
 
 const roles = (overrides: Partial<AgentInfo["roles"]> = {}): AgentInfo["roles"] => ({
 	worker: true,
@@ -103,13 +103,36 @@ describe("CreateProjectAgentSheet", () => {
 		expect(await screen.findByRole("listbox")).toHaveClass("max-h-select-menu-max!");
 	});
 
-	it("requires an explicit worker choice when more than one provider is ready", () => {
-		renderSheet();
-		expect(screen.getByRole("button", { name: "Create and start" })).toBeDisabled();
+	it("allows Project creation with no provider selected", async () => {
+		const onSubmit = renderSheet();
+		const submit = screen.getByRole("button", { name: "Create and start" });
+		expect(submit).toBeEnabled();
 		expect(screen.getByLabelText("Default coding agent")).toHaveTextContent(/select/i);
+
+		await userEvent.click(submit);
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+		expect(onSubmit).toHaveBeenCalledWith({ workerAgent: "", trackerIntake: undefined });
 	});
 
-	it("preselects the only ready worker without creating a hidden coordinator override", async () => {
+	it("explains how to recover when no coding provider is ready without blocking Project creation", () => {
+		const codex = agent("codex", "Codex", {
+			authStatus: "unauthorized",
+			roles: roles({ coordinator: true, switchTarget: true }),
+		});
+		renderSheet(undefined, {
+			supported: [codex],
+			installed: [codex],
+			authorized: [],
+		});
+
+		expect(screen.getByText("Agent setup required")).toBeInTheDocument();
+		expect(
+			screen.getByText(/finish authentication or configuration in the provider CLI, then refresh agents/i),
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Create and start" })).toBeEnabled();
+	});
+
+	it("still preselects the only ready worker without creating a hidden coordinator override", async () => {
 		const codex = agent("codex", "Codex", { roles: roles({ coordinator: true, switchTarget: true }) });
 		const claude = agent("claude-code", "Claude Code", {
 			authStatus: "unauthorized",

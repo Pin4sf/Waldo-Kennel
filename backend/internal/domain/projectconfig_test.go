@@ -213,19 +213,19 @@ func TestProjectAgentPreferencesValidateAcceptsEligibleCombinations(t *testing.T
 	}
 }
 
-func TestResolveMissionRolesDistinguishesPreferenceFromDefault(t *testing.T) {
+func TestResolveMissionRolesKeepsMissingRolesUnassigned(t *testing.T) {
 	roles := ResolveMissionRoles(ProjectConfig{AgentPreferences: ProjectAgentPreferences{DefaultWorker: "opencode"}})
 	if roles.Worker.Harness != HarnessOpenCode || roles.Worker.Source != RoleSourcePreference {
 		t.Fatalf("worker should honor the preference: %+v", roles.Worker)
 	}
-	if roles.Coordinator.Harness != HarnessCodex || roles.Coordinator.Source != RoleSourceDefault {
-		t.Fatalf("unset roles fall back to the recommended default: %+v", roles.Coordinator)
+	if roles.Coordinator.Harness != "" || roles.Coordinator.Source != RoleSourceUnassigned || roles.Coordinator.Eligible || roles.Coordinator.Ready {
+		t.Fatalf("unset coordinator must remain unassigned: %+v", roles.Coordinator)
 	}
 
-	defaults := ResolveMissionRoles(ProjectConfig{AgentPreferences: ProjectAgentPreferences{}})
+	defaults := ResolveMissionRoles(ProjectConfig{})
 	for _, role := range []ResolvedAgentRole{defaults.Analyzer, defaults.Coordinator, defaults.Worker, defaults.Verifier} {
-		if role.Harness != HarnessCodex || role.Source != RoleSourceDefault {
-			t.Fatalf("empty preferences resolve every role to codex-by-default: %+v", role)
+		if role.Harness != "" || role.Source != RoleSourceUnassigned || role.Eligible || role.Ready {
+			t.Fatalf("empty Project configuration must not manufacture a provider: %+v", role)
 		}
 	}
 }
@@ -249,11 +249,6 @@ func TestProjectConfigRoundTripsAgentPreferences(t *testing.T) {
 	}
 }
 
-// The project selects its worker and orchestrator harness in Settings and in
-// the Outcome composer. A Mission role with no separate preference recorded
-// has to follow that selection: before this, a project that displayed
-// "opencode" everywhere still spawned Codex for analysis and decomposition,
-// because those roles read only agentPreferences and fell back to a constant.
 func TestMissionRolesFollowTheHarnessTheProjectSelected(t *testing.T) {
 	cfg := ProjectConfig{
 		Worker:       RoleOverride{Harness: HarnessOpenCode},
@@ -272,8 +267,6 @@ func TestMissionRolesFollowTheHarnessTheProjectSelected(t *testing.T) {
 	}
 }
 
-// An explicit Mission-role preference is still the stronger statement: it is
-// set for that role specifically, while the selection covers a whole class.
 func TestAnExplicitRolePreferenceOutranksTheSelection(t *testing.T) {
 	roles := ResolveMissionRoles(ProjectConfig{
 		AgentPreferences: ProjectAgentPreferences{Analyzer: string(HarnessCodex)},
@@ -282,19 +275,34 @@ func TestAnExplicitRolePreferenceOutranksTheSelection(t *testing.T) {
 	if roles.Analyzer.Harness != HarnessCodex {
 		t.Errorf("analyzer = %q, want the explicit preference", roles.Analyzer.Harness)
 	}
-	// The roles that carry no preference of their own still follow selection.
 	if roles.Coordinator.Harness != HarnessOpenCode {
 		t.Errorf("coordinator = %q, want the selected harness", roles.Coordinator.Harness)
 	}
 }
 
-// A selection the role cannot admit is not silently honored; it falls through
-// to the capability default rather than proposing something spawn would refuse.
-func TestAnIneligibleSelectionFallsThroughToTheDefault(t *testing.T) {
+func TestWorkerOnlyProviderIsNeverPromotedToCoordinator(t *testing.T) {
+	roles := ResolveMissionRoles(ProjectConfig{
+		Worker: RoleOverride{Harness: HarnessCursor},
+	})
+	if roles.Worker.Harness != HarnessCursor || !roles.Worker.Eligible {
+		t.Fatalf("worker = %+v, want explicit Cursor worker", roles.Worker)
+	}
+	for name, role := range map[string]ResolvedAgentRole{
+		"analyzer": roles.Analyzer,
+		"coordinator": roles.Coordinator,
+		"verifier": roles.Verifier,
+	} {
+		if role.Harness != "" || role.Source != RoleSourceUnassigned || role.Eligible || role.Ready {
+			t.Fatalf("%s was promoted from worker-only provider: %+v", name, role)
+		}
+	}
+}
+
+func TestAnIneligibleSelectionStaysUnassigned(t *testing.T) {
 	roles := ResolveMissionRoles(ProjectConfig{
 		Orchestrator: RoleOverride{Harness: AgentHarness("deepseek-harness")},
 	})
-	if roles.Analyzer.Harness != HarnessCodex {
-		t.Errorf("analyzer = %q, want the capability default for an ineligible selection", roles.Analyzer.Harness)
+	if roles.Analyzer.Harness != "" || roles.Analyzer.Source != RoleSourceUnassigned || roles.Analyzer.Eligible || roles.Analyzer.Ready {
+		t.Fatalf("ineligible coordinator-class selection must stay unassigned: %+v", roles.Analyzer)
 	}
 }

@@ -212,25 +212,24 @@ func (c ProjectConfig) Validate() error {
 	return nil
 }
 
-// RoleSource names where a resolved Mission-role assignment came from, so a
-// proposal can always be traced back to either the project's explicit
-// preference or the daemon's capability-based fallback.
+// RoleSource names where a resolved Mission-role assignment came from.
 type RoleSource string
 
 const (
-	// RoleSourcePreference marks an assignment that honors the project's
-	// recorded preference for this role.
+	// RoleSourcePreference marks an assignment that honors explicit Project configuration.
 	RoleSourcePreference RoleSource = "preference"
-	// RoleSourceDefault marks the recommended fallback when no admissible
-	// preference exists for the role.
+	// RoleSourceDefault is retained for wire compatibility with historical projections.
 	RoleSourceDefault RoleSource = "default"
+	// RoleSourceUnassigned means no explicit, capability-admitted provider is bound.
+	RoleSourceUnassigned RoleSource = "unassigned"
 )
 
 // ProjectAgentPreferences records the project's preferred Mission-role
-// harnesses. Empty fields mean "no preference": resolution falls back to the
-// daemon's capability-based default at planning time. Preferences are
-// proposals for future Missions — they never rewrite historical sessions or
-// approved Plans, whose provider identity stays immutable.
+// harnesses. Empty fields mean "no preference". Resolution may inherit the
+// corresponding explicit Project role selection, but it never manufactures a
+// brand-specific provider. Preferences are proposals for future Missions — they
+// never rewrite historical sessions or approved Plans, whose provider identity
+// stays immutable.
 //
 // The zero value carries no preference and always validates.
 type ProjectAgentPreferences struct {
@@ -274,19 +273,16 @@ func (p ProjectAgentPreferences) Validate() error {
 	return nil
 }
 
-// ResolvedAgentRole is one Mission-role proposal. Source distinguishes an
-// assignment that honors the project preference from the daemon's default;
-// Eligible reflects domain capability admission only — adapter installation,
+// ResolvedAgentRole is one Mission-role proposal. Eligible reports domain
+// capability admission for an explicitly resolved harness; adapter installation,
 // authorization, and profile readiness are layered on by the service against
 // the live inventory and reported through Reason when they fail closed.
 type ResolvedAgentRole struct {
 	Harness  AgentHarness `json:"harness"`
 	Source   RoleSource   `json:"source"`
 	Eligible bool         `json:"eligible"`
-	// Ready reports live adapter admission layered on by the service layer
-	// (installed binary, authorization, profile readiness). The pure domain
-	// resolution can only speak to capability admission, so it defaults Ready
-	// to true for admissible roles; the inventory enrichment may flip it.
+	// Ready reports live adapter admission layered on by the service layer.
+	// Unassigned roles are never ready.
 	Ready  bool   `json:"ready"`
 	Reason string `json:"reason,omitempty"`
 }
@@ -300,18 +296,13 @@ type ResolvedMissionRoles struct {
 }
 
 // ResolveMissionRoles turns stored preferences into role proposals without
-// touching any live adapter: an admissible preference wins its role; anything
-// absent or inadmissible falls back to the recommended default with a Reason.
+// touching any live adapter. An admissible role-specific preference wins; when
+// that preference is absent, the corresponding explicit Project role selection
+// may be inherited. Missing or inadmissible configuration stays unassigned.
+// No provider identity is ever synthesized as a fallback.
 func ResolveMissionRoles(cfg ProjectConfig) ResolvedMissionRoles {
 	prefs := cfg.AgentPreferences
 
-	// The harness the project actually SELECTED, per role. This is what
-	// Project Settings and the Outcome composer write, and what a person sees
-	// named on screen, so a Mission role with no explicit preference has to
-	// follow it rather than a hardcoded default — otherwise the app says
-	// "opencode" everywhere and quietly spawns Codex, which is exactly what it
-	// used to do. It applies only when the selection is admitted for that
-	// role; an ineligible one falls through to the capability default.
 	selected := func(role RoleOverride, eligible func(AgentHarness) bool) (AgentHarness, bool) {
 		harness := AgentHarness(strings.TrimSpace(string(role.Harness)))
 		if harness == "" || !harness.IsKnown() || !eligible(harness) {
@@ -320,36 +311,58 @@ func ResolveMissionRoles(cfg ProjectConfig) ResolvedMissionRoles {
 		return harness, true
 	}
 
-	resolve := func(role, value string, eligible func(AgentHarness) bool, chosen RoleOverride, fallback AgentHarness) ResolvedAgentRole {
+	unassigned := func(reason string) ResolvedAgentRole {
+		return ResolvedAgentRole{
+			Source:   RoleSourceUnassigned,
+			Eligible: false,
+			Ready:    false,
+			Reason:   reason,
+		}
+	}
+
+	resolve := func(value string, eligible func(AgentHarness) bool, chosen RoleOverride) ResolvedAgentRole {
 		harness := AgentHarness(strings.TrimSpace(value))
 		if harness == "" {
 			if picked, ok := selected(chosen, eligible); ok {
-				return ResolvedAgentRole{Harness: picked, Source: RoleSourcePreference, Eligible: true, Ready: true,
-					Reason: "no Mission-role preference recorded; using the harness this project selects for that role"}
+				return ResolvedAgentRole{
+					Harness:  picked,
+					Source:   RoleSourcePreference,
+					Eligible: true,
+					Ready:    true,
+					Reason:   "no Mission-role preference recorded; using the explicit Project role selection",
+				}
 			}
-			return ResolvedAgentRole{Harness: fallback, Source: RoleSourceDefault, Eligible: true, Ready: true,
-				Reason: "no preference recorded; using the capability-admitted default"}
+			return unassigned("no explicit provider is configured for this role")
 		}
-		admissible := harness.IsKnown() && eligible(harness)
-		if admissible {
-			return ResolvedAgentRole{Harness: harness, Source: RoleSourcePreference, Eligible: true, Ready: true,
-				Reason: "honors the project preference"}
+		if harness.IsKnown() && eligible(harness) {
+			return ResolvedAgentRole{
+				Harness:  harness,
+				Source:   RoleSourcePreference,
+				Eligible: true,
+				Ready:    true,
+				Reason:   "honors the project preference",
+			}
 		}
 		if picked, ok := selected(chosen, eligible); ok {
-			return ResolvedAgentRole{Harness: picked, Source: RoleSourcePreference, Eligible: true, Ready: true,
-				Reason: "preferred harness \"" + value + "\" is not admitted for this role; using the project's selected harness"}
+			return ResolvedAgentRole{
+				Harness:  picked,
+				Source:   RoleSourcePreference,
+				Eligible: true,
+				Ready:    true,
+				Reason:   "preferred harness \"" + value + "\" is not admitted for this role; using the explicit Project role selection",
+			}
 		}
-		return ResolvedAgentRole{Harness: fallback, Source: RoleSourceDefault, Eligible: true, Ready: true,
-			Reason: "preferred harness \"" + value + "\" is not admitted for this role"}
+		return unassigned("preferred harness \"" + value + "\" is not admitted for this role and no explicit Project role selection is available")
 	}
-	// Worker follows the project's worker selection; the coordinator-class
-	// roles follow its orchestrator selection, because that is the control
-	// that names who coordinates for this project.
+
+	// Worker follows only the Project worker selection. Coordinator-class roles
+	// follow only the Project orchestrator selection, so a worker-only provider
+	// can never be promoted into coordinator authority by omission.
 	return ResolvedMissionRoles{
-		Worker:      resolve("worker", prefs.DefaultWorker, AgentHarness.IsSelectableForNewWork, cfg.Worker, HarnessCodex),
-		Analyzer:    resolve("analyzer", prefs.Analyzer, AgentHarness.IsSelectableAsCoordinator, cfg.Orchestrator, HarnessCodex),
-		Coordinator: resolve("coordinator", prefs.Coordinator, AgentHarness.IsSelectableAsCoordinator, cfg.Orchestrator, HarnessCodex),
-		Verifier:    resolve("verifier", prefs.Verifier, AgentHarness.IsSelectableAsCoordinator, cfg.Orchestrator, HarnessCodex),
+		Worker:      resolve(prefs.DefaultWorker, AgentHarness.IsSelectableForNewWork, cfg.Worker),
+		Analyzer:    resolve(prefs.Analyzer, AgentHarness.IsSelectableAsCoordinator, cfg.Orchestrator),
+		Coordinator: resolve(prefs.Coordinator, AgentHarness.IsSelectableAsCoordinator, cfg.Orchestrator),
+		Verifier:    resolve(prefs.Verifier, AgentHarness.IsSelectableAsCoordinator, cfg.Orchestrator),
 	}
 }
 

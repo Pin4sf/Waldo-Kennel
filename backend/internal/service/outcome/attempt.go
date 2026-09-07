@@ -1,10 +1,10 @@
 // Act & Observe (#31): governed execution of an approved plan onto a real
 // provider session. Admission is fail-closed and ordered BEFORE any durable
 // row: approved plan -> current-contract binding -> grants survive the
-// authority intersection -> RunBrief core digest recomputes equal ->
-// profile-readiness probe. Only then do the attempt row, fence, session ref,
-// and running transition land. Any failure AFTER admission begins routes to
-// ambiguity — queued + unconfirmed + custody held — because the true
+// authority intersection -> RunBrief core digest recomputes equal -> exact
+// bound-provider readiness probe. Only then do the attempt row, fence, session
+// ref, and running transition land. Any failure AFTER admission begins routes
+// to ambiguity — queued + unconfirmed + custody held — because the true
 // point-of-failure is unknowable after the fact; reconcile decides with
 // machine proof or a recorded owner assertion. Replacement is always a NEW
 // attempt row.
@@ -50,8 +50,9 @@ type AttemptManager interface {
 // original attempt without admitting anything twice.
 type StartAttemptInput struct {
 	PlanRevisionID domain.PlanRevisionID
-	// Harness optionally names the worker provider; empty defaults to the v0
-	// locked fixture (Codex-first). There is no fallback chain.
+	// Harness is a compatibility assertion only. The WorkUnit's immutable
+	// Provider chooses execution. Empty accepts that binding; a different value
+	// is rejected before any durable attempt state is written.
 	Harness    domain.AgentHarness
 	RequestKey string
 }
@@ -208,6 +209,10 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if !found {
 		return AttemptView{}, apierr.NotFound("PLAN_NOT_FOUND", "That plan does not exist")
 	}
+	plan, err = s.hydratePlanProvider(ctx, plan)
+	if err != nil {
+		return AttemptView{}, err
+	}
 	// Gate 1: only an owner-approved plan may execute.
 	if plan.Status != domain.PlanStatusApproved {
 		return AttemptView{}, apierr.Conflict(CodePlanNotApproved,
@@ -226,11 +231,26 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 				"currentRevision":     outcome.CurrentRevisionNumber,
 			})
 	}
-	// Gate 3: every grant must still survive the authority intersection.
+	// Gate 3: execution provider identity must have been frozen into the Plan.
+	// Legacy provider-less plans remain readable history but cannot execute.
+	if len(plan.WorkUnits) != 1 || plan.WorkUnits[0].Provider == "" {
+		return AttemptView{}, providerUnboundError(outcomeID)
+	}
+	harness := plan.WorkUnits[0].Provider
+	if requested := domain.AgentHarness(strings.TrimSpace(string(in.Harness))); requested != "" && requested != harness {
+		return AttemptView{}, apierr.Conflict(CodeAttemptProviderMismatch,
+			"The requested provider does not match the provider authorized by this plan",
+			map[string]any{
+				"planId":            string(plan.ID),
+				"authorizedProvider": string(harness),
+				"requestedProvider":  string(requested),
+			})
+	}
+	// Gate 4: every grant must still survive the authority intersection.
 	if err := s.authorizeAttemptCapabilities(plan.Grants); err != nil {
 		return AttemptView{}, err
 	}
-	// Gate 4: recompute the frozen RunBrief core digest from the CURRENT
+	// Gate 5: recompute the frozen RunBrief core digest from the CURRENT
 	// contract content; any material drift invalidates the brief.
 	revision, err := s.currentRevision(ctx, outcome)
 	if err != nil {
@@ -253,12 +273,8 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		return AttemptView{}, apierr.NotFound("PROJECT_NOT_FOUND", "Register that project before starting attempts")
 	}
 
-	// Gate 5: profile readiness through the same checker and config merge
-	// session spawn uses, resolved for THIS project's worker defaults.
-	harness := in.Harness
-	if harness == "" {
-		harness = domain.HarnessCodex
-	}
+	// Gate 6: profile readiness is checked for the EXACT provider authorized in
+	// the WorkUnit. There is no default and no fallback chain.
 	if err := s.probeReadiness(ctx, projectID, harness); err != nil {
 		return AttemptView{}, err
 	}
