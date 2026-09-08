@@ -11,37 +11,27 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
-func seedIntelligenceContractRun(t *testing.T, s interface {
-	CreateIntelligenceRun(context.Context, domain.IntelligenceRun) error
-}, store interface {
-	CreateIntake(context.Context, domain.IntakeSession, []domain.IntakeConversationRef, interface{})
-}) {
-	_ = t
-	_ = s
-	_ = store
-}
-
 func TestIntelligenceRunStoreRoundTripAndTerminalImmutability(t *testing.T) {
 	s := sqlitetest.MustOpen(t)
 	ctx := context.Background()
 	now := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
 	seedProject(t, s, "project-intel")
-	seedAnalyzingIntake(t, s, "intake-intel", "key-intel", now)
+	seedAnalyzingIntakeForProject(t, s, "project-intel", "intake-intel", "key-intel", now)
 
 	run := domain.IntelligenceRun{
-		ID:                 "intel-store-1",
-		Kind:               domain.IntelligenceRunContractAnalysis,
-		ProjectID:          "project-intel",
-		IntakeID:           "intake-intel",
-		SourceRevision:     0,
-		RequestedProvider:  "waldo-reasoner",
-		RequestedModel:     "planner-v2",
-		EffectiveProvider:  "direct-api.example/v1",
-		EffectiveModel:     "planner-2026-09",
-		NativeSessionRef:   "native-request-1",
-		InputDigest:        domain.DigestSHA256([]byte("input")),
-		Status:             domain.IntelligenceRunRequested,
-		CreatedAt:          now,
+		ID:                "intel-store-1",
+		Kind:              domain.IntelligenceRunContractAnalysis,
+		ProjectID:         "project-intel",
+		IntakeID:          "intake-intel",
+		SourceRevision:    0,
+		RequestedProvider: "waldo-reasoner",
+		RequestedModel:    "planner-v2",
+		EffectiveProvider: "direct-api.example/v1",
+		EffectiveModel:    "planner-2026-09",
+		NativeSessionRef:  "native-request-1",
+		InputDigest:       domain.DigestSHA256([]byte("input")),
+		Status:            domain.IntelligenceRunRequested,
+		CreatedAt:         now,
 	}
 	if err := s.CreateIntelligenceRun(ctx, run); err != nil {
 		t.Fatalf("create intelligence run: %v", err)
@@ -83,7 +73,7 @@ func TestIntelligenceRunStoreEffectiveProvenanceIsMonotonic(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
 	seedProject(t, s, "project-provenance")
-	seedAnalyzingIntake(t, s, "intake-provenance", "key-provenance", now)
+	seedAnalyzingIntakeForProject(t, s, "project-provenance", "intake-provenance", "key-provenance", now)
 
 	run := domain.IntelligenceRun{
 		ID: "intel-provenance", Kind: domain.IntelligenceRunContractAnalysis,
@@ -124,7 +114,7 @@ func TestIntelligenceRunStoreListsOnlyNonTerminalRuns(t *testing.T) {
 	}
 	for i, status := range statuses {
 		intakeID := domain.IntakeSessionID("intake-list-" + string(rune('a'+i)))
-		seedAnalyzingIntake(t, s, intakeID, "key-"+intakeID.String(), now.Add(time.Duration(i)*time.Second))
+		seedAnalyzingIntakeForProject(t, s, "project-list", intakeID, "key-"+intakeID.String(), now.Add(time.Duration(i)*time.Second))
 		run := domain.IntelligenceRun{
 			ID: domain.IntelligenceRunID("intel-list-" + string(rune('a'+i))), Kind: domain.IntelligenceRunContractAnalysis,
 			ProjectID: "project-list", IntakeID: intakeID, SourceRevision: 0,
@@ -154,7 +144,7 @@ func TestIntelligenceRunPersistenceStoresDigestNotSensitiveInput(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
 	seedProject(t, s, "project-secret")
-	seedAnalyzingIntake(t, s, "intake-secret", "key-secret", now)
+	seedAnalyzingIntakeForProject(t, s, "project-secret", "intake-secret", "key-secret", now)
 
 	const canary = "sk-canary-must-never-be-persisted-as-intelligence-input"
 	run := domain.IntelligenceRun{
