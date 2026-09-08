@@ -120,10 +120,10 @@ func TestPlanApprovalRequiresRoutingBindingAgreement(t *testing.T) {
 	unit := validWorkUnit()
 	unit.CriterionIDs = []CriterionID{"crit-1"}
 	unit.RequiredCapabilities = []string{CapabilityWorktreeRead}
-	if err := unit.BindExecution(ExecutionBinding{Provider: AgentHarness("provider-a"), ModelSelection: ExecutionBindingModelProviderDefault}); err != nil { t.Fatal(err) }
+	if err := unit.BindExecution(ExecutionBinding{Provider: AgentHarness("codex"), ModelSelection: ExecutionBindingModelProviderDefault}); err != nil { t.Fatal(err) }
 	decision := RoutingDecision{
 		Status: RoutingDecisionRecommended, PolicyVersion: RoutingPolicyVersion, Role: RoutingRoleWorker,
-		RecommendedCandidateID: "candidate-a", RecommendedProvider: "provider-a", RecommendedModelSelection: ExecutionBindingModelProviderDefault,
+		RecommendedCandidateID: "candidate-a", RecommendedProvider: "codex", RecommendedModelSelection: ExecutionBindingModelProviderDefault,
 	}
 	plan := validPlanRevision()
 	plan.WorkUnits = []WorkUnit{unit}
@@ -135,7 +135,7 @@ func TestPlanApprovalRequiresRoutingBindingAgreement(t *testing.T) {
 	if err := plan.ValidateForApproval(revision); err != nil {
 		t.Fatalf("matching routing/binding rejected: %v", err)
 	}
-	plan.RoutingDecisions[0].Decision.RecommendedProvider = "provider-b"
+	plan.RoutingDecisions[0].Decision.RecommendedProvider = "opencode"
 	if err := plan.ValidateForApproval(revision); err == nil || !strings.Contains(err.Error(), "does not match") {
 		t.Fatalf("mismatched routing/binding = %v", err)
 	}
@@ -161,7 +161,7 @@ func TestComputePlanRunBriefCoreDigestBindsGraphAndExecution(t *testing.T) {
 	unit := validWorkUnit(); unit.ID = "wu-a"
 	baseline, err := ComputePlanRunBriefCoreDigest(revision, []WorkUnit{unit}, validGrants())
 	if err != nil { t.Fatal(err) }
-	changed := unit; changed.Provider = AgentHarness("provider-a"); changed.ModelSelection = ExecutionBindingModelProviderDefault
+	changed := unit; changed.Provider = AgentHarness("codex"); changed.ModelSelection = ExecutionBindingModelProviderDefault
 	altered, err := ComputePlanRunBriefCoreDigest(revision, []WorkUnit{changed}, validGrants())
 	if err != nil { t.Fatal(err) }
 	if baseline == altered { t.Fatal("provider/model semantics did not change digest") }

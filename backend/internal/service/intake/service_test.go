@@ -690,17 +690,19 @@ func TestRefusedAgentProposalIsRetainedAndLeavesTheIntakeRetryable(t *testing.T)
 		t.Fatalf("refusal left status %q, want a retryable failure", store.snapshot.Session.Status)
 	}
 
-	// The floor is always reachable: the owner still gets a proposal.
-	ready, err := service.Analyze(context.Background(), id, AnalyzeInput{ExpectedProposalRevision: 0, Offline: true})
-	if err != nil || ready.Session.Status != domain.IntakeStatusReady {
-		t.Fatalf("offline fallback after refusal = %+v err=%v", ready.Session, err)
+	// There is no rule-based floor behind Waldo any more. A refused draft stays
+	// a retryable failure until Waldo is actually asked again; the owner is
+	// never handed a canned proposal that reads as understanding.
+	retried, err := service.Analyze(context.Background(), id, AnalyzeInput{ExpectedProposalRevision: 0, Offline: true})
+	if err != nil {
+		t.Fatalf("retry after refusal error = %v", err)
 	}
-	if len(store.requests) != 1 {
-		t.Fatalf("the offline floor opened a request it never needed: %d", len(store.requests))
+	if retried.Session.Status == domain.IntakeStatusReady {
+		t.Fatalf("a canned proposal was served without Waldo: %+v", retried.Session)
 	}
 }
 
-func TestOwnerCanStopWaitingAndTakeTheOfflineProposal(t *testing.T) {
+func TestOwnerCanStopWaitingAndTheIntakeStaysRetryable(t *testing.T) {
 	now := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
 	service, store, _, id := deferredService(t, now)
 
@@ -710,9 +712,14 @@ func TestOwnerCanStopWaitingAndTakeTheOfflineProposal(t *testing.T) {
 	if store.requests[0].Status != domain.IntakeAnalysisRequestCancelled {
 		t.Fatalf("cancel did not close the ask: %+v", store.requests[0])
 	}
-	ready, err := service.Analyze(context.Background(), id, AnalyzeInput{ExpectedProposalRevision: 0, Offline: true})
-	if err != nil || ready.Session.Status != domain.IntakeStatusReady {
-		t.Fatalf("offline proposal after cancel = %+v err=%v", ready.Session, err)
+	// Cancelling frees the intake to be analyzed again. It does not conjure a
+	// proposal: without Waldo there is nothing to be ready with.
+	after, err := service.Analyze(context.Background(), id, AnalyzeInput{ExpectedProposalRevision: 0, Offline: true})
+	if err != nil {
+		t.Fatalf("retry after cancel error = %v", err)
+	}
+	if after.Session.Status == domain.IntakeStatusReady {
+		t.Fatalf("a canned proposal was served after cancel: %+v", after.Session)
 	}
 }
 

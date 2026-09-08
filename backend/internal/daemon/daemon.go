@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -29,6 +30,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/mobilebridge"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/notify"
 	usagepipeline "github.com/Pin4sf/Waldo-Kennel/backend/internal/observe/usage"
+	llmanthropic "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/llm/anthropic"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/presence"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/preview"
@@ -407,18 +409,34 @@ func Run() error {
 	// exposed by agentSvc; execution consumes the exact-binding attempt spawner;
 	// proof, decomposition, scheduling, and liveness stay on this same authority.
 	reaper := sessionReaper{sessions: sessionSvc}
-	intelligenceProvider := intelligencesvc.NewDeterministicProvider()
+	// Waldo thinks with its own model; coding agents only execute authorized
+	// work. There is deliberately no rule-based floor behind this: if no
+	// reasoning key is configured, intake fails retryably and says so rather
+	// than serving a canned proposal that looks like understanding.
+	reasoner, err := llmanthropic.New(llmanthropic.Config{
+		APIKey: waldoReasoningKey(),
+		Model:  strings.TrimSpace(os.Getenv("KENNEL_WALDO_MODEL")),
+		Effort: strings.TrimSpace(os.Getenv("KENNEL_WALDO_EFFORT")),
+	})
+	if err != nil {
+		log.Warn("Waldo reasoning is not configured; Outcome intake and planning will fail until a key is set",
+			"set", "KENNEL_WALDO_API_KEY or ANTHROPIC_API_KEY")
+	}
+	var intelligenceProvider ports.IntelligenceProvider
+	if reasoner != nil {
+		intelligenceProvider = intelligencesvc.NewLLMProvider(reasoner)
+	}
 	outcomeSvc := outcomevc.New(store, nil).
 		WithPlanning(intelligenceProvider, agentSvc).
 		WithExecution(attemptSpawner{sessions: sessionSvc, projects: store, agents: agents}, store).
 		WithProofStore(store).
-		WithAnalystSessionReaper(reaper).
-		WithDecompositionProposer(agentDecompositionProposer{
-			sessions:     sessionSvc,
-			projects:     store,
-			agents:       agents,
-			callbackBase: fmt.Sprintf("http://%s:%d", config.LoopbackHost, cfg.Port),
-		})
+		WithAnalystSessionReaper(reaper)
+	// Composed Outcomes (ADR 0007) have no proposer wired: decomposition used
+	// to work by spawning a coding agent and hoping it POSTed a proposal back,
+	// which is the same pattern that broke Outcome intake. AskForDecomposition
+	// fails closed and says so until decomposition is model-backed like the
+	// Contract and Plan paths now are. Hand-authored decomposition is
+	// unaffected — it never went through a proposer.
 	go runAttemptLivenessLoop(ctx, outcomeSvc, log)
 
 	// Composed Outcomes (ADR 0007): requests that expired while the daemon was

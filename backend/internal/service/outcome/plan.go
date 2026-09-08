@@ -409,7 +409,7 @@ func (s *Service) currentRevision(ctx context.Context, outcomeRecord domain.Outc
 // Contract ceiling is checked separately and never defaults from this value.
 func (s *Service) authoritativeCapabilities() []string {
 	if len(s.PolicyLayers) == 0 {
-		return append([]string(nil), domain.V0RequiredCapabilities...)
+		return []string{domain.CapabilityWorktreeRead, domain.CapabilityWorktreeWrite, domain.CapabilityWorktreeExec}
 	}
 	return domain.AuthorityIntersection(s.PolicyLayers...)
 }

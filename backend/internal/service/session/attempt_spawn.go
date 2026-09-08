@@ -12,9 +12,9 @@ import (
 // SpawnExactAttempt is the canonical governed worker launch boundary. The
 // approved WorkUnit owns provider/model authority; mutable Project defaults are
 // only preferences used before Plan approval and must not reinterpret it here.
-func (s *Service) SpawnExactAttempt(ctx context.Context, cfg ports.SpawnConfig, binding domain.ExecutionBinding) (domain.SessionRecord, error) {
+func (s *Service) SpawnExactAttempt(ctx context.Context, cfg ports.SpawnConfig, binding domain.ExecutionBinding) (domain.Session, int, int, error) {
 	if err := binding.ValidateForNewWork(); err != nil {
-		return domain.SessionRecord{}, fmt.Errorf("spawn exact attempt: %w", err)
+		return domain.Session{}, 0, 0, fmt.Errorf("spawn exact attempt: %w", err)
 	}
 	cfg.Kind = domain.KindWorker
 	cfg.Harness = binding.Provider

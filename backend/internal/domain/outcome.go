@@ -43,6 +43,11 @@ func (id CriterionID) IsZero() bool {
 	return strings.TrimSpace(string(id)) == ""
 }
 
+// String returns the raw identifier value.
+func (id CriterionID) String() string {
+	return string(id)
+}
+
 // ContractCriterion is one stable, ordered success criterion.
 type ContractCriterion struct {
 	ID                 CriterionID

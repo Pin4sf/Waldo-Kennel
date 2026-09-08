@@ -68,13 +68,11 @@ type CancelInput struct {
 // Service owns the shared Home/Work adaptive intake state machine.
 type Service struct {
 	store    ports.IntakeStore
+	// analyzer is Waldo's reasoning. There is deliberately no rule-based floor
+	// behind it: a canned proposal reads as understanding the product does not
+	// have, and it hid a broken front door once already. When reasoning is
+	// unavailable the intake fails retryably and says why.
 	analyzer ports.IntakeAnalyzer
-	// offline is the deterministic floor, always present and never the
-	// configured analyzer. Intake is the entry point to the whole product, so
-	// unlike decomposition it must not fail closed when no agent can be asked:
-	// there is always a proposal available, and the owner can always choose it
-	// over waiting for one.
-	offline ports.IntakeAnalyzer
 	// reaper ends a proposing session once its ask is closed. Optional: a nil
 	// reaper simply leaves sessions running, which is what the daemon did
 	// before this existed.
@@ -104,7 +102,7 @@ func New(store ports.IntakeStore, analyzer ports.IntakeAnalyzer, clock func() ti
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
 	}
-	return &Service{store: store, analyzer: analyzer, offline: NewRuleBasedAnalyzer(), clock: clock}
+	return &Service{store: store, analyzer: analyzer, clock: clock}
 }
 
 // Get returns one durable intake snapshot.
@@ -255,13 +253,10 @@ func (service *Service) AnswerClarification(ctx context.Context, id domain.Intak
 	return service.settleTicket(ctx, analyzing, input.ExpectedProposalRevision, ticket, deferral, input.Answer)
 }
 
-// chooseAnalyzer returns the floor when the owner asked for it, or when no
-// analyzer is configured at all. The floor is never absent, which is what lets
-// intake refuse to fail closed.
-func (service *Service) chooseAnalyzer(offline bool) ports.IntakeAnalyzer {
-	if offline || service.analyzer == nil {
-		return service.offline
-	}
+// chooseAnalyzer returns Waldo's reasoning, or nil when none is configured.
+// The offline parameter is retained so existing callers keep compiling; there
+// is no longer a deterministic alternative to select.
+func (service *Service) chooseAnalyzer(_ bool) ports.IntakeAnalyzer {
 	return service.analyzer
 }
 

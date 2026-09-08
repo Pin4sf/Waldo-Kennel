@@ -20,9 +20,14 @@ type fakeSessionControl struct {
 	killed    []domain.SessionID
 	record    domain.Session
 	recordErr error
+	spawned   []domain.ExecutionBinding
 }
 
-func (f *fakeSessionControl) Spawn(_ context.Context, cfg ports.SpawnConfig) (domain.Session, int, int, error) {
+// SpawnExactAttempt records the exact approved binding the spawner hands down.
+// There is deliberately no ordinary Spawn on this surface: Outcome execution
+// may only start work through a frozen WorkUnit binding.
+func (f *fakeSessionControl) SpawnExactAttempt(_ context.Context, cfg ports.SpawnConfig, binding domain.ExecutionBinding) (domain.Session, int, int, error) {
+	f.spawned = append(f.spawned, binding)
 	rec := domain.SessionRecord{ID: domain.SessionID("sess-" + string(cfg.Harness)), Mode: domain.SessionModeTUI}
 	return domain.Session{SessionRecord: rec}, 0, 0, nil
 }
