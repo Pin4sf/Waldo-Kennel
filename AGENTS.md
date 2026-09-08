@@ -9,14 +9,15 @@ For kernel/Work implementation, read in this order and stop when you have enough
 1. `AGENTS.md` — repository rules and non-negotiable engineering boundaries.
 2. `docs/adr/0010-outcome-first-control-plane-and-session-subordination.md` — Outcome-first authority and session subordination.
 3. `docs/adr/0011-go-control-plane-and-non-authoritative-intelligence.md` — Go control plane and intelligence boundary.
-4. `docs/product/kennel-v1-product-architecture.md` — canonical product/kernel ontology and user-facing hierarchy.
-5. `docs/product/2026-09-08-outcome-control-plane-mvp-reset.md` — current MVP architecture reset.
-6. `docs/product/2026-09-08-pre-execution-ux-and-tech-debt-audit.md` — mandatory UX reuse / debt guardrails.
-7. `docs/STATUS.md` — implemented runtime truth versus accepted target behavior.
-8. `docs/adr/0008-responsibility-composition-and-workunit-execution-dag.md` — responsibility decomposition versus execution decomposition.
-9. `docs/adr/0009-workunit-scheduling-workspace-leases-and-effect-fencing.md` — scheduler, workspace custody, concurrency, effects, and recovery.
-10. `docs/superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md` — current implementation order and verification gates.
-11. `docs/architecture.md` and `docs/research/2026-09-04-kernel-runtime-reference-index.md` when touching lower-level chassis/provider/runtime details.
+4. `docs/adr/0012-waldo-reasons-with-the-owners-model.md` — Waldo reasons with the owner's model; there is no deterministic floor.
+5. `docs/product/kennel-v1-product-architecture.md` — canonical product/kernel ontology and user-facing hierarchy.
+6. `docs/product/2026-09-08-outcome-control-plane-mvp-reset.md` — current MVP architecture reset.
+7. `docs/product/2026-09-08-pre-execution-ux-and-tech-debt-audit.md` — mandatory UX reuse / debt guardrails.
+8. `docs/STATUS.md` — implemented runtime truth versus accepted target behavior.
+9. `docs/adr/0008-responsibility-composition-and-workunit-execution-dag.md` — responsibility decomposition versus execution decomposition.
+10. `docs/adr/0009-workunit-scheduling-workspace-leases-and-effect-fencing.md` — scheduler, workspace custody, concurrency, effects, and recovery.
+11. `docs/superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md` — current implementation order and verification gates.
+12. `docs/architecture.md` and `docs/research/2026-09-04-kernel-runtime-reference-index.md` when touching lower-level chassis/provider/runtime details.
 
 The current Work interaction specs remain implementation companions:
 
