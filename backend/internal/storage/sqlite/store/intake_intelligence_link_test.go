@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,14 +28,22 @@ func TestIntakeAnalysisRequestMayLinkExactlyOneIntelligenceRun(t *testing.T) {
 	if err := s.CreateIntakeAnalysisRequest(ctx, request); err != nil {
 		t.Fatalf("create request: %v", err)
 	}
-	if err := s.BindIntakeAnalysisRequestIntelligenceRun(ctx, request.ID, "intel-link-1"); err != nil {
+	run := domain.IntelligenceRun{
+		ID: "intel-link-1", Kind: domain.IntelligenceRunContractAnalysis,
+		ProjectID: "req-project", IntakeID: "intake-intel-link", SourceRevision: 0,
+		InputDigest: strings.Repeat("d", 64), Status: domain.IntelligenceRunRequested, CreatedAt: now,
+	}
+	if err := s.CreateIntelligenceRun(ctx, run); err != nil {
+		t.Fatalf("create intelligence run: %v", err)
+	}
+	if err := s.BindIntakeAnalysisRequestIntelligenceRun(ctx, request.ID, run.ID); err != nil {
 		t.Fatalf("bind intelligence run: %v", err)
 	}
 	linkedID, found, err := s.GetIntakeAnalysisRequestIntelligenceRun(ctx, request.ID)
 	if err != nil || !found {
 		t.Fatalf("get run link: found=%v err=%v", found, err)
 	}
-	if linkedID != "intel-link-1" {
+	if linkedID != run.ID {
 		t.Fatalf("intelligence run link = %q", linkedID)
 	}
 	if err := s.BindIntakeAnalysisRequestIntelligenceRun(ctx, request.ID, "intel-link-2"); err == nil {
