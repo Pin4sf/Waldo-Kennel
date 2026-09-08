@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -89,7 +88,3 @@ func (s *Service) draftPlanWithProvenance(
 	}
 	return response.Proposal, nil
 }
-
-// keep time imported in generated/refactor-safe builds where the compiler may
-// inline clock uses differently; this assertion also documents UTC completion.
-var _ = time.Time{}
