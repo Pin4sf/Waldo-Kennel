@@ -53,25 +53,17 @@ func (a attemptSpawner) ProfileReadiness(ctx context.Context, projectID domain.P
 		return ports.AgentProfileReadiness{Ready: false, Detail: "project is not registered"}, nil
 	}
 
-	// Readiness may consume non-routing Project runtime configuration, but it
-	// must not inherit mutable provider/model preference after Plan approval.
-	cfg := rec.Config
-	cfg.AgentConfig.Model = ""
-	cfg.Worker.Harness = ""
-	cfg.Worker.AgentConfig.Model = ""
-	override := ports.AgentConfig{}
-	switch binding.ModelSelection {
-	case domain.ExecutionBindingModelProviderDefault:
-		// Session Manager's merge treats non-empty override text as authoritative;
-		// selectable adapters trim model text before launch, so whitespace means
-		// an explicit provider-default selection rather than inherited Project model.
-		override.Model = " "
-	case domain.ExecutionBindingModelExplicit:
-		override.Model = strings.TrimSpace(binding.Model)
-	default:
-		return ports.AgentProfileReadiness{Ready: false, Detail: "unsupported model selection"}, nil
-	}
-	return sessionmanager.ProfileReadinessForSpawn(ctx, a.agents, cfg, domain.KindWorker, binding.Provider, override)
+	// Readiness consumes the same exact execution binding as launch. Project
+	// configuration may still contribute provider-neutral runtime settings, but
+	// it cannot rewrite the frozen provider/model selection after approval.
+	return sessionmanager.ProfileReadinessForExactSpawn(
+		ctx,
+		a.agents,
+		rec.Config,
+		domain.KindWorker,
+		binding,
+		ports.AgentConfig{},
+	)
 }
 
 func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest) (ports.AttemptSpawnResult, error) {
