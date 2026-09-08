@@ -1,6 +1,7 @@
 package controllers_test
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -12,16 +13,38 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	intakevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intake"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
+
+// stubIntakeAnalyzer stands in for Waldo's reasoning so these tests can assert
+// HTTP envelopes without a model call. A fixed proposal belongs here, in a
+// test double, and no longer anywhere in the product.
+type stubIntakeAnalyzer struct{}
+
+func (stubIntakeAnalyzer) Analyze(_ context.Context, input ports.IntakeAnalysisInput) (ports.IntakeAnalysisTicket, error) {
+	result := ports.IntakeAnalysisResult{Proposal: &domain.OutcomeContractProposal{
+		Title:        "Proposed outcome",
+		DesiredState: input.Session.Statement,
+		Criteria: []domain.ProposedCriterion{{
+			Text:             "The requested result is observable and matches the confirmed desired state.",
+			EvidenceExpected: []string{"A deterministic check demonstrates the result."},
+		}},
+		ReviewMethod:     "Run the relevant deterministic checks, then complete an owner walkthrough.",
+		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true, WriteWorkspace: true, ExecuteLocal: true},
+		StopConditions:   []string{"Stop before any external effect the owner has not authorized."},
+		Facets:           []domain.ContractFacet{{Kind: domain.ContractFacetSoftware, Summary: "Proposed outcome"}},
+	}}
+	return ports.IntakeAnalysisTicket{Inline: &result, Detail: "Contract proposal ready"}, nil
+}
 
 func TestSharedIntakeRoutesStartWithSimplePromptAndPreserveConflictEnvelope(t *testing.T) {
 	store := sqlitetest.MustOpen(t)
 	if err := store.UpsertProject(t.Context(), domain.ProjectRecord{ID: "intake-api", Path: "/tmp/intake-api", RegisteredAt: time.Now().UTC()}); err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
-	service := intakevc.New(store, intakevc.NewRuleBasedAnalyzer(), nil)
+	service := intakevc.New(store, stubIntakeAnalyzer{}, nil)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	server := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{Intakes: service}, httpd.ControlDeps{}))
 	t.Cleanup(server.Close)
@@ -70,7 +93,7 @@ func TestSharedIntakeRoutesStartWithSimplePromptAndPreserveConflictEnvelope(t *t
 
 func TestCreateIntakeMissingProjectIs404Envelope(t *testing.T) {
 	store := sqlitetest.MustOpen(t)
-	service := intakevc.New(store, intakevc.NewRuleBasedAnalyzer(), nil)
+	service := intakevc.New(store, stubIntakeAnalyzer{}, nil)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	server := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{Intakes: service}, httpd.ControlDeps{}))
 	t.Cleanup(server.Close)
@@ -85,7 +108,7 @@ func TestCancelIntakeReturnsDurableReasonAndRequestIDOnStaleRevision(t *testing.
 	if err := store.UpsertProject(t.Context(), domain.ProjectRecord{ID: "cancel-api", Path: "/tmp/cancel-api", RegisteredAt: time.Now().UTC()}); err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
-	service := intakevc.New(store, intakevc.NewRuleBasedAnalyzer(), nil)
+	service := intakevc.New(store, stubIntakeAnalyzer{}, nil)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	server := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{Intakes: service}, httpd.ControlDeps{}))
 	t.Cleanup(server.Close)

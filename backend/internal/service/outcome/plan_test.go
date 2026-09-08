@@ -47,6 +47,7 @@ func (f *planFakeStore) AppendPlanRevision(_ context.Context, outcomeID domain.O
 	f.plans[outcomeID] = append(f.plans[outcomeID], plan)
 	f.units[plan.ID] = append([]domain.WorkUnit(nil), plan.WorkUnits...)
 	f.grants[plan.ID] = append([]domain.CapabilityGrant(nil), plan.Grants...)
+	rememberFirstWorkUnit(plan)
 	return plan, nil
 }
 

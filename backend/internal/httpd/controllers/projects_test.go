@@ -698,8 +698,11 @@ func TestProjectsAPI_ResolvedMissionRoles(t *testing.T) {
 		{"coordinator", got.Roles.Coordinator},
 		{"verifier", got.Roles.Verifier},
 	} {
-		if role.view.Harness != "codex" || role.view.Source != "default" || !role.view.Eligible || !role.view.Ready || role.view.Reason == "" {
-			t.Fatalf("%s default role = %#v, want codex/default/eligible/ready with a reason", role.name, role.view)
+		// No implicit default: a role the owner has not selected stays
+		// unassigned and says so, rather than promoting a harness the owner
+		// never chose into execution authority.
+		if role.view.Source != "unassigned" || role.view.Eligible || role.view.Ready || role.view.Reason == "" {
+			t.Fatalf("%s default role = %#v, want unassigned/not-ready with a reason", role.name, role.view)
 		}
 	}
 
@@ -736,7 +739,7 @@ func TestProjectsAPI_ResolvedMissionRoles(t *testing.T) {
 		t.Fatalf("GET roles after rejects = %d, want 200; body=%s", status, body)
 	}
 	mustJSON(t, body, &got)
-	if got.Roles.Worker.Harness != "cursor" || got.Roles.Analyzer.Source != "default" {
+	if got.Roles.Worker.Harness != "cursor" || got.Roles.Analyzer.Source != "unassigned" {
 		t.Fatalf("roles after rejects drifted: %#v", got.Roles)
 	}
 
@@ -957,8 +960,10 @@ func TestProjectsAPI_ResolvedMissionRolesStoredNonCoordinatorPreference(t *testi
 		if got.Roles.Worker.Harness != "cursor" || got.Roles.Worker.Source != "preference" {
 			t.Fatalf("worker preference = %#v, want deepseek-harness/preference", got.Roles.Worker)
 		}
-		if got.Roles.Coordinator.Harness != "codex" || got.Roles.Coordinator.Source != "default" || !got.Roles.Coordinator.Ready {
-			t.Fatalf("coordinator fallback = %#v, want canonical codex/default ready", got.Roles.Coordinator)
+		// A worker-only preference never promotes itself into coordinator
+		// authority, and nothing else is substituted for it either.
+		if got.Roles.Coordinator.Source != "unassigned" || got.Roles.Coordinator.Ready {
+			t.Fatalf("coordinator = %#v, want unassigned and not ready", got.Roles.Coordinator)
 		}
 		if attempt == 0 {
 			first = string(body)

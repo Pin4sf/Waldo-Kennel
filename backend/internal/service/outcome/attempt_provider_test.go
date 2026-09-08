@@ -6,7 +6,7 @@ import (
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
-	intelligencevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence/intelligencetest"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
@@ -34,13 +34,14 @@ func newConfiguredAttemptHarness(t *testing.T, provider domain.AgentHarness, mod
 	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{executionCandidate(provider, model)}}
 	spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true, Detail: "ready"}}
 	svc := outcome.New(store, nil).
-		WithPlanning(intelligencevc.NewDeterministicProvider(), router).
+		WithPlanning(intelligencetest.New(), router).
 		WithExecution(spawner, newFakeHeartbeats())
 
 	view, err := svc.Create(context.Background(), outcome.CreateInput{
 		ProjectID: "mer", Title: "Provider admission", Goal: "Execute only the authorized provider and model.",
 		SuccessCriteria: []string{"no provider or model substitution occurs"}, Review: "deterministic tests",
-		RequestKey: "req-provider-attempt-create",
+		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true, WriteWorkspace: true, ExecuteLocal: true},
+		RequestKey:       "req-provider-attempt-create",
 	})
 	if err != nil { t.Fatalf("create outcome: %v", err) }
 	planView, err := svc.ProposePlan(context.Background(), view.Outcome.ID, 1)

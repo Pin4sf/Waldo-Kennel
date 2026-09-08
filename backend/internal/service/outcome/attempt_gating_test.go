@@ -7,6 +7,7 @@ import (
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence/intelligencetest"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
@@ -17,7 +18,9 @@ func newGatedContributorHarness(t *testing.T) (*outcome.Service, *attemptFakeSto
 	t.Helper()
 	store := newAttemptFakeStore()
 	spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true, Detail: "profile ok"}}
-	svc := outcome.NewWithExecution(store, nil, spawner, newFakeHeartbeats())
+	svc := outcome.New(store, nil).
+		WithPlanning(intelligencetest.New(), &routingInventoryFake{candidates: []domain.RoutingCandidate{executionCandidate(domain.HarnessCodex, "")}}).
+		WithExecution(spawner, newFakeHeartbeats())
 
 	ctx := context.Background()
 	in := validCreateInput()

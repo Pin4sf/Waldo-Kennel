@@ -10,6 +10,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence/intelligencetest"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
@@ -22,7 +23,9 @@ func newAttemptHarness(t *testing.T) (*outcome.Service, *attemptFakeStore, *fake
 	store := newAttemptFakeStore()
 	spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true, Detail: "profile ok"}}
 	heartbeats := newFakeHeartbeats()
-	svc := outcome.NewWithExecution(store, nil, spawner, heartbeats)
+	svc := outcome.New(store, nil).
+		WithPlanning(intelligencetest.New(), &routingInventoryFake{candidates: []domain.RoutingCandidate{executionCandidate(domain.HarnessCodex, "")}}).
+		WithExecution(spawner, heartbeats)
 
 	ctx := context.Background()
 	view, err := svc.Create(ctx, validCreateInput())
@@ -42,8 +45,23 @@ func newAttemptHarness(t *testing.T) (*outcome.Service, *attemptFakeStore, *fake
 	return svc, store, spawner, heartbeats, view.Outcome.ID, planView.Plan.ID
 }
 
+// firstWorkUnitOfPlan lets startInput name the unit an Attempt executes without
+// every harness threading a WorkUnitID through its return signature. Naming the
+// unit is required now that a Plan may hold more than one.
+var firstWorkUnitOfPlan = map[domain.PlanRevisionID]domain.WorkUnitID{}
+
+func rememberFirstWorkUnit(plan domain.PlanRevision) {
+	if len(plan.WorkUnits) > 0 {
+		firstWorkUnitOfPlan[plan.ID] = plan.WorkUnits[0].ID
+	}
+}
+
 func startInput(planID domain.PlanRevisionID) outcome.StartAttemptInput {
-	return outcome.StartAttemptInput{PlanRevisionID: planID, RequestKey: "req-start-1"}
+	return outcome.StartAttemptInput{
+		PlanRevisionID: planID,
+		WorkUnitID:     firstWorkUnitOfPlan[planID],
+		RequestKey:     "req-start-1",
+	}
 }
 
 func requireAPICode(t *testing.T, err error) string {
@@ -86,7 +104,7 @@ func TestStartAttemptFailClosedQuartetLeavesZeroRows(t *testing.T) {
 			t.Fatalf("expected replayed proposal, ok=%v err=%v", ok, err)
 		}
 		_, err = svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{
-			PlanRevisionID: proposal.ID, RequestKey: "rk-unapproved",
+			PlanRevisionID: proposal.ID, WorkUnitID: firstWorkUnitOfPlan[proposal.ID], RequestKey: "rk-unapproved",
 		})
 		if code := requireAPICode(t, err); code != outcome.CodePlanNotApproved {
 			t.Fatalf("code = %s, want PLAN_NOT_APPROVED", code)
@@ -118,8 +136,13 @@ func TestStartAttemptFailClosedQuartetLeavesZeroRows(t *testing.T) {
 	t.Run("capability unauthorized", func(t *testing.T) {
 		store := newAttemptFakeStore()
 		spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true}}
-		wide := outcome.NewWithExecution(store, nil, spawner, newFakeHeartbeats())
-		narrow := outcome.NewWithExecution(store, nil, spawner, newFakeHeartbeats())
+		planning := &routingInventoryFake{candidates: []domain.RoutingCandidate{executionCandidate(domain.HarnessCodex, "")}}
+		wide := outcome.New(store, nil).
+			WithPlanning(intelligencetest.New(), planning).
+			WithExecution(spawner, newFakeHeartbeats())
+		narrow := outcome.New(store, nil).
+			WithPlanning(intelligencetest.New(), planning).
+			WithExecution(spawner, newFakeHeartbeats())
 		narrow.PolicyLayers = [][]string{{domain.CapabilityWorktreeRead}}
 		ctx := context.Background()
 		view, err := wide.Create(ctx, validCreateInput())
@@ -154,7 +177,7 @@ func TestStartAttemptFailClosedQuartetLeavesZeroRows(t *testing.T) {
 		}
 		spawner.readinessErr = ports.ErrAgentBinaryNotFound
 		spawner.readiness = ports.AgentProfileReadiness{}
-		_, err = svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, RequestKey: "rk-2"})
+		_, err = svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, WorkUnitID: firstWorkUnitOfPlan[planID], RequestKey: "rk-2"})
 		if code := requireAPICode(t, err); code != outcome.CodeAgentBinaryNotFound {
 			t.Fatalf("code = %s, want AGENT_BINARY_NOT_FOUND", code)
 		}
@@ -322,7 +345,7 @@ func TestAnySpawnRefusalIsAmbiguousNeverFailed(t *testing.T) {
 	}
 
 	// Replacement cannot bypass reconcile while the ambiguity holds custody.
-	if _, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, RequestKey: "rk-replace"}); err == nil {
+	if _, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, WorkUnitID: firstWorkUnitOfPlan[planID], RequestKey: "rk-replace"}); err == nil {
 		t.Fatal("replacement start must be refused while custody is unresolved")
 	} else if code := requireAPICode(t, err); code != outcome.CodeAttemptFenceHeld {
 		t.Fatalf("code = %s, want ATTEMPT_FENCE_HELD", code)
@@ -437,7 +460,7 @@ func TestContainReconcileReplacementFlow(t *testing.T) {
 	}
 
 	// Safe next action: a replacement attempt acquires the freed subject.
-	replacement, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, RequestKey: "rk-replacement"})
+	replacement, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, WorkUnitID: firstWorkUnitOfPlan[planID], RequestKey: "rk-replacement"})
 	if err != nil {
 		t.Fatalf("replacement start: %v", err)
 	}
@@ -749,7 +772,9 @@ func TestActivationUnknownKeepsLiveProviderUnconfirmed(t *testing.T) {
 	store.dropActivationOnce = true
 	spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true}}
 	heartbeats := newFakeHeartbeats()
-	svc := outcome.NewWithExecution(store, nil, spawner, heartbeats)
+	svc := outcome.New(store, nil).
+		WithPlanning(intelligencetest.New(), &routingInventoryFake{candidates: []domain.RoutingCandidate{executionCandidate(domain.HarnessCodex, "")}}).
+		WithExecution(spawner, heartbeats)
 
 	ctx := context.Background()
 	outcomeView, err := svc.Create(ctx, validCreateInput())
@@ -920,7 +945,7 @@ func TestBindFailureKeepsCustodyUntilOwnerContainment(t *testing.T) {
 	store := newAttemptFakeStore()
 	store.failBindOnce = true
 	spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true}}
-	svc := outcome.NewWithExecution(store, nil, spawner, newFakeHeartbeats())
+	svc := outcome.New(store, nil).WithPlanning(intelligencetest.New(), &routingInventoryFake{candidates: []domain.RoutingCandidate{executionCandidate(domain.HarnessCodex, "")}}).WithExecution(spawner, newFakeHeartbeats())
 
 	ctx := context.Background()
 	outcomeView, err := svc.Create(ctx, validCreateInput())

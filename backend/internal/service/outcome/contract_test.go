@@ -26,6 +26,12 @@ type fakeStore struct {
 	keys     map[string]domain.OutcomeID
 	plans    map[domain.OutcomeID]domain.PlanRevision
 	links    map[domain.OutcomeID][]domain.ContributionLink
+	// intelRuns holds reasoning provenance. It is lazily created so the many
+	// existing constructors of this fake need not all be touched.
+	intelRuns map[domain.IntelligenceRunID]domain.IntelligenceRun
+	// proof is the in-memory Evidence/Verification/Acceptance record, created
+	// lazily for the same reason.
+	proof *proofFakeState
 
 	decompositions     map[domain.DecompositionRevisionID]domain.DecompositionRevision
 	decompositionOrder []domain.DecompositionRevisionID
@@ -147,7 +153,10 @@ func validCreateInput() outcome.CreateInput {
 		Goal:            "A user can record and review today's protected focus time locally.",
 		SuccessCriteria: []string{"Entering positive whole minutes creates one focus block."},
 		Review:          "Deterministic checks plus owner walkthrough.",
-		RequestKey:      "req-create-1",
+		// Without a ceiling the Contract authorizes nothing, so planning could
+		// never derive a legal WorkUnit. A realistic Outcome states one.
+		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true, WriteWorkspace: true, ExecuteLocal: true},
+		RequestKey:       "req-create-1",
 	}
 }
 

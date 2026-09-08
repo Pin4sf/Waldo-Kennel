@@ -287,7 +287,12 @@ func (c *OutcomesController) create(w http.ResponseWriter, r *http.Request) {
 		Constraints:     req.Constraints,
 		NonGoals:        req.NonGoals,
 		Clarification:   req.Clarification,
-		RequestKey:      req.RequestKey,
+		// Without a ceiling the Contract grants nothing and planning can never
+		// authorize a WorkUnit, so the direct-create path must be able to state
+		// one exactly as the Understand surfaces do.
+		AuthorityCeiling: proposedAuthority(req.AuthorityCeiling),
+		StopConditions:   req.StopConditions,
+		RequestKey:       req.RequestKey,
 	})
 	if err != nil {
 		envelope.WriteError(w, r, err)
@@ -327,6 +332,8 @@ func (c *OutcomesController) revise(w http.ResponseWriter, r *http.Request) {
 		Constraints:      req.Constraints,
 		NonGoals:         req.NonGoals,
 		Clarification:    req.Clarification,
+		AuthorityCeiling: proposedAuthority(req.AuthorityCeiling),
+		StopConditions:   req.StopConditions,
 	})
 	if err != nil {
 		envelope.WriteError(w, r, err)
@@ -348,6 +355,7 @@ func (c *OutcomesController) startAttempt(w http.ResponseWriter, r *http.Request
 	}
 	view, err := c.Attempts.StartAttempt(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.StartAttemptInput{
 		PlanRevisionID: domain.PlanRevisionID(req.PlanRevisionID),
+		WorkUnitID:     domain.WorkUnitID(req.WorkUnitID),
 		Harness:        domain.AgentHarness(req.Harness),
 		RequestKey:     req.RequestKey,
 	})
