@@ -5,9 +5,7 @@ import (
 	"strings"
 )
 
-// RoutingRole keeps worker and coordinator policy separate. A candidate must
-// be explicitly eligible for the requested role; worker readiness never
-// promotes a provider into coordinator authority.
+// RoutingRole keeps worker and coordinator admission independent.
 type RoutingRole string
 
 const (
@@ -15,8 +13,7 @@ const (
 	RoutingRoleCoordinator RoutingRole = "coordinator"
 )
 
-// CapabilitySupport is normalized adapter truth. Unknown remains distinct
-// from unsupported so diagnostics stay honest; either fails a mandatory gate.
+// CapabilitySupport is normalized adapter truth. Unknown is not supported.
 type CapabilitySupport string
 
 const (
@@ -25,27 +22,23 @@ const (
 	CapabilityUnknown     CapabilitySupport = "unknown"
 )
 
-// RoutingPreference is provider-neutral planning input consumed by the router.
-// Provider is opaque data; routing policy never branches on its value.
+// RoutingPreference is planning input only. An explicit model is local to this
+// provider; it is never interpreted as a global model requirement.
 type RoutingPreference struct {
 	Provider       string
 	ModelSelection ExecutionPreferenceModelSelection
 	Model          string
 }
 
-// RoutingRequirements are derived from Outcome/Contract/WorkUnit semantics,
-// not provider brands.
+// RoutingRequirements are deterministic hard requirements derived by Kennel.
 type RoutingRequirements struct {
-	Role                 RoutingRole
-	HardCapabilities     []string
-	SoftCapabilities     []string
-	ExecutionConstraints []string
-	RequiredModel        string
-	Preference           *RoutingPreference
+	Role             RoutingRole
+	HardCapabilities []string
+	Preference       *RoutingPreference
 }
 
-// RoutingCandidate is a normalized provider/model candidate produced by
-// adapters and inventory. Strengths are provider-neutral soft-fit signals.
+// RoutingCandidate is normalized harness inventory. ModelSelection/Model describe
+// the candidate's executable fallback semantics when no explicit preference wins.
 type RoutingCandidate struct {
 	ID                  string
 	Provider            string
@@ -55,50 +48,62 @@ type RoutingCandidate struct {
 	CoordinatorEligible bool
 	Readiness           CapabilitySupport
 	Capabilities        map[string]CapabilitySupport
-	Strengths           map[string]int
 	Models              map[string]CapabilitySupport
 }
 
-// RoutingCandidateEvaluation preserves why each candidate did or did not pass.
 type RoutingCandidateEvaluation struct {
-	CandidateID  string   `json:"candidateId"`
-	Provider     string   `json:"provider"`
-	Admissible   bool     `json:"admissible"`
-	Score        int      `json:"score"`
+	CandidateID    string   `json:"candidateId"`
+	Provider       string   `json:"provider"`
+	Admissible     bool     `json:"admissible"`
+	Preferred      bool     `json:"preferred,omitempty"`
 	RejectionCodes []string `json:"rejectionCodes,omitempty"`
-	Reasons      []string `json:"reasons,omitempty"`
+	Reasons        []string `json:"reasons,omitempty"`
 }
 
-// RoutingDecisionStatus is persisted with the Plan proposal.
 type RoutingDecisionStatus string
 
 const (
-	RoutingDecisionRecommended     RoutingDecisionStatus = "recommended"
+	RoutingDecisionRecommended      RoutingDecisionStatus = "recommended"
 	RoutingDecisionNoValidCandidate RoutingDecisionStatus = "no_valid_candidate"
 )
 
-const RoutingPolicyVersion = "wt3-v1"
+const RoutingPolicyVersion = "wt3-v2-deterministic"
 
-// RoutingDecision is explainable recommendation state. It is not execution
-// authority until a Plan containing the selected binding is approved.
+// RoutingDecision is recommendation provenance, never execution authority.
 type RoutingDecision struct {
-	Status                RoutingDecisionStatus          `json:"status"`
-	PolicyVersion         string                         `json:"policyVersion"`
-	CapabilitySnapshot    string                         `json:"capabilitySnapshot,omitempty"`
-	Role                  RoutingRole                    `json:"role"`
-	EffectivePreference   *RoutingPreference             `json:"effectivePreference,omitempty"`
-	Requirements          RoutingRequirements            `json:"requirements"`
-	RecommendedCandidateID string                        `json:"recommendedCandidateId,omitempty"`
-	RecommendedProvider   string                         `json:"recommendedProvider,omitempty"`
+	Status                    RoutingDecisionStatus           `json:"status"`
+	PolicyVersion             string                          `json:"policyVersion"`
+	CapabilitySnapshot        string                          `json:"capabilitySnapshot,omitempty"`
+	Role                      RoutingRole                     `json:"role"`
+	EffectivePreference       *RoutingPreference              `json:"effectivePreference,omitempty"`
+	Requirements              RoutingRequirements             `json:"requirements"`
+	RecommendedCandidateID    string                          `json:"recommendedCandidateId,omitempty"`
+	RecommendedProvider       string                          `json:"recommendedProvider,omitempty"`
 	RecommendedModelSelection ExecutionBindingModelSelection `json:"recommendedModelSelection,omitempty"`
-	RecommendedModel      string                         `json:"recommendedModel,omitempty"`
-	Evaluations           []RoutingCandidateEvaluation   `json:"evaluations"`
+	RecommendedModel          string                          `json:"recommendedModel,omitempty"`
+	Evaluations               []RoutingCandidateEvaluation    `json:"evaluations"`
 }
 
-// RouteExecution deterministically hard-gates then ranks normalized candidates.
-// Preference wins an equivalent admissible comparison, while a materially
-// stronger soft fit (>=2 points) may beat it. No provider identifier appears
-// in policy logic other than opaque equality with the user's preference.
+// RecommendedBinding converts recommendation provenance into the exact binding
+// the WorkUnit must persist. A no-candidate decision cannot become authority.
+func (d RoutingDecision) RecommendedBinding() (ExecutionBinding, bool) {
+	if d.Status != RoutingDecisionRecommended || strings.TrimSpace(d.RecommendedProvider) == "" {
+		return ExecutionBinding{}, false
+	}
+	binding := ExecutionBinding{
+		Provider:       AgentHarness(d.RecommendedProvider),
+		ModelSelection: d.RecommendedModelSelection,
+		Model:          d.RecommendedModel,
+	}
+	if err := binding.ValidateForNewWork(); err != nil {
+		return ExecutionBinding{}, false
+	}
+	return binding, true
+}
+
+// RouteExecution hard-gates normalized candidates, uses an admissible explicit
+// preference when possible, otherwise chooses the lexicographically-stable
+// candidate ID. No provider brand or invented quality weight participates.
 func RouteExecution(req RoutingRequirements, candidates []RoutingCandidate, snapshot string) RoutingDecision {
 	decision := RoutingDecision{
 		Status:              RoutingDecisionNoValidCandidate,
@@ -112,11 +117,14 @@ func RouteExecution(req RoutingRequirements, candidates []RoutingCandidate, snap
 
 	type admitted struct {
 		candidate RoutingCandidate
-		score     int
+		binding   ExecutionBinding
 		preferred bool
 	}
 	var admittedCandidates []admitted
-	for _, candidate := range candidates {
+
+	ordered := append([]RoutingCandidate(nil), candidates...)
+	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].ID < ordered[j].ID })
+	for _, candidate := range ordered {
 		eval := RoutingCandidateEvaluation{CandidateID: candidate.ID, Provider: candidate.Provider}
 		reject := func(code, reason string) {
 			eval.RejectionCodes = append(eval.RejectionCodes, code)
@@ -153,72 +161,76 @@ func RouteExecution(req RoutingRequirements, candidates []RoutingCandidate, snap
 				reject(code, "mandatory capability "+capability+" is not confirmed")
 			}
 		}
-		if strings.TrimSpace(req.RequiredModel) != "" {
-			support := candidate.Models[req.RequiredModel]
-			if support != CapabilitySupported {
-				code := "MODEL_UNKNOWN"
-				if support == CapabilityUnsupported {
-					code = "MODEL_UNSUPPORTED"
+
+		preferred := req.Preference != nil && candidate.Provider == req.Preference.Provider
+		eval.Preferred = preferred
+		binding := ExecutionBinding{
+			Provider:       AgentHarness(candidate.Provider),
+			ModelSelection: candidate.ModelSelection,
+			Model:          candidate.Model,
+		}
+		if preferred {
+			switch req.Preference.ModelSelection {
+			case ExecutionPreferenceModelExplicit:
+				support := candidate.Models[req.Preference.Model]
+				if support != CapabilitySupported {
+					code := "MODEL_UNKNOWN"
+					if support == CapabilityUnsupported {
+						code = "MODEL_UNSUPPORTED"
+					}
+					reject(code, "preferred model is not supported by the preferred provider")
+				} else {
+					binding.ModelSelection = ExecutionBindingModelExplicit
+					binding.Model = req.Preference.Model
 				}
-				reject(code, "required model is not supported")
+			case ExecutionPreferenceModelProviderDefault:
+				if candidate.ModelSelection != ExecutionBindingModelProviderDefault {
+					reject("MODEL_BINDING_INVALID", "preferred provider does not expose provider-default model semantics")
+				} else {
+					binding.ModelSelection = ExecutionBindingModelProviderDefault
+					binding.Model = ""
+				}
+			default:
+				reject("PREFERENCE_INVALID", "execution preference model semantics are invalid")
 			}
-		}
-		if candidate.ModelSelection != ExecutionBindingModelExplicit && candidate.ModelSelection != ExecutionBindingModelProviderDefault {
-			reject("MODEL_BINDING_INVALID", "candidate does not provide executable model semantics")
-		}
-		if candidate.ModelSelection == ExecutionBindingModelExplicit && strings.TrimSpace(candidate.Model) == "" {
-			reject("MODEL_BINDING_INVALID", "candidate explicit model is empty")
-		}
-		if candidate.ModelSelection == ExecutionBindingModelProviderDefault && strings.TrimSpace(candidate.Model) != "" {
-			reject("MODEL_BINDING_INVALID", "provider-default candidate names a model")
 		}
 
-		for _, soft := range req.SoftCapabilities {
-			if candidate.Capabilities[soft] == CapabilitySupported {
-				eval.Score += candidate.Strengths[soft]
+		if !preferred {
+			if err := binding.ValidateForNewWork(); err != nil {
+				reject("MODEL_BINDING_INVALID", err.Error())
+			} else if binding.ModelSelection == ExecutionBindingModelExplicit {
+				support := candidate.Models[binding.Model]
+				if support != CapabilitySupported {
+					code := "MODEL_UNKNOWN"
+					if support == CapabilityUnsupported {
+						code = "MODEL_UNSUPPORTED"
+					}
+					reject(code, "candidate explicit model support is not confirmed")
+				}
 			}
 		}
+
 		eval.Admissible = len(eval.RejectionCodes) == 0
 		decision.Evaluations = append(decision.Evaluations, eval)
 		if eval.Admissible {
-			preferred := req.Preference != nil && candidate.Provider == req.Preference.Provider
-			// An explicit preferred model only strengthens this candidate when
-			// the candidate can actually bind that exact model. It never causes
-			// another provider's model to inherit by name.
-			if preferred && req.Preference.ModelSelection == ExecutionPreferenceModelExplicit {
-				if candidate.Models[req.Preference.Model] != CapabilitySupported {
-					preferred = false
-				}
-			}
-			admittedCandidates = append(admittedCandidates, admitted{candidate: candidate, score: eval.Score, preferred: preferred})
+			admittedCandidates = append(admittedCandidates, admitted{candidate: candidate, binding: binding, preferred: preferred})
 		}
 	}
 
 	if len(admittedCandidates) == 0 {
 		return decision
 	}
-	sort.SliceStable(admittedCandidates, func(i, j int) bool {
-		a, b := admittedCandidates[i], admittedCandidates[j]
-		if a.preferred != b.preferred {
-			// Preference wins unless the non-preferred option has materially
-			// stronger soft fit.
-			if a.preferred && b.score < a.score+2 {
-				return true
-			}
-			if b.preferred && a.score < b.score+2 {
-				return false
-			}
+	winner := admittedCandidates[0]
+	for _, candidate := range admittedCandidates {
+		if candidate.preferred {
+			winner = candidate
+			break
 		}
-		if a.score != b.score {
-			return a.score > b.score
-		}
-		return a.candidate.ID < b.candidate.ID
-	})
-	winner := admittedCandidates[0].candidate
+	}
 	decision.Status = RoutingDecisionRecommended
-	decision.RecommendedCandidateID = winner.ID
-	decision.RecommendedProvider = winner.Provider
-	decision.RecommendedModelSelection = winner.ModelSelection
-	decision.RecommendedModel = winner.Model
+	decision.RecommendedCandidateID = winner.candidate.ID
+	decision.RecommendedProvider = string(winner.binding.Provider)
+	decision.RecommendedModelSelection = winner.binding.ModelSelection
+	decision.RecommendedModel = winner.binding.Model
 	return decision
 }
