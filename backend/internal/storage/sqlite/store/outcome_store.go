@@ -40,7 +40,6 @@ func (s *Store) EnsureWorkResponsibilitySpace(ctx context.Context, projectID dom
 		ProjectID: space.ProjectID,
 	}); err != nil {
 		if isSQLiteUnique(err) {
-			// Lost a concurrent first-use race; return the winner.
 			row, err := s.qw.FindWorkResponsibilitySpaceByProject(ctx, projectID)
 			if err != nil {
 				return domain.ResponsibilitySpace{}, fmt.Errorf("re-find work space for %s: %w", projectID, err)
@@ -52,7 +51,6 @@ func (s *Store) EnsureWorkResponsibilitySpace(ctx context.Context, projectID dom
 	return space, nil
 }
 
-// FindOutcomeByIdempotencyKey resolves a previously delivered create request.
 func (s *Store) FindOutcomeByIdempotencyKey(ctx context.Context, key string) (domain.Outcome, bool, error) {
 	row, err := s.qr.FindOutcomeByIdempotencyKey(ctx, sql.NullString{String: key, Valid: key != ""})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -64,8 +62,6 @@ func (s *Store) FindOutcomeByIdempotencyKey(ctx context.Context, key string) (do
 	return outcomeFromRow(row), true, nil
 }
 
-// CreateOutcomeWithContract atomically persists the Outcome with its first
-// contract revision and points current at it.
 func (s *Store) CreateOutcomeWithContract(ctx context.Context, outcome domain.Outcome, first domain.ContractRevision, requestKey string) error {
 	if err := outcome.Validate(); err != nil {
 		return err
@@ -119,9 +115,6 @@ func (s *Store) CreateOutcomeWithContract(ctx context.Context, outcome domain.Ou
 	return tx.Commit()
 }
 
-// AppendContractRevision atomically appends one immutable revision and swings
-// the current-revision pointer from expected to it. A stale expected rolls the
-// whole transaction back and reports the conflict.
 func (s *Store) AppendContractRevision(ctx context.Context, id domain.OutcomeID, expectedCurrent int64, revision domain.ContractRevision) (int64, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -165,7 +158,6 @@ func (s *Store) AppendContractRevision(ctx context.Context, id domain.OutcomeID,
 	return number, nil
 }
 
-// GetOutcome reads one Outcome by id; ok=false when absent.
 func (s *Store) GetOutcome(ctx context.Context, id domain.OutcomeID) (domain.Outcome, bool, error) {
 	row, err := s.qr.GetOutcome(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -177,8 +169,6 @@ func (s *Store) GetOutcome(ctx context.Context, id domain.OutcomeID) (domain.Out
 	return outcomeFromRow(row), true, nil
 }
 
-// ListOutcomesByProject reads canonical Outcomes through their Work
-// responsibility space. It never creates a space as a side effect of reading.
 func (s *Store) ListOutcomesByProject(ctx context.Context, projectID domain.ProjectID) ([]domain.Outcome, error) {
 	rows, err := s.qr.ListOutcomesByProject(ctx, projectID)
 	if err != nil {
@@ -191,7 +181,6 @@ func (s *Store) ListOutcomesByProject(ctx context.Context, projectID domain.Proj
 	return out, nil
 }
 
-// ListContractRevisions returns full immutable history ordered by number.
 func (s *Store) ListContractRevisions(ctx context.Context, id domain.OutcomeID) ([]domain.ContractRevision, error) {
 	rows, err := s.qr.ListContractRevisions(ctx, id)
 	if err != nil {
@@ -216,10 +205,6 @@ func (s *Store) ListContractRevisions(ctx context.Context, id domain.OutcomeID) 
 				Text:               criterion.Text,
 			})
 		}
-		// Without this join the ceiling reads as all-false and the stop
-		// conditions vanish, for every reader outside intake — including the
-		// gates that refuse a contributor for widening its parent's authority,
-		// which were comparing against a ceiling that was never loaded.
 		core, err := s.qr.GetContractRevisionIntakeCore(ctx, string(rev.ID))
 		switch {
 		case err == nil:
@@ -227,10 +212,6 @@ func (s *Store) ListContractRevisions(ctx context.Context, id domain.OutcomeID) 
 				return nil, fmt.Errorf("read core for revision %s: %w", rev.ID, err)
 			}
 		case errors.Is(err, sql.ErrNoRows):
-			// Revisions written before this relation was populated by every
-			// creator have no row. The data was never captured, so it is
-			// absent rather than recoverable: leave the zero values and do not
-			// invent a ceiling.
 		default:
 			return nil, fmt.Errorf("read core for revision %s: %w", rev.ID, err)
 		}
@@ -302,12 +283,6 @@ func insertContractRevision(ctx context.Context, q *gen.Queries, revision domain
 			return fmt.Errorf("create contract criterion %s: %w", criterion.ID, err)
 		}
 	}
-	// The authority ceiling, stop conditions, expected evidence, temporal
-	// condition, and facets live in a side relation (0104). Writing it HERE
-	// rather than at each call site is the point: it was previously written
-	// only by intake confirmation, so a contract created any other way — a
-	// correction, a contributing Outcome — silently lost its ceiling and stop
-	// conditions on the way to the database.
 	if err := insertContractIntakeCore(ctx, q, revision); err != nil {
 		return fmt.Errorf("create contract revision core %s: %w", revision.ID, err)
 	}
@@ -326,9 +301,6 @@ func outcomeFromRow(row gen.Outcome) domain.Outcome {
 	}
 }
 
-// nullOutcomeID maps a zero parent to SQL NULL. A Project-level Outcome
-// contributes to nothing, and NULL is the only value the partial parent index
-// and the depth-cap triggers treat as "root".
 func nullOutcomeID(id domain.OutcomeID) sql.NullString {
 	if id.IsZero() {
 		return sql.NullString{}
@@ -415,251 +387,6 @@ func unmarshalJSONStrings(data string) ([]string, error) {
 	return out, nil
 }
 
-// AppendPlanRevision atomically persists one proposed plan with its single
-// Work Unit and grants, assigning the plan number inside the transaction.
-func (s *Store) AppendPlanRevision(ctx context.Context, outcomeID domain.OutcomeID, plan domain.PlanRevision) (domain.PlanRevision, error) {
-	if plan.Status != domain.PlanStatusProposed {
-		return domain.PlanRevision{}, fmt.Errorf("append plan for %s: only proposed plans are created", outcomeID)
-	}
-	plan.OutcomeID = outcomeID
-
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-
-	tx, err := s.writeDB.BeginTx(ctx, nil)
-	if err != nil {
-		return domain.PlanRevision{}, fmt.Errorf("begin append plan for %s: %w", outcomeID, err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	txq := s.qw.WithTx(tx)
-
-	maxNum, err := txq.MaxPlanRevisionNumber(ctx, outcomeID)
-	if err != nil {
-		return domain.PlanRevision{}, fmt.Errorf("max plan number for %s: %w", outcomeID, err)
-	}
-	switch v := maxNum.(type) {
-	case int64:
-		plan.Number = v + 1
-	default:
-		return domain.PlanRevision{}, fmt.Errorf("max plan number for %s: unexpected type %T", outcomeID, maxNum)
-	}
-	if err := plan.Validate(); err != nil {
-		return domain.PlanRevision{}, err
-	}
-	if err := txq.CreatePlanRevision(ctx, gen.CreatePlanRevisionParams{
-		ID:                     plan.ID,
-		OutcomeID:              plan.OutcomeID,
-		Number:                 plan.Number,
-		ContractRevisionNumber: plan.ContractRevisionNumber,
-		Status:                 string(plan.Status),
-		Summary:                plan.Summary,
-		RunBriefCoreDigest:     plan.RunBriefCoreDigest,
-	}); err != nil {
-		return domain.PlanRevision{}, fmt.Errorf("create plan revision %s: %w", plan.ID, err)
-	}
-	for i := range plan.WorkUnits {
-		unit := plan.WorkUnits[i]
-		checks, err := marshalJSONStrings(unit.EvidenceChecks)
-		if err != nil {
-			return domain.PlanRevision{}, fmt.Errorf("plan %s evidence checks: %w", plan.ID, err)
-		}
-		stops, err := marshalJSONStrings(unit.StopConditions)
-		if err != nil {
-			return domain.PlanRevision{}, fmt.Errorf("plan %s stop conditions: %w", plan.ID, err)
-		}
-		if err := txq.CreateWorkUnit(ctx, gen.CreateWorkUnitParams{
-			ID:                      unit.ID,
-			PlanRevisionID:          plan.ID,
-			Kind:                    string(unit.Kind),
-			Title:                   unit.Title,
-			ContractRevisionNumber:  unit.ContractRevisionNumber,
-			OutputSummary:           unit.OutputSummary,
-			EvidenceChecks:          checks,
-			VerificationRequirement: unit.VerificationRequirement,
-			StopConditions:          stops,
-		}); err != nil {
-			return domain.PlanRevision{}, fmt.Errorf("create work unit %s: %w", unit.ID, err)
-		}
-	}
-	for _, grant := range plan.Grants {
-		if err := txq.CreateCapabilityGrant(ctx, gen.CreateCapabilityGrantParams{
-			ID:             grant.ID,
-			PlanRevisionID: plan.ID,
-			Name:           grant.Name,
-			Scope:          grant.Scope,
-		}); err != nil {
-			return domain.PlanRevision{}, fmt.Errorf("create capability grant %s: %w", grant.ID, err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return domain.PlanRevision{}, fmt.Errorf("commit append plan for %s: %w", outcomeID, err)
-	}
-	return plan, nil
-}
-
-// LatestProposedPlanRevision resolves the highest-numbered proposed plan bound
-// to the named contract revision.
-func (s *Store) LatestProposedPlanRevision(ctx context.Context, outcomeID domain.OutcomeID, contractRevision int64) (domain.PlanRevision, bool, error) {
-	row, err := s.qr.LatestProposedPlanRevision(ctx, gen.LatestProposedPlanRevisionParams{
-		OutcomeID:              outcomeID,
-		ContractRevisionNumber: contractRevision,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return domain.PlanRevision{}, false, nil
-	}
-	if err != nil {
-		return domain.PlanRevision{}, false, fmt.Errorf("latest proposed plan for %s at r%d: %w", outcomeID, contractRevision, err)
-	}
-	return s.planFromRow(ctx, row)
-}
-
-// GetPlanRevision reads one plan with its work unit and grants.
-func (s *Store) GetPlanRevision(ctx context.Context, outcomeID domain.OutcomeID, planID domain.PlanRevisionID) (domain.PlanRevision, bool, error) {
-	row, err := s.qr.GetPlanRevision(ctx, gen.GetPlanRevisionParams{ID: planID, OutcomeID: outcomeID})
-	if errors.Is(err, sql.ErrNoRows) {
-		return domain.PlanRevision{}, false, nil
-	}
-	if err != nil {
-		return domain.PlanRevision{}, false, fmt.Errorf("get plan %s: %w", planID, err)
-	}
-	return s.planFromRow(ctx, row)
-}
-
-// GetLatestPlanRevision returns the newest plan of any status.
-func (s *Store) GetLatestPlanRevision(ctx context.Context, outcomeID domain.OutcomeID) (domain.PlanRevision, bool, error) {
-	row, err := s.qr.GetLatestPlanRevision(ctx, outcomeID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return domain.PlanRevision{}, false, nil
-	}
-	if err != nil {
-		return domain.PlanRevision{}, false, fmt.Errorf("latest plan for %s: %w", outcomeID, err)
-	}
-	return s.planFromRow(ctx, row)
-}
-
-// ApprovePlanRevision moves a proposed plan to approved under an optimistic
-// guard and is idempotent for already-approved plans.
-func (s *Store) ApprovePlanRevision(ctx context.Context, outcomeID domain.OutcomeID, planID domain.PlanRevisionID) (domain.PlanRevision, bool, error) {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-
-	tx, err := s.writeDB.BeginTx(ctx, nil)
-	if err != nil {
-		return domain.PlanRevision{}, false, fmt.Errorf("begin approve plan %s: %w", planID, err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	txq := s.qw.WithTx(tx)
-
-	rows, err := txq.ApprovePlanRevision(ctx, gen.ApprovePlanRevisionParams{
-		ID:        planID,
-		OutcomeID: outcomeID,
-	})
-	if err != nil {
-		return domain.PlanRevision{}, false, fmt.Errorf("approve plan %s: %w", planID, err)
-	}
-	if rows == 0 {
-		row, getErr := txq.GetPlanRevision(ctx, gen.GetPlanRevisionParams{ID: planID, OutcomeID: outcomeID})
-		if errors.Is(getErr, sql.ErrNoRows) {
-			return domain.PlanRevision{}, false, nil
-		}
-		if getErr != nil {
-			return domain.PlanRevision{}, false, fmt.Errorf("re-read plan %s after guard miss: %w", planID, getErr)
-		}
-		plan, err := approveReadback(ctx, txq, row)
-		if err != nil {
-			return domain.PlanRevision{}, true, err
-		}
-		// Already approved by a concurrent winner; idempotent success.
-		return plan, true, tx.Commit()
-	}
-	row, err := txq.GetPlanRevision(ctx, gen.GetPlanRevisionParams{ID: planID, OutcomeID: outcomeID})
-	if err != nil {
-		return domain.PlanRevision{}, false, fmt.Errorf("read approved plan %s: %w", planID, err)
-	}
-	plan, err := approveReadback(ctx, txq, row)
-	if err != nil {
-		return domain.PlanRevision{}, true, err
-	}
-	return plan, true, tx.Commit()
-}
-
-func approveReadback(ctx context.Context, q *gen.Queries, row gen.PlanRevision) (domain.PlanRevision, error) {
-	grants, err := q.ListCapabilityGrantsForPlan(ctx, row.ID)
-	if err != nil {
-		return domain.PlanRevision{}, fmt.Errorf("list grants for %s: %w", row.ID, err)
-	}
-	units, err := q.ListWorkUnitsForPlan(ctx, row.ID)
-	if err != nil {
-		return domain.PlanRevision{}, fmt.Errorf("list work units for %s: %w", row.ID, err)
-	}
-	return planFromParts(row, units, grants)
-}
-
-func (s *Store) planFromRow(ctx context.Context, row gen.PlanRevision) (domain.PlanRevision, bool, error) {
-	grants, err := s.qr.ListCapabilityGrantsForPlan(ctx, row.ID)
-	if err != nil {
-		return domain.PlanRevision{}, true, fmt.Errorf("list grants for %s: %w", row.ID, err)
-	}
-	units, err := s.qr.ListWorkUnitsForPlan(ctx, row.ID)
-	if err != nil {
-		return domain.PlanRevision{}, true, fmt.Errorf("list work units for %s: %w", row.ID, err)
-	}
-	plan, err := planFromParts(row, units, grants)
-	return plan, true, err
-}
-
-func planFromParts(row gen.PlanRevision, units []gen.WorkUnit, grants []gen.CapabilityGrant) (domain.PlanRevision, error) {
-	plan := domain.PlanRevision{
-		ID:                     row.ID,
-		OutcomeID:              row.OutcomeID,
-		Number:                 row.Number,
-		ContractRevisionNumber: row.ContractRevisionNumber,
-		Status:                 domain.PlanStatus(row.Status),
-		Summary:                row.Summary,
-		RunBriefCoreDigest:     row.RunBriefCoreDigest,
-		RunBriefCompiledDigest: row.RunBriefCompiledDigest,
-		CreatedAt:              row.CreatedAt,
-	}
-	for _, u := range units {
-		checks, err := unmarshalJSONStrings(u.EvidenceChecks)
-		if err != nil {
-			return domain.PlanRevision{}, fmt.Errorf("work unit %s evidence checks: %w", u.ID, err)
-		}
-		stops, err := unmarshalJSONStrings(u.StopConditions)
-		if err != nil {
-			return domain.PlanRevision{}, fmt.Errorf("work unit %s stop conditions: %w", u.ID, err)
-		}
-		plan.WorkUnits = append(plan.WorkUnits, domain.WorkUnit{
-			ID:                      u.ID,
-			Kind:                    domain.WorkUnitKind(u.Kind),
-			Title:                   u.Title,
-			ContractRevisionNumber:  u.ContractRevisionNumber,
-			OutputSummary:           u.OutputSummary,
-			EvidenceChecks:          checks,
-			VerificationRequirement: u.VerificationRequirement,
-			StopConditions:          stops,
-		})
-	}
-	for _, g := range grants {
-		plan.Grants = append(plan.Grants, domain.CapabilityGrant{
-			ID:    g.ID,
-			Name:  g.Name,
-			Scope: g.Scope,
-		})
-	}
-	if err := plan.Validate(); err != nil {
-		return domain.PlanRevision{}, fmt.Errorf("plan %s failed readback validation: %w", row.ID, err)
-	}
-	return plan, nil
-}
-
-// CreateContributionWithContract atomically persists one contributing Outcome,
-// its ContractRevision 1, and every criterion binding that makes the
-// contribution real (ADR 0007).
-//
-// All three land in one transaction on purpose. A contributing Outcome without
-// its links would be a child claiming nothing — the "decorative contribution"
-// the ontology forbids — and a partial failure must leave no such row behind.
 func (s *Store) CreateContributionWithContract(
 	ctx context.Context,
 	child domain.Outcome,
@@ -736,9 +463,6 @@ func (s *Store) CreateContributionWithContract(
 	return tx.Commit()
 }
 
-// ListContributingOutcomes returns the Outcomes contributing to parent in
-// stable creation order. A direct Outcome returns an empty list, which is what
-// makes shape derivable rather than stored.
 func (s *Store) ListContributingOutcomes(ctx context.Context, parent domain.OutcomeID) ([]domain.Outcome, error) {
 	rows, err := s.qr.ListContributingOutcomes(ctx, nullOutcomeID(parent))
 	if err != nil {
@@ -751,9 +475,6 @@ func (s *Store) ListContributingOutcomes(ctx context.Context, parent domain.Outc
 	return out, nil
 }
 
-// ListContributionLinksForParent returns every criterion binding held against
-// parent, across all of its contributing Outcomes and all parent revisions.
-// Callers filter to the current revision; the superseded ones stay readable.
 func (s *Store) ListContributionLinksForParent(ctx context.Context, parent domain.OutcomeID) ([]domain.ContributionLink, error) {
 	rows, err := s.qr.ListContributionLinksForParent(ctx, string(parent))
 	if err != nil {
@@ -766,8 +487,6 @@ func (s *Store) ListContributionLinksForParent(ctx context.Context, parent domai
 	return out, nil
 }
 
-// ListContributionLinksForChild returns the bindings one contributing Outcome
-// holds. Their shared parent revision is that Outcome's binding.
 func (s *Store) ListContributionLinksForChild(ctx context.Context, child domain.OutcomeID) ([]domain.ContributionLink, error) {
 	rows, err := s.qr.ListContributionLinksForChild(ctx, string(child))
 	if err != nil {
