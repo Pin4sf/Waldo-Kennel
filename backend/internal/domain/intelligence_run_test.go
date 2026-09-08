@@ -26,6 +26,48 @@ func TestIntelligenceRunContractAnalysisMayExistBeforeOutcome(t *testing.T) {
 	}
 }
 
+func TestIntelligenceRunLineageIsExclusiveByKind(t *testing.T) {
+	base := func(kind IntelligenceRunKind) IntelligenceRun {
+		return IntelligenceRun{
+			ID:          "intel-lineage-1",
+			Kind:        kind,
+			ProjectID:   "project-1",
+			Status:      IntelligenceRunRequested,
+			InputDigest: intelligenceDigest("lineage input"),
+			CreatedAt:   time.Now(),
+		}
+	}
+
+	t.Run("contract analysis rejects outcome lineage", func(t *testing.T) {
+		run := base(IntelligenceRunContractAnalysis)
+		run.IntakeID = "intake-1"
+		run.OutcomeID = "outcome-1"
+		if err := run.Validate(); err == nil {
+			t.Fatal("contract analysis accepted outcome lineage")
+		}
+	})
+
+	t.Run("contract analysis rejects contract lineage", func(t *testing.T) {
+		run := base(IntelligenceRunContractAnalysis)
+		run.IntakeID = "intake-1"
+		run.ContractRevisionID = "contract-1"
+		if err := run.Validate(); err == nil {
+			t.Fatal("contract analysis accepted contract lineage")
+		}
+	})
+
+	t.Run("plan draft rejects intake lineage", func(t *testing.T) {
+		run := base(IntelligenceRunPlanDraft)
+		run.IntakeID = "intake-1"
+		run.OutcomeID = "outcome-1"
+		run.ContractRevisionID = "contract-1"
+		run.SourceRevision = 1
+		if err := run.Validate(); err == nil {
+			t.Fatal("plan draft accepted intake lineage")
+		}
+	})
+}
+
 func TestIntelligenceRunPlanDraftRequiresExactContractRevision(t *testing.T) {
 	run := IntelligenceRun{
 		ID:             "intel-plan-1",
@@ -68,19 +110,19 @@ func TestIntelligenceRunOfflineManualMayOmitProviderAndModel(t *testing.T) {
 
 func TestIntelligenceRunProviderIdentityIsOpaqueAndIndependentFromHarness(t *testing.T) {
 	run := IntelligenceRun{
-		ID:                 "intel-api-1",
-		Kind:               IntelligenceRunContractAnalysis,
-		ProjectID:          "project-1",
-		IntakeID:           "intake-1",
-		SourceRevision:     1,
-		RequestedProvider:  IntelligenceProviderID("waldo-hosted-reasoner"),
-		RequestedModel:     "planner-v2",
-		EffectiveProvider:  IntelligenceProviderID("direct-api.example/v1"),
-		EffectiveModel:     "planner-2026-09",
-		NativeSessionRef:   "request-123",
-		Status:             IntelligenceRunRunning,
-		InputDigest:        intelligenceDigest("api input"),
-		CreatedAt:          time.Now(),
+		ID:                "intel-api-1",
+		Kind:              IntelligenceRunContractAnalysis,
+		ProjectID:         "project-1",
+		IntakeID:          "intake-1",
+		SourceRevision:    1,
+		RequestedProvider: IntelligenceProviderID("waldo-hosted-reasoner"),
+		RequestedModel:    "planner-v2",
+		EffectiveProvider: IntelligenceProviderID("direct-api.example/v1"),
+		EffectiveModel:    "planner-2026-09",
+		NativeSessionRef:  "request-123",
+		Status:            IntelligenceRunRunning,
+		InputDigest:       intelligenceDigest("api input"),
+		CreatedAt:         time.Now(),
 	}
 	if err := run.Validate(); err != nil {
 		t.Fatalf("opaque intelligence provider should not require AgentHarness registration: %v", err)
@@ -111,13 +153,13 @@ func TestIntelligenceRunModelProvenanceRequiresItsProvider(t *testing.T) {
 
 func TestIntelligenceRunRequiresSHA256Digests(t *testing.T) {
 	run := IntelligenceRun{
-		ID:             "intel-digest-1",
-		Kind:           IntelligenceRunContractAnalysis,
-		ProjectID:      "project-1",
-		IntakeID:       "intake-1",
-		Status:         IntelligenceRunRequested,
-		InputDigest:    SHA256Digest("not-a-digest"),
-		CreatedAt:      time.Now(),
+		ID:          "intel-digest-1",
+		Kind:        IntelligenceRunContractAnalysis,
+		ProjectID:   "project-1",
+		IntakeID:    "intake-1",
+		Status:      IntelligenceRunRequested,
+		InputDigest: SHA256Digest("not-a-digest"),
+		CreatedAt:   time.Now(),
 	}
 	if err := run.Validate(); err == nil {
 		t.Fatal("arbitrary input digest string was accepted")
