@@ -42,6 +42,9 @@ type AnalyzeInput struct {
 type AnswerClarificationInput struct {
 	ExpectedProposalRevision int64
 	Answer                   string
+	// Offline preserves an explicit deterministic analysis choice through the
+	// material-question round trip instead of handing the answer to a live provider.
+	Offline bool
 }
 
 // ReviseProposalInput appends a user-reviewed immutable proposal.
@@ -191,9 +194,6 @@ func (service *Service) Analyze(ctx context.Context, id domain.IntakeSessionID, 
 	if !domain.CanTransitionIntake(snapshot.Session.Status, domain.IntakeStatusAnalyzing) {
 		return ports.IntakeSnapshot{}, apierr.Conflict("INTAKE_STATE_CONFLICT", "This intake cannot be analyzed from its current state", nil)
 	}
-	if service.analyzer == nil {
-		return ports.IntakeSnapshot{}, apierr.Internal("INTAKE_ANALYZER_UNAVAILABLE", "Outcome analysis is not configured")
-	}
 	now := service.clock()
 	analyzing, err := service.store.BeginIntakeAnalysis(ctx, id, input.ExpectedProposalRevision, now)
 	if err != nil {
@@ -234,16 +234,14 @@ func (service *Service) AnswerClarification(ctx context.Context, id domain.Intak
 	if snapshot.Session.Status != domain.IntakeStatusNeedsUser || snapshot.Clarification == nil {
 		return ports.IntakeSnapshot{}, apierr.Conflict("INTAKE_STATE_CONFLICT", "This intake is not waiting for a clarification answer", nil)
 	}
-	if service.analyzer == nil {
-		return ports.IntakeSnapshot{}, apierr.Internal("INTAKE_ANALYZER_UNAVAILABLE", "Outcome analysis is not configured")
-	}
+	analyzer := service.chooseAnalyzer(input.Offline)
 	now := service.clock()
 	analyzing, err := service.store.AnswerIntakeClarification(ctx, id, input.ExpectedProposalRevision, input.Answer, now)
 	if err != nil {
 		return ports.IntakeSnapshot{}, mapStoreError(err)
 	}
 	deferral := service.newDeferral(id, input.ExpectedProposalRevision)
-	ticket, err := service.analyzer.Analyze(ctx, ports.IntakeAnalysisInput{
+	ticket, err := analyzer.Analyze(ctx, ports.IntakeAnalysisInput{
 		Session: analyzing.Session, ConversationRefs: analyzing.ConversationRefs,
 		PreviousProposal: analyzing.Proposal, Clarification: analyzing.Clarification,
 		ClarificationText: input.Answer,
