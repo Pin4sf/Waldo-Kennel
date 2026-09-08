@@ -33,6 +33,7 @@ type IntelligenceRunStore interface {
 
 var (
 	ErrIntakeAnalysisIntelligenceRunBound = errors.New("intake analysis request already has intelligence provenance")
+	ErrIntakeAnalysisIntelligenceRunUsed  = errors.New("intelligence run is already bound to an intake analysis request")
 	ErrIntakeAnalysisIntelligenceLineage  = errors.New("intelligence run does not match intake analysis request lineage")
 )
 
