@@ -74,9 +74,10 @@ func (s *Service) ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, e
 	}
 	routingPreference := routingPreferenceFromExecution(preference, hasPreference)
 
-	// Re-entry must be idempotent. A changed planning preference creates a new
-	// proposal; an unchanged preference reuses the current proposal without
-	// spending another IntelligenceRun or stacking revisions.
+	// Ordinary re-entry is idempotent. A different immutable Contract or
+	// execution preference naturally produces a fresh proposal. Explicit
+	// re-planning is a separate command surface rather than pretending current
+	// runtime readiness is part of immutable Plan identity.
 	if existing, found, err := s.store.LatestProposedPlanRevision(ctx, outcomeID, revision.Number); err != nil {
 		return PlanView{}, err
 	} else if found && planUsesPreference(existing, routingPreference) {
@@ -96,7 +97,7 @@ func (s *Service) ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, e
 		return PlanView{}, err
 	}
 	grants := grantsForUnits(units)
-	if err := s.authorizeCapabilities(grants, units); err != nil {
+	if err := s.authorizeCapabilities(revision, grants, units); err != nil {
 		return PlanView{}, err
 	}
 	digest, err := domain.ComputePlanRunBriefCoreDigest(revision, units, grants)
@@ -114,8 +115,6 @@ func (s *Service) ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, e
 		RoutingDecisions:       routingDecisions,
 		RunBriefCoreDigest:     digest,
 	}
-	// Number is storage-owned; validate the complete semantic shape with a
-	// temporary number before the atomic canonical writer assigns the real one.
 	validation := proposal
 	validation.Number = 1
 	if err := validation.ValidateAgainstContract(revision); err != nil {
@@ -168,10 +167,6 @@ func (s *Service) compileAndRoutePlan(
 	if err := draft.Validate(); err != nil {
 		return nil, nil, apierr.Invalid("PLAN_DRAFT_INVALID", err.Error(), nil)
 	}
-	requiredCapabilities, err := requiredCapabilitiesForContract(revision)
-	if err != nil {
-		return nil, nil, apierr.New(apierr.KindConflict, "PLAN_AUTHORITY_INSUFFICIENT", err.Error(), nil)
-	}
 
 	ids := make(map[string]domain.WorkUnitID, len(draft.WorkUnits))
 	for _, draftUnit := range draft.WorkUnits {
@@ -208,6 +203,10 @@ func (s *Service) compileAndRoutePlan(
 			}
 			dependencies = append(dependencies, dependencyID)
 		}
+		requiredCapabilities, err := draftUnit.Intent.RequiredCapabilities()
+		if err != nil {
+			return nil, nil, apierr.Invalid("PLAN_DRAFT_INTENT_INVALID", err.Error(), map[string]any{"workUnitKey": draftUnit.Key})
+		}
 		unit := domain.WorkUnit{
 			ID:                      unitID,
 			Kind:                    domain.WorkUnitDirect,
@@ -219,7 +218,10 @@ func (s *Service) compileAndRoutePlan(
 			StopConditions:          uniqueNonBlank(append(append([]string{}, revision.StopConditions...), mandatoryPlanStopConditions()...)),
 			DependsOn:               dependencies,
 			CriterionIDs:            criteria,
-			RequiredCapabilities:    append([]string(nil), requiredCapabilities...),
+			RequiredCapabilities:    requiredCapabilities,
+		}
+		if err := validateWorkUnitWithinContractCeiling(revision, unit); err != nil {
+			return nil, nil, err
 		}
 		units = append(units, unit)
 	}
@@ -249,28 +251,49 @@ func (s *Service) compileAndRoutePlan(
 	return units, decisions, nil
 }
 
-func requiredCapabilitiesForContract(revision domain.ContractRevision) ([]string, error) {
+// contractCapabilityCeiling converts the confirmed typed ceiling to capability
+// names. It never invents authority for a missing/zero ceiling. Read is implied
+// by write/execute because neither operation can be performed meaningfully on
+// a workspace Kennel is forbidden to inspect.
+func contractCapabilityCeiling(revision domain.ContractRevision) []string {
 	ceiling := revision.AuthorityCeiling
-	if ceiling == (domain.ProposedAuthority{}) {
-		// Compatibility for Contracts created before the typed ceiling was
-		// populated everywhere. It preserves historical behavior without
-		// allowing model output to choose authority.
-		return append([]string(nil), domain.V0RequiredCapabilities...), nil
-	}
-	var required []string
+	var allowed []string
 	if ceiling.ReadWorkspace || ceiling.WriteWorkspace || ceiling.ExecuteLocal {
-		required = append(required, domain.CapabilityWorktreeRead)
+		allowed = append(allowed, domain.CapabilityWorktreeRead)
 	}
 	if ceiling.WriteWorkspace {
-		required = append(required, domain.CapabilityWorktreeWrite)
+		allowed = append(allowed, domain.CapabilityWorktreeWrite)
 	}
 	if ceiling.ExecuteLocal {
-		required = append(required, domain.CapabilityWorktreeExec)
+		allowed = append(allowed, domain.CapabilityWorktreeExec)
 	}
-	if len(required) == 0 {
-		return nil, fmt.Errorf("the confirmed Contract does not authorize the workspace access needed for an execution WorkUnit")
+	return allowed
+}
+
+func validateWorkUnitWithinContractCeiling(revision domain.ContractRevision, unit domain.WorkUnit) error {
+	allowed := contractCapabilityCeiling(revision)
+	allowedSet := make(map[string]struct{}, len(allowed))
+	for _, capability := range allowed {
+		allowedSet[capability] = struct{}{}
 	}
-	return required, nil
+	var missing []string
+	for _, capability := range unit.RequiredCapabilities {
+		if _, ok := allowedSet[capability]; !ok {
+			missing = append(missing, capability)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	sort.Strings(missing)
+	if len(allowed) == 0 {
+		return apierr.New(apierr.KindConflict, "PLAN_AUTHORITY_REQUIRED",
+			"The confirmed Contract does not grant workspace authority for new execution; revise or reconfirm the Contract before planning",
+			map[string]any{"workUnitId": string(unit.ID), "required": missing, "contractCeiling": allowed})
+	}
+	return apierr.New(apierr.KindConflict, "PLAN_AUTHORITY_INSUFFICIENT",
+		"This WorkUnit needs authority outside the confirmed Contract ceiling",
+		map[string]any{"workUnitId": string(unit.ID), "required": unit.RequiredCapabilities, "missing": missing, "contractCeiling": allowed})
 }
 
 func grantsForUnits(units []domain.WorkUnit) []domain.CapabilityGrant {
@@ -338,7 +361,7 @@ func (s *Service) ApprovePlan(ctx context.Context, outcomeID domain.OutcomeID, i
 	if err := plan.ValidateForApproval(revision); err != nil {
 		return AuthorizedPlanView{}, apierr.New(apierr.KindConflict, "PLAN_NOT_APPROVABLE", err.Error(), map[string]any{"planId": string(plan.ID)})
 	}
-	if err := s.authorizeCapabilities(plan.Grants, plan.WorkUnits); err != nil {
+	if err := s.authorizeCapabilities(revision, plan.Grants, plan.WorkUnits); err != nil {
 		return AuthorizedPlanView{}, err
 	}
 	approved, found, err := s.store.ApprovePlanRevision(ctx, outcomeID, plan.ID)
@@ -382,6 +405,8 @@ func (s *Service) currentRevision(ctx context.Context, outcomeRecord domain.Outc
 	return domain.ContractRevision{}, fmt.Errorf("outcome %s points at missing revision %d", outcomeRecord.ID, outcomeRecord.CurrentRevisionNumber)
 }
 
+// authoritativeCapabilities is the daemon/runtime policy ceiling only. The
+// Contract ceiling is checked separately and never defaults from this value.
 func (s *Service) authoritativeCapabilities() []string {
 	if len(s.PolicyLayers) == 0 {
 		return append([]string(nil), domain.V0RequiredCapabilities...)
@@ -389,7 +414,12 @@ func (s *Service) authoritativeCapabilities() []string {
 	return domain.AuthorityIntersection(s.PolicyLayers...)
 }
 
-func (s *Service) authorizeCapabilities(grants []domain.CapabilityGrant, units []domain.WorkUnit) error {
+func (s *Service) authorizeCapabilities(revision domain.ContractRevision, grants []domain.CapabilityGrant, units []domain.WorkUnit) error {
+	for _, unit := range units {
+		if err := validateWorkUnitWithinContractCeiling(revision, unit); err != nil {
+			return err
+		}
+	}
 	if err := domain.ValidateExactPlanCapabilityGrants(grants, units); err != nil {
 		return apierr.Invalid("PLAN_CAPABILITY_NOT_MINIMAL", err.Error(), nil)
 	}
