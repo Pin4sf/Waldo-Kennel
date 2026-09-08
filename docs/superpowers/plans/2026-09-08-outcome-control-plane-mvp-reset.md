@@ -1,873 +1,294 @@
-# Outcome Control Plane MVP Reset — Implementation Plan
+# Outcome Control Plane MVP — post-PR99 execution plan
 
-> **Execution instruction:** In the implementation session, use the repository's Superpowers workflow and execute this plan task-by-task. Do not re-open the product architecture unless evidence forces a change. Preserve falsifiable verification evidence for every completed slice.
+**Updated:** 2026-09-08. **Source baseline:** `67d6946fdd5e5bba1aca7f7002ba75185e7da998` (`beta`, merged PR #99).
+**Target:** a usable Outcome Continuity product; Saturday 2026-09-12 is a conditional launch target, not permission to skip gates.
+**Status:** execution-ready plan; product implementation below remains open.
 
-**Goal:** Deliver a working Waldo Kennel MVP in which a user can register a Project, state an Outcome, review/confirm an intelligently derived Contract, review/approve an intelligently derived and preference-aware Plan, supervise exact-bound execution in Mission Control, inspect sessions only as Attempt drill-down, review evidence/verification, and explicitly accept or continue the Outcome.
+This replaces the pre-merge checklist formerly in this file. Do not execute the obsolete instructions to stay on WT3, confirm PR99 is unmerged, recreate intelligence/routing, or rewrite migration 0114. Migrations through **0115** are merged history. Fetch beta and choose the next unused number for any new migration.
 
-**Architecture:** Keep the Go daemon/SQLite as deterministic control plane. Add a bounded non-authoritative `IntelligenceRun` seam for Contract/Plan proposals. Preserve the existing Outcome lineage and partial WT3 execution-preference/routing work. Remove inherited Agent Orchestrator authority/navigation bypasses. The MVP scheduler may execute WorkUnits serially; ADR 0008/0009 parallel DAG/WorkspaceLease work follows after the vertical product loop is proven.
+## 1. Start here: execution contract for an implementer
 
-**Primary architecture references:**
+1. Read `AGENTS.md`, ADRs 0010/0011/0012, `docs/STATUS.md`, this plan, and the relevant source packet below. ADR0012 supersedes older deterministic/offline fallback guidance. No silent canned or alternate-model fallback.
+2. Fetch current beta; record its SHA, branch, clean/dirty status and baseline tests. Preserve unrelated work. Create a `codex/` feature branch from latest beta in an isolated worktree; target beta. Never force-push or merge without user authorization.
+3. Implement **one named slice**. Do not execute the entire document in one patch. Before editing, report existing behavior, missing behavior and exact files to change. Source may have advanced: do not recreate a fix already merged.
+4. For a bug, reproduce the failing behavior with a meaningful test first. Use real store/HTTP/runtime boundaries where those are the subject; a mock that echoes inputs is not evidence of runtime enforcement.
+5. Reuse existing ports and canonical writers. Change domain/API/storage only when this slice requires it. Additive migrations; edit sqlc source then generate; code-first DTO/spec then generate OpenAPI and TypeScript together.
+6. Keep existing five-stage Work UX, design tokens, i18n, keyboard/focus and reduced-motion behavior. Backend owns derived state. No new wizard, task model, parallel Work shell or transcript-derived authority.
+7. Run the narrow checks specified below, then the affected-area gates in section 6. Capture actual results and limitations. Do not weaken assertions, delete failing tests or call unsupported behavior complete.
+8. Update the slice row below and STATUS with evidence; provide the handoff template in section 8. A commit/test pass is implementation evidence, not owner acceptance or release acceptance.
 
-- `docs/adr/0010-outcome-first-control-plane-and-session-subordination.md`
-- `docs/adr/0011-go-control-plane-and-non-authoritative-intelligence.md`
-- `docs/product/2026-09-08-outcome-control-plane-mvp-reset.md`
-- `docs/product/kennel-v1-product-architecture.md`
-- `docs/adr/0008-responsibility-composition-and-workunit-execution-dag.md`
-- `docs/adr/0009-workunit-scheduling-workspace-leases-and-effect-fencing.md`
-- `docs/superpowers/plans/2026-09-07-wt3-preference-aware-routing.md`
+**Hard stop:** cannot enforce approved effects; ambiguous prior process/effect; stale authority; contradictory or wrong-lineage proof; unexpected migration changes; real user data at risk. Preserve state and report the specific blocker. Do not invent broader permission to meet the date.
 
-**Tech stack:** Go daemon, SQLite/sqlc, generated OpenAPI, Electron + React + TypeScript + TanStack Router/Query, existing provider runtime/session/worktree adapters.
+## 2. Product cut and architecture
 
----
+One returning builder can answer: What did I ask for? What changed? What is proved? What remains? What needs my decision? The builder can accept or continue from the Outcome without reconstructing individual sessions.
 
-## 0. New-session handoff and non-negotiables
+Keep Go/SQLite, immutable Contract/Plan, WorkUnit DAG, Attempt fences, existing runtime/worktree machinery and proof/acceptance model. Ship a **serial** graph through the real scheduler boundary. Concurrency one is a scheduling limit, not a one-WorkUnit Plan schema. Preserve five provider identities; admit only capability/model/runtime combinations with conformance evidence. Do not claim uniform five-provider support from inventory alone.
 
-Before editing code in the next session:
+Include: real Git Project registration, reasoning setup, grounded editable Contract, full Plan review/replan, exact-bound execution, artifact continuity, checks, re-entry/rework, explicit acceptance and restart recovery. Missing credentials/readiness must be remediable.
 
-1. Checkout/fetch `Pin4sf/Waldo-Kennel`.
-2. Work from `feat/wt3-routing-outcome-first` unless the user explicitly asks to split the work.
-3. Confirm the branch contains the partial WT3 files listed below.
-4. Confirm draft PR #99 remains unmerged.
-5. Read ADR 0010, ADR 0011, the MVP reset doc, this plan, and the WT3 plan.
-6. Do not restore any hidden Codex default.
-7. Never modify merged migrations 0112 or 0113.
-8. Treat existing migration 0114 as feature-branch work: audit it before relying on it. If a correction is required before merge, make it deliberately and regenerate/tests; otherwise add 0115+ for new persistence.
-9. Do not claim tests passed unless they actually ran.
-10. Do not make a Node/Python daemon rewrite part of the MVP.
+Exclude from launch unless already proved: full parallel workspace scheduling, deployments/sending/PR mutation, automatic Git integration into the user's branch, composed-Outcome model proposer, personal Home expansion, general memory platform and provider-wide feature parity. Preserve historical readability. Unsupported normal controls must be hidden/disabled with a truthful reason.
 
-### Partial WT3 work that must be preserved and completed
+### Source-confirmed delta (not live UX acceptance)
 
-Expected on the branch:
+| ID | Current source at baseline | Required correction |
+|---|---|---|
+| D1 | `ports/attempt_execution.go` carries provider/model/prompt, not structured WorkUnit grants; `daemon/attempt_wiring.go` spawns a worker; `session_manager/exact_execution_binding.go` merges non-model Project settings | Carry frozen normalized execution policy to runtime; prove least privilege, not just prompt wording |
+| D1a | `Manager.Spawn` never calls `prepareSpawnExecution`; readiness uses exact-binding helper but launch merges Project model. A Manager-boundary regression fails for explicit and provider-default semantics | **First fix:** wire exact config before readiness and TUI/chat branching; assert real adapter launch input |
+| D2 | `OutcomeRunSurface.tsx` and `OutcomeDecideAuthorizeSurface.tsx` use `plan.workUnits[0]`; `outcome/scheduler.go` computes topological runnable units; no production GetSchedule HTTP caller found | Full Plan review and daemon-derived schedule projection/advancement |
+| D3 | Run surface sends mutable Project harness; `useOutcome.ts` says ignored; `outcome/attempt.go` actually rejects mismatch | Remove redundant normal-client harness input; preserve exact binding |
+| D4 | ProveClose records `subjectType: outcome`; scheduler accepts exact WorkUnit/Attempt proof; UI digest hashes metadata | Collect exact-lineage proof and actual artifacts; do not relax scheduler validation |
+| D5 | `intelligence/llm.go` sends statement/one answer/previous title; no repo context input; every answer becomes TemporalCondition | Bounded repository context, substantive prior context and semantic clarification handling |
+| D6 | reasoning config is startup environment; nonterminal IntelligenceRun listing has no runtime consumer; error terminalization can be ignored | Setup/readiness and interrupted-call reconciliation; adapter/service behavioral tests |
+| D7 | `modelcatalog/catalog.go` static Codex catalog says official-catalog; LLM usage is returned then dropped; generic waldo-llm provenance | Honest source/provider/model/usage reporting and measured optimization |
+| D8 | STATUS and old plan described already-merged work as pending and promised removed fallback | This documentation refresh; correct remaining stale comments during touched-code cleanup |
+| D9 | ProposePlan reuses latest proposed plan for unchanged preference; draft assumptions/blockers are not copied into canonical Plan construction | Explicit replan semantics; preserve material assumptions/blockers for informed approval |
+| D10 | `renderRunBriefPrompt` contains goal/unit/checks/stops, no structured upstream artifact or prior-attempt packet | Prove downstream workspace/artifact continuity and bounded recovery context |
 
-- `backend/internal/domain/execution_preference.go`
-- `backend/internal/domain/execution_preference_test.go`
-- `backend/internal/domain/execution_binding.go`
-- `backend/internal/domain/routing.go`
-- `backend/internal/domain/outcome.go` execution-preference field
-- `backend/internal/domain/outcome_plan.go` provider/model binding + routing decision
-- `backend/internal/storage/sqlite/migrations/0114_execution_routing_bindings.sql`
-- `backend/internal/storage/sqlite/store/outcome_execution_preference_store.go`
-- `backend/internal/storage/sqlite/store/outcome_provider_store.go`
+Backend tests cover important foundations, including frozen binding and scheduler lineage. They do not exercise the disconnected desktop path or prove live permission enforcement. D1/D6/D10 require runtime characterization before selecting implementation details.
 
-Known review items before integration:
+## 3. Dependency and ownership ledger
 
-- verify the `AgentHarness` persisted-recognition method used by `execution_binding.go` actually exists;
-- fix `GetPlanRoutingDecision` so non-`sql.ErrNoRows` query errors are not swallowed by checking `raw.Valid` first;
-- make explicit model bindings validate against that candidate/provider's model support rather than a global cross-provider model requirement;
-- keep routing provider-neutral and deterministic;
-- preserve `historical_unbound` as readable but non-executable;
-- ensure model selection changes alter the RunBrief/authorization digest.
+| Slice | Depends on | Status | Primary boundary |
+|---|---|---|---|
+| L0 baseline/source reconciliation | none | docs/source checked; frontend baseline triage open | this plan, STATUS, existing product companions |
+| L1a exact model launch | L0 source baseline | open; regression reproduced | session service → Manager → actual launch config |
+| L1b governed capabilities/replay | L1a | open | approved capabilities → adapter/runtime + idempotency |
+| L2 reasoning setup and recovery | L0 | open | settings/secrets → LLM → durable IntelligenceRun |
+| L3 grounded proposals and replan | L2 | open | context → Contract/Plan proposal/revision |
+| L4 complete Plan/Mission projection | L1, L3 | open | generated schedule API → existing Work UI |
+| L5 proof, artifacts and serial continuation | L1, L4 | open | runtime facts → proof → next WorkUnit |
+| L6 re-entry and Outcome navigation | L5 | open | owner supervision/rework/history |
+| L7 release rehearsal and optimization | L2–L6 | open | packaged desktop + real repo/provider |
 
-### Baseline commands
+References to L1 below mean both L1a and L1b. Default execution is sequential. L1/L2 can use separate implementers only when explicitly assigned and their shared ports/daemon files have a single integration owner. Do not run overlapping storage/API edits concurrently. After each merge, rebase the next slice on current beta and recheck the delta.
 
-Run and record the baseline before changing behavior:
+## 4. Detailed slice packets
+
+### L0 — Restore a trustworthy test baseline before UI implementation
+
+The fresh suite has 23 failures: NewTaskDialog (13), TaskComposer (7), Sidebar (2), SwitchAgentDialog (1). Exact test names and observed errors are in the verification record. Many assertions expect Codex/default-model selection; that suggests stale provider fixtures but does not prove all failures are fixture-only.
+
+1. Run these four files directly and classify each failure against current provider-neutral behavior and its real entry path.
+2. Correct obsolete expectations without restoring hidden defaults. Preserve tests for keyboard submission, errors, explicit selection, legacy readability and role admission. If production behavior is wrong, fix the narrow defect with a regression test.
+3. Triage the **190 lint issues** recorded in the baseline: errcheck 1, goimports 20, govet 1, nilerr 1, revive 151, sqlclosecheck 3, staticcheck 7, unconvert 2, unused 4. Distinguish an intentional readiness-negative return from swallowed failure before changing nilerr behavior. Inspect SQL rows lifetime, unused exact-binding helpers and dead code before mechanical fixes. Formatting-only cleanup may be a separate small commit. Do not add paragraph comments to trivial getters just to appease a rule; keep exported API rationale concise or unexport private helpers where appropriate. Do not disable rules globally or use blanket suppressions.
+4. Do not blanket-delete/skip the files or rewrite snapshots to match output. A retired entry path may have its launch tests replaced only alongside proof of the new Outcome path and retained historical behavior.
+5. Run the full frontend suite and lint after narrow fixes; require zero unexplained failures before calling a UI slice merge-ready. L1's backend investigation can proceed while this is being classified, but release acceptance cannot.
+
+From frontend: `npx vitest run --config vite.renderer.config.ts src/renderer/components/NewTaskDialog.test.tsx src/renderer/components/TaskComposer.test.tsx src/renderer/components/Sidebar.test.tsx src/renderer/components/SwitchAgentDialog.test.tsx`.
+
+### L1a — Fix exact model semantics in the actual launch path (first code PR)
+
+**Confirmed failure:** a temporary test calls real `Manager.Spawn` with an ExactExecutionBinding and the existing recording adapter/runtime fakes. Both explicit `approved-model` and provider-default incorrectly reach the adapter as `mutable-project-model`. Reproduction source/output is in the [verification record](../../verification/2026-09-08-post-pr99-launch-baseline.md). This is a Manager-boundary regression, not live-provider conformance.
+
+**Allowed scope:** `backend/internal/service/session/attempt_spawn.go`, `backend/internal/session_manager/{manager,exact_execution_binding,attempt_readiness}.go`, their tests, and chat-launch plumbing only if needed to preserve the binding. No schema/UI/routing redesign for this slice.
+
+1. Recreate the recorded regression as a permanent behavioral test. Add the provider-default case; it must clear mutable Project model values, not substitute a magic default model string.
+2. Trace `Service.SpawnExactAttempt` → `Service.Spawn` → `Manager.Spawn`. Wire the existing config resolution before readiness and TUI/chat branching, using a request-local Project configuration copy. Preserve ordinary legacy spawn behavior when no exact binding is supplied.
+3. Inspect later TUI/chat config merging: it must not restore the mutable Project model after resolution. Test both actual launch/config paths, not only the pure helper. Persisted Project config must remain unchanged.
+4. Test explicit model, provider-default, Project preference mutation, wrong/invalid historical binding, and provider-local non-model config. Invalid binding must reject before durable session/worktree/runtime creation. Check restore/recovery of this governed session does not reinterpret approved model semantics; if restoration needs a separate durable change, report and split it before claiming restart correctness.
+5. Remove `normalizedExactModel` only after proving no caller needs it. Do **not** delete unused `prepareSpawnExecution` merely to appease lint: its missing production call is the defect. Consolidate it only if the replacement is actually wired and tested.
+
+**Done:** both recorded red cases become green at the Manager boundary; chat/TUI and existing ordinary-spawn tests pass; actual adapter input preserves approved semantics. Record RED/GREEN output and limitations. Run backend session_manager, service/session, daemon and outcome tests; `go test -race` on touched packages and lint. If global lint still fails, report baseline versus new issues; L0 must clear it before release.
+
+### L1b — Enforce the approved capabilities and replay semantics
+
+**Read:** ADR0009 and AGENTS capability sections; `backend/internal/ports/attempt_execution.go`, `service/outcome/{attempt,gating,provider_binding}.go`, `daemon/attempt_wiring.go`, `session_manager/exact_execution_binding.go`, `session_manager/manager.go`, `ports` spawn/agent contracts and the relevant `adapters/agent/` / `adapters/chatdriver/` implementations.
+
+**Existing tests:** `service/outcome/attempt_provider_test.go`, `attempt_gating_test.go`, `attempt_test.go`; `session_manager/exact_execution_binding_test.go`; real SQLite Attempt admission tests.
+
+Implementation:
+
+1. Trace one inspect and one modify-and-execute WorkUnit from approved Plan through both supported TUI/chat paths. Document effective permission resolution and which external effects each runtime can actually fence. Do not label a CLI permission string capability enforcement without a behavioral probe.
+2. Extend the existing immutable Attempt spawn input with the minimum normalized policy derived from the approved unit and its grants, plus attribution needed for enforcement. Do not pass mutable Project policy as replacement authority. Bind policy to the admission snapshot/digest where required; historical missing policy is readable, never silently synthesized for new work.
+3. Have readiness and spawn validate the same policy. Map normalized policy to provider-specific mechanisms inside adapters. If a provider cannot enforce a requirement, refuse before launching with an actionable typed reason. Do not broaden authority or silently pick another provider.
+4. Test Project permission changes after approval as well as model/provider changes. Inference/auth traffic and arbitrary tool effects must not be conflated. Exec capability alone must not imply deploy, push or unrestricted external effects.
+5. Audit idempotency-key replay: same key/same Outcome/Plan/unit semantics returns the same Attempt; same key with different semantics conflicts rather than returning another Outcome's Attempt. Check both service fast path and concurrent SQLite admission path. Preserve the existing Project fence until narrower custody is proved.
+6. Delete inaccurate permission/harness comments in touched files. Do not change provider-independent domain rules into brand-specific branches.
+
+**Tests/falsifiers:** inspect attempts to write a canary file and is denied; denied network/effect probe produces no external write; broad Project config cannot widen a narrow unit; mismatch historical binding launches zero sessions; concurrent identical start produces one Attempt; conflicting replay returns conflict; unavailable enforcement returns blocked with zero spawn. Use a disposable repo and controlled local test endpoint, not a real deployment.
+
+**Narrow commands:** from backend, `go test ./internal/service/outcome ./internal/session_manager ./internal/daemon ./internal/storage/sqlite/store`; run affected adapter tests and `go test -race` on those packages. Live conformance records actual binary/model/mode and the enforced effects. A fake spawn test alone cannot close L1.
+
+### L2 — Make reasoning configurable, recoverable and attributable
+
+**Read:** ADR0012; `daemon/waldo_reasoning.go`, `daemon/daemon.go`, `ports/{llm,intelligence_provider,intelligence_run_store}.go`, `service/intelligence/{intake_adapter,llm}.go`, `service/outcome/plan_intelligence.go`, `service/intake/service.go`, `storage/sqlite/store/intelligence_run_store.go`; existing settings/credential mechanisms before adding one.
+
+Implementation:
+
+1. Add reasoning readiness/configuration to the existing settings/onboarding flow. Explicit provider, model and configured/ready/error state; never return a stored secret to the renderer. Reuse a secure local secret abstraction; if none exists, implement and document one under application-state policy. Environment remains a development override with explicit precedence. Never store plaintext keys in Work rows, prompts, logs or git.
+2. Missing/invalid key is an actionable retryable setup state. No deterministic floor or alternate-provider fallback. Keep inference billing ownership clear in setup. Test packaged launch without shell environment inheritance.
+3. Use controllable HTTP clients/test servers for both LLM adapters. Test actual serialized request, structured response, refusal, invalid JSON/domain output, incomplete response, 401, 429, timeout and cancellation. Keep vendor API differences at the edge; verify current official provider docs when changing SDK request semantics.
+4. Persist known requested/effective provider/model and usage/duration without overwriting historical provenance. Generic `waldo-llm` may remain the implementation identity; do not infer vendor solely from model text. Unknown usage must not be presented as measured zero cost. Add fields only through canonical migration/API paths when necessary.
+5. Consume nonterminal intelligence runs during boot reconciliation. A daemon-owned synchronous call from a dead process cannot remain displayed as actively thinking. Terminalize/reconcile with a stable reason, preserve input/proposal binding and allow an explicit retry. Do not automatically retry paid calls after an ambiguous result or create execution Attempts.
+6. Ensure status-persistence failures are surfaced/logged safely and leave inspectable recovery state. Link the actual run to its produced proposal/intake revision through existing binding seams where applicable; an orphan digest is not enough for user-facing provenance.
+
+**Tests/falsifiers:** no-key fresh profile has a recovery action; canary key absent from database/logs/API output; timeout/cancel/crash can be retried without duplicate proposal binding; late response cannot overwrite a newer revision or terminal run; provider A failure never calls B. Explain whether SDK retries remain enabled and bound them explicitly.
+
+**Narrow commands:** `go test ./internal/daemon ./internal/service/intake ./internal/service/intelligence ./internal/service/outcome ./internal/adapters/llm/... ./internal/storage/sqlite/store` from backend; settings/Understand renderer tests and typecheck. Finish with one controlled real reasoning call per advertised adapter, not with fixtures alone.
+
+### L3 — Ground Contract/Plan proposals and support meaningful replan
+
+**Read:** `ports/intelligence_provider.go`, `service/intelligence/llm.go`, `service/outcome/{plan,plan_intelligence}.go`, `domain/plan_draft.go`, Project Brief and intake proposal/revision stores, `IntakeContractReview.tsx`, `OutcomeDecideAuthorizeSurface.tsx`.
+
+Implementation:
+
+1. Add a bounded repository-context snapshot to the existing intelligence requests: selected repo identity/revision, dirty-state indication, applicable instructions, Project Brief, relevant file excerpts and discovered check commands. Use explicit allowed roots; exclude secrets, ignored dependency/build trees, binary/oversized files; do not follow symlinks outside the allowed root. Bound bytes/files/time with named operational policy. Reading a package script is not authorization to run it.
+2. Include substantive previous proposal and relevant clarification/conversation context, not merely its title or opaque refs. Preserve source attribution and distinguish inspected facts from model assumptions. Record a digest of the actual bounded model input. Avoid a new indexing/vector platform for launch.
+3. Remove unconditional clarification-answer → TemporalCondition coercion. Carry the answer in clarification context; only explicit temporal semantics populate a temporal field. Test a non-temporal answer such as “preserve email login”.
+4. Retain material Plan assumptions/blockers in canonical proposal review data, or reject unsupported blockers explicitly; do not silently discard them. Approval must surface unresolved blockers rather than authorizing a plan that merely omitted them. Preserve criterion coverage and least-privilege compilation.
+5. Add explicit replan/revise semantics through the existing Plan service/API. Ordinary reload remains idempotent; deliberate replan with feedback creates a new immutable proposal. Carry expected revision/idempotency. Never mutate an approved Plan in place or launch work on edit. Keep scope small: conversational feedback/replan is sufficient; a graph editor is not required.
+6. Test missing context honestly: fail/clarify where material, or show assumptions; never claim repo inspection when none occurred. Pre-authorization context gathering must not write the repo or run provider execution.
+
+**Tests/falsifiers:** a small repo with a distinctive test command produces a request containing that inspected command/path; ignored canary secret is absent; symlink escape is excluded; same revision reload does not call the model again; explicit feedback generates a new proposal with history; stale response cannot bind current authority; cycles/missing criterion coverage still reject. No permanent runtime state may come from prose parsing.
+
+**Narrow commands:** intelligence/intake/outcome/domain/store tests plus affected renderer tests. Record at least one live Contract/Plan grounded in a disposable real repo with zero pre-approval execution sessions.
+
+### L4 — Review the whole Plan and project scheduler truth into Mission Control
+
+**Read:** `service/outcome/scheduler.go`, `httpd/controllers/{outcomes,dto}.go`, operation/spec sources, `frontend/src/renderer/hooks/useOutcome.ts`, `components/outcome/{OutcomeDecideAuthorizeSurface,OutcomeRunSurface,OutcomeMissionControl,WorkShell}.tsx`.
+
+Implementation:
+
+1. Expose the existing GetSchedule derived view through a read-only Outcome API. Return approved Plan identity/current revision, per-unit state and reasons, dependencies, active Attempt, next runnable unit, and relevant exact binding/proof summary. Extend existing controller service interfaces; do not build another scheduler in HTTP or React.
+2. Generate OpenAPI/TS together and add HTTP/spec parity tests. Validate stale/unapproved/wrong-Outcome requests. Schedule reads must have no execution side effects.
+3. Render all WorkUnits in Plan review with criterion coverage, dependency order, provider/model selection semantics, routing explanation and authorization. Show provider-default as that semantic; effective model may remain unknown until reported. Do not imply discovery from a bundled model list.
+4. Replace first-array-entry start with daemon-selected runnable identity. Remove the normal frontend harness field and Project-role query. Keep deliberate legacy API validation if still needed; correct the false “daemon ignores harness” comment. Test provider preference mutation from the actual UI request through controller.
+5. Keep one Mission Control product concept for direct/composed shapes using existing components. Serial states must explain executing, dependency proof pending, custody held, no candidate, failure and unknown. Session board visuals may be reused only as subordinate Attempt history, not primary units of responsibility.
+6. Query invalidation follows existing CDC/query patterns. Do not persist a second stage or poll the whole Project to infer eligibility. L5 owns automatic progression; until integrated, Start/Continue must truthfully name the next eligible WorkUnit and never silently restart a finished unit.
+
+**Tests/falsifiers:** JSON unit order B,A with B→A dependency displays/runs A first; all approved units are visible; blocked B cannot start; preference A→B after approval still starts bound A; double click uses idempotency; API unknown/custody state disables unsafe action; wrong-plan schedule is rejected. Inspect actual rendered daemon-backed screen and keyboard flow.
+
+**Narrow commands:** backend outcome/controller/apispec tests, `npm run api`, frontend typecheck and existing Plan/Run/Mission tests. Keep generated parity clean.
+
+### L5 — Connect artifacts, verification and serial advancement
+
+**Read:** ADR0009; `service/outcome/{scheduler,proof,attempt,recover}.go`, existing proof ports/domain/store, runtime/workspace observations, `OutcomeProveCloseSurface.tsx`, Attempt run brief and session/worktree creation.
+
+Implementation:
+
+1. Trace where each Attempt workspace starts. Prove whether a downstream unit sees upstream changes. Choose the smallest existing custody-compatible mechanism for serial artifact handoff (retained governed workspace or an explicit attributed artifact/base transfer). Do not assume a new worktree contains A's edits. Do not implicitly merge into the user's main branch. Record base/result revision and dirty artifacts; stop on ambiguous ownership/conflict.
+2. Capture bounded execution receipts using existing canonical facts and storage conventions: producer Attempt/unit/Plan/Contract, workspace/base/result, changes/artifact references, command/results, unresolved items and termination facts. Introduce only missing receipt persistence, not a parallel status database. Provider claims remain claims; process exit is not proof of the criterion.
+3. Add an authorized deterministic check runner using approved check specifications. Model-suggested commands require the applicable execution authority. Retain executable/cwd/args, start/end/exit, output artifact/digest and timeout/cancel result. Run in the intended workspace through the same authority boundary, not via unrestricted HTTP shell execution.
+4. Write Evidence and Verification through existing canonical service methods with exact unit/Attempt lineage and content digest of the retained artifact. Manual owner observation remains available and labeled as owner evidence. A digest of summary+URL is metadata, not artifact integrity. Never relabel manually typed “passed” as an observed automated check.
+5. Reuse criterionReady/proof validation for the schedule. Do not accept Outcome-only or wrong-lineage evidence just to unblock dependencies. Show contradictions and stale proof explicitly; preserve independent verification classification.
+6. Advance eligible approved work from a daemon-owned reconciliation trigger, not React useEffect. Reuse StartAttempt admission/idempotency/fences; deterministic start identity scoped to approved Plan+unit+authorized run generation. Pause/failure/retry/replan are explicit states: no automatic infinite retries of an unproved unit. Unknown process/effect blocks advancement. Define cancel as stopping continuation, not merely killing a process then immediately respawning it.
+7. Integrate ProveClose with captured evidence. Select actual artifacts/criteria; eliminate routine producer-ID typing and “latest evidence” assumptions. Keep acceptance owner-only.
+
+**Tests/falsifiers:** A creates a file; B reads that exact artifact after daemon restart; A's verified proof admits B once; missing artifact/wrong revision blocks B; failed/contradictory check blocks completion; forged producer label cannot manufacture independent observed verification; cancellation prevents respawn; duplicate receipt ingestion is idempotent; provider success cannot accept. Test in real Git worktrees and SQLite, then real provider execution.
+
+**Narrow commands:** outcome/proof/store/workspace/runtime tests plus race on touched concurrency packages; ProveClose/Run renderer tests and generated parity. No live external deployment needed.
+
+### L6 — Make return, rework and normal navigation Outcome-first
+
+**Read:** `renderRunBriefPrompt`, recovery/acceptance services, current Project Brief/context, `_shell.work.tsx`, Sidebar/TaskComposer/NewTaskDialog entry points, WorkShell and Outcome surfaces.
+
+Implementation:
+
+1. Build a bounded continuation packet from canonical Contract/current Plan, previous Attempt receipt, retained artifacts, verified/failed criteria, open questions and current authority. Use it for replacement/rework. Do not replay immortal transcripts or invent accepted facts from a summary.
+2. Surface a returning-owner summary: desired result, current activity/blocker, changed artifacts, check outcomes, unresolved scope and next owner decision. Models may phrase it; daemon facts determine state/actions.
+3. Request rework/reopen with understandable targets selected from existing units/Plan/Contract; no raw-ID form for ordinary work. Preserve immutable history, proof horizon and stale-parent rules. A newer revision must invalidate old proof where required, not erase it.
+4. Audit every normal new-work entry and Outcome click. New work goes through Outcome→Contract→Plan approval. Keep legacy sessions as explicit inspection/history and preserve deep links. Project registration/configuration must not start a persistent orchestrator. Hide unsupported Home/decomposition/external-effect controls as appropriate.
+5. Clean only demonstrably obsolete touched code, duplicate queries and misleading comments. Require caller/historical-read evidence before deleting compatibility code. Keep safety/quirk rationale; avoid new abstractions that merely restate the architecture.
+
+**Tests/falsifiers:** restart/reopen restores context with no transcript assembly; owner requests changes and next Attempt receives prior artifact/failure context; accepted Outcome stays inspectable; Outcome clicks never auto-open a provider route; zero-provider Project registers without session creation; unknown state has an action rather than fake success. Verify desktop keyboard, back/forward, focus, empty/error states and reduced motion.
+
+### L7 — Release rehearsal and measured optimization
+
+Run section 6 on the integrated SHA, then the real-daemon desktop acceptance matrix in section 7. Follow `docs/development.md` and the repo-local `kennel-ux-auditor` skill for a dedicated UX audit; use isolated state and a disposable repo, never the user's live profile. Store shareable evidence with secrets redacted.
+
+Measure baseline before optimization: Contract/Plan latency and tokens; readiness/spawn latency; daemon memory/query volume and UI responsiveness with representative Outcome/Attempt history. Record hardware, runtime/model, input size, sample count and before/after. Remove duplicate fetches, bound context, reuse unchanged-revision snapshots and fix measured hotspots. Do not remove authority checks or introduce caching that reuses stale proof/bindings.
+
+Test fresh packaged installation without inherited shell env, upgrade from pre-PR99 state, app/daemon restart during reasoning/execution/checks, offline/provider unavailable states, rework and accepted history. Every advertised provider capability needs its own conformance row. An installed CLI is not proof of enforced execution or effective-model reporting.
+
+## 5. Timing and launch decisions
+
+| Target | Milestone | Decision if missed |
+|---|---|---|
+| First implementation session | L1 runtime boundary proved; L2 configuration underway | Limit provider/capability breadth; never weaken authority |
+| Wednesday 9 Sep | grounded proposals and full Plan/schedule UI | Re-estimate; do not add parallelism or redesign |
+| Thursday 10 Sep | real two-unit artifact/proof/continuation loop | Without this, there is no evidence the hero feature works |
+| Friday 11 Sep | freeze; independent packaged rehearsal | Authority, duplicate execution, false proof or broken install is release no-go |
+| Saturday 12 Sep | founder-led onboarding and fixes | Supervised pilot only if public-release gates remain incomplete; say what is unsupported |
+
+Dates may slip; invariants do not. Completion is an external owner reaching evidence-backed acceptance, then voluntarily bringing another Outcome within seven days. Track where founder intervention was necessary.
+
+## 6. Verification commands and evidence levels
+
+Run from repository root after `npm run bootstrap` (use Node version in `.nvmrc`). Baseline results are in [the source-check record](../../verification/2026-09-08-post-pr99-launch-baseline.md); they are not future slice evidence.
 
 ```bash
-npm run bootstrap
 npm run frontend:typecheck
-cd backend && go test ./internal/domain ./internal/service/intake ./internal/service/outcome ./internal/storage/sqlite/store
-```
-
-If baseline failures exist, record them separately from regressions. Use systematic debugging before changing unrelated code.
-
----
-
-## Task 1 — Lock the domain boundary: IntelligenceRun is not Attempt
-
-**Purpose:** Give pre-authorization model work a durable identity without making it execution authority.
-
-**Files:**
-
-- Create `backend/internal/domain/intelligence_run.go`
-- Create `backend/internal/domain/intelligence_run_test.go`
-- Inspect/update `backend/internal/domain/intake_analysis_request.go`
-- Inspect `backend/internal/domain/outcome.go`
-- Inspect `backend/internal/domain/outcome_plan.go`
-
-### Domain shape
-
-Prefer one generic durable object rather than separate AnalysisRun/PlanningRun tables:
-
-```go
-type IntelligenceRunKind string
-const (
-    IntelligenceRunContractAnalysis IntelligenceRunKind = "contract_analysis"
-    IntelligenceRunPlanDraft        IntelligenceRunKind = "plan_draft"
-)
-
-type IntelligenceRunStatus string
-// requested, running, fulfilled, failed, cancelled, expired
-
-type IntelligenceRun struct {
-    ID                IntelligenceRunID
-    Kind              IntelligenceRunKind
-    ProjectID         ProjectID
-    IntakeID          IntakeSessionID // optional by kind
-    OutcomeID         OutcomeID       // optional by kind
-    SourceRevision    int64
-    Provider          AgentHarness    // optional when offline/manual
-    ModelSelection    ...             // explicit/provider_default/unknown where appropriate
-    Model             string
-    InputDigest       string
-    OutputDigest      string
-    NativeSessionRef  string          // provenance only, never AgentSessionRef
-    Status            IntelligenceRunStatus
-    FailureCode       string
-    FailureDetail     string
-    CreatedAt         time.Time
-    CompletedAt       *time.Time
-}
-```
-
-Use existing repository value-object style rather than blindly copying the sketch. The invariant is more important than the exact fields.
-
-### Required tests
-
-Write RED tests proving:
-
-1. contract-analysis run may reference Intake before Outcome exists;
-2. plan-draft run must reference Outcome + exact ContractRevision;
-3. offline/manual run can have no provider/model;
-4. explicit model requires provider;
-5. terminal statuses cannot transition back to running;
-6. `IntelligenceRun` cannot be converted to or mistaken for `Attempt`/`AgentSessionRef` through any helper;
-7. provider-native session reference is provenance only.
-
-### Run
-
-```bash
-cd backend
-go test ./internal/domain -run 'Test.*IntelligenceRun'
-```
-
-Commit after domain tests pass.
-
----
-
-## Task 2 — Persist IntelligenceRun and preserve intake callback durability
-
-**Purpose:** Replace anonymous/ordinary session-backed reasoning with canonical reasoning provenance while keeping the strong callback/revision/refusal machinery already present.
-
-**Files:**
-
-- Add `backend/internal/storage/sqlite/migrations/0115_intelligence_runs.sql`
-- Add/update `backend/internal/storage/sqlite/queries/intelligence_runs.sql`
-- Update `backend/sqlc.yaml` only when type overrides are required
-- Create `backend/internal/ports/intelligence_run_store.go`
-- Create `backend/internal/storage/sqlite/store/intelligence_run_store.go`
-- Add `backend/internal/storage/sqlite/store/intelligence_run_store_test.go`
-- Update `backend/internal/ports/intake_store.go` only where existing analysis-request linkage needs an IntelligenceRun ID
-- Update `backend/internal/storage/sqlite/queries/intakes.sql` / `store/intake_store.go` only as required
-
-### Persistence requirements
-
-- additive migration;
-- immutable/revision-safe provenance;
-- no API secret stored;
-- no transcript body required in the canonical run row;
-- existing `intake_analysis_requests` callback/refusal/expiry semantics stay usable during migration;
-- link the old request to `IntelligenceRun` rather than pretending the bounded provider process is an execution session;
-- historical request rows without a run link remain readable.
-
-### Required tests
-
-1. create/read/update status of a run;
-2. no plaintext secret/token persisted in run fields;
-3. source revision persists exactly;
-4. fulfilled output digest persists;
-5. restart query returns non-terminal runs for reconciliation;
-6. old intake-analysis rows remain readable;
-7. migration up succeeds on a seeded pre-0115 database.
-
-### Run
-
-```bash
-npm run sqlc
-cd backend
-go test ./internal/storage/sqlite/store -run 'Test.*Intelligence|Test.*IntakeAnalysis'
-```
-
-Commit migration + generated sqlc output together.
-
----
-
-## Task 3 — Define a provider-neutral IntelligenceProvider port
-
-**Purpose:** Make Contract/Plan intelligence replaceable without giving provider SDKs control-plane authority.
-
-**Files:**
-
-- Create `backend/internal/ports/intelligence_provider.go`
-- Add tests/fakes in the relevant service test packages
-- Refactor/bridge `backend/internal/ports/intake_analyzer.go`
-- Inspect `backend/internal/daemon/intake_analyzer.go`
-- Inspect `backend/internal/service/intake/analyzer.go`
-
-### Contract
-
-The port should accept bounded canonical snapshots and return structured proposals plus provenance. It must not expose daemon mutation or Attempt-launch APIs.
-
-Suggested semantic operations:
-
-```go
-AnalyzeContract(ctx, ContractAnalysisInput) (IntelligenceTicket, error)
-DraftPlan(ctx, PlanDraftInput) (IntelligenceTicket, error)
-```
-
-A ticket may complete inline or defer asynchronously, but asynchronous completion must point back to one durable `IntelligenceRun`.
-
-### Keep
-
-- deterministic offline Contract analyzer;
-- immutable proposal validation;
-- one-open-analysis protection;
-- expiry/cancellation/refusal;
-- structured callback admission.
-
-### Remove from the semantic contract
-
-- `KindWorker` as the meaning of Contract analysis;
-- ordinary execution `SessionID` as the canonical analysis identity;
-- any implication that opening a worktree/provider process creates responsibility.
-
-### Tests
-
-- fake intelligence provider cannot start Attempt through the interface;
-- inline/offline proposal remains valid;
-- deferred result is tied to exactly one IntelligenceRun;
-- invalid model proposal is rejected by service/domain validation, not trusted because a model produced it.
-
-### Run
-
-```bash
-cd backend
-go test ./internal/service/intake ./internal/daemon -run 'Test.*Intake|Test.*Intelligence'
-```
-
----
-
-## Task 4 — Choose and implement the MVP intelligence adapter
-
-**Purpose:** Make Contract and Plan drafting actually intelligent while preserving a real effect boundary.
-
-This task has a deliberate decision gate. Do not ask the user for a key before completing the first two checks.
-
-### Step 4A — Evaluate existing provider runtimes
-
-Inspect the actual current provider/session adapters for a proven read-only mode suitable for pre-authorization reasoning.
-
-Acceptance for a provider-backed intelligence adapter:
-
-- can read required repository/context;
-- cannot write workspace or execute arbitrary mutation under the configured mode, by enforcement rather than prompt text alone;
-- can return a structured result reliably;
-- can be cancelled/reaped;
-- does not create an execution Attempt/AgentSessionRef;
-- model/provider provenance is knowable.
-
-If a provider satisfies those requirements, implement it behind `IntelligenceProvider`.
-
-### Step 4B — Otherwise use a direct model API adapter
-
-If the coding-agent runtime cannot enforce the read-only boundary, implement one direct model API adapter behind the same port.
-
-Before implementing vendor-specific code, check current official API documentation in that session.
-
-The adapter must:
-
-- use structured/schema-constrained output where available;
-- receive bounded repository/context excerpts assembled by Kennel;
-- never receive API keys in prompts;
-- set timeouts and cancellation;
-- record provider/model provenance;
-- return structured Contract/Plan proposal only;
-- have no direct control-plane mutation access.
-
-**This is the point at which the user may provide an API key.** Ask only for the chosen provider's key or instruct them to configure it via the secure development mechanism. Do not request that they paste a key into repository code or a persisted domain field.
-
-### Step 4C — Preserve the floor
-
-If intelligence is unavailable, Contract/Plan drafting must expose an explicit deterministic/manual fallback. Never silently switch to Codex or any other provider.
-
-### Tests
-
-Use a fake HTTP server/provider adapter; tests must not consume real paid inference.
-
-- valid structured Contract result;
-- material clarification result;
-- invalid schema rejected;
-- timeout/cancellation;
-- missing key returns explicit unavailable state;
-- no secret appears in logs/error/provenance;
-- offline fallback remains reachable by explicit policy.
-
----
-
-## Task 5 — Make intake truly Contract-first and execution-free
-
-**Purpose:** Ensure the existing excellent intake UX can no longer leak into ordinary execution sessions.
-
-**Primary files:**
-
-- `backend/internal/service/intake/service.go`
-- `backend/internal/daemon/intake_analyzer.go`
-- `backend/internal/domain/intake_analysis_request.go`
-- `backend/internal/httpd/controllers/intakes.go`
-- `backend/internal/httpd/controllers/dto.go`
-- `backend/internal/httpd/apispec/specgen/build.go`
-- `frontend/src/renderer/components/outcome/AdaptiveIntakeSurface.tsx`
-- `frontend/src/renderer/components/outcome/IntakeAnalysisWaiting.tsx`
-- `frontend/src/renderer/components/outcome/IntakeContractReview.tsx`
-- `frontend/src/renderer/hooks/useIntakeAnalysisRequest.ts`
-
-### Required behavioral changes
-
-- capture persists intent only;
-- automatic analysis may create IntelligenceRun, not execution Attempt/session;
-- waiting UI shows intelligence provenance, not “orchestrator session” ownership;
-- clarification remains bounded/material;
-- Contract review remains editable;
-- confirmation is explicit owner confirmation of the proposal;
-- confirmation creates/advances Outcome + immutable ContractRevision;
-- no execution Attempt or execution AgentSessionRef exists after confirmation.
-
-### Regression tests
-
-Add service/controller tests that count Attempt/session writes/spawn calls and assert zero through:
-
-```text
-Capture → Analyze → Clarify(optional) → Confirm
-```
-
-Also test crash/retry/expiry behavior and offline floor.
-
-### API generation
-
-If DTO/routes change:
-
-```bash
-npm run api
-npm run frontend:typecheck
-```
-
-Do not hand-edit generated OpenAPI/schema files.
-
----
-
-## Task 6 — Add Plan intelligence and make Contract confirmation lead to planning
-
-**Purpose:** Replace the deterministic “smallest direct WorkUnit” as the only user experience with a real pre-execution Plan proposal.
-
-**Primary files:**
-
-- `backend/internal/service/outcome/plan.go`
-- `backend/internal/service/outcome/service.go`
-- Create `backend/internal/service/outcome/plan_intelligence.go` if it keeps the service smaller
-- `backend/internal/domain/outcome_plan.go`
-- `backend/internal/httpd/controllers/outcomes.go`
-- `backend/internal/httpd/controllers/dto.go`
-- `backend/internal/httpd/apispec/specgen/build.go`
-- `frontend/src/renderer/components/outcome/OutcomeDecideAuthorizeSurface.tsx`
-- `frontend/src/renderer/hooks/useOutcome.ts`
-
-### Plan proposal semantics
-
-A Plan proposal is non-authoritative. It is derived from:
-
-- exact current ContractRevision;
-- Project Brief/config facts available today;
-- capability/effect ceilings;
-- execution preferences;
-- repository/context evidence when available.
-
-For the MVP, accept one or several **serializable** WorkUnits. Do not expose parallel edges the scheduler cannot execute truthfully.
-
-Each proposed WorkUnit needs enough structure for:
-
-- description/intent;
-- expected output/evidence;
-- dependency ordering;
-- capability requirements;
-- verification intent;
-- routing requirements.
-
-### UI
-
-`OutcomeDecideAuthorizeSurface` should show a real Plan review state:
-
-- “Waldo is planning” while IntelligenceRun is active;
-- WorkUnit list/order;
-- assumptions/blockers;
-- recommended worker/provider/model + explanation;
-- capabilities/effects;
-- **Approve plan** as a distinct button;
-- replan/edit path without executing.
-
-### Tests
-
-- Contract confirmation alone causes no execution;
-- plan intelligence output tied to exact Contract revision;
-- stale Contract revision refuses plan result;
-- invalid Plan rejected;
-- plan can be reproposed before approval;
-- no provider session/Attempt is spawned as a side effect of `ProposePlan` except a non-authoritative IntelligenceRun adapter process if that adapter is explicitly used.
-
----
-
-## Task 7 — Finish WT3 routing inside Plan formation
-
-**Purpose:** Complete the already-started provider/model work at the correct authority boundary.
-
-**Primary files:**
-
-- `backend/internal/domain/execution_preference.go`
-- `backend/internal/domain/execution_binding.go`
-- `backend/internal/domain/routing.go`
-- `backend/internal/domain/outcome_plan.go`
-- `backend/internal/service/outcome/provider_binding.go`
-- `backend/internal/service/outcome/plan.go`
-- `backend/internal/storage/sqlite/store/outcome_execution_preference_store.go`
-- `backend/internal/storage/sqlite/store/outcome_provider_store.go`
-- `backend/internal/storage/sqlite/migrations/0114_execution_routing_bindings.sql`
-- provider capability/readiness/model-catalog adapters under `backend/internal/adapters/agent/...`
-
-### Required semantics
-
-1. Outcome execution preference overrides Project baseline.
-2. Project provider+model means explicit binding preference.
-3. Project provider/no model means provider-default semantics.
-4. no preference means no implicit provider and specifically no implicit Codex.
-5. model without provider invalid.
-6. unknown readiness/capability/model support cannot satisfy hard requirements.
-7. explicit model support is evaluated **within its provider candidate only**; never require the same model string across providers.
-8. worker and coordinator/intelligence role admission are independent.
-9. router has no provider-brand branches and no Codex tie rule.
-10. no admissible candidate returns `NO_VALID_CANDIDATE` / Action Required and launches nothing.
-11. routing decision/provenance is persisted with the proposed Plan.
-12. Plan approval freezes exact WorkUnit execution binding semantics.
-
-### Domain tests
-
-Add fictional-provider routing tests (use IDs that prove the algorithm is brand-neutral):
-
-- preferred candidate wins equivalent admissible candidates;
-- materially stronger nonpreferred candidate may win per explicit scoring policy;
-- unavailable preferred candidate loses;
-- unknown hard capability rejected;
-- unsupported explicit model rejected only for that provider;
-- no valid candidate returns first-class no-candidate decision;
-- coordinator and worker role tests are independent;
-- stable deterministic tie ordering is not provider-brand special casing.
-
-### Approval regression
-
-Remove the old rule that re-reads mutable Project worker preference during Plan approval and rejects the already-proposed provider when Project config changed.
-
-Preference influences recommendation. **Approved Plan is authority.**
-
----
-
-## Task 8 — Freeze exact binding at approval and pass it through Attempt spawn
-
-**Purpose:** Ensure execution cannot silently reroute after approval.
-
-**Primary files:**
-
-- `backend/internal/service/outcome/plan.go`
-- `backend/internal/service/outcome/attempt.go`
-- `backend/internal/ports/attempt_execution.go`
-- production `AttemptSessionSpawner` implementation(s)
-- `backend/internal/domain/outcome_plan.go`
-- `backend/internal/storage/sqlite/store/outcome_provider_store.go`
-- relevant attempt/provider tests
-
-### Changes
-
-- approval validates proposed routing decision + current Contract + capability grants;
-- approved WorkUnit has exact immutable `ExecutionBinding`;
-- `AttemptSpawnRequest` carries provider plus model-selection semantics/model (or a narrow equivalent `AgentConfig` that cannot re-resolve Project preference);
-- `StartAttempt` reads the approved WorkUnit binding only;
-- it may check readiness for **that exact provider/model**, but may not pick another candidate;
-- mutable Project config is not re-read to choose execution;
-- `historical_unbound` returns explicit Action Required/non-executable state;
-- RunBrief digest validation includes exact binding;
-- retry creates new Attempt lineage using the same authorized binding unless a new PlanRevision is approved.
-
-### Tests
-
-- explicit model reaches spawner exactly;
-- provider-default semantics reaches spawner without inventing a model name;
-- Project preference changed after approval has no effect;
-- unavailable approved provider pauses/action-required rather than reroutes;
-- historical provider-only row cannot execute;
-- tampered model changes digest and is refused;
-- idempotent/restarted start does not duplicate Attempt.
-
----
-
-## Task 9 — Add a truthful serialized scheduler for the MVP
-
-**Purpose:** Make Mission Control advance approved WorkUnits without blocking on the full WorkspaceLease parallel scheduler.
-
-**Files:**
-
-- Prefer a new focused package such as `backend/internal/service/outcome/scheduler.go`
-- existing `backend/internal/lifecycle/` reconciliation hooks
-- `backend/internal/service/outcome/attempt.go`
-- relevant ports/store queries
-- scheduler tests
-
-### MVP policy
-
-- only approved current PlanRevision is schedulable;
-- choose the first dependency-satisfied non-terminal WorkUnit in stable plan order;
-- at most one mutable execution WorkUnit for the Outcome/Project when existing safety fences require it;
-- explicit `NeedsAction` when binding/readiness/authority fails;
-- never imply parallelism in UI;
-- successful provider process termination does not itself accept WorkUnit/Outcome; canonical completion/evidence rules still apply;
-- restart reconciliation checks canonical Attempt/session state before spawning anything new.
-
-Do **not** implement fake DAG concurrency. ADR 0008/0009 parallel scheduling follows after MVP.
-
-### Tests
-
-- no Plan approval → no scheduling;
-- approved serial WorkUnits run in order;
-- failed/blocked unit prevents dependent unit from starting;
-- restart with live Attempt does not spawn duplicate;
-- unknown runtime does not count as dead/completed;
-- cancellation/retry produces traceable lineage.
-
----
-
-## Task 10 — Make Outcome/Mission Control the only normal new-work destination
-
-**Purpose:** Eliminate the user-visible AO/session-first bypass.
-
-**Primary frontend files:**
-
-- `frontend/src/renderer/routes/_shell.work.tsx`
-- `frontend/src/renderer/routes/_shell.tsx`
-- `frontend/src/renderer/components/Sidebar.tsx`
-- `frontend/src/renderer/components/outcome/WorkShell.tsx`
-- `frontend/src/renderer/components/outcome/OutcomesOverviewSurface.tsx`
-- `frontend/src/renderer/components/outcome/OutcomeLifecycleShell.tsx`
-- `frontend/src/renderer/components/outcome/OutcomeRunSurface.tsx`
-- `frontend/src/renderer/components/outcome/OutcomeMissionControl.tsx`
-- `frontend/src/renderer/components/outcome/OutcomeAttemptTerminalPanel.tsx`
-- `frontend/src/renderer/lib/outcome-tree.ts`
-
-### Legacy paths to audit/gate
-
-- `frontend/src/renderer/components/TaskComposer.tsx`
-- `NewTaskDialog.tsx`
-- `GlobalNewTaskDialog.tsx`
-- `SessionsBoard.tsx`
-- `ShellTopbar.tsx`
-- `OrchestratorReplacementDialog.tsx`
-- `SessionInspector.tsx`
-- `frontend/src/renderer/lib/navigate-to-session.ts`
-- `frontend/src/renderer/lib/restart-orchestrator.ts`
-- `frontend/src/renderer/lib/command-palette.ts`
-- `/projects/$projectId/sessions/$sessionId`
-- `/sessions/$sessionId`
-
-The session routes may remain for deep links/history. Remove them from normal Outcome ownership/navigation.
-
-### Required UX
-
-- sidebar/list displays Outcomes and their derived state/attention;
-- click Outcome → `/work` with Outcome + derived stage;
-- after Contract confirmation → Decide & Authorize;
-- after Plan approval → Act & Observe/Mission Control;
-- **Open terminal** drills into the current Attempt/session without changing Outcome identity;
-- browser back from terminal returns to the Outcome context;
-- generic session board is not the default Work board;
-- hide/disable unfinished Home primary nav for MVP;
-- global empty-Outcomes CTA chooses/registers Project then enters Outcome capture, not new session.
-
-### Frontend tests
-
-Update/add:
-
-- `Sidebar.test.tsx`
-- `OutcomeLifecycleShell.test.tsx`
-- `AdaptiveIntakeSurface.test.tsx`
-- `OutcomeDecideAuthorizeSurface.test.tsx`
-- `OutcomeMissionControl.test.tsx`
-- `OutcomeRunSurface.test.tsx`
-- `OutcomesOverviewSurface.test.tsx`
-- route/navigation tests under `frontend/src/renderer/routes` or nearest existing harness.
-
-Assertions must include **no automatic navigation to a session route** from Outcome create/confirm/approve/open.
-
----
-
-## Task 11 — Evidence, verification, and owner acceptance end-to-end
-
-**Purpose:** Complete the Outcome loop rather than stopping when the coding agent exits.
-
-**Primary files:**
-
-- existing Outcome evidence/verification/acceptance domain/service/store files
-- `frontend/src/renderer/components/outcome/OutcomeProveCloseSurface.tsx`
-- `frontend/src/renderer/components/outcome/OutcomeRunSurface.tsx`
-- existing verification/acceptance tests
-
-### MVP requirements
-
-- WorkUnit/Attempt output creates attributable evidence candidates/facts;
-- verification maps back to stable Contract criterion IDs;
-- failed/unconfirmed verification is visible and can return the Outcome to execution/action-required;
-- provider/session “done” does not create AcceptanceDecision;
-- only owner/user action accepts/rejects/continues;
-- accepted Outcome stays inspectable with full lineage.
-
-For the first MVP, verification may combine deterministic repository checks and owner review. Do not invent automated proof where no reliable verifier exists.
-
----
-
-## Task 12 — Remove remaining Agent Orchestrator authority semantics
-
-**Purpose:** Finish the architectural cut after the replacement path is working.
-
-Search the repository for:
-
-```text
-orchestrator
-mission role
-new task
-default worker
-Spawn(... KindWorker ...)
-projects/$projectId/sessions
-navigate-to-session
-TaskComposer
-SessionsBoard
-```
-
-Classify every match:
-
-1. **keep as execution/chassis compatibility**;
-2. **rename/reframe** (e.g. coordinator preference rather than orchestrator authority);
-3. **remove/gate from new work**;
-4. **historical only**.
-
-Do not mechanically rename provider-native concepts that are technically accurate. The target is authority semantics, not grep cleanliness.
-
-### Backend rules to enforce
-
-- no Outcome create/confirm endpoint calls an execution spawn;
-- no Plan proposal endpoint calls an execution spawn;
-- no Project config setter replaces/restarts an “orchestrator session” as a side effect unless invoked through explicit legacy/session-management UI;
-- no new-work service chooses a provider from Project config after Plan approval;
-- generic session create API remains an explicit low-level/debug capability only if still required by product/chassis.
-
-### Frontend rules
-
-- user-facing primary settings say Coordinator/Planning preference and Worker/Execution preference once copy is stable;
-- no “orchestrator is the project” visual affordance;
-- session lifecycle does not drive Outcome status.
-
----
-
-## Task 13 — API/schema/store generation and full verification
-
-### Generated contracts
-
-Whenever API/storage sources changed:
-
-```bash
+npm --prefix frontend test
+npm run lint
+npm run test:foundation
 npm run sqlc
 npm run api
+git diff --exit-code -- backend/internal/storage/sqlite/gen backend/internal/httpd/apispec/openapi.yaml frontend/src/api/schema.ts
+npx @redwoodjs/agent-ci run --all
 ```
 
-Verify generated diffs are intentional.
-
-### Backend verification
+After changing generated contracts, commit expected generated changes first, then rerun generation to prove no drift. Do not interpret expected uncommitted generated changes as drift from the intended new source.
 
 ```bash
 cd backend
-go test ./internal/domain
-go test ./internal/service/intake
-go test ./internal/service/outcome
-go test ./internal/storage/sqlite/store
-go test ./internal/daemon
+go build ./...
 go test ./...
 go test -race ./...
 go vet ./...
-go build ./...
 ```
 
-### Root/frontend verification
-
 ```bash
-npm run lint
-npm run frontend:typecheck
-npm run test:foundation
 cd frontend
 npm run typecheck
 npm run build
-npm test -- --runInBand
+npm run package:identity
 ```
 
-Use the actual frontend test command from `frontend/package.json` if it differs; do not invent a passing command.
+A missing runtime/network/credential/dependency is **blocked**, not pass. Fixture tests, real SQLite/HTTP tests, live adapter conformance, real Electron journeys and owner acceptance are different evidence levels; report them separately. Do not launch external paid/provider work without the user's applicable authorization/configuration.
 
-### Static invariant searches
+## 7. Integrated acceptance matrix
 
-Search diffs/source for:
+All are open until observed on the release SHA. The expected falsifier is any deviation from the stated result.
 
-- hidden `Codex` default in routing/new-work paths;
-- Outcome create/confirm calling execution spawn;
-- Plan proposal calling execution spawn;
-- model string selected without provider;
-- approved Attempt re-reading Project worker/model to select execution;
-- Outcome click handlers routing to session paths.
+| ID | Probe | Expected result / evidence |
+|---|---|---|
+| ISC1 | Fresh profile, zero execution providers, register Git Project | Project persists after restart; zero execution/orchestrator sessions |
+| ISC2 | No reasoning key, then configure one | Clear remediation; real editable Contract; zero execution before approval |
+| ISC3 | Repo-specific intent + clarification | Inspected context identifiable; non-temporal answer stays non-temporal; constraints preserved |
+| ISC4 | Plan with B serialized before dependency A | Both reviewed, dependencies/routing/grants visible; A starts first |
+| ISC5 | Change Project provider/model/permissions after approval | Frozen execution semantics preserved; no frontend mismatch and no authority widening |
+| ISC6 | Duplicate start and conflicting request-key replay | Exactly one matching Attempt; conflicting semantics refused |
+| ISC7 | Inspect-only worker attempts write/external effect | Denied at runtime, controlled canaries unchanged; no prompt-only safety claim |
+| ISC8 | A creates artifact, passes check; restart before B | B consumes exact retained artifact and starts once after scoped proof |
+| ISC9 | Failed/stale/wrong-lineage/contradictory evidence | No downstream or acceptance readiness based on that evidence |
+| ISC10 | Kill renderer/daemon, quiet provider, cancel | No duplicate Attempt; ambiguity stays unknown; cancel does not respawn |
+| ISC11 | Return, review, request rework | Goal/changes/proof/open work visible without terminal; bounded context survives |
+| ISC12 | Provider exits successfully | No automatic AcceptanceDecision; owner can accept only through governed UI/API |
+| ISC13 | Reopen/upgrade historical state | History readable, stale proof correctly scoped, no migration rewrite/data loss |
+| ISC14 | Desktop navigation/accessibility | Outcome primary, keyboard/focus/back/forward/error/reduced motion work |
 
----
+Use a tiny real Git repo with a meaningful two-step change: A changes behavior and emits an artifact; B verifies/uses that artifact. Include a seeded failing test and later correction. Inspect actual file contents and retained check output, not just provider messages. Record unit/Attempt/Plan/revision IDs and compare counts before/after restart. Do not create evidence claiming a check ran merely to advance the UI.
 
-## Task 14 — Real-daemon MVP dogfood
+## 8. Required slice handoff
 
-This is the release gate, not optional polish.
+```text
+Slice: Lx
+Base SHA / head SHA / branch / PR:
+Current-code delta (what already existed):
+Changed behavior and files:
+Canonical API/storage changes and generated artifacts:
+Regression reproduced before fix:
+Commands + exit codes + evidence paths:
+Live provider / runtime / model / capability tested:
+ISC rows: pass / fail / blocked, with evidence:
+Known limitations / compatibility retained:
+STATUS and ledger updated:
+Next slice and unresolved dependency:
+```
 
-Use an isolated profile/database and a disposable real Git repository.
+Suggested prompt for the next implementer:
 
-### Scenario
+> Implement L1a only from docs/superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md. Start from latest beta in an isolated branch. Read AGENTS and the L1a source packet; first produce the current-code delta and reproduce the documented Manager.Spawn exact-model failure. Preserve approved binding, custody, migrations and user-only acceptance. Run the specified tests and real runtime conformance for any capability you claim. Return the required slice handoff; do not merge or expand to other slices without authorization.
 
-Create the Outcome:
-
-> Add a small visible README section that explains how to run this project locally, verify the command works, and leave the repository ready for review.
-
-### Checkpoint A — Understand
-
-Verify:
-
-- intake persisted;
-- optional IntelligenceRun visible/provenanced;
-- material question works if produced;
-- Contract review appears;
-- **zero execution Attempts**;
-- **zero execution AgentSessionRefs**.
-
-### Checkpoint B — Decide & Authorize
-
-Confirm Contract.
-
-Verify:
-
-- Outcome + immutable ContractRevision exist;
-- Plan drafting runs/proposes;
-- routing reason/provider/model visible;
-- Plan can be reviewed before execution;
-- still zero execution Attempts/sessions.
-
-Approve Plan.
-
-Verify:
-
-- exact binding frozen;
-- mutable Project preference change does not rewrite it;
-- no candidate case produces Action Required and launches nothing.
-
-### Checkpoint C — Act & Observe
-
-Verify:
-
-- Outcome opens Mission Control;
-- scheduler starts only authorized WorkUnit;
-- Attempt spawns exact provider/model semantics;
-- terminal is drill-down;
-- sidebar selection continues to open Outcome, not session;
-- activity/progress survives renderer refresh.
-
-### Checkpoint D — Prove & Close
-
-Verify:
-
-- actual repository change is inspectable;
-- expected verification command/result is attached as evidence;
-- criterion coverage is visible;
-- session completion did not auto-accept;
-- owner can accept or request more work.
-
-### Checkpoint E — restart
-
-Restart daemon/app while an Outcome is non-terminal.
-
-Verify:
-
-- canonical lineage recovers;
-- no duplicate Attempt starts;
-- live/unknown/terminal process state is reconciled truthfully;
-- Outcome destination remains correct.
-
-Capture logs/screenshots/test evidence for the PR.
-
----
-
-## Task 15 — Review, documentation truth, and PR readiness
-
-Before declaring the MVP complete:
-
-1. use the repository's code-review workflow on the complete diff;
-2. fix all correctness/authority/recovery issues;
-3. re-run the relevant verification after fixes;
-4. update `docs/STATUS.md` from target to implemented truth only for behavior actually verified;
-5. consolidate any temporary amendment wording back into canonical product docs where safe;
-6. keep ADR 0010/0011 as durable decisions;
-7. update the PR body with:
-   - architecture change;
-   - deleted/gated AO authority paths;
-   - retained runtime infrastructure;
-   - intelligence adapter selected and why;
-   - WT3 routing semantics;
-   - verification evidence;
-   - known MVP limitations (especially serialized execution if full scheduler not yet landed).
-
-Do not merge automatically unless the user explicitly asks.
-
----
-
-# Acceptance checklist
-
-The MVP is not complete until all applicable items below are demonstrated:
-
-- [ ] Project can be registered without immediately creating an orchestrator execution session for Outcome work.
-- [ ] User can capture natural-language Outcome intent.
-- [ ] Capture creates no execution Attempt/session.
-- [ ] Contract intelligence produces a grounded proposal or material question.
-- [ ] Offline/manual Contract floor remains available.
-- [ ] Contract is editable and owner-confirmed.
-- [ ] Contract confirmation creates no execution Attempt/session.
-- [ ] Plan intelligence produces a reviewable Plan.
-- [ ] Plan proposal produces no execution Attempt/session.
-- [ ] Routing is provider-neutral, model-aware, deterministic, and explainable.
-- [ ] No implicit Codex fallback exists.
-- [ ] No valid candidate becomes Action Required and launches nothing.
-- [ ] Plan approval is explicit.
-- [ ] Approved WorkUnit binding is immutable.
-- [ ] Attempt uses exact approved provider/model semantics.
-- [ ] Project preference changes after approval do not reroute the Attempt.
-- [ ] Mission Control is the post-approval Outcome destination.
-- [ ] Clicking an Outcome never automatically opens a session route.
-- [ ] Terminal/chat is explicit Attempt/session drill-down.
-- [ ] Evidence maps to WorkUnit/Attempt and Contract criteria.
-- [ ] Verification state is visible.
-- [ ] Provider completion cannot accept Outcome.
-- [ ] Owner/user creates final AcceptanceDecision.
-- [ ] Restart/reload does not duplicate execution.
-- [ ] Historical sessions remain readable.
-- [ ] Unfinished Home is not presented as a complete primary beta surface.
-- [ ] Full Go/frontend generation, tests, build, race/vet where feasible are recorded.
-
-# After the MVP
-
-Resume long-term kernel work in this order:
-
-1. full direct-Outcome WorkUnit DAG;
-2. WorkspaceLease and dependency scheduler from ADR 0008/0009;
-3. truthful parallel Mission Graph;
-4. structured SessionReceipt/WorkUnitReceipt continuity;
-5. deeper provider role conformance;
-6. governed external provider ingress;
-7. richer Project Brief/Context and personal Waldo continuity;
-8. learned routing/skill promotion only after deterministic baseline telemetry exists.
+Subsequent prompts substitute a ready slice ID; never omit its dependencies. A simpler model should have a small bounded task and concrete falsifiers, not a request to “finish the whole MVP.”

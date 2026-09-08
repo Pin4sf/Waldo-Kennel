@@ -2,10 +2,22 @@
 
 - **Date:** 2026-09-08
 - **Status:** Required companion to the Outcome Control Plane MVP implementation plan
-- **Branch:** `feat/wt3-routing-outcome-first`
+- **Original branch:** `feat/wt3-routing-outcome-first`, merged as PR99. Implement from latest beta.
 - **Primary implementation plan:** `docs/superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md`
 - **Architecture:** ADR 0010 + ADR 0011
 - **Canonical product architecture:** `docs/product/kennel-v1-product-architecture.md`
+
+
+## Post-PR99 source correction — 2026-09-08
+
+This audit remains the UX reuse contract; its original “currently” statements below describe the pre-merge audit unless reverified here. The [execution plan](../superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md) and [STATUS](../STATUS.md) now own remaining-work ordering.
+
+- Confirmed still present: Run/Plan review selects first WorkUnit; Run sends Project harness; direct/composed Mission surfaces remain separate components; proof form writes Outcome-scoped evidence.
+- Corrected interpretation: the daemon no longer selects a hidden Codex fallback for exact-bound Attempts. It rejects a conflicting legacy harness supplied by the UI. Remove that normal-client field, not the exact-binding check.
+- New connection gap: service schedule has exact WorkUnit proof requirements; Outcome-level UI proof does not satisfy them. Expose the existing schedule and bind proof correctly rather than weakening validation.
+- Final source/test correction: exact binding is stored and checked at Outcome admission, but Manager.Spawn does not invoke its resolver. Explicit and provider-default launch semantics both fail a recording-adapter regression by inheriting the mutable Project model. L1a is the first code fix.
+- Newly implemented: real Contract/Plan LLM adapters and IntelligenceRun persistence. Do not rebuild the old session-backed analyzer or deterministic floor.
+- Fresh frontend baseline: 23 failures across NewTaskDialog, TaskComposer, Sidebar and SwitchAgentDialog. See the [verification record](../verification/2026-09-08-post-pr99-launch-baseline.md); distinguish stale fixture assumptions from production bugs before changing tests.
 
 ## 1. Verdict
 
@@ -158,7 +170,7 @@ owner confirms
 
 Avoid questionnaire UX. Ask only material questions.
 
-The existing deterministic/offline proposal remains a visible fallback when model intelligence is unavailable. Do not silently degrade while pretending an agent analyzed the Project.
+ADR0012 removed the deterministic/offline proposal floor. Show reasoning setup, failure and explicit retry without claiming a canned proposal is understanding or silently changing provider.
 
 Loading/waiting/refusal/expiry/cancellation states remain first-class UI states.
 
@@ -431,7 +443,7 @@ The sidebar currently maintains both Outcome hierarchy and live orchestrator/wor
 - capture → intelligence → optional question → Contract review;
 - zero execution Attempts/AgentSessionRefs;
 - refresh/restart restores intake state;
-- offline/manual floor works.
+- missing/invalid reasoning configuration has actionable remediation and explicit retry; no canned fallback.
 
 ### Decide & Authorize
 

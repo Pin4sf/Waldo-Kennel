@@ -1,288 +1,56 @@
 # Kennel status
 
-**Runtime baseline:** `beta` lineage; current implementation/planning branch `feat/wt3-routing-outcome-first`  
-**Architecture authority:** [`product/kennel-v1-product-architecture.md`](product/kennel-v1-product-architecture.md), amended for the MVP by [ADR 0010](adr/0010-outcome-first-control-plane-and-session-subordination.md), [ADR 0011](adr/0011-go-control-plane-and-non-authoritative-intelligence.md), and [`product/2026-09-08-outcome-control-plane-mvp-reset.md`](product/2026-09-08-outcome-control-plane-mvp-reset.md)  
-**Current build focus:** working vertical Outcome control-plane MVP
-
-This file separates **implemented runtime truth** from **accepted target architecture**. A design document, Figma frame, partial branch implementation, or plan is not evidence that a feature is shipped.
-
-## Implemented foundation inherited from beta
-
-### Chassis
-
-- standalone Kennel Go daemon bound to loopback with the existing governed opt-in LAN path;
-- SQLite persistence with additive migrations;
-- trigger-backed `change_log` CDC and SSE projection/update flow;
-- generated OpenAPI + frontend TypeScript contracts;
-- thin Cobra `kennel` CLI over daemon HTTP;
-- Electron + React desktop supervisor;
-- project/session lifecycle;
-- Git worktree management and cleanup/recovery machinery;
-- native chat, terminal, diff/browser/preview surfaces;
-- PR/check/review observation;
-- restart/reaper/reconciliation foundations.
-
-### Provider core
-
-The active first-class execution provider surface for new work is:
-
-- Codex
-- Claude Code
-- OpenCode
-- Cursor
-- Pi
-
-Readiness is machine-aware and product selection no longer requires a hidden Codex fallback. Provider **identity** support does not imply every provider has passed every structured-control role; role admission remains capability/conformance driven.
-
-### Canonical Outcome foundation
-
-The repository already carries the durable responsibility lineage:
-
-```text
-Outcome
-→ ContractRevision
-→ PlanRevision
-→ WorkUnit
-→ Attempt
-→ AgentSessionRef
-→ EvidenceItem
-→ VerificationRun
-→ AcceptanceDecision
-```
-
-Implemented foundations include:
-
-- immutable Contract revisions and stable criterion identity;
-- owner-gated Plan authorization and capability grants;
-- real provider Attempts and provider session references;
-- recovery/reconciliation facts for the current execution path;
-- criterion-bound Evidence;
-- explicit verification identity/independence classification;
-- user-only Acceptance decisions;
-- adaptive intake/callback path;
-- durable bounded Project Waldo conversation;
-- composed Outcomes with contribution/dependency/proof semantics;
-- Outcome-oriented Work surfaces including Understand, Decide & Authorize, Act & Observe/Mission Control, and Prove & Close;
-- session/terminal drill-down infrastructure.
-
-### Existing Contract intake behavior worth preserving
-
-The current intake stack already provides:
-
-- exact intent capture before analysis;
-- immutable proposal revisions;
-- optimistic revision guards;
-- material clarification support;
-- deterministic offline proposal floor;
-- callback/refusal/expiry handling for model-backed proposals;
-- owner confirmation before canonical Outcome creation.
-
-This is useful product/control-plane machinery. It is being refactored, not discarded.
-
-## Architectural problem confirmed on 2026-09-08
-
-Despite the correct durable ontology above, the end-to-end experience still leaks inherited Agent Orchestrator/session-first behavior:
-
-- ordinary provider sessions can still act like the primary project/work destination;
-- session-first routes and UI remain broadly exposed;
-- Project worker/orchestrator configuration still influences launch behavior too directly in parts of the service layer;
-- Contract analysis is currently backed by spawning an ordinary `KindWorker` session/worktree;
-- Plan proposal is still largely a deterministic direct-WorkUnit construction path rather than a distinct intelligence/review phase;
-- legacy task/session entry points can bypass the intended Outcome → Contract → Plan → Mission Control flow.
-
-The architecture correction is accepted in ADR 0010/0011. **It is not yet implemented end-to-end.**
-
-## Current branch work: partial WT3 implementation
-
-`feat/wt3-routing-outcome-first` contains in-progress preference-aware provider/model routing work that must be preserved and integrated into the new Plan authority flow.
-
-Current partial work includes:
-
-- `ExecutionPreference` domain semantics;
-- ContractRevision execution preference field;
-- immutable `ExecutionBinding` semantics including provider-default / explicit / historical-unbound representation;
-- provider-neutral routing domain types/decision skeleton;
-- WorkUnit provider/model binding fields;
-- routing-decision provenance on PlanRevision;
-- RunBrief digest inclusion of provider/model semantics;
-- migration `0114_execution_routing_bindings.sql`;
-- Contract execution-preference persistence path;
-- exact WorkUnit binding/routing provenance persistence path;
-- initial execution-preference RED tests.
-
-This work is **not complete or verified**. Known review/integration items include:
-
-- finish service-layer integration around Outcome/Plan authority;
-- verify/fix any compile issues from assumed harness helpers;
-- ensure explicit model support is candidate/provider-local;
-- fix any storage error swallowing in routing-decision reads;
-- pass exact model semantics through Attempt spawn;
-- prohibit historical provider-only bindings from new execution;
-- remove approval-time re-reading of mutable Project worker choice;
-- test no-candidate, no-implicit-Codex, model isolation, and role-separation semantics.
-
-Do not describe WT3 as shipped until those paths are implemented and verified.
-
-## Accepted MVP reset — not implemented yet
+**Source baseline:** merged PR #99, beta `67d6946fdd5e5bba1aca7f7002ba75185e7da998` (2026-09-08). Refresh the SHA before implementation.
+**Current objective:** finish the usable Outcome Continuity loop, not rebuild the foundation.
+**Execution authority:** [post-PR99 implementation plan](superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md).
+**Fresh checks:** [baseline verification record](verification/2026-09-08-post-pr99-launch-baseline.md).
 
-The next implementation session follows:
+## Implemented foundation
 
-- [`product/2026-09-08-outcome-control-plane-mvp-reset.md`](product/2026-09-08-outcome-control-plane-mvp-reset.md)
-- [`superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md`](superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md)
+Source and automated checks support these implementation claims; they are not end-to-end launch acceptance:
 
-The required user journey is:
+- Go loopback daemon, SQLite canonical writer, additive migrations, trigger CDC/SSE, generated HTTP/TypeScript contracts, thin CLI, Electron/React supervisor.
+- Project/session lifecycle, Git worktree/runtime/recovery infrastructure and session/terminal/diff inspection.
+- Durable Outcome → ContractRevision → PlanRevision → WorkUnit → Attempt → AgentSessionRef and criterion-bound Evidence/Verification/user Acceptance.
+- Immutable Contract/Plan semantics, capability validation, Attempt admission fences and recovery facts.
+- Five active execution-provider identities: Codex, Claude Code, OpenCode, Cursor and Pi. Identity is not role/capability conformance.
+- PR99: preference-aware routing, persisted approved provider/model binding, historical-unbound rejection, provider-local model semantics, graph validation and serial scheduler decisions. **Actual model launch integration is defective:** Manager.Spawn does not consume the exact-binding resolver; see the reproduced failure below.
+- PR99: IntelligenceRun storage (migration 0115), provider-neutral intelligence/LLM ports, direct Anthropic/OpenAI reasoning adapters, model-backed Contract and Plan proposals.
+- Existing Understand/Decide/Act/Prove Work surfaces, Project Brief/conversation foundation and composed-Outcome storage remain available to evolve.
 
-```text
-Register Project
-→ set coordinator/worker preferences
-→ capture Outcome
-→ Contract intelligence / material clarification
-→ owner reviews + confirms Contract
-→ Plan intelligence
-→ routing + provider/model recommendation
-→ owner approves Plan
-→ Mission Control
-→ exact-bound Attempt/session execution
-→ Evidence + Verification
-→ owner AcceptanceDecision
-```
-
-### Explicit authority rules
-
-- creating/capturing an Outcome does not launch an execution Attempt/session;
-- Contract confirmation does not launch execution;
-- pre-execution model work is a non-authoritative `IntelligenceRun`, not an Attempt;
-- Plan approval is the execution authority boundary;
-- Kennel's Go daemon is the orchestrator; models propose or execute bounded authorized work;
-- Project coordinator/worker choices are preferences/baselines, not direct execution authority;
-- approved WorkUnit provider/model binding is immutable;
-- Attempt consumes the approved binding and never silently re-routes from mutable Project preference;
-- selecting an Outcome opens its Outcome workspace, not a provider session route;
-- terminal/native chat is an explicit Attempt/session drill-down;
-- provider completion does not equal Outcome acceptance;
-- only the owner/user creates final AcceptanceDecision.
-
-## MVP cut line
-
-The first working product loop **must** include:
-
-1. real Project registration;
-2. Outcome capture;
-3. intelligent or explicit offline Contract proposal;
-4. material clarification path;
-5. editable Contract review and owner confirmation;
-6. intelligent or explicit offline Plan proposal;
-7. preference-aware explainable provider/model routing;
-8. explicit Plan approval;
-9. truthful Mission Control;
-10. serial execution of approved WorkUnits if necessary;
-11. exact provider/model Attempt spawn;
-12. session/terminal drill-down;
-13. Evidence + Verification;
-14. owner acceptance/continue decision;
-15. restart/reload without duplicate execution;
-16. historical session readability.
-
-The MVP does **not** need to block on full parallel WorkUnit DAG scheduling.
-
-## Accepted target after the vertical MVP
-
-The following remain accepted architecture rather than abandoned work:
-
-### Full direct-Outcome WorkUnit DAG
-
-ADR 0008 remains authoritative for bounded dependency graphs inside a direct Outcome.
-
-### WorkspaceLease + dependency scheduler
-
-ADR 0009 remains authoritative for explicit workspace ownership, concurrency budgets, narrower effect fences, and truthful restart reconciliation.
-
-### Truthful parallel Mission Graph
-
-Only expose real parallelism after the scheduler can enforce it.
-
-### Structured receipts and Project continuity
-
-Target continuity remains:
-
-```text
-structured provider/workspace facts
-→ SessionReceipt
-→ WorkUnitReceipt
-→ Outcome current brief / ledger
-→ governed Project Context candidate
-```
-
-### Provider structured-driver conformance
-
-Role admission remains narrower than provider identity support and must be proven through conformance.
-
-### External provider ingress, Island consequence projection, richer Project Brief
-
-These remain later kernel/product slices and do not block the first Outcome-control-plane MVP.
-
-## Direct intelligence API key policy
-
-No external API key is required by architecture alone.
-
-During implementation:
-
-1. first evaluate whether an existing configured provider runtime has a **proven enforced read-only** mode suitable for Contract/Plan intelligence;
-2. if not, implement the provider-neutral intelligence port;
-3. then choose one direct model API adapter and consult current official API documentation;
-4. request/configure the user's key only at that point;
-5. keep deterministic/manual fallback available;
-6. never persist the key as plaintext canonical Work data or place it in prompts/logs.
-
-A direct API key, when used, powers the intelligence plane. It does not become execution authority or a hidden provider fallback.
-
-## Current implementation order
-
-1. baseline verification + audit partial WT3 branch;
-2. durable `IntelligenceRun` domain/persistence;
-3. provider-neutral intelligence adapter boundary;
-4. Contract-intelligence adapter and intake decoupling from ordinary execution session semantics;
-5. Plan intelligence/review;
-6. finish WT3 routing and exact binding;
-7. Plan approval → exact Attempt spawn;
-8. truthful serialized scheduler/Mission Control;
-9. Outcome-first sidebar/routes + gate legacy task/session bypasses;
-10. Evidence/Verification/Acceptance integration;
-11. remove remaining AO authority semantics;
-12. full generation/tests/build/restart dogfood;
-13. only then resume full DAG/WorkspaceLease parallel scheduler work.
-
-See the detailed implementation plan for file-level tasks and commands.
-
-## MVP acceptance gates
-
-The vertical MVP is judged by falsifiable behavior:
-
-- execution Attempts before Plan approval: **0**;
-- automatic Outcome → session-route navigation: **0**;
-- hidden provider fallback: **0**;
-- implicit Codex selection with no preference: **0**;
-- approved WorkUnits silently re-routed after Project preference change: **0**;
-- duplicate Attempts caused by restart/retry: **0**;
-- provider completion auto-accepting Outcome: **0**;
-- unknown runtime silently treated as complete: **0**;
-- historical provider-only binding executing as new authorized work: **0**.
-
-The principal real-daemon dogfood scenario and full checklist are in `docs/superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md`.
-
-## Verification commands
-
-From a normalized checkout:
-
-```bash
-npm run bootstrap
-npm run lint
-npm run frontend:typecheck
-npm run test:foundation
-cd backend && go build ./... && go test ./... && go test -race ./... && go vet ./...
-cd ../frontend && npm run typecheck && npm run build
-```
-
-When API or storage contracts change, regenerate and verify `npm run api` / `npm run sqlc`.
-
-For user-visible flows, run the real-daemon desktop/browser path against an isolated profile/repository rather than treating fixtures or static rendering as runtime proof.
+## Current policy: ADR0012
+
+Waldo reasoning requires the owner's configured reasoning credential. Configuration is currently environment-based through `KENNEL_WALDO_PROVIDER`, `KENNEL_WALDO_API_KEY`, `KENNEL_WALDO_MODEL`, `KENNEL_WALDO_EFFORT`, with documented vendor-key resolution in `daemon/waldo_reasoning.go`.
+
+There is **no deterministic/offline proposal floor** and no hidden alternate-model fallback. Missing configuration must be recoverable setup failure. The old session-spawn intake/decomposition proposers were removed; model-backed decomposition proposal remains unavailable. Do not reconstruct those retired paths from old plans. Reasoning secrets must not enter canonical Work rows or logs.
+
+ADRs 0010/0011/0012, product architecture and ADRs 0008/0009 govern the target. ADR0012 supersedes older fallback/key-optional wording. Migrations through 0115 are merged and immutable; use the next unused migration number for fixes.
+
+## Confirmed remaining source gaps
+
+| Area | Current gap | Plan slice |
+|---|---|---|
+| Exact model launch | Manager.Spawn ignores exact model semantics; explicit/provider-default both use mutable Project model in a recording-adapter regression | L1a |
+| Runtime authority | Attempt spawn does not carry structured WorkUnit grants/effect policy; non-model Project settings still merge. Live enforcement not proved | L1b |
+| Reasoning readiness/recovery | Environment-only setup; nonterminal IntelligenceRun listing has no runtime reconciliation caller; adapter/service behavioral coverage incomplete | L2 |
+| Grounding/replan | No repository snapshot in current intelligence request; previous proposal context reduced to title; clarification copied into temporal field; explicit replan and material draft assumptions/blockers need completion | L3 |
+| Plan/Mission UI | First-WorkUnit assumptions, redundant mutable harness input, no production schedule HTTP projection | L4 |
+| Proof/continuation | UI Outcome-level proof does not satisfy scheduler WorkUnit proof scope; automated check/artifact collection and downstream workspace handoff need integration | L5 |
+| Re-entry/navigation | Bounded prior-result context and Outcome-first normal entry paths require real journey verification and cleanup | L6 |
+| Release | Packaged installation, live provider enforcement, restart, full proof/acceptance loop and measured performance remain unaccepted | L7 |
+
+The daemon correctly rejects a supplied provider different from the approved binding. The frontend still sends Project preference, so this is a client integration defect, not evidence of silent daemon rerouting.
+
+The serial scheduler currently uses a Project custody fence. Full WorkUnit WorkspaceLease parallel scheduling remains later work. Do not remove that fence merely to make a graph look concurrent.
+
+## Current verification truth
+
+The baseline record distinguishes pass/fail/not-run. Fresh frontend tests have **23 failures in 4 files**, with 2752 passed and 6 skipped. Typecheck passes. Lint reports **190 issues**; details and triage requirements are in the baseline record/plan. The macOS arm64 package build and package identity check pass, but were not launched. Do not treat the whole foundation gate as green. Failures cluster in TaskComposer, NewTaskDialog, Sidebar and SwitchAgentDialog; root causes need classification, not automatic test deletion or restoration of hidden defaults.
+
+No live-model, real-provider permission, packaged Electron journey, or owner-accepted Outcome is claimed by this documentation update. Green service tests do not establish those facts.
+
+## Next work
+
+Start with L0 baseline failure triage and **L1a exact model launch**, then L1b runtime authority from the implementation plan. L2 can be assigned separately only with explicit ownership. Complete L3–L6 in dependency order, then L7 on an integrated SHA. Every slice updates this file with exact observed evidence and remaining limitations.
+
+The release gate remains: real repo → grounded Contract → full Plan approval → exact bounded execution → retained artifacts/checks → understandable proof → owner acceptance/rework, including interruption and restart without duplicate execution.

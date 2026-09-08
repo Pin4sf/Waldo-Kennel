@@ -155,8 +155,8 @@ Do not collapse these boundaries because one provider SDK makes it convenient.
 - Requested/effective provider/model provenance should be recorded when known; unknown is valid and must not be fabricated.
 - Intelligence output is structured proposal material. It does not approve Plans, create Attempts, grant capabilities, accept Outcomes, or mutate canonical execution state.
 - Provider-specific conformance belongs inside the adapter/conformance layer, not Outcome/Plan services.
-- If the currently installed provider runtime cannot satisfy the required effect boundary, use another adapter or the deterministic/manual fallback. Do not silently widen authority.
-- A direct model API key, if later required, powers the intelligence plane only unless a future ADR explicitly changes that. Secrets never become canonical domain data.
+- If the configured reasoning adapter cannot satisfy the required effect boundary, fail with an actionable reason. ADR 0012 removed the deterministic/manual proposal floor; any owner-selected adapter change must be explicit. Do not silently widen authority.
+- ADR 0012 requires the owner's configured reasoning credential for model-backed intake/planning. It powers the intelligence plane only unless a future ADR explicitly changes that. Secrets never become canonical domain data.
 
 ### Harness providers
 

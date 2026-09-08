@@ -1,8 +1,10 @@
 # Waldo Kennel — Outcome Control Plane MVP Reset
 
+> Post-PR99 note (2026-09-08): this document describes the target product. Current implementation facts and remaining tasks are in [STATUS](../STATUS.md) and the [execution plan](../superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md). ADR0012 supersedes older fallback guidance.
+
 - **Status:** Current MVP product/program amendment
 - **Date:** 2026-09-08
-- **Authority:** ADR 0010 + ADR 0011
+- **Authority:** ADR 0010 + ADR 0011 + ADR 0012
 - **Long-term architecture remains:** `kennel-v1-product-architecture.md`, ADR 0008, ADR 0009
 - **Implementation plan:** `../superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md`
 
@@ -147,7 +149,7 @@ The run may inspect bounded Project/repository context and either:
 
 The product should prefer proposing with explicit assumptions over turning intake into a questionnaire.
 
-The user sees provenance: who/what produced the proposal and whether the deterministic/offline floor was used.
+The user sees requested/effective reasoning provenance when known. Under ADR0012 there is no deterministic/offline proposal floor; unavailable reasoning is an actionable setup/retry state.
 
 ### Step D — Contract review and confirmation
 
@@ -292,7 +294,7 @@ The existing intake service also already has useful durable mechanics:
 - optimistic revision checks;
 - a material clarification path;
 - callback/refusal/expiry handling;
-- deterministic offline proposal floor;
+- explicit reasoning failure/retry state (ADR0012 removed the old deterministic floor);
 - user confirmation before Outcome creation.
 
 Those mechanics should survive the reset.
@@ -314,44 +316,17 @@ Keep session inspector, terminal/native chat, diff/browser, provider runtime, au
 
 ## 9. Intelligence implementation strategy
 
-### Required architecture
+### Implemented boundary and remaining work
 
-Create a narrow provider-neutral intelligence port before choosing a vendor implementation.
+PR99 merged the provider-neutral `IntelligenceProvider` / `LLMClient` ports, IntelligenceRun storage and Anthropic/OpenAI adapters. Evolve these existing seams; do not create a second reasoning service or restore the removed session-spawn analyzer.
 
-Conceptually:
+ADR0012 selects owner-configured model-backed reasoning with no deterministic floor. Current keys/models resolve from startup environment; secure settings, readiness, bounded repository context, complete provenance and interrupted-call reconciliation remain implementation work. Keys must not be persisted in plaintext canonical Work tables or logs.
 
-```go
-type IntelligenceProvider interface {
-    AnalyzeContract(context.Context, ContractAnalysisInput) (ContractAnalysisOutput, IntelligenceProvenance, error)
-    DraftPlan(context.Context, PlanDraftInput) (PlanDraftOutput, IntelligenceProvenance, error)
-}
-```
-
-The exact DTO names can be refined during implementation, but the port must only return proposals.
-
-### Existing session-backed analyzer
-
-`backend/internal/daemon/intake_analyzer.go` currently starts a regular `KindWorker` session/worktree to propose a Contract. The prompt tells the agent not to modify files or run builds, but prompt text is not an enforcement mechanism.
-
-During the MVP reset:
-
-- preserve its durable callback/provenance ideas;
-- stop classifying the underlying activity as ordinary execution;
-- prefer a genuinely read-only provider mode if one exists and is proven;
-- otherwise move Contract/Plan reasoning to a direct model API adapter supplied with bounded repository/context material;
-- retain the deterministic/manual floor.
-
-### API key policy
-
-A direct API key is optional architecture, not required execution authority.
-
-If the implementation session determines that a direct API adapter is the safest/reliable way to implement Contract/Plan intelligence, request the user's key then. Do not request or store a key before that decision is made.
-
-The key must not be persisted in plaintext canonical domain tables or logs.
+See L2/L3 of the [current execution plan](../superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md). Any older optional-key/fallback guidance is superseded by ADR0012. Pre-authorization reasoning remains non-authoritative and cannot spawn execution or mutate Project/external state.
 
 ## 10. WT3 integration
 
-The in-progress preference-aware routing work is preserved and becomes part of Plan formation/authorization.
+PR99 merged preference-aware routing into Plan formation/authorization. Preserve it and finish the remaining UI/runtime integration in the current execution plan.
 
 Canonical rules remain:
 
@@ -368,7 +343,7 @@ Canonical rules remain:
 - approved WorkUnit freezes exact provider/model semantics;
 - Attempt executes that binding and never re-routes from mutable Project settings.
 
-Partial WT3 domain/storage work on `feat/wt3-routing-outcome-first` must be finished, tested, and integrated rather than discarded.
+WT3 is merged into beta. Its exact-binding and graph foundations must be preserved; do not follow pre-merge branch/migration instructions. Remaining work is enumerated by the post-PR99 execution plan.
 
 ## 11. MVP cut line
 
@@ -377,11 +352,11 @@ Partial WT3 domain/storage work on `feat/wt3-routing-outcome-first` must be fini
 1. add/register Project;
 2. set coordinator/worker preferences;
 3. capture Outcome intent;
-4. model/offline Contract analysis;
+4. model-backed Contract analysis with actionable failure/retry;
 5. material clarification when necessary;
 6. editable Contract review;
 7. explicit Contract confirmation;
-8. model/offline Plan drafting;
+8. model-backed Plan drafting with actionable failure/retry;
 9. provider/model routing with visible explanation;
 10. explicit Plan approval;
 11. Mission Control opens;
@@ -430,7 +405,7 @@ Use this as the principal dogfood scenario in the implementation session.
 - a clean or isolated Kennel beta profile;
 - a real local Git repository registered as a Project;
 - at least one ready worker provider;
-- coordinator/intelligence configured or deterministic/manual fallback available.
+- owner reasoning credential configured and the selected adapter ready; missing configuration is an explicit remediation state.
 
 ### When
 
