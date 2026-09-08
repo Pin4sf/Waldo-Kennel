@@ -15,9 +15,6 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/gen"
 )
 
-// EnsureWorkResponsibilitySpace resolves the project-backed Work space,
-// creating it on first use. The daemon serialises writes, so check-then-insert
-// under writeMu is race-free; the partial unique index backstops it.
 func (s *Store) EnsureWorkResponsibilitySpace(ctx context.Context, projectID domain.ProjectID) (domain.ResponsibilitySpace, error) {
 	row, err := s.qr.FindWorkResponsibilitySpaceByProject(ctx, projectID)
 	if err == nil {
@@ -35,10 +32,7 @@ func (s *Store) EnsureWorkResponsibilitySpace(ctx context.Context, projectID dom
 		ProjectID: projectID,
 		CreatedAt: time.Now().UTC(),
 	}
-	if err := s.qw.CreateResponsibilitySpace(ctx, gen.CreateResponsibilitySpaceParams{
-		ID:        space.ID,
-		ProjectID: space.ProjectID,
-	}); err != nil {
+	if err := s.qw.CreateResponsibilitySpace(ctx, gen.CreateResponsibilitySpaceParams{ID: space.ID, ProjectID: space.ProjectID}); err != nil {
 		if isSQLiteUnique(err) {
 			row, err := s.qw.FindWorkResponsibilitySpaceByProject(ctx, projectID)
 			if err != nil {
@@ -66,7 +60,6 @@ func (s *Store) CreateOutcomeWithContract(ctx context.Context, outcome domain.Ou
 	if err := outcome.Validate(); err != nil {
 		return err
 	}
-
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
@@ -82,15 +75,11 @@ func (s *Store) CreateOutcomeWithContract(ctx context.Context, outcome domain.Ou
 		key = sql.NullString{String: requestKey, Valid: true}
 	}
 	if err := txq.CreateOutcome(ctx, gen.CreateOutcomeParams{
-		ID:              outcome.ID,
-		SpaceID:         outcome.SpaceID,
-		Title:           outcome.Title,
-		IdempotencyKey:  key,
-		ParentOutcomeID: nullOutcomeID(outcome.ParentID),
+		ID: outcome.ID, SpaceID: outcome.SpaceID, Title: outcome.Title,
+		IdempotencyKey: key, ParentOutcomeID: nullOutcomeID(outcome.ParentID),
 	}); err != nil {
 		return fmt.Errorf("create outcome %s: %w", outcome.ID, err)
 	}
-
 	number, err := nextRevisionNumber(ctx, txq, outcome.ID)
 	if err != nil {
 		return err
@@ -99,12 +88,11 @@ func (s *Store) CreateOutcomeWithContract(ctx context.Context, outcome domain.Ou
 	if err := insertContractRevision(ctx, txq, first); err != nil {
 		return err
 	}
-
+	if err := writeContractExecutionPreference(ctx, tx, first); err != nil {
+		return err
+	}
 	rows, err := txq.AdvanceOutcomeCurrentRevision(ctx, gen.AdvanceOutcomeCurrentRevisionParams{
-		CurrentRevisionNumber:   number,
-		UpdatedAt:               first.CreatedAt,
-		ID:                      outcome.ID,
-		CurrentRevisionNumber_2: 0,
+		CurrentRevisionNumber: number, UpdatedAt: first.CreatedAt, ID: outcome.ID, CurrentRevisionNumber_2: 0,
 	})
 	if err != nil {
 		return fmt.Errorf("point outcome %s at revision 1: %w", outcome.ID, err)
@@ -125,7 +113,6 @@ func (s *Store) AppendContractRevision(ctx context.Context, id domain.OutcomeID,
 	}
 	defer func() { _ = tx.Rollback() }()
 	txq := s.qw.WithTx(tx)
-
 	number, err := nextRevisionNumber(ctx, txq, id)
 	if err != nil {
 		return 0, err
@@ -134,12 +121,11 @@ func (s *Store) AppendContractRevision(ctx context.Context, id domain.OutcomeID,
 	if err := insertContractRevision(ctx, txq, revision); err != nil {
 		return 0, err
 	}
-
+	if err := writeContractExecutionPreference(ctx, tx, revision); err != nil {
+		return 0, err
+	}
 	rows, err := txq.AdvanceOutcomeCurrentRevision(ctx, gen.AdvanceOutcomeCurrentRevisionParams{
-		CurrentRevisionNumber:   number,
-		UpdatedAt:               time.Now().UTC(),
-		ID:                      id,
-		CurrentRevisionNumber_2: expectedCurrent,
+		CurrentRevisionNumber: number, UpdatedAt: time.Now().UTC(), ID: id, CurrentRevisionNumber_2: expectedCurrent,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("advance outcome %s to revision %d: %w", id, number, err)
@@ -199,10 +185,8 @@ func (s *Store) ListContractRevisions(ctx context.Context, id domain.OutcomeID) 
 		rev.Criteria = make([]domain.ContractCriterion, 0, len(criterionRows))
 		for _, criterion := range criterionRows {
 			rev.Criteria = append(rev.Criteria, domain.ContractCriterion{
-				ID:                 domain.CriterionID(criterion.ID),
-				ContractRevisionID: domain.ContractRevisionID(criterion.ContractRevisionID),
-				Position:           criterion.Position,
-				Text:               criterion.Text,
+				ID: domain.CriterionID(criterion.ID), ContractRevisionID: domain.ContractRevisionID(criterion.ContractRevisionID),
+				Position: criterion.Position, Text: criterion.Text,
 			})
 		}
 		core, err := s.qr.GetContractRevisionIntakeCore(ctx, string(rev.ID))
@@ -215,6 +199,11 @@ func (s *Store) ListContractRevisions(ctx context.Context, id domain.OutcomeID) 
 		default:
 			return nil, fmt.Errorf("read core for revision %s: %w", rev.ID, err)
 		}
+		preference, err := s.GetContractExecutionPreference(ctx, rev.ID)
+		if err != nil {
+			return nil, err
+		}
+		rev.ExecutionPreference = preference
 		out = append(out, rev)
 	}
 	return out, nil
@@ -238,10 +227,8 @@ func insertContractRevision(ctx context.Context, q *gen.Queries, revision domain
 		revision.Criteria = make([]domain.ContractCriterion, 0, len(revision.SuccessCriteria))
 		for i, text := range revision.SuccessCriteria {
 			revision.Criteria = append(revision.Criteria, domain.ContractCriterion{
-				ID:                 domain.CriterionID(fmt.Sprintf("crit-%s-%04d", revision.ID, i+1)),
-				ContractRevisionID: revision.ID,
-				Position:           int64(i + 1),
-				Text:               text,
+				ID: domain.CriterionID(fmt.Sprintf("crit-%s-%04d", revision.ID, i+1)),
+				ContractRevisionID: revision.ID, Position: int64(i + 1), Text: text,
 			})
 		}
 	}
@@ -261,24 +248,14 @@ func insertContractRevision(ctx context.Context, q *gen.Queries, revision domain
 		return err
 	}
 	if err := q.CreateContractRevision(ctx, gen.CreateContractRevisionParams{
-		ID:              revision.ID,
-		OutcomeID:       revision.OutcomeID,
-		Number:          revision.Number,
-		Goal:            revision.Goal,
-		SuccessCriteria: criteria,
-		Review:          revision.Review,
-		Constraints:     constraints,
-		NonGoals:        nonGoals,
-		Clarification:   revision.Clarification,
+		ID: revision.ID, OutcomeID: revision.OutcomeID, Number: revision.Number, Goal: revision.Goal,
+		SuccessCriteria: criteria, Review: revision.Review, Constraints: constraints, NonGoals: nonGoals, Clarification: revision.Clarification,
 	}); err != nil {
 		return fmt.Errorf("create contract revision %s: %w", revision.ID, err)
 	}
 	for _, criterion := range revision.Criteria {
 		if err := q.CreateContractCriterion(ctx, gen.CreateContractCriterionParams{
-			ID:                 string(criterion.ID),
-			ContractRevisionID: string(criterion.ContractRevisionID),
-			Position:           criterion.Position,
-			Text:               criterion.Text,
+			ID: string(criterion.ID), ContractRevisionID: string(criterion.ContractRevisionID), Position: criterion.Position, Text: criterion.Text,
 		}); err != nil {
 			return fmt.Errorf("create contract criterion %s: %w", criterion.ID, err)
 		}
@@ -291,13 +268,8 @@ func insertContractRevision(ctx context.Context, q *gen.Queries, revision domain
 
 func outcomeFromRow(row gen.Outcome) domain.Outcome {
 	return domain.Outcome{
-		ID:                    row.ID,
-		SpaceID:               row.SpaceID,
-		ParentID:              outcomeIDFromNull(row.ParentOutcomeID),
-		Title:                 row.Title,
-		CurrentRevisionNumber: row.CurrentRevisionNumber,
-		CreatedAt:             row.CreatedAt,
-		UpdatedAt:             row.UpdatedAt,
+		ID: row.ID, SpaceID: row.SpaceID, ParentID: outcomeIDFromNull(row.ParentOutcomeID), Title: row.Title,
+		CurrentRevisionNumber: row.CurrentRevisionNumber, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
 
@@ -317,22 +289,14 @@ func outcomeIDFromNull(v sql.NullString) domain.OutcomeID {
 
 func contributionLinkFromRow(row gen.ContributionLink) domain.ContributionLink {
 	return domain.ContributionLink{
-		ID:                       domain.ContributionLinkID(row.ID),
-		ParentOutcomeID:          domain.OutcomeID(row.ParentOutcomeID),
-		ChildOutcomeID:           domain.OutcomeID(row.ChildOutcomeID),
-		ParentContractRevisionID: domain.ContractRevisionID(row.ParentContractRevisionID),
-		ParentCriterionID:        domain.CriterionID(row.ParentCriterionID),
-		CreatedAt:                row.CreatedAt,
+		ID: domain.ContributionLinkID(row.ID), ParentOutcomeID: domain.OutcomeID(row.ParentOutcomeID),
+		ChildOutcomeID: domain.OutcomeID(row.ChildOutcomeID), ParentContractRevisionID: domain.ContractRevisionID(row.ParentContractRevisionID),
+		ParentCriterionID: domain.CriterionID(row.ParentCriterionID), CreatedAt: row.CreatedAt,
 	}
 }
 
 func responsibilitySpaceFromRow(row gen.ResponsibilitySpace) domain.ResponsibilitySpace {
-	return domain.ResponsibilitySpace{
-		ID:        row.ID,
-		Kind:      row.Kind,
-		ProjectID: row.ProjectID,
-		CreatedAt: row.CreatedAt,
-	}
+	return domain.ResponsibilitySpace{ID: row.ID, Kind: row.Kind, ProjectID: row.ProjectID, CreatedAt: row.CreatedAt}
 }
 
 func contractRevisionFromRow(row gen.ContractRevision) (domain.ContractRevision, error) {
@@ -349,16 +313,8 @@ func contractRevisionFromRow(row gen.ContractRevision) (domain.ContractRevision,
 		return domain.ContractRevision{}, fmt.Errorf("revision %s non-goals: %w", row.ID, err)
 	}
 	return domain.ContractRevision{
-		ID:              row.ID,
-		OutcomeID:       row.OutcomeID,
-		Number:          row.Number,
-		Goal:            row.Goal,
-		SuccessCriteria: criteria,
-		Review:          row.Review,
-		Constraints:     constraints,
-		NonGoals:        nonGoals,
-		Clarification:   row.Clarification,
-		CreatedAt:       row.CreatedAt,
+		ID: row.ID, OutcomeID: row.OutcomeID, Number: row.Number, Goal: row.Goal, SuccessCriteria: criteria,
+		Review: row.Review, Constraints: constraints, NonGoals: nonGoals, Clarification: row.Clarification, CreatedAt: row.CreatedAt,
 	}, nil
 }
 
@@ -387,13 +343,7 @@ func unmarshalJSONStrings(data string) ([]string, error) {
 	return out, nil
 }
 
-func (s *Store) CreateContributionWithContract(
-	ctx context.Context,
-	child domain.Outcome,
-	first domain.ContractRevision,
-	links []domain.ContributionLink,
-	requestKey string,
-) error {
+func (s *Store) CreateContributionWithContract(ctx context.Context, child domain.Outcome, first domain.ContractRevision, links []domain.ContributionLink, requestKey string) error {
 	if err := child.Validate(); err != nil {
 		return err
 	}
@@ -403,31 +353,23 @@ func (s *Store) CreateContributionWithContract(
 	if err := domain.ValidateContributionLinkSet(child.ID, links); err != nil {
 		return err
 	}
-
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-
 	tx, err := s.writeDB.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin create contribution %s: %w", child.ID, err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	txq := s.qw.WithTx(tx)
-
 	var key sql.NullString
 	if requestKey != "" {
 		key = sql.NullString{String: requestKey, Valid: true}
 	}
 	if err := txq.CreateOutcome(ctx, gen.CreateOutcomeParams{
-		ID:              child.ID,
-		SpaceID:         child.SpaceID,
-		Title:           child.Title,
-		IdempotencyKey:  key,
-		ParentOutcomeID: nullOutcomeID(child.ParentID),
+		ID: child.ID, SpaceID: child.SpaceID, Title: child.Title, IdempotencyKey: key, ParentOutcomeID: nullOutcomeID(child.ParentID),
 	}); err != nil {
 		return fmt.Errorf("create contributing outcome %s: %w", child.ID, err)
 	}
-
 	number, err := nextRevisionNumber(ctx, txq, child.ID)
 	if err != nil {
 		return err
@@ -436,11 +378,11 @@ func (s *Store) CreateContributionWithContract(
 	if err := insertContractRevision(ctx, txq, first); err != nil {
 		return err
 	}
+	if err := writeContractExecutionPreference(ctx, tx, first); err != nil {
+		return err
+	}
 	rows, err := txq.AdvanceOutcomeCurrentRevision(ctx, gen.AdvanceOutcomeCurrentRevisionParams{
-		CurrentRevisionNumber:   number,
-		UpdatedAt:               first.CreatedAt,
-		ID:                      child.ID,
-		CurrentRevisionNumber_2: 0,
+		CurrentRevisionNumber: number, UpdatedAt: first.CreatedAt, ID: child.ID, CurrentRevisionNumber_2: 0,
 	})
 	if err != nil {
 		return fmt.Errorf("point contributing outcome %s at revision 1: %w", child.ID, err)
@@ -448,14 +390,10 @@ func (s *Store) CreateContributionWithContract(
 	if rows != 1 {
 		return fmt.Errorf("point contributing outcome %s at revision 1: pointer moved concurrently", child.ID)
 	}
-
 	for _, link := range links {
 		if err := txq.CreateContributionLink(ctx, gen.CreateContributionLinkParams{
-			ID:                       string(link.ID),
-			ParentOutcomeID:          string(link.ParentOutcomeID),
-			ChildOutcomeID:           string(link.ChildOutcomeID),
-			ParentContractRevisionID: string(link.ParentContractRevisionID),
-			ParentCriterionID:        string(link.ParentCriterionID),
+			ID: string(link.ID), ParentOutcomeID: string(link.ParentOutcomeID), ChildOutcomeID: string(link.ChildOutcomeID),
+			ParentContractRevisionID: string(link.ParentContractRevisionID), ParentCriterionID: string(link.ParentCriterionID),
 		}); err != nil {
 			return fmt.Errorf("bind contribution %s to criterion %s: %w", link.ChildOutcomeID, link.ParentCriterionID, err)
 		}
