@@ -9,38 +9,36 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
-// providerDefaultModelOverride is a transport-only non-empty override that
-// clears an inherited Project model inside Session Manager's existing merge.
-// Every selectable execution adapter trims model text before constructing its
-// provider command, so this value becomes "no --model" at the provider
-// boundary. It is never persisted or exposed as canonical model state.
-const providerDefaultModelOverride = " "
-
-// SpawnExactAttempt starts a subordinate worker for an approved WorkUnit.
-// Provider/model semantics come only from binding; mutable Project provider or
-// model preferences cannot reinterpret an approved Plan. Other Project session
-// configuration (permissions, environment, workspace provisioning) remains
-// ordinary runtime configuration rather than execution-routing authority.
-func (s *Service) SpawnExactAttempt(ctx context.Context, cfg ports.SpawnConfig, binding domain.ExecutionBinding) (domain.Session, int, int, error) {
+// SpawnExactAttempt is the canonical governed worker launch boundary. The
+// approved WorkUnit owns provider/model authority; mutable Project defaults are
+// only preferences used before Plan approval and must not reinterpret it here.
+func (s *Service) SpawnExactAttempt(ctx context.Context, cfg ports.SpawnConfig, binding domain.ExecutionBinding) (domain.SessionRecord, error) {
 	if err := binding.ValidateForNewWork(); err != nil {
-		return domain.Session{}, 0, 0, fmt.Errorf("exact attempt binding: %w", err)
+		return domain.SessionRecord{}, fmt.Errorf("spawn exact attempt: %w", err)
 	}
 	cfg.Kind = domain.KindWorker
 	cfg.Harness = binding.Provider
 	bindingCopy := binding
 	cfg.ExactExecutionBinding = &bindingCopy
+	// Session Manager applies model semantics from ExactExecutionBinding after
+	// Project/request preferences are resolved. Do not encode provider_default
+	// as a magic model value here: an empty concrete model is meaningful and
+	// means the provider owns model selection for this exact binding.
+	cfg.AgentConfig.Model = ""
+	return s.Spawn(ctx, cfg)
+}
 
+func normalizedExactModel(binding domain.ExecutionBinding) (string, error) {
 	switch binding.ModelSelection {
 	case domain.ExecutionBindingModelProviderDefault:
-		cfg.AgentConfig.Model = providerDefaultModelOverride
+		return "", nil
 	case domain.ExecutionBindingModelExplicit:
 		model := strings.TrimSpace(binding.Model)
 		if model == "" {
-			return domain.Session{}, 0, 0, fmt.Errorf("exact attempt binding: explicit model is required")
+			return "", fmt.Errorf("explicit execution binding requires model")
 		}
-		cfg.AgentConfig.Model = model
+		return model, nil
 	default:
-		return domain.Session{}, 0, 0, fmt.Errorf("exact attempt binding: unsupported model selection %q", binding.ModelSelection)
+		return "", fmt.Errorf("unsupported exact model selection %q", binding.ModelSelection)
 	}
-	return s.Spawn(ctx, cfg)
 }
