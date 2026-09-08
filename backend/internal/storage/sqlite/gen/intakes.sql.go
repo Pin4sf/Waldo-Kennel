@@ -585,7 +585,7 @@ func (q *Queries) GetContractRevisionIntakeCore(ctx context.Context, contractRev
 }
 
 const getIntakeAnalysisRequest = `-- name: GetIntakeAnalysisRequest :one
-SELECT id, intake_id, expected_proposal_revision, status, callback_token_digest, session_id, harness, expires_at, raw_proposal, refusal_reason, created_at, answered_at FROM intake_analysis_requests WHERE id = ?
+SELECT id, intake_id, expected_proposal_revision, status, callback_token_digest, session_id, harness, expires_at, raw_proposal, refusal_reason, created_at, answered_at, intelligence_run_id FROM intake_analysis_requests WHERE id = ?
 `
 
 func (q *Queries) GetIntakeAnalysisRequest(ctx context.Context, id domain.IntakeAnalysisRequestID) (IntakeAnalysisRequest, error) {
@@ -604,6 +604,7 @@ func (q *Queries) GetIntakeAnalysisRequest(ctx context.Context, id domain.Intake
 		&i.RefusalReason,
 		&i.CreatedAt,
 		&i.AnsweredAt,
+		&i.IntelligenceRunID,
 	)
 	return i, err
 }
@@ -746,7 +747,7 @@ func (q *Queries) GetResponsibilityLink(ctx context.Context, id string) (Respons
 }
 
 const latestIntakeAnalysisRequest = `-- name: LatestIntakeAnalysisRequest :one
-SELECT id, intake_id, expected_proposal_revision, status, callback_token_digest, session_id, harness, expires_at, raw_proposal, refusal_reason, created_at, answered_at FROM intake_analysis_requests
+SELECT id, intake_id, expected_proposal_revision, status, callback_token_digest, session_id, harness, expires_at, raw_proposal, refusal_reason, created_at, answered_at, intelligence_run_id FROM intake_analysis_requests
 WHERE intake_id = ?
 ORDER BY created_at DESC, id DESC
 LIMIT 1
@@ -768,6 +769,7 @@ func (q *Queries) LatestIntakeAnalysisRequest(ctx context.Context, intakeID stri
 		&i.RefusalReason,
 		&i.CreatedAt,
 		&i.AnsweredAt,
+		&i.IntelligenceRunID,
 	)
 	return i, err
 }
@@ -806,7 +808,7 @@ func (q *Queries) ListIntakeConversationRefs(ctx context.Context, intakeID strin
 }
 
 const listOpenIntakeAnalysisRequests = `-- name: ListOpenIntakeAnalysisRequests :many
-SELECT id, intake_id, expected_proposal_revision, status, callback_token_digest, session_id, harness, expires_at, raw_proposal, refusal_reason, created_at, answered_at FROM intake_analysis_requests WHERE status = 'requested'
+SELECT id, intake_id, expected_proposal_revision, status, callback_token_digest, session_id, harness, expires_at, raw_proposal, refusal_reason, created_at, answered_at, intelligence_run_id FROM intake_analysis_requests WHERE status = 'requested'
 `
 
 func (q *Queries) ListOpenIntakeAnalysisRequests(ctx context.Context) ([]IntakeAnalysisRequest, error) {
@@ -831,6 +833,7 @@ func (q *Queries) ListOpenIntakeAnalysisRequests(ctx context.Context) ([]IntakeA
 			&i.RefusalReason,
 			&i.CreatedAt,
 			&i.AnsweredAt,
+			&i.IntelligenceRunID,
 		); err != nil {
 			return nil, err
 		}

@@ -14,29 +14,17 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 )
 
-// ProofManager is the controller-facing Work E boundary. Only
-// DecideAcceptance can append owner acceptance; Evidence and Verification are
-// deliberately separate facts.
 type ProofManager interface {
 	GetProof(context.Context, domain.OutcomeID) (ProofView, error)
 	RecordEvidence(context.Context, domain.OutcomeID, RecordEvidenceInput) (ProofView, error)
 	RecordVerification(context.Context, domain.OutcomeID, RecordVerificationInput) (ProofView, error)
 	DecideAcceptance(context.Context, domain.OutcomeID, DecideAcceptanceInput) (ProofView, error)
-
-	// BatchEligibility reports which contributing Outcomes could be accepted
-	// together right now, and why the others could not. It decides nothing.
 	BatchEligibility(context.Context, domain.OutcomeID) ([]domain.BatchEntryVerdict, error)
-
-	// AcceptContributorBatch records one owner sitting as N separate
-	// immutable decisions (ADR 0007). The daemon may withhold a contributor
-	// from the batch; it may never accept one.
 	AcceptContributorBatch(context.Context, domain.OutcomeID, AcceptBatchInput) (AcceptBatchView, error)
 }
 
-// ProofStatus is derived from durable proof facts at read time.
 type ProofStatus string
 
-// Proof statuses never store or infer provider completion as acceptance.
 const (
 	ProofStatusActive             ProofStatus = "active"
 	ProofStatusReadyForAcceptance ProofStatus = "ready_for_acceptance"
@@ -44,20 +32,16 @@ const (
 	ProofStatusReworkRequired     ProofStatus = "rework_required"
 )
 
-// CriterionProofView groups current-revision facts for one stable criterion.
 type CriterionProofView struct {
 	Criterion     domain.ContractCriterion
 	Evidence      []domain.EvidenceItem
 	Verifications []domain.VerificationRun
 	Ready         bool
 	Gap           string
-	// Delegated reports that contributing Outcomes prove this criterion rather
-	// than the parent's own Evidence (ADR 0007). ClaimedBy names them.
-	Delegated bool               `json:"delegated,omitempty"`
-	ClaimedBy []domain.OutcomeID `json:"claimedBy,omitempty"`
+	Delegated     bool               `json:"delegated,omitempty"`
+	ClaimedBy     []domain.OutcomeID `json:"claimedBy,omitempty"`
 }
 
-// ProofView is the daemon-derived Prove & Close read model.
 type ProofView struct {
 	OutcomeID    domain.OutcomeID
 	Contract     domain.ContractRevision
@@ -69,7 +53,6 @@ type ProofView struct {
 	ProofHorizon time.Time
 }
 
-// RecordEvidenceInput binds immutable Evidence to an exact criterion and subject revision.
 type RecordEvidenceInput struct {
 	ExpectedContractRevision int64
 	ContractRevisionID       domain.ContractRevisionID
@@ -87,7 +70,6 @@ type RecordEvidenceInput struct {
 	RequestKey               string
 }
 
-// RecordVerificationInput binds a declared verification method to exact Evidence.
 type RecordVerificationInput struct {
 	ExpectedContractRevision int64
 	ContractRevisionID       domain.ContractRevisionID
@@ -107,7 +89,6 @@ type RecordVerificationInput struct {
 	RequestKey               string
 }
 
-// DecideAcceptanceInput records the user's explicit acceptance or re-entry decision.
 type DecideAcceptanceInput struct {
 	ExpectedContractRevision int64
 	ContractRevisionID       domain.ContractRevisionID
@@ -121,7 +102,6 @@ type DecideAcceptanceInput struct {
 
 var _ ProofManager = (*Service)(nil)
 
-// GetProof derives the current Prove & Close state from immutable records.
 func (s *Service) GetProof(ctx context.Context, outcomeID domain.OutcomeID) (ProofView, error) {
 	if s.proof == nil {
 		return ProofView{}, apierr.Internal("OUTCOME_PROOF_UNAVAILABLE", "Outcome proof storage is unavailable")
@@ -153,7 +133,6 @@ func (s *Service) GetProof(ctx context.Context, outcomeID domain.OutcomeID) (Pro
 	return deriveProof(outcomeView, evidence, verifications, decisions, corrections, delegated), nil
 }
 
-// RecordEvidence appends provenance-bearing Evidence for the current contract.
 func (s *Service) RecordEvidence(ctx context.Context, outcomeID domain.OutcomeID, in RecordEvidenceInput) (ProofView, error) {
 	if s.proof == nil {
 		return ProofView{}, apierr.Internal("OUTCOME_PROOF_UNAVAILABLE", "Outcome proof storage is unavailable")
@@ -207,7 +186,6 @@ func (s *Service) RecordEvidence(ctx context.Context, outcomeID domain.OutcomeID
 	return s.GetProof(ctx, outcomeID)
 }
 
-// RecordVerification appends the actual verification method and independence class.
 func (s *Service) RecordVerification(ctx context.Context, outcomeID domain.OutcomeID, in RecordVerificationInput) (ProofView, error) {
 	if s.proof == nil {
 		return ProofView{}, apierr.Internal("OUTCOME_PROOF_UNAVAILABLE", "Outcome proof storage is unavailable")
@@ -275,7 +253,6 @@ func (s *Service) RecordVerification(ctx context.Context, outcomeID domain.Outco
 	return s.GetProof(ctx, outcomeID)
 }
 
-// DecideAcceptance appends the sole user-authoritative closure or re-entry fact.
 func (s *Service) DecideAcceptance(ctx context.Context, outcomeID domain.OutcomeID, in DecideAcceptanceInput) (ProofView, error) {
 	if s.proof == nil {
 		return ProofView{}, apierr.Internal("OUTCOME_PROOF_UNAVAILABLE", "Outcome proof storage is unavailable")
@@ -383,15 +360,15 @@ func (s *Service) validateProofTarget(ctx context.Context, outcomeID domain.Outc
 	if err != nil {
 		return err
 	}
-	var criterion domain.ContractCriterion
+	criterionFound := false
 	for _, candidate := range current.Criteria {
 		if candidate.ID == criterionID {
-			criterion = candidate
+			criterionFound = true
 			break
 		}
 	}
-	if criterion.ID.IsZero() {
-		return apierr.Invalid("CRITERION_BINDING_INVALID", "Evidence and Verification must name a criterion in the current contract revision", nil)
+	if !criterionFound {
+		return apierr.Invalid("CRITERION_BINDING_INVALID", "Evidence and Verification must name a criterion in the current Contract revision", nil)
 	}
 	subjectID = strings.TrimSpace(subjectID)
 	subjectRevision = strings.TrimSpace(subjectRevision)
@@ -409,15 +386,15 @@ func (s *Service) validateProofTarget(ctx context.Context, outcomeID domain.Outc
 		if err != nil {
 			return err
 		}
-		if !ok || plan.ContractRevisionNumber != current.Number || subjectRevision != string(plan.ID) {
+		if !ok || plan.ContractRevisionNumber != current.Number || subjectRevision != string(plan.ID) || !planCoversCriterion(plan, criterionID) {
 			return subjectMismatch()
 		}
 	case domain.ProofSubjectWorkUnit:
-		plan, ok, err := s.store.GetLatestPlanRevision(ctx, outcomeID)
+		plan, ok, err := s.store.GetPlanRevision(ctx, outcomeID, domain.PlanRevisionID(subjectRevision))
 		if err != nil {
 			return err
 		}
-		if !ok || plan.ContractRevisionNumber != current.Number || subjectRevision != string(plan.ID) || len(plan.WorkUnits) != 1 || subjectID != string(plan.WorkUnits[0].ID) {
+		if !ok || plan.ContractRevisionNumber != current.Number || !planWorkUnitCoversCriterion(plan, domain.WorkUnitID(subjectID), criterionID) {
 			return subjectMismatch()
 		}
 	case domain.ProofSubjectAttempt:
@@ -428,18 +405,45 @@ func (s *Service) validateProofTarget(ctx context.Context, outcomeID domain.Outc
 		if !ok || attempt.ContractRevisionNumber != current.Number || subjectRevision != string(attempt.ID) {
 			return subjectMismatch()
 		}
+		plan, ok, err := s.store.GetPlanRevision(ctx, outcomeID, attempt.PlanRevisionID)
+		if err != nil {
+			return err
+		}
+		if !ok || plan.ContractRevisionNumber != current.Number || !planWorkUnitCoversCriterion(plan, attempt.WorkUnitID, criterionID) {
+			return subjectMismatch()
+		}
 	default:
 		return subjectMismatch()
 	}
 	return nil
 }
 
-// deriveProof computes the read model. delegated carries the parent criteria
-// a decomposition hands to contributing Outcomes: those are proved by their
-// contributors' acceptance rather than by the parent's own Evidence, so one
-// definition of "ready" serves a direct and a decomposed Outcome alike and
-// nothing downstream has to ask which shape it is looking at. It is nil for
-// every direct Outcome, which is every Outcome that predates composition.
+func planCoversCriterion(plan domain.PlanRevision, criterionID domain.CriterionID) bool {
+	for _, unit := range plan.WorkUnits {
+		for _, id := range unit.CriterionIDs {
+			if id == criterionID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func planWorkUnitCoversCriterion(plan domain.PlanRevision, workUnitID domain.WorkUnitID, criterionID domain.CriterionID) bool {
+	for _, unit := range plan.WorkUnits {
+		if unit.ID != workUnitID {
+			continue
+		}
+		for _, id := range unit.CriterionIDs {
+			if id == criterionID {
+				return true
+			}
+		}
+		return false
+	}
+	return false
+}
+
 func deriveProof(view OutcomeView, allEvidence []domain.EvidenceItem, allVerifications []domain.VerificationRun, allDecisions []domain.AcceptanceDecision, corrections []domain.OutcomeCorrection, delegated map[domain.CriterionID]domain.DelegatedCriterion) ProofView {
 	currentDecisions := make([]domain.AcceptanceDecision, 0)
 	var horizon time.Time
@@ -474,8 +478,6 @@ func deriveProof(view OutcomeView, allEvidence []domain.EvidenceItem, allVerific
 			}
 		}
 		if entry, isDelegated := delegated[criterion.ID]; isDelegated {
-			// A delegated criterion is proved by its contributors, never by
-			// the parent's own Evidence.
 			criterionView.Delegated = true
 			criterionView.ClaimedBy = entry.ClaimedBy
 			criterionView.Ready, criterionView.Gap = entry.Proved, entry.Gap
@@ -614,9 +616,6 @@ func (s *Service) validateReentryTarget(ctx context.Context, outcomeID domain.Ou
 	return nil
 }
 
-// delegatedCriteria resolves which of an Outcome's current criteria are proved
-// by contributing Outcomes. A direct Outcome returns nil, so its proof
-// derivation is byte-for-byte what it was before composition existed.
 func (s *Service) delegatedCriteria(ctx context.Context, view OutcomeView) (map[domain.CriterionID]domain.DelegatedCriterion, error) {
 	children, err := s.store.ListContributingOutcomes(ctx, view.Outcome.ID)
 	if err != nil {

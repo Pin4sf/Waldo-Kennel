@@ -96,7 +96,8 @@ func (f *attemptFakeStore) FindAttemptByIdempotencyKey(_ context.Context, key st
 	return domain.Attempt{}, false, nil
 }
 
-func (f *attemptFakeStore) CreateAttemptWithFence(_ context.Context, outcomeID domain.OutcomeID, plan domain.PlanRevision, requestKey string, subject string, at time.Time) (domain.Attempt, error) {
+func (f *attemptFakeStore) CreateAttemptWithFence(_ context.Context, admission ports.AttemptAdmission) (domain.Attempt, error) {
+	outcomeID, requestKey, subject, at := admission.OutcomeID, admission.RequestKey, admission.FenceSubject, admission.At
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if _, held := f.openFenceLocked(subject); held {
@@ -118,11 +119,11 @@ func (f *attemptFakeStore) CreateAttemptWithFence(_ context.Context, outcomeID d
 	attempt := domain.Attempt{
 		ID:                     domain.AttemptID("att-" + string(rune('a'+fakeAttemptCounter%26)) + timeToSuffix(at)),
 		OutcomeID:              outcomeID,
-		PlanRevisionID:         plan.ID,
-		WorkUnitID:             plan.WorkUnits[0].ID,
+		PlanRevisionID:         admission.PlanRevisionID,
+		WorkUnitID:             admission.WorkUnitID,
 		Number:                 int64(len(f.attempts[outcomeID]) + 1),
 		Status:                 domain.AttemptQueued,
-		ContractRevisionNumber: plan.ContractRevisionNumber,
+		ContractRevisionNumber: admission.ContractRevisionNumber,
 		RequestKey:             requestKey,
 		CreatedAt:              at,
 		UpdatedAt:              at,
@@ -341,7 +342,7 @@ type fakeSpawner struct {
 	sessionN        int
 }
 
-func (f *fakeSpawner) ProfileReadiness(_ context.Context, _ domain.ProjectID, harness domain.AgentHarness) (ports.AgentProfileReadiness, error) {
+func (f *fakeSpawner) ProfileReadiness(_ context.Context, _ domain.ProjectID, _ domain.ExecutionBinding) (ports.AgentProfileReadiness, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.readinessErr != nil {
@@ -350,12 +351,12 @@ func (f *fakeSpawner) ProfileReadiness(_ context.Context, _ domain.ProjectID, ha
 	return f.readiness, nil
 }
 
-func (f *fakeSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (domain.Session, error) {
+func (f *fakeSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (ports.AttemptSpawnResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.spawned = append(f.spawned, req)
 	if f.spawnErr != nil {
-		return domain.Session{}, f.spawnErr
+		return ports.AttemptSpawnResult{}, f.spawnErr
 	}
 	f.sessionN++
 	rec := domain.SessionRecord{
@@ -367,7 +368,7 @@ func (f *fakeSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (d
 			LastActivityAt: time.Now(),
 		},
 	}
-	return domain.Session{SessionRecord: rec}, nil
+	return ports.AttemptSpawnResult{Session: domain.Session{SessionRecord: rec}}, nil
 }
 
 // Terminate records the request; failures AND result shapes are injectable
@@ -465,13 +466,27 @@ func (f *fakeHeartbeats) forget(id domain.SessionID) {
 // The bare contract/plan fakes satisfy the widened OutcomeStore interface
 // with inert stubs; attemptFakeStore above shadows every one of them with the
 // real in-memory behavior the execution tests exercise.
-func (f *fakeStore) GetOutcomeProjectID(context.Context, domain.OutcomeID) (domain.ProjectID, bool, error) {
+// GetOutcomeProjectID resolves the Outcome's project through its
+// ResponsibilitySpace. Planning needs it to read Project preferences, so a
+// stub that always answered "no such Outcome" would make every plan fail.
+func (f *fakeStore) GetOutcomeProjectID(_ context.Context, id domain.OutcomeID) (domain.ProjectID, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	outcome, ok := f.outcomes[id]
+	if !ok {
+		return "", false, nil
+	}
+	for projectID, space := range f.spaces {
+		if space.ID == outcome.SpaceID {
+			return projectID, true, nil
+		}
+	}
 	return "", false, nil
 }
 func (f *fakeStore) FindAttemptByIdempotencyKey(context.Context, string) (domain.Attempt, bool, error) {
 	return domain.Attempt{}, false, nil
 }
-func (f *fakeStore) CreateAttemptWithFence(context.Context, domain.OutcomeID, domain.PlanRevision, string, string, time.Time) (domain.Attempt, error) {
+func (f *fakeStore) CreateAttemptWithFence(context.Context, ports.AttemptAdmission) (domain.Attempt, error) {
 	return domain.Attempt{}, nil
 }
 func (f *fakeStore) GetAttempt(context.Context, domain.OutcomeID, domain.AttemptID) (domain.Attempt, bool, error) {

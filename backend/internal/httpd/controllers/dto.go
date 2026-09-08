@@ -1900,7 +1900,15 @@ type CreateOutcomeRequest struct {
 	Constraints     []string `json:"constraints,omitempty"`
 	NonGoals        []string `json:"nonGoals,omitempty"`
 	Clarification   string   `json:"clarification,omitempty"`
-	RequestKey      string   `json:"requestKey"`
+	// AuthorityCeiling is the maximum authority any WorkUnit under this
+	// Contract may ever be granted. Omitting it creates an Outcome that can
+	// never be planned, because planning derives the least capabilities each
+	// unit needs and then checks them against this ceiling.
+	AuthorityCeiling IntakeAuthority `json:"authorityCeiling,omitempty"`
+	// StopConditions name the moments a human must decide before work
+	// continues.
+	StopConditions []string `json:"stopConditions,omitempty"`
+	RequestKey     string   `json:"requestKey"`
 }
 
 // ReviseOutcomeContractRequest is the body for POST
@@ -1914,6 +1922,12 @@ type ReviseOutcomeContractRequest struct {
 	Constraints      []string `json:"constraints,omitempty"`
 	NonGoals         []string `json:"nonGoals,omitempty"`
 	Clarification    string   `json:"clarification,omitempty"`
+	// AuthorityCeiling must be restated on every revision. A revision is a new
+	// immutable Contract, not a patch: omitting the ceiling here would grant
+	// the successor no authority at all and quietly make the Outcome
+	// unplannable.
+	AuthorityCeiling IntakeAuthority `json:"authorityCeiling,omitempty"`
+	StopConditions   []string        `json:"stopConditions,omitempty"`
 }
 
 // ContractRevisionResponse is one immutable contract revision.
@@ -2857,11 +2871,18 @@ func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
 
 // StartOutcomeAttemptRequest is the body for POST
 // /outcomes/{outcomeId}/attempts. RequestKey makes admission exactly-once:
-// replaying a delivered key resolves the original attempt. Harness is the
-// optional worker provider; empty uses the daemon's v0 default (Codex-first)
-// so provider naming stays a server-side policy.
+// replaying a delivered key resolves the original attempt.
+//
+// WorkUnitID names which approved unit of the Plan this Attempt executes. It is
+// required: an approved Plan may hold several WorkUnits, and the provider/model
+// binding frozen at approval belongs to one of them specifically.
+//
+// Harness is accepted only for historical clients and is ignored. Provider and
+// model come from the approved WorkUnit's immutable ExecutionBinding, and no
+// caller or mutable Project default may reinterpret it after approval.
 type StartOutcomeAttemptRequest struct {
 	PlanRevisionID string `json:"planRevisionId"`
+	WorkUnitID     string `json:"workUnitId"`
 	Harness        string `json:"harness,omitempty"`
 	RequestKey     string `json:"requestKey"`
 }

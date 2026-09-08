@@ -261,6 +261,15 @@ func focusLedgerPlan(outcomeID domain.OutcomeID, revision domain.ContractRevisio
 		EvidenceChecks:          []string{"validation, date boundary, aggregation, persistence checks pass"},
 		VerificationRequirement: "deterministic verification outside the producer session plus owner walkthrough",
 		StopConditions:          []string{"stop before unapproved dependencies, remote effects, or writes outside the worktree"},
+		// An approved unit carries its exact binding, and the plan may only
+		// grant what its units actually require.
+		Provider:       domain.HarnessCodex,
+		ModelSelection: domain.ExecutionBindingModelProviderDefault,
+		RequiredCapabilities: []string{
+			domain.CapabilityWorktreeRead,
+			domain.CapabilityWorktreeWrite,
+			domain.CapabilityWorktreeExec,
+		},
 	}
 	grants := []domain.CapabilityGrant{
 		{ID: domain.CapabilityGrantID("cg-read-" + fmt.Sprintf("%d", number)), Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
@@ -279,7 +288,18 @@ func focusLedgerPlan(outcomeID domain.OutcomeID, revision domain.ContractRevisio
 		Summary:                "One direct Work Unit",
 		WorkUnits:              []domain.WorkUnit{unit},
 		Grants:                 grants,
-		RunBriefCoreDigest:     digest,
+		RoutingDecisions: []domain.WorkUnitRoutingDecision{{
+			WorkUnitID: unit.ID,
+			Decision: domain.RoutingDecision{
+				Status:                    domain.RoutingDecisionRecommended,
+				PolicyVersion:             domain.RoutingPolicyVersion,
+				Role:                      domain.RoutingRoleWorker,
+				RecommendedCandidateID:    string(domain.HarnessCodex),
+				RecommendedProvider:       string(domain.HarnessCodex),
+				RecommendedModelSelection: domain.ExecutionBindingModelProviderDefault,
+			},
+		}},
+		RunBriefCoreDigest: digest,
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence/intelligencetest"
 	outcomevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
@@ -299,7 +300,7 @@ func TestOutcomeRoutesFunctionalThroughRealStore(t *testing.T) {
 		t.Fatalf("seed project: %v", err)
 	}
 
-	svc := outcomevc.New(storeHandle, nil)
+	svc := outcomevc.New(storeHandle, nil).WithPlanning(intelligencetest.New(), controllerRouting{})
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{
 		Outcomes: svc,
@@ -373,14 +374,14 @@ func TestOutcomePlanRoutesFunctionalThroughRealStore(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
-	svc := outcomevc.New(storeHandle, nil)
+	svc := outcomevc.New(storeHandle, nil).WithPlanning(intelligencetest.New(), controllerRouting{})
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{
 		Outcomes: svc,
 	}, httpd.ControlDeps{}))
 	defer srv.Close()
 
-	const createBody = `{"title":"Local Focus Ledger","goal":"Record focus locally.","successCriteria":["Positive minutes create one block."],"review":"Deterministic checks.","requestKey":"req-plan-e2e"}`
+	const createBody = `{"title":"Local Focus Ledger","goal":"Record focus locally.","successCriteria":["Positive minutes create one block."],"review":"Deterministic checks.","authorityCeiling":{"readWorkspace":true,"writeWorkspace":true,"executeLocal":true},"requestKey":"req-plan-e2e"}`
 	respBytes, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/projects/mer/outcomes", createBody)
 	if status != http.StatusCreated {
 		t.Fatalf("create = %d: %s", status, respBytes)
@@ -434,7 +435,7 @@ func TestOutcomePlanRoutesFunctionalThroughRealStore(t *testing.T) {
 
 	// 4) Material change: r2 makes the r1-bound plan unapprovable and forces
 	//    a fresh brief on the next proposal.
-	revBody := `{"expectedRevision":1,"goal":"Record focus locally with notes.","successCriteria":["Blocks","Notes"],"review":"checks"}`
+	revBody := `{"expectedRevision":1,"goal":"Record focus locally with notes.","successCriteria":["Blocks","Notes"],"review":"checks","authorityCeiling":{"readWorkspace":true,"writeWorkspace":true,"executeLocal":true}}`
 	revBytes, revStatus, _ := doRequest(t, srv, http.MethodPost, "/api/v1/outcomes/"+id+"/revisions", revBody)
 	if revStatus != http.StatusOK {
 		t.Fatalf("revise = %d: %s", revStatus, revBytes)

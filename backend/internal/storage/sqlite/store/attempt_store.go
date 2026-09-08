@@ -40,13 +40,24 @@ func (s *Store) FindAttemptByIdempotencyKey(ctx context.Context, key string) (do
 	return attemptFromRow(row), true, nil
 }
 
-// CreateAttemptWithFence atomically persists the queued attempt and issues
-// its custody fence. The partial unique index on open fences backstops the
-// check; a conflict rolls EVERYTHING back so a failed admission leaves zero
-// durable rows.
-func (s *Store) CreateAttemptWithFence(ctx context.Context, outcomeID domain.OutcomeID, plan domain.PlanRevision, requestKey, subject string, at time.Time) (domain.Attempt, error) {
-	if len(plan.WorkUnits) != 1 {
-		return domain.Attempt{}, fmt.Errorf("create attempt for %s: plan must carry exactly one work unit", plan.ID)
+// CreateAttemptWithFence atomically persists one scheduler-selected WorkUnit
+// Attempt and issues its custody fence. Storage receives exact canonical
+// identity; it never inspects a Plan or chooses a WorkUnit itself.
+func (s *Store) CreateAttemptWithFence(ctx context.Context, in ports.AttemptAdmission) (domain.Attempt, error) {
+	if in.OutcomeID.IsZero() || in.PlanRevisionID.IsZero() || in.WorkUnitID.IsZero() {
+		return domain.Attempt{}, fmt.Errorf("attempt admission requires outcome, plan revision, and work unit ids")
+	}
+	if in.ContractRevisionNumber < 1 {
+		return domain.Attempt{}, fmt.Errorf("attempt admission requires a contract revision")
+	}
+	if strings.TrimSpace(in.RequestKey) == "" {
+		return domain.Attempt{}, fmt.Errorf("attempt admission requires a request key")
+	}
+	if strings.TrimSpace(in.FenceSubject) == "" {
+		return domain.Attempt{}, fmt.Errorf("attempt admission requires a fence subject")
+	}
+	if in.At.IsZero() {
+		return domain.Attempt{}, fmt.Errorf("attempt admission requires a timestamp")
 	}
 
 	s.writeMu.Lock()
@@ -54,36 +65,32 @@ func (s *Store) CreateAttemptWithFence(ctx context.Context, outcomeID domain.Out
 
 	tx, err := s.writeDB.BeginTx(ctx, nil)
 	if err != nil {
-		return domain.Attempt{}, fmt.Errorf("begin create attempt for %s: %w", outcomeID, err)
+		return domain.Attempt{}, fmt.Errorf("begin create attempt for %s: %w", in.OutcomeID, err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	txq := s.qw.WithTx(tx)
 
-	maxNum, err := txq.MaxAttemptNumber(ctx, outcomeID)
+	maxNum, err := txq.MaxAttemptNumber(ctx, in.OutcomeID)
 	if err != nil {
-		return domain.Attempt{}, fmt.Errorf("max attempt number for %s: %w", outcomeID, err)
+		return domain.Attempt{}, fmt.Errorf("max attempt number for %s: %w", in.OutcomeID, err)
 	}
 	priorCount, ok := maxNum.(int64)
 	if !ok {
-		return domain.Attempt{}, fmt.Errorf("max attempt number for %s: unexpected type %T", outcomeID, maxNum)
+		return domain.Attempt{}, fmt.Errorf("max attempt number for %s: unexpected type %T", in.OutcomeID, maxNum)
 	}
-	number := priorCount + 1
 
-	var key sql.NullString
-	if requestKey != "" {
-		key = sql.NullString{String: requestKey, Valid: true}
-	}
+	key := sql.NullString{String: strings.TrimSpace(in.RequestKey), Valid: true}
 	attempt := domain.Attempt{
 		ID:                     domain.AttemptID("att-" + uuid.NewString()),
-		OutcomeID:              outcomeID,
-		PlanRevisionID:         plan.ID,
-		WorkUnitID:             plan.WorkUnits[0].ID,
-		Number:                 number,
+		OutcomeID:              in.OutcomeID,
+		PlanRevisionID:         in.PlanRevisionID,
+		WorkUnitID:             in.WorkUnitID,
+		Number:                 priorCount + 1,
 		Status:                 domain.AttemptQueued,
-		RequestKey:             requestKey,
-		CreatedAt:              at,
-		UpdatedAt:              at,
-		ContractRevisionNumber: plan.ContractRevisionNumber,
+		RequestKey:             key.String,
+		CreatedAt:              in.At,
+		UpdatedAt:              in.At,
+		ContractRevisionNumber: in.ContractRevisionNumber,
 	}
 	if err := attempt.Validate(); err != nil {
 		return domain.Attempt{}, err
@@ -98,41 +105,38 @@ func (s *Store) CreateAttemptWithFence(ctx context.Context, outcomeID domain.Out
 		ContractRevisionNumber: attempt.ContractRevisionNumber,
 		RequestKey:             key,
 	}); err != nil {
-		// A lost same-request-key race resolves to the WINNER: the caller
-		// gets the canonical attempt back and must not spawn again.
-		if isSQLiteUnique(err) && requestKey != "" && strings.Contains(err.Error(), "request_key") {
+		if isSQLiteUnique(err) && strings.Contains(err.Error(), "request_key") {
 			row, findErr := txq.FindAttemptByIdempotencyKey(ctx, key)
 			if findErr == nil {
 				winner := attemptFromRow(row)
 				return winner, &ports.AttemptReplayError{Attempt: winner}
 			}
 		}
-		return domain.Attempt{}, fmt.Errorf("create attempt for %s: %w", outcomeID, err)
+		return domain.Attempt{}, fmt.Errorf("create attempt for %s: %w", in.OutcomeID, err)
 	}
 
 	fenceID := "fence-" + uuid.NewString()
 	if err := txq.IssueAttemptFence(ctx, gen.IssueAttemptFenceParams{
 		ID:        fenceID,
-		Subject:   subject,
+		Subject:   in.FenceSubject,
 		AttemptID: attempt.ID,
 	}); err != nil {
 		if isSQLiteUnique(err) {
 			holder := domain.AttemptID("")
-			if open, findErr := txq.FindOpenFenceBySubject(ctx, subject); findErr == nil {
+			if open, findErr := txq.FindOpenFenceBySubject(ctx, in.FenceSubject); findErr == nil {
 				holder = open.AttemptID
 			}
-			return domain.Attempt{}, &ports.AttemptFenceHeldError{Subject: subject, Holder: holder, OutcomeID: outcomeID}
+			return domain.Attempt{}, &ports.AttemptFenceHeldError{Subject: in.FenceSubject, Holder: holder, OutcomeID: in.OutcomeID}
 		}
 		return domain.Attempt{}, fmt.Errorf("issue fence for %s: %w", attempt.ID, err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return domain.Attempt{}, fmt.Errorf("commit create attempt for %s: %w", outcomeID, err)
+		return domain.Attempt{}, fmt.Errorf("commit create attempt for %s: %w", in.OutcomeID, err)
 	}
 	return attempt, nil
 }
 
-// GetAttempt reads one attempt of an Outcome; ok=false when absent.
 func (s *Store) GetAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (domain.Attempt, bool, error) {
 	row, err := s.qr.GetAttempt(ctx, gen.GetAttemptParams{ID: attemptID, OutcomeID: outcomeID})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -144,7 +148,6 @@ func (s *Store) GetAttempt(ctx context.Context, outcomeID domain.OutcomeID, atte
 	return attemptFromRow(row), true, nil
 }
 
-// ListAttempts returns the Outcome's attempts in ascending order.
 func (s *Store) ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) ([]domain.Attempt, error) {
 	rows, err := s.qr.ListAttemptsForOutcome(ctx, outcomeID)
 	if err != nil {
@@ -157,16 +160,11 @@ func (s *Store) ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) ([
 	return out, nil
 }
 
-// TransitionAttemptStatus applies one guarded stored-status transition.
 func (s *Store) TransitionAttemptStatus(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, expected, next domain.AttemptStatus, at time.Time) (int64, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	rows, err := s.qw.TransitionAttemptStatus(ctx, gen.TransitionAttemptStatusParams{
-		Status:    next,
-		UpdatedAt: at,
-		ID:        attemptID,
-		OutcomeID: outcomeID,
-		Status_2:  expected,
+		Status: next, UpdatedAt: at, ID: attemptID, OutcomeID: outcomeID, Status_2: expected,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("transition attempt %s %s->%s: %w", attemptID, expected, next, err)
@@ -174,7 +172,6 @@ func (s *Store) TransitionAttemptStatus(ctx context.Context, outcomeID domain.Ou
 	return rows, nil
 }
 
-// ListAttemptsByStatus walks attempts currently in one stored status.
 func (s *Store) ListAttemptsByStatus(ctx context.Context, status domain.AttemptStatus) ([]domain.Attempt, error) {
 	rows, err := s.qr.ListAttemptsByStatus(ctx, status)
 	if err != nil {
@@ -187,7 +184,6 @@ func (s *Store) ListAttemptsByStatus(ctx context.Context, status domain.AttemptS
 	return out, nil
 }
 
-// BindAttemptSession appends one immutable provider-session ref.
 func (s *Store) BindAttemptSession(ctx context.Context, ref domain.AttemptSessionRef) (domain.AttemptSessionRef, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -214,15 +210,9 @@ func (s *Store) BindAttemptSession(ctx context.Context, ref domain.AttemptSessio
 		return domain.AttemptSessionRef{}, err
 	}
 	if err := txq.CreateAttemptSessionRef(ctx, gen.CreateAttemptSessionRefParams{
-		ID:                     string(ref.ID),
-		AttemptID:              ref.AttemptID,
-		Seq:                    ref.Seq,
-		SessionID:              ref.SessionID,
-		Harness:                ref.Harness,
-		Mode:                   ref.Mode,
-		RunBriefCoreDigest:     ref.RunBriefCoreDigest,
-		RunBriefCompiledDigest: ref.RunBriefCompiledDigest,
-		AdmissionSnapshot:      ref.AdmissionSnapshot,
+		ID: string(ref.ID), AttemptID: ref.AttemptID, Seq: ref.Seq, SessionID: ref.SessionID,
+		Harness: ref.Harness, Mode: ref.Mode, RunBriefCoreDigest: ref.RunBriefCoreDigest,
+		RunBriefCompiledDigest: ref.RunBriefCompiledDigest, AdmissionSnapshot: ref.AdmissionSnapshot,
 	}); err != nil {
 		return domain.AttemptSessionRef{}, fmt.Errorf("bind session for %s: %w", ref.AttemptID, err)
 	}
@@ -243,7 +233,6 @@ func latestSessionRefSeq(ctx context.Context, q *gen.Queries, attemptID domain.A
 	return latest.Seq, nil
 }
 
-// LatestAttemptSessionRef resolves the most recent binding; ok=false when none.
 func (s *Store) LatestAttemptSessionRef(ctx context.Context, attemptID domain.AttemptID) (domain.AttemptSessionRef, bool, error) {
 	row, err := s.qr.LatestAttemptSessionRef(ctx, attemptID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -255,7 +244,6 @@ func (s *Store) LatestAttemptSessionRef(ctx context.Context, attemptID domain.At
 	return attemptSessionRefFromRow(row), true, nil
 }
 
-// ListAttemptSessionRefs returns every binding in ascending seq order.
 func (s *Store) ListAttemptSessionRefs(ctx context.Context, attemptID domain.AttemptID) ([]domain.AttemptSessionRef, error) {
 	rows, err := s.qr.ListAttemptSessionRefsForAttempt(ctx, attemptID)
 	if err != nil {
@@ -268,24 +256,14 @@ func (s *Store) ListAttemptSessionRefs(ctx context.Context, attemptID domain.Att
 	return out, nil
 }
 
-// AppendAttemptObservation appends one ordered observation with the next seq.
-// Observations are insertable for any attempt state (D5): inspection stays
-// possible after replacement; nothing here touches current truth.
 func (s *Store) AppendAttemptObservation(ctx context.Context, attemptID domain.AttemptID, kind, payload string, at time.Time) (domain.AttemptObservation, error) {
 	if payload == "" {
 		payload = "{}"
 	}
-	obs := domain.AttemptObservation{
-		ID:        "obs-" + uuid.NewString(),
-		AttemptID: attemptID,
-		Kind:      kind,
-		Payload:   payload,
-		CreatedAt: at,
-	}
+	obs := domain.AttemptObservation{ID: "obs-" + uuid.NewString(), AttemptID: attemptID, Kind: kind, Payload: payload, CreatedAt: at}
 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-
 	tx, err := s.writeDB.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.AttemptObservation{}, fmt.Errorf("begin observation for %s: %w", attemptID, err)
@@ -306,13 +284,7 @@ func (s *Store) AppendAttemptObservation(ctx context.Context, attemptID domain.A
 	if err := obs.Validate(); err != nil {
 		return domain.AttemptObservation{}, err
 	}
-	if err := txq.CreateAttemptObservation(ctx, gen.CreateAttemptObservationParams{
-		ID:        obs.ID,
-		AttemptID: obs.AttemptID,
-		Seq:       obs.Seq,
-		Kind:      obs.Kind,
-		Payload:   obs.Payload,
-	}); err != nil {
+	if err := txq.CreateAttemptObservation(ctx, gen.CreateAttemptObservationParams{ID: obs.ID, AttemptID: obs.AttemptID, Seq: obs.Seq, Kind: obs.Kind, Payload: obs.Payload}); err != nil {
 		return domain.AttemptObservation{}, fmt.Errorf("append observation for %s: %w", attemptID, err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -321,7 +293,6 @@ func (s *Store) AppendAttemptObservation(ctx context.Context, attemptID domain.A
 	return obs, nil
 }
 
-// ListAttemptObservations returns the attempt's ordered observations.
 func (s *Store) ListAttemptObservations(ctx context.Context, attemptID domain.AttemptID) ([]domain.AttemptObservation, error) {
 	rows, err := s.qr.ListAttemptObservationsForAttempt(ctx, attemptID)
 	if err != nil {
@@ -329,19 +300,11 @@ func (s *Store) ListAttemptObservations(ctx context.Context, attemptID domain.At
 	}
 	out := make([]domain.AttemptObservation, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, domain.AttemptObservation{
-			ID:        row.ID,
-			AttemptID: row.AttemptID,
-			Seq:       row.Seq,
-			Kind:      row.Kind,
-			Payload:   row.Payload,
-			CreatedAt: row.CreatedAt,
-		})
+		out = append(out, domain.AttemptObservation{ID: row.ID, AttemptID: row.AttemptID, Seq: row.Seq, Kind: row.Kind, Payload: row.Payload, CreatedAt: row.CreatedAt})
 	}
 	return out, nil
 }
 
-// OpenFenceForSubject resolves the open fence over a worktree subject.
 func (s *Store) OpenFenceForSubject(ctx context.Context, subject string) (domain.AttemptFence, bool, error) {
 	row, err := s.qr.FindOpenFenceBySubject(ctx, subject)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -353,41 +316,29 @@ func (s *Store) OpenFenceForSubject(ctx context.Context, subject string) (domain
 	return attemptFenceFromRow(row), true, nil
 }
 
-// ReleaseFenceForAttempt releases the attempt's open fence with a reason.
 func (s *Store) ReleaseFenceForAttempt(ctx context.Context, attemptID domain.AttemptID, reason string, at time.Time) (int64, error) {
 	if reason == "" {
 		return 0, fmt.Errorf("release fence for %s: a released fence must record why", attemptID)
 	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	rows, err := s.qw.ReleaseAttemptFence(ctx, gen.ReleaseAttemptFenceParams{
-		ReleasedAt:    sql.NullTime{Time: at, Valid: true},
-		ReleaseReason: reason,
-		AttemptID:     attemptID,
-	})
+	rows, err := s.qw.ReleaseAttemptFence(ctx, gen.ReleaseAttemptFenceParams{ReleasedAt: sql.NullTime{Time: at, Valid: true}, ReleaseReason: reason, AttemptID: attemptID})
 	if err != nil {
 		return 0, fmt.Errorf("release fence for %s: %w", attemptID, err)
 	}
 	return rows, nil
 }
 
-// RenewFenceForAttempt refreshes the open fence's lease timestamp; the
-// liveness loop calls this so a stale renewal exposes custody that may
-// outlive its provider. rows=0 when no open fence is held.
 func (s *Store) RenewFenceForAttempt(ctx context.Context, attemptID domain.AttemptID, at time.Time) (int64, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	rows, err := s.qw.RenewAttemptFence(ctx, gen.RenewAttemptFenceParams{
-		LastRenewedAt: at,
-		AttemptID:     attemptID,
-	})
+	rows, err := s.qw.RenewAttemptFence(ctx, gen.RenewAttemptFenceParams{LastRenewedAt: at, AttemptID: attemptID})
 	if err != nil {
 		return 0, fmt.Errorf("renew fence for %s: %w", attemptID, err)
 	}
 	return rows, nil
 }
 
-// CreateRecoveryReceipt appends one immutable recovery receipt.
 func (s *Store) CreateRecoveryReceipt(ctx context.Context, receipt domain.AttemptRecoveryReceipt) error {
 	if receipt.ID == "" {
 		receipt.ID = "rcpt-" + uuid.NewString()
@@ -404,18 +355,14 @@ func (s *Store) CreateRecoveryReceipt(ctx context.Context, receipt domain.Attemp
 		return fmt.Errorf("recovery receipt %s detail must be valid JSON", receipt.ID)
 	}
 	if err := s.qw.CreateRecoveryReceipt(ctx, gen.CreateRecoveryReceiptParams{
-		ID:                   receipt.ID,
-		AttemptID:            receipt.AttemptID,
-		Resolution:           string(receipt.Resolution),
-		ReplacementAttemptID: string(receipt.ReplacementAttemptID),
-		Detail:               detail,
+		ID: receipt.ID, AttemptID: receipt.AttemptID, Resolution: string(receipt.Resolution),
+		ReplacementAttemptID: string(receipt.ReplacementAttemptID), Detail: detail,
 	}); err != nil {
 		return fmt.Errorf("create recovery receipt for %s: %w", receipt.AttemptID, err)
 	}
 	return nil
 }
 
-// ListRecoveryReceipts returns the attempt's receipts in emission order.
 func (s *Store) ListRecoveryReceipts(ctx context.Context, attemptID domain.AttemptID) ([]domain.AttemptRecoveryReceipt, error) {
 	rows, err := s.qr.ListRecoveryReceiptsForAttempt(ctx, attemptID)
 	if err != nil {
@@ -424,12 +371,8 @@ func (s *Store) ListRecoveryReceipts(ctx context.Context, attemptID domain.Attem
 	out := make([]domain.AttemptRecoveryReceipt, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, domain.AttemptRecoveryReceipt{
-			ID:                   row.ID,
-			AttemptID:            row.AttemptID,
-			Resolution:           domain.RecoveryResolution(row.Resolution),
-			ReplacementAttemptID: domain.AttemptID(row.ReplacementAttemptID),
-			Detail:               row.Detail,
-			CreatedAt:            row.CreatedAt,
+			ID: row.ID, AttemptID: row.AttemptID, Resolution: domain.RecoveryResolution(row.Resolution),
+			ReplacementAttemptID: domain.AttemptID(row.ReplacementAttemptID), Detail: row.Detail, CreatedAt: row.CreatedAt,
 		})
 	}
 	return out, nil
@@ -441,42 +384,23 @@ func attemptFromRow(row gen.Attempt) domain.Attempt {
 		requestKey = row.RequestKey.String
 	}
 	return domain.Attempt{
-		ID:                     row.ID,
-		OutcomeID:              row.OutcomeID,
-		PlanRevisionID:         row.PlanRevisionID,
-		WorkUnitID:             row.WorkUnitID,
-		Number:                 row.Number,
-		Status:                 row.Status,
-		RequestKey:             requestKey,
-		CreatedAt:              row.CreatedAt,
-		UpdatedAt:              row.UpdatedAt,
+		ID: row.ID, OutcomeID: row.OutcomeID, PlanRevisionID: row.PlanRevisionID, WorkUnitID: row.WorkUnitID,
+		Number: row.Number, Status: row.Status, RequestKey: requestKey, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		ContractRevisionNumber: row.ContractRevisionNumber,
 	}
 }
 
 func attemptSessionRefFromRow(row gen.AttemptSession) domain.AttemptSessionRef {
 	return domain.AttemptSessionRef{
-		ID:                     domain.AttemptSessionRefID(row.ID),
-		AttemptID:              row.AttemptID,
-		Seq:                    row.Seq,
-		SessionID:              row.SessionID,
-		Harness:                row.Harness,
-		Mode:                   row.Mode,
-		RunBriefCoreDigest:     row.RunBriefCoreDigest,
-		RunBriefCompiledDigest: row.RunBriefCompiledDigest,
-		AdmissionSnapshot:      row.AdmissionSnapshot,
-		BoundAt:                row.BoundAt,
+		ID: domain.AttemptSessionRefID(row.ID), AttemptID: row.AttemptID, Seq: row.Seq, SessionID: row.SessionID,
+		Harness: row.Harness, Mode: row.Mode, RunBriefCoreDigest: row.RunBriefCoreDigest,
+		RunBriefCompiledDigest: row.RunBriefCompiledDigest, AdmissionSnapshot: row.AdmissionSnapshot, BoundAt: row.BoundAt,
 	}
 }
 
 func attemptFenceFromRow(row gen.AttemptFence) domain.AttemptFence {
 	return domain.AttemptFence{
-		ID:            row.ID,
-		Subject:       row.Subject,
-		AttemptID:     row.AttemptID,
-		IssuedAt:      row.IssuedAt,
-		LastRenewedAt: row.LastRenewedAt,
-		ReleasedAt:    row.ReleasedAt.Time,
-		ReleaseReason: row.ReleaseReason,
+		ID: row.ID, Subject: row.Subject, AttemptID: row.AttemptID, IssuedAt: row.IssuedAt,
+		LastRenewedAt: row.LastRenewedAt, ReleasedAt: row.ReleasedAt.Time, ReleaseReason: row.ReleaseReason,
 	}
 }

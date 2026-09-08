@@ -117,6 +117,8 @@ var shippedMigrations = map[int64]string{
 	111: "0111_project_brief_revisions.sql",
 	112: "0112_work_unit_provider_bindings.sql",
 	113: "0113_intake_analysis_expiry_terminal.sql",
+	114: "0114_execution_routing_bindings.sql",
+	115: "0115_intelligence_runs.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they
@@ -294,6 +296,6 @@ INSERT INTO projects (
 			if columns != 1 {
 				t.Fatalf("%s.%s count = %d, want exactly 1 after repair", table, column, columns)
 			}
-		}
+	}
 	}
 }

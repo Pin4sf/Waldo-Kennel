@@ -40,6 +40,7 @@ import (
 	chatsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/chat"
 	devimportsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/devimport"
 	intakevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intake"
+	intelligencesvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence"
 	notificationsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/notification"
 	outcomevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 	prsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/pr"
@@ -401,46 +402,64 @@ func Run() error {
 		go dispatcher.Run(ctx)
 	}
 
-	// Act & Observe (#31): the attempt service rides the existing session
-	// spawn path (readiness probed with the same checker/config spawn uses)
-	// and the store doubles as the heartbeat-facts source. The liveness hook
-	// runs on the daemon's reconcile cadence and stops with ctx.
-	attemptSvc := outcomevc.NewWithExecution(store, nil,
-		attemptSpawner{sessions: sessionSvc, projects: store, agents: agents}, store)
-	go runAttemptLivenessLoop(ctx, attemptSvc, log)
-
-	// Composed Outcomes (ADR 0007): agent-authored decomposition rides the same
-	// spawn path, on the analyzer role, and answers on the daemon's own
-	// loopback origin. Requests that expired while the daemon was down are
-	// swept once here — the deadline is durable, not an in-memory timer.
+	// One Outcome control-plane service owns the complete canonical write/read
+	// path. Planning consumes the machine-aware ExecutionRoutingInventory already
+	// exposed by agentSvc; execution consumes the exact-binding attempt spawner;
+	// proof, decomposition, scheduling, and liveness stay on this same authority.
 	reaper := sessionReaper{sessions: sessionSvc}
-	outcomeSvc := outcomevc.New(store, nil).WithAnalystSessionReaper(reaper).WithDecompositionProposer(agentDecompositionProposer{
-		sessions:     sessionSvc,
-		projects:     store,
-		agents:       agents,
-		callbackBase: fmt.Sprintf("http://%s:%d", config.LoopbackHost, cfg.Port),
-	})
+	// Waldo thinks with its own model; coding agents only execute authorized
+	// work. There is deliberately no rule-based floor behind this: if no
+	// reasoning key is configured, intake fails retryably and says so rather
+	// than serving a canned proposal that looks like understanding.
+	// Which provider is the owner's choice, not Kennel's: the reasoning port is
+	// provider-neutral, so anthropic and openai are both first-class here.
+	reasoner, reasoningCfg, err := waldoReasoner()
+	if err != nil {
+		log.Warn("Waldo reasoning is not configured; Outcome intake and planning will fail until it is",
+			"error", err,
+			"set", "KENNEL_WALDO_PROVIDER (anthropic|openai) and KENNEL_WALDO_API_KEY")
+	}
+	var intelligenceProvider ports.IntelligenceProvider
+	if reasoner != nil {
+		intelligenceProvider = intelligencesvc.NewLLMProvider(reasoner)
+		// The key itself is never logged; naming the variable it came from is
+		// what an owner with several keys in their environment needs to debug.
+		log.Info("Waldo reasoning is configured",
+			"provider", reasoningCfg.Provider, "keyFrom", reasoningCfg.KeySource)
+	}
+	outcomeSvc := outcomevc.New(store, nil).
+		WithPlanning(intelligenceProvider, agentSvc).
+		WithExecution(attemptSpawner{sessions: sessionSvc, projects: store, agents: agents}, store).
+		WithProofStore(store).
+		WithAnalystSessionReaper(reaper)
+	// Composed Outcomes (ADR 0007) have no proposer wired: decomposition used
+	// to work by spawning a coding agent and hoping it POSTed a proposal back,
+	// which is the same pattern that broke Outcome intake. AskForDecomposition
+	// fails closed and says so until decomposition is model-backed like the
+	// Contract and Plan paths now are. Hand-authored decomposition is
+	// unaffected — it never went through a proposer.
+	go runAttemptLivenessLoop(ctx, outcomeSvc, log)
+
+	// Composed Outcomes (ADR 0007): requests that expired while the daemon was
+	// down are swept once here — the deadline is durable, not an in-memory timer.
 	if expired, err := outcomeSvc.ExpireStaleDecompositionRequests(ctx); err != nil {
 		log.Warn("could not sweep expired decomposition requests", "error", err)
 	} else if expired > 0 {
 		log.Info("closed decomposition requests that expired while the daemon was down", "count", expired)
 	}
-	// Agent-authored Contract proposals. Unlike the decomposition proposer
-	// beside it, this NEVER fails closed: intake is the entry point to the
-	// product, so every reason an agent cannot be asked degrades to the
-	// deterministic baseline rather than blocking Outcome creation.
-	intakeSvc := intakevc.New(store, agentIntakeAnalyzer{
-		sessions:     sessionSvc,
-		projects:     store,
-		agents:       agents,
-		offline:      intakevc.NewRuleBasedAnalyzer(),
-		callbackBase: fmt.Sprintf("http://%s:%d", config.LoopbackHost, cfg.Port),
-	}, nil).WithAnalystSessionReaper(reaper)
+
+	// New Outcome intake uses the provider-neutral IntelligenceProvider and
+	// persists IntelligenceRun provenance. Deterministic/offline fallback remains
+	// owned by intake.Service; no provider session or execution Attempt is created
+	// before the user approves a Plan. The reaper is retained only so historical
+	// interrupted session-backed intake can be cleaned up during compatibility
+	// recovery; the canonical analyzer itself never spawns one.
+	intakeAnalyzer := intelligencesvc.NewIntakeAnalyzer(intelligenceProvider, store, nil)
+	intakeSvc := intakevc.New(store, intakeAnalyzer, nil).WithAnalystSessionReaper(reaper)
 	// Order matters. Expiry runs FIRST: it closes asks whose deadline passed
 	// while the daemon was down and returns their intakes to a retryable
 	// failure. Only then does the interrupted-analysis sweep run, which skips
-	// intakes that still have an OPEN ask — an agent's analysis is meant to
-	// outlive a restart, and reaping it would kill the work this exists to do.
+	// intakes that still have an OPEN ask.
 	if expired, err := intakeSvc.ExpireStaleAnalysisRequests(ctx); err != nil {
 		log.Warn("could not sweep expired intake analysis requests", "error", err)
 	} else if expired > 0 {
@@ -450,10 +469,8 @@ func Run() error {
 		return fmt.Errorf("recover interrupted intake analysis: %w", err)
 	}
 	// Expiry is a durable deadline, so it also has to be enforced while the
-	// daemon KEEPS running: without this an intake whose agent stopped
-	// answering would read as "still working" until the next restart. The
-	// owner can always cancel out of that by hand, but they should not have
-	// to in order to learn that nothing is coming.
+	// daemon KEEPS running: without this an intake whose analyzer stopped
+	// answering would read as "still working" until the next restart.
 	go func() {
 		ticker := time.NewTicker(intakeAnalysisSweepInterval)
 		defer ticker.Stop()
@@ -488,7 +505,7 @@ func Run() error {
 		Intakes:             intakeSvc,
 		WaldoConversations:  waldoConversationSvc,
 		ResponsibilityLinks: responsibilityLinkSvc,
-		Attempts:            attemptSvc,
+		Attempts:            outcomeSvc,
 		Proof:               outcomeSvc,
 		NotificationStream:  notificationHub,
 		Push:                pushRegistry,
