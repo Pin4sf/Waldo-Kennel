@@ -39,25 +39,37 @@ type Manager interface {
 }
 
 type CreateInput struct {
-	ProjectID       domain.ProjectID
-	Title           string
-	Goal            string
-	SuccessCriteria []string
-	Review          string
-	Constraints     []string
-	NonGoals        []string
-	Clarification   string
-	RequestKey      string
+	ProjectID            domain.ProjectID
+	Title                string
+	Goal                 string
+	SuccessCriteria      []string
+	Review               string
+	Constraints          []string
+	NonGoals             []string
+	Clarification        string
+	EvidenceExpectations []domain.ContractEvidenceExpectation
+	AuthorityCeiling     domain.ProposedAuthority
+	StopConditions       []string
+	TemporalCondition    *string
+	Facets               []domain.ContractFacet
+	ExecutionPreference  *domain.ExecutionPreference
+	RequestKey           string
 }
 
 type ReviseContractInput struct {
-	ExpectedRevision int64
-	Goal             string
-	SuccessCriteria  []string
-	Review            string
-	Constraints      []string
-	NonGoals         []string
-	Clarification    string
+	ExpectedRevision     int64
+	Goal                 string
+	SuccessCriteria      []string
+	Review               string
+	Constraints          []string
+	NonGoals             []string
+	Clarification        string
+	EvidenceExpectations []domain.ContractEvidenceExpectation
+	AuthorityCeiling     domain.ProposedAuthority
+	StopConditions       []string
+	TemporalCondition    *string
+	Facets               []domain.ContractFacet
+	ExecutionPreference  *domain.ExecutionPreference
 }
 
 type OutcomeView struct {
@@ -120,9 +132,8 @@ func (s *Service) WithPlanning(provider ports.IntelligenceProvider, routing port
 	return s
 }
 
-// WithExecution attaches the existing exact-bound execution seam to this same
-// Outcome service instance. This avoids a second AO-era service authority for
-// Attempts beside the canonical Outcome/Plan service.
+// WithExecution attaches the exact-bound execution seam to this same Outcome
+// service instance. There is no alternate execution service authority.
 func (s *Service) WithExecution(spawner ports.AttemptSessionSpawner, heartbeats heartbeatSource) *Service {
 	s.spawner = spawner
 	s.heartbeats = heartbeats
@@ -179,15 +190,21 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (OutcomeView, erro
 		Title:   content.title,
 	}
 	first := domain.ContractRevision{
-		ID:              domain.ContractRevisionID("cr-" + uuid.NewString()),
-		OutcomeID:       outcomeRecord.ID,
-		Goal:            content.goal,
-		SuccessCriteria: content.criteria,
-		Review:          content.review,
-		Constraints:     content.constraints,
-		NonGoals:        content.nonGoals,
-		Clarification:   content.clarification,
-		CreatedAt:       now,
+		ID:                   domain.ContractRevisionID("cr-" + uuid.NewString()),
+		OutcomeID:            outcomeRecord.ID,
+		Goal:                 content.goal,
+		SuccessCriteria:      content.criteria,
+		Review:               content.review,
+		Constraints:          content.constraints,
+		NonGoals:             content.nonGoals,
+		Clarification:        content.clarification,
+		EvidenceExpectations: append([]domain.ContractEvidenceExpectation(nil), in.EvidenceExpectations...),
+		AuthorityCeiling:     in.AuthorityCeiling,
+		StopConditions:       append([]string(nil), in.StopConditions...),
+		TemporalCondition:    in.TemporalCondition,
+		Facets:               append([]domain.ContractFacet(nil), in.Facets...),
+		ExecutionPreference:  in.ExecutionPreference,
+		CreatedAt:            now,
 	}
 	first.Criteria = stableCriteria(first.ID, first.SuccessCriteria)
 	if err := s.store.CreateOutcomeWithContract(ctx, outcomeRecord, first, content.requestKey); err != nil {
@@ -241,15 +258,21 @@ func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in Re
 	}
 
 	next := domain.ContractRevision{
-		ID:              domain.ContractRevisionID("cr-" + uuid.NewString()),
-		OutcomeID:       id,
-		Goal:            content.goal,
-		SuccessCriteria: content.criteria,
-		Review:          content.review,
-		Constraints:     content.constraints,
-		NonGoals:        content.nonGoals,
-		Clarification:   content.clarification,
-		CreatedAt:       s.clock(),
+		ID:                   domain.ContractRevisionID("cr-" + uuid.NewString()),
+		OutcomeID:            id,
+		Goal:                 content.goal,
+		SuccessCriteria:      content.criteria,
+		Review:               content.review,
+		Constraints:          content.constraints,
+		NonGoals:             content.nonGoals,
+		Clarification:        content.clarification,
+		EvidenceExpectations: append([]domain.ContractEvidenceExpectation(nil), in.EvidenceExpectations...),
+		AuthorityCeiling:     in.AuthorityCeiling,
+		StopConditions:       append([]string(nil), in.StopConditions...),
+		TemporalCondition:    in.TemporalCondition,
+		Facets:               append([]domain.ContractFacet(nil), in.Facets...),
+		ExecutionPreference:  in.ExecutionPreference,
+		CreatedAt:            s.clock(),
 	}
 	next.Criteria = stableCriteria(next.ID, next.SuccessCriteria)
 	number, err := s.store.AppendContractRevision(ctx, id, in.ExpectedRevision, next)
