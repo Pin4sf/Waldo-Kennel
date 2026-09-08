@@ -88,9 +88,6 @@ func (s *Store) CreateOutcomeWithContract(ctx context.Context, outcome domain.Ou
 	if err := insertContractRevision(ctx, txq, first); err != nil {
 		return err
 	}
-	if err := writeContractExecutionPreference(ctx, tx, first); err != nil {
-		return err
-	}
 	rows, err := txq.AdvanceOutcomeCurrentRevision(ctx, gen.AdvanceOutcomeCurrentRevisionParams{
 		CurrentRevisionNumber: number, UpdatedAt: first.CreatedAt, ID: outcome.ID, CurrentRevisionNumber_2: 0,
 	})
@@ -119,9 +116,6 @@ func (s *Store) AppendContractRevision(ctx context.Context, id domain.OutcomeID,
 	}
 	revision.Number = number
 	if err := insertContractRevision(ctx, txq, revision); err != nil {
-		return 0, err
-	}
-	if err := writeContractExecutionPreference(ctx, tx, revision); err != nil {
 		return 0, err
 	}
 	rows, err := txq.AdvanceOutcomeCurrentRevision(ctx, gen.AdvanceOutcomeCurrentRevisionParams{
@@ -247,9 +241,14 @@ func insertContractRevision(ctx context.Context, q *gen.Queries, revision domain
 	if err := revision.Validate(); err != nil {
 		return err
 	}
+	preference, err := encodeContractExecutionPreference(revision)
+	if err != nil {
+		return err
+	}
 	if err := q.CreateContractRevision(ctx, gen.CreateContractRevisionParams{
 		ID: revision.ID, OutcomeID: revision.OutcomeID, Number: revision.Number, Goal: revision.Goal,
 		SuccessCriteria: criteria, Review: revision.Review, Constraints: constraints, NonGoals: nonGoals, Clarification: revision.Clarification,
+		ExecutionPreferenceJson: preference,
 	}); err != nil {
 		return fmt.Errorf("create contract revision %s: %w", revision.ID, err)
 	}
@@ -376,9 +375,6 @@ func (s *Store) CreateContributionWithContract(ctx context.Context, child domain
 	}
 	first.Number = number
 	if err := insertContractRevision(ctx, txq, first); err != nil {
-		return err
-	}
-	if err := writeContractExecutionPreference(ctx, tx, first); err != nil {
 		return err
 	}
 	rows, err := txq.AdvanceOutcomeCurrentRevision(ctx, gen.AdvanceOutcomeCurrentRevisionParams{

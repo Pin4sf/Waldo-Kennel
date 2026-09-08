@@ -37,9 +37,12 @@ UPDATE outcomes
 SET current_revision_number = ?, updated_at = ?
 WHERE id = ? AND current_revision_number = ?;
 
+-- Contract revisions are append-only and trigger-guarded against UPDATE, so
+-- every immutable field, the execution preference included, has to be written
+-- here rather than populated by a follow-up write in the same transaction.
 -- name: CreateContractRevision :exec
-INSERT INTO contract_revisions (id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO contract_revisions (id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, execution_preference_json)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- Stable criterion identities added by Work E (#35). The JSON text column on
 -- contract_revisions remains a compatibility projection only.
@@ -52,15 +55,15 @@ SELECT id, contract_revision_id, position, text
 FROM contract_criteria WHERE contract_revision_id = ? ORDER BY position;
 
 -- name: GetContractRevisionByNumber :one
-SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at
+SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at, execution_preference_json
 FROM contract_revisions WHERE outcome_id = ? AND number = ?;
 
 -- name: GetContractRevision :one
-SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at
+SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at, execution_preference_json
 FROM contract_revisions WHERE id = ?;
 
 -- name: ListContractRevisions :many
-SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at
+SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at, execution_preference_json
 FROM contract_revisions WHERE outcome_id = ? ORDER BY number;
 
 -- name: MaxContractRevisionNumber :one
@@ -81,16 +84,16 @@ WHERE id = ? AND outcome_id = ? AND status = 'proposed';
 SELECT COALESCE(MAX(number), 0) FROM plan_revisions WHERE outcome_id = ?;
 
 -- name: LatestProposedPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at
+SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
 FROM plan_revisions WHERE outcome_id = ? AND contract_revision_number = ? AND status = 'proposed'
 ORDER BY number DESC LIMIT 1;
 
 -- name: GetPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at
+SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
 FROM plan_revisions WHERE id = ? AND outcome_id = ?;
 
 -- name: GetLatestPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at
+SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
 FROM plan_revisions WHERE outcome_id = ? ORDER BY number DESC LIMIT 1;
 
 -- name: CreateWorkUnit :exec

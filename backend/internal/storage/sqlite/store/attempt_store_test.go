@@ -47,6 +47,17 @@ func seedApprovedPlan(t *testing.T, s *sqlite.Store, projectID string) (domain.P
 		EvidenceChecks:          []string{"checks pass"},
 		VerificationRequirement: "Deterministic checks.",
 		StopConditions:          []string{"stop before remote effects"},
+		// An approved unit carries the exact provider/model binding an Attempt
+		// must execute; there is no runtime default to fall back to.
+		Provider:       domain.HarnessCodex,
+		ModelSelection: domain.ExecutionBindingModelProviderDefault,
+		// Plan grants must be exactly what its units require: an unused grant
+		// is authority nobody asked for, and the plan is now rejected for it.
+		RequiredCapabilities: []string{
+			domain.CapabilityWorktreeRead,
+			domain.CapabilityWorktreeWrite,
+			domain.CapabilityWorktreeExec,
+		},
 	}
 	grants := []domain.CapabilityGrant{
 		{ID: domain.CapabilityGrantID("cg-read-" + projectID), Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
@@ -65,7 +76,20 @@ func seedApprovedPlan(t *testing.T, s *sqlite.Store, projectID string) (domain.P
 		Summary:                "One direct Work Unit",
 		WorkUnits:              []domain.WorkUnit{unit},
 		Grants:                 grants,
-		RunBriefCoreDigest:     digest,
+		// Approval freezes why this unit runs on this provider, so the plan
+		// carries the routing decision beside the binding it produced.
+		RoutingDecisions: []domain.WorkUnitRoutingDecision{{
+			WorkUnitID: unit.ID,
+			Decision: domain.RoutingDecision{
+				Status:                    domain.RoutingDecisionRecommended,
+				PolicyVersion:             domain.RoutingPolicyVersion,
+				Role:                      domain.RoutingRoleWorker,
+				RecommendedCandidateID:    string(domain.HarnessCodex),
+				RecommendedProvider:       string(domain.HarnessCodex),
+				RecommendedModelSelection: domain.ExecutionBindingModelProviderDefault,
+			},
+		}},
+		RunBriefCoreDigest: digest,
 	})
 	if err != nil {
 		t.Fatalf("append plan: %v", err)
@@ -86,7 +110,7 @@ func TestAttemptStore_FencedAdmissionIsAtomicAndExclusive(t *testing.T) {
 	plan, outcomeID := seedApprovedPlan(t, s, "mer")
 	subject := domain.FenceSubjectForProject("mer")
 
-	at, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "rk-att-1", subject, time.Now().UTC())
+	at, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-att-1", subject))
 	if err != nil {
 		t.Fatalf("create attempt: %v", err)
 	}
@@ -106,7 +130,7 @@ func TestAttemptStore_FencedAdmissionIsAtomicAndExclusive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list attempts: %v", err)
 	}
-	_, err = s.CreateAttemptWithFence(ctx, outcomeID, plan, "rk-att-2", subject, time.Now().UTC())
+	_, err = s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-att-2", subject))
 	var fenced *ports.AttemptFenceHeldError
 	if !errors.As(err, &fenced) {
 		t.Fatalf("second admission must fail with AttemptFenceHeldError, got %v", err)
@@ -143,7 +167,7 @@ func TestAttemptStore_GuardedTransitionsAndSessionRefs(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	plan, outcomeID := seedApprovedPlan(t, s, "mer")
-	at, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "", domain.FenceSubjectForProject("mer"), time.Now().UTC())
+	at, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-att-transitions", domain.FenceSubjectForProject("mer")))
 	if err != nil {
 		t.Fatalf("create attempt: %v", err)
 	}
@@ -222,7 +246,7 @@ func TestAttemptStore_ReconcileReleasesCustodyForReplacement(t *testing.T) {
 	ctx := context.Background()
 	plan, outcomeID := seedApprovedPlan(t, s, "mer")
 	subject := domain.FenceSubjectForProject("mer")
-	at, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "rk-a1", subject, time.Now().UTC())
+	at, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-a1", subject))
 	if err != nil {
 		t.Fatalf("create attempt: %v", err)
 	}
@@ -253,7 +277,7 @@ func TestAttemptStore_ReconcileReleasesCustodyForReplacement(t *testing.T) {
 	}
 
 	// Custody handover: the replacement is always a NEW attempt row.
-	replacement, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "rk-a2", subject, time.Now().UTC())
+	replacement, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-a2", subject))
 	if err != nil {
 		t.Fatalf("replacement admission: %v", err)
 	}
@@ -288,7 +312,7 @@ func TestAttemptStore_FenceLeaseRenewal(t *testing.T) {
 	ctx := context.Background()
 	plan, outcomeID := seedApprovedPlan(t, s, "mer")
 	subject := domain.FenceSubjectForProject("mer")
-	at, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "rk-lease", subject, time.Now().UTC())
+	at, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-lease", subject))
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}

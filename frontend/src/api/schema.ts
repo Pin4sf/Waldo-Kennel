@@ -2207,7 +2207,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Switch a logical AO session to another agent harness */
+        /** Switch a logical Kennel session to another agent harness */
         post: operations["switchSessionAgent"];
         delete?: never;
         options?: never;
@@ -3185,12 +3185,14 @@ export interface components {
             statement: string;
         };
         CreateOutcomeRequest: {
+            authorityCeiling?: components["schemas"]["ControllersIntakeAuthority"];
             clarification?: string;
             constraints?: string[];
             goal: string;
             nonGoals?: string[];
             requestKey: string;
             review: string;
+            stopConditions?: string[];
             successCriteria: string[];
             title: string;
         };
@@ -4022,6 +4024,7 @@ export interface components {
             proposal: components["schemas"]["IntakeProposalInput"];
         };
         ReviseOutcomeContractRequest: {
+            authorityCeiling?: components["schemas"]["ControllersIntakeAuthority"];
             clarification?: string;
             constraints?: string[];
             /** Format: int64 */
@@ -4029,6 +4032,7 @@ export interface components {
             goal: string;
             nonGoals?: string[];
             review: string;
+            stopConditions?: string[];
             successCriteria: string[];
         };
         RoleOverride: {
@@ -4215,13 +4219,13 @@ export interface components {
         SetActivityRequest: {
             /** @description Native agent session identifier used to resume its transcript. */
             agentSessionId?: string;
-            /** @description AO hook sub-command that produced this state (e.g. post-tool-use). */
+            /** @description Kennel hook sub-command that produced this state (e.g. post-tool-use). */
             event?: string;
             /** @description Latest assistant update exposed by the provider hook. */
             latestAssistantUpdate?: string;
             /** @description Latest real user prompt exposed by the provider hook. */
             latestUserPrompt?: string;
-            /** @description AO process generation that produced the signal. */
+            /** @description Kennel process generation that produced the signal. */
             launchId?: string;
             /**
              * @description Agent activity state reported by an agent hook. Optional for metadata-only hooks.
@@ -4258,9 +4262,9 @@ export interface components {
         SetReviewActivityRequest: {
             /** @description Native reviewer session identifier used to resume its transcript. */
             agentSessionId?: string;
-            /** @description AO hook sub-command that produced this signal. */
+            /** @description Kennel hook sub-command that produced this signal. */
             event?: string;
-            /** @description AO process generation that produced the signal. */
+            /** @description Kennel process generation that produced the signal. */
             launchId?: string;
             /**
              * @description Reviewer activity state reported by a hook. Accepted for forward compatibility, not used for session display state.
@@ -4365,6 +4369,7 @@ export interface components {
             harness?: string;
             planRevisionId: string;
             requestKey: string;
+            workUnitId: string;
         };
         StartPreviewServerRequest: {
             /** @description Named preview configuration. Optional when exactly one configuration exists. */
@@ -4402,7 +4407,7 @@ export interface components {
             retainedCriteria?: string[];
         };
         SubmitReviewInput: {
-            /** @description Review body recorded by AO. Required for changes_requested. */
+            /** @description Review body recorded by Kennel. Required for changes_requested. */
             body?: string;
             /** @description Id of the GitHub PR review the reviewer posted, if any. */
             githubReviewId?: string;
@@ -4414,7 +4419,7 @@ export interface components {
             verdict?: string;
         };
         SubmitReviewItem: {
-            /** @description Review body recorded by AO. Required for changes_requested. */
+            /** @description Review body recorded by Kennel. Required for changes_requested. */
             body?: string;
             /** @description Id of the GitHub PR review the reviewer posted, if any. */
             githubReviewId?: string;
@@ -4429,7 +4434,7 @@ export interface components {
             /** @description Optional model override for the target agent launch or resume. */
             model?: string;
             /**
-             * @description Agent harness to continue the logical AO session with. Only continuation-capable harnesses are admitted; worker-only harnesses fail closed.
+             * @description Agent harness to continue the logical Kennel session with. Only continuation-capable harnesses are admitted; worker-only harnesses fail closed.
              * @enum {string}
              */
             targetHarness: "codex";
@@ -4969,8 +4974,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Kennel worker. */
+                "X-Kennel-Browser-Capability"?: string;
             };
             path?: never;
             cookie?: never;
@@ -5058,12 +5063,12 @@ export interface operations {
     getBrowserStatus: {
         parameters: {
             query?: {
-                /** @description AO session identifier. */
+                /** @description Kennel session identifier. */
                 sessionId?: string;
             };
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Kennel worker. */
+                "X-Kennel-Browser-Capability"?: string;
             };
             path?: never;
             cookie?: never;
@@ -11482,7 +11487,7 @@ export interface operations {
             path: {
                 /** @description Session identifier, e.g. project-1. */
                 sessionId: string;
-                /** @description AO conversation turn identifier, from the snapshot's turns array. */
+                /** @description Kennel conversation turn identifier, from the snapshot's turns array. */
                 turnId: string;
             };
             cookie?: never;
@@ -11556,7 +11561,7 @@ export interface operations {
             path: {
                 /** @description Session identifier, e.g. project-1. */
                 sessionId: string;
-                /** @description AO conversation turn identifier, from the snapshot's turns array. */
+                /** @description Kennel conversation turn identifier, from the snapshot's turns array. */
                 turnId: string;
             };
             cookie?: never;
@@ -11617,7 +11622,7 @@ export interface operations {
             path: {
                 /** @description Session identifier, e.g. project-1. */
                 sessionId: string;
-                /** @description AO conversation turn identifier, from the snapshot's turns array. */
+                /** @description Kennel conversation turn identifier, from the snapshot's turns array. */
                 turnId: string;
             };
             cookie?: never;
@@ -12431,8 +12436,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Kennel worker. */
+                "X-Kennel-Browser-Capability"?: string;
             };
             path: {
                 /** @description Session identifier, e.g. project-1. */
@@ -12502,8 +12507,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Kennel worker. */
+                "X-Kennel-Browser-Capability"?: string;
             };
             path: {
                 /** @description Session identifier, e.g. project-1. */
@@ -12613,8 +12618,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Kennel worker. */
+                "X-Kennel-Browser-Capability"?: string;
             };
             path: {
                 /** @description Session identifier, e.g. project-1. */

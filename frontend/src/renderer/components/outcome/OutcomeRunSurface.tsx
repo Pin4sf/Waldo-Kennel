@@ -121,9 +121,14 @@ export function OutcomeRunSurface({ outcomeId, projectId, onReviewProof }: Outco
 
 	async function startAttempt() {
 		if (!plan || pending) return;
+		// An Attempt executes one approved WorkUnit. Until Mission Control can
+		// select among a graph, the MVP runs the plan's first unit.
+		const workUnit = plan.workUnits[0];
+		if (!workUnit) return;
 		try {
 			await start.start({
 				planRevisionId: plan.id,
+				workUnitId: workUnit.id,
 				harness: projectRoles.available ? projectRoles.worker : undefined,
 			});
 		} catch {

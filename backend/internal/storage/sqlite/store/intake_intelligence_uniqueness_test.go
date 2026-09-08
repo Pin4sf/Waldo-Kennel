@@ -18,7 +18,7 @@ func TestBindIntakeAnalysisRequestIntelligenceRun_RejectsRunReuse(t *testing.T) 
 	seedProject(t, s, "reuse-project")
 	seedAnalyzingIntakeForProject(t, s, "reuse-project", "reuse-intake", "reuse-intake-key", now)
 
-	makeRequest := func(id, token string, at time.Time) domain.IntakeAnalysisRequest {
+	makeRequest := func(id domain.IntakeAnalysisRequestID, token string, at time.Time) domain.IntakeAnalysisRequest {
 		return domain.IntakeAnalysisRequest{
 			ID: id, IntakeID: "reuse-intake", ExpectedProposalRevision: 0,
 			Status: domain.IntakeAnalysisRequested, CallbackTokenDigest: domain.HashCallbackToken(token),

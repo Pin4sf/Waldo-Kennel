@@ -156,16 +156,17 @@ type ContractCriterium struct {
 }
 
 type ContractRevision struct {
-	ID              domain.ContractRevisionID
-	OutcomeID       domain.OutcomeID
-	Number          int64
-	Goal            string
-	SuccessCriteria string
-	Review          string
-	Constraints     string
-	NonGoals        string
-	Clarification   string
-	CreatedAt       time.Time
+	ID                      domain.ContractRevisionID
+	OutcomeID               domain.OutcomeID
+	Number                  int64
+	Goal                    string
+	SuccessCriteria         string
+	Review                  string
+	Constraints             string
+	NonGoals                string
+	Clarification           string
+	CreatedAt               time.Time
+	ExecutionPreferenceJson sql.NullString
 }
 
 type ContractRevisionIntakeCore struct {
@@ -402,6 +403,7 @@ type IntakeAnalysisRequest struct {
 	RefusalReason            string
 	CreatedAt                time.Time
 	AnsweredAt               sql.NullTime
+	IntelligenceRunID        sql.NullString
 }
 
 type IntakeClarification struct {
@@ -473,6 +475,28 @@ type IntakeSession struct {
 	RequestFingerprint      string
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
+}
+
+type IntelligenceRun struct {
+	ID                 string
+	Kind               string
+	ProjectID          string
+	IntakeID           sql.NullString
+	OutcomeID          sql.NullString
+	ContractRevisionID sql.NullString
+	SourceRevision     int64
+	RequestedProvider  string
+	RequestedModel     string
+	EffectiveProvider  string
+	EffectiveModel     string
+	NativeSessionRef   string
+	InputDigest        string
+	OutputDigest       string
+	Status             string
+	FailureCode        string
+	FailureDetail      string
+	CreatedAt          time.Time
+	CompletedAt        sql.NullTime
 }
 
 type ModelUsageEvent struct {
@@ -635,6 +659,7 @@ type PlanRevision struct {
 	RunBriefCoreDigest     string
 	RunBriefCompiledDigest string
 	CreatedAt              time.Time
+	RoutingDecisionsJson   sql.NullString
 }
 
 type Project struct {
@@ -1044,6 +1069,30 @@ type WorkUnit struct {
 	EvidenceChecks          string
 	VerificationRequirement string
 	StopConditions          string
+}
+
+type WorkUnitCriterionBinding struct {
+	WorkUnitID         string
+	ContractRevisionID string
+	CriterionID        string
+}
+
+type WorkUnitDependency struct {
+	WorkUnitID          string
+	DependsOnWorkUnitID string
+}
+
+type WorkUnitProviderBinding struct {
+	WorkUnitID     string
+	Provider       string
+	CreatedAt      time.Time
+	ModelSelection sql.NullString
+	Model          sql.NullString
+}
+
+type WorkUnitRequiredCapability struct {
+	WorkUnitID string
+	Capability string
 }
 
 type WorkspaceRepo struct {

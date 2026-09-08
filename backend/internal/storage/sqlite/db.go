@@ -174,7 +174,82 @@ func migrate(db *sql.DB) error {
 	if err := reconcileProjectChatProjection(db); err != nil {
 		return fmt.Errorf("reconcile project chat projection: %w", err)
 	}
+	if err := reconcileExecutionRoutingSchema(db); err != nil {
+		return fmt.Errorf("reconcile execution routing schema: %w", err)
+	}
 	return reconcileSchema(db)
+}
+
+// executionRoutingDDL is the WT3 routing and WorkUnit-graph schema, shared
+// verbatim with sqlc so generated code and the running database cannot
+// disagree.
+//
+//go:embed schema/execution_routing.sql
+var executionRoutingDDL string
+
+// reconcileExecutionRoutingSchema installs the schema migration 0114
+// deliberately does not.
+//
+// It exists for the same reason reconcileComposedOutcomesSchema does: a burned
+// 0099/0100 ledger entry marks those versions applied while leaving
+// contract_revisions, plan_revisions and work_units physically absent, and
+// ALTER TABLE cannot be made conditional inside migration SQL. On a complete
+// profile this adds the execution-preference, routing-decision and model
+// binding columns and the WorkUnit graph tables; on a degraded one it defers
+// without inventing routing state.
+//
+// Every statement is idempotent, so a repaired profile heals on the next start.
+func reconcileExecutionRoutingSchema(db *sql.DB) error {
+	for _, table := range []string{
+		"contract_revisions", "plan_revisions", "work_units",
+		"contract_criteria", "work_unit_provider_bindings",
+	} {
+		var present int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table,
+		).Scan(&present); err != nil {
+			return err
+		}
+		if present == 0 {
+			return nil
+		}
+	}
+
+	columns := []struct {
+		table  string
+		column string
+		ddl    string
+	}{
+		{"contract_revisions", "execution_preference_json",
+			`ALTER TABLE contract_revisions ADD COLUMN execution_preference_json TEXT
+                CHECK (execution_preference_json IS NULL OR json_valid(execution_preference_json))`},
+		{"plan_revisions", "routing_decisions_json",
+			`ALTER TABLE plan_revisions ADD COLUMN routing_decisions_json TEXT
+                CHECK (routing_decisions_json IS NULL OR json_valid(routing_decisions_json))`},
+		{"work_unit_provider_bindings", "model_selection",
+			`ALTER TABLE work_unit_provider_bindings ADD COLUMN model_selection TEXT
+                CHECK (model_selection IS NULL OR model_selection IN ('explicit', 'provider_default'))`},
+		{"work_unit_provider_bindings", "model",
+			`ALTER TABLE work_unit_provider_bindings ADD COLUMN model TEXT`},
+	}
+	for _, column := range columns {
+		var present int
+		if err := db.QueryRow(
+			fmt.Sprintf(`SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name = ?`, column.table),
+			column.column,
+		).Scan(&present); err != nil {
+			return err
+		}
+		if present > 0 {
+			continue
+		}
+		if _, err := db.Exec(column.ddl); err != nil {
+			return err
+		}
+	}
+
+	_, err := db.Exec(executionRoutingDDL)
+	return err
 }
 
 // composedOutcomesDDL is the composition schema, shared verbatim with sqlc so

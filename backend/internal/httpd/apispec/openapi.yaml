@@ -9589,6 +9589,8 @@ components:
       type: object
     CreateOutcomeRequest:
       properties:
+        authorityCeiling:
+          $ref: '#/components/schemas/ControllersIntakeAuthority'
         clarification:
           type: string
         constraints:
@@ -9605,6 +9607,10 @@ components:
           type: string
         review:
           type: string
+        stopConditions:
+          items:
+            type: string
+          type: array
         successCriteria:
           items:
             type: string
@@ -11784,6 +11790,8 @@ components:
       type: object
     ReviseOutcomeContractRequest:
       properties:
+        authorityCeiling:
+          $ref: '#/components/schemas/ControllersIntakeAuthority'
         clarification:
           type: string
         constraints:
@@ -11801,6 +11809,10 @@ components:
           type: array
         review:
           type: string
+        stopConditions:
+          items:
+            type: string
+          type: array
         successCriteria:
           items:
             type: string
@@ -12655,8 +12667,11 @@ components:
           type: string
         requestKey:
           type: string
+        workUnitId:
+          type: string
       required:
       - planRevisionId
+      - workUnitId
       - requestKey
       type: object
     StartPreviewServerRequest:

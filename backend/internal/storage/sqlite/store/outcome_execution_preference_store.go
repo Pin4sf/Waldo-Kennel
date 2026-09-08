@@ -10,36 +10,26 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
-// writeContractExecutionPreference is part of the canonical Contract write
-// transaction. The generated base INSERT predates 0114, so the additive column
-// is populated immediately in the same transaction rather than by a parallel
-// Create/Append writer or by hand-editing sqlc output.
-func writeContractExecutionPreference(ctx context.Context, tx *sql.Tx, revision domain.ContractRevision) error {
+// encodeContractExecutionPreference renders the immutable planning preference
+// for the canonical Contract INSERT.
+//
+// It has to be written by the insert itself: contract_revisions is append-only
+// and trigger-guarded against UPDATE, so a follow-up write in the same
+// transaction aborts with "contract revisions are immutable" and no Contract
+// carrying a preference could ever be created. A nil preference is truthful
+// no-preference state and stays NULL.
+func encodeContractExecutionPreference(revision domain.ContractRevision) (sql.NullString, error) {
 	if revision.ExecutionPreference == nil {
-		return nil
+		return sql.NullString{}, nil
 	}
 	if err := revision.ExecutionPreference.Validate(); err != nil {
-		return err
+		return sql.NullString{}, err
 	}
 	encoded, err := json.Marshal(revision.ExecutionPreference)
 	if err != nil {
-		return fmt.Errorf("encode execution preference for contract revision %s: %w", revision.ID, err)
+		return sql.NullString{}, fmt.Errorf("encode execution preference for contract revision %s: %w", revision.ID, err)
 	}
-	result, err := tx.ExecContext(ctx,
-		`UPDATE contract_revisions SET execution_preference_json = ? WHERE id = ?`,
-		string(encoded), revision.ID,
-	)
-	if err != nil {
-		return fmt.Errorf("persist execution preference for contract revision %s: %w", revision.ID, err)
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("count execution preference write for contract revision %s: %w", revision.ID, err)
-	}
-	if rows != 1 {
-		return fmt.Errorf("persist execution preference for contract revision %s: revision row missing", revision.ID)
-	}
-	return nil
+	return sql.NullString{String: string(encoded), Valid: true}, nil
 }
 
 // GetContractExecutionPreference reads immutable planning preference. NULL is

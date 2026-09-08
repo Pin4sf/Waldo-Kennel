@@ -131,7 +131,7 @@ func TestWaldoConversationStoreResolvesCanonicalRevisionAndPersistsContinuationL
 	ctx := context.Background()
 	plan, outcomeID := seedApprovedPlan(t, s, "waldo-continuation")
 	now := time.Date(2026, 8, 26, 8, 30, 0, 0, time.UTC)
-	attempt, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "waldo-attempt", domain.FenceSubjectForProject("waldo-continuation"), now)
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionAt(outcomeID, plan, "waldo-attempt", domain.FenceSubjectForProject("waldo-continuation"), now))
 	if err != nil {
 		t.Fatalf("create attempt: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestWaldoConversationStorePersistsUnconfirmedWithoutPlausibleReplacementAcr
 	ctx := context.Background()
 	plan, outcomeID := seedApprovedPlan(t, s, "waldo-ambiguous")
 	now := time.Date(2026, 8, 26, 9, 0, 0, 0, time.UTC)
-	attempt, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "ambiguous-attempt", domain.FenceSubjectForProject("waldo-ambiguous"), now)
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionAt(outcomeID, plan, "ambiguous-attempt", domain.FenceSubjectForProject("waldo-ambiguous"), now))
 	if err != nil {
 		t.Fatalf("create attempt: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestWaldoConversationStoreResolvesEveryTypedProjectContextReference(t *test
 	projectID := "waldo-context-kinds"
 	plan, outcomeID := seedApprovedPlan(t, s, projectID)
 	now := time.Date(2026, 8, 26, 9, 30, 0, 0, time.UTC)
-	attempt, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "context-kinds-attempt", domain.FenceSubjectForProject(domain.ProjectID(projectID)), now)
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionAt(outcomeID, plan, "context-kinds-attempt", domain.FenceSubjectForProject(domain.ProjectID(projectID)), now))
 	if err != nil {
 		t.Fatalf("create attempt: %v", err)
 	}
@@ -355,7 +355,7 @@ func TestWaldoAttemptContextRevisionChangesWithLifecycleTruth(t *testing.T) {
 	projectID := domain.ProjectID("waldo-attempt-lifecycle")
 	plan, outcomeID := seedApprovedPlan(t, s, string(projectID))
 	now := time.Date(2026, 8, 26, 10, 0, 0, 0, time.UTC)
-	attempt, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "attempt-lifecycle", domain.FenceSubjectForProject(projectID), now)
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionAt(outcomeID, plan, "attempt-lifecycle", domain.FenceSubjectForProject(projectID), now))
 	if err != nil {
 		t.Fatalf("create attempt: %v", err)
 	}
@@ -390,7 +390,7 @@ func TestWaldoContinuationOperationClaimIsDurableAndIdempotentBeforeEffects(t *t
 	projectID := domain.ProjectID("waldo-continuation-claim")
 	plan, outcomeID := seedApprovedPlan(t, s, string(projectID))
 	now := time.Date(2026, 8, 26, 10, 30, 0, 0, time.UTC)
-	attempt, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "claim-attempt", domain.FenceSubjectForProject(projectID), now)
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionAt(outcomeID, plan, "claim-attempt", domain.FenceSubjectForProject(projectID), now))
 	if err != nil {
 		t.Fatalf("create attempt: %v", err)
 	}
@@ -420,7 +420,7 @@ func TestWaldoContinuationOperationClaimIsDurableAndIdempotentBeforeEffects(t *t
 		CreatedAt: now, UpdatedAt: now,
 	}
 	otherPlan, otherOutcomeID := seedApprovedPlan(t, s, "waldo-continuation-other")
-	otherAttempt, err := s.CreateAttemptWithFence(ctx, otherOutcomeID, otherPlan, "other-attempt", domain.FenceSubjectForProject("waldo-continuation-other"), now)
+	otherAttempt, err := s.CreateAttemptWithFence(ctx, admissionAt(otherOutcomeID, otherPlan, "other-attempt", domain.FenceSubjectForProject("waldo-continuation-other"), now))
 	if err != nil {
 		t.Fatalf("create other attempt: %v", err)
 	}
