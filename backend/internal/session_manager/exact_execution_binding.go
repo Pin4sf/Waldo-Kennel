@@ -8,11 +8,38 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
+// prepareSpawnExecution converts frozen WorkUnit authority into local launch
+// inputs before Manager.Spawn performs readiness or chooses TUI versus Chat.
+// The Project record is a request-local copy, so clearing its model preference
+// here cannot mutate durable Project configuration.
+func prepareSpawnExecution(cfg ports.SpawnConfig, projectCfg domain.ProjectConfig) (ports.SpawnConfig, domain.ProjectConfig, error) {
+	harness, agentConfig, err := spawnExecutionConfig(cfg, projectCfg)
+	if err != nil {
+		return ports.SpawnConfig{}, domain.ProjectConfig{}, err
+	}
+	cfg.Harness = harness
+	cfg.AgentConfig = agentConfig
+	if cfg.ExactExecutionBinding == nil {
+		return cfg, projectCfg, nil
+	}
+
+	// Existing TUI and Chat launch plumbing both merge Project config again.
+	// Remove only mutable Project model preference from this local copy; the exact
+	// binding has already been validated and copied into cfg.AgentConfig above.
+	// Non-model runtime preferences/capability settings remain available.
+	projectCfg.AgentConfig.Model = ""
+	if cfg.Kind == domain.KindOrchestrator {
+		projectCfg.Orchestrator.AgentConfig.Model = ""
+	} else {
+		projectCfg.Worker.AgentConfig.Model = ""
+	}
+	return cfg, projectCfg, nil
+}
+
 // spawnExecutionConfig resolves the launch harness/config once for the whole
 // Spawn operation. Project and request values remain ordinary preferences for
 // ad-hoc sessions. A governed Attempt supplies ExactExecutionBinding; that
-// frozen WorkUnit authority wins after preference resolution so readiness, TUI,
-// and Chat all observe exactly the same provider/model semantics.
+// frozen WorkUnit authority wins after preference resolution.
 func spawnExecutionConfig(cfg ports.SpawnConfig, projectCfg domain.ProjectConfig) (domain.AgentHarness, ports.AgentConfig, error) {
 	harness := effectiveHarness(cfg.Harness, cfg.Kind, projectCfg)
 	agentConfig := applySpawnAgentConfig(freshAgentConfig(cfg.Kind, harness, projectCfg), cfg.AgentConfig)
