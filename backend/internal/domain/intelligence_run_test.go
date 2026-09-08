@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"reflect"
 	"testing"
 	"time"
 )
@@ -117,7 +118,11 @@ func TestIntelligenceRunNativeSessionReferenceIsProvenanceOnly(t *testing.T) {
 	if err := run.Validate(); err != nil {
 		t.Fatalf("provider provenance should not imply execution authority: %v", err)
 	}
-	if run.AttemptID != "" || run.AgentSessionRef != "" {
-		t.Fatalf("intelligence run acquired execution lineage: attempt=%q session=%q", run.AttemptID, run.AgentSessionRef)
+
+	typeOfRun := reflect.TypeOf(run)
+	for _, forbidden := range []string{"AttemptID", "AgentSessionRef", "WorkUnitID", "CapabilityGrantID", "ExecutionBinding"} {
+		if _, ok := typeOfRun.FieldByName(forbidden); ok {
+			t.Fatalf("IntelligenceRun must not carry execution-authority field %s", forbidden)
+		}
 	}
 }
