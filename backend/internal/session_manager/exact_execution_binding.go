@@ -18,10 +18,13 @@ func prepareSpawnExecution(cfg ports.SpawnConfig, projectCfg domain.ProjectConfi
 		return ports.SpawnConfig{}, domain.ProjectConfig{}, err
 	}
 	cfg.Harness = harness
-	cfg.AgentConfig = agentConfig
 	if cfg.ExactExecutionBinding == nil {
+		// Ordinary ad-hoc session spawning keeps its existing request/project
+		// merge semantics. Exact binding resolution is deliberately additive and
+		// must not become a second compatibility path for legacy sessions.
 		return cfg, projectCfg, nil
 	}
+	cfg.AgentConfig = agentConfig
 
 	// Existing TUI and Chat launch plumbing both merge Project config again.
 	// Remove only mutable Project model preference from this local copy; the exact
