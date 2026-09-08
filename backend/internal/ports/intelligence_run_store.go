@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
@@ -29,6 +30,11 @@ type IntelligenceRunStore interface {
 		*time.Time,
 	) error
 }
+
+var (
+	ErrIntakeAnalysisIntelligenceRunBound = errors.New("intake analysis request already has intelligence provenance")
+	ErrIntakeAnalysisIntelligenceLineage  = errors.New("intelligence run does not match intake analysis request lineage")
+)
 
 // IntakeAnalysisIntelligenceLinkStore associates the existing single-use
 // callback envelope with one canonical IntelligenceRun during migration.
