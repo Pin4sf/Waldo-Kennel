@@ -76,7 +76,15 @@ func (*DeterministicProvider) DraftPlan(_ context.Context, request ports.PlanInt
 		evidence = append(evidence, expectation.Descriptions...)
 	}
 	if len(evidence) == 0 {
-		evidence = append(evidence, "Capture an inspectable result for the Contract criteria.")
+		// The deterministic floor should still be criterion-specific rather
+		// than emitting a generic proof placeholder. These are evidence ideas,
+		// not proof or acceptance.
+		for _, criterion := range request.Contract.Criteria {
+			evidence = append(evidence, criterion.Text)
+		}
+	}
+	if len(evidence) == 0 {
+		evidence = append(evidence, request.Contract.SuccessCriteria...)
 	}
 
 	proposal := domain.PlanDraftProposal{
