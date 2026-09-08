@@ -30,12 +30,12 @@ func TestIntakeAnalysisRequestMayLinkExactlyOneIntelligenceRun(t *testing.T) {
 	if err := s.BindIntakeAnalysisRequestIntelligenceRun(ctx, request.ID, "intel-link-1"); err != nil {
 		t.Fatalf("bind intelligence run: %v", err)
 	}
-	stored, found, err := s.GetIntakeAnalysisRequest(ctx, request.ID)
+	linkedID, found, err := s.GetIntakeAnalysisRequestIntelligenceRun(ctx, request.ID)
 	if err != nil || !found {
-		t.Fatalf("get linked request: found=%v err=%v", found, err)
+		t.Fatalf("get run link: found=%v err=%v", found, err)
 	}
-	if stored.IntelligenceRunID != "intel-link-1" {
-		t.Fatalf("intelligence run link = %q", stored.IntelligenceRunID)
+	if linkedID != "intel-link-1" {
+		t.Fatalf("intelligence run link = %q", linkedID)
 	}
 	if err := s.BindIntakeAnalysisRequestIntelligenceRun(ctx, request.ID, "intel-link-2"); err == nil {
 		t.Fatal("request accepted a second intelligence run link")
@@ -65,7 +65,10 @@ func TestHistoricalIntakeAnalysisRequestWithoutIntelligenceRunRemainsReadable(t 
 	if err != nil || !found {
 		t.Fatalf("get historical request: found=%v err=%v", found, err)
 	}
-	if stored.IntelligenceRunID != "" || stored.SessionID != "legacy-session" || stored.Harness != domain.HarnessCodex {
+	if stored.SessionID != "legacy-session" || stored.Harness != domain.HarnessCodex {
 		t.Fatalf("historical provenance changed: %+v", stored)
+	}
+	if _, linked, err := s.GetIntakeAnalysisRequestIntelligenceRun(ctx, request.ID); err != nil || linked {
+		t.Fatalf("historical row gained a run link: linked=%v err=%v", linked, err)
 	}
 }
