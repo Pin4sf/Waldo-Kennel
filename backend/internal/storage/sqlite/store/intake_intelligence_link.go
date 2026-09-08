@@ -12,7 +12,7 @@ import (
 
 // BindIntakeAnalysisRequestIntelligenceRun binds the callback envelope to one
 // matching Contract-analysis run. It rejects wrong lineage before the write and
-// the SQL/schema fences keep the association write-once under concurrency.
+// the SQL/schema fences keep both sides of the association write-once.
 func (s *Store) BindIntakeAnalysisRequestIntelligenceRun(ctx context.Context, requestID domain.IntakeAnalysisRequestID, runID domain.IntelligenceRunID) error {
 	if runID.IsZero() {
 		return fmt.Errorf("intelligence run id is required")
@@ -72,6 +72,9 @@ SET intelligence_run_id = ?
 WHERE id = ? AND status = 'requested'
   AND intelligence_run_id IS NULL AND session_id = '' AND harness = ''`, runID, requestID)
 	if err != nil {
+		if isSQLiteUnique(err) {
+			return ports.ErrIntakeAnalysisIntelligenceRunUsed
+		}
 		return fmt.Errorf("bind intake analysis request %s to intelligence run %s: %w", requestID, runID, err)
 	}
 	changed, err := result.RowsAffected()
