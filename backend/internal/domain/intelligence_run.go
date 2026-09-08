@@ -9,7 +9,7 @@ import (
 // IntelligenceRunID identifies one bounded pre-authorization reasoning run.
 type IntelligenceRunID string
 
-func (id IntelligenceRunID) IsZero() bool { return strings.TrimSpace(string(id)) == "" }
+func (id IntelligenceRunID) IsZero() bool  { return strings.TrimSpace(string(id)) == "" }
 func (id IntelligenceRunID) String() string { return string(id) }
 
 // IntelligenceProviderID is opaque intelligence provenance. It is deliberately
@@ -17,7 +17,7 @@ func (id IntelligenceRunID) String() string { return string(id) }
 // execution harnesses.
 type IntelligenceProviderID string
 
-func (id IntelligenceProviderID) IsZero() bool { return strings.TrimSpace(string(id)) == "" }
+func (id IntelligenceProviderID) IsZero() bool  { return strings.TrimSpace(string(id)) == "" }
 func (id IntelligenceProviderID) String() string { return string(id) }
 
 // IntelligenceRunKind identifies the bounded proposal-producing purpose.
@@ -125,10 +125,16 @@ func (r IntelligenceRun) Validate() error {
 
 	switch r.Kind {
 	case IntelligenceRunContractAnalysis:
-		if strings.TrimSpace(string(r.IntakeID)) == "" {
+		if r.IntakeID.IsZero() {
 			return fmt.Errorf("contract-analysis intelligence run requires intake id")
 		}
+		if !r.OutcomeID.IsZero() || !r.ContractRevisionID.IsZero() {
+			return fmt.Errorf("contract-analysis intelligence run must not carry outcome or contract lineage")
+		}
 	case IntelligenceRunPlanDraft:
+		if !r.IntakeID.IsZero() {
+			return fmt.Errorf("plan-draft intelligence run must not carry intake lineage")
+		}
 		if r.OutcomeID.IsZero() {
 			return fmt.Errorf("plan-draft intelligence run requires outcome id")
 		}
