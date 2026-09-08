@@ -1,19 +1,54 @@
 package domain
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func validPlanDraftWorkUnit(key string) PlanDraftWorkUnit {
 	return PlanDraftWorkUnit{
 		Key:             key,
 		Title:           "Do " + key,
+		Intent:          WorkUnitIntentInspect,
 		OutputSummary:   "A reviewable result for " + key,
 		CriteriaCovered: []string{"C1"},
 		EvidenceIdeas:   []string{"inspect the resulting repository state"},
 	}
 }
 
+func TestWorkUnitIntentMapsToMinimumCapabilities(t *testing.T) {
+	cases := []struct {
+		intent WorkUnitIntent
+		want   []string
+	}{
+		{WorkUnitIntentInspect, []string{CapabilityWorktreeRead}},
+		{WorkUnitIntentModify, []string{CapabilityWorktreeRead, CapabilityWorktreeWrite}},
+		{WorkUnitIntentExecute, []string{CapabilityWorktreeRead, CapabilityWorktreeExec}},
+		{WorkUnitIntentModifyAndExecute, []string{CapabilityWorktreeRead, CapabilityWorktreeWrite, CapabilityWorktreeExec}},
+	}
+	for _, tc := range cases {
+		got, err := tc.intent.RequiredCapabilities()
+		if err != nil {
+			t.Fatalf("%s: %v", tc.intent, err)
+		}
+		if !reflect.DeepEqual(got, tc.want) {
+			t.Fatalf("%s capabilities = %v, want %v", tc.intent, got, tc.want)
+		}
+	}
+}
+
+func TestPlanDraftProposalRejectsMissingIntent(t *testing.T) {
+	unit := validPlanDraftWorkUnit("inspect")
+	unit.Intent = ""
+	proposal := PlanDraftProposal{Summary: "missing intent", WorkUnits: []PlanDraftWorkUnit{unit}}
+	if err := proposal.Validate(); err == nil {
+		t.Fatal("work unit without bounded intent should be rejected")
+	}
+}
+
 func TestPlanDraftProposalDependenciesAreGraphTruthNotListOrder(t *testing.T) {
 	change := validPlanDraftWorkUnit("change")
+	change.Intent = WorkUnitIntentModify
 	change.DependsOn = []string{"inspect"}
 	inspect := validPlanDraftWorkUnit("inspect")
 	proposal := PlanDraftProposal{
