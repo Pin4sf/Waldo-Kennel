@@ -24,3 +24,12 @@ type IntelligenceRunStore interface {
 		*time.Time,
 	) error
 }
+
+// IntakeAnalysisIntelligenceLinkStore is intentionally separate from
+// IntakeStore so historical/in-memory intake stores do not need to learn a new
+// authority concept. Production storage uses it to associate the existing
+// single-use callback envelope with one canonical IntelligenceRun.
+type IntakeAnalysisIntelligenceLinkStore interface {
+	BindIntakeAnalysisRequestIntelligenceRun(context.Context, domain.IntakeAnalysisRequestID, domain.IntelligenceRunID) error
+	GetIntakeAnalysisRequestIntelligenceRun(context.Context, domain.IntakeAnalysisRequestID) (domain.IntelligenceRunID, bool, error)
+}
