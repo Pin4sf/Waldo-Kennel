@@ -110,7 +110,7 @@ func TestStartAttemptAdmitsTheUpstreamContributor(t *testing.T) {
 		t.Fatalf("approve upstream plan: %v", err)
 	}
 	view, err := svc.StartAttempt(ctx, upstream, outcome.StartAttemptInput{
-		PlanRevisionID: plan.Plan.ID, RequestKey: "req-upstream-start",
+		PlanRevisionID: plan.Plan.ID, WorkUnitID: firstWorkUnitOfPlan[plan.Plan.ID], RequestKey: "req-upstream-start",
 	})
 	if err != nil {
 		t.Fatalf("the upstream contributor must be admitted: %v", err)

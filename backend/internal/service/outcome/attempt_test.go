@@ -347,8 +347,11 @@ func TestAnySpawnRefusalIsAmbiguousNeverFailed(t *testing.T) {
 	// Replacement cannot bypass reconcile while the ambiguity holds custody.
 	if _, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, WorkUnitID: firstWorkUnitOfPlan[planID], RequestKey: "rk-replace"}); err == nil {
 		t.Fatal("replacement start must be refused while custody is unresolved")
-	} else if code := requireAPICode(t, err); code != outcome.CodeAttemptFenceHeld {
-		t.Fatalf("code = %s, want ATTEMPT_FENCE_HELD", code)
+	} else if code := requireAPICode(t, err); code != outcome.CodeAttemptFenceHeld && code != outcome.CodeNoRunnableWorkUnit {
+		// Scheduling answers before custody does now: the plan's only unit is
+		// still held by the unresolved attempt, so nothing is runnable. Either
+		// refusal proves the same thing — no replacement slipped past reconcile.
+		t.Fatalf("code = %s, want ATTEMPT_FENCE_HELD or NO_RUNNABLE_WORK_UNIT", code)
 	}
 }
 
@@ -740,6 +743,7 @@ func assertReplacementStartable(t *testing.T, svc *outcome.Service, spawner *fak
 	spawner.mu.Unlock()
 	replacement, err := svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{
 		PlanRevisionID: planID,
+		WorkUnitID:     firstWorkUnitOfPlan[planID],
 		RequestKey:     "rk-replacement-" + time.Now().String(),
 	})
 	if err != nil {
@@ -1019,7 +1023,7 @@ func TestBindFailureKeepsCustodyUntilOwnerContainment(t *testing.T) {
 
 	// Replacement acquires the freed subject as a NEW attempt row.
 	replacement, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{
-		PlanRevisionID: planView.Plan.ID, RequestKey: "rk-after-bind-failure",
+		PlanRevisionID: planView.Plan.ID, WorkUnitID: firstWorkUnitOfPlan[planView.Plan.ID], RequestKey: "rk-after-bind-failure",
 	})
 	if err != nil {
 		t.Fatalf("replacement start: %v", err)

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence/intelligencetest"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
@@ -45,14 +46,23 @@ func seedPlanServiceWithProject(t *testing.T, project domain.ProjectRecord) (*ou
 		Kind:      domain.ResponsibilitySpaceWorkProject,
 		ProjectID: domain.ProjectID(project.ID),
 	}
-	svc := outcome.New(store, nil)
+	// Every shipped harness is admissible here, so what the router picks is
+	// decided by the Project preference under test rather than by which
+	// candidate the fixture happened to offer.
+	candidates := make([]domain.RoutingCandidate, 0, len(domain.AllHarnesses))
+	for _, harness := range domain.AllHarnesses {
+		candidates = append(candidates, executionCandidate(harness, ""))
+	}
+	svc := outcome.New(store, nil).
+		WithPlanning(intelligencetest.New(), &routingInventoryFake{candidates: candidates})
 	view, err := svc.Create(context.Background(), outcome.CreateInput{
 		ProjectID:       domain.ProjectID(project.ID),
 		Title:           "Provider-bound work",
 		Goal:            "Run the authorized provider only.",
 		SuccessCriteria: []string{"the provider is frozen into the WorkUnit"},
 		Review:          "deterministic tests",
-		RequestKey:      "req-provider-plan-" + project.ID,
+		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true, WriteWorkspace: true, ExecuteLocal: true},
+		RequestKey:       "req-provider-plan-" + project.ID,
 	})
 	if err != nil {
 		t.Fatalf("seed outcome: %v", err)
@@ -78,19 +88,33 @@ func TestProposePlanBindsExplicitNonCodexProjectWorker(t *testing.T) {
 	}
 }
 
-func TestProposePlanFailsWhenProjectWorkerIsUnconfigured(t *testing.T) {
+// With no Project worker configured there is no preference to honor, so the
+// deterministic router picks among admissible candidates and records why. That
+// is not the AO hidden fallback: nothing defaults to Codex regardless of
+// config, the choice is made from machine-verified candidates, and it is frozen
+// into the WorkUnit binding at approval like any other.
+func TestProposePlanRoutesDeterministicallyWhenProjectWorkerIsUnconfigured(t *testing.T) {
 	project := domain.ProjectRecord{ID: "unconfigured", Path: "/tmp/unconfigured"}
 	svc, store, outcomeID := seedPlanServiceWithProject(t, project)
 
-	_, err := svc.ProposePlan(context.Background(), outcomeID, 1)
-	if code := apiCode(t, err); code != outcome.CodePlanProviderUnbound {
-		t.Fatalf("code = %s, want %s", code, outcome.CodePlanProviderUnbound)
+	view, err := svc.ProposePlan(context.Background(), outcomeID, 1)
+	if err != nil {
+		t.Fatalf("propose: %v", err)
+	}
+	if view.Plan.WorkUnits[0].Provider == "" {
+		t.Fatalf("an unconfigured project must still bind an exact provider: %+v", view.Plan.WorkUnits[0])
+	}
+	if len(view.Plan.RoutingDecisions) == 0 {
+		t.Fatal("a routed plan must record why it chose the provider it chose")
+	}
+	if pref := view.Plan.RoutingDecisions[0].Decision.EffectivePreference; pref != nil {
+		t.Fatalf("no Project worker is configured, so no preference may be reported: %+v", pref)
 	}
 	store.mu.Lock()
 	persisted := len(store.plans[outcomeID])
 	store.mu.Unlock()
-	if persisted != 0 {
-		t.Fatalf("unbound proposal persisted %d plans, want 0", persisted)
+	if persisted != 1 {
+		t.Fatalf("routed proposal persisted %d plans, want 1", persisted)
 	}
 }
 

@@ -98,6 +98,10 @@ const (
 	CodePlanBriefInvalidated          = "PLAN_BRIEF_INVALIDATED"
 	CodeAttemptCapabilityUnauthorized = "ATTEMPT_CAPABILITY_UNAUTHORIZED"
 	CodeAttemptFenceHeld              = "ATTEMPT_FENCE_HELD"
+	// CodeNoRunnableWorkUnit reports that scheduling, not custody, is what
+	// refused: every WorkUnit in the approved Plan is either already running
+	// or still waiting on a dependency or required proof.
+	CodeNoRunnableWorkUnit = "NO_RUNNABLE_WORK_UNIT"
 	CodeAttemptNotFound               = "ATTEMPT_NOT_FOUND"
 	CodeAttemptLivenessUnproven       = "ATTEMPT_LIVENESS_UNPROVEN"
 	CodeAttemptActivationUnresolved   = "ATTEMPT_ACTIVATION_UNRESOLVED"

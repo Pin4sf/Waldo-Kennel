@@ -466,7 +466,21 @@ func (f *fakeHeartbeats) forget(id domain.SessionID) {
 // The bare contract/plan fakes satisfy the widened OutcomeStore interface
 // with inert stubs; attemptFakeStore above shadows every one of them with the
 // real in-memory behavior the execution tests exercise.
-func (f *fakeStore) GetOutcomeProjectID(context.Context, domain.OutcomeID) (domain.ProjectID, bool, error) {
+// GetOutcomeProjectID resolves the Outcome's project through its
+// ResponsibilitySpace. Planning needs it to read Project preferences, so a
+// stub that always answered "no such Outcome" would make every plan fail.
+func (f *fakeStore) GetOutcomeProjectID(_ context.Context, id domain.OutcomeID) (domain.ProjectID, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	outcome, ok := f.outcomes[id]
+	if !ok {
+		return "", false, nil
+	}
+	for projectID, space := range f.spaces {
+		if space.ID == outcome.SpaceID {
+			return projectID, true, nil
+		}
+	}
 	return "", false, nil
 }
 func (f *fakeStore) FindAttemptByIdempotencyKey(context.Context, string) (domain.Attempt, bool, error) {

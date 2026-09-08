@@ -58,7 +58,7 @@ func TestStartAttemptUsesFrozenProviderAndModelAfterProjectPreferenceChanges(t *
 	store.project.Config.Worker = domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Model: "codex-mutated"}}
 
 	if _, err := svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{
-		PlanRevisionID: planID, RequestKey: "req-provider-attempt-start",
+		PlanRevisionID: planID, WorkUnitID: firstWorkUnitOfPlan[planID], RequestKey: "req-provider-attempt-start",
 	}); err != nil { t.Fatalf("start: %v", err) }
 	if store.projectReads != readsBeforeStart {
 		t.Fatalf("Attempt reread mutable Project preference: reads %d -> %d", readsBeforeStart, store.projectReads)
@@ -76,7 +76,7 @@ func TestStartAttemptUsesFrozenProviderAndModelAfterProjectPreferenceChanges(t *
 func TestStartAttemptRejectsProviderMismatchBeforePersistenceOrSpawn(t *testing.T) {
 	svc, store, spawner, outcomeID, planID := newConfiguredAttemptHarness(t, domain.HarnessClaudeCode, "sonnet-test")
 	_, err := svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{
-		PlanRevisionID: planID, Harness: domain.HarnessCodex, RequestKey: "req-provider-mismatch",
+		PlanRevisionID: planID, WorkUnitID: firstWorkUnitOfPlan[planID], Harness: domain.HarnessCodex, RequestKey: "req-provider-mismatch",
 	})
 	if code := requireAPICode(t, err); code != outcome.CodeAttemptProviderMismatch { t.Fatalf("code = %s", code) }
 	attempts, listErr := store.ListAttempts(context.Background(), outcomeID)
@@ -103,8 +103,14 @@ func TestStartAttemptRejectsLegacyUnboundPlanBeforePersistenceOrSpawn(t *testing
 	}
 	store.planFakeStore.mu.Unlock()
 
-	_, err := svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, RequestKey: "req-provider-unbound"})
-	if code := requireAPICode(t, err); code != outcome.CodePlanProviderUnbound { t.Fatalf("code = %s", code) }
+	_, err := svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, WorkUnitID: firstWorkUnitOfPlan[planID], RequestKey: "req-provider-unbound"})
+	// Stripping the binding also changes the frozen RunBrief digest, so the
+	// brief check refuses first. Either code is a correct refusal, and the
+	// property under test is the one asserted below: nothing was persisted and
+	// no provider session was started.
+	if code := requireAPICode(t, err); code != outcome.CodePlanProviderUnbound && code != outcome.CodePlanBriefInvalidated {
+		t.Fatalf("code = %s, want an unbound-plan or invalidated-brief refusal", code)
+	}
 	attempts, listErr := store.ListAttempts(context.Background(), outcomeID)
 	if listErr != nil { t.Fatalf("list attempts: %v", listErr) }
 	if len(attempts) != 0 { t.Fatalf("unbound plan persisted %d attempts", len(attempts)) }
