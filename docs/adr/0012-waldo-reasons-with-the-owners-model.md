@@ -30,9 +30,11 @@ Waldo reasons through a real model, and there is nothing behind it.
 1. `ports.LLMClient` is Waldo's own reasoning surface, provider-neutral and
    deliberately separate from the agent adapters that execute authorized work.
    Coding agents execute; Waldo thinks; neither borrows the other's authority.
-2. `adapters/llm/anthropic` is the first implementation, using structured
-   outputs so a reply is schema-constrained by the provider and revalidated by
-   Kennel.
+2. `adapters/llm/anthropic` and `adapters/llm/openai` are the implementations,
+   both using structured outputs so a reply is schema-constrained by the
+   provider and revalidated by Kennel. Which one runs is the owner's choice,
+   not Kennel's; the port existed to make that a wiring decision rather than an
+   architectural one, and shipping two providers is what proves it.
 3. `intelligence.LLMProvider` implements the existing `IntelligenceProvider`
    port for both Contract analysis and Plan drafting. No new seam is invented.
 4. The deterministic floor is **deleted**, not retained as a fallback:
@@ -41,8 +43,32 @@ Waldo reasons through a real model, and there is nothing behind it.
    proposer are all removed.
 5. With no reasoning credential configured, intake fails **retryably and says
    why**. An honest failure is better than a canned proposal.
-6. The credential is the owner's. It is read from `KENNEL_WALDO_API_KEY`, or
-   `ANTHROPIC_API_KEY` as a fallback, and never leaves the machine.
+6. The credential is the owner's, and never leaves the machine.
+   `KENNEL_WALDO_PROVIDER` (`anthropic` or `openai`) names the provider;
+   `KENNEL_WALDO_API_KEY` holds the key, so Waldo's reasoning credential can
+   stay separate from the one the owner's coding agents already use, and the
+   provider's own `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` is the fallback.
+   With no provider named, whichever key is present decides, and Anthropic
+   keeps precedence so an install that worked before the second adapter
+   existed behaves identically.
+
+## Why two providers, and why that is not a floor
+
+A fallback model would re-create the exact failure this ADR deletes: a second
+path that answers when the first cannot, leaving the owner unable to tell
+whether they are reading Waldo's real judgement or a substitute for it.
+
+Two configured providers are the opposite of that. Exactly one is resolved at
+startup from the owner's own environment, it is named in the startup log, the
+model that actually served each call is recorded in `IntelligenceRun`
+provenance as `EffectiveModel`, and it is the only one that runs. If it fails,
+intake fails. Nothing silently answers in its place.
+
+`EffectiveProvider` stays `waldo-llm`: it names the *kind* of intelligence, not
+the vendor, and the recorded model already identifies the vendor unambiguously.
+
+The practical reason is that the owner's key is the owner's: requiring a
+specific vendor's account to use Kennel at all is a floor of a different kind.
 
 ## Relationship to ADR 0003
 
@@ -83,7 +109,15 @@ Local-first is unchanged. No account, no hosted Waldo, no Waldo-funded call.
   `AskForDecomposition` fails closed and says so. Hand-authored decomposition
   is unaffected — it never went through a proposer;
 - key storage is currently environment-only. A settings surface, and secret
-  storage under `~/.kennel`, remain to be built.
+  storage under `~/.kennel`, remain to be built;
+- the reasoning schemas are authored once and shared, but OpenAI's strict
+  Structured Outputs mode accepts a narrower JSON Schema dialect than
+  Anthropic's. `adapters/llm/openai` translates at the edge that has the
+  constraint — promoting every property to required-and-nullable, and dropping
+  advisory bounds the dialect rejects. The bounds are not lost: they were
+  always enforced by the domain on the decoded value, never by the provider.
+  A third provider will need its own translation rather than a weakened
+  shared schema.
 
 ## Non-goals
 

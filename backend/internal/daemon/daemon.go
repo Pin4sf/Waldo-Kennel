@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -30,7 +29,6 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/mobilebridge"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/notify"
 	usagepipeline "github.com/Pin4sf/Waldo-Kennel/backend/internal/observe/usage"
-	llmanthropic "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/llm/anthropic"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/presence"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/preview"
@@ -413,18 +411,21 @@ func Run() error {
 	// work. There is deliberately no rule-based floor behind this: if no
 	// reasoning key is configured, intake fails retryably and says so rather
 	// than serving a canned proposal that looks like understanding.
-	reasoner, err := llmanthropic.New(llmanthropic.Config{
-		APIKey: waldoReasoningKey(),
-		Model:  strings.TrimSpace(os.Getenv("KENNEL_WALDO_MODEL")),
-		Effort: strings.TrimSpace(os.Getenv("KENNEL_WALDO_EFFORT")),
-	})
+	// Which provider is the owner's choice, not Kennel's: the reasoning port is
+	// provider-neutral, so anthropic and openai are both first-class here.
+	reasoner, reasoningCfg, err := waldoReasoner()
 	if err != nil {
-		log.Warn("Waldo reasoning is not configured; Outcome intake and planning will fail until a key is set",
-			"set", "KENNEL_WALDO_API_KEY or ANTHROPIC_API_KEY")
+		log.Warn("Waldo reasoning is not configured; Outcome intake and planning will fail until it is",
+			"error", err,
+			"set", "KENNEL_WALDO_PROVIDER (anthropic|openai) and KENNEL_WALDO_API_KEY")
 	}
 	var intelligenceProvider ports.IntelligenceProvider
 	if reasoner != nil {
 		intelligenceProvider = intelligencesvc.NewLLMProvider(reasoner)
+		// The key itself is never logged; naming the variable it came from is
+		// what an owner with several keys in their environment needs to debug.
+		log.Info("Waldo reasoning is configured",
+			"provider", reasoningCfg.Provider, "keyFrom", reasoningCfg.KeySource)
 	}
 	outcomeSvc := outcomevc.New(store, nil).
 		WithPlanning(intelligenceProvider, agentSvc).
