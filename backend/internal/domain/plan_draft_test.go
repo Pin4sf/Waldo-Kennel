@@ -4,39 +4,61 @@ import "testing"
 
 func validPlanDraftWorkUnit(key string) PlanDraftWorkUnit {
 	return PlanDraftWorkUnit{
-		Key:                     key,
-		Title:                   "Do " + key,
-		OutputSummary:           "A reviewable result for " + key,
-		EvidenceChecks:          []string{"result exists"},
-		VerificationRequirement: "owner reviews the result",
-		StopConditions:          []string{"stop before an unapproved external effect"},
-		HardCapabilities:        []string{CapabilityWorktreeRead},
+		Key:             key,
+		Title:           "Do " + key,
+		OutputSummary:   "A reviewable result for " + key,
+		CriteriaCovered: []string{"C1"},
+		EvidenceIdeas:   []string{"inspect the resulting repository state"},
 	}
 }
 
-func TestPlanDraftProposalAcceptsStableSerializableOrder(t *testing.T) {
-	first := validPlanDraftWorkUnit("inspect")
-	second := validPlanDraftWorkUnit("change")
-	second.DependsOn = []string{"inspect"}
-	second.HardCapabilities = []string{CapabilityWorktreeRead, CapabilityWorktreeWrite}
-
+func TestPlanDraftProposalDependenciesAreGraphTruthNotListOrder(t *testing.T) {
+	change := validPlanDraftWorkUnit("change")
+	change.DependsOn = []string{"inspect"}
+	inspect := validPlanDraftWorkUnit("inspect")
 	proposal := PlanDraftProposal{
-		Summary:     "Inspect first, then make the bounded change.",
-		WorkUnits:   []PlanDraftWorkUnit{first, second},
-		Assumptions: []string{"the repository is locally available"},
+		Summary:   "Inspect first, then make the bounded change.",
+		WorkUnits: []PlanDraftWorkUnit{change, inspect}, // deliberately reverse serialization order
 	}
 	if err := proposal.Validate(); err != nil {
-		t.Fatalf("serializable proposal should be valid: %v", err)
+		t.Fatalf("valid graph should not depend on list order: %v", err)
+	}
+	order, err := proposal.TopologicalOrder()
+	if err != nil {
+		t.Fatalf("topological order: %v", err)
+	}
+	if len(order) != 2 || order[0] != "inspect" || order[1] != "change" {
+		t.Fatalf("topological order = %v", order)
 	}
 }
 
-func TestPlanDraftProposalRejectsForwardDependency(t *testing.T) {
+func TestPlanDraftProposalRejectsCycle(t *testing.T) {
 	first := validPlanDraftWorkUnit("inspect")
-	first.DependsOn = []string{"change"}
 	second := validPlanDraftWorkUnit("change")
-	proposal := PlanDraftProposal{Summary: "invalid order", WorkUnits: []PlanDraftWorkUnit{first, second}}
+	first.DependsOn = []string{"change"}
+	second.DependsOn = []string{"inspect"}
+	proposal := PlanDraftProposal{Summary: "cycle", WorkUnits: []PlanDraftWorkUnit{first, second}}
 	if err := proposal.Validate(); err == nil {
-		t.Fatal("forward dependency should be rejected for serialized MVP scheduling")
+		t.Fatal("cyclic dependencies should be rejected")
+	}
+}
+
+func TestPlanDraftProposalRejectsUnknownDependency(t *testing.T) {
+	unit := validPlanDraftWorkUnit("inspect")
+	unit.DependsOn = []string{"missing"}
+	proposal := PlanDraftProposal{Summary: "unknown dependency", WorkUnits: []PlanDraftWorkUnit{unit}}
+	if err := proposal.Validate(); err == nil {
+		t.Fatal("unknown dependency should be rejected")
+	}
+}
+
+func TestPlanDraftProposalRejectsDuplicateDependency(t *testing.T) {
+	first := validPlanDraftWorkUnit("inspect")
+	second := validPlanDraftWorkUnit("change")
+	second.DependsOn = []string{"inspect", "inspect"}
+	proposal := PlanDraftProposal{Summary: "duplicate edge", WorkUnits: []PlanDraftWorkUnit{first, second}}
+	if err := proposal.Validate(); err == nil {
+		t.Fatal("duplicate dependency should be rejected")
 	}
 }
 
@@ -50,11 +72,11 @@ func TestPlanDraftProposalRejectsDuplicateKeys(t *testing.T) {
 	}
 }
 
-func TestPlanDraftProposalRejectsBlankCapability(t *testing.T) {
+func TestPlanDraftProposalRequiresCriterionCoverage(t *testing.T) {
 	unit := validPlanDraftWorkUnit("inspect")
-	unit.HardCapabilities = []string{""}
-	proposal := PlanDraftProposal{Summary: "bad capability", WorkUnits: []PlanDraftWorkUnit{unit}}
+	unit.CriteriaCovered = nil
+	proposal := PlanDraftProposal{Summary: "missing coverage", WorkUnits: []PlanDraftWorkUnit{unit}}
 	if err := proposal.Validate(); err == nil {
-		t.Fatal("blank hard capability should be rejected")
+		t.Fatal("work unit without criterion aliases should be rejected")
 	}
 }
