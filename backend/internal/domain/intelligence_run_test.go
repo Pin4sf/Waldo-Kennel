@@ -1,20 +1,21 @@
 package domain
 
 import (
-	"reflect"
 	"testing"
 	"time"
 )
 
+func intelligenceDigest(label string) SHA256Digest { return DigestSHA256([]byte(label)) }
+
 func TestIntelligenceRunContractAnalysisMayExistBeforeOutcome(t *testing.T) {
 	run := IntelligenceRun{
-		ID:             IntelligenceRunID("intel-contract-1"),
+		ID:             "intel-contract-1",
 		Kind:           IntelligenceRunContractAnalysis,
-		ProjectID:      ProjectID("project-1"),
-		IntakeID:       IntakeSessionID("intake-1"),
+		ProjectID:      "project-1",
+		IntakeID:       "intake-1",
 		SourceRevision: 0,
 		Status:         IntelligenceRunRequested,
-		InputDigest:    "input-digest",
+		InputDigest:    intelligenceDigest("contract input"),
 		CreatedAt:      time.Now(),
 	}
 	if err := run.Validate(); err != nil {
@@ -27,102 +28,142 @@ func TestIntelligenceRunContractAnalysisMayExistBeforeOutcome(t *testing.T) {
 
 func TestIntelligenceRunPlanDraftRequiresExactContractRevision(t *testing.T) {
 	run := IntelligenceRun{
-		ID:             IntelligenceRunID("intel-plan-1"),
+		ID:             "intel-plan-1",
 		Kind:           IntelligenceRunPlanDraft,
-		ProjectID:      ProjectID("project-1"),
-		OutcomeID:      OutcomeID("outcome-1"),
+		ProjectID:      "project-1",
+		OutcomeID:      "outcome-1",
 		SourceRevision: 2,
 		Status:         IntelligenceRunRequested,
-		InputDigest:    "input-digest",
+		InputDigest:    intelligenceDigest("plan input"),
 		CreatedAt:      time.Now(),
 	}
 	if err := run.Validate(); err == nil {
 		t.Fatal("plan draft without ContractRevisionID should be invalid")
 	}
 
-	run.ContractRevisionID = ContractRevisionID("contract-2")
+	run.ContractRevisionID = "contract-2"
 	if err := run.Validate(); err != nil {
 		t.Fatalf("plan draft with exact ContractRevision should be valid: %v", err)
 	}
 }
 
 func TestIntelligenceRunOfflineManualMayOmitProviderAndModel(t *testing.T) {
+	completed := time.Now().UTC()
 	run := IntelligenceRun{
-		ID:             IntelligenceRunID("intel-offline-1"),
+		ID:             "intel-offline-1",
 		Kind:           IntelligenceRunContractAnalysis,
-		ProjectID:      ProjectID("project-1"),
-		IntakeID:       IntakeSessionID("intake-1"),
+		ProjectID:      "project-1",
+		IntakeID:       "intake-1",
 		SourceRevision: 1,
 		Status:         IntelligenceRunFulfilled,
-		InputDigest:    "input-digest",
-		OutputDigest:   "output-digest",
-		CreatedAt:      time.Now(),
+		InputDigest:    intelligenceDigest("offline input"),
+		OutputDigest:   intelligenceDigest("offline output"),
+		CreatedAt:      completed.Add(-time.Second),
+		CompletedAt:    &completed,
 	}
 	if err := run.Validate(); err != nil {
 		t.Fatalf("offline/manual intelligence run should be valid: %v", err)
 	}
 }
 
-func TestIntelligenceRunExplicitModelRequiresProvider(t *testing.T) {
+func TestIntelligenceRunProviderIdentityIsOpaqueAndIndependentFromHarness(t *testing.T) {
 	run := IntelligenceRun{
-		ID:             IntelligenceRunID("intel-model-1"),
+		ID:                 "intel-api-1",
+		Kind:               IntelligenceRunContractAnalysis,
+		ProjectID:          "project-1",
+		IntakeID:           "intake-1",
+		SourceRevision:     1,
+		RequestedProvider:  IntelligenceProviderID("waldo-hosted-reasoner"),
+		RequestedModel:     "planner-v2",
+		EffectiveProvider:  IntelligenceProviderID("direct-api.example/v1"),
+		EffectiveModel:     "planner-2026-09",
+		NativeSessionRef:   "request-123",
+		Status:             IntelligenceRunRunning,
+		InputDigest:        intelligenceDigest("api input"),
+		CreatedAt:          time.Now(),
+	}
+	if err := run.Validate(); err != nil {
+		t.Fatalf("opaque intelligence provider should not require AgentHarness registration: %v", err)
+	}
+}
+
+func TestIntelligenceRunModelProvenanceRequiresItsProvider(t *testing.T) {
+	run := IntelligenceRun{
+		ID:             "intel-model-1",
 		Kind:           IntelligenceRunContractAnalysis,
-		ProjectID:      ProjectID("project-1"),
-		IntakeID:       IntakeSessionID("intake-1"),
+		ProjectID:      "project-1",
+		IntakeID:       "intake-1",
 		SourceRevision: 1,
-		ModelSelection: IntelligenceRunModelExplicit,
-		Model:          "model-x",
+		RequestedModel: "model-x",
 		Status:         IntelligenceRunRequested,
-		InputDigest:    "input-digest",
+		InputDigest:    intelligenceDigest("model input"),
 		CreatedAt:      time.Now(),
 	}
 	if err := run.Validate(); err == nil {
-		t.Fatal("explicit intelligence model without provider should be invalid")
+		t.Fatal("requested intelligence model without requested provider should be invalid")
 	}
 
-	run.Provider = HarnessCodex
+	run.RequestedProvider = "provider-x"
 	if err := run.Validate(); err != nil {
-		t.Fatalf("explicit model with provider should be valid: %v", err)
+		t.Fatalf("requested model with provider should be valid: %v", err)
 	}
 }
 
-func TestIntelligenceRunTerminalStatusCannotReturnToRunning(t *testing.T) {
-	terminal := []IntelligenceRunStatus{
-		IntelligenceRunFulfilled,
-		IntelligenceRunFailed,
-		IntelligenceRunCancelled,
-		IntelligenceRunExpired,
-	}
-	for _, status := range terminal {
-		run := IntelligenceRun{Status: status}
-		if err := run.TransitionTo(IntelligenceRunRunning); err == nil {
-			t.Fatalf("terminal status %q returned to running", status)
-		}
-	}
-}
-
-func TestIntelligenceRunNativeSessionReferenceIsProvenanceOnly(t *testing.T) {
+func TestIntelligenceRunRequiresSHA256Digests(t *testing.T) {
 	run := IntelligenceRun{
-		ID:               IntelligenceRunID("intel-native-1"),
-		Kind:             IntelligenceRunContractAnalysis,
-		ProjectID:        ProjectID("project-1"),
-		IntakeID:         IntakeSessionID("intake-1"),
-		SourceRevision:   1,
-		Provider:         HarnessCodex,
-		ModelSelection:   IntelligenceRunModelProviderDefault,
-		NativeSessionRef: "provider-native-thread-123",
-		Status:           IntelligenceRunRunning,
-		InputDigest:      "input-digest",
-		CreatedAt:        time.Now(),
+		ID:             "intel-digest-1",
+		Kind:           IntelligenceRunContractAnalysis,
+		ProjectID:      "project-1",
+		IntakeID:       "intake-1",
+		Status:         IntelligenceRunRequested,
+		InputDigest:    SHA256Digest("not-a-digest"),
+		CreatedAt:      time.Now(),
 	}
-	if err := run.Validate(); err != nil {
-		t.Fatalf("provider provenance should not imply execution authority: %v", err)
+	if err := run.Validate(); err == nil {
+		t.Fatal("arbitrary input digest string was accepted")
+	}
+}
+
+func TestIntelligenceRunCompletionTimestampMatchesTerminalState(t *testing.T) {
+	now := time.Now().UTC()
+	run := IntelligenceRun{
+		ID: "intel-time-1", Kind: IntelligenceRunContractAnalysis, ProjectID: "project-1", IntakeID: "intake-1",
+		Status: IntelligenceRunRunning, InputDigest: intelligenceDigest("time input"), CreatedAt: now.Add(-time.Second),
+		CompletedAt: &now,
+	}
+	if err := run.Validate(); err == nil {
+		t.Fatal("non-terminal run accepted a completion timestamp")
 	}
 
-	typeOfRun := reflect.TypeOf(run)
-	for _, forbidden := range []string{"AttemptID", "AgentSessionRef", "WorkUnitID", "CapabilityGrantID", "ExecutionBinding"} {
-		if _, ok := typeOfRun.FieldByName(forbidden); ok {
-			t.Fatalf("IntelligenceRun must not carry execution-authority field %s", forbidden)
-		}
+	run.Status = IntelligenceRunFailed
+	run.CompletedAt = nil
+	if err := run.Validate(); err == nil {
+		t.Fatal("terminal run without completion timestamp was accepted")
+	}
+}
+
+func TestIntelligenceRunTransitionUsesControlPlaneCompletionTime(t *testing.T) {
+	run := IntelligenceRun{Status: IntelligenceRunRunning}
+	completed := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+	if err := run.TransitionTo(IntelligenceRunFailed, &completed); err != nil {
+		t.Fatalf("transition failed: %v", err)
+	}
+	if run.CompletedAt == nil || !run.CompletedAt.Equal(completed) {
+		t.Fatalf("completion time = %v, want %v", run.CompletedAt, completed)
+	}
+	if err := run.TransitionTo(IntelligenceRunRunning, nil); err == nil {
+		t.Fatal("terminal status returned to running")
+	}
+}
+
+func TestIntelligenceRunTerminalReplayCannotChangeCompletionTime(t *testing.T) {
+	first := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+	second := first.Add(time.Second)
+	run := IntelligenceRun{Status: IntelligenceRunFailed, CompletedAt: &first}
+	if err := run.TransitionTo(IntelligenceRunFailed, &second); err == nil {
+		t.Fatal("same terminal status changed completion time")
+	}
+	if err := run.TransitionTo(IntelligenceRunFailed, &first); err != nil {
+		t.Fatalf("identical terminal replay should be idempotent: %v", err)
 	}
 }
