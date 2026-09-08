@@ -10,6 +10,47 @@ import (
 // not a law of Outcomes or the scheduler.
 const MaxPlanDraftWorkUnits = 16
 
+// WorkUnitIntent describes the kind of local work intelligence believes a
+// WorkUnit requires. It is deliberately NOT a capability or grant: the Go
+// control plane maps this bounded intent to the minimum capability set and
+// then checks that minimum against the confirmed Contract ceiling and current
+// daemon policy.
+type WorkUnitIntent string
+
+const (
+	WorkUnitIntentInspect          WorkUnitIntent = "inspect"
+	WorkUnitIntentModify           WorkUnitIntent = "modify"
+	WorkUnitIntentExecute          WorkUnitIntent = "execute"
+	WorkUnitIntentModifyAndExecute WorkUnitIntent = "modify_and_execute"
+)
+
+func (i WorkUnitIntent) Valid() bool {
+	switch i {
+	case WorkUnitIntentInspect, WorkUnitIntentModify, WorkUnitIntentExecute, WorkUnitIntentModifyAndExecute:
+		return true
+	default:
+		return false
+	}
+}
+
+// RequiredCapabilities deterministically maps non-authoritative work intent to
+// the least local authority Kennel must grant for that unit. Intelligence never
+// names capability strings directly.
+func (i WorkUnitIntent) RequiredCapabilities() ([]string, error) {
+	switch i {
+	case WorkUnitIntentInspect:
+		return []string{CapabilityWorktreeRead}, nil
+	case WorkUnitIntentModify:
+		return []string{CapabilityWorktreeRead, CapabilityWorktreeWrite}, nil
+	case WorkUnitIntentExecute:
+		return []string{CapabilityWorktreeRead, CapabilityWorktreeExec}, nil
+	case WorkUnitIntentModifyAndExecute:
+		return []string{CapabilityWorktreeRead, CapabilityWorktreeWrite, CapabilityWorktreeExec}, nil
+	default:
+		return nil, fmt.Errorf("unsupported work unit intent %q", i)
+	}
+}
+
 // PlanDraftProposal is non-authoritative intelligence output. It describes what
 // work probably needs doing; deterministic Kennel compilation derives authority,
 // routing requirements, mandatory stops, and verification obligations.
@@ -23,10 +64,12 @@ type PlanDraftProposal struct {
 // PlanDraftWorkUnit deliberately contains no provider, model, capability grant,
 // stop policy, or canonical verification authority. CriteriaCovered uses stable
 // model-facing aliases (for example C1/C2) that the control plane maps to the
-// Contract's canonical CriterionIDs.
+// Contract's canonical CriterionIDs. Intent is bounded non-authoritative work
+// classification; the control plane alone maps it to capability requirements.
 type PlanDraftWorkUnit struct {
 	Key             string
 	Title           string
+	Intent          WorkUnitIntent
 	OutputSummary   string
 	CriteriaCovered []string
 	DependsOn       []string
@@ -55,6 +98,9 @@ func (p PlanDraftProposal) Validate() error {
 		}
 		if strings.TrimSpace(unit.Title) == "" {
 			return fmt.Errorf("plan draft work unit %q title is required", key)
+		}
+		if !unit.Intent.Valid() {
+			return fmt.Errorf("plan draft work unit %q has unsupported intent %q", key, unit.Intent)
 		}
 		if strings.TrimSpace(unit.OutputSummary) == "" {
 			return fmt.Errorf("plan draft work unit %q output summary is required", key)
