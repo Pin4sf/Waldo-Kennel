@@ -61,12 +61,12 @@ func TestMigration0115PreservesExistingIntakeAnalysisRequest(t *testing.T) {
 	if stored.SessionID != request.SessionID || stored.Harness != request.Harness || stored.CallbackTokenDigest != request.CallbackTokenDigest {
 		t.Fatalf("historical request changed across migration: %+v", stored)
 	}
-	var linked string
+	var linked sql.NullString
 	if err := db.QueryRow(`SELECT intelligence_run_id FROM intake_analysis_requests WHERE id = ?`, request.ID).Scan(&linked); err != nil {
 		t.Fatalf("read new intelligence link column: %v", err)
 	}
-	if linked != "" {
-		t.Fatalf("historical request was assigned synthetic intelligence run %q", linked)
+	if linked.Valid {
+		t.Fatalf("historical request was assigned synthetic intelligence run %q", linked.String)
 	}
 	var tableCount int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='intelligence_runs'`).Scan(&tableCount); err != nil {
