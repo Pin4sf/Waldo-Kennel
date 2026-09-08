@@ -30,7 +30,7 @@ func (s *Store) CreateIntelligenceRun(ctx context.Context, run domain.Intelligen
 	_, err := s.writeDB.ExecContext(ctx, `
 INSERT INTO intelligence_runs (`+intelligenceRunColumns+`)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		run.ID, run.Kind, run.ProjectID, run.IntakeID, run.OutcomeID, run.ContractRevisionID,
+		run.ID, run.Kind, run.ProjectID, nullString(string(run.IntakeID)), nullString(string(run.OutcomeID)), nullString(run.ContractRevisionID.String()),
 		run.SourceRevision, run.RequestedProvider, run.RequestedModel, run.EffectiveProvider,
 		run.EffectiveModel, run.NativeSessionRef, run.InputDigest, run.OutputDigest, run.Status,
 		run.FailureCode, run.FailureDetail, run.CreatedAt.UTC(), completedAt,
@@ -242,14 +242,24 @@ type intelligenceRunScanner interface {
 
 func scanIntelligenceRun(scanner intelligenceRunScanner) (domain.IntelligenceRun, error) {
 	var run domain.IntelligenceRun
+	var intakeID, outcomeID, contractRevisionID sql.NullString
 	var completedAt sql.NullTime
 	if err := scanner.Scan(
-		&run.ID, &run.Kind, &run.ProjectID, &run.IntakeID, &run.OutcomeID, &run.ContractRevisionID,
+		&run.ID, &run.Kind, &run.ProjectID, &intakeID, &outcomeID, &contractRevisionID,
 		&run.SourceRevision, &run.RequestedProvider, &run.RequestedModel, &run.EffectiveProvider,
 		&run.EffectiveModel, &run.NativeSessionRef, &run.InputDigest, &run.OutputDigest, &run.Status,
 		&run.FailureCode, &run.FailureDetail, &run.CreatedAt, &completedAt,
 	); err != nil {
 		return domain.IntelligenceRun{}, err
+	}
+	if intakeID.Valid {
+		run.IntakeID = domain.IntakeSessionID(intakeID.String)
+	}
+	if outcomeID.Valid {
+		run.OutcomeID = domain.OutcomeID(outcomeID.String)
+	}
+	if contractRevisionID.Valid {
+		run.ContractRevisionID = domain.ContractRevisionID(contractRevisionID.String)
 	}
 	if completedAt.Valid {
 		t := completedAt.Time
