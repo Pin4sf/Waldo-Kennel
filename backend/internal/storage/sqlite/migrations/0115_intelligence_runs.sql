@@ -33,8 +33,18 @@ CREATE TABLE intelligence_runs (
     CHECK (effective_provider <> '' OR (effective_model = '' AND native_session_ref = '')),
     CHECK (status <> 'fulfilled' OR output_digest <> ''),
     CHECK ((status IN ('fulfilled','failed','cancelled','expired')) = (completed_at IS NOT NULL)),
-    CHECK (kind <> 'contract_analysis' OR intake_id IS NOT NULL),
-    CHECK (kind <> 'plan_draft' OR (outcome_id IS NOT NULL AND contract_revision_id IS NOT NULL AND source_revision >= 1))
+    CHECK (
+        (kind = 'contract_analysis'
+         AND intake_id IS NOT NULL
+         AND outcome_id IS NULL
+         AND contract_revision_id IS NULL)
+        OR
+        (kind = 'plan_draft'
+         AND intake_id IS NULL
+         AND outcome_id IS NOT NULL
+         AND contract_revision_id IS NOT NULL
+         AND source_revision >= 1)
+    )
 );
 
 CREATE INDEX idx_intelligence_runs_open
@@ -81,11 +91,15 @@ END;
 -- +goose StatementEnd
 
 -- The existing request remains the durable single-use callback envelope. New
--- rows may reference a canonical IntelligenceRun; historical session-backed
--- rows remain readable with a NULL run link.
+-- rows may reference exactly one canonical IntelligenceRun; historical
+-- session-backed rows remain readable with a NULL run link.
 -- +goose StatementBegin
 ALTER TABLE intake_analysis_requests
     ADD COLUMN intelligence_run_id TEXT REFERENCES intelligence_runs (id);
+
+CREATE UNIQUE INDEX idx_intake_analysis_requests_intelligence_run
+    ON intake_analysis_requests (intelligence_run_id)
+    WHERE intelligence_run_id IS NOT NULL;
 
 DROP TRIGGER IF EXISTS intake_analysis_requests_freeze_update;
 CREATE TRIGGER intake_analysis_requests_freeze_update
@@ -130,6 +144,8 @@ BEGIN
             WHERE r.id = NEW.intelligence_run_id
               AND r.kind = 'contract_analysis'
               AND r.intake_id = NEW.intake_id
+              AND r.outcome_id IS NULL
+              AND r.contract_revision_id IS NULL
               AND r.project_id = i.project_id
         )
         THEN RAISE(ABORT, 'intelligence run does not match intake analysis request lineage')
@@ -141,6 +157,7 @@ END;
 -- +goose StatementBegin
 DROP TRIGGER IF EXISTS intake_analysis_intelligence_lineage_guard;
 DROP TRIGGER IF EXISTS intake_analysis_requests_freeze_update;
+DROP INDEX IF EXISTS idx_intake_analysis_requests_intelligence_run;
 ALTER TABLE intake_analysis_requests DROP COLUMN intelligence_run_id;
 DROP TRIGGER IF EXISTS intelligence_runs_terminal_immutable;
 DROP TRIGGER IF EXISTS intelligence_runs_provenance_update_guard;
