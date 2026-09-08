@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
@@ -49,7 +50,7 @@ func (p *DeterministicProvider) AnalyzeContract(ctx context.Context, request por
 		return ports.ContractIntelligenceResponse{}, fmt.Errorf("deterministic contract intelligence returned no inline result")
 	}
 	return ports.ContractIntelligenceResponse{
-		Result: *ticket.Inline,
+		Result:     *ticket.Inline,
 		Provenance: ports.IntelligenceProvenance{EffectiveProvider: DeterministicProviderID},
 	}, nil
 }
@@ -76,9 +77,6 @@ func (*DeterministicProvider) DraftPlan(_ context.Context, request ports.PlanInt
 		evidence = append(evidence, expectation.Descriptions...)
 	}
 	if len(evidence) == 0 {
-		// The deterministic floor should still be criterion-specific rather
-		// than emitting a generic proof placeholder. These are evidence ideas,
-		// not proof or acceptance.
 		for _, criterion := range request.Contract.Criteria {
 			evidence = append(evidence, criterion.Text)
 		}
@@ -90,20 +88,66 @@ func (*DeterministicProvider) DraftPlan(_ context.Context, request ports.PlanInt
 	proposal := domain.PlanDraftProposal{
 		Summary: "Execute the confirmed Contract as one bounded reviewable unit.",
 		WorkUnits: []domain.PlanDraftWorkUnit{{
-			Key: "deliver",
-			Title: request.Outcome.Title,
-			OutputSummary: "A reviewable result that satisfies the confirmed Contract.",
+			Key:             "deliver",
+			Title:           request.Outcome.Title,
+			Intent:          deterministicWorkIntent(request.Contract),
+			OutputSummary:   "A reviewable result that satisfies the confirmed Contract.",
 			CriteriaCovered: aliases,
-			EvidenceIdeas: evidence,
+			EvidenceIdeas:   evidence,
 		}},
 	}
 	if err := proposal.Validate(); err != nil {
 		return ports.PlanIntelligenceResponse{}, err
 	}
 	return ports.PlanIntelligenceResponse{
-		Proposal: proposal,
+		Proposal:   proposal,
 		Provenance: ports.IntelligenceProvenance{EffectiveProvider: DeterministicProviderID},
 	}, nil
+}
+
+// deterministicWorkIntent is proposal logic only. It classifies what the
+// bounded local work appears to involve; it never consults the Contract's
+// authority ceiling and therefore cannot widen authority. The compiler maps
+// this intent to capability minima and rejects it if the confirmed ceiling is
+// insufficient.
+func deterministicWorkIntent(contract domain.ContractRevision) domain.WorkUnitIntent {
+	var parts []string
+	parts = append(parts, contract.Goal, contract.Review)
+	parts = append(parts, contract.SuccessCriteria...)
+	parts = append(parts, contract.Constraints...)
+	for _, facet := range contract.Facets {
+		parts = append(parts, facet.Summary)
+		parts = append(parts, facet.Requirements...)
+	}
+	text := strings.ToLower(strings.Join(parts, " "))
+	modify := containsAnyPhrase(text,
+		" add ", " create ", " implement ", " update ", " edit ", " change ",
+		" fix ", " remove ", " refactor ", " write ", " ship ", " modify ",
+		" document ", " patch ", " migrate ")
+	execute := containsAnyPhrase(text,
+		" test", " run ", " command", " build", " compile", " lint", " typecheck",
+		" execute", " verification", " verify ", " passes", " succeeds")
+
+	switch {
+	case modify && execute:
+		return domain.WorkUnitIntentModifyAndExecute
+	case modify:
+		return domain.WorkUnitIntentModify
+	case execute:
+		return domain.WorkUnitIntentExecute
+	default:
+		return domain.WorkUnitIntentInspect
+	}
+}
+
+func containsAnyPhrase(text string, phrases ...string) bool {
+	padded := " " + strings.TrimSpace(text) + " "
+	for _, phrase := range phrases {
+		if strings.Contains(padded, phrase) {
+			return true
+		}
+	}
+	return false
 }
 
 var _ ports.IntelligenceProvider = (*DeterministicProvider)(nil)
