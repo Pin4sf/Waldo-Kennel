@@ -1785,7 +1785,27 @@ type SettingsResponse struct {
 	DefaultSessionMode string `json:"defaultSessionMode" enum:"chat,tui"`
 	// ChatHarnesses are the agents that can run in chat mode today. Empty means
 	// chat cannot be used yet, which a client should say plainly.
-	ChatHarnesses []string `json:"chatHarnesses"`
+	ChatHarnesses []string          `json:"chatHarnesses"`
+	Reasoning     ReasoningResponse `json:"reasoning"`
+}
+
+type ReasoningResponse struct {
+	Provider      string `json:"provider"`
+	Model         string `json:"model"`
+	Effort        string `json:"effort"`
+	Configured    bool   `json:"configured"`
+	Ready         bool   `json:"ready"`
+	KeyConfigured bool   `json:"keyConfigured"`
+	ErrorCode     string `json:"errorCode,omitempty"`
+	Error         string `json:"error,omitempty"`
+}
+
+type UpdateReasoningRequest struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model,omitempty"`
+	Effort   string `json:"effort,omitempty"`
+	APIKey   string `json:"apiKey,omitempty"`
+	ClearKey bool   `json:"clearKey,omitempty"`
 }
 
 // UpdateSessionInterfaceRequest changes the default interface for new sessions.

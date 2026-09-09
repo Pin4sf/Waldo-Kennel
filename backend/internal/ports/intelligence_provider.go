@@ -12,6 +12,8 @@ type IntelligenceProvenance struct {
 	EffectiveProvider domain.IntelligenceProviderID
 	EffectiveModel    string
 	NativeSessionRef  string
+	InputTokens       *int64
+	OutputTokens      *int64
 }
 
 // ContractIntelligenceRequest is bounded pre-Outcome reasoning input. It carries

@@ -6,3 +6,8 @@ SELECT * FROM app_settings WHERE id = 1;
 
 -- name: SetDefaultSessionMode :exec
 UPDATE app_settings SET default_session_mode = ?, updated_at = ? WHERE id = 1;
+
+-- name: SetReasoningSettings :exec
+UPDATE app_settings
+SET reasoning_provider = ?, reasoning_model = ?, reasoning_effort = ?, updated_at = ?
+WHERE id = 1;

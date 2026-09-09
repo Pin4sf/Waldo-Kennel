@@ -7214,6 +7214,43 @@ paths:
       summary: Read the daemon-owned user preferences
       tags:
       - settings
+  /api/v1/settings/reasoning:
+    patch:
+      operationId: updateReasoning
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReasoningRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReasoningResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Configure Waldo reasoning without returning the stored credential
+      tags:
+      - settings
   /api/v1/settings/session-interface:
     patch:
       operationId: updateSessionInterface
@@ -11347,6 +11384,32 @@ components:
       - createdAt
       - lastSeenAt
       type: object
+    ReasoningResponse:
+      properties:
+        configured:
+          type: boolean
+        effort:
+          type: string
+        error:
+          type: string
+        errorCode:
+          type: string
+        keyConfigured:
+          type: boolean
+        model:
+          type: string
+        provider:
+          type: string
+        ready:
+          type: boolean
+      required:
+      - provider
+      - model
+      - effort
+      - configured
+      - ready
+      - keyConfigured
+      type: object
     RecordEvidenceRequest:
       properties:
         contentDigest:
@@ -12531,9 +12594,12 @@ components:
           - chat
           - tui
           type: string
+        reasoning:
+          $ref: '#/components/schemas/ReasoningResponse'
       required:
       - defaultSessionMode
       - chatHarnesses
+      - reasoning
       type: object
     ShellTerminalEnvelope:
       properties:
@@ -12882,6 +12948,21 @@ components:
       required:
       - displayName
       - config
+      type: object
+    UpdateReasoningRequest:
+      properties:
+        apiKey:
+          type: string
+        clearKey:
+          type: boolean
+        effort:
+          type: string
+        model:
+          type: string
+        provider:
+          type: string
+      required:
+      - provider
       type: object
     UpdateSessionInterfaceRequest:
       properties:

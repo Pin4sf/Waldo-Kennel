@@ -47,6 +47,7 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 		return ports.IntakeAnalysisTicket{}, err
 	}
 	now := a.clock().UTC()
+	started := time.Now()
 	run := domain.IntelligenceRun{
 		ID:                domain.IntelligenceRunID("intel-" + uuid.NewString()),
 		Kind:              domain.IntelligenceRunContractAnalysis,
@@ -68,10 +69,21 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 	response, err := a.provider.AnalyzeContract(ctx, request)
 	if err != nil {
 		completed := a.clock().UTC()
+		duration := time.Since(started).Milliseconds()
+		if metricErr := a.runs.RecordIntelligenceRunMetrics(ctx, run.ID, nil, nil, &duration); metricErr != nil {
+			_ = a.runs.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_STATUS_PERSIST_FAILED", "Reasoning status could not be persisted safely", &completed)
+			return ports.IntakeAnalysisTicket{}, fmt.Errorf("contract intelligence failed and recovery state could not be recorded: %w", metricErr)
+		}
 		// Persist a stable code and non-sensitive summary; provider-native errors
 		// may contain prompts/tokens and do not belong in canonical provenance.
 		_ = a.runs.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_PROVIDER_FAILED", "Contract intelligence provider failed", &completed)
 		return ports.IntakeAnalysisTicket{}, err
+	}
+	duration := time.Since(started).Milliseconds()
+	if err := a.runs.RecordIntelligenceRunMetrics(ctx, run.ID, responseMetrics(response), responseOutputMetrics(response), &duration); err != nil {
+		completed := a.clock().UTC()
+		_ = a.runs.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_STATUS_PERSIST_FAILED", "Reasoning status could not be persisted safely", &completed)
+		return ports.IntakeAnalysisTicket{}, fmt.Errorf("record contract intelligence metrics: %w", err)
 	}
 	if err := a.runs.RecordIntelligenceRunEffectiveProvenance(ctx, run.ID,
 		response.Provenance.EffectiveProvider, response.Provenance.EffectiveModel, response.Provenance.NativeSessionRef); err != nil {
@@ -87,6 +99,13 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 	}
 	result := response.Result
 	return ports.IntakeAnalysisTicket{Inline: &result, Detail: "Contract proposal ready"}, nil
+}
+
+func responseMetrics(response ports.ContractIntelligenceResponse) *int64 {
+	return response.Provenance.InputTokens
+}
+func responseOutputMetrics(response ports.ContractIntelligenceResponse) *int64 {
+	return response.Provenance.OutputTokens
 }
 
 func digestContractRequest(request ports.ContractIntelligenceRequest) (domain.SHA256Digest, error) {

@@ -1,13 +1,17 @@
 package daemon
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
 
 	llmanthropic "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/llm/anthropic"
 	llmopenai "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/llm/openai"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	intelligencesvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence"
+	settingssvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/settings"
 )
 
 // Waldo reasons with the owner's own model (ADR 0012). Which provider that is
@@ -96,18 +100,60 @@ func resolveReasoningConfig(lookup func(string) string) (reasoningConfig, error)
 func newReasoner(cfg reasoningConfig) (ports.LLMClient, error) {
 	switch cfg.Provider {
 	case providerOpenAI:
-		client, err := llmopenai.New(llmopenai.Config{APIKey: cfg.APIKey, Model: cfg.Model, Effort: cfg.Effort})
+		client, err := llmopenai.New(llmopenai.Config{APIKey: cfg.APIKey, Model: cfg.Model, Effort: cfg.Effort, MaxRetries: 0})
 		if err != nil {
 			return nil, err
 		}
 		return client, nil
 	default:
-		client, err := llmanthropic.New(llmanthropic.Config{APIKey: cfg.APIKey, Model: cfg.Model, Effort: cfg.Effort})
+		client, err := llmanthropic.New(llmanthropic.Config{APIKey: cfg.APIKey, Model: cfg.Model, Effort: cfg.Effort, MaxRetries: 0})
 		if err != nil {
 			return nil, err
 		}
 		return client, nil
 	}
+}
+
+// configuredIntelligenceProvider resolves settings at call time. A fresh
+// profile can therefore configure a credential and retry without restarting
+// the daemon; the renderer never receives the credential.
+type configuredIntelligenceProvider struct{ settings *settingssvc.Service }
+
+var _ ports.IntelligenceProvider = (*configuredIntelligenceProvider)(nil)
+
+func newConfiguredIntelligenceProvider(settings *settingssvc.Service) *configuredIntelligenceProvider {
+	return &configuredIntelligenceProvider{settings: settings}
+}
+
+func (*configuredIntelligenceProvider) ID() domain.IntelligenceProviderID {
+	return intelligencesvc.LLMProviderID
+}
+
+func (p *configuredIntelligenceProvider) client(ctx context.Context) (ports.LLMClient, error) {
+	if p == nil || p.settings == nil {
+		return nil, fmt.Errorf("reasoning settings are unavailable")
+	}
+	cfg, err := p.settings.ResolveReasoning(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return newReasoner(reasoningConfig{Provider: cfg.Provider, APIKey: cfg.APIKey, Model: cfg.Model, Effort: cfg.Effort})
+}
+
+func (p *configuredIntelligenceProvider) AnalyzeContract(ctx context.Context, request ports.ContractIntelligenceRequest) (ports.ContractIntelligenceResponse, error) {
+	client, err := p.client(ctx)
+	if err != nil {
+		return ports.ContractIntelligenceResponse{}, err
+	}
+	return intelligencesvc.NewLLMProvider(client).AnalyzeContract(ctx, request)
+}
+
+func (p *configuredIntelligenceProvider) DraftPlan(ctx context.Context, request ports.PlanIntelligenceRequest) (ports.PlanIntelligenceResponse, error) {
+	client, err := p.client(ctx)
+	if err != nil {
+		return ports.PlanIntelligenceResponse{}, err
+	}
+	return intelligencesvc.NewLLMProvider(client).DraftPlan(ctx, request)
 }
 
 // waldoReasoner resolves the owner's provider and builds its client. A nil

@@ -16,6 +16,8 @@ import (
 type SettingsService interface {
 	Get(ctx context.Context) (settingssvc.Snapshot, error)
 	SetDefaultSessionMode(ctx context.Context, mode domain.SessionMode) (settingssvc.Snapshot, error)
+	GetReasoning(ctx context.Context) (settingssvc.ReasoningStatus, error)
+	SetReasoning(ctx context.Context, input settingssvc.ReasoningInput) (settingssvc.ReasoningStatus, error)
 	ChatHarnesses(candidates []domain.AgentHarness) []domain.AgentHarness
 }
 
@@ -32,6 +34,7 @@ type SettingsController struct {
 func (c *SettingsController) Register(r chi.Router) {
 	r.Get("/settings", c.get)
 	r.Patch("/settings/session-interface", c.setSessionInterface)
+	r.Patch("/settings/reasoning", c.setReasoning)
 }
 
 func (c *SettingsController) get(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +47,26 @@ func (c *SettingsController) get(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteError(w, r, err)
 		return
 	}
-	envelope.WriteJSON(w, http.StatusOK, c.response(snapshot))
+	envelope.WriteJSON(w, http.StatusOK, c.response(r.Context(), snapshot))
+}
+
+func (c *SettingsController) setReasoning(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodPatch, "/api/v1/settings/reasoning")
+		return
+	}
+	var req UpdateReasoningRequest
+	if !decodeConversationBody(w, r, &req) {
+		return
+	}
+	status, err := c.Svc.SetReasoning(r.Context(), settingssvc.ReasoningInput{
+		Provider: req.Provider, Model: req.Model, Effort: req.Effort, APIKey: req.APIKey, ClearKey: req.ClearKey,
+	})
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, reasoningResponse(status))
 }
 
 func (c *SettingsController) setSessionInterface(w http.ResponseWriter, r *http.Request) {
@@ -71,10 +93,10 @@ func (c *SettingsController) setSessionInterface(w http.ResponseWriter, r *http.
 		envelope.WriteError(w, r, err)
 		return
 	}
-	envelope.WriteJSON(w, http.StatusOK, c.response(snapshot))
+	envelope.WriteJSON(w, http.StatusOK, c.response(r.Context(), snapshot))
 }
 
-func (c *SettingsController) response(snapshot settingssvc.Snapshot) SettingsResponse {
+func (c *SettingsController) response(ctx context.Context, snapshot settingssvc.Snapshot) SettingsResponse {
 	// Reported so the client can warn that choosing chat narrows which agents are
 	// available, instead of letting the user discover it at spawn time.
 	chatHarnesses := c.Svc.ChatHarnesses(domain.AllHarnesses)
@@ -82,8 +104,17 @@ func (c *SettingsController) response(snapshot settingssvc.Snapshot) SettingsRes
 	for _, harness := range chatHarnesses {
 		names = append(names, string(harness))
 	}
+	reasoning, err := c.Svc.GetReasoning(ctx)
+	if err != nil {
+		reasoning = settingssvc.ReasoningStatus{ErrorCode: "REASONING_STATUS_UNAVAILABLE", Error: "Reasoning readiness is unavailable"}
+	}
 	return SettingsResponse{
 		DefaultSessionMode: string(snapshot.DefaultSessionMode),
 		ChatHarnesses:      names,
+		Reasoning:          reasoningResponse(reasoning),
 	}
+}
+
+func reasoningResponse(status settingssvc.ReasoningStatus) ReasoningResponse {
+	return ReasoningResponse{Provider: status.Provider, Model: status.Model, Effort: status.Effort, Configured: status.Configured, Ready: status.Ready, KeyConfigured: status.KeyConfigured, ErrorCode: status.ErrorCode, Error: status.Error}
 }

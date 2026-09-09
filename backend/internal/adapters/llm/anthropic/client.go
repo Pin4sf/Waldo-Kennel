@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	sdk "github.com/anthropics/anthropic-sdk-go"
@@ -39,6 +40,12 @@ type Config struct {
 	Model  string
 	// Effort tunes reasoning depth. Empty means the API default.
 	Effort string
+	// HTTPClient and BaseURL are injectable for controlled conformance tests.
+	HTTPClient *http.Client
+	BaseURL    string
+	// MaxRetries is explicit so a paid/ambiguous reasoning call is never
+	// duplicated by an SDK default. Production uses zero.
+	MaxRetries int
 }
 
 // Client is a bounded, non-authoritative reasoning client.
@@ -65,8 +72,15 @@ func New(cfg Config) (*Client, error) {
 	if model == "" {
 		model = DefaultModel
 	}
+	options := []option.RequestOption{option.WithAPIKey(key), option.WithMaxRetries(cfg.MaxRetries)}
+	if cfg.HTTPClient != nil {
+		options = append(options, option.WithHTTPClient(cfg.HTTPClient))
+	}
+	if strings.TrimSpace(cfg.BaseURL) != "" {
+		options = append(options, option.WithBaseURL(strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")))
+	}
 	return &Client{
-		api:    sdk.NewClient(option.WithAPIKey(key)),
+		api:    sdk.NewClient(options...),
 		model:  model,
 		effort: sdk.OutputConfigEffort(strings.TrimSpace(cfg.Effort)),
 	}, nil
@@ -137,7 +151,9 @@ func (c *Client) Complete(ctx context.Context, req ports.LLMRequest) (ports.LLMR
 	return ports.LLMResponse{
 		JSON:           []byte(raw),
 		EffectiveModel: message.Model,
-		InputTokens:    message.Usage.InputTokens,
-		OutputTokens:   message.Usage.OutputTokens,
+		InputTokens:    int64Ptr(message.Usage.InputTokens),
+		OutputTokens:   int64Ptr(message.Usage.OutputTokens),
 	}, nil
 }
+
+func int64Ptr(value int64) *int64 { return &value }

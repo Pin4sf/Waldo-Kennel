@@ -76,6 +76,9 @@ type AppSetting struct {
 	ID                 int64
 	DefaultSessionMode domain.SessionMode
 	UpdatedAt          time.Time
+	ReasoningProvider  string
+	ReasoningModel     string
+	ReasoningEffort    string
 }
 
 type Attempt struct {
@@ -497,6 +500,9 @@ type IntelligenceRun struct {
 	FailureDetail      string
 	CreatedAt          time.Time
 	CompletedAt        sql.NullTime
+	InputTokens        sql.NullInt64
+	OutputTokens       sql.NullInt64
+	DurationMs         sql.NullInt64
 }
 
 type ModelUsageEvent struct {

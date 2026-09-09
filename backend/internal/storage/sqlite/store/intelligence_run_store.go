@@ -8,13 +8,15 @@ import (
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/gen"
 )
 
 const intelligenceRunColumns = `
 id, kind, project_id, intake_id, outcome_id, contract_revision_id,
 source_revision, requested_provider, requested_model, effective_provider,
 effective_model, native_session_ref, input_digest, output_digest, status,
-failure_code, failure_detail, created_at, completed_at`
+failure_code, failure_detail, created_at, completed_at, input_tokens,
+output_tokens, duration_ms`
 
 // CreateIntelligenceRun persists one intelligence run provenance record.
 func (s *Store) CreateIntelligenceRun(ctx context.Context, run domain.IntelligenceRun) error {
@@ -30,11 +32,12 @@ func (s *Store) CreateIntelligenceRun(ctx context.Context, run domain.Intelligen
 	defer s.writeMu.Unlock()
 	_, err := s.writeDB.ExecContext(ctx, `
 INSERT INTO intelligence_runs (`+intelligenceRunColumns+`)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.Kind, run.ProjectID, nullString(string(run.IntakeID)), nullString(string(run.OutcomeID)), nullString(run.ContractRevisionID.String()),
 		run.SourceRevision, run.RequestedProvider, run.RequestedModel, run.EffectiveProvider,
 		run.EffectiveModel, run.NativeSessionRef, run.InputDigest, run.OutputDigest, run.Status,
 		run.FailureCode, run.FailureDetail, run.CreatedAt.UTC(), completedAt,
+		run.InputTokens, run.OutputTokens, run.DurationMS,
 	)
 	if err != nil {
 		return fmt.Errorf("create intelligence run %s: %w", run.ID, err)
@@ -156,6 +159,69 @@ WHERE id = ? AND status = ?
 	return nil
 }
 
+// RecordIntelligenceRunMetrics records provider-reported usage and daemon
+// duration without collapsing unknown usage into zero or overwriting facts.
+func (s *Store) RecordIntelligenceRunMetrics(ctx context.Context, id domain.IntelligenceRunID, inputTokens, outputTokens, durationMS *int64) error {
+	current, found, err := s.GetIntelligenceRun(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("intelligence run %s does not exist", id)
+	}
+	for _, metric := range []struct {
+		name string
+		old  *int64
+		next *int64
+	}{{"input tokens", current.InputTokens, inputTokens}, {"output tokens", current.OutputTokens, outputTokens}, {"duration ms", current.DurationMS, durationMS}} {
+		if metric.old != nil && (metric.next == nil || *metric.old != *metric.next) {
+			return fmt.Errorf("intelligence run %s %s are immutable", id, metric.name)
+		}
+	}
+	next := current
+	if next.InputTokens == nil {
+		next.InputTokens = inputTokens
+	}
+	if next.OutputTokens == nil {
+		next.OutputTokens = outputTokens
+	}
+	if next.DurationMS == nil {
+		next.DurationMS = durationMS
+	}
+	if err := next.Validate(); err != nil {
+		return err
+	}
+	if sameInt64Ptr(next.InputTokens, current.InputTokens) && sameInt64Ptr(next.OutputTokens, current.OutputTokens) && sameInt64Ptr(next.DurationMS, current.DurationMS) {
+		return nil
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err = s.qw.RecordIntelligenceRunMetrics(ctx, gen.RecordIntelligenceRunMetricsParams{
+		InputTokens:  nullableInt64(next.InputTokens),
+		OutputTokens: nullableInt64(next.OutputTokens),
+		DurationMs:   nullableInt64(next.DurationMS),
+		ID:           string(id),
+	})
+	if err != nil {
+		return fmt.Errorf("record intelligence run %s metrics: %w", id, err)
+	}
+	return nil
+}
+
+func nullableInt64(value *int64) sql.NullInt64 {
+	if value == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *value, Valid: true}
+}
+
+func sameInt64Ptr(a, b *int64) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
 // UpdateIntelligenceRunStatus performs a one-way state transition. Replaying
 // an identical terminal result is idempotent; changing terminal provenance is
 // rejected rather than overwritten.
@@ -246,11 +312,13 @@ func scanIntelligenceRun(scanner intelligenceRunScanner) (domain.IntelligenceRun
 	var run domain.IntelligenceRun
 	var intakeID, outcomeID, contractRevisionID sql.NullString
 	var completedAt sql.NullTime
+	var inputTokens, outputTokens, durationMS sql.NullInt64
 	if err := scanner.Scan(
 		&run.ID, &run.Kind, &run.ProjectID, &intakeID, &outcomeID, &contractRevisionID,
 		&run.SourceRevision, &run.RequestedProvider, &run.RequestedModel, &run.EffectiveProvider,
 		&run.EffectiveModel, &run.NativeSessionRef, &run.InputDigest, &run.OutputDigest, &run.Status,
 		&run.FailureCode, &run.FailureDetail, &run.CreatedAt, &completedAt,
+		&inputTokens, &outputTokens, &durationMS,
 	); err != nil {
 		return domain.IntelligenceRun{}, err
 	}
@@ -266,6 +334,18 @@ func scanIntelligenceRun(scanner intelligenceRunScanner) (domain.IntelligenceRun
 	if completedAt.Valid {
 		t := completedAt.Time
 		run.CompletedAt = &t
+	}
+	if inputTokens.Valid {
+		value := inputTokens.Int64
+		run.InputTokens = &value
+	}
+	if outputTokens.Valid {
+		value := outputTokens.Int64
+		run.OutputTokens = &value
+	}
+	if durationMS.Valid {
+		value := durationMS.Int64
+		run.DurationMS = &value
 	}
 	if err := run.Validate(); err != nil {
 		return domain.IntelligenceRun{}, fmt.Errorf("invalid persisted intelligence run %s: %w", run.ID, err)

@@ -22,6 +22,9 @@ type AppSettings struct {
 	// interface transition changes a live session's committed mode, so
 	// changing this only affects sessions created afterwards.
 	DefaultSessionMode domain.SessionMode
+	ReasoningProvider  string
+	ReasoningModel     string
+	ReasoningEffort    string
 	UpdatedAt          time.Time
 }
 
@@ -35,8 +38,24 @@ func (s *Store) GetAppSettings(ctx context.Context) (AppSettings, error) {
 		// Normalized on read: a value written by a build that knows a mode this
 		// one does not must still resolve to something dispatchable.
 		DefaultSessionMode: domain.NormalizeSessionMode(row.DefaultSessionMode),
+		ReasoningProvider:  row.ReasoningProvider,
+		ReasoningModel:     row.ReasoningModel,
+		ReasoningEffort:    row.ReasoningEffort,
 		UpdatedAt:          row.UpdatedAt,
 	}, nil
+}
+
+// SetReasoningSettings stores only non-secret reasoning preferences. The
+// credential is owned by the daemon secret store, never this SQLite row.
+func (s *Store) SetReasoningSettings(ctx context.Context, provider, model, effort string, now time.Time) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if err := s.qw.SetReasoningSettings(ctx, gen.SetReasoningSettingsParams{
+		ReasoningProvider: provider, ReasoningModel: model, ReasoningEffort: effort, UpdatedAt: now,
+	}); err != nil {
+		return fmt.Errorf("set reasoning settings: %w", err)
+	}
+	return nil
 }
 
 // SetDefaultSessionMode persists the default interface for new sessions.

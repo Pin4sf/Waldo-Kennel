@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	sdk "github.com/openai/openai-go/v3"
@@ -44,6 +45,12 @@ type Config struct {
 	Model  string
 	// Effort tunes reasoning depth. Empty means the API default.
 	Effort string
+	// HTTPClient and BaseURL are injectable for controlled conformance tests.
+	HTTPClient *http.Client
+	BaseURL    string
+	// MaxRetries is explicit so a paid/ambiguous reasoning call is never
+	// duplicated by an SDK default. Production uses zero.
+	MaxRetries int
 }
 
 // Client is a bounded, non-authoritative reasoning client.
@@ -73,8 +80,15 @@ func New(cfg Config) (*Client, error) {
 	// The SDK would otherwise fall back to OPENAI_API_KEY from the ambient
 	// environment. Waldo resolves its own credential explicitly, so pass it in
 	// and keep which key was used a decision the daemon made, not the SDK.
+	options := []option.RequestOption{option.WithAPIKey(key), option.WithMaxRetries(cfg.MaxRetries)}
+	if cfg.HTTPClient != nil {
+		options = append(options, option.WithHTTPClient(cfg.HTTPClient))
+	}
+	if strings.TrimSpace(cfg.BaseURL) != "" {
+		options = append(options, option.WithBaseURL(strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")))
+	}
 	return &Client{
-		api:    sdk.NewClient(option.WithAPIKey(key)),
+		api:    sdk.NewClient(options...),
 		model:  model,
 		effort: shared.ReasoningEffort(strings.TrimSpace(cfg.Effort)),
 	}, nil
@@ -150,10 +164,12 @@ func (c *Client) Complete(ctx context.Context, req ports.LLMRequest) (ports.LLMR
 	return ports.LLMResponse{
 		JSON:           []byte(raw),
 		EffectiveModel: response.Model,
-		InputTokens:    response.Usage.InputTokens,
-		OutputTokens:   response.Usage.OutputTokens,
+		InputTokens:    int64Ptr(response.Usage.InputTokens),
+		OutputTokens:   int64Ptr(response.Usage.OutputTokens),
 	}, nil
 }
+
+func int64Ptr(value int64) *int64 { return &value }
 
 // refusalOf reports a model refusal, which the Responses API returns as a
 // content part rather than an error.

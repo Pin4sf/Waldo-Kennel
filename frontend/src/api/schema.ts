@@ -2300,6 +2300,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/reasoning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Configure Waldo reasoning without returning the stored credential */
+        patch: operations["updateReasoning"];
+        trace?: never;
+    };
     "/api/v1/settings/session-interface": {
         parameters: {
             query?: never;
@@ -3847,6 +3864,16 @@ export interface components {
             platform?: string;
             token?: string;
         };
+        ReasoningResponse: {
+            configured: boolean;
+            effort: string;
+            error?: string;
+            errorCode?: string;
+            keyConfigured: boolean;
+            model: string;
+            provider: string;
+            ready: boolean;
+        };
         RecordEvidenceRequest: {
             contentDigest: string;
             contractRevisionId: string;
@@ -4315,6 +4342,7 @@ export interface components {
             chatHarnesses: string[];
             /** @enum {string} */
             defaultSessionMode: "chat" | "tui";
+            reasoning: components["schemas"]["ReasoningResponse"];
         };
         ShellTerminalEnvelope: {
             shellTerminal: components["schemas"]["ShellTerminalResponse"];
@@ -4464,6 +4492,13 @@ export interface components {
         UpdateProjectSettingsInput: {
             config: components["schemas"]["ProjectConfig"];
             displayName: string;
+        };
+        UpdateReasoningRequest: {
+            apiKey?: string;
+            clearKey?: boolean;
+            effort?: string;
+            model?: string;
+            provider: string;
         };
         UpdateSessionInterfaceRequest: {
             /** @enum {string} */
@@ -13776,6 +13811,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingsResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    updateReasoning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReasoningRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReasoningResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
                 };
             };
             /** @description Internal Server Error */

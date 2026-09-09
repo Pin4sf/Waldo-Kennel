@@ -14,7 +14,7 @@ import (
 
 const getAppSettings = `-- name: GetAppSettings :one
 
-SELECT id, default_session_mode, updated_at FROM app_settings WHERE id = 1
+SELECT id, default_session_mode, updated_at, reasoning_provider, reasoning_model, reasoning_effort FROM app_settings WHERE id = 1
 `
 
 // Daemon-owned user preferences. One row, seeded by migration 0042, so a read
@@ -22,7 +22,14 @@ SELECT id, default_session_mode, updated_at FROM app_settings WHERE id = 1
 func (q *Queries) GetAppSettings(ctx context.Context) (AppSetting, error) {
 	row := q.db.QueryRowContext(ctx, getAppSettings)
 	var i AppSetting
-	err := row.Scan(&i.ID, &i.DefaultSessionMode, &i.UpdatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.DefaultSessionMode,
+		&i.UpdatedAt,
+		&i.ReasoningProvider,
+		&i.ReasoningModel,
+		&i.ReasoningEffort,
+	)
 	return i, err
 }
 
@@ -37,5 +44,28 @@ type SetDefaultSessionModeParams struct {
 
 func (q *Queries) SetDefaultSessionMode(ctx context.Context, arg SetDefaultSessionModeParams) error {
 	_, err := q.db.ExecContext(ctx, setDefaultSessionMode, arg.DefaultSessionMode, arg.UpdatedAt)
+	return err
+}
+
+const setReasoningSettings = `-- name: SetReasoningSettings :exec
+UPDATE app_settings
+SET reasoning_provider = ?, reasoning_model = ?, reasoning_effort = ?, updated_at = ?
+WHERE id = 1
+`
+
+type SetReasoningSettingsParams struct {
+	ReasoningProvider string
+	ReasoningModel    string
+	ReasoningEffort   string
+	UpdatedAt         time.Time
+}
+
+func (q *Queries) SetReasoningSettings(ctx context.Context, arg SetReasoningSettingsParams) error {
+	_, err := q.db.ExecContext(ctx, setReasoningSettings,
+		arg.ReasoningProvider,
+		arg.ReasoningModel,
+		arg.ReasoningEffort,
+		arg.UpdatedAt,
+	)
 	return err
 }

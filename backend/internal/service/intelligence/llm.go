@@ -270,8 +270,10 @@ func (p *LLMProvider) AnalyzeContract(ctx context.Context, request ports.Contrac
 	}
 
 	provenance := ports.IntelligenceProvenance{
-		EffectiveProvider: LLMProviderID,
+		EffectiveProvider: domain.IntelligenceProviderID(p.client.ID()),
 		EffectiveModel:    response.EffectiveModel,
+		InputTokens:       response.InputTokens,
+		OutputTokens:      response.OutputTokens,
 	}
 
 	// A clarification is only honoured when the owner has not already
@@ -402,8 +404,10 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 			Blockers:    trimAll(reply.Blockers),
 		},
 		Provenance: ports.IntelligenceProvenance{
-			EffectiveProvider: LLMProviderID,
+			EffectiveProvider: domain.IntelligenceProviderID(p.client.ID()),
 			EffectiveModel:    response.EffectiveModel,
+			InputTokens:       response.InputTokens,
+			OutputTokens:      response.OutputTokens,
 		},
 	}, nil
 }

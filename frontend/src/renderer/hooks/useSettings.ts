@@ -17,6 +17,16 @@ export interface Settings {
 	defaultSessionMode: SessionMode;
 	/** Agents that can run in chat mode today. Empty means chat is unavailable. */
 	chatHarnesses: string[];
+	reasoning: {
+		provider: string;
+		model: string;
+		effort: string;
+		configured: boolean;
+		ready: boolean;
+		keyConfigured: boolean;
+		errorCode?: string;
+		error?: string;
+	};
 }
 
 export function useSettings() {
@@ -28,6 +38,7 @@ export function useSettings() {
 			return {
 				defaultSessionMode: (data?.defaultSessionMode ?? "tui") as SessionMode,
 				chatHarnesses: data?.chatHarnesses ?? [],
+				reasoning: data?.reasoning ?? { provider: "", model: "", effort: "", configured: false, ready: false, keyConfigured: false },
 			};
 		},
 	});
@@ -36,6 +47,24 @@ export function useSettings() {
 		settings: query.data,
 		isLoading: query.isLoading,
 		error: query.error ? apiErrorMessage(query.error) : undefined,
+	};
+}
+
+export function useUpdateReasoning() {
+	const queryClient = useQueryClient();
+	const mutation = useMutation({
+		mutationFn: async (input: { provider: "anthropic" | "openai"; model: string; effort: string; apiKey?: string }) => {
+			const { data, error } = await apiClient.PATCH("/api/v1/settings/reasoning", { body: input });
+			if (error) throw error;
+			return data;
+		},
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: settingsQueryKey }),
+	});
+
+	return {
+		update: (input: { provider: "anthropic" | "openai"; model: string; effort: string; apiKey?: string }) => mutation.mutateAsync(input),
+		saving: mutation.isPending,
+		error: mutation.error ? apiErrorMessage(mutation.error) : undefined,
 	};
 }
 

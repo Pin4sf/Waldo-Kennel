@@ -16,8 +16,9 @@ INSERT INTO intelligence_runs (
     id, kind, project_id, intake_id, outcome_id, contract_revision_id,
     source_revision, requested_provider, requested_model, effective_provider,
     effective_model, native_session_ref, input_digest, output_digest, status,
-    failure_code, failure_detail, created_at, completed_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    failure_code, failure_detail, created_at, completed_at, input_tokens,
+    output_tokens, duration_ms
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateIntelligenceRunParams struct {
@@ -40,6 +41,9 @@ type CreateIntelligenceRunParams struct {
 	FailureDetail      string
 	CreatedAt          time.Time
 	CompletedAt        sql.NullTime
+	InputTokens        sql.NullInt64
+	OutputTokens       sql.NullInt64
+	DurationMs         sql.NullInt64
 }
 
 func (q *Queries) CreateIntelligenceRun(ctx context.Context, arg CreateIntelligenceRunParams) error {
@@ -63,6 +67,9 @@ func (q *Queries) CreateIntelligenceRun(ctx context.Context, arg CreateIntellige
 		arg.FailureDetail,
 		arg.CreatedAt,
 		arg.CompletedAt,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.DurationMs,
 	)
 	return err
 }
@@ -72,7 +79,8 @@ SELECT
     id, kind, project_id, intake_id, outcome_id, contract_revision_id,
     source_revision, requested_provider, requested_model, effective_provider,
     effective_model, native_session_ref, input_digest, output_digest, status,
-    failure_code, failure_detail, created_at, completed_at
+    failure_code, failure_detail, created_at, completed_at, input_tokens,
+    output_tokens, duration_ms
 FROM intelligence_runs
 WHERE id = ?
 `
@@ -100,6 +108,9 @@ func (q *Queries) GetIntelligenceRun(ctx context.Context, id string) (Intelligen
 		&i.FailureDetail,
 		&i.CreatedAt,
 		&i.CompletedAt,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.DurationMs,
 	)
 	return i, err
 }
@@ -109,7 +120,8 @@ SELECT
     id, kind, project_id, intake_id, outcome_id, contract_revision_id,
     source_revision, requested_provider, requested_model, effective_provider,
     effective_model, native_session_ref, input_digest, output_digest, status,
-    failure_code, failure_detail, created_at, completed_at
+    failure_code, failure_detail, created_at, completed_at, input_tokens,
+    output_tokens, duration_ms
 FROM intelligence_runs
 WHERE status IN ('requested','running')
 ORDER BY created_at, id
@@ -144,6 +156,9 @@ func (q *Queries) ListNonTerminalIntelligenceRuns(ctx context.Context) ([]Intell
 			&i.FailureDetail,
 			&i.CreatedAt,
 			&i.CompletedAt,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.DurationMs,
 		); err != nil {
 			return nil, err
 		}
@@ -186,6 +201,32 @@ func (q *Queries) RecordIntelligenceRunEffectiveProvenance(ctx context.Context, 
 		arg.EffectiveProvider_2,
 		arg.EffectiveModel_2,
 		arg.NativeSessionRef_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const recordIntelligenceRunMetrics = `-- name: RecordIntelligenceRunMetrics :execrows
+UPDATE intelligence_runs
+SET input_tokens = ?, output_tokens = ?, duration_ms = ?
+WHERE id = ?
+`
+
+type RecordIntelligenceRunMetricsParams struct {
+	InputTokens  sql.NullInt64
+	OutputTokens sql.NullInt64
+	DurationMs   sql.NullInt64
+	ID           string
+}
+
+func (q *Queries) RecordIntelligenceRunMetrics(ctx context.Context, arg RecordIntelligenceRunMetricsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, recordIntelligenceRunMetrics,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.DurationMs,
+		arg.ID,
 	)
 	if err != nil {
 		return 0, err

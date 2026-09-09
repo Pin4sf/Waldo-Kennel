@@ -144,6 +144,8 @@ func schemaName(_ reflect.Type, defaultName string) string {
 var schemaNames = map[string]string{
 	"ControllersSettingsResponse":                     "SettingsResponse",
 	"ControllersUpdateSessionInterfaceRequest":        "UpdateSessionInterfaceRequest",
+	"ControllersReasoningResponse":                    "ReasoningResponse",
+	"ControllersUpdateReasoningRequest":               "UpdateReasoningRequest",
 	"ControllersConversationSnapshotResponse":         "ConversationSnapshotResponse",
 	"ControllersConversationTurnResponse":             "ConversationTurnResponse",
 	"ControllersConversationTurnDiffResponse":         "ConversationTurnDiffResponse",
@@ -681,6 +683,17 @@ func shellTerminalOperations() []operation {
 			reqBody: controllers.UpdateSessionInterfaceRequest{},
 			resps: []respUnit{
 				{http.StatusOK, controllers.SettingsResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPatch, path: "/api/v1/settings/reasoning", id: "updateReasoning", tag: "settings",
+			summary: "Configure Waldo reasoning without returning the stored credential",
+			reqBody: controllers.UpdateReasoningRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.ReasoningResponse{}},
 				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},

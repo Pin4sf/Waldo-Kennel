@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -63,11 +64,23 @@ func (s *Service) draftPlanWithProvenance(
 		return domain.PlanDraftProposal{}, err
 	}
 
+	started := time.Now()
 	response, err := s.planIntelligence.DraftPlan(ctx, request)
 	if err != nil {
 		completed := s.clock().UTC()
+		duration := time.Since(started).Milliseconds()
+		if metricErr := s.intelligenceRuns.RecordIntelligenceRunMetrics(ctx, run.ID, nil, nil, &duration); metricErr != nil {
+			_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_STATUS_PERSIST_FAILED", "Reasoning status could not be persisted safely", &completed)
+			return domain.PlanDraftProposal{}, fmt.Errorf("plan intelligence failed and recovery state could not be recorded: %w", metricErr)
+		}
 		_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_PROVIDER_FAILED", "Plan intelligence provider failed", &completed)
 		return domain.PlanDraftProposal{}, err
+	}
+	duration := time.Since(started).Milliseconds()
+	if err := s.intelligenceRuns.RecordIntelligenceRunMetrics(ctx, run.ID, response.Provenance.InputTokens, response.Provenance.OutputTokens, &duration); err != nil {
+		completed := s.clock().UTC()
+		_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_STATUS_PERSIST_FAILED", "Reasoning status could not be persisted safely", &completed)
+		return domain.PlanDraftProposal{}, fmt.Errorf("record plan intelligence metrics: %w", err)
 	}
 	if err := response.Proposal.Validate(); err != nil {
 		completed := s.clock().UTC()

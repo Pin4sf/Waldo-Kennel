@@ -35,6 +35,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/previewserver"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/push"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/runfile"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/secretstore"
 	agentsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/agent"
 	browsersvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/browser"
 	chatsvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/chat"
@@ -132,6 +133,11 @@ func Run() error {
 	// graceful shutdown inside Server.Run and stops the background goroutines.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	if recovered, recoveryErr := intelligencesvc.ReconcileInterruptedRuns(ctx, store, func() time.Time { return time.Now().UTC() }); recoveryErr != nil {
+		log.Error("could not reconcile interrupted Waldo reasoning runs", "error", recoveryErr)
+	} else if recovered > 0 {
+		log.Warn("reconciled interrupted Waldo reasoning runs; explicit retry is required", "count", recovered)
+	}
 
 	cdcPipe, err := startCDC(ctx, store, log)
 	if err != nil {
@@ -196,7 +202,7 @@ func Run() error {
 		settingsStore{store: store},
 		chatDrivers,
 		func() time.Time { return time.Now().UTC() },
-	)
+	).WithReasoningSecrets(secretstore.NewFileStore(cfg.DataDir))
 
 	// Chat service. The driver registry is the capability gate: a harness with no
 	// registered driver cannot start in chat mode, so an unsupported request fails
@@ -408,24 +414,15 @@ func Run() error {
 	// proof, decomposition, scheduling, and liveness stay on this same authority.
 	reaper := sessionReaper{sessions: sessionSvc}
 	// Waldo thinks with its own model; coding agents only execute authorized
-	// work. There is deliberately no rule-based floor behind this: if no
-	// reasoning key is configured, intake fails retryably and says so rather
-	// than serving a canned proposal that looks like understanding.
-	// Which provider is the owner's choice, not Kennel's: the reasoning port is
-	// provider-neutral, so anthropic and openai are both first-class here.
-	reasoner, reasoningCfg, err := waldoReasoner()
-	if err != nil {
-		log.Warn("Waldo reasoning is not configured; Outcome intake and planning will fail until it is",
-			"error", err,
-			"set", "KENNEL_WALDO_PROVIDER (anthropic|openai) and KENNEL_WALDO_API_KEY")
-	}
-	var intelligenceProvider ports.IntelligenceProvider
-	if reasoner != nil {
-		intelligenceProvider = intelligencesvc.NewLLMProvider(reasoner)
-		// The key itself is never logged; naming the variable it came from is
-		// what an owner with several keys in their environment needs to debug.
-		log.Info("Waldo reasoning is configured",
-			"provider", reasoningCfg.Provider, "keyFrom", reasoningCfg.KeySource)
+	// work. The provider resolves current settings at each call, so missing or
+	// invalid credentials remain actionable without daemon restart.
+	intelligenceProvider := newConfiguredIntelligenceProvider(settingsSvc)
+	if reasoning, statusErr := settingsSvc.GetReasoning(ctx); statusErr != nil {
+		log.Warn("Waldo reasoning readiness could not be read", "error", statusErr)
+	} else if !reasoning.Ready {
+		log.Warn("Waldo reasoning is not ready; Outcome intake and planning are retryable", "errorCode", reasoning.ErrorCode, "error", reasoning.Error)
+	} else {
+		log.Info("Waldo reasoning is configured", "provider", reasoning.Provider, "model", reasoning.Model)
 	}
 	outcomeSvc := outcomevc.New(store, nil).
 		WithPlanning(intelligenceProvider, agentSvc).
