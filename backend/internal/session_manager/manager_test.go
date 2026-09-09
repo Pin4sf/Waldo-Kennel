@@ -492,9 +492,15 @@ type recordingAgent struct {
 	fakeAgent
 	lastConfig   ports.AgentConfig
 	lastLaunch   ports.LaunchConfig
+	lastPolicy   *domain.AttemptExecutionPolicy
 	lastRestore  ports.RestoreConfig
 	launchCalls  int
 	restoreCalls int
+}
+
+func (a *recordingAgent) ValidateExecutionPolicy(_ context.Context, _ ports.AgentConfig, policy domain.AttemptExecutionPolicy) error {
+	a.lastPolicy = &policy
+	return nil
 }
 
 func (a *recordingAgent) GetLaunchCommand(_ context.Context, cfg ports.LaunchConfig) ([]string, error) {
@@ -1157,6 +1163,39 @@ func TestSpawn_ExactExecutionBindingReachesLaunchConfig(t *testing.T) {
 				t.Fatalf("project worker model = %q, want it unchanged", got)
 			}
 		})
+	}
+}
+
+func TestSpawn_ExactExecutionPolicyOverridesProjectPermissionsAndReachesLaunch(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
+		AgentConfig: domain.AgentConfig{Permissions: domain.PermissionModeBypassPermissions},
+		Worker:      domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Permissions: domain.PermissionModeBypassPermissions}},
+	}}
+	agent := &recordingAgent{}
+	m := New(Deps{
+		Runtime: &fakeRuntime{}, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st,
+		Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: func(string) (string, error) { return "/bin/true", nil },
+	})
+	policy := &domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest: "brief", RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
+		Grants: []domain.CapabilityGrant{{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"}},
+	}
+	binding := domain.ExecutionBinding{Provider: domain.HarnessCodex, ModelSelection: domain.ExecutionBindingModelProviderDefault}
+	if _, _, _, err := m.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: "mer", Kind: domain.KindWorker, ExactExecutionBinding: &binding, ExecutionPolicy: policy,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if agent.lastPolicy == nil || agent.lastPolicy.WorkUnitID != "wu-1" {
+		t.Fatal("execution policy did not reach the agent validation boundary")
+	}
+	if agent.lastLaunch.ExecutionPolicy == nil || agent.lastLaunch.ExecutionPolicy.Has(domain.CapabilityWorktreeWrite) {
+		t.Fatalf("launch policy = %+v, want narrow read-only policy", agent.lastLaunch.ExecutionPolicy)
+	}
+	if agent.lastLaunch.Permissions != domain.PermissionModeAcceptEdits {
+		t.Fatalf("governed launch retained mutable Project permission %q", agent.lastLaunch.Permissions)
 	}
 }
 

@@ -342,7 +342,7 @@ type fakeSpawner struct {
 	sessionN        int
 }
 
-func (f *fakeSpawner) ProfileReadiness(_ context.Context, _ domain.ProjectID, _ domain.ExecutionBinding) (ports.AgentProfileReadiness, error) {
+func (f *fakeSpawner) ProfileReadiness(_ context.Context, _ domain.ProjectID, _ domain.ExecutionBinding, _ *domain.AttemptExecutionPolicy) (ports.AgentProfileReadiness, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.readinessErr != nil {

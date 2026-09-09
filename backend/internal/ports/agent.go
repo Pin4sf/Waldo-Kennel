@@ -105,6 +105,14 @@ type AgentProfileReadinessChecker interface {
 	ProfileReadiness(ctx context.Context, cfg AgentConfig) (AgentProfileReadiness, error)
 }
 
+// AgentExecutionPolicyChecker is the provider adapter's proof boundary for a
+// governed Attempt. Implementations must reject any capability they cannot map
+// to a native, behaviorally enforced mechanism; a permission label alone is not
+// sufficient.
+type AgentExecutionPolicyChecker interface {
+	ValidateExecutionPolicy(ctx context.Context, cfg AgentConfig, policy domain.AttemptExecutionPolicy) error
+}
+
 // AgentBinaryResolver is the optional capability adapters expose when their
 // binary can be checked without constructing a real session launch command.
 type AgentBinaryResolver interface {
@@ -394,8 +402,11 @@ type LaunchConfig struct {
 	IssueID     string
 	Kind        domain.SessionKind
 	Permissions PermissionMode
-	Prompt      string
-	SessionID   string
+	// ExecutionPolicy is non-nil only for a governed Attempt. Adapters must
+	// map it to a native enforcement mechanism or refuse the launch.
+	ExecutionPolicy *domain.AttemptExecutionPolicy
+	Prompt          string
+	SessionID       string
 	// NativeSessionID optionally asks an adapter that supports caller-assigned
 	// native identities to use this id for a fresh provider conversation. It is
 	// deliberately separate from SessionID: one stable Kennel session may create

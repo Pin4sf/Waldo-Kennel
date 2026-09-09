@@ -15,8 +15,12 @@ type AttemptSpawnRequest struct {
 	Harness        domain.AgentHarness
 	ModelSelection domain.ExecutionBindingModelSelection
 	Model          string
-	Prompt         string
-	DisplayName    string
+	// ExecutionPolicy is present only for a governed Attempt. A nil policy
+	// preserves ordinary session spawning; it must never be synthesized from
+	// mutable Project preferences.
+	ExecutionPolicy *domain.AttemptExecutionPolicy
+	Prompt          string
+	DisplayName     string
 }
 
 // AttemptSpawnResult reports the spawned subordinate session and, when the
@@ -33,7 +37,7 @@ type AttemptSpawnResult struct {
 // the same exact immutable binding; no Project provider/model fallback is
 // permitted after Plan approval.
 type AttemptSessionSpawner interface {
-	ProfileReadiness(ctx context.Context, projectID domain.ProjectID, binding domain.ExecutionBinding) (AgentProfileReadiness, error)
+	ProfileReadiness(ctx context.Context, projectID domain.ProjectID, binding domain.ExecutionBinding, policy *domain.AttemptExecutionPolicy) (AgentProfileReadiness, error)
 	Spawn(ctx context.Context, req AttemptSpawnRequest) (AttemptSpawnResult, error)
 	Terminate(ctx context.Context, projectID domain.ProjectID, sessionID string) (TerminationResult, error)
 }

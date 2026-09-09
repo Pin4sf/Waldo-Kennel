@@ -3,6 +3,7 @@ package codex
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -553,6 +554,47 @@ func TestGetLaunchCommandMapsApprovalModes(t *testing.T) {
 				t.Fatalf("command %#v contains %q", cmd, tt.notExpected)
 			}
 		})
+	}
+}
+
+func TestGetLaunchCommandMapsAttemptExecutionPolicy(t *testing.T) {
+	plugin := &Plugin{resolvedBinary: "codex"}
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest:   "brief",
+		RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
+		Grants:               []domain.CapabilityGrant{{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"}},
+	}
+	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
+		Permissions:     ports.PermissionModeBypassPermissions,
+		ExecutionPolicy: &policy,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsSubsequence(cmd, []string{"--sandbox", "read-only"}) {
+		t.Fatalf("command %#v missing read-only sandbox", cmd)
+	}
+	if contains(cmd, "--dangerously-bypass-approvals-and-sandbox") {
+		t.Fatalf("policy launch retained broad bypass: %#v", cmd)
+	}
+}
+
+func TestValidateExecutionPolicyRejectsWideningCapabilitySet(t *testing.T) {
+	plugin := &Plugin{}
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest:   "brief",
+		RequiredCapabilities: []string{domain.CapabilityWorktreeExec, domain.CapabilityWorktreeRead},
+		Grants: []domain.CapabilityGrant{
+			{ID: "exec", Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"},
+			{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
+		},
+	}
+	if err := plugin.ValidateExecutionPolicy(context.Background(), ports.AgentConfig{}, policy); err == nil {
+		t.Fatal("execute-without-write policy was accepted")
+	} else if !errors.Is(err, ports.ErrExecutionPolicyUnsupported) {
+		t.Fatalf("err = %v, want typed unsupported policy", err)
 	}
 }
 

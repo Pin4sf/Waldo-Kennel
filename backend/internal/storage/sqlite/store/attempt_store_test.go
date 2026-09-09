@@ -161,6 +161,74 @@ func TestAttemptStore_FencedAdmissionIsAtomicAndExclusive(t *testing.T) {
 	}
 }
 
+func TestAttemptStore_ReusedRequestKeyWithDifferentOutcomeConflicts(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	firstPlan, firstOutcome := seedApprovedPlan(t, s, "replay-first")
+	secondPlan, secondOutcome := seedApprovedPlan(t, s, "replay-second")
+	key := "same-request-key"
+	first, err := s.CreateAttemptWithFence(ctx, admissionFor(firstOutcome, firstPlan, key, domain.FenceSubjectForProject("replay-first")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.CreateAttemptWithFence(ctx, admissionFor(secondOutcome, secondPlan, key, domain.FenceSubjectForProject("replay-second")))
+	var conflict *ports.AttemptReplayConflictError
+	if !errors.As(err, &conflict) {
+		t.Fatalf("err = %v, want AttemptReplayConflictError", err)
+	}
+	if second.ID != first.ID || conflict.Attempt.ID != first.ID {
+		t.Fatalf("conflict attempt = %s/%s, want original %s", second.ID, conflict.Attempt.ID, first.ID)
+	}
+	if got, err := s.ListAttempts(ctx, secondOutcome); err != nil {
+		t.Fatal(err)
+	} else if len(got) != 0 {
+		t.Fatalf("conflicting replay created %d attempts for second outcome", len(got))
+	}
+}
+
+func TestAttemptStore_ConcurrentIdenticalAdmissionReturnsOneAttempt(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "replay-concurrent")
+	admission := admissionFor(outcomeID, plan, "concurrent-request-key", domain.FenceSubjectForProject("replay-concurrent"))
+	results := make(chan struct {
+		attempt domain.Attempt
+		err     error
+	}, 2)
+	for range 2 {
+		go func() {
+			attempt, err := s.CreateAttemptWithFence(ctx, admission)
+			results <- struct {
+				attempt domain.Attempt
+				err     error
+			}{attempt: attempt, err: err}
+		}()
+	}
+	var winner domain.Attempt
+	for range 2 {
+		result := <-results
+		if result.err == nil {
+			winner = result.attempt
+			continue
+		}
+		var replay *ports.AttemptReplayError
+		if !errors.As(result.err, &replay) {
+			t.Fatalf("concurrent result err = %v, want replay", result.err)
+		}
+		if replay.Attempt.ID == "" {
+			t.Fatal("replay omitted canonical attempt")
+		}
+	}
+	if winner.ID == "" {
+		t.Fatal("no admission winner")
+	}
+	if attempts, err := s.ListAttempts(ctx, outcomeID); err != nil {
+		t.Fatal(err)
+	} else if len(attempts) != 1 || attempts[0].ID != winner.ID {
+		t.Fatalf("attempts = %+v, want one winner %s", attempts, winner.ID)
+	}
+}
+
 // TestAttemptStore_GuardedTransitionsAndSessionRefs covers the trigger-backed
 // lifecycle seam, FK-free session refs, and ordered observations.
 func TestAttemptStore_GuardedTransitionsAndSessionRefs(t *testing.T) {

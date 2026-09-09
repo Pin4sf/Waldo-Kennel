@@ -68,6 +68,32 @@ func (p *Plugin) SteersActiveTurn() bool { return true }
 
 var _ adapters.Adapter = (*Plugin)(nil)
 var _ ports.Agent = (*Plugin)(nil)
+
+// ValidateExecutionPolicy admits only the two Codex sandbox postures that
+// preserve the WorkUnit capability boundary: read-only inspection, or
+// workspace-write execution with provider network effects disabled. A
+// write-only or execute-without-write WorkUnit cannot be represented by Codex's
+// sandbox without widening authority, so it is refused before launch.
+func (p *Plugin) ValidateExecutionPolicy(ctx context.Context, _ ports.AgentConfig, policy domain.AttemptExecutionPolicy) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := policy.Validate(); err != nil {
+		return fmt.Errorf("codex execution policy: %w", err)
+	}
+	if policy.Has(domain.CapabilityWorktreeRead) && !policy.Has(domain.CapabilityWorktreeWrite) && !policy.Has(domain.CapabilityWorktreeExec) {
+		return nil
+	}
+	if policy.Has(domain.CapabilityWorktreeRead) && policy.Has(domain.CapabilityWorktreeWrite) && policy.Has(domain.CapabilityWorktreeExec) {
+		return nil
+	}
+	return &ports.ExecutionPolicyUnsupportedError{
+		Harness:    domain.HarnessCodex,
+		Capability: strings.Join(policy.RequiredCapabilities, ","),
+		Detail:     "Codex cannot represent this capability set without granting a broader sandbox",
+	}
+}
+
 var _ ports.ActiveTurnSteerer = (*Plugin)(nil)
 var _ ports.AgentAuthChecker = (*Plugin)(nil)
 var _ ports.AgentInterfaceHandoff = (*Plugin)(nil)
@@ -127,6 +153,18 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		return nil, err
 	}
 	appendTerminalCompatibilityFlags(&providerArgs)
+	permission := cfg.Permissions
+	if cfg.ExecutionPolicy != nil {
+		if err := p.ValidateExecutionPolicy(ctx, cfg.Config, *cfg.ExecutionPolicy); err != nil {
+			return nil, err
+		}
+		sandbox := "workspace-write"
+		if !cfg.ExecutionPolicy.Has(domain.CapabilityWorktreeWrite) {
+			sandbox = "read-only"
+		}
+		providerArgs = append(providerArgs, "--sandbox", sandbox)
+		permission = ports.PermissionModeAcceptEdits
+	}
 	return agentruntime.BuildLaunchCommand(agentruntime.LaunchConfig{
 		Harness:          agentruntime.HarnessCodex,
 		Binary:           binary,
@@ -135,7 +173,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		Prompt:           cfg.Prompt,
 		SystemPrompt:     cfg.SystemPrompt,
 		SystemPromptFile: cfg.SystemPromptFile,
-		Permission:       agentruntime.PermissionPolicy(cfg.Permissions),
+		Permission:       agentruntime.PermissionPolicy(permission),
 		ProviderArgs:     providerArgs,
 	})
 }

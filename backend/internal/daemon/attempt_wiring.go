@@ -38,7 +38,7 @@ type attemptSpawner struct {
 
 var _ ports.AttemptSessionSpawner = attemptSpawner{}
 
-func (a attemptSpawner) ProfileReadiness(ctx context.Context, projectID domain.ProjectID, binding domain.ExecutionBinding) (ports.AgentProfileReadiness, error) {
+func (a attemptSpawner) ProfileReadiness(ctx context.Context, projectID domain.ProjectID, binding domain.ExecutionBinding, policy *domain.AttemptExecutionPolicy) (ports.AgentProfileReadiness, error) {
 	if a.projects == nil || a.agents == nil {
 		return ports.AgentProfileReadiness{}, fmt.Errorf("attempt spawner is not fully wired")
 	}
@@ -63,6 +63,7 @@ func (a attemptSpawner) ProfileReadiness(ctx context.Context, projectID domain.P
 		domain.KindWorker,
 		binding,
 		ports.AgentConfig{},
+		policy,
 	)
 }
 
@@ -80,11 +81,12 @@ func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest
 		return ports.AttemptSpawnResult{}, err
 	}
 	sess, _, _, err := a.sessions.SpawnExactAttempt(ctx, ports.SpawnConfig{
-		ProjectID:   req.ProjectID,
-		Kind:        domain.KindWorker,
-		Harness:     binding.Provider,
-		Prompt:      req.Prompt,
-		DisplayName: req.DisplayName,
+		ProjectID:       req.ProjectID,
+		Kind:            domain.KindWorker,
+		Harness:         binding.Provider,
+		ExecutionPolicy: req.ExecutionPolicy,
+		Prompt:          req.Prompt,
+		DisplayName:     req.DisplayName,
 	}, binding)
 	if err != nil {
 		return ports.AttemptSpawnResult{}, err

@@ -54,6 +54,13 @@ type ChatLauncher interface {
 	StopChat(ctx context.Context, id domain.SessionID) error
 }
 
+// ChatExecutionPolicyLauncher is the governed-attempt preflight seam. Ordinary
+// Chat launchers need not implement it; an exact Attempt must fail closed when
+// the launcher cannot prove policy enforcement.
+type ChatExecutionPolicyLauncher interface {
+	PreflightChatExecutionPolicy(ctx context.Context, harness domain.AgentHarness, policy domain.AttemptExecutionPolicy) error
+}
+
 // ChatStart is what the launcher needs. It mirrors the terminal path's
 // LaunchConfig in spirit: everything resolved, nothing left to look up.
 type ChatStart struct {
@@ -69,6 +76,7 @@ type ChatStart struct {
 	Env                   map[string]string
 	Model                 string
 	Permissions           ports.PermissionMode
+	ExecutionPolicy       *domain.AttemptExecutionPolicy
 	SystemPrompt          string
 	AdditionalDirectories []string
 	// ProviderConversationID resumes a stored conversation instead of opening a
@@ -136,6 +144,7 @@ func (m *Manager) launchChatController(ctx context.Context, in chatSpawn) (domai
 		Env:                   env,
 		Model:                 agentConfig.Model,
 		Permissions:           agentConfig.Permissions,
+		ExecutionPolicy:       in.cfg.ExecutionPolicy,
 		SystemPrompt:          in.systemPrompt,
 		AdditionalDirectories: workspaceProjectDirectories(in.workspace.Path, in.workspaceProject),
 		ControllerReady: func(started ChatStarted) error {

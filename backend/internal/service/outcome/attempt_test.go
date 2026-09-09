@@ -247,7 +247,7 @@ func TestStartAttemptAdmissionOrdering(t *testing.T) {
 	if len(ref.RunBriefCoreDigest) != 64 || len(ref.RunBriefCompiledDigest) != 64 {
 		t.Fatal("both digests must be recorded on the ref")
 	}
-	if !strings.Contains(ref.AdmissionSnapshot, `"snapshotVersion":1`) {
+	if !strings.Contains(ref.AdmissionSnapshot, `"snapshotVersion":2`) {
 		t.Fatalf("admission snapshot missing version pin: %s", ref.AdmissionSnapshot)
 	}
 	if view.Fence == nil || !view.Fence.Open() || view.Fence.AttemptID != view.Attempt.ID {
@@ -270,6 +270,9 @@ func TestStartAttemptAdmissionOrdering(t *testing.T) {
 	}
 	if !strings.Contains(req.Prompt, "Stop conditions:") {
 		t.Fatal("prompt must carry the stop conditions")
+	}
+	if req.ExecutionPolicy == nil || req.ExecutionPolicy.OutcomeID != outcomeID || req.ExecutionPolicy.PlanRevisionID != planID || req.ExecutionPolicy.WorkUnitID != firstWorkUnitOfPlan[planID] {
+		t.Fatalf("spawn policy = %+v, want attributed approved WorkUnit policy", req.ExecutionPolicy)
 	}
 
 	// First signal arrives: derivation flips to executing.
@@ -306,6 +309,25 @@ func TestStartAttemptReplayIsIdempotent(t *testing.T) {
 	attempts, _ := store.ListAttempts(context.Background(), outcomeID)
 	if len(attempts) != 1 {
 		t.Fatalf("attempts = %d, want 1", len(attempts))
+	}
+}
+
+func TestStartAttemptReplayWithDifferentWorkUnitConflicts(t *testing.T) {
+	svc, _, spawner, _, outcomeID, planID := newAttemptHarness(t)
+	first, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatalf("first start: %v", err)
+	}
+	_, err = svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{
+		PlanRevisionID: planID,
+		WorkUnitID:     domain.WorkUnitID("different-work-unit"),
+		RequestKey:     startInput(planID).RequestKey,
+	})
+	if code := requireAPICode(t, err); code != outcome.CodeAttemptRequestKeyConflict {
+		t.Fatalf("code = %s, want %s", code, outcome.CodeAttemptRequestKeyConflict)
+	}
+	if spawner.spawnCalls() != 1 || first.Attempt.ID == "" {
+		t.Fatalf("replay conflict changed execution: first=%s spawns=%d", first.Attempt.ID, spawner.spawnCalls())
 	}
 }
 

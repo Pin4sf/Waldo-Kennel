@@ -83,6 +83,29 @@ var _ ports.ChatDriver = (*Driver)(nil)
 // Harness reports which agent this driver serves.
 func (d *Driver) Harness() domain.AgentHarness { return domain.HarnessCodex }
 
+// ValidateExecutionPolicy admits only Codex sandbox postures that preserve the
+// approved WorkUnit boundary. Codex's workspace-write sandbox is the narrowest
+// tested posture that permits local command execution; it is not used for a
+// write-only or execute-without-write policy because that would widen authority.
+func (d *Driver) ValidateExecutionPolicy(ctx context.Context, policy domain.AttemptExecutionPolicy) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := policy.Validate(); err != nil {
+		return fmt.Errorf("codex chat execution policy: %w", err)
+	}
+	readOnly := policy.Has(domain.CapabilityWorktreeRead) && !policy.Has(domain.CapabilityWorktreeWrite) && !policy.Has(domain.CapabilityWorktreeExec)
+	workspaceExecution := policy.Has(domain.CapabilityWorktreeRead) && policy.Has(domain.CapabilityWorktreeWrite) && policy.Has(domain.CapabilityWorktreeExec)
+	if readOnly || workspaceExecution {
+		return nil
+	}
+	return &ports.ExecutionPolicyUnsupportedError{
+		Harness:    domain.HarnessCodex,
+		Capability: strings.Join(policy.RequiredCapabilities, ","),
+		Detail:     "Codex Chat cannot represent this capability set without granting a broader sandbox",
+	}
+}
+
 // capabilities is what a Codex app-server of a supported version provides. Each
 // entry here was exercised against a live app-server rather than read off a doc.
 func capabilities() ports.ChatCapabilities {
@@ -240,12 +263,24 @@ func (d *Driver) Start(ctx context.Context, cfg ports.ChatStartConfig) (ports.Ch
 		return nil, fmt.Errorf("workspace path must be absolute, got %q", cfg.WorkspacePath)
 	}
 
+	if cfg.ExecutionPolicy != nil {
+		if err := d.ValidateExecutionPolicy(ctx, *cfg.ExecutionPolicy); err != nil {
+			return nil, err
+		}
+	}
 	conv, err := d.connect(ctx, cfg.WorkspacePath, cfg.Env)
 	if err != nil {
 		return nil, err
 	}
 
 	policy, sandbox := approvalSettings(cfg.Permissions)
+	if cfg.ExecutionPolicy != nil {
+		policy = "on-request"
+		sandbox = "workspace-write"
+		if !cfg.ExecutionPolicy.Has(domain.CapabilityWorktreeWrite) {
+			sandbox = "read-only"
+		}
+	}
 	params := map[string]any{
 		"cwd":            cfg.WorkspacePath,
 		"approvalPolicy": policy,

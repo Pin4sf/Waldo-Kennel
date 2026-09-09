@@ -30,8 +30,8 @@ ADRs 0010/0011/0012, product architecture and ADRs 0008/0009 govern the target. 
 
 | Area | Current gap | Plan slice |
 |---|---|---|
-| Exact model launch | Manager.Spawn now resolves the approved exact binding before readiness and TUI/chat launch; live provider conformance and restart/recovery semantics remain unproved | L1b / L7 |
-| Runtime authority | Attempt spawn does not carry structured WorkUnit grants/effect policy; non-model Project settings still merge. Live enforcement not proved | L1b |
+| Exact model launch | Manager.Spawn now resolves the approved exact binding before readiness and TUI/chat launch; live provider conformance and restart/recovery semantics remain unproved | L7 |
+| Runtime authority | Attempt spawn now carries an attributed normalized WorkUnit policy; Codex TUI/Chat map read-only or workspace-write sandbox postures, while unsupported adapters/capability sets refuse before launch. Live canary enforcement remains unproved | L7 |
 | Reasoning readiness/recovery | Environment-only setup; nonterminal IntelligenceRun listing has no runtime reconciliation caller; adapter/service behavioral coverage incomplete | L2 |
 | Grounding/replan | No repository snapshot in current intelligence request; previous proposal context reduced to title; clarification copied into temporal field; explicit replan and material draft assumptions/blockers need completion | L3 |
 | Plan/Mission UI | First-WorkUnit assumptions, redundant mutable harness input, no production schedule HTTP projection | L4 |
@@ -42,6 +42,16 @@ ADRs 0010/0011/0012, product architecture and ADRs 0008/0009 govern the target. 
 The daemon correctly rejects a supplied provider different from the approved binding. The frontend still sends Project preference, so this is a client integration defect, not evidence of silent daemon rerouting.
 
 The serial scheduler currently uses a Project custody fence. Full WorkUnit WorkspaceLease parallel scheduling remains later work. Do not remove that fence merely to make a graph look concurrent.
+
+## L1b capability and replay evidence
+
+L1b is implemented in isolated worktree `codex/l1b-capability-replay` on dependency head `677c7612111f080ee447442ad61f8302f22d71da` (L0 plus L1a). `AttemptSpawnRequest` now carries an immutable `AttemptExecutionPolicy` built from the approved WorkUnit's required capabilities and only the matching Plan grants, with Outcome/Plan/WorkUnit/Contract and RunBrief attribution. The policy digest and packet are recorded in the v2 admission snapshot; historical snapshots without this field remain readable because no reader synthesizes policy for old rows.
+
+Readiness and actual spawn share the same adapter-policy validation seam. A governed Attempt reduces mutable Project permission posture to a safe provider-neutral mode before the adapter boundary. Codex TUI maps inspection to `--sandbox read-only` and modify-and-execute to `--sandbox workspace-write` with approval prompts; Codex Chat sends the corresponding `approvalPolicy`/`sandbox` pair. A write-only or execute-without-write capability set, and adapters without a behavioral checker, return typed `ATTEMPT_EXECUTION_POLICY_UNSUPPORTED` before session/worktree creation. The implementation does not claim that CLI permission labels alone fence effects, and no live canary/provider/model run was authorized or performed.
+
+Replay now compares canonical Outcome/Plan/WorkUnit (and storage contract revision) identity on both the service fast path and the SQLite unique-key race path. Same-key identical starts return one Attempt; conflicting reuse returns `ATTEMPT_REQUEST_KEY_CONFLICT`; the existing Project fence remains unchanged.
+
+Evidence: targeted backend/adapters `go test` exit 0 (`/tmp/kennel-l1b-go-targeted.log`); focused race coverage for service/session/daemon/adapters and concurrent/conflicting SQLite admission exit 0 (`/tmp/kennel-l1b-go-race.log`); `go vet ./... && go build ./...` exit 0 (`/tmp/kennel-l1b-go-vet-build.log`). The full requested race command also exited 0; the SQLite package took 320.9 seconds under race instrumentation. The full backend suite `go test ./...` exited 0. No SQL migration, generated API, frontend, provider credential, deployment, or owner Acceptance was changed or claimed.
 
 ## L0 baseline cleanup evidence
 
@@ -55,12 +65,12 @@ Fresh verification on this branch also passed `go test -race ./...` (exit 0), `n
 
 ## Current verification truth
 
-The baseline record distinguishes pass/fail/not-run. The historical fresh run had **23 failures in 4 files**; L0 now has no frontend test failures. The full frontend suite is green at 230 files, 2775 passed and 6 skipped; frontend typecheck, HTTP/spec parity and full lint pass. Full backend race coverage also passes. The earlier full `npm run lint` wrapper failure was caused by L0’s stale generated contracts and is repaired. The foundation wrapper remains blocked by the unrelated cloud-client generated-schema drift described above. L1a’s exact-binding regression is green at the Manager launch boundary for both TUI and Chat, with targeted race and vet checks passing. The macOS arm64 package build and package identity check pass, but were not launched. Do not treat the whole foundation or provider conformance gate as green.
+The baseline record distinguishes pass/fail/not-run. The historical fresh run had **23 failures in 4 files**; L0 now has no frontend test failures. The full frontend suite is green at 230 files, 2775 passed and 6 skipped; frontend typecheck, HTTP/spec parity and full lint pass. Full backend tests and the L1b backend/adapters race gates pass. The earlier full `npm run lint` wrapper failure was caused by L0’s stale generated contracts and is repaired. The foundation wrapper remains blocked by the unrelated cloud-client generated-schema drift described above. L1a’s exact-binding regression is green at the Manager launch boundary for both TUI and Chat. L1b’s policy mapping is adapter/fake-tested only; live provider canary, restart/recovery, packaged Electron journey, and effect probes remain open. The macOS arm64 package build and package identity check pass, but were not launched. Do not treat the whole foundation or provider conformance gate as green.
 
 No live-model, real-provider permission, packaged Electron journey, or owner-accepted Outcome is claimed by this documentation update. Green service tests do not establish those facts.
 
 ## Next work
 
-Next is **L1b governed capabilities/replay** from the implementation plan. L1a still needs live provider conformance and restart/recovery verification before those claims can be accepted. L2 can be assigned separately only with explicit ownership. Complete L3–L6 in dependency order, then L7 on an integrated SHA. Every slice updates this file with exact observed evidence and remaining limitations.
+Next is live conformance/recovery for L1b/L1a on a disposable repository with an authorized provider binary/model, followed by L2. The current implementation still needs a real Codex TUI and Chat canary proving inspect writes are denied and workspace-write execution cannot make network/effect changes. Other providers remain explicit blocked/unsupported until their adapters prove equivalent enforcement. Complete L3–L6 in dependency order, then L7 on an integrated SHA. Every slice updates this file with exact observed evidence and remaining limitations.
 
 The release gate remains: real repo → grounded Contract → full Plan approval → exact bounded execution → retained artifacts/checks → understandable proof → owner acceptance/rework, including interruption and restart without duplicate execution.

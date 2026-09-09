@@ -53,7 +53,7 @@ Backend tests cover important foundations, including frozen binding and schedule
 |---|---|---|---|
 | L0 baseline/source reconciliation | none | implemented in isolated `codex/l0-baseline-cleanup`; narrow/full frontend, frontend typecheck, HTTP/spec parity, full Go race, and full lint green; generated contracts repaired after the L0 rename; L1a-owned unused helper findings resolved; foundation wrapper reaches but is blocked by unrelated cloud schema drift | this plan, STATUS, existing product companions |
 | L1a exact model launch | L0 source baseline | implemented in isolated `codex/l0-baseline-cleanup`; Manager-boundary TUI and Chat regression tests green, targeted race/vet green; live provider conformance and restart/recovery remain open | session service → Manager → actual launch config |
-| L1b governed capabilities/replay | L1a | open | approved capabilities → adapter/runtime + idempotency |
+| L1b governed capabilities/replay | L1a | implemented in isolated `codex/l1b-capability-replay`; normalized attributed policy reaches readiness and TUI/Chat adapter boundaries; Codex mappings/refusal and service/SQLite replay tests green; live canary, restart/recovery and other-provider conformance remain open | approved capabilities → adapter/runtime + idempotency |
 | L2 reasoning setup and recovery | L0 | open | settings/secrets → LLM → durable IntelligenceRun |
 | L3 grounded proposals and replan | L2 | open | context → Contract/Plan proposal/revision |
 | L4 complete Plan/Mission projection | L1, L3 | open | generated schedule API → existing Work UI |

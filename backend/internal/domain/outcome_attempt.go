@@ -208,7 +208,7 @@ func (r AttemptSessionRef) Validate() error {
 
 // AdmissionSnapshotVersion pins the shape of the recorded admission snapshot
 // so later slices can evolve the payload without reinterpreting old rows.
-const AdmissionSnapshotVersion = 1
+const AdmissionSnapshotVersion = 2
 
 // AttemptObservation is one append-only, ordered fact observed about an
 // attempt. Observations are insertable ALWAYS — including for stale attempts

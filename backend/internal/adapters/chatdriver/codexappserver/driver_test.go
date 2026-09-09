@@ -712,6 +712,33 @@ func TestApprovalSettingsMirrorTUIPosture(t *testing.T) {
 	}
 }
 
+func TestStartMapsAttemptExecutionPolicyToNarrowSandbox(t *testing.T) {
+	d, srv := newTestDriver(t)
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest:   "brief",
+		RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
+		Grants:               []domain.CapabilityGrant{{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"}},
+	}
+	conv, err := d.Start(context.Background(), ports.ChatStartConfig{WorkspacePath: "/tmp/ws", Permissions: ports.PermissionModeBypassPermissions, ExecutionPolicy: &policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conv.Close() }()
+
+	sent := srv.awaitFrame(func(f frame) bool { return f.Method == "thread/start" })
+	var params struct {
+		ApprovalPolicy string `json:"approvalPolicy"`
+		Sandbox        string `json:"sandbox"`
+	}
+	if err := json.Unmarshal(sent.Params, &params); err != nil {
+		t.Fatal(err)
+	}
+	if params.ApprovalPolicy != "on-request" || params.Sandbox != "read-only" {
+		t.Fatalf("policy posture = %q/%q, want on-request/read-only", params.ApprovalPolicy, params.Sandbox)
+	}
+}
+
 func TestEnvSliceIsSortedForReproducibleRelaunch(t *testing.T) {
 	// Sortedness is still the contract: a relaunch should be byte-identical so a
 	// process diff is readable. What changed is that the overlay is merged over the

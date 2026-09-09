@@ -110,6 +110,41 @@ func (e *AttemptReplayError) Error() string {
 	return fmt.Sprintf("attempt %s was already admitted for this request key", e.Attempt.ID)
 }
 
+// AttemptReplayConflictError reports reuse of a request key for different
+// canonical execution semantics. Returning the existing Attempt in this case
+// would cross Outcome or WorkUnit custody boundaries.
+type AttemptReplayConflictError struct {
+	Attempt        domain.Attempt
+	OutcomeID      domain.OutcomeID
+	PlanRevisionID domain.PlanRevisionID
+	WorkUnitID     domain.WorkUnitID
+}
+
+func (e *AttemptReplayConflictError) Error() string {
+	return fmt.Sprintf("request key is already bound to attempt %s for outcome %s, plan %s, work unit %s", e.Attempt.ID, e.Attempt.OutcomeID, e.Attempt.PlanRevisionID, e.Attempt.WorkUnitID)
+}
+
+// ErrExecutionPolicyUnsupported identifies an adapter that cannot prove
+// enforcement of a required capability before provider launch.
+var ErrExecutionPolicyUnsupported = errors.New("execution policy enforcement unsupported")
+
+// ExecutionPolicyUnsupportedError is returned before provider launch when an
+// adapter cannot prove enforcement of a required capability.
+type ExecutionPolicyUnsupportedError struct {
+	Harness    domain.AgentHarness
+	Capability string
+	Detail     string
+}
+
+func (e *ExecutionPolicyUnsupportedError) Error() string {
+	if e.Detail == "" {
+		return fmt.Sprintf("%s cannot enforce execution capability %q", e.Harness, e.Capability)
+	}
+	return fmt.Sprintf("%s cannot enforce execution capability %q: %s", e.Harness, e.Capability, e.Detail)
+}
+
+func (e *ExecutionPolicyUnsupportedError) Unwrap() error { return ErrExecutionPolicyUnsupported }
+
 // AuthorizedContribution is the atomic persistence payload created from one
 // owner-authorized decomposition proposal.
 type AuthorizedContribution struct {

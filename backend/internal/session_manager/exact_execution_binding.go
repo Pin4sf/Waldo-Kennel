@@ -29,7 +29,8 @@ func prepareSpawnExecution(cfg ports.SpawnConfig, projectCfg domain.ProjectConfi
 	// Existing TUI and Chat launch plumbing both merge Project config again.
 	// Remove only mutable Project model preference from this local copy; the exact
 	// binding has already been validated and copied into cfg.AgentConfig above.
-	// Non-model runtime preferences/capability settings remain available.
+	// Non-model preferences remain available only where they do not widen an
+	// attached governed ExecutionPolicy.
 	projectCfg.AgentConfig.Model = ""
 	if cfg.Kind == domain.KindOrchestrator {
 		projectCfg.Orchestrator.AgentConfig.Model = ""
@@ -59,7 +60,8 @@ func spawnExecutionConfig(cfg ports.SpawnConfig, projectCfg domain.ProjectConfig
 	// Resolve non-model provider settings against the exact provider so a
 	// Project role config for another harness cannot leak its mode/profile into
 	// this launch. Then freeze only the model dimension from WorkUnit authority;
-	// permissions remain provider-neutral capability authority.
+	// permissions are reduced to a safe provider-neutral posture when an
+	// immutable ExecutionPolicy is attached; adapters perform the final mapping.
 	agentConfig = applySpawnAgentConfig(freshAgentConfig(cfg.Kind, harness, projectCfg), cfg.AgentConfig)
 	switch binding.ModelSelection {
 	case domain.ExecutionBindingModelProviderDefault:
@@ -68,6 +70,13 @@ func spawnExecutionConfig(cfg ports.SpawnConfig, projectCfg domain.ProjectConfig
 		agentConfig.Model = strings.TrimSpace(binding.Model)
 	default:
 		return "", ports.AgentConfig{}, fmt.Errorf("exact execution binding has unsupported model selection %q", binding.ModelSelection)
+	}
+	if cfg.ExecutionPolicy != nil {
+		// A governed policy owns the permission posture too. Provider adapters
+		// still map the normalized capabilities to their native sandbox, but a
+		// mutable Project bypass setting must never reach that boundary as the
+		// fallback posture.
+		agentConfig.Permissions = domain.PermissionModeAcceptEdits
 	}
 	return harness, agentConfig, nil
 }

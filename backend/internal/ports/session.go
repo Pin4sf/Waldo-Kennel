@@ -27,9 +27,12 @@ type SpawnConfig struct {
 
 	// ExactExecutionBinding is non-nil only for governed Attempt execution.
 	// provider_default deliberately clears any Project model preference;
-	// explicit requires exactly Binding.Model. It never changes permissions or
-	// other provider-neutral session configuration.
+	// explicit requires exactly Binding.Model. Governed Attempts additionally
+	// carry an immutable ExecutionPolicy that owns the capability posture.
 	ExactExecutionBinding *domain.ExecutionBinding
+	// ExecutionPolicy is the immutable capability packet for a governed Attempt.
+	// It is validated by readiness and again at the actual provider boundary.
+	ExecutionPolicy *domain.AttemptExecutionPolicy
 
 	RequestedMode domain.SessionMode
 	DisplayName   string

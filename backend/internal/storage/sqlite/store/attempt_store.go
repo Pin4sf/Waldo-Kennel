@@ -109,6 +109,11 @@ func (s *Store) CreateAttemptWithFence(ctx context.Context, in ports.AttemptAdmi
 			row, findErr := txq.FindAttemptByIdempotencyKey(ctx, key)
 			if findErr == nil {
 				winner := attemptFromRow(row)
+				if winner.OutcomeID != in.OutcomeID || winner.PlanRevisionID != in.PlanRevisionID || winner.WorkUnitID != in.WorkUnitID || winner.ContractRevisionNumber != in.ContractRevisionNumber {
+					return winner, &ports.AttemptReplayConflictError{
+						Attempt: winner, OutcomeID: in.OutcomeID, PlanRevisionID: in.PlanRevisionID, WorkUnitID: in.WorkUnitID,
+					}
+				}
 				return winner, &ports.AttemptReplayError{Attempt: winner}
 			}
 		}

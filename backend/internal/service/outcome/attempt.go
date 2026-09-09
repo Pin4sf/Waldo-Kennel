@@ -128,6 +128,12 @@ const (
 	CodeAttemptCustodyUnproven = "ATTEMPT_CUSTODY_UNPROVEN"
 	// CodeAttemptProviderStopFailed indicates provider termination failed.
 	CodeAttemptProviderStopFailed = "ATTEMPT_PROVIDER_STOP_FAILED"
+	// CodeAttemptExecutionPolicyUnsupported indicates the selected adapter cannot
+	// prove enforcement of the approved WorkUnit capabilities.
+	CodeAttemptExecutionPolicyUnsupported = "ATTEMPT_EXECUTION_POLICY_UNSUPPORTED"
+	// CodeAttemptRequestKeyConflict indicates idempotency-key reuse for different
+	// canonical Outcome/Plan/WorkUnit semantics.
+	CodeAttemptRequestKeyConflict = "ATTEMPT_REQUEST_KEY_CONFLICT"
 	// CodeAttemptStartUnresolved indicates that attempt activation is ambiguous.
 	CodeAttemptStartUnresolved = "ATTEMPT_START_UNRESOLVED"
 )
@@ -149,6 +155,11 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if existing, ok, err := s.store.FindAttemptByIdempotencyKey(ctx, in.RequestKey); err != nil {
 		return AttemptView{}, err
 	} else if ok {
+		if existing.OutcomeID != outcomeID || existing.PlanRevisionID != in.PlanRevisionID || existing.WorkUnitID != in.WorkUnitID {
+			return AttemptView{}, apierr.Conflict(CodeAttemptRequestKeyConflict,
+				"That idempotency key is already bound to different Outcome/Plan/WorkUnit semantics",
+				map[string]any{"requestKey": strings.TrimSpace(in.RequestKey), "attemptId": existing.ID, "outcomeId": existing.OutcomeID, "planId": existing.PlanRevisionID, "workUnitId": existing.WorkUnitID})
+		}
 		return s.GetAttempt(ctx, existing.OutcomeID, existing.ID)
 	}
 
@@ -217,6 +228,10 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 			"The frozen RunBrief no longer matches the Contract and Plan — propose and approve a fresh Plan",
 			map[string]any{"outcomeId": outcomeID, "planId": plan.ID})
 	}
+	policy, err := domain.BuildAttemptExecutionPolicy(outcomeID, plan, unit, recomputed)
+	if err != nil {
+		return AttemptView{}, apierr.Conflict(CodeAttemptCapabilityUnauthorized, "The approved WorkUnit capability packet is invalid", map[string]any{"detail": err.Error(), "workUnitId": unit.ID})
+	}
 
 	projectID, ok, err := s.store.GetOutcomeProjectID(ctx, outcomeID)
 	if err != nil {
@@ -225,7 +240,7 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if !ok {
 		return AttemptView{}, apierr.NotFound("PROJECT_NOT_FOUND", "Register that Project before starting Attempts")
 	}
-	if err := s.probeReadiness(ctx, projectID, binding); err != nil {
+	if err := s.probeReadiness(ctx, projectID, binding, &policy); err != nil {
 		return AttemptView{}, err
 	}
 
@@ -236,6 +251,12 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		RequestKey:             strings.TrimSpace(in.RequestKey), FenceSubject: domain.FenceSubjectForProject(projectID), At: now,
 	})
 	if err != nil {
+		var replayConflict *ports.AttemptReplayConflictError
+		if errors.As(err, &replayConflict) {
+			return AttemptView{}, apierr.Conflict(CodeAttemptRequestKeyConflict,
+				"That idempotency key is already bound to different Outcome/Plan/WorkUnit semantics",
+				map[string]any{"requestKey": strings.TrimSpace(in.RequestKey), "attemptId": replayConflict.Attempt.ID, "outcomeId": replayConflict.Attempt.OutcomeID, "planId": replayConflict.Attempt.PlanRevisionID, "workUnitId": replayConflict.Attempt.WorkUnitID})
+		}
 		var replay *ports.AttemptReplayError
 		if errors.As(err, &replay) {
 			return s.GetAttempt(ctx, replay.Attempt.OutcomeID, replay.Attempt.ID)
@@ -252,7 +273,8 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	prompt := renderRunBriefPrompt(revision, unit)
 	spawned, err := s.spawner.Spawn(ctx, ports.AttemptSpawnRequest{
 		ProjectID: projectID, Harness: binding.Provider, ModelSelection: binding.ModelSelection, Model: binding.Model,
-		Prompt: prompt, DisplayName: fmt.Sprintf("%s · %s · attempt %d", outcomeRecord.Title, unit.Title, attempt.Number),
+		ExecutionPolicy: &policy,
+		Prompt:          prompt, DisplayName: fmt.Sprintf("%s · %s · attempt %d", outcomeRecord.Title, unit.Title, attempt.Number),
 	})
 	if err != nil {
 		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationAdmissionAmbiguous, err)
@@ -264,7 +286,11 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 
 	session := spawned.Session
 	mode := session.Mode
-	compiled := computeCompiledBriefDigest(binding, mode, recomputed)
+	policyDigest, err := policy.Digest()
+	if err != nil {
+		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous, fmt.Errorf("execution policy digest failed: %w", err))
+	}
+	compiled := computeCompiledBriefDigest(binding, mode, recomputed, policyDigest)
 	snapshot, err := json.Marshal(map[string]any{
 		"snapshotVersion":        domain.AdmissionSnapshotVersion,
 		"harness":                string(binding.Provider),
@@ -275,6 +301,8 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		"mode":                   string(mode),
 		"runBriefCoreDigest":     recomputed,
 		"runBriefCompiledDigest": compiled,
+		"executionPolicy":        policy,
+		"executionPolicyDigest":  policyDigest,
 		"sessionId":              session.ID,
 		"requestedAt":            now,
 	})
@@ -321,9 +349,13 @@ func (s *Service) admitUnresolved(ctx context.Context, attemptID domain.AttemptI
 	return unresolved
 }
 
-func (s *Service) probeReadiness(ctx context.Context, projectID domain.ProjectID, binding domain.ExecutionBinding) error {
-	readiness, err := s.spawner.ProfileReadiness(ctx, projectID, binding)
+func (s *Service) probeReadiness(ctx context.Context, projectID domain.ProjectID, binding domain.ExecutionBinding, policy *domain.AttemptExecutionPolicy) error {
+	readiness, err := s.spawner.ProfileReadiness(ctx, projectID, binding, policy)
 	if err != nil {
+		var unsupported *ports.ExecutionPolicyUnsupportedError
+		if errors.As(err, &unsupported) {
+			return apierr.Conflict(CodeAttemptExecutionPolicyUnsupported, "The selected provider cannot enforce this approved WorkUnit policy", map[string]any{"harness": binding.Provider, "capability": unsupported.Capability, "detail": unsupported.Detail})
+		}
 		if errors.Is(err, ports.ErrAgentBinaryNotFound) {
 			return apierr.Conflict(CodeAgentBinaryNotFound, "The authorized agent binary is not installed on this machine", map[string]any{"harness": binding.Provider})
 		}
@@ -532,8 +564,8 @@ func (s *Service) authorizeAttemptCapabilities(revision domain.ContractRevision,
 	return nil
 }
 
-func computeCompiledBriefDigest(binding domain.ExecutionBinding, mode domain.SessionMode, core string) string {
-	sum := sha256.Sum256([]byte("v1|" + string(binding.Provider) + "|" + string(binding.ModelSelection) + "|" + binding.Model + "|" + string(mode) + "|" + core))
+func computeCompiledBriefDigest(binding domain.ExecutionBinding, mode domain.SessionMode, core, policyDigest string) string {
+	sum := sha256.Sum256([]byte("v2|" + string(binding.Provider) + "|" + string(binding.ModelSelection) + "|" + binding.Model + "|" + string(mode) + "|" + core + "|" + policyDigest))
 	return hex.EncodeToString(sum[:])
 }
 

@@ -710,6 +710,10 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	if !ok {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: %q", ErrUnknownHarness, cfg.Harness)
 	}
+	resolvedAgentConfig := applySpawnAgentConfig(freshAgentConfig(cfg.Kind, cfg.Harness, project.Config), cfg.AgentConfig)
+	if err := validateAgentExecutionPolicy(ctx, agent, cfg.Harness, resolvedAgentConfig, cfg.ExecutionPolicy); err != nil {
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: execution policy: %w", err)
+	}
 
 	// Profile readiness is enforced here, before any session row, worktree, or
 	// runtime exists — the same fail-early reasoning as the harness checks
@@ -718,9 +722,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	// "launchable", not merely installed. Spawn remains the authoritative
 	// validation point; this preflight only moves the truthful failure earlier.
 	if checker, ok := agent.(ports.AgentProfileReadinessChecker); ok {
-		probeConfig := freshAgentConfig(cfg.Kind, cfg.Harness, project.Config)
-		probeConfig = applySpawnAgentConfig(probeConfig, cfg.AgentConfig)
-		readiness, err := checker.ProfileReadiness(ctx, probeConfig)
+		readiness, err := checker.ProfileReadiness(ctx, resolvedAgentConfig)
 		if err != nil {
 			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %s readiness: %w", cfg.Harness, err)
 		}
@@ -741,6 +743,15 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		}
 		if err := m.chat.PreflightChat(ctx, cfg.Harness); err != nil {
 			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
+		}
+		if cfg.ExecutionPolicy != nil {
+			policyLauncher, ok := m.chat.(ChatExecutionPolicyLauncher)
+			if !ok {
+				return domain.SessionRecord{}, 0, 0, &ports.ExecutionPolicyUnsupportedError{Harness: cfg.Harness, Capability: cfg.ExecutionPolicy.RequiredCapabilities[0], Detail: "the Chat launcher has no policy preflight"}
+			}
+			if err := policyLauncher.PreflightChatExecutionPolicy(ctx, cfg.Harness, *cfg.ExecutionPolicy); err != nil {
+				return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: execution policy: %w", err)
+			}
 		}
 	}
 	cfg.RequestedMode = mode
@@ -836,7 +847,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: no agent adapter for harness %q", id, cfg.Harness)
 	}
-	agentConfig := applySpawnAgentConfig(freshAgentConfig(cfg.Kind, cfg.Harness, project.Config), cfg.AgentConfig)
+	agentConfig := resolvedAgentConfig
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(id, cfg.ProjectID, cfg.IssueID, project.Config.Env)
 	if err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, true)
@@ -863,6 +874,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		IssueID:          string(cfg.IssueID),
 		Config:           agentConfig,
 		Permissions:      agentConfig.Permissions,
+		ExecutionPolicy:  cfg.ExecutionPolicy,
 	}
 	delivery, err := agent.GetPromptDeliveryStrategy(ctx, launchCfg)
 	if err != nil {

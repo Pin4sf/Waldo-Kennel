@@ -212,7 +212,7 @@ func TestAttemptRouteSurface(t *testing.T) {
 // controllerSpawner is the execution double for the functional HTTP test.
 type controllerSpawner struct{}
 
-func (controllerSpawner) ProfileReadiness(context.Context, domain.ProjectID, domain.ExecutionBinding) (ports.AgentProfileReadiness, error) {
+func (controllerSpawner) ProfileReadiness(context.Context, domain.ProjectID, domain.ExecutionBinding, *domain.AttemptExecutionPolicy) (ports.AgentProfileReadiness, error) {
 	return ports.AgentProfileReadiness{Ready: true, Detail: "test profile ok"}, nil
 }
 func (controllerSpawner) Terminate(_ context.Context, _ domain.ProjectID, _ string) (ports.TerminationResult, error) {

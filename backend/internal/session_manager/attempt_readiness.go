@@ -28,7 +28,7 @@ func ProfileReadinessForSpawn(
 	if err != nil {
 		return ports.AgentProfileReadiness{}, err
 	}
-	return profileReadinessForConfig(ctx, agents, resolvedHarness, config)
+	return profileReadinessForConfig(ctx, agents, resolvedHarness, config, nil)
 }
 
 // ProfileReadinessForExactSpawn probes the frozen execution binding through the
@@ -41,6 +41,7 @@ func ProfileReadinessForExactSpawn(
 	kind domain.SessionKind,
 	binding domain.ExecutionBinding,
 	overrides ports.AgentConfig,
+	policy *domain.AttemptExecutionPolicy,
 ) (ports.AgentProfileReadiness, error) {
 	bindingCopy := binding
 	harness, config, err := spawnExecutionConfig(ports.SpawnConfig{
@@ -52,7 +53,7 @@ func ProfileReadinessForExactSpawn(
 	if err != nil {
 		return ports.AgentProfileReadiness{}, err
 	}
-	return profileReadinessForConfig(ctx, agents, harness, config)
+	return profileReadinessForConfig(ctx, agents, harness, config, policy)
 }
 
 func profileReadinessForConfig(
@@ -60,6 +61,7 @@ func profileReadinessForConfig(
 	agents ports.AgentResolver,
 	harness domain.AgentHarness,
 	config ports.AgentConfig,
+	policy *domain.AttemptExecutionPolicy,
 ) (ports.AgentProfileReadiness, error) {
 	agent, ok := agents.Agent(harness)
 	if !ok {
@@ -67,6 +69,9 @@ func profileReadinessForConfig(
 			Ready:  false,
 			Detail: fmt.Sprintf("no agent adapter registered for %q", harness),
 		}, nil
+	}
+	if err := validateAgentExecutionPolicy(ctx, agent, harness, config, policy); err != nil {
+		return ports.AgentProfileReadiness{}, err
 	}
 	checker, ok := agent.(ports.AgentProfileReadinessChecker)
 	if !ok {

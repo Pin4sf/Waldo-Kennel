@@ -128,6 +128,7 @@ type StartConfig struct {
 	Env                   map[string]string
 	Model                 string
 	Permissions           ports.PermissionMode
+	ExecutionPolicy       *domain.AttemptExecutionPolicy
 	SystemPrompt          string
 	AdditionalDirectories []string
 	MCPServers            []ports.ChatMCPServerConfig
@@ -279,6 +280,7 @@ func (s *Service) Start(ctx context.Context, cfg StartConfig) (*Controller, erro
 			Env:                   cfg.Env,
 			Model:                 cfg.Model,
 			Permissions:           cfg.Permissions,
+			ExecutionPolicy:       cfg.ExecutionPolicy,
 			SystemPrompt:          cfg.SystemPrompt,
 			AdditionalDirectories: cfg.AdditionalDirectories,
 			MCPServers:            cfg.MCPServers,
@@ -811,6 +813,27 @@ func (s *Service) PreflightChat(ctx context.Context, harness domain.AgentHarness
 	return nil
 }
 
+// PreflightChatExecutionPolicy proves the selected Chat driver can map the
+// immutable WorkUnit policy before a session row, worktree, or provider
+// conversation exists.
+func (s *Service) PreflightChatExecutionPolicy(ctx context.Context, harness domain.AgentHarness, policy domain.AttemptExecutionPolicy) error {
+	if err := policy.Validate(); err != nil {
+		return fmt.Errorf("invalid execution policy: %w", err)
+	}
+	if err := s.PreflightChat(ctx, harness); err != nil {
+		return err
+	}
+	driver, err := s.drivers.Driver(harness)
+	if err != nil {
+		return err
+	}
+	checker, ok := driver.(ports.ChatExecutionPolicyChecker)
+	if !ok {
+		return &ports.ExecutionPolicyUnsupportedError{Harness: harness, Capability: policy.RequiredCapabilities[0], Detail: "the Chat adapter has no behavioral capability-enforcement mapping"}
+	}
+	return checker.ValidateExecutionPolicy(ctx, policy)
+}
+
 // StartChat launches the controller for a freshly created session.
 func (s *Service) StartChat(ctx context.Context, cfg StartRequest) (StartResult, error) {
 	controller, err := s.Start(ctx, StartConfig(cfg))
@@ -832,6 +855,7 @@ type StartRequest struct {
 	Env                   map[string]string
 	Model                 string
 	Permissions           ports.PermissionMode
+	ExecutionPolicy       *domain.AttemptExecutionPolicy
 	SystemPrompt          string
 	AdditionalDirectories []string
 	MCPServers            []ports.ChatMCPServerConfig
