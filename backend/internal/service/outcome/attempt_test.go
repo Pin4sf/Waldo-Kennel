@@ -73,6 +73,21 @@ func requireAPICode(t *testing.T, err error) string {
 	return apiErr.Code
 }
 
+func TestStartAttemptWithoutWorkUnitUsesDaemonSchedule(t *testing.T) {
+	svc, _, spawner, _, outcomeID, planID := newAttemptHarness(t)
+	view, err := svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, RequestKey: "req-daemon-selected"})
+	if err != nil {
+		t.Fatalf("daemon-selected start: %v", err)
+	}
+	want := firstWorkUnitOfPlan[planID]
+	if view.Attempt.WorkUnitID != want {
+		t.Fatalf("selected WorkUnit = %s, want scheduler unit %s", view.Attempt.WorkUnitID, want)
+	}
+	if spawner.spawnCalls() != 1 {
+		t.Fatalf("provider spawn calls = %d, want one", spawner.spawnCalls())
+	}
+}
+
 // TestStartAttemptFailClosedQuartetLeavesZeroRows maps the four pre-durable
 // refusals: unapproved plan, invalidated brief, narrowed authority, and an
 // unready provider profile. NONE may leave any durable row behind.

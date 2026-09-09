@@ -1789,6 +1789,7 @@ type SettingsResponse struct {
 	Reasoning     ReasoningResponse `json:"reasoning"`
 }
 
+// ReasoningResponse reports reasoning readiness without returning a secret.
 type ReasoningResponse struct {
 	Provider      string `json:"provider"`
 	Model         string `json:"model"`
@@ -1800,6 +1801,7 @@ type ReasoningResponse struct {
 	Error         string `json:"error,omitempty"`
 }
 
+// UpdateReasoningRequest changes daemon-owned reasoning selection and secret state.
 type UpdateReasoningRequest struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model,omitempty"`
@@ -2817,10 +2819,36 @@ type PlanWorkUnitResponse struct {
 	Kind                    string   `json:"kind"`
 	Title                   string   `json:"title"`
 	ContractRevisionNumber  int64    `json:"contractRevisionNumber"`
+	DependsOn               []string `json:"dependsOn"`
+	CriterionIDs            []string `json:"criterionIds"`
+	Provider                string   `json:"provider,omitempty"`
+	ModelSelection          string   `json:"modelSelection,omitempty"`
+	Model                   string   `json:"model,omitempty"`
+	RequiredCapabilities    []string `json:"requiredCapabilities"`
 	OutputSummary           string   `json:"outputSummary"`
 	EvidenceChecks          []string `json:"evidenceChecks"`
 	VerificationRequirement string   `json:"verificationRequirement"`
 	StopConditions          []string `json:"stopConditions"`
+}
+
+// RoutingPreferenceResponse describes the effective provider/model preference.
+type RoutingPreferenceResponse struct {
+	Provider       string `json:"provider"`
+	ModelSelection string `json:"modelSelection"`
+	Model          string `json:"model,omitempty"`
+}
+
+// RoutingDecisionResponse explains how the daemon resolved one WorkUnit route.
+type RoutingDecisionResponse struct {
+	WorkUnitID                string                     `json:"workUnitId"`
+	Status                    string                     `json:"status"`
+	PolicyVersion             string                     `json:"policyVersion"`
+	CapabilitySnapshot        string                     `json:"capabilitySnapshot,omitempty"`
+	Role                      string                     `json:"role"`
+	EffectivePreference       *RoutingPreferenceResponse `json:"effectivePreference,omitempty"`
+	RecommendedProvider       string                     `json:"recommendedProvider,omitempty"`
+	RecommendedModelSelection string                     `json:"recommendedModelSelection,omitempty"`
+	RecommendedModel          string                     `json:"recommendedModel,omitempty"`
 }
 
 // CapabilityGrantResponse is one scoped capability the plan authorizes.
@@ -2843,6 +2871,7 @@ type PlanRevisionResponse struct {
 	Blockers               []string                  `json:"blockers"`
 	WorkUnits              []PlanWorkUnitResponse    `json:"workUnits"`
 	Grants                 []CapabilityGrantResponse `json:"grants"`
+	RoutingDecisions       []RoutingDecisionResponse `json:"routingDecisions"`
 	RunBriefCoreDigest     string                    `json:"runBriefCoreDigest"`
 	RunBriefCompiledDigest string                    `json:"runBriefCompiledDigest,omitempty"`
 	CreatedAt              time.Time                 `json:"createdAt"`
@@ -2853,17 +2882,85 @@ type PlanEnvelope struct {
 	Plan PlanRevisionResponse `json:"plan"`
 }
 
+// ScheduleWorkUnitResponse is the daemon-derived state for one canonical
+// WorkUnit. React must render this projection rather than recreate eligibility.
+type ScheduleWorkUnitResponse struct {
+	WorkUnit             PlanWorkUnitResponse   `json:"workUnit"`
+	State                string                 `json:"state" enum:"blocked,runnable,executing,proven,retryable"`
+	Attempts             []ScheduleAttemptBrief `json:"attempts"`
+	BlockingDependencies []string               `json:"blockingDependencies"`
+	CriterionReady       map[string]bool        `json:"criterionReady"`
+}
+
+// ScheduleAttemptBrief is the bounded Attempt identity shown in a schedule.
+type ScheduleAttemptBrief struct {
+	ID         string    `json:"id"`
+	WorkUnitID string    `json:"workUnitId"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+// ScheduleResponse is the daemon-derived, read-only Plan schedule projection.
+type ScheduleResponse struct {
+	OutcomeID              string                     `json:"outcomeId"`
+	Plan                   PlanRevisionResponse       `json:"plan"`
+	WorkUnits              []ScheduleWorkUnitResponse `json:"workUnits"`
+	NextRunnableWorkUnitID string                     `json:"nextRunnableWorkUnitId,omitempty"`
+	ActiveAttempt          *ScheduleAttemptBrief      `json:"activeAttempt,omitempty"`
+}
+
+// ScheduleEnvelope wraps a daemon-derived Plan schedule response.
+type ScheduleEnvelope struct {
+	Schedule ScheduleResponse `json:"schedule"`
+}
+
 func workUnitResponse(unit domain.WorkUnit) PlanWorkUnitResponse {
 	return PlanWorkUnitResponse{
 		ID:                      string(unit.ID),
 		Kind:                    string(unit.Kind),
 		Title:                   unit.Title,
 		ContractRevisionNumber:  unit.ContractRevisionNumber,
+		DependsOn:               stringWorkUnitIDs(unit.DependsOn),
+		CriterionIDs:            stringCriterionIDs(unit.CriterionIDs),
+		Provider:                string(unit.Provider),
+		ModelSelection:          string(unit.ModelSelection),
+		Model:                   unit.Model,
+		RequiredCapabilities:    append([]string(nil), unit.RequiredCapabilities...),
 		OutputSummary:           unit.OutputSummary,
 		EvidenceChecks:          unit.EvidenceChecks,
 		VerificationRequirement: unit.VerificationRequirement,
 		StopConditions:          unit.StopConditions,
 	}
+}
+
+func stringWorkUnitIDs(ids []domain.WorkUnitID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, string(id))
+	}
+	return out
+}
+
+func stringCriterionIDs(ids []domain.CriterionID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, string(id))
+	}
+	return out
+}
+
+func routingDecisionResponse(decision domain.WorkUnitRoutingDecision) RoutingDecisionResponse {
+	response := RoutingDecisionResponse{
+		WorkUnitID: string(decision.WorkUnitID), Status: string(decision.Decision.Status),
+		PolicyVersion: decision.Decision.PolicyVersion, CapabilitySnapshot: decision.Decision.CapabilitySnapshot,
+		Role: string(decision.Decision.Role), RecommendedProvider: decision.Decision.RecommendedProvider,
+		RecommendedModelSelection: string(decision.Decision.RecommendedModelSelection), RecommendedModel: decision.Decision.RecommendedModel,
+	}
+	if preference := decision.Decision.EffectivePreference; preference != nil {
+		response.EffectivePreference = &RoutingPreferenceResponse{Provider: preference.Provider, ModelSelection: string(preference.ModelSelection), Model: preference.Model}
+	}
+	return response
 }
 
 func capabilityGrantResponse(grant domain.CapabilityGrant) CapabilityGrantResponse {
@@ -2874,6 +2971,30 @@ func capabilityGrantResponse(grant domain.CapabilityGrant) CapabilityGrantRespon
 	}
 }
 
+func scheduleResponse(view outcomevc.ScheduleView) ScheduleResponse {
+	units := make([]ScheduleWorkUnitResponse, 0, len(view.WorkUnits))
+	for _, entry := range view.WorkUnits {
+		attempts := make([]ScheduleAttemptBrief, 0, len(entry.Attempts))
+		for _, attempt := range entry.Attempts {
+			attempts = append(attempts, ScheduleAttemptBrief{ID: string(attempt.ID), WorkUnitID: string(attempt.WorkUnitID), Status: string(attempt.Status), CreatedAt: attempt.CreatedAt, UpdatedAt: attempt.UpdatedAt})
+		}
+		ready := make(map[string]bool, len(entry.CriterionReady))
+		for criterion, value := range entry.CriterionReady {
+			ready[string(criterion)] = value
+		}
+		dependencies := make([]string, 0, len(entry.BlockingDependencies))
+		for _, dependency := range entry.BlockingDependencies {
+			dependencies = append(dependencies, string(dependency))
+		}
+		units = append(units, ScheduleWorkUnitResponse{WorkUnit: workUnitResponse(entry.WorkUnit), State: string(entry.State), Attempts: attempts, BlockingDependencies: dependencies, CriterionReady: ready})
+	}
+	response := ScheduleResponse{OutcomeID: string(view.Plan.OutcomeID), Plan: planRevisionResponse(view.Plan), WorkUnits: units, NextRunnableWorkUnitID: string(view.NextRunnableID)}
+	if view.ActiveAttempt != nil {
+		response.ActiveAttempt = &ScheduleAttemptBrief{ID: string(view.ActiveAttempt.ID), WorkUnitID: string(view.ActiveAttempt.WorkUnitID), Status: string(view.ActiveAttempt.Status), CreatedAt: view.ActiveAttempt.CreatedAt, UpdatedAt: view.ActiveAttempt.UpdatedAt}
+	}
+	return response
+}
+
 func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
 	units := make([]PlanWorkUnitResponse, 0, len(plan.WorkUnits))
 	for _, unit := range plan.WorkUnits {
@@ -2882,6 +3003,10 @@ func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
 	grants := make([]CapabilityGrantResponse, 0, len(plan.Grants))
 	for _, grant := range plan.Grants {
 		grants = append(grants, capabilityGrantResponse(grant))
+	}
+	routing := make([]RoutingDecisionResponse, 0, len(plan.RoutingDecisions))
+	for _, decision := range plan.RoutingDecisions {
+		routing = append(routing, routingDecisionResponse(decision))
 	}
 	return PlanRevisionResponse{
 		ID:                     string(plan.ID),
@@ -2894,6 +3019,7 @@ func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
 		Blockers:               append([]string(nil), plan.Blockers...),
 		WorkUnits:              units,
 		Grants:                 grants,
+		RoutingDecisions:       routing,
 		RunBriefCoreDigest:     plan.RunBriefCoreDigest,
 		RunBriefCompiledDigest: plan.RunBriefCompiledDigest,
 		CreatedAt:              plan.CreatedAt,
@@ -2904,16 +3030,15 @@ func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
 // /outcomes/{outcomeId}/attempts. RequestKey makes admission exactly-once:
 // replaying a delivered key resolves the original attempt.
 //
-// WorkUnitID names which approved unit of the Plan this Attempt executes. It is
-// required: an approved Plan may hold several WorkUnits, and the provider/model
-// binding frozen at approval belongs to one of them specifically.
+// WorkUnitID is an optional legacy assertion. When omitted, the daemon selects
+// the next dependency-ready WorkUnit from the approved Plan.
 //
 // Harness is accepted only for historical clients and is ignored. Provider and
 // model come from the approved WorkUnit's immutable ExecutionBinding, and no
 // caller or mutable Project default may reinterpret it after approval.
 type StartOutcomeAttemptRequest struct {
 	PlanRevisionID string `json:"planRevisionId"`
-	WorkUnitID     string `json:"workUnitId"`
+	WorkUnitID     string `json:"workUnitId,omitempty"`
 	Harness        string `json:"harness,omitempty"`
 	RequestKey     string `json:"requestKey"`
 }

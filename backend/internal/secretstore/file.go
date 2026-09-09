@@ -29,6 +29,7 @@ func NewFileStore(dataDir string) *FileStore {
 	return &FileStore{path: filepath.Join(dataDir, "secrets", "waldo-reasoning-api-key")}
 }
 
+// Get reads the secret without exposing it through the settings API.
 func (s *FileStore) Get(ctx context.Context) (string, error) {
 	if err := contextErr(ctx); err != nil {
 		return "", err
@@ -43,6 +44,7 @@ func (s *FileStore) Get(ctx context.Context) (string, error) {
 	return strings.TrimSpace(string(b)), nil
 }
 
+// Set atomically replaces the local secret with restrictive file permissions.
 func (s *FileStore) Set(ctx context.Context, value string) error {
 	if err := contextErr(ctx); err != nil {
 		return err
@@ -55,7 +57,7 @@ func (s *FileStore) Set(ctx context.Context, value string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create local secret directory: %w", err)
 	}
-	if err := os.Chmod(dir, 0o700); err != nil {
+	if err := os.Chmod(dir, 0o700); err != nil { //nolint:gosec // private secret directory is intentionally owner-only.
 		return fmt.Errorf("restrict local secret directory: %w", err)
 	}
 	tmp, err := os.CreateTemp(dir, ".waldo-reasoning-*")
@@ -85,6 +87,7 @@ func (s *FileStore) Set(ctx context.Context, value string) error {
 	return nil
 }
 
+// Clear removes the local secret if it exists.
 func (s *FileStore) Clear(ctx context.Context) error {
 	if err := contextErr(ctx); err != nil {
 		return err

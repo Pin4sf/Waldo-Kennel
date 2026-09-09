@@ -892,6 +892,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read daemon-derived WorkUnit schedule state without launching work */
+        get: operations["getOutcomePlanSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/plans/replan": {
         parameters: {
             query?: never;
@@ -2925,6 +2942,22 @@ export interface components {
         ControllersResolveReviewCommentResponse: {
             ok: boolean;
         };
+        ControllersRoutingDecisionResponse: {
+            capabilitySnapshot?: string;
+            effectivePreference?: components["schemas"]["ControllersRoutingPreferenceResponse"];
+            policyVersion: string;
+            recommendedModel?: string;
+            recommendedModelSelection?: string;
+            recommendedProvider?: string;
+            role: string;
+            status: string;
+            workUnitId: string;
+        };
+        ControllersRoutingPreferenceResponse: {
+            model?: string;
+            modelSelection: string;
+            provider: string;
+        };
         ControllersSecurePairingStatus: {
             active: boolean;
             available: boolean;
@@ -3737,6 +3770,7 @@ export interface components {
             /** Format: int64 */
             number: number;
             outcomeId: string;
+            routingDecisions: components["schemas"]["ControllersRoutingDecisionResponse"][];
             runBriefCompiledDigest?: string;
             runBriefCoreDigest: string;
             status: string;
@@ -3746,10 +3780,16 @@ export interface components {
         PlanWorkUnitResponse: {
             /** Format: int64 */
             contractRevisionNumber: number;
+            criterionIds: string[];
+            dependsOn: string[];
             evidenceChecks: string[];
             id: string;
             kind: string;
+            model?: string;
+            modelSelection?: string;
             outputSummary: string;
+            provider?: string;
+            requiredCapabilities: string[];
             stopConditions: string[];
             title: string;
             verificationRequirement: string;
@@ -4099,6 +4139,35 @@ export interface components {
             ok: boolean;
             sessionId: string;
         };
+        ScheduleAttemptBrief: {
+            /** Format: date-time */
+            createdAt: string;
+            id: string;
+            status: string;
+            /** Format: date-time */
+            updatedAt: string;
+            workUnitId: string;
+        };
+        ScheduleEnvelope: {
+            schedule: components["schemas"]["ScheduleResponse"];
+        };
+        ScheduleResponse: {
+            activeAttempt?: components["schemas"]["ScheduleAttemptBrief"];
+            nextRunnableWorkUnitId?: string;
+            outcomeId: string;
+            plan: components["schemas"]["PlanRevisionResponse"];
+            workUnits: components["schemas"]["ScheduleWorkUnitResponse"][];
+        };
+        ScheduleWorkUnitResponse: {
+            attempts: components["schemas"]["ScheduleAttemptBrief"][];
+            blockingDependencies: string[];
+            criterionReady: {
+                [key: string]: boolean;
+            } | null;
+            /** @enum {string} */
+            state: "blocked" | "runnable" | "executing" | "proven" | "retryable";
+            workUnit: components["schemas"]["PlanWorkUnitResponse"];
+        };
         SendConversationMessageRequest: {
             attachments?: components["schemas"]["ConversationImageContentRequest"][];
             clientMessageId?: string;
@@ -4421,7 +4490,7 @@ export interface components {
             harness?: string;
             planRevisionId: string;
             requestKey: string;
-            workUnitId: string;
+            workUnitId?: string;
         };
         StartPreviewServerRequest: {
             /** @description Named preview configuration. Optional when exactly one configuration exists. */
@@ -8017,6 +8086,67 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomePlanSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+                /** @description Plan revision identifier, e.g. plan-<uuid>. */
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleEnvelope"];
                 };
             };
             /** @description Not Found */

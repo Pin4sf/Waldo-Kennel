@@ -278,12 +278,10 @@ func deriveSchedule(plan domain.PlanRevision, attempts []domain.Attempt, proof P
 	return view, nil
 }
 
-// selectWorkUnitForAttempt enforces the serial scheduler decision for an
-// explicit WorkUnit request. It never chooses a different unit as a fallback.
+// selectWorkUnitForAttempt enforces the serial scheduler decision. A zero
+// request means the daemon selects its derived next runnable unit; a named
+// request remains an assertion that must match that same decision.
 func (s *Service) selectWorkUnitForAttempt(ctx context.Context, outcomeID domain.OutcomeID, plan domain.PlanRevision, requested domain.WorkUnitID) (domain.WorkUnit, error) {
-	if requested.IsZero() {
-		return domain.WorkUnit{}, apierr.Invalid("WORK_UNIT_REQUIRED", "Choose the approved WorkUnit this Attempt executes", nil)
-	}
 	attempts, err := s.store.ListAttempts(ctx, outcomeID)
 	if err != nil {
 		return domain.WorkUnit{}, err
@@ -298,6 +296,9 @@ func (s *Service) selectWorkUnitForAttempt(ctx context.Context, outcomeID domain
 	}
 	if !ok {
 		return domain.WorkUnit{}, apierr.Conflict(CodeNoRunnableWorkUnit, "No WorkUnit is runnable until the active work or required proof is resolved", map[string]any{"planId": plan.ID})
+	}
+	if requested.IsZero() {
+		return next, nil
 	}
 	if next.ID != requested {
 		return domain.WorkUnit{}, apierr.Conflict("WORK_UNIT_NOT_RUNNABLE", "That WorkUnit is not the next dependency-ready unit", map[string]any{"requestedWorkUnitId": requested, "nextRunnableWorkUnitId": next.ID})

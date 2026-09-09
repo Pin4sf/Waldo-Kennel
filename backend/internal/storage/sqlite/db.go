@@ -152,6 +152,9 @@ func migrate(db *sql.DB) error {
 	if err := prepareQueuedTurnPromotionMigration(db); err != nil {
 		return fmt.Errorf("prepare queued-turn promotion migration: %w", err)
 	}
+	if err := preparePlanReviewContextMigration(db); err != nil {
+		return fmt.Errorf("prepare plan-review context migration: %w", err)
+	}
 	// Builds can advance a database past a migration that is added or
 	// renumbered later (notably across fast-moving Nightly releases). Apply
 	// those embedded migrations instead of permanently wedging daemon startup
@@ -177,7 +180,103 @@ func migrate(db *sql.DB) error {
 	if err := reconcileExecutionRoutingSchema(db); err != nil {
 		return fmt.Errorf("reconcile execution routing schema: %w", err)
 	}
+	if err := reconcilePlanReviewSchema(db); err != nil {
+		return fmt.Errorf("reconcile plan-review schema: %w", err)
+	}
 	return reconcileSchema(db)
+}
+
+// preparePlanReviewContextMigration lets a degraded profile with burned
+// Outcome migration versions complete goose without attempting ALTER TABLE on
+// an absent plan_revisions table. reconcilePlanReviewSchema below installs the
+// same durable shape once the execution-routing repair recreates that table.
+func preparePlanReviewContextMigration(db *sql.DB) error {
+	var gooseTable int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'goose_db_version'`,
+	).Scan(&gooseTable); err != nil {
+		return err
+	}
+	if gooseTable == 0 {
+		return nil
+	}
+	var applied int
+	if err := db.QueryRow(`
+SELECT COALESCE((
+    SELECT is_applied FROM goose_db_version
+    WHERE version_id = 117 ORDER BY id DESC LIMIT 1
+), 0)`).Scan(&applied); err != nil {
+		return err
+	}
+	if applied != 0 {
+		return nil
+	}
+	var planTable int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'plan_revisions'`,
+	).Scan(&planTable); err != nil {
+		return err
+	}
+	if planTable != 0 {
+		return nil
+	}
+	_, err := db.Exec(`INSERT INTO goose_db_version (version_id, is_applied) VALUES (117, 1)`)
+	return err
+}
+
+// reconcilePlanReviewSchema is the degraded-profile counterpart to migration
+// 0117. SQLite cannot conditionally guard ALTER TABLE inside a goose file, so
+// the complete Plan review shape is installed here after execution-routing
+// repair has recreated any missing Outcome tables.
+func reconcilePlanReviewSchema(db *sql.DB) error {
+	var planTable int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'plan_revisions'`,
+	).Scan(&planTable); err != nil {
+		return err
+	}
+	if planTable == 0 {
+		return nil
+	}
+	for _, column := range []struct {
+		name string
+		ddl  string
+	}{
+		{name: "assumptions_json", ddl: `ALTER TABLE plan_revisions ADD COLUMN assumptions_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(assumptions_json))`},
+		{name: "blockers_json", ddl: `ALTER TABLE plan_revisions ADD COLUMN blockers_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(blockers_json))`},
+	} {
+		var present int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM pragma_table_info('plan_revisions') WHERE name = ?`, column.name,
+		).Scan(&present); err != nil {
+			return err
+		}
+		if present == 0 {
+			if _, err := db.Exec(column.ddl); err != nil {
+				return err
+			}
+		}
+	}
+	if _, err := db.Exec(`DROP TRIGGER IF EXISTS plan_revisions_immutable_update`); err != nil {
+		return err
+	}
+	_, err := db.Exec(`
+CREATE TRIGGER plan_revisions_immutable_update
+BEFORE UPDATE ON plan_revisions
+WHEN OLD.id <> NEW.id
+     OR OLD.outcome_id <> NEW.outcome_id
+     OR OLD.number <> NEW.number
+     OR OLD.contract_revision_number <> NEW.contract_revision_number
+     OR OLD.summary <> NEW.summary
+     OR OLD.assumptions_json <> NEW.assumptions_json
+     OR OLD.blockers_json <> NEW.blockers_json
+     OR OLD.run_brief_core_digest <> NEW.run_brief_core_digest
+     OR OLD.run_brief_compiled_digest IS NOT NEW.run_brief_compiled_digest
+     OR OLD.created_at <> NEW.created_at
+BEGIN
+    SELECT RAISE(ABORT, 'plan revisions are immutable');
+END`)
+	return err
 }
 
 // executionRoutingDDL is the WT3 routing and WorkUnit-graph schema, shared

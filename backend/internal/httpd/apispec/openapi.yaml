@@ -2589,6 +2589,58 @@ paths:
         authority)
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/plans/{planId}/schedule:
+    get:
+      operationId: getOutcomePlanSchedule
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Plan revision identifier, e.g. plan-<uuid>.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan revision identifier, e.g. plan-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read daemon-derived WorkUnit schedule state without launching work
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/plans/replan:
     post:
       operationId: replanOutcomePlan
@@ -8880,6 +8932,44 @@ components:
       required:
       - ok
       type: object
+    ControllersRoutingDecisionResponse:
+      properties:
+        capabilitySnapshot:
+          type: string
+        effectivePreference:
+          $ref: '#/components/schemas/ControllersRoutingPreferenceResponse'
+        policyVersion:
+          type: string
+        recommendedModel:
+          type: string
+        recommendedModelSelection:
+          type: string
+        recommendedProvider:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        workUnitId:
+          type: string
+      required:
+      - workUnitId
+      - status
+      - policyVersion
+      - role
+      type: object
+    ControllersRoutingPreferenceResponse:
+      properties:
+        model:
+          type: string
+        modelSelection:
+          type: string
+        provider:
+          type: string
+      required:
+      - provider
+      - modelSelection
+      type: object
     ControllersSecurePairingStatus:
       properties:
         active:
@@ -11056,6 +11146,10 @@ components:
           type: integer
         outcomeId:
           type: string
+        routingDecisions:
+          items:
+            $ref: '#/components/schemas/ControllersRoutingDecisionResponse'
+          type: array
         runBriefCompiledDigest:
           type: string
         runBriefCoreDigest:
@@ -11079,6 +11173,7 @@ components:
       - blockers
       - workUnits
       - grants
+      - routingDecisions
       - runBriefCoreDigest
       - createdAt
       type: object
@@ -11087,6 +11182,14 @@ components:
         contractRevisionNumber:
           format: int64
           type: integer
+        criterionIds:
+          items:
+            type: string
+          type: array
+        dependsOn:
+          items:
+            type: string
+          type: array
         evidenceChecks:
           items:
             type: string
@@ -11095,8 +11198,18 @@ components:
           type: string
         kind:
           type: string
+        model:
+          type: string
+        modelSelection:
+          type: string
         outputSummary:
           type: string
+        provider:
+          type: string
+        requiredCapabilities:
+          items:
+            type: string
+          type: array
         stopConditions:
           items:
             type: string
@@ -11110,6 +11223,9 @@ components:
       - kind
       - title
       - contractRevisionNumber
+      - dependsOn
+      - criterionIds
+      - requiredCapabilities
       - outputSummary
       - evidenceChecks
       - verificationRequirement
@@ -11992,6 +12108,86 @@ components:
       - ok
       - sessionId
       type: object
+    ScheduleAttemptBrief:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        status:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        workUnitId:
+          type: string
+      required:
+      - id
+      - workUnitId
+      - status
+      - createdAt
+      - updatedAt
+      type: object
+    ScheduleEnvelope:
+      properties:
+        schedule:
+          $ref: '#/components/schemas/ScheduleResponse'
+      required:
+      - schedule
+      type: object
+    ScheduleResponse:
+      properties:
+        activeAttempt:
+          $ref: '#/components/schemas/ScheduleAttemptBrief'
+        nextRunnableWorkUnitId:
+          type: string
+        outcomeId:
+          type: string
+        plan:
+          $ref: '#/components/schemas/PlanRevisionResponse'
+        workUnits:
+          items:
+            $ref: '#/components/schemas/ScheduleWorkUnitResponse'
+          type: array
+      required:
+      - outcomeId
+      - plan
+      - workUnits
+      type: object
+    ScheduleWorkUnitResponse:
+      properties:
+        attempts:
+          items:
+            $ref: '#/components/schemas/ScheduleAttemptBrief'
+          type: array
+        blockingDependencies:
+          items:
+            type: string
+          type: array
+        criterionReady:
+          additionalProperties:
+            type: boolean
+          type:
+          - object
+          - "null"
+        state:
+          enum:
+          - blocked
+          - runnable
+          - executing
+          - proven
+          - retryable
+          type: string
+        workUnit:
+          $ref: '#/components/schemas/PlanWorkUnitResponse'
+      required:
+      - workUnit
+      - state
+      - attempts
+      - blockingDependencies
+      - criterionReady
+      type: object
     SendConversationMessageRequest:
       properties:
         attachments:
@@ -12815,7 +13011,6 @@ components:
           type: string
       required:
       - planRevisionId
-      - workUnitId
       - requestKey
       type: object
     StartPreviewServerRequest:

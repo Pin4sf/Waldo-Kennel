@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	llmanthropic "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/llm/anthropic"
@@ -154,20 +153,4 @@ func (p *configuredIntelligenceProvider) DraftPlan(ctx context.Context, request 
 		return ports.PlanIntelligenceResponse{}, err
 	}
 	return intelligencesvc.NewLLMProvider(client).DraftPlan(ctx, request)
-}
-
-// waldoReasoner resolves the owner's provider and builds its client. A nil
-// client is returned with an explanatory error when nothing is configured;
-// intake then fails retryably and says why, rather than serving a canned
-// proposal (ADR 0012).
-func waldoReasoner() (ports.LLMClient, reasoningConfig, error) {
-	cfg, err := resolveReasoningConfig(os.Getenv)
-	if err != nil {
-		return nil, cfg, err
-	}
-	client, err := newReasoner(cfg)
-	if err != nil {
-		return nil, cfg, err
-	}
-	return client, cfg, nil
 }

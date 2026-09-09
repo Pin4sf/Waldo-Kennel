@@ -82,7 +82,7 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 	var candidates []string
 	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return nil
+			return filepath.SkipDir
 		}
 		if path != root && entry.Type()&os.ModeSymlink != 0 {
 			if entry.IsDir() {
@@ -91,7 +91,10 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)
-		if err != nil || rel == "." {
+		if err != nil {
+			return filepath.SkipDir
+		}
+		if rel == "." {
 			return nil
 		}
 		if entry.IsDir() {

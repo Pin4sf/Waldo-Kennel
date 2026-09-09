@@ -136,12 +136,18 @@ export function proposePreviewPlan(outcomeId: string, expectedContractRevision: 
 		summary: "One bounded Work Unit prepared from the confirmed Outcome contract.",
 		assumptions: [],
 		blockers: [],
+		routingDecisions: [],
 		workUnits: [
 			{
 				id: nextId("work-unit"),
 				kind: "direct",
 				title: `Deliver “${outcome.title}”`,
 				contractRevisionNumber: expectedContractRevision,
+				dependsOn: [],
+				criterionIds: [...outcome.currentRevision.criteria.map((criterion) => criterion.criterionId)],
+				provider: "codex",
+				modelSelection: "provider_default",
+				requiredCapabilities: ["worktree.read", "worktree.write", "worktree.exec"],
 				outputSummary: "Produce the agreed result inside the selected project without exceeding the approved scope.",
 				evidenceChecks: [...outcome.currentRevision.successCriteria],
 				verificationRequirement: outcome.currentRevision.review,

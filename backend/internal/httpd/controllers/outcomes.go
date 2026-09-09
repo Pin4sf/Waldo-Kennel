@@ -87,6 +87,7 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Post("/outcomes/{outcomeId}/plans/replan", c.replanPlan)
 	r.Post("/outcomes/{outcomeId}/plans/{planId}/approval", c.approvePlan)
 	r.Get("/outcomes/{outcomeId}/plan", c.latestPlan)
+	r.Get("/outcomes/{outcomeId}/plans/{planId}/schedule", c.schedule)
 	r.Post("/outcomes/{outcomeId}/attempts", c.startAttempt)
 	r.Get("/outcomes/{outcomeId}/attempts", c.listAttempts)
 	r.Get("/outcomes/{outcomeId}/attempts/{attemptId}", c.getAttempt)
@@ -279,6 +280,26 @@ func (c *OutcomesController) approvePlan(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, PlanEnvelope{Plan: planRevisionResponse(view.Plan)})
+}
+
+func (c *OutcomesController) schedule(w http.ResponseWriter, r *http.Request) {
+	if c.Attempts == nil {
+		apispec.NotImplemented(w, r, http.MethodGet, "/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule")
+		return
+	}
+	scheduler, ok := c.Attempts.(interface {
+		GetSchedule(context.Context, domain.OutcomeID, domain.PlanRevisionID) (outcomevc.ScheduleView, error)
+	})
+	if !ok {
+		apispec.NotImplemented(w, r, http.MethodGet, "/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule")
+		return
+	}
+	view, err := scheduler.GetSchedule(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), domain.PlanRevisionID(chi.URLParam(r, "planId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, ScheduleEnvelope{Schedule: scheduleResponse(view)})
 }
 
 func (c *OutcomesController) latestPlan(w http.ResponseWriter, r *http.Request) {

@@ -342,6 +342,53 @@ export interface OutcomePlanQueryResult {
 	refetch: () => void;
 }
 
+export type ScheduleRecord = components["schemas"]["ScheduleResponse"];
+type ScheduleEnvelope = components["schemas"]["ScheduleEnvelope"];
+
+async function fetchOutcomeSchedule(outcomeId: string, planId: string): Promise<ScheduleRecord> {
+	if (usesPreviewWorkspaceData) {
+		const plan = getPreviewPlan(outcomeId);
+		if (!plan || plan.id !== planId) throw { code: PLAN_NOT_FOUND, message: "No preview plan exists yet." };
+		const next = plan.workUnits[0]?.id;
+		return {
+			outcomeId,
+			plan,
+			workUnits: plan.workUnits.map((workUnit, index) => ({
+				workUnit,
+				state: index === 0 ? "runnable" : "blocked",
+				attempts: [],
+				blockingDependencies: index === 0 ? [] : [plan.workUnits[index - 1]?.id ?? ""],
+				criterionReady: Object.fromEntries(workUnit.evidenceChecks.map((_, criterionIndex) => [`criterion-${criterionIndex + 1}`, false])),
+			})),
+			nextRunnableWorkUnitId: next,
+		};
+	}
+	const { data, error } = await apiClient.GET("/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule", {
+		params: { path: { outcomeId, planId } },
+	});
+	if (error) throw error;
+	return (data as ScheduleEnvelope).schedule;
+}
+
+export function useOutcomeSchedule(outcomeId: string | undefined, planId: string | undefined) {
+	const query = useQuery({
+		queryKey: ["outcome-schedule", outcomeId ?? "", planId ?? ""] as const,
+		enabled: Boolean(outcomeId && planId),
+		queryFn: () => fetchOutcomeSchedule(outcomeId as string, planId as string),
+		retry: (attempt, error) => {
+			const code = apiErrorCode(error);
+			if (code === PLAN_NOT_FOUND || code === PLAN_NOT_APPROVED || code === PLAN_BRIEF_INVALIDATED) return false;
+			return attempt < 2;
+		},
+	});
+	return {
+		schedule: query.data,
+		isLoading: query.isLoading,
+		failure: query.error ? classifyOutcomeFailure(query.error) : undefined,
+		refetch: () => void query.refetch(),
+	};
+}
+
 /**
  * The newest plan of any status for one Outcome.
  */
@@ -539,32 +586,21 @@ export interface StartAttemptState {
 	 * for the retry so an ambiguous network answer replays the same request
 	 * instead of admitting twice.
 	 */
-	start: (input: { planRevisionId: string; workUnitId: string; harness?: string }) => Promise<AttemptRecord>;
+	start: (input: { planRevisionId: string }) => Promise<AttemptRecord>;
 }
 
 export function useStartOutcomeAttempt(outcomeId: string | undefined): StartAttemptState {
 	const queryClient = useQueryClient();
 	const requestKeyRef = useRef<string | undefined>(undefined);
 	const mutation = useMutation({
-		mutationFn: async (input: { planRevisionId: string; workUnitId: string; harness?: string }) => {
+		mutationFn: async (input: { planRevisionId: string }) => {
 			if (!requestKeyRef.current) {
 				requestKeyRef.current = crypto.randomUUID();
 			}
 			const requestKey = requestKeyRef.current;
 			const { data, error } = await apiClient.POST("/api/v1/outcomes/{outcomeId}/attempts", {
 				params: { path: { outcomeId: outcomeId as string } },
-				body: {
-					// harness is legacy and the daemon ignores it: provider and
-					// model come from the approved WorkUnit's frozen binding.
-					// It stays omitted rather than sent empty so an old daemon
-					// does not read "" as a deliberate choice of nothing.
-					...(input.harness ? { harness: input.harness } : {}),
-					planRevisionId: input.planRevisionId,
-					// An approved Plan may hold several WorkUnits, so the
-					// Attempt has to say which one it executes.
-					workUnitId: input.workUnitId,
-					requestKey,
-				},
+				body: { planRevisionId: input.planRevisionId, requestKey },
 			});
 			if (error) throw error;
 			return (data as AttemptEnvelope).attempt;
@@ -572,6 +608,7 @@ export function useStartOutcomeAttempt(outcomeId: string | undefined): StartAtte
 		onSuccess: () => {
 			requestKeyRef.current = undefined;
 			void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) });
+			void queryClient.invalidateQueries({ queryKey: ["outcome-schedule", outcomeId] });
 		},
 	});
 	return {

@@ -21,6 +21,8 @@ type RepositoryContextSnapshot struct {
 	Digest            domain.SHA256Digest
 }
 
+// RepositoryContextFile is one bounded, read-only file excerpt included in a
+// reasoning packet.
 type RepositoryContextFile struct {
 	Path    string
 	Content string

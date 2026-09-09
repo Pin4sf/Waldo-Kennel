@@ -56,7 +56,7 @@ Backend tests cover important foundations, including frozen binding and schedule
 | L1b governed capabilities/replay | L1a | implemented in isolated `codex/l1b-capability-replay`; normalized attributed policy reaches readiness and TUI/Chat adapter boundaries; Codex now rejects restricted scopes/unknown capabilities, pins the full sandbox boundary at fresh and recovered TUI/Chat execution payloads, and fail-closes governed recovery when durable Attempt evidence is missing/invalid; service/SQLite replay and recovery/adapter tests green; live canary and other-provider conformance remain open because the local code-mode host is missing | approved capabilities → adapter/runtime + idempotency |
 | L2 reasoning setup and recovery | L0 | implemented on latest beta in isolated Wednesday branch; live provider conformance remains open | settings/secrets → LLM → durable IntelligenceRun |
 | L3 grounded proposals and replan | L2 | implemented on `0b867790c`; live grounded provider evidence remains open | context → Contract/Plan proposal/revision |
-| L4 complete Plan/Mission projection | L1, L3 | open | generated schedule API → existing Work UI |
+| L4 complete Plan/Mission projection | L1, L3 | implemented on `684b9c0a9`; real daemon-backed desktop/live provider evidence remains open | generated schedule API → existing Work UI |
 | L5 proof, artifacts and serial continuation | L1, L4 | open | runtime facts → proof → next WorkUnit |
 | L6 re-entry and Outcome navigation | L5 | open | owner supervision/rework/history |
 | L7 release rehearsal and optimization | L2–L6 | open | packaged desktop + real repo/provider |

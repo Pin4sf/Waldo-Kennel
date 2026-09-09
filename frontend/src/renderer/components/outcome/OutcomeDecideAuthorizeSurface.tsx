@@ -211,6 +211,9 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: Outco
 function PlanReviewCard({ plan }: { plan: PlanRecord }) {
 	const { t } = useTranslation();
 	const unit = plan.workUnits[0];
+	const assumptions = plan.assumptions ?? [];
+	const blockers = plan.blockers ?? [];
+	const routingDecisions = plan.routingDecisions ?? [];
 	return (
 		<section className="mx-auto flex w-full max-w-2xl flex-col gap-2" data-testid="outcome-plan-card">
 			<div className="flex items-center justify-between gap-3 rounded-group hairline border-border bg-card px-4.5 py-3.5">
@@ -220,6 +223,21 @@ function PlanReviewCard({ plan }: { plan: PlanRecord }) {
 						? t("outcome.decide.badgeApproved", { number: plan.number })
 						: t("outcome.decide.badgeProposed", { number: plan.number })}
 				</Badge>
+			</div>
+			<div className="grid gap-2" data-testid="outcome-plan-work-units">
+				{plan.workUnits.map((workUnit, index) => (
+					<div className="rounded-group hairline border-border bg-card px-3.5 py-3" key={workUnit.id}>
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-sm font-medium">{index + 1}. {workUnit.title}</span>
+							<span className="text-xs text-muted-foreground">{workUnit.modelSelection === "provider_default" ? "provider default" : workUnit.model || "model unreported"}</span>
+						</div>
+						<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+							<span>{t("outcome.decide.criteriaLabel")}: {(workUnit.criterionIds ?? []).length > 0 ? (workUnit.criterionIds ?? []).join(", ") : "not recorded"}</span>
+							<span>{t("outcome.decide.dependsOnLabel")}: {(workUnit.dependsOn ?? []).length > 0 ? (workUnit.dependsOn ?? []).join(", ") : "none"}</span>
+							<span>{t("outcome.decide.providerLabel")}: {workUnit.provider || "unbound"}</span>
+						</div>
+					</div>
+				))}
 			</div>
 
 			<Accordion className="flex flex-col gap-2" defaultValue={PLAN_SECTION_VALUES} type="multiple">
@@ -256,6 +274,9 @@ function PlanReviewCard({ plan }: { plan: PlanRecord }) {
 				</PlanSection>
 				<PlanSection icon={<FileText aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsBrief")} value="brief">
 					<code className="block break-all text-xs leading-body text-foreground/80">{plan.runBriefCoreDigest}</code>
+					{assumptions.length > 0 && <p className="mt-2 text-xs text-warning">{t("outcome.decide.assumptionsLabel")}: {assumptions.join(" · ")}</p>}
+					{blockers.length > 0 && <p className="mt-2 text-xs text-destructive">{t("outcome.decide.blockersLabel")}: {blockers.join(" · ")}</p>}
+					{routingDecisions.length > 0 && <p className="mt-2 text-xs text-muted-foreground">{t("outcome.decide.routingLabel")}: {routingDecisions.map((decision) => `${decision.workUnitId} → ${decision.recommendedProvider || "no candidate"}`).join(" · ")}</p>}
 				</PlanSection>
 			</Accordion>
 

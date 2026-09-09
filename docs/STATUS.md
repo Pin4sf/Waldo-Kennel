@@ -14,13 +14,13 @@ Source and automated checks support these implementation claims; they are not en
 - Durable Outcome → ContractRevision → PlanRevision → WorkUnit → Attempt → AgentSessionRef and criterion-bound Evidence/Verification/user Acceptance.
 - Immutable Contract/Plan semantics, capability validation, Attempt admission fences and recovery facts.
 - Five active execution-provider identities: Codex, Claude Code, OpenCode, Cursor and Pi. Identity is not role/capability conformance.
-- PR99: preference-aware routing, persisted approved provider/model binding, historical-unbound rejection, provider-local model semantics, graph validation and serial scheduler decisions. **Actual model launch integration is defective:** Manager.Spawn does not consume the exact-binding resolver; see the reproduced failure below.
+- PR99: preference-aware routing, persisted approved provider/model binding, historical-unbound rejection, provider-local model semantics, graph validation and serial scheduler decisions. L1a now carries the frozen binding through Manager.Spawn for TUI/Chat; live provider conformance remains unproved.
 - PR99: IntelligenceRun storage (migration 0115), provider-neutral intelligence/LLM ports, direct Anthropic/OpenAI reasoning adapters, model-backed Contract and Plan proposals.
 - Existing Understand/Decide/Act/Prove Work surfaces, Project Brief/conversation foundation and composed-Outcome storage remain available to evolve.
 
 ## Current policy: ADR0012
 
-Waldo reasoning requires the owner's configured reasoning credential. Configuration is currently environment-based through `KENNEL_WALDO_PROVIDER`, `KENNEL_WALDO_API_KEY`, `KENNEL_WALDO_MODEL`, `KENNEL_WALDO_EFFORT`, with documented vendor-key resolution in `daemon/waldo_reasoning.go`.
+Waldo reasoning requires the owner's configured reasoning credential. Provider/model/effort are durable daemon settings and the secret is daemon-owned; `KENNEL_WALDO_*` environment values remain explicit development overrides with documented precedence in `daemon/waldo_reasoning.go`.
 
 There is **no deterministic/offline proposal floor** and no hidden alternate-model fallback. Missing configuration must be recoverable setup failure. The old session-spawn intake/decomposition proposers were removed; model-backed decomposition proposal remains unavailable. Do not reconstruct those retired paths from old plans. Reasoning secrets must not enter canonical Work rows or logs.
 
@@ -34,7 +34,7 @@ ADRs 0010/0011/0012, product architecture and ADRs 0008/0009 govern the target. 
 | Runtime authority | Attempt spawn now carries an attributed normalized WorkUnit policy; Codex TUI/Chat require the exact supported capability set and `worktree/*` scope, then pin network, extra writable roots, and temp-root settings at the provider boundary. Live canary enforcement remains unproved | L7 |
 | Reasoning readiness/recovery | Local settings/secret readiness, restart reconciliation, metrics and adapter HTTP seams are implemented; live provider conformance remains unproved | L2 |
 | Grounding/replan | Bounded repository context, substantive proposal context, clarification semantics, explicit replan, and persisted assumptions/blockers are implemented; live grounded proposal evidence remains open | L3 |
-| Plan/Mission UI | First-WorkUnit assumptions, redundant mutable harness input, no production schedule HTTP projection | L4 |
+| Plan/Mission UI | Full Plan/schedule projection is implemented; real daemon-backed desktop journey and live provider launch remain unverified | L4 |
 | Proof/continuation | UI Outcome-level proof does not satisfy scheduler WorkUnit proof scope; automated check/artifact collection and downstream workspace handoff need integration | L5 |
 | Re-entry/navigation | Bounded prior-result context and Outcome-first normal entry paths require real journey verification and cleanup | L6 |
 | Release | Packaged installation, live provider enforcement, restart, full proof/acceptance loop and measured performance remain unaccepted | L7 |
@@ -63,6 +63,14 @@ Previous Contract proposals are serialized as substantive context rather than re
 
 GREEN evidence: repository-context exclusion/digest tests, clarification prompt tests, explicit replan service tests, plan-review SQLite round-trip tests, affected backend/controller tests, `npm run api`, `npm run frontend:typecheck`, and `git diff --check` pass. No live grounded Contract/Plan call was performed: live credentials and the code-mode host are absent, so real-provider grounded evidence and desktop journey acceptance remain blocked. L3 evidence logs are `/tmp/kennel-l3-go-grounded.log`, `/tmp/kennel-l3-api.log`, `/tmp/kennel-l3-frontend-typecheck.log` and `/tmp/kennel-l3-live-check.log`.
 
+## L4 Plan and schedule projection evidence
+
+L4 is implemented on L3 `684b9c0a96bdd6443be71255e2f4bc896faa6eeb`. The daemon now exposes read-only `GET /api/v1/outcomes/{outcomeId}/plans/{planId}/schedule`, mapping the existing derived scheduler view to the generated API with all WorkUnits, dependency blockers, criterion readiness, Attempt summaries, active Attempt and next runnable identity. Start admission accepts an omitted WorkUnit assertion so the daemon selects that next runnable unit; explicit legacy assertions remain validated. Schedule reads do not spawn or mutate execution state.
+
+Plan review and Act & Observe now show every WorkUnit, criterion/dependency coverage, approved provider/model semantics, routing decisions, assumptions/blockers and daemon-derived schedule state. The normal frontend start request contains only the approved Plan identity and idempotency key; it no longer queries Project roles or sends a mutable harness. Preview data follows the same projection shape.
+
+GREEN evidence: full backend tests, affected backend race tests (including migration recovery), `npm run lint` with `0 issues`, `npm run sqlc`, `npm run api`, frontend typecheck, and targeted Plan/Run/Mission tests (25/25). The full frontend suite reached 229/230 files and 2,774/2,781 tests; one reproducible pre-existing Home-entry integration file still fails 2/6 tests with an empty render root, outside this slice's files and dependency changes (`/tmp/kennel-l4-home-entry.log`). Real daemon-backed desktop verification and live provider/model execution remain blocked by the missing `codex-code-mode-host` and absent configured credentials; no live provider call or packaged Electron acceptance is claimed. L4 evidence logs: `/tmp/kennel-l4-backend.log`, `/tmp/kennel-l4-go-full.log`, `/tmp/kennel-l4-go-race.log`, `/tmp/kennel-l4-lint.log`, `/tmp/kennel-l4-migration-fix.log`, `/tmp/kennel-l4-api.log`, `/tmp/kennel-l4-frontend-typecheck.log`, `/tmp/kennel-l4-frontend-tests.log`, `/tmp/kennel-l4-frontend-full.log`, `/tmp/kennel-l4-live-check.log`.
+
 ## L0 baseline cleanup evidence
 
 The four-file frontend RED reproduction failed 23 of 114 tests because fixtures still assumed hidden Codex/default-model selection, while current provider-neutral entry paths require explicit admitted selection. The corrected tests preserve explicit selection, keyboard submission, errors, legacy readability and role admission. Narrow GREEN: 114/114 passed. Full frontend GREEN: 230 files, 2775 passed, 6 skipped. Logs: `/tmp/kennel-l0-frontend-red.log`, `/tmp/kennel-l0-frontend-green.log`, `/tmp/kennel-l0-frontend-full.log`.
@@ -89,6 +97,6 @@ No live-model, real-provider permission, packaged Electron journey, or owner-acc
 
 ## Next work
 
-Next is L2 reasoning configuration, credentials, recovery, and attribution; L1 live conformance/recovery remains explicitly open until the missing code-mode host is restored and a disposable-repository Codex TUI/Chat canary proves denied writes/network access plus allowed in-worktree changes. Other providers remain explicit blocked/unsupported until their adapters prove equivalent enforcement. Complete L3–L6 in dependency order, then L7 on an integrated SHA. Every slice updates this file with exact observed evidence and remaining limitations.
+Next is L5 proof, artifacts and serial continuation. L2/L3 live reasoning and grounded-proposal evidence, L1 live enforcement, and the real daemon-backed desktop journey remain explicitly open until the missing code-mode host and disposable-repository credentials are restored. L6 re-entry/navigation and L7 release rehearsal remain outside this milestone.
 
 The release gate remains: real repo → grounded Contract → full Plan approval → exact bounded execution → retained artifacts/checks → understandable proof → owner acceptance/rework, including interruption and restart without duplicate execution.

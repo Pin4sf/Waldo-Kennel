@@ -40,6 +40,7 @@ type SecretStore interface {
 	Clear(context.Context) error
 }
 
+// ReasoningInput is the owner-authored reasoning selection and optional secret update.
 type ReasoningInput struct {
 	Provider string
 	Model    string
@@ -48,6 +49,7 @@ type ReasoningInput struct {
 	ClearKey bool
 }
 
+// ReasoningStatus reports configured and ready state without exposing the secret.
 type ReasoningStatus struct {
 	Provider      string `json:"provider"`
 	Model         string `json:"model"`
@@ -59,6 +61,7 @@ type ReasoningStatus struct {
 	Error         string `json:"error,omitempty"`
 }
 
+// ReasoningConfig is the resolved daemon-internal reasoning configuration.
 type ReasoningConfig struct {
 	Provider  string
 	APIKey    string
@@ -110,6 +113,7 @@ func (s *Service) Get(ctx context.Context) (Snapshot, error) {
 	return s.store.GetAppSettings(ctx)
 }
 
+// GetReasoning reports the current reasoning readiness state.
 func (s *Service) GetReasoning(ctx context.Context) (ReasoningStatus, error) {
 	cfg, err := s.ResolveReasoning(ctx)
 	status := ReasoningStatus{}
@@ -127,6 +131,7 @@ func (s *Service) GetReasoning(ctx context.Context) (ReasoningStatus, error) {
 	return status, nil
 }
 
+// SetReasoning persists the owner-selected provider/model/effort and secret.
 func (s *Service) SetReasoning(ctx context.Context, input ReasoningInput) (ReasoningStatus, error) {
 	provider := strings.ToLower(strings.TrimSpace(input.Provider))
 	if provider != "anthropic" && provider != "openai" {
