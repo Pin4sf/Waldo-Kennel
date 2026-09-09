@@ -84,6 +84,7 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Get("/outcomes/{outcomeId}", c.get)
 	r.Post("/outcomes/{outcomeId}/revisions", c.revise)
 	r.Post("/outcomes/{outcomeId}/plans", c.proposePlan)
+	r.Post("/outcomes/{outcomeId}/plans/replan", c.replanPlan)
 	r.Post("/outcomes/{outcomeId}/plans/{planId}/approval", c.approvePlan)
 	r.Get("/outcomes/{outcomeId}/plan", c.latestPlan)
 	r.Post("/outcomes/{outcomeId}/attempts", c.startAttempt)
@@ -227,6 +228,31 @@ func (c *OutcomesController) proposePlan(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	view, err := c.Svc.ProposePlan(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), req.ExpectedContractRevision)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusCreated, PlanEnvelope{Plan: planRevisionResponse(view.Plan)})
+}
+
+func (c *OutcomesController) replanPlan(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/plans/replan")
+		return
+	}
+	var req ReplanPlanRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	replanner, ok := c.Svc.(interface {
+		ReplanPlan(context.Context, domain.OutcomeID, int64, string) (outcomevc.PlanView, error)
+	})
+	if !ok {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/plans/replan")
+		return
+	}
+	view, err := replanner.ReplanPlan(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), req.ExpectedContractRevision, req.Feedback)
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return

@@ -11,6 +11,7 @@ import (
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	intelligencesvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence"
 )
 
 func criterionAliases(revision domain.ContractRevision) (map[string]domain.CriterionID, error) {
@@ -35,11 +36,28 @@ func (s *Service) draftPlanWithProvenance(
 	outcome domain.Outcome,
 	revision domain.ContractRevision,
 	aliases map[string]domain.CriterionID,
+	replanFeedback string,
 ) (domain.PlanDraftProposal, error) {
 	if s.planIntelligence == nil || s.intelligenceRuns == nil {
 		return domain.PlanDraftProposal{}, fmt.Errorf("plan intelligence is not wired")
 	}
-	request := ports.PlanIntelligenceRequest{Outcome: outcome, Contract: revision, CriterionAliases: aliases}
+	request := ports.PlanIntelligenceRequest{Outcome: outcome, Contract: revision, CriterionAliases: aliases, ReplanFeedback: replanFeedback}
+	_, project, projectErr := s.projectForOutcome(ctx, outcome.ID)
+	if projectErr != nil {
+		return domain.PlanDraftProposal{}, projectErr
+	}
+	var briefSource interface {
+		GetCurrentProjectBriefRevision(context.Context, domain.ProjectID) (domain.ProjectBriefRevision, bool, error)
+	}
+	if candidate, ok := s.store.(interface {
+		GetCurrentProjectBriefRevision(context.Context, domain.ProjectID) (domain.ProjectBriefRevision, bool, error)
+	}); ok {
+		briefSource = candidate
+	}
+	request.RepositoryContext, projectErr = intelligencesvc.BuildRepositoryContext(ctx, project, briefSource)
+	if projectErr != nil {
+		return domain.PlanDraftProposal{}, projectErr
+	}
 	encoded, err := json.Marshal(request)
 	if err != nil {
 		return domain.PlanDraftProposal{}, fmt.Errorf("encode plan intelligence input: %w", err)

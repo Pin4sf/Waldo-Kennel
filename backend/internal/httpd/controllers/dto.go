@@ -2797,6 +2797,13 @@ type ProposePlanRequest struct {
 	ExpectedContractRevision int64 `json:"expectedContractRevision"`
 }
 
+// ReplanPlanRequest is the explicit feedback boundary for a new immutable
+// proposal. Reloading the ordinary plan route remains idempotent.
+type ReplanPlanRequest struct {
+	ExpectedContractRevision int64  `json:"expectedContractRevision"`
+	Feedback                 string `json:"feedback"`
+}
+
 // ApprovePlanRequest is the body for POST
 // /outcomes/{outcomeId}/plans/{planId}/approval. ExpectedContractRevision
 // guards against approving while the contract moved ahead unseen.
@@ -2832,6 +2839,8 @@ type PlanRevisionResponse struct {
 	ContractRevisionNumber int64                     `json:"contractRevisionNumber"`
 	Status                 string                    `json:"status"`
 	Summary                string                    `json:"summary"`
+	Assumptions            []string                  `json:"assumptions"`
+	Blockers               []string                  `json:"blockers"`
 	WorkUnits              []PlanWorkUnitResponse    `json:"workUnits"`
 	Grants                 []CapabilityGrantResponse `json:"grants"`
 	RunBriefCoreDigest     string                    `json:"runBriefCoreDigest"`
@@ -2881,6 +2890,8 @@ func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
 		ContractRevisionNumber: plan.ContractRevisionNumber,
 		Status:                 string(plan.Status),
 		Summary:                plan.Summary,
+		Assumptions:            append([]string(nil), plan.Assumptions...),
+		Blockers:               append([]string(nil), plan.Blockers...),
 		WorkUnits:              units,
 		Grants:                 grants,
 		RunBriefCoreDigest:     plan.RunBriefCoreDigest,

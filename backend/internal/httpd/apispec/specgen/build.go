@@ -367,6 +367,7 @@ var schemaNames = map[string]string{
 	"ControllersPlanWorkUnitResponse":                     "PlanWorkUnitResponse",
 	"ControllersCapabilityGrantResponse":                  "CapabilityGrantResponse",
 	"ControllersProposePlanRequest":                       "ProposePlanRequest",
+	"ControllersReplanPlanRequest":                        "ReplanPlanRequest",
 	"ControllersApprovePlanRequest":                       "ApprovePlanRequest",
 	"ControllersContractRevisionResponse":                 "ContractRevisionResponse",
 	"ControllersContractCriterionResponse":                "ContractCriterionResponse",
@@ -1345,6 +1346,20 @@ func notificationOperations() []operation {
 			summary:    "Propose the direct Work Unit plan bound to the current contract revision",
 			pathParams: []any{controllers.OutcomeIDParam{}},
 			reqBody:    controllers.ProposePlanRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.PlanEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/plans/replan", id: "replanOutcomePlan", tag: "outcomes",
+			summary:    "Create a new immutable Plan proposal from explicit owner feedback",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.ReplanPlanRequest{},
 			resps: []respUnit{
 				{http.StatusCreated, controllers.PlanEnvelope{}},
 				{http.StatusBadRequest, envelope.APIError{}},

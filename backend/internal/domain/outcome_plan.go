@@ -288,6 +288,8 @@ type PlanRevision struct {
 	ContractRevisionNumber int64
 	Status                 PlanStatus
 	Summary                string
+	Assumptions            []string
+	Blockers               []string
 	WorkUnits              []WorkUnit
 	Grants                 []CapabilityGrant
 	RoutingDecisions       []WorkUnitRoutingDecision
@@ -315,6 +317,12 @@ func (p PlanRevision) Validate() error {
 	}
 	if strings.TrimSpace(p.Summary) == "" {
 		return fmt.Errorf("plan revision summary is required")
+	}
+	if err := validatePlanReviewStrings("assumption", p.Assumptions); err != nil {
+		return err
+	}
+	if err := validatePlanReviewStrings("blocker", p.Blockers); err != nil {
+		return err
 	}
 	if len(p.WorkUnits) == 0 {
 		return fmt.Errorf("plan revision requires at least one work unit")
@@ -359,6 +367,21 @@ func (p PlanRevision) Validate() error {
 	}
 	if !isSHA256Hex(p.RunBriefCoreDigest) {
 		return fmt.Errorf("plan revision requires a SHA-256 run brief core digest")
+	}
+	return nil
+}
+
+func validatePlanReviewStrings(kind string, values []string) error {
+	seen := map[string]struct{}{}
+	for index, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return fmt.Errorf("plan %s %d is blank", kind, index+1)
+		}
+		if _, exists := seen[value]; exists {
+			return fmt.Errorf("plan %s %q is duplicated", kind, value)
+		}
+		seen[value] = struct{}{}
 	}
 	return nil
 }

@@ -134,6 +134,8 @@ export function proposePreviewPlan(outcomeId: string, expectedContractRevision: 
 		contractRevisionNumber: expectedContractRevision,
 		status: "proposed",
 		summary: "One bounded Work Unit prepared from the confirmed Outcome contract.",
+		assumptions: [],
+		blockers: [],
 		workUnits: [
 			{
 				id: nextId("work-unit"),

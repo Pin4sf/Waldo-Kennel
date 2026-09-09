@@ -286,6 +286,8 @@ func focusLedgerPlan(outcomeID domain.OutcomeID, revision domain.ContractRevisio
 		ContractRevisionNumber: revision.Number,
 		Status:                 domain.PlanStatusProposed,
 		Summary:                "One direct Work Unit",
+		Assumptions:            []string{"The repository keeps the existing test runner"},
+		Blockers:               []string{"Owner must confirm the migration window"},
 		WorkUnits:              []domain.WorkUnit{unit},
 		Grants:                 grants,
 		RoutingDecisions: []domain.WorkUnitRoutingDecision{{
@@ -340,6 +342,9 @@ func TestOutcomeStore_AppendApproveAndReadBackPlans(t *testing.T) {
 	}
 	if got.RunBriefCoreDigest != planIn.RunBriefCoreDigest {
 		t.Fatal("run brief core digest did not survive the round trip")
+	}
+	if len(got.Assumptions) != 1 || got.Assumptions[0] != planIn.Assumptions[0] || len(got.Blockers) != 1 || got.Blockers[0] != planIn.Blockers[0] {
+		t.Fatalf("plan review context = assumptions=%v blockers=%v", got.Assumptions, got.Blockers)
 	}
 
 	// Replay lookup binds both proposal status and contract revision.

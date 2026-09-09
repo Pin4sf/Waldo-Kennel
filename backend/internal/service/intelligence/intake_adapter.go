@@ -20,6 +20,7 @@ type IntakeAnalyzer struct {
 	provider ports.IntelligenceProvider
 	runs     ports.IntelligenceRunStore
 	clock    func() time.Time
+	projects ProjectSource
 }
 
 // NewIntakeAnalyzer constructs the Intake intelligence adapter.
@@ -28,6 +29,14 @@ func NewIntakeAnalyzer(provider ports.IntelligenceProvider, runs ports.Intellige
 		clock = func() time.Time { return time.Now().UTC() }
 	}
 	return &IntakeAnalyzer{provider: provider, runs: runs, clock: clock}
+}
+
+// WithRepositoryContextSource enables bounded grounding from the registered
+// project. It is optional so historical/unit callers can still exercise the
+// provider seam without a filesystem.
+func (a *IntakeAnalyzer) WithRepositoryContextSource(source ProjectSource) *IntakeAnalyzer {
+	a.projects = source
+	return a
 }
 
 // Analyze records bounded contract-analysis provenance and returns its proposal.
@@ -41,6 +50,23 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 		PreviousProposal:  input.PreviousProposal,
 		Clarification:     input.Clarification,
 		ClarificationText: input.ClarificationText,
+	}
+	if a.projects != nil {
+		project, found, err := a.projects.GetProject(ctx, string(input.Session.ProjectID))
+		if err != nil {
+			return ports.IntakeAnalysisTicket{}, fmt.Errorf("load project for contract grounding: %w", err)
+		}
+		if !found {
+			return ports.IntakeAnalysisTicket{}, fmt.Errorf("project %s is not registered", input.Session.ProjectID)
+		}
+		var brief briefSource
+		if candidate, ok := a.projects.(briefSource); ok {
+			brief = candidate
+		}
+		request.RepositoryContext, err = BuildRepositoryContext(ctx, project, brief)
+		if err != nil {
+			return ports.IntakeAnalysisTicket{}, err
+		}
 	}
 	inputDigest, err := digestContractRequest(request)
 	if err != nil {

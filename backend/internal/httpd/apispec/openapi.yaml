@@ -2589,6 +2589,63 @@ paths:
         authority)
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/plans/replan:
+    post:
+      operationId: replanOutcomePlan
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplanPlanRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Create a new immutable Plan proposal from explicit owner feedback
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/proof:
     get:
       operationId: getOutcomeProof
@@ -10974,6 +11031,14 @@ components:
       type: object
     PlanRevisionResponse:
       properties:
+        assumptions:
+          items:
+            type: string
+          type: array
+        blockers:
+          items:
+            type: string
+          type: array
         contractRevisionNumber:
           format: int64
           type: integer
@@ -11010,6 +11075,8 @@ components:
       - contractRevisionNumber
       - status
       - summary
+      - assumptions
+      - blockers
       - workUnits
       - grants
       - runBriefCoreDigest
@@ -11599,6 +11666,17 @@ components:
       - ok
       - sessionId
       - displayName
+      type: object
+    ReplanPlanRequest:
+      properties:
+        expectedContractRevision:
+          format: int64
+          type: integer
+        feedback:
+          type: string
+      required:
+      - expectedContractRevision
+      - feedback
       type: object
     ResolveCommentsResponse:
       properties:

@@ -665,6 +665,8 @@ type PlanRevision struct {
 	RunBriefCoreDigest     string
 	RunBriefCompiledDigest string
 	CreatedAt              time.Time
+	AssumptionsJson        string
+	BlockersJson           string
 	RoutingDecisionsJson   sql.NullString
 }
 
