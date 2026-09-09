@@ -2893,11 +2893,14 @@ type PlanEnvelope struct {
 // ScheduleWorkUnitResponse is the daemon-derived state for one canonical
 // WorkUnit. React must render this projection rather than recreate eligibility.
 type ScheduleWorkUnitResponse struct {
-	WorkUnit             PlanWorkUnitResponse   `json:"workUnit"`
-	State                string                 `json:"state" enum:"blocked,runnable,executing,proven,retryable"`
-	Attempts             []ScheduleAttemptBrief `json:"attempts"`
-	BlockingDependencies []string               `json:"blockingDependencies"`
-	CriterionReady       map[string]bool        `json:"criterionReady"`
+	WorkUnit PlanWorkUnitResponse   `json:"workUnit"`
+	State    string                 `json:"state" enum:"blocked,runnable,executing,proven,retryable"`
+	Attempts []ScheduleAttemptBrief `json:"attempts"`
+	// BlockedReason distinguishes waiting on dependency proof from waiting on
+	// the serial custody fence. Empty unless the unit is blocked.
+	BlockedReason        string          `json:"blockedReason,omitempty"`
+	BlockingDependencies []string        `json:"blockingDependencies"`
+	CriterionReady       map[string]bool `json:"criterionReady"`
 }
 
 // ScheduleAttemptBrief is the bounded Attempt identity shown in a schedule.
@@ -2916,6 +2919,11 @@ type ScheduleResponse struct {
 	WorkUnits              []ScheduleWorkUnitResponse `json:"workUnits"`
 	NextRunnableWorkUnitID string                     `json:"nextRunnableWorkUnitId,omitempty"`
 	ActiveAttempt          *ScheduleAttemptBrief      `json:"activeAttempt,omitempty"`
+	// CustodyHeldByWorkUnitID names the unit holding the serial fence, if any.
+	CustodyHeldByWorkUnitID string `json:"custodyHeldByWorkUnitId,omitempty"`
+	// NoRunnableReason explains an empty runnable set, so a Mission with
+	// nothing to start can say why instead of showing an endless spinner.
+	NoRunnableReason string `json:"noRunnableReason,omitempty"`
 }
 
 // ScheduleEnvelope wraps a daemon-derived Plan schedule response.
@@ -2994,9 +3002,14 @@ func scheduleResponse(view outcomevc.ScheduleView) ScheduleResponse {
 		for _, dependency := range entry.BlockingDependencies {
 			dependencies = append(dependencies, string(dependency))
 		}
-		units = append(units, ScheduleWorkUnitResponse{WorkUnit: workUnitResponse(entry.WorkUnit), State: string(entry.State), Attempts: attempts, BlockingDependencies: dependencies, CriterionReady: ready})
+		units = append(units, ScheduleWorkUnitResponse{WorkUnit: workUnitResponse(entry.WorkUnit), State: string(entry.State), Attempts: attempts, BlockedReason: string(entry.BlockedReason), BlockingDependencies: dependencies, CriterionReady: ready})
 	}
-	response := ScheduleResponse{OutcomeID: string(view.Plan.OutcomeID), Plan: planRevisionResponse(view.Plan), WorkUnits: units, NextRunnableWorkUnitID: string(view.NextRunnableID)}
+	response := ScheduleResponse{
+		OutcomeID: string(view.Plan.OutcomeID), Plan: planRevisionResponse(view.Plan), WorkUnits: units,
+		NextRunnableWorkUnitID:  string(view.NextRunnableID),
+		CustodyHeldByWorkUnitID: string(view.CustodyHeldBy),
+		NoRunnableReason:        string(view.NoRunnableReason),
+	}
 	if view.ActiveAttempt != nil {
 		response.ActiveAttempt = &ScheduleAttemptBrief{ID: string(view.ActiveAttempt.ID), WorkUnitID: string(view.ActiveAttempt.WorkUnitID), Status: string(view.ActiveAttempt.Status), CreatedAt: view.ActiveAttempt.CreatedAt, UpdatedAt: view.ActiveAttempt.UpdatedAt}
 	}

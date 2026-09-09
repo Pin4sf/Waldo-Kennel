@@ -4172,13 +4172,16 @@ export interface components {
         };
         ScheduleResponse: {
             activeAttempt?: components["schemas"]["ScheduleAttemptBrief"];
+            custodyHeldByWorkUnitId?: string;
             nextRunnableWorkUnitId?: string;
+            noRunnableReason?: string;
             outcomeId: string;
             plan: components["schemas"]["PlanRevisionResponse"];
             workUnits: components["schemas"]["ScheduleWorkUnitResponse"][];
         };
         ScheduleWorkUnitResponse: {
             attempts: components["schemas"]["ScheduleAttemptBrief"][];
+            blockedReason?: string;
             blockingDependencies: string[];
             criterionReady: {
                 [key: string]: boolean;

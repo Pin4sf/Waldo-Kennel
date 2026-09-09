@@ -12185,7 +12185,11 @@ components:
       properties:
         activeAttempt:
           $ref: '#/components/schemas/ScheduleAttemptBrief'
+        custodyHeldByWorkUnitId:
+          type: string
         nextRunnableWorkUnitId:
+          type: string
+        noRunnableReason:
           type: string
         outcomeId:
           type: string
@@ -12206,6 +12210,8 @@ components:
           items:
             $ref: '#/components/schemas/ScheduleAttemptBrief'
           type: array
+        blockedReason:
+          type: string
         blockingDependencies:
           items:
             type: string

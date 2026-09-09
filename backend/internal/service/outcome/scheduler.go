@@ -23,6 +23,63 @@ const (
 	WorkUnitScheduleProven WorkUnitScheduleState = "proven"
 	// WorkUnitScheduleRetryable means a later governed retry may be admitted.
 	WorkUnitScheduleRetryable WorkUnitScheduleState = "retryable"
+	// WorkUnitSchedulePaused means this unit's own attempt is paused. It still
+	// holds custody, so it is not merely "blocked": the owner has to resume or
+	// cancel it before anything else can run.
+	WorkUnitSchedulePaused WorkUnitScheduleState = "paused"
+)
+
+// There is deliberately no "unresolved" schedule state yet.
+//
+// Unresolved liveness is real and it does block duplicate execution, but it
+// is enforced before an attempt reaches a terminal status: EvaluateAttemptLiveness
+// and refuseUnprovenCustody keep an unaccountable attempt Running rather than
+// closing it. AttemptLost is the opposite situation — it is reached only
+// through explicit owner recovery, which deliberately releases custody so a
+// replacement may start. Deriving "unresolved" from Lost would therefore
+// misreport an attempt the owner has already reconciled, and would discourage
+// a legitimate retry.
+//
+// deriveSchedule receives no heartbeat facts, so there is no truthful input
+// for the distinction today. Phase C makes runtime observations durable; the
+// state belongs here once a fact can populate it, not before.
+
+// WorkUnitBlockedReason says why a blocked unit is blocked.
+//
+// "Blocked" used to cover two unrelated situations — this unit's dependencies
+// are unproven, and some other unit is holding the serial custody fence. The
+// owner's next move is completely different between them, and a graph that
+// draws both the same way cannot explain itself.
+type WorkUnitBlockedReason string
+
+const (
+	// BlockedAwaitingDependencyProof means an upstream unit has no accepted
+	// proof yet. Waiting is correct; nothing is wrong.
+	BlockedAwaitingDependencyProof WorkUnitBlockedReason = "awaiting_dependency_proof"
+	// BlockedCustodyHeld means this unit is ready on its own terms but another
+	// unit currently owns the workspace. This is the serial execution limit,
+	// not a fault.
+	BlockedCustodyHeld WorkUnitBlockedReason = "custody_held"
+)
+
+// ScheduleNoRunnableReason explains an empty runnable set.
+//
+// A Mission with nothing to start must say why. Rendering a spinner for a
+// schedule that is permanently waiting on the owner is the specific failure
+// this replaces.
+type ScheduleNoRunnableReason string
+
+const (
+	// NoRunnableAllProven means the plan's work is done and proof is recorded.
+	NoRunnableAllProven ScheduleNoRunnableReason = "all_units_proven"
+	// NoRunnableExecuting means an attempt is currently running.
+	NoRunnableExecuting ScheduleNoRunnableReason = "attempt_executing"
+	// NoRunnablePaused means a paused attempt holds custody.
+	NoRunnablePaused ScheduleNoRunnableReason = "attempt_paused"
+	// NoRunnableAwaitingProof means every remaining unit waits on proof that
+	// no running attempt is currently producing — the owner has to record or
+	// repair evidence.
+	NoRunnableAwaitingProof ScheduleNoRunnableReason = "awaiting_proof"
 )
 
 // WorkUnitScheduleView is the Mission-Control-ready scheduler projection for
@@ -32,7 +89,10 @@ type WorkUnitScheduleView struct {
 	State                WorkUnitScheduleState
 	Attempts             []domain.Attempt
 	BlockingDependencies []domain.WorkUnitID
-	CriterionReady       map[domain.CriterionID]bool
+	// BlockedReason is set only when State is blocked, and says which kind of
+	// blocked it is.
+	BlockedReason  WorkUnitBlockedReason
+	CriterionReady map[domain.CriterionID]bool
 }
 
 // ScheduleView is derived from one approved current Plan plus canonical proof.
@@ -41,6 +101,12 @@ type ScheduleView struct {
 	WorkUnits      []WorkUnitScheduleView
 	NextRunnableID domain.WorkUnitID
 	ActiveAttempt  *domain.Attempt
+	// CustodyHeldBy names the unit holding the serial fence, when one does.
+	// Serial execution is the launch limit, so saying which unit is holding it
+	// is what lets the graph explain why an otherwise-ready branch is waiting.
+	CustodyHeldBy domain.WorkUnitID
+	// NoRunnableReason is set when nothing can start. Empty means something can.
+	NoRunnableReason ScheduleNoRunnableReason
 }
 
 func attemptActiveForScheduling(status domain.AttemptStatus) bool {
@@ -252,21 +318,32 @@ func deriveSchedule(plan domain.PlanRevision, attempts []domain.Attempt, proof P
 		case proven[unit.ID]:
 			entry.State = WorkUnitScheduleProven
 		case active != nil && active.WorkUnitID == unit.ID:
-			entry.State = WorkUnitScheduleExecuting
+			// This unit's own attempt holds custody. Paused and unaccounted
+			// are reported as themselves rather than as "executing", because
+			// neither is making progress and both need the owner.
+			if active.Status == domain.AttemptPaused {
+				entry.State = WorkUnitSchedulePaused
+			} else {
+				entry.State = WorkUnitScheduleExecuting
+			}
 		default:
 			for _, dependency := range unit.DependsOn {
 				if !proven[dependency] {
 					entry.BlockingDependencies = append(entry.BlockingDependencies, dependency)
 				}
 			}
-			if len(entry.BlockingDependencies) > 0 || active != nil {
-				entry.State = WorkUnitScheduleBlocked
-			} else if len(entry.Attempts) > 0 {
+			switch {
+			case len(entry.BlockingDependencies) > 0:
+				entry.State, entry.BlockedReason = WorkUnitScheduleBlocked, BlockedAwaitingDependencyProof
+			case active != nil:
+				// Ready on its own terms, waiting only for the serial fence.
+				entry.State, entry.BlockedReason = WorkUnitScheduleBlocked, BlockedCustodyHeld
+			case len(entry.Attempts) > 0:
 				entry.State = WorkUnitScheduleRetryable
 				if view.NextRunnableID.IsZero() {
 					view.NextRunnableID = unit.ID
 				}
-			} else {
+			default:
 				entry.State = WorkUnitScheduleRunnable
 				if view.NextRunnableID.IsZero() {
 					view.NextRunnableID = unit.ID
@@ -275,7 +352,33 @@ func deriveSchedule(plan domain.PlanRevision, attempts []domain.Attempt, proof P
 		}
 		view.WorkUnits = append(view.WorkUnits, entry)
 	}
+	if active != nil {
+		view.CustodyHeldBy = active.WorkUnitID
+	}
+	view.NoRunnableReason = noRunnableReason(view, active)
 	return view, nil
+}
+
+// noRunnableReason explains an empty runnable set, so the Mission can name the
+// owner's next move instead of showing an indefinite spinner.
+func noRunnableReason(view ScheduleView, active *domain.Attempt) ScheduleNoRunnableReason {
+	if !view.NextRunnableID.IsZero() {
+		return ""
+	}
+	if active != nil {
+		if active.Status == domain.AttemptPaused {
+			return NoRunnablePaused
+		}
+		return NoRunnableExecuting
+	}
+	for _, entry := range view.WorkUnits {
+		if entry.State != WorkUnitScheduleProven {
+			// Nothing is executing and nothing is admissible, so the remaining
+			// work is waiting on proof the owner has to record or repair.
+			return NoRunnableAwaitingProof
+		}
+	}
+	return NoRunnableAllProven
 }
 
 // selectWorkUnitForAttempt enforces the serial scheduler decision. A zero
