@@ -924,11 +924,11 @@ describe("Sidebar", () => {
 
 		await user.click(screen.getByRole("combobox", { name: "Default coding agent" }));
 		// Codex stays the default; the admitted worker appears with its real
-		// needs-install state (avatar-initial fallback, no logo asset yet).
-		expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
-			"Codex",
-			"PiNeeds install",
-		]);
+		// not-installed state (avatar-initial fallback, no logo asset yet).
+		const options = await screen.findAllByRole("option");
+		expect(options).toHaveLength(2);
+		expect(options[0]).toHaveTextContent("Codex");
+		expect(options[1]).toHaveTextContent("PiNot installed · Install the provider, then refresh");
 		await user.keyboard("{Escape}");
 
 		await user.click(screen.getByRole("button", { name: "Create and start" }));
@@ -1330,7 +1330,9 @@ describe("Sidebar", () => {
 		await user.click(screen.getByLabelText("New project"));
 		await user.click(screen.getByRole("button", { name: /^Project/i }));
 		expect(await screen.findByText("/repo/new-project")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Create and start" })).toBeDisabled();
+		// Provider readiness is configuration, not a prerequisite for durable
+		// project creation.
+		expect(screen.getByRole("button", { name: "Create and start" })).toBeEnabled();
 
 		resolveAgents({
 			data: {

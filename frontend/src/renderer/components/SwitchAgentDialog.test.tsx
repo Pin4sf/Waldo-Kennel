@@ -145,7 +145,7 @@ describe("SwitchAgentDialog", () => {
 		await userEvent.click(within(dialog).getByRole("button", { name: "Target agent" }));
 		expect(screen.queryByRole("menuitem", { name: /Cursor/i })).not.toBeInTheDocument();
 		expect(screen.queryByRole("menuitem", { name: /Pi/i })).not.toBeInTheDocument();
-		expect(screen.getByRole("menuitem", { name: /OpenCode.*Needs auth/i })).toHaveAttribute("data-disabled");
+		expect(screen.getByRole("menuitem", { name: /OpenCode.*Authentication required/i })).toHaveAttribute("data-disabled");
 	});
 
 	it("requires an explicit choice when multiple other switch targets are ready", async () => {

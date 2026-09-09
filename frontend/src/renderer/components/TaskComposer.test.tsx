@@ -13,7 +13,17 @@ const h = vi.hoisted(() => ({
 
 vi.mock("../hooks/useAgentsQuery", () => ({
 	agentsQueryKey: ["agents"],
-	agentsQueryOptions: { queryKey: ["agents"], queryFn: async () => ({}) },
+	agentsQueryOptions: {
+		queryKey: ["agents"],
+		queryFn: async () => {
+			const result = await h.get("/api/v1/agents");
+			return result.data?.supported ? result.data : {
+				supported: [{ id: "codex", label: "Codex", roles: { worker: true, coordinator: true, switchTarget: true } }],
+				installed: [{ id: "codex", label: "Codex", authStatus: "authorized" }],
+				authorized: [{ id: "codex", label: "Codex", authStatus: "authorized" }],
+			};
+		},
+	},
 	refreshAgents: vi.fn(),
 	refreshAgentsIfStale: vi.fn(async () => undefined),
 }));
@@ -385,7 +395,7 @@ describe("TaskComposer", () => {
 		);
 	});
 
-	it("renders a known default agent without an empty intermediate selection", async () => {
+	it("settles on the persisted worker agent after the catalog loads", async () => {
 		h.get.mockImplementation(async (path: string) => {
 			if (path.includes("/models")) {
 				return {
@@ -397,10 +407,10 @@ describe("TaskComposer", () => {
 					},
 				};
 			}
-			return { data: { status: "ok", project: { agent: "codex", config: {} } } };
+			return { data: { status: "ok", project: { config: { worker: { agent: "codex" } } } } };
 		});
 		const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-		queryClient.setQueryData(["project", "proj-1"], { agent: "codex", config: {} });
+		queryClient.setQueryData(["project", "proj-1"], { config: { worker: { agent: "codex" } } });
 
 		render(
 			<QueryClientProvider client={queryClient}>
@@ -409,10 +419,10 @@ describe("TaskComposer", () => {
 		);
 
 		expect(await screen.findByDisplayValue("gpt-5.6-sol")).toBeInTheDocument();
-		expect(h.agentValues).not.toContain("");
+		expect(h.agentValues.at(-1)).toBe("codex");
 	});
 
-	it("uses Codex for a historical global default and submits the admitted harness", async () => {
+	it("does not restore a hidden Codex fallback for an unsupported historical worker", async () => {
 		h.get.mockImplementation(async (path: string) => {
 			if (path.includes("/models")) {
 				return { data: { agent: "codex", selectionMode: "text", models: [], allowCustom: true } };
@@ -426,13 +436,13 @@ describe("TaskComposer", () => {
 			</Wrap>,
 		);
 
-		await waitFor(() => expect(screen.getByTestId("agent-field")).toHaveAttribute("data-value", "codex"));
+		await waitFor(() => expect(screen.getByTestId("agent-field")).toHaveAttribute("data-value", ""));
 		fireEvent.change(task(), { target: { value: "Deliver the outcome" } });
 		fireEvent.click(screen.getByRole("button", { name: "Define outcome" }));
 		await waitFor(() =>
 			expect(h.post).toHaveBeenCalledWith(
 				"/api/v1/orchestrators/delegate",
-				expect.objectContaining({ body: expect.objectContaining({ agent: "codex" }) }),
+				expect.objectContaining({ body: expect.objectContaining({ agent: undefined, model: undefined }) }),
 			),
 		);
 	});
@@ -452,7 +462,7 @@ describe("TaskComposer", () => {
 					},
 				};
 			}
-			return { data: { status: "ok", project: { agent: "codex", config: {} } } };
+			return { data: { status: "ok", project: { config: { worker: { agent: "codex" } } } } };
 		});
 
 		render(
@@ -481,7 +491,6 @@ describe("TaskComposer", () => {
 				data: {
 					status: "ok",
 					project: {
-						agent: "claude-code",
 						config: { worker: { agent: "claude-code", agentConfig: { model: "opus", mode: "plan" } } },
 					},
 				},
@@ -494,15 +503,15 @@ describe("TaskComposer", () => {
 			</Wrap>,
 		);
 
-		expect(await screen.findByDisplayValue("gpt-5.6-sol")).toBeInTheDocument();
-		expect(screen.getByTestId("agent-field")).toHaveAttribute("data-value", "codex");
+		expect(await screen.findByLabelText("Model")).toHaveValue("");
+		expect(screen.getByTestId("agent-field")).toHaveAttribute("data-value", "");
 		fireEvent.change(task(), { target: { value: "Deliver the outcome" } });
 		fireEvent.click(screen.getByRole("button", { name: "Define outcome" }));
 		await waitFor(() =>
-			expect(h.post).toHaveBeenCalledWith(
-				"/api/v1/orchestrators/delegate",
-				expect.objectContaining({ body: expect.objectContaining({ agent: "codex", model: undefined }) }),
-			),
+				expect(h.post).toHaveBeenCalledWith(
+					"/api/v1/orchestrators/delegate",
+					expect.objectContaining({ body: expect.objectContaining({ agent: undefined, model: undefined }) }),
+				),
 		);
 	});
 
@@ -518,7 +527,7 @@ describe("TaskComposer", () => {
 					},
 				};
 			}
-			return { data: { status: "ok", project: { agent: "codex", config: {} } } };
+			return { data: { status: "ok", project: { config: { worker: { agent: "codex" } } } } };
 		});
 
 		render(
@@ -528,10 +537,10 @@ describe("TaskComposer", () => {
 		);
 
 		const picker = await screen.findByRole("button", { name: "Model" });
-		expect(picker).toHaveTextContent("Use codex's default");
+		expect(picker).toHaveTextContent("Use Codex's default");
 
 		await userEvent.click(picker);
-		expect(await screen.findByRole("menuitem", { name: "Use codex's default" })).toBeInTheDocument();
+		expect(await screen.findByRole("menuitem", { name: "Use Codex's default" })).toBeInTheDocument();
 	});
 
 	it("uses the project worker model as the new task model default", async () => {
