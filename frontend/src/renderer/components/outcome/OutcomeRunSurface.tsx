@@ -1,6 +1,6 @@
 import { SessionsBoardGridView, SessionsListView } from "@pin4sf/kennel-product-ui";
 import { Loader2, ShieldAlert } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MessageKey } from "../../i18n/messages";
@@ -9,12 +9,14 @@ import {
 	useAttemptRecovery,
 	useOutcomeAttempts,
 	useOutcomePlan,
+	useOutcomeProof,
 	useOutcomeSchedule,
 	useStartOutcomeAttempt,
 	type AttemptRecord,
 } from "../../hooks/useOutcome";
 import { boardAttentionZoneOrder, getAttentionZoneViewForZone } from "../../lib/session-presentation";
 import { useUiStore } from "../../stores/ui-store";
+import { MissionWorkUnitGraph } from "./MissionWorkUnitGraph";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import {
@@ -83,6 +85,13 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfac
 	const planApproved = plan?.status === "approved";
 	const scheduleQuery = useOutcomeSchedule(outcomeId, planApproved ? plan?.id : undefined);
 	const schedule = scheduleQuery.schedule;
+	const proofQuery = useOutcomeProof(outcomeId);
+	const criterionText = useCallback(
+		(criterionId: string) =>
+			proofQuery.proof?.criteria.find((criterion) => criterion.criterionId === criterionId)?.text,
+		[proofQuery.proof],
+	);
+	const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string | undefined>(undefined);
 	const failure = start.failure ?? action.failure ?? recovery.failure ?? attemptsQuery.failure ?? scheduleQuery.failure;
 	const attempts = attemptsQuery.attempts ?? [];
 	// Lineage order is ascending by number; the current attempt is the newest.
@@ -172,25 +181,17 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfac
 				</div>
 			)}
 
+			{/* The daemon-derived execution graph. Every state, blocker and
+			    reason here is a schedule fact; this only renders it. */}
 			{planApproved && schedule && (
 				<section className="max-w-2xl rounded-group hairline border-border bg-card px-4.5 py-3.5" data-testid="outcome-run-schedule">
-					<div className="flex items-center justify-between gap-3">
-						<h3 className="text-sm font-medium">{t("outcome.run.scheduleTitle")}</h3>
-						<span className="text-xs text-muted-foreground">
-							{schedule.nextRunnableWorkUnitId ? `Next: ${schedule.nextRunnableWorkUnitId}` : "No runnable WorkUnit"}
-						</span>
-					</div>
-					<ul className="mt-3 grid gap-2 md:grid-cols-2">
-						{schedule.workUnits.map((entry) => (
-							<li className="rounded-md hairline border-border bg-shell px-3 py-2" key={entry.workUnit.id}>
-								<div className="flex items-center justify-between gap-2">
-									<span className="text-sm text-foreground">{entry.workUnit.title}</span>
-									<Badge variant={entry.state === "runnable" ? "success" : entry.state === "executing" ? "accent" : "outline"}>{entry.state}</Badge>
-								</div>
-								{entry.blockingDependencies.length > 0 && <p className="mt-1 text-xs text-muted-foreground">{t("outcome.run.waitingOnLabel")} {entry.blockingDependencies.join(", ")}</p>}
-							</li>
-						))}
-					</ul>
+					<MissionWorkUnitGraph
+						criterionText={criterionText}
+						onSelectWorkUnit={setSelectedWorkUnitId}
+						schedule={schedule}
+						selectedWorkUnitId={selectedWorkUnitId}
+						workUnits={schedule.workUnits.map((entry) => entry.workUnit)}
+					/>
 				</section>
 			)}
 

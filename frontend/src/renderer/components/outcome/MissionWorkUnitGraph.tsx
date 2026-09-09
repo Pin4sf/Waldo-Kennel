@@ -64,10 +64,17 @@ export function MissionWorkUnitGraph({
 	const nodeRefs = useRef(new Map<string, HTMLButtonElement>());
 
 	const nodes = useMemo<Node[]>(() => {
-		const entries = new Map((schedule?.workUnits ?? []).map((entry) => [entry.workUnit.id, entry]));
-		return workUnits.map((unit) => ({
+		const entries = new Map(
+			(schedule?.workUnits ?? [])
+				.filter((entry) => Boolean(entry?.workUnit?.id))
+				.map((entry) => [entry.workUnit.id, entry]),
+		);
+		// The DTO marks these required, but a renderer must not crash on a
+		// payload that omits them — an older daemon or a partial fixture is a
+		// display problem, not a reason to take the screen down.
+		return (workUnits ?? []).filter((unit) => Boolean(unit?.id)).map((unit) => ({
 			id: unit.id,
-			upstream: unit.dependsOn,
+			upstream: unit.dependsOn ?? [],
 			unit,
 			entry: entries.get(unit.id),
 		}));
@@ -247,7 +254,7 @@ function GraphNode({
 	const blockers = (node.entry?.blockingDependencies ?? [])
 		.map((id) => titleOf.get(id) ?? id)
 		.filter(Boolean);
-	const criteria = node.unit.criterionIds
+	const criteria = (node.unit.criterionIds ?? [])
 		.map((id) => criterionText?.(id))
 		.filter((text): text is string => Boolean(text));
 
