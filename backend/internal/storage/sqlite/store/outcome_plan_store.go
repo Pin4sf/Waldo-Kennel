@@ -159,9 +159,9 @@ func validateCanonicalPlanPersistence(plan domain.PlanRevision) error {
 	if err := plan.Validate(); err != nil {
 		// Number is assigned in the transaction, so permit only that missing
 		// storage-owned field before persistence.
-		copy := plan
-		copy.Number = 1
-		if err := copy.Validate(); err != nil {
+		planCopy := plan
+		planCopy.Number = 1
+		if err := planCopy.Validate(); err != nil {
 			return err
 		}
 	}
@@ -193,6 +193,7 @@ func validateCanonicalPlanPersistence(plan domain.PlanRevision) error {
 	return nil
 }
 
+// LatestProposedPlanRevision loads the latest proposal for a contract revision.
 func (s *Store) LatestProposedPlanRevision(ctx context.Context, outcomeID domain.OutcomeID, contractRevision int64) (domain.PlanRevision, bool, error) {
 	row, err := s.qr.LatestProposedPlanRevision(ctx, gen.LatestProposedPlanRevisionParams{
 		OutcomeID: outcomeID, ContractRevisionNumber: contractRevision,
@@ -206,6 +207,7 @@ func (s *Store) LatestProposedPlanRevision(ctx context.Context, outcomeID domain
 	return s.planFromRow(ctx, row)
 }
 
+// GetPlanRevision loads one plan revision scoped to its Outcome.
 func (s *Store) GetPlanRevision(ctx context.Context, outcomeID domain.OutcomeID, planID domain.PlanRevisionID) (domain.PlanRevision, bool, error) {
 	row, err := s.qr.GetPlanRevision(ctx, gen.GetPlanRevisionParams{ID: planID, OutcomeID: outcomeID})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -217,6 +219,7 @@ func (s *Store) GetPlanRevision(ctx context.Context, outcomeID domain.OutcomeID,
 	return s.planFromRow(ctx, row)
 }
 
+// GetLatestPlanRevision loads the latest plan revision for an Outcome.
 func (s *Store) GetLatestPlanRevision(ctx context.Context, outcomeID domain.OutcomeID) (domain.PlanRevision, bool, error) {
 	row, err := s.qr.GetLatestPlanRevision(ctx, outcomeID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -228,6 +231,7 @@ func (s *Store) GetLatestPlanRevision(ctx context.Context, outcomeID domain.Outc
 	return s.planFromRow(ctx, row)
 }
 
+// ApprovePlanRevision marks a proposed plan revision as owner-approved.
 func (s *Store) ApprovePlanRevision(ctx context.Context, outcomeID domain.OutcomeID, planID domain.PlanRevisionID) (domain.PlanRevision, bool, error) {
 	s.writeMu.Lock()
 	tx, err := s.writeDB.BeginTx(ctx, nil)
@@ -361,74 +365,63 @@ WHERE work_unit_id = ?`, unit.ID).Scan(&provider, &modelSelection, &model)
 			}
 		}
 
-		dependencies, err := s.readDB.QueryContext(ctx, `
+		dependencies, err := queryWorkUnitStrings(ctx, s.readDB, `
 SELECT depends_on_work_unit_id
 FROM work_unit_dependencies
 WHERE work_unit_id = ?
-ORDER BY depends_on_work_unit_id`, unit.ID)
+	ORDER BY depends_on_work_unit_id`, unit.ID)
 		if err != nil {
 			return fmt.Errorf("list dependencies for work unit %s: %w", unit.ID, err)
 		}
-		for dependencies.Next() {
-			var dependency domain.WorkUnitID
-			if err := dependencies.Scan(&dependency); err != nil {
-				_ = dependencies.Close()
-				return fmt.Errorf("scan dependency for work unit %s: %w", unit.ID, err)
-			}
-			unit.DependsOn = append(unit.DependsOn, dependency)
+		for _, dependency := range dependencies {
+			unit.DependsOn = append(unit.DependsOn, domain.WorkUnitID(dependency))
 		}
-		if err := dependencies.Err(); err != nil {
-			_ = dependencies.Close()
-			return fmt.Errorf("iterate dependencies for work unit %s: %w", unit.ID, err)
-		}
-		_ = dependencies.Close()
 
-		criteria, err := s.readDB.QueryContext(ctx, `
+		criteria, err := queryWorkUnitStrings(ctx, s.readDB, `
 SELECT criterion_id
 FROM work_unit_criterion_bindings
 WHERE work_unit_id = ?
-ORDER BY criterion_id`, unit.ID)
+	ORDER BY criterion_id`, unit.ID)
 		if err != nil {
 			return fmt.Errorf("list criteria for work unit %s: %w", unit.ID, err)
 		}
-		for criteria.Next() {
-			var criterion domain.CriterionID
-			if err := criteria.Scan(&criterion); err != nil {
-				_ = criteria.Close()
-				return fmt.Errorf("scan criterion for work unit %s: %w", unit.ID, err)
-			}
-			unit.CriterionIDs = append(unit.CriterionIDs, criterion)
+		for _, criterion := range criteria {
+			unit.CriterionIDs = append(unit.CriterionIDs, domain.CriterionID(criterion))
 		}
-		if err := criteria.Err(); err != nil {
-			_ = criteria.Close()
-			return fmt.Errorf("iterate criteria for work unit %s: %w", unit.ID, err)
-		}
-		_ = criteria.Close()
 
-		capabilities, err := s.readDB.QueryContext(ctx, `
+		capabilities, err := queryWorkUnitStrings(ctx, s.readDB, `
 SELECT capability
 FROM work_unit_required_capabilities
 WHERE work_unit_id = ?
-ORDER BY capability`, unit.ID)
+	ORDER BY capability`, unit.ID)
 		if err != nil {
 			return fmt.Errorf("list required capabilities for work unit %s: %w", unit.ID, err)
 		}
-		for capabilities.Next() {
-			var capability string
-			if err := capabilities.Scan(&capability); err != nil {
-				_ = capabilities.Close()
-				return fmt.Errorf("scan required capability for work unit %s: %w", unit.ID, err)
-			}
-			unit.RequiredCapabilities = append(unit.RequiredCapabilities, capability)
-		}
-		if err := capabilities.Err(); err != nil {
-			_ = capabilities.Close()
-			return fmt.Errorf("iterate required capabilities for work unit %s: %w", unit.ID, err)
-		}
-		_ = capabilities.Close()
+		unit.RequiredCapabilities = append(unit.RequiredCapabilities, capabilities...)
 	}
 
 	// Keep serialized readback deterministic even if SQLite row order changes.
 	sort.Slice(plan.WorkUnits, func(i, j int) bool { return plan.WorkUnits[i].ID < plan.WorkUnits[j].ID })
 	return nil
+}
+
+func queryWorkUnitStrings(ctx context.Context, db *sql.DB, query string, workUnitID domain.WorkUnitID) ([]string, error) {
+	rows, err := db.QueryContext(ctx, query, workUnitID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var values []string
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return values, nil
 }

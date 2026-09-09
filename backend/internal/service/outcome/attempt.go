@@ -48,20 +48,27 @@ type StartAttemptInput struct {
 	RequestKey     string
 }
 
+// RecordObservationInput contains one bounded attempt observation.
 type RecordObservationInput struct {
 	Kind    string
 	Payload string
 }
 
+// RecoveryAction identifies the governed response to an uncertain attempt.
 type RecoveryAction string
 
 const (
-	RecoveryActionContain   RecoveryAction = "contain"
+	// RecoveryActionContain preserves custody while the attempt is investigated.
+	RecoveryActionContain RecoveryAction = "contain"
+	// RecoveryActionReconcile requests reconciliation of ambiguous runtime state.
 	RecoveryActionReconcile RecoveryAction = "reconcile"
-	RecoveryActionReplace   RecoveryAction = "replace"
+	// RecoveryActionReplace requests a new attempt after reconciliation.
+	RecoveryActionReplace RecoveryAction = "replace"
+	// RecoveryActionAttention requests owner or operator attention.
 	RecoveryActionAttention RecoveryAction = "attention"
 )
 
+// Valid reports whether the recovery action is supported.
 func (a RecoveryAction) Valid() bool {
 	switch a {
 	case RecoveryActionContain, RecoveryActionReconcile, RecoveryActionReplace, RecoveryActionAttention:
@@ -71,11 +78,13 @@ func (a RecoveryAction) Valid() bool {
 	}
 }
 
+// RecoveryInput contains the owner's recovery decision and provider-stop proof.
 type RecoveryInput struct {
 	Action                 RecoveryAction
 	ConfirmProviderStopped bool
 }
 
+// AttemptView is the service projection of one attempt and its evidence.
 type AttemptView struct {
 	Outcome      domain.Outcome
 	Attempt      domain.Attempt
@@ -86,32 +95,46 @@ type AttemptView struct {
 	Presentation domain.AttemptPresentation
 }
 
+// RecoveryView is the service projection of a recovery receipt.
 type RecoveryView struct {
 	Attempt AttemptView
 	Receipt *domain.AttemptRecoveryReceipt
 }
 
 const (
-	CodeAgentProfileNotReady          = "AGENT_PROFILE_NOT_READY"
-	CodeAgentBinaryNotFound           = "AGENT_BINARY_NOT_FOUND"
-	CodePlanNotApproved               = "PLAN_NOT_APPROVED"
-	CodePlanBriefInvalidated          = "PLAN_BRIEF_INVALIDATED"
+	// CodeAgentProfileNotReady indicates that the selected profile cannot run yet.
+	CodeAgentProfileNotReady = "AGENT_PROFILE_NOT_READY"
+	// CodeAgentBinaryNotFound indicates that the selected provider binary is absent.
+	CodeAgentBinaryNotFound = "AGENT_BINARY_NOT_FOUND"
+	// CodePlanNotApproved indicates that owner approval is missing.
+	CodePlanNotApproved = "PLAN_NOT_APPROVED"
+	// CodePlanBriefInvalidated indicates the approved plan no longer matches context.
+	CodePlanBriefInvalidated = "PLAN_BRIEF_INVALIDATED"
+	// CodeAttemptCapabilityUnauthorized indicates a grant exceeds current authority.
 	CodeAttemptCapabilityUnauthorized = "ATTEMPT_CAPABILITY_UNAUTHORIZED"
-	CodeAttemptFenceHeld              = "ATTEMPT_FENCE_HELD"
+	// CodeAttemptFenceHeld indicates another attempt owns the custody fence.
+	CodeAttemptFenceHeld = "ATTEMPT_FENCE_HELD"
 	// CodeNoRunnableWorkUnit reports that scheduling, not custody, is what
 	// refused: every WorkUnit in the approved Plan is either already running
 	// or still waiting on a dependency or required proof.
 	CodeNoRunnableWorkUnit = "NO_RUNNABLE_WORK_UNIT"
-	CodeAttemptNotFound               = "ATTEMPT_NOT_FOUND"
-	CodeAttemptLivenessUnproven       = "ATTEMPT_LIVENESS_UNPROVEN"
-	CodeAttemptActivationUnresolved   = "ATTEMPT_ACTIVATION_UNRESOLVED"
-	CodeAttemptCustodyUnproven        = "ATTEMPT_CUSTODY_UNPROVEN"
-	CodeAttemptProviderStopFailed     = "ATTEMPT_PROVIDER_STOP_FAILED"
-	CodeAttemptStartUnresolved        = "ATTEMPT_START_UNRESOLVED"
+	// CodeAttemptNotFound indicates that the requested attempt does not exist.
+	CodeAttemptNotFound = "ATTEMPT_NOT_FOUND"
+	// CodeAttemptLivenessUnproven indicates that runtime liveness is unknown.
+	CodeAttemptLivenessUnproven = "ATTEMPT_LIVENESS_UNPROVEN"
+	// CodeAttemptActivationUnresolved indicates that activation could not be proven.
+	CodeAttemptActivationUnresolved = "ATTEMPT_ACTIVATION_UNRESOLVED"
+	// CodeAttemptCustodyUnproven indicates that workspace custody is ambiguous.
+	CodeAttemptCustodyUnproven = "ATTEMPT_CUSTODY_UNPROVEN"
+	// CodeAttemptProviderStopFailed indicates provider termination failed.
+	CodeAttemptProviderStopFailed = "ATTEMPT_PROVIDER_STOP_FAILED"
+	// CodeAttemptStartUnresolved indicates that attempt activation is ambiguous.
+	CodeAttemptStartUnresolved = "ATTEMPT_START_UNRESOLVED"
 )
 
 var _ AttemptManager = (*Service)(nil)
 
+// StartAttempt admits one exact approved WorkUnit for execution.
 func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, in StartAttemptInput) (AttemptView, error) {
 	if s.spawner == nil || s.heartbeats == nil {
 		return AttemptView{}, apierr.Internal("ATTEMPT_EXECUTION_UNWIRED", "Attempt execution is not wired in this environment")
@@ -210,7 +233,7 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	attempt, err := s.store.CreateAttemptWithFence(ctx, ports.AttemptAdmission{
 		OutcomeID: outcomeID, PlanRevisionID: plan.ID, WorkUnitID: unit.ID,
 		ContractRevisionNumber: plan.ContractRevisionNumber,
-		RequestKey: strings.TrimSpace(in.RequestKey), FenceSubject: domain.FenceSubjectForProject(projectID), At: now,
+		RequestKey:             strings.TrimSpace(in.RequestKey), FenceSubject: domain.FenceSubjectForProject(projectID), At: now,
 	})
 	if err != nil {
 		var replay *ports.AttemptReplayError
@@ -314,6 +337,7 @@ func (s *Service) probeReadiness(ctx context.Context, projectID domain.ProjectID
 	return nil
 }
 
+// CancelAttempt records a governed cancellation request for an attempt.
 func (s *Service) CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (AttemptView, error) {
 	attempt, _, err := s.requireAttempt(ctx, outcomeID, attemptID)
 	if err != nil {
@@ -372,6 +396,7 @@ func (s *Service) CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID,
 	return s.GetAttempt(ctx, outcomeID, attemptID)
 }
 
+// GetAttempt returns the durable attempt projection and related facts.
 func (s *Service) GetAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (AttemptView, error) {
 	attempt, outcomeRecord, err := s.requireAttempt(ctx, outcomeID, attemptID)
 	if err != nil {
@@ -380,6 +405,7 @@ func (s *Service) GetAttempt(ctx context.Context, outcomeID domain.OutcomeID, at
 	return s.readModel(ctx, outcomeRecord, attempt)
 }
 
+// ListAttempts returns durable attempt projections for an Outcome.
 func (s *Service) ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) ([]AttemptView, error) {
 	outcomeRecord, ok, err := s.store.GetOutcome(ctx, outcomeID)
 	if err != nil {
@@ -403,6 +429,7 @@ func (s *Service) ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) 
 	return views, nil
 }
 
+// RecordObservation appends a bounded observation to an attempt.
 func (s *Service) RecordObservation(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, in RecordObservationInput) (domain.AttemptObservation, error) {
 	if _, _, err := s.requireAttempt(ctx, outcomeID, attemptID); err != nil {
 		return domain.AttemptObservation{}, err

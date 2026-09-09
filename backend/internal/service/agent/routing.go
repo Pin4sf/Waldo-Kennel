@@ -31,14 +31,14 @@ func (s *Service) RoutingSnapshot(ctx context.Context, projectID domain.ProjectI
 		}
 		local, isInstalled := installed[supported.ID]
 		candidate := domain.RoutingCandidate{
-			ID: supported.ID,
-			Provider: supported.ID,
-			ModelSelection: domain.ExecutionBindingModelProviderDefault,
-			WorkerEligible: supported.Roles.Worker,
+			ID:                  supported.ID,
+			Provider:            supported.ID,
+			ModelSelection:      domain.ExecutionBindingModelProviderDefault,
+			WorkerEligible:      supported.Roles.Worker,
 			CoordinatorEligible: supported.Roles.Coordinator,
-			Readiness: domain.CapabilityUnsupported,
-			Capabilities: map[string]domain.CapabilitySupport{},
-			Models: map[string]domain.CapabilitySupport{},
+			Readiness:           domain.CapabilityUnsupported,
+			Capabilities:        map[string]domain.CapabilitySupport{},
+			Models:              map[string]domain.CapabilitySupport{},
 		}
 		if supported.Roles.Worker {
 			candidate.Capabilities[domain.CapabilityWorktreeRead] = domain.CapabilitySupported

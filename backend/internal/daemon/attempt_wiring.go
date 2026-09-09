@@ -43,7 +43,7 @@ func (a attemptSpawner) ProfileReadiness(ctx context.Context, projectID domain.P
 		return ports.AgentProfileReadiness{}, fmt.Errorf("attempt spawner is not fully wired")
 	}
 	if err := binding.ValidateForNewWork(); err != nil {
-		return ports.AgentProfileReadiness{Ready: false, Detail: err.Error()}, nil
+		return profileNotReady(err.Error())
 	}
 	rec, ok, err := a.projects.GetProject(ctx, string(projectID))
 	if err != nil {
@@ -64,6 +64,10 @@ func (a attemptSpawner) ProfileReadiness(ctx context.Context, projectID domain.P
 		binding,
 		ports.AgentConfig{},
 	)
+}
+
+func profileNotReady(detail string) (ports.AgentProfileReadiness, error) {
+	return ports.AgentProfileReadiness{Ready: false, Detail: detail}, nil
 }
 
 func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest) (ports.AttemptSpawnResult, error) {

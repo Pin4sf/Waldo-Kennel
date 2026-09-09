@@ -21,12 +21,12 @@ import (
 )
 
 type fakeOutcomeService struct {
-	create func(context.Context, outcomevc.CreateInput) (outcomevc.OutcomeView, error)
-	revise func(context.Context, domain.OutcomeID, outcomevc.ReviseContractInput) (outcomevc.OutcomeView, error)
-	get    func(context.Context, domain.OutcomeID) (outcomevc.OutcomeView, error)
-	list   func(context.Context, domain.ProjectID) ([]outcomevc.OutcomeView, error)
+	create func(context.Context, outcomevc.CreateInput) (outcomevc.View, error)
+	revise func(context.Context, domain.OutcomeID, outcomevc.ReviseContractInput) (outcomevc.View, error)
+	get    func(context.Context, domain.OutcomeID) (outcomevc.View, error)
+	list   func(context.Context, domain.ProjectID) ([]outcomevc.View, error)
 
-	contribute  func(context.Context, domain.OutcomeID, outcomevc.CreateContributionInput) (outcomevc.OutcomeView, error)
+	contribute  func(context.Context, domain.OutcomeID, outcomevc.CreateContributionInput) (outcomevc.View, error)
 	composition func(context.Context, domain.OutcomeID) (outcomevc.CompositionView, error)
 
 	proposeDecomposition   func(context.Context, domain.OutcomeID, outcomevc.ProposeDecompositionInput) (outcomevc.DecompositionView, error)
@@ -57,10 +57,10 @@ type fakeOutcomeService struct {
 	lastContributionData outcomevc.CreateContributionInput
 }
 
-func (f *fakeOutcomeService) CreateContribution(ctx context.Context, parentID domain.OutcomeID, in outcomevc.CreateContributionInput) (outcomevc.OutcomeView, error) {
+func (f *fakeOutcomeService) CreateContribution(ctx context.Context, parentID domain.OutcomeID, in outcomevc.CreateContributionInput) (outcomevc.View, error) {
 	f.lastContributionOf, f.lastContributionData = parentID, in
 	if f.contribute == nil {
-		return outcomevc.OutcomeView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "not implemented in fake")
+		return outcomevc.View{}, apierr.NotFound("OUTCOME_NOT_FOUND", "not implemented in fake")
 	}
 	return f.contribute(ctx, parentID, in)
 }
@@ -114,30 +114,30 @@ func (f *fakeOutcomeService) GetLatestPlan(_ context.Context, _ domain.OutcomeID
 	return outcomevc.PlanView{}, apierr.NotFound("PLAN_NOT_FOUND", "not implemented in fake")
 }
 
-func (f *fakeOutcomeService) Create(ctx context.Context, in outcomevc.CreateInput) (outcomevc.OutcomeView, error) {
+func (f *fakeOutcomeService) Create(ctx context.Context, in outcomevc.CreateInput) (outcomevc.View, error) {
 	f.lastInput = in
 	return f.create(ctx, in)
 }
 
-func (f *fakeOutcomeService) ReviseContract(ctx context.Context, id domain.OutcomeID, in outcomevc.ReviseContractInput) (outcomevc.OutcomeView, error) {
+func (f *fakeOutcomeService) ReviseContract(ctx context.Context, id domain.OutcomeID, in outcomevc.ReviseContractInput) (outcomevc.View, error) {
 	return f.revise(ctx, id, in)
 }
 
-func (f *fakeOutcomeService) Get(ctx context.Context, id domain.OutcomeID) (outcomevc.OutcomeView, error) {
+func (f *fakeOutcomeService) Get(ctx context.Context, id domain.OutcomeID) (outcomevc.View, error) {
 	return f.get(ctx, id)
 }
 
-func (f *fakeOutcomeService) ListByProject(ctx context.Context, projectID domain.ProjectID) ([]outcomevc.OutcomeView, error) {
+func (f *fakeOutcomeService) ListByProject(ctx context.Context, projectID domain.ProjectID) ([]outcomevc.View, error) {
 	return f.list(ctx, projectID)
 }
 
-func sampleOutcomeView() outcomevc.OutcomeView {
+func sampleOutcomeView() outcomevc.View {
 	now := time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)
 	rev := domain.ContractRevision{
 		ID: "cr-1", OutcomeID: "out-fix", Number: 1,
 		Goal: "g", SuccessCriteria: []string{"c1"}, Review: "checks", CreatedAt: now,
 	}
-	return outcomevc.OutcomeView{
+	return outcomevc.View{
 		Outcome: domain.Outcome{
 			ID: "out-fix", SpaceID: "rsp-1", Title: "Ledger",
 			CurrentRevisionNumber: 1, CreatedAt: now, UpdatedAt: now,
@@ -157,9 +157,9 @@ func newOutcomesTestServer(t *testing.T, svc *fakeOutcomeService) *httptest.Serv
 
 func TestCreateOutcomeRoute(t *testing.T) {
 	svc := &fakeOutcomeService{}
-	svc.create = func(_ context.Context, in outcomevc.CreateInput) (outcomevc.OutcomeView, error) {
+	svc.create = func(_ context.Context, in outcomevc.CreateInput) (outcomevc.View, error) {
 		if in.ProjectID != "mer" || in.RequestKey == "" || len(in.SuccessCriteria) == 0 {
-			return outcomevc.OutcomeView{}, apierr.Invalid("OUTCOME_CRITERIA_REQUIRED", "Name at least one success criterion", nil)
+			return outcomevc.View{}, apierr.Invalid("OUTCOME_CRITERIA_REQUIRED", "Name at least one success criterion", nil)
 		}
 		return sampleOutcomeView(), nil
 	}
@@ -182,7 +182,7 @@ func TestCreateOutcomeRoute(t *testing.T) {
 
 func TestListProjectOutcomesRoute(t *testing.T) {
 	svc := &fakeOutcomeService{}
-	svc.list = func(_ context.Context, projectID domain.ProjectID) ([]outcomevc.OutcomeView, error) {
+	svc.list = func(_ context.Context, projectID domain.ProjectID) ([]outcomevc.View, error) {
 		if projectID != "mer" {
 			t.Fatalf("project id = %s, want mer", projectID)
 		}
@@ -197,7 +197,7 @@ func TestListProjectOutcomesRoute(t *testing.T) {
 		second.Current.ID = "cr-second"
 		second.Current.OutcomeID = second.Outcome.ID
 		second.History = []domain.ContractRevision{second.Current}
-		return []outcomevc.OutcomeView{first, second}, nil
+		return []outcomevc.View{first, second}, nil
 	}
 	srv := newOutcomesTestServer(t, svc)
 
@@ -232,7 +232,7 @@ func TestListProjectOutcomesRoute(t *testing.T) {
 
 func TestListProjectOutcomesRoutePreservesErrorEnvelope(t *testing.T) {
 	svc := &fakeOutcomeService{}
-	svc.list = func(_ context.Context, _ domain.ProjectID) ([]outcomevc.OutcomeView, error) {
+	svc.list = func(_ context.Context, _ domain.ProjectID) ([]outcomevc.View, error) {
 		return nil, apierr.Invalid("PROJECT_REQUIRED", "Choose a project", nil)
 	}
 	srv := newOutcomesTestServer(t, svc)
@@ -255,8 +255,8 @@ func TestListProjectOutcomesRoutePreservesErrorEnvelope(t *testing.T) {
 
 func TestReviseOutcomeConflictIs409Envelope(t *testing.T) {
 	svc := &fakeOutcomeService{}
-	svc.revise = func(_ context.Context, _ domain.OutcomeID, _ outcomevc.ReviseContractInput) (outcomevc.OutcomeView, error) {
-		return outcomevc.OutcomeView{}, apierr.New(apierr.KindConflict, "OUTCOME_CONTRACT_CONFLICT",
+	svc.revise = func(_ context.Context, _ domain.OutcomeID, _ outcomevc.ReviseContractInput) (outcomevc.View, error) {
+		return outcomevc.View{}, apierr.New(apierr.KindConflict, "OUTCOME_CONTRACT_CONFLICT",
 			"Contract moved to revision 2; reload and retry against it",
 			map[string]any{"expectedRevision": 1, "currentRevision": 2})
 	}
@@ -276,8 +276,8 @@ func TestReviseOutcomeConflictIs409Envelope(t *testing.T) {
 
 func TestGetUnknownOutcomeIs404Envelope(t *testing.T) {
 	svc := &fakeOutcomeService{}
-	svc.get = func(_ context.Context, _ domain.OutcomeID) (outcomevc.OutcomeView, error) {
-		return outcomevc.OutcomeView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
+	svc.get = func(_ context.Context, _ domain.OutcomeID) (outcomevc.View, error) {
+		return outcomevc.View{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
 	}
 	srv := newOutcomesTestServer(t, svc)
 	respBytes, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/outcomes/out-nope", "")

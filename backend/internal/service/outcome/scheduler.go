@@ -13,10 +13,15 @@ import (
 type WorkUnitScheduleState string
 
 const (
-	WorkUnitScheduleBlocked   WorkUnitScheduleState = "blocked"
-	WorkUnitScheduleRunnable  WorkUnitScheduleState = "runnable"
+	// WorkUnitScheduleBlocked means dependencies or proof prevent admission.
+	WorkUnitScheduleBlocked WorkUnitScheduleState = "blocked"
+	// WorkUnitScheduleRunnable means the unit can be admitted.
+	WorkUnitScheduleRunnable WorkUnitScheduleState = "runnable"
+	// WorkUnitScheduleExecuting means an attempt currently owns the unit.
 	WorkUnitScheduleExecuting WorkUnitScheduleState = "executing"
-	WorkUnitScheduleProven    WorkUnitScheduleState = "proven"
+	// WorkUnitScheduleProven means execution produced recorded proof.
+	WorkUnitScheduleProven WorkUnitScheduleState = "proven"
+	// WorkUnitScheduleRetryable means a later governed retry may be admitted.
 	WorkUnitScheduleRetryable WorkUnitScheduleState = "retryable"
 )
 
@@ -210,8 +215,8 @@ func deriveSchedule(plan domain.PlanRevision, attempts []domain.Attempt, proof P
 	var active *domain.Attempt
 	for i := range currentAttempts {
 		if attemptActiveForScheduling(currentAttempts[i].Status) {
-			copy := currentAttempts[i]
-			active = &copy
+			attemptCopy := currentAttempts[i]
+			active = &attemptCopy
 			break
 		}
 	}

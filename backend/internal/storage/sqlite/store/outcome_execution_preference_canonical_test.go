@@ -17,9 +17,9 @@ func TestOutcomeStore_CanonicalContractWriterRoundTripsExecutionPreference(t *te
 	}
 	outcome, first := focusLedgerContract(space.ID, "preference-canonical")
 	first.ExecutionPreference = &domain.ExecutionPreference{
-		Provider: domain.HarnessClaudeCode,
+		Provider:       domain.HarnessClaudeCode,
 		ModelSelection: domain.ExecutionPreferenceModelExplicit,
-		Model: "sonnet-test",
+		Model:          "sonnet-test",
 	}
 	if err := s.CreateOutcomeWithContract(ctx, outcome, first, "req-preference-canonical"); err != nil {
 		t.Fatalf("create outcome: %v", err)
@@ -41,7 +41,7 @@ func TestOutcomeStore_CanonicalContractWriterRoundTripsExecutionPreference(t *te
 	second.Number = 0 // storage assigns the immutable next number
 	second.Goal = "Second immutable goal with a provider-default preference."
 	second.ExecutionPreference = &domain.ExecutionPreference{
-		Provider: domain.HarnessCodex,
+		Provider:       domain.HarnessCodex,
 		ModelSelection: domain.ExecutionPreferenceModelProviderDefault,
 	}
 	for i := range second.Criteria {

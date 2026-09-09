@@ -38,9 +38,11 @@ type AttemptSessionSpawner interface {
 	Terminate(ctx context.Context, projectID domain.ProjectID, sessionID string) (TerminationResult, error)
 }
 
+// TerminationResult reports which parts of attempt termination were proven.
 type TerminationResult struct {
 	ProviderStopped bool
 	WorkspaceFreed  bool
 }
 
+// ErrProviderStopUnproven indicates that provider termination is ambiguous.
 var ErrProviderStopUnproven = errors.New("provider stop could not be proven")

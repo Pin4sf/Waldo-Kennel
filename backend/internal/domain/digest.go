@@ -10,8 +10,11 @@ import (
 // needs immutable provenance without retaining the source payload.
 type SHA256Digest string
 
-func (d SHA256Digest) IsZero() bool { return strings.TrimSpace(string(d)) == "" }
+// IsZero reports whether the digest is unset.
+func (d SHA256Digest) IsZero() bool   { return strings.TrimSpace(string(d)) == "" }
 func (d SHA256Digest) String() string { return string(d) }
+
+// Valid reports whether the digest has the expected SHA-256 encoding.
 func (d SHA256Digest) Valid() bool { return isSHA256Hex(string(d)) }
 
 // DigestSHA256 hashes source bytes without persisting the source itself.

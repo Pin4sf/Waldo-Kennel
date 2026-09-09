@@ -137,6 +137,7 @@ func (s *Store) CreateAttemptWithFence(ctx context.Context, in ports.AttemptAdmi
 	return attempt, nil
 }
 
+// GetAttempt loads one attempt scoped to its Outcome.
 func (s *Store) GetAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (domain.Attempt, bool, error) {
 	row, err := s.qr.GetAttempt(ctx, gen.GetAttemptParams{ID: attemptID, OutcomeID: outcomeID})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -148,6 +149,7 @@ func (s *Store) GetAttempt(ctx context.Context, outcomeID domain.OutcomeID, atte
 	return attemptFromRow(row), true, nil
 }
 
+// ListAttempts loads attempts belonging to an Outcome.
 func (s *Store) ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) ([]domain.Attempt, error) {
 	rows, err := s.qr.ListAttemptsForOutcome(ctx, outcomeID)
 	if err != nil {
@@ -160,6 +162,7 @@ func (s *Store) ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) ([
 	return out, nil
 }
 
+// TransitionAttemptStatus advances an attempt with optimistic concurrency.
 func (s *Store) TransitionAttemptStatus(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, expected, next domain.AttemptStatus, at time.Time) (int64, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -172,6 +175,7 @@ func (s *Store) TransitionAttemptStatus(ctx context.Context, outcomeID domain.Ou
 	return rows, nil
 }
 
+// ListAttemptsByStatus loads attempts in a durable status.
 func (s *Store) ListAttemptsByStatus(ctx context.Context, status domain.AttemptStatus) ([]domain.Attempt, error) {
 	rows, err := s.qr.ListAttemptsByStatus(ctx, status)
 	if err != nil {
@@ -184,6 +188,7 @@ func (s *Store) ListAttemptsByStatus(ctx context.Context, status domain.AttemptS
 	return out, nil
 }
 
+// BindAttemptSession records a provider session reference for an attempt.
 func (s *Store) BindAttemptSession(ctx context.Context, ref domain.AttemptSessionRef) (domain.AttemptSessionRef, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -233,6 +238,7 @@ func latestSessionRefSeq(ctx context.Context, q *gen.Queries, attemptID domain.A
 	return latest.Seq, nil
 }
 
+// LatestAttemptSessionRef loads the latest provider session reference.
 func (s *Store) LatestAttemptSessionRef(ctx context.Context, attemptID domain.AttemptID) (domain.AttemptSessionRef, bool, error) {
 	row, err := s.qr.LatestAttemptSessionRef(ctx, attemptID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -244,6 +250,7 @@ func (s *Store) LatestAttemptSessionRef(ctx context.Context, attemptID domain.At
 	return attemptSessionRefFromRow(row), true, nil
 }
 
+// ListAttemptSessionRefs loads all provider session references for an attempt.
 func (s *Store) ListAttemptSessionRefs(ctx context.Context, attemptID domain.AttemptID) ([]domain.AttemptSessionRef, error) {
 	rows, err := s.qr.ListAttemptSessionRefsForAttempt(ctx, attemptID)
 	if err != nil {
@@ -256,6 +263,7 @@ func (s *Store) ListAttemptSessionRefs(ctx context.Context, attemptID domain.Att
 	return out, nil
 }
 
+// AppendAttemptObservation records one bounded attempt observation.
 func (s *Store) AppendAttemptObservation(ctx context.Context, attemptID domain.AttemptID, kind, payload string, at time.Time) (domain.AttemptObservation, error) {
 	if payload == "" {
 		payload = "{}"
@@ -293,6 +301,7 @@ func (s *Store) AppendAttemptObservation(ctx context.Context, attemptID domain.A
 	return obs, nil
 }
 
+// ListAttemptObservations loads observations for an attempt.
 func (s *Store) ListAttemptObservations(ctx context.Context, attemptID domain.AttemptID) ([]domain.AttemptObservation, error) {
 	rows, err := s.qr.ListAttemptObservationsForAttempt(ctx, attemptID)
 	if err != nil {
@@ -305,6 +314,7 @@ func (s *Store) ListAttemptObservations(ctx context.Context, attemptID domain.At
 	return out, nil
 }
 
+// OpenFenceForSubject loads the active custody fence for a subject.
 func (s *Store) OpenFenceForSubject(ctx context.Context, subject string) (domain.AttemptFence, bool, error) {
 	row, err := s.qr.FindOpenFenceBySubject(ctx, subject)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -316,6 +326,7 @@ func (s *Store) OpenFenceForSubject(ctx context.Context, subject string) (domain
 	return attemptFenceFromRow(row), true, nil
 }
 
+// ReleaseFenceForAttempt releases custody held by an attempt.
 func (s *Store) ReleaseFenceForAttempt(ctx context.Context, attemptID domain.AttemptID, reason string, at time.Time) (int64, error) {
 	if reason == "" {
 		return 0, fmt.Errorf("release fence for %s: a released fence must record why", attemptID)
@@ -329,6 +340,7 @@ func (s *Store) ReleaseFenceForAttempt(ctx context.Context, attemptID domain.Att
 	return rows, nil
 }
 
+// RenewFenceForAttempt renews custody held by an attempt.
 func (s *Store) RenewFenceForAttempt(ctx context.Context, attemptID domain.AttemptID, at time.Time) (int64, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -339,6 +351,7 @@ func (s *Store) RenewFenceForAttempt(ctx context.Context, attemptID domain.Attem
 	return rows, nil
 }
 
+// CreateRecoveryReceipt persists one recovery decision receipt.
 func (s *Store) CreateRecoveryReceipt(ctx context.Context, receipt domain.AttemptRecoveryReceipt) error {
 	if receipt.ID == "" {
 		receipt.ID = "rcpt-" + uuid.NewString()
@@ -363,6 +376,7 @@ func (s *Store) CreateRecoveryReceipt(ctx context.Context, receipt domain.Attemp
 	return nil
 }
 
+// ListRecoveryReceipts loads recovery receipts for an attempt.
 func (s *Store) ListRecoveryReceipts(ctx context.Context, attemptID domain.AttemptID) ([]domain.AttemptRecoveryReceipt, error) {
 	rows, err := s.qr.ListRecoveryReceiptsForAttempt(ctx, attemptID)
 	if err != nil {

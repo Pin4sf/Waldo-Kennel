@@ -13,16 +13,19 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 )
 
+// PlanView is the service projection of a plan revision.
 type PlanView struct {
 	Outcome domain.Outcome
 	Plan    domain.PlanRevision
 }
 
+// AuthorizedPlanView is the projection of an owner-approved plan.
 type AuthorizedPlanView struct {
 	Outcome domain.Outcome
 	Plan    domain.PlanRevision
 }
 
+// ApprovePlanInput identifies the plan revision the owner approves.
 type ApprovePlanInput struct {
 	PlanRevisionID           domain.PlanRevisionID
 	ExpectedContractRevision int64
@@ -374,6 +377,7 @@ func (s *Service) ApprovePlan(ctx context.Context, outcomeID domain.OutcomeID, i
 	return AuthorizedPlanView{Outcome: outcomeRecord, Plan: approved}, nil
 }
 
+// GetLatestPlan returns the latest plan revision for an Outcome.
 func (s *Service) GetLatestPlan(ctx context.Context, outcomeID domain.OutcomeID) (PlanView, error) {
 	outcomeRecord, ok, err := s.store.GetOutcome(ctx, outcomeID)
 	if err != nil {

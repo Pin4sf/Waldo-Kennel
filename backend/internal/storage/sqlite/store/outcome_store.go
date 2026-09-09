@@ -15,6 +15,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/gen"
 )
 
+// EnsureWorkResponsibilitySpace returns the project's durable Work space.
 func (s *Store) EnsureWorkResponsibilitySpace(ctx context.Context, projectID domain.ProjectID) (domain.ResponsibilitySpace, error) {
 	row, err := s.qr.FindWorkResponsibilitySpaceByProject(ctx, projectID)
 	if err == nil {
@@ -45,6 +46,7 @@ func (s *Store) EnsureWorkResponsibilitySpace(ctx context.Context, projectID dom
 	return space, nil
 }
 
+// FindOutcomeByIdempotencyKey loads the Outcome bound to a request key.
 func (s *Store) FindOutcomeByIdempotencyKey(ctx context.Context, key string) (domain.Outcome, bool, error) {
 	row, err := s.qr.FindOutcomeByIdempotencyKey(ctx, sql.NullString{String: key, Valid: key != ""})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -56,6 +58,7 @@ func (s *Store) FindOutcomeByIdempotencyKey(ctx context.Context, key string) (do
 	return outcomeFromRow(row), true, nil
 }
 
+// CreateOutcomeWithContract atomically persists an Outcome and its first Contract.
 func (s *Store) CreateOutcomeWithContract(ctx context.Context, outcome domain.Outcome, first domain.ContractRevision, requestKey string) error {
 	if err := outcome.Validate(); err != nil {
 		return err
@@ -100,6 +103,7 @@ func (s *Store) CreateOutcomeWithContract(ctx context.Context, outcome domain.Ou
 	return tx.Commit()
 }
 
+// AppendContractRevision appends a Contract revision with optimistic concurrency.
 func (s *Store) AppendContractRevision(ctx context.Context, id domain.OutcomeID, expectedCurrent int64, revision domain.ContractRevision) (int64, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -138,6 +142,7 @@ func (s *Store) AppendContractRevision(ctx context.Context, id domain.OutcomeID,
 	return number, nil
 }
 
+// GetOutcome loads one durable Outcome.
 func (s *Store) GetOutcome(ctx context.Context, id domain.OutcomeID) (domain.Outcome, bool, error) {
 	row, err := s.qr.GetOutcome(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -149,6 +154,7 @@ func (s *Store) GetOutcome(ctx context.Context, id domain.OutcomeID) (domain.Out
 	return outcomeFromRow(row), true, nil
 }
 
+// ListOutcomesByProject loads Outcomes in a project.
 func (s *Store) ListOutcomesByProject(ctx context.Context, projectID domain.ProjectID) ([]domain.Outcome, error) {
 	rows, err := s.qr.ListOutcomesByProject(ctx, projectID)
 	if err != nil {
@@ -161,6 +167,7 @@ func (s *Store) ListOutcomesByProject(ctx context.Context, projectID domain.Proj
 	return out, nil
 }
 
+// ListContractRevisions loads the immutable Contract history for an Outcome.
 func (s *Store) ListContractRevisions(ctx context.Context, id domain.OutcomeID) ([]domain.ContractRevision, error) {
 	rows, err := s.qr.ListContractRevisions(ctx, id)
 	if err != nil {
@@ -221,7 +228,7 @@ func insertContractRevision(ctx context.Context, q *gen.Queries, revision domain
 		revision.Criteria = make([]domain.ContractCriterion, 0, len(revision.SuccessCriteria))
 		for i, text := range revision.SuccessCriteria {
 			revision.Criteria = append(revision.Criteria, domain.ContractCriterion{
-				ID: domain.CriterionID(fmt.Sprintf("crit-%s-%04d", revision.ID, i+1)),
+				ID:                 domain.CriterionID(fmt.Sprintf("crit-%s-%04d", revision.ID, i+1)),
 				ContractRevisionID: revision.ID, Position: int64(i + 1), Text: text,
 			})
 		}
@@ -342,6 +349,7 @@ func unmarshalJSONStrings(data string) ([]string, error) {
 	return out, nil
 }
 
+// CreateContributionWithContract atomically persists a contributing Outcome and links.
 func (s *Store) CreateContributionWithContract(ctx context.Context, child domain.Outcome, first domain.ContractRevision, links []domain.ContributionLink, requestKey string) error {
 	if err := child.Validate(); err != nil {
 		return err
@@ -397,6 +405,7 @@ func (s *Store) CreateContributionWithContract(ctx context.Context, child domain
 	return tx.Commit()
 }
 
+// ListContributingOutcomes loads Outcomes contributing to a parent.
 func (s *Store) ListContributingOutcomes(ctx context.Context, parent domain.OutcomeID) ([]domain.Outcome, error) {
 	rows, err := s.qr.ListContributingOutcomes(ctx, nullOutcomeID(parent))
 	if err != nil {
@@ -409,6 +418,7 @@ func (s *Store) ListContributingOutcomes(ctx context.Context, parent domain.Outc
 	return out, nil
 }
 
+// ListContributionLinksForParent loads contribution links from a parent.
 func (s *Store) ListContributionLinksForParent(ctx context.Context, parent domain.OutcomeID) ([]domain.ContributionLink, error) {
 	rows, err := s.qr.ListContributionLinksForParent(ctx, string(parent))
 	if err != nil {
@@ -421,6 +431,7 @@ func (s *Store) ListContributionLinksForParent(ctx context.Context, parent domai
 	return out, nil
 }
 
+// ListContributionLinksForChild loads contribution links for a child.
 func (s *Store) ListContributionLinksForChild(ctx context.Context, child domain.OutcomeID) ([]domain.ContributionLink, error) {
 	rows, err := s.qr.ListContributionLinksForChild(ctx, string(child))
 	if err != nil {

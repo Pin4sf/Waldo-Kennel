@@ -91,7 +91,7 @@ func (c *Client) Complete(ctx context.Context, req ports.LLMRequest) (ports.LLMR
 	}
 
 	params := sdk.MessageNewParams{
-		Model:     sdk.Model(c.model),
+		Model:     c.model,
 		MaxTokens: maxTokens,
 		Messages: []sdk.MessageParam{
 			sdk.NewUserMessage(sdk.NewTextBlock(req.User)),
@@ -136,7 +136,7 @@ func (c *Client) Complete(ctx context.Context, req ports.LLMRequest) (ports.LLMR
 
 	return ports.LLMResponse{
 		JSON:           []byte(raw),
-		EffectiveModel: string(message.Model),
+		EffectiveModel: message.Model,
 		InputTokens:    message.Usage.InputTokens,
 		OutputTokens:   message.Usage.OutputTokens,
 	}, nil

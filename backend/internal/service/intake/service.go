@@ -67,7 +67,7 @@ type CancelInput struct {
 
 // Service owns the shared Home/Work adaptive intake state machine.
 type Service struct {
-	store    ports.IntakeStore
+	store ports.IntakeStore
 	// analyzer is Waldo's reasoning. There is deliberately no rule-based floor
 	// behind it: a canned proposal reads as understanding the product does not
 	// have, and it hid a broken front door once already. When reasoning is

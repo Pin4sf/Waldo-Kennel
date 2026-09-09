@@ -161,7 +161,7 @@ type ContractRevision struct {
 	// revision. When present it overrides the Project worker preference as a
 	// complete provider/model pair; it never authorizes execution by itself.
 	ExecutionPreference *ExecutionPreference
-	CreatedAt            time.Time
+	CreatedAt           time.Time
 }
 
 // Validate checks intrinsic revision invariants. Revision-number uniqueness

@@ -1,6 +1,6 @@
 # Kennel status
 
-**Source baseline:** merged PR #99, beta `67d6946fdd5e5bba1aca7f7002ba75185e7da998` (2026-09-08). Refresh the SHA before implementation.
+**Source baseline:** merged PR #99, beta `0f5def7ce3823487eeab89401f9cd5fd10d26cc2` (2026-09-09 verification).
 **Current objective:** finish the usable Outcome Continuity loop, not rebuild the foundation.
 **Execution authority:** [post-PR99 implementation plan](superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md).
 **Fresh checks:** [baseline verification record](verification/2026-09-08-post-pr99-launch-baseline.md).
@@ -43,9 +43,17 @@ The daemon correctly rejects a supplied provider different from the approved bin
 
 The serial scheduler currently uses a Project custody fence. Full WorkUnit WorkspaceLease parallel scheduling remains later work. Do not remove that fence merely to make a graph look concurrent.
 
+## L0 baseline cleanup evidence
+
+The four-file frontend RED reproduction failed 23 of 114 tests because fixtures still assumed hidden Codex/default-model selection, while current provider-neutral entry paths require explicit admitted selection. The corrected tests preserve explicit selection, keyboard submission, errors, legacy readability and role admission. Narrow GREEN: 114/114 passed. Full frontend GREEN: 230 files, 2775 passed, 6 skipped. Logs: `/tmp/kennel-l0-frontend-red.log`, `/tmp/kennel-l0-frontend-green.log`, `/tmp/kennel-l0-frontend-full.log`.
+
+The Go lint baseline fell from 190 findings to two intentional, L1a-owned unused helpers: `backend/internal/service/session/attempt_spawn.go:31` (`normalizedExactModel`) and `backend/internal/session_manager/exact_execution_binding.go:15` (`prepareSpawnExecution`). The latter remains because its missing production call is the L1a defect; neither was deleted or suppressed. The direct final lint output is `/tmp/kennel-l0-lint-final.log`. `npm run lint` is blocked by the inherited OpenAPI parity failure in `internal/httpd/apispec/specgen` (`embedded openapi.yaml is stale`, fresh length 361141 versus embedded 361151), before its linter stage; output is `/tmp/kennel-l0-lint-command-final.log`.
+
+Full Go package tests pass outside that inherited spec parity failure; frontend typecheck passes (`/tmp/kennel-l0-frontend-typecheck.log`). No API, SQL schema, migration, generated contract, provider runtime, or production behavior was changed in L0.
+
 ## Current verification truth
 
-The baseline record distinguishes pass/fail/not-run. Fresh frontend tests have **23 failures in 4 files**, with 2752 passed and 6 skipped. Typecheck passes. Lint reports **190 issues**; details and triage requirements are in the baseline record/plan. The macOS arm64 package build and package identity check pass, but were not launched. Do not treat the whole foundation gate as green. Failures cluster in TaskComposer, NewTaskDialog, Sidebar and SwitchAgentDialog; root causes need classification, not automatic test deletion or restoration of hidden defaults.
+The baseline record distinguishes pass/fail/not-run. The historical fresh run had **23 failures in 4 files**; L0 now has no frontend test failures. Typecheck passes. Lint has two named L1a-owned findings, and the full `npm run lint` wrapper remains blocked by the inherited stale embedded OpenAPI parity test. The macOS arm64 package build and package identity check pass, but were not launched. Do not treat the whole foundation gate as green.
 
 No live-model, real-provider permission, packaged Electron journey, or owner-accepted Outcome is claimed by this documentation update. Green service tests do not establish those facts.
 

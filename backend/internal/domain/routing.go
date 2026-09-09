@@ -9,7 +9,9 @@ import (
 type RoutingRole string
 
 const (
-	RoutingRoleWorker      RoutingRole = "worker"
+	// RoutingRoleWorker identifies ordinary execution admission.
+	RoutingRoleWorker RoutingRole = "worker"
+	// RoutingRoleCoordinator identifies coordinator admission.
 	RoutingRoleCoordinator RoutingRole = "coordinator"
 )
 
@@ -17,9 +19,12 @@ const (
 type CapabilitySupport string
 
 const (
-	CapabilitySupported   CapabilitySupport = "supported"
+	// CapabilitySupported records confirmed adapter capability.
+	CapabilitySupported CapabilitySupport = "supported"
+	// CapabilityUnsupported records a confirmed capability gap.
 	CapabilityUnsupported CapabilitySupport = "unsupported"
-	CapabilityUnknown     CapabilitySupport = "unknown"
+	// CapabilityUnknown records an unconfirmed capability.
+	CapabilityUnknown CapabilitySupport = "unknown"
 )
 
 // RoutingPreference is planning input only. An explicit model is local to this
@@ -51,6 +56,7 @@ type RoutingCandidate struct {
 	Models              map[string]CapabilitySupport
 }
 
+// RoutingCandidateEvaluation records admission results for one candidate.
 type RoutingCandidateEvaluation struct {
 	CandidateID    string   `json:"candidateId"`
 	Provider       string   `json:"provider"`
@@ -60,28 +66,32 @@ type RoutingCandidateEvaluation struct {
 	Reasons        []string `json:"reasons,omitempty"`
 }
 
+// RoutingDecisionStatus is the result state of a routing recommendation.
 type RoutingDecisionStatus string
 
 const (
-	RoutingDecisionRecommended      RoutingDecisionStatus = "recommended"
+	// RoutingDecisionRecommended identifies a usable recommendation.
+	RoutingDecisionRecommended RoutingDecisionStatus = "recommended"
+	// RoutingDecisionNoValidCandidate records fail-closed routing.
 	RoutingDecisionNoValidCandidate RoutingDecisionStatus = "no_valid_candidate"
 )
 
+// RoutingPolicyVersion identifies the deterministic routing policy revision.
 const RoutingPolicyVersion = "wt3-v2-deterministic"
 
 // RoutingDecision is recommendation provenance, never execution authority.
 type RoutingDecision struct {
-	Status                    RoutingDecisionStatus           `json:"status"`
-	PolicyVersion             string                          `json:"policyVersion"`
-	CapabilitySnapshot        string                          `json:"capabilitySnapshot,omitempty"`
-	Role                      RoutingRole                     `json:"role"`
-	EffectivePreference       *RoutingPreference              `json:"effectivePreference,omitempty"`
-	Requirements              RoutingRequirements             `json:"requirements"`
-	RecommendedCandidateID    string                          `json:"recommendedCandidateId,omitempty"`
-	RecommendedProvider       string                          `json:"recommendedProvider,omitempty"`
+	Status                    RoutingDecisionStatus          `json:"status"`
+	PolicyVersion             string                         `json:"policyVersion"`
+	CapabilitySnapshot        string                         `json:"capabilitySnapshot,omitempty"`
+	Role                      RoutingRole                    `json:"role"`
+	EffectivePreference       *RoutingPreference             `json:"effectivePreference,omitempty"`
+	Requirements              RoutingRequirements            `json:"requirements"`
+	RecommendedCandidateID    string                         `json:"recommendedCandidateId,omitempty"`
+	RecommendedProvider       string                         `json:"recommendedProvider,omitempty"`
 	RecommendedModelSelection ExecutionBindingModelSelection `json:"recommendedModelSelection,omitempty"`
-	RecommendedModel          string                          `json:"recommendedModel,omitempty"`
-	Evaluations               []RoutingCandidateEvaluation    `json:"evaluations"`
+	RecommendedModel          string                         `json:"recommendedModel,omitempty"`
+	Evaluations               []RoutingCandidateEvaluation   `json:"evaluations"`
 }
 
 // RecommendedBinding converts recommendation provenance into the exact binding

@@ -88,51 +88,51 @@ func (v CompositionView) Unclaimed() []domain.CriterionClaim {
 //
 // Storage then enforces link immutability and the single-parent-revision rule
 // inside the same transaction that creates the child.
-func (s *Service) CreateContribution(ctx context.Context, parentID domain.OutcomeID, in CreateContributionInput) (OutcomeView, error) {
+func (s *Service) CreateContribution(ctx context.Context, parentID domain.OutcomeID, in CreateContributionInput) (View, error) {
 	if strings.TrimSpace(string(parentID)) == "" {
-		return OutcomeView{}, apierr.Invalid("PARENT_REQUIRED", "Name the Outcome this one contributes to", nil)
+		return View{}, apierr.Invalid("PARENT_REQUIRED", "Name the Outcome this one contributes to", nil)
 	}
 	if strings.TrimSpace(in.RequestKey) == "" {
-		return OutcomeView{}, apierr.Invalid("REQUEST_KEY_REQUIRED", "Provide an idempotency key for this create", nil)
+		return View{}, apierr.Invalid("REQUEST_KEY_REQUIRED", "Provide an idempotency key for this create", nil)
 	}
 	content := normalizeContractContent(in.RequestKey, in.Title, in.Goal, in.SuccessCriteria, in.Review, in.Constraints, in.NonGoals, in.Clarification)
 	if err := validateTitle(content.title); err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	if err := validateContractCore(content); err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 
 	// Replay first: a delivered create never writes twice.
 	if existing, ok, err := s.store.FindOutcomeByIdempotencyKey(ctx, content.requestKey); err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	} else if ok {
 		return s.Get(ctx, existing.ID)
 	}
 
 	parent, ok, err := s.store.GetOutcome(ctx, parentID)
 	if err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	if !ok {
-		return OutcomeView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome no longer exists")
+		return View{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome no longer exists")
 	}
 	if parent.IsContributing() {
-		return OutcomeView{}, apierr.Invalid("COMPOSITION_DEPTH_LIMIT",
+		return View{}, apierr.Invalid("COMPOSITION_DEPTH_LIMIT",
 			fmt.Sprintf("Composition is %d levels deep: a contributing Outcome cannot itself be decomposed", domain.CompositionDepthLimit),
 			map[string]any{"parentId": string(parentID), "parentOf": string(parent.ParentID)})
 	}
 	parentCurrent, err := s.currentRevision(ctx, parent)
 	if err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 
 	claimed, err := resolveClaimedCriteria(parentCurrent, in.ClaimedCriteria)
 	if err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	if widened := domain.AuthorityWidenings(parentCurrent.AuthorityCeiling, in.Authority); len(widened) > 0 {
-		return OutcomeView{}, apierr.Invalid("AUTHORITY_WIDENED",
+		return View{}, apierr.Invalid("AUTHORITY_WIDENED",
 			"A contributing Outcome cannot claim authority its parent does not hold: "+strings.Join(widened, ", "),
 			map[string]any{"parentId": string(parentID), "widened": widened})
 	}
@@ -176,7 +176,7 @@ func (s *Service) CreateContribution(ctx context.Context, parentID domain.Outcom
 		if existing, ok, findErr := s.store.FindOutcomeByIdempotencyKey(ctx, content.requestKey); findErr == nil && ok {
 			return s.Get(ctx, existing.ID)
 		}
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	return s.Get(ctx, child.ID)
 }

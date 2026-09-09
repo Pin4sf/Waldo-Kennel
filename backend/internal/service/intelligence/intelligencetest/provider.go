@@ -25,6 +25,7 @@ var _ ports.IntelligenceProvider = Provider{}
 // New builds the fixed test provider.
 func New() Provider { return Provider{} }
 
+// ID returns the fixed provider identity.
 func (Provider) ID() domain.IntelligenceProviderID { return ProviderID }
 
 // AnalyzeContract returns one editable proposal derived from the statement.

@@ -17,10 +17,10 @@ import (
 // OutcomeService is the controller-facing Outcome contract (#21) plus the
 // Decide & Authorize boundary (#26).
 type OutcomeService interface {
-	Create(ctx context.Context, in outcomevc.CreateInput) (outcomevc.OutcomeView, error)
-	ReviseContract(ctx context.Context, id domain.OutcomeID, in outcomevc.ReviseContractInput) (outcomevc.OutcomeView, error)
-	Get(ctx context.Context, id domain.OutcomeID) (outcomevc.OutcomeView, error)
-	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]outcomevc.OutcomeView, error)
+	Create(ctx context.Context, in outcomevc.CreateInput) (outcomevc.View, error)
+	ReviseContract(ctx context.Context, id domain.OutcomeID, in outcomevc.ReviseContractInput) (outcomevc.View, error)
+	Get(ctx context.Context, id domain.OutcomeID) (outcomevc.View, error)
+	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]outcomevc.View, error)
 	ProposePlan(ctx context.Context, id domain.OutcomeID, expectedContractRevision int64) (outcomevc.PlanView, error)
 	ApprovePlan(ctx context.Context, id domain.OutcomeID, in outcomevc.ApprovePlanInput) (outcomevc.AuthorizedPlanView, error)
 	GetLatestPlan(ctx context.Context, id domain.OutcomeID) (outcomevc.PlanView, error)
@@ -475,7 +475,7 @@ func (c *OutcomesController) getComposition(w http.ResponseWriter, r *http.Reque
 	}
 	// Each contributor carries its own contract so Mission Control can render
 	// the decomposition without a request per child.
-	contributors := make([]outcomevc.OutcomeView, 0, len(view.Contributors))
+	contributors := make([]outcomevc.View, 0, len(view.Contributors))
 	for _, contributor := range view.Contributors {
 		full, err := c.Svc.Get(r.Context(), contributor.Outcome.ID)
 		if err != nil {

@@ -2740,7 +2740,7 @@ func verificationRunResponse(run domain.VerificationRun) VerificationRunResponse
 	}
 }
 
-func outcomeResponse(view outcomevc.OutcomeView) OutcomeResponse {
+func outcomeResponse(view outcomevc.View) OutcomeResponse {
 	history := make([]ContractRevisionResponse, 0, len(view.History))
 	for _, rev := range view.History {
 		history = append(history, contractRevisionResponse(rev))
@@ -3197,7 +3197,7 @@ func criterionClaimResponse(claim domain.CriterionClaim) CriterionClaimResponse 
 	}
 }
 
-func outcomeCompositionResponse(view outcomevc.CompositionView, contributors []outcomevc.OutcomeView) OutcomeCompositionResponse {
+func outcomeCompositionResponse(view outcomevc.CompositionView, contributors []outcomevc.View) OutcomeCompositionResponse {
 	resp := OutcomeCompositionResponse{
 		Shape:             string(view.Shape),
 		Contributors:      make([]ContributorResponse, 0, len(view.Contributors)),

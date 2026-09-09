@@ -41,7 +41,7 @@ func seedPlanServiceWithProject(t *testing.T, project domain.ProjectRecord) (*ou
 	t.Helper()
 	base := newPlanFakeStore()
 	store := &configuredPlanStore{planFakeStore: base, project: project}
-	store.fakeStore.spaces[domain.ProjectID(project.ID)] = domain.ResponsibilitySpace{
+	store.spaces[domain.ProjectID(project.ID)] = domain.ResponsibilitySpace{
 		ID:        "rsp-provider-plan",
 		Kind:      domain.ResponsibilitySpaceWorkProject,
 		ProjectID: domain.ProjectID(project.ID),
@@ -56,11 +56,11 @@ func seedPlanServiceWithProject(t *testing.T, project domain.ProjectRecord) (*ou
 	svc := outcome.New(store, nil).
 		WithPlanning(intelligencetest.New(), &routingInventoryFake{candidates: candidates})
 	view, err := svc.Create(context.Background(), outcome.CreateInput{
-		ProjectID:       domain.ProjectID(project.ID),
-		Title:           "Provider-bound work",
-		Goal:            "Run the authorized provider only.",
-		SuccessCriteria: []string{"the provider is frozen into the WorkUnit"},
-		Review:          "deterministic tests",
+		ProjectID:        domain.ProjectID(project.ID),
+		Title:            "Provider-bound work",
+		Goal:             "Run the authorized provider only.",
+		SuccessCriteria:  []string{"the provider is frozen into the WorkUnit"},
+		Review:           "deterministic tests",
 		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true, WriteWorkspace: true, ExecuteLocal: true},
 		RequestKey:       "req-provider-plan-" + project.ID,
 	})

@@ -1,6 +1,6 @@
 # Outcome Control Plane MVP — post-PR99 execution plan
 
-**Updated:** 2026-09-08. **Source baseline:** `67d6946fdd5e5bba1aca7f7002ba75185e7da998` (`beta`, merged PR #99).
+**Updated:** 2026-09-09. **Source baseline:** `0f5def7ce3823487eeab89401f9cd5fd10d26cc2` (`beta`, merged PR #99).
 **Target:** a usable Outcome Continuity product; Saturday 2026-09-12 is a conditional launch target, not permission to skip gates.
 **Status:** execution-ready plan; product implementation below remains open.
 
@@ -51,7 +51,7 @@ Backend tests cover important foundations, including frozen binding and schedule
 
 | Slice | Depends on | Status | Primary boundary |
 |---|---|---|---|
-| L0 baseline/source reconciliation | none | docs/source checked; frontend baseline triage open | this plan, STATUS, existing product companions |
+| L0 baseline/source reconciliation | none | implemented in isolated `codex/l0-baseline-cleanup`; frontend green; direct lint has two named L1a-owned helpers; inherited OpenAPI parity remains | this plan, STATUS, existing product companions |
 | L1a exact model launch | L0 source baseline | open; regression reproduced | session service → Manager → actual launch config |
 | L1b governed capabilities/replay | L1a | open | approved capabilities → adapter/runtime + idempotency |
 | L2 reasoning setup and recovery | L0 | open | settings/secrets → LLM → durable IntelligenceRun |

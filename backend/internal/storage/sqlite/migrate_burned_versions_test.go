@@ -296,6 +296,6 @@ INSERT INTO projects (
 			if columns != 1 {
 				t.Fatalf("%s.%s count = %d, want exactly 1 after repair", table, column, columns)
 			}
-	}
+		}
 	}
 }

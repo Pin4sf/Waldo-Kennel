@@ -119,8 +119,10 @@ type AuthorizedContribution struct {
 	Links   []domain.ContributionLink
 }
 
+// ErrDecompositionNotProposed indicates that no open proposal can be answered.
 var ErrDecompositionNotProposed = errors.New("decomposition is not an open proposal")
 
+// DecompositionRequestAnswer records the owner's answer to a proposal request.
 type DecompositionRequestAnswer struct {
 	RequestID       domain.DecompositionRequestID
 	Status          domain.DecompositionRequestStatus
@@ -130,4 +132,5 @@ type DecompositionRequestAnswer struct {
 	At              time.Time
 }
 
+// ErrDecompositionRequestClosed indicates that a request is no longer answerable.
 var ErrDecompositionRequestClosed = errors.New("decomposition request is not open")

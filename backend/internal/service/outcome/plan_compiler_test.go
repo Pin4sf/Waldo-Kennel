@@ -108,11 +108,12 @@ type routingInventoryFake struct {
 	preference *domain.RoutingPreference
 	candidates []domain.RoutingCandidate
 }
+
 func (r *routingInventoryFake) RoutingSnapshot(_ context.Context, _ domain.ProjectID, preference *domain.RoutingPreference) (ports.RoutingInventorySnapshot, error) {
 	r.calls++
 	if preference != nil {
-		copy := *preference
-		r.preference = &copy
+		preferenceCopy := *preference
+		r.preference = &preferenceCopy
 	}
 	return ports.RoutingInventorySnapshot{SnapshotID: "snapshot-test", Candidates: r.candidates}, nil
 }
@@ -141,7 +142,7 @@ func newPlanningTestService(t *testing.T, router *routingInventoryFake) (*outcom
 	svc := outcome.New(store, nil).WithPlanning(provider, router)
 
 	store.planFakeStore.mu.Lock()
-	store.fakeStore.spaces["mer"] = domain.ResponsibilitySpace{ID: "rsp-plan-compiler", Kind: domain.ResponsibilitySpaceWorkProject, ProjectID: "mer"}
+	store.spaces["mer"] = domain.ResponsibilitySpace{ID: "rsp-plan-compiler", Kind: domain.ResponsibilitySpaceWorkProject, ProjectID: "mer"}
 	store.planFakeStore.mu.Unlock()
 
 	ctx := context.Background()
@@ -157,7 +158,7 @@ func newPlanningTestService(t *testing.T, router *routingInventoryFake) (*outcom
 	view, err = svc.ReviseContract(ctx, view.Outcome.ID, outcome.ReviseContractInput{
 		ExpectedRevision: 1, Goal: "Ship and verify a bounded change.",
 		SuccessCriteria: []string{"Implementation is present.", "Verification proves the implementation behaves as required."},
-		Review: "Run deterministic verification.", AuthorityCeiling: fullLocalAuthority(), StopConditions: []string{"Stop before remote effects."},
+		Review:          "Run deterministic verification.", AuthorityCeiling: fullLocalAuthority(), StopConditions: []string{"Stop before remote effects."},
 	})
 	if err != nil {
 		t.Fatalf("seed second criterion: %v", err)

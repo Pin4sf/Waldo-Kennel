@@ -22,6 +22,7 @@ type IntakeAnalyzer struct {
 	clock    func() time.Time
 }
 
+// NewIntakeAnalyzer constructs the Intake intelligence adapter.
 func NewIntakeAnalyzer(provider ports.IntelligenceProvider, runs ports.IntelligenceRunStore, clock func() time.Time) *IntakeAnalyzer {
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
@@ -29,15 +30,16 @@ func NewIntakeAnalyzer(provider ports.IntelligenceProvider, runs ports.Intellige
 	return &IntakeAnalyzer{provider: provider, runs: runs, clock: clock}
 }
 
+// Analyze records bounded contract-analysis provenance and returns its proposal.
 func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysisInput) (ports.IntakeAnalysisTicket, error) {
 	if a == nil || a.provider == nil || a.runs == nil {
 		return ports.IntakeAnalysisTicket{}, fmt.Errorf("intelligence provider is not configured")
 	}
 	request := ports.ContractIntelligenceRequest{
-		Session: input.Session,
-		ConversationRefs: input.ConversationRefs,
-		PreviousProposal: input.PreviousProposal,
-		Clarification: input.Clarification,
+		Session:           input.Session,
+		ConversationRefs:  input.ConversationRefs,
+		PreviousProposal:  input.PreviousProposal,
+		Clarification:     input.Clarification,
 		ClarificationText: input.ClarificationText,
 	}
 	inputDigest, err := digestContractRequest(request)
@@ -46,15 +48,15 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 	}
 	now := a.clock().UTC()
 	run := domain.IntelligenceRun{
-		ID: domain.IntelligenceRunID("intel-" + uuid.NewString()),
-		Kind: domain.IntelligenceRunContractAnalysis,
-		ProjectID: input.Session.ProjectID,
-		IntakeID: input.Session.ID,
-		SourceRevision: input.Session.CurrentProposalRevision,
+		ID:                domain.IntelligenceRunID("intel-" + uuid.NewString()),
+		Kind:              domain.IntelligenceRunContractAnalysis,
+		ProjectID:         input.Session.ProjectID,
+		IntakeID:          input.Session.ID,
+		SourceRevision:    input.Session.CurrentProposalRevision,
 		RequestedProvider: a.provider.ID(),
-		InputDigest: inputDigest,
-		Status: domain.IntelligenceRunRequested,
-		CreatedAt: now,
+		InputDigest:       inputDigest,
+		Status:            domain.IntelligenceRunRequested,
+		CreatedAt:         now,
 	}
 	if err := a.runs.CreateIntelligenceRun(ctx, run); err != nil {
 		return ports.IntakeAnalysisTicket{}, err
@@ -89,14 +91,14 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 
 func digestContractRequest(request ports.ContractIntelligenceRequest) (domain.SHA256Digest, error) {
 	payload := struct {
-		IntakeID            string                         `json:"intakeId"`
-		ProjectID           string                         `json:"projectId"`
-		Statement           string                         `json:"statement"`
-		ProposalRevision    int64                          `json:"proposalRevision"`
-		ConversationRefs    []domain.IntakeConversationRef `json:"conversationRefs"`
+		IntakeID            string                          `json:"intakeId"`
+		ProjectID           string                          `json:"projectId"`
+		Statement           string                          `json:"statement"`
+		ProposalRevision    int64                           `json:"proposalRevision"`
+		ConversationRefs    []domain.IntakeConversationRef  `json:"conversationRefs"`
 		PreviousProposal    *domain.OutcomeContractProposal `json:"previousProposal,omitempty"`
-		Clarification       *domain.ClarificationRequest   `json:"clarification,omitempty"`
-		ClarificationAnswer string                         `json:"clarificationAnswer,omitempty"`
+		Clarification       *domain.ClarificationRequest    `json:"clarification,omitempty"`
+		ClarificationAnswer string                          `json:"clarificationAnswer,omitempty"`
 	}{
 		IntakeID: request.Session.ID.String(), ProjectID: string(request.Session.ProjectID),
 		Statement: request.Session.Statement, ProposalRevision: request.Session.CurrentProposalRevision,

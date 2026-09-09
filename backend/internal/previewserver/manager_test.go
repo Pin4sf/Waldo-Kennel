@@ -281,7 +281,7 @@ func TestManagerMissingLaunchFileNamesTheCurrentPath(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), ConfigPath) {
 		t.Fatalf("error %v should name %s", err, ConfigPath)
 	}
-	if err != nil && strings.Contains(err.Error(), legacyConfigPath) {
+	if strings.Contains(err.Error(), legacyConfigPath) {
 		t.Fatalf("error %v must not advertise the legacy path", err)
 	}
 }

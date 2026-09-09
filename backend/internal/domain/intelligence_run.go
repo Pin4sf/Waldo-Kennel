@@ -9,7 +9,8 @@ import (
 // IntelligenceRunID identifies one bounded pre-authorization reasoning run.
 type IntelligenceRunID string
 
-func (id IntelligenceRunID) IsZero() bool  { return strings.TrimSpace(string(id)) == "" }
+// IsZero reports whether the run ID is unset.
+func (id IntelligenceRunID) IsZero() bool   { return strings.TrimSpace(string(id)) == "" }
 func (id IntelligenceRunID) String() string { return string(id) }
 
 // IntelligenceProviderID is opaque intelligence provenance. It is deliberately
@@ -17,17 +18,21 @@ func (id IntelligenceRunID) String() string { return string(id) }
 // execution harnesses.
 type IntelligenceProviderID string
 
-func (id IntelligenceProviderID) IsZero() bool  { return strings.TrimSpace(string(id)) == "" }
+// IsZero reports whether the provider ID is unset.
+func (id IntelligenceProviderID) IsZero() bool   { return strings.TrimSpace(string(id)) == "" }
 func (id IntelligenceProviderID) String() string { return string(id) }
 
 // IntelligenceRunKind identifies the bounded proposal-producing purpose.
 type IntelligenceRunKind string
 
 const (
+	// IntelligenceRunContractAnalysis requests bounded contract analysis.
 	IntelligenceRunContractAnalysis IntelligenceRunKind = "contract_analysis"
-	IntelligenceRunPlanDraft        IntelligenceRunKind = "plan_draft"
+	// IntelligenceRunPlanDraft requests bounded plan drafting.
+	IntelligenceRunPlanDraft IntelligenceRunKind = "plan_draft"
 )
 
+// Valid reports whether the run kind is supported.
 func (k IntelligenceRunKind) Valid() bool {
 	switch k {
 	case IntelligenceRunContractAnalysis, IntelligenceRunPlanDraft:
@@ -41,14 +46,21 @@ func (k IntelligenceRunKind) Valid() bool {
 type IntelligenceRunStatus string
 
 const (
+	// IntelligenceRunRequested is the durable state before execution begins.
 	IntelligenceRunRequested IntelligenceRunStatus = "requested"
-	IntelligenceRunRunning   IntelligenceRunStatus = "running"
+	// IntelligenceRunRunning is the durable state while reasoning executes.
+	IntelligenceRunRunning IntelligenceRunStatus = "running"
+	// IntelligenceRunFulfilled records a completed reasoning run.
 	IntelligenceRunFulfilled IntelligenceRunStatus = "fulfilled"
-	IntelligenceRunFailed    IntelligenceRunStatus = "failed"
+	// IntelligenceRunFailed records a failed reasoning run.
+	IntelligenceRunFailed IntelligenceRunStatus = "failed"
+	// IntelligenceRunCancelled records an owner-cancelled reasoning run.
 	IntelligenceRunCancelled IntelligenceRunStatus = "cancelled"
-	IntelligenceRunExpired   IntelligenceRunStatus = "expired"
+	// IntelligenceRunExpired records a run invalidated by its time bound.
+	IntelligenceRunExpired IntelligenceRunStatus = "expired"
 )
 
+// Valid reports whether the run status is supported.
 func (s IntelligenceRunStatus) Valid() bool {
 	switch s {
 	case IntelligenceRunRequested, IntelligenceRunRunning, IntelligenceRunFulfilled,
@@ -59,6 +71,7 @@ func (s IntelligenceRunStatus) Valid() bool {
 	}
 }
 
+// Terminal reports whether the run can no longer make progress.
 func (s IntelligenceRunStatus) Terminal() bool {
 	switch s {
 	case IntelligenceRunFulfilled, IntelligenceRunFailed, IntelligenceRunCancelled, IntelligenceRunExpired:

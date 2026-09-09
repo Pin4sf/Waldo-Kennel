@@ -19,9 +19,9 @@ func executionCandidate(provider domain.AgentHarness, model string) domain.Routi
 		ID: string(provider), Provider: string(provider), ModelSelection: domain.ExecutionBindingModelProviderDefault,
 		WorkerEligible: true, CoordinatorEligible: provider.IsSelectableAsCoordinator(), Readiness: domain.CapabilitySupported,
 		Capabilities: map[string]domain.CapabilitySupport{
-			domain.CapabilityWorktreeRead: domain.CapabilitySupported,
+			domain.CapabilityWorktreeRead:  domain.CapabilitySupported,
 			domain.CapabilityWorktreeWrite: domain.CapabilitySupported,
-			domain.CapabilityWorktreeExec: domain.CapabilitySupported,
+			domain.CapabilityWorktreeExec:  domain.CapabilitySupported,
 		},
 		Models: models,
 	}
@@ -43,12 +43,18 @@ func newConfiguredAttemptHarness(t *testing.T, provider domain.AgentHarness, mod
 		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true, WriteWorkspace: true, ExecuteLocal: true},
 		RequestKey:       "req-provider-attempt-create",
 	})
-	if err != nil { t.Fatalf("create outcome: %v", err) }
+	if err != nil {
+		t.Fatalf("create outcome: %v", err)
+	}
 	planView, err := svc.ProposePlan(context.Background(), view.Outcome.ID, 1)
-	if err != nil { t.Fatalf("propose: %v", err) }
+	if err != nil {
+		t.Fatalf("propose: %v", err)
+	}
 	if _, err := svc.ApprovePlan(context.Background(), view.Outcome.ID, outcome.ApprovePlanInput{
 		PlanRevisionID: planView.Plan.ID, ExpectedContractRevision: 1,
-	}); err != nil { t.Fatalf("approve: %v", err) }
+	}); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
 	return svc, store, spawner, view.Outcome.ID, planView.Plan.ID
 }
 
@@ -59,15 +65,21 @@ func TestStartAttemptUsesFrozenProviderAndModelAfterProjectPreferenceChanges(t *
 
 	if _, err := svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{
 		PlanRevisionID: planID, WorkUnitID: firstWorkUnitOfPlan[planID], RequestKey: "req-provider-attempt-start",
-	}); err != nil { t.Fatalf("start: %v", err) }
+	}); err != nil {
+		t.Fatalf("start: %v", err)
+	}
 	if store.projectReads != readsBeforeStart {
 		t.Fatalf("Attempt reread mutable Project preference: reads %d -> %d", readsBeforeStart, store.projectReads)
 	}
 	spawner.mu.Lock()
 	defer spawner.mu.Unlock()
-	if len(spawner.spawned) != 1 { t.Fatalf("spawn calls = %d, want 1", len(spawner.spawned)) }
+	if len(spawner.spawned) != 1 {
+		t.Fatalf("spawn calls = %d, want 1", len(spawner.spawned))
+	}
 	req := spawner.spawned[0]
-	if req.Harness != domain.HarnessClaudeCode { t.Fatalf("provider = %q", req.Harness) }
+	if req.Harness != domain.HarnessClaudeCode {
+		t.Fatalf("provider = %q", req.Harness)
+	}
 	if req.ModelSelection != domain.ExecutionBindingModelExplicit || req.Model != "sonnet-test" {
 		t.Fatalf("model binding = %s/%q, want explicit/sonnet-test", req.ModelSelection, req.Model)
 	}
@@ -78,12 +90,22 @@ func TestStartAttemptRejectsProviderMismatchBeforePersistenceOrSpawn(t *testing.
 	_, err := svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{
 		PlanRevisionID: planID, WorkUnitID: firstWorkUnitOfPlan[planID], Harness: domain.HarnessCodex, RequestKey: "req-provider-mismatch",
 	})
-	if code := requireAPICode(t, err); code != outcome.CodeAttemptProviderMismatch { t.Fatalf("code = %s", code) }
+	if code := requireAPICode(t, err); code != outcome.CodeAttemptProviderMismatch {
+		t.Fatalf("code = %s", code)
+	}
 	attempts, listErr := store.ListAttempts(context.Background(), outcomeID)
-	if listErr != nil { t.Fatalf("list attempts: %v", listErr) }
-	if len(attempts) != 0 { t.Fatalf("mismatch persisted %d attempts", len(attempts)) }
-	spawner.mu.Lock(); spawned := len(spawner.spawned); spawner.mu.Unlock()
-	if spawned != 0 { t.Fatalf("mismatch spawned %d sessions", spawned) }
+	if listErr != nil {
+		t.Fatalf("list attempts: %v", listErr)
+	}
+	if len(attempts) != 0 {
+		t.Fatalf("mismatch persisted %d attempts", len(attempts))
+	}
+	spawner.mu.Lock()
+	spawned := len(spawner.spawned)
+	spawner.mu.Unlock()
+	if spawned != 0 {
+		t.Fatalf("mismatch spawned %d sessions", spawned)
+	}
 }
 
 func TestStartAttemptRejectsLegacyUnboundPlanBeforePersistenceOrSpawn(t *testing.T) {
@@ -112,8 +134,16 @@ func TestStartAttemptRejectsLegacyUnboundPlanBeforePersistenceOrSpawn(t *testing
 		t.Fatalf("code = %s, want an unbound-plan or invalidated-brief refusal", code)
 	}
 	attempts, listErr := store.ListAttempts(context.Background(), outcomeID)
-	if listErr != nil { t.Fatalf("list attempts: %v", listErr) }
-	if len(attempts) != 0 { t.Fatalf("unbound plan persisted %d attempts", len(attempts)) }
-	spawner.mu.Lock(); spawned := len(spawner.spawned); spawner.mu.Unlock()
-	if spawned != 0 { t.Fatalf("unbound plan spawned %d sessions", spawned) }
+	if listErr != nil {
+		t.Fatalf("list attempts: %v", listErr)
+	}
+	if len(attempts) != 0 {
+		t.Fatalf("unbound plan persisted %d attempts", len(attempts))
+	}
+	spawner.mu.Lock()
+	spawned := len(spawner.spawned)
+	spawner.mu.Unlock()
+	if spawned != 0 {
+		t.Fatalf("unbound plan spawned %d sessions", spawned)
+	}
 }

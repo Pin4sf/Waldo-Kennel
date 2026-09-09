@@ -18,12 +18,17 @@ const MaxPlanDraftWorkUnits = 16
 type WorkUnitIntent string
 
 const (
-	WorkUnitIntentInspect          WorkUnitIntent = "inspect"
-	WorkUnitIntentModify           WorkUnitIntent = "modify"
-	WorkUnitIntentExecute          WorkUnitIntent = "execute"
+	// WorkUnitIntentInspect requests read-only inspection work.
+	WorkUnitIntentInspect WorkUnitIntent = "inspect"
+	// WorkUnitIntentModify requests workspace mutation without execution.
+	WorkUnitIntentModify WorkUnitIntent = "modify"
+	// WorkUnitIntentExecute requests local execution without mutation.
+	WorkUnitIntentExecute WorkUnitIntent = "execute"
+	// WorkUnitIntentModifyAndExecute requests mutation followed by execution.
 	WorkUnitIntentModifyAndExecute WorkUnitIntent = "modify_and_execute"
 )
 
+// Valid reports whether the work intent is supported.
 func (i WorkUnitIntent) Valid() bool {
 	switch i {
 	case WorkUnitIntentInspect, WorkUnitIntentModify, WorkUnitIntentExecute, WorkUnitIntentModifyAndExecute:
@@ -76,6 +81,7 @@ type PlanDraftWorkUnit struct {
 	EvidenceIdeas   []string
 }
 
+// Validate checks the bounded, non-authoritative draft shape.
 func (p PlanDraftProposal) Validate() error {
 	if strings.TrimSpace(p.Summary) == "" {
 		return fmt.Errorf("plan draft summary is required")

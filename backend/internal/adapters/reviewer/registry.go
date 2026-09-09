@@ -61,6 +61,7 @@ func NewResolver() (*Resolver, error) {
 	return &Resolver{reviewers: m}, nil
 }
 
+// Reviewer resolves the adapter for a reviewer harness.
 func (r *Resolver) Reviewer(harness domain.ReviewerHarness) (ports.Reviewer, bool) {
 	reviewer, ok := r.reviewers[harness]
 	return reviewer, ok

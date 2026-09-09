@@ -29,6 +29,7 @@ func NewLLMProvider(client ports.LLMClient) *LLMProvider {
 	return &LLMProvider{client: client}
 }
 
+// ID returns the model-backed provider identity.
 func (*LLMProvider) ID() domain.IntelligenceProviderID { return LLMProviderID }
 
 const contractSystemPrompt = `You are Waldo, the reasoning half of an outcome control plane for software work.

@@ -11,8 +11,10 @@ import (
 type ExecutionBindingModelSelection string
 
 const (
-	ExecutionBindingModelProviderDefault  ExecutionBindingModelSelection = "provider_default"
-	ExecutionBindingModelExplicit         ExecutionBindingModelSelection = "explicit"
+	// ExecutionBindingModelProviderDefault delegates model selection to the provider.
+	ExecutionBindingModelProviderDefault ExecutionBindingModelSelection = "provider_default"
+	// ExecutionBindingModelExplicit freezes a concrete model selection.
+	ExecutionBindingModelExplicit ExecutionBindingModelSelection = "explicit"
 	// ExecutionBindingModelHistoricalUnbound is read compatibility for plans
 	// created before WT3. New plans must never produce it and Attempts must not
 	// execute it.
@@ -21,9 +23,9 @@ const (
 
 // ExecutionBinding is the exact provider/model authority carried by a WorkUnit.
 type ExecutionBinding struct {
-	Provider       AgentHarness                    `json:"provider"`
+	Provider       AgentHarness                   `json:"provider"`
 	ModelSelection ExecutionBindingModelSelection `json:"modelSelection"`
-	Model          string                          `json:"model,omitempty"`
+	Model          string                         `json:"model,omitempty"`
 }
 
 // ValidateReadable admits historical model-unbound rows so old Plans stay

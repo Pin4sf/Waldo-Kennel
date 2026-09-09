@@ -14,6 +14,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 )
 
+// ProofManager records evidence, verification, and owner acceptance decisions.
 type ProofManager interface {
 	GetProof(context.Context, domain.OutcomeID) (ProofView, error)
 	RecordEvidence(context.Context, domain.OutcomeID, RecordEvidenceInput) (ProofView, error)
@@ -23,15 +24,21 @@ type ProofManager interface {
 	AcceptContributorBatch(context.Context, domain.OutcomeID, AcceptBatchInput) (AcceptBatchView, error)
 }
 
+// ProofStatus is the lifecycle state of an Outcome's proof projection.
 type ProofStatus string
 
 const (
-	ProofStatusActive             ProofStatus = "active"
+	// ProofStatusActive indicates that proof collection remains open.
+	ProofStatusActive ProofStatus = "active"
+	// ProofStatusReadyForAcceptance indicates proof is ready for owner review.
 	ProofStatusReadyForAcceptance ProofStatus = "ready_for_acceptance"
-	ProofStatusAccepted           ProofStatus = "accepted"
-	ProofStatusReworkRequired     ProofStatus = "rework_required"
+	// ProofStatusAccepted indicates the owner accepted the Outcome.
+	ProofStatusAccepted ProofStatus = "accepted"
+	// ProofStatusReworkRequired indicates proof does not support acceptance.
+	ProofStatusReworkRequired ProofStatus = "rework_required"
 )
 
+// CriterionProofView projects proof state for one acceptance criterion.
 type CriterionProofView struct {
 	Criterion     domain.ContractCriterion
 	Evidence      []domain.EvidenceItem
@@ -42,6 +49,7 @@ type CriterionProofView struct {
 	ClaimedBy     []domain.OutcomeID `json:"claimedBy,omitempty"`
 }
 
+// ProofView is the service projection of Outcome proof.
 type ProofView struct {
 	OutcomeID    domain.OutcomeID
 	Contract     domain.ContractRevision
@@ -53,6 +61,7 @@ type ProofView struct {
 	ProofHorizon time.Time
 }
 
+// RecordEvidenceInput contains evidence tied to an Outcome criterion.
 type RecordEvidenceInput struct {
 	ExpectedContractRevision int64
 	ContractRevisionID       domain.ContractRevisionID
@@ -70,6 +79,7 @@ type RecordEvidenceInput struct {
 	RequestKey               string
 }
 
+// RecordVerificationInput contains one verification result.
 type RecordVerificationInput struct {
 	ExpectedContractRevision int64
 	ContractRevisionID       domain.ContractRevisionID
@@ -89,6 +99,7 @@ type RecordVerificationInput struct {
 	RequestKey               string
 }
 
+// DecideAcceptanceInput contains the owner's acceptance decision.
 type DecideAcceptanceInput struct {
 	ExpectedContractRevision int64
 	ContractRevisionID       domain.ContractRevisionID
@@ -102,6 +113,7 @@ type DecideAcceptanceInput struct {
 
 var _ ProofManager = (*Service)(nil)
 
+// GetProof returns the current proof projection for an Outcome.
 func (s *Service) GetProof(ctx context.Context, outcomeID domain.OutcomeID) (ProofView, error) {
 	if s.proof == nil {
 		return ProofView{}, apierr.Internal("OUTCOME_PROOF_UNAVAILABLE", "Outcome proof storage is unavailable")
@@ -133,6 +145,7 @@ func (s *Service) GetProof(ctx context.Context, outcomeID domain.OutcomeID) (Pro
 	return deriveProof(outcomeView, evidence, verifications, decisions, corrections, delegated), nil
 }
 
+// RecordEvidence appends evidence for an Outcome criterion.
 func (s *Service) RecordEvidence(ctx context.Context, outcomeID domain.OutcomeID, in RecordEvidenceInput) (ProofView, error) {
 	if s.proof == nil {
 		return ProofView{}, apierr.Internal("OUTCOME_PROOF_UNAVAILABLE", "Outcome proof storage is unavailable")
@@ -186,6 +199,7 @@ func (s *Service) RecordEvidence(ctx context.Context, outcomeID domain.OutcomeID
 	return s.GetProof(ctx, outcomeID)
 }
 
+// RecordVerification appends a verification run for an Outcome.
 func (s *Service) RecordVerification(ctx context.Context, outcomeID domain.OutcomeID, in RecordVerificationInput) (ProofView, error) {
 	if s.proof == nil {
 		return ProofView{}, apierr.Internal("OUTCOME_PROOF_UNAVAILABLE", "Outcome proof storage is unavailable")
@@ -253,6 +267,7 @@ func (s *Service) RecordVerification(ctx context.Context, outcomeID domain.Outco
 	return s.GetProof(ctx, outcomeID)
 }
 
+// DecideAcceptance records the owner's acceptance decision.
 func (s *Service) DecideAcceptance(ctx context.Context, outcomeID domain.OutcomeID, in DecideAcceptanceInput) (ProofView, error) {
 	if s.proof == nil {
 		return ProofView{}, apierr.Internal("OUTCOME_PROOF_UNAVAILABLE", "Outcome proof storage is unavailable")
@@ -444,7 +459,7 @@ func planWorkUnitCoversCriterion(plan domain.PlanRevision, workUnitID domain.Wor
 	return false
 }
 
-func deriveProof(view OutcomeView, allEvidence []domain.EvidenceItem, allVerifications []domain.VerificationRun, allDecisions []domain.AcceptanceDecision, corrections []domain.OutcomeCorrection, delegated map[domain.CriterionID]domain.DelegatedCriterion) ProofView {
+func deriveProof(view View, allEvidence []domain.EvidenceItem, allVerifications []domain.VerificationRun, allDecisions []domain.AcceptanceDecision, corrections []domain.OutcomeCorrection, delegated map[domain.CriterionID]domain.DelegatedCriterion) ProofView {
 	currentDecisions := make([]domain.AcceptanceDecision, 0)
 	var horizon time.Time
 	for _, decision := range allDecisions {
@@ -616,7 +631,7 @@ func (s *Service) validateReentryTarget(ctx context.Context, outcomeID domain.Ou
 	return nil
 }
 
-func (s *Service) delegatedCriteria(ctx context.Context, view OutcomeView) (map[domain.CriterionID]domain.DelegatedCriterion, error) {
+func (s *Service) delegatedCriteria(ctx context.Context, view View) (map[domain.CriterionID]domain.DelegatedCriterion, error) {
 	children, err := s.store.ListContributingOutcomes(ctx, view.Outcome.ID)
 	if err != nil {
 		return nil, err

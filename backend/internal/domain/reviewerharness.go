@@ -6,11 +6,16 @@ package domain
 type ReviewerHarness string
 
 const (
+	// ReviewerClaudeCode identifies Claude Code reviewer runs.
 	ReviewerClaudeCode ReviewerHarness = "claude-code"
-	ReviewerCodex      ReviewerHarness = "codex"
-	ReviewerCursor     ReviewerHarness = "cursor"
-	ReviewerOpenCode   ReviewerHarness = "opencode"
-	ReviewerPi         ReviewerHarness = "pi"
+	// ReviewerCodex identifies Codex reviewer runs.
+	ReviewerCodex ReviewerHarness = "codex"
+	// ReviewerCursor identifies Cursor reviewer runs.
+	ReviewerCursor ReviewerHarness = "cursor"
+	// ReviewerOpenCode identifies OpenCode reviewer runs.
+	ReviewerOpenCode ReviewerHarness = "opencode"
+	// ReviewerPi identifies Pi reviewer runs.
+	ReviewerPi ReviewerHarness = "pi"
 )
 
 // AllReviewerHarnesses is the complete reviewer provider vocabulary shipped by
@@ -23,6 +28,7 @@ var AllReviewerHarnesses = []ReviewerHarness{
 	ReviewerPi,
 }
 
+// IsRecognizedPersisted reports whether the harness is in the persisted vocabulary.
 func (h ReviewerHarness) IsRecognizedPersisted() bool {
 	for _, candidate := range AllReviewerHarnesses {
 		if h == candidate {
@@ -38,6 +44,7 @@ func (h ReviewerHarness) IsSelectableForNewWork() bool {
 	return h.IsRecognizedPersisted()
 }
 
+// IsKnown reports whether the harness is recognized by the domain.
 func (h ReviewerHarness) IsKnown() bool {
 	return h.IsRecognizedPersisted()
 }

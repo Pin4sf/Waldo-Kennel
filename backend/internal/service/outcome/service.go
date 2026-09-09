@@ -20,10 +20,10 @@ import (
 
 // Manager is the controller-facing boundary for canonical Outcome work.
 type Manager interface {
-	Create(ctx context.Context, in CreateInput) (OutcomeView, error)
-	ReviseContract(ctx context.Context, id domain.OutcomeID, in ReviseContractInput) (OutcomeView, error)
-	Get(ctx context.Context, id domain.OutcomeID) (OutcomeView, error)
-	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]OutcomeView, error)
+	Create(ctx context.Context, in CreateInput) (View, error)
+	ReviseContract(ctx context.Context, id domain.OutcomeID, in ReviseContractInput) (View, error)
+	Get(ctx context.Context, id domain.OutcomeID) (View, error)
+	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]View, error)
 	ProposeDecomposition(ctx context.Context, parentID domain.OutcomeID, in ProposeDecompositionInput) (DecompositionView, error)
 	AuthorizeDecomposition(ctx context.Context, parentID domain.OutcomeID, decompositionID domain.DecompositionRevisionID) (DecompositionView, error)
 	LatestDecomposition(ctx context.Context, parentID domain.OutcomeID) (DecompositionView, error)
@@ -31,13 +31,14 @@ type Manager interface {
 	AskForDecomposition(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) (DecompositionRequestView, error)
 	SubmitAgentProposal(ctx context.Context, requestID domain.DecompositionRequestID, token string, in ProposeDecompositionInput, raw string) (DecompositionRequestView, error)
 	LatestDecompositionRequest(ctx context.Context, outcomeID domain.OutcomeID) (DecompositionRequestView, error)
-	CreateContribution(ctx context.Context, parentID domain.OutcomeID, in CreateContributionInput) (OutcomeView, error)
+	CreateContribution(ctx context.Context, parentID domain.OutcomeID, in CreateContributionInput) (View, error)
 	Composition(ctx context.Context, id domain.OutcomeID) (CompositionView, error)
 	ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) (PlanView, error)
 	ApprovePlan(ctx context.Context, outcomeID domain.OutcomeID, in ApprovePlanInput) (AuthorizedPlanView, error)
 	GetLatestPlan(ctx context.Context, outcomeID domain.OutcomeID) (PlanView, error)
 }
 
+// CreateInput contains the initial owner-facing Outcome contract.
 type CreateInput struct {
 	ProjectID            domain.ProjectID
 	Title                string
@@ -56,6 +57,7 @@ type CreateInput struct {
 	RequestKey           string
 }
 
+// ReviseContractInput contains a new immutable Contract revision.
 type ReviseContractInput struct {
 	ExpectedRevision     int64
 	Goal                 string
@@ -72,7 +74,8 @@ type ReviseContractInput struct {
 	ExecutionPreference  *domain.ExecutionPreference
 }
 
-type OutcomeView struct {
+// View is the service projection of an Outcome and its current plan.
+type View struct {
 	Outcome    domain.Outcome
 	Current    domain.ContractRevision
 	History    []domain.ContractRevision
@@ -102,6 +105,7 @@ type Service struct {
 	staleHeartbeat time.Duration
 }
 
+// WithStaleHeartbeat configures the stale-attempt threshold.
 func (s *Service) WithStaleHeartbeat(d time.Duration) *Service {
 	if d > 0 {
 		s.staleHeartbeat = d
@@ -109,6 +113,7 @@ func (s *Service) WithStaleHeartbeat(d time.Duration) *Service {
 	return s
 }
 
+// New constructs the Outcome control-plane service.
 func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
@@ -141,16 +146,19 @@ func (s *Service) WithExecution(spawner ports.AttemptSessionSpawner, heartbeats 
 	return s
 }
 
+// WithAnalystSessionReaper attaches the compatibility analyst reaper.
 func (s *Service) WithAnalystSessionReaper(reaper ports.AnalystSessionReaper) *Service {
 	s.reaper = reaper
 	return s
 }
 
+// WithDecompositionProposer attaches non-authoritative decomposition proposal.
 func (s *Service) WithDecompositionProposer(proposer ports.DecompositionProposer) *Service {
 	s.proposer = proposer
 	return s
 }
 
+// WithProofStore attaches the durable proof store.
 func (s *Service) WithProofStore(proof ports.OutcomeProofStore) *Service {
 	s.proof = proof
 	return s
@@ -158,30 +166,31 @@ func (s *Service) WithProofStore(proof ports.OutcomeProofStore) *Service {
 
 var _ Manager = (*Service)(nil)
 
-func (s *Service) Create(ctx context.Context, in CreateInput) (OutcomeView, error) {
+// Create persists an Outcome with its initial Contract revision.
+func (s *Service) Create(ctx context.Context, in CreateInput) (View, error) {
 	if strings.TrimSpace(string(in.ProjectID)) == "" {
-		return OutcomeView{}, apierr.Invalid("PROJECT_REQUIRED", "Choose the project this Outcome belongs to", nil)
+		return View{}, apierr.Invalid("PROJECT_REQUIRED", "Choose the project this Outcome belongs to", nil)
 	}
 	if strings.TrimSpace(in.RequestKey) == "" {
-		return OutcomeView{}, apierr.Invalid("REQUEST_KEY_REQUIRED", "Provide an idempotency key for this create", nil)
+		return View{}, apierr.Invalid("REQUEST_KEY_REQUIRED", "Provide an idempotency key for this create", nil)
 	}
 	content := normalizeContractContent(in.RequestKey, in.Title, in.Goal, in.SuccessCriteria, in.Review, in.Constraints, in.NonGoals, in.Clarification)
 	if err := validateTitle(content.title); err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	if err := validateContractCore(content); err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 
 	if existing, ok, err := s.store.FindOutcomeByIdempotencyKey(ctx, content.requestKey); err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	} else if ok {
 		return s.Get(ctx, existing.ID)
 	}
 
 	space, err := s.store.EnsureWorkResponsibilitySpace(ctx, in.ProjectID)
 	if err != nil {
-		return OutcomeView{}, mapStoreSpaceError(err)
+		return View{}, mapStoreSpaceError(err)
 	}
 	now := s.clock()
 	outcomeRecord := domain.Outcome{
@@ -211,12 +220,13 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (OutcomeView, erro
 		if existing, ok, findErr := s.store.FindOutcomeByIdempotencyKey(ctx, content.requestKey); findErr == nil && ok {
 			return s.Get(ctx, existing.ID)
 		}
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	return s.Get(ctx, outcomeRecord.ID)
 }
 
-func (s *Service) ListByProject(ctx context.Context, projectID domain.ProjectID) ([]OutcomeView, error) {
+// ListByProject returns Outcome projections for a project.
+func (s *Service) ListByProject(ctx context.Context, projectID domain.ProjectID) ([]View, error) {
 	if strings.TrimSpace(string(projectID)) == "" {
 		return nil, apierr.Invalid("PROJECT_REQUIRED", "Choose the project whose Outcomes should be listed", nil)
 	}
@@ -224,7 +234,7 @@ func (s *Service) ListByProject(ctx context.Context, projectID domain.ProjectID)
 	if err != nil {
 		return nil, err
 	}
-	views := make([]OutcomeView, 0, len(records))
+	views := make([]View, 0, len(records))
 	for _, record := range records {
 		view, err := s.Get(ctx, record.ID)
 		if err != nil {
@@ -242,19 +252,20 @@ func (s *Service) ListByProject(ctx context.Context, projectID domain.ProjectID)
 	return views, nil
 }
 
-func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in ReviseContractInput) (OutcomeView, error) {
+// ReviseContract appends an owner-authored Contract revision.
+func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in ReviseContractInput) (View, error) {
 	if in.ExpectedRevision < 1 {
-		return OutcomeView{}, apierr.Invalid("EXPECTED_REVISION_REQUIRED", "State which contract revision this edit supersedes", nil)
+		return View{}, apierr.Invalid("EXPECTED_REVISION_REQUIRED", "State which contract revision this edit supersedes", nil)
 	}
 	content := normalizeContractContent("", "", in.Goal, in.SuccessCriteria, in.Review, in.Constraints, in.NonGoals, in.Clarification)
 	if err := validateContractCore(content); err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 
 	if _, ok, err := s.store.GetOutcome(ctx, id); err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	} else if !ok {
-		return OutcomeView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
+		return View{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
 	}
 
 	next := domain.ContractRevision{
@@ -279,7 +290,7 @@ func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in Re
 	if err != nil {
 		var conflict *ports.OutcomeConflictError
 		if errors.As(err, &conflict) {
-			return OutcomeView{}, apierr.New(apierr.KindConflict, "OUTCOME_CONTRACT_CONFLICT",
+			return View{}, apierr.New(apierr.KindConflict, "OUTCOME_CONTRACT_CONFLICT",
 				fmt.Sprintf("Contract moved to revision %s; reload and retry against it", strconv.FormatInt(conflict.CurrentRevisionNum, 10)),
 				map[string]any{
 					"outcomeId":        string(id),
@@ -287,7 +298,7 @@ func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in Re
 					"currentRevision":  conflict.CurrentRevisionNum,
 				})
 		}
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	_ = number
 	return s.Get(ctx, id)
@@ -306,24 +317,25 @@ func stableCriteria(revisionID domain.ContractRevisionID, texts []string) []doma
 	return criteria
 }
 
-func (s *Service) Get(ctx context.Context, id domain.OutcomeID) (OutcomeView, error) {
+// Get returns the current Outcome projection.
+func (s *Service) Get(ctx context.Context, id domain.OutcomeID) (View, error) {
 	record, ok, err := s.store.GetOutcome(ctx, id)
 	if err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	if !ok {
-		return OutcomeView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
+		return View{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
 	}
 	history, err := s.store.ListContractRevisions(ctx, id)
 	if err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	for _, rev := range history {
 		if rev.Number == record.CurrentRevisionNumber {
-			return OutcomeView{Outcome: record, Current: rev, History: history}, nil
+			return View{Outcome: record, Current: rev, History: history}, nil
 		}
 	}
-	return OutcomeView{}, fmt.Errorf("outcome %s points at missing revision %d", id, record.CurrentRevisionNumber)
+	return View{}, fmt.Errorf("outcome %s points at missing revision %d", id, record.CurrentRevisionNumber)
 }
 
 type contractContent struct {

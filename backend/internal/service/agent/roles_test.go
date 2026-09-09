@@ -12,14 +12,6 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
-// fakeProfileAgent is an installed adapter whose profile gate reports the
-// given readiness, so enrichment can be tested without a real dsh binary.
-type fakeProfileAgent struct {
-	fakeAgent
-	ready  bool
-	detail string
-}
-
 // captureProfileAgent records the exact config the readiness probe received,
 // proving Project-config profiles reach the adapter gate.
 type captureProfileAgent struct {
@@ -61,10 +53,6 @@ func TestServiceResolveMissionRolesUsesProjectConfigForReadiness(t *testing.T) {
 	if !strings.Contains(strings.ToLower(roles.Worker.Reason), "profile") {
 		t.Fatalf("reason should carry the profile gate: %q", roles.Worker.Reason)
 	}
-}
-
-func (f fakeProfileAgent) ProfileReadiness(context.Context, ports.AgentConfig) (ports.AgentProfileReadiness, error) {
-	return ports.AgentProfileReadiness{Ready: f.ready, Detail: f.detail}, nil
 }
 
 // TestServiceResolveMissionRolesMismatchedOverrideHarnessIsCleared locks

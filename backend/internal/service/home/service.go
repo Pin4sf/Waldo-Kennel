@@ -10,10 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
-	"github.com/google/uuid"
 )
 
 // Manager is the controller-facing Home service boundary.
@@ -23,6 +24,7 @@ type Manager interface {
 	RecordDisposition(context.Context, domain.OpenLoopID, DispositionInput) (OpenLoopView, error)
 }
 
+// CaptureInput contains one explicit Home capture.
 type CaptureInput struct {
 	SpaceID    domain.ResponsibilitySpaceID
 	Text       string
@@ -30,10 +32,12 @@ type CaptureInput struct {
 	RequestKey string
 }
 
+// CaptureResult returns the durable capture fact.
 type CaptureResult struct {
 	Capture ports.QuickCapture
 }
 
+// CreateOpenLoopInput contains the owner-confirmed Open Loop fields.
 type CreateOpenLoopInput struct {
 	SpaceID            domain.ResponsibilitySpaceID
 	Meaning            string
@@ -46,6 +50,7 @@ type CreateOpenLoopInput struct {
 	RequestKey         string
 }
 
+// DispositionInput contains an owner's Open Loop lifecycle decision.
 type DispositionInput struct {
 	ExpectedRevision int64
 	Kind             domain.LoopDispositionKind
@@ -57,17 +62,20 @@ type DispositionInput struct {
 	RequestKey       string
 }
 
+// OpenLoopView is the service projection of an Open Loop and its history.
 type OpenLoopView struct {
 	OpenLoop     domain.OpenLoop
 	Dispositions []domain.LoopDisposition
 	Revision     int64
 }
 
+// Service implements Home capture and Open Loop lifecycle policy.
 type Service struct {
 	store ports.HomeStore
 	clock func() time.Time
 }
 
+// New constructs the Home service.
 func New(store ports.HomeStore, clock func() time.Time) *Service {
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
@@ -77,6 +85,7 @@ func New(store ports.HomeStore, clock func() time.Time) *Service {
 
 var _ Manager = (*Service)(nil)
 
+// Capture preserves explicit Home input as a durable fact.
 func (s *Service) Capture(ctx context.Context, in CaptureInput) (CaptureResult, error) {
 	in.SpaceID = domain.ResponsibilitySpaceID(strings.TrimSpace(in.SpaceID.String()))
 	in.Text = strings.TrimSpace(in.Text)
@@ -110,6 +119,7 @@ func (s *Service) Capture(ctx context.Context, in CaptureInput) (CaptureResult, 
 	return CaptureResult{Capture: stored}, nil
 }
 
+// CreateOpenLoop confirms and persists a new Open Loop.
 func (s *Service) CreateOpenLoop(ctx context.Context, in CreateOpenLoopInput) (OpenLoopView, error) {
 	in = normalizeCreateOpenLoopInput(in)
 	if in.RequestKey == "" {
@@ -162,6 +172,7 @@ func (s *Service) CreateOpenLoop(ctx context.Context, in CreateOpenLoopInput) (O
 	return viewFromSnapshot(snapshot), nil
 }
 
+// RecordDisposition appends an owner's Open Loop lifecycle decision.
 func (s *Service) RecordDisposition(ctx context.Context, loopID domain.OpenLoopID, in DispositionInput) (OpenLoopView, error) {
 	loopID = domain.OpenLoopID(strings.TrimSpace(loopID.String()))
 	in = normalizeDispositionInput(in)

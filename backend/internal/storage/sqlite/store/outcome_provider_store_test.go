@@ -58,7 +58,7 @@ func canonicalGraphPlan(t *testing.T, revision domain.ContractRevision) domain.P
 	inspect := domain.WorkUnit{
 		ID: "wu-inspect", Kind: domain.WorkUnitDirect, Title: "Inspect the repository",
 		ContractRevisionNumber: revision.Number,
-		Provider: domain.HarnessCodex, ModelSelection: domain.ExecutionBindingModelProviderDefault,
+		Provider:               domain.HarnessCodex, ModelSelection: domain.ExecutionBindingModelProviderDefault,
 		OutputSummary: "A bounded repository assessment.", EvidenceChecks: []string{"repository state inspected"},
 		VerificationRequirement: "inspection is captured", StopConditions: []string{"stop before writes"},
 		CriterionIDs: []domain.CriterionID{criterionIDs[0]}, RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
@@ -66,7 +66,7 @@ func canonicalGraphPlan(t *testing.T, revision domain.ContractRevision) domain.P
 	change := domain.WorkUnit{
 		ID: "wu-change", Kind: domain.WorkUnitDirect, Title: "Make the bounded change",
 		ContractRevisionNumber: revision.Number,
-		Provider: domain.HarnessClaudeCode, ModelSelection: domain.ExecutionBindingModelExplicit, Model: "sonnet-test",
+		Provider:               domain.HarnessClaudeCode, ModelSelection: domain.ExecutionBindingModelExplicit, Model: "sonnet-test",
 		OutputSummary: "The requested change is ready for review.", EvidenceChecks: []string{"change is inspectable"},
 		VerificationRequirement: "deterministic verification passes", StopConditions: []string{"stop before remote effects"},
 		DependsOn: []domain.WorkUnitID{inspect.ID}, CriterionIDs: criterionIDs,
@@ -84,7 +84,7 @@ func canonicalGraphPlan(t *testing.T, revision domain.ContractRevision) domain.P
 		ID: "plan-graph", OutcomeID: revision.OutcomeID, ContractRevisionNumber: revision.Number,
 		Status: domain.PlanStatusProposed, Summary: "Inspect, then make the bounded change.",
 		WorkUnits: []domain.WorkUnit{change, inspect}, // deliberately reverse serialization order
-		Grants: grants,
+		Grants:    grants,
 		RoutingDecisions: []domain.WorkUnitRoutingDecision{
 			recommendedRouting(change, "claude-candidate"),
 			recommendedRouting(inspect, "codex-candidate"),

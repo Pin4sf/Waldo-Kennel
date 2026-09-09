@@ -24,7 +24,7 @@ const (
 	interfaceDeliveryIdlePoll           = 30 * time.Second
 )
 
-var errDrainQuiescenceUnverified = errors.New("Kennel could not verify that the terminal was idle after the latest input. The source interface was left untouched; retry after the terminal settles")
+var errDrainQuiescenceUnverified = errors.New("kennel could not verify that the terminal was idle after the latest input. The source interface was left untouched; retry after the terminal settles")
 
 // interfaceTransitionStore is optional so the existing narrow Manager Store
 // port and its many focused fakes do not grow methods unrelated to their tests.

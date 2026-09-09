@@ -6,6 +6,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
+// ErrSessionNotFound indicates that the requested session does not exist.
 var ErrSessionNotFound = errors.New("session not found")
 
 // SpawnConfig starts one subordinate provider session. Ordinary session callers
@@ -14,15 +15,15 @@ var ErrSessionNotFound = errors.New("session not found")
 // authority and the session manager must not inherit or substitute mutable
 // Project provider/model preferences.
 type SpawnConfig struct {
-	ProjectID domain.ProjectID
-	IssueID   domain.IssueID
+	ProjectID       domain.ProjectID
+	IssueID         domain.IssueID
 	TrackerProvider domain.TrackerProvider
-	IssueContext string
-	Kind         domain.SessionKind
-	Harness      domain.AgentHarness
-	Branch       string
-	Prompt       string
-	AgentConfig AgentConfig
+	IssueContext    string
+	Kind            domain.SessionKind
+	Harness         domain.AgentHarness
+	Branch          string
+	Prompt          string
+	AgentConfig     AgentConfig
 
 	// ExactExecutionBinding is non-nil only for governed Attempt execution.
 	// provider_default deliberately clears any Project model preference;
@@ -35,6 +36,7 @@ type SpawnConfig struct {
 	Attachments   []SpawnAttachment
 }
 
+// SpawnAttachment carries bounded context attached to a spawned session.
 type SpawnAttachment struct {
 	Ext  string
 	Data []byte

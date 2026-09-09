@@ -16,6 +16,7 @@ source_revision, requested_provider, requested_model, effective_provider,
 effective_model, native_session_ref, input_digest, output_digest, status,
 failure_code, failure_detail, created_at, completed_at`
 
+// CreateIntelligenceRun persists one intelligence run provenance record.
 func (s *Store) CreateIntelligenceRun(ctx context.Context, run domain.IntelligenceRun) error {
 	if err := run.Validate(); err != nil {
 		return err
@@ -41,6 +42,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	return nil
 }
 
+// GetIntelligenceRun loads one intelligence run provenance record.
 func (s *Store) GetIntelligenceRun(ctx context.Context, id domain.IntelligenceRunID) (domain.IntelligenceRun, bool, error) {
 	row := s.readDB.QueryRowContext(ctx, `SELECT `+intelligenceRunColumns+` FROM intelligence_runs WHERE id = ?`, id)
 	run, err := scanIntelligenceRun(row)
@@ -64,7 +66,7 @@ ORDER BY created_at, id`)
 	if err != nil {
 		return nil, fmt.Errorf("list non-terminal intelligence runs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []domain.IntelligenceRun
 	for rows.Next() {

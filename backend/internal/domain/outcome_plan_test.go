@@ -56,9 +56,14 @@ func TestPlanRevisionSupportsBoundedWorkUnitGraph(t *testing.T) {
 }
 
 func TestPlanRevisionRejectsDependencyCycle(t *testing.T) {
-	first := validWorkUnit(); first.ID = "wu-a"; first.DependsOn = []WorkUnitID{"wu-b"}
-	second := validWorkUnit(); second.ID = "wu-b"; second.DependsOn = []WorkUnitID{"wu-a"}
-	plan := validPlanRevision(); plan.WorkUnits = []WorkUnit{first, second}
+	first := validWorkUnit()
+	first.ID = "wu-a"
+	first.DependsOn = []WorkUnitID{"wu-b"}
+	second := validWorkUnit()
+	second.ID = "wu-b"
+	second.DependsOn = []WorkUnitID{"wu-a"}
+	plan := validPlanRevision()
+	plan.WorkUnits = []WorkUnit{first, second}
 	if err := plan.Validate(); err == nil || !strings.Contains(err.Error(), "cycle") {
 		t.Fatalf("cycle validation = %v", err)
 	}
@@ -66,19 +71,22 @@ func TestPlanRevisionRejectsDependencyCycle(t *testing.T) {
 
 func TestPlanRevisionValidationBasics(t *testing.T) {
 	cases := []struct {
-		name string
+		name   string
 		mutate func(*PlanRevision)
-		want string
+		want   string
 	}{
 		{"missing id", func(p *PlanRevision) { p.ID = "" }, "id is required"},
 		{"missing outcome", func(p *PlanRevision) { p.OutcomeID = "" }, "outcome id is required"},
 		{"no work units", func(p *PlanRevision) { p.WorkUnits = nil }, "at least one work unit"},
 		{"bad digest", func(p *PlanRevision) { p.RunBriefCoreDigest = "not-a-digest" }, "SHA-256"},
-		{"duplicate grant", func(p *PlanRevision) { p.Grants = append(p.Grants, CapabilityGrant{ID: "dup", Name: CapabilityWorktreeRead, Scope: "worktree/*"}) }, "duplicate capability grant"},
+		{"duplicate grant", func(p *PlanRevision) {
+			p.Grants = append(p.Grants, CapabilityGrant{ID: "dup", Name: CapabilityWorktreeRead, Scope: "worktree/*"})
+		}, "duplicate capability grant"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			plan := validPlanRevision(); tc.mutate(&plan)
+			plan := validPlanRevision()
+			tc.mutate(&plan)
 			if err := plan.Validate(); err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("Validate() = %v, want %q", err, tc.want)
 			}
@@ -95,8 +103,10 @@ func TestPlanCriterionCoverageIsCompleteAndRevisionLocal(t *testing.T) {
 			{ID: "crit-2", ContractRevisionID: "cr-1", Position: 2, Text: "command verified"},
 		},
 	}
-	unit := validWorkUnit(); unit.CriterionIDs = []CriterionID{"crit-1"}
-	plan := validPlanRevision(); plan.WorkUnits = []WorkUnit{unit}
+	unit := validWorkUnit()
+	unit.CriterionIDs = []CriterionID{"crit-1"}
+	plan := validPlanRevision()
+	plan.WorkUnits = []WorkUnit{unit}
 	if err := plan.ValidateAgainstContract(revision); err == nil || !strings.Contains(err.Error(), "crit-2") {
 		t.Fatalf("incomplete coverage = %v", err)
 	}
@@ -120,7 +130,9 @@ func TestPlanApprovalRequiresRoutingBindingAgreement(t *testing.T) {
 	unit := validWorkUnit()
 	unit.CriterionIDs = []CriterionID{"crit-1"}
 	unit.RequiredCapabilities = []string{CapabilityWorktreeRead}
-	if err := unit.BindExecution(ExecutionBinding{Provider: AgentHarness("codex"), ModelSelection: ExecutionBindingModelProviderDefault}); err != nil { t.Fatal(err) }
+	if err := unit.BindExecution(ExecutionBinding{Provider: AgentHarness("codex"), ModelSelection: ExecutionBindingModelProviderDefault}); err != nil {
+		t.Fatal(err)
+	}
 	decision := RoutingDecision{
 		Status: RoutingDecisionRecommended, PolicyVersion: RoutingPolicyVersion, Role: RoutingRoleWorker,
 		RecommendedCandidateID: "candidate-a", RecommendedProvider: "codex", RecommendedModelSelection: ExecutionBindingModelProviderDefault,
@@ -130,7 +142,9 @@ func TestPlanApprovalRequiresRoutingBindingAgreement(t *testing.T) {
 	plan.Grants = []CapabilityGrant{{ID: "cg-read", Name: CapabilityWorktreeRead, Scope: "worktree/*"}}
 	plan.RoutingDecisions = []WorkUnitRoutingDecision{{WorkUnitID: unit.ID, Decision: decision}}
 	digest, err := ComputePlanRunBriefCoreDigest(revision, plan.WorkUnits, plan.Grants)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	plan.RunBriefCoreDigest = digest
 	if err := plan.ValidateForApproval(revision); err != nil {
 		t.Fatalf("matching routing/binding rejected: %v", err)
@@ -142,12 +156,14 @@ func TestPlanApprovalRequiresRoutingBindingAgreement(t *testing.T) {
 }
 
 func TestLeastPrivilegeCapabilitiesArePerWorkUnit(t *testing.T) {
-	readOnly := validWorkUnit(); readOnly.RequiredCapabilities = []string{CapabilityWorktreeRead}
+	readOnly := validWorkUnit()
+	readOnly.RequiredCapabilities = []string{CapabilityWorktreeRead}
 	grants := []CapabilityGrant{{ID: "cg-read", Name: CapabilityWorktreeRead, Scope: "worktree/*"}}
 	if missing := MissingCapabilitiesForWorkUnit(grants, readOnly); len(missing) != 0 {
 		t.Fatalf("read-only unit unexpectedly needs more authority: %v", missing)
 	}
-	write := validWorkUnit(); write.RequiredCapabilities = []string{CapabilityWorktreeRead, CapabilityWorktreeWrite}
+	write := validWorkUnit()
+	write.RequiredCapabilities = []string{CapabilityWorktreeRead, CapabilityWorktreeWrite}
 	missing := MissingCapabilitiesForWorkUnit(grants, write)
 	if len(missing) != 1 || missing[0] != CapabilityWorktreeWrite {
 		t.Fatalf("missing capabilities = %v", missing)
@@ -158,18 +174,33 @@ func TestComputePlanRunBriefCoreDigestBindsGraphAndExecution(t *testing.T) {
 	revision := ContractRevision{
 		ID: "cr-1", OutcomeID: "out-1", Number: 1, Goal: "Ship docs", SuccessCriteria: []string{"docs visible"}, Review: "owner",
 	}
-	unit := validWorkUnit(); unit.ID = "wu-a"
+	unit := validWorkUnit()
+	unit.ID = "wu-a"
 	baseline, err := ComputePlanRunBriefCoreDigest(revision, []WorkUnit{unit}, validGrants())
-	if err != nil { t.Fatal(err) }
-	changed := unit; changed.Provider = AgentHarness("codex"); changed.ModelSelection = ExecutionBindingModelProviderDefault
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := unit
+	changed.Provider = AgentHarness("codex")
+	changed.ModelSelection = ExecutionBindingModelProviderDefault
 	altered, err := ComputePlanRunBriefCoreDigest(revision, []WorkUnit{changed}, validGrants())
-	if err != nil { t.Fatal(err) }
-	if baseline == altered { t.Fatal("provider/model semantics did not change digest") }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baseline == altered {
+		t.Fatal("provider/model semantics did not change digest")
+	}
 
-	second := validWorkUnit(); second.ID = "wu-b"; second.DependsOn = []WorkUnitID{"wu-a"}
+	second := validWorkUnit()
+	second.ID = "wu-b"
+	second.DependsOn = []WorkUnitID{"wu-a"}
 	graphDigest, err := ComputePlanRunBriefCoreDigest(revision, []WorkUnit{second, unit}, validGrants())
-	if err != nil { t.Fatal(err) }
-	if graphDigest == baseline { t.Fatal("dependency graph did not change digest") }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if graphDigest == baseline {
+		t.Fatal("dependency graph did not change digest")
+	}
 }
 
 func TestAuthorityIntersection(t *testing.T) {
