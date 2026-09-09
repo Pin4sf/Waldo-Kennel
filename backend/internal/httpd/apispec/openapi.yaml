@@ -12190,6 +12190,11 @@ components:
         nextRunnableWorkUnitId:
           type: string
         noRunnableReason:
+          enum:
+          - all_units_proven
+          - attempt_executing
+          - attempt_paused
+          - awaiting_proof
           type: string
         outcomeId:
           type: string
@@ -12211,6 +12216,9 @@ components:
             $ref: '#/components/schemas/ScheduleAttemptBrief'
           type: array
         blockedReason:
+          enum:
+          - awaiting_dependency_proof
+          - custody_held
           type: string
         blockingDependencies:
           items:
@@ -12229,6 +12237,7 @@ components:
           - executing
           - proven
           - retryable
+          - paused
           type: string
         workUnit:
           $ref: '#/components/schemas/PlanWorkUnitResponse'

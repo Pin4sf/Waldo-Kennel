@@ -4174,20 +4174,22 @@ export interface components {
             activeAttempt?: components["schemas"]["ScheduleAttemptBrief"];
             custodyHeldByWorkUnitId?: string;
             nextRunnableWorkUnitId?: string;
-            noRunnableReason?: string;
+            /** @enum {string} */
+            noRunnableReason?: "all_units_proven" | "attempt_executing" | "attempt_paused" | "awaiting_proof";
             outcomeId: string;
             plan: components["schemas"]["PlanRevisionResponse"];
             workUnits: components["schemas"]["ScheduleWorkUnitResponse"][];
         };
         ScheduleWorkUnitResponse: {
             attempts: components["schemas"]["ScheduleAttemptBrief"][];
-            blockedReason?: string;
+            /** @enum {string} */
+            blockedReason?: "awaiting_dependency_proof" | "custody_held";
             blockingDependencies: string[];
             criterionReady: {
                 [key: string]: boolean;
             } | null;
             /** @enum {string} */
-            state: "blocked" | "runnable" | "executing" | "proven" | "retryable";
+            state: "blocked" | "runnable" | "executing" | "proven" | "retryable" | "paused";
             workUnit: components["schemas"]["PlanWorkUnitResponse"];
         };
         SendConversationMessageRequest: {

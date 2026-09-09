@@ -2894,11 +2894,11 @@ type PlanEnvelope struct {
 // WorkUnit. React must render this projection rather than recreate eligibility.
 type ScheduleWorkUnitResponse struct {
 	WorkUnit PlanWorkUnitResponse   `json:"workUnit"`
-	State    string                 `json:"state" enum:"blocked,runnable,executing,proven,retryable"`
+	State    string                 `json:"state" enum:"blocked,runnable,executing,proven,retryable,paused"`
 	Attempts []ScheduleAttemptBrief `json:"attempts"`
 	// BlockedReason distinguishes waiting on dependency proof from waiting on
 	// the serial custody fence. Empty unless the unit is blocked.
-	BlockedReason        string          `json:"blockedReason,omitempty"`
+	BlockedReason        string          `json:"blockedReason,omitempty" enum:"awaiting_dependency_proof,custody_held"`
 	BlockingDependencies []string        `json:"blockingDependencies"`
 	CriterionReady       map[string]bool `json:"criterionReady"`
 }
@@ -2923,7 +2923,7 @@ type ScheduleResponse struct {
 	CustodyHeldByWorkUnitID string `json:"custodyHeldByWorkUnitId,omitempty"`
 	// NoRunnableReason explains an empty runnable set, so a Mission with
 	// nothing to start can say why instead of showing an endless spinner.
-	NoRunnableReason string `json:"noRunnableReason,omitempty"`
+	NoRunnableReason string `json:"noRunnableReason,omitempty" enum:"all_units_proven,attempt_executing,attempt_paused,awaiting_proof"`
 }
 
 // ScheduleEnvelope wraps a daemon-derived Plan schedule response.

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { components } from "../../../api/schema";
 import { cn } from "../../lib/utils";
+import { layerByDependency } from "../../lib/dependency-layers";
 
 type Decomposition = components["schemas"]["DecompositionResponse"];
 type Contributor = components["schemas"]["ContributorResponse"];
@@ -15,6 +16,12 @@ type Contributor = components["schemas"]["ContributorResponse"];
  * keyed by ref and enriches with live state when there is any.
  */
 type Node = {
+	/**
+	 * Graph identity, equal to `ref`. Named `id` to satisfy the shared
+	 * DependencyNode contract; `ref` is kept because it is the decomposition's
+	 * own vocabulary and what dependency edges are expressed in.
+	 */
+	id: string;
 	ref: string;
 	title: string;
 	outcomeId?: string;
@@ -25,41 +32,15 @@ type Node = {
 };
 
 /**
- * Longest-path layering: a node sits one level below its deepest prerequisite.
+ * Layers this decomposition's contributions.
  *
- * Levels are the honest reading of `FromRef must finish before ToRef starts` —
- * they say what must happen before what. They are deliberately NOT a promise
- * that a level runs together: see the note this component renders.
- *
- * The daemon cycle-checks dependencies before authorizing, so a cycle cannot
- * reach an authorized decomposition. A PROPOSED one is not yet checked though,
- * and this also renders drafts, so the walk is depth-bounded rather than
- * trusting the input: an unauthorized draft with a cycle must not hang the UI.
+ * Thin wrapper over the shared layering so the decomposition graph and the
+ * direct WorkUnit graph cannot drift apart geometrically. Their node
+ * *semantics* stay separate on purpose: these edges order contributing
+ * Outcomes, not execution.
  */
 export function layerContributions(nodes: Node[]): Node[][] {
-	const byRef = new Map(nodes.map((node) => [node.ref, node]));
-	const depth = new Map<string, number>();
-	const resolve = (ref: string, seen: Set<string>): number => {
-		const cached = depth.get(ref);
-		if (cached !== undefined) return cached;
-		// A ref already on this path is a cycle; stop rather than recurse.
-		if (seen.has(ref)) return 0;
-		const node = byRef.get(ref);
-		if (!node) return 0;
-		seen.add(ref);
-		const level = node.upstream.reduce((deepest, up) => Math.max(deepest, resolve(up, seen) + 1), 0);
-		seen.delete(ref);
-		depth.set(ref, level);
-		return level;
-	};
-	for (const node of nodes) resolve(node.ref, new Set());
-
-	const levels: Node[][] = [];
-	for (const node of nodes) {
-		const level = depth.get(node.ref) ?? 0;
-		(levels[level] ??= []).push(node);
-	}
-	return levels.filter(Boolean);
+	return layerByDependency(nodes);
 }
 
 /** Builds the graph's nodes from a decomposition and whatever live state exists. */
@@ -74,6 +55,7 @@ export function graphNodes(decomposition: Decomposition, contributors: Contribut
 			? contributors.find((entry) => entry.outcome.id === contribution.childOutcomeId)
 			: undefined;
 		return {
+			id: contribution.ref,
 			ref: contribution.ref,
 			title: contribution.title,
 			outcomeId: contribution.childOutcomeId,
