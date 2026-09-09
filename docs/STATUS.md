@@ -5,6 +5,14 @@
 **Execution authority:** [post-PR99 implementation plan](superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md).
 **Fresh checks:** [baseline verification record](verification/2026-09-08-post-pr99-launch-baseline.md).
 
+## Implementation inventory — verified 2026-09-09
+
+Fresh remote check: `origin/beta` is `9396c3844`. The Wednesday branch at `c83684c11` is five commits ahead, with no remote divergence. L2 (`0b867790c`), L3 (`684b9c0a9`), L4 (`170230bf0`) and follow-up fixes (`d617b4ee3`, `c83684c11`) exist locally but are not on beta. The original assignment scope does not make that code unimplemented; assess it by behavior and reuse it.
+
+L2 settings/secrets/recovery and repository-focused L3 grounding/replan are implemented locally with remaining live/experience gates. L4 includes Plan cards, schedule API, daemon-selected Start and CDC invalidation, but the existing Mission graph renders decomposition rather than the direct WorkUnit DAG. Full Mission Graph and integrated Board/List navigation remain incomplete. L5 proof/continuation/delivery, L6 focused launch experience, and L7 rehearsal remain open. General non-repository Outcome behavior needs explicit verification/implementation; repository grounding alone does not establish it.
+
+Use the [Work launch experience](product/2026-09-09-kennel-work-launch-experience.md) as target behavior. Complete gaps rather than rebuilding whole slices or resetting progress based on assignment history. Code presence, automated checks, live behavior and owner acceptance remain separate.
+
 ## Implemented foundation
 
 Source and automated checks support these implementation claims; they are not end-to-end launch acceptance:
@@ -34,7 +42,7 @@ ADRs 0010/0011/0012, product architecture and ADRs 0008/0009 govern the target. 
 | Runtime authority | Attempt spawn now carries an attributed normalized WorkUnit policy; Codex TUI/Chat require the exact supported capability set and `worktree/*` scope, then pin network, extra writable roots, and temp-root settings at the provider boundary. Live canary enforcement remains unproved | L7 |
 | Reasoning readiness/recovery | Local settings/secret readiness, restart reconciliation, metrics and adapter HTTP seams are implemented; live provider conformance remains unproved | L2 |
 | Grounding/replan | Bounded repository context, substantive proposal context, clarification semantics, explicit replan, and persisted assumptions/blockers are implemented; live grounded proposal evidence remains open | L3 |
-| Plan/Mission UI | Full Plan/schedule projection is implemented; real daemon-backed desktop journey and live provider launch remain unverified | L4 |
+| Plan/Mission UI | Candidate Plan cards/schedule API are present; complete Board/List/Mission Graph and real desktop journey remain unaccepted | L4 |
 | Proof/continuation | UI Outcome-level proof does not satisfy scheduler WorkUnit proof scope; automated check/artifact collection and downstream workspace handoff need integration | L5 |
 | Re-entry/navigation | Bounded prior-result context and Outcome-first normal entry paths require real journey verification and cleanup | L6 |
 | Release | Packaged installation, live provider enforcement, restart, full proof/acceptance loop and measured performance remain unaccepted | L7 |
@@ -57,7 +65,7 @@ Evidence: `go test ./...` exit 0; touched-package `go test -race ./internal/serv
 
 ## L3 grounded proposals and explicit replan evidence
 
-L3 is implemented on top of L2 `0b867790cc45f2685d3645e2a0f73a5a4e33e2c1`. Contract and Plan intelligence requests now carry a bounded repository snapshot: registered root, Git revision/dirty state, applicable `AGENTS.md` instructions, selected small text files, Project Brief, discovered package check scripts, and a digest of the exact packet. Inspection is read-only, excludes ignored/dependency/build/secret trees, rejects binary and oversized files, skips symlinks, and is time/file/byte bounded. Discovered commands are presented as facts and are never executed during proposal generation.
+Candidate L3 code is present at `684b9c0a9`, based on L2 `0b867790c`; this is not accepted L3 completion. Contract and Plan intelligence requests now carry a bounded repository snapshot: registered root, Git revision/dirty state, applicable `AGENTS.md` instructions, selected small text files, Project Brief, discovered package check scripts, and a digest of the exact packet. Inspection is read-only, excludes ignored/dependency/build/secret trees, rejects binary and oversized files, skips symlinks, and is time/file/byte bounded. Discovered commands are presented as facts and are never executed during proposal generation.
 
 Previous Contract proposals are serialized as substantive context rather than reduced to a title. Clarification answers remain clarification context and are appended to the proposal notes by the existing intake state machine; they no longer populate `TemporalCondition` unless a future explicit temporal field is supplied. Plan assumptions and blockers are durable immutable review data in migration 0117 and are included in the Plan API. Ordinary plan reload remains idempotent; `POST /outcomes/{outcomeId}/plans/replan` requires owner feedback and appends a new immutable proposal bound to the expected Contract revision.
 
@@ -65,7 +73,7 @@ GREEN evidence: repository-context exclusion/digest tests, clarification prompt 
 
 ## L4 Plan and schedule projection evidence
 
-L4 is implemented on L3 `684b9c0a96bdd6443be71255e2f4bc896faa6eeb`. The daemon now exposes read-only `GET /api/v1/outcomes/{outcomeId}/plans/{planId}/schedule`, mapping the existing derived scheduler view to the generated API with all WorkUnits, dependency blockers, criterion readiness, Attempt summaries, active Attempt and next runnable identity. Start admission accepts an omitted WorkUnit assertion so the daemon selects that next runnable unit; explicit legacy assertions remain validated. Schedule reads do not spawn or mutate execution state.
+Candidate L4 code is present at `170230bf0`, based on `684b9c0a9`; Board/List and Mission Graph acceptance remain open. The daemon now exposes read-only `GET /api/v1/outcomes/{outcomeId}/plans/{planId}/schedule`, mapping the existing derived scheduler view to the generated API with all WorkUnits, dependency blockers, criterion readiness, Attempt summaries, active Attempt and next runnable identity. Start admission accepts an omitted WorkUnit assertion so the daemon selects that next runnable unit; explicit legacy assertions remain validated. Schedule reads do not spawn or mutate execution state.
 
 Plan review and Act & Observe now show every WorkUnit, criterion/dependency coverage, approved provider/model semantics, routing decisions, assumptions/blockers and daemon-derived schedule state. The normal frontend start request contains only the approved Plan identity and idempotency key; it no longer queries Project roles or sends a mutable harness. Preview data follows the same projection shape.
 
@@ -103,6 +111,6 @@ No live-model, real-provider permission, packaged Electron journey, or owner-acc
 
 ## Next work
 
-Next is L5 proof, artifacts and serial continuation. L2/L3 live reasoning and grounded-proposal evidence, L1 live enforcement, and the real daemon-backed desktop journey remain explicitly open until the missing code-mode host and disposable-repository credentials are restored. L6 re-entry/navigation and L7 release rehearsal remain outside this milestone.
+Next is verification/integration of the existing Wednesday code and closure of concrete L2/L3 gaps, followed by the missing direct WorkUnit graph and complete L4 desktop journey. Do not restart L2/L3 from scratch. L5 proof/artifact/continuation/delivery follows the relevant verified dependencies; L6 and L7 remain open. Credentials and the execution host block different boundaries, not all local checks. Push/integration still requires authorization.
 
 The release gate remains: real repo → grounded Contract → full Plan approval → exact bounded execution → retained artifacts/checks → understandable proof → owner acceptance/rework, including interruption and restart without duplicate execution.

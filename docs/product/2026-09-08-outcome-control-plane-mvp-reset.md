@@ -1,5 +1,7 @@
 # Waldo Kennel — Outcome Control Plane MVP Reset
 
+**Work launch clarification (2026-09-09):** Read [Work launch experience and execution handoff](2026-09-09-kennel-work-launch-experience.md) for general Outcome scope, Board/List and Mission Graph behavior, delivery, focused launch navigation and assignment gates. Existing architecture/ADR boundaries remain authoritative.
+
 > Post-PR99 note (2026-09-08): this document describes the target product. Current implementation facts and remaining tasks are in [STATUS](../STATUS.md) and the [execution plan](../superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md). ADR0012 supersedes older fallback guidance.
 
 - **Status:** Current MVP product/program amendment
