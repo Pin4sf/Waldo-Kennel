@@ -238,7 +238,10 @@ type planReply struct {
 // confirms, and the control plane still validates.
 func (p *LLMProvider) AnalyzeContract(ctx context.Context, request ports.ContractIntelligenceRequest) (ports.ContractIntelligenceResponse, error) {
 	if p == nil || p.client == nil {
-		return ports.ContractIntelligenceResponse{}, fmt.Errorf("waldo reasoning is not configured")
+		// A classified failure so this reaches the owner as an actionable
+		// setup state rather than an opaque 500.
+		return ports.ContractIntelligenceResponse{}, ports.NewReasoningFailure(
+			ports.ReasoningNotConfigured, "Waldo reasoning is not configured", nil)
 	}
 
 	var input strings.Builder
@@ -350,7 +353,8 @@ func (p *LLMProvider) AnalyzeContract(ctx context.Context, request ports.Contrac
 // reply is non-authoritative: Kennel compiles the canonical PlanRevision.
 func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntelligenceRequest) (ports.PlanIntelligenceResponse, error) {
 	if p == nil || p.client == nil {
-		return ports.PlanIntelligenceResponse{}, fmt.Errorf("waldo reasoning is not configured")
+		return ports.PlanIntelligenceResponse{}, ports.NewReasoningFailure(
+			ports.ReasoningNotConfigured, "Waldo reasoning is not configured", nil)
 	}
 
 	var input strings.Builder

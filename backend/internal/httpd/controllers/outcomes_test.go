@@ -26,6 +26,8 @@ type fakeOutcomeService struct {
 	get    func(context.Context, domain.OutcomeID) (outcomevc.View, error)
 	list   func(context.Context, domain.ProjectID) ([]outcomevc.View, error)
 
+	proposePlan func(context.Context, domain.OutcomeID, int64) (outcomevc.PlanView, error)
+
 	contribute  func(context.Context, domain.OutcomeID, outcomevc.CreateContributionInput) (outcomevc.View, error)
 	composition func(context.Context, domain.OutcomeID) (outcomevc.CompositionView, error)
 
@@ -102,8 +104,11 @@ func (f *fakeOutcomeService) Composition(ctx context.Context, id domain.OutcomeI
 	return f.composition(ctx, id)
 }
 
-func (f *fakeOutcomeService) ProposePlan(_ context.Context, _ domain.OutcomeID, _ int64) (outcomevc.PlanView, error) {
-	return outcomevc.PlanView{}, apierr.NotFound("PLAN_NOT_FOUND", "not implemented in fake")
+func (f *fakeOutcomeService) ProposePlan(ctx context.Context, id domain.OutcomeID, expected int64) (outcomevc.PlanView, error) {
+	if f.proposePlan == nil {
+		return outcomevc.PlanView{}, apierr.NotFound("PLAN_NOT_FOUND", "not implemented in fake")
+	}
+	return f.proposePlan(ctx, id, expected)
 }
 
 func (f *fakeOutcomeService) ApprovePlan(_ context.Context, _ domain.OutcomeID, _ outcomevc.ApprovePlanInput) (outcomevc.AuthorizedPlanView, error) {

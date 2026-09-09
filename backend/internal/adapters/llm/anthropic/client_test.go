@@ -3,9 +3,9 @@ package anthropic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -52,16 +52,23 @@ func TestCompleteRejectsRefusalMalformedAndHTTPFailuresWithoutRetry(t *testing.T
 	for _, tc := range []struct {
 		name, response string
 		status         int
+		want           ports.ReasoningFailureKind
 	}{
-		{"refusal", `{"id":"m","type":"message","role":"assistant","model":"m","content":[],"stop_reason":"refusal","stop_details":{"category":"safety"}}`, http.StatusOK},
-		{"malformed", `{"id":"m","type":"message","role":"assistant","model":"m","content":[{"type":"text","text":"not-json"}],"stop_reason":"end_turn"}`, http.StatusOK},
-		{"unauthorized", `{"error":{"type":"authentication_error","message":"bad key"}}`, http.StatusUnauthorized},
-		{"rate-limited", `{"error":{"type":"rate_limit_error","message":"slow down"}}`, http.StatusTooManyRequests},
+		{"refusal", `{"id":"m","type":"message","role":"assistant","model":"m","content":[],"stop_reason":"refusal","stop_details":{"category":"safety"}}`, http.StatusOK, ports.ReasoningDeclined},
+		{"malformed", `{"id":"m","type":"message","role":"assistant","model":"m","content":[{"type":"text","text":"not-json"}],"stop_reason":"end_turn"}`, http.StatusOK, ports.ReasoningInvalidOutput},
+		{"unauthorized", `{"error":{"type":"authentication_error","message":"bad key"}}`, http.StatusUnauthorized, ports.ReasoningUnauthorized},
+		{"rate-limited", `{"error":{"type":"rate_limit_error","message":"slow down"}}`, http.StatusTooManyRequests, ports.ReasoningRateLimited},
+		{"server-fault", `{"error":{"type":"api_error","message":"boom"}}`, http.StatusBadGateway, ports.ReasoningUnavailable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls++
+				// The SDK only parses a JSON body when it is announced as
+				// JSON. Without this header it fails at the transport layer,
+				// which is what previously let the refusal/malformed rows
+				// "pass" while never reaching the code they name.
+				w.Header().Set("content-type", "application/json")
 				w.WriteHeader(tc.status)
 				_, _ = w.Write([]byte(tc.response))
 			}))
@@ -70,8 +77,9 @@ func TestCompleteRejectsRefusalMalformedAndHTTPFailuresWithoutRetry(t *testing.T
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := client.Complete(context.Background(), anthropicRequest()); err == nil {
-				t.Fatal("expected error")
+			_, err = client.Complete(context.Background(), anthropicRequest())
+			if got := reasoningKind(t, err); got != tc.want {
+				t.Fatalf("kind = %q, want %q (err = %v)", got, tc.want, err)
 			}
 			if calls != 1 {
 				t.Fatalf("calls = %d, want one with retries disabled", calls)
@@ -80,11 +88,13 @@ func TestCompleteRejectsRefusalMalformedAndHTTPFailuresWithoutRetry(t *testing.T
 	}
 }
 
-func TestCompleteHonorsCancellationAndTimeout(t *testing.T) {
+// Asserting the classification rather than the error message is what keeps
+// this deterministic; see the matching note in the openai adapter's tests.
+func TestCompleteClassifiesClientDeadlineAsTimeout(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
-		case <-time.After(200 * time.Millisecond):
+		case <-time.After(2 * time.Second):
 		}
 	}))
 	defer server.Close()
@@ -92,7 +102,56 @@ func TestCompleteHonorsCancellationAndTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.Complete(context.Background(), anthropicRequest()); err == nil || !strings.Contains(err.Error(), "deadline exceeded") {
-		t.Fatalf("error = %v, want deadline", err)
+	_, err = client.Complete(context.Background(), anthropicRequest())
+	if got := reasoningKind(t, err); got != ports.ReasoningTimedOut {
+		t.Fatalf("kind = %q, want %q (err = %v)", got, ports.ReasoningTimedOut, err)
 	}
+}
+
+func TestCompleteClassifiesCallerCancellationAsCancelled(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-time.After(2 * time.Second):
+		}
+	}))
+	defer server.Close()
+	client, err := New(Config{APIKey: "test-key", BaseURL: server.URL, HTTPClient: server.Client(), MaxRetries: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		cancel()
+	}()
+	defer cancel()
+	_, err = client.Complete(ctx, anthropicRequest())
+	if got := reasoningKind(t, err); got != ports.ReasoningCancelled {
+		t.Fatalf("kind = %q, want %q (err = %v)", got, ports.ReasoningCancelled, err)
+	}
+}
+
+func TestNewWithoutKeyReportsMissingSetupNotAnOpaqueFailure(t *testing.T) {
+	_, err := New(Config{})
+	if !errors.Is(err, ErrNotConfigured) {
+		t.Fatalf("err = %v, want ErrNotConfigured", err)
+	}
+	if got := reasoningKind(t, err); got != ports.ReasoningNotConfigured {
+		t.Fatalf("kind = %q, want %q", got, ports.ReasoningNotConfigured)
+	}
+}
+
+// reasoningKind fails the test unless err carries a classification, so an
+// unclassified reasoning failure can never pass silently.
+func reasoningKind(t *testing.T, err error) ports.ReasoningFailureKind {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected a reasoning failure, got nil")
+	}
+	var failure *ports.ReasoningFailure
+	if !errors.As(err, &failure) {
+		t.Fatalf("error is not classified: %v", err)
+	}
+	return failure.Kind
 }

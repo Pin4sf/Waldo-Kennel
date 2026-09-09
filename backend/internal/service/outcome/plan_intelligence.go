@@ -87,12 +87,19 @@ func (s *Service) draftPlanWithProvenance(
 	if err != nil {
 		completed := s.clock().UTC()
 		duration := time.Since(started).Milliseconds()
-		if metricErr := s.intelligenceRuns.RecordIntelligenceRunMetrics(ctx, run.ID, nil, nil, &duration); metricErr != nil {
-			_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_STATUS_PERSIST_FAILED", "Reasoning status could not be persisted safely", &completed)
+		// Terminalizing has to outlive the caller's context; see
+		// intelligence.TerminalizationContext for why.
+		cleanup, cancelCleanup := intelligencesvc.TerminalizationContext(ctx)
+		defer cancelCleanup()
+		if metricErr := s.intelligenceRuns.RecordIntelligenceRunMetrics(cleanup, run.ID, nil, nil, &duration); metricErr != nil {
+			_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(cleanup, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_STATUS_PERSIST_FAILED", "Reasoning status could not be persisted safely", &completed)
 			return domain.PlanDraftProposal{}, fmt.Errorf("plan intelligence failed and recovery state could not be recorded: %w", metricErr)
 		}
-		_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_PROVIDER_FAILED", "Plan intelligence provider failed", &completed)
-		return domain.PlanDraftProposal{}, err
+		// The classified reason, so a missing credential, a throttle and a
+		// refusal stay distinguishable in durable provenance.
+		failureCode, failureDetail := intelligencesvc.TerminalReason(err)
+		_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(cleanup, run.ID, domain.IntelligenceRunFailed, "", failureCode, failureDetail, &completed)
+		return domain.PlanDraftProposal{}, intelligencesvc.APIError(err)
 	}
 	duration := time.Since(started).Milliseconds()
 	if err := s.intelligenceRuns.RecordIntelligenceRunMetrics(ctx, run.ID, response.Provenance.InputTokens, response.Provenance.OutputTokens, &duration); err != nil {

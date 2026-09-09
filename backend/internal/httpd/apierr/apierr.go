@@ -22,6 +22,11 @@ const (
 	KindConflict
 	// KindForbidden is an authenticated ownership failure; it maps to 403.
 	KindForbidden
+	// KindUnavailable is a dependency Kennel does not control being unable to
+	// serve the request right now — an upstream timeout, throttle or outage; it
+	// maps to 503. It is distinct from KindInternal because the request was not
+	// wrong and Kennel did not fail: repeating it later may simply work.
+	KindUnavailable
 )
 
 // Error is the structured error every service returns. Code is a stable machine
@@ -70,4 +75,9 @@ func Forbidden(code, message string) *Error {
 // Internal is a 500-class error.
 func Internal(code, message string) *Error {
 	return New(KindInternal, code, message, nil)
+}
+
+// Unavailable is a 503-class upstream failure.
+func Unavailable(code, message string, details map[string]any) *Error {
+	return New(KindUnavailable, code, message, details)
 }

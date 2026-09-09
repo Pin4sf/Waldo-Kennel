@@ -96,14 +96,24 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 	if err != nil {
 		completed := a.clock().UTC()
 		duration := time.Since(started).Milliseconds()
-		if metricErr := a.runs.RecordIntelligenceRunMetrics(ctx, run.ID, nil, nil, &duration); metricErr != nil {
-			_ = a.runs.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_STATUS_PERSIST_FAILED", "Reasoning status could not be persisted safely", &completed)
+		// Terminalizing has to outlive the caller's context. A cancelled or
+		// timed-out request cancels ctx too, and writing the terminal state
+		// through it would fail — leaving the run "running" and the UI showing
+		// Waldo as still thinking until the next daemon restart reconciles it.
+		cleanup, cancelCleanup := TerminalizationContext(ctx)
+		defer cancelCleanup()
+		if metricErr := a.runs.RecordIntelligenceRunMetrics(cleanup, run.ID, nil, nil, &duration); metricErr != nil {
+			_ = a.runs.UpdateIntelligenceRunStatus(cleanup, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_STATUS_PERSIST_FAILED", "Reasoning status could not be persisted safely", &completed)
 			return ports.IntakeAnalysisTicket{}, fmt.Errorf("contract intelligence failed and recovery state could not be recorded: %w", metricErr)
 		}
-		// Persist a stable code and non-sensitive summary; provider-native errors
-		// may contain prompts/tokens and do not belong in canonical provenance.
-		_ = a.runs.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_PROVIDER_FAILED", "Contract intelligence provider failed", &completed)
-		return ports.IntakeAnalysisTicket{}, err
+		// Persist the classified reason, not a flat "provider failed": the
+		// owner's next move differs between a missing credential, a throttle
+		// and a refusal. The detail is the adapter's own summary, because
+		// provider-native errors may contain prompts/tokens and do not belong
+		// in canonical provenance.
+		failureCode, failureDetail := TerminalReason(err)
+		_ = a.runs.UpdateIntelligenceRunStatus(cleanup, run.ID, domain.IntelligenceRunFailed, "", failureCode, failureDetail, &completed)
+		return ports.IntakeAnalysisTicket{}, APIError(err)
 	}
 	duration := time.Since(started).Milliseconds()
 	if err := a.runs.RecordIntelligenceRunMetrics(ctx, run.ID, responseMetrics(response), responseOutputMetrics(response), &duration); err != nil {
