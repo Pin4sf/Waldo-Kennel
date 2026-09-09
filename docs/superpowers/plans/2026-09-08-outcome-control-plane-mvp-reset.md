@@ -51,8 +51,8 @@ Backend tests cover important foundations, including frozen binding and schedule
 
 | Slice | Depends on | Status | Primary boundary |
 |---|---|---|---|
-| L0 baseline/source reconciliation | none | implemented in isolated `codex/l0-baseline-cleanup`; frontend and HTTP/spec parity green; direct lint has two named L1a-owned helpers; generated contracts repaired after L0 rename | this plan, STATUS, existing product companions |
-| L1a exact model launch | L0 source baseline | open; regression reproduced | session service → Manager → actual launch config |
+| L0 baseline/source reconciliation | none | implemented in isolated `codex/l0-baseline-cleanup`; frontend, frontend typecheck, HTTP/spec parity and full lint green; generated contracts repaired after the L0 rename; L1a-owned unused helper findings resolved | this plan, STATUS, existing product companions |
+| L1a exact model launch | L0 source baseline | implemented in isolated `codex/l0-baseline-cleanup`; Manager-boundary TUI and Chat regression tests green, targeted race/vet green; live provider conformance and restart/recovery remain open | session service → Manager → actual launch config |
 | L1b governed capabilities/replay | L1a | open | approved capabilities → adapter/runtime + idempotency |
 | L2 reasoning setup and recovery | L0 | open | settings/secrets → LLM → durable IntelligenceRun |
 | L3 grounded proposals and replan | L2 | open | context → Contract/Plan proposal/revision |

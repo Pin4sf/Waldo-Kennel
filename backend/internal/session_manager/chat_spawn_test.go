@@ -30,6 +30,62 @@ func newChatManager(chat ChatLauncher) (*Manager, *fakeStore, *fakeRuntime) {
 	return m, st, rt
 }
 
+func TestChatSpawn_ExactExecutionBindingReachesController(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
+		AgentConfig: domain.AgentConfig{Model: "mutable-project-model"},
+		Worker:      domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Model: "mutable-worker-model"}},
+	}}
+	agent := &recordingAgent{}
+	launcher := &recordingLauncher{}
+	runtime := &fakeRuntime{}
+	m := New(Deps{
+		Runtime: runtime, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st,
+		Messenger: &fakeMessenger{}, Chat: launcher, Lifecycle: &fakeLCM{store: st}, LookPath: func(string) (string, error) { return "/bin/true", nil },
+	})
+
+	tests := []struct {
+		name    string
+		binding domain.ExecutionBinding
+		want    string
+	}{
+		{
+			name: "explicit model",
+			binding: domain.ExecutionBinding{
+				Provider: domain.HarnessCodex, ModelSelection: domain.ExecutionBindingModelExplicit, Model: "approved-model",
+			},
+			want: "approved-model",
+		},
+		{
+			name: "provider default",
+			binding: domain.ExecutionBinding{
+				Provider: domain.HarnessCodex, ModelSelection: domain.ExecutionBindingModelProviderDefault,
+			},
+			want: "",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			binding := test.binding
+			if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+				ProjectID: "mer", Kind: domain.KindWorker, RequestedMode: domain.SessionModeChat,
+				AgentConfig: ports.AgentConfig{Model: "mutable-request-model"}, ExactExecutionBinding: &binding,
+			}); err != nil {
+				t.Fatalf("Spawn: %v", err)
+			}
+			if got := launcher.started[len(launcher.started)-1].Model; got != test.want {
+				t.Fatalf("chat model = %q, want %q", got, test.want)
+			}
+			if got := st.projects["mer"].Config.Worker.AgentConfig.Model; got != "mutable-worker-model" {
+				t.Fatalf("project worker model = %q, want it unchanged", got)
+			}
+			if runtime.created != 0 {
+				t.Fatalf("chat spawn created %d terminal runtimes", runtime.created)
+			}
+		})
+	}
+}
+
 const chatTestProject = domain.ProjectID("mer")
 
 // The load-bearing property of the split: exactly one controller starts. A chat

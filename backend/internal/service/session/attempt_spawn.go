@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
@@ -26,19 +25,4 @@ func (s *Service) SpawnExactAttempt(ctx context.Context, cfg ports.SpawnConfig, 
 	// means the provider owns model selection for this exact binding.
 	cfg.AgentConfig.Model = ""
 	return s.Spawn(ctx, cfg)
-}
-
-func normalizedExactModel(binding domain.ExecutionBinding) (string, error) {
-	switch binding.ModelSelection {
-	case domain.ExecutionBindingModelProviderDefault:
-		return "", nil
-	case domain.ExecutionBindingModelExplicit:
-		model := strings.TrimSpace(binding.Model)
-		if model == "" {
-			return "", fmt.Errorf("explicit execution binding requires model")
-		}
-		return model, nil
-	default:
-		return "", fmt.Errorf("unsupported exact model selection %q", binding.ModelSelection)
-	}
 }

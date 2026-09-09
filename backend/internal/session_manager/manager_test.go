@@ -1109,6 +1109,57 @@ func TestSpawn_ResolvesProjectConfig(t *testing.T) {
 	}
 }
 
+func TestSpawn_ExactExecutionBindingReachesLaunchConfig(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
+		AgentConfig: domain.AgentConfig{Model: "mutable-project-model"},
+		Worker:      domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Model: "mutable-worker-model"}},
+	}}
+	agent := &recordingAgent{}
+	m := New(Deps{
+		Runtime: &fakeRuntime{}, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st,
+		Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: func(string) (string, error) { return "/bin/true", nil },
+	})
+
+	tests := []struct {
+		name    string
+		binding domain.ExecutionBinding
+		want    string
+	}{
+		{
+			name: "explicit model",
+			binding: domain.ExecutionBinding{
+				Provider: domain.HarnessCodex, ModelSelection: domain.ExecutionBindingModelExplicit, Model: "approved-model",
+			},
+			want: "approved-model",
+		},
+		{
+			name: "provider default",
+			binding: domain.ExecutionBinding{
+				Provider: domain.HarnessCodex, ModelSelection: domain.ExecutionBindingModelProviderDefault,
+			},
+			want: "",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			binding := test.binding
+			if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+				ProjectID: "mer", Kind: domain.KindWorker, AgentConfig: ports.AgentConfig{Model: "mutable-request-model"},
+				ExactExecutionBinding: &binding,
+			}); err != nil {
+				t.Fatalf("Spawn: %v", err)
+			}
+			if got := agent.lastLaunch.Config.Model; got != test.want {
+				t.Fatalf("launch model = %q, want %q", got, test.want)
+			}
+			if got := st.projects["mer"].Config.Worker.AgentConfig.Model; got != "mutable-worker-model" {
+				t.Fatalf("project worker model = %q, want it unchanged", got)
+			}
+		})
+	}
+}
+
 func TestSpawn_ExplicitCodexClearsHistoricalProjectModelAndMode(t *testing.T) {
 	st := newFakeStore()
 	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
