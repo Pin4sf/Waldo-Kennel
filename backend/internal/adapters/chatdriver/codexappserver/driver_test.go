@@ -737,6 +737,102 @@ func TestStartMapsAttemptExecutionPolicyToNarrowSandbox(t *testing.T) {
 	if params.ApprovalPolicy != "on-request" || params.Sandbox != "read-only" {
 		t.Fatalf("policy posture = %q/%q, want on-request/read-only", params.ApprovalPolicy, params.Sandbox)
 	}
+
+	if _, err := conv.SendTurn(context.Background(), ports.ChatUserMessage{
+		Text:     "inspect",
+		Settings: ports.ChatTurnSettings{Approval: ports.PermissionModeBypassPermissions},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	turn := srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
+	var turnParams struct {
+		ApprovalPolicy string `json:"approvalPolicy"`
+		SandboxPolicy  struct {
+			Type          string `json:"type"`
+			NetworkAccess bool   `json:"networkAccess"`
+		} `json:"sandboxPolicy"`
+	}
+	if err := json.Unmarshal(turn.Params, &turnParams); err != nil {
+		t.Fatal(err)
+	}
+	if turnParams.ApprovalPolicy != "on-request" || turnParams.SandboxPolicy.Type != "readOnly" || turnParams.SandboxPolicy.NetworkAccess {
+		t.Fatalf("governed turn boundary = %+v, want on-request/readOnly/network=false", turnParams)
+	}
+}
+
+func TestValidateExecutionPolicyRejectsRestrictedScope(t *testing.T) {
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest: "brief", RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
+		Grants: []domain.CapabilityGrant{{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/docs/*"}},
+	}
+	if err := (&Driver{}).ValidateExecutionPolicy(context.Background(), policy); err == nil {
+		t.Fatal("restricted worktree scope was accepted")
+	} else if !errors.Is(err, ports.ErrExecutionPolicyUnsupported) {
+		t.Fatalf("err = %v, want typed unsupported policy", err)
+	}
+}
+
+func TestValidateExecutionPolicyRejectsUnknownCapability(t *testing.T) {
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest:   "brief",
+		RequiredCapabilities: []string{"provider.unknown", domain.CapabilityWorktreeRead},
+		Grants: []domain.CapabilityGrant{
+			{ID: "unknown", Name: "provider.unknown", Scope: "worktree/*"},
+			{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
+		},
+	}
+	if err := (&Driver{}).ValidateExecutionPolicy(context.Background(), policy); err == nil {
+		t.Fatal("unknown capability was accepted alongside worktree.read")
+	} else if !errors.Is(err, ports.ErrExecutionPolicyUnsupported) {
+		t.Fatalf("err = %v, want typed unsupported policy", err)
+	}
+}
+
+func TestStartPinsWorkspaceWriteBoundaryOnEveryTurn(t *testing.T) {
+	d, srv := newTestDriver(t)
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest: "brief",
+		RequiredCapabilities: []string{
+			domain.CapabilityWorktreeExec, domain.CapabilityWorktreeRead, domain.CapabilityWorktreeWrite,
+		},
+		Grants: []domain.CapabilityGrant{
+			{ID: "exec", Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"},
+			{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
+			{ID: "write", Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"},
+		},
+	}
+	conv, err := d.Start(context.Background(), ports.ChatStartConfig{WorkspacePath: "/tmp/ws", ExecutionPolicy: &policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conv.Close() }()
+	if _, err := conv.SendTurn(context.Background(), ports.ChatUserMessage{
+		Text:     "edit",
+		Settings: ports.ChatTurnSettings{Approval: ports.PermissionModeBypassPermissions},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	turn := srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
+	var params struct {
+		ApprovalPolicy string `json:"approvalPolicy"`
+		SandboxPolicy  struct {
+			Type                string   `json:"type"`
+			NetworkAccess       bool     `json:"networkAccess"`
+			WritableRoots       []string `json:"writableRoots"`
+			ExcludeSlashTmp     bool     `json:"excludeSlashTmp"`
+			ExcludeTmpdirEnvVar bool     `json:"excludeTmpdirEnvVar"`
+		} `json:"sandboxPolicy"`
+	}
+	if err := json.Unmarshal(turn.Params, &params); err != nil {
+		t.Fatal(err)
+	}
+	policyOnWire := params.SandboxPolicy
+	if params.ApprovalPolicy != "on-request" || policyOnWire.Type != "workspaceWrite" || policyOnWire.NetworkAccess || len(policyOnWire.WritableRoots) != 0 || !policyOnWire.ExcludeSlashTmp || !policyOnWire.ExcludeTmpdirEnvVar {
+		t.Fatalf("governed turn boundary = %+v, want workspaceWrite/network=false/empty-roots/temp-excluded", params)
+	}
 }
 
 func TestEnvSliceIsSortedForReproducibleRelaunch(t *testing.T) {

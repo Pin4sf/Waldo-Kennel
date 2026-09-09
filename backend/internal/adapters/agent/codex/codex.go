@@ -24,6 +24,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/terminalui"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/codexpolicy"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
@@ -78,20 +79,8 @@ func (p *Plugin) ValidateExecutionPolicy(ctx context.Context, _ ports.AgentConfi
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := policy.Validate(); err != nil {
-		return fmt.Errorf("codex execution policy: %w", err)
-	}
-	if policy.Has(domain.CapabilityWorktreeRead) && !policy.Has(domain.CapabilityWorktreeWrite) && !policy.Has(domain.CapabilityWorktreeExec) {
-		return nil
-	}
-	if policy.Has(domain.CapabilityWorktreeRead) && policy.Has(domain.CapabilityWorktreeWrite) && policy.Has(domain.CapabilityWorktreeExec) {
-		return nil
-	}
-	return &ports.ExecutionPolicyUnsupportedError{
-		Harness:    domain.HarnessCodex,
-		Capability: strings.Join(policy.RequiredCapabilities, ","),
-		Detail:     "Codex cannot represent this capability set without granting a broader sandbox",
-	}
+	_, err := codexpolicy.SandboxFor(policy)
+	return err
 }
 
 var _ ports.ActiveTurnSteerer = (*Plugin)(nil)
@@ -158,11 +147,21 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		if err := p.ValidateExecutionPolicy(ctx, cfg.Config, *cfg.ExecutionPolicy); err != nil {
 			return nil, err
 		}
-		sandbox := "workspace-write"
-		if !cfg.ExecutionPolicy.Has(domain.CapabilityWorktreeWrite) {
-			sandbox = "read-only"
+		sandbox, err := codexpolicy.SandboxFor(*cfg.ExecutionPolicy)
+		if err != nil {
+			return nil, err
 		}
 		providerArgs = append(providerArgs, "--sandbox", sandbox)
+		if sandbox == "workspace-write" {
+			// These settings are independent of --sandbox and can otherwise be
+			// widened by ~/.codex/config.toml.
+			providerArgs = append(providerArgs,
+				"-c", "sandbox_workspace_write.network_access=false",
+				"-c", "sandbox_workspace_write.writable_roots=[]",
+				"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
+				"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+			)
+		}
 		permission = ports.PermissionModeAcceptEdits
 	}
 	return agentruntime.BuildLaunchCommand(agentruntime.LaunchConfig{

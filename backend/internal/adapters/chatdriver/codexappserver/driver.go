@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/processenv"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/codexpolicy"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
@@ -91,19 +92,8 @@ func (d *Driver) ValidateExecutionPolicy(ctx context.Context, policy domain.Atte
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := policy.Validate(); err != nil {
-		return fmt.Errorf("codex chat execution policy: %w", err)
-	}
-	readOnly := policy.Has(domain.CapabilityWorktreeRead) && !policy.Has(domain.CapabilityWorktreeWrite) && !policy.Has(domain.CapabilityWorktreeExec)
-	workspaceExecution := policy.Has(domain.CapabilityWorktreeRead) && policy.Has(domain.CapabilityWorktreeWrite) && policy.Has(domain.CapabilityWorktreeExec)
-	if readOnly || workspaceExecution {
-		return nil
-	}
-	return &ports.ExecutionPolicyUnsupportedError{
-		Harness:    domain.HarnessCodex,
-		Capability: strings.Join(policy.RequiredCapabilities, ","),
-		Detail:     "Codex Chat cannot represent this capability set without granting a broader sandbox",
-	}
+	_, err := codexpolicy.SandboxFor(policy)
+	return err
 }
 
 // capabilities is what a Codex app-server of a supported version provides. Each
@@ -274,12 +264,16 @@ func (d *Driver) Start(ctx context.Context, cfg ports.ChatStartConfig) (ports.Ch
 	}
 
 	policy, sandbox := approvalSettings(cfg.Permissions)
+	var governedSandboxPolicy map[string]any
 	if cfg.ExecutionPolicy != nil {
-		policy = "on-request"
-		sandbox = "workspace-write"
-		if !cfg.ExecutionPolicy.Has(domain.CapabilityWorktreeWrite) {
-			sandbox = "read-only"
+		var err error
+		sandbox, err = codexpolicy.SandboxFor(*cfg.ExecutionPolicy)
+		if err != nil {
+			_ = conv.Close()
+			return nil, err
 		}
+		policy = "on-request"
+		governedSandboxPolicy = turnSandboxPolicyForExecution(sandbox)
 	}
 	params := map[string]any{
 		"cwd":            cfg.WorkspacePath,
@@ -311,7 +305,7 @@ func (d *Driver) Start(ctx context.Context, cfg ports.ChatStartConfig) (ports.Ch
 		return nil, errors.New("thread/start returned no thread id")
 	}
 
-	conv.start(resp.Thread.ID, resp.Model, resp.ReasoningEffort)
+	conv.start(resp.Thread.ID, resp.Model, resp.ReasoningEffort, governedSandboxPolicy)
 	return conv, nil
 }
 
@@ -357,7 +351,7 @@ func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.
 		return nil, fmt.Errorf("%w: %w", ports.ErrChatResumeFailed, err)
 	}
 
-	conv.start(cfg.ProviderConversationID, resp.Model, resp.ReasoningEffort)
+	conv.start(cfg.ProviderConversationID, resp.Model, resp.ReasoningEffort, nil)
 	return conv, nil
 }
 
