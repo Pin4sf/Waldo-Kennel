@@ -40,6 +40,16 @@ type SecretStore interface {
 	Clear(context.Context) error
 }
 
+// ProviderSecretStore keeps credentials bound to the provider selected by the
+// owner. SecretStore remains embedded for compatibility with older stores, but
+// a provider-aware store must never hand one provider's key to another.
+type ProviderSecretStore interface {
+	SecretStore
+	GetForProvider(context.Context, string) (string, error)
+	SetForProvider(context.Context, string, string) error
+	ClearForProvider(context.Context, string) error
+}
+
 // ReasoningInput is the owner-authored reasoning selection and optional secret update.
 type ReasoningInput struct {
 	Provider string
@@ -141,11 +151,11 @@ func (s *Service) SetReasoning(ctx context.Context, input ReasoningInput) (Reaso
 		return ReasoningStatus{}, fmt.Errorf("local reasoning secret store is unavailable")
 	}
 	if input.ClearKey {
-		if err := s.secrets.Clear(ctx); err != nil {
+		if err := s.clearReasoningSecret(ctx, provider); err != nil {
 			return ReasoningStatus{}, err
 		}
 	} else if strings.TrimSpace(input.APIKey) != "" {
-		if err := s.secrets.Set(ctx, input.APIKey); err != nil {
+		if err := s.setReasoningSecret(ctx, provider, input.APIKey); err != nil {
 			return ReasoningStatus{}, err
 		}
 	}
@@ -161,13 +171,6 @@ func (s *Service) ResolveReasoning(ctx context.Context) (ReasoningConfig, error)
 	snapshot, err := s.store.GetAppSettings(ctx)
 	if err != nil {
 		return ReasoningConfig{}, err
-	}
-	key := ""
-	if s.secrets != nil {
-		key, err = s.secrets.Get(ctx)
-		if err != nil {
-			return ReasoningConfig{}, err
-		}
 	}
 	lookup := s.lookup
 	provider := strings.ToLower(strings.TrimSpace(lookup("KENNEL_WALDO_PROVIDER")))
@@ -193,6 +196,17 @@ func (s *Service) ResolveReasoning(ctx context.Context) (ReasoningConfig, error)
 			provider = "openai"
 		}
 	}
+	key := ""
+	if s.secrets != nil {
+		if providerSecrets, ok := s.secrets.(ProviderSecretStore); ok && (provider == "anthropic" || provider == "openai") {
+			key, err = providerSecrets.GetForProvider(ctx, provider)
+		} else {
+			key, err = s.secrets.Get(ctx)
+		}
+		if err != nil {
+			return ReasoningConfig{}, err
+		}
+	}
 	keySource := "local-secret-store"
 	if shared != "" {
 		key, keySource = shared, "KENNEL_WALDO_API_KEY"
@@ -212,6 +226,20 @@ func (s *Service) ResolveReasoning(ctx context.Context) (ReasoningConfig, error)
 		return cfg, fmt.Errorf("reasoning credential is not configured for %s", provider)
 	}
 	return cfg, nil
+}
+
+func (s *Service) setReasoningSecret(ctx context.Context, provider, value string) error {
+	if providerSecrets, ok := s.secrets.(ProviderSecretStore); ok {
+		return providerSecrets.SetForProvider(ctx, provider, value)
+	}
+	return s.secrets.Set(ctx, value)
+}
+
+func (s *Service) clearReasoningSecret(ctx context.Context, provider string) error {
+	if providerSecrets, ok := s.secrets.(ProviderSecretStore); ok {
+		return providerSecrets.ClearForProvider(ctx, provider)
+	}
+	return s.secrets.Clear(ctx)
 }
 
 func reasoningError(err error) (string, string) {

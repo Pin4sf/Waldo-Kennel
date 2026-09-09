@@ -301,6 +301,7 @@ export function useReviseOutcomeContract(outcomeId: string | undefined) {
 		save: async (input: ReviseOutcomeContractRequest) => {
 			const outcome = await write.save(input);
 			if (usesPreviewWorkspaceData) queryClient.removeQueries({ queryKey: planQueryKey(outcomeId) });
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId) });
 			return outcome;
 		},
 	};
@@ -319,6 +320,10 @@ export const PLAN_CAPABILITY_UNAUTHORIZED = "PLAN_CAPABILITY_UNAUTHORIZED";
 
 function planQueryKey(outcomeId: string | undefined) {
 	return ["outcome-plan", outcomeId ?? ""] as const;
+}
+
+export function outcomeScheduleQueryKey(outcomeId: string | undefined, planId?: string | undefined) {
+	return ["outcome-schedule", outcomeId ?? "", planId ?? ""] as const;
 }
 
 async function fetchLatestPlan(outcomeId: string): Promise<PlanRecord> {
@@ -372,7 +377,7 @@ async function fetchOutcomeSchedule(outcomeId: string, planId: string): Promise<
 
 export function useOutcomeSchedule(outcomeId: string | undefined, planId: string | undefined) {
 	const query = useQuery({
-		queryKey: ["outcome-schedule", outcomeId ?? "", planId ?? ""] as const,
+		queryKey: outcomeScheduleQueryKey(outcomeId, planId),
 		enabled: Boolean(outcomeId && planId),
 		queryFn: () => fetchOutcomeSchedule(outcomeId as string, planId as string),
 		retry: (attempt, error) => {
@@ -437,6 +442,7 @@ export function useProposeOutcomePlan(outcomeId: string | undefined): ProposePla
 		},
 		onSuccess: (plan) => {
 			queryClient.setQueryData(planQueryKey(outcomeId), plan);
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId) });
 			if (usesPreviewWorkspaceData) {
 				queryClient.setQueryData(outcomeQueryKey(outcomeId), getPreviewOutcome(outcomeId as string));
 				void queryClient.invalidateQueries({ queryKey: ["project-outcomes"] });
@@ -478,6 +484,7 @@ export function useApproveOutcomePlan(outcomeId: string | undefined): ApprovePla
 		},
 		onSuccess: (plan) => {
 			queryClient.setQueryData(planQueryKey(outcomeId), plan);
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId, plan.id) });
 			if (usesPreviewWorkspaceData) {
 				queryClient.setQueryData(outcomeQueryKey(outcomeId), getPreviewOutcome(outcomeId as string));
 				void queryClient.invalidateQueries({ queryKey: ["project-outcomes"] });
@@ -605,10 +612,10 @@ export function useStartOutcomeAttempt(outcomeId: string | undefined): StartAtte
 			if (error) throw error;
 			return (data as AttemptEnvelope).attempt;
 		},
-		onSuccess: () => {
+		onSuccess: (_attempt, input) => {
 			requestKeyRef.current = undefined;
 			void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) });
-			void queryClient.invalidateQueries({ queryKey: ["outcome-schedule", outcomeId] });
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId, input.planRevisionId) });
 		},
 	});
 	return {
@@ -645,7 +652,10 @@ export function useAttemptAction(outcomeId: string | undefined): AttemptActionSt
 			void action; // single-action union today; kept for call-site stability
 			return (data as AttemptEnvelope).attempt;
 		},
-		onSuccess: () => void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) }),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) });
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId) });
+		},
 	});
 	return {
 		pending: mutation.isPending,
@@ -695,7 +705,10 @@ export function useAttemptRecovery(outcomeId: string | undefined): AttemptRecove
 			const envelope = data as AttemptRecoveryEnvelope;
 			return { attempt: envelope.attempt, receipt: envelope.receipt };
 		},
-		onSuccess: () => void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) }),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) });
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId) });
+		},
 	});
 	return {
 		pending: mutation.isPending,
@@ -763,7 +776,10 @@ function useProofMutation<TInput>(
 			}
 			return mutationFn(outcomeId as string, input);
 		},
-		onSuccess: (proof) => queryClient.setQueryData(outcomeProofQueryKey(outcomeId), proof),
+		onSuccess: (proof) => {
+			queryClient.setQueryData(outcomeProofQueryKey(outcomeId), proof);
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId) });
+		},
 	});
 	return {
 		pending: mutation.isPending,

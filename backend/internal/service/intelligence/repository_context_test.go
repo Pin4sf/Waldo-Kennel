@@ -22,6 +22,9 @@ func TestBuildRepositoryContextBoundsFilesAndExcludesIgnoredSymlinkedSecrets(t *
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("repository facts"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(root, ".env"), []byte("TOKEN=unignored-secret-canary"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	canary := filepath.Join(root, "ignored.txt")
 	if err := os.WriteFile(canary, []byte("ignored-secret-canary"), 0o600); err != nil {
 		t.Fatal(err)
@@ -45,7 +48,7 @@ func TestBuildRepositoryContextBoundsFilesAndExcludesIgnoredSymlinkedSecrets(t *
 	for _, file := range append(snapshot.Instructions, snapshot.Files...) {
 		encoded += file.Path + file.Content
 	}
-	if strings.Contains(encoded, "ignored-secret-canary") || strings.Contains(encoded, "outside") {
+	if strings.Contains(encoded, "ignored-secret-canary") || strings.Contains(encoded, "unignored-secret-canary") || strings.Contains(encoded, "outside") {
 		t.Fatalf("context included excluded content: %s", encoded)
 	}
 	if len(snapshot.CheckCommands) != 2 || !strings.Contains(strings.Join(snapshot.CheckCommands, "\n"), "test:distinctive") {
@@ -53,6 +56,48 @@ func TestBuildRepositoryContextBoundsFilesAndExcludesIgnoredSymlinkedSecrets(t *
 	}
 	if snapshot.Digest == "" {
 		t.Fatal("context digest is empty")
+	}
+}
+
+func TestBuildRepositoryContextStopsWhenCancelled(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("must-not-be-collected"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := runGit(root, "init", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	snapshot, err := BuildRepositoryContext(ctx, domain.ProjectRecord{ID: "cancelled", Path: root}, nil)
+	if err != nil {
+		t.Fatalf("BuildRepositoryContext() error = %v", err)
+	}
+	if len(snapshot.Files) != 0 || len(snapshot.Instructions) != 0 {
+		t.Fatalf("cancelled inspection collected files: %#v %#v", snapshot.Files, snapshot.Instructions)
+	}
+}
+
+func TestExcludedContextDirChecksEveryPathSegment(t *testing.T) {
+	for _, rel := range []string{"src/node_modules", "src/.git", "src/vendor", "docs/build/output"} {
+		if !excludedContextDir(rel) {
+			t.Errorf("excludedContextDir(%q) = false, want true", rel)
+		}
+	}
+}
+
+func TestIgnoredByGitDistinguishesNotIgnoredFromGitFailure(t *testing.T) {
+	root := t.TempDir()
+	if ignored, err := ignoredByGit(context.Background(), root, "README.md"); err == nil || ignored {
+		t.Fatalf("ignoredByGit() = ignored=%v, err=%v; want a non-ignored Git failure", ignored, err)
+	}
+
+	if err := runGit(root, "init", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	if ignored, err := ignoredByGit(context.Background(), root, "README.md"); err != nil || ignored {
+		t.Fatalf("ignoredByGit() = ignored=%v, err=%v; want clean not-ignored result", ignored, err)
 	}
 }
 

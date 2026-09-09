@@ -20,14 +20,28 @@ type EventType string
 
 // Event types, one per row-change the DB triggers emit into change_log.
 const (
-	EventSessionCreated         EventType = "session_created"
-	EventSessionUpdated         EventType = "session_updated"
-	EventPRCreated              EventType = "pr_created"
-	EventPRUpdated              EventType = "pr_updated"
-	EventPRCheckRecorded        EventType = "pr_check_recorded"
-	EventPRSessionChanged       EventType = "pr_session_changed"
-	EventPRReviewThreadAdded    EventType = "pr_review_thread_added"
-	EventPRReviewThreadResolved EventType = "pr_review_thread_resolved"
+	EventSessionCreated              EventType = "session_created"
+	EventSessionUpdated              EventType = "session_updated"
+	EventPRCreated                   EventType = "pr_created"
+	EventPRUpdated                   EventType = "pr_updated"
+	EventPRCheckRecorded             EventType = "pr_check_recorded"
+	EventPRSessionChanged            EventType = "pr_session_changed"
+	EventPRReviewThreadAdded         EventType = "pr_review_thread_added"
+	EventPRReviewThreadResolved      EventType = "pr_review_thread_resolved"
+	EventOutcomeCreated              EventType = "outcome_created"
+	EventOutcomeUpdated              EventType = "outcome_updated"
+	EventOutcomeContractRevised      EventType = "outcome_contract_revised"
+	EventOutcomePlanProposed         EventType = "outcome_plan_proposed"
+	EventOutcomePlanApproved         EventType = "outcome_plan_approved"
+	EventOutcomeAttemptStarted       EventType = "outcome_attempt_started"
+	EventOutcomeAttemptUpdated       EventType = "outcome_attempt_updated"
+	EventOutcomeAttemptBound         EventType = "outcome_attempt_session_bound"
+	EventOutcomeAttemptObserved      EventType = "outcome_attempt_observed"
+	EventOutcomeAttemptRecovered     EventType = "outcome_attempt_recovered"
+	EventOutcomeEvidenceRecorded     EventType = "outcome_evidence_recorded"
+	EventOutcomeVerificationRecorded EventType = "outcome_verification_recorded"
+	EventOutcomeAcceptanceDecided    EventType = "outcome_acceptance_decided"
+	EventOutcomeCorrectionRecorded   EventType = "outcome_correction_recorded"
 )
 
 // Event is one CDC change read from change_log. Seq is the monotonic ordering +

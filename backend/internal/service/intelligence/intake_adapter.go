@@ -144,11 +144,13 @@ func digestContractRequest(request ports.ContractIntelligenceRequest) (domain.SH
 		PreviousProposal    *domain.OutcomeContractProposal `json:"previousProposal,omitempty"`
 		Clarification       *domain.ClarificationRequest    `json:"clarification,omitempty"`
 		ClarificationAnswer string                          `json:"clarificationAnswer,omitempty"`
+		RepositoryContext   ports.RepositoryContextSnapshot `json:"repositoryContext"`
 	}{
 		IntakeID: request.Session.ID.String(), ProjectID: string(request.Session.ProjectID),
 		Statement: request.Session.Statement, ProposalRevision: request.Session.CurrentProposalRevision,
 		ConversationRefs: request.ConversationRefs, PreviousProposal: request.PreviousProposal,
 		Clarification: request.Clarification, ClarificationAnswer: request.ClarificationText,
+		RepositoryContext: request.RepositoryContext,
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {

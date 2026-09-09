@@ -3,6 +3,7 @@ package intelligence
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,10 +17,12 @@ import (
 )
 
 const (
-	contextMaxFiles   = 32
-	contextMaxBytes   = 96 * 1024
-	contextMaxFile    = 12 * 1024
-	contextMaxRuntime = 2 * time.Second
+	contextMaxFiles      = 32
+	contextMaxBytes      = 96 * 1024
+	contextMaxFile       = 12 * 1024
+	contextMaxRuntime    = 2 * time.Second
+	contextMaxVisited    = 512
+	contextMaxCandidates = contextMaxFiles * 3
 )
 
 // ProjectSource is the read-only registry seam needed to locate a registered
@@ -60,8 +63,15 @@ func BuildRepositoryContext(ctx context.Context, project domain.ProjectRecord, b
 		snapshot.UnavailableReason = "repository revision could not be inspected"
 	}
 
-	files, instructions, checks := boundedFiles(inspectCtx, snapshot.Root)
+	files, instructions, checks, collectErr := boundedFiles(inspectCtx, snapshot.Root)
 	snapshot.Files, snapshot.Instructions, snapshot.CheckCommands = files, instructions, checks
+	if collectErr != nil {
+		if errors.Is(collectErr, context.Canceled) || errors.Is(collectErr, context.DeadlineExceeded) {
+			snapshot.UnavailableReason = "repository inspection stopped before its bounded context was complete"
+		} else if snapshot.UnavailableReason == "" {
+			snapshot.UnavailableReason = "repository files could not be inspected safely"
+		}
+	}
 	return finalizeContext(snapshot), nil
 }
 
@@ -74,15 +84,26 @@ func readGitFact(ctx context.Context, root string, args ...string) string {
 	return strings.TrimSpace(string(output))
 }
 
-func boundedFiles(ctx context.Context, root string) (files, instructions []ports.RepositoryContextFile, checks []string) {
+func boundedFiles(ctx context.Context, root string) (files, instructions []ports.RepositoryContextFile, checks []string, collectErr error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, nil, err
+	}
 	priority := map[string]bool{
 		"AGENTS.md": true, "README": true, "README.md": true, "README.txt": true,
 		"package.json": true, "go.mod": true, "Makefile": true,
 	}
 	var candidates []string
-	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+	visited := 0
+	walkErr := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return filepath.SkipDir
+			return walkErr
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		visited++
+		if visited > contextMaxVisited {
+			return fmt.Errorf("repository inspection exceeded %d filesystem entries", contextMaxVisited)
 		}
 		if path != root && entry.Type()&os.ModeSymlink != 0 {
 			if entry.IsDir() {
@@ -103,18 +124,31 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 			}
 			return nil
 		}
-		if len(candidates) >= contextMaxFiles*3 || !priorityContextFile(rel, priority) && !shallowTextCandidate(rel) {
+		if sensitiveContextFile(rel) || (!priorityContextFile(rel, priority) && !shallowTextCandidate(rel)) {
 			return nil
 		}
-		if ignoredByGit(ctx, root, rel) {
+		ignored, err := ignoredByGit(ctx, root, rel)
+		if err != nil {
+			return err
+		}
+		if ignored {
 			return nil
 		}
 		candidates = append(candidates, rel)
+		if len(candidates) >= contextMaxCandidates {
+			return filepath.SkipAll
+		}
 		return nil
 	})
+	if walkErr != nil && !errors.Is(walkErr, filepath.SkipAll) {
+		return nil, nil, nil, walkErr
+	}
 	sort.Strings(candidates)
 	seenBytes := 0
 	for _, rel := range candidates {
+		if err := ctx.Err(); err != nil {
+			return files, instructions, checks, err
+		}
 		if len(files)+len(instructions) >= contextMaxFiles || seenBytes >= contextMaxBytes {
 			break
 		}
@@ -143,17 +177,46 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 		}
 	}
 	sort.Strings(checks)
-	return files, instructions, uniqueStrings(checks)
+	return files, instructions, uniqueStrings(checks), nil
 }
 
 func excludedContextDir(rel string) bool {
-	first := strings.Split(filepath.ToSlash(rel), "/")[0]
-	switch first {
-	case ".git", ".kennel", "node_modules", "vendor", "dist", "build", "coverage", ".next", "tmp", "target":
-		return true
-	default:
-		return strings.HasPrefix(first, ".") && first != ".github"
+	for _, segment := range strings.Split(filepath.ToSlash(rel), "/") {
+		switch segment {
+		case ".git", ".kennel", "node_modules", "vendor", "dist", "build", "coverage", ".next", "tmp", "target":
+			return true
+		default:
+			if strings.HasPrefix(segment, ".") && segment != ".github" {
+				return true
+			}
+		}
 	}
+	return false
+}
+
+func sensitiveContextFile(rel string) bool {
+	path := filepath.ToSlash(rel)
+	for _, segment := range strings.Split(path, "/") {
+		lower := strings.ToLower(segment)
+		switch lower {
+		case ".aws", ".ssh", ".gnupg", "secrets", "secret", "credentials", "credential", "private", ".npmrc", ".pypirc", ".netrc", ".git-credentials":
+			return true
+		}
+	}
+	base := strings.ToLower(filepath.Base(rel))
+	if strings.HasPrefix(base, ".env") {
+		return true
+	}
+	switch base {
+	case "credentials.json", "secrets.json", "service-account.json", "dockerconfigjson":
+		return true
+	}
+	for _, suffix := range []string{".pem", ".key", ".p12", ".pfx", ".pkcs12", ".jks", ".kdbx", ".age"} {
+		if strings.HasSuffix(base, suffix) {
+			return true
+		}
+	}
+	return base == "id_rsa" || strings.HasPrefix(base, "id_rsa.") || base == "id_ed25519" || strings.HasPrefix(base, "id_ed25519.") || base == "known_hosts"
 }
 
 func priorityContextFile(rel string, priority map[string]bool) bool {
@@ -166,9 +229,20 @@ func shallowTextCandidate(rel string) bool {
 	return !strings.Contains(slash, "/") || strings.Count(slash, "/") == 1 && strings.HasPrefix(slash, "docs/")
 }
 
-func ignoredByGit(ctx context.Context, root, rel string) bool {
+func ignoredByGit(ctx context.Context, root, rel string) (bool, error) {
 	command := exec.CommandContext(ctx, "git", "-C", root, "check-ignore", "--quiet", "--", rel)
-	return command.Run() == nil
+	err := command.Run()
+	if err == nil {
+		return true, nil
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return false, ctxErr
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return false, nil
+	}
+	return false, fmt.Errorf("git check-ignore %q: %w", rel, err)
 }
 
 func packageCheckCommands(content []byte) []string {

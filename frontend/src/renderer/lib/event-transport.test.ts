@@ -50,7 +50,7 @@ class EventSourceStub {
 		this.handlers.set(type, listener);
 	}
 	emit(type: string, data: string) {
-		this.handlers.get(type)?.({ data } as unknown as Event);
+		this.handlers.get(type)?.({ data, type } as unknown as Event);
 	}
 	close() {
 		this.closed = true;
@@ -173,6 +173,28 @@ describe("createEventTransport", () => {
 			expect(queryClient.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ["workspaces"] });
 			expect(queryClient.invalidateQueries).not.toHaveBeenCalledWith({
 				queryKey: ["session-scm-summary"],
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("invalidates the open Plan schedule when outcome CDC changes durable execution facts", () => {
+		vi.useFakeTimers();
+		try {
+			const queryClient = fakeQueryClient();
+			createEventTransport(queryClient).connect();
+			EventSourceStub.instances[0].emit(
+				"outcome_attempt_recovered",
+				JSON.stringify({
+					outcomeId: "outcome-1",
+					payload: { planId: "plan-1" },
+				}),
+			);
+
+			vi.advanceTimersByTime(200);
+			expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+				queryKey: ["outcome-schedule", "outcome-1", "plan-1"],
 			});
 		} finally {
 			vi.useRealTimers();

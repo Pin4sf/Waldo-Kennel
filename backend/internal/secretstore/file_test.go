@@ -41,3 +41,21 @@ func TestFileStoreKeepsSecretOutOfSQLiteAndRestrictsPermissions(t *testing.T) {
 		t.Fatalf("cleared Get() = %q, %v; want empty", got, err)
 	}
 }
+
+func TestFileStoreBindsCredentialsToProvider(t *testing.T) {
+	store := NewFileStore(t.TempDir())
+	if err := store.SetForProvider(context.Background(), "anthropic", "anthropic-canary"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.GetForProvider(context.Background(), "openai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "" {
+		t.Fatalf("OpenAI lookup reused Anthropic credential %q", got)
+	}
+	got, err = store.GetForProvider(context.Background(), "anthropic")
+	if err != nil || got != "anthropic-canary" {
+		t.Fatalf("Anthropic lookup = %q, %v; want stored credential", got, err)
+	}
+}
