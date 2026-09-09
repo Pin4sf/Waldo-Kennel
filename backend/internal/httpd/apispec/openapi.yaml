@@ -7601,19 +7601,6 @@ components:
       required:
       - path
       type: object
-    AgentAgentRoles:
-      properties:
-        coordinator:
-          type: boolean
-        switchTarget:
-          type: boolean
-        worker:
-          type: boolean
-      required:
-      - worker
-      - coordinator
-      - switchTarget
-      type: object
     AgentConfig:
       properties:
         mode:
@@ -7654,7 +7641,7 @@ components:
             an installed binary.
           type: boolean
         roles:
-          $ref: '#/components/schemas/AgentAgentRoles'
+          $ref: '#/components/schemas/AgentRoles'
           description: Role admission derived from daemon policy. Clients must not
             re-derive it from provider names.
       required:
@@ -7716,6 +7703,19 @@ components:
       - source
       - fetchedAt
       - stale
+      type: object
+    AgentRoles:
+      properties:
+        coordinator:
+          type: boolean
+        switchTarget:
+          type: boolean
+        worker:
+          type: boolean
+      required:
+      - worker
+      - coordinator
+      - switchTarget
       type: object
     AgentSwitch:
       properties:

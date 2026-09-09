@@ -2438,11 +2438,6 @@ export interface components {
             path: string;
             projectId?: null | string;
         };
-        AgentAgentRoles: {
-            coordinator: boolean;
-            switchTarget: boolean;
-            worker: boolean;
-        };
         AgentConfig: {
             mode?: string;
             model?: string;
@@ -2464,7 +2459,7 @@ export interface components {
             /** @description Launch requires user-selected profile configuration beyond an installed binary. */
             requiresProfile?: boolean;
             /** @description Role admission derived from daemon policy. Clients must not re-derive it from provider names. */
-            roles: components["schemas"]["AgentAgentRoles"];
+            roles: components["schemas"]["AgentRoles"];
         };
         AgentModelInfo: {
             id: string;
@@ -2487,6 +2482,11 @@ export interface components {
             /** Format: date-time */
             validatedAt?: string;
             warning?: string;
+        };
+        AgentRoles: {
+            coordinator: boolean;
+            switchTarget: boolean;
+            worker: boolean;
         };
         AgentSwitch: {
             /** @enum {string} */

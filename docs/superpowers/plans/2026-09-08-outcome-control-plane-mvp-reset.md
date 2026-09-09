@@ -51,7 +51,7 @@ Backend tests cover important foundations, including frozen binding and schedule
 
 | Slice | Depends on | Status | Primary boundary |
 |---|---|---|---|
-| L0 baseline/source reconciliation | none | implemented in isolated `codex/l0-baseline-cleanup`; frontend green; direct lint has two named L1a-owned helpers; inherited OpenAPI parity remains | this plan, STATUS, existing product companions |
+| L0 baseline/source reconciliation | none | implemented in isolated `codex/l0-baseline-cleanup`; frontend and HTTP/spec parity green; direct lint has two named L1a-owned helpers; generated contracts repaired after L0 rename | this plan, STATUS, existing product companions |
 | L1a exact model launch | L0 source baseline | open; regression reproduced | session service → Manager → actual launch config |
 | L1b governed capabilities/replay | L1a | open | approved capabilities → adapter/runtime + idempotency |
 | L2 reasoning setup and recovery | L0 | open | settings/secrets → LLM → durable IntelligenceRun |
