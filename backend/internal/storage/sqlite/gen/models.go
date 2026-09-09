@@ -73,12 +73,15 @@ type AgentSwitch struct {
 }
 
 type AppSetting struct {
-	ID                 int64
-	DefaultSessionMode domain.SessionMode
-	UpdatedAt          time.Time
-	ReasoningProvider  string
-	ReasoningModel     string
-	ReasoningEffort    string
+	ID                        int64
+	DefaultSessionMode        domain.SessionMode
+	UpdatedAt                 time.Time
+	ReasoningProvider         string
+	ReasoningModel            string
+	ReasoningEffort           string
+	ReasoningVerifiedAt       sql.NullString
+	ReasoningVerifiedProvider string
+	ReasoningVerifiedModel    string
 }
 
 type Attempt struct {

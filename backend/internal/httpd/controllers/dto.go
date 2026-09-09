@@ -1791,14 +1791,22 @@ type SettingsResponse struct {
 
 // ReasoningResponse reports reasoning readiness without returning a secret.
 type ReasoningResponse struct {
-	Provider      string `json:"provider"`
-	Model         string `json:"model"`
-	Effort        string `json:"effort"`
-	Configured    bool   `json:"configured"`
-	Ready         bool   `json:"ready"`
-	KeyConfigured bool   `json:"keyConfigured"`
-	ErrorCode     string `json:"errorCode,omitempty"`
-	Error         string `json:"error,omitempty"`
+	Provider   string `json:"provider"`
+	Model      string `json:"model"`
+	Effort     string `json:"effort"`
+	Configured bool   `json:"configured"`
+	// Ready means only that a call can be attempted: a provider is selected and
+	// a matching credential is present. It is not a claim that reasoning works.
+	Ready bool `json:"ready"`
+	// KeyConfigured means a credential exists for the selected provider. It may
+	// still be revoked or mistyped.
+	KeyConfigured bool `json:"keyConfigured"`
+	// Verified means an actual probe succeeded for exactly the provider and
+	// model selected now. It drops back to false when either changes.
+	Verified   bool    `json:"verified"`
+	VerifiedAt *string `json:"verifiedAt,omitempty"`
+	ErrorCode  string  `json:"errorCode,omitempty"`
+	Error      string  `json:"error,omitempty"`
 }
 
 // UpdateReasoningRequest changes daemon-owned reasoning selection and secret state.

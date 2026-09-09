@@ -7360,6 +7360,44 @@ paths:
       summary: Configure Waldo reasoning without returning the stored credential
       tags:
       - settings
+  /api/v1/settings/reasoning/verification:
+    post:
+      operationId: verifyReasoning
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReasoningResponse'
+          description: OK
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Service Unavailable
+      summary: Probe the configured reasoning provider once and record whether it
+        works
+      tags:
+      - settings
   /api/v1/settings/session-interface:
     patch:
       operationId: updateSessionInterface
@@ -11585,6 +11623,12 @@ components:
           type: string
         ready:
           type: boolean
+        verified:
+          type: boolean
+        verifiedAt:
+          type:
+          - "null"
+          - string
       required:
       - provider
       - model
@@ -11592,6 +11636,7 @@ components:
       - configured
       - ready
       - keyConfigured
+      - verified
       type: object
     RecordEvidenceRequest:
       properties:

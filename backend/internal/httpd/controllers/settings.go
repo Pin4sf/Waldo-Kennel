@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -35,6 +36,7 @@ func (c *SettingsController) Register(r chi.Router) {
 	r.Get("/settings", c.get)
 	r.Patch("/settings/session-interface", c.setSessionInterface)
 	r.Patch("/settings/reasoning", c.setReasoning)
+	r.Post("/settings/reasoning/verification", c.verifyReasoning)
 }
 
 func (c *SettingsController) get(w http.ResponseWriter, r *http.Request) {
@@ -116,5 +118,33 @@ func (c *SettingsController) response(ctx context.Context, snapshot settingssvc.
 }
 
 func reasoningResponse(status settingssvc.ReasoningStatus) ReasoningResponse {
-	return ReasoningResponse{Provider: status.Provider, Model: status.Model, Effort: status.Effort, Configured: status.Configured, Ready: status.Ready, KeyConfigured: status.KeyConfigured, ErrorCode: status.ErrorCode, Error: status.Error}
+	out := ReasoningResponse{
+		Provider: status.Provider, Model: status.Model, Effort: status.Effort,
+		Configured: status.Configured, Ready: status.Ready, KeyConfigured: status.KeyConfigured,
+		Verified: status.Verified, ErrorCode: status.ErrorCode, Error: status.Error,
+	}
+	if status.VerifiedAt != nil {
+		stamp := status.VerifiedAt.UTC().Format(time.RFC3339)
+		out.VerifiedAt = &stamp
+	}
+	return out
+}
+
+// verifyReasoning runs one owner-triggered probe against the configured
+// provider. It is a POST because it performs a real, possibly billed call: the
+// daemon never probes on its own schedule.
+func (c *SettingsController) verifyReasoning(w http.ResponseWriter, r *http.Request) {
+	verifier, ok := c.Svc.(interface {
+		VerifyReasoning(context.Context) (settingssvc.ReasoningStatus, error)
+	})
+	if c.Svc == nil || !ok {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/settings/reasoning/verification")
+		return
+	}
+	status, err := verifier.VerifyReasoning(r.Context())
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, reasoningResponse(status))
 }

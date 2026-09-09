@@ -23,16 +23,28 @@ func (s settingsStore) GetAppSettings(ctx context.Context) (settingssvc.Snapshot
 		return settingssvc.Snapshot{}, err
 	}
 	return settingssvc.Snapshot{
-		DefaultSessionMode: row.DefaultSessionMode,
-		ReasoningProvider:  row.ReasoningProvider,
-		ReasoningModel:     row.ReasoningModel,
-		ReasoningEffort:    row.ReasoningEffort,
-		UpdatedAt:          row.UpdatedAt,
+		DefaultSessionMode:        row.DefaultSessionMode,
+		ReasoningProvider:         row.ReasoningProvider,
+		ReasoningModel:            row.ReasoningModel,
+		ReasoningEffort:           row.ReasoningEffort,
+		ReasoningVerifiedAt:       row.ReasoningVerifiedAt,
+		ReasoningVerifiedProvider: row.ReasoningVerifiedProvider,
+		ReasoningVerifiedModel:    row.ReasoningVerifiedModel,
+		UpdatedAt:                 row.UpdatedAt,
 	}, nil
 }
 
 func (s settingsStore) SetReasoningSettings(ctx context.Context, provider, model, effort string, now time.Time) error {
 	return s.store.SetReasoningSettings(ctx, provider, model, effort, now)
+}
+
+func (s settingsStore) SetReasoningVerification(
+	ctx context.Context,
+	verifiedAt *time.Time,
+	provider, model string,
+	now time.Time,
+) error {
+	return s.store.SetReasoningVerification(ctx, verifiedAt, provider, model, now)
 }
 
 func (s settingsStore) SetDefaultSessionMode(

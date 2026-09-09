@@ -7,6 +7,7 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -21,6 +22,7 @@ type Store interface {
 	GetAppSettings(ctx context.Context) (Snapshot, error)
 	SetDefaultSessionMode(ctx context.Context, mode domain.SessionMode, now time.Time) error
 	SetReasoningSettings(ctx context.Context, provider, model, effort string, now time.Time) error
+	SetReasoningVerification(ctx context.Context, verifiedAt *time.Time, provider, model string, now time.Time) error
 }
 
 // Snapshot is the current preference set.
@@ -29,7 +31,12 @@ type Snapshot struct {
 	ReasoningProvider  string
 	ReasoningModel     string
 	ReasoningEffort    string
-	UpdatedAt          time.Time
+	// ReasoningVerifiedAt is when a probe last actually succeeded, for the
+	// provider/model pair it succeeded for. Nil means never verified.
+	ReasoningVerifiedAt       *time.Time
+	ReasoningVerifiedProvider string
+	ReasoningVerifiedModel    string
+	UpdatedAt                 time.Time
 }
 
 // SecretStore is intentionally narrower than a general credential manager.
@@ -61,14 +68,24 @@ type ReasoningInput struct {
 
 // ReasoningStatus reports configured and ready state without exposing the secret.
 type ReasoningStatus struct {
-	Provider      string `json:"provider"`
-	Model         string `json:"model"`
-	Effort        string `json:"effort"`
-	Configured    bool   `json:"configured"`
-	Ready         bool   `json:"ready"`
-	KeyConfigured bool   `json:"keyConfigured"`
-	ErrorCode     string `json:"errorCode,omitempty"`
-	Error         string `json:"error,omitempty"`
+	Provider   string `json:"provider"`
+	Model      string `json:"model"`
+	Effort     string `json:"effort"`
+	Configured bool   `json:"configured"`
+	// Ready reports only that a call can be attempted: a provider is selected
+	// and a matching credential is present. It is deliberately NOT a claim that
+	// reasoning works.
+	Ready bool `json:"ready"`
+	// KeyConfigured reports that a credential exists for the selected
+	// provider. A present key can still be revoked or mistyped.
+	KeyConfigured bool `json:"keyConfigured"`
+	// Verified reports that an actual probe succeeded for exactly the
+	// currently selected provider and model. Switching either one drops back to
+	// false rather than inheriting the previous pair's proof.
+	Verified   bool       `json:"verified"`
+	VerifiedAt *time.Time `json:"verifiedAt,omitempty"`
+	ErrorCode  string     `json:"errorCode,omitempty"`
+	Error      string     `json:"error,omitempty"`
 }
 
 // ReasoningConfig is the resolved daemon-internal reasoning configuration.
@@ -78,6 +95,9 @@ type ReasoningConfig struct {
 	Model     string
 	Effort    string
 	KeySource string
+	// BaseURL is a development/test redirect to a local reasoning stand-in.
+	// It comes only from KENNEL_WALDO_BASE_URL and is never persisted.
+	BaseURL string
 }
 
 // ChatCapability reports which harnesses can run in chat mode, so the UI can warn
@@ -94,6 +114,7 @@ type Service struct {
 	now     func() time.Time
 	secrets SecretStore
 	lookup  func(string) string
+	probe   ReasoningProbe
 }
 
 // New builds the service.
@@ -137,8 +158,89 @@ func (s *Service) GetReasoning(ctx context.Context) (ReasoningStatus, error) {
 		status.ErrorCode, status.Error = reasoningError(err)
 		return status, nil
 	}
-	status = ReasoningStatus{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort, KeyConfigured: cfg.APIKey != "", Configured: true, Ready: true}
+	status = ReasoningStatus{
+		Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort,
+		KeyConfigured: cfg.APIKey != "", Configured: true, Ready: true,
+	}
+	if snapshot, snapErr := s.store.GetAppSettings(ctx); snapErr == nil {
+		status.Verified, status.VerifiedAt = verificationFor(snapshot, cfg)
+	}
 	return status, nil
+}
+
+// verificationFor reports a stored verification only when it belongs to the
+// provider and model in force now.
+//
+// A verification is proof about one exact pair. Carrying it across a provider
+// switch would be the same mistake as reusing another provider's credential:
+// the owner would be told reasoning is verified for a combination that was
+// never probed.
+func verificationFor(snapshot Snapshot, cfg ReasoningConfig) (bool, *time.Time) {
+	if snapshot.ReasoningVerifiedAt == nil {
+		return false, nil
+	}
+	if snapshot.ReasoningVerifiedProvider != cfg.Provider {
+		return false, nil
+	}
+	// An empty verified model means the probe ran against the provider default,
+	// which only still holds if no explicit model is selected now.
+	if snapshot.ReasoningVerifiedModel != cfg.Model {
+		return false, nil
+	}
+	return true, snapshot.ReasoningVerifiedAt
+}
+
+// VerifyReasoning probes the configured provider with one minimal real call and
+// records whether it worked.
+//
+// This is the only thing that can set Verified, and it is owner-triggered: a
+// reasoning call may be billed, so the daemon never probes on its own schedule.
+// A failure clears any stored verification instead of leaving a stale success
+// in place, and returns the classified reason so the UI can say what to fix.
+func (s *Service) VerifyReasoning(ctx context.Context) (ReasoningStatus, error) {
+	return s.verifyReasoningWith(ctx, s.probe)
+}
+
+// WithReasoningProbe supplies the probe used by VerifyReasoning. The daemon
+// wires the real one; keeping it injectable is what lets the probe's own
+// classification be tested against a local HTTP stand-in rather than a
+// live provider.
+func (s *Service) WithReasoningProbe(probe ReasoningProbe) *Service {
+	s.probe = probe
+	return s
+}
+
+// ReasoningProbe performs one minimal real reasoning call for the resolved
+// configuration and reports whether it worked.
+type ReasoningProbe func(context.Context, ReasoningConfig) error
+
+func (s *Service) verifyReasoningWith(ctx context.Context, probe ReasoningProbe) (ReasoningStatus, error) {
+	cfg, err := s.ResolveReasoning(ctx)
+	if err != nil {
+		// Not configured at all: nothing to probe, and the existing readiness
+		// path already describes it accurately.
+		return s.GetReasoning(ctx)
+	}
+	if probe == nil {
+		return ReasoningStatus{}, fmt.Errorf("no reasoning probe is available")
+	}
+	if probeErr := probe(ctx, cfg); probeErr != nil {
+		if clearErr := s.store.SetReasoningVerification(ctx, nil, "", "", s.now()); clearErr != nil {
+			return ReasoningStatus{}, clearErr
+		}
+		status, statusErr := s.GetReasoning(ctx)
+		if statusErr != nil {
+			return ReasoningStatus{}, statusErr
+		}
+		status.Verified, status.VerifiedAt = false, nil
+		status.ErrorCode, status.Error = reasoningError(probeErr)
+		return status, nil
+	}
+	verified := s.now().UTC()
+	if err := s.store.SetReasoningVerification(ctx, &verified, cfg.Provider, cfg.Model, s.now()); err != nil {
+		return ReasoningStatus{}, err
+	}
+	return s.GetReasoning(ctx)
 }
 
 // SetReasoning persists the owner-selected provider/model/effort and secret.
@@ -160,6 +262,12 @@ func (s *Service) SetReasoning(ctx context.Context, input ReasoningInput) (Reaso
 		}
 	}
 	if err := s.store.SetReasoningSettings(ctx, provider, strings.TrimSpace(input.Model), strings.TrimSpace(input.Effort), s.now()); err != nil {
+		return ReasoningStatus{}, err
+	}
+	// Any change to the selection or the credential invalidates the previous
+	// probe. Keeping the old stamp would report a combination as verified that
+	// was never tried with these settings.
+	if err := s.store.SetReasoningVerification(ctx, nil, "", "", s.now()); err != nil {
 		return ReasoningStatus{}, err
 	}
 	return s.GetReasoning(ctx)
@@ -215,18 +323,29 @@ func (s *Service) ResolveReasoning(ctx context.Context) (ReasoningConfig, error)
 	} else if provider == "openai" && oai != "" {
 		key, keySource = oai, "OPENAI_API_KEY"
 	}
-	cfg := ReasoningConfig{Provider: provider, APIKey: key, Model: model, Effort: effort, KeySource: keySource}
+	cfg := ReasoningConfig{
+		Provider: provider, APIKey: key, Model: model, Effort: effort, KeySource: keySource,
+		BaseURL: strings.TrimSpace(lookup("KENNEL_WALDO_BASE_URL")),
+	}
 	if provider == "" {
-		return cfg, fmt.Errorf("reasoning provider is not configured; choose anthropic or openai")
+		return cfg, fmt.Errorf("%w; choose anthropic or openai", errProviderNotSelected)
 	}
 	if provider != "anthropic" && provider != "openai" {
-		return cfg, fmt.Errorf("unsupported reasoning provider %q", provider)
+		return cfg, fmt.Errorf("%w: %q", errProviderUnsupported, provider)
 	}
 	if key == "" {
-		return cfg, fmt.Errorf("reasoning credential is not configured for %s", provider)
+		return cfg, fmt.Errorf("%w for %s", errMissingCredential, provider)
 	}
 	return cfg, nil
 }
+
+// Local setup sentinels. They exist so reasoningError can identify a setup
+// state without matching on message text.
+var (
+	errProviderNotSelected = errors.New("reasoning provider is not configured")
+	errProviderUnsupported = errors.New("unsupported reasoning provider")
+	errMissingCredential   = errors.New("reasoning credential is not configured")
+)
 
 func (s *Service) setReasoningSecret(ctx context.Context, provider, value string) error {
 	if providerSecrets, ok := s.secrets.(ProviderSecretStore); ok {
@@ -242,15 +361,35 @@ func (s *Service) clearReasoningSecret(ctx context.Context, provider string) err
 	return s.secrets.Clear(ctx)
 }
 
+// reasoningError maps a setup or probe failure to a stable code.
+//
+// It used to derive the code by substring-matching its own error prose, so
+// rewording a message silently changed the machine code the UI switches on.
+// Classified reasoning failures now answer for themselves; the remaining
+// string cases are this package's own local setup errors, matched on the
+// sentinels it raises rather than on free text.
 func reasoningError(err error) (string, string) {
-	message := err.Error()
+	if err == nil {
+		return "", ""
+	}
+	var failure *ports.ReasoningFailure
+	if errors.As(err, &failure) {
+		switch failure.Kind {
+		case ports.ReasoningNotConfigured:
+			return "MISSING_CREDENTIAL", failure.Error()
+		case ports.ReasoningUnauthorized:
+			return "CREDENTIAL_REJECTED", failure.Error()
+		default:
+			return "REASONING_NOT_READY", failure.Error()
+		}
+	}
 	switch {
-	case strings.Contains(message, "credential"):
-		return "MISSING_CREDENTIAL", message
-	case strings.Contains(message, "provider"):
-		return "PROVIDER_NOT_READY", message
+	case errors.Is(err, errMissingCredential):
+		return "MISSING_CREDENTIAL", err.Error()
+	case errors.Is(err, errProviderNotSelected), errors.Is(err, errProviderUnsupported):
+		return "PROVIDER_NOT_READY", err.Error()
 	default:
-		return "REASONING_NOT_READY", message
+		return "REASONING_NOT_READY", err.Error()
 	}
 }
 
@@ -291,4 +430,13 @@ func (s *Service) ChatHarnesses(candidates []domain.AgentHarness) []domain.Agent
 		}
 	}
 	return out
+}
+
+// ReasoningBaseURL reports the development/test reasoning redirect, if any.
+// Empty in every packaged install, because it is env-only and never persisted.
+func (s *Service) ReasoningBaseURL() string {
+	if s == nil || s.lookup == nil {
+		return ""
+	}
+	return strings.TrimSpace(s.lookup("KENNEL_WALDO_BASE_URL"))
 }

@@ -7,6 +7,7 @@ package gen
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
@@ -14,7 +15,7 @@ import (
 
 const getAppSettings = `-- name: GetAppSettings :one
 
-SELECT id, default_session_mode, updated_at, reasoning_provider, reasoning_model, reasoning_effort FROM app_settings WHERE id = 1
+SELECT id, default_session_mode, updated_at, reasoning_provider, reasoning_model, reasoning_effort, reasoning_verified_at, reasoning_verified_provider, reasoning_verified_model FROM app_settings WHERE id = 1
 `
 
 // Daemon-owned user preferences. One row, seeded by migration 0042, so a read
@@ -29,6 +30,9 @@ func (q *Queries) GetAppSettings(ctx context.Context) (AppSetting, error) {
 		&i.ReasoningProvider,
 		&i.ReasoningModel,
 		&i.ReasoningEffort,
+		&i.ReasoningVerifiedAt,
+		&i.ReasoningVerifiedProvider,
+		&i.ReasoningVerifiedModel,
 	)
 	return i, err
 }
@@ -65,6 +69,29 @@ func (q *Queries) SetReasoningSettings(ctx context.Context, arg SetReasoningSett
 		arg.ReasoningProvider,
 		arg.ReasoningModel,
 		arg.ReasoningEffort,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const setReasoningVerification = `-- name: SetReasoningVerification :exec
+UPDATE app_settings
+SET reasoning_verified_at = ?, reasoning_verified_provider = ?, reasoning_verified_model = ?, updated_at = ?
+WHERE id = 1
+`
+
+type SetReasoningVerificationParams struct {
+	ReasoningVerifiedAt       sql.NullString
+	ReasoningVerifiedProvider string
+	ReasoningVerifiedModel    string
+	UpdatedAt                 time.Time
+}
+
+func (q *Queries) SetReasoningVerification(ctx context.Context, arg SetReasoningVerificationParams) error {
+	_, err := q.db.ExecContext(ctx, setReasoningVerification,
+		arg.ReasoningVerifiedAt,
+		arg.ReasoningVerifiedProvider,
+		arg.ReasoningVerifiedModel,
 		arg.UpdatedAt,
 	)
 	return err

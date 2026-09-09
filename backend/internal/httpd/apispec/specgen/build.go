@@ -705,6 +705,17 @@ func shellTerminalOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodPost, path: "/api/v1/settings/reasoning/verification", id: "verifyReasoning", tag: "settings",
+			summary: "Probe the configured reasoning provider once and record whether it works",
+			resps: []respUnit{
+				{http.StatusOK, controllers.ReasoningResponse{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusServiceUnavailable, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodGet, path: "/api/v1/sessions/{sessionId}/conversation", id: "getSessionConversation", tag: "conversations",
 			summary:    "Read a chat session's durable conversation",
 			pathParams: []any{controllers.SessionIDParam{}, conversationSnapshotQuery{}},

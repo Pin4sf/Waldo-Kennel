@@ -36,6 +36,12 @@ func (s *reasoningSettingsStore) SetReasoningSettings(_ context.Context, provide
 	return nil
 }
 
+func (s *reasoningSettingsStore) SetReasoningVerification(_ context.Context, verifiedAt *time.Time, provider, model string, _ time.Time) error {
+	s.snapshot.ReasoningVerifiedAt = verifiedAt
+	s.snapshot.ReasoningVerifiedProvider, s.snapshot.ReasoningVerifiedModel = provider, model
+	return nil
+}
+
 type reasoningSecret struct{ value string }
 
 func (s *reasoningSecret) Get(context.Context) (string, error) { return s.value, nil }

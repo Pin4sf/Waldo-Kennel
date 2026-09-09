@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -25,7 +26,13 @@ type AppSettings struct {
 	ReasoningProvider  string
 	ReasoningModel     string
 	ReasoningEffort    string
-	UpdatedAt          time.Time
+	// ReasoningVerifiedAt is when an actual probe last succeeded, and the
+	// provider/model pair it succeeded for. Nil means never verified: a stored
+	// credential alone proves nothing about whether reasoning works.
+	ReasoningVerifiedAt       *time.Time
+	ReasoningVerifiedProvider string
+	ReasoningVerifiedModel    string
+	UpdatedAt                 time.Time
 }
 
 // GetAppSettings reads the preference row.
@@ -37,11 +44,14 @@ func (s *Store) GetAppSettings(ctx context.Context) (AppSettings, error) {
 	return AppSettings{
 		// Normalized on read: a value written by a build that knows a mode this
 		// one does not must still resolve to something dispatchable.
-		DefaultSessionMode: domain.NormalizeSessionMode(row.DefaultSessionMode),
-		ReasoningProvider:  row.ReasoningProvider,
-		ReasoningModel:     row.ReasoningModel,
-		ReasoningEffort:    row.ReasoningEffort,
-		UpdatedAt:          row.UpdatedAt,
+		DefaultSessionMode:        domain.NormalizeSessionMode(row.DefaultSessionMode),
+		ReasoningProvider:         row.ReasoningProvider,
+		ReasoningModel:            row.ReasoningModel,
+		ReasoningEffort:           row.ReasoningEffort,
+		ReasoningVerifiedAt:       parseVerifiedAt(row.ReasoningVerifiedAt),
+		ReasoningVerifiedProvider: row.ReasoningVerifiedProvider,
+		ReasoningVerifiedModel:    row.ReasoningVerifiedModel,
+		UpdatedAt:                 row.UpdatedAt,
 	}, nil
 }
 
@@ -72,4 +82,41 @@ func (s *Store) SetDefaultSessionMode(ctx context.Context, mode domain.SessionMo
 		return fmt.Errorf("set default session mode: %w", err)
 	}
 	return nil
+}
+
+// SetReasoningVerification records the outcome of an actual reasoning probe.
+//
+// A nil time clears the record, which is what a provider or model change must
+// do: verification belongs to the exact pair that was probed and cannot be
+// inherited by another one.
+func (s *Store) SetReasoningVerification(ctx context.Context, verifiedAt *time.Time, provider, model string, now time.Time) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	stamp := sql.NullString{}
+	if verifiedAt != nil {
+		stamp = sql.NullString{String: verifiedAt.UTC().Format(time.RFC3339Nano), Valid: true}
+	}
+	if err := s.qw.SetReasoningVerification(ctx, gen.SetReasoningVerificationParams{
+		ReasoningVerifiedAt:       stamp,
+		ReasoningVerifiedProvider: provider,
+		ReasoningVerifiedModel:    model,
+		UpdatedAt:                 now,
+	}); err != nil {
+		return fmt.Errorf("set reasoning verification: %w", err)
+	}
+	return nil
+}
+
+// parseVerifiedAt tolerates an unreadable stamp by reporting "never verified".
+// Treating a corrupt value as a successful verification would be the unsafe
+// direction of that failure.
+func parseVerifiedAt(raw sql.NullString) *time.Time {
+	if !raw.Valid || raw.String == "" {
+		return nil
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, raw.String)
+	if err != nil {
+		return nil
+	}
+	return &parsed
 }

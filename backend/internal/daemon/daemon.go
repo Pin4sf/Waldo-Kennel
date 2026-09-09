@@ -202,7 +202,8 @@ func Run() error {
 		settingsStore{store: store},
 		chatDrivers,
 		func() time.Time { return time.Now().UTC() },
-	).WithReasoningSecrets(secretstore.NewFileStore(cfg.DataDir))
+	).WithReasoningSecrets(secretstore.NewFileStore(cfg.DataDir)).
+		WithReasoningProbe(probeReasoning)
 
 	// Chat service. The driver registry is the capability gate: a harness with no
 	// registered driver cannot start in chat mode, so an unsupported request fails
