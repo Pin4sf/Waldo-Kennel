@@ -1,0 +1,240 @@
+package domain
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+)
+
+// WorkspaceKind is the custody shape a retained snapshot came from.
+//
+// It is recorded rather than assumed because the two are not equivalent: a
+// Git worktree has isolation and revisions, a staged folder has neither. A
+// plain folder must never be described as a worktree, and revision fields must
+// stay empty for it rather than carrying a fabricated value.
+type WorkspaceKind string
+
+const (
+	// WorkspaceGitWorktree is a Git worktree with real isolation and revisions.
+	WorkspaceGitWorktree WorkspaceKind = "git_worktree"
+	// WorkspaceStagedFolder is a single-writer staged directory. Supplied
+	// document Outcomes use this; it has no revisions and no worktree
+	// isolation, and claiming otherwise would be a lie about custody.
+	WorkspaceStagedFolder WorkspaceKind = "staged_folder"
+)
+
+// Valid reports whether k is a known custody shape.
+func (k WorkspaceKind) Valid() bool {
+	return k == WorkspaceGitWorktree || k == WorkspaceStagedFolder
+}
+
+// RetentionState says how completely a snapshot represents what was produced.
+//
+// Partial retention is reported as partial. Presenting an incomplete snapshot
+// as the artifact is the failure this vocabulary exists to prevent, because a
+// downstream unit would then consume something nobody accounted for.
+type RetentionState string
+
+const (
+	// RetentionRetained means every changed path is represented.
+	RetentionRetained RetentionState = "retained"
+	// RetentionIncomplete means the snapshot ran into a bound and does not
+	// represent everything. It never satisfies a downstream handoff.
+	RetentionIncomplete RetentionState = "incomplete"
+	// RetentionUnsupported means the workspace held something this snapshot
+	// cannot represent, and the case was refused rather than silently dropped.
+	RetentionUnsupported RetentionState = "unsupported"
+	// RetentionFailed means the workspace could not be read at all.
+	RetentionFailed RetentionState = "failed"
+)
+
+// Valid reports whether s is a known retention state.
+func (s RetentionState) Valid() bool {
+	switch s {
+	case RetentionRetained, RetentionIncomplete, RetentionUnsupported, RetentionFailed:
+		return true
+	}
+	return false
+}
+
+// Complete reports whether this retention may satisfy a downstream handoff.
+// Only a fully retained snapshot may: anything else means the successor would
+// start from an unaccounted workspace.
+func (s RetentionState) Complete() bool { return s == RetentionRetained }
+
+// ArtifactChangeKind is what happened to one path.
+type ArtifactChangeKind string
+
+// What happened to one path in a retained snapshot.
+const (
+	// ArtifactAdded is a path the attempt created and tracked.
+	ArtifactAdded ArtifactChangeKind = "added"
+	// ArtifactModified is a tracked path the attempt changed.
+	ArtifactModified ArtifactChangeKind = "modified"
+	// ArtifactDeleted is output too. A downstream unit that re-creates a file
+	// its upstream removed has not received the upstream's work.
+	ArtifactDeleted ArtifactChangeKind = "deleted"
+	// ArtifactUntracked is a path present in the workspace but never tracked.
+	// It is retained rather than dropped: untracked output is still output.
+	ArtifactUntracked ArtifactChangeKind = "untracked"
+)
+
+// Valid reports whether k is a known change kind.
+func (k ArtifactChangeKind) Valid() bool {
+	switch k {
+	case ArtifactAdded, ArtifactModified, ArtifactDeleted, ArtifactUntracked:
+		return true
+	}
+	return false
+}
+
+// ArtifactFile is one changed path in a retained snapshot.
+type ArtifactFile struct {
+	ID           string
+	AttemptID    AttemptID
+	RelativePath string
+	ChangeKind   ArtifactChangeKind
+	// ContentDigest is empty for a deletion and for content the snapshot
+	// declined to read. Empty means unknown, never "empty file".
+	ContentDigest string
+	SizeBytes     *int64
+	FileMode      *int64
+	IsBinary      bool
+	// UnsupportedReason records a path that could not be represented, so an
+	// unsupported case stays visible per file instead of collapsing the whole
+	// receipt.
+	UnsupportedReason string
+}
+
+// Validate checks one manifest entry, including that its path stays inside the
+// workspace the snapshot owns.
+func (f ArtifactFile) Validate() error {
+	if strings.TrimSpace(f.ID) == "" {
+		return fmt.Errorf("artifact file id is required")
+	}
+	if f.AttemptID.IsZero() {
+		return fmt.Errorf("artifact file attempt id is required")
+	}
+	if strings.TrimSpace(f.RelativePath) == "" {
+		return fmt.Errorf("artifact file relative path is required")
+	}
+	// A snapshot is confined to the workspace it owns. An absolute or escaping
+	// path in a receipt would let a later export write outside custody.
+	if strings.HasPrefix(f.RelativePath, "/") || strings.Contains(f.RelativePath, "..") {
+		return fmt.Errorf("artifact file path %q must stay inside the workspace", f.RelativePath)
+	}
+	if !f.ChangeKind.Valid() {
+		return fmt.Errorf("artifact file change kind %q is invalid", f.ChangeKind)
+	}
+	if f.ChangeKind == ArtifactDeleted && f.ContentDigest != "" {
+		return fmt.Errorf("a deleted artifact file cannot carry a content digest")
+	}
+	return nil
+}
+
+// AttemptReceipt is the durable record of what one Attempt produced.
+//
+// It is the bridge between execution ending and anything downstream trusting
+// the result: a provider's description of its own output is a claim, and a
+// successor cannot consume "whatever is in some worktree". It also carries
+// everything a delivery manifest needs, because provenance cannot be
+// backfilled into a receipt that is already frozen.
+type AttemptReceipt struct {
+	AttemptID              AttemptID
+	OutcomeID              OutcomeID
+	PlanRevisionID         PlanRevisionID
+	WorkUnitID             WorkUnitID
+	ContractRevisionNumber int64
+
+	// ArtifactVersion is the immutable identity of this retained set: a digest
+	// over the file manifest. An accepted-result export binds to this exact
+	// value so a later attempt cannot change what was reviewed.
+	ArtifactVersion string
+
+	WorkspaceKind WorkspaceKind
+	WorkspacePath string
+
+	RepositoryPath     string
+	RepositoryIdentity string
+
+	// BaseRevision and ResultRevision are meaningful only for a git worktree.
+	BaseRevision   string
+	ResultRevision string
+	WorkspaceDirty bool
+
+	RetentionState  RetentionState
+	RetentionDetail string
+
+	// TerminationReason is why execution ended, as observed. Never parsed from
+	// provider prose.
+	TerminationReason string
+
+	ObservedAt time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	// FrozenAt is set once the receipt has been used as review evidence. A
+	// frozen receipt is never replaced, so later work cannot silently overwrite
+	// what the owner reviewed.
+	FrozenAt *time.Time
+
+	Files []ArtifactFile
+}
+
+// Frozen reports whether this receipt has been used as review evidence.
+func (r AttemptReceipt) Frozen() bool { return r.FrozenAt != nil }
+
+// Validate checks that the receipt carries full producing lineage and does not
+// misdescribe its custody shape.
+func (r AttemptReceipt) Validate() error {
+	if r.AttemptID.IsZero() {
+		return fmt.Errorf("attempt receipt attempt id is required")
+	}
+	if r.OutcomeID.IsZero() || r.PlanRevisionID.IsZero() || r.WorkUnitID.IsZero() {
+		return fmt.Errorf("attempt receipt requires full producing lineage")
+	}
+	if r.ContractRevisionNumber < 1 {
+		return fmt.Errorf("attempt receipt contract revision number is required")
+	}
+	if strings.TrimSpace(r.ArtifactVersion) == "" {
+		return fmt.Errorf("attempt receipt artifact version is required")
+	}
+	if !r.WorkspaceKind.Valid() {
+		return fmt.Errorf("attempt receipt workspace kind %q is invalid", r.WorkspaceKind)
+	}
+	if !r.RetentionState.Valid() {
+		return fmt.Errorf("attempt receipt retention state %q is invalid", r.RetentionState)
+	}
+	// A staged folder has no revisions. Carrying one would misdescribe custody.
+	if r.WorkspaceKind == WorkspaceStagedFolder && (r.BaseRevision != "" || r.ResultRevision != "") {
+		return fmt.Errorf("a staged folder has no revisions and must not report one")
+	}
+	if r.ObservedAt.IsZero() {
+		return fmt.Errorf("attempt receipt observed timestamp is required")
+	}
+	for _, file := range r.Files {
+		if err := file.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ArtifactManifestDigest is the canonical artifact version for a file set.
+//
+// It digests each path with its change kind and content digest, in a stable
+// order, so the same produced output always yields the same version and any
+// change to content, paths or deletions yields a different one. Two attempts
+// producing identical output share a version, which is what lets a downstream
+// handoff assert it received the exact upstream artifact.
+func ArtifactManifestDigest(files []ArtifactFile) SHA256Digest {
+	ordered := make([]string, 0, len(files))
+	for _, file := range files {
+		ordered = append(ordered, strings.Join([]string{
+			file.RelativePath, string(file.ChangeKind), file.ContentDigest,
+		}, "\x00"))
+	}
+	// Sorted so storage or traversal order cannot change the identity.
+	sort.Strings(ordered)
+	return DigestSHA256([]byte(strings.Join(ordered, "\x1e")))
+}

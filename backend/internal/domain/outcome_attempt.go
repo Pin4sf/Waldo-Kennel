@@ -88,10 +88,16 @@ var LegalAttemptTransitions = map[AttemptStatus][]AttemptStatus{
 	AttemptQueued: {AttemptRunning, AttemptFailed, AttemptCancelled, AttemptLost},
 	AttemptPaused: {AttemptRunning, AttemptCancelled, AttemptLost},
 	// Running attempts end through reconcile (lost/reconciled), owner action
-	// (paused/cancelled), or truthful spawn/runner failure. There is no
-	// running -> succeeded transition anywhere in #31: success arrives only
-	// with #35's Verification binding.
+	// (paused/cancelled), or truthful spawn/runner failure. There is
+	// deliberately still no running -> succeeded edge: success is never
+	// assigned straight from a live process.
 	AttemptRunning: {AttemptPaused, AttemptFailed, AttemptCancelled, AttemptLost, AttemptReconciled},
+	// Reconciled means execution ended with the result unclassified. It is the
+	// only route to succeeded, and only once the WorkUnit's proof is satisfied
+	// — see docs/verification/2026-09-09-execution-to-admission-sequence.md.
+	// Reconciled is otherwise terminal: a classified success cannot be walked
+	// back, and a reconciled attempt is never re-opened for execution.
+	AttemptReconciled: {AttemptSucceeded},
 }
 
 // AttemptTransitionLegal reports whether from -> to is a legal stored

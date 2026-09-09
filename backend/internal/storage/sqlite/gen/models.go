@@ -97,6 +97,18 @@ type Attempt struct {
 	UpdatedAt              time.Time
 }
 
+type AttemptArtifactFile struct {
+	ID                string
+	AttemptID         string
+	RelativePath      string
+	ChangeKind        string
+	ContentDigest     string
+	SizeBytes         sql.NullInt64
+	FileMode          sql.NullInt64
+	IsBinary          int64
+	UnsupportedReason string
+}
+
 type AttemptFence struct {
 	ID            string
 	Subject       string
@@ -114,6 +126,29 @@ type AttemptObservation struct {
 	Kind      string
 	Payload   string
 	CreatedAt time.Time
+}
+
+type AttemptReceipt struct {
+	AttemptID              string
+	OutcomeID              string
+	PlanRevisionID         string
+	WorkUnitID             string
+	ContractRevisionNumber int64
+	ArtifactVersion        string
+	WorkspaceKind          string
+	WorkspacePath          string
+	RepositoryPath         string
+	RepositoryIdentity     string
+	BaseRevision           string
+	ResultRevision         string
+	WorkspaceDirty         int64
+	RetentionState         string
+	RetentionDetail        string
+	TerminationReason      string
+	ObservedAt             time.Time
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	FrozenAt               sql.NullTime
 }
 
 type AttemptRecoveryReceipt struct {
