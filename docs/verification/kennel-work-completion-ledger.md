@@ -97,10 +97,18 @@ Requirement IDs are local to this ledger and referenced by commits and tests.
 | A1-5 | Restart reconciliation leaves no run visibly active and never auto-repeats a billable call | `ReconcileInterruptedRuns`; SQLite terminal-immutability and monotonic-provenance guards | **verified, inherited** | none — independently reproduced, not taken on report | `TestReconcileInterruptedRunsExpiresWithoutRetryingProvider`, `TestIntelligenceRunStoreRoundTripAndTerminalImmutability`, `…EffectiveProvenanceIsMonotonic` all pass and assert what their names claim | automated |
 | A1-6 | No cross-provider credential transfer | provider-bound file secret store | **verified, inherited** | none — independently reproduced | `TestSetReasoningDoesNotReuseCredentialWhenProviderChanges` is a real canary test (Anthropic key never populates OpenAI); `TestFileStoreBindsCredentialsToProvider` | automated |
 | A1-7 | The machine code the UI switches on does not come from error prose | `reasoningError` derived its code with `strings.Contains` over its own messages | **done** `06e3234fb` | classification by `Kind`, named sentinels for local setup errors | `TestReasoningErrorCodesComeFromSentinelsNotMessageText` — red-green: a classified rejection previously answered `REASONING_NOT_READY` | automated |
-| A2-1 | Grounding is bounded, secret-safe, fail-closed | `service/intelligence/repository_context.go` | **partial — to verify** | reverify behaviorally: nested pruning, symlink/root confinement, cancellation during traversal *and* reads, Git failure fails closed | negative tests per assignment §4 | pending |
-| A2-2 | Non-repository (supplied document) context is supported with an explicit custody model | **repository-only today** | **missing** | explicit supported-local-file context path reusing existing attachment staging + Project Brief; defined formats; refuse unsupported before launch; never silently `git init` | a document Outcome grounds from supplied files and is refused when unsupported | pending |
-| A2-3 | Bounded context enters both Contract and Plan input digests | Contract digest includes the snapshot (per `d617b4ee3`) | **partial** | confirm the Plan digest too | changed context changes both digests | pending |
-| A2-4 | Unresolved assumptions/blockers are surfaced before approval | migration 0117 stores them; Plan API returns them | **partial** | surface in the approval surface rather than discarding | approval shows unresolved blockers | pending |
+| A2-1 | Grounding is bounded, secret-safe, symlink-confined, cancellable, fail-closed on Git error | `service/intelligence/repository_context.go` | **verified independently** | none | real secret canaries + symlink escape + real `git init` in `TestBuildRepositoryContextBoundsFilesAndExcludesIgnoredSymlinkedSecrets`; `TestIgnoredByGitDistinguishesNotIgnoredFromGitFailure` plus the fail-closed call site at `repository_context.go:130` | automated |
+| A2-2 | Non-repository (supplied document) context with an explicit custody model | **repository-only today** | **missing — deferred by owner decision** | specified in [the A2 deferred-scope plan](../superpowers/plans/2026-09-09-a2-supplied-document-context.md); resumes after the B–D checkpoint | a document Outcome grounds from supplied files and is refused when unsupported | **deferred** |
+| A2-3 | Bounded context enters both Contract and Plan input digests | Contract digest includes the snapshot (per `d617b4ee3`) | **partial — deferred with A2-2** | confirm the Plan digest too | changed context changes both digests | **deferred** |
+| A2-4 | Unresolved assumptions/blockers are surfaced before approval | migration 0117 stores them; Plan API returns them | **partial — deferred with A2-2** | surface in the approval surface rather than discarding | approval shows unresolved blockers | **deferred** |
+
+**A2 deferral.** The owner chose on 2026-09-09 to land Phases B, C and D before
+A2's supplied-document capability, to get the working software loop in hand
+first. A2 remains in assignment scope. Its safety half (A2-1) was *not*
+deferred and is verified above. The three conditions that keep the deferral from
+creating a retrofit — no document control in B, a staged-workspace custody model
+in C, and D's document row recorded blocked — are recorded in the A2 plan and
+are binding on those phases.
 
 ### Phases B, C, D
 
