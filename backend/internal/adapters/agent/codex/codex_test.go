@@ -1013,6 +1013,44 @@ func TestGetRestoreCommandAppendsConfiguredModel(t *testing.T) {
 	}
 }
 
+func TestGetRestoreCommandPinsGovernedWorkspaceWriteBoundary(t *testing.T) {
+	plugin := &Plugin{resolvedBinary: "codex"}
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest: "brief", RequiredCapabilities: []string{
+			domain.CapabilityWorktreeExec, domain.CapabilityWorktreeRead, domain.CapabilityWorktreeWrite,
+		},
+		Grants: []domain.CapabilityGrant{
+			{ID: "exec", Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"},
+			{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
+			{ID: "write", Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"},
+		},
+	}
+	cmd, ok, err := plugin.GetRestoreCommand(context.Background(), ports.RestoreConfig{
+		Config:          ports.AgentConfig{Model: "approved-model"},
+		Permissions:     ports.PermissionModeBypassPermissions,
+		ExecutionPolicy: &policy,
+		Session:         ports.SessionRef{Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "thread-123"}},
+	})
+	if err != nil || !ok {
+		t.Fatalf("restore = (ok=%v, err=%v), want ok", ok, err)
+	}
+	for _, want := range []string{
+		"--sandbox", "workspace-write",
+		"sandbox_workspace_write.network_access=false",
+		"sandbox_workspace_write.writable_roots=[]",
+		"sandbox_workspace_write.exclude_slash_tmp=true",
+		"sandbox_workspace_write.exclude_tmpdir_env_var=true",
+	} {
+		if !containsSubsequence(cmd, []string{want}) {
+			t.Fatalf("restore command %#v missing governed setting %q", cmd, want)
+		}
+	}
+	if containsSubsequence(cmd, []string{"--ask-for-approval", "never"}) || !containsSubsequence(cmd, []string{"--ask-for-approval", "on-request"}) {
+		t.Fatalf("restore command %#v did not force governed approval posture", cmd)
+	}
+}
+
 func TestGetRestoreCommandFalseWithoutAgentSessionID(t *testing.T) {
 	plugin := &Plugin{resolvedBinary: "codex"}
 

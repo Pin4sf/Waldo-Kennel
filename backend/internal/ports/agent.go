@@ -445,6 +445,10 @@ type RestoreConfig struct {
 	Permissions     PermissionMode
 	AllowedTools    []string
 	DisallowedTools []string
+	// ExecutionPolicy is the frozen Attempt policy for governed recovery.
+	// Adapters must map it to the same enforcement boundary as a fresh launch
+	// or refuse to build a restore command.
+	ExecutionPolicy *domain.AttemptExecutionPolicy
 	Session         SessionRef
 	// Prompt is an optional new user turn to submit while resuming the native
 	// conversation. Adapters whose CLI accepts a resume-time positional prompt

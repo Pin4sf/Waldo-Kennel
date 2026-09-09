@@ -287,6 +287,10 @@ func TestAttemptStore_GuardedTransitionsAndSessionRefs(t *testing.T) {
 	if err != nil || !ok || latest.SessionID != "provider-session-1" {
 		t.Fatalf("latest ref ok=%v err=%v", ok, err)
 	}
+	bySession, ok, err := s.LatestAttemptSessionRefForSession(ctx, "provider-session-1")
+	if err != nil || !ok || bySession.AttemptID != at.ID {
+		t.Fatalf("latest ref by session ok=%v err=%v attempt=%s", ok, err, bySession.AttemptID)
+	}
 
 	firstObs, err := s.AppendAttemptObservation(ctx, at.ID, domain.ObservationOwnerPause, `{"by":"owner"}`, now)
 	if err != nil {

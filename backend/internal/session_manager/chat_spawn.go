@@ -149,12 +149,13 @@ func (m *Manager) launchChatController(ctx context.Context, in chatSpawn) (domai
 		AdditionalDirectories: workspaceProjectDirectories(in.workspace.Path, in.workspaceProject),
 		ControllerReady: func(started ChatStarted) error {
 			metadata := domain.SessionMetadata{
-				Branch:            in.workspace.Branch,
-				WorkspacePath:     in.workspace.Path,
-				WorkspaceRepoPath: in.workspace.RepoPath,
-				Prompt:            in.prompt,
-				DiffBaseSHA:       diffBaseSHA,
-				DiffBaseRef:       diffBaseRef,
+				Branch:                        in.workspace.Branch,
+				WorkspacePath:                 in.workspace.Path,
+				WorkspaceRepoPath:             in.workspace.RepoPath,
+				Prompt:                        in.prompt,
+				DiffBaseSHA:                   diffBaseSHA,
+				DiffBaseRef:                   diffBaseRef,
+				GovernedExecutionPolicyDigest: in.record.Metadata.GovernedExecutionPolicyDigest,
 				// No RuntimeHandleID or RuntimeLaunchID: a chat session has no
 				// agent pane. Leaving them empty keeps the reaper from probing for
 				// a terminal that was never created.
@@ -283,6 +284,7 @@ func (m *Manager) resumeChatController(
 	rec domain.SessionRecord,
 	project domain.ProjectRecord,
 	ws ports.WorkspaceInfo,
+	execution *recoveryExecution,
 ) (RestoreResult, error) {
 	if m.chat == nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: %w: chat mode is not available in this build",
@@ -296,7 +298,10 @@ func (m *Manager) resumeChatController(
 		return RestoreResult{}, fmt.Errorf("%s %s: system prompt: %w", operation, rec.ID, err)
 	}
 
-	agentConfig := effectiveAgentConfig(rec.Kind, project.Config)
+	agentConfig, err := recoveryAgentConfig(rec, project, execution)
+	if err != nil {
+		return RestoreResult{}, fmt.Errorf("%s %s: %w", operation, rec.ID, err)
+	}
 	additionalDirectories, err := m.restoredWorkspaceProjectDirectories(ctx, rec, project, ws.Path)
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: workspace roots: %w", operation, rec.ID, err)
@@ -312,6 +317,7 @@ func (m *Manager) resumeChatController(
 		Env:                   m.runtimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env),
 		Model:                 agentConfig.Model,
 		Permissions:           agentConfig.Permissions,
+		ExecutionPolicy:       executionPolicy(execution),
 		SystemPrompt:          systemPrompt,
 		AdditionalDirectories: additionalDirectories,
 		// The handle that makes this a resume rather than a new conversation.
@@ -347,6 +353,14 @@ func (m *Manager) resumeChatController(
 	// Native continuity: the provider still holds the conversation, so the agent
 	// resumes with its own history rather than a replayed prompt.
 	return RestoreResult{Session: restored, Mode: RestoreModeNative}, nil
+}
+
+func executionPolicy(execution *recoveryExecution) *domain.AttemptExecutionPolicy {
+	if execution == nil {
+		return nil
+	}
+	policy := execution.policy
+	return &policy
 }
 
 func workspaceProjectDirectories(root string, project *ports.WorkspaceProjectInfo) []string {

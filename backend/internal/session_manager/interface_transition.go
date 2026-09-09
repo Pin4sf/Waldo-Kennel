@@ -474,6 +474,10 @@ func (m *Manager) preflightInterfaceTarget(
 		}
 		return m.chat.PreflightChat(ctx, rec.Harness)
 	}
+	execution, err := m.loadRecoveryExecution(ctx, rec)
+	if err != nil {
+		return err
+	}
 	agent, ok := m.agents.Agent(rec.Harness)
 	if !ok {
 		return ErrUnknownHarness
@@ -486,11 +490,14 @@ func (m *Manager) preflightInterfaceTarget(
 	if err != nil {
 		return err
 	}
-	config := effectiveAgentConfig(rec.Kind, project.Config)
+	config, err := recoveryAgentConfig(rec, project, execution)
+	if err != nil {
+		return err
+	}
 	var cmd []string
 	if transition.NativeConversationID == "" {
 		cmd, _, _, err = freshLaunchArgv(ctx, agent, rec.ID, rec.Metadata.WorkspacePath,
-			rec.Metadata, systemPrompt, "", config, rec.Kind, m.dataDir, true)
+			rec.Metadata, systemPrompt, "", config, rec.Kind, m.dataDir, true, executionPolicy(execution))
 	} else {
 		var resumable bool
 		cmd, resumable, err = agent.GetRestoreCommand(ctx, ports.RestoreConfig{
@@ -499,7 +506,7 @@ func (m *Manager) preflightInterfaceTarget(
 				Metadata: map[string]string{ports.MetadataKeyAgentSessionID: transition.NativeConversationID},
 			},
 			Kind: rec.Kind, DataDir: m.dataDir, SystemPrompt: systemPrompt,
-			Config: config, Permissions: config.Permissions,
+			Config: config, Permissions: config.Permissions, ExecutionPolicy: executionPolicy(execution),
 		})
 		if err == nil && !resumable {
 			return ErrNativeConversationMissing

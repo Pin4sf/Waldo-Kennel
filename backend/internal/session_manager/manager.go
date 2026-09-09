@@ -920,14 +920,15 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	}
 
 	metadata := domain.SessionMetadata{
-		Branch:                    ws.Branch,
-		WorkspacePath:             ws.Path,
-		WorkspaceRepoPath:         ws.RepoPath,
-		RuntimeHandleID:           handle.ID,
-		RuntimeLaunchID:           launchID,
-		Prompt:                    prompt,
-		LatestUserPrompt:          prompt,
-		BrowserCapabilityVerifier: browserCapabilityVerifier,
+		Branch:                        ws.Branch,
+		WorkspacePath:                 ws.Path,
+		WorkspaceRepoPath:             ws.RepoPath,
+		RuntimeHandleID:               handle.ID,
+		RuntimeLaunchID:               launchID,
+		Prompt:                        prompt,
+		LatestUserPrompt:              prompt,
+		BrowserCapabilityVerifier:     browserCapabilityVerifier,
+		GovernedExecutionPolicyDigest: rec.Metadata.GovernedExecutionPolicyDigest,
 	}
 	if projectKind == domain.ProjectKindSingleRepo {
 		metadata.DiffBaseSHA, metadata.DiffBaseRef = resolveSpawnDiffBase(ctx, ws.Path, ws.BaseRef)
@@ -1739,6 +1740,10 @@ func (m *Manager) relaunchSessionFresh(ctx context.Context, operation string, re
 }
 
 func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation string, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, restartHandle *ports.RuntimeHandle, forceFresh bool) (RestoreResult, error) {
+	execution, err := m.loadRecoveryExecution(ctx, rec)
+	if err != nil {
+		return RestoreResult{}, fmt.Errorf("%s %s: %w", operation, rec.ID, err)
+	}
 	// Relaunch dispatches from the currently committed persisted mode, never from
 	// a caller hint. The interface-transition coordinator changes that fact only
 	// after stopping the old controller, then reuses this ordinary restore path.
@@ -1748,7 +1753,7 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		} else if strings.TrimSpace(rec.Metadata.ProviderConversationID) == "" {
 			return RestoreResult{}, fmt.Errorf("%s %s: %w", operation, rec.ID, ErrIncompleteHandle)
 		}
-		return m.resumeChatController(ctx, operation, rec, project, ws)
+		return m.resumeChatController(ctx, operation, rec, project, ws, execution)
 	}
 
 	agent, ok := m.agents.Agent(rec.Harness)
@@ -1758,8 +1763,12 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	// Resume/relaunch enforces the same profile-readiness contract as spawn:
 	// an admitted harness whose selected configuration can no longer launch
 	// fails closed here, before any runtime or terminal state is touched.
+	agentConfig, err := recoveryAgentConfig(rec, project, execution)
+	if err != nil {
+		return RestoreResult{}, fmt.Errorf("%s %s: %w", operation, rec.ID, err)
+	}
 	if checker, ok := agent.(ports.AgentProfileReadinessChecker); ok {
-		readiness, err := checker.ProfileReadiness(ctx, freshAgentConfig(rec.Kind, rec.Harness, project.Config))
+		readiness, err := checker.ProfileReadiness(ctx, agentConfig)
 		if err != nil {
 			return RestoreResult{}, fmt.Errorf("%s %s: %s readiness: %w", operation, rec.ID, rec.Harness, err)
 		}
@@ -1785,7 +1794,6 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 
 	// Restore re-applies the project's resolved agent config so a configured
 	// model/permissions carry across a restore, matching fresh spawn.
-	agentConfig := effectiveAgentConfig(rec.Kind, project.Config)
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env)
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: browser capability: %w", operation, rec.ID, err)
@@ -1803,10 +1811,10 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	var mode RestoreMode
 	if forceFresh {
 		argv, delivery, mode, err = freshLaunchArgv(ctx, agent, rec.ID, ws.Path, rec.Metadata,
-			systemPrompt, systemPromptFile, agentConfig, rec.Kind, m.dataDir, true)
+			systemPrompt, systemPromptFile, agentConfig, rec.Kind, m.dataDir, true, executionPolicy(execution))
 	} else {
 		argv, delivery, mode, err = restoreArgv(ctx, agent, rec.ID, ws.Path, rec.Metadata,
-			systemPrompt, systemPromptFile, agentConfig, rec.Kind, rec.Harness, m.dataDir)
+			systemPrompt, systemPromptFile, agentConfig, rec.Kind, rec.Harness, m.dataDir, executionPolicy(execution))
 	}
 	if err != nil {
 		m.cleanupSystemPromptDir(rec.ID)
@@ -1844,14 +1852,15 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		return RestoreResult{}, fmt.Errorf("%s %s: runtime: %w", operation, rec.ID, err)
 	}
 	metadata := domain.SessionMetadata{
-		Branch:                    ws.Branch,
-		WorkspacePath:             ws.Path,
-		WorkspaceRepoPath:         ws.RepoPath,
-		RuntimeHandleID:           handle.ID,
-		RuntimeLaunchID:           launchID,
-		AgentSessionID:            rec.Metadata.AgentSessionID,
-		Prompt:                    rec.Metadata.Prompt,
-		BrowserCapabilityVerifier: browserCapabilityVerifier,
+		Branch:                        ws.Branch,
+		WorkspacePath:                 ws.Path,
+		WorkspaceRepoPath:             ws.RepoPath,
+		RuntimeHandleID:               handle.ID,
+		RuntimeLaunchID:               launchID,
+		AgentSessionID:                rec.Metadata.AgentSessionID,
+		Prompt:                        rec.Metadata.Prompt,
+		BrowserCapabilityVerifier:     browserCapabilityVerifier,
+		GovernedExecutionPolicyDigest: rec.Metadata.GovernedExecutionPolicyDigest,
 	}
 	if err := m.lcm.MarkSpawned(ctx, rec.ID, metadata); err != nil {
 		_ = m.runtime.Destroy(ctx, handle)
@@ -3007,6 +3016,13 @@ func (m *Manager) cleanupRecords(ctx context.Context, project domain.ProjectID) 
 // ---- helpers ----
 
 func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
+	var governedPolicyDigest string
+	if cfg.ExecutionPolicy != nil {
+		// Spawn validates the policy before creating this row. The digest is a
+		// durable marker that tells recovery a matching Attempt snapshot is
+		// mandatory; the snapshot remains the authority for the actual policy.
+		governedPolicyDigest, _ = cfg.ExecutionPolicy.Digest()
+	}
 	return domain.SessionRecord{
 		ProjectID:   cfg.ProjectID,
 		IssueID:     cfg.IssueID,
@@ -3021,6 +3037,7 @@ func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 		Mode:             domain.NormalizeSessionMode(cfg.RequestedMode),
 		AutoInjectReview: true,
 		AutoInjectCI:     true,
+		Metadata:         domain.SessionMetadata{GovernedExecutionPolicyDigest: governedPolicyDigest},
 	}
 }
 
@@ -3815,13 +3832,13 @@ func sleepContext(ctx context.Context, d time.Duration) error {
 // signals via ok=false (e.g. no native session id captured yet). Returns
 // ErrNotResumable when transcript-preserving restore is required but unavailable,
 // or when a promptless, unresumable worker has nothing to restore from.
-func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, kind domain.SessionKind, _ domain.AgentHarness, dataDir string) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
+func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, kind domain.SessionKind, _ domain.AgentHarness, dataDir string, policy *domain.AttemptExecutionPolicy) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
 	ref := ports.SessionRef{
 		ID:            string(id),
 		WorkspacePath: workspacePath,
 		Metadata:      map[string]string{ports.MetadataKeyAgentSessionID: meta.AgentSessionID},
 	}
-	cmd, ok, err := agent.GetRestoreCommand(ctx, ports.RestoreConfig{Session: ref, Kind: kind, DataDir: dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemPromptFile, Config: agentConfig, Permissions: agentConfig.Permissions})
+	cmd, ok, err := agent.GetRestoreCommand(ctx, ports.RestoreConfig{Session: ref, Kind: kind, DataDir: dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemPromptFile, Config: agentConfig, Permissions: agentConfig.Permissions, ExecutionPolicy: policy})
 	if err != nil {
 		return nil, "", "", fmt.Errorf("restore command: %w", err)
 	}
@@ -3829,13 +3846,13 @@ func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, wo
 		return cmd, ports.PromptDeliveryInCommand, RestoreModeNative, nil
 	}
 	return freshLaunchArgv(ctx, agent, id, workspacePath, meta, systemPrompt,
-		systemPromptFile, agentConfig, kind, dataDir, false)
+		systemPromptFile, agentConfig, kind, dataDir, false, policy)
 }
 
 // freshLaunchArgv builds the non-resume half of restoreArgv. Interface
 // transitions also use it when an adapter proves its reserved id has no
 // persisted history, both for preflight and for the actual target launch.
-func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, kind domain.SessionKind, dataDir string, allowPromptless bool) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
+func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, kind domain.SessionKind, dataDir string, allowPromptless bool, policy *domain.AttemptExecutionPolicy) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
 	// A saved prompt is replayed fresh. An orchestrator is promptless by design
 	// and relaunches with the system prompt only. A promptless WORKER has no task
 	// and no session id to restore from: do not blank-relaunch it.
@@ -3855,6 +3872,7 @@ func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID
 		SystemPromptFile: systemPromptFile,
 		Config:           agentConfig,
 		Permissions:      agentConfig.Permissions,
+		ExecutionPolicy:  policy,
 	}
 	delivery, err := agent.GetPromptDeliveryStrategy(ctx, launchCfg)
 	if err != nil {

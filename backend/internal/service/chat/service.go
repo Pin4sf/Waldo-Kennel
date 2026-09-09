@@ -268,6 +268,8 @@ func (s *Service) Start(ctx context.Context, cfg StartConfig) (*Controller, erro
 			WorkspacePath:          cfg.WorkspacePath,
 			Env:                    cfg.Env,
 			Permissions:            cfg.Permissions,
+			Model:                  cfg.Model,
+			ExecutionPolicy:        cfg.ExecutionPolicy,
 			SystemPrompt:           cfg.SystemPrompt,
 			AdditionalDirectories:  cfg.AdditionalDirectories,
 			MCPServers:             cfg.MCPServers,

@@ -202,6 +202,26 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		return nil, false, err
 	}
 	appendTerminalCompatibilityFlags(&providerArgs)
+	permission := cfg.Permissions
+	if cfg.ExecutionPolicy != nil {
+		if err := p.ValidateExecutionPolicy(ctx, cfg.Config, *cfg.ExecutionPolicy); err != nil {
+			return nil, false, err
+		}
+		sandbox, err := codexpolicy.SandboxFor(*cfg.ExecutionPolicy)
+		if err != nil {
+			return nil, false, err
+		}
+		providerArgs = append(providerArgs, "--sandbox", sandbox)
+		if sandbox == "workspace-write" {
+			providerArgs = append(providerArgs,
+				"-c", "sandbox_workspace_write.network_access=false",
+				"-c", "sandbox_workspace_write.writable_roots=[]",
+				"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
+				"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+			)
+		}
+		permission = ports.PermissionModeAcceptEdits
+	}
 	return agentruntime.BuildRestoreCommand(agentruntime.RestoreConfig{
 		Harness:          agentruntime.HarnessCodex,
 		Binary:           binary,
@@ -212,7 +232,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		Prompt:           cfg.Prompt,
 		SystemPrompt:     cfg.SystemPrompt,
 		SystemPromptFile: cfg.SystemPromptFile,
-		Permission:       agentruntime.PermissionPolicy(cfg.Permissions),
+		Permission:       agentruntime.PermissionPolicy(permission),
 		ProviderArgs:     providerArgs,
 	})
 }

@@ -318,6 +318,11 @@ func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.
 	if !filepath.IsAbs(cfg.WorkspacePath) {
 		return nil, fmt.Errorf("workspace path must be absolute, got %q", cfg.WorkspacePath)
 	}
+	if cfg.ExecutionPolicy != nil {
+		if err := d.ValidateExecutionPolicy(ctx, *cfg.ExecutionPolicy); err != nil {
+			return nil, err
+		}
+	}
 
 	conv, err := d.connect(ctx, cfg.WorkspacePath, cfg.Env)
 	if err != nil {
@@ -325,11 +330,25 @@ func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.
 	}
 
 	policy, sandbox := approvalSettings(cfg.Permissions)
+	var governedSandboxPolicy map[string]any
+	if cfg.ExecutionPolicy != nil {
+		var err error
+		sandbox, err = codexpolicy.SandboxFor(*cfg.ExecutionPolicy)
+		if err != nil {
+			_ = conv.Close()
+			return nil, err
+		}
+		policy = "on-request"
+		governedSandboxPolicy = turnSandboxPolicyForExecution(sandbox)
+	}
 	params := map[string]any{
 		"threadId":       cfg.ProviderConversationID,
 		"cwd":            cfg.WorkspacePath,
 		"approvalPolicy": policy,
 		"sandbox":        sandbox,
+	}
+	if cfg.Model != "" {
+		params["model"] = cfg.Model
 	}
 	// Developer instructions are launch context, not durable conversation
 	// history. Reapply Kennel's current standing role when app-server reconstructs a
@@ -351,7 +370,7 @@ func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.
 		return nil, fmt.Errorf("%w: %w", ports.ErrChatResumeFailed, err)
 	}
 
-	conv.start(cfg.ProviderConversationID, resp.Model, resp.ReasoningEffort, nil)
+	conv.start(cfg.ProviderConversationID, resp.Model, resp.ReasoningEffort, governedSandboxPolicy)
 	return conv, nil
 }
 

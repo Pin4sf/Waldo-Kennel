@@ -189,6 +189,12 @@ type ChatResumeConfig struct {
 	WorkspacePath          string
 	Env                    map[string]string
 	Permissions            PermissionMode
+	// Model is the exact frozen model for governed recovery. Empty preserves
+	// provider-default semantics; it must not be filled from Project config.
+	Model string
+	// ExecutionPolicy is the frozen Attempt policy for governed recovery.
+	// Drivers must apply the same per-turn enforcement boundary as fresh start.
+	ExecutionPolicy *domain.AttemptExecutionPolicy
 	// SystemPrompt is recomputed by the session manager on restore and reapplied
 	// to the provider process. It is not persisted in the conversation transcript.
 	SystemPrompt          string

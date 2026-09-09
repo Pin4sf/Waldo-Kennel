@@ -252,6 +252,29 @@ func (q *Queries) LatestAttemptSessionRef(ctx context.Context, attemptID domain.
 	return i, err
 }
 
+const latestAttemptSessionRefForSession = `-- name: LatestAttemptSessionRefForSession :one
+SELECT id, attempt_id, seq, session_id, harness, mode, run_brief_core_digest, run_brief_compiled_digest, admission_snapshot, bound_at
+FROM attempt_sessions WHERE session_id = ? ORDER BY bound_at DESC, seq DESC LIMIT 1
+`
+
+func (q *Queries) LatestAttemptSessionRefForSession(ctx context.Context, sessionID string) (AttemptSession, error) {
+	row := q.db.QueryRowContext(ctx, latestAttemptSessionRefForSession, sessionID)
+	var i AttemptSession
+	err := row.Scan(
+		&i.ID,
+		&i.AttemptID,
+		&i.Seq,
+		&i.SessionID,
+		&i.Harness,
+		&i.Mode,
+		&i.RunBriefCoreDigest,
+		&i.RunBriefCompiledDigest,
+		&i.AdmissionSnapshot,
+		&i.BoundAt,
+	)
+	return i, err
+}
+
 const listAttemptObservationsForAttempt = `-- name: ListAttemptObservationsForAttempt :many
 SELECT id, attempt_id, seq, kind, payload, created_at
 FROM attempt_observations WHERE attempt_id = ? ORDER BY seq

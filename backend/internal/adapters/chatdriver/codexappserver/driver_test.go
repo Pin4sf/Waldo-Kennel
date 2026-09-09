@@ -606,6 +606,55 @@ func TestResumeReappliesWorkspaceAndStandingInstructions(t *testing.T) {
 	}
 }
 
+func TestResumePinsGovernedPolicyAndFrozenModelOnEveryTurn(t *testing.T) {
+	d, srv := newTestDriver(t)
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest: "brief", RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
+		Grants: []domain.CapabilityGrant{{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"}},
+	}
+	conv, err := d.Resume(context.Background(), ports.ChatResumeConfig{
+		SessionID: "kennel-1", ProviderConversationID: "thread-1", WorkspacePath: "/tmp/ws",
+		Model: "approved-model", Permissions: ports.PermissionModeBypassPermissions, ExecutionPolicy: &policy,
+	})
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	defer func() { _ = conv.Close() }()
+
+	resume := srv.awaitFrame(func(f frame) bool { return f.Method == "thread/resume" })
+	var resumeParams struct {
+		Model          string `json:"model"`
+		ApprovalPolicy string `json:"approvalPolicy"`
+		Sandbox        string `json:"sandbox"`
+	}
+	if err := json.Unmarshal(resume.Params, &resumeParams); err != nil {
+		t.Fatalf("thread/resume params: %v", err)
+	}
+	if resumeParams.Model != "approved-model" || resumeParams.ApprovalPolicy != "on-request" || resumeParams.Sandbox != "read-only" {
+		t.Fatalf("resume binding = %+v, want approved-model/on-request/read-only", resumeParams)
+	}
+	if _, err := conv.SendTurn(context.Background(), ports.ChatUserMessage{
+		Text: "inspect", Settings: ports.ChatTurnSettings{Approval: ports.PermissionModeBypassPermissions},
+	}); err != nil {
+		t.Fatalf("SendTurn: %v", err)
+	}
+	turn := srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
+	var turnParams struct {
+		ApprovalPolicy string `json:"approvalPolicy"`
+		SandboxPolicy  struct {
+			Type          string `json:"type"`
+			NetworkAccess bool   `json:"networkAccess"`
+		} `json:"sandboxPolicy"`
+	}
+	if err := json.Unmarshal(turn.Params, &turnParams); err != nil {
+		t.Fatalf("turn/start params: %v", err)
+	}
+	if turnParams.ApprovalPolicy != "on-request" || turnParams.SandboxPolicy.Type != "readOnly" || turnParams.SandboxPolicy.NetworkAccess {
+		t.Fatalf("resumed turn boundary = %+v, want on-request/readOnly/network=false", turnParams)
+	}
+}
+
 func TestResumeRequiresStoredThreadID(t *testing.T) {
 	d, _ := newTestDriver(t)
 	_, err := d.Resume(context.Background(), ports.ChatResumeConfig{WorkspacePath: "/tmp/ws"})

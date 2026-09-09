@@ -40,6 +40,10 @@ FROM attempt_sessions WHERE attempt_id = ? ORDER BY seq;
 SELECT id, attempt_id, seq, session_id, harness, mode, run_brief_core_digest, run_brief_compiled_digest, admission_snapshot, bound_at
 FROM attempt_sessions WHERE attempt_id = ? ORDER BY seq DESC LIMIT 1;
 
+-- name: LatestAttemptSessionRefForSession :one
+SELECT id, attempt_id, seq, session_id, harness, mode, run_brief_core_digest, run_brief_compiled_digest, admission_snapshot, bound_at
+FROM attempt_sessions WHERE session_id = ? ORDER BY bound_at DESC, seq DESC LIMIT 1;
+
 -- name: CreateAttemptObservation :exec
 INSERT INTO attempt_observations (id, attempt_id, seq, kind, payload)
 VALUES (?, ?, ?, ?, ?);

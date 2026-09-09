@@ -255,6 +255,20 @@ func (s *Store) LatestAttemptSessionRef(ctx context.Context, attemptID domain.At
 	return attemptSessionRefFromRow(row), true, nil
 }
 
+// LatestAttemptSessionRefForSession loads the latest governed Attempt binding
+// for a provider session. Recovery uses this as evidence, never as a mutable
+// preference source.
+func (s *Store) LatestAttemptSessionRefForSession(ctx context.Context, sessionID string) (domain.AttemptSessionRef, bool, error) {
+	row, err := s.qr.LatestAttemptSessionRefForSession(ctx, sessionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.AttemptSessionRef{}, false, nil
+	}
+	if err != nil {
+		return domain.AttemptSessionRef{}, false, fmt.Errorf("latest session ref for %s: %w", sessionID, err)
+	}
+	return attemptSessionRefFromRow(row), true, nil
+}
+
 // ListAttemptSessionRefs loads all provider session references for an attempt.
 func (s *Store) ListAttemptSessionRefs(ctx context.Context, attemptID domain.AttemptID) ([]domain.AttemptSessionRef, error) {
 	rows, err := s.qr.ListAttemptSessionRefsForAttempt(ctx, attemptID)
