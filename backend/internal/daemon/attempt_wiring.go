@@ -110,9 +110,7 @@ func (a attemptSpawner) Terminate(ctx context.Context, _ domain.ProjectID, sessi
 }
 
 func runAttemptLivenessLoop(ctx context.Context, attempts attemptLivenessHook, log *slog.Logger) {
-	if err := attempts.EvaluateAttemptLiveness(ctx); err != nil {
-		log.Warn("attempt liveness evaluation on boot", "err", err)
-	}
+	reconcile(ctx, attempts, log, "on boot")
 	ticker := time.NewTicker(attemptLivenessInterval)
 	defer ticker.Stop()
 	for {
@@ -120,13 +118,34 @@ func runAttemptLivenessLoop(ctx context.Context, attempts attemptLivenessHook, l
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := attempts.EvaluateAttemptLiveness(ctx); err != nil {
-				log.Warn("attempt liveness evaluation", "err", err)
-			}
+			reconcile(ctx, attempts, log, "")
 		}
+	}
+}
+
+// reconcile runs both halves of the terminal-state sequence in order: decide
+// whether execution has ended, then classify what ended.
+//
+// Liveness runs first on purpose. Classification only ever looks at attempts
+// already recorded as reconciled, so running it after liveness lets an attempt
+// that just ended be classified in the same tick instead of waiting for the
+// next one. Both are pure functions of durable facts, so a failure in either
+// leaves state untouched and the next tick retries.
+func reconcile(ctx context.Context, attempts attemptLivenessHook, log *slog.Logger, when string) {
+	suffix := ""
+	if when != "" {
+		suffix = " " + when
+	}
+	if err := attempts.EvaluateAttemptLiveness(ctx); err != nil {
+		log.Warn("attempt liveness evaluation"+suffix, "err", err)
+	}
+	if err := attempts.ReconcileAttemptOutcomes(ctx); err != nil {
+		log.Warn("attempt outcome reconciliation"+suffix, "err", err)
 	}
 }
 
 type attemptLivenessHook interface {
 	EvaluateAttemptLiveness(ctx context.Context) error
+	// ReconcileAttemptOutcomes classifies attempts whose execution has ended.
+	ReconcileAttemptOutcomes(ctx context.Context) error
 }

@@ -110,10 +110,38 @@ creating a retrofit — no document control in B, a staged-workspace custody mod
 in C, and D's document row recorded blocked — are recorded in the A2 plan and
 are binding on those phases.
 
-### Phases B, C, D
+### Phase B — Board/List and Mission Control
 
-Delta maps are added at the start of each phase, after its own source
-inspection. Recorded gaps established during planning:
+| ID | Requirement | Existing source | State | Behavioral test | Proof level |
+|---|---|---|---|---|---|
+| B2-1 | A direct Outcome has a real WorkUnit DAG, separate from the decomposition graph | `DecompositionGraph.tsx` rendered contributing Outcomes only | **done** `129cfe7d3` | `MissionWorkUnitGraph.test.tsx` — 13 cases incl. the assignment falsifier (plan serializes B before A, B depends on A, A still ordered first) | automated |
+| B2-2 | Layering is shared, no graph dependency added | `layerContributions` was local to the decomposition graph | **done** `129cfe7d3` — extracted to `lib/dependency-layers.ts`; no reactflow/dagre/elkjs added | `dependency-layers.test.ts` — 9 cases incl. cycle and unknown-upstream bounds | automated |
+| B2-3 | Proposed topology before authorization; daemon overlay after | plan cards only | **done** `129cfe7d3` | graph carries `data-state="proposed"` with no schedule | automated |
+| B2-4 | The schedule distinguishes waiting-for-proof, custody held and paused, and always explains an empty runnable set | `blocked` conflated dependency proof with the custody fence; no reason for an empty runnable set | **done** `2464865aa` | `scheduler_reasons_test.go` — 5 cases | automated |
+| B2-5 | No raw IDs or inline English as primary content | `Next: ${workUnitId}`, criterion/dependency ID lists, 5 hardcoded English strings | **done** `159ccb873` | test asserts no `wu-` id reaches the graph face; 31 keys added across all 8 locales | automated |
+| B1 | Board and List as equivalent Outcome projections with filters and columns | `OutcomesOverviewSurface.tsx` is a flat project-grouped list | **open** | — | — |
+| B3 | Shared Mission header, one primary next action, decision history | partial | **open** | — | — |
+
+### Phase C — truthful terminal state and artifact continuity
+
+| ID | Requirement | Existing source | State | Behavioral test | Proof level |
+|---|---|---|---|---|---|
+| C-0 | The whole sequence is specified before the code | none | **done** `5670e1cc7` | [the sequence contract](2026-09-09-execution-to-admission-sequence.md) — every arrow has a named refusal, 7 crash points resolved | source |
+| C-1 | `succeeded` is reachable | **unreachable**: migration 0102's trigger permits no transition into it, and `LegalAttemptTransitions` had no entry | **done** `67f6daa74` — migration **0119** recreates the trigger with `reconciled → succeeded` | `TestOnlyAnEndedAttemptCanBecomeSucceeded` | automated |
+| C-2 | Success is never assigned from a live process | — | **done** `67f6daa74` | `running → succeeded` still rejected, as are queued/paused | automated |
+| C-3 | A durable record of what an attempt produced | none — no `WorkUnitReceipt`/`SessionReceipt` type existed | **done** `67f6daa74` | `attempt_receipt_store_test.go` — 6 cases | automated |
+| C-4 | The receipt satisfies a delivery manifest without retrofit | — | **done** `67f6daa74` — lineage, paths + digests, context identity, base/result revision, retention state, immutable artifact version | round-trip test asserts lineage and revisions survive | automated |
+| C-5 | Custody shape is recorded, not assumed; a staged folder is not a worktree | — | **done** `67f6daa74` — keeps A2-2 additive | `TestStagedFolderReceiptCannotClaimRevisions` | automated |
+| C-6 | A frozen receipt cannot be overwritten | — | **done** `67f6daa74` — refused in the write path *and* a SQL trigger | `TestFrozenAttemptReceiptRefusesReplacement` | automated |
+| C-7 | Partial retention is reported as partial | — | **done** `67f6daa74` — only `retained` satisfies a handoff | `TestIncompleteRetentionIsRecordedAsIncomplete` | automated |
+| C-8 | Artifact paths cannot escape custody | — | **done** `67f6daa74` | `TestArtifactPathCannotEscapeTheWorkspace` | automated |
+| C-9 | Execution end reaches `reconciled` from runtime facts | **already existed** in `EvaluateAttemptLiveness` | **verified, inherited** | health-gated; `ProbeFailed` is not a death conclusion | automated |
+| C-10 | An ended attempt is classified from proof bound to that exact attempt | none | **done** (this commit) | `terminal_test.go` — 7 cases | automated |
+| C-11 | Classification never borrows another attempt's proof | — | **done** (this commit) | `TestAttemptProvenDoesNotBorrowAnotherAttemptsProof` — red-green shown inline: `workUnitProven` answers yes for the pair, `attemptProven` only for the producer | automated |
+| C-12 | Artifact retention actually snapshots the workspace | none | **open** — the receipt model and its store exist; the retention adapter that fills them does not | — | — |
+| C-13 | A downstream WorkUnit receives the exact retained upstream artifact | none | **open** | — | — |
+
+### Deferred-phase gaps established during planning
 
 - **B2** — there is no graph library in `frontend/package.json` and
   `DecompositionGraph.tsx` renders the contributing-Outcome graph, so the direct
@@ -121,11 +149,6 @@ inspection. Recorded gaps established during planning:
   reusable and will be extracted rather than adding a dependency.
 - **B1** — `OutcomesOverviewSurface.tsx` is a flat project-grouped list:
   no Board, filters, columns, milestone, blocker or proof summary.
-- **C** — **nothing in production writes `domain.AttemptSucceeded`.**
-  `service/outcome/recover.go` writes only `Lost`/`Reconciled`;
-  `attempt.go:413` writes only `Cancelled`. There is no `WorkUnitReceipt` or
-  `SessionReceipt` type. This is the single blocking gap for artifact handoff,
-  checks, continuation and delivery.
 - **D** — there is no check runner. `internal/process/command.go` is a
   two-function `exec.Cmd` wrapper and enforces nothing; the real enforcement
   boundary is the immutable `AttemptExecutionPolicy` mapped to provider
@@ -153,4 +176,6 @@ is labelled `daemon-fixture` and never described as live conformance.
 |---|---|---|---|
 | Step 0 isolate | `d675f8b53` planning baseline, `f180541e2` this ledger | bootstrap, build, vet, `go test ./...`, lint, frontend typecheck | baseline established; inherited defect B1 recorded |
 | A1 classification | `db3ad8c87` | `go test ./...` exit 0; `-race -count=3` on touched packages exit 0; vet, build, lint `0 issues`; `npm run api` no diff | A1-1, A1-2, A1-4 closed. Inherited flake B1 fixed at its cause: openai package 8/8 stable, was 3/8 failing. Two inherited test-quality defects found and fixed — the refusal/malformed/incomplete rows in both adapters never reached the code they named |
+| B2 graph + schedule reasons | `2464865aa`, `129cfe7d3`, `159ccb873` | `go test ./...` exit 0; frontend 232 files / 2798 passed / 6 skipped (was 230/2776); typecheck clean; lint `0 issues`; api regenerated | B2 closed. No graph dependency added. An `unresolved` schedule state was written and then removed: deriving it from `AttemptLost` would have misreported an attempt the owner had already reconciled |
+| C foundation + classification | `5670e1cc7`, `67f6daa74`, this commit | `go test ./...` exit 0; `-race -count=2` on touched packages; vet, build, lint `0 issues`; migration **0119** ledgered; sqlc regenerated | C-1 … C-11 closed. C-12 retention adapter and C-13 handoff remain open |
 | A1 readiness | `06e3234fb` | `go test ./...` exit 0; vet, build, lint `0 issues`; frontend typecheck exit 0; sqlc + api regenerated with sources, no further drift | A1-3, A1-7 closed. Migration **0118** added (not an amendment to unmerged 0116: the owner may already have applied it locally). A1-5/A1-6 independently reproduced from inherited tests |

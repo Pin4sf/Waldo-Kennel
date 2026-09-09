@@ -101,6 +101,10 @@ type Service struct {
 
 	spawner    ports.AttemptSessionSpawner
 	heartbeats heartbeatSource
+	// receipts records what each attempt produced. Optional so a degraded
+	// profile still schedules and reports truthfully; when absent, artifact
+	// continuity is unavailable rather than silently faked.
+	receipts ports.AttemptReceiptStore
 
 	staleHeartbeat time.Duration
 }
@@ -124,6 +128,12 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 	}
 	if runs, ok := store.(ports.IntelligenceRunStore); ok {
 		service.intelligenceRuns = runs
+	}
+	// The SQLite store implements every one of these; the assertions keep the
+	// service usable with narrower fakes in tests rather than forcing each one
+	// to satisfy the whole surface.
+	if receipts, ok := store.(ports.AttemptReceiptStore); ok {
+		service.receipts = receipts
 	}
 	return service
 }

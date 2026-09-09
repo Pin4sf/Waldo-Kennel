@@ -255,7 +255,12 @@ const (
 	ObservationAttemptContained = "contained"
 	ObservationAttemptResumed   = "resumed"
 	ObservationProviderExit     = "provider_exit"
-	ObservationAdmissionFailed  = "admission_failed"
+	// ObservationAttemptClassified marks the point where an ended attempt was
+	// judged against its WorkUnit's proof and classified. It exists so the
+	// owner can see that success was derived from evidence rather than from
+	// the provider having finished.
+	ObservationAttemptClassified = "attempt_classified"
+	ObservationAdmissionFailed   = "admission_failed"
 	// ObservationAdmissionAmbiguous marks a start whose outcome is UNKNOWN:
 	// the request may or may not have reached the provider. The attempt stays
 	// queued and derives as unconfirmed until reconcile decides.
