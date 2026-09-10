@@ -204,7 +204,8 @@ func Run() error {
 		chatDrivers,
 		func() time.Time { return time.Now().UTC() },
 	).WithReasoningSecrets(secretstore.NewFileStore(cfg.DataDir)).
-		WithReasoningProbe(probeReasoning)
+		WithReasoningProbe(probeReasoning).
+		WithReasoningAvailability(probeReasoningAvailability)
 
 	// Chat service. The driver registry is the capability gate: a harness with no
 	// registered driver cannot start in chat mode, so an unsupported request fails
@@ -431,7 +432,7 @@ func Run() error {
 	// Waldo thinks with its own model; coding agents only execute authorized
 	// work. The provider resolves current settings at each call, so missing or
 	// invalid credentials remain actionable without daemon restart.
-	intelligenceProvider := newConfiguredIntelligenceProvider(settingsSvc)
+	intelligenceProvider := newConfiguredIntelligenceProvider(settingsSvc, log)
 	if reasoning, statusErr := settingsSvc.GetReasoning(ctx); statusErr != nil {
 		log.Warn("Waldo reasoning readiness could not be read", "error", statusErr)
 	} else if !reasoning.Ready {

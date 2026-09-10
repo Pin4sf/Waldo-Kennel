@@ -4245,6 +4245,7 @@ export interface components {
             error?: string;
             errorCode?: string;
             keyConfigured: boolean;
+            mode: string;
             model: string;
             provider: string;
             ready: boolean;

@@ -1791,6 +1791,9 @@ type SettingsResponse struct {
 
 // ReasoningResponse reports reasoning readiness without returning a secret.
 type ReasoningResponse struct {
+	// Mode is "direct_api" for explicit Anthropic/OpenAI API credentials or
+	// "codex_harness" for the signed-in Codex app-server path.
+	Mode       string `json:"mode"`
 	Provider   string `json:"provider"`
 	Model      string `json:"model"`
 	Effort     string `json:"effort"`

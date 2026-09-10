@@ -80,6 +80,9 @@ type ReasoningInput struct {
 
 // ReasoningStatus reports configured and ready state without exposing the secret.
 type ReasoningStatus struct {
+	// Mode distinguishes direct API credentials from the signed-in Codex
+	// harness while Provider remains the selected reasoning identity.
+	Mode       string `json:"mode"`
 	Provider   string `json:"provider"`
 	Model      string `json:"model"`
 	Effort     string `json:"effort"`
@@ -102,6 +105,7 @@ type ReasoningStatus struct {
 
 // ReasoningConfig is the resolved daemon-internal reasoning configuration.
 type ReasoningConfig struct {
+	Mode      string
 	Provider  string
 	APIKey    string
 	Model     string
@@ -121,12 +125,13 @@ type ChatCapability interface {
 
 // Service reads and writes preferences.
 type Service struct {
-	store   Store
-	chat    ChatCapability
-	now     func() time.Time
-	secrets SecretStore
-	lookup  func(string) string
-	probe   ReasoningProbe
+	store        Store
+	chat         ChatCapability
+	now          func() time.Time
+	secrets      SecretStore
+	lookup       func(string) string
+	probe        ReasoningProbe
+	availability ReasoningAvailability
 }
 
 // New builds the service.
@@ -162,6 +167,7 @@ func (s *Service) GetReasoning(ctx context.Context) (ReasoningStatus, error) {
 	status := ReasoningStatus{}
 	if err != nil {
 		if cfg.Provider != "" {
+			status.Mode = cfg.Mode
 			status.Provider = cfg.Provider
 		}
 		status.Model, status.Effort = cfg.Model, cfg.Effort
@@ -171,8 +177,19 @@ func (s *Service) GetReasoning(ctx context.Context) (ReasoningStatus, error) {
 		return status, nil
 	}
 	status = ReasoningStatus{
-		Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort,
+		Mode: cfg.Mode, Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort,
 		KeyConfigured: cfg.APIKey != "", Configured: true, Ready: true,
+	}
+	if cfg.Provider == "codex" {
+		status.KeyConfigured = false
+		if s.availability == nil {
+			status.Ready = false
+			status.ErrorCode, status.Error = reasoningError(ports.NewReasoningFailure(
+				ports.ReasoningUnavailable, "Codex harness availability has not been checked", nil))
+		} else if availabilityErr := s.availability(ctx, cfg); availabilityErr != nil {
+			status.Ready = false
+			status.ErrorCode, status.Error = reasoningError(availabilityErr)
+		}
 	}
 	if snapshot, snapErr := s.store.GetAppSettings(ctx); snapErr == nil {
 		status.Verified, status.VerifiedAt = verificationFor(snapshot, cfg)
@@ -210,7 +227,7 @@ func reasoningFingerprint(cfg ReasoningConfig) string {
 	// credential itself. Endpoint/model/provider overrides are included because
 	// they change what the probe actually tested.
 	h := sha256.New()
-	for _, value := range []string{cfg.Provider, cfg.Model, cfg.Effort, cfg.BaseURL, cfg.APIKey} {
+	for _, value := range []string{cfg.Mode, cfg.Provider, cfg.Model, cfg.Effort, cfg.BaseURL, cfg.APIKey} {
 		_, _ = h.Write([]byte{0})
 		_, _ = h.Write([]byte(value))
 	}
@@ -234,6 +251,17 @@ func (s *Service) VerifyReasoning(ctx context.Context) (ReasoningStatus, error) 
 // live provider.
 func (s *Service) WithReasoningProbe(probe ReasoningProbe) *Service {
 	s.probe = probe
+	return s
+}
+
+// ReasoningAvailability checks local/provider harness readiness without making
+// a model call. Direct API modes retain their credential-presence semantics;
+// the Codex harness uses this to avoid claiming readiness when the binary,
+// protocol, or sign-in state is unavailable.
+type ReasoningAvailability func(context.Context, ReasoningConfig) error
+
+func (s *Service) WithReasoningAvailability(check ReasoningAvailability) *Service {
+	s.availability = check
 	return s
 }
 
@@ -339,13 +367,16 @@ func (s *Service) setVerification(ctx context.Context, at *time.Time, provider, 
 // SetReasoning persists the owner-selected provider/model/effort and secret.
 func (s *Service) SetReasoning(ctx context.Context, input ReasoningInput) (ReasoningStatus, error) {
 	provider := strings.ToLower(strings.TrimSpace(input.Provider))
-	if provider != "anthropic" && provider != "openai" {
-		return ReasoningStatus{}, fmt.Errorf("reasoning provider must be anthropic or openai")
+	if provider != "anthropic" && provider != "openai" && provider != "codex" {
+		return ReasoningStatus{}, fmt.Errorf("reasoning provider must be anthropic, openai, or codex")
 	}
-	if s.secrets == nil {
+	if provider == "codex" && strings.TrimSpace(input.APIKey) != "" {
+		return ReasoningStatus{}, fmt.Errorf("Codex harness mode uses Codex sign-in; do not provide an API key")
+	}
+	if provider != "codex" && s.secrets == nil {
 		return ReasoningStatus{}, fmt.Errorf("local reasoning secret store is unavailable")
 	}
-	if input.ClearKey {
+	if provider != "codex" && input.ClearKey {
 		if err := s.clearReasoningSecret(ctx, provider); err != nil {
 			return ReasoningStatus{}, err
 		}
@@ -398,7 +429,7 @@ func (s *Service) ResolveReasoning(ctx context.Context) (ReasoningConfig, error)
 		}
 	}
 	key := ""
-	if s.secrets != nil {
+	if provider != "codex" && s.secrets != nil {
 		if providerSecrets, ok := s.secrets.(ProviderSecretStore); ok && (provider == "anthropic" || provider == "openai") {
 			key, err = providerSecrets.GetForProvider(ctx, provider)
 		} else {
@@ -409,24 +440,29 @@ func (s *Service) ResolveReasoning(ctx context.Context) (ReasoningConfig, error)
 		}
 	}
 	keySource := "local-secret-store"
-	if shared != "" {
-		key, keySource = shared, "KENNEL_WALDO_API_KEY"
-	} else if provider == "anthropic" && ant != "" {
-		key, keySource = ant, "ANTHROPIC_API_KEY"
-	} else if provider == "openai" && oai != "" {
-		key, keySource = oai, "OPENAI_API_KEY"
+	if provider == "codex" {
+		keySource = "codex-app-server-sign-in"
+	}
+	if provider != "codex" {
+		if shared != "" {
+			key, keySource = shared, "KENNEL_WALDO_API_KEY"
+		} else if provider == "anthropic" && ant != "" {
+			key, keySource = ant, "ANTHROPIC_API_KEY"
+		} else if provider == "openai" && oai != "" {
+			key, keySource = oai, "OPENAI_API_KEY"
+		}
 	}
 	cfg := ReasoningConfig{
-		Provider: provider, APIKey: key, Model: model, Effort: effort, KeySource: keySource,
+		Mode: reasoningMode(provider), Provider: provider, APIKey: key, Model: model, Effort: effort, KeySource: keySource,
 		BaseURL: strings.TrimSpace(lookup("KENNEL_WALDO_BASE_URL")),
 	}
 	if provider == "" {
-		return cfg, fmt.Errorf("%w; choose anthropic or openai", errProviderNotSelected)
+		return cfg, fmt.Errorf("%w; choose anthropic, openai, or codex", errProviderNotSelected)
 	}
-	if provider != "anthropic" && provider != "openai" {
+	if provider != "anthropic" && provider != "openai" && provider != "codex" {
 		return cfg, fmt.Errorf("%w: %q", errProviderUnsupported, provider)
 	}
-	if key == "" {
+	if provider != "codex" && key == "" {
 		return cfg, fmt.Errorf("%w for %s", errMissingCredential, provider)
 	}
 	return cfg, nil
@@ -439,6 +475,16 @@ var (
 	errProviderUnsupported = errors.New("unsupported reasoning provider")
 	errMissingCredential   = errors.New("reasoning credential is not configured")
 )
+
+func reasoningMode(provider string) string {
+	if provider == "codex" {
+		return "codex_harness"
+	}
+	if provider == "anthropic" || provider == "openai" {
+		return "direct_api"
+	}
+	return ""
+}
 
 func (s *Service) setReasoningSecret(ctx context.Context, provider, value string) error {
 	if providerSecrets, ok := s.secrets.(ProviderSecretStore); ok {

@@ -35,11 +35,12 @@ type scriptedServer struct {
 	t        *testing.T
 	toClient io.WriteCloser
 
-	mu        sync.Mutex
-	responses map[string]string
-	failures  map[string]string
-	seen      []frame
-	seenCh    chan frame
+	mu          sync.Mutex
+	responses   map[string]string
+	failures    map[string]string
+	seen        []frame
+	seenCh      chan frame
+	responsesCh chan string
 }
 
 // replyError scripts a JSON-RPC error for a method, which is how a test exercises a
@@ -125,8 +126,9 @@ func newTestDriver(t *testing.T) (*Driver, *scriptedServer) {
 			"turn/interrupt": `{}`,
 			"thread/resume":  `{"thread":{"id":"thread-1"}}`,
 		},
-		failures: map[string]string{},
-		seenCh:   make(chan frame, 64),
+		failures:    map[string]string{},
+		seenCh:      make(chan frame, 64),
+		responsesCh: make(chan string, 64),
 	}
 
 	go func() {
@@ -161,6 +163,10 @@ func newTestDriver(t *testing.T) (*Driver, *scriptedServer) {
 				srv.push(`{"id":` + string(*f.ID) + `,"error":` + failure + `}`)
 			case known:
 				srv.push(`{"id":` + string(*f.ID) + `,"result":` + reply + `}`)
+				select {
+				case srv.responsesCh <- f.Method:
+				default:
+				}
 			}
 		}
 	}()
@@ -181,6 +187,22 @@ func newTestDriver(t *testing.T) (*Driver, *scriptedServer) {
 	}
 	t.Cleanup(func() { _ = serverWrites.Close() })
 	return d, srv
+}
+
+func (s *scriptedServer) awaitResponse(method string) {
+	s.t.Helper()
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case got := <-s.responsesCh:
+			if got == method {
+				return
+			}
+		case <-deadline:
+			s.t.Fatalf("timed out waiting for a response to %s", method)
+			return
+		}
+	}
 }
 
 // nextEvent returns the next event of interest, skipping ones the test does not

@@ -288,6 +288,7 @@ func (p *LLMProvider) AnalyzeContract(ctx context.Context, request ports.Contrac
 	provenance := ports.IntelligenceProvenance{
 		EffectiveProvider: domain.IntelligenceProviderID(p.client.ID()),
 		EffectiveModel:    response.EffectiveModel,
+		NativeSessionRef:  response.NativeSessionRef,
 		InputTokens:       response.InputTokens,
 		OutputTokens:      response.OutputTokens,
 	}
@@ -424,6 +425,7 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 		Provenance: ports.IntelligenceProvenance{
 			EffectiveProvider: domain.IntelligenceProviderID(p.client.ID()),
 			EffectiveModel:    response.EffectiveModel,
+			NativeSessionRef:  response.NativeSessionRef,
 			InputTokens:       response.InputTokens,
 			OutputTokens:      response.OutputTokens,
 		},

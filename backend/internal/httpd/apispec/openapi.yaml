@@ -12568,6 +12568,8 @@ components:
           type: string
         keyConfigured:
           type: boolean
+        mode:
+          type: string
         model:
           type: string
         provider:
@@ -12581,6 +12583,7 @@ components:
           - "null"
           - string
       required:
+      - mode
       - provider
       - model
       - effort

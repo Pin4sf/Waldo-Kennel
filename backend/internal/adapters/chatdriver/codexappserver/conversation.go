@@ -52,6 +52,10 @@ type conversation struct {
 	// governedSandboxPolicy is sent on every governed turn. Thread/start only
 	// accepts a broad sandbox name; turn/start carries the effective boundary.
 	governedSandboxPolicy map[string]any
+	// intelligenceReadOnly pins the separate Waldo proposal surface to a
+	// read-only, no-network turn policy. It must never be inferred from the
+	// ordinary Chat permission modes.
+	intelligenceReadOnly bool
 
 	mu      sync.Mutex
 	pending map[string]*parkedRequest
@@ -226,6 +230,14 @@ func (c *conversation) emit(ev ports.ChatEvent) {
 
 // SendTurn delivers one message to the provider.
 func (c *conversation) SendTurn(ctx context.Context, msg ports.ChatUserMessage) (ports.ChatTurnRef, error) {
+	return c.sendTurn(ctx, msg, nil)
+}
+
+// sendTurn is the shared turn/start boundary. Structured reasoning uses the
+// provider's native outputSchema field; keeping that option inside this
+// adapter prevents a generic chat caller from smuggling provider wire fields
+// through the ports contract.
+func (c *conversation) sendTurn(ctx context.Context, msg ports.ChatUserMessage, outputSchema json.RawMessage) (ports.ChatTurnRef, error) {
 	if strings.TrimSpace(msg.Text) == "" {
 		// There is no keystroke concept here: an empty message is a caller bug,
 		// not a way to nudge the agent.
@@ -243,6 +255,15 @@ func (c *conversation) SendTurn(ctx context.Context, msg ports.ChatUserMessage) 
 		// The provider's own idempotency handle: a retry carrying the same id
 		// must not produce a second turn.
 		params["clientUserMessageId"] = msg.ClientMessageID
+	}
+	if len(outputSchema) > 0 {
+		params["outputSchema"] = append(json.RawMessage(nil), outputSchema...)
+	}
+	if c.intelligenceReadOnly {
+		// Read-only does not itself express network policy. Pin both fields on
+		// every proposal turn, even if a caller supplied other Chat settings.
+		params["approvalPolicy"] = "never"
+		params["sandboxPolicy"] = map[string]any{"type": "readOnly", "networkAccess": false}
 	}
 	if c.governedSandboxPolicy != nil {
 		params["approvalPolicy"] = "on-request"
