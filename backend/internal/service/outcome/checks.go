@@ -4,8 +4,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/google/uuid"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
@@ -34,7 +37,7 @@ func (s *Service) runApprovedChecks(
 	receipt domain.AttemptReceipt,
 	contract domain.ContractRevision,
 ) (bool, error) {
-	if s.checks == nil || len(unit.Checks) == 0 {
+	if s.checks == nil || s.checkRuns == nil || len(unit.Checks) == 0 {
 		return false, nil
 	}
 	// Proof binds to the current Contract revision. An Attempt admitted under
@@ -42,30 +45,144 @@ func (s *Service) runApprovedChecks(
 	if attempt.ContractRevisionNumber != contract.Number {
 		return false, nil
 	}
-	policy, err := domain.BuildAttemptExecutionPolicy(attempt.OutcomeID, plan, unit, plan.RunBriefCoreDigest)
+
+	pending, recorded, err := s.partitionCheckRuns(ctx, attempt, receipt, unit.Checks)
 	if err != nil {
-		return false, fmt.Errorf("build check policy for %s: %w", attempt.ID, err)
+		return false, err
 	}
-	result, err := s.checks.RunAttemptChecks(ctx, ports.AttemptCheckRequest{
-		Attempt: attempt, Receipt: receipt, Policy: policy, Checks: unit.Checks,
-	})
-	if err != nil {
-		return false, fmt.Errorf("run approved checks for %s: %w", attempt.ID, err)
+	if len(pending) > 0 {
+		newlyRecorded, err := s.invokeReservedChecks(ctx, attempt, plan, unit, receipt, pending)
+		if err != nil {
+			return false, err
+		}
+		recorded = append(recorded, newlyRecorded...)
 	}
-	// A check that rewrote the result invalidates any pass taken from the
-	// bytes before it ran. Recording those passes against the retained version
-	// would attach proof to content that no longer exists.
-	changed := result.ArtifactChanged(receipt.ArtifactVersion)
 
 	wrote := false
-	for _, observation := range result.Observations {
-		recorded, err := s.recordCheckObservation(ctx, attempt, receipt, contract, observation, changed, result.ObservedArtifactVersion)
+	for _, run := range recorded {
+		written, err := s.recordCheckObservation(ctx, attempt, receipt, contract, run)
 		if err != nil {
 			return wrote, err
 		}
-		wrote = wrote || recorded
+		wrote = wrote || written
 	}
 	return wrote, nil
+}
+
+// partitionCheckRuns separates checks this Attempt still owes from ones whose
+// observation is already durable.
+//
+// The reservation is taken here, before any command is invoked. A row that
+// survives as "reserved" from an earlier process is the interrupted case: the
+// command may have run and had effects, so it is recorded as unknown rather
+// than launched again. Silently re-running it is exactly the behaviour that
+// makes a deterministic check unsafe to own.
+func (s *Service) partitionCheckRuns(
+	ctx context.Context,
+	attempt domain.Attempt,
+	receipt domain.AttemptReceipt,
+	checks []domain.ApprovedCheck,
+) (pending []domain.ApprovedCheck, recorded []ports.AttemptCheckRun, err error) {
+	for _, check := range checks {
+		existing, found, err := s.checkRuns.GetAttemptCheckRun(ctx, attempt.ID, check.ID, receipt.ArtifactVersion)
+		if err != nil {
+			return nil, nil, err
+		}
+		if found {
+			run, err := s.resolveExistingCheckRun(ctx, attempt, receipt, check, existing)
+			if err != nil {
+				return nil, nil, err
+			}
+			recorded = append(recorded, run)
+			continue
+		}
+		reserveErr := s.checkRuns.ReserveAttemptCheckRun(ctx, ports.AttemptCheckRun{
+			ID: "chkrun-" + uuid.NewString(), AttemptID: attempt.ID, CheckID: check.ID,
+			ArtifactVersion: receipt.ArtifactVersion, ReservedAt: s.clock(),
+		})
+		switch {
+		case reserveErr == nil:
+			pending = append(pending, check)
+		case errors.Is(reserveErr, ports.ErrCheckRunAlreadyReserved):
+			// Another reconciler owns this invocation. Leaving it to them is
+			// the whole point of reserving before running.
+		default:
+			return nil, nil, reserveErr
+		}
+	}
+	return pending, recorded, nil
+}
+
+// resolveExistingCheckRun turns a stored row into the observation proof is
+// built from, closing out an interrupted reservation on the way.
+func (s *Service) resolveExistingCheckRun(
+	ctx context.Context,
+	attempt domain.Attempt,
+	receipt domain.AttemptReceipt,
+	check domain.ApprovedCheck,
+	existing ports.AttemptCheckRun,
+) (ports.AttemptCheckRun, error) {
+	existing.Observation.Check = check
+	if existing.State == ports.CheckRunReserved {
+		// The process that reserved this is gone. Whether the command ran is
+		// unknown, and an unknown run is not a failed one and not a retry.
+		if err := s.checkRuns.MarkAttemptCheckRunUnknown(ctx, attempt.ID, check.ID, receipt.ArtifactVersion, s.clock()); err != nil {
+			return ports.AttemptCheckRun{}, err
+		}
+		existing.State = ports.CheckRunUnknown
+	}
+	if existing.State == ports.CheckRunUnknown {
+		// Discard whatever the incomplete row happens to hold. A partially
+		// written observation is not a weaker observation, it is none: it
+		// must not be able to read as a failing check and blame the work for
+		// an interruption.
+		existing.Observation = ports.AttemptCheckObservation{
+			Check: check, ArtifactVersion: receipt.ArtifactVersion,
+			Unavailable: "the check was interrupted; whether the command ran is unknown",
+			StartedAt:   existing.ReservedAt,
+		}
+		existing.ArtifactChanged, existing.ObservedArtifactVersion = false, ""
+	}
+	return existing, nil
+}
+
+// invokeReservedChecks runs only the checks this process reserved.
+func (s *Service) invokeReservedChecks(
+	ctx context.Context,
+	attempt domain.Attempt,
+	plan domain.PlanRevision,
+	unit domain.WorkUnit,
+	receipt domain.AttemptReceipt,
+	pending []domain.ApprovedCheck,
+) ([]ports.AttemptCheckRun, error) {
+	policy, err := domain.BuildAttemptExecutionPolicy(attempt.OutcomeID, plan, unit, plan.RunBriefCoreDigest)
+	if err != nil {
+		return nil, fmt.Errorf("build check policy for %s: %w", attempt.ID, err)
+	}
+	result, err := s.checks.RunAttemptChecks(ctx, ports.AttemptCheckRequest{
+		Attempt: attempt, Receipt: receipt, Policy: policy, Checks: pending,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("run approved checks for %s: %w", attempt.ID, err)
+	}
+	// A check that rewrote the result invalidates any pass taken from the
+	// bytes before it ran, so the fact is stored with the observation rather
+	// than recomputed later from a workspace that has since moved on.
+	changed := result.ArtifactChanged(receipt.ArtifactVersion)
+
+	runs := make([]ports.AttemptCheckRun, 0, len(result.Observations))
+	for _, observation := range result.Observations {
+		run := ports.AttemptCheckRun{
+			AttemptID: attempt.ID, CheckID: observation.Check.ID, ArtifactVersion: receipt.ArtifactVersion,
+			State: ports.CheckRunObserved, Observation: observation,
+			ArtifactChanged: changed, ObservedArtifactVersion: result.ObservedArtifactVersion,
+		}
+		if err := s.checkRuns.RecordAttemptCheckObservation(ctx, run); err != nil {
+			return nil, err
+		}
+		runs = append(runs, run)
+	}
+	return runs, nil
 }
 
 // recordCheckObservation writes one check's evidence and its verification run.
@@ -78,14 +195,18 @@ func (s *Service) recordCheckObservation(
 	attempt domain.Attempt,
 	receipt domain.AttemptReceipt,
 	contract domain.ContractRevision,
-	observation ports.AttemptCheckObservation,
-	artifactChanged bool,
-	observedVersion string,
+	run ports.AttemptCheckRun,
 ) (bool, error) {
+	observation := run.Observation
 	key := checkRequestKey(attempt.ID, receipt.ArtifactVersion, observation.Check.ID)
-	summary, detail := checkNarrative(observation, artifactChanged, observedVersion)
-
-	kind, verdict := checkVerdict(observation, artifactChanged)
+	// Both writes derive entirely from the stored observation, so a restart
+	// between them rebuilds byte-identical content. That is what lets the
+	// request key mean "this observation" rather than "this attempt at
+	// writing it": a differing fingerprint under the same key is a replay
+	// conflict, and re-running the command to regenerate the text would both
+	// re-execute it and change the text.
+	summary, detail := checkNarrative(observation, run.ArtifactChanged, run.ObservedArtifactVersion)
+	kind, verdict := checkVerdict(observation, run.ArtifactChanged)
 
 	if _, err := s.RecordEvidence(ctx, attempt.OutcomeID, RecordEvidenceInput{
 		ExpectedContractRevision: contract.Number,
@@ -156,7 +277,8 @@ func checkVerdict(observation ports.AttemptCheckObservation, artifactChanged boo
 	}
 }
 
-// checkRequestKey is the replay identity of one check observation.
+// checkRequestKey is the replay identity of one check observation. It is
+// stable across restarts because the observation it names is durable.
 func checkRequestKey(attemptID domain.AttemptID, artifactVersion string, checkID domain.ApprovedCheckID) string {
 	return fmt.Sprintf("chk:%s:%s:%s", attemptID, artifactVersion, checkID)
 }

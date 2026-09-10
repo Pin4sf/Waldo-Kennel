@@ -604,6 +604,46 @@ func (q *Queries) FindWorkResponsibilitySpaceByProject(ctx context.Context, proj
 	return i, err
 }
 
+const getAttemptCheckRun = `-- name: GetAttemptCheckRun :one
+SELECT id, attempt_id, check_id, artifact_version, state, ran, passed, exit_code, enforced_by,
+       timed_out, cancelled, termination_unknown, output_truncated, output, unavailable,
+       artifact_changed, observed_artifact_version, reserved_at, observed_at
+FROM attempt_check_runs WHERE attempt_id = ? AND check_id = ? AND artifact_version = ?
+`
+
+type GetAttemptCheckRunParams struct {
+	AttemptID       string
+	CheckID         string
+	ArtifactVersion string
+}
+
+func (q *Queries) GetAttemptCheckRun(ctx context.Context, arg GetAttemptCheckRunParams) (AttemptCheckRun, error) {
+	row := q.db.QueryRowContext(ctx, getAttemptCheckRun, arg.AttemptID, arg.CheckID, arg.ArtifactVersion)
+	var i AttemptCheckRun
+	err := row.Scan(
+		&i.ID,
+		&i.AttemptID,
+		&i.CheckID,
+		&i.ArtifactVersion,
+		&i.State,
+		&i.Ran,
+		&i.Passed,
+		&i.ExitCode,
+		&i.EnforcedBy,
+		&i.TimedOut,
+		&i.Cancelled,
+		&i.TerminationUnknown,
+		&i.OutputTruncated,
+		&i.Output,
+		&i.Unavailable,
+		&i.ArtifactChanged,
+		&i.ObservedArtifactVersion,
+		&i.ReservedAt,
+		&i.ObservedAt,
+	)
+	return i, err
+}
+
 const getContractRevision = `-- name: GetContractRevision :one
 SELECT id, outcome_id, number, goal, success_criteria, review, constraints, non_goals, clarification, created_at, execution_preference_json
 FROM contract_revisions WHERE id = ?
@@ -926,6 +966,61 @@ func (q *Queries) LatestProposedPlanRevision(ctx context.Context, arg LatestProp
 		&i.RoutingDecisionsJson,
 	)
 	return i, err
+}
+
+const listAttemptCheckRuns = `-- name: ListAttemptCheckRuns :many
+SELECT id, attempt_id, check_id, artifact_version, state, ran, passed, exit_code, enforced_by,
+       timed_out, cancelled, termination_unknown, output_truncated, output, unavailable,
+       artifact_changed, observed_artifact_version, reserved_at, observed_at
+FROM attempt_check_runs WHERE attempt_id = ? AND artifact_version = ? ORDER BY reserved_at, id
+`
+
+type ListAttemptCheckRunsParams struct {
+	AttemptID       string
+	ArtifactVersion string
+}
+
+func (q *Queries) ListAttemptCheckRuns(ctx context.Context, arg ListAttemptCheckRunsParams) ([]AttemptCheckRun, error) {
+	rows, err := q.db.QueryContext(ctx, listAttemptCheckRuns, arg.AttemptID, arg.ArtifactVersion)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AttemptCheckRun{}
+	for rows.Next() {
+		var i AttemptCheckRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.AttemptID,
+			&i.CheckID,
+			&i.ArtifactVersion,
+			&i.State,
+			&i.Ran,
+			&i.Passed,
+			&i.ExitCode,
+			&i.EnforcedBy,
+			&i.TimedOut,
+			&i.Cancelled,
+			&i.TerminationUnknown,
+			&i.OutputTruncated,
+			&i.Output,
+			&i.Unavailable,
+			&i.ArtifactChanged,
+			&i.ObservedArtifactVersion,
+			&i.ReservedAt,
+			&i.ObservedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listCapabilityGrantsForPlan = `-- name: ListCapabilityGrantsForPlan :many
@@ -1445,6 +1540,31 @@ func (q *Queries) ListWorkUnitsForPlan(ctx context.Context, planRevisionID domai
 	return items, nil
 }
 
+const markAttemptCheckRunUnknown = `-- name: MarkAttemptCheckRunUnknown :execrows
+UPDATE attempt_check_runs SET state = 'unknown', observed_at = ?
+WHERE attempt_id = ? AND check_id = ? AND artifact_version = ? AND state = 'reserved'
+`
+
+type MarkAttemptCheckRunUnknownParams struct {
+	ObservedAt      sql.NullTime
+	AttemptID       string
+	CheckID         string
+	ArtifactVersion string
+}
+
+func (q *Queries) MarkAttemptCheckRunUnknown(ctx context.Context, arg MarkAttemptCheckRunUnknownParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markAttemptCheckRunUnknown,
+		arg.ObservedAt,
+		arg.AttemptID,
+		arg.CheckID,
+		arg.ArtifactVersion,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const maxContractRevisionNumber = `-- name: MaxContractRevisionNumber :one
 SELECT COALESCE(MAX(number), 0) FROM contract_revisions WHERE outcome_id = ?
 `
@@ -1476,4 +1596,84 @@ func (q *Queries) MaxPlanRevisionNumber(ctx context.Context, outcomeID domain.Ou
 	var coalesce interface{}
 	err := row.Scan(&coalesce)
 	return coalesce, err
+}
+
+const recordAttemptCheckObservation = `-- name: RecordAttemptCheckObservation :execrows
+UPDATE attempt_check_runs
+SET state = 'observed', ran = ?, passed = ?, exit_code = ?, enforced_by = ?,
+    timed_out = ?, cancelled = ?, termination_unknown = ?, output_truncated = ?,
+    output = ?, unavailable = ?, artifact_changed = ?, observed_artifact_version = ?,
+    observed_at = ?
+WHERE attempt_id = ? AND check_id = ? AND artifact_version = ? AND state = 'reserved'
+`
+
+type RecordAttemptCheckObservationParams struct {
+	Ran                     int64
+	Passed                  int64
+	ExitCode                int64
+	EnforcedBy              string
+	TimedOut                int64
+	Cancelled               int64
+	TerminationUnknown      int64
+	OutputTruncated         int64
+	Output                  string
+	Unavailable             string
+	ArtifactChanged         int64
+	ObservedArtifactVersion string
+	ObservedAt              sql.NullTime
+	AttemptID               string
+	CheckID                 string
+	ArtifactVersion         string
+}
+
+func (q *Queries) RecordAttemptCheckObservation(ctx context.Context, arg RecordAttemptCheckObservationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, recordAttemptCheckObservation,
+		arg.Ran,
+		arg.Passed,
+		arg.ExitCode,
+		arg.EnforcedBy,
+		arg.TimedOut,
+		arg.Cancelled,
+		arg.TerminationUnknown,
+		arg.OutputTruncated,
+		arg.Output,
+		arg.Unavailable,
+		arg.ArtifactChanged,
+		arg.ObservedArtifactVersion,
+		arg.ObservedAt,
+		arg.AttemptID,
+		arg.CheckID,
+		arg.ArtifactVersion,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const reserveAttemptCheckRun = `-- name: ReserveAttemptCheckRun :exec
+
+INSERT INTO attempt_check_runs (id, attempt_id, check_id, artifact_version, state, reserved_at)
+VALUES (?, ?, ?, ?, 'reserved', ?)
+`
+
+type ReserveAttemptCheckRunParams struct {
+	ID              string
+	AttemptID       string
+	CheckID         string
+	ArtifactVersion string
+	ReservedAt      time.Time
+}
+
+// Durable check-run identity. The reservation is inserted before the command
+// is invoked; the observation is written once and never changed.
+func (q *Queries) ReserveAttemptCheckRun(ctx context.Context, arg ReserveAttemptCheckRunParams) error {
+	_, err := q.db.ExecContext(ctx, reserveAttemptCheckRun,
+		arg.ID,
+		arg.AttemptID,
+		arg.CheckID,
+		arg.ArtifactVersion,
+		arg.ReservedAt,
+	)
+	return err
 }

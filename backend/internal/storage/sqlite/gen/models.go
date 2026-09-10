@@ -112,6 +112,28 @@ type AttemptArtifactFile struct {
 	UnsupportedReason string
 }
 
+type AttemptCheckRun struct {
+	ID                      string
+	AttemptID               string
+	CheckID                 string
+	ArtifactVersion         string
+	State                   string
+	Ran                     int64
+	Passed                  int64
+	ExitCode                int64
+	EnforcedBy              string
+	TimedOut                int64
+	Cancelled               int64
+	TerminationUnknown      int64
+	OutputTruncated         int64
+	Output                  string
+	Unavailable             string
+	ArtifactChanged         int64
+	ObservedArtifactVersion string
+	ReservedAt              time.Time
+	ObservedAt              sql.NullTime
+}
+
 type AttemptFence struct {
 	ID            string
 	Subject       string

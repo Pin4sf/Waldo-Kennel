@@ -110,13 +110,20 @@ type Service struct {
 	// frozen policy. Absent means a WorkUnit's checks simply do not run, which
 	// leaves its criteria unproved rather than assumed proved.
 	checks ports.AttemptCheckRunner
+	// checkRuns is the durable record of which approved checks have already
+	// been invoked against which retained artifact. Without it a repeated
+	// reconciliation tick would relaunch every command again.
+	checkRuns ports.AttemptCheckRunStore
 
 	staleHeartbeat time.Duration
 }
 
 // WithCheckRunner wires deterministic check execution into classification.
-func (s *Service) WithCheckRunner(runner ports.AttemptCheckRunner) *Service {
-	s.checks = runner
+// Both the runner and the durable run record are required: executing checks
+// without a durable record of having executed them would relaunch real
+// commands on every reconciliation tick.
+func (s *Service) WithCheckRunner(runner ports.AttemptCheckRunner, runs ports.AttemptCheckRunStore) *Service {
+	s.checks, s.checkRuns = runner, runs
 	return s
 }
 

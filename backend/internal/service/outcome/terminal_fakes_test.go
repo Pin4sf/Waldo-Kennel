@@ -87,15 +87,15 @@ func (f *receiptFakeStore) proofRecordCount(ctx context.Context, outcomeID domai
 	if err != nil {
 		return 0, err
 	}
-	runs, err := f.attemptFakeStore.ListVerificationRuns(ctx, outcomeID)
+	runs, err := f.ListVerificationRuns(ctx, outcomeID)
 	if err != nil {
 		return 0, err
 	}
-	decisions, err := f.attemptFakeStore.ListAcceptanceDecisions(ctx, outcomeID)
+	decisions, err := f.ListAcceptanceDecisions(ctx, outcomeID)
 	if err != nil {
 		return 0, err
 	}
-	corrections, err := f.attemptFakeStore.ListOutcomeCorrections(ctx, outcomeID)
+	corrections, err := f.ListOutcomeCorrections(ctx, outcomeID)
 	if err != nil {
 		return 0, err
 	}
@@ -157,6 +157,50 @@ func (f *receiptFakeStore) ClassifyAttemptSucceeded(ctx context.Context, in port
 	}
 	_, err = f.AppendAttemptObservation(ctx, in.AttemptID, in.ObservationKind, in.ObservationPayload, in.At)
 	return err
+}
+
+// testingT is the narrow slice of *testing.T these helpers need.
+type testingT interface {
+	Fatalf(format string, args ...any)
+}
+
+// attachApprovedCheck adds one approved check to the stored Plan's first
+// WorkUnit, which is what a Plan proposed with check commands would carry.
+func (f *receiptFakeStore) attachApprovedCheck(t testingT, outcomeID domain.OutcomeID, check domain.ApprovedCheck) {
+	plan, found, err := f.GetLatestPlanRevision(context.Background(), outcomeID)
+	if err != nil || !found {
+		t.Fatalf("read plan for check attachment: found=%v err=%v", found, err)
+		return
+	}
+	if len(plan.WorkUnits) == 0 {
+		t.Fatalf("plan has no WorkUnit to attach a check to")
+		return
+	}
+	units := append([]domain.WorkUnit(nil), plan.WorkUnits...)
+	units[0].Checks = append(append([]domain.ApprovedCheck(nil), units[0].Checks...), check)
+
+	f.planFakeStore.mu.Lock()
+	defer f.planFakeStore.mu.Unlock()
+	revisions := f.plans[outcomeID]
+	for i := range revisions {
+		if revisions[i].ID == plan.ID {
+			revisions[i].WorkUnits = units
+		}
+	}
+	f.units[plan.ID] = append([]domain.WorkUnit(nil), units...)
+}
+
+// dropVerificationRuns removes verification records while leaving evidence
+// and the durable check observation intact: the crash window between the two
+// proof writes.
+func (f *receiptFakeStore) dropVerificationRuns() {
+	f.proofState().runs = nil
+}
+
+// dropProof removes every proof record, rolling back to before the writes.
+func (f *receiptFakeStore) dropProof() {
+	state := f.proofState()
+	state.evidence, state.runs = nil, nil
 }
 
 // resetReads clears read bookkeeping so a test measures classification's

@@ -123,6 +123,37 @@ VALUES (?, ?, ?, ?);
 SELECT id, plan_revision_id, name, scope
 FROM capability_grants WHERE plan_revision_id = ?;
 
+-- Durable check-run identity. The reservation is inserted before the command
+-- is invoked; the observation is written once and never changed.
+
+-- name: ReserveAttemptCheckRun :exec
+INSERT INTO attempt_check_runs (id, attempt_id, check_id, artifact_version, state, reserved_at)
+VALUES (?, ?, ?, ?, 'reserved', ?);
+
+-- name: GetAttemptCheckRun :one
+SELECT id, attempt_id, check_id, artifact_version, state, ran, passed, exit_code, enforced_by,
+       timed_out, cancelled, termination_unknown, output_truncated, output, unavailable,
+       artifact_changed, observed_artifact_version, reserved_at, observed_at
+FROM attempt_check_runs WHERE attempt_id = ? AND check_id = ? AND artifact_version = ?;
+
+-- name: ListAttemptCheckRuns :many
+SELECT id, attempt_id, check_id, artifact_version, state, ran, passed, exit_code, enforced_by,
+       timed_out, cancelled, termination_unknown, output_truncated, output, unavailable,
+       artifact_changed, observed_artifact_version, reserved_at, observed_at
+FROM attempt_check_runs WHERE attempt_id = ? AND artifact_version = ? ORDER BY reserved_at, id;
+
+-- name: RecordAttemptCheckObservation :execrows
+UPDATE attempt_check_runs
+SET state = 'observed', ran = ?, passed = ?, exit_code = ?, enforced_by = ?,
+    timed_out = ?, cancelled = ?, termination_unknown = ?, output_truncated = ?,
+    output = ?, unavailable = ?, artifact_changed = ?, observed_artifact_version = ?,
+    observed_at = ?
+WHERE attempt_id = ? AND check_id = ? AND artifact_version = ? AND state = 'reserved';
+
+-- name: MarkAttemptCheckRunUnknown :execrows
+UPDATE attempt_check_runs SET state = 'unknown', observed_at = ?
+WHERE attempt_id = ? AND check_id = ? AND artifact_version = ? AND state = 'reserved';
+
 -- Composed Outcomes (ADR 0007). Contribution is criterion-bound and
 -- append-only; there is deliberately no update or delete query.
 

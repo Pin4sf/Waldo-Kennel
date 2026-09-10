@@ -443,7 +443,7 @@ func Run() error {
 		WithPlanning(intelligenceProvider, agentSvc).
 		WithExecution(attempts, store).
 		WithAttemptRetainer(attempts).
-		WithCheckRunner(attemptChecks).
+		WithCheckRunner(attemptChecks, store).
 		WithProofStore(store).
 		WithAnalystSessionReaper(reaper)
 	// Composed Outcomes (ADR 0007) have no proposer wired: decomposition used
