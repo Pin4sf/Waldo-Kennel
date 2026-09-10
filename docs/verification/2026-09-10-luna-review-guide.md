@@ -14,7 +14,7 @@ order:
 3. `d8758a642` — governed deterministic check boundary.
 4. `782e75c3d` — supplied-document and owner-gated export adapters.
 5. `2b5fc669e`, `d02d77ae5`, `59aa8703a` — focused shell, overview projection, evidence update and regression assertion.
-6. `0d41cb6c4` — retention-bound correction.
+6. `0d41cb6c4`, `d96fc3aff` — retention-bound and publication-verification corrections.
 
 The assignment handoff itself is `827efca72`; earlier graph/scheduler and A1
 commits are included in the branch history and are described in the ledger.
