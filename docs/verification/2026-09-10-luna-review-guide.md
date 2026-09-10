@@ -1,7 +1,7 @@
 # Luna Work reviewer handoff
 
 Review this branch from `origin/beta` `9396c3844ee00cf2c350df0426f4224d33ef87de`
-through code head `1f77c04f2` in
+through code head `bf4679f3f` in
 `/Users/shivanshfulper/.codex/worktrees/kennel-work-completion`.
 
 ## Commit order
@@ -14,7 +14,7 @@ order:
 3. `d8758a642` — governed deterministic check boundary.
 4. `782e75c3d` — supplied-document and owner-gated export adapters.
 5. `2b5fc669e`, `d02d77ae5`, `59aa8703a` — focused shell, overview projection, evidence update and regression assertion.
-6. `0d41cb6c4`, `d96fc3aff`, `1f77c04f2` — retention-bound, publication-verification and export-permission corrections.
+6. `0d41cb6c4`, `d96fc3aff`, `1f77c04f2`, `bf4679f3f` — retention-bound, publication-verification, export-permission and lint-boundary corrections.
 
 The assignment handoff itself is `827efca72`; earlier graph/scheduler and A1
 commits are included in the branch history and are described in the ledger.
