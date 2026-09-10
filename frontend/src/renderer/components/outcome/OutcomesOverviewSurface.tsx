@@ -335,6 +335,7 @@ function OutcomeOverviewRow({
 				{onOpenMissionControl ? (
 					<button
 						aria-label={t("outcome.dashboard.missionControlAria", { title: outcome.title })}
+						data-outcome-mission-control-id={outcome.id}
 						className={cn(
 							"mr-2 grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0",
 							"transition-[background-color,color,opacity] hover:bg-interactive-hover hover:text-foreground",

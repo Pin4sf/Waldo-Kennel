@@ -29,10 +29,32 @@ export function OutcomeMissionWorkspace({
 	const selected = Boolean(outcomeId && projectId);
 	const workspaceRef = useRef<HTMLDivElement>(null);
 	const openerRef = useRef<HTMLElement | null>(null);
+	const openerDescriptorRef = useRef<{ kind: "row" | "mission-control"; outcomeId: string } | null>(null);
+	const restoreOpenerFocus = (attempt = 0) => {
+		const descriptor = openerDescriptorRef.current;
+		const target = descriptor
+			? (Array.from(
+					document.querySelectorAll<HTMLElement>(
+						descriptor.kind === "row"
+							? '[data-testid="outcomes-overview-row"]'
+							: "[data-outcome-mission-control-id]",
+					),
+				).find((element) =>
+					descriptor.kind === "row"
+						? element.dataset.outcomeId === descriptor.outcomeId
+						: element.dataset.outcomeMissionControlId === descriptor.outcomeId,
+				) ?? null)
+			: openerRef.current;
+		if (target) {
+			target.focus({ preventScroll: true });
+			return;
+		}
+		if (attempt < 4) requestAnimationFrame(() => restoreOpenerFocus(attempt + 1));
+	};
 	const close = () => {
 		setExpanded(false);
 		onClose();
-		requestAnimationFrame(() => openerRef.current?.focus({ preventScroll: true }));
+		requestAnimationFrame(() => restoreOpenerFocus());
 	};
 	const resize = (next: number) => setWidth(Math.max(45, Math.min(75, next)));
 	return (
@@ -48,7 +70,15 @@ export function OutcomeMissionWorkspace({
  projectId={portfolioProjectId}
  onProjectFilterChange={onProjectFilterChange}
 					onOpenOutcome={(project, outcome, nextStage) => {
-						openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+						const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+						openerRef.current = active;
+						if (active?.dataset.outcomeMissionControlId === outcome.id) {
+							openerDescriptorRef.current = { kind: "mission-control", outcomeId: outcome.id };
+						} else if (active?.dataset.outcomeId === outcome.id) {
+							openerDescriptorRef.current = { kind: "row", outcomeId: outcome.id };
+						} else {
+							openerDescriptorRef.current = null;
+						}
 						onOpenOutcome(project, outcome, nextStage);
 					}}
 					selectedOutcomeId={outcomeId}
