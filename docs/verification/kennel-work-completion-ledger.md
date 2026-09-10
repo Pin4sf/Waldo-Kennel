@@ -196,7 +196,7 @@ helper.
 | ST3 | A retained artifact named `KENNEL-EXPORT.json` was overwritten by the delivery manifest and the export reported success | **fixed** `35f67d7d2` | `TestExportRefusesReservedManifestNameCollision` | automated |
 | ST4 | Porcelain `XY<space><path>` was trimmed, retaining `" report.txt "` under the name `report.txt` | **fixed** `35f67d7d2` | `TestParsePorcelainPreservesPathBytes`, `TestRetainPreservesGitPathsWithSurroundingSpaces` | automated |
 | ST5 | Publication synced only the top staging directory, so a published manifest version could name nested content that was never durable | **fixed** `35f67d7d2` | `TestPublishedNestedContentIsFlushedBeforePublication` — asserts the ordering contract; **does not** simulate power loss | automated (crash guarantee **not** claimed) |
-| SP1 | `governedcheck` enforced nothing: it rejected some shell names and then called bare `exec.CommandContext`, and an out-of-workspace write succeeded | **fixed by failing closed** `258a47802` | `TestRunFailsClosedWithoutAnEnforcementMechanism` with an out-of-workspace canary; `TestAvailableReportsNoMechanism` | automated; real sandbox enforcement **blocked** |
+| SP1 | `governedcheck` enforced nothing: it rejected some shell names and then called bare `exec.CommandContext`, and an out-of-workspace write succeeded | **fixed** `258a47802` fail-closed, then **actually enforced** in the seatbelt commit | both required falsifiers below | automated, **enforcement proven on macOS** |
 | SP3 | Export checked owner, kind and Outcome only, so an older decision for that Outcome labelled any newer artifact accepted | **fixed** `35f67d7d2` | `TestExportRefusesStaleOrMismatchedAcceptance` — stale revision, wrong artifact version, and both missing | automated |
 | SP6 | Size was checked and then `os.ReadFile` read whatever was there, so growth or replacement allocated past the declared bound before rejection | **fixed** `17d1c8a5f` | `TestSuppliedDocumentRefusesGrowthBetweenSelectionAndRead`, `...RefusesReplacementWithASymlink`, `...RespectsCancellation` — verified red-green | automated |
 | Primary | Proof was judged before retention ran, and the artifact version bound into classification was whatever retention produced afterwards. Proof naming the Attempt did not establish that the retained bytes were checked | **fixed** — see below | `TestAttemptProvenRefusesProofRecordedAgainstAnEarlierArtifact`, `TestClassificationRefusesProofThatChangedAfterTheJudgement`, `TestClassificationRefusesAfterTheContractIsRevised` | automated |
@@ -229,11 +229,44 @@ on a proof state that no longer exists, and the classification is refused as
 stale — the next reconciliation reads proof again and decides on what is now
 true. A Contract revised since the judgement refuses the same way.
 
+### SP1 is now enforced, not just failing closed
+
+The first fix made `governedcheck` refuse to run anything, which was honest but
+left Phase D without a check runner. It is now genuinely enforced on macOS
+through Apple's seatbelt (`/usr/bin/sandbox-exec`) — the same mechanism the
+Codex CLI uses for its own `workspace-write` sandbox, which is why the policy
+translation lines up with L1b.
+
+The profile denies by default and grants back only what the approved
+`AttemptExecutionPolicy` asked for. `worktree.write` opens writes under the
+workspace subpath and nothing else; without it a check gets no filesystem write
+at all, not a narrower one. No capability in this codebase can request network,
+so network is always denied. A capability with no enforcement mapping is refused
+rather than approximated, since running without it would grant more than was
+approved. Linux and Windows have no mechanism implemented and still fail closed.
+
+Both falsifiers the plan required now pass behaviorally, not by argv assertion:
+
+| Falsifier | Result |
+|---|---|
+| A check that attempts a write outside its workspace is denied and the out-of-workspace canary is unchanged | **passes** — `TestEnforcedCheckCannotWriteOutsideItsWorkspace` |
+| A check that attempts a network effect against a controlled local endpoint produces no request at that endpoint | **passes** — `TestEnforcedCheckCannotReachTheNetwork`; the endpoint first counts its own probe, so zero means denial rather than a broken fixture |
+| An authorized in-workspace write still succeeds | **passes** — enforcement is not indiscriminate |
+| A read-only policy denies even the workspace | **passes** |
+| A capability with no mapping runs nothing | **passes**, canary unchanged |
+
+Verified red-green: with the profile changed to `(allow default)`, the
+out-of-workspace falsifier fails with the write succeeding under a result still
+labelled `macos-seatbelt-workspace-write`.
+
+Proof level is **automated on macOS**. Linux and Windows enforcement is
+unimplemented and recorded as such; those platforms skip these rows rather than
+passing them.
+
 ### Still open from the review
 
 | ID | Item | Why it is still open |
 |---|---|---|
-| SP1 | Real sandbox enforcement for checks | The enforcing runtime is a provider adapter sandbox, not reachable as a standalone check runner. Checks fail closed until it is. Recorded **blocked**, not passing |
 | SP2 | `Compose`/`Apply`, `Export` and `SuppliedContext` have no production callers | Verified directly: `governedcheck` has zero non-test importers, `SuppliedContext` zero references outside its own file, and the daemon uses only `artifactstore.Retain`. Adapters exist; the features do not |
 | SP4 | B1 Board/List | `OutcomesOverviewSurface.tsx` toggles a two-column CSS grid. No status columns, no attention or history filter, no fact-derived state |
 | SP5 | F focused shell | `frontend/src/main.ts` still initializes Island unconditionally |

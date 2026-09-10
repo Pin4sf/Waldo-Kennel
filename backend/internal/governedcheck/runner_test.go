@@ -3,12 +3,15 @@ package governedcheck
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -45,44 +48,166 @@ func (u unenforced) Command(ctx context.Context, req Request, root string) (*exe
 	return cmd, nil
 }
 
-// SP1. The production path has no enforcement mechanism, so a check must fail
-// closed and run nothing. The falsifier is the canary: argv and cwd assertions
-// would pass either way, but a file outside the workspace proves whether the
-// process ran.
-func TestRunFailsClosedWithoutAnEnforcementMechanism(t *testing.T) {
+// SP1, falsifier one. A check that tries to write outside its workspace must be
+// denied and the out-of-workspace canary must be byte-identical afterwards.
+// argv and cwd assertions pass whether or not the process was confined; only
+// the canary distinguishes them.
+func TestEnforcedCheckCannotWriteOutsideItsWorkspace(t *testing.T) {
+	requireEnforcement(t)
 	outside := t.TempDir()
 	canary := filepath.Join(outside, "canary")
 	if err := os.WriteFile(canary, []byte("untouched"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	escape := filepath.Join(outside, "escaped")
+
 	result, err := Run(context.Background(), Request{
-		Policy: checkPolicy(), WorkspaceRoot: t.TempDir(),
-		Argv: []string{"touch", canary}, Timeout: 2 * time.Second,
+		Policy: writePolicy(), WorkspaceRoot: t.TempDir(),
+		Argv: []string{"touch", escape}, Timeout: 20 * time.Second,
+	})
+	if err == nil {
+		t.Fatalf("an out-of-workspace write succeeded: %#v", result)
+	}
+	if _, statErr := os.Stat(escape); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("the denied check created %s anyway", escape)
+	}
+	body, readErr := os.ReadFile(canary)
+	if readErr != nil || string(body) != "untouched" {
+		t.Fatalf("out-of-workspace canary changed: %q err=%v", body, readErr)
+	}
+	if result.EnforcedBy == "" {
+		t.Fatal("a denied check must still record which mechanism denied it")
+	}
+}
+
+// SP1, falsifier two. A check that attempts a network effect against a
+// controlled local endpoint must produce no request at that endpoint. Asserting
+// only that the command failed would pass for any unrelated error.
+func TestEnforcedCheckCannotReachTheNetwork(t *testing.T) {
+	requireEnforcement(t)
+	var requests atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	// Prove the endpoint counts a real request, so a zero below means denial
+	// rather than a broken fixture.
+	if resp, err := http.Get(server.URL); err == nil {
+		_ = resp.Body.Close()
+	}
+	if requests.Load() != 1 {
+		t.Fatalf("controlled endpoint did not observe its own probe: %d", requests.Load())
+	}
+
+	result, err := Run(context.Background(), Request{
+		Policy: writePolicy(), WorkspaceRoot: t.TempDir(),
+		Argv: []string{"curl", "-s", "-m", "5", server.URL}, Timeout: 25 * time.Second,
+	})
+	if err == nil {
+		t.Fatalf("a network call from inside a governed check succeeded: %#v", result)
+	}
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("the endpoint observed %d requests; the check reached the network", got-1)
+	}
+}
+
+// Enforcement must not be indiscriminate: the check still has to be able to do
+// its job inside the workspace it was granted.
+func TestEnforcedCheckCanWriteInsideItsWorkspace(t *testing.T) {
+	requireEnforcement(t)
+	workspace := t.TempDir()
+	result, err := Run(context.Background(), Request{
+		Policy: writePolicy(), WorkspaceRoot: workspace,
+		Argv: []string{"touch", "check-output"}, Timeout: 20 * time.Second,
+	})
+	if err != nil || result.ExitCode != 0 {
+		t.Fatalf("an authorized in-workspace write was denied: %#v %v", result, err)
+	}
+	root, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "check-output")); err != nil {
+		t.Fatalf("the check did not produce its output: %v", err)
+	}
+}
+
+// Without worktree.write the check gets no filesystem write at all, not a
+// narrower one.
+func TestReadOnlyPolicyDeniesEvenTheWorkspace(t *testing.T) {
+	requireEnforcement(t)
+	workspace := t.TempDir()
+	policy := checkPolicy() // exec + read, no write
+	if _, err := Run(context.Background(), Request{
+		Policy: policy, WorkspaceRoot: workspace,
+		Argv: []string{"touch", "should-not-exist"}, Timeout: 20 * time.Second,
+	}); err == nil {
+		t.Fatal("a read-only policy allowed a workspace write")
+	}
+	root, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "should-not-exist")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("a read-only check wrote to its workspace")
+	}
+}
+
+// A capability the platform cannot translate is refused, never approximated.
+// Running with an unmapped capability would grant more than was approved.
+func TestUnmappableCapabilityFailsClosed(t *testing.T) {
+	outside := t.TempDir()
+	canary := filepath.Join(outside, "canary")
+	if err := os.WriteFile(canary, []byte("untouched"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	policy := checkPolicy()
+	// Capabilities are stored sorted; "network.egress" sorts first.
+	policy.RequiredCapabilities = []string{"network.egress", domain.CapabilityWorktreeExec}
+	policy.Grants = []domain.CapabilityGrant{
+		{ID: "g-net", Name: "network.egress", Scope: "*"},
+		{ID: "g", Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"},
+	}
+
+	result, err := Run(context.Background(), Request{
+		Policy: policy, WorkspaceRoot: t.TempDir(),
+		Argv: []string{"touch", canary}, Timeout: 5 * time.Second,
 	})
 	if !errors.Is(err, ErrEnforcementUnavailable) {
 		t.Fatalf("err = %v, want ErrEnforcementUnavailable", err)
 	}
-	if result.EnforcedBy != "" || result.ExitCode != 0 || result.Output != "" {
+	if result.EnforcedBy != "" || result.Output != "" {
 		t.Fatalf("a refused check produced a result: %#v", result)
 	}
 	body, readErr := os.ReadFile(canary)
-	if readErr != nil {
-		t.Fatalf("out-of-workspace canary was removed: %v", readErr)
-	}
-	if string(body) != "untouched" {
-		t.Fatal("out-of-workspace canary was modified: the check ran despite having no enforcement")
+	if readErr != nil || string(body) != "untouched" {
+		t.Fatal("the out-of-workspace canary changed: the check ran despite having no enforcement")
 	}
 }
 
-// Available must never quietly hand back a permissive mechanism.
-func TestAvailableReportsNoMechanism(t *testing.T) {
-	mechanism, err := Available(checkPolicy())
-	if mechanism != nil {
-		t.Fatalf("resolved an enforcement mechanism %q that cannot be shown to confine anything", mechanism.Name())
+// requireEnforcement skips where no mechanism exists, so an unenforceable host
+// records these rows as skipped rather than silently passing them.
+func requireEnforcement(t *testing.T) {
+	t.Helper()
+	mechanism, err := Available(writePolicy())
+	if errors.Is(err, ErrEnforcementUnavailable) {
+		t.Skipf("no enforcement mechanism on this host: %v", err)
 	}
-	if !errors.Is(err, ErrEnforcementUnavailable) {
-		t.Fatalf("err = %v", err)
+	if err != nil || mechanism == nil {
+		t.Fatalf("resolve enforcement: %v", err)
 	}
+}
+
+func writePolicy() domain.AttemptExecutionPolicy {
+	policy := checkPolicy()
+	policy.RequiredCapabilities = []string{domain.CapabilityWorktreeExec, domain.CapabilityWorktreeWrite}
+	policy.Grants = []domain.CapabilityGrant{
+		{ID: "g", Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"},
+		{ID: "g-write", Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"},
+	}
+	return policy
 }
 
 // The unenforced test runner must be honest about what it is, so no evidence

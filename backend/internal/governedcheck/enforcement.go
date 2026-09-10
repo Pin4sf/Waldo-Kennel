@@ -43,18 +43,24 @@ type Enforcement interface {
 	Command(ctx context.Context, req Request, root string) (*exec.Cmd, error)
 }
 
-// Available resolves the enforcement mechanism for an approved policy.
+// Available resolves the enforcement mechanism for an approved policy on this
+// host, or reports that none can apply it.
 //
-// It currently returns ErrEnforcementUnavailable on every host. The mapping
-// from AttemptExecutionPolicy to a provider sandbox lives in the adapters and
-// is not reachable as a standalone check runner yet; claiming otherwise would
-// put a governed label on an unenforced process.
+// A host with no mechanism is a terminal state for the check, not a reason to
+// run it unconfined. Each platform answers separately, and a policy carrying a
+// capability the platform cannot express is refused rather than approximated.
 func Available(policy domain.AttemptExecutionPolicy) (Enforcement, error) {
 	if err := policy.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid execution policy: %w", err)
 	}
-	return nil, fmt.Errorf(
-		"%w: no sandbox mechanism is wired for standalone checks on this host",
-		ErrEnforcementUnavailable,
-	)
+	for _, capability := range policy.RequiredCapabilities {
+		switch capability {
+		case domain.CapabilityWorktreeRead, domain.CapabilityWorktreeWrite, domain.CapabilityWorktreeExec:
+		default:
+			// An unrecognised capability cannot be translated into a confinement
+			// rule, and running without it would grant more than was approved.
+			return nil, fmt.Errorf("%w: capability %q has no enforcement mapping", ErrEnforcementUnavailable, capability)
+		}
+	}
+	return platformEnforcement(policy)
 }
