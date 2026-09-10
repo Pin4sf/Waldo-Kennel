@@ -1,0 +1,50 @@
+package outcome_test
+
+import (
+ "context"
+ "testing"
+
+ "github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+ "github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+ "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
+)
+
+func TestTakeoverReview_RunKeyCannotChangeCommand(t *testing.T) {
+ h := newRunHarness(t)
+ h.mustCommand(t, domain.RunCommandStart, "same-key")
+ if _, err := h.command(t, domain.RunCommandCancel, "same-key"); err == nil {
+  t.Fatal("cancel with the Start key silently succeeded without cancelling")
+ }
+}
+
+func TestTakeoverReview_StartRequiresReviewedContract(t *testing.T) {
+ h := newRunHarness(t)
+ _, err := h.svc.CommandRun(context.Background(), h.outcomeID, outcome.RunCommandInput{
+  Command:domain.RunCommandStart, PlanRevisionID:h.planID,
+  ExpectedContractRevision:999, RequestKey:"wrong-contract",
+ })
+ if err == nil { t.Fatal("Start ignored the caller's expected Contract revision") }
+}
+
+func TestTakeoverReview_DocumentApprovalRequiresDigest(t *testing.T) {
+ h := newDocumentHarness(t)
+ ctx := context.Background()
+ if _, err := h.svc.SelectDocuments(ctx,h.outcomeID,[]string{h.writeDoc(t,"brief.md","approved material")}); err != nil { t.Fatal(err) }
+ if _, err := h.svc.ApproveDocuments(ctx,h.outcomeID,""); err == nil {
+  t.Fatal("approved documents without naming the reviewed digest")
+ }
+}
+
+func TestTakeoverReview_ActiveCheckReservationIsNotInterrupted(t *testing.T) {
+ h := newCheckedHarness(t,nil)
+ ctx := context.Background()
+ h.runner.observe = func(check domain.ApprovedCheck) ports.AttemptCheckObservation {
+  // Re-enter at the real service boundary while the first invocation is active.
+  if err := h.svc.ReconcileAttemptOutcomes(ctx); err != nil { t.Fatalf("second reconcile: %v",err) }
+  run,found,err := h.runs.GetAttemptCheckRun(ctx,h.attempt.ID,h.check.ID,h.receipt.ArtifactVersion)
+  if err != nil || !found { t.Fatalf("reservation: %v %v",found,err) }
+  if run.State != ports.CheckRunReserved { t.Fatalf("active check was marked %s while its owner is still executing",run.State) }
+  return failingObservation(check)
+ }
+ if err := h.svc.ReconcileAttemptOutcomes(ctx); err != nil { t.Fatal(err) }
+}
