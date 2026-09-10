@@ -353,3 +353,60 @@ refusal**, not provider conformance.
 `docs/verification/kennel-backend-interface.md` §2.6 now states the
 `approvedChecks` shape on `PlanWorkUnit`, that authorization must display it,
 and that `inconclusive` must not be rendered as `failed`.
+
+
+## Durable run intent and serial continuation
+
+### Behavior
+
+Authorization is now a durable, append-only record rather than a running
+process or an open screen. Migration **0124** adds `outcome_run_intents`: one
+row per generation, immutable except for a write-once `acknowledged_at`, plus
+the `outcome_run_intent_changed` CDC event (the change_log vocabulary was
+rebuilt once to admit it, and the retention/delivery events their slices will
+need).
+
+- **Start** records `running` and launches nothing. The daemon's reconcile
+  tick admits the next eligible WorkUnit itself, keyed
+  `run:<outcome>:<generation>:<unit>`, so repeated ticks, a restart
+  mid-admission and two reconcilers all converge on one Attempt.
+- **Pause** prevents subsequent admission and leaves running work alone. It is
+  enforced in `StartAttempt`, so the low-level per-Attempt route cannot be
+  used to click past it. Acknowledged immediately when nothing is active,
+  otherwise by the reconciler once the active Attempt ends.
+- **Cancel** additionally terminates the active Attempt and is acknowledged
+  only when the stop is proven; an unproven stop leaves the request visible.
+- **Resume** is refused from `cancelled` — a fresh Start is the honest way to
+  ask for more work after ending a run.
+- Authorizing work re-validates the approved Plan every time, and is refused
+  while an Attempt's runtime status is unknown (`RUN_CUSTODY_UNKNOWN`): a
+  failed probe is not death, and continuing over it duplicates work.
+- Replay is resolved before the transition is decided, so a repeated command
+  returns its own earlier generation instead of being judged against the state
+  it created.
+
+### Evidence
+
+| Behavior | Test | Level |
+|---|---|---|
+| Start authorizes without launching | `TestCommandRun_StartAuthorizesWithoutLaunching` | `automated` |
+| A repeated command authorizes once | `TestCommandRun_ARepeatedCommandAuthorizesOnce` | `automated` |
+| Pause-from-idle, resume-from-running and resume-from-cancelled are refused; Start after cancel is allowed | `TestCommandRun_RefusesCommandsThatDoNotApply` | `automated` |
+| A stale generation is refused | `TestCommandRun_RefusesAStaleGeneration` | `automated` |
+| A pause stops admission on the per-Attempt route too, and resume restores it | `TestRunIntent_PauseStopsSubsequentAdmission` | `automated` |
+| A pause with nothing running is acknowledged immediately | `TestRunIntent_PauseWithNoActiveWorkIsAcknowledgedImmediately` | `automated` |
+| Three continuation ticks admit exactly one Attempt | `TestContinueAuthorizedRuns_AdmitsEachEligibleWorkUnitOnce` | `automated` |
+| A paused or cancelled run admits nothing | `TestContinueAuthorizedRuns_DoesNothingWhilePausedOrCancelled` | `automated` |
+| The store numbers generations, ignores a guessed one, and replays a repeated key without appending | `TestAppendRunIntent_NumbersGenerationsAndReplaysARepeatedCommand` | `automated` |
+| Only the current generation authorizes work | `TestCurrentRunIntent_IsTheLatestGenerationOnly` | `automated` |
+| Acknowledgement is write-once | `TestAcknowledgeRunIntent_IsWriteOnce`, `TestMigration0124RunIntentGenerationsAreAppendOnly` | `automated` |
+| Authorizing and acknowledging both emit canonical CDC | `TestMigration0124EmitsRunIntentChangeEvents` | `automated` |
+| A daemon without run-intent storage reports it unavailable | `TestCommandRun_UnwiredRunIntentsReportUnavailable` | `automated` |
+
+### What this is **not**
+
+- **Rework is not implemented in this slice.** Owner feedback changing the
+  revision/proof horizon without rewriting accepted evidence remains open.
+- No restart of a live daemon was exercised; restart safety is argued from
+  durable reads and proven at the store level, not from a booted process.
+- Not live-provider or packaged acceptance.

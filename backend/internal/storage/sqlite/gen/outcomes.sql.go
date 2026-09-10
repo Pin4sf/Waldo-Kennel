@@ -13,6 +13,25 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
+const acknowledgeOutcomeRunIntent = `-- name: AcknowledgeOutcomeRunIntent :execrows
+UPDATE outcome_run_intents SET acknowledged_at = ?
+WHERE outcome_id = ? AND generation = ? AND acknowledged_at IS NULL
+`
+
+type AcknowledgeOutcomeRunIntentParams struct {
+	AcknowledgedAt sql.NullTime
+	OutcomeID      string
+	Generation     int64
+}
+
+func (q *Queries) AcknowledgeOutcomeRunIntent(ctx context.Context, arg AcknowledgeOutcomeRunIntentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, acknowledgeOutcomeRunIntent, arg.AcknowledgedAt, arg.OutcomeID, arg.Generation)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const advanceOutcomeCurrentRevision = `-- name: AdvanceOutcomeCurrentRevision :execrows
 UPDATE outcomes
 SET current_revision_number = ?, updated_at = ?
@@ -455,6 +474,40 @@ func (q *Queries) CreateOutcome(ctx context.Context, arg CreateOutcomeParams) er
 	return err
 }
 
+const createOutcomeRunIntent = `-- name: CreateOutcomeRunIntent :exec
+
+INSERT INTO outcome_run_intents
+    (id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, requested_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateOutcomeRunIntentParams struct {
+	ID                     string
+	OutcomeID              string
+	Generation             int64
+	Desired                string
+	PlanRevisionID         string
+	ContractRevisionNumber int64
+	RequestKey             string
+	RequestedAt            time.Time
+}
+
+// Durable run intent. Generations are append-only; the only permitted
+// mutation is the write-once acknowledgement.
+func (q *Queries) CreateOutcomeRunIntent(ctx context.Context, arg CreateOutcomeRunIntentParams) error {
+	_, err := q.db.ExecContext(ctx, createOutcomeRunIntent,
+		arg.ID,
+		arg.OutcomeID,
+		arg.Generation,
+		arg.Desired,
+		arg.PlanRevisionID,
+		arg.ContractRevisionNumber,
+		arg.RequestKey,
+		arg.RequestedAt,
+	)
+	return err
+}
+
 const createPlanRevision = `-- name: CreatePlanRevision :exec
 
 INSERT INTO plan_revisions (id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest)
@@ -566,6 +619,28 @@ func (q *Queries) CreateWorkUnitCheck(ctx context.Context, arg CreateWorkUnitChe
 	return err
 }
 
+const currentOutcomeRunIntent = `-- name: CurrentOutcomeRunIntent :one
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, requested_at, acknowledged_at
+FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation DESC LIMIT 1
+`
+
+func (q *Queries) CurrentOutcomeRunIntent(ctx context.Context, outcomeID string) (OutcomeRunIntent, error) {
+	row := q.db.QueryRowContext(ctx, currentOutcomeRunIntent, outcomeID)
+	var i OutcomeRunIntent
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Generation,
+		&i.Desired,
+		&i.PlanRevisionID,
+		&i.ContractRevisionNumber,
+		&i.RequestKey,
+		&i.RequestedAt,
+		&i.AcknowledgedAt,
+	)
+	return i, err
+}
+
 const findOutcomeByIdempotencyKey = `-- name: FindOutcomeByIdempotencyKey :one
 SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
 FROM outcomes WHERE idempotency_key = ?
@@ -583,6 +658,28 @@ func (q *Queries) FindOutcomeByIdempotencyKey(ctx context.Context, idempotencyKe
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ParentOutcomeID,
+	)
+	return i, err
+}
+
+const findOutcomeRunIntentByRequestKey = `-- name: FindOutcomeRunIntentByRequestKey :one
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, requested_at, acknowledged_at
+FROM outcome_run_intents WHERE request_key = ?
+`
+
+func (q *Queries) FindOutcomeRunIntentByRequestKey(ctx context.Context, requestKey string) (OutcomeRunIntent, error) {
+	row := q.db.QueryRowContext(ctx, findOutcomeRunIntentByRequestKey, requestKey)
+	var i OutcomeRunIntent
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Generation,
+		&i.Desired,
+		&i.PlanRevisionID,
+		&i.ContractRevisionNumber,
+		&i.RequestKey,
+		&i.RequestedAt,
+		&i.AcknowledgedAt,
 	)
 	return i, err
 }
@@ -1313,6 +1410,47 @@ func (q *Queries) ListContributionLinksForParent(ctx context.Context, parentOutc
 	return items, nil
 }
 
+const listCurrentRunIntentsByDesired = `-- name: ListCurrentRunIntentsByDesired :many
+SELECT i.id, i.outcome_id, i.generation, i.desired, i.plan_revision_id, i.contract_revision_number, i.request_key, i.requested_at, i.acknowledged_at
+FROM outcome_run_intents i
+WHERE i.desired = ?
+  AND i.generation = (SELECT MAX(g.generation) FROM outcome_run_intents g WHERE g.outcome_id = i.outcome_id)
+ORDER BY i.outcome_id
+`
+
+func (q *Queries) ListCurrentRunIntentsByDesired(ctx context.Context, desired string) ([]OutcomeRunIntent, error) {
+	rows, err := q.db.QueryContext(ctx, listCurrentRunIntentsByDesired, desired)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OutcomeRunIntent{}
+	for rows.Next() {
+		var i OutcomeRunIntent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OutcomeID,
+			&i.Generation,
+			&i.Desired,
+			&i.PlanRevisionID,
+			&i.ContractRevisionNumber,
+			&i.RequestKey,
+			&i.RequestedAt,
+			&i.AcknowledgedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDecompositionContributions = `-- name: ListDecompositionContributions :many
 SELECT id, decomposition_id, ref, position, title, goal, success_criteria, review, constraints, non_goals, authority, claimed_criteria, child_outcome_id
 FROM decomposition_contributions WHERE decomposition_id = ?
@@ -1413,6 +1551,44 @@ func (q *Queries) ListOpenDecompositionRequests(ctx context.Context) ([]Decompos
 			&i.DecompositionID,
 			&i.CreatedAt,
 			&i.AnsweredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOutcomeRunIntents = `-- name: ListOutcomeRunIntents :many
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, requested_at, acknowledged_at
+FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation
+`
+
+func (q *Queries) ListOutcomeRunIntents(ctx context.Context, outcomeID string) ([]OutcomeRunIntent, error) {
+	rows, err := q.db.QueryContext(ctx, listOutcomeRunIntents, outcomeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OutcomeRunIntent{}
+	for rows.Next() {
+		var i OutcomeRunIntent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OutcomeID,
+			&i.Generation,
+			&i.Desired,
+			&i.PlanRevisionID,
+			&i.ContractRevisionNumber,
+			&i.RequestKey,
+			&i.RequestedAt,
+			&i.AcknowledgedAt,
 		); err != nil {
 			return nil, err
 		}

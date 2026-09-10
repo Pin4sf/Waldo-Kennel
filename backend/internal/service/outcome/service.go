@@ -114,8 +114,18 @@ type Service struct {
 	// been invoked against which retained artifact. Without it a repeated
 	// reconciliation tick would relaunch every command again.
 	checkRuns ports.AttemptCheckRunStore
+	// runIntents holds the owner's durable authorization to keep working
+	// through an approved Plan. Absent means only per-Attempt Start exists,
+	// which is a reduced capability, never an assumed authorization.
+	runIntents ports.RunIntentStore
 
 	staleHeartbeat time.Duration
+}
+
+// WithRunIntents wires durable run intent and serial continuation.
+func (s *Service) WithRunIntents(store ports.RunIntentStore) *Service {
+	s.runIntents = store
+	return s
 }
 
 // WithCheckRunner wires deterministic check execution into classification.

@@ -381,6 +381,23 @@ var changeLogWriters = []struct {
 		since: "0111",
 		sql:   "CREATE TRIGGER project_brief_revisions_cdc_insert\nAFTER INSERT ON project_brief_revisions\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        NEW.project_id,\n        NULL,\n        'project_brief_revised',\n        json_object('revisionId', NEW.id, 'revision', NEW.revision_number),\n        NEW.created_at\n    );\nEND;",
 	},
+	// Durable run intent. Both writers carry identity only: the Mission reads
+	// the current generation through the canonical projection, and a change
+	// feed that duplicated authority would become a second source of it.
+	{
+		name:  "outcome_run_intents_cdc_insert",
+		table: "outcome_run_intents",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		since: "0123",
+		sql:   "CREATE TRIGGER outcome_run_intents_cdc_insert\nAFTER INSERT ON outcome_run_intents\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT rs.project_id FROM outcomes o JOIN responsibility_spaces rs ON rs.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL,\n        'outcome_run_intent_changed',\n        json_object('outcomeId', NEW.outcome_id, 'generation', NEW.generation, 'desired', NEW.desired),\n        NEW.requested_at\n    );\nEND;",
+	},
+	{
+		name:  "outcome_run_intents_cdc_acknowledged",
+		table: "outcome_run_intents",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		since: "0123",
+		sql:   "CREATE TRIGGER outcome_run_intents_cdc_acknowledged\nAFTER UPDATE ON outcome_run_intents\nWHEN OLD.acknowledged_at IS NULL AND NEW.acknowledged_at IS NOT NULL\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT rs.project_id FROM outcomes o JOIN responsibility_spaces rs ON rs.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL,\n        'outcome_run_intent_changed',\n        json_object('outcomeId', NEW.outcome_id, 'generation', NEW.generation, 'desired', NEW.desired, 'acknowledged', 1),\n        NEW.acknowledged_at\n    );\nEND;",
+	},
 }
 
 // restoreChangeLogWriters recreates any missing change_log-writing trigger

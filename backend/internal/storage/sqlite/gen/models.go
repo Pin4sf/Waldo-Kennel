@@ -617,6 +617,18 @@ type OutcomeCorrection struct {
 	CreatedAt          time.Time
 }
 
+type OutcomeRunIntent struct {
+	ID                     string
+	OutcomeID              string
+	Generation             int64
+	Desired                string
+	PlanRevisionID         string
+	ContractRevisionNumber int64
+	RequestKey             string
+	RequestedAt            time.Time
+	AcknowledgedAt         sql.NullTime
+}
+
 type PR struct {
 	URL                      string
 	SessionID                domain.SessionID

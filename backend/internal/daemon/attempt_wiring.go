@@ -273,10 +273,24 @@ func reconcile(ctx context.Context, attempts attemptLivenessHook, log *slog.Logg
 	if err := attempts.ReconcileAttemptOutcomes(ctx); err != nil {
 		log.Warn("attempt outcome reconciliation"+suffix, "err", err)
 	}
+	// Stop requests are acknowledged before continuation is considered, so a
+	// pause that arrived while the last Attempt was ending takes effect on
+	// this tick rather than after one more unit has been admitted.
+	if err := attempts.ReconcileRunIntents(ctx); err != nil {
+		log.Warn("run intent reconciliation"+suffix, "err", err)
+	}
+	if err := attempts.ContinueAuthorizedRuns(ctx); err != nil {
+		log.Warn("authorized run continuation"+suffix, "err", err)
+	}
 }
 
 type attemptLivenessHook interface {
 	EvaluateAttemptLiveness(ctx context.Context) error
 	// ReconcileAttemptOutcomes classifies attempts whose execution has ended.
 	ReconcileAttemptOutcomes(ctx context.Context) error
+	// ReconcileRunIntents acknowledges stop requests whose work has ended.
+	ReconcileRunIntents(ctx context.Context) error
+	// ContinueAuthorizedRuns admits the next eligible WorkUnit for Outcomes
+	// the owner has authorized to keep running.
+	ContinueAuthorizedRuns(ctx context.Context) error
 }

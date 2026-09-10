@@ -444,6 +444,7 @@ func Run() error {
 		WithExecution(attempts, store).
 		WithAttemptRetainer(attempts).
 		WithCheckRunner(attemptChecks, store).
+		WithRunIntents(store).
 		WithProofStore(store).
 		WithAnalystSessionReaper(reaper)
 	// Composed Outcomes (ADR 0007) have no proposer wired: decomposition used

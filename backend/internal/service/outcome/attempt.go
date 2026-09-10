@@ -173,6 +173,12 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if !gate.Clear() {
 		return AttemptView{}, blockedError(outcomeID, gate)
 	}
+	// A pause prevents subsequent admission. Checking it here, before any
+	// durable row is written, is what makes "paused" mean the work stops
+	// rather than the button stops being offered.
+	if err := s.refuseAdmissionAgainstRunIntent(ctx, outcomeID); err != nil {
+		return AttemptView{}, err
+	}
 
 	plan, found, err := s.store.GetPlanRevision(ctx, outcomeID, in.PlanRevisionID)
 	if err != nil {

@@ -233,6 +233,17 @@ func (s *Service) runStateFor(ctx context.Context, record domain.Outcome, projec
 	if err != nil {
 		return RunStateView{}, err
 	}
+	intent, hasIntent, err := s.currentRunIntent(ctx, record.ID)
+	if err != nil {
+		return RunStateView{}, err
+	}
+	if hasIntent {
+		view.Intent = &RunIntentView{
+			Generation: intent.Generation, Desired: string(intent.Desired),
+			PlanRevisionID: intent.PlanRevisionID, RequestedAt: intent.RequestedAt,
+			AcknowledgedAt: intent.AcknowledgedAt, ActiveAttemptID: view.ActiveAttemptID,
+		}
+	}
 
 	var schedule *ScheduleView
 	if planFound && plan.Status == domain.PlanStatusApproved && view.PlanBindsCurrentContract {

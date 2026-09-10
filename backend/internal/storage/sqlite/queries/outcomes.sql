@@ -154,6 +154,37 @@ WHERE attempt_id = ? AND check_id = ? AND artifact_version = ? AND state = 'rese
 UPDATE attempt_check_runs SET state = 'unknown', observed_at = ?
 WHERE attempt_id = ? AND check_id = ? AND artifact_version = ? AND state = 'reserved';
 
+-- Durable run intent. Generations are append-only; the only permitted
+-- mutation is the write-once acknowledgement.
+
+-- name: CreateOutcomeRunIntent :exec
+INSERT INTO outcome_run_intents
+    (id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, requested_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: CurrentOutcomeRunIntent :one
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, requested_at, acknowledged_at
+FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation DESC LIMIT 1;
+
+-- name: FindOutcomeRunIntentByRequestKey :one
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, requested_at, acknowledged_at
+FROM outcome_run_intents WHERE request_key = ?;
+
+-- name: ListOutcomeRunIntents :many
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, requested_at, acknowledged_at
+FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation;
+
+-- name: ListCurrentRunIntentsByDesired :many
+SELECT i.id, i.outcome_id, i.generation, i.desired, i.plan_revision_id, i.contract_revision_number, i.request_key, i.requested_at, i.acknowledged_at
+FROM outcome_run_intents i
+WHERE i.desired = ?
+  AND i.generation = (SELECT MAX(g.generation) FROM outcome_run_intents g WHERE g.outcome_id = i.outcome_id)
+ORDER BY i.outcome_id;
+
+-- name: AcknowledgeOutcomeRunIntent :execrows
+UPDATE outcome_run_intents SET acknowledged_at = ?
+WHERE outcome_id = ? AND generation = ? AND acknowledged_at IS NULL;
+
 -- Composed Outcomes (ADR 0007). Contribution is criterion-bound and
 -- append-only; there is deliberately no update or delete query.
 

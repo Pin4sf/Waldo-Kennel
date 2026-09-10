@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -20,6 +21,15 @@ import (
 type RunStateReader interface {
 	GetRunState(context.Context, domain.OutcomeID) (outcomevc.RunStateView, error)
 	ListProjectRunStates(context.Context, domain.ProjectID, bool) ([]outcomevc.RunStateView, error)
+}
+
+// RunCommander is the durable run-intent write boundary. RunIntentsEnabled
+// answers separately from the method set because a daemon can implement the
+// method and still have no storage behind it; that combination has to reach
+// the client as an honest unavailable, not a 500.
+type RunCommander interface {
+	RunIntentsEnabled() bool
+	CommandRun(context.Context, domain.OutcomeID, outcomevc.RunCommandInput) (outcomevc.RunStateView, error)
 }
 
 // registerRunRoutes mounts the Mission supervision, delivery and attributed
@@ -80,8 +90,29 @@ func (c *OutcomesController) listProjectRunStates(w http.ResponseWriter, r *http
 }
 
 func (c *OutcomesController) commandRun(w http.ResponseWriter, r *http.Request) {
-	envelope.WriteAPIError(w, r, http.StatusNotImplemented, "not_implemented", "RUN_INTENT_UNAVAILABLE",
-		"Durable run intent is not implemented in this daemon; start Attempts individually", nil)
+	commander, ok := c.Svc.(RunCommander)
+	if !ok || c.Svc == nil || !commander.RunIntentsEnabled() {
+		envelope.WriteAPIError(w, r, http.StatusNotImplemented, "not_implemented", "RUN_INTENT_UNAVAILABLE",
+			"Durable run intent is not available in this daemon; start Attempts individually", nil)
+		return
+	}
+	var req OutcomeRunCommandRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	view, err := commander.CommandRun(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.RunCommandInput{
+		Command:                  domain.RunCommand(req.Action),
+		PlanRevisionID:           domain.PlanRevisionID(req.PlanRevisionID),
+		ExpectedContractRevision: req.ExpectedContractRevision,
+		ExpectedGeneration:       req.ExpectedGeneration,
+		RequestKey:               req.RequestKey,
+	})
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, OutcomeRunStateEnvelope{RunState: outcomeRunStateResponse(view)})
 }
 
 func (c *OutcomesController) listDeliveries(w http.ResponseWriter, r *http.Request) {

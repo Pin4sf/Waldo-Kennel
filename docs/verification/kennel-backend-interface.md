@@ -89,7 +89,7 @@ carries `outcomeId`, `projectId`, `title`, `parentOutcomeId`, `state`,
   `ready_for_review` | `accepted`, derived on every read and never stored.
   `attentionReason` is a stable code, non-empty exactly when `state` is
   `needs_you`, so "Needs you" always carries a concrete reason.
-- `intent`: **absent** until the run-intent slice lands, then
+- `intent`: absent until the owner has authorized anything, then
   `{ generation, desired: "idle"|"running"|"paused"|"cancelled", planRevisionId,
   requestedAt, acknowledgedAt|null, activeAttemptId|null, lastError|null }`.
   `generation` is the optimistic-concurrency token for §2.3.
@@ -126,7 +126,16 @@ Errors: `400 RUN_ACTION_INVALID`; `404 OUTCOME_NOT_FOUND`; `409` with
 action is not in the eligible set — the response detail names why),
 `PLAN_NOT_APPROVED`, `PLAN_BRIEF_INVALIDATED`, `ATTEMPT_FENCE_HELD`,
 `RUN_CUSTODY_UNKNOWN` (surviving execution of unknown status blocks new work);
-`501 RUN_INTENT_UNAVAILABLE` until the slice lands.
+`501 RUN_INTENT_UNAVAILABLE` only from a daemon with no run-intent storage.
+
+Two behaviours worth relying on:
+
+- **Replay is resolved first.** A repeated `requestKey` returns the generation
+  it already authorized without re-validating against the state its own first
+  copy created — so a double-clicked Start is a no-op, not "already running".
+- **A pause applies to every admission path**, including the low-level
+  `POST .../attempts`. That call answers `409 RUN_ACTION_UNAVAILABLE` while the
+  run is paused or cancelled, so a pause cannot be clicked past.
 
 Semantics the renderer can rely on:
 
@@ -270,7 +279,7 @@ already hold is a stale response and must be discarded, not rendered.
 |---|---|
 | §2.1 board projection | the API commit (implemented immediately) |
 | §2.2 run state | the API commit (implemented; `intent` is **absent**, actions derived from existing facts) |
-| §2.3 run commands | run-intent slice — `501 RUN_INTENT_UNAVAILABLE` until then |
+| §2.3 run commands | **implemented** — a daemon without run-intent storage still answers `501 RUN_INTENT_UNAVAILABLE` |
 | §2.4 delivery | delivery slice — `501 DELIVERY_UNAVAILABLE` until then |
 | §2.5 usage | usage slice — `501 USAGE_ATTRIBUTION_UNAVAILABLE` until then |
 
