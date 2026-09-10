@@ -619,6 +619,27 @@ type OutcomeCorrection struct {
 	CreatedAt          time.Time
 }
 
+type OutcomeDelivery struct {
+	ID                   string
+	OutcomeID            string
+	AttemptID            string
+	WorkUnitID           string
+	ArtifactVersion      string
+	Disposition          string
+	Destination          string
+	AcceptanceDecisionID string
+	RequestKey           string
+	RequestFingerprint   string
+	State                string
+	ManifestPath         string
+	FileCount            int64
+	ByteCount            int64
+	FailureCode          string
+	FailureDetail        string
+	RequestedAt          time.Time
+	CompletedAt          sql.NullTime
+}
+
 type OutcomeDocumentContext struct {
 	ID         string
 	OutcomeID  string

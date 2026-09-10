@@ -77,7 +77,7 @@ Requirement numbers are the assignment's implementation sequence.
 
 | Requirement | Present | Missing |
 |---|---|---|
-| Export helper | `artifactstore/export.go` — accepted/draft disposition, artifact-version binding, manifest, destination confinement | **no production caller**; no service, no API, no durable delivery record, no retry/partial-failure state |
+| Export helper and durable delivery | `artifactstore/export.go`; SQLite `outcome_deliveries`; Outcome delivery service/routes | pending request/result ledger, exact receipt and current owner-acceptance binding, idempotency, atomic staging, destination safety, and restart interruption are implemented; real owner export/packaged acceptance remains open |
 
 ### 6. Agent bridge baseline
 
