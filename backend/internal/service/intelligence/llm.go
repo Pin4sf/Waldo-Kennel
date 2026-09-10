@@ -58,6 +58,7 @@ Rules:
 - intent classifies the work: "inspect" reads only; "modify" edits files; "execute" runs commands; "modify_and_execute" does both. Choose the LEAST intent that can do the unit's job — it decides how much authority the unit is granted.
 - criteriaCovered references the criterion aliases given to you (C1, C2, ...). Every criterion should be covered by at least one unit.
 - evidenceIdeas are the artifacts that would prove the unit did its job.
+- checkCommands are proposed deterministic local checks: criterionAlias, exact argv array (not shell text), and timeoutSeconds. Ground them in the approved context. A check must exit nonzero when its criterion is false, not merely print output. Use execute or modify_and_execute intent when checks execute commands. Never widen the Contract authority. Return an empty list only when no safe deterministic check is available; explain the verification limitation in blockers.
 - Record real assumptions and real blockers. An empty list is the honest answer when there are none; never invent them.
 
 Return only the structured object.`
@@ -148,7 +149,8 @@ func stringArray(description string) map[string]any {
 	}
 }
 
-func planSchema() map[string]any {
+func planSchema(aliases []string) map[string]any {
+	criterionAlias := map[string]any{"type": "string", "enum": aliases}
 	return map[string]any{
 		"type":                 "object",
 		"additionalProperties": false,
@@ -162,7 +164,7 @@ func planSchema() map[string]any {
 				"items": map[string]any{
 					"type":                 "object",
 					"additionalProperties": false,
-					"required":             []any{"key", "title", "intent", "outputSummary", "criteriaCovered"},
+					"required":             []any{"key", "title", "intent", "outputSummary", "criteriaCovered", "checkCommands"},
 					"properties": map[string]any{
 						"key":   map[string]any{"type": "string", "description": "stable short id such as W1"},
 						"title": map[string]any{"type": "string"},
@@ -171,9 +173,23 @@ func planSchema() map[string]any {
 							"enum": []any{"inspect", "modify", "execute", "modify_and_execute"},
 						},
 						"outputSummary":   map[string]any{"type": "string", "description": "the observable result of this unit"},
-						"criteriaCovered": stringArray("criterion aliases such as C1"),
+						"criteriaCovered": map[string]any{"type": "array", "items": criterionAlias},
 						"dependsOn":       stringArray("keys of units that must finish first"),
 						"evidenceIdeas":   stringArray("artifacts that would prove this unit"),
+						"checkCommands": map[string]any{
+							"type":        "array",
+							"description": "Proposed local checks, subject to owner approval and daemon validation",
+							"items": map[string]any{
+								"type":                 "object",
+								"additionalProperties": false,
+								"required":             []any{"criterionAlias", "argv", "timeoutSeconds"},
+								"properties": map[string]any{
+									"criterionAlias": criterionAlias,
+									"argv":           stringArray("Exact executable and arguments; preserve each argument verbatim"),
+									"timeoutSeconds": map[string]any{"type": "integer", "minimum": 1},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -386,7 +402,7 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 		System:     planSystemPrompt,
 		User:       input.String(),
 		SchemaName: "plan_draft",
-		Schema:     planSchema(),
+		Schema:     planSchema(sortedAliasKeys(request.CriterionAliases)),
 	})
 	if err != nil {
 		return ports.PlanIntelligenceResponse{}, err
