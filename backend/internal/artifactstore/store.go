@@ -135,8 +135,7 @@ func (s *Store) Retain(ctx context.Context, in Input) (Result, error) {
 		return Result{}, err
 	}
 	if len(files) > s.maxFiles {
-		capture.state = domain.RetentionIncomplete
-		capture.detail = fmt.Sprintf("file bound exceeded: %d files (limit %d)", len(files), s.maxFiles)
+		capture.degrade(domain.RetentionIncomplete, fmt.Sprintf("file bound exceeded: %d files (limit %d)", len(files), s.maxFiles))
 		files = files[:s.maxFiles]
 	}
 	version := string(domain.ArtifactManifestDigest(files))
@@ -177,10 +176,36 @@ type captureState struct {
 	repositoryIdentity string
 	resultRevision     string
 	bytes              map[string][]byte
+	total              int64
 }
 
-func (s *Store) collect(ctx context.Context, root string, in Input) ([]domain.ArtifactFile, captureState, error) {
-	c := captureState{state: domain.RetentionRetained, bytes: map[string][]byte{}}
+// degrade lowers the retention verdict and never raises it. A snapshot that
+// hit a byte or file bound is missing content outright, so incomplete outranks
+// unsupported; without an ordering the reported state would depend on which
+// path the walk happened to reach last.
+func (c *captureState) degrade(state domain.RetentionState, detail string) {
+	if retentionSeverity(state) <= retentionSeverity(c.state) {
+		return
+	}
+	c.state, c.detail = state, detail
+}
+
+func retentionSeverity(state domain.RetentionState) int {
+	switch state {
+	case domain.RetentionRetained:
+		return 0
+	case domain.RetentionUnsupported:
+		return 1
+	case domain.RetentionIncomplete:
+		return 2
+	case domain.RetentionFailed:
+		return 3
+	}
+	return 3
+}
+
+func (s *Store) collect(ctx context.Context, root string, in Input) ([]domain.ArtifactFile, *captureState, error) {
+	c := &captureState{state: domain.RetentionRetained, bytes: map[string][]byte{}}
 	paths := map[string]domain.ArtifactChangeKind{}
 	if in.WorkspaceKind == domain.WorkspaceGitWorktree {
 		if strings.TrimSpace(in.BaseRevision) == "" {
@@ -250,8 +275,7 @@ func (s *Store) collect(ctx context.Context, root string, in Input) ([]domain.Ar
 		}
 		if secretPath(name) {
 			f.UnsupportedReason = "secret-like path is excluded from retained content"
-			c.state = domain.RetentionUnsupported
-			c.detail = "secret-like output was not copied"
+			c.degrade(domain.RetentionUnsupported, "secret-like output was not copied")
 			files = append(files, f)
 			continue
 		}
@@ -270,22 +294,26 @@ func (s *Store) collect(ctx context.Context, root string, in Input) ([]domain.Ar
 		}
 		if !info.Mode().IsRegular() {
 			f.UnsupportedReason = "symlink and special files are not retained"
-			c.state = domain.RetentionUnsupported
-			c.detail = "workspace contains an unsupported filesystem entry"
+			c.degrade(domain.RetentionUnsupported, "workspace contains an unsupported filesystem entry")
 			files = append(files, f)
 			continue
 		}
-		if c.bytesTotal() > s.maxBytes || info.Size() > s.maxBytes-c.bytesTotal() {
-			c.state = domain.RetentionIncomplete
-			c.detail = fmt.Sprintf("byte bound exceeded at %s", name)
+		remaining := s.maxBytes - c.total
+		if remaining <= 0 || info.Size() > remaining {
+			// The bound is real and the content is declined, but the path is
+			// still part of what the Attempt produced. Record the decline on the
+			// file so the receipt stays valid and names the path it is missing.
+			// Appending a digest-less entry instead would fail receipt
+			// validation and lose the whole snapshot over one oversized file.
+			f.UnsupportedReason = fmt.Sprintf("content declined: file needs %d bytes and the retention bound has %d remaining", info.Size(), max64(remaining, 0))
+			c.degrade(domain.RetentionIncomplete, fmt.Sprintf("byte bound exceeded at %s", name))
 			files = append(files, f)
 			continue
 		}
-		content, err := readStable(ctx, full, info, s.maxBytes-c.bytesTotal())
+		content, err := readStable(ctx, full, info, remaining)
 		if err != nil {
 			f.UnsupportedReason = err.Error()
-			c.state = domain.RetentionUnsupported
-			c.detail = "workspace changed during retention"
+			c.degrade(domain.RetentionUnsupported, "workspace changed during retention")
 			files = append(files, f)
 			continue
 		}
@@ -297,17 +325,10 @@ func (s *Store) collect(ctx context.Context, root string, in Input) ([]domain.Ar
 		f.FileMode = &mode
 		f.IsBinary = bytes.IndexByte(content, 0) >= 0
 		c.bytes[name] = content
+		c.total += sz
 		files = append(files, f)
 	}
 	return files, c, nil
-}
-
-func (c captureState) bytesTotal() int64 {
-	var n int64
-	for _, b := range c.bytes {
-		n += int64(len(b))
-	}
-	return n
 }
 
 func physicalDirectory(path string) (string, error) {
@@ -422,13 +443,13 @@ func parsePorcelain(data string, paths map[string]domain.ArtifactChangeKind) {
 	parts := bytes.Split([]byte(data), []byte{0})
 	for i := 0; i < len(parts); i++ {
 		entry := string(parts[i])
-		if len(entry) < 3 {
+		// Porcelain v1 -z is "XY<space><path>": exactly one space separates the
+		// status from the path, and every byte after it belongs to the filename.
+		// Trimming would silently retain " report.txt " under the wrong name.
+		if len(entry) < 4 || entry[2] != ' ' {
 			continue
 		}
-		status, name := entry[:2], strings.TrimSpace(entry[2:])
-		if name == "" {
-			continue
-		}
+		status, name := entry[:2], entry[3:]
 		kind := domain.ArtifactModified
 		if status == "??" {
 			kind = domain.ArtifactUntracked
@@ -471,7 +492,7 @@ func (s *Store) publishFiles(ctx context.Context, stage string, files []domain.A
 			}
 			mode = os.FileMode(uint32(modeValue))
 		}
-		if err := os.WriteFile(dst, content[file.RelativePath], mode); err != nil {
+		if err := writeFileSynced(dst, content[file.RelativePath], mode); err != nil {
 			return err
 		}
 	}
@@ -527,13 +548,60 @@ func verifyPublished(root string, receipt domain.AttemptReceipt) error {
 	return nil
 }
 
-func syncTree(root string) error {
-	f, err := os.Open(root)
+// writeFileSynced writes one blob and flushes it before returning. The mode is
+// set explicitly because O_CREATE applies umask, and publication verifies the
+// recorded mode.
+func writeFileSynced(path string, content []byte, mode os.FileMode) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = f.Close() }()
-	return f.Sync()
+	if _, err := f.Write(content); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Chmod(mode); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// syncTree flushes every directory in the staged tree, deepest first, after its
+// files are already durable. Syncing only the top directory records that the
+// tree exists, not what is inside it, so a crash could publish a manifest
+// version whose nested content was never written.
+func syncTree(root string) error {
+	var dirs []string
+	if err := filepath.WalkDir(root, func(p string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			dirs = append(dirs, p)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
+	for _, dir := range dirs {
+		if err := syncDir(dir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func max64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 func syncDir(path string) error {
 	f, err := os.Open(path)

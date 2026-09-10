@@ -187,7 +187,7 @@ func TestStoreExportRequiresOwnerAndPreservesDeletion(t *testing.T) {
 		t.Fatal("export without owner decision succeeded")
 	}
 	decision := &domain.AcceptanceDecision{ID: "accept-1", OutcomeID: "outcome-1", ContractRevisionID: "contract-1", Kind: domain.AcceptanceAccept, ActorType: domain.AcceptanceActorUser, Summary: "Reviewed", ResourceDisposition: domain.ResourceDispositionRetain, RequestKey: "request-1", RequestFingerprint: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}
-	manifest, err := store.Export(context.Background(), ExportRequest{Receipt: result.Receipt, Decision: decision, Destination: destination})
+	manifest, err := store.Export(context.Background(), ExportRequest{Receipt: result.Receipt, Decision: decision, ContractRevisionID: "contract-1", AcceptedArtifactVersion: result.Receipt.ArtifactVersion, Destination: destination})
 	if err != nil {
 		t.Fatal(err)
 	}
