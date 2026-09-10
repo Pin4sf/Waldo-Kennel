@@ -282,7 +282,10 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 					<div className="flex shrink-0 items-center gap-1.5">
 						{/* Who will do this, decided beside what is being asked for.
 						    Writes the project's durable worker/orchestrator agents. */}
-						<OutcomeIntakeAgentRoles projectId={projectId} />
+						<details className="relative text-xs text-muted-foreground">
+							<summary className="cursor-pointer rounded-sm px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{t("outcome.intake.agentPreferences")}</summary>
+							<div className="absolute right-0 top-full z-10 flex gap-2 rounded-md border border-border bg-card p-3 shadow-sm"><OutcomeIntakeAgentRoles projectId={projectId} /></div>
+						</details>
 						<Button
 							aria-label={pending ? t("outcome.intake.saving") : t("outcome.intake.continue")}
 							className="rounded-full"

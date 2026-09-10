@@ -270,3 +270,62 @@ Final recovery checks: full frontend 221 files, 2715 passing, 6 skipped; typeche
 package exit0. Root lint first failed on an existing parallel golangci-lint lock;
 retry completed with0 issues (`/tmp/kennel-intake-recovery-lint-retry.log`). No other
 process was stopped or its lock removed. No backend/generated files changed.
+
+
+## Focused entry simplification (2026-09-10)
+
+Electron audit handoff reviewed: report complete; audit blocked, not accepted.
+Native targeting failure is not a proven button defect. Runtime relocation/profile
+repairs remain separately owned; corrected backend integration still awaits review.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Focused Work asks Work versus Home again | Opens Outcome project selection directly | Removes redundant mode choice while preserving explicit Project attachment |
+| Entry probes Codex readiness before a responsibility exists | No execution-provider probe in focused entry | Setup belongs at an actual prerequisite |
+| Intake always exposes Worker/Orchestrator selectors | Existing controls under Agent preferences | Keeps Continue primary; no provider selection changes |
+| Focused sidebar says Orchestrator board and sessions | Outcomes and Toggle Project Outcomes | Matches the items being navigated |
+
+Fresh verification: frontend typecheck passed; Work entry, Sidebar and AdaptiveIntake
+suites passed (97 tests). Browser on 43732 against isolated real daemon 43731:
+PASS direct project selection -> Outcome input; PASS disclosure open/close preserves
+typed draft; PASS updated accessibility vocabulary. Desktop screenshot inspected
+at 1280x720. No provider preferences changed, no paid call.
+Native navigation, mobile layout and reduced-motion=true remain unverified.
+Graph/Table and full execution remain blocked by absent real Plan/unconfigured reasoning.
+Daemon remains beta backend source 9efb6e479; this is not takeover integration.
+
+Remaining backend-dependent work: canonical next-action/run-state binding, durable
+run intent and Outcome-scoped agent interaction. No automatic alternate Start
+orchestration or new state store added.
+
+### Unified Add project entry
+
+Both Sidebar and Work entry now open the same shared Add a project chooser:
+Start a new project / Import existing work. Multi-repository import remains under
+progressive disclosure. New uses a create-or-choose-folder prompt; the native
+picker enables directory creation and the existing daemon initialization review
+handles Git setup. This does not add a second project writer or provider launch.
+Browser 43732: both entry points visibly show identical choices (PASS).
+Sidebar and Work entry regression suites: 79 tests passed, including new-project
+Git initialization and invalid-folder recovery. Native directory creation remains
+unverified; browser chooser parity is not Electron end-to-end proof.
+
+### Pending explicit harness intelligence integration
+
+Renderer ownership and binding map (await backend-published interface/foundation SHA):
+
+| User moment | Existing renderer owner | Required daemon facts / command |
+| --- | --- | --- |
+| Describe result and answer material questions | AdaptiveIntakeSurface | Existing intake identity, analysis request and clarification revision; new explicit intelligence mode/readiness response |
+| Resolve missing reasoning prerequisite inline | ReasoningSettingsSection within intake/Mission | Selected API or supported harness mode, readiness reason and explicit setup; never infer one from execution agent defaults |
+| Review Contract and Plan | OutcomeMissionPanel, OutcomeDecideAuthorizeSurface, MissionPlanView | Exact revisions, permission ceiling, approved checks and eligible approval action |
+| Continue one Outcome conversation | Mission secondary interaction area | Outcome-scoped message/question/answer identity, authorized context references, revision links, replay/cancel/error semantics; Project chat is not a substitute |
+| Observe authorized automatic progress | OutcomeRunSurface and Board/Mission header | Canonical run-state reads, eligible actions and durable run intent; no renderer per-node dispatch loop |
+| Review evidence and accept | OutcomeProveCloseSurface | Existing proof/verification/owner acceptance APIs; consequential delivery remains separate |
+
+Keep the saved intake and same URL through setup; refetch selected readiness after
+explicit configuration, then offer the existing retry action. Do not silently
+switch API/harness providers or auto-authorize. Generated schemas must come from
+the reviewed backend commit. Remove obsolete attention fan-out when canonical
+run-state reads are wired; read failure is unavailable/stale, not alternate Start.
+No new renderer capability is claimed pending these contracts.

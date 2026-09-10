@@ -246,7 +246,7 @@ async function openCreateProjectDialog(
 	window.kennel!.app.chooseDirectory = vi.fn().mockResolvedValue(path);
 	window.kennel!.app.scanImportFolder = vi.fn().mockResolvedValue(scan);
 	await user.click(screen.getByLabelText("New project"));
-	await user.click(screen.getByRole("button", { name: /^Project/i }));
+	await user.click(screen.getByRole("button", { name: /^Import existing work/i }));
 	await screen.findByText(path);
 	return user;
 }
@@ -315,7 +315,7 @@ describe("Sidebar", () => {
 		expect(newProject).toHaveFocus();
 		await user.keyboard("{Enter}");
 
-		expect(await screen.findByRole("dialog", { name: "Import to Kennel" })).toBeInTheDocument();
+		expect(await screen.findByRole("dialog", { name: "Add a project" })).toBeInTheDocument();
 	});
 
 	it("hides Home navigation in focused Work mode", () => {
@@ -327,7 +327,7 @@ describe("Sidebar", () => {
 		mockPathname.current = "/work";
 		renderSidebar();
 
-		expect(screen.getByRole("button", { name: "Orchestrator board" })).toHaveClass(
+		expect(screen.getByRole("button", { name: "Outcomes" })).toHaveClass(
 			"group-data-[collapsible=icon]:bg-interactive-active",
 		);
 	});
@@ -622,7 +622,7 @@ describe("Sidebar", () => {
 			useUiStore.getState().requestCreateProject();
 		});
 
-		expect(await screen.findByRole("dialog", { name: "Import to Kennel" })).toBeInTheDocument();
+		expect(await screen.findByRole("dialog", { name: "Add a project" })).toBeInTheDocument();
 	});
 
 	it("keeps the create-project shortcut available when there are no projects", async () => {
@@ -633,7 +633,7 @@ describe("Sidebar", () => {
 			useUiStore.getState().requestCreateProject();
 		});
 
-		expect(await screen.findByRole("dialog", { name: "Import to Kennel" })).toBeInTheDocument();
+		expect(await screen.findByRole("dialog", { name: "Add a project" })).toBeInTheDocument();
 	});
 
 	it("reveals orchestrator and kebab buttons on the project row (no dashboard button)", () => {
@@ -704,7 +704,7 @@ describe("Sidebar", () => {
 		expect(screen.getByText("fix login")).toBeInTheDocument();
 		expect(screen.getByText("other task")).toBeInTheDocument();
 
-		const folder = screen.getByRole("button", { name: "Toggle Project Two sessions" });
+		const folder = screen.getByRole("button", { name: "Toggle Project Two Outcomes" });
 		expect(folder).toBeTruthy();
 		await user.click(folder);
 
@@ -828,7 +828,7 @@ describe("Sidebar", () => {
 			workspaces: [{ ...workspace, sessions: [orchestrator, session] }],
 		});
 
-		await user.click(screen.getByRole("button", { name: "Toggle Project One sessions" }));
+		await user.click(screen.getByRole("button", { name: "Toggle Project One Outcomes" }));
 		expect(screen.queryByLabelText("Open fix login")).not.toBeInTheDocument();
 		expect(screen.getByText("Project One").closest("button")).toHaveAttribute("aria-expanded", "false");
 
@@ -849,9 +849,9 @@ describe("Sidebar", () => {
 		renderSidebar({ onCreateProject });
 
 		await user.click(screen.getByLabelText("New project"));
-		expect(screen.getByRole("dialog", { name: "Import to Kennel" })).toBeInTheDocument();
+		expect(screen.getByRole("dialog", { name: "Add a project" })).toBeInTheDocument();
 		expect(window.kennel!.app.chooseDirectory).not.toHaveBeenCalled();
-		await user.click(screen.getByRole("button", { name: /^Project/i }));
+		await user.click(screen.getByRole("button", { name: /^Import existing work/i }));
 
 		expect(await screen.findByText("/repo/new-project")).toBeInTheDocument();
 		expect(window.kennel!.app.chooseDirectory).toHaveBeenCalledWith("Choose a project repository");
@@ -910,7 +910,7 @@ describe("Sidebar", () => {
 		renderSidebar({ onCreateProject, seedAgents: false });
 
 		await user.click(screen.getByLabelText("New project"));
-		await user.click(screen.getByRole("button", { name: /^Project/i }));
+		await user.click(screen.getByRole("button", { name: /^Import existing work/i }));
 		expect(await screen.findByText("/repo/new-project")).toBeInTheDocument();
 		expect(screen.getByRole("combobox", { name: "Default coding agent" })).toHaveTextContent("Codex");
 		await openAdvancedSettings(user);
@@ -962,7 +962,7 @@ describe("Sidebar", () => {
 		renderSidebar({ onCreateProject, onInitializeProject });
 
 		await user.click(screen.getByLabelText("New project"));
-		await user.click(screen.getByRole("button", { name: /^Project/i }));
+		await user.click(screen.getByRole("button", { name: /^Import existing work/i }));
 
 		expect(await screen.findByRole("dialog", { name: "Project agents" })).toBeInTheDocument();
 		expect(screen.getByText(/If this folder needs Git setup/i)).toBeInTheDocument();
@@ -1031,7 +1031,8 @@ describe("Sidebar", () => {
 		renderSidebar({ onCreateProject });
 
 		await user.click(screen.getByLabelText("New project"));
-		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
+		await user.click(screen.getByText("Importing multiple repositories?"));
+		await user.click(screen.getByRole("button", { name: "Import workspace" }));
 
 		expect(await screen.findByText("/repo/workspace")).toBeInTheDocument();
 		expect(window.kennel!.app.chooseDirectory).toHaveBeenCalledWith("Choose a workspace folder");
@@ -1065,7 +1066,8 @@ describe("Sidebar", () => {
 		renderSidebar({ onCreateProject, onInitializeProject });
 
 		await user.click(screen.getByLabelText("New project"));
-		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
+		await user.click(screen.getByText("Importing multiple repositories?"));
+		await user.click(screen.getByRole("button", { name: "Import workspace" }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
 		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
@@ -1114,7 +1116,8 @@ describe("Sidebar", () => {
 		renderSidebar({ onCreateProject });
 
 		await user.click(screen.getByLabelText("New project"));
-		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
+		await user.click(screen.getByText("Importing multiple repositories?"));
+		await user.click(screen.getByRole("button", { name: "Import workspace" }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
 		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
@@ -1166,7 +1169,8 @@ describe("Sidebar", () => {
 		renderSidebar({ onCreateProject });
 
 		await user.click(screen.getByLabelText("New project"));
-		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
+		await user.click(screen.getByText("Importing multiple repositories?"));
+		await user.click(screen.getByRole("button", { name: "Import workspace" }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
 		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
@@ -1189,7 +1193,8 @@ describe("Sidebar", () => {
 		renderSidebar({ onCreateProject });
 
 		await user.click(screen.getByLabelText("New project"));
-		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
+		await user.click(screen.getByText("Importing multiple repositories?"));
+		await user.click(screen.getByRole("button", { name: "Import workspace" }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
 		await openAdvancedSettings(user);
 		await chooseOption(screen.getByRole("combobox", { name: "Orchestrator agent" }), "Codex");
@@ -1218,7 +1223,8 @@ describe("Sidebar", () => {
 		renderSidebar({ onCreateProject, onInitializeProject });
 
 		await user.click(screen.getByLabelText("New project"));
-		await user.click(screen.getByRole("button", { name: /^Workspace/i }));
+		await user.click(screen.getByText("Importing multiple repositories?"));
+		await user.click(screen.getByRole("button", { name: "Import workspace" }));
 		await screen.findByRole("dialog", { name: "Workspace agents" });
 		expect(
 			screen.getByText(
@@ -1281,7 +1287,7 @@ describe("Sidebar", () => {
 		renderSidebar({ onCreateProject, seedAgents: false });
 
 		await user.click(screen.getByLabelText("New project"));
-		await user.click(screen.getByRole("button", { name: /^Project/i }));
+		await user.click(screen.getByRole("button", { name: /^Import existing work/i }));
 		expect(await screen.findByText("/repo/new-project")).toBeInTheDocument();
 
 		await openAdvancedSettings(user);
@@ -1324,7 +1330,7 @@ describe("Sidebar", () => {
 		renderSidebar({ onCreateProject, seedAgents: false });
 
 		await user.click(screen.getByLabelText("New project"));
-		await user.click(screen.getByRole("button", { name: /^Project/i }));
+		await user.click(screen.getByRole("button", { name: /^Import existing work/i }));
 		expect(await screen.findByText("/repo/new-project")).toBeInTheDocument();
 		// Provider readiness is configuration, not a prerequisite for durable
 		// project creation.
@@ -1687,7 +1693,7 @@ describe("Sidebar", () => {
 		expect(screen.getByLabelText("Open second task")).toBeInTheDocument();
 
 		// Collapse via folder icon
-		const folder = screen.getByRole("button", { name: "Toggle Project One sessions" });
+		const folder = screen.getByRole("button", { name: "Toggle Project One Outcomes" });
 		expect(folder).toBeTruthy();
 		await user.click(folder);
 
@@ -1715,7 +1721,7 @@ describe("Sidebar", () => {
 		expect(projectRow).toHaveAttribute("aria-expanded", "true");
 
 		// Collapse via folder icon
-		const folder = screen.getByRole("button", { name: "Toggle Project One sessions" });
+		const folder = screen.getByRole("button", { name: "Toggle Project One Outcomes" });
 		expect(folder).toBeTruthy();
 		await user.click(folder);
 

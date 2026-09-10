@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { apiClient, apiErrorMessage } from "../../lib/api-client";
 import { aoBridge } from "../../lib/bridge";
 import { mockWorkspaces } from "../../lib/mock-data";
-import { usesPreviewWorkspaceData } from "../../lib/preview-mode";
+import { usesPreviewWorkspaceData, usesWorkLaunchMode } from "../../lib/preview-mode";
 import { CreateProjectFlow, type CreateProjectInput } from "../CreateProjectFlow";
 import { Button } from "../ui/button";
 import { OutcomeLifecycleShell } from "./OutcomeLifecycleShell";
@@ -44,7 +44,7 @@ async function fetchAgents(): Promise<AgentInventory> {
 export function WorkEnterSurface() {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
-	const [destination, setDestination] = useState<EnterDestination>("undecided");
+	const [destination, setDestination] = useState<EnterDestination>(usesWorkLaunchMode ? "work" : "undecided");
 
 	const daemonQuery = useQuery({
 		queryKey: ["daemon-status", "enter"],
@@ -65,7 +65,7 @@ export function WorkEnterSurface() {
 			usesPreviewWorkspaceData
 				? Promise.resolve({ authorized: [{ id: V0_PROVIDER_ID, name: "Codex" }] })
 				: fetchAgents(),
-		enabled: destination === "work",
+		enabled: destination === "work" && !usesWorkLaunchMode,
 	});
 
 	// The daemon owns every canonical fact this surface would act on, so an
@@ -118,9 +118,9 @@ export function WorkEnterSurface() {
 
 				{destination === "work" && (
 					<div className="flex flex-col gap-4">
-						<h3 className="text-sm font-medium">{t("work.enter.selectProject")}</h3>
+						<h2 className="text-base font-medium">{t(usesWorkLaunchMode ? "work.enter.outcomeProject" : "work.enter.selectProject")}</h2>
 
-						{!providerReady && (
+						{!usesWorkLaunchMode && !providerReady && (
 							<div data-testid="enter-blocked-provider" className="rounded-md border border-border p-4">
 								<h4 className="text-sm font-medium">{t("work.enter.providerActionRequired.title")}</h4>
 								<p className="text-muted-foreground text-sm">{t("work.enter.providerActionRequired.body")}</p>
@@ -147,6 +147,7 @@ export function WorkEnterSurface() {
 
 						{!usesPreviewWorkspaceData ? (
 							<CreateProjectFlow
+								mode="choose"
 								idleLabel={t("work.enter.addProject")}
 								onCreateProject={createProject}
 								onInitializeProject={initializeProject}

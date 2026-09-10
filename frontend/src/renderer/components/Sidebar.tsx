@@ -325,7 +325,7 @@ export function Sidebar({
 			>
 				{figmaBoard ? (
 					<button
-						aria-label={t("shell.orchestratorBoard")}
+						aria-label={t(usesWorkLaunchMode ? "work.shell.outcomesButton" : "shell.orchestratorBoard")}
 						className="figma-board-sidebar__brand"
 						onClick={selection.goWork}
 						style={noDragStyle}
@@ -345,7 +345,7 @@ export function Sidebar({
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<button
-								aria-label={t("shell.orchestratorBoard")}
+								aria-label={t(usesWorkLaunchMode ? "work.shell.outcomesButton" : "shell.orchestratorBoard")}
 								className={cn(
 									"grid h-5.5 w-5.5 shrink-0 place-items-center",
 									"group-data-[collapsible=icon]:size-control-board group-data-[collapsible=icon]:rounded-lg",
@@ -367,12 +367,12 @@ export function Sidebar({
 							</button>
 						</TooltipTrigger>
 						<TooltipContent side="right" hidden={state !== "collapsed"}>
-							{t("shell.orchestratorBoard")}
+							{t(usesWorkLaunchMode ? "work.shell.outcomesButton" : "shell.orchestratorBoard")}
 						</TooltipContent>
 					</Tooltip>
 					{isWindows ? (
 						<span
-							aria-label={t("shell.orchestratorBoard")}
+							aria-label={t(usesWorkLaunchMode ? "work.shell.outcomesButton" : "shell.orchestratorBoard")}
 							className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-sm font-bold leading-tight tracking-tight-lg text-foreground group-data-[collapsible=icon]:hidden"
 							onClick={selection.goWork}
 							onKeyDown={(event: KeyboardEvent<HTMLSpanElement>) => {
@@ -879,7 +879,7 @@ function ProjectItem({
 	{/* Folder disclosure toggle: sibling of the nav button, absolutely positioned over
 	    the icon area so it intercepts clicks there without nesting buttons. */}
 	<button
-		aria-label={t("shell.toggleProject", { name: workspace.name })}
+		aria-label={t(usesWorkLaunchMode ? "shell.toggleProjectOutcomes" : "shell.toggleProject", { name: workspace.name })}
 		aria-expanded={expanded}
 		className={cn(
 			"absolute inset-y-0 z-10 group-data-[collapsible=icon]:hidden focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm",
