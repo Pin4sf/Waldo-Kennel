@@ -1,3 +1,4 @@
+import { usesWorkLaunchMode } from "../lib/preview-mode";
 import {
 	useQuery,
 	useQueryClient,
@@ -405,7 +406,7 @@ export function Sidebar({
 					figmaBoard ? "figma-board-sidebar__mode-switch" : "px-2 pb-3",
 				)}
 			>
-				<HomeWorkModeSwitch />
+				{!usesWorkLaunchMode && <HomeWorkModeSwitch />}
 			</div>
 
 			{selection.isHome ? (

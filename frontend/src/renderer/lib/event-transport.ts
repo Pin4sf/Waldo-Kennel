@@ -66,12 +66,14 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 			const pendingOutcomeSchedules = new Set<readonly [string, string, string]>();
 			let allOutcomeSchedulesInvalidationPending = false;
 			let workspaceInvalidationPending = false;
+			let outcomeFactsInvalidationPending = false;
 			let retryTimer: ReturnType<typeof setTimeout> | undefined;
 			let source: EventSource | undefined;
 			let sourceBaseUrl: string | undefined;
 			const refreshWorkspaces = (event?: Event) => {
 				let conversationOnly = false;
 				const eventType = event?.type ?? "";
+				if (!event || eventType.startsWith("outcome_")) outcomeFactsInvalidationPending = true;
 				if (event && "data" in event) {
 					try {
 						const decoded = JSON.parse(String((event as MessageEvent).data)) as {
@@ -133,6 +135,14 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 				if (!conversationOnly) workspaceInvalidationPending = true;
 				if (debounce) clearTimeout(debounce);
 				debounce = setTimeout(() => {
+					if (outcomeFactsInvalidationPending) {
+						// A connected stream does not make cached responsibility facts current.
+						// Refresh the Mission and portfolio together after CDC or a reconnect gap.
+						for (const root of ["project-outcomes", "outcome", "outcome-plan", "outcome-attempts", "outcome-proof", "outcome-schedule"]) {
+							void queryClient.invalidateQueries({ queryKey: [root] });
+						}
+						outcomeFactsInvalidationPending = false;
+					}
 					if (workspaceInvalidationPending) {
 						void queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
 						void queryClient.invalidateQueries({ queryKey: agentSwitchesQueryRoot });

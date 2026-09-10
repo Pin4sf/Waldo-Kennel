@@ -3,13 +3,9 @@ import {
 	CheckCircle2,
 	ChevronDown,
 	FileText,
-	ListChecks,
 	Loader2,
-	Pause,
 	RefreshCw,
-	Search,
 	ShieldCheck,
-	Target,
 } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -26,7 +22,7 @@ import {
 	type OutcomeFailure,
 	type PlanRecord,
 } from "../../hooks/useOutcome";
-import { MissionWorkUnitGraph } from "./MissionWorkUnitGraph";
+import { MissionPlanView } from "./MissionPlanView";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -45,7 +41,7 @@ const PLAN_SECTION_VALUES = ["desired-state", "evidence", "verification", "pause
  * Decide & Authorize: "What exactly may the agent do, and who says so?"
  *
  * The surface renders only what the daemon answers. Proposing is a read-mostly
- * operation (the plan is derived deterministically from the frozen contract),
+ * operation (intelligence proposes against the current contract),
  * and Approve is the owner's authority gate: nothing executes until it lands,
  * and a contract that moved ahead forces a fresh brief instead of a silent
  * authority transfer.
@@ -114,7 +110,7 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: Outco
 		errorPlan: planQuery.failure ? String((planQuery.failure as OutcomeFailure).message) : null,
 	} as const;
 	const showDbg = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").has("__dbg");
-	const isStaleConflict = failure?.code === PLAN_CONTRACT_STALE;
+	const isStaleConflict = failure?.code === PLAN_CONTRACT_STALE || Boolean(plan && outcomeQuery.outcome && plan.contractRevisionNumber !== outcomeQuery.outcome.currentRevisionNumber);
 	const isAuthorityBlocked = failure?.code === PLAN_CAPABILITY_UNAUTHORIZED;
 
 	return (
@@ -224,7 +220,6 @@ function PlanReviewCard({ outcomeId, plan }: { outcomeId: string; plan: PlanReco
 		() => new Map(plan.workUnits.map((workUnit) => [workUnit.id, workUnit.title])),
 		[plan.workUnits],
 	);
-	const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string | undefined>(undefined);
 	// The first work unit is NOT the plan's identity: a multi-unit plan is named
 	// by its own summary. Using workUnits[0] here was the last remnant of the
 	// first-array-entry reading of a plan.
@@ -245,10 +240,8 @@ function PlanReviewCard({ outcomeId, plan }: { outcomeId: string; plan: PlanReco
 			{/* Proposed topology: no schedule exists before authorization, so the
 			    graph deliberately carries no execution state. */}
 			<div className="rounded-group hairline border-border bg-card px-4.5 py-3.5">
-				<MissionWorkUnitGraph
+				<MissionPlanView
 					criterionText={criterionText}
-					onSelectWorkUnit={setSelectedWorkUnitId}
-					selectedWorkUnitId={selectedWorkUnitId}
 					workUnits={plan.workUnits}
 				/>
 			</div>
@@ -272,26 +265,6 @@ function PlanReviewCard({ outcomeId, plan }: { outcomeId: string; plan: PlanReco
 			</div>
 
 			<Accordion className="flex flex-col gap-2" defaultValue={PLAN_SECTION_VALUES} type="multiple">
-				<PlanSection icon={<Target aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsDesiredState")} value="desired-state">
-					<p className="text-sm leading-body text-foreground/80">{unit?.outputSummary}</p>
-				</PlanSection>
-				<PlanSection icon={<ListChecks aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsEvidence")} value="evidence">
-					<ul className="list-disc space-y-1 pl-4 text-sm leading-body text-foreground/80">
-						{(unit?.evidenceChecks ?? []).map((check) => (
-							<li key={check}>{check}</li>
-						))}
-					</ul>
-				</PlanSection>
-				<PlanSection icon={<Search aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsVerification")} value="verification">
-					<p className="text-sm leading-body text-foreground/80">{unit?.verificationRequirement}</p>
-				</PlanSection>
-				<PlanSection icon={<Pause aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsStops")} value="pause-trigger">
-					<ul className="list-disc space-y-1 pl-4 text-sm leading-body text-foreground/80">
-						{(unit?.stopConditions ?? []).map((stop) => (
-							<li key={stop}>{stop}</li>
-						))}
-					</ul>
-				</PlanSection>
 				<PlanSection icon={<ShieldCheck aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsGrants")} value="permissions">
 					<ul className="flex flex-col gap-1.5">
 						{(plan.grants ?? []).map((grant) => (

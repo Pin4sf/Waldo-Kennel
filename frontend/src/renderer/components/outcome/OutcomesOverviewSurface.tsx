@@ -11,6 +11,7 @@ import type { WorkspaceSummary } from "../../types/workspace";
 import { useUiStore } from "../../stores/ui-store";
 
 type OutcomesOverviewSurfaceProps = {
+	selectedOutcomeId?: string;
 	onOpenOutcome: (projectId: string, outcome: OutcomeRecord, stage: OutcomeDestinationStage) => void;
 };
 
@@ -30,12 +31,13 @@ type OutcomesOverviewSurfaceProps = {
  * an explicit Mission Control action for a decomposition that has been
  * proposed but not yet authorized.
  */
-export function OutcomesOverviewSurface({ onOpenOutcome }: OutcomesOverviewSurfaceProps) {
+export function OutcomesOverviewSurface({ onOpenOutcome, selectedOutcomeId }: OutcomesOverviewSurfaceProps) {
 	const { t } = useTranslation();
 	const workspaceQuery = useWorkspaceQuery();
 	const workspaces = workspaceQuery.data ?? [];
 	const view = useUiStore((state) => state.outcomeRunViewMode);
 	const setView = useUiStore((state) => state.setOutcomeRunViewMode);
+	const [includeContributors, setIncludeContributors] = useState(false);
 	const [query, setQuery] = useState("");
 	const [projectFilter, setProjectFilter] = useState("all");
 	const visibleWorkspaces = useMemo(() => workspaces.filter((workspace) => projectFilter === "all" || workspace.id === projectFilter), [projectFilter, workspaces]);
@@ -53,6 +55,7 @@ export function OutcomesOverviewSurface({ onOpenOutcome }: OutcomesOverviewSurfa
 					<option value="all">{t("command.group.projects")}</option>
 					{workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
 				</select>
+				<label className="flex items-center gap-1 text-xs text-muted-foreground"><input type="checkbox" checked={includeContributors} onChange={event => setIncludeContributors(event.target.checked)} />{t("mission.allOutcomes")}</label>
 				<div className="flex rounded-md border border-border p-0.5">
 					<button aria-pressed={view === "board"} className="rounded px-2 py-1 text-xs aria-pressed:bg-interactive-hover" onClick={() => setView("board")} type="button">{t("shell.viewBoard")}</button>
 					<button aria-pressed={view === "list"} className="rounded px-2 py-1 text-xs aria-pressed:bg-interactive-hover" onClick={() => setView("list")} type="button">{t("shell.viewList")}</button>
@@ -71,7 +74,7 @@ export function OutcomesOverviewSurface({ onOpenOutcome }: OutcomesOverviewSurfa
 			) : (
 				<div className="flex flex-col gap-5">
 					{visibleWorkspaces.map((workspace) => (
-						<ProjectOutcomesGroup key={workspace.id} onOpenOutcome={onOpenOutcome} query={query} view={view} workspace={workspace} />
+						<ProjectOutcomesGroup key={workspace.id} includeContributors={includeContributors} selectedOutcomeId={selectedOutcomeId} onOpenOutcome={onOpenOutcome} query={query} view={view} workspace={workspace} />
 					))}
 				</div>
 			)}
@@ -80,12 +83,16 @@ export function OutcomesOverviewSurface({ onOpenOutcome }: OutcomesOverviewSurfa
 }
 
 function ProjectOutcomesGroup({
+	includeContributors,
+	selectedOutcomeId,
 	workspace,
 	onOpenOutcome,
 	query,
 	view,
 }: {
 	workspace: WorkspaceSummary;
+	includeContributors: boolean;
+	selectedOutcomeId?: string;
 	onOpenOutcome: (projectId: string, outcome: OutcomeRecord, stage: OutcomeDestinationStage) => void;
 	query: string;
 	view: "board" | "list";
@@ -116,15 +123,16 @@ function ProjectOutcomesGroup({
 			) : outcomesQuery.isLoading ? (
 				<p className="text-muted-foreground text-xs">{t("outcome.overview.loading")}</p>
 			) : (
-				<ul className={cn("gap-1", view === "board" ? "grid grid-cols-1 md:grid-cols-2" : "flex flex-col")}>
+				<ul className={cn("gap-1", view === "board" ? "grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))]" : "flex flex-col")}>
 					{outcomeTree.map((node) => (
 						<Fragment key={node.outcome.id}>
 							<OutcomeOverviewRow
+								selected={selectedOutcomeId === node.outcome.id}
 								onOpen={() => onOpenOutcome(workspace.id, node.outcome, outcomeDestinationStage(node))}
 								onOpenMissionControl={() => onOpenOutcome(workspace.id, node.outcome, "decompose")}
 								outcome={node.outcome}
 							/>
-							{node.contributors.map((contributor) => (
+							{includeContributors && node.contributors.map((contributor) => (
 								<OutcomeOverviewRow
 									contributor
 									key={contributor.id}
@@ -144,12 +152,14 @@ function ProjectOutcomesGroup({
 // it. The Mission Control action sits outside the row's own button rather than
 // inside it — a button cannot nest, and the two go to different places.
 function OutcomeOverviewRow({
+	selected,
 	outcome,
 	contributor = false,
 	onOpen,
 	onOpenMissionControl,
 }: {
 	outcome: OutcomeRecord;
+	selected?: boolean;
 	contributor?: boolean;
 	onOpen: () => void;
 	onOpenMissionControl?: () => void;
@@ -160,14 +170,15 @@ function OutcomeOverviewRow({
 		<li className={cn(contributor && "pl-6")}>
 			<div className="group/outcome-overview-row flex w-full min-w-0 items-center rounded-md hairline border-border bg-card transition-colors hover:bg-interactive-hover focus-within:bg-interactive-hover">
 				<button
-					className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-3.5 py-2.5 text-left outline-hidden focus-visible:ring-2 focus-visible:ring-ring/70"
+					className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5 rounded-md px-3.5 py-2.5 text-left outline-hidden focus-visible:ring-2 focus-visible:ring-ring/70"
 					data-testid="outcomes-overview-row"
+					aria-current={selected ? "true" : undefined}
 					onClick={onOpen}
 					type="button"
 				>
 					<Flag aria-hidden="true" className="size-icon-sm shrink-0 text-muted-foreground" />
-					<span className="min-w-0 flex-1 truncate text-sm text-foreground">{outcome.title}</span>
-					<span className="shrink-0 text-xs text-muted-foreground">
+					<span className="min-w-0 flex-1 text-sm text-foreground"><span className="line-clamp-2 break-words">{outcome.title}</span><span className="block text-xs text-muted-foreground">{t(presentation.nextActionKey)}</span></span>
+					<span className="w-full pl-6 text-xs text-muted-foreground">
 						{t(presentation.stageKey)} · {t(presentation.stateKey)}
 					</span>
 				</button>

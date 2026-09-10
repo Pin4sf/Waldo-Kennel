@@ -1,3 +1,4 @@
+import { OutcomeMissionWorkspace } from "../components/outcome/OutcomeMissionWorkspace";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { OutcomeDecideAuthorizeSurface } from "../components/outcome/OutcomeDecideAuthorizeSurface";
@@ -6,7 +7,6 @@ import type { OutcomeRecord } from "../hooks/useOutcome";
 import type { OutcomeDestinationStage } from "../lib/outcome-tree";
 import { OutcomeProveCloseSurface } from "../components/outcome/OutcomeProveCloseSurface";
 import { OutcomeRunSurface } from "../components/outcome/OutcomeRunSurface";
-import { OutcomesOverviewSurface } from "../components/outcome/OutcomesOverviewSurface";
 import { AdaptiveIntakeSurface } from "../components/outcome/AdaptiveIntakeSurface";
 import { OutcomeMissionControl } from "../components/outcome/OutcomeMissionControl";
 import { WorkEnterSurface } from "../components/outcome/WorkEnterSurface";
@@ -95,9 +95,13 @@ function renderStageBody({
 	stage?: WorkSearch["stage"];
 	view?: WorkSearch["view"];
 }) {
-	if (view === "outcomes") {
+	if (view === "outcomes" || (outcome && project && stage !== "decompose")) {
 		return (
-			<OutcomesOverviewSurface
+			<OutcomeMissionWorkspace
+                outcomeId={outcome}
+                projectId={project}
+                stage={stage}
+                onClose={() => void navigate({ to: "/work", search: { view: "outcomes" } })}
 				onOpenOutcome={(projectId: string, openedOutcome: OutcomeRecord, openedStage: OutcomeDestinationStage) => {
 					void navigate({
 						to: "/work",

@@ -318,13 +318,9 @@ describe("Sidebar", () => {
 		expect(await screen.findByRole("dialog", { name: "Import to Kennel" })).toBeInTheDocument();
 	});
 
-	it("keeps the global Home and Work choice inside the sidebar", () => {
+	it("hides Home navigation in focused Work mode", () => {
 		renderSidebar({ figmaBoard: true });
-
-		const modeSwitch = screen.getByRole("navigation", { name: "Waldo mode" });
-		expect(within(modeSwitch).getByRole("button", { name: "Home" })).toBeInTheDocument();
-		expect(within(modeSwitch).getByRole("button", { name: "Work" })).toHaveAttribute("aria-pressed", "true");
-		expect(modeSwitch.closest('[data-slot="sidebar"]')).toBeInTheDocument();
+		expect(screen.queryByRole("navigation", { name: "Waldo mode" })).not.toBeInTheDocument();
 	});
 
 	it("treats beta's Work entry route as an active Work destination", () => {

@@ -318,7 +318,7 @@ export const PLAN_CONTRACT_STALE = "PLAN_CONTRACT_STALE";
 /** Authority layers no longer allow every capability the plan freezes. */
 export const PLAN_CAPABILITY_UNAUTHORIZED = "PLAN_CAPABILITY_UNAUTHORIZED";
 
-function planQueryKey(outcomeId: string | undefined) {
+export function planQueryKey(outcomeId: string | undefined) {
 	return ["outcome-plan", outcomeId ?? ""] as const;
 }
 

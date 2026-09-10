@@ -8,20 +8,14 @@ export type OutcomeDashboardPresentation = {
 	stateKey:
 		| "outcome.dashboard.contractSaved"
 		| "outcome.dashboard.planProposed"
-		| "outcome.dashboard.executionNotConnected";
+		| "mission.authorizationRecorded";
 	nextActionKey:
 		| "outcome.dashboard.reviewPlan"
 		| "outcome.dashboard.reviewAuthorization"
 		| "outcome.dashboard.reviewApprovedPlan";
 };
 
-/**
- * Derive dashboard re-entry from canonical Outcome/Plan facts only.
- *
- * Act & Observe is not yet a dedicated route on beta. An approved Plan remains
- * inspectable through its exact Outcome identity; project sessions stay an
- * adjacent projection until Attempt linkage can join them honestly.
- */
+/** Portfolio labels use recorded Contract and Plan authority, never inferred execution. */
 export function deriveOutcomeDashboardPresentation(
 	outcome: OutcomeDashboardFacts,
 ): OutcomeDashboardPresentation {
@@ -31,7 +25,7 @@ export function deriveOutcomeDashboardPresentation(
 	if (outcome.latestPlan?.status === "approved" && planBindsCurrentContract) {
 		return {
 			stageKey: "outcome.dashboard.authorizedStage",
-			stateKey: "outcome.dashboard.executionNotConnected",
+			stateKey: "mission.authorizationRecorded",
 			nextActionKey: "outcome.dashboard.reviewApprovedPlan",
 		};
 	}

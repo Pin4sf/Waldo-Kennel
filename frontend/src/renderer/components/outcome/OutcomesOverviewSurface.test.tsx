@@ -92,7 +92,7 @@ describe("OutcomesOverviewSurface", () => {
 		expect(onOpenOutcome.mock.calls[0][2]).toBe("decide_authorize");
 	});
 
-	it("opens a decomposed parent on Mission Control and nests its contributors", async () => {
+	it("opens a decomposed parent and shows contributors only on request", async () => {
 		workspaceQueryMock.mockReturnValue({ data: [workspace("proj-1", "Waldo Kennel")], isLoading: false });
 		projectOutcomesQueryMock.mockReturnValue({
 			outcomes: [outcome("parent-1", "Ship the importer"), outcome("child-1", "Parse the archive", "parent-1")],
@@ -107,6 +107,8 @@ describe("OutcomesOverviewSurface", () => {
 
 		// A contributor answers for its own contract, so it keeps the ordinary
 		// destination — and is indented under the parent that claims it.
+		expect(screen.queryByText("Parse the archive")).not.toBeInTheDocument();
+		await user.click(screen.getByRole("checkbox", { name: "Include contributing Outcomes" }));
 		const contributor = screen.getByText("Parse the archive");
 		expect(contributor.closest("li")).toHaveClass("pl-6");
 		await user.click(contributor);

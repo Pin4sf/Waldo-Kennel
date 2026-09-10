@@ -16,7 +16,7 @@ import {
 } from "../../hooks/useOutcome";
 import { boardAttentionZoneOrder, getAttentionZoneViewForZone } from "../../lib/session-presentation";
 import { useUiStore } from "../../stores/ui-store";
-import { MissionWorkUnitGraph } from "./MissionWorkUnitGraph";
+import { MissionPlanView } from "./MissionPlanView";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import {
@@ -91,7 +91,6 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfac
 			proofQuery.proof?.criteria.find((criterion) => criterion.criterionId === criterionId)?.text,
 		[proofQuery.proof],
 	);
-	const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string | undefined>(undefined);
 	const failure = start.failure ?? action.failure ?? recovery.failure ?? attemptsQuery.failure ?? scheduleQuery.failure;
 	const attempts = attemptsQuery.attempts ?? [];
 	// Lineage order is ascending by number; the current attempt is the newest.
@@ -185,11 +184,9 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfac
 			    reason here is a schedule fact; this only renders it. */}
 			{planApproved && schedule && (
 				<section className="max-w-2xl rounded-group hairline border-border bg-card px-4.5 py-3.5" data-testid="outcome-run-schedule">
-					<MissionWorkUnitGraph
+					<MissionPlanView
 						criterionText={criterionText}
-						onSelectWorkUnit={setSelectedWorkUnitId}
 						schedule={schedule}
-						selectedWorkUnitId={selectedWorkUnitId}
 						workUnits={schedule.workUnits.map((entry) => entry.workUnit)}
 					/>
 				</section>
