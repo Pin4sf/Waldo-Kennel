@@ -276,7 +276,7 @@ func (s *Store) collect(ctx context.Context, root string, in Input) ([]domain.Ar
 			files = append(files, f)
 			continue
 		}
-		content, err := readStable(ctx, full, info)
+		content, err := readStable(ctx, full, info, s.maxBytes-c.bytesTotal())
 		if err != nil {
 			f.UnsupportedReason = err.Error()
 			c.state = domain.RetentionUnsupported
@@ -336,7 +336,7 @@ func confinedPath(root, name string) (string, error) {
 	return full, nil
 }
 
-func readStable(ctx context.Context, path string, before os.FileInfo) ([]byte, error) {
+func readStable(ctx context.Context, path string, before os.FileInfo, maxBytes int64) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -350,6 +350,9 @@ func readStable(ctx context.Context, path string, before os.FileInfo) ([]byte, e
 		}
 		n, readErr := f.Read(buf)
 		if n > 0 {
+			if int64(out.Len())+int64(n) > maxBytes {
+				return nil, errors.New("file exceeds retention byte bound")
+			}
 			_, _ = out.Write(buf[:n])
 		}
 		if readErr == io.EOF {

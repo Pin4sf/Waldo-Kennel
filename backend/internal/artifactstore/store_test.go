@@ -203,6 +203,20 @@ func TestStoreExportRequiresOwnerAndPreservesDeletion(t *testing.T) {
 	}
 }
 
+func TestReadStableEnforcesGrowthBound(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "output.txt")
+	if err := os.WriteFile(path, []byte("123"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readStable(context.Background(), path, info, 2); err == nil {
+		t.Fatal("readStable accepted content beyond the byte bound")
+	}
+}
+
 func git(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
