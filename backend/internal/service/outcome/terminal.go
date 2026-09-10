@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Truthful terminal state for an Attempt.
@@ -24,9 +25,10 @@ import (
 // attempt whose WorkUnit criteria are proved against that exact attempt becomes
 // `succeeded`.
 //
-// It is a pure function of durable facts, so running it again after a restart
-// re-derives the same answer. That is what makes the crash-between-arrows cases
-// resumable rather than needing recovery bookkeeping of their own.
+// It is a restart-safe reconciliation of durable facts. The final transition
+// is committed by the storage boundary as one conditional operation; it is
+// not a pure function because it records an observation, freezes evidence and
+// releases custody.
 func (s *Service) ReconcileAttemptOutcomes(ctx context.Context) error {
 	ended, err := s.store.ListAttemptsByStatus(ctx, domain.AttemptReconciled)
 	if err != nil {
@@ -81,6 +83,19 @@ func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain
 			// the owner can see exactly which criteria are unmet.
 			continue
 		}
+		if s.receipts == nil {
+			return fmt.Errorf("attempt %s cannot be classified: receipt storage is unavailable", attempt.ID)
+		}
+		receipt, found, err := s.receipts.GetAttemptReceipt(ctx, attempt.ID)
+		if err != nil {
+			return fmt.Errorf("read receipt for %s: %w", attempt.ID, err)
+		}
+		if !found {
+			return fmt.Errorf("attempt %s cannot be classified: %w", attempt.ID, ports.ErrAttemptReceiptMissing)
+		}
+		if !receipt.RetentionState.Complete() {
+			return fmt.Errorf("attempt %s cannot be classified: %w", attempt.ID, ports.ErrAttemptReceiptNotReady)
+		}
 		if err := s.promoteAttemptToSucceeded(ctx, attempt); err != nil {
 			return err
 		}
@@ -95,26 +110,37 @@ func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain
 // after this, a later retention pass over the same workspace cannot replace the
 // manifest that success was assigned on.
 func (s *Service) promoteAttemptToSucceeded(ctx context.Context, attempt domain.Attempt) error {
-	rows, err := s.store.TransitionAttemptStatus(ctx, attempt.OutcomeID, attempt.ID,
-		domain.AttemptReconciled, domain.AttemptSucceeded, s.clock())
+	if s.receipts == nil {
+		return fmt.Errorf("receipt storage is unavailable")
+	}
+	receipt, found, err := s.receipts.GetAttemptReceipt(ctx, attempt.ID)
 	if err != nil {
-		return fmt.Errorf("attempt %s: %w", attempt.ID, err)
+		return fmt.Errorf("read receipt for %s: %w", attempt.ID, err)
 	}
-	if rows == 0 {
-		// Moved concurrently; the next tick sees the truth.
-		return nil
+	if !found {
+		return fmt.Errorf("%w for %s", ports.ErrAttemptReceiptMissing, attempt.ID)
 	}
-	if s.receipts != nil {
-		if err := s.receipts.FreezeAttemptReceipt(ctx, attempt.ID, s.clock()); err != nil {
-			return fmt.Errorf("freeze receipt for %s: %w", attempt.ID, err)
-		}
+	if !receipt.RetentionState.Complete() {
+		return fmt.Errorf("%w for %s", ports.ErrAttemptReceiptNotReady, attempt.ID)
+	}
+	finalizer, ok := s.store.(ports.AttemptSuccessFinalizer)
+	if !ok {
+		return fmt.Errorf("attempt success finalizer is unavailable")
 	}
 	payload := mustJSON(map[string]any{
 		"outcome": "work unit proved against this attempt; result classified as succeeded",
 	})
-	if _, err := s.store.AppendAttemptObservation(ctx, attempt.ID,
-		domain.ObservationAttemptClassified, payload, s.clock()); err != nil {
-		return fmt.Errorf("observation for %s: %w", attempt.ID, err)
+	if err := finalizer.ClassifyAttemptSucceeded(ctx, ports.ClassifyAttemptInput{
+		OutcomeID: attempt.OutcomeID, AttemptID: attempt.ID, ExpectedStatus: domain.AttemptReconciled,
+		ArtifactVersion: receipt.ArtifactVersion, ObservationKind: domain.ObservationAttemptClassified,
+		ObservationPayload: payload, At: s.clock(),
+	}); err != nil {
+		if errors.Is(err, ports.ErrAttemptClassificationStale) {
+			// Another reconciler won the conditional transition. A subsequent
+			// read will observe its durable result.
+			return nil
+		}
+		return fmt.Errorf("classify attempt %s: %w", attempt.ID, err)
 	}
 	return nil
 }

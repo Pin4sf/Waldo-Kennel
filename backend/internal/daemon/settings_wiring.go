@@ -23,14 +23,17 @@ func (s settingsStore) GetAppSettings(ctx context.Context) (settingssvc.Snapshot
 		return settingssvc.Snapshot{}, err
 	}
 	return settingssvc.Snapshot{
-		DefaultSessionMode:        row.DefaultSessionMode,
-		ReasoningProvider:         row.ReasoningProvider,
-		ReasoningModel:            row.ReasoningModel,
-		ReasoningEffort:           row.ReasoningEffort,
-		ReasoningVerifiedAt:       row.ReasoningVerifiedAt,
-		ReasoningVerifiedProvider: row.ReasoningVerifiedProvider,
-		ReasoningVerifiedModel:    row.ReasoningVerifiedModel,
-		UpdatedAt:                 row.UpdatedAt,
+		DefaultSessionMode:               row.DefaultSessionMode,
+		ReasoningProvider:                row.ReasoningProvider,
+		ReasoningModel:                   row.ReasoningModel,
+		ReasoningEffort:                  row.ReasoningEffort,
+		ReasoningVerifiedAt:              row.ReasoningVerifiedAt,
+		ReasoningVerifiedProvider:        row.ReasoningVerifiedProvider,
+		ReasoningVerifiedModel:           row.ReasoningVerifiedModel,
+		ReasoningGeneration:              row.ReasoningGeneration,
+		ReasoningVerifiedGeneration:      row.ReasoningVerifiedGeneration,
+		ReasoningVerificationFingerprint: row.ReasoningVerificationFingerprint,
+		UpdatedAt:                        row.UpdatedAt,
 	}, nil
 }
 

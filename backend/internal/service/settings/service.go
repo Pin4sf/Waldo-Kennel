@@ -7,6 +7,8 @@ package settings
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +27,13 @@ type Store interface {
 	SetReasoningVerification(ctx context.Context, verifiedAt *time.Time, provider, model string, now time.Time) error
 }
 
+// VerificationGenerationStore is implemented by durable stores that can
+// conditionally apply a probe result. The optional seam preserves small test
+// stores while production settings reject results from an older generation.
+type VerificationGenerationStore interface {
+	SetReasoningVerificationForGeneration(context.Context, *time.Time, string, string, int64, string, time.Time) (bool, error)
+}
+
 // Snapshot is the current preference set.
 type Snapshot struct {
 	DefaultSessionMode domain.SessionMode
@@ -33,10 +42,13 @@ type Snapshot struct {
 	ReasoningEffort    string
 	// ReasoningVerifiedAt is when a probe last actually succeeded, for the
 	// provider/model pair it succeeded for. Nil means never verified.
-	ReasoningVerifiedAt       *time.Time
-	ReasoningVerifiedProvider string
-	ReasoningVerifiedModel    string
-	UpdatedAt                 time.Time
+	ReasoningVerifiedAt              *time.Time
+	ReasoningVerifiedProvider        string
+	ReasoningVerifiedModel           string
+	ReasoningGeneration              int64
+	ReasoningVerifiedGeneration      int64
+	ReasoningVerificationFingerprint string
+	UpdatedAt                        time.Time
 }
 
 // SecretStore is intentionally narrower than a general credential manager.
@@ -187,7 +199,22 @@ func verificationFor(snapshot Snapshot, cfg ReasoningConfig) (bool, *time.Time) 
 	if snapshot.ReasoningVerifiedModel != cfg.Model {
 		return false, nil
 	}
+	if snapshot.ReasoningGeneration > 0 && (snapshot.ReasoningVerifiedGeneration != snapshot.ReasoningGeneration || snapshot.ReasoningVerificationFingerprint != reasoningFingerprint(cfg)) {
+		return false, nil
+	}
 	return true, snapshot.ReasoningVerifiedAt
+}
+
+func reasoningFingerprint(cfg ReasoningConfig) string {
+	// A credential digest binds the probe without storing or returning the
+	// credential itself. Endpoint/model/provider overrides are included because
+	// they change what the probe actually tested.
+	h := sha256.New()
+	for _, value := range []string{cfg.Provider, cfg.Model, cfg.Effort, cfg.BaseURL, cfg.APIKey} {
+		_, _ = h.Write([]byte{0})
+		_, _ = h.Write([]byte(value))
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // VerifyReasoning probes the configured provider with one minimal real call and
@@ -224,8 +251,22 @@ func (s *Service) verifyReasoningWith(ctx context.Context, probe ReasoningProbe)
 	if probe == nil {
 		return ReasoningStatus{}, fmt.Errorf("no reasoning probe is available")
 	}
+	start, err := s.store.GetAppSettings(ctx)
+	if err != nil {
+		return ReasoningStatus{}, err
+	}
+	fingerprint := reasoningFingerprint(cfg)
 	if probeErr := probe(ctx, cfg); probeErr != nil {
-		if clearErr := s.store.SetReasoningVerification(ctx, nil, "", "", s.now()); clearErr != nil {
+		current, currentErr := s.currentVerificationConfig(ctx)
+		if currentErr != nil {
+			return ReasoningStatus{}, currentErr
+		}
+		if current != fingerprint || !s.applyVerification(ctx, nil, "", "", start.ReasoningGeneration, fingerprint) {
+			status, _ := s.GetReasoning(ctx)
+			status.ErrorCode, status.Error = "VERIFICATION_STALE", "Verification finished for an older reasoning configuration; verify the current settings"
+			return status, nil
+		}
+		if clearErr := s.clearVerification(ctx, start.ReasoningGeneration, fingerprint); clearErr != nil {
 			return ReasoningStatus{}, clearErr
 		}
 		status, statusErr := s.GetReasoning(ctx)
@@ -237,10 +278,62 @@ func (s *Service) verifyReasoningWith(ctx context.Context, probe ReasoningProbe)
 		return status, nil
 	}
 	verified := s.now().UTC()
-	if err := s.store.SetReasoningVerification(ctx, &verified, cfg.Provider, cfg.Model, s.now()); err != nil {
+	current, currentErr := s.currentVerificationConfig(ctx)
+	if currentErr != nil {
+		return ReasoningStatus{}, currentErr
+	}
+	if current != fingerprint {
+		status, _ := s.GetReasoning(ctx)
+		status.ErrorCode, status.Error = "VERIFICATION_STALE", "Verification finished for an older reasoning configuration; verify the current settings"
+		return status, nil
+	}
+	if applied := s.applyVerification(ctx, &verified, cfg.Provider, cfg.Model, start.ReasoningGeneration, fingerprint); !applied {
+		status, _ := s.GetReasoning(ctx)
+		status.ErrorCode, status.Error = "VERIFICATION_STALE", "Verification finished for an older reasoning configuration; verify the current settings"
+		return status, nil
+	}
+	if err := s.setVerification(ctx, &verified, cfg.Provider, cfg.Model, start.ReasoningGeneration, fingerprint); err != nil {
 		return ReasoningStatus{}, err
 	}
 	return s.GetReasoning(ctx)
+}
+
+func (s *Service) currentVerificationConfig(ctx context.Context) (string, error) {
+	cfg, err := s.ResolveReasoning(ctx)
+	if err != nil {
+		return "", err
+	}
+	return reasoningFingerprint(cfg), nil
+}
+
+func (s *Service) applyVerification(ctx context.Context, at *time.Time, provider, model string, generation int64, fingerprint string) bool {
+	store, ok := s.store.(VerificationGenerationStore)
+	if !ok {
+		return true
+	}
+	applied, err := store.SetReasoningVerificationForGeneration(ctx, at, provider, model, generation, fingerprint, s.now())
+	return err == nil && applied
+}
+
+func (s *Service) clearVerification(ctx context.Context, generation int64, fingerprint string) error {
+	if store, ok := s.store.(VerificationGenerationStore); ok {
+		applied, err := store.SetReasoningVerificationForGeneration(ctx, nil, "", "", generation, fingerprint, s.now())
+		if err != nil {
+			return err
+		}
+		if !applied {
+			return nil
+		}
+		return nil
+	}
+	return s.store.SetReasoningVerification(ctx, nil, "", "", s.now())
+}
+
+func (s *Service) setVerification(ctx context.Context, at *time.Time, provider, model string, generation int64, fingerprint string) error {
+	if _, ok := s.store.(VerificationGenerationStore); ok {
+		return nil
+	}
+	return s.store.SetReasoningVerification(ctx, at, provider, model, s.now())
 }
 
 // SetReasoning persists the owner-selected provider/model/effort and secret.

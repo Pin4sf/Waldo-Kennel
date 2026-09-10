@@ -26,12 +26,11 @@ already means what "execution ended" has to mean:
 | `failed` | truthful spawn/runner failure |
 | `cancelled` | owner cancelled |
 | `lost` | owner-driven recovery could not account for it; custody released |
-| `succeeded` | **unreachable** |
+| `succeeded` | ended and proved against a frozen retained result |
 
-`LegalAttemptTransitions` has **no entry producing `succeeded`**, and the SQL
-triggers reject anything outside that map — so the gap is not only missing
-service code. `running → reconciled` is already legal, and `reconciled` is
-already the honest "execution ended, proof pending" state.
+`LegalAttemptTransitions` permits `succeeded` only from `reconciled`, and the
+SQL trigger enforces the same rule. `running → reconciled` is already legal,
+and `reconciled` is the honest "execution ended, proof pending" state.
 
 So Phase C does not invent a lifecycle. It:
 
@@ -92,7 +91,9 @@ path where success is required to establish the proof that establishes success.
 `reconciled`. That is a truthful resting state, not a failure, and the owner can
 see exactly which criteria are unmet.
 
-**Result.** `reconciled → succeeded` — the transition that needs a migration.
+**Result.** `reconciled → succeeded`, with the exact retained artifact frozen,
+the classification observation recorded and custody released in one database
+transaction.
 
 ### 5. custody handling
 
@@ -126,7 +127,7 @@ two steps must resolve to a truthful state rather than a guess.
 | `reconciled`, before retention | `reconciled`, no retained artifact | Retention is retried. It reads the workspace, which is still there because cleanup never ran. |
 | retention, partially written | `reconciled`, retention marked incomplete | Incomplete retention is not a retained artifact. Re-run overwrites the incomplete record; a *verified* artifact is frozen and is never overwritten. |
 | retention done, before verification | `reconciled` with artifacts | Nothing to resume: verification is owner- or check-driven, not automatic. |
-| verification recorded, before `succeeded` | `reconciled`, proof satisfied | Reconciliation re-derives eligibility and completes arrow 4. Deriving it again is safe because it is a pure function of durable facts. |
+| verification recorded, before `succeeded` | `reconciled`, proof satisfied | Reconciliation retries the conditional classification transaction. The operation is idempotent and either commits its status, frozen artifact, observation and custody release together or leaves the Attempt reconciled. |
 | `succeeded`, before custody release | `succeeded`, fence held | Release is idempotent; `releaseCustody` already tolerates releasing without holding. |
 | custody released, before downstream admission | fence free, upstream proven | The scheduler admits the next unit exactly once, under the existing replay key. |
 

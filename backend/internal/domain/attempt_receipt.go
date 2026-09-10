@@ -1,7 +1,10 @@
 package domain
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -119,9 +122,10 @@ func (f ArtifactFile) Validate() error {
 	if strings.TrimSpace(f.RelativePath) == "" {
 		return fmt.Errorf("artifact file relative path is required")
 	}
-	// A snapshot is confined to the workspace it owns. An absolute or escaping
-	// path in a receipt would let a later export write outside custody.
-	if strings.HasPrefix(f.RelativePath, "/") || strings.Contains(f.RelativePath, "..") {
+	// A snapshot is confined to the workspace it owns. Treat both slash styles
+	// as separators so a manifest cannot become an escape when it is exported
+	// on another platform. A name such as "notes..md" is ordinary and safe.
+	if err := validateArtifactPath(f.RelativePath); err != nil {
 		return fmt.Errorf("artifact file path %q must stay inside the workspace", f.RelativePath)
 	}
 	if !f.ChangeKind.Valid() {
@@ -129,6 +133,37 @@ func (f ArtifactFile) Validate() error {
 	}
 	if f.ChangeKind == ArtifactDeleted && f.ContentDigest != "" {
 		return fmt.Errorf("a deleted artifact file cannot carry a content digest")
+	}
+	if f.ChangeKind != ArtifactDeleted && strings.TrimSpace(f.ContentDigest) == "" && f.UnsupportedReason == "" {
+		return fmt.Errorf("artifact file %q is missing content identity", f.RelativePath)
+	}
+	return nil
+}
+
+func validateArtifactPath(name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" || strings.IndexByte(name, 0) >= 0 {
+		return fmt.Errorf("path is empty or contains NUL")
+	}
+	// Backslashes are normalized only for validation; retaining them in a
+	// canonical manifest would make the same file ambiguous across platforms.
+	name = strings.ReplaceAll(name, `\`, "/")
+	if strings.HasPrefix(name, "/") || strings.HasPrefix(name, "//") ||
+		(len(name) >= 2 && name[1] == ':') {
+		return fmt.Errorf("path is absolute or drive-qualified")
+	}
+	components := strings.Split(name, "/")
+	for _, component := range components {
+		if component == ".." {
+			return fmt.Errorf("path traverses its root")
+		}
+		if component == "" || component == "." {
+			return fmt.Errorf("path has an empty or dot component")
+		}
+	}
+	clean := path.Clean(name)
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
+		return fmt.Errorf("path escapes its root")
 	}
 	return nil
 }
@@ -216,25 +251,59 @@ func (r AttemptReceipt) Validate() error {
 		if err := file.Validate(); err != nil {
 			return err
 		}
+		if r.RetentionState == RetentionRetained && file.UnsupportedReason != "" {
+			return fmt.Errorf("retained artifact file %q is unsupported: %s", file.RelativePath, file.UnsupportedReason)
+		}
+	}
+	if r.RetentionState == RetentionRetained && r.ArtifactVersion != string(ArtifactManifestDigest(r.Files)) {
+		return fmt.Errorf("artifact version does not match its manifest")
 	}
 	return nil
 }
 
 // ArtifactManifestDigest is the canonical artifact version for a file set.
 //
-// It digests each path with its change kind and content digest, in a stable
-// order, so the same produced output always yields the same version and any
-// change to content, paths or deletions yields a different one. Two attempts
-// producing identical output share a version, which is what lets a downstream
-// handoff assert it received the exact upstream artifact.
+// It digests each path with its change kind, content identity, size, mode and
+// binary/unsupported semantics, in a stable order. Length-prefixing every
+// field avoids delimiter collisions and executable mode is part of the
+// artifact identity. Two attempts producing identical output share a version,
+// which is what lets a downstream handoff assert it received the exact
+// upstream artifact.
 func ArtifactManifestDigest(files []ArtifactFile) SHA256Digest {
-	ordered := make([]string, 0, len(files))
+	ordered := make([][]byte, 0, len(files))
 	for _, file := range files {
-		ordered = append(ordered, strings.Join([]string{
-			file.RelativePath, string(file.ChangeKind), file.ContentDigest,
-		}, "\x00"))
+		var encoded bytes.Buffer
+		writeManifestField := func(value string) {
+			_ = binary.Write(&encoded, binary.BigEndian, uint64(len(value)))
+			_, _ = encoded.WriteString(value)
+		}
+		writeManifestField(file.RelativePath)
+		writeManifestField(string(file.ChangeKind))
+		writeManifestField(file.ContentDigest)
+		if file.SizeBytes == nil {
+			writeManifestField("size:unknown")
+		} else {
+			writeManifestField(fmt.Sprintf("size:%d", *file.SizeBytes))
+		}
+		if file.FileMode == nil {
+			writeManifestField("mode:unknown")
+		} else {
+			writeManifestField(fmt.Sprintf("mode:%d", *file.FileMode))
+		}
+		if file.IsBinary {
+			writeManifestField("binary:1")
+		} else {
+			writeManifestField("binary:0")
+		}
+		writeManifestField(file.UnsupportedReason)
+		ordered = append(ordered, encoded.Bytes())
 	}
 	// Sorted so storage or traversal order cannot change the identity.
-	sort.Strings(ordered)
-	return DigestSHA256([]byte(strings.Join(ordered, "\x1e")))
+	sort.Slice(ordered, func(i, j int) bool { return bytes.Compare(ordered[i], ordered[j]) < 0 })
+	var manifest bytes.Buffer
+	for _, entry := range ordered {
+		_ = binary.Write(&manifest, binary.BigEndian, uint64(len(entry)))
+		_, _ = manifest.Write(entry)
+	}
+	return DigestSHA256(manifest.Bytes())
 }

@@ -16,6 +16,19 @@ import (
 // acceptance decision was made against.
 var ErrAttemptReceiptFrozen = errors.New("attempt receipt is frozen and cannot be replaced")
 
+// ErrAttemptReceiptMissing means an Attempt has no retained result to judge.
+// Absence is not an empty artifact: an empty result must be represented by an
+// explicit retained receipt whose manifest is empty.
+var ErrAttemptReceiptMissing = errors.New("attempt receipt is missing")
+
+// ErrAttemptReceiptNotReady means retention did not produce a complete result
+// at the version the caller is trying to review.
+var ErrAttemptReceiptNotReady = errors.New("attempt receipt is not a complete retained result")
+
+// ErrAttemptClassificationStale means the optimistic Attempt status or
+// artifact version changed before the classification transaction committed.
+var ErrAttemptClassificationStale = errors.New("attempt classification became stale")
+
 // AttemptReceiptStore owns the durable record of what each Attempt produced.
 //
 // Provider claims about output are claims. This store holds Kennel's own
@@ -28,4 +41,23 @@ type AttemptReceiptStore interface {
 	GetAttemptReceipt(context.Context, domain.AttemptID) (domain.AttemptReceipt, bool, error)
 	// FreezeAttemptReceipt marks the receipt as review evidence. Idempotent.
 	FreezeAttemptReceipt(context.Context, domain.AttemptID, time.Time) error
+}
+
+// ClassifyAttemptInput is the complete database-side transition from an ended
+// Attempt to a successful, reviewed result. Implementations must commit the
+// status, receipt freeze, observation and custody release as one unit.
+type ClassifyAttemptInput struct {
+	OutcomeID          domain.OutcomeID
+	AttemptID          domain.AttemptID
+	ExpectedStatus     domain.AttemptStatus
+	ArtifactVersion    string
+	ObservationKind    string
+	ObservationPayload string
+	At                 time.Time
+}
+
+// AttemptSuccessFinalizer prevents the terminal service from implementing a
+// crash-sensitive multi-write protocol above storage.
+type AttemptSuccessFinalizer interface {
+	ClassifyAttemptSucceeded(context.Context, ClassifyAttemptInput) error
 }

@@ -24,6 +24,8 @@ export interface Settings {
 		configured: boolean;
 		ready: boolean;
 		keyConfigured: boolean;
+		verified: boolean;
+		verifiedAt?: string | null;
 		errorCode?: string;
 		error?: string;
 	};
@@ -38,7 +40,7 @@ export function useSettings() {
 			return {
 				defaultSessionMode: (data?.defaultSessionMode ?? "tui") as SessionMode,
 				chatHarnesses: data?.chatHarnesses ?? [],
-				reasoning: data?.reasoning ?? { provider: "", model: "", effort: "", configured: false, ready: false, keyConfigured: false },
+				reasoning: data?.reasoning ?? { provider: "", model: "", effort: "", configured: false, ready: false, keyConfigured: false, verified: false },
 			};
 		},
 	});
@@ -47,6 +49,24 @@ export function useSettings() {
 		settings: query.data,
 		isLoading: query.isLoading,
 		error: query.error ? apiErrorMessage(query.error) : undefined,
+	};
+}
+
+export function useVerifyReasoning() {
+	const queryClient = useQueryClient();
+	const mutation = useMutation({
+		mutationFn: async () => {
+			const { data, error } = await apiClient.POST("/api/v1/settings/reasoning/verification");
+			if (error) throw error;
+			return data;
+		},
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: settingsQueryKey }),
+	});
+
+	return {
+		verify: () => mutation.mutateAsync(),
+		verifying: mutation.isPending,
+		error: mutation.error ? apiErrorMessage(mutation.error) : undefined,
 	};
 }
 

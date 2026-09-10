@@ -2,6 +2,8 @@
 
 Opened 2026-09-09 for the assignment in
 [`docs/superpowers/plans/2026-09-09-claude-code-kennel-work-completion.md`](../superpowers/plans/2026-09-09-claude-code-kennel-work-completion.md).
+The 2026-09-10 Luna continuation is recorded in
+[`docs/superpowers/plans/2026-09-10-luna-kennel-work-completion.md`](../superpowers/plans/2026-09-10-luna-kennel-work-completion.md).
 
 This ledger is durable working state so context compaction cannot reset the
 task. It records what already exists, what each phase changes, and at what
@@ -132,7 +134,7 @@ are binding on those phases.
 | C-3 | A durable record of what an attempt produced | none — no `WorkUnitReceipt`/`SessionReceipt` type existed | **done** `67f6daa74` | `attempt_receipt_store_test.go` — 6 cases | automated |
 | C-4 | The receipt satisfies a delivery manifest without retrofit | — | **done** `67f6daa74` — lineage, paths + digests, context identity, base/result revision, retention state, immutable artifact version | round-trip test asserts lineage and revisions survive | automated |
 | C-5 | Custody shape is recorded, not assumed; a staged folder is not a worktree | — | **done** `67f6daa74` — keeps A2-2 additive | `TestStagedFolderReceiptCannotClaimRevisions` | automated |
-| C-6 | A frozen receipt cannot be overwritten | — | **done** `67f6daa74` — refused in the write path *and* a SQL trigger | `TestFrozenAttemptReceiptRefusesReplacement` | automated |
+| C-6 | A frozen receipt cannot be overwritten | — | **done** `67f6daa74`, hardened in R3 — refused in the write path and by SQL triggers for every parent/file mutation | `TestFrozenAttemptReceiptRefusesReplacement` plus R3 SQL/store regressions | automated |
 | C-7 | Partial retention is reported as partial | — | **done** `67f6daa74` — only `retained` satisfies a handoff | `TestIncompleteRetentionIsRecordedAsIncomplete` | automated |
 | C-8 | Artifact paths cannot escape custody | — | **done** `67f6daa74` | `TestArtifactPathCannotEscapeTheWorkspace` | automated |
 | C-9 | Execution end reaches `reconciled` from runtime facts | **already existed** in `EvaluateAttemptLiveness` | **verified, inherited** | health-gated; `ProbeFailed` is not a death conclusion | automated |
@@ -140,6 +142,16 @@ are binding on those phases.
 | C-11 | Classification never borrows another attempt's proof | — | **done** (this commit) | `TestAttemptProvenDoesNotBorrowAnotherAttemptsProof` — red-green shown inline: `workUnitProven` answers yes for the pair, `attemptProven` only for the producer | automated |
 | C-12 | Artifact retention actually snapshots the workspace | none | **open** — the receipt model and its store exist; the retention adapter that fills them does not | — | — |
 | C-13 | A downstream WorkUnit receives the exact retained upstream artifact | none | **open** | — | — |
+
+### Correction slice R — review closure
+
+| ID | Requirement | State | Evidence | Proof level |
+|---|---|---|---|---|
+| R1 | Classification, receipt freeze, observation and custody release are one conditional persistence operation | **implemented** in working tree; commit pending | `/tmp/kennel-work-r-green.log`; storage finalizer regression | automated |
+| R2 | Succeeded Attempts with complete frozen custody are restart-repairable without authorizing work | **implemented** in working tree; commit pending | `accountSucceededCustody`; focused outcome tests | automated |
+| R3 | Receipt/file immutability, lineage checks and coherent reads | **implemented** in working tree; commit pending | migration 0120; focused store tests | automated/source |
+| R4 | Artifact identity includes semantic mode and component-safe path validation | **implemented** in working tree; commit pending | focused domain/store tests | automated |
+| R5 | Verification is bound to a generation and non-secret effective-input fingerprint; owner-triggered Verify is visible | **implemented** in working tree; commit pending | `/tmp/kennel-work-r5-backend.log`; frontend typecheck pending completion | automated/source |
 
 ### Deferred-phase gaps established during planning
 
@@ -179,3 +191,4 @@ is labelled `daemon-fixture` and never described as live conformance.
 | B2 graph + schedule reasons | `2464865aa`, `129cfe7d3`, `159ccb873` | `go test ./...` exit 0; frontend 232 files / 2798 passed / 6 skipped (was 230/2776); typecheck clean; lint `0 issues`; api regenerated | B2 closed. No graph dependency added. An `unresolved` schedule state was written and then removed: deriving it from `AttemptLost` would have misreported an attempt the owner had already reconciled |
 | C foundation + classification | `5670e1cc7`, `67f6daa74`, this commit | `go test ./...` exit 0; `-race -count=2` on touched packages; vet, build, lint `0 issues`; migration **0119** ledgered; sqlc regenerated | C-1 … C-11 closed. C-12 retention adapter and C-13 handoff remain open |
 | A1 readiness | `06e3234fb` | `go test ./...` exit 0; vet, build, lint `0 issues`; frontend typecheck exit 0; sqlc + api regenerated with sources, no further drift | A1-3, A1-7 closed. Migration **0118** added (not an amendment to unmerged 0116: the owner may already have applied it locally). A1-5/A1-6 independently reproduced from inherited tests |
+| R corrections | working tree after `827efca72` | focused Go R regressions pass; migrations 0120/0121 and sqlc generated locally; frontend typecheck command started | R1–R5 implementation underway; live provider verification remains blocked and the completion commit has not yet been recorded |

@@ -33,6 +33,7 @@ func (s *reasoningSettingsStore) SetDefaultSessionMode(context.Context, domain.S
 }
 func (s *reasoningSettingsStore) SetReasoningSettings(_ context.Context, provider, model, effort string, _ time.Time) error {
 	s.snapshot.ReasoningProvider, s.snapshot.ReasoningModel, s.snapshot.ReasoningEffort = provider, model, effort
+	s.snapshot.ReasoningGeneration++
 	return nil
 }
 
@@ -40,6 +41,16 @@ func (s *reasoningSettingsStore) SetReasoningVerification(_ context.Context, ver
 	s.snapshot.ReasoningVerifiedAt = verifiedAt
 	s.snapshot.ReasoningVerifiedProvider, s.snapshot.ReasoningVerifiedModel = provider, model
 	return nil
+}
+
+func (s *reasoningSettingsStore) SetReasoningVerificationForGeneration(_ context.Context, verifiedAt *time.Time, provider, model string, generation int64, fingerprint string, _ time.Time) (bool, error) {
+	if s.snapshot.ReasoningGeneration != generation {
+		return false, nil
+	}
+	s.snapshot.ReasoningVerifiedAt = verifiedAt
+	s.snapshot.ReasoningVerifiedProvider, s.snapshot.ReasoningVerifiedModel = provider, model
+	s.snapshot.ReasoningVerifiedGeneration, s.snapshot.ReasoningVerificationFingerprint = generation, fingerprint
+	return true, nil
 }
 
 type reasoningSecret struct{ value string }

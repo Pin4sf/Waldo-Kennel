@@ -132,6 +132,33 @@ func TestSetReasoningInvalidatesAnEarlierVerification(t *testing.T) {
 	}
 }
 
+func TestVerificationCannotStampAReplacementConfiguration(t *testing.T) {
+	svc, store := verifiableService("openai", "gpt-a", "key-a")
+	started := make(chan struct{})
+	finish := make(chan struct{})
+	result := make(chan ReasoningStatus, 1)
+	go func() {
+		status, err := svc.WithReasoningProbe(func(context.Context, ReasoningConfig) error {
+			close(started)
+			<-finish
+			return nil
+		}).VerifyReasoning(context.Background())
+		if err != nil {
+			t.Errorf("verify: %v", err)
+		}
+		result <- status
+	}()
+	<-started
+	if _, err := svc.SetReasoning(context.Background(), ReasoningInput{Provider: "openai", Model: "gpt-b", APIKey: "key-b"}); err != nil {
+		t.Fatal(err)
+	}
+	close(finish)
+	status := <-result
+	if status.Verified || store.snapshot.ReasoningVerifiedAt != nil {
+		t.Fatalf("old probe stamped replacement settings: status=%#v snapshot=%#v", status, store.snapshot)
+	}
+}
+
 // The machine code the UI switches on must not depend on error prose. It used
 // to be derived with strings.Contains over this package's own messages, so a
 // reworded message silently changed the code.

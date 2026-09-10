@@ -109,6 +109,77 @@ func TestArtifactVersionChangesWithContentAndIgnoresOrder(t *testing.T) {
 	if domain.ArtifactManifestDigest(base) == domain.ArtifactManifestDigest(withDeletion) {
 		t.Fatal("a deletion must change the artifact version")
 	}
+	mode := int64(0o755)
+	withMode := append([]domain.ArtifactFile(nil), base...)
+	withMode[0].FileMode = &mode
+	if domain.ArtifactManifestDigest(base) == domain.ArtifactManifestDigest(withMode) {
+		t.Fatal("an executable-mode change must change the artifact version")
+	}
+}
+
+func TestFreezeRequiresAnExplicitCompleteReceipt(t *testing.T) {
+	s := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "receipt-missing")
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-receipt-missing", domain.FenceSubjectForProject("receipt-missing")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.FreezeAttemptReceipt(ctx, attempt.ID, time.Now().UTC()); !errors.Is(err, ports.ErrAttemptReceiptMissing) {
+		t.Fatalf("freeze without receipt = %v, want missing receipt", err)
+	}
+	partial := receiptFixture(attempt.ID, outcomeID, plan, time.Now().UTC())
+	partial.RetentionState = domain.RetentionIncomplete
+	if err := s.SaveAttemptReceipt(ctx, partial); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.FreezeAttemptReceipt(ctx, attempt.ID, time.Now().UTC()); !errors.Is(err, ports.ErrAttemptReceiptNotReady) {
+		t.Fatalf("freeze incomplete receipt = %v, want not ready", err)
+	}
+}
+
+func TestClassifyAttemptSucceededCommitsReceiptObservationAndCustody(t *testing.T) {
+	s := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	at := time.Date(2026, 9, 10, 10, 0, 0, 0, time.UTC)
+	plan, outcomeID := seedApprovedPlan(t, s, "receipt-classify")
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-receipt-classify", domain.FenceSubjectForProject("receipt-classify")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.TransitionAttemptStatus(ctx, outcomeID, attempt.ID, domain.AttemptQueued, domain.AttemptRunning, at); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.TransitionAttemptStatus(ctx, outcomeID, attempt.ID, domain.AttemptRunning, domain.AttemptReconciled, at); err != nil {
+		t.Fatal(err)
+	}
+	receipt := receiptFixture(attempt.ID, outcomeID, plan, at)
+	if err := s.SaveAttemptReceipt(ctx, receipt); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ClassifyAttemptSucceeded(ctx, ports.ClassifyAttemptInput{
+		OutcomeID: outcomeID, AttemptID: attempt.ID, ExpectedStatus: domain.AttemptReconciled,
+		ArtifactVersion: receipt.ArtifactVersion, ObservationKind: domain.ObservationAttemptClassified,
+		ObservationPayload: `{"result":"proved"}`, At: at,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := s.GetAttempt(ctx, outcomeID, attempt.ID)
+	if err != nil || !ok || got.Status != domain.AttemptSucceeded {
+		t.Fatalf("attempt after classification = %#v ok=%v err=%v", got, ok, err)
+	}
+	fence, held, err := s.OpenFenceForSubject(ctx, domain.FenceSubjectForProject("receipt-classify"))
+	if err != nil || held || fence.AttemptID != "" {
+		t.Fatalf("fence after classification = %#v held=%v err=%v", fence, held, err)
+	}
+	frozen, ok, err := s.GetAttemptReceipt(ctx, attempt.ID)
+	if err != nil || !ok || !frozen.Frozen() {
+		t.Fatalf("receipt after classification = %#v ok=%v err=%v", frozen, ok, err)
+	}
+	observations, err := s.ListAttemptObservations(ctx, attempt.ID)
+	if err != nil || len(observations) != 1 || observations[0].Kind != domain.ObservationAttemptClassified {
+		t.Fatalf("observations after classification = %#v err=%v", observations, err)
+	}
 }
 
 // Freezing is what makes "what the owner reviewed" stable. A later retention

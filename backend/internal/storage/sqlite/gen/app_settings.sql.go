@@ -15,7 +15,7 @@ import (
 
 const getAppSettings = `-- name: GetAppSettings :one
 
-SELECT id, default_session_mode, updated_at, reasoning_provider, reasoning_model, reasoning_effort, reasoning_verified_at, reasoning_verified_provider, reasoning_verified_model FROM app_settings WHERE id = 1
+SELECT id, default_session_mode, updated_at, reasoning_provider, reasoning_model, reasoning_effort, reasoning_verified_at, reasoning_verified_provider, reasoning_verified_model, reasoning_generation, reasoning_verified_generation, reasoning_verification_fingerprint FROM app_settings WHERE id = 1
 `
 
 // Daemon-owned user preferences. One row, seeded by migration 0042, so a read
@@ -33,6 +33,9 @@ func (q *Queries) GetAppSettings(ctx context.Context) (AppSetting, error) {
 		&i.ReasoningVerifiedAt,
 		&i.ReasoningVerifiedProvider,
 		&i.ReasoningVerifiedModel,
+		&i.ReasoningGeneration,
+		&i.ReasoningVerifiedGeneration,
+		&i.ReasoningVerificationFingerprint,
 	)
 	return i, err
 }
@@ -53,7 +56,7 @@ func (q *Queries) SetDefaultSessionMode(ctx context.Context, arg SetDefaultSessi
 
 const setReasoningSettings = `-- name: SetReasoningSettings :exec
 UPDATE app_settings
-SET reasoning_provider = ?, reasoning_model = ?, reasoning_effort = ?, updated_at = ?
+SET reasoning_provider = ?, reasoning_model = ?, reasoning_effort = ?, reasoning_generation = reasoning_generation + 1, updated_at = ?
 WHERE id = 1
 `
 
@@ -76,7 +79,7 @@ func (q *Queries) SetReasoningSettings(ctx context.Context, arg SetReasoningSett
 
 const setReasoningVerification = `-- name: SetReasoningVerification :exec
 UPDATE app_settings
-SET reasoning_verified_at = ?, reasoning_verified_provider = ?, reasoning_verified_model = ?, updated_at = ?
+SET reasoning_verified_at = ?, reasoning_verified_provider = ?, reasoning_verified_model = ?, reasoning_verified_generation = 0, reasoning_verification_fingerprint = '', updated_at = ?
 WHERE id = 1
 `
 
@@ -95,4 +98,43 @@ func (q *Queries) SetReasoningVerification(ctx context.Context, arg SetReasoning
 		arg.UpdatedAt,
 	)
 	return err
+}
+
+const setReasoningVerificationForGeneration = `-- name: SetReasoningVerificationForGeneration :execrows
+UPDATE app_settings
+SET reasoning_verified_at = ?, reasoning_verified_provider = ?, reasoning_verified_model = ?,
+    reasoning_verified_generation = CASE WHEN ? IS NULL THEN 0 ELSE ? END,
+    reasoning_verification_fingerprint = CASE WHEN ? IS NULL THEN '' ELSE ? END,
+    updated_at = ?
+WHERE id = 1 AND reasoning_generation = ?
+`
+
+type SetReasoningVerificationForGenerationParams struct {
+	ReasoningVerifiedAt              sql.NullString
+	ReasoningVerifiedProvider        string
+	ReasoningVerifiedModel           string
+	Column4                          interface{}
+	ReasoningVerifiedGeneration      int64
+	Column6                          interface{}
+	ReasoningVerificationFingerprint string
+	UpdatedAt                        time.Time
+	ReasoningGeneration              int64
+}
+
+func (q *Queries) SetReasoningVerificationForGeneration(ctx context.Context, arg SetReasoningVerificationForGenerationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setReasoningVerificationForGeneration,
+		arg.ReasoningVerifiedAt,
+		arg.ReasoningVerifiedProvider,
+		arg.ReasoningVerifiedModel,
+		arg.Column4,
+		arg.ReasoningVerifiedGeneration,
+		arg.Column6,
+		arg.ReasoningVerificationFingerprint,
+		arg.UpdatedAt,
+		arg.ReasoningGeneration,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
