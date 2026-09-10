@@ -30,6 +30,8 @@ vi.mock("../../lib/api-client", () => ({
 	hasTrustedApiBaseUrl: () => true,
 }));
 
+vi.mock("../../hooks/useEventsConnection", () => ({ useEventsConnection: () => "connected" }));
+
 import { OutcomeRunSurface } from "./OutcomeRunSurface";
 
 function planEnvelope(status: string) {
@@ -175,6 +177,7 @@ describe("OutcomeRunSurface", () => {
 	it("offers the governed start once the plan is approved and no attempt exists", async () => {
 		const user = userEvent.setup();
 		getMock.mockImplementation((url: string) => {
+ if(url.endsWith("/run")) return Promise.resolve({data:{runState:{outcomeId:"out-1", projectId:"p", state:"needs_you", freshness:{contractRevisionNumber:1, planRevisionId:"plan-1", proofGeneration:0}, eligibleActions:[{action:"start",available:true}]}}});
 			if (url === "/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule") return Promise.resolve({ data: scheduleEnvelope(), error: undefined });
 			if (url === "/api/v1/outcomes/{outcomeId}/plan") {
 				return Promise.resolve({ data: planEnvelope("approved"), error: undefined });
@@ -193,7 +196,7 @@ describe("OutcomeRunSurface", () => {
 		await user.click(button);
 		await waitFor(() => {
 			expect(postMock).toHaveBeenCalledWith(
-				"/api/v1/outcomes/{outcomeId}/attempts",
+				"/api/v1/outcomes/{outcomeId}/run",
 				expect.objectContaining({
 					params: { path: { outcomeId: "out-1" } },
 					body: expect.objectContaining({ planRevisionId: "plan-1", requestKey: expect.any(String) }),
@@ -449,6 +452,7 @@ describe("OutcomeRunSurface", () => {
 	});
 	it("surfaces the daemon's refusal when admission fails closed instead of spinning", async () => {
 		getMock.mockImplementation((url: string) => {
+ if(url.endsWith("/run")) return Promise.resolve({data:{runState:{outcomeId:"out-1", projectId:"p", state:"needs_you", freshness:{contractRevisionNumber:1, planRevisionId:"plan-1", proofGeneration:0}, eligibleActions:[{action:"start",available:true}]}}});
 			if (url === "/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule") return Promise.resolve({ data: scheduleEnvelope(), error: undefined });
 			if (url === "/api/v1/outcomes/{outcomeId}/plan") {
 				return Promise.resolve({ data: planEnvelope("approved"), error: undefined });
@@ -465,7 +469,7 @@ describe("OutcomeRunSurface", () => {
 		renderSurface();
 		const user = userEvent.setup();
 		await user.click(await screen.findByTestId("outcome-run-start"));
-		const failure = await screen.findByTestId("outcome-run-failure");
+		const failure = await screen.findByRole("alert");
 		expect(failure.textContent).toContain("custody");
 	});
 });

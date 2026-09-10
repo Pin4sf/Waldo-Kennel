@@ -1,12 +1,13 @@
+import { useOutcomeRunState } from "../../hooks/useOutcomeRunState";
 import { X, Maximize2, Minimize2 } from "lucide-react";
-import { missionAttention } from "../../lib/mission-attention";
+import { runStateAttention } from "../../lib/mission-attention";
 import { MissionUsage } from "./MissionUsage";
 import { useSettings } from "../../hooks/useSettings";
 import { ReasoningSettingsSection } from "../settings/ReasoningSettingsSection";
 import { MissionReplanForm } from "./MissionReplanForm";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useOutcome, useOutcomePlan, useOutcomeProof, useOutcomeSchedule } from "../../hooks/useOutcome";
+import { useOutcome, useOutcomePlan, useOutcomeProof } from "../../hooks/useOutcome";
 import { useEventsConnection } from "../../hooks/useEventsConnection";
 import { useWorkspaceQuery } from "../../hooks/useWorkspaceQuery";
 import { Button } from "../ui/button";
@@ -44,15 +45,8 @@ export function OutcomeMissionPanel({
 	);
 	const outcome = query.outcome;
 	const plan = planQuery.plan;
-	const scheduleQuery = useOutcomeSchedule(outcomeId, plan?.status === "approved" ? plan.id : undefined);
-	const attention = outcome
-		? missionAttention(
-				{ ...outcome, latestPlan: plan },
-				proofQuery.proof,
-				scheduleQuery.schedule,
-				scheduleQuery.failure?.message,
-			)
-		: undefined;
+	const runQuery = useOutcomeRunState(outcomeId);
+ const attention = runStateAttention(runQuery.data, runQuery.error?.message);
 	const stale = Boolean(plan && outcome && plan.contractRevisionNumber !== outcome.currentRevisionNumber);
 	return (
 		<section
@@ -108,6 +102,7 @@ export function OutcomeMissionPanel({
 						variant="outline"
 						onClick={() => {
 							query.refetch();
+                            runQuery.refetch();
 							planQuery.refetch();
 						}}
 					>

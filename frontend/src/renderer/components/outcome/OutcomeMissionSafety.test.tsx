@@ -20,6 +20,7 @@ function mount(revision: number, state: string, attemptPhase?: string) {
 	const contract = {id:"contract", number:revision, goal:"Keep source", criteria:[], constraints:[], nonGoals:[], review:"Owner review"};
 	const attempt = {id:"attempt", outcomeId:"out", planRevisionId:"plan", workUnitId:"unit", number:1, contractRevisionNumber:1, status:"running", sessions:[], observations:[], receipts:[], presentation:{phase:attemptPhase, unconfirmed:attemptPhase === "unconfirmed", nextAction:"Review liveness"}};
 	get.mockImplementation(async (url: string) => {
+		if(url.endsWith("/run")) return {data:{runState:{outcomeId:"out", projectId:"project", state:"needs_you", freshness:{contractRevisionNumber:revision, planRevisionId:"plan", proofGeneration:0}, eligibleActions:[{action:"start",available:true}]}}};
 		if(url.endsWith("/plan")) return {data:{plan}};
 		if(url.endsWith("/schedule")) return {data:{schedule:{outcomeId:"out", plan, workUnits:[], nextRunnableWorkUnitId:"unit"}}};
 		if(url.endsWith("/attempts")) return {data:{attempts:attemptPhase ? [attempt] : []}};

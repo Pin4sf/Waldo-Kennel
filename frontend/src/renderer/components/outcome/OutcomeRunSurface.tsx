@@ -1,5 +1,6 @@
+import { OutcomeRunControls } from "./OutcomeRunControls";
 import { SessionsBoardGridView, SessionsListView } from "@pin4sf/kennel-product-ui";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,7 +12,6 @@ import {
 	useOutcomePlan,
 	useOutcomeProof,
 	useOutcomeSchedule,
-	useStartOutcomeAttempt,
 	type AttemptRecord,
 } from "../../hooks/useOutcome";
 import { boardAttentionZoneOrder, getAttentionZoneViewForZone } from "../../lib/session-presentation";
@@ -78,11 +78,10 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 	const { t } = useTranslation();
 	const planQuery = useOutcomePlan(outcomeId);
 	const attemptsQuery = useOutcomeAttempts(outcomeId);
-	const start = useStartOutcomeAttempt(outcomeId);
 	const action = useAttemptAction(outcomeId);
 	const recovery = useAttemptRecovery(outcomeId);
 
-	const pending = start.pending || action.pending || recovery.pending;
+	const pending = action.pending || recovery.pending;
 	const plan = planQuery.plan;
 	const planApproved = plan?.status === "approved";
 	const scheduleQuery = useOutcomeSchedule(outcomeId, planApproved ? plan?.id : undefined);
@@ -93,12 +92,12 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 			proofQuery.proof?.criteria.find((criterion) => criterion.criterionId === criterionId)?.text,
 		[proofQuery.proof],
 	);
-	const failure = start.failure ?? action.failure ?? recovery.failure ?? attemptsQuery.failure ?? scheduleQuery.failure;
+	const failure = action.failure ?? recovery.failure ?? attemptsQuery.failure ?? scheduleQuery.failure;
 	const attempts = attemptsQuery.attempts ?? [];
 	// Lineage order is ascending by number; the current attempt is the newest.
 	const current: AttemptRecord | undefined =
 		attempts.length > 0 ? attempts[attempts.length - 1] : undefined;
-	const canStartNew = !admissionBlocked && planApproved && !pending && Boolean(schedule?.nextRunnableWorkUnitId) && (!current || current.fence === undefined);
+
 
 	const outcomeRunViewMode = useUiStore((state) => state.outcomeRunViewMode);
 	const boardColumns = useMemo(() => boardAttentionZoneOrder.map((zone) => getAttentionZoneViewForZone(zone, t)), [t]);
@@ -120,16 +119,6 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 	}, [current?.id, closeAttemptPanel]);
 	const engageCurrentAttempt = () => openAttemptPanel();
 
-	async function startAttempt() {
-		if (admissionBlocked || !plan || pending || !schedule?.nextRunnableWorkUnitId) return;
-		try {
-			await start.start({
-				planRevisionId: plan.id,
-			});
-		} catch {
-			// Failure state derives from the mutation's typed error.
-		}
-	}
 
 	async function act(actionName: "cancel") {
 		if (!current || pending) return;
@@ -166,21 +155,7 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 				</div>
 			)}
 
-			{planApproved && !current && !attemptsQuery.isLoading && (
-				<div className="max-w-xl rounded-group hairline border-border bg-card px-4.5 py-3.5" data-testid="outcome-run-start-card">
-					<h3 className="text-sm font-medium">{t("outcome.run.startTitle")}</h3>
-					<p className="mt-1 text-muted-foreground text-sm">{t("outcome.run.startBody")}</p>
-					<Button
-						className="mt-3"
-						data-testid="outcome-run-start"
-						disabled={admissionBlocked || pending || scheduleQuery.isLoading || !schedule?.nextRunnableWorkUnitId}
-						onClick={() => void startAttempt()}
-					>
-						{start.pending && <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />}
-						{t("outcome.run.startCta")}
-					</Button>
-				</div>
-			)}
+			<OutcomeRunControls outcomeId={outcomeId} admissionBlocked={admissionBlocked} />
 
 			{/* The daemon-derived execution graph. Every state, blocker and
 			    reason here is a schedule fact; this only renders it. */}
@@ -234,9 +209,7 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 				attempt={current}
 				onAct={(name) => void act(name)}
 				onRecover={(name, confirmStopped) => void recover(name, confirmStopped)}
-				onStartReplacement={() => void startAttempt()}
 				pending={pending}
-				showReplacementStart={canStartNew}
 			/>}
 
 			{current && onReviewProof && (
@@ -265,19 +238,15 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 type CurrentAttemptCardProps = {
 	attempt: AttemptRecord;
 	pending: boolean;
-	showReplacementStart: boolean;
 	onAct: (action: "cancel") => void;
 	onRecover: (action: "contain" | "reconcile" | "replace" | "attention", confirmStopped: boolean) => void;
-	onStartReplacement: () => void;
 };
 
 function CurrentAttemptCard({
 	attempt,
 	pending,
-	showReplacementStart,
 	onAct,
 	onRecover,
-	onStartReplacement,
 }: CurrentAttemptCardProps) {
 	const { t } = useTranslation();
 	const badgeKey = statusBadgeKey(attempt.status);
@@ -469,11 +438,6 @@ function CurrentAttemptCard({
 
 
 
-			{showReplacementStart && attempt.status !== "running" && attempt.status !== "queued" && (
-				<Button data-testid="outcome-run-start" disabled={pending} onClick={onStartReplacement} size="sm">
-					{t("outcome.run.startCta")}
-				</Button>
-			)}
 
 			<p className="text-muted-foreground text-xs">
 				{t("outcome.run.observationCount", { total: attempt.observations.length })}

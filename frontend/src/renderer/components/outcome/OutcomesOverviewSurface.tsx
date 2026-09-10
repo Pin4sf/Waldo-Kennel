@@ -155,7 +155,7 @@ function ProjectOutcomesGroup({
 	});
 
 	const visibleNodes = outcomeTree.slice(0, limit);
-	const attention = useMissionAttention(visibleNodes.map((node) => node.outcome));
+	const attention = useMissionAttention(visibleNodes.map((node) => node.outcome), workspace.id);
 	const filteredNodes = visibleNodes.filter(
 		(node) =>
 			attentionFilter === "history" ||
@@ -165,7 +165,7 @@ function ProjectOutcomesGroup({
 	);
 	const lanes =
 		view === "board"
-			? MISSION_LANES.filter((lane) => lane !== "accepted" || attentionFilter === "history")
+			? MISSION_LANES.filter((lane) => (lane !== "accepted" || attentionFilter === "history") && (lane !== "unavailable" || visibleNodes.some(node => attention.get(node.outcome.id)?.lane === "unavailable")))
 			: [undefined];
 
 	if (!showEmpty && !outcomesQuery.isLoading && !outcomesQuery.failure && outcomes.length === 0) return null;

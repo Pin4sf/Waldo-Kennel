@@ -49,6 +49,9 @@ const CDC_EVENT_TYPES = [
 	"outcome_verification_recorded",
 	"outcome_acceptance_decided",
 	"outcome_correction_recorded",
+ "outcome_run_intent_changed",
+ "outcome_attempt_retained",
+ "outcome_delivery_changed",
 ] as const;
 
 /**
@@ -138,7 +141,7 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 					if (outcomeFactsInvalidationPending) {
 						// A connected stream does not make cached responsibility facts current.
 						// Refresh the Mission and portfolio together after CDC or a reconnect gap.
-						for (const root of ["project-outcomes", "outcome", "outcome-plan", "outcome-attempts", "outcome-proof", "outcome-schedule"]) {
+						for (const root of ["project-outcomes", "outcome", "outcome-plan", "outcome-attempts", "outcome-proof", "outcome-schedule", "outcome-run-state", "project-run-states"]) {
 							void queryClient.invalidateQueries({ queryKey: [root] });
 						}
 						outcomeFactsInvalidationPending = false;
@@ -152,6 +155,8 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 					}
 					if (allOutcomeSchedulesInvalidationPending) {
 						void queryClient.invalidateQueries({ queryKey: ["outcome-schedule"] });
+ void queryClient.invalidateQueries({ queryKey: ["outcome-run-state"] });
+ void queryClient.invalidateQueries({ queryKey: ["project-run-states"] });
 						allOutcomeSchedulesInvalidationPending = false;
 					}
 					for (const queryKey of pendingOutcomeSchedules) {

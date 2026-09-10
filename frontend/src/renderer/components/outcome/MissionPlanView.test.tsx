@@ -10,6 +10,7 @@ const units: components["schemas"]["PlanWorkUnitResponse"][] = [
 		title: "Publish analysis",
 		dependsOn: ["a"],
 		outputSummary: "Final report",
+		approvedChecks: [],
 		evidenceChecks: ["Report matches source"],
 		criterionIds: ["c1"],
 		requiredCapabilities: ["worktree.write"],
@@ -23,6 +24,7 @@ const units: components["schemas"]["PlanWorkUnitResponse"][] = [
 		title: "Read source",
 		dependsOn: [],
 		outputSummary: "Source notes",
+		approvedChecks: [],
 		evidenceChecks: ["Quotes attributed"],
 		criterionIds: ["c1"],
 		requiredCapabilities: ["worktree.read"],
@@ -78,4 +80,12 @@ it("shows daemon dependency reasons and unknown proof without inventing readines
 	await user.click(screen.getByRole("button", { name: "Publish analysis" }));
 	expect(screen.getByText(/Proof readiness not reported/)).toBeVisible();
 	expect(screen.queryByRole("button", { name: /start|accept|authorize/i })).not.toBeInTheDocument();
+});
+
+it("shows exact approved check argument boundaries and timeout before graph selection", () => {
+ const argv = ["python3", "script with spaces.py", "--label=a b"];
+ render(<MissionPlanView workUnits={[{ ...units[0], approvedChecks: [{ id: "check-1", criterionId: "c1", argv, timeoutSeconds: 17 }] }]} criterionText={() => "Every source attributed"} />);
+ expect(screen.getByText(JSON.stringify(argv))).toBeVisible();
+ expect(screen.getByText("Timeout: 17 seconds")).toBeVisible();
+ expect(screen.getAllByText("Every source attributed").length).toBeGreaterThan(0);
 });

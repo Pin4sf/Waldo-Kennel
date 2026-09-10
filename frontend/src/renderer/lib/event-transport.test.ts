@@ -286,11 +286,11 @@ it("refreshes portfolio and Mission facts after CDC and reconnect gaps", () => {
 		const client = fakeQueryClient();
 		const disconnect = createEventTransport(client).connect();
 		const source = EventSourceStub.instances[0];
-		for (const trigger of [() => source.emit("outcome_contract_revised", JSON.stringify({outcomeId: "one"})), () => source.onopen?.()]) {
+		for (const trigger of [() => source.emit("outcome_contract_revised", JSON.stringify({outcomeId: "one"})), () => source.emit("outcome_run_intent_changed", JSON.stringify({outcomeId: "one"})), () => source.emit("outcome_attempt_retained", JSON.stringify({outcomeId: "one"})), () => source.onopen?.()]) {
 			vi.mocked(client.invalidateQueries).mockClear();
 			trigger();
 			vi.advanceTimersByTime(200);
-			for (const root of ["project-outcomes", "outcome", "outcome-plan", "outcome-proof", "outcome-attempts", "outcome-schedule"]) {
+			for (const root of ["project-outcomes", "outcome", "outcome-plan", "outcome-proof", "outcome-attempts", "outcome-schedule", "outcome-run-state", "project-run-states"]) {
 				expect(client.invalidateQueries).toHaveBeenCalledWith({queryKey: [root]});
 			}
 		}

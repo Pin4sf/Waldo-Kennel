@@ -1,3 +1,4 @@
+import { ApprovedChecks } from "./ApprovedChecks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { components } from "../../../api/schema";
@@ -36,7 +37,8 @@ export function MissionPlanView({
 					</Button>
 				))}
 			</div>
-			{/* Keep both views mounted to preserve graph zoom, focus and scroll on refresh. */}
+			<div className="space-y-3">{units.map(unit => <div key={unit.id}><p className="text-sm font-medium">{unit.title}</p><ApprovedChecks unit={unit} criterionText={criterionText} /></div>)}</div>
+            {/* Keep both views mounted to preserve graph zoom, focus and scroll on refresh. */}
 			<div hidden={view !== "graph"} className="overflow-auto p-1">
 				<MissionWorkUnitGraph
 					workUnits={units}

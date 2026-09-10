@@ -329,3 +329,52 @@ switch API/harness providers or auto-authorize. Generated schemas must come from
 the reviewed backend commit. Remove obsolete attention fan-out when canonical
 run-state reads are wired; read failure is unavailable/stale, not alternate Start.
 No new renderer capability is claimed pending these contracts.
+
+## Direct API integration checkpoint
+
+Isolated integration branch `codex/mission-api-integration` combines frontend
+`dcc9cab29` and cumulative backend `56f986da4` through their common ancestor
+`670a42238795b3da0c9fd61a5434132e9b622dd0`. Original worktrees remain unchanged.
+No generated API artifact was handwritten or regenerated from a document.
+
+- Board/List use the Project bulk run-state projection; selected Mission uses
+  the matching single-Outcome read. The old proof/schedule attention fan-out and
+  local lifecycle derivation are removed. Read errors show Status unavailable.
+- Owner Start/Pause/Resume/Cancel use the durable run endpoint and exact plan,
+  Contract and intent generation, with one stable key for an ambiguous retry.
+  Mutation responses do not overwrite cached projections; successful/failed
+  writes invalidate reads. There is no secondary per-WorkUnit Start loop.
+- Run controls require fresh reads and a connected event stream. Existing
+  per-Attempt cancel/contain/reconcile controls remain reachable for safety.
+- Approved checks show exact JSON argument vectors, criterion text and timeout
+  before authorization; prose evidence checks remain distinct. Empty check lists
+  are explicit. Existing proof UI retains inconclusive versus failed results.
+- Selected Codex reasoning stays visible as unavailable and cannot be saved or
+  verified as supported. OpenAI/Anthropic API selection remains explicit. No key,
+  authentication or paid model call was used by this UI integration task.
+- New locale keys use English fallback text in other catalogs pending translation.
+
+Verification: integrated daemon build, Electron package build and package identity
+passed. Backend HTTP controllers/API spec parity suites passed. Frontend typecheck
+passed. Full frontend run: 221 suites, 2705 tests passed, six skipped; the remaining
+annotation suite initially hit Vite's real-path restriction on shared node_modules.
+That suite passed all 16 tests with a temporary config allowing the two local
+worktree paths. Temporary config removed; no product filesystem policy weakened.
+After final changes, five targeted suites passed all 36 tests (run commands,
+ambiguous retry, stale/disconnected safety, approved checks and event invalidation).
+
+Live browser 43762 -> integrated daemon 43761 with disposable copied temp profile:
+PASS canonical Project Board -> Mission Contract; PASS no Start without an
+approved Plan. The profile has no reasoning credential and no real Plan, so live
+run actions, Graph/Table checks, provider execution, acceptance and delivery were
+not claimed verified here. Parent owns the separate real OpenAI inference/intake
+proof and remaining synthetic end-to-end journey. Initial optional legacy tour
+was dismissed; its session-oriented copy is a remaining first-run UX issue.
+
+Runtime: `/tmp/kennel-mission-api-integration`; daemon binary
+`/tmp/kennel-mission-integrated-daemon`; temporary profile
+`/tmp/kennel-mission-integrated-profile`; package
+`frontend/out/Kennel-darwin-arm64/Kennel.app`. Native relocation/profile behavior
+is unchanged and still subject to the earlier Electron audit limitations.
+Durable Outcome conversation, replay-safe replan, document approval UI and actual
+delivery/usage completion remain separate gaps. No fake controls for those gaps.
