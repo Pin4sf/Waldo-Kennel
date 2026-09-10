@@ -128,9 +128,13 @@ type Attempt struct {
 	// ContractRevisionNumber snapshots which contract revision the executing
 	// plan bound at admission; immutable for the attempt's life.
 	ContractRevisionNumber int64
-	RequestKey             string
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
+	// RunIntentGeneration binds this Attempt to the exact owner authorization
+	// that admitted it. Zero means this was an individually started Attempt
+	// before any durable run intent existed.
+	RunIntentGeneration int64
+	RequestKey          string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // Validate checks intrinsic attempt invariants. Number uniqueness per Outcome,
@@ -280,6 +284,11 @@ const (
 	ObservationOwnerPause        = "owner_paused"
 	ObservationOwnerResume       = "owner_resumed"
 	ObservationRecoveryAttention = "needs_attention"
+	// ObservationInputProvisioningFailed records a successor whose predecessor
+	// results could not be placed in its workspace. It is deliberately not an
+	// ambiguous start: provisioning precedes any provider process, so this
+	// fact asserts that nothing was launched.
+	ObservationInputProvisioningFailed = "input_provisioning_failed"
 )
 
 // AttemptFence is the custody lock over one worktree subject. At most ONE

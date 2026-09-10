@@ -63,11 +63,7 @@ func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain
 	if !ok {
 		return fmt.Errorf("attempt success finalizer is unavailable")
 	}
-	generation, err := finalizer.OutcomeProofGeneration(ctx, outcomeID)
-	if err != nil {
-		return err
-	}
-	proof, err := s.GetProof(ctx, outcomeID)
+	generation, proof, err := s.refreshProofSnapshot(ctx, outcomeID, finalizer)
 	if err != nil {
 		return err
 	}
@@ -113,6 +109,21 @@ func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain
 			failures = append(failures, fmt.Errorf("attempt %s cannot be classified: %w", attempt.ID, ports.ErrAttemptReceiptNotReady))
 			continue
 		}
+		// Approved checks run before proof is judged, and their results are
+		// what proof is judged on. Process completion is not criterion proof;
+		// something has to have actually checked the retained bytes.
+		wrote, checkErr := s.runApprovedChecks(ctx, attempt, plan, unit, receipt, proof.Contract)
+		if checkErr != nil {
+			failures = append(failures, checkErr)
+			continue
+		}
+		if wrote {
+			// New proof rows moved the append-only generation, so the reads
+			// this classification commits against have to be taken again.
+			if generation, proof, err = s.refreshProofSnapshot(ctx, outcomeID, finalizer); err != nil {
+				return err
+			}
+		}
 		if !attemptProven(unit, attempt, receipt.ArtifactVersion, proof) {
 			// Absent, failing or contradictory proof leaves the attempt
 			// reconciled. So does proof that named an earlier artifact version:
@@ -130,6 +141,35 @@ func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain
 		return errors.Join(failures...)
 	}
 	return nil
+}
+
+// refreshProofSnapshot reads the proof generation and then the proof.
+//
+// The order is the guarantee, not a detail. Classification commits against
+// both, and the commit refuses if the generation moved. Reading the
+// generation FIRST means any record that lands afterwards — including a
+// contradicting one this snapshot cannot see — makes the observed generation
+// stale, so the commit refuses. Reading the proof first inverts that: a
+// record committing between the two reads is counted in the generation while
+// missing from the snapshot, and the commit accepts evidence that no longer
+// holds.
+//
+// The generation returned must therefore never be newer than the proof it
+// accompanies.
+func (s *Service) refreshProofSnapshot(
+	ctx context.Context,
+	outcomeID domain.OutcomeID,
+	finalizer ports.AttemptSuccessFinalizer,
+) (int64, ProofView, error) {
+	generation, err := finalizer.OutcomeProofGeneration(ctx, outcomeID)
+	if err != nil {
+		return 0, ProofView{}, err
+	}
+	proof, err := s.GetProof(ctx, outcomeID)
+	if err != nil {
+		return 0, ProofView{}, err
+	}
+	return generation, proof, nil
 }
 
 // promoteAttemptToSucceeded records the transition and freezes the receipt the

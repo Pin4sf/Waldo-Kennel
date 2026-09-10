@@ -1791,6 +1791,9 @@ type SettingsResponse struct {
 
 // ReasoningResponse reports reasoning readiness without returning a secret.
 type ReasoningResponse struct {
+	// Mode is "direct_api" for explicit Anthropic/OpenAI API credentials or
+	// "codex_harness" for the signed-in Codex app-server path.
+	Mode       string `json:"mode"`
 	Provider   string `json:"provider"`
 	Model      string `json:"model"`
 	Effort     string `json:"effort"`
@@ -2845,6 +2848,20 @@ type PlanWorkUnitResponse struct {
 	EvidenceChecks          []string `json:"evidenceChecks"`
 	VerificationRequirement string   `json:"verificationRequirement"`
 	StopConditions          []string `json:"stopConditions"`
+	// ApprovedChecks are the deterministic commands Kennel itself will run
+	// and record as independent observation. EvidenceChecks above stay prose
+	// for the provider to read; these are authority frozen at approval.
+	ApprovedChecks []ApprovedCheckResponse `json:"approvedChecks"`
+}
+
+// ApprovedCheckResponse is one deterministic check the owner authorized,
+// bound to the criterion it proves. Argv is a discrete argument vector, never
+// a command line: a shell string would make approved authority unreadable.
+type ApprovedCheckResponse struct {
+	ID             string   `json:"id"`
+	CriterionID    string   `json:"criterionId"`
+	Argv           []string `json:"argv"`
+	TimeoutSeconds int64    `json:"timeoutSeconds"`
 }
 
 // RoutingPreferenceResponse describes the effective provider/model preference.
@@ -2904,9 +2921,14 @@ type ScheduleWorkUnitResponse struct {
 	WorkUnit PlanWorkUnitResponse   `json:"workUnit"`
 	State    string                 `json:"state" enum:"blocked,runnable,executing,proven,retryable,paused"`
 	Attempts []ScheduleAttemptBrief `json:"attempts"`
-	// BlockedReason distinguishes waiting on dependency proof from waiting on
-	// the serial custody fence. Empty unless the unit is blocked.
-	BlockedReason        string          `json:"blockedReason,omitempty" enum:"awaiting_dependency_proof,custody_held"`
+	// BlockedReason distinguishes waiting on dependency proof, waiting on the
+	// serial custody fence, and a dependency that is proved but whose output
+	// cannot be handed down. Empty unless the unit is blocked.
+	BlockedReason string `json:"blockedReason,omitempty" enum:"awaiting_dependency_proof,custody_held,upstream_artifact_unavailable"`
+	// BlockedDetail names the specific refusal behind the reason, so
+	// "upstream artifact unavailable" can say whether the predecessor's result
+	// is missing, incomplete, unfrozen or mislineaged.
+	BlockedDetail        string          `json:"blockedDetail,omitempty"`
 	BlockingDependencies []string        `json:"blockingDependencies"`
 	CriterionReady       map[string]bool `json:"criterionReady"`
 }
@@ -2955,7 +2977,19 @@ func workUnitResponse(unit domain.WorkUnit) PlanWorkUnitResponse {
 		EvidenceChecks:          unit.EvidenceChecks,
 		VerificationRequirement: unit.VerificationRequirement,
 		StopConditions:          unit.StopConditions,
+		ApprovedChecks:          approvedCheckResponses(unit.Checks),
 	}
+}
+
+func approvedCheckResponses(checks []domain.ApprovedCheck) []ApprovedCheckResponse {
+	out := make([]ApprovedCheckResponse, 0, len(checks))
+	for _, check := range checks {
+		out = append(out, ApprovedCheckResponse{
+			ID: string(check.ID), CriterionID: string(check.CriterionID),
+			Argv: append([]string(nil), check.Argv...), TimeoutSeconds: check.TimeoutSeconds,
+		})
+	}
+	return out
 }
 
 func stringWorkUnitIDs(ids []domain.WorkUnitID) []string {
@@ -3010,7 +3044,7 @@ func scheduleResponse(view outcomevc.ScheduleView) ScheduleResponse {
 		for _, dependency := range entry.BlockingDependencies {
 			dependencies = append(dependencies, string(dependency))
 		}
-		units = append(units, ScheduleWorkUnitResponse{WorkUnit: workUnitResponse(entry.WorkUnit), State: string(entry.State), Attempts: attempts, BlockedReason: string(entry.BlockedReason), BlockingDependencies: dependencies, CriterionReady: ready})
+		units = append(units, ScheduleWorkUnitResponse{WorkUnit: workUnitResponse(entry.WorkUnit), State: string(entry.State), Attempts: attempts, BlockedReason: string(entry.BlockedReason), BlockedDetail: entry.BlockedDetail, BlockingDependencies: dependencies, CriterionReady: ready})
 	}
 	response := ScheduleResponse{
 		OutcomeID: string(view.Plan.OutcomeID), Plan: planRevisionResponse(view.Plan), WorkUnits: units,

@@ -204,7 +204,8 @@ func Run() error {
 		chatDrivers,
 		func() time.Time { return time.Now().UTC() },
 	).WithReasoningSecrets(secretstore.NewFileStore(cfg.DataDir)).
-		WithReasoningProbe(probeReasoning)
+		WithReasoningProbe(probeReasoning).
+		WithReasoningAvailability(probeReasoningAvailability)
 
 	// Chat service. The driver registry is the capability gate: a harness with no
 	// registered driver cannot start in chat mode, so an unsupported request fails
@@ -421,10 +422,17 @@ func Run() error {
 	}
 	attempts := attemptSpawner{sessions: sessionSvc, projects: store, agents: agents}
 	attempts.retention = &attemptArtifactRetainer{sessions: sessionSvc, refs: store, artifacts: artifactContent}
+	// Artifact continuity has two halves and both are wired here: retention
+	// captures what an Attempt produced, provisioning gives those exact bytes
+	// to its successor before that successor's provider starts.
+	sessMgr.SetAttemptInputProvisioner(&attemptInputProvisioner{receipts: store, artifacts: artifactContent, contexts: store})
+	// Deterministic checks run under the same frozen policy as the Attempt
+	// that produced the result, in the workspace that produced it.
+	attemptChecks := &attemptCheckRunner{sessions: sessionSvc, refs: store, artifacts: artifactContent}
 	// Waldo thinks with its own model; coding agents only execute authorized
 	// work. The provider resolves current settings at each call, so missing or
 	// invalid credentials remain actionable without daemon restart.
-	intelligenceProvider := newConfiguredIntelligenceProvider(settingsSvc)
+	intelligenceProvider := newConfiguredIntelligenceProvider(settingsSvc, log)
 	if reasoning, statusErr := settingsSvc.GetReasoning(ctx); statusErr != nil {
 		log.Warn("Waldo reasoning readiness could not be read", "error", statusErr)
 	} else if !reasoning.Ready {
@@ -436,6 +444,9 @@ func Run() error {
 		WithPlanning(intelligenceProvider, agentSvc).
 		WithExecution(attempts, store).
 		WithAttemptRetainer(attempts).
+		WithCheckRunner(attemptChecks, store).
+		WithRunIntents(store).
+		WithDocuments(store, artifactContent).
 		WithProofStore(store).
 		WithAnalystSessionReaper(reaper)
 	// Composed Outcomes (ADR 0007) have no proposer wired: decomposition used

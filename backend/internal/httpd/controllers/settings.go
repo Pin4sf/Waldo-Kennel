@@ -119,7 +119,7 @@ func (c *SettingsController) response(ctx context.Context, snapshot settingssvc.
 
 func reasoningResponse(status settingssvc.ReasoningStatus) ReasoningResponse {
 	out := ReasoningResponse{
-		Provider: status.Provider, Model: status.Model, Effort: status.Effort,
+		Mode: status.Mode, Provider: status.Provider, Model: status.Model, Effort: status.Effort,
 		Configured: status.Configured, Ready: status.Ready, KeyConfigured: status.KeyConfigured,
 		Verified: status.Verified, ErrorCode: status.ErrorCode, Error: status.Error,
 	}

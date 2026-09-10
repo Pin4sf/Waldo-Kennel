@@ -111,6 +111,7 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Post("/outcomes/{outcomeId}/acceptance-decisions", c.decideAcceptance)
 	r.Get("/outcomes/{outcomeId}/acceptance-batch", c.batchEligibility)
 	r.Post("/outcomes/{outcomeId}/acceptance-batch", c.acceptContributorBatch)
+	c.registerRunRoutes(r)
 }
 
 func (c *OutcomesController) getProof(w http.ResponseWriter, r *http.Request) {

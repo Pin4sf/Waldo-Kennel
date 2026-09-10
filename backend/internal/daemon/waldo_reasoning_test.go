@@ -98,6 +98,12 @@ func TestResolveReasoningConfigChoosesTheProviderTheOwnerHasAKeyFor(t *testing.T
 			wantKey:      "k-oai",
 			wantSource:   "OPENAI_API_KEY",
 		},
+		{
+			name:         "explicit Codex harness does not require an API key",
+			vars:         map[string]string{"KENNEL_WALDO_PROVIDER": " Codex ", "KENNEL_WALDO_MODEL": "gpt-test"},
+			wantProvider: providerCodex,
+			wantSource:   "codex-app-server-sign-in",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg, err := resolveReasoningConfig(env(tc.vars))
@@ -145,7 +151,7 @@ func TestResolveReasoningConfigRejectsAnUnknownProvider(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error for an unsupported provider")
 	}
-	for _, want := range []string{"gemini", providerAnthropic, providerOpenAI} {
+	for _, want := range []string{"gemini", providerAnthropic, providerOpenAI, providerCodex} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error should mention %q: %v", want, err)
 		}

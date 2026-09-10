@@ -28,6 +28,10 @@ type LLMResponse struct {
 	// EffectiveModel is the model the provider reports actually serving the
 	// request.
 	EffectiveModel string
+	// NativeSessionRef identifies a provider-native proposal session when the
+	// adapter used one. It is provenance only; it is not an AgentSessionRef and
+	// grants no execution authority.
+	NativeSessionRef string
 	// InputTokens and OutputTokens are provider-reported usage, zero when the
 	// provider does not report it.
 	// Pointers distinguish provider-reported zero from usage that was not

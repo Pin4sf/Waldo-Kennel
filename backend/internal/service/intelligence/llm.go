@@ -228,6 +228,11 @@ type planReply struct {
 		CriteriaCovered []string `json:"criteriaCovered"`
 		DependsOn       []string `json:"dependsOn"`
 		EvidenceIdeas   []string `json:"evidenceIdeas"`
+		CheckCommands   []struct {
+			CriterionAlias string   `json:"criterionAlias"`
+			Argv           []string `json:"argv"`
+			TimeoutSeconds int64    `json:"timeoutSeconds"`
+		} `json:"checkCommands"`
 	} `json:"workUnits"`
 	Assumptions []string `json:"assumptions"`
 	Blockers    []string `json:"blockers"`
@@ -283,6 +288,7 @@ func (p *LLMProvider) AnalyzeContract(ctx context.Context, request ports.Contrac
 	provenance := ports.IntelligenceProvenance{
 		EffectiveProvider: domain.IntelligenceProviderID(p.client.ID()),
 		EffectiveModel:    response.EffectiveModel,
+		NativeSessionRef:  response.NativeSessionRef,
 		InputTokens:       response.InputTokens,
 		OutputTokens:      response.OutputTokens,
 	}
@@ -405,6 +411,7 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 			CriteriaCovered: trimAll(unit.CriteriaCovered),
 			DependsOn:       trimAll(unit.DependsOn),
 			EvidenceIdeas:   trimAll(unit.EvidenceIdeas),
+			CheckCommands:   planDraftChecks(unit.CheckCommands),
 		})
 	}
 
@@ -418,6 +425,7 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 		Provenance: ports.IntelligenceProvenance{
 			EffectiveProvider: domain.IntelligenceProviderID(p.client.ID()),
 			EffectiveModel:    response.EffectiveModel,
+			NativeSessionRef:  response.NativeSessionRef,
 			InputTokens:       response.InputTokens,
 			OutputTokens:      response.OutputTokens,
 		},

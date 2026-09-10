@@ -228,6 +228,10 @@ func (s *Service) compileAndRoutePlan(
 		if err != nil {
 			return nil, nil, apierr.Invalid("PLAN_DRAFT_INTENT_INVALID", err.Error(), map[string]any{"workUnitKey": draftUnit.Key})
 		}
+		approvedChecks, err := compileApprovedChecks(unitID, draftUnit.CheckCommands, aliases, criteria)
+		if err != nil {
+			return nil, nil, err
+		}
 		unit := domain.WorkUnit{
 			ID:                      unitID,
 			Kind:                    domain.WorkUnitDirect,
@@ -240,6 +244,7 @@ func (s *Service) compileAndRoutePlan(
 			DependsOn:               dependencies,
 			CriterionIDs:            criteria,
 			RequiredCapabilities:    requiredCapabilities,
+			Checks:                  approvedChecks,
 		}
 		if err := validateWorkUnitWithinContractCeiling(revision, unit); err != nil {
 			return nil, nil, err
@@ -270,6 +275,54 @@ func (s *Service) compileAndRoutePlan(
 		decisions = append(decisions, domain.WorkUnitRoutingDecision{WorkUnitID: units[i].ID, Decision: decision})
 	}
 	return units, decisions, nil
+}
+
+// defaultApprovedCheckTimeoutSeconds is the bound applied when a proposal
+// names none. Named operational policy: a check has to be bounded, and the
+// model's silence is not permission to run indefinitely.
+const defaultApprovedCheckTimeoutSeconds int64 = 300
+
+// compileApprovedChecks turns proposed check commands into approved authority.
+//
+// Model output is a proposal, so every part of it is re-decided here: the
+// criterion alias is resolved to internal identity and must be one this
+// WorkUnit actually owns, the identifier is minted by the daemon rather than
+// accepted from the proposal, an unbounded timeout is bounded, and the command
+// shape is validated by the domain — which refuses a shell outright.
+func compileApprovedChecks(
+	unitID domain.WorkUnitID,
+	proposed []domain.PlanDraftCheck,
+	aliases map[string]domain.CriterionID,
+	owned []domain.CriterionID,
+) ([]domain.ApprovedCheck, error) {
+	if len(proposed) == 0 {
+		return nil, nil
+	}
+	checks := make([]domain.ApprovedCheck, 0, len(proposed))
+	for i, draft := range proposed {
+		criterionID, ok := aliases[strings.TrimSpace(draft.CriterionAlias)]
+		if !ok {
+			return nil, apierr.Invalid("PLAN_DRAFT_CHECK_CRITERION_UNKNOWN",
+				"A proposed check named an unknown Contract criterion alias",
+				map[string]any{"workUnitId": string(unitID), "alias": draft.CriterionAlias})
+		}
+		timeout := draft.TimeoutSeconds
+		if timeout <= 0 || timeout > domain.ApprovedCheckMaxTimeoutSeconds {
+			timeout = defaultApprovedCheckTimeoutSeconds
+		}
+		checks = append(checks, domain.ApprovedCheck{
+			// The daemon mints the identity: a proposal-supplied id could
+			// collide with, or impersonate, a check from another Plan.
+			ID:             domain.ApprovedCheckID(fmt.Sprintf("chk-%s-%d", uuid.NewString(), i+1)),
+			CriterionID:    criterionID,
+			Argv:           append([]string(nil), draft.Argv...),
+			TimeoutSeconds: timeout,
+		})
+	}
+	if err := domain.ValidateApprovedChecks(checks, owned); err != nil {
+		return nil, apierr.Invalid("PLAN_DRAFT_CHECK_INVALID", err.Error(), map[string]any{"workUnitId": string(unitID)})
+	}
+	return checks, nil
 }
 
 // contractCapabilityCeiling converts the confirmed typed ceiling to capability

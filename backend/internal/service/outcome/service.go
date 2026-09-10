@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -106,8 +107,55 @@ type Service struct {
 	// continuity is unavailable rather than silently faked.
 	receipts ports.AttemptReceiptStore
 	retainer ports.AttemptRetainer
+	// checks executes an Attempt's approved deterministic checks under its own
+	// frozen policy. Absent means a WorkUnit's checks simply do not run, which
+	// leaves its criteria unproved rather than assumed proved.
+	checks ports.AttemptCheckRunner
+	// checkRuns is the durable record of which approved checks have already
+	// been invoked against which retained artifact. Without it a repeated
+	// reconciliation tick would relaunch every command again.
+	checkRuns ports.AttemptCheckRunStore
+	// checkReservationEpoch identifies this daemon invocation. The active set
+	// is only a liveness witness for re-entrant reconciliation in this process;
+	// once-only ownership remains the durable check-run reservation.
+	checkReservationEpoch string
+	checkReservationMu    sync.Mutex
+	activeCheckRuns       map[string]int
+	// runIntents holds the owner's durable authorization to keep working
+	// through an approved Plan. Absent means only per-Attempt Start exists,
+	// which is a reduced capability, never an assumed authorization.
+	runIntents ports.RunIntentStore
+	// documents and documentBytes hold supplied-document Outcomes: which
+	// local documents were selected and approved, and the snapshot of their
+	// bytes that execution actually reads.
+	documents     ports.DocumentContextStore
+	documentBytes ports.DocumentSnapshotStore
 
 	staleHeartbeat time.Duration
+}
+
+// WithRunIntents wires durable run intent and serial continuation.
+func (s *Service) WithRunIntents(store ports.RunIntentStore) *Service {
+	s.runIntents = store
+	return s
+}
+
+// WithDocuments wires supplied-document Outcomes. Both halves are required:
+// a record of what was approved without the approved bytes could only be
+// honoured by re-reading the owner's files, which is the thing this path
+// exists to avoid.
+func (s *Service) WithDocuments(contexts ports.DocumentContextStore, snapshots ports.DocumentSnapshotStore) *Service {
+	s.documents, s.documentBytes = contexts, snapshots
+	return s
+}
+
+// WithCheckRunner wires deterministic check execution into classification.
+// Both the runner and the durable run record are required: executing checks
+// without a durable record of having executed them would relaunch real
+// commands on every reconciliation tick.
+func (s *Service) WithCheckRunner(runner ports.AttemptCheckRunner, runs ports.AttemptCheckRunStore) *Service {
+	s.checks, s.checkRuns = runner, runs
+	return s
 }
 
 // WithStaleHeartbeat configures the stale-attempt threshold.
@@ -123,7 +171,7 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
 	}
-	service := &Service{store: store, clock: clock}
+	service := &Service{store: store, clock: clock, checkReservationEpoch: uuid.NewString(), activeCheckRuns: map[string]int{}}
 	if proof, ok := store.(ports.OutcomeProofStore); ok {
 		service.proof = proof
 	}

@@ -21,6 +21,14 @@ type AttemptSpawnRequest struct {
 	ExecutionPolicy *domain.AttemptExecutionPolicy
 	Prompt          string
 	DisplayName     string
+	// Inputs are the exact retained predecessor results this Attempt was
+	// admitted with. They must be materialized into the successor workspace
+	// before the provider starts; an empty slice means the WorkUnit has no
+	// dependencies, never that provisioning may be skipped.
+	Inputs []AttemptInputRef
+	// Documents is the approved supplied-document snapshot for a staged
+	// Outcome. Nil for repository work.
+	Documents *AttemptDocumentInputs
 }
 
 // AttemptSpawnResult reports the spawned subordinate session and, when the

@@ -395,6 +395,26 @@ type Manager struct {
 
 	reviewersMu sync.Mutex
 	reviewers   ReviewerTerminator
+
+	// attemptInputs materializes a governed successor's predecessor results
+	// into its workspace before launch. Late-bound because only the Outcome
+	// execution path uses it; a spawn that needs it and does not have it is
+	// refused rather than started without its inputs.
+	attemptInputsMu sync.Mutex
+	attemptInputs   ports.AttemptInputProvisioner
+}
+
+// SetAttemptInputProvisioner wires artifact handoff into governed spawning.
+func (m *Manager) SetAttemptInputProvisioner(provisioner ports.AttemptInputProvisioner) {
+	m.attemptInputsMu.Lock()
+	defer m.attemptInputsMu.Unlock()
+	m.attemptInputs = provisioner
+}
+
+func (m *Manager) attemptInputProvisioner() ports.AttemptInputProvisioner {
+	m.attemptInputsMu.Lock()
+	defer m.attemptInputsMu.Unlock()
+	return m.attemptInputs
 }
 
 // latestUserPromptRecorder narrows the post-delivery write to the single fact
@@ -802,6 +822,18 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: provision: %w", id, err)
 	}
 
+	// A governed successor's inputs are its predecessors' retained output.
+	// They go in after the workspace holds the approved base and before any
+	// launch path runs, so the provider never sees a tree that is missing the
+	// work it is supposed to build on. A failure here leaves the workspace
+	// inspectable: rollback destroys it only when it is clean.
+	if len(cfg.AttemptInputs) > 0 || cfg.AttemptDocuments != nil {
+		if err := m.provisionAttemptInputs(ctx, cfg, project, ws); err != nil {
+			m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: %w", id, err)
+		}
+	}
+
 	// CLI agents receive the prompt as text and cannot consume inline binary
 	// data, so any pasted/dropped images are written into the worktree and
 	// referenced by path in the prompt. Done after provisioning (so the worktree
@@ -1042,6 +1074,30 @@ func (m *Manager) createSessionWorkspace(ctx context.Context, project domain.Pro
 		}
 	}
 	return info.Root, &info, nil
+}
+
+// provisionAttemptInputs materializes the exact predecessor results this
+// Attempt was admitted with.
+//
+// The successor's base is resolved the same way the predecessor's retention
+// recorded its own, so the provisioner can refuse a workspace whose base is
+// not the one those changes were produced against. Without that check the same
+// diff could be written onto a different base and nobody would be told.
+func (m *Manager) provisionAttemptInputs(ctx context.Context, cfg ports.SpawnConfig, project domain.ProjectRecord, ws ports.WorkspaceInfo) error {
+	provisioner := m.attemptInputProvisioner()
+	if provisioner == nil {
+		return fmt.Errorf("%w: artifact handoff is not configured in this daemon", ports.ErrAttemptInputProvisioning)
+	}
+	kind := domain.WorkspaceStagedFolder
+	baseRevision := ""
+	if project.Kind.WithDefault() == domain.ProjectKindSingleRepo {
+		kind = domain.WorkspaceGitWorktree
+		baseRevision, _ = resolveSpawnDiffBase(ctx, ws.Path, ws.BaseRef)
+	}
+	return provisioner.ProvisionAttemptInputs(ctx, ports.AttemptInputProvisionRequest{
+		Inputs: cfg.AttemptInputs, Documents: cfg.AttemptDocuments,
+		WorkspacePath: ws.Path, WorkspaceKind: kind, BaseRevision: baseRevision,
+	})
 }
 
 func resolveSpawnDiffBase(ctx context.Context, root, defaultBranch string) (string, string) {

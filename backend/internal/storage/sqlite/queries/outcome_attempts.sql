@@ -2,19 +2,19 @@
 -- ordered observations, custody fences, and recovery receipts.
 
 -- name: CreateAttempt :exec
-INSERT INTO attempts (id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, request_key)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO attempts (id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, run_intent_generation, request_key)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetAttempt :one
-SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, request_key, created_at, updated_at
+SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, run_intent_generation, request_key, created_at, updated_at
 FROM attempts WHERE id = ? AND outcome_id = ?;
 
 -- name: FindAttemptByIdempotencyKey :one
-SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, request_key, created_at, updated_at
+SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, run_intent_generation, request_key, created_at, updated_at
 FROM attempts WHERE request_key = ?;
 
 -- name: ListAttemptsForOutcome :many
-SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, request_key, created_at, updated_at
+SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, run_intent_generation, request_key, created_at, updated_at
 FROM attempts WHERE outcome_id = ? ORDER BY number;
 
 -- name: MaxAttemptNumber :one
@@ -25,7 +25,7 @@ UPDATE attempts SET status = ?, updated_at = ?
 WHERE id = ? AND outcome_id = ? AND status = ?;
 
 -- name: ListAttemptsByStatus :many
-SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, request_key, created_at, updated_at
+SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, run_intent_generation, request_key, created_at, updated_at
 FROM attempts WHERE status = ? ORDER BY outcome_id, number;
 
 -- name: CreateAttemptSessionRef :exec

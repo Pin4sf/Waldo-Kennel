@@ -66,6 +66,11 @@ type Driver struct {
 	log          *slog.Logger
 	spawn        spawnFunc
 	versionProbe versionProbeFunc
+
+	// This remains false until the installed app-server proves a deterministic
+	// no-tool or constrained-read posture. Read-only sandboxing plus a scratch
+	// cwd is not enough for approved-packet-only reasoning.
+	intelligenceBoundaryAvailable bool
 }
 
 // New builds a Chat driver over the existing Codex agent plugin.
@@ -202,6 +207,16 @@ func (d *Driver) Probe(ctx context.Context) (ports.ChatCapabilities, error) {
 	}
 
 	return capabilities(), nil
+}
+
+// ProbeIntelligence reports whether this install can safely host bounded Waldo
+// proposals. General Codex chat availability is not sufficient for this mode.
+func (d *Driver) ProbeIntelligence(ctx context.Context) error {
+	if !d.intelligenceBoundaryAvailable {
+		return fmt.Errorf("%w: Codex app-server has no proven no-tool or constrained-read boundary for Waldo reasoning", ports.ErrChatUnsupported)
+	}
+	_, err := d.Probe(ctx)
+	return err
 }
 
 type codexVersion [3]int
