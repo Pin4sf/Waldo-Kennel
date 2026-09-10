@@ -169,6 +169,40 @@ func TestStoreComposeRejectsConflictAndAppliesExactBytes(t *testing.T) {
 	}
 }
 
+func TestStoreExportRequiresOwnerAndPreservesDeletion(t *testing.T) {
+	store, err := New(Config{Root: filepath.Join(t.TempDir(), "artifacts")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspace, "report.md"), []byte("accepted"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	result, err := store.Retain(context.Background(), Input{AttemptID: "export-attempt", OutcomeID: "outcome-1", PlanRevisionID: "plan-1", WorkUnitID: "unit-1", ContractRevisionNumber: 1, WorkspaceKind: domain.WorkspaceStagedFolder, WorkspacePath: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(t.TempDir(), "export")
+	if _, err := store.Export(context.Background(), ExportRequest{Receipt: result.Receipt, Destination: destination}); err == nil {
+		t.Fatal("export without owner decision succeeded")
+	}
+	decision := &domain.AcceptanceDecision{ID: "accept-1", OutcomeID: "outcome-1", ContractRevisionID: "contract-1", Kind: domain.AcceptanceAccept, ActorType: domain.AcceptanceActorUser, Summary: "Reviewed", ResourceDisposition: domain.ResourceDispositionRetain, RequestKey: "request-1", RequestFingerprint: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}
+	manifest, err := store.Export(context.Background(), ExportRequest{Receipt: result.Receipt, Decision: decision, Destination: destination})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Disposition != "accepted" {
+		t.Fatalf("manifest = %#v", manifest)
+	}
+	body, err := os.ReadFile(filepath.Join(destination, "report.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "accepted" {
+		t.Fatalf("export = %q", body)
+	}
+}
+
 func git(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
