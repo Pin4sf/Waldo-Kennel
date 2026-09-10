@@ -36,9 +36,10 @@ const (
 // A zero bound uses a conservative default. The root must not be a workspace
 // directory; callers normally pass <data-dir>/artifacts.
 type Config struct {
-	Root     string
-	MaxFiles int
-	MaxBytes int64
+	Root        string
+	MaxFiles    int
+	MaxBytes    int64
+	MaxDuration time.Duration
 }
 
 // Input is assembled from the Attempt and its daemon-owned session/workspace
@@ -71,9 +72,10 @@ type Result struct {
 // SQLite so the database receipt can be committed/retried separately after a
 // filesystem crash.
 type Store struct {
-	root     string
-	maxFiles int
-	maxBytes int64
+	root        string
+	maxFiles    int
+	maxBytes    int64
+	maxDuration time.Duration
 }
 
 func New(cfg Config) (*Store, error) {
@@ -87,7 +89,7 @@ func New(cfg Config) (*Store, error) {
 	if err := os.MkdirAll(root, 0o750); err != nil {
 		return nil, fmt.Errorf("create artifact store root: %w", err)
 	}
-	return &Store{root: filepath.Clean(root), maxFiles: positiveOr(cfg.MaxFiles, defaultMaxFiles), maxBytes: positiveOr64(cfg.MaxBytes, defaultMaxBytes)}, nil
+	return &Store{root: filepath.Clean(root), maxFiles: positiveOr(cfg.MaxFiles, defaultMaxFiles), maxBytes: positiveOr64(cfg.MaxBytes, defaultMaxBytes), maxDuration: cfg.MaxDuration}, nil
 }
 
 func positiveOr(v, fallback int) int {
@@ -107,6 +109,11 @@ func positiveOr64(v, fallback int64) int64 {
 // point. Git captures both base..HEAD and working-tree status, so an agent
 // commit is not lost merely because HEAD is no longer dirty.
 func (s *Store) Retain(ctx context.Context, in Input) (Result, error) {
+	if s.maxDuration > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.maxDuration)
+		defer cancel()
+	}
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}

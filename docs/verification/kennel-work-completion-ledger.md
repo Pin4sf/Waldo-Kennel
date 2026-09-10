@@ -140,18 +140,18 @@ are binding on those phases.
 | C-9 | Execution end reaches `reconciled` from runtime facts | **already existed** in `EvaluateAttemptLiveness` | **verified, inherited** | health-gated; `ProbeFailed` is not a death conclusion | automated |
 | C-10 | An ended attempt is classified from proof bound to that exact attempt | none | **done** (this commit) | `terminal_test.go` — 7 cases | automated |
 | C-11 | Classification never borrows another attempt's proof | — | **done** (this commit) | `TestAttemptProvenDoesNotBorrowAnotherAttemptsProof` — red-green shown inline: `workUnitProven` answers yes for the pair, `attemptProven` only for the producer | automated |
-| C-12 | Artifact retention actually snapshots the workspace | none | **open** — the receipt model and its store exist; the retention adapter that fills them does not | — | — |
-| C-13 | A downstream WorkUnit receives the exact retained upstream artifact | none | **open** | — | — |
+| C-12 | Artifact retention actually snapshots the workspace | `backend/internal/artifactstore` plus daemon reconciliation wiring | **implemented, full acceptance open** `888f8f568` | `internal/artifactstore/store_test.go` — staged bytes/mode, committed+dirty Git output, secret/symlink refusal, composition/apply; daemon/store/outcome focused regressions | automated; daemon-restart/packaged acceptance open |
+| C-13 | A downstream WorkUnit receives the exact retained upstream artifact | `backend/internal/artifactstore/handoff.go` composition primitives | **partial/open** `888f8f568` | composition conflict/base checks and byte/mode verification pass; canonical successor admission/provisioning and input-version snapshot remain | automated primitive only |
 
 ### Correction slice R — review closure
 
 | ID | Requirement | State | Evidence | Proof level |
 |---|---|---|---|---|
-| R1 | Classification, receipt freeze, observation and custody release are one conditional persistence operation | **implemented** in working tree; commit pending | `/tmp/kennel-work-r-green.log`; storage finalizer regression | automated |
-| R2 | Succeeded Attempts with complete frozen custody are restart-repairable without authorizing work | **implemented** in working tree; commit pending | `accountSucceededCustody`; focused outcome tests | automated |
-| R3 | Receipt/file immutability, lineage checks and coherent reads | **implemented** in working tree; commit pending | migration 0120; focused store tests | automated/source |
-| R4 | Artifact identity includes semantic mode and component-safe path validation | **implemented** in working tree; commit pending | focused domain/store tests | automated |
-| R5 | Verification is bound to a generation and non-secret effective-input fingerprint; owner-triggered Verify is visible | **implemented** in working tree; commit pending | `/tmp/kennel-work-r5-backend.log`; frontend typecheck pending completion | automated/source |
+| R1 | Classification, receipt freeze, observation and custody release are one conditional persistence operation | **done** `646de9f73` | `/tmp/kennel-work-r-final-backend.log`; SQLite finalizer regression | automated |
+| R2 | Succeeded Attempts with complete frozen custody are restart-repairable without authorizing work | **done** `646de9f73` | `accountSucceededCustody`; focused outcome tests | automated |
+| R3 | Receipt/file immutability, lineage checks and coherent reads | **done** `646de9f73` | migration 0120; focused store tests | automated/source |
+| R4 | Artifact identity includes semantic mode and component-safe path validation | **done** `646de9f73` | focused domain/store tests | automated |
+| R5 | Verification is bound to a generation and non-secret effective-input fingerprint; owner-triggered Verify is visible | **done** `646de9f73` | `/tmp/kennel-work-r5-frontend-typecheck-final.log`; settings backend regression | automated/source |
 
 ### Deferred-phase gaps established during planning
 
@@ -191,4 +191,5 @@ is labelled `daemon-fixture` and never described as live conformance.
 | B2 graph + schedule reasons | `2464865aa`, `129cfe7d3`, `159ccb873` | `go test ./...` exit 0; frontend 232 files / 2798 passed / 6 skipped (was 230/2776); typecheck clean; lint `0 issues`; api regenerated | B2 closed. No graph dependency added. An `unresolved` schedule state was written and then removed: deriving it from `AttemptLost` would have misreported an attempt the owner had already reconciled |
 | C foundation + classification | `5670e1cc7`, `67f6daa74`, this commit | `go test ./...` exit 0; `-race -count=2` on touched packages; vet, build, lint `0 issues`; migration **0119** ledgered; sqlc regenerated | C-1 … C-11 closed. C-12 retention adapter and C-13 handoff remain open |
 | A1 readiness | `06e3234fb` | `go test ./...` exit 0; vet, build, lint `0 issues`; frontend typecheck exit 0; sqlc + api regenerated with sources, no further drift | A1-3, A1-7 closed. Migration **0118** added (not an amendment to unmerged 0116: the owner may already have applied it locally). A1-5/A1-6 independently reproduced from inherited tests |
-| R corrections | working tree after `827efca72` | focused Go R regressions pass; migrations 0120/0121 and sqlc generated locally; frontend typecheck command started | R1–R5 implementation underway; live provider verification remains blocked and the completion commit has not yet been recorded |
+| R corrections | `646de9f73` | focused Go R regressions and frontend typecheck pass; migrations 0120/0121 and sqlc generated locally | R1–R5 implemented; live provider verification remains blocked |
+| C retention | `888f8f568` | `go test ./internal/artifactstore ./internal/storage/sqlite/store ./internal/service/outcome ./internal/daemon` pass | C-12 adapter and C-13 composition primitives implemented; canonical successor admission remains open; [checkpoint](2026-09-10-c-retention-checkpoint.md) |
