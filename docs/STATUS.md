@@ -1,9 +1,17 @@
 # Kennel status
 
-**Source baseline:** latest beta `9396c3844ee00cf2c350df0426f4224d33ef87de` (2026-09-09; includes L0, L1a, L1b and recovery corrections).
-**Current objective:** finish the usable Outcome Continuity loop, not rebuild the foundation.
-**Execution authority:** [post-PR99 implementation plan](superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md).
-**Fresh checks:** [baseline verification record](verification/2026-09-08-post-pr99-launch-baseline.md).
+**Current integration:** PR #101 fresh Outcome-first foundation, including the Wednesday L2–L4 code, direct WorkUnit graph, retention/proof corrections and fresh-start entry. Consult Git for the current beta SHA; the dated inventories below are historical evidence, not current remote-state assertions.
+**Current objective:** finish the usable Outcome Continuity loop on this foundation.
+**Team boundary:** [fresh Kennel beta and Island integration](product/2026-09-10-fresh-kennel-beta-boundary.md).
+**Execution authority:** [completion handoff](superpowers/plans/2026-09-10-luna-kennel-work-completion.md).
+
+## Fresh-start checkpoint — 2026-09-10
+
+Work is the default root destination. Island startup is opt-in with `KENNEL_ENABLE_ISLAND=1`; its team should build on daemon Outcome projections. AO commit-author inference and old gitignore ownership adoption are removed; fresh profiles are the supported target.
+
+Exact check scopes and outside-data read confinement are enforced. Proof finalization checks a committed append-only generation, including owner corrections, rather than evidence timestamps. Dependent WorkUnits fail closed with `UPSTREAM_MATERIALIZATION_UNAVAILABLE` until their inputs can actually be provisioned. This is a foundation checkpoint, not launch acceptance or a complete execution loop.
+
+Remaining code: C-13 materialization, checks/evidence/run-intent/rework integration, full Board/Mission supervision, supplied-document wiring and durable delivery. Packaged and real-provider journeys remain separate acceptance gates.
 
 ## Implementation inventory — verified 2026-09-09
 
