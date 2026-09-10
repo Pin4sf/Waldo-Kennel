@@ -195,14 +195,15 @@ is labelled `daemon-fixture` and never described as live conformance.
 | C retention | `888f8f568` | `go test ./internal/artifactstore ./internal/storage/sqlite/store ./internal/service/outcome ./internal/daemon` pass | C-12 adapter and C-13 composition primitives implemented; canonical successor admission remains open; [checkpoint](2026-09-10-c-retention-checkpoint.md) |
 | D enforcement | `d8758a642` | `go test ./internal/governedcheck -v` pass | deterministic policy/cwd/output boundary implemented; provider sandbox and live canaries open; [D guide](2026-09-10-d-checkpoint.md) |
 | A2 supplied adapter, B1 overview, E export, F guide | `782e75c3d`, `2b5fc669e` | intelligence/artifactstore focused Go tests pass; frontend typecheck pass | bounded adapters, export helper, overview projection, reversible shell flag and guide implemented; actual document intake, export API/delivery persistence, full Board/Mission acceptance, and packaged shell checks open |
-| Retention review correction | `0d41cb6c4` | artifactstore focused test, `git diff --check` pass | bounded file reads now fail closed if content grows beyond the total retention limit |
-| G integration | `59aa8703a`, `d02d77ae5`, `0d41cb6c4`, `f40d3f6b4` | bootstrap, sqlc, api parity, build, vet, full Go tests, full Go race, lint, frontend typecheck/tests/build, package identity | local branch is clean and reviewable; [Luna reviewer handoff](2026-09-10-luna-review-guide.md); live provider, daemon-backed journey, full canonical C-13/D/A2/E integration, and owner acceptance remain open |
+| Retention review correction | `0d41cb6c4`, `d96fc3aff` | artifactstore focused test, `git diff --check` pass | bounded file reads now fail closed if content grows beyond the total retention limit; existing published versions are verified before reuse |
+| G integration | `59aa8703a`, `d02d77ae5`, `0d41cb6c4`, `d96fc3aff`, `f40d3f6b4` | bootstrap, sqlc, api parity, build, vet, full Go tests, full Go race, lint, frontend typecheck/tests/build, package identity | local branch is clean and reviewable; [Luna reviewer handoff](2026-09-10-luna-review-guide.md); live provider, daemon-backed journey, full canonical C-13/D/A2/E integration, and owner acceptance remain open |
 
 ## Final integration facts
 
 | Fact | Value |
 |---|---|
 | Final HEAD before this ledger correction | `0d41cb6c439969384bc9fc742e6428d0f88a08de` |
+| Final code head before evidence-only updates | `d96fc3aff` |
 | Branch / worktree | `codex/kennel-work-completion` / `/Users/shivanshfulper/.codex/worktrees/kennel-work-completion` |
 | Remote base | `origin/beta` at `9396c3844ee00cf2c350df0426f4224d33ef87de`; `27` commits ahead, `0` behind |
 | Package | `/Users/shivanshfulper/.codex/worktrees/kennel-work-completion/frontend/out/Kennel-darwin-arm64/Kennel.app` |
