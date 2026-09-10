@@ -170,8 +170,8 @@ describe("ChatMarkdown", () => {
 	it("renders a fence with no language as a block, not as inline code", () => {
 		// Matching on the `language-*` class alone used to send these down the inline
 		// path, where a whole `go test` transcript rendered as one accent-coloured run.
-		render(<ChatMarkdown text={"```\nok\tgithub.com/aoagents/ao\t0.4s\n```"} />);
-		const code = screen.getByText(/aoagents/);
+		render(<ChatMarkdown text={"```\nok\tgithub.com/Pin4sf/kennel\t0.4s\n```"} />);
+		const code = screen.getByText(/Pin4sf/);
 		expect(code.closest("pre")).not.toBeNull();
 		expect(screen.getByRole("button", { name: /copy code/i })).toBeInTheDocument();
 	});

@@ -3223,8 +3223,8 @@ func TestListPRSummariesCollapsesTransferredRepoAliases(t *testing.T) {
 	st := newFakeStore()
 	st.sessions["mer-1"] = domain.SessionRecord{ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker}
 	now := time.Date(2026, 7, 31, 10, 0, 0, 0, time.UTC)
-	oldURL := "https://github.com/AgentWrapper/agent-orchestrator/pull/3193"
-	newURL := "https://github.com/Untrivial-ai/agent-orchestrator/pull/3193"
+	oldURL := "https://github.com/OldOrg/kennel/pull/3193"
+	newURL := "https://github.com/Pin4sf/kennel/pull/3193"
 	stList := &multiPRFakeStore{fakeStore: st, prs: []domain.PullRequest{
 		{
 			URL:          oldURL,
@@ -3232,7 +3232,7 @@ func TestListPRSummariesCollapsesTransferredRepoAliases(t *testing.T) {
 			Number:       3193,
 			Provider:     "github",
 			Host:         "github.com",
-			Repo:         "AgentWrapper/agent-orchestrator",
+			Repo:         "OldOrg/kennel",
 			SourceBranch: "ao/mer-1/fix-sigpipe",
 			TargetBranch: "main",
 			HeadSHA:      "same-head",
@@ -3247,7 +3247,7 @@ func TestListPRSummariesCollapsesTransferredRepoAliases(t *testing.T) {
 			Number:       3193,
 			Provider:     "github",
 			Host:         "github.com",
-			Repo:         "Untrivial-ai/agent-orchestrator",
+			Repo:         "Pin4sf/kennel",
 			SourceBranch: "ao/mer-1/fix-sigpipe",
 			TargetBranch: "main",
 			HeadSHA:      "same-head",
@@ -3328,7 +3328,7 @@ func TestDeduplicatePRFactsCollapsesTransferredRepoAliasesWithSameHead(t *testin
 	now := time.Date(2026, 7, 31, 10, 0, 0, 0, time.UTC)
 	got := deduplicatePRFacts([]domain.PRFacts{
 		{
-			URL:            "https://github.com/AgentWrapper/agent-orchestrator/pull/3193",
+			URL:            "https://github.com/OldOrg/kennel/pull/3193",
 			Number:         3193,
 			ReviewComments: true,
 			SourceBranch:   "ao/mer-1/fix-sigpipe",
@@ -3337,7 +3337,7 @@ func TestDeduplicatePRFactsCollapsesTransferredRepoAliasesWithSameHead(t *testin
 			UpdatedAt:      now,
 		},
 		{
-			URL:          "https://github.com/Untrivial-ai/agent-orchestrator/pull/3193",
+			URL:          "https://github.com/Pin4sf/kennel/pull/3193",
 			Number:       3193,
 			SourceBranch: "ao/mer-1/fix-sigpipe",
 			TargetBranch: "main",
@@ -3348,7 +3348,7 @@ func TestDeduplicatePRFactsCollapsesTransferredRepoAliasesWithSameHead(t *testin
 	if len(got) != 1 {
 		t.Fatalf("facts = %d, want transferred aliases collapsed: %+v", len(got), got)
 	}
-	if got[0].URL != "https://github.com/Untrivial-ai/agent-orchestrator/pull/3193" || !got[0].ReviewComments {
+	if got[0].URL != "https://github.com/Pin4sf/kennel/pull/3193" || !got[0].ReviewComments {
 		t.Fatalf("merged facts = %+v, want newest URL and preserved comments", got[0])
 	}
 }

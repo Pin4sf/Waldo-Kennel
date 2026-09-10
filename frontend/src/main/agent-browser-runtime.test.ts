@@ -339,7 +339,7 @@ describe("agent-browser runtime lifecycle", () => {
 			const alive = path.join(dataDir, "run-202-bbbbbbbbbbbb");
 			const malformed = path.join(dataDir, "run-303-cccccccccccc");
 			const empty = path.join(dataDir, "run-404-dddddddddddd");
-			const legacy = path.join(dataDir, "ao-legacy-session");
+			const legacy = path.join(dataDir, "legacy-session");
 			await Promise.all([mkdir(dead), mkdir(shortDead), mkdir(alive), mkdir(malformed), mkdir(empty), mkdir(legacy)]);
 			const deadOwnerPath = path.join(dead, "owner.json");
 			const shortDeadOwnerPath = path.join(shortDead, "owner.json");
@@ -363,7 +363,7 @@ describe("agent-browser runtime lifecycle", () => {
 			await scavengeBrowserRuntime(dataDir, (pid) => pid === 202);
 
 			expect((await readdir(dataDir)).sort()).toEqual([
-				"ao-legacy-session",
+				"legacy-session",
 				"run-202-bbbbbbbbbbbb",
 				"run-303-cccccccccccc",
 				"run-404-dddddddddddd",

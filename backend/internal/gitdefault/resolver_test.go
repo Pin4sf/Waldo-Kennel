@@ -91,7 +91,7 @@ func TestResolveBackfillsLegacyAOInitializedRepository(t *testing.T) {
 		email   string
 		subject string
 	}{
-		{name: "initialized folder", author: "Agent Orchestrator", email: "ao@example.com", subject: legacyInitialCommitSubject},
+		{name: "initialized folder", author: donorCommitAuthorName, email: donorCommitAuthorEmail, subject: legacyInitialCommitSubject},
 		{name: "workspace root", author: "Developer", email: "developer@example.com", subject: legacyWorkspaceCommitSubject},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

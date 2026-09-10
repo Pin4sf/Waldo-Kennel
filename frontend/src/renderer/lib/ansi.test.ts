@@ -10,7 +10,7 @@ const ESC = "\u001b";
 
 describe("stripAnsi", () => {
 	it("returns text with nothing to strip unchanged, by identity", () => {
-		const plain = "ok  github.com/aoagents/ao/internal/domain\t0.412s\n";
+		const plain = "ok  github.com/Pin4sf/kennel/internal/domain\t0.412s\n";
 		// Identity, not equality: this is the common case and it must not allocate.
 		expect(stripAnsi(plain)).toBe(plain);
 	});

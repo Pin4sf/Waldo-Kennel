@@ -14,9 +14,16 @@ import (
 )
 
 const (
-	defaultGitBinary             = "git"
-	legacyDefaultBranch          = "main"
-	legacyInitialCommitSubject   = "initial commit"
+	defaultGitBinary           = "git"
+	legacyDefaultBranch        = "main"
+	legacyInitialCommitSubject = "initial commit"
+
+	kennelCommitAuthorName  = "Kennel"
+	kennelCommitAuthorEmail = "kennel@example.com"
+	// The donor identity Kennel used before the rename. Historical git data
+	// only; never used to author anything.
+	donorCommitAuthorName        = "Agent Orchestrator"
+	donorCommitAuthorEmail       = "ao@example.com"
 	legacyWorkspaceCommitSubject = "chore: initialize Kennel workspace root"
 	// ManagedDefaultConfigKey records the branch Kennel selected when it initialized
 	// a repository itself. It is intentionally repo-local and is only consulted
@@ -283,14 +290,15 @@ func (r *Resolver) legacyAOInitializedBranch(ctx context.Context, repo string) (
 		name := strings.TrimSpace(fields[0])
 		email := strings.TrimSpace(fields[1])
 		subject := strings.TrimSpace(fields[2])
-		// Kennel now authors these commits as itself, but repositories
-		// initialized before the rename still carry the donor identity, so both
-		// are recognized. Dropping the old pair would make Kennel forget which
-		// branch it chose for every project it set up earlier.
+		// Kennel authors these commits as itself. Repositories it initialized
+		// before the rename carry the donor identity instead -- that pair is data
+		// already written into users' git history, not a name Kennel answers to,
+		// and it stays matchable because dropping it would make Kennel forget
+		// which branch it chose for every project it set up earlier.
 		if subject == legacyWorkspaceCommitSubject ||
 			(subject == legacyInitialCommitSubject &&
-				((name == "Kennel" && email == "kennel@example.com") ||
-					(name == "Agent Orchestrator" && email == "ao@example.com"))) {
+				((name == kennelCommitAuthorName && email == kennelCommitAuthorEmail) ||
+					(name == donorCommitAuthorName && email == donorCommitAuthorEmail))) {
 			return legacyDefaultBranch, true
 		}
 	}

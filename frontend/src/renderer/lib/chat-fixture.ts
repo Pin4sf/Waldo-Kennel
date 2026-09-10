@@ -268,7 +268,7 @@ export const chatFixture: ConversationSnapshot = {
 				"```\n\n" +
 				"A fence with no language is still a block, not inline code:\n\n" +
 				"```\n" +
-				"ok  \tgithub.com/aoagents/ao/internal/domain\t0.412s\n" +
+				"ok  \tgithub.com/Pin4sf/kennel/internal/domain\t0.412s\n" +
 				"```",
 			streaming: false,
 			createdAt: t(32, 30),
@@ -365,7 +365,7 @@ export const chatFixture: ConversationSnapshot = {
 			detail: {
 				server: "github",
 				toolName: "search_issues",
-				arguments: { repo: "aoagents/kennel", state: "open", labels: ["chat-mode"] },
+				arguments: { repo: "Pin4sf/kennel", state: "open", labels: ["chat-mode"] },
 				result: {
 					total: 2,
 					issues: [
@@ -451,7 +451,7 @@ export const chatFixture: ConversationSnapshot = {
 				targetItemId: "item-91",
 				actionType: "command",
 				status: "approved",
-				command: "curl -s https://proxy.golang.org/github.com/aoagents/ao/@v/list",
+				command: "curl -s https://proxy.golang.org/github.com/Pin4sf/kennel/@v/list",
 				cwd: "/Users/dhruv/.kennel/data/worktrees/kennel-1/ao-14",
 				riskLevel: "low",
 				rationale:
