@@ -36,7 +36,7 @@ import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { useWorkspaceQuery, workspaceQueryKey, workspaceQueryOptions } from "../hooks/useWorkspaceQuery";
 import { apiClient, apiErrorCode, apiErrorMessage, hasTrustedApiBaseUrl } from "../lib/api-client";
 import { refreshDaemonStatus } from "../lib/daemon-status";
-import { usesPreviewWorkspaceData, usesWaldoUiPreview } from "../lib/preview-mode";
+import { usesPreviewWorkspaceData, usesWaldoUiPreview, usesWorkLaunchMode } from "../lib/preview-mode";
 import { addRendererExceptionStep, captureRendererEvent, captureRendererException } from "../lib/telemetry";
 import { ShellProvider } from "../lib/shell-context";
 import { restartProjectOrchestrator } from "../lib/restart-orchestrator";
@@ -777,7 +777,7 @@ function ShellLayout() {
 									className={cn(
 										"relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
 										!usesWorkProjectShell && !isSidebarOpen && "sidebar-hidden",
-										!isHomeRoute && "waldo-launcher-reserved",
+																				!isHomeRoute && !usesWorkLaunchMode && "waldo-launcher-reserved",
 									)}
 								>
 									<div className="min-h-0 flex-1 overflow-x-hidden">
@@ -813,10 +813,10 @@ function ShellLayout() {
 											</CenterPanelShell>
 										)}
 									</div>
-									<div className="pointer-events-none absolute right-2 top-1.5 z-titlebar">
+									{!usesWorkLaunchMode ? <div className="pointer-events-none absolute right-2 top-1.5 z-titlebar">
 										<WaldoLauncher className="pointer-events-auto" />
-									</div>
-									{!isHomeRoute ? (
+									</div> : null}
+									{!isHomeRoute && !usesWorkLaunchMode ? (
 										<WaldoShellRail
 											contextLabel={waldoWorkContext}
 											daemonReady={daemonStatus.state === "ready"}
