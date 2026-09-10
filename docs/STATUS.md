@@ -105,6 +105,18 @@ Fresh verification on this branch also passed `go test -race ./...` (exit 0), `n
 
 ## Current verification truth
 
+## Luna Work completion branch — 2026-09-10
+
+The isolated `codex/kennel-work-completion` branch adds the R1–R5 correction
+slice, retained artifact bytes and deterministic multi-predecessor composition
+primitives, a bounded governed-check runner, a secret-safe supplied-document
+adapter, an owner-gated local export helper, and a reversible focused Work
+shell. These are source/automated or adapter-level claims, not live-provider,
+packaged, or owner-acceptance evidence. C-13 successor admission, full D run
+intent/rework integration, document Outcome wiring, export HTTP/delivery
+persistence, complete B1/B3 supervision, packaged startup suppression, and
+live provider canaries remain open in the completion ledger.
+
 The baseline record distinguishes pass/fail/not-run. The historical fresh run had **23 failures in 4 files**; L0 now has no frontend test failures. The full frontend suite is green at 230 files, 2776 passed and 6 skipped; frontend typecheck, HTTP/spec parity and full lint pass. Full backend tests and the L1b backend/adapters race gates pass. The earlier full `npm run lint` wrapper failure was caused by L0’s stale generated contracts and is repaired. The foundation wrapper remains blocked by the unrelated cloud-client generated-schema drift described above. L1a’s exact-binding regression is green at the Manager launch boundary for both TUI and Chat. L1b’s recovery and adapter policy enforcement are unit/integration-tested, but live TUI/Chat effect probes are blocked by the missing code-mode host; restart/recovery against a real provider, packaged Electron journey, and owner acceptance remain open. The macOS arm64 package build and package identity check pass, but were not launched. Do not treat the whole foundation or provider conformance gate as green.
 
 No live-model, real-provider permission, packaged Electron journey, or owner-accepted Outcome is claimed by this documentation update. Green service tests do not establish those facts.
