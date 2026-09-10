@@ -115,6 +115,24 @@ func TestVerificationDoesNotSurviveAProviderOrModelChange(t *testing.T) {
 	}
 }
 
+func TestCodexVerificationExpiresWithoutAnExternalIdentityBinding(t *testing.T) {
+	stamp := time.Now().UTC()
+	snapshot := Snapshot{
+		ReasoningVerifiedAt:       &stamp,
+		ReasoningVerifiedProvider: "codex",
+		ReasoningVerifiedModel:    "gpt-test",
+		ReasoningVerificationFingerprint: reasoningFingerprint(ReasoningConfig{
+			Mode: "codex_harness", Provider: "codex", Model: "gpt-test", Effort: "high",
+		}),
+	}
+	verified, at := verificationFor(snapshot, ReasoningConfig{
+		Mode: "codex_harness", Provider: "codex", Model: "gpt-test", Effort: "high",
+	})
+	if verified || at != nil {
+		t.Fatalf("Codex verification survived without external identity binding: verified=%v at=%v", verified, at)
+	}
+}
+
 // Changing the selection or the credential must invalidate the old probe.
 func TestSetReasoningInvalidatesAnEarlierVerification(t *testing.T) {
 	svc, store := verifiableService("openai", "gpt-test", "good-key")

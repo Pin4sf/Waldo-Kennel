@@ -251,6 +251,5 @@ func probeReasoningAvailability(ctx context.Context, cfg settingssvc.ReasoningCo
 		return nil
 	}
 	driver := codexappserver.New(codex.New(), slog.Default())
-	_, err := driver.Probe(ctx)
-	return err
+	return driver.ProbeIntelligence(ctx)
 }

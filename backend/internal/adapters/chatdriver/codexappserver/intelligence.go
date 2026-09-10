@@ -22,6 +22,8 @@ const IntelligenceProviderID = "codex-app-server"
 
 const defaultIntelligenceTimeout = 2 * time.Minute
 
+const intelligenceTurnAckTimeout = 5 * time.Second
+
 // IntelligenceConfig selects the exact harness request. Empty Model and Effort
 // preserve Codex's provider-default semantics; the adapter never fills either
 // from an unrelated worker configuration.
@@ -129,8 +131,12 @@ func (c *IntelligenceClient) Complete(ctx context.Context, request ports.LLMRequ
 	// provider operation alive.
 	turnStartCtx := callCtx
 	if deadline, ok := callCtx.Deadline(); ok {
+		ackDeadline := time.Now().Add(intelligenceTurnAckTimeout)
+		if deadline.Before(ackDeadline) {
+			ackDeadline = deadline
+		}
 		var turnStartCancel context.CancelFunc
-		turnStartCtx, turnStartCancel = context.WithDeadline(context.Background(), deadline)
+		turnStartCtx, turnStartCancel = context.WithDeadline(context.Background(), ackDeadline)
 		defer turnStartCancel()
 	}
 	turn, err := conv.sendTurn(turnStartCtx, ports.ChatUserMessage{
@@ -168,6 +174,9 @@ func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model
 	if d == nil || d.plugin == nil {
 		return nil, ports.ErrChatUnsupported
 	}
+	if !d.intelligenceBoundaryAvailable {
+		return nil, fmt.Errorf("%w: Codex app-server has no proven no-tool or constrained-read boundary for Waldo reasoning", ports.ErrChatUnsupported)
+	}
 	if !strings.HasPrefix(workspace, string(os.PathSeparator)) {
 		return nil, fmt.Errorf("intelligence workspace must be absolute")
 	}
@@ -176,10 +185,10 @@ func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model
 		return nil, err
 	}
 
-	// These session flags are the supported app-server boundary for this
-	// proposal-only thread: no plugins, no skill catalogue, and no ambient MCP
-	// servers. The cwd is disposable, so the approved repository packet remains
-	// prompt data rather than an implicit filesystem grant.
+	// These session flags reduce ambient context for the proposal-only thread,
+	// but are not sufficient confinement proof on their own. The capability gate
+	// above remains closed until tools and unrelated filesystem reads cannot
+	// escape the approved packet.
 	params := map[string]any{
 		"cwd":            workspace,
 		"approvalPolicy": "never",
@@ -220,22 +229,43 @@ func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model
 }
 
 func waitForIntelligenceTurn(ctx context.Context, conv *conversation, turnID string) ([]byte, error) {
+	if strings.TrimSpace(turnID) == "" {
+		return nil, errors.New("Codex reasoning turn has no provider turn id")
+	}
 	var reply []byte
 	for {
 		select {
 		case <-ctx.Done():
 			interruptCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			_ = conv.Interrupt(interruptCtx, turnID)
+			interruptErr := conv.Interrupt(interruptCtx, turnID)
 			cancel()
+			if interruptErr != nil {
+				// The provider did not acknowledge interruption. The caller owns this
+				// ephemeral app-server, so close it before returning; never represent
+				// an unacknowledged interrupt as provider-side completion.
+				_ = conv.Close()
+			}
 			return nil, ctx.Err()
 		case ev, ok := <-conv.Events():
 			if !ok {
 				return nil, errors.New("Codex reasoning conversation ended before turn completion")
 			}
-			if ev.ProviderTurnID != "" && ev.ProviderTurnID != turnID {
+			// A canceled context and an already-queued success event can both be
+			// ready in this select. Recheck after receiving the event so cancellation
+			// always wins over a response that arrived too late.
+			if err := ctx.Err(); err != nil {
+				interruptCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				interruptErr := conv.Interrupt(interruptCtx, turnID)
+				cancel()
+				if interruptErr != nil {
+					_ = conv.Close()
+				}
+				return nil, err
+			}
+			if ev.ProviderTurnID != turnID {
 				// A stale or replayed event from another turn is not evidence for
-				// this request. Fresh ephemeral threads should not produce one, but
-				// the identity check is still required at the adapter boundary.
+				// this request. Identity-less events are rejected too: accepting one
+				// would turn a parser omission into false evidence for this turn.
 				continue
 			}
 			switch ev.Kind {

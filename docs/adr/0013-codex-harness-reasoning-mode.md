@@ -22,11 +22,15 @@ amendment adds a third, explicit reasoning selection: `codex`.
    provenance, and creates no Kennel `AgentSessionRef`, Attempt, WorkUnit, or
    durable Outcome conversation.
 4. The thread receives the already-approved repository/document grounding
-   packet in the prompt. Its cwd is a disposable temporary directory. It has
-   `approvalPolicy=never`, `sandbox=read-only`, and a turn-level
-   `networkAccess=false` policy. Ambient plugins, apps, skill instructions, and
-   MCP servers are disabled or omitted at the app-server boundary; no extra
-   context root is granted.
+   packet in the prompt. Its cwd is a disposable temporary directory. The
+   adapter requests `approvalPolicy=never`, `sandbox=read-only`, and a
+   turn-level `networkAccess=false` policy, and requests that plugins, apps,
+   skill instructions, and MCP servers be absent. These requests are not yet a
+   sufficient confinement proof: the installed app-server's MCP session layer
+   is additive, and read-only does not establish an approved-packet-only read
+   root. Production Codex reasoning therefore fails closed as unavailable until
+   a deterministic no-tool or constrained-read boundary is proven. Controlled
+   protocol tests may exercise the adapter behind that capability gate.
 5. Model and effort are explicit settings. An empty value preserves Codex's
    provider-default semantics. Kennel never silently substitutes a model or
    another reasoning provider. A failed or unavailable Codex harness is an
@@ -45,8 +49,10 @@ amendment adds a third, explicit reasoning selection: `codex`.
 
 - The settings API exposes `mode=codex_harness`, `provider=codex`, and truthful
   local readiness without pretending that a Codex sign-in is an API key.
-- A Codex harness can make intake and plan proposals available without adding a
-  second provider-specific control-plane path or hidden fallback.
+- The bounded adapter and settings path are present, but the installed Codex
+  harness is truthfully unavailable for Waldo proposals until its confinement
+  boundary is proven. This is preferable to treating prompt instructions or a
+  disposable cwd as a security boundary.
 - This slice does not define the later worker-side skill/tool bridge
   (`understand-and-propose`, `execute-work-unit`, `report-result`, or
   `request-help`), nor does it make a proposal thread durable. Those require a

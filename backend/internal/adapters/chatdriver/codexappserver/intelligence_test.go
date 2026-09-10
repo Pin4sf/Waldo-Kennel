@@ -25,6 +25,18 @@ func testIntelligenceRequest() ports.LLMRequest {
 	}
 }
 
+func TestIntelligenceCapabilityFailsClosedWithoutConfinementProof(t *testing.T) {
+	d, _ := newTestDriver(t)
+	d.intelligenceBoundaryAvailable = false
+	_, err := d.startIntelligence(context.Background(), "/tmp/kennel-intelligence-test", "", "")
+	if !errors.Is(err, ports.ErrChatUnsupported) {
+		t.Fatalf("startIntelligence error = %v, want unsupported confinement", err)
+	}
+	if err := d.ProbeIntelligence(context.Background()); !errors.Is(err, ports.ErrChatUnsupported) {
+		t.Fatalf("ProbeIntelligence error = %v, want unsupported confinement", err)
+	}
+}
+
 func TestIntelligenceClientPinsBoundedStructuredTurn(t *testing.T) {
 	d, srv := newTestDriver(t)
 	client := NewIntelligenceClient(d, IntelligenceConfig{Model: "approved-model", Effort: "high", Timeout: time.Second})
@@ -88,8 +100,10 @@ func TestIntelligenceClientPinsBoundedStructuredTurn(t *testing.T) {
 		t.Fatalf("structured output or idempotency key missing: schema=%s id=%q", turnParams.OutputSchema, turnParams.ClientMessage)
 	}
 
-	// A stale response for another turn is ignored. The settled response is
+	// Identity-less and stale responses are ignored. The settled response is
 	// accepted only for the provider turn the adapter started.
+	srv.push(`{"method":"item/completed","params":{"threadId":"thread-1","item":{"id":"missing-turn","type":"agentMessage","text":"not this request"}}}`)
+	srv.push(`{"method":"turn/completed","params":{"threadId":"thread-1","turn":{"status":"completed","items":[]}}}`)
 	srv.push(`{"method":"item/completed","params":{"threadId":"thread-1","turnId":"stale-turn","item":{"id":"stale","type":"agentMessage","text":"not this request"}}}`)
 	srv.push(`{"method":"item/completed","params":{"threadId":"thread-1","turnId":"turn-1","item":{"id":"msg-1","type":"agentMessage","text":"{\"summary\":\"bounded\"}"}}}`)
 	srv.push(`{"method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"completed","items":[]}}}`)
@@ -103,6 +117,21 @@ func TestIntelligenceClientPinsBoundedStructuredTurn(t *testing.T) {
 	}
 	if got.response.EffectiveModel != "gpt-test" || got.response.NativeSessionRef != "thread-1" {
 		t.Fatalf("provenance = %+v", got.response)
+	}
+}
+
+func TestSendTurnRejectsMissingProviderTurnID(t *testing.T) {
+	d, srv := newTestDriver(t)
+	conv, err := d.connect(context.Background(), "/tmp/ws", nil)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer conv.Close()
+	conv.start("thread-1", "gpt-test", "high", nil)
+	srv.respondTo("turn/start", `{"turn":{"status":"inProgress","items":[]}}`)
+	_, err = conv.sendTurn(context.Background(), ports.ChatUserMessage{Text: "hello"}, nil)
+	if err == nil || !strings.Contains(err.Error(), "no turn id") {
+		t.Fatalf("sendTurn error = %v, want missing turn id", err)
 	}
 }
 
@@ -143,6 +172,29 @@ func TestIntelligenceClientCancellationInterruptsNamedTurn(t *testing.T) {
 	if err := json.Unmarshal(interrupt.Params, &params); err != nil || params.TurnID != "turn-1" {
 		t.Fatalf("interrupt params = %s (%v)", interrupt.Params, err)
 	}
+	err := <-result
+	var failure *ports.ReasoningFailure
+	if !errors.As(err, &failure) || failure.Kind != ports.ReasoningCancelled {
+		t.Fatalf("err = %v, want cancelled reasoning failure", err)
+	}
+}
+
+func TestIntelligenceClientDoesNotAcceptQueuedCompletionAfterCancellation(t *testing.T) {
+	d, srv := newTestDriver(t)
+	client := NewIntelligenceClient(d, IntelligenceConfig{Timeout: time.Second})
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, err := client.Complete(ctx, testIntelligenceRequest())
+		result <- err
+	}()
+	srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
+	srv.awaitResponse("turn/start")
+	cancel()
+	// Make the success frames available at the same boundary as cancellation.
+	// waitForIntelligenceTurn must re-check ctx after receiving either frame.
+	srv.push(`{"method":"item/completed","params":{"threadId":"thread-1","turnId":"turn-1","item":{"id":"msg-1","type":"agentMessage","text":"late"}}}`)
+	srv.push(`{"method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"completed","items":[]}}}`)
 	err := <-result
 	var failure *ports.ReasoningFailure
 	if !errors.As(err, &failure) || failure.Kind != ports.ReasoningCancelled {

@@ -205,6 +205,13 @@ func (s *Service) GetReasoning(ctx context.Context) (ReasoningStatus, error) {
 // the owner would be told reasoning is verified for a combination that was
 // never probed.
 func verificationFor(snapshot Snapshot, cfg ReasoningConfig) (bool, *time.Time) {
+	// Codex harness verification currently has no supported non-secret account
+	// identity/config digest to bind to. Expire it conservatively instead of
+	// claiming that unchanged Kennel settings still identify the same external
+	// subscription or effective harness configuration.
+	if cfg.Provider == "codex" {
+		return false, nil
+	}
 	if snapshot.ReasoningVerifiedAt == nil {
 		return false, nil
 	}

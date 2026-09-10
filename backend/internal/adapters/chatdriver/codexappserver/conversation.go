@@ -284,6 +284,9 @@ func (c *conversation) sendTurn(ctx context.Context, msg ports.ChatUserMessage, 
 	if err := c.conn.request(ctx, "turn/start", params, &resp); err != nil {
 		return ports.ChatTurnRef{}, fmt.Errorf("turn/start: %w", err)
 	}
+	if strings.TrimSpace(resp.Turn.ID) == "" {
+		return ports.ChatTurnRef{}, errors.New("turn/start returned no turn id")
+	}
 
 	c.mu.Lock()
 	c.activeTurn = resp.Turn.ID
