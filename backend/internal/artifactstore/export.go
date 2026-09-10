@@ -22,6 +22,7 @@ type ExportRequest struct {
 	Destination string
 }
 
+// ExportManifest records the exact retained result and disposition delivered.
 type ExportManifest struct {
 	AttemptID       string                `json:"attemptId"`
 	OutcomeID       string                `json:"outcomeId"`
@@ -99,7 +100,7 @@ func (s *Store) Export(ctx context.Context, req ExportRequest) (ExportManifest, 
 	if err != nil {
 		return ExportManifest{}, err
 	}
-	if err := os.WriteFile(filepath.Join(dest, "KENNEL-EXPORT.json"), append(encoded, '\n'), 0o640); err != nil {
+	if err := os.WriteFile(filepath.Join(dest, "KENNEL-EXPORT.json"), append(encoded, '\n'), 0o600); err != nil {
 		return ExportManifest{}, err
 	}
 	return manifest, nil
