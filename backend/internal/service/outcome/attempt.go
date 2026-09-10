@@ -240,6 +240,13 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		return AttemptView{}, err
 	}
 
+	// A successor may not be admitted until its predecessors' exact results are
+	// retained, complete and frozen. Checking here, before the fence is taken,
+	// means a blocked successor never holds custody it cannot use.
+	if err := s.requireUpstreamArtifacts(ctx, plan, unit); err != nil {
+		return AttemptView{}, err
+	}
+
 	now := s.clock()
 	attempt, err := s.store.CreateAttemptWithFence(ctx, ports.AttemptAdmission{
 		OutcomeID: outcomeID, PlanRevisionID: plan.ID, WorkUnitID: unit.ID,

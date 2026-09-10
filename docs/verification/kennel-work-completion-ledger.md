@@ -263,6 +263,23 @@ Proof level is **automated on macOS**. Linux and Windows enforcement is
 unimplemented and recorded as such; those platforms skip these rows rather than
 passing them.
 
+### C-13 admission gate (partial)
+
+A successor is now refused at admission unless every WorkUnit it depends on has
+a result that can honestly be handed down: produced by a **succeeded** attempt
+(the one status derived from retained bytes plus proof about those bytes),
+retained **complete**, **frozen**, and lineage-matched to that attempt and plan.
+Each failure has its own code — `UPSTREAM_ARTIFACT_MISSING`,
+`UPSTREAM_ARTIFACT_INCOMPLETE`, `UPSTREAM_ARTIFACT_UNREVIEWED`,
+`UPSTREAM_LINEAGE_MISMATCH` — so the owner sees which predecessor is not ready
+rather than a generic conflict. The check runs before the custody fence is
+taken, so a blocked successor never holds custody it cannot use.
+
+**Not wired:** materializing those bytes into the successor's workspace. The
+seam is `session_manager.createSessionWorkspace`, right after
+`m.workspace.Create` and before the agent runs. Until that lands, the A → restart
+→ B continuity test still cannot pass, and this row stays partial.
+
 ### Still open from the review
 
 | ID | Item | Why it is still open |
