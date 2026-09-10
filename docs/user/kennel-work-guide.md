@@ -19,6 +19,19 @@ status visible. Contract shows the desired result, criteria, constraints, permis
 ceiling, review requirements and pause conditions. Plan, Execution, Evidence & result,
 and Decision history are views inside the same Mission.
 
+## Review an intake proposal
+
+State the desired result in natural language. When reasoning returns a proposal,
+review its desired result, criteria and expected evidence, constraints, exclusions,
+pause conditions, facets, time boundary, clarification notes and permission ceiling.
+The initial view is read-only. Edit draft opens the existing editors; Review draft
+returns to the same draft without discarding changes. Confirmation remains explicit.
+A recoverable revision error keeps the edits and does not confirm a stale proposal.
+
+Confirmation opens the recorded Outcome in its Project Mission. Revisiting a confirmed
+intake offers Open Outcome; it navigates to that same ID without confirming again.
+Closing Mission returns to the Project portfolio.
+
 ## Configure reasoning and authorize
 
 Waldo reasoning uses the owner's configured provider/model and credential. In Plan,

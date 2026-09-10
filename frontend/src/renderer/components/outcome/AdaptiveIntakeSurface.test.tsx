@@ -111,22 +111,23 @@ it("shows every part of the Contract proposal, not just the four editable fields
 	renderReady();
 
 	// Bounds the previous screen carried but never displayed.
-	expect(await screen.findByDisplayValue("Stay on this branch")).toBeInTheDocument();
-	expect(screen.getByDisplayValue("Rewriting the build")).toBeInTheDocument();
-	expect(screen.getByDisplayValue("Stop before any remote effect")).toBeInTheDocument();
-	expect(screen.getByDisplayValue("A release exists")).toBeInTheDocument();
-	expect(screen.getByDisplayValue("Desktop change")).toBeInTheDocument();
+	expect(await screen.findByText("Stay on this branch")).toBeInTheDocument();
+	expect(screen.getByText("Rewriting the build")).toBeInTheDocument();
+	expect(screen.getByText("Stop before any remote effect")).toBeInTheDocument();
+	expect(screen.getByText("A release exists")).toBeInTheDocument();
+	expect(screen.getByText(/software · Desktop change/)).toBeInTheDocument();
 	expect(screen.getByText("Scope is the desktop app only")).toBeInTheDocument();
 
-	// The ceiling is the proposal's own, not static prose: two flags on, six off.
-	expect(screen.getByRole("switch", { name: "Read the workspace" })).toBeChecked();
-	expect(screen.getByRole("switch", { name: "Write in the workspace" })).toBeChecked();
-	expect(screen.getByRole("switch", { name: "Run commands locally" })).not.toBeChecked();
-	expect(screen.getByRole("switch", { name: "Deploy" })).not.toBeChecked();
+ expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+ expect(screen.getAllByText("Allowed")).toHaveLength(2);
+ expect(screen.getAllByText("Not allowed")).toHaveLength(6);
+ expect(screen.queryByRole("textbox", {name:"Time boundary"})).not.toBeInTheDocument();
+ expect(postMock).not.toHaveBeenCalled();
 });
 
 it("refuses to confirm a proposal the daemon would reject, and says which part", async () => {
 	renderReady();
+	await userEvent.click(await screen.findByRole("button", {name:"Edit draft"}));
 	await userEvent.click(await screen.findByRole("button", { name: "Remove stop condition 1" }));
 
 	expect(screen.getByTestId("intake-problems")).toHaveTextContent("At least one stop condition is required.");
@@ -138,6 +139,7 @@ it("sends narrowed authority and edited bounds as a revision before confirming",
 	postMock.mockResolvedValue({ data: { intake: { ...READY_PROPOSAL, session: { ...READY_PROPOSAL.session, status: "confirmed", currentProposalRevision: 2 }, confirmedOutcome: { id: "out-1" } } }, error: undefined });
 	renderReady();
 
+	await userEvent.click(await screen.findByRole("button", {name:"Edit draft"}));
 	await userEvent.click(await screen.findByRole("switch", { name: "Write in the workspace" }));
 	await userEvent.click(screen.getByRole("button", { name: /confirm outcome/i }));
 
@@ -154,6 +156,7 @@ it("treats a whitespace-only edit as no change at all", async () => {
 	postMock.mockResolvedValue({ data: { intake: { ...READY_PROPOSAL, session: { ...READY_PROPOSAL.session, status: "confirmed" }, confirmedOutcome: { id: "out-1" } } }, error: undefined });
 	renderReady();
 
+	await userEvent.click(await screen.findByRole("button", {name:"Edit draft"}));
 	await userEvent.type(await screen.findByRole("textbox", { name: "Time boundary" }), "   ");
 	await userEvent.click(screen.getByRole("button", { name: /confirm outcome/i }));
 
@@ -170,6 +173,7 @@ it("sends a cleared time boundary as absent rather than blank", async () => {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 	render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" intakeId="intake-full" /></QueryClientProvider>);
 
+	await userEvent.click(await screen.findByRole("button", {name:"Edit draft"}));
 	await userEvent.clear(await screen.findByRole("textbox", { name: "Time boundary" }));
 	await userEvent.click(screen.getByRole("button", { name: /confirm outcome/i }));
 
@@ -272,3 +276,34 @@ it("clears the box after a captured statement but keeps it after a rejected one"
 	await screen.findByRole("alert");
 	expect(statement).toHaveValue("Second Outcome");
 });
+
+ it("reopens the recorded Outcome from a reloaded confirmed intake without writing", async () => {
+ getMock.mockResolvedValue({data:{intake:{...READY_PROPOSAL,session:{...READY_PROPOSAL.session,status:"confirmed"},confirmedOutcome:{id:"existing-outcome"}}}});
+ const client = new QueryClient({defaultOptions:{queries:{retry:false}}});
+ render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" intakeId="intake-full" /></QueryClientProvider>);
+ await userEvent.click(await screen.findByRole("button",{name:"Open Outcome"}));
+ expect(navigateMock).toHaveBeenCalledWith({to:"/work",search:{project:"project-1",portfolio:"project-1",stage:"decide_authorize",outcome:"existing-outcome"}});
+ expect(postMock).not.toHaveBeenCalled();
+ });
+ it("confirms the reviewed revision and carries Project scope into Mission", async () => {
+ renderReady();
+ postMock.mockResolvedValue({data:{intake:{...READY_PROPOSAL,session:{...READY_PROPOSAL.session,status:"confirmed"},confirmedOutcome:{id:"confirmed-outcome"}}}});
+ await userEvent.click(await screen.findByRole("button",{name:/confirm outcome/i}));
+ expect(postMock).toHaveBeenCalledTimes(1);
+ expect(postMock).toHaveBeenCalledWith("/api/v1/intakes/{intakeId}/confirmation",expect.objectContaining({body:expect.objectContaining({expectedProposalRevision:1})}));
+ expect(navigateMock).toHaveBeenCalledWith({to:"/work",search:{project:"project-1",portfolio:"project-1",stage:"decide_authorize",outcome:"confirmed-outcome"}});
+ });
+ it("retains edited draft and revision fence after a recoverable proposal error", async () => {
+ renderReady();
+ await userEvent.click(await screen.findByRole("button",{name:"Edit draft"}));
+ await userEvent.type(screen.getByRole("textbox",{name:"Time boundary"}),"Before Friday");
+ postMock.mockResolvedValue({error:{code:"STALE_PROPOSAL"}});
+ await userEvent.click(screen.getByRole("button",{name:/confirm outcome/i}));
+ expect(await screen.findByRole("alert")).toBeInTheDocument();
+ expect(screen.getByRole("textbox",{name:"Time boundary"})).toHaveValue("Before Friday");
+ expect(postMock).toHaveBeenCalledTimes(1);
+ expect(postMock).toHaveBeenCalledWith("/api/v1/intakes/{intakeId}/proposals",expect.objectContaining({body:expect.objectContaining({expectedProposalRevision:1})}));
+ expect(navigateMock).not.toHaveBeenCalled();
+ await userEvent.click(screen.getByRole("button",{name:"Review draft"}));
+ expect(screen.getByText("Before Friday")).toBeInTheDocument();
+ });

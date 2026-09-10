@@ -13,7 +13,7 @@ import { createPreviewOutcome } from "../../lib/preview-outcome-store";
 import { Button } from "../ui/button";
 import { OutcomeIntakeAgentRoles } from "./OutcomeIntakeAgentRoles";
 import { IntakeAnalysisRefused, IntakeAnalysisWaiting, ProposalProvenanceNote } from "./IntakeAnalysisWaiting";
-import { IntakeAuthorityEditor, IntakeContractReview, normalizeProposal, proposalProblems } from "./IntakeContractReview";
+import { IntakeAuthorityEditor, IntakeContractReview, IntakeProposalSummary, normalizeProposal, proposalProblems } from "./IntakeContractReview";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 
 type IntakeSnapshot = components["schemas"]["IntakeSnapshotResponse"];
@@ -23,6 +23,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { t } = useTranslation();
+	const [editing, setEditing] = useState(false);
 	const [statement, setStatement] = useState("");
 	const [answer, setAnswer] = useState("");
 	const [cancellationReason, setCancellationReason] = useState("");
@@ -33,6 +34,10 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 	const [error, setError] = useState<string | null>(null);
 	const analyzed = useRef<string | null>(null);
 	const captureIntent = useRef<{ statement: string; key: string } | null>(null);
+	const openOutcome = (outcomeId: string) => navigate({
+		to: "/work",
+		search: { project: projectId, portfolio: projectId, stage: "decide_authorize", outcome: outcomeId },
+	});
 	const confirmationIntent = useRef<{ intakeId: string; revision: number; key: string } | null>(null);
 
 	const query = useQuery({
@@ -195,7 +200,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 					review: t("outcome.intake.previewReviewMethod"),
 					requestKey: captureIntent.current.key,
 				});
-				await navigate({ to: "/work", search: { project: projectId, stage: "decide_authorize", outcome: outcome.id } });
+				await openOutcome(outcome.id);
 				return;
 			}
 			const { data, error: apiError } = await apiClient.POST("/api/v1/projects/{id}/intakes", { params: { path: { id: projectId } }, body: { sourceSurface: "work", statement: normalized, requestKey: captureIntent.current.key } });
@@ -236,7 +241,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 			const confirmed = await apiClient.POST("/api/v1/intakes/{intakeId}/confirmation", { params: { path: { intakeId } }, body: { expectedProposalRevision: revision, requestKey: confirmationIntent.current.key } });
 			if (confirmed.error) throw confirmed.error;
 			const outcomeId = confirmed.data.intake.confirmedOutcome?.id; if (!outcomeId) throw new Error("The daemon confirmed intake without returning its Outcome.");
-			await navigate({ to: "/work", search: { project: projectId, stage: "decide_authorize", outcome: outcomeId } });
+			await openOutcome(outcomeId);
 		} catch (cause) { setError(apiErrorMessage(cause)); } finally { setPending(false); }
 	}
 
@@ -367,7 +372,10 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 							<ProposalProvenanceNote {...proposalProvenance(analysisRequest.request)} />
 						</div>
 					</div>
-					<IntakeContractReview draft={draft} onChange={setDraft} />
+					<Button className="self-start" variant="outline" disabled={pending} onClick={() => setEditing(value => !value)}>
+						{t(editing ? "outcome.intake.readDraft" : "outcome.intake.editDraft")}
+					</Button>
+					{editing ? <IntakeContractReview draft={draft} onChange={setDraft} /> : <IntakeProposalSummary draft={draft} />}
 				</div>
 				<aside className="flex flex-col gap-3 rounded-group hairline border-border bg-card px-4.5 py-3.5 lg:sticky lg:top-4 lg:self-start">
 					<div>
@@ -379,6 +387,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 					    always emitted; a narrowed or model-authored ceiling would
 					    have been described wrongly. */}
 					<IntakeAuthorityEditor
+						readOnly={!editing}
 						onChange={(authorityCeiling) => setDraft({ ...draft, authorityCeiling })}
 						value={draft.authorityCeiling}
 					/>
@@ -400,7 +409,18 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 			</section>
 		);
 	}
-	if (snapshot.session.status === "confirmed" && snapshot.confirmedOutcome) return <TruthMessage title={t("outcome.intake.confirmedTitle")} body={t("outcome.intake.confirmedBody")} />;
+	if (snapshot.session.status === "confirmed" && snapshot.confirmedOutcome) {
+		const outcomeId = snapshot.confirmedOutcome.id;
+		return (
+			<section className="mx-auto flex max-w-2xl flex-col gap-4 p-8">
+				<h2 className="text-xl font-medium">{t("outcome.intake.confirmedTitle")}</h2>
+				<p className="text-sm text-muted-foreground">{t("outcome.intake.confirmedBody")}</p>
+				<Button className="self-start" onClick={() => void openOutcome(outcomeId)}>
+					{t("outcome.intake.openOutcome")}
+				</Button>
+			</section>
+		);
+	}
 	if (snapshot.session.status === "cancelled") return <TruthMessage title={t("outcome.intake.cancelledTitle")} body={snapshot.session.cancellationReason || t("outcome.intake.cancelledBody")} />;
 	return <TruthMessage title={t("outcome.intake.attentionTitle")} body={error ?? t("outcome.intake.state", { status: snapshot.session.status })} />;
 }

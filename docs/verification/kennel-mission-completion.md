@@ -200,3 +200,36 @@ proposal-to-Contract/Plan revision linkage, pending/error/cancellation/replay se
 and attributable progress explanations. Automatic advancement after owner start needs
 a durable authorized run-intent boundary; frontend per-WorkUnit starts cannot substitute
 for it. These remain essential baseline integration gaps, not completed by this layout fix.
+
+
+## Intake continuity follow-up (2026-09-10)
+
+Three existing-API fixes after dd4f5870f:
+
+- A confirmed-intake reload offers Open Outcome using `confirmedOutcome.id`; navigation
+  performs no confirmation or creation POST.
+- Successful confirm and reopen use the same Project-scoped Mission search parameters
+  as the portfolio correction. Closing Mission retains that Project destination.
+- A ready proposal starts with a read-only summary of all existing proposal fields and
+  all eight permission flags. Optional Edit draft reuses IntakeContractReview and
+  IntakeAuthorityEditor; returning to review retains edits. Provenance, validation,
+  explicit confirmation, expectedProposalRevision and confirmation replay key remain.
+
+Fresh checks: full frontend 221 files, 2715 passing, 6 skipped. Targeted intake plus
+workspace/router checks: 21 passing. Typecheck, package and root lint succeeded.
+Logs: `/tmp/kennel-intake-all-tests.log`, `/tmp/kennel-intake-final-targeted.log`,
+`/tmp/kennel-intake-types.log`, `/tmp/kennel-intake-build.log`, `/tmp/kennel-intake-lint.log`.
+New tests prove no write on confirmed reload/open, exact Project and Outcome navigation,
+read-first constraints/evidence/permissions, revision fence and preserved edits on error.
+These ready/confirmed states are API fixtures, not live model-backed proposal evidence.
+Existing workspace tests prove close preserves portfolio input/focus; the complete
+confirmed-intake -> Mission -> close live journey is still blocked before proposal.
+
+Actual browser: submitted a natural-language statement against the disposable Project;
+created intake `intake-3b3b0e84-458b-4f20-a921-889cccbef5eb`. Analysis returned500 at
+15:47:42.931+05:30 because reasoning is not configured. Reload retained the same intake
+ID and explicit failure; no Outcome was created and no paid provider call occurred.
+Screenshot: `docs/verification/kennel-mission-evidence/intake-live-reasoning-blocked.jpg`.
+The existing recovery UI still advertises Use the offline proposal instead, conflicting
+with ADR0012; it was not invoked. Reported to the review task as an additional concrete
+integration defect, unchanged by this bounded intake continuity follow-up.

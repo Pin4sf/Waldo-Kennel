@@ -149,7 +149,11 @@ export function IntakeContractReview({
 	return (
 		<div className="flex min-w-0 flex-col gap-3" data-testid="intake-contract-review">
 			<Block title={t("outcome.intake.section.identity")}>
-				<EditorField label={t("outcome.intake.titleField")} onChange={(title) => patch({ title })} value={draft.title} />
+				<EditorField
+					label={t("outcome.intake.titleField")}
+					onChange={(title) => patch({ title })}
+					value={draft.title}
+				/>
 				<EditorField
 					label={t("outcome.intake.desiredStateField")}
 					multiline
@@ -166,7 +170,9 @@ export function IntakeContractReview({
 					{draft.criteria.map((criterion, index) => (
 						<div className="rounded-md hairline border-border bg-background/40 p-3" key={criterion.id ?? index}>
 							<div className="flex items-start justify-between gap-2">
-								<span className="text-2xs text-passive">{t("outcome.intake.criterionIndex", { index: index + 1 })}</span>
+								<span className="text-2xs text-passive">
+									{t("outcome.intake.criterionIndex", { index: index + 1 })}
+								</span>
 								<Button
 									aria-label={t("outcome.intake.removeCriterion", { index: index + 1 })}
 									disabled={draft.criteria.length === 1}
@@ -196,9 +202,7 @@ export function IntakeContractReview({
 				</div>
 				<Button
 					className="mt-2 self-start"
-					onClick={() =>
-						patch({ criteria: [...draft.criteria, { text: "", evidenceExpected: [""] }] })
-					}
+					onClick={() => patch({ criteria: [...draft.criteria, { text: "", evidenceExpected: [""] }] })}
 					size="sm"
 					type="button"
 					variant="outline"
@@ -246,10 +250,7 @@ export function IntakeContractReview({
 					{draft.facets.map((facet, index) => (
 						<div className="rounded-md hairline border-border bg-background/40 p-3" key={index}>
 							<div className="flex items-start justify-between gap-2">
-								<FacetKindField
-									onChange={(kind) => patchFacet(index, { kind })}
-									value={facet.kind ?? "software"}
-								/>
+								<FacetKindField onChange={(kind) => patchFacet(index, { kind })} value={facet.kind ?? "software"} />
 								<Button
 									aria-label={t("outcome.intake.removeFacet", { index: index + 1 })}
 									onClick={() => patch({ facets: draft.facets.filter((_, i) => i !== index) })}
@@ -310,6 +311,68 @@ export function IntakeContractReview({
 	);
 }
 
+/** Read the same structured draft that confirmation submits; editing is optional. */
+export function IntakeProposalSummary({ draft }: { draft: ProposalInput }) {
+	const { t } = useTranslation();
+	const lines = (values: string[]) =>
+		values.length ? (
+			<ul className="list-disc space-y-1 pl-4 text-sm">
+				{values.map((value, index) => (
+					<li className="whitespace-pre-wrap break-words" key={index}>
+						{value}
+					</li>
+				))}
+			</ul>
+		) : (
+			<p className="text-sm text-muted-foreground">{t("mission.none")}</p>
+		);
+	return (
+		<div className="flex flex-col gap-3" data-testid="intake-proposal-summary">
+			<Block title={t("outcome.intake.section.identity")}>
+				<h2 className="text-base font-medium">{draft.title}</h2>
+				<p className="mt-2 whitespace-pre-wrap text-sm">{draft.desiredState}</p>
+			</Block>
+			<Block title={t("outcome.intake.section.criteria")}>
+				{draft.criteria.map((criterion, index) => (
+					<div key={criterion.id ?? index} className="mb-3">
+						<p className="text-sm font-medium">{criterion.text}</p>
+						<p className="mt-1 text-xs text-muted-foreground">{t("outcome.intake.evidenceExpected")}</p>
+						{lines(criterion.evidenceExpected)}
+					</div>
+				))}
+			</Block>
+			<Block title={t("outcome.intake.section.review")}>
+				<p className="whitespace-pre-wrap text-sm">{draft.reviewMethod}</p>
+			</Block>
+			{(
+				[
+					["outcome.intake.constraints", draft.constraints ?? []],
+					["outcome.intake.nonGoals", draft.nonGoals ?? []],
+					["outcome.intake.stopConditions", draft.stopConditions],
+					["outcome.intake.section.clarifications", draft.clarificationNotes ?? []],
+				] as const
+			).map(([label, values]) => (
+				<Block key={label} title={t(label)}>
+					{lines(values)}
+				</Block>
+			))}
+			<Block title={t("outcome.intake.section.facets")}>
+				{draft.facets.map((facet, index) => (
+					<div key={index} className="mb-2 text-sm">
+						<p>
+							{facet.kind} · {facet.summary}
+						</p>
+						{lines(facet.requirements ?? [])}
+					</div>
+				))}
+			</Block>
+			<Block title={t("outcome.intake.section.temporal")}>
+				<p className="text-sm">{draft.temporalCondition || t("mission.none")}</p>
+			</Block>
+		</div>
+	);
+}
+
 /**
  * The authority ceiling as the eight real flags it is, bound to the draft.
  * Lives beside Confirm because it is the part of the proposal a person is most
@@ -318,7 +381,9 @@ export function IntakeContractReview({
 export function IntakeAuthorityEditor({
 	value,
 	onChange,
+	readOnly = false,
 }: {
+	readOnly?: boolean;
 	value: IntakeAuthority;
 	onChange: (next: IntakeAuthority) => void;
 }) {
@@ -330,12 +395,16 @@ export function IntakeAuthorityEditor({
 					<span className={cn(value[key] ? "text-foreground" : "text-muted-foreground")}>
 						{t(AUTHORITY_LABEL_KEYS[key] as never)}
 					</span>
-					<Switch
-						aria-label={t(AUTHORITY_LABEL_KEYS[key] as never)}
-						checked={value[key]}
-						onCheckedChange={(checked) => onChange({ ...value, [key]: checked })}
-						size="sm"
-					/>
+					{readOnly ? (
+						<span className="text-xs">{t(value[key] ? "mission.allowed" : "mission.denied")}</span>
+					) : (
+						<Switch
+							aria-label={t(AUTHORITY_LABEL_KEYS[key] as never)}
+							checked={value[key]}
+							onCheckedChange={(checked) => onChange({ ...value, [key]: checked })}
+							size="sm"
+						/>
+					)}
 				</label>
 			))}
 		</div>
@@ -430,13 +499,7 @@ function StringList({
 					</Button>
 				</div>
 			))}
-			<Button
-				className="self-start"
-				onClick={() => onChange([...values, ""])}
-				size="sm"
-				type="button"
-				variant="ghost"
-			>
+			<Button className="self-start" onClick={() => onChange([...values, ""])} size="sm" type="button" variant="ghost">
 				<Plus aria-hidden="true" className="size-3.5" />
 				{addLabel}
 			</Button>
