@@ -14,17 +14,7 @@ import (
 )
 
 const (
-	defaultGitBinary           = "git"
-	legacyDefaultBranch        = "main"
-	legacyInitialCommitSubject = "initial commit"
-
-	kennelCommitAuthorName  = "Kennel"
-	kennelCommitAuthorEmail = "kennel@example.com"
-	// The donor identity Kennel used before the rename. Historical git data
-	// only; never used to author anything.
-	donorCommitAuthorName        = "Agent Orchestrator"
-	donorCommitAuthorEmail       = "ao@example.com"
-	legacyWorkspaceCommitSubject = "chore: initialize Kennel workspace root"
+	defaultGitBinary = "git"
 	// ManagedDefaultConfigKey records the branch Kennel selected when it initialized
 	// a repository itself. It is intentionally repo-local and is only consulted
 	// when the repository has no remotes.
@@ -86,7 +76,7 @@ func (r *Resolver) Inspect(ctx context.Context, repo string) (Resolution, error)
 		return Resolution{}, err
 	}
 	if len(remotes) == 0 {
-		return r.resolveAOInitialized(ctx, repo)
+		return r.resolveKennelInitialized(ctx, repo)
 	}
 	if cached, ok := r.cachedRemoteHead(ctx, repo, remote); ok {
 		return cached, nil
@@ -128,7 +118,7 @@ func (r *Resolver) Resolve(ctx, remoteCtx context.Context, repo string) (Resolut
 		return Resolution{}, err
 	}
 	if len(remotes) == 0 {
-		return r.resolveAOInitialized(ctx, repo)
+		return r.resolveKennelInitialized(ctx, repo)
 	}
 	if remoteCtx == nil {
 		remoteCtx = ctx
@@ -237,20 +227,11 @@ func (r *Resolver) cachedRemoteHead(ctx context.Context, repo, remote string) (R
 	return Resolution{Branch: branch, Remote: remote, Ref: target, Source: SourceCachedRemoteHead}, true
 }
 
-func (r *Resolver) resolveAOInitialized(ctx context.Context, repo string) (Resolution, error) {
+func (r *Resolver) resolveKennelInitialized(ctx context.Context, repo string) (Resolution, error) {
 	out, err := r.run(ctx, r.binary, "-C", repo, "config", "--local", "--get", ManagedDefaultConfigKey)
 	branch := strings.TrimSpace(string(out))
 	if err != nil || branch == "" {
-		var ok bool
-		branch, ok = r.legacyAOInitializedBranch(ctx, repo)
-		if !ok {
-			return Resolution{}, unresolvedf(
-				"repository %q has no remote or Kennel-recorded default", repo,
-			)
-		}
-		if _, err := r.run(ctx, r.binary, "-C", repo, "config", "--local", ManagedDefaultConfigKey, branch); err != nil {
-			return Resolution{}, fmt.Errorf("backfill %s for repository %q: %w", ManagedDefaultConfigKey, repo, err)
-		}
+		return Resolution{}, unresolvedf("repository %q has no remote or Kennel-recorded default", repo)
 	}
 	if err := r.validateBranch(ctx, repo, branch); err != nil {
 		return Resolution{}, unresolvedf("repository %q has invalid %s=%q", repo, ManagedDefaultConfigKey, branch)
@@ -262,47 +243,6 @@ func (r *Resolver) resolveAOInitialized(ctx context.Context, repo string) (Resol
 		)
 	}
 	return Resolution{Branch: branch, Ref: ref, Source: SourceKennelInitialized}, nil
-}
-
-// legacyAOInitializedBranch recognizes the two initial commits written by Kennel
-// before ManagedDefaultConfigKey existed. Both legacy creation paths selected
-// main explicitly, so this is a compatibility backfill rather than a branch
-// guess. User-created remoteless repositories remain unresolved.
-func (r *Resolver) legacyAOInitializedBranch(ctx context.Context, repo string) (string, bool) {
-	ref := "refs/heads/" + legacyDefaultBranch
-	if !r.refExists(ctx, repo, ref) {
-		return "", false
-	}
-	out, err := r.run(
-		ctx,
-		r.binary,
-		"-C", repo,
-		"log", "--max-parents=0", "--format=%an%x00%ae%x00%s", ref,
-	)
-	if err != nil {
-		return "", false
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		fields := strings.Split(line, "\x00")
-		if len(fields) != 3 {
-			continue
-		}
-		name := strings.TrimSpace(fields[0])
-		email := strings.TrimSpace(fields[1])
-		subject := strings.TrimSpace(fields[2])
-		// Kennel authors these commits as itself. Repositories it initialized
-		// before the rename carry the donor identity instead -- that pair is data
-		// already written into users' git history, not a name Kennel answers to,
-		// and it stays matchable because dropping it would make Kennel forget
-		// which branch it chose for every project it set up earlier.
-		if subject == legacyWorkspaceCommitSubject ||
-			(subject == legacyInitialCommitSubject &&
-				((name == kennelCommitAuthorName && email == kennelCommitAuthorEmail) ||
-					(name == donorCommitAuthorName && email == donorCommitAuthorEmail))) {
-			return legacyDefaultBranch, true
-		}
-	}
-	return "", false
 }
 
 func (r *Resolver) validateBranch(ctx context.Context, repo, branch string) error {

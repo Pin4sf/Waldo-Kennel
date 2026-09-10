@@ -70,7 +70,7 @@ func TestResolveNeverFallsBackToCurrentOrConventionalBranch(t *testing.T) {
 	}
 }
 
-func TestResolveUsesBranchAORecordedAtInitialization(t *testing.T) {
+func TestResolveUsesRecordedKennelBranch(t *testing.T) {
 	repo := localRepo(t, "main")
 	runGit(t, repo, "config", "--local", ManagedDefaultConfigKey, "main")
 	runGit(t, repo, "switch", "-c", "feature/temporary")
@@ -81,38 +81,6 @@ func TestResolveUsesBranchAORecordedAtInitialization(t *testing.T) {
 	}
 	if resolution.Branch != "main" || resolution.Ref != "refs/heads/main" || resolution.Source != SourceKennelInitialized {
 		t.Fatalf("resolution = %#v, want Kennel-initialized main", resolution)
-	}
-}
-
-func TestResolveBackfillsLegacyAOInitializedRepository(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		author  string
-		email   string
-		subject string
-	}{
-		{name: "initialized folder", author: donorCommitAuthorName, email: donorCommitAuthorEmail, subject: legacyInitialCommitSubject},
-		{name: "workspace root", author: "Developer", email: "developer@example.com", subject: legacyWorkspaceCommitSubject},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			repo := filepath.Join(t.TempDir(), "repo")
-			run(t, "git", "init", "-b", legacyDefaultBranch, repo)
-			runGit(t, repo, "config", "user.name", tc.author)
-			runGit(t, repo, "config", "user.email", tc.email)
-			runGit(t, repo, "commit", "--allow-empty", "-m", tc.subject)
-			runGit(t, repo, "switch", "-c", "feature/temporary")
-
-			resolution, err := New("", nil).Resolve(context.Background(), context.Background(), repo)
-			if err != nil {
-				t.Fatalf("Resolve legacy repository: %v", err)
-			}
-			if resolution.Branch != legacyDefaultBranch || resolution.Ref != "refs/heads/main" || resolution.Source != SourceKennelInitialized {
-				t.Fatalf("resolution = %#v, want backfilled Kennel main", resolution)
-			}
-			if got := gitOutput(t, repo, "config", "--local", "--get", ManagedDefaultConfigKey); got != legacyDefaultBranch {
-				t.Fatalf("backfilled marker = %q, want %q", got, legacyDefaultBranch)
-			}
-		})
 	}
 }
 

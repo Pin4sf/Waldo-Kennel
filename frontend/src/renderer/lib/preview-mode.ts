@@ -30,4 +30,4 @@ export const usesWaldoUiPreview =
 
 /** Reversible local dogfood shell: Work is primary and ambient Home/Island
  * chrome is suppressed without changing durable data or historical routes. */
-export const usesWorkLaunchMode = import.meta.env.VITE_KENNEL_WORK_LAUNCH === "1";
+export const usesWorkLaunchMode = import.meta.env.VITE_KENNEL_WORK_LAUNCH !== "0";

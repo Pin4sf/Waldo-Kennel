@@ -1,81 +1,17 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
-import { type ComponentType } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { WorkspaceSummary } from "../types/workspace";
-
-const routeMocks = vi.hoisted(() => ({
-	navigate: vi.fn(),
-	workspaces: [] as WorkspaceSummary[],
-	queryState: "success" as "success" | "pending",
-}));
-
-vi.mock("@tanstack/react-router", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@tanstack/react-router")>()),
-	createFileRoute: () => (options: unknown) => ({ options }),
-	useNavigate: () => routeMocks.navigate,
-}));
-
-vi.mock("../hooks/useWorkspaceQuery", () => ({
-	useWorkspaceQuery: () => ({
-		data: routeMocks.workspaces,
-		isSuccess: routeMocks.queryState === "success",
-	}),
-}));
-
-vi.mock("../components/SessionsBoard", () => ({ SessionsBoard: () => <div data-testid="sessions-board" /> }));
-
+import { render, screen } from "@testing-library/react";
+import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
+import { describe, expect, it } from "vitest";
 import { Route } from "../routes/_shell.index";
 
-async function renderIndex() {
-	const Component = Route.options.component as ComponentType;
-	await act(async () => {
-		render(<Component />);
-	});
-}
-
-beforeEach(() => {
-	routeMocks.navigate.mockReset();
-	routeMocks.workspaces = [];
-	routeMocks.queryState = "success";
-});
-
-describe("shell index route", () => {
-	it("redirects a first-run scratch-only workspace list to the scratch board", async () => {
-		routeMocks.workspaces = [
-			{
-				id: "scratch",
-				name: "Scratch",
-				kind: "scratch",
-				path: "/home/me/.kennel/scratch/default",
-				sessions: [],
-			},
-		];
-
-		await renderIndex();
-
-		await waitFor(() =>
-			expect(routeMocks.navigate).toHaveBeenCalledWith({
-				to: "/projects/$projectId",
-				params: { projectId: "scratch" },
-				replace: true,
-			}),
-		);
-	});
-
-	it("does not redirect when another project exists", async () => {
-		routeMocks.workspaces = [
-			{ id: "scratch", name: "Scratch", kind: "scratch", path: "/scratch", sessions: [] },
-			{ id: "proj-1", name: "Project One", kind: "single_repo", path: "/repo/project-one", sessions: [] },
-		];
-
-		await renderIndex();
-
-		expect(routeMocks.navigate).not.toHaveBeenCalled();
-	});
-
-	it("does not offer the retired legacy import flow", async () => {
-		await renderIndex();
-
-		expect(screen.queryByText(/Import projects from your earlier Kennel/i)).not.toBeInTheDocument();
+describe("fresh shell entry", () => {
+	it("enters Work without fetching projects or mounting a session board", async () => {
+		const root = createRootRoute();
+		const index = createRoute({ getParentRoute: () => root, path: "/", beforeLoad: Route.options.beforeLoad });
+		const work = createRoute({ getParentRoute: () => root, path: "/work", component: () => <h1>Outcome intake</h1> });
+		const router = createRouter({ routeTree: root.addChildren([index, work]), history: createMemoryHistory({ initialEntries: ["/"] }) });
+		await router.load();
+		render(<RouterProvider router={router} />);
+		expect(await screen.findByRole("heading", { name: "Outcome intake" })).toBeInTheDocument();
+		expect(router.state.location.pathname).toBe("/work");
 	});
 });

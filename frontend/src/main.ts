@@ -124,7 +124,7 @@ if (process.platform === "win32") {
 }
 
 // Pin ALL Electron-owned state (Chromium cache, cookies, local/session storage,
-// crash dumps) under the canonical AO home at ~/.kennel instead of Electron's macOS
+// crash dumps) under the canonical Kennel home at ~/.kennel instead of Electron's macOS
 // default ~/Library/Application Support/<name>. Keeps the app's entire footprint
 // inside ~/.kennel alongside the daemon's data dir and running.json. sessionData and
 // crashDumps derive from userData, so this one override reparents them all.
@@ -2155,7 +2155,9 @@ app.whenReady().then(async () => {
 
 	registerRendererProtocol();
 	applyRuntimeAppIcon();
-	islandInitPromise = initializeIsland();
+	// Island is an explicit development surface until its Outcome projection
+	// is ready. A fresh Work launch must not start ambient session UI.
+	islandInitPromise = process.env.KENNEL_ENABLE_ISLAND === "1" ? initializeIsland() : Promise.resolve();
 	if (isTrayEnabled(process.platform, app.isPackaged, app.getVersion())) {
 		const initialUiSettings = keybindingRunFile ? await readUiSettings(path.dirname(keybindingRunFile)) : { locale: "en" as const };
 		trayController = createTrayController({
