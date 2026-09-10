@@ -58,12 +58,11 @@ owner acceptance/rework decisions, reasoning settings, and session usage.
    disabled; any error retains feedback and withholds resubmission, offering refetch
    and Plan review. Backend needs request key plus durable reconciliation identity
    before safe same-request replay can be offered.
-3. **Portfolio status:** Outcome list carries Contract/latestPlan, not aggregated
-   execution/proof/acceptance attention. Current portfolio labels describe those
-   recorded facts only. Full Needs you / In progress / Ready for review / Accepted
-   column grouping with concrete reasons needs an efficient canonical attention
-   projection or reviewed bounded fan-out of schedule/proof reads. The UI does not
-   infer acceptance, failures or running state from an approved Plan.
+3. **Portfolio status:** bounded proof/schedule fan-out now supplies lifecycle columns,
+   using the same cache as Mission (24 Outcomes per Project, Show more adds 24).
+   A bulk attention projection remains a scaling improvement. Failure/rework carries
+   the daemon reason; an approved Plan alone displays Authorized, never In progress
+   or Accepted. Accepted history and contributors are explicitly available in Filters.
 4. **Delivery/results:** generated API has no retained-artifact content/list/export
    or durable delivery operation. Needed: exact artifact version, producing lineage,
    retention/integrity state, current proof eligibility, accepted result identity,
@@ -127,3 +126,77 @@ original d12bb9cb5 components and GREEN after restoring the fix are recorded in
 `/tmp/kennel-mission-safety-red.log` and `/tmp/kennel-mission-safety-green.log`.
 The bootstrap failure is a root-script cleanup gap: bootstrap still attempts the
 removed frontend/src/landing package. This lane does not change the root script.
+
+
+## Owner correction: Project Board continuity (2026-09-10)
+
+The actual missing-Outcome defect was at the route boundary: `/projects/$projectId`
+mounted `SessionsBoard`; `/work?view=outcomes` mounted the Outcome portfolio. In focused
+mode Project links now redirect to Work with the exact Project ID and portfolio scope.
+This also covers existing bookmarks, command palette and project-selection links.
+Opening/closing a Mission preserves that scope; global Outcomes explicitly clears it.
+Direct Outcome cards and sidebar Mission shortcuts now share the same destination.
+Contributing-Outcome decomposition remains a separate existing responsibility projection.
+
+Figma context inspected: file Dl0WP9uIvx6QbSzZi7cZQY, frame 3253:35386 and actual card
+3253:35428. The card context specifies 18px inset/radius, quiet dark surface, secondary
+context, next-action text and a stronger title. Adapted to existing tokens and typography;
+no fabricated provider icon, artifact link or progress ring when those facts are absent.
+The existing WorkShell List/Board control is the only view switch. Lifecycle columns
+remain visible when empty; Filters is secondary. Resize uses a focusable pointer divider
+with arrows/Home/End/reset; close includes X and returns focus to the opened card.
+No new dependencies, backend or generated-contract changes.
+
+The repository benchmark authority at `docs/product/kennel-v1-product-architecture.md`
+section 12 retains AO/Vibe Kanban supervision lessons. No historical numeric usability
+threshold was located in the inspected repository sources; none is claimed here.
+
+### Fresh verification
+
+- Full frontend: 221 files, 2712 passing, 6 skipped. After the final shortcut destination
+  correction: 88/88 targeted tests, including actual router redirect, Sidebar, portfolio,
+  mounted filter/focus retention, keyboard divider bounds, and all six admission-safety cases.
+- Typecheck, package and root lint logs: `/tmp/kennel-mission-correction-types.log`,
+  `/tmp/kennel-mission-correction-build.log`, `/tmp/kennel-mission-correction-lint.log`.
+- Real isolated daemon: `127.0.0.1:43731`; live renderer `43732`; profile and repository
+  remain `/tmp/kennel-mission-profile` and `/tmp/kennel-mission-repo`.
+- PASS: direct Project URL resolves to its Outcome Board. Daemon returned exactly
+  `out-12a000d6-e5d7-4912-82db-cd94adb1886b` and
+  `out-ae5482d9-dc25-420a-8b0b-ccd507cc7d9b`; rendered card IDs match, and sidebar lists
+  those same two titles. Navigation does not POST or create replacement work records.
+- PASS: Board/List, card open/close, sidebar re-entry to the same Outcome ID, retained
+  search `source`, close restores card focus, Project scope on refresh, Project switch
+  to empty Scratch and back, browser back restores Scratch scope.
+- PASS: 1600x1000 split, keyboard divider, expand/restore, 1280x720 Mission collapse,
+  persistent close, long title visible in Mission. Plan shows unconfigured reasoning
+  and disabled draft action, without inventing a Plan.
+- BLOCKED: real Graph/Table/Attempt/result journey requires a configured reasoning
+  provider and real Plan. No paid credential calls made. Existing component tests cover
+  Graph/Table selection; that is not live runtime acceptance.
+- UNVERIFIED: actual pointer drag, OS reduced-motion toggle, and packaged Electron
+  interaction acceptance. Changed hover/divider transitions disable under reduced motion;
+  no new ornamental or fake progress animation was added.
+- Test-environment observation: several same-origin preview tabs delayed HTTP requests
+  despite connected event streams; closing redundant tester tabs allowed loading to finish.
+  This is consistent with browser connection contention, not a verified daemon defect.
+
+Screenshots (local inspectable artifacts):
+`docs/verification/kennel-mission-evidence/before-project-session-board.jpg`,
+`docs/verification/kennel-mission-evidence/after-project-outcome-board.jpg`,
+`docs/verification/kennel-mission-evidence/after-list.jpg`,
+`docs/verification/kennel-mission-evidence/after-mission-wide.jpg`,
+`docs/verification/kennel-mission-evidence/after-mission-narrow.jpg`.
+API comparison: `/tmp/kennel-mission-evidence/api-outcomes.json`.
+Earlier dropdown portfolio screenshot also remains in this task's browser tool history.
+
+### Agent-led integration gaps
+
+Existing AdaptiveIntakeSurface already uses material clarification/analysis APIs before
+Outcome creation; Mission replan feedback uses the existing structured replan endpoint.
+The generated conversation contract is Project-scoped. Do not present it as an
+Outcome-scoped conversation or derive authority from its prose. Backend needs durable
+Outcome message/question/answer identity, explicit authorized context references,
+proposal-to-Contract/Plan revision linkage, pending/error/cancellation/replay semantics,
+and attributable progress explanations. Automatic advancement after owner start needs
+a durable authorized run-intent boundary; frontend per-WorkUnit starts cannot substitute
+for it. These remain essential baseline integration gaps, not completed by this layout fix.

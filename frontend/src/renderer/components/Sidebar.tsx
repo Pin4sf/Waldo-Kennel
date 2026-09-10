@@ -734,7 +734,7 @@ function ProjectItem({
 	const outcomeTree = buildOutcomeTree(outcomes);
 
 	const openOutcome = (outcomeId: string, stage: "decompose" | "decide_authorize") => {
-		void navigate({ to: "/work", search: { project: workspace.id, stage, outcome: outcomeId } });
+		void navigate({ to: "/work", search: { project: workspace.id, stage, outcome: outcomeId, portfolio: workspace.id } });
 	};
 	const openNewOutcome = () => {
 		void navigate({ to: "/work", search: { project: workspace.id } });
@@ -1048,7 +1048,7 @@ function ProjectItem({
 										active={selection.activeOutcomeId === node.outcome.id}
 										figmaBoard={figmaBoard}
 										onOpen={() => openOutcome(node.outcome.id, outcomeDestinationStage(node))}
-										onOpenMissionControl={() => openOutcome(node.outcome.id, "decompose")}
+										onOpenMissionControl={() => openOutcome(node.outcome.id, outcomeDestinationStage(node))}
 										outcome={node.outcome}
 									/>
 									{node.contributors.map((contributor) => (

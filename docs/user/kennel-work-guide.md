@@ -10,7 +10,7 @@ Use Outcomes to browse the portfolio as Board or List. Search and Project filter
 narrow the list; contributing Outcomes are hidden until explicitly included.
 
 Selecting a direct Outcome opens Mission beside the portfolio on wide windows.
-Adjust Mission width with the slider (arrow keys work), or choose Expand Mission.
+Drag the divider to adjust Mission width, or focus it and use the arrow keys. Double-click resets its width. Expand Mission fills the workspace.
 Narrow windows show Mission with Project/Outcome navigation still available on the
 left. Back to Outcomes returns to the mounted portfolio and its filters.
 
@@ -56,8 +56,7 @@ HTTP under daemon validation, even if the Plan is stale. Reconnection refetches 
 
 ## Current limits
 
-The portfolio currently displays Contract/Plan authority facts. It does not yet offer
-complete execution/acceptance status columns. Supplied-document selection, retained
+The Board shows Define, Ready to authorize, Authorized, In progress, Needs you and Ready for review columns, including empty columns. Filters optionally include Accepted history and contributing Outcomes. List shows the same Outcomes and their state. Status reads share Mission’s proof/schedule cache, bounded to 24 Outcomes per Project before Show more. Supplied-document selection, retained
 artifact browsing and durable export require backend interfaces still under development.
 Acceptance does not export, merge, publish or deploy files. No export success is implied.
 

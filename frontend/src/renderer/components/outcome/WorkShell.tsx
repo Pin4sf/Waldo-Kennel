@@ -162,7 +162,7 @@ export function WorkShell({ projectId, outcomeId, children }: WorkShellProps) {
 
 				<SessionsViewSwitch
 					labels={{
-						ariaLabel: t("outcome.run.viewSwitchAria"),
+						ariaLabel: t("mission.portfolioView"),
 						board: t("outcome.run.viewBoard"),
 						list: t("outcome.run.viewList"),
 					}}

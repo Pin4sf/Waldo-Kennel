@@ -18,6 +18,7 @@ import {
 	useOutcome,
 	useOutcomePlan,
 	useOutcomeProof,
+	useOutcomeSchedule,
 	useProposeOutcomePlan,
 	type OutcomeFailure,
 	type PlanRecord,
@@ -208,6 +209,7 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: Outco
 
 function PlanReviewCard({ outcomeId, plan }: { outcomeId: string; plan: PlanRecord }) {
 	const { t } = useTranslation();
+	const scheduleQuery = useOutcomeSchedule(outcomeId, plan.status === "approved" ? plan.id : undefined);
 	// Criterion text comes from the canonical proof read, so nodes and rows show
 	// the owner's own words instead of criterion ids.
 	const proofQuery = useOutcomeProof(outcomeId);
@@ -240,10 +242,13 @@ function PlanReviewCard({ outcomeId, plan }: { outcomeId: string; plan: PlanReco
 			{/* Proposed topology: no schedule exists before authorization, so the
 			    graph deliberately carries no execution state. */}
 			<div className="rounded-group hairline border-border bg-card px-4.5 py-3.5">
+				{plan.status !== "approved" || scheduleQuery.schedule ? (
 				<MissionPlanView
+					schedule={scheduleQuery.schedule}
 					criterionText={criterionText}
 					workUnits={plan.workUnits}
 				/>
+				) : <p className="text-xs text-muted-foreground">{scheduleQuery.failure?.message || t("mission.scheduleUnavailable")}</p>}
 			</div>
 
 			<div className="grid gap-2" data-testid="outcome-plan-work-units">

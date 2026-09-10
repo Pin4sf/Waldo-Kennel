@@ -1,10 +1,12 @@
+import { X, Maximize2, Minimize2 } from "lucide-react";
+import { missionAttention } from "../../lib/mission-attention";
 import { MissionUsage } from "./MissionUsage";
 import { useSettings } from "../../hooks/useSettings";
 import { ReasoningSettingsSection } from "../settings/ReasoningSettingsSection";
 import { MissionReplanForm } from "./MissionReplanForm";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useOutcome, useOutcomePlan, useOutcomeProof } from "../../hooks/useOutcome";
+import { useOutcome, useOutcomePlan, useOutcomeProof, useOutcomeSchedule } from "../../hooks/useOutcome";
 import { useEventsConnection } from "../../hooks/useEventsConnection";
 import { useWorkspaceQuery } from "../../hooks/useWorkspaceQuery";
 import { Button } from "../ui/button";
@@ -42,6 +44,15 @@ export function OutcomeMissionPanel({
 	);
 	const outcome = query.outcome;
 	const plan = planQuery.plan;
+	const scheduleQuery = useOutcomeSchedule(outcomeId, plan?.status === "approved" ? plan.id : undefined);
+	const attention = outcome
+		? missionAttention(
+				{ ...outcome, latestPlan: plan },
+				proofQuery.proof,
+				scheduleQuery.schedule,
+				scheduleQuery.failure?.message,
+			)
+		: undefined;
 	const stale = Boolean(plan && outcome && plan.contractRevisionNumber !== outcome.currentRevisionNumber);
 	return (
 		<section
@@ -56,9 +67,15 @@ export function OutcomeMissionPanel({
 					</span>
 					<div className="flex gap-1">
 						<Button size="sm" variant="ghost" onClick={onExpand}>
+							{expanded ? (
+								<Minimize2 aria-hidden="true" className="size-3.5" />
+							) : (
+								<Maximize2 aria-hidden="true" className="size-3.5" />
+							)}
 							{t(expanded ? "mission.restore" : "mission.expand")}
 						</Button>
 						<Button size="sm" variant="ghost" onClick={onClose}>
+							<X aria-hidden="true" className="size-4" />
 							{t("mission.close")}
 						</Button>
 					</div>
@@ -71,6 +88,14 @@ export function OutcomeMissionPanel({
 							plan: plan?.number ?? t("mission.noPlan"),
 						})}{" "}
 						· {t("mission.updated", { time: new Date(outcome.updatedAt).toLocaleString() })}
+					</p>
+				)}
+				{attention && (
+					<p className="text-xs">
+						<span className="font-medium">{t(`mission.lane.${attention.lane}`)}</span> ·{" "}
+						{attention.reason
+							? t(`mission.reason.${attention.reason}`, { defaultValue: attention.reason })
+							: t(`mission.next.${attention.lane}`)}
 					</p>
 				)}
 				<p role="status" className="text-xs text-muted-foreground">
@@ -154,7 +179,11 @@ export function OutcomeMissionPanel({
 								)}
 							</div>
 							<div hidden={tab !== "execution"}>
-								<OutcomeRunSurface outcomeId={outcomeId} admissionBlocked={stale || connection !== "connected"} onReviewProof={() => setTab("result")} />
+								<OutcomeRunSurface
+									outcomeId={outcomeId}
+									admissionBlocked={stale || connection !== "connected"}
+									onReviewProof={() => setTab("result")}
+								/>
 								<MissionUsage outcomeId={outcomeId} projectId={projectId} />
 							</div>
 							<div hidden={tab !== "result"}>

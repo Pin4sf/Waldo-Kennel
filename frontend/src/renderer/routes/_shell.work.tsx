@@ -13,6 +13,8 @@ import { WorkEnterSurface } from "../components/outcome/WorkEnterSurface";
 import { WorkShell } from "../components/outcome/WorkShell";
 
 type WorkSearch = {
+	/** Portfolio context survives opening and closing a selected Mission. */
+	portfolio?: string;
 	/** Selected project. Absent renders the Enter surface (stage: enter). */
 	project?: string;
 	/**
@@ -43,10 +45,12 @@ function validateSearch(search: Record<string, unknown>): WorkSearch {
 			? search.stage
 			: undefined;
 	return {
+		portfolio: typeof search.portfolio === "string" && search.portfolio !== "" ? search.portfolio : undefined,
 		project: typeof search.project === "string" && search.project !== "" ? search.project : undefined,
 		stage,
 		outcome: typeof search.outcome === "string" && search.outcome !== "" ? search.outcome : undefined,
-		intake: typeof search.intake === "string" && search.intake !== "" && search.intake !== "new" ? search.intake : undefined,
+		intake:
+			typeof search.intake === "string" && search.intake !== "" && search.intake !== "new" ? search.intake : undefined,
 		view: search.view === "outcomes" ? "outcomes" : undefined,
 	};
 }
@@ -65,7 +69,7 @@ export const Route = createFileRoute("/_shell/work")({
 });
 
 function WorkRoute() {
-	const { project, stage, outcome, intake, view } = Route.useSearch();
+	const { project, stage, outcome, intake, view, portfolio } = Route.useSearch();
 	const navigate = useNavigate();
 
 	// WorkShell renders the persistent top-bar chrome (List/Board, terminal
@@ -75,12 +79,13 @@ function WorkRoute() {
 	// ONLY visible chrome above a stage surface).
 	return (
 		<WorkShell outcomeId={outcome} projectId={project}>
-			{renderStageBody({ intake, navigate, outcome, project, stage, view })}
+			{renderStageBody({ intake, navigate, outcome, project, stage, view, portfolio })}
 		</WorkShell>
 	);
 }
 
 function renderStageBody({
+	portfolio,
 	intake,
 	navigate,
 	outcome,
@@ -88,6 +93,7 @@ function renderStageBody({
 	stage,
 	view,
 }: {
+	portfolio?: string;
 	intake?: string;
 	navigate: ReturnType<typeof useNavigate>;
 	outcome?: string;
@@ -98,14 +104,21 @@ function renderStageBody({
 	if (view === "outcomes" || (outcome && project && stage !== "decompose")) {
 		return (
 			<OutcomeMissionWorkspace
-                outcomeId={outcome}
-                projectId={project}
-                stage={stage}
-                onClose={() => void navigate({ to: "/work", search: { view: "outcomes" } })}
+				portfolioProjectId={portfolio}
+				onProjectFilterChange={(id) =>
+					void navigate({
+						to: "/work",
+						search: { view: "outcomes", portfolio: id, project: outcome ? project : id, outcome, stage },
+					})
+				}
+				outcomeId={outcome}
+				projectId={project}
+				stage={stage}
+				onClose={() => void navigate({ to: "/work", search: { view: "outcomes", portfolio, project: portfolio } })}
 				onOpenOutcome={(projectId: string, openedOutcome: OutcomeRecord, openedStage: OutcomeDestinationStage) => {
 					void navigate({
 						to: "/work",
-						search: { project: projectId, stage: openedStage, outcome: openedOutcome.id },
+						search: { project: projectId, stage: openedStage, outcome: openedOutcome.id, portfolio },
 					});
 				}}
 			/>

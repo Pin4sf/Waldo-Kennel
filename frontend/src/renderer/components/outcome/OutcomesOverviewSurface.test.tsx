@@ -1,5 +1,12 @@
+import { useUiStore } from "../../stores/ui-store";
+vi.mock("../../hooks/useMissionAttention", () => ({
+	useMissionAttention: (outcomes: Array<{ id: string }>) =>
+		new Map(
+			outcomes.map((outcome) => [outcome.id, { lane: outcome.id.startsWith("accepted") ? "accepted" : "define" }]),
+		),
+}));
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -67,9 +74,9 @@ describe("OutcomesOverviewSurface", () => {
 
 		renderSurface();
 
-	await waitFor(() => {
-		expect(screen.getByRole("heading", { name: "Waldo Kennel" })).toBeInTheDocument();
-		expect(screen.getByRole("heading", { name: "Kennel Island" })).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByRole("heading", { name: "Waldo Kennel" })).toBeInTheDocument();
+			expect(screen.getByRole("heading", { name: "Kennel Island" })).toBeInTheDocument();
 		});
 		expect(screen.getByText("Ship the release")).toBeInTheDocument();
 		expect(screen.getByText("Fix the notch")).toBeInTheDocument();
@@ -108,6 +115,7 @@ describe("OutcomesOverviewSurface", () => {
 		// A contributor answers for its own contract, so it keeps the ordinary
 		// destination — and is indented under the parent that claims it.
 		expect(screen.queryByText("Parse the archive")).not.toBeInTheDocument();
+		await user.click(screen.getByText("Filters"));
 		await user.click(screen.getByRole("checkbox", { name: "Include contributing Outcomes" }));
 		const contributor = screen.getByText("Parse the archive");
 		expect(contributor.closest("li")).toHaveClass("pl-6");
@@ -130,7 +138,7 @@ describe("OutcomesOverviewSurface", () => {
 		const onOpenOutcome = renderSurface();
 
 		await user.click(await screen.findByRole("button", { name: "Mission control for Ship the release" }));
-		expect(onOpenOutcome).toHaveBeenCalledWith("proj-1", expect.objectContaining({ id: "out-1" }), "decompose");
+		expect(onOpenOutcome).toHaveBeenCalledWith("proj-1", expect.objectContaining({ id: "out-1" }), "decide_authorize");
 	});
 
 	it("offers no decomposition action on a contributing Outcome", async () => {
@@ -164,4 +172,36 @@ describe("OutcomesOverviewSurface", () => {
 		await user.click(retry);
 		expect(refetch).toHaveBeenCalledTimes(1);
 	});
+});
+
+it("keeps accepted history out of the active portfolio until requested", async () => {
+	workspaceQueryMock.mockReturnValue({ data: [workspace("p", "Project")], isLoading: false });
+	projectOutcomesQueryMock.mockReturnValue({
+		outcomes: [outcome("active", "Current work"), outcome("accepted-one", "Accepted work")],
+		isLoading: false,
+		refetch: vi.fn(),
+	});
+	renderSurface();
+	expect(screen.getByText("Current work")).toBeInTheDocument();
+	expect(screen.queryByText("Accepted work")).not.toBeInTheDocument();
+	await userEvent.click(screen.getByText("Filters"));
+	await userEvent.selectOptions(screen.getByRole("combobox", { name: "Outcome status" }), "history");
+	expect(screen.getByText("Accepted work")).toBeInTheDocument();
+});
+
+it("keeps empty lifecycle columns visible and uses the same Outcomes in List", async () => {
+	workspaceQueryMock.mockReturnValue({ data: [workspace("p", "Project")], isLoading: false });
+	projectOutcomesQueryMock.mockReturnValue({
+		outcomes: [outcome("active", "Current work")],
+		isLoading: false,
+		refetch: vi.fn(),
+	});
+	useUiStore.setState({ outcomeRunViewMode: "board" });
+	renderSurface();
+	expect(screen.getByRole("heading", { name: /Ready to authorize/ })).toBeInTheDocument();
+	expect(screen.getByRole("heading", { name: /In progress/ })).toBeInTheDocument();
+	expect(screen.getByText("Filters").closest("details")).not.toHaveAttribute("open");
+	act(() => useUiStore.setState({ outcomeRunViewMode: "list" }));
+	expect(screen.getAllByTestId("outcomes-overview-row")).toHaveLength(1);
+	expect(screen.getByText("Current work")).toBeInTheDocument();
 });

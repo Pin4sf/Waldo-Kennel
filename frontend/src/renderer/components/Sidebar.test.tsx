@@ -367,7 +367,7 @@ describe("Sidebar", () => {
 
 		expect(navigateMock).toHaveBeenCalledWith({
 			to: "/work",
-			search: { project: "proj-1", stage: "decide_authorize", outcome: "outcome-1" },
+			search: { project: "proj-1", stage: "decide_authorize", outcome: "outcome-1", portfolio: "proj-1" },
 		});
 	});
 
@@ -388,7 +388,7 @@ describe("Sidebar", () => {
 		await user.click(await screen.findByRole("button", { name: "Continue Ship the importer" }));
 		expect(navigateMock).toHaveBeenCalledWith({
 			to: "/work",
-			search: { project: "proj-1", stage: "decompose", outcome: "parent-1" },
+			search: { project: "proj-1", stage: "decompose", outcome: "parent-1", portfolio: "proj-1" },
 		});
 
 		// A contributor answers for its own contract, so it keeps the ordinary
@@ -398,7 +398,7 @@ describe("Sidebar", () => {
 		await user.click(contributor);
 		expect(navigateMock).toHaveBeenCalledWith({
 			to: "/work",
-			search: { project: "proj-1", stage: "decide_authorize", outcome: "child-1" },
+			search: { project: "proj-1", stage: "decide_authorize", outcome: "child-1", portfolio: "proj-1" },
 		});
 	});
 
@@ -417,7 +417,7 @@ describe("Sidebar", () => {
 
 		expect(navigateMock).toHaveBeenCalledWith({
 			to: "/work",
-			search: { project: "proj-1", stage: "decompose", outcome: "outcome-1" },
+			search: { project: "proj-1", stage: "decide_authorize", outcome: "outcome-1", portfolio: "proj-1" },
 		});
 	});
 
