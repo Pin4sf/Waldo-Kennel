@@ -158,11 +158,14 @@ func (s *Store) Retain(ctx context.Context, in Input) (Result, error) {
 	if err := s.publishFiles(ctx, stage, root, files, capture.bytes, receipt.RetentionState == domain.RetentionRetained); err != nil {
 		return Result{}, err
 	}
-	final := filepath.Join(s.root, string(in.AttemptID), version)
-	if err := s.publishDirectory(stage, final, receipt); err != nil {
-		return Result{}, err
+	final := ""
+	if receipt.RetentionState.Complete() {
+		final = filepath.Join(s.root, string(in.AttemptID), version)
+		if err := s.publishDirectory(stage, final, receipt); err != nil {
+			return Result{}, err
+		}
 	}
-	return Result{Receipt: receipt, ContentDir: final, PublishedNew: true}, nil
+	return Result{Receipt: receipt, ContentDir: final, PublishedNew: final != ""}, nil
 }
 
 type captureState struct {
@@ -473,8 +476,11 @@ func (s *Store) publishDirectory(stage, final string, receipt domain.AttemptRece
 	if err := os.MkdirAll(filepath.Dir(final), 0o750); err != nil {
 		return err
 	}
-	if _, err := os.Stat(final); err == nil {
-		return nil
+	if info, err := os.Stat(final); err == nil {
+		if !info.IsDir() {
+			return errors.New("published artifact path is not a directory")
+		}
+		return verifyPublished(final, receipt)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -485,6 +491,34 @@ func (s *Store) publishDirectory(stage, final string, receipt domain.AttemptRece
 		return err
 	}
 	return syncDir(filepath.Dir(final))
+}
+
+func verifyPublished(root string, receipt domain.AttemptReceipt) error {
+	for _, file := range receipt.Files {
+		if file.ChangeKind == domain.ArtifactDeleted || file.UnsupportedReason != "" {
+			continue
+		}
+		path, err := confinedPath(root, file.RelativePath)
+		if err != nil {
+			return err
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("published artifact %s: %w", file.RelativePath, err)
+		}
+		digest := sha256.Sum256(body)
+		if hex.EncodeToString(digest[:]) != file.ContentDigest {
+			return fmt.Errorf("published artifact %s digest mismatch", file.RelativePath)
+		}
+		info, err := os.Lstat(path)
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() || file.FileMode == nil || int64(info.Mode().Perm()) != *file.FileMode {
+			return fmt.Errorf("published artifact %s mode mismatch", file.RelativePath)
+		}
+	}
+	return nil
 }
 
 func syncTree(root string) error {

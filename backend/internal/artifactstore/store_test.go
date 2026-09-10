@@ -217,6 +217,29 @@ func TestReadStableEnforcesGrowthBound(t *testing.T) {
 	}
 }
 
+func TestStoreRejectsCorruptPublishedVersion(t *testing.T) {
+	store, err := New(Config{Root: filepath.Join(t.TempDir(), "artifacts")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	path := filepath.Join(workspace, "report.md")
+	if err := os.WriteFile(path, []byte("original"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	in := Input{AttemptID: "repeat-attempt", OutcomeID: "outcome-1", PlanRevisionID: "plan-1", WorkUnitID: "unit-1", ContractRevisionNumber: 1, WorkspaceKind: domain.WorkspaceStagedFolder, WorkspacePath: workspace}
+	first, err := store.Retain(context.Background(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(first.ContentDir, "report.md"), []byte("tampered"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Retain(context.Background(), in); err == nil {
+		t.Fatal("repeat retention accepted a corrupt published version")
+	}
+}
+
 func git(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
