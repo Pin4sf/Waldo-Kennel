@@ -101,6 +101,9 @@ type IntelligenceRun struct {
 
 	InputDigest   SHA256Digest
 	OutputDigest  SHA256Digest
+	InputTokens   *int64
+	OutputTokens  *int64
+	DurationMS    *int64
 	Status        IntelligenceRunStatus
 	FailureCode   string
 	FailureDetail string
@@ -131,6 +134,11 @@ func (r IntelligenceRun) Validate() error {
 	}
 	if !r.OutputDigest.IsZero() && !r.OutputDigest.Valid() {
 		return fmt.Errorf("intelligence run output digest must be a SHA-256 hexadecimal digest")
+	}
+	for name, value := range map[string]*int64{"input tokens": r.InputTokens, "output tokens": r.OutputTokens, "duration ms": r.DurationMS} {
+		if value != nil && *value < 0 {
+			return fmt.Errorf("intelligence run %s must not be negative", name)
+		}
 	}
 	if r.CreatedAt.IsZero() {
 		return fmt.Errorf("intelligence run created time is required")

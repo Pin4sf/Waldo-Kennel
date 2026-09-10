@@ -27,3 +27,7 @@ export const usesPreviewWorkspaceData = runsOutsideElectron && !usesLiveDaemonPr
 export const usesWaldoUiPreview =
 	import.meta.env.VITE_NO_ELECTRON === "1" ||
 	import.meta.env.VITE_WALDO_UI_PREVIEW === "1";
+
+/** Reversible local dogfood shell: Work is primary and ambient Home/Island
+ * chrome is suppressed without changing durable data or historical routes. */
+export const usesWorkLaunchMode = import.meta.env.VITE_KENNEL_WORK_LAUNCH !== "0";

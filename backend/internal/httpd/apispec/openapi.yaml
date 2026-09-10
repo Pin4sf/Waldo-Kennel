@@ -2589,6 +2589,115 @@ paths:
         authority)
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/plans/{planId}/schedule:
+    get:
+      operationId: getOutcomePlanSchedule
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Plan revision identifier, e.g. plan-<uuid>.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan revision identifier, e.g. plan-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read daemon-derived WorkUnit schedule state without launching work
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/plans/replan:
+    post:
+      operationId: replanOutcomePlan
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplanPlanRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Create a new immutable Plan proposal from explicit owner feedback
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/proof:
     get:
       operationId: getOutcomeProof
@@ -7214,6 +7323,81 @@ paths:
       summary: Read the daemon-owned user preferences
       tags:
       - settings
+  /api/v1/settings/reasoning:
+    patch:
+      operationId: updateReasoning
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReasoningRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReasoningResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Configure Waldo reasoning without returning the stored credential
+      tags:
+      - settings
+  /api/v1/settings/reasoning/verification:
+    post:
+      operationId: verifyReasoning
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReasoningResponse'
+          description: OK
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Service Unavailable
+      summary: Probe the configured reasoning provider once and record whether it
+        works
+      tags:
+      - settings
   /api/v1/settings/session-interface:
     patch:
       operationId: updateSessionInterface
@@ -8785,6 +8969,44 @@ components:
           type: boolean
       required:
       - ok
+      type: object
+    ControllersRoutingDecisionResponse:
+      properties:
+        capabilitySnapshot:
+          type: string
+        effectivePreference:
+          $ref: '#/components/schemas/ControllersRoutingPreferenceResponse'
+        policyVersion:
+          type: string
+        recommendedModel:
+          type: string
+        recommendedModelSelection:
+          type: string
+        recommendedProvider:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        workUnitId:
+          type: string
+      required:
+      - workUnitId
+      - status
+      - policyVersion
+      - role
+      type: object
+    ControllersRoutingPreferenceResponse:
+      properties:
+        model:
+          type: string
+        modelSelection:
+          type: string
+        provider:
+          type: string
+      required:
+      - provider
+      - modelSelection
       type: object
     ControllersSecurePairingStatus:
       properties:
@@ -10937,6 +11159,14 @@ components:
       type: object
     PlanRevisionResponse:
       properties:
+        assumptions:
+          items:
+            type: string
+          type: array
+        blockers:
+          items:
+            type: string
+          type: array
         contractRevisionNumber:
           format: int64
           type: integer
@@ -10954,6 +11184,10 @@ components:
           type: integer
         outcomeId:
           type: string
+        routingDecisions:
+          items:
+            $ref: '#/components/schemas/ControllersRoutingDecisionResponse'
+          type: array
         runBriefCompiledDigest:
           type: string
         runBriefCoreDigest:
@@ -10973,8 +11207,11 @@ components:
       - contractRevisionNumber
       - status
       - summary
+      - assumptions
+      - blockers
       - workUnits
       - grants
+      - routingDecisions
       - runBriefCoreDigest
       - createdAt
       type: object
@@ -10983,6 +11220,14 @@ components:
         contractRevisionNumber:
           format: int64
           type: integer
+        criterionIds:
+          items:
+            type: string
+          type: array
+        dependsOn:
+          items:
+            type: string
+          type: array
         evidenceChecks:
           items:
             type: string
@@ -10991,8 +11236,18 @@ components:
           type: string
         kind:
           type: string
+        model:
+          type: string
+        modelSelection:
+          type: string
         outputSummary:
           type: string
+        provider:
+          type: string
+        requiredCapabilities:
+          items:
+            type: string
+          type: array
         stopConditions:
           items:
             type: string
@@ -11006,6 +11261,9 @@ components:
       - kind
       - title
       - contractRevisionNumber
+      - dependsOn
+      - criterionIds
+      - requiredCapabilities
       - outputSummary
       - evidenceChecks
       - verificationRequirement
@@ -11347,6 +11605,39 @@ components:
       - createdAt
       - lastSeenAt
       type: object
+    ReasoningResponse:
+      properties:
+        configured:
+          type: boolean
+        effort:
+          type: string
+        error:
+          type: string
+        errorCode:
+          type: string
+        keyConfigured:
+          type: boolean
+        model:
+          type: string
+        provider:
+          type: string
+        ready:
+          type: boolean
+        verified:
+          type: boolean
+        verifiedAt:
+          type:
+          - "null"
+          - string
+      required:
+      - provider
+      - model
+      - effort
+      - configured
+      - ready
+      - keyConfigured
+      - verified
+      type: object
     RecordEvidenceRequest:
       properties:
         contentDigest:
@@ -11536,6 +11827,17 @@ components:
       - ok
       - sessionId
       - displayName
+      type: object
+    ReplanPlanRequest:
+      properties:
+        expectedContractRevision:
+          format: int64
+          type: integer
+        feedback:
+          type: string
+      required:
+      - expectedContractRevision
+      - feedback
       type: object
     ResolveCommentsResponse:
       properties:
@@ -11850,6 +12152,101 @@ components:
       required:
       - ok
       - sessionId
+      type: object
+    ScheduleAttemptBrief:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        status:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        workUnitId:
+          type: string
+      required:
+      - id
+      - workUnitId
+      - status
+      - createdAt
+      - updatedAt
+      type: object
+    ScheduleEnvelope:
+      properties:
+        schedule:
+          $ref: '#/components/schemas/ScheduleResponse'
+      required:
+      - schedule
+      type: object
+    ScheduleResponse:
+      properties:
+        activeAttempt:
+          $ref: '#/components/schemas/ScheduleAttemptBrief'
+        custodyHeldByWorkUnitId:
+          type: string
+        nextRunnableWorkUnitId:
+          type: string
+        noRunnableReason:
+          enum:
+          - all_units_proven
+          - attempt_executing
+          - attempt_paused
+          - awaiting_proof
+          type: string
+        outcomeId:
+          type: string
+        plan:
+          $ref: '#/components/schemas/PlanRevisionResponse'
+        workUnits:
+          items:
+            $ref: '#/components/schemas/ScheduleWorkUnitResponse'
+          type: array
+      required:
+      - outcomeId
+      - plan
+      - workUnits
+      type: object
+    ScheduleWorkUnitResponse:
+      properties:
+        attempts:
+          items:
+            $ref: '#/components/schemas/ScheduleAttemptBrief'
+          type: array
+        blockedReason:
+          enum:
+          - awaiting_dependency_proof
+          - custody_held
+          type: string
+        blockingDependencies:
+          items:
+            type: string
+          type: array
+        criterionReady:
+          additionalProperties:
+            type: boolean
+          type:
+          - object
+          - "null"
+        state:
+          enum:
+          - blocked
+          - runnable
+          - executing
+          - proven
+          - retryable
+          - paused
+          type: string
+        workUnit:
+          $ref: '#/components/schemas/PlanWorkUnitResponse'
+      required:
+      - workUnit
+      - state
+      - attempts
+      - blockingDependencies
+      - criterionReady
       type: object
     SendConversationMessageRequest:
       properties:
@@ -12531,9 +12928,12 @@ components:
           - chat
           - tui
           type: string
+        reasoning:
+          $ref: '#/components/schemas/ReasoningResponse'
       required:
       - defaultSessionMode
       - chatHarnesses
+      - reasoning
       type: object
     ShellTerminalEnvelope:
       properties:
@@ -12671,7 +13071,6 @@ components:
           type: string
       required:
       - planRevisionId
-      - workUnitId
       - requestKey
       type: object
     StartPreviewServerRequest:
@@ -12882,6 +13281,21 @@ components:
       required:
       - displayName
       - config
+      type: object
+    UpdateReasoningRequest:
+      properties:
+        apiKey:
+          type: string
+        clearKey:
+          type: boolean
+        effort:
+          type: string
+        model:
+          type: string
+        provider:
+          type: string
+      required:
+      - provider
       type: object
     UpdateSessionInterfaceRequest:
       properties:

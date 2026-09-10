@@ -6,6 +6,13 @@
 
 This replaces the pre-merge checklist formerly in this file. Do not execute the obsolete instructions to stay on WT3, confirm PR99 is unmerged, recreate intelligence/routing, or rewrite migration 0114. Migrations through **0115** are merged history. Fetch beta and choose the next unused number for any new migration.
 
+
+## Scope correction and Work experience companion — 2026-09-09
+
+Read [Kennel Work launch experience and execution handoff](../../product/2026-09-09-kennel-work-launch-experience.md) before implementing a slice. It specifies general Outcomes, Board/List, the direct WorkUnit Mission Graph, focused launch navigation, delivery and owner guidance. Its packets refine L2–L7 below; ADR/domain authority remains unchanged.
+
+Fresh inventory: remote beta is `9396c3844`; local Wednesday HEAD `c83684c11` contains five additional commits. L2 and repository-focused L3 implementation exist; L4 Plan/schedule integration exists but the direct WorkUnit Mission Graph remains incomplete. Assess existing behavior and complete gaps; do not restart or classify code as absent because the original assignment was narrower. Live verification and owner acceptance remain separate gates.
+
 ## 1. Start here: execution contract for an implementer
 
 1. Read `AGENTS.md`, ADRs 0010/0011/0012, `docs/STATUS.md`, this plan, and the relevant source packet below. ADR0012 supersedes older deterministic/offline fallback guidance. No silent canned or alternate-model fallback.
@@ -25,7 +32,7 @@ One returning builder can answer: What did I ask for? What changed? What is prov
 
 Keep Go/SQLite, immutable Contract/Plan, WorkUnit DAG, Attempt fences, existing runtime/worktree machinery and proof/acceptance model. Ship a **serial** graph through the real scheduler boundary. Concurrency one is a scheduling limit, not a one-WorkUnit Plan schema. Preserve five provider identities; admit only capability/model/runtime combinations with conformance evidence. Do not claim uniform five-provider support from inventory alone.
 
-Include: real Git Project registration, reasoning setup, grounded editable Contract, full Plan review/replan, exact-bound execution, artifact continuity, checks, re-entry/rework, explicit acceptance and restart recovery. Missing credentials/readiness must be remediable.
+Include: real Git Project registration, reasoning setup, grounded editable Contract, full Plan review/replan, exact-bound execution, artifact continuity, checks, re-entry/rework, explicit acceptance, owner-triggered result export and restart recovery. General Outcomes include local document/research artifacts as well as software; advertise only tested execution capabilities. Missing credentials/readiness must be remediable.
 
 Exclude from launch unless already proved: full parallel workspace scheduling, deployments/sending/PR mutation, automatic Git integration into the user's branch, composed-Outcome model proposer, personal Home expansion, general memory platform and provider-wide feature parity. Preserve historical readability. Unsupported normal controls must be hidden/disabled with a truthful reason.
 
@@ -54,9 +61,9 @@ Backend tests cover important foundations, including frozen binding and schedule
 | L0 baseline/source reconciliation | none | implemented in isolated `codex/l0-baseline-cleanup`; narrow/full frontend, frontend typecheck, HTTP/spec parity, full Go race, and full lint green; generated contracts repaired after the L0 rename; L1a-owned unused helper findings resolved; foundation wrapper reaches but is blocked by unrelated cloud schema drift | this plan, STATUS, existing product companions |
 | L1a exact model launch | L0 source baseline | implemented in isolated `codex/l0-baseline-cleanup`; Manager-boundary TUI and Chat regression tests green, targeted race/vet green; live provider conformance and restart/recovery remain open | session service → Manager → actual launch config |
 | L1b governed capabilities/replay | L1a | implemented in isolated `codex/l1b-capability-replay`; normalized attributed policy reaches readiness and TUI/Chat adapter boundaries; Codex now rejects restricted scopes/unknown capabilities, pins the full sandbox boundary at fresh and recovered TUI/Chat execution payloads, and fail-closes governed recovery when durable Attempt evidence is missing/invalid; service/SQLite replay and recovery/adapter tests green; live canary and other-provider conformance remain open because the local code-mode host is missing | approved capabilities → adapter/runtime + idempotency |
-| L2 reasoning setup and recovery | L0 | open | settings/secrets → LLM → durable IntelligenceRun |
-| L3 grounded proposals and replan | L2 | open | context → Contract/Plan proposal/revision |
-| L4 complete Plan/Mission projection | L1, L3 | open | generated schedule API → existing Work UI |
+| L2 reasoning setup and recovery | L0 | assigned L2 implementation present locally; follow-up review and live provider conformance remain open | settings/secrets → LLM → durable IntelligenceRun |
+| L3 grounded proposals and replan | L2 | repository-focused implementation at `684b9c0a9` plus fixes; local only; general context and live journey gaps remain | context → Contract/Plan proposal/revision |
+| L4 complete Plan/Mission projection | L1, L3 | partial local implementation at `170230bf0` plus fixes; Plan/schedule present; direct WorkUnit graph and integrated desktop journey incomplete | generated schedule API → existing Work UI |
 | L5 proof, artifacts and serial continuation | L1, L4 | open | runtime facts → proof → next WorkUnit |
 | L6 re-entry and Outcome navigation | L5 | open | owner supervision/rework/history |
 | L7 release rehearsal and optimization | L2–L6 | open | packaged desktop + real repo/provider |
@@ -161,7 +168,7 @@ Implementation:
 
 **Narrow commands:** backend outcome/controller/apispec tests, `npm run api`, frontend typecheck and existing Plan/Run/Mission tests. Keep generated parity clean.
 
-### L5 — Connect artifacts, verification and serial advancement
+### L5 — Connect artifacts, verification, serial advancement and delivery
 
 **Read:** ADR0009; `service/outcome/{scheduler,proof,attempt,recover}.go`, existing proof ports/domain/store, runtime/workspace observations, `OutcomeProveCloseSurface.tsx`, Attempt run brief and session/worktree creation.
 
@@ -179,7 +186,7 @@ Implementation:
 
 **Narrow commands:** outcome/proof/store/workspace/runtime tests plus race on touched concurrency packages; ProveClose/Run renderer tests and generated parity. No live external deployment needed.
 
-### L6 — Make return, rework and normal navigation Outcome-first
+### L6 — Make return, rework and normal navigation Outcome-first; focus launch and document owner use
 
 **Read:** `renderRunBriefPrompt`, recovery/acceptance services, current Project Brief/context, `_shell.work.tsx`, Sidebar/TaskComposer/NewTaskDialog entry points, WorkShell and Outcome surfaces.
 

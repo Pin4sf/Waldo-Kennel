@@ -692,7 +692,7 @@ export function TerminalPane({
 				data-testid="session-terminal"
 				style={{ fontSize }}
 			>
-				<span className="text-terminal-dim">~/{session?.workspaceName ?? "reverbcode"}</span>{" "}
+				<span className="text-terminal-dim">~/{session?.workspaceName ?? "kennel"}</span>{" "}
 				{session?.branch ? <span className="text-accent">{session.branch}</span> : null}
 				{session?.branch ? " " : ""}$ {provider}
 				{"\n"}

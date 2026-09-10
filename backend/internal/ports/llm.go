@@ -30,8 +30,10 @@ type LLMResponse struct {
 	EffectiveModel string
 	// InputTokens and OutputTokens are provider-reported usage, zero when the
 	// provider does not report it.
-	InputTokens  int64
-	OutputTokens int64
+	// Pointers distinguish provider-reported zero from usage that was not
+	// reported. Unknown usage must never be rendered as free/zero usage.
+	InputTokens  *int64
+	OutputTokens *int64
 }
 
 // LLMClient is Waldo's own reasoning surface. It is deliberately separate from

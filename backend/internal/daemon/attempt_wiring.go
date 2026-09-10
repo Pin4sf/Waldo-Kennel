@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/artifactstore"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	sessionmanager "github.com/Pin4sf/Waldo-Kennel/backend/internal/session_manager"
@@ -30,10 +31,82 @@ type attemptSessionControl interface {
 	Get(ctx context.Context, id domain.SessionID) (domain.Session, error)
 }
 
+type attemptRetentionSource interface {
+	ports.AttemptReceiptStore
+	LatestAttemptSessionRef(context.Context, domain.AttemptID) (domain.AttemptSessionRef, bool, error)
+}
+
 type attemptSpawner struct {
-	sessions attemptSessionControl
-	projects projectConfigSource
-	agents   ports.AgentResolver
+	sessions  attemptSessionControl
+	projects  projectConfigSource
+	agents    ports.AgentResolver
+	retention ports.AttemptRetainer
+}
+
+// RetainAttempt resolves the latest daemon-owned session binding and captures
+// its workspace. It never accepts a path from the client or from provider
+// prose. Existing complete receipts are checked for durable blobs so a daemon
+// restart can safely retry the database half of publication.
+func (a attemptSpawner) RetainAttempt(ctx context.Context, attempt domain.Attempt) error {
+	if a.retention == nil {
+		return fmt.Errorf("attempt artifact retention is not configured")
+	}
+	return a.retention.RetainAttempt(ctx, attempt)
+}
+
+type attemptArtifactRetainer struct {
+	sessions  attemptSessionControl
+	refs      attemptRetentionSource
+	artifacts *artifactstore.Store
+}
+
+var _ ports.AttemptRetainer = (*attemptArtifactRetainer)(nil)
+
+func (r *attemptArtifactRetainer) RetainAttempt(ctx context.Context, attempt domain.Attempt) error {
+	if r == nil || r.sessions == nil || r.refs == nil || r.artifacts == nil {
+		return fmt.Errorf("attempt artifact retainer is not fully wired")
+	}
+	if existing, ok, err := r.refs.GetAttemptReceipt(ctx, attempt.ID); err != nil {
+		return err
+	} else if ok && existing.RetentionState.Complete() {
+		for _, file := range existing.Files {
+			if file.ChangeKind == domain.ArtifactDeleted {
+				continue
+			}
+			if _, _, err := r.artifacts.Read(ctx, existing, file); err != nil {
+				return fmt.Errorf("verify retained blob %s: %w", file.RelativePath, err)
+			}
+		}
+		return nil
+	}
+	ref, found, err := r.refs.LatestAttemptSessionRef(ctx, attempt.ID)
+	if err != nil {
+		return fmt.Errorf("read session binding: %w", err)
+	}
+	if !found || strings.TrimSpace(ref.SessionID) == "" {
+		return fmt.Errorf("attempt %s has no daemon-owned session binding", attempt.ID)
+	}
+	session, err := r.sessions.Get(ctx, domain.SessionID(ref.SessionID))
+	if err != nil {
+		return fmt.Errorf("read session %s: %w", ref.SessionID, err)
+	}
+	kind := domain.WorkspaceStagedFolder
+	if strings.TrimSpace(session.Metadata.DiffBaseSHA) != "" || strings.TrimSpace(session.Metadata.WorkspaceRepoPath) != "" {
+		kind = domain.WorkspaceGitWorktree
+	}
+	result, err := r.artifacts.Retain(ctx, artifactstore.Input{
+		AttemptID: attempt.ID, OutcomeID: attempt.OutcomeID, PlanRevisionID: attempt.PlanRevisionID, WorkUnitID: attempt.WorkUnitID,
+		ContractRevisionNumber: attempt.ContractRevisionNumber, WorkspaceKind: kind, WorkspacePath: session.Metadata.WorkspacePath,
+		RepositoryPath: session.Metadata.WorkspaceRepoPath, BaseRevision: session.Metadata.DiffBaseSHA, BaseRef: session.Metadata.DiffBaseRef,
+		TerminationReason: string(attempt.Status),
+	})
+	if err != nil {
+		return err
+	}
+	if err := r.refs.SaveAttemptReceipt(ctx, result.Receipt); err != nil {
+		return fmt.Errorf("persist retained receipt: %w", err)
+	}
+	return nil
 }
 
 var _ ports.AttemptSessionSpawner = attemptSpawner{}
@@ -110,9 +183,7 @@ func (a attemptSpawner) Terminate(ctx context.Context, _ domain.ProjectID, sessi
 }
 
 func runAttemptLivenessLoop(ctx context.Context, attempts attemptLivenessHook, log *slog.Logger) {
-	if err := attempts.EvaluateAttemptLiveness(ctx); err != nil {
-		log.Warn("attempt liveness evaluation on boot", "err", err)
-	}
+	reconcile(ctx, attempts, log, "on boot")
 	ticker := time.NewTicker(attemptLivenessInterval)
 	defer ticker.Stop()
 	for {
@@ -120,13 +191,34 @@ func runAttemptLivenessLoop(ctx context.Context, attempts attemptLivenessHook, l
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := attempts.EvaluateAttemptLiveness(ctx); err != nil {
-				log.Warn("attempt liveness evaluation", "err", err)
-			}
+			reconcile(ctx, attempts, log, "")
 		}
+	}
+}
+
+// reconcile runs both halves of the terminal-state sequence in order: decide
+// whether execution has ended, then classify what ended.
+//
+// Liveness runs first on purpose. Classification only ever looks at attempts
+// already recorded as reconciled, so running it after liveness lets an attempt
+// that just ended be classified in the same tick instead of waiting for the
+// next one. Both are pure functions of durable facts, so a failure in either
+// leaves state untouched and the next tick retries.
+func reconcile(ctx context.Context, attempts attemptLivenessHook, log *slog.Logger, when string) {
+	suffix := ""
+	if when != "" {
+		suffix = " " + when
+	}
+	if err := attempts.EvaluateAttemptLiveness(ctx); err != nil {
+		log.Warn("attempt liveness evaluation"+suffix, "err", err)
+	}
+	if err := attempts.ReconcileAttemptOutcomes(ctx); err != nil {
+		log.Warn("attempt outcome reconciliation"+suffix, "err", err)
 	}
 }
 
 type attemptLivenessHook interface {
 	EvaluateAttemptLiveness(ctx context.Context) error
+	// ReconcileAttemptOutcomes classifies attempts whose execution has ended.
+	ReconcileAttemptOutcomes(ctx context.Context) error
 }

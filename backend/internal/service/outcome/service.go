@@ -101,6 +101,11 @@ type Service struct {
 
 	spawner    ports.AttemptSessionSpawner
 	heartbeats heartbeatSource
+	// receipts records what each attempt produced. Optional so a degraded
+	// profile still schedules and reports truthfully; when absent, artifact
+	// continuity is unavailable rather than silently faked.
+	receipts ports.AttemptReceiptStore
+	retainer ports.AttemptRetainer
 
 	staleHeartbeat time.Duration
 }
@@ -125,6 +130,12 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 	if runs, ok := store.(ports.IntelligenceRunStore); ok {
 		service.intelligenceRuns = runs
 	}
+	// The SQLite store implements every one of these; the assertions keep the
+	// service usable with narrower fakes in tests rather than forcing each one
+	// to satisfy the whole surface.
+	if receipts, ok := store.(ports.AttemptReceiptStore); ok {
+		service.receipts = receipts
+	}
 	return service
 }
 
@@ -143,6 +154,14 @@ func (s *Service) WithExecution(spawner ports.AttemptSessionSpawner, heartbeats 
 	s.spawner = spawner
 	s.heartbeats = heartbeats
 	s.staleHeartbeat = domain.DefaultStaleHeartbeatWindow
+	return s
+}
+
+// WithAttemptRetainer attaches the restart-safe workspace capture used before
+// an ended Attempt can satisfy proof. Without it, the service fails closed and
+// leaves the Attempt reconciled rather than classifying a manifest-only result.
+func (s *Service) WithAttemptRetainer(retainer ports.AttemptRetainer) *Service {
+	s.retainer = retainer
 	return s
 }
 

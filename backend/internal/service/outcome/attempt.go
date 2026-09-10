@@ -148,14 +148,10 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if strings.TrimSpace(in.RequestKey) == "" {
 		return AttemptView{}, apierr.Invalid("REQUEST_KEY_REQUIRED", "Provide an idempotency key for this start request", nil)
 	}
-	if in.WorkUnitID.IsZero() {
-		return AttemptView{}, apierr.Invalid("WORK_UNIT_REQUIRED", "Choose the approved WorkUnit this Attempt executes", nil)
-	}
-
 	if existing, ok, err := s.store.FindAttemptByIdempotencyKey(ctx, in.RequestKey); err != nil {
 		return AttemptView{}, err
 	} else if ok {
-		if existing.OutcomeID != outcomeID || existing.PlanRevisionID != in.PlanRevisionID || existing.WorkUnitID != in.WorkUnitID {
+		if existing.OutcomeID != outcomeID || existing.PlanRevisionID != in.PlanRevisionID || (!in.WorkUnitID.IsZero() && existing.WorkUnitID != in.WorkUnitID) {
 			return AttemptView{}, apierr.Conflict(CodeAttemptRequestKeyConflict,
 				"That idempotency key is already bound to different Outcome/Plan/WorkUnit semantics",
 				map[string]any{"requestKey": strings.TrimSpace(in.RequestKey), "attemptId": existing.ID, "outcomeId": existing.OutcomeID, "planId": existing.PlanRevisionID, "workUnitId": existing.WorkUnitID})
@@ -241,6 +237,13 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		return AttemptView{}, apierr.NotFound("PROJECT_NOT_FOUND", "Register that Project before starting Attempts")
 	}
 	if err := s.probeReadiness(ctx, projectID, binding, &policy); err != nil {
+		return AttemptView{}, err
+	}
+
+	// A successor may not be admitted until its predecessors' exact results are
+	// retained, complete and frozen. Checking here, before the fence is taken,
+	// means a blocked successor never holds custody it cannot use.
+	if err := s.requireUpstreamArtifacts(ctx, plan, unit); err != nil {
 		return AttemptView{}, err
 	}
 

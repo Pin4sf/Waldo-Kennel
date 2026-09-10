@@ -301,6 +301,7 @@ export function useReviseOutcomeContract(outcomeId: string | undefined) {
 		save: async (input: ReviseOutcomeContractRequest) => {
 			const outcome = await write.save(input);
 			if (usesPreviewWorkspaceData) queryClient.removeQueries({ queryKey: planQueryKey(outcomeId) });
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId) });
 			return outcome;
 		},
 	};
@@ -319,6 +320,10 @@ export const PLAN_CAPABILITY_UNAUTHORIZED = "PLAN_CAPABILITY_UNAUTHORIZED";
 
 function planQueryKey(outcomeId: string | undefined) {
 	return ["outcome-plan", outcomeId ?? ""] as const;
+}
+
+export function outcomeScheduleQueryKey(outcomeId: string | undefined, planId?: string | undefined) {
+	return ["outcome-schedule", outcomeId ?? "", planId ?? ""] as const;
 }
 
 async function fetchLatestPlan(outcomeId: string): Promise<PlanRecord> {
@@ -340,6 +345,53 @@ export interface OutcomePlanQueryResult {
 	isLoading: boolean;
 	failure?: OutcomeFailure;
 	refetch: () => void;
+}
+
+export type ScheduleRecord = components["schemas"]["ScheduleResponse"];
+type ScheduleEnvelope = components["schemas"]["ScheduleEnvelope"];
+
+async function fetchOutcomeSchedule(outcomeId: string, planId: string): Promise<ScheduleRecord> {
+	if (usesPreviewWorkspaceData) {
+		const plan = getPreviewPlan(outcomeId);
+		if (!plan || plan.id !== planId) throw { code: PLAN_NOT_FOUND, message: "No preview plan exists yet." };
+		const next = plan.workUnits[0]?.id;
+		return {
+			outcomeId,
+			plan,
+			workUnits: plan.workUnits.map((workUnit, index) => ({
+				workUnit,
+				state: index === 0 ? "runnable" : "blocked",
+				attempts: [],
+				blockingDependencies: index === 0 ? [] : [plan.workUnits[index - 1]?.id ?? ""],
+				criterionReady: Object.fromEntries(workUnit.evidenceChecks.map((_, criterionIndex) => [`criterion-${criterionIndex + 1}`, false])),
+			})),
+			nextRunnableWorkUnitId: next,
+		};
+	}
+	const { data, error } = await apiClient.GET("/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule", {
+		params: { path: { outcomeId, planId } },
+	});
+	if (error) throw error;
+	return (data as ScheduleEnvelope).schedule;
+}
+
+export function useOutcomeSchedule(outcomeId: string | undefined, planId: string | undefined) {
+	const query = useQuery({
+		queryKey: outcomeScheduleQueryKey(outcomeId, planId),
+		enabled: Boolean(outcomeId && planId),
+		queryFn: () => fetchOutcomeSchedule(outcomeId as string, planId as string),
+		retry: (attempt, error) => {
+			const code = apiErrorCode(error);
+			if (code === PLAN_NOT_FOUND || code === PLAN_NOT_APPROVED || code === PLAN_BRIEF_INVALIDATED) return false;
+			return attempt < 2;
+		},
+	});
+	return {
+		schedule: query.data,
+		isLoading: query.isLoading,
+		failure: query.error ? classifyOutcomeFailure(query.error) : undefined,
+		refetch: () => void query.refetch(),
+	};
 }
 
 /**
@@ -390,6 +442,7 @@ export function useProposeOutcomePlan(outcomeId: string | undefined): ProposePla
 		},
 		onSuccess: (plan) => {
 			queryClient.setQueryData(planQueryKey(outcomeId), plan);
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId) });
 			if (usesPreviewWorkspaceData) {
 				queryClient.setQueryData(outcomeQueryKey(outcomeId), getPreviewOutcome(outcomeId as string));
 				void queryClient.invalidateQueries({ queryKey: ["project-outcomes"] });
@@ -431,6 +484,7 @@ export function useApproveOutcomePlan(outcomeId: string | undefined): ApprovePla
 		},
 		onSuccess: (plan) => {
 			queryClient.setQueryData(planQueryKey(outcomeId), plan);
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId, plan.id) });
 			if (usesPreviewWorkspaceData) {
 				queryClient.setQueryData(outcomeQueryKey(outcomeId), getPreviewOutcome(outcomeId as string));
 				void queryClient.invalidateQueries({ queryKey: ["project-outcomes"] });
@@ -539,39 +593,29 @@ export interface StartAttemptState {
 	 * for the retry so an ambiguous network answer replays the same request
 	 * instead of admitting twice.
 	 */
-	start: (input: { planRevisionId: string; workUnitId: string; harness?: string }) => Promise<AttemptRecord>;
+	start: (input: { planRevisionId: string }) => Promise<AttemptRecord>;
 }
 
 export function useStartOutcomeAttempt(outcomeId: string | undefined): StartAttemptState {
 	const queryClient = useQueryClient();
 	const requestKeyRef = useRef<string | undefined>(undefined);
 	const mutation = useMutation({
-		mutationFn: async (input: { planRevisionId: string; workUnitId: string; harness?: string }) => {
+		mutationFn: async (input: { planRevisionId: string }) => {
 			if (!requestKeyRef.current) {
 				requestKeyRef.current = crypto.randomUUID();
 			}
 			const requestKey = requestKeyRef.current;
 			const { data, error } = await apiClient.POST("/api/v1/outcomes/{outcomeId}/attempts", {
 				params: { path: { outcomeId: outcomeId as string } },
-				body: {
-					// harness is legacy and the daemon ignores it: provider and
-					// model come from the approved WorkUnit's frozen binding.
-					// It stays omitted rather than sent empty so an old daemon
-					// does not read "" as a deliberate choice of nothing.
-					...(input.harness ? { harness: input.harness } : {}),
-					planRevisionId: input.planRevisionId,
-					// An approved Plan may hold several WorkUnits, so the
-					// Attempt has to say which one it executes.
-					workUnitId: input.workUnitId,
-					requestKey,
-				},
+				body: { planRevisionId: input.planRevisionId, requestKey },
 			});
 			if (error) throw error;
 			return (data as AttemptEnvelope).attempt;
 		},
-		onSuccess: () => {
+		onSuccess: (_attempt, input) => {
 			requestKeyRef.current = undefined;
 			void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) });
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId, input.planRevisionId) });
 		},
 	});
 	return {
@@ -608,7 +652,10 @@ export function useAttemptAction(outcomeId: string | undefined): AttemptActionSt
 			void action; // single-action union today; kept for call-site stability
 			return (data as AttemptEnvelope).attempt;
 		},
-		onSuccess: () => void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) }),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) });
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId) });
+		},
 	});
 	return {
 		pending: mutation.isPending,
@@ -658,7 +705,10 @@ export function useAttemptRecovery(outcomeId: string | undefined): AttemptRecove
 			const envelope = data as AttemptRecoveryEnvelope;
 			return { attempt: envelope.attempt, receipt: envelope.receipt };
 		},
-		onSuccess: () => void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) }),
+		onSuccess: () => {
+			void queryClient.invalidateQueries({ queryKey: attemptsQueryKey(outcomeId) });
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId) });
+		},
 	});
 	return {
 		pending: mutation.isPending,
@@ -726,7 +776,10 @@ function useProofMutation<TInput>(
 			}
 			return mutationFn(outcomeId as string, input);
 		},
-		onSuccess: (proof) => queryClient.setQueryData(outcomeProofQueryKey(outcomeId), proof),
+		onSuccess: (proof) => {
+			queryClient.setQueryData(outcomeProofQueryKey(outcomeId), proof);
+			void queryClient.invalidateQueries({ queryKey: outcomeScheduleQueryKey(outcomeId) });
+		},
 	});
 	return {
 		pending: mutation.isPending,

@@ -1,6 +1,7 @@
 // Package ptyregistry is a sideband JSON list of live Windows pty-host
 // processes so kennel stop can find and graceful-kill them even when session
-// metadata is lost. Ported from agent-orchestrator's windows-pty-registry.ts.
+// metadata is lost. Ported from the donor implementation's
+// windows-pty-registry.ts.
 package ptyregistry
 
 import (

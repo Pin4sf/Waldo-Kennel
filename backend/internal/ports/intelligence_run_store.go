@@ -20,6 +20,7 @@ type IntelligenceRunStore interface {
 		string,
 		string,
 	) error
+	RecordIntelligenceRunMetrics(context.Context, domain.IntelligenceRunID, *int64, *int64, *int64) error
 	UpdateIntelligenceRunStatus(
 		context.Context,
 		domain.IntelligenceRunID,

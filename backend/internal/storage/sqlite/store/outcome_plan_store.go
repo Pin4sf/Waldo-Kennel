@@ -15,8 +15,8 @@ import (
 const insertPlanRevisionCanonicalSQL = `
 INSERT INTO plan_revisions (
     id, outcome_id, number, contract_revision_number, status, summary,
-    run_brief_core_digest, run_brief_compiled_digest, routing_decisions_json
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, routing_decisions_json
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) `
 
 const insertWorkUnitExecutionBindingCanonicalSQL = `
 INSERT INTO work_unit_provider_bindings (work_unit_id, provider, model_selection, model)
@@ -62,9 +62,17 @@ func (s *Store) AppendPlanRevision(ctx context.Context, outcomeID domain.Outcome
 	if err != nil {
 		return domain.PlanRevision{}, fmt.Errorf("encode routing decisions for plan %s: %w", plan.ID, err)
 	}
+	assumptionsJSON, err := marshalJSONStrings(plan.Assumptions)
+	if err != nil {
+		return domain.PlanRevision{}, fmt.Errorf("encode assumptions for plan %s: %w", plan.ID, err)
+	}
+	blockersJSON, err := marshalJSONStrings(plan.Blockers)
+	if err != nil {
+		return domain.PlanRevision{}, fmt.Errorf("encode blockers for plan %s: %w", plan.ID, err)
+	}
 	if _, err := tx.ExecContext(ctx, insertPlanRevisionCanonicalSQL,
 		plan.ID, plan.OutcomeID, plan.Number, plan.ContractRevisionNumber, string(plan.Status), plan.Summary,
-		plan.RunBriefCoreDigest, plan.RunBriefCompiledDigest, string(routingJSON),
+		assumptionsJSON, blockersJSON, plan.RunBriefCoreDigest, plan.RunBriefCompiledDigest, string(routingJSON),
 	); err != nil {
 		return domain.PlanRevision{}, fmt.Errorf("create plan revision %s: %w", plan.ID, err)
 	}
@@ -204,7 +212,12 @@ func (s *Store) LatestProposedPlanRevision(ctx context.Context, outcomeID domain
 	if err != nil {
 		return domain.PlanRevision{}, false, fmt.Errorf("latest proposed plan for %s at r%d: %w", outcomeID, contractRevision, err)
 	}
-	return s.planFromRow(ctx, row)
+	return s.planFromRow(ctx, gen.PlanRevision{
+		ID: row.ID, OutcomeID: row.OutcomeID, Number: row.Number, ContractRevisionNumber: row.ContractRevisionNumber,
+		Status: row.Status, Summary: row.Summary, AssumptionsJson: row.AssumptionsJson, BlockersJson: row.BlockersJson,
+		RunBriefCoreDigest: row.RunBriefCoreDigest, RunBriefCompiledDigest: row.RunBriefCompiledDigest,
+		CreatedAt: row.CreatedAt, RoutingDecisionsJson: row.RoutingDecisionsJson,
+	})
 }
 
 // GetPlanRevision loads one plan revision scoped to its Outcome.
@@ -216,7 +229,12 @@ func (s *Store) GetPlanRevision(ctx context.Context, outcomeID domain.OutcomeID,
 	if err != nil {
 		return domain.PlanRevision{}, false, fmt.Errorf("get plan %s: %w", planID, err)
 	}
-	return s.planFromRow(ctx, row)
+	return s.planFromRow(ctx, gen.PlanRevision{
+		ID: row.ID, OutcomeID: row.OutcomeID, Number: row.Number, ContractRevisionNumber: row.ContractRevisionNumber,
+		Status: row.Status, Summary: row.Summary, AssumptionsJson: row.AssumptionsJson, BlockersJson: row.BlockersJson,
+		RunBriefCoreDigest: row.RunBriefCoreDigest, RunBriefCompiledDigest: row.RunBriefCompiledDigest,
+		CreatedAt: row.CreatedAt, RoutingDecisionsJson: row.RoutingDecisionsJson,
+	})
 }
 
 // GetLatestPlanRevision loads the latest plan revision for an Outcome.
@@ -228,7 +246,12 @@ func (s *Store) GetLatestPlanRevision(ctx context.Context, outcomeID domain.Outc
 	if err != nil {
 		return domain.PlanRevision{}, false, fmt.Errorf("latest plan for %s: %w", outcomeID, err)
 	}
-	return s.planFromRow(ctx, row)
+	return s.planFromRow(ctx, gen.PlanRevision{
+		ID: row.ID, OutcomeID: row.OutcomeID, Number: row.Number, ContractRevisionNumber: row.ContractRevisionNumber,
+		Status: row.Status, Summary: row.Summary, AssumptionsJson: row.AssumptionsJson, BlockersJson: row.BlockersJson,
+		RunBriefCoreDigest: row.RunBriefCoreDigest, RunBriefCompiledDigest: row.RunBriefCompiledDigest,
+		CreatedAt: row.CreatedAt, RoutingDecisionsJson: row.RoutingDecisionsJson,
+	})
 }
 
 // ApprovePlanRevision marks a proposed plan revision as owner-approved.
@@ -293,10 +316,18 @@ func (s *Store) planFromRow(ctx context.Context, row gen.PlanRevision) (domain.P
 }
 
 func planFromParts(row gen.PlanRevision, units []gen.WorkUnit, grants []gen.CapabilityGrant) (domain.PlanRevision, error) {
+	assumptions, err := unmarshalJSONStrings(row.AssumptionsJson)
+	if err != nil {
+		return domain.PlanRevision{}, fmt.Errorf("plan %s assumptions: %w", row.ID, err)
+	}
+	blockers, err := unmarshalJSONStrings(row.BlockersJson)
+	if err != nil {
+		return domain.PlanRevision{}, fmt.Errorf("plan %s blockers: %w", row.ID, err)
+	}
 	plan := domain.PlanRevision{
 		ID: row.ID, OutcomeID: row.OutcomeID, Number: row.Number,
 		ContractRevisionNumber: row.ContractRevisionNumber, Status: domain.PlanStatus(row.Status),
-		Summary: row.Summary, RunBriefCoreDigest: row.RunBriefCoreDigest,
+		Summary: row.Summary, Assumptions: assumptions, Blockers: blockers, RunBriefCoreDigest: row.RunBriefCoreDigest,
 		RunBriefCompiledDigest: row.RunBriefCompiledDigest, CreatedAt: row.CreatedAt,
 	}
 	for _, item := range units {

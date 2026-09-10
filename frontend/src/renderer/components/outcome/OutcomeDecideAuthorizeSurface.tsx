@@ -11,7 +11,7 @@ import {
 	ShieldCheck,
 	Target,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -21,10 +21,12 @@ import {
 	useApproveOutcomePlan,
 	useOutcome,
 	useOutcomePlan,
+	useOutcomeProof,
 	useProposeOutcomePlan,
 	type OutcomeFailure,
 	type PlanRecord,
 } from "../../hooks/useOutcome";
+import { MissionWorkUnitGraph } from "./MissionWorkUnitGraph";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -142,7 +144,7 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: Outco
 				</div>
 			)}
 
-			{plan && <PlanReviewCard plan={plan} />}
+			{plan && <PlanReviewCard outcomeId={outcomeId} plan={plan} />}
 
 			{plan?.status === "proposed" && !isStaleConflict && !isAuthorityBlocked && (
 				<div className="mx-auto flex w-full max-w-2xl flex-col gap-2">
@@ -208,18 +210,65 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: Outco
 	);
 }
 
-function PlanReviewCard({ plan }: { plan: PlanRecord }) {
+function PlanReviewCard({ outcomeId, plan }: { outcomeId: string; plan: PlanRecord }) {
 	const { t } = useTranslation();
+	// Criterion text comes from the canonical proof read, so nodes and rows show
+	// the owner's own words instead of criterion ids.
+	const proofQuery = useOutcomeProof(outcomeId);
+	const criterionText = useCallback(
+		(criterionId: string) =>
+			proofQuery.proof?.criteria.find((criterion) => criterion.criterionId === criterionId)?.text,
+		[proofQuery.proof],
+	);
+	const titleOf = useMemo(
+		() => new Map(plan.workUnits.map((workUnit) => [workUnit.id, workUnit.title])),
+		[plan.workUnits],
+	);
+	const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string | undefined>(undefined);
+	// The first work unit is NOT the plan's identity: a multi-unit plan is named
+	// by its own summary. Using workUnits[0] here was the last remnant of the
+	// first-array-entry reading of a plan.
 	const unit = plan.workUnits[0];
+	const assumptions = plan.assumptions ?? [];
+	const blockers = plan.blockers ?? [];
+	const routingDecisions = plan.routingDecisions ?? [];
 	return (
 		<section className="mx-auto flex w-full max-w-2xl flex-col gap-2" data-testid="outcome-plan-card">
 			<div className="flex items-center justify-between gap-3 rounded-group hairline border-border bg-card px-4.5 py-3.5">
-				<h3 className="min-w-0 truncate text-sm font-medium text-foreground">{unit?.title ?? plan.summary}</h3>
+				<h3 className="min-w-0 truncate text-sm font-medium text-foreground">{plan.summary || unit?.title}</h3>
 				<Badge variant={plan.status === "approved" ? "success" : "accent"}>
 					{plan.status === "approved"
 						? t("outcome.decide.badgeApproved", { number: plan.number })
 						: t("outcome.decide.badgeProposed", { number: plan.number })}
 				</Badge>
+			</div>
+			{/* Proposed topology: no schedule exists before authorization, so the
+			    graph deliberately carries no execution state. */}
+			<div className="rounded-group hairline border-border bg-card px-4.5 py-3.5">
+				<MissionWorkUnitGraph
+					criterionText={criterionText}
+					onSelectWorkUnit={setSelectedWorkUnitId}
+					selectedWorkUnitId={selectedWorkUnitId}
+					workUnits={plan.workUnits}
+				/>
+			</div>
+
+			<div className="grid gap-2" data-testid="outcome-plan-work-units">
+				{plan.workUnits.map((workUnit, index) => (
+					<div className="rounded-group hairline border-border bg-card px-3.5 py-3" key={workUnit.id}>
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-sm font-medium">{index + 1}. {workUnit.title}</span>
+							<span className="text-xs text-muted-foreground">{workUnit.modelSelection === "provider_default" ? t("outcome.missionGraph.providerDefault") : workUnit.model || t("outcome.decide.modelUnreported")}</span>
+						</div>
+						<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+							{/* Criteria and dependencies read as words, not ids: a raw
+							    identifier is technical detail, not primary content. */}
+							<span>{t("outcome.decide.criteriaLabel")}: {criteriaLabel(workUnit.criterionIds, criterionText) || t("outcome.decide.criteriaNotRecorded")}</span>
+							<span>{t("outcome.decide.dependsOnLabel")}: {(workUnit.dependsOn ?? []).length > 0 ? (workUnit.dependsOn ?? []).map((id) => titleOf.get(id) ?? id).join(", ") : t("outcome.decide.dependsOnNone")}</span>
+							<span>{t("outcome.decide.providerLabel")}: {workUnit.provider || t("outcome.decide.providerUnbound")}</span>
+						</div>
+					</div>
+				))}
 			</div>
 
 			<Accordion className="flex flex-col gap-2" defaultValue={PLAN_SECTION_VALUES} type="multiple">
@@ -256,6 +305,9 @@ function PlanReviewCard({ plan }: { plan: PlanRecord }) {
 				</PlanSection>
 				<PlanSection icon={<FileText aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsBrief")} value="brief">
 					<code className="block break-all text-xs leading-body text-foreground/80">{plan.runBriefCoreDigest}</code>
+					{assumptions.length > 0 && <p className="mt-2 text-xs text-warning">{t("outcome.decide.assumptionsLabel")}: {assumptions.join(" · ")}</p>}
+					{blockers.length > 0 && <p className="mt-2 text-xs text-destructive">{t("outcome.decide.blockersLabel")}: {blockers.join(" · ")}</p>}
+					{routingDecisions.length > 0 && <p className="mt-2 text-xs text-muted-foreground">{t("outcome.decide.routingLabel")}: {routingDecisions.map((decision) => `${decision.workUnitId} → ${decision.recommendedProvider || "no candidate"}`).join(" · ")}</p>}
 				</PlanSection>
 			</Accordion>
 
@@ -328,4 +380,20 @@ function PlanFailureBanners({ failure, onRetry }: { failure: OutcomeFailure; onR
 			{failure.message}
 		</p>
 	);
+}
+
+/**
+ * Criterion text for one work unit, falling back to nothing rather than to ids.
+ *
+ * An unresolved criterion is better shown as "not recorded" than as an opaque
+ * identifier the owner cannot act on.
+ */
+function criteriaLabel(
+	criterionIds: string[] | undefined,
+	criterionText: (criterionId: string) => string | undefined,
+): string {
+	return (criterionIds ?? [])
+		.map((id) => criterionText(id))
+		.filter((text): text is string => Boolean(text))
+		.join(" · ");
 }

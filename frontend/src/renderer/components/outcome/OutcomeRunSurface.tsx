@@ -1,6 +1,6 @@
 import { SessionsBoardGridView, SessionsListView } from "@pin4sf/kennel-product-ui";
 import { Loader2, ShieldAlert } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MessageKey } from "../../i18n/messages";
@@ -9,12 +9,14 @@ import {
 	useAttemptRecovery,
 	useOutcomeAttempts,
 	useOutcomePlan,
+	useOutcomeProof,
+	useOutcomeSchedule,
 	useStartOutcomeAttempt,
 	type AttemptRecord,
 } from "../../hooks/useOutcome";
-import { useProjectAgentRoles } from "../../hooks/useProjectAgentRoles";
 import { boardAttentionZoneOrder, getAttentionZoneViewForZone } from "../../lib/session-presentation";
 import { useUiStore } from "../../stores/ui-store";
+import { MissionWorkUnitGraph } from "./MissionWorkUnitGraph";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import {
@@ -27,11 +29,6 @@ import {
 
 type OutcomeRunSurfaceProps = {
 	outcomeId: string;
-	/**
-	 * The Outcome's project, needed only to resolve which worker agent it is
-	 * configured to run on. Absent falls back to the daemon's own default.
-	 */
-	projectId?: string;
 	onReviewProof?: () => void;
 };
 
@@ -75,13 +72,8 @@ function statusBadgeKey(status: string): MessageKey | undefined {
  * completion is never presented as success, transcripts are never read, and
  * no provider name is treated as a policy.
  */
-export function OutcomeRunSurface({ outcomeId, projectId, onReviewProof }: OutcomeRunSurfaceProps) {
+export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfaceProps) {
 	const { t } = useTranslation();
-	// The worker the project is configured for — chosen in the intake composer
-	// or in Project Settings, both of which write the same field. Without this
-	// the daemon would silently run every attempt on its Codex fallback no
-	// matter what the project says.
-	const projectRoles = useProjectAgentRoles(projectId);
 	const planQuery = useOutcomePlan(outcomeId);
 	const attemptsQuery = useOutcomeAttempts(outcomeId);
 	const start = useStartOutcomeAttempt(outcomeId);
@@ -89,15 +81,23 @@ export function OutcomeRunSurface({ outcomeId, projectId, onReviewProof }: Outco
 	const recovery = useAttemptRecovery(outcomeId);
 
 	const pending = start.pending || action.pending || recovery.pending;
-	const failure = start.failure ?? action.failure ?? recovery.failure ?? attemptsQuery.failure;
 	const plan = planQuery.plan;
 	const planApproved = plan?.status === "approved";
+	const scheduleQuery = useOutcomeSchedule(outcomeId, planApproved ? plan?.id : undefined);
+	const schedule = scheduleQuery.schedule;
+	const proofQuery = useOutcomeProof(outcomeId);
+	const criterionText = useCallback(
+		(criterionId: string) =>
+			proofQuery.proof?.criteria.find((criterion) => criterion.criterionId === criterionId)?.text,
+		[proofQuery.proof],
+	);
+	const [selectedWorkUnitId, setSelectedWorkUnitId] = useState<string | undefined>(undefined);
+	const failure = start.failure ?? action.failure ?? recovery.failure ?? attemptsQuery.failure ?? scheduleQuery.failure;
 	const attempts = attemptsQuery.attempts ?? [];
 	// Lineage order is ascending by number; the current attempt is the newest.
 	const current: AttemptRecord | undefined =
 		attempts.length > 0 ? attempts[attempts.length - 1] : undefined;
-	const canStartNew =
-		planApproved && !pending && (!current || current.fence === undefined);
+	const canStartNew = planApproved && !pending && Boolean(schedule?.nextRunnableWorkUnitId) && (!current || current.fence === undefined);
 
 	const outcomeRunViewMode = useUiStore((state) => state.outcomeRunViewMode);
 	const boardColumns = useMemo(() => boardAttentionZoneOrder.map((zone) => getAttentionZoneViewForZone(zone, t)), [t]);
@@ -120,16 +120,10 @@ export function OutcomeRunSurface({ outcomeId, projectId, onReviewProof }: Outco
 	const engageCurrentAttempt = () => openAttemptPanel();
 
 	async function startAttempt() {
-		if (!plan || pending) return;
-		// An Attempt executes one approved WorkUnit. Until Mission Control can
-		// select among a graph, the MVP runs the plan's first unit.
-		const workUnit = plan.workUnits[0];
-		if (!workUnit) return;
+		if (!plan || pending || !schedule?.nextRunnableWorkUnitId) return;
 		try {
 			await start.start({
 				planRevisionId: plan.id,
-				workUnitId: workUnit.id,
-				harness: projectRoles.available ? projectRoles.worker : undefined,
 			});
 		} catch {
 			// Failure state derives from the mutation's typed error.
@@ -178,13 +172,27 @@ export function OutcomeRunSurface({ outcomeId, projectId, onReviewProof }: Outco
 					<Button
 						className="mt-3"
 						data-testid="outcome-run-start"
-						disabled={pending}
+						disabled={pending || scheduleQuery.isLoading || !schedule?.nextRunnableWorkUnitId}
 						onClick={() => void startAttempt()}
 					>
 						{start.pending && <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />}
 						{t("outcome.run.startCta")}
 					</Button>
 				</div>
+			)}
+
+			{/* The daemon-derived execution graph. Every state, blocker and
+			    reason here is a schedule fact; this only renders it. */}
+			{planApproved && schedule && (
+				<section className="max-w-2xl rounded-group hairline border-border bg-card px-4.5 py-3.5" data-testid="outcome-run-schedule">
+					<MissionWorkUnitGraph
+						criterionText={criterionText}
+						onSelectWorkUnit={setSelectedWorkUnitId}
+						schedule={schedule}
+						selectedWorkUnitId={selectedWorkUnitId}
+						workUnits={schedule.workUnits.map((entry) => entry.workUnit)}
+					/>
+				</section>
 			)}
 
 			{/* The Board/List reading of this Outcome's full attempt lineage,

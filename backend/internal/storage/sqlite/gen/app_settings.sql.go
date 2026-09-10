@@ -7,6 +7,7 @@ package gen
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
@@ -14,7 +15,7 @@ import (
 
 const getAppSettings = `-- name: GetAppSettings :one
 
-SELECT id, default_session_mode, updated_at FROM app_settings WHERE id = 1
+SELECT id, default_session_mode, updated_at, reasoning_provider, reasoning_model, reasoning_effort, reasoning_verified_at, reasoning_verified_provider, reasoning_verified_model, reasoning_generation, reasoning_verified_generation, reasoning_verification_fingerprint FROM app_settings WHERE id = 1
 `
 
 // Daemon-owned user preferences. One row, seeded by migration 0042, so a read
@@ -22,7 +23,20 @@ SELECT id, default_session_mode, updated_at FROM app_settings WHERE id = 1
 func (q *Queries) GetAppSettings(ctx context.Context) (AppSetting, error) {
 	row := q.db.QueryRowContext(ctx, getAppSettings)
 	var i AppSetting
-	err := row.Scan(&i.ID, &i.DefaultSessionMode, &i.UpdatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.DefaultSessionMode,
+		&i.UpdatedAt,
+		&i.ReasoningProvider,
+		&i.ReasoningModel,
+		&i.ReasoningEffort,
+		&i.ReasoningVerifiedAt,
+		&i.ReasoningVerifiedProvider,
+		&i.ReasoningVerifiedModel,
+		&i.ReasoningGeneration,
+		&i.ReasoningVerifiedGeneration,
+		&i.ReasoningVerificationFingerprint,
+	)
 	return i, err
 }
 
@@ -38,4 +52,89 @@ type SetDefaultSessionModeParams struct {
 func (q *Queries) SetDefaultSessionMode(ctx context.Context, arg SetDefaultSessionModeParams) error {
 	_, err := q.db.ExecContext(ctx, setDefaultSessionMode, arg.DefaultSessionMode, arg.UpdatedAt)
 	return err
+}
+
+const setReasoningSettings = `-- name: SetReasoningSettings :exec
+UPDATE app_settings
+SET reasoning_provider = ?, reasoning_model = ?, reasoning_effort = ?, reasoning_generation = reasoning_generation + 1, updated_at = ?
+WHERE id = 1
+`
+
+type SetReasoningSettingsParams struct {
+	ReasoningProvider string
+	ReasoningModel    string
+	ReasoningEffort   string
+	UpdatedAt         time.Time
+}
+
+func (q *Queries) SetReasoningSettings(ctx context.Context, arg SetReasoningSettingsParams) error {
+	_, err := q.db.ExecContext(ctx, setReasoningSettings,
+		arg.ReasoningProvider,
+		arg.ReasoningModel,
+		arg.ReasoningEffort,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const setReasoningVerification = `-- name: SetReasoningVerification :exec
+UPDATE app_settings
+SET reasoning_verified_at = ?, reasoning_verified_provider = ?, reasoning_verified_model = ?, reasoning_verified_generation = 0, reasoning_verification_fingerprint = '', updated_at = ?
+WHERE id = 1
+`
+
+type SetReasoningVerificationParams struct {
+	ReasoningVerifiedAt       sql.NullString
+	ReasoningVerifiedProvider string
+	ReasoningVerifiedModel    string
+	UpdatedAt                 time.Time
+}
+
+func (q *Queries) SetReasoningVerification(ctx context.Context, arg SetReasoningVerificationParams) error {
+	_, err := q.db.ExecContext(ctx, setReasoningVerification,
+		arg.ReasoningVerifiedAt,
+		arg.ReasoningVerifiedProvider,
+		arg.ReasoningVerifiedModel,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const setReasoningVerificationForGeneration = `-- name: SetReasoningVerificationForGeneration :execrows
+UPDATE app_settings
+SET reasoning_verified_at = ?, reasoning_verified_provider = ?, reasoning_verified_model = ?,
+    reasoning_verified_generation = CASE WHEN ? IS NULL THEN 0 ELSE ? END,
+    reasoning_verification_fingerprint = CASE WHEN ? IS NULL THEN '' ELSE ? END,
+    updated_at = ?
+WHERE id = 1 AND reasoning_generation = ?
+`
+
+type SetReasoningVerificationForGenerationParams struct {
+	ReasoningVerifiedAt              sql.NullString
+	ReasoningVerifiedProvider        string
+	ReasoningVerifiedModel           string
+	Column4                          interface{}
+	ReasoningVerifiedGeneration      int64
+	Column6                          interface{}
+	ReasoningVerificationFingerprint string
+	UpdatedAt                        time.Time
+	ReasoningGeneration              int64
+}
+
+func (q *Queries) SetReasoningVerificationForGeneration(ctx context.Context, arg SetReasoningVerificationForGenerationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setReasoningVerificationForGeneration,
+		arg.ReasoningVerifiedAt,
+		arg.ReasoningVerifiedProvider,
+		arg.ReasoningVerifiedModel,
+		arg.Column4,
+		arg.ReasoningVerifiedGeneration,
+		arg.Column6,
+		arg.ReasoningVerificationFingerprint,
+		arg.UpdatedAt,
+		arg.ReasoningGeneration,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

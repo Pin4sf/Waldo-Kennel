@@ -8,6 +8,7 @@ import { SettingsLinkRow, SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
 import { cn } from "../../lib/utils";
 import { Switch } from "../ui/switch";
+import { ReasoningSettingsSection } from "./ReasoningSettingsSection";
 import { useSettings, useUpdateSessionInterface } from "../../hooks/useSettings";
 import type { SessionMode } from "../../types/workspace";
 
@@ -153,6 +154,7 @@ export function GeneralSettingsSection({
 				</p>
 			) : null}
 			<SessionInterfaceRow />
+			<ReasoningSettingsSection />
 			<SettingsRow label={t("settings.developerMode")}>
 				<Switch
 					aria-label={t("settings.developerMode")}

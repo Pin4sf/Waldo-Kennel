@@ -33,11 +33,11 @@ describe("decideRelocation", () => {
 		).toBe("handoff");
 	});
 
-	it("never hands off to the same-named legacy Agent Orchestrator bundle", () => {
+	it("never hands off to a same-named bundle from a different product", () => {
 		expect(
 			decideRelocation({
 				...BASE,
-				installedBundleIdentifier: "dev.agent-orchestrator.desktop",
+				installedBundleIdentifier: "dev.donor-product.desktop",
 				installedVersion: "0.10.3",
 			}),
 		).toBe("stay");
@@ -115,7 +115,7 @@ describe("readBundleVersion", () => {
 	let bundle: string;
 
 	beforeEach(async () => {
-		dir = await mkdtemp(path.join(os.tmpdir(), "ao-relocation-"));
+		dir = await mkdtemp(path.join(os.tmpdir(), "kennel-relocation-"));
 		bundle = path.join(dir, "Kennel.app");
 		await mkdir(path.join(bundle, "Contents"), { recursive: true });
 	});

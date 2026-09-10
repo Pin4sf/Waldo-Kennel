@@ -143,6 +143,25 @@ func TestProposePlanReentryIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestReplanPlanWithFeedbackCreatesNewImmutableProposal(t *testing.T) {
+	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
+	svc, store, outcomeID, provider := newPlanningTestService(t, router)
+	first, err := svc.ProposePlan(context.Background(), outcomeID, 2)
+	if err != nil {
+		t.Fatalf("first propose: %v", err)
+	}
+	second, err := svc.ReplanPlan(context.Background(), outcomeID, 2, "Use the repository's distinctive check command")
+	if err != nil {
+		t.Fatalf("replan: %v", err)
+	}
+	if second.Plan.ID == first.Plan.ID || second.Plan.Number != 2 {
+		t.Fatalf("replan reused proposal: first=%+v second=%+v", first.Plan, second.Plan)
+	}
+	if provider.calls != 2 || len(store.plans[outcomeID]) != 2 {
+		t.Fatalf("replan calls/plans = %d/%d, want 2/2", provider.calls, len(store.plans[outcomeID]))
+	}
+}
+
 func TestProposePlanRejectsStaleContractPointer(t *testing.T) {
 	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
 	svc, _, outcomeID, _ := newPlanningTestService(t, router)

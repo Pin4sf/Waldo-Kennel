@@ -20,6 +20,7 @@ type IntakeAnalyzer struct {
 	provider ports.IntelligenceProvider
 	runs     ports.IntelligenceRunStore
 	clock    func() time.Time
+	projects ProjectSource
 }
 
 // NewIntakeAnalyzer constructs the Intake intelligence adapter.
@@ -28,6 +29,14 @@ func NewIntakeAnalyzer(provider ports.IntelligenceProvider, runs ports.Intellige
 		clock = func() time.Time { return time.Now().UTC() }
 	}
 	return &IntakeAnalyzer{provider: provider, runs: runs, clock: clock}
+}
+
+// WithRepositoryContextSource enables bounded grounding from the registered
+// project. It is optional so historical/unit callers can still exercise the
+// provider seam without a filesystem.
+func (a *IntakeAnalyzer) WithRepositoryContextSource(source ProjectSource) *IntakeAnalyzer {
+	a.projects = source
+	return a
 }
 
 // Analyze records bounded contract-analysis provenance and returns its proposal.
@@ -42,11 +51,29 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 		Clarification:     input.Clarification,
 		ClarificationText: input.ClarificationText,
 	}
+	if a.projects != nil {
+		project, found, err := a.projects.GetProject(ctx, string(input.Session.ProjectID))
+		if err != nil {
+			return ports.IntakeAnalysisTicket{}, fmt.Errorf("load project for contract grounding: %w", err)
+		}
+		if !found {
+			return ports.IntakeAnalysisTicket{}, fmt.Errorf("project %s is not registered", input.Session.ProjectID)
+		}
+		var brief briefSource
+		if candidate, ok := a.projects.(briefSource); ok {
+			brief = candidate
+		}
+		request.RepositoryContext, err = BuildRepositoryContext(ctx, project, brief)
+		if err != nil {
+			return ports.IntakeAnalysisTicket{}, err
+		}
+	}
 	inputDigest, err := digestContractRequest(request)
 	if err != nil {
 		return ports.IntakeAnalysisTicket{}, err
 	}
 	now := a.clock().UTC()
+	started := time.Now()
 	run := domain.IntelligenceRun{
 		ID:                domain.IntelligenceRunID("intel-" + uuid.NewString()),
 		Kind:              domain.IntelligenceRunContractAnalysis,
@@ -68,10 +95,31 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 	response, err := a.provider.AnalyzeContract(ctx, request)
 	if err != nil {
 		completed := a.clock().UTC()
-		// Persist a stable code and non-sensitive summary; provider-native errors
-		// may contain prompts/tokens and do not belong in canonical provenance.
-		_ = a.runs.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_PROVIDER_FAILED", "Contract intelligence provider failed", &completed)
-		return ports.IntakeAnalysisTicket{}, err
+		duration := time.Since(started).Milliseconds()
+		// Terminalizing has to outlive the caller's context. A cancelled or
+		// timed-out request cancels ctx too, and writing the terminal state
+		// through it would fail — leaving the run "running" and the UI showing
+		// Waldo as still thinking until the next daemon restart reconciles it.
+		cleanup, cancelCleanup := TerminalizationContext(ctx)
+		defer cancelCleanup()
+		if metricErr := a.runs.RecordIntelligenceRunMetrics(cleanup, run.ID, nil, nil, &duration); metricErr != nil {
+			_ = a.runs.UpdateIntelligenceRunStatus(cleanup, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_STATUS_PERSIST_FAILED", "Reasoning status could not be persisted safely", &completed)
+			return ports.IntakeAnalysisTicket{}, fmt.Errorf("contract intelligence failed and recovery state could not be recorded: %w", metricErr)
+		}
+		// Persist the classified reason, not a flat "provider failed": the
+		// owner's next move differs between a missing credential, a throttle
+		// and a refusal. The detail is the adapter's own summary, because
+		// provider-native errors may contain prompts/tokens and do not belong
+		// in canonical provenance.
+		failureCode, failureDetail := TerminalReason(err)
+		_ = a.runs.UpdateIntelligenceRunStatus(cleanup, run.ID, domain.IntelligenceRunFailed, "", failureCode, failureDetail, &completed)
+		return ports.IntakeAnalysisTicket{}, APIError(err)
+	}
+	duration := time.Since(started).Milliseconds()
+	if err := a.runs.RecordIntelligenceRunMetrics(ctx, run.ID, responseMetrics(response), responseOutputMetrics(response), &duration); err != nil {
+		completed := a.clock().UTC()
+		_ = a.runs.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_STATUS_PERSIST_FAILED", "Reasoning status could not be persisted safely", &completed)
+		return ports.IntakeAnalysisTicket{}, fmt.Errorf("record contract intelligence metrics: %w", err)
 	}
 	if err := a.runs.RecordIntelligenceRunEffectiveProvenance(ctx, run.ID,
 		response.Provenance.EffectiveProvider, response.Provenance.EffectiveModel, response.Provenance.NativeSessionRef); err != nil {
@@ -89,6 +137,13 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 	return ports.IntakeAnalysisTicket{Inline: &result, Detail: "Contract proposal ready"}, nil
 }
 
+func responseMetrics(response ports.ContractIntelligenceResponse) *int64 {
+	return response.Provenance.InputTokens
+}
+func responseOutputMetrics(response ports.ContractIntelligenceResponse) *int64 {
+	return response.Provenance.OutputTokens
+}
+
 func digestContractRequest(request ports.ContractIntelligenceRequest) (domain.SHA256Digest, error) {
 	payload := struct {
 		IntakeID            string                          `json:"intakeId"`
@@ -99,11 +154,13 @@ func digestContractRequest(request ports.ContractIntelligenceRequest) (domain.SH
 		PreviousProposal    *domain.OutcomeContractProposal `json:"previousProposal,omitempty"`
 		Clarification       *domain.ClarificationRequest    `json:"clarification,omitempty"`
 		ClarificationAnswer string                          `json:"clarificationAnswer,omitempty"`
+		RepositoryContext   ports.RepositoryContextSnapshot `json:"repositoryContext"`
 	}{
 		IntakeID: request.Session.ID.String(), ProjectID: string(request.Session.ProjectID),
 		Statement: request.Session.Statement, ProposalRevision: request.Session.CurrentProposalRevision,
 		ConversationRefs: request.ConversationRefs, PreviousProposal: request.PreviousProposal,
 		Clarification: request.Clarification, ClarificationAnswer: request.ClarificationText,
+		RepositoryContext: request.RepositoryContext,
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {

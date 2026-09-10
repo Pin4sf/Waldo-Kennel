@@ -67,9 +67,9 @@ describe("OutcomesOverviewSurface", () => {
 
 		renderSurface();
 
-		await waitFor(() => {
-			expect(screen.getByText("Waldo Kennel")).toBeInTheDocument();
-			expect(screen.getByText("Kennel Island")).toBeInTheDocument();
+	await waitFor(() => {
+		expect(screen.getByRole("heading", { name: "Waldo Kennel" })).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "Kennel Island" })).toBeInTheDocument();
 		});
 		expect(screen.getByText("Ship the release")).toBeInTheDocument();
 		expect(screen.getByText("Fix the notch")).toBeInTheDocument();

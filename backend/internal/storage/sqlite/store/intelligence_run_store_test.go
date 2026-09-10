@@ -101,6 +101,40 @@ func TestIntelligenceRunStoreEffectiveProvenanceIsMonotonic(t *testing.T) {
 	}
 }
 
+func TestIntelligenceRunStoreMetricsPreserveUnknownAndRejectReplacement(t *testing.T) {
+	s := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	now := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+	seedProject(t, s, "project-metrics")
+	seedAnalyzingIntakeForProject(t, s, "project-metrics", "intake-metrics", "key-metrics", now)
+	run := domain.IntelligenceRun{
+		ID: "intel-metrics", Kind: domain.IntelligenceRunContractAnalysis,
+		ProjectID: "project-metrics", IntakeID: "intake-metrics",
+		InputDigest: domain.DigestSHA256([]byte("metrics")), Status: domain.IntelligenceRunRunning, CreatedAt: now,
+	}
+	if err := s.CreateIntelligenceRun(ctx, run); err != nil {
+		t.Fatalf("create intelligence run: %v", err)
+	}
+	duration := int64(42)
+	if err := s.RecordIntelligenceRunMetrics(ctx, run.ID, nil, nil, &duration); err != nil {
+		t.Fatalf("record partial metrics: %v", err)
+	}
+	got, _, err := s.GetIntelligenceRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("get intelligence run: %v", err)
+	}
+	if got.InputTokens != nil || got.OutputTokens != nil || got.DurationMS == nil || *got.DurationMS != duration {
+		t.Fatalf("partial metrics = %#v", got)
+	}
+	if err := s.RecordIntelligenceRunMetrics(ctx, run.ID, nil, nil, &duration); err != nil {
+		t.Fatalf("identical metrics replay should be idempotent: %v", err)
+	}
+	replacement := int64(43)
+	if err := s.RecordIntelligenceRunMetrics(ctx, run.ID, nil, nil, &replacement); err == nil {
+		t.Fatal("metric replacement was accepted")
+	}
+}
+
 func TestIntelligenceRunStoreListsOnlyNonTerminalRuns(t *testing.T) {
 	s := sqlitetest.MustOpen(t)
 	ctx := context.Background()

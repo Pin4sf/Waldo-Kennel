@@ -37,7 +37,12 @@ func schedulerProofFixture(plan domain.PlanRevision) ProofView {
 	}
 }
 
-func addProvenAttemptCriterion(proof *ProofView, plan domain.PlanRevision, attempt domain.Attempt, criterionID domain.CriterionID, at time.Time) {
+// retainedArtifactV1 is the artifact version the fixture attempts retained.
+// Attempt-scoped proof binds to it, so a later version leaves the same proof
+// naming an artifact that no longer exists.
+const retainedArtifactV1 = "artifact-v1"
+
+func addProvenAttemptCriterion(proof *ProofView, plan domain.PlanRevision, attempt domain.Attempt, artifactVersion string, criterionID domain.CriterionID, at time.Time) {
 	var criterion *CriterionProofView
 	for i := range proof.Criteria {
 		if proof.Criteria[i].Criterion.ID == criterionID {
@@ -51,14 +56,14 @@ func addProvenAttemptCriterion(proof *ProofView, plan domain.PlanRevision, attem
 	evidenceID := domain.EvidenceItemID("ev-" + string(criterionID))
 	criterion.Evidence = append(criterion.Evidence, domain.EvidenceItem{
 		ID: evidenceID, OutcomeID: plan.OutcomeID, ContractRevisionID: proof.Contract.ID, CriterionID: criterionID,
-		SubjectType: domain.ProofSubjectAttempt, SubjectID: string(attempt.ID), SubjectRevision: string(attempt.ID),
+		SubjectType: domain.ProofSubjectAttempt, SubjectID: string(attempt.ID), SubjectRevision: artifactVersion,
 		Kind: domain.EvidenceSupporting, SourceType: domain.EvidenceSourceArtifact, SourceRef: "artifact",
 		ProducerType: domain.EvidenceProducerProvider, ProducerRef: string(attempt.ID), Summary: "support",
 		ContentDigest: strings.Repeat("b", 64), RequestKey: "ev-key", RequestFingerprint: strings.Repeat("c", 64), CreatedAt: at,
 	})
 	criterion.Verifications = append(criterion.Verifications, domain.VerificationRun{
 		ID: domain.VerificationRunID("ver-" + string(criterionID)), OutcomeID: plan.OutcomeID, ContractRevisionID: proof.Contract.ID, CriterionID: criterionID,
-		SubjectType: domain.ProofSubjectAttempt, SubjectID: string(attempt.ID), SubjectRevision: string(attempt.ID), EvidenceItemIDs: []domain.EvidenceItemID{evidenceID},
+		SubjectType: domain.ProofSubjectAttempt, SubjectID: string(attempt.ID), SubjectRevision: artifactVersion, EvidenceItemIDs: []domain.EvidenceItemID{evidenceID},
 		Method: "deterministic", IndependenceClass: domain.VerificationDeterministic, Result: domain.VerificationPassed,
 		VerifierRef: "test", RequestKey: "ver-key", RequestFingerprint: strings.Repeat("d", 64), CreatedAt: at.Add(time.Second),
 	})
@@ -84,7 +89,7 @@ func TestNextRunnableWorkUnitProofGatesDependencies(t *testing.T) {
 		t.Fatalf("unverified reconciled A should remain retryable: unit=%s ok=%v err=%v", unit.ID, ok, err)
 	}
 
-	addProvenAttemptCriterion(&proof, plan, attempts[0], "crit-a", time.Unix(10, 0).UTC())
+	addProvenAttemptCriterion(&proof, plan, attempts[0], retainedArtifactV1, "crit-a", time.Unix(10, 0).UTC())
 	unit, ok, err = nextRunnableWorkUnit(plan, attempts, proof)
 	if err != nil || !ok || unit.ID != "wu-b" {
 		t.Fatalf("canonically proven A should release B: unit=%s ok=%v err=%v", unit.ID, ok, err)
@@ -99,12 +104,12 @@ func TestNextRunnableWorkUnitRequiresEveryDependencyCriterion(t *testing.T) {
 	proof.Criteria = append(proof.Criteria, CriterionProofView{Criterion: domain.ContractCriterion{ID: "crit-a-2", ContractRevisionID: "cr-1", Position: 3, Text: "A2"}})
 	attempts := []domain.Attempt{{ID: "att-a", OutcomeID: plan.OutcomeID, PlanRevisionID: plan.ID, WorkUnitID: "wu-a", ContractRevisionNumber: 1, Status: domain.AttemptReconciled}}
 
-	addProvenAttemptCriterion(&proof, plan, attempts[0], "crit-a", time.Unix(10, 0).UTC())
+	addProvenAttemptCriterion(&proof, plan, attempts[0], retainedArtifactV1, "crit-a", time.Unix(10, 0).UTC())
 	unit, ok, err := nextRunnableWorkUnit(plan, attempts, proof)
 	if err != nil || !ok || unit.ID != "wu-a" {
 		t.Fatalf("partial proof must not release B: unit=%s ok=%v err=%v", unit.ID, ok, err)
 	}
-	addProvenAttemptCriterion(&proof, plan, attempts[0], "crit-a-2", time.Unix(20, 0).UTC())
+	addProvenAttemptCriterion(&proof, plan, attempts[0], retainedArtifactV1, "crit-a-2", time.Unix(20, 0).UTC())
 	unit, ok, err = nextRunnableWorkUnit(plan, attempts, proof)
 	if err != nil || !ok || unit.ID != "wu-b" {
 		t.Fatalf("complete proof should release B: unit=%s ok=%v err=%v", unit.ID, ok, err)
@@ -116,7 +121,7 @@ func TestSchedulerRejectsWrongOutcomeStaleContractAndUnrelatedAttemptProof(t *te
 	proof := schedulerProofFixture(plan)
 	attempt := domain.Attempt{ID: "att-a", OutcomeID: plan.OutcomeID, PlanRevisionID: plan.ID, WorkUnitID: "wu-a", ContractRevisionNumber: 1, Status: domain.AttemptReconciled}
 	attempts := []domain.Attempt{attempt}
-	addProvenAttemptCriterion(&proof, plan, attempt, "crit-a", time.Unix(10, 0).UTC())
+	addProvenAttemptCriterion(&proof, plan, attempt, retainedArtifactV1, "crit-a", time.Unix(10, 0).UTC())
 
 	wrongOutcome := proof
 	wrongOutcome.OutcomeID = "out-other"
@@ -134,7 +139,7 @@ func TestSchedulerRejectsWrongOutcomeStaleContractAndUnrelatedAttemptProof(t *te
 	otherAttempt := attempt
 	otherAttempt.ID = "att-other"
 	otherAttempt.WorkUnitID = "wu-b"
-	addProvenAttemptCriterion(&unrelated, plan, otherAttempt, "crit-a", time.Unix(10, 0).UTC())
+	addProvenAttemptCriterion(&unrelated, plan, otherAttempt, retainedArtifactV1, "crit-a", time.Unix(10, 0).UTC())
 	unit, ok, err := nextRunnableWorkUnit(plan, attempts, unrelated)
 	if err != nil || !ok || unit.ID != "wu-a" {
 		t.Fatalf("unrelated Attempt proof released dependency: unit=%s ok=%v err=%v", unit.ID, ok, err)
@@ -145,7 +150,7 @@ func TestSchedulerProofHorizonMakesSupersededProofRetryable(t *testing.T) {
 	plan := schedulerPlanFixture()
 	proof := schedulerProofFixture(plan)
 	attempt := domain.Attempt{ID: "att-a", OutcomeID: plan.OutcomeID, PlanRevisionID: plan.ID, WorkUnitID: "wu-a", ContractRevisionNumber: 1, Status: domain.AttemptReconciled}
-	addProvenAttemptCriterion(&proof, plan, attempt, "crit-a", time.Unix(10, 0).UTC())
+	addProvenAttemptCriterion(&proof, plan, attempt, retainedArtifactV1, "crit-a", time.Unix(10, 0).UTC())
 	proof.ProofHorizon = time.Unix(100, 0).UTC()
 
 	unit, ok, err := nextRunnableWorkUnit(plan, []domain.Attempt{attempt}, proof)

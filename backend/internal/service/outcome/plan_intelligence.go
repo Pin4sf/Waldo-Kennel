@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	intelligencesvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence"
 )
 
 func criterionAliases(revision domain.ContractRevision) (map[string]domain.CriterionID, error) {
@@ -34,11 +36,28 @@ func (s *Service) draftPlanWithProvenance(
 	outcome domain.Outcome,
 	revision domain.ContractRevision,
 	aliases map[string]domain.CriterionID,
+	replanFeedback string,
 ) (domain.PlanDraftProposal, error) {
 	if s.planIntelligence == nil || s.intelligenceRuns == nil {
 		return domain.PlanDraftProposal{}, fmt.Errorf("plan intelligence is not wired")
 	}
-	request := ports.PlanIntelligenceRequest{Outcome: outcome, Contract: revision, CriterionAliases: aliases}
+	request := ports.PlanIntelligenceRequest{Outcome: outcome, Contract: revision, CriterionAliases: aliases, ReplanFeedback: replanFeedback}
+	_, project, projectErr := s.projectForOutcome(ctx, outcome.ID)
+	if projectErr != nil {
+		return domain.PlanDraftProposal{}, projectErr
+	}
+	var briefSource interface {
+		GetCurrentProjectBriefRevision(context.Context, domain.ProjectID) (domain.ProjectBriefRevision, bool, error)
+	}
+	if candidate, ok := s.store.(interface {
+		GetCurrentProjectBriefRevision(context.Context, domain.ProjectID) (domain.ProjectBriefRevision, bool, error)
+	}); ok {
+		briefSource = candidate
+	}
+	request.RepositoryContext, projectErr = intelligencesvc.BuildRepositoryContext(ctx, project, briefSource)
+	if projectErr != nil {
+		return domain.PlanDraftProposal{}, projectErr
+	}
 	encoded, err := json.Marshal(request)
 	if err != nil {
 		return domain.PlanDraftProposal{}, fmt.Errorf("encode plan intelligence input: %w", err)
@@ -63,11 +82,30 @@ func (s *Service) draftPlanWithProvenance(
 		return domain.PlanDraftProposal{}, err
 	}
 
+	started := time.Now()
 	response, err := s.planIntelligence.DraftPlan(ctx, request)
 	if err != nil {
 		completed := s.clock().UTC()
-		_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_PROVIDER_FAILED", "Plan intelligence provider failed", &completed)
-		return domain.PlanDraftProposal{}, err
+		duration := time.Since(started).Milliseconds()
+		// Terminalizing has to outlive the caller's context; see
+		// intelligence.TerminalizationContext for why.
+		cleanup, cancelCleanup := intelligencesvc.TerminalizationContext(ctx)
+		defer cancelCleanup()
+		if metricErr := s.intelligenceRuns.RecordIntelligenceRunMetrics(cleanup, run.ID, nil, nil, &duration); metricErr != nil {
+			_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(cleanup, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_STATUS_PERSIST_FAILED", "Reasoning status could not be persisted safely", &completed)
+			return domain.PlanDraftProposal{}, fmt.Errorf("plan intelligence failed and recovery state could not be recorded: %w", metricErr)
+		}
+		// The classified reason, so a missing credential, a throttle and a
+		// refusal stay distinguishable in durable provenance.
+		failureCode, failureDetail := intelligencesvc.TerminalReason(err)
+		_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(cleanup, run.ID, domain.IntelligenceRunFailed, "", failureCode, failureDetail, &completed)
+		return domain.PlanDraftProposal{}, intelligencesvc.APIError(err)
+	}
+	duration := time.Since(started).Milliseconds()
+	if err := s.intelligenceRuns.RecordIntelligenceRunMetrics(ctx, run.ID, response.Provenance.InputTokens, response.Provenance.OutputTokens, &duration); err != nil {
+		completed := s.clock().UTC()
+		_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "INTELLIGENCE_STATUS_PERSIST_FAILED", "Reasoning status could not be persisted safely", &completed)
+		return domain.PlanDraftProposal{}, fmt.Errorf("record plan intelligence metrics: %w", err)
 	}
 	if err := response.Proposal.Validate(); err != nil {
 		completed := s.clock().UTC()

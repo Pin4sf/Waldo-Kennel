@@ -457,8 +457,8 @@ func (q *Queries) CreateOutcome(ctx context.Context, arg CreateOutcomeParams) er
 
 const createPlanRevision = `-- name: CreatePlanRevision :exec
 
-INSERT INTO plan_revisions (id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest)
-VALUES (?, ?, ?, ?, ?, ?, ?, '')
+INSERT INTO plan_revisions (id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '')
 `
 
 type CreatePlanRevisionParams struct {
@@ -468,6 +468,8 @@ type CreatePlanRevisionParams struct {
 	ContractRevisionNumber int64
 	Status                 string
 	Summary                string
+	AssumptionsJson        string
+	BlockersJson           string
 	RunBriefCoreDigest     string
 }
 
@@ -481,6 +483,8 @@ func (q *Queries) CreatePlanRevision(ctx context.Context, arg CreatePlanRevision
 		arg.ContractRevisionNumber,
 		arg.Status,
 		arg.Summary,
+		arg.AssumptionsJson,
+		arg.BlockersJson,
 		arg.RunBriefCoreDigest,
 	)
 	return err
@@ -676,13 +680,28 @@ func (q *Queries) GetDecompositionRevision(ctx context.Context, arg GetDecomposi
 }
 
 const getLatestPlanRevision = `-- name: GetLatestPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
 FROM plan_revisions WHERE outcome_id = ? ORDER BY number DESC LIMIT 1
 `
 
-func (q *Queries) GetLatestPlanRevision(ctx context.Context, outcomeID domain.OutcomeID) (PlanRevision, error) {
+type GetLatestPlanRevisionRow struct {
+	ID                     domain.PlanRevisionID
+	OutcomeID              domain.OutcomeID
+	Number                 int64
+	ContractRevisionNumber int64
+	Status                 string
+	Summary                string
+	AssumptionsJson        string
+	BlockersJson           string
+	RunBriefCoreDigest     string
+	RunBriefCompiledDigest string
+	CreatedAt              time.Time
+	RoutingDecisionsJson   sql.NullString
+}
+
+func (q *Queries) GetLatestPlanRevision(ctx context.Context, outcomeID domain.OutcomeID) (GetLatestPlanRevisionRow, error) {
 	row := q.db.QueryRowContext(ctx, getLatestPlanRevision, outcomeID)
-	var i PlanRevision
+	var i GetLatestPlanRevisionRow
 	err := row.Scan(
 		&i.ID,
 		&i.OutcomeID,
@@ -690,6 +709,8 @@ func (q *Queries) GetLatestPlanRevision(ctx context.Context, outcomeID domain.Ou
 		&i.ContractRevisionNumber,
 		&i.Status,
 		&i.Summary,
+		&i.AssumptionsJson,
+		&i.BlockersJson,
 		&i.RunBriefCoreDigest,
 		&i.RunBriefCompiledDigest,
 		&i.CreatedAt,
@@ -720,7 +741,7 @@ func (q *Queries) GetOutcome(ctx context.Context, id domain.OutcomeID) (Outcome,
 }
 
 const getPlanRevision = `-- name: GetPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
 FROM plan_revisions WHERE id = ? AND outcome_id = ?
 `
 
@@ -729,9 +750,24 @@ type GetPlanRevisionParams struct {
 	OutcomeID domain.OutcomeID
 }
 
-func (q *Queries) GetPlanRevision(ctx context.Context, arg GetPlanRevisionParams) (PlanRevision, error) {
+type GetPlanRevisionRow struct {
+	ID                     domain.PlanRevisionID
+	OutcomeID              domain.OutcomeID
+	Number                 int64
+	ContractRevisionNumber int64
+	Status                 string
+	Summary                string
+	AssumptionsJson        string
+	BlockersJson           string
+	RunBriefCoreDigest     string
+	RunBriefCompiledDigest string
+	CreatedAt              time.Time
+	RoutingDecisionsJson   sql.NullString
+}
+
+func (q *Queries) GetPlanRevision(ctx context.Context, arg GetPlanRevisionParams) (GetPlanRevisionRow, error) {
 	row := q.db.QueryRowContext(ctx, getPlanRevision, arg.ID, arg.OutcomeID)
-	var i PlanRevision
+	var i GetPlanRevisionRow
 	err := row.Scan(
 		&i.ID,
 		&i.OutcomeID,
@@ -739,6 +775,8 @@ func (q *Queries) GetPlanRevision(ctx context.Context, arg GetPlanRevisionParams
 		&i.ContractRevisionNumber,
 		&i.Status,
 		&i.Summary,
+		&i.AssumptionsJson,
+		&i.BlockersJson,
 		&i.RunBriefCoreDigest,
 		&i.RunBriefCompiledDigest,
 		&i.CreatedAt,
@@ -816,7 +854,7 @@ func (q *Queries) LatestDecompositionRevision(ctx context.Context, outcomeID dom
 }
 
 const latestProposedPlanRevision = `-- name: LatestProposedPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
 FROM plan_revisions WHERE outcome_id = ? AND contract_revision_number = ? AND status = 'proposed'
 ORDER BY number DESC LIMIT 1
 `
@@ -826,9 +864,24 @@ type LatestProposedPlanRevisionParams struct {
 	ContractRevisionNumber int64
 }
 
-func (q *Queries) LatestProposedPlanRevision(ctx context.Context, arg LatestProposedPlanRevisionParams) (PlanRevision, error) {
+type LatestProposedPlanRevisionRow struct {
+	ID                     domain.PlanRevisionID
+	OutcomeID              domain.OutcomeID
+	Number                 int64
+	ContractRevisionNumber int64
+	Status                 string
+	Summary                string
+	AssumptionsJson        string
+	BlockersJson           string
+	RunBriefCoreDigest     string
+	RunBriefCompiledDigest string
+	CreatedAt              time.Time
+	RoutingDecisionsJson   sql.NullString
+}
+
+func (q *Queries) LatestProposedPlanRevision(ctx context.Context, arg LatestProposedPlanRevisionParams) (LatestProposedPlanRevisionRow, error) {
 	row := q.db.QueryRowContext(ctx, latestProposedPlanRevision, arg.OutcomeID, arg.ContractRevisionNumber)
-	var i PlanRevision
+	var i LatestProposedPlanRevisionRow
 	err := row.Scan(
 		&i.ID,
 		&i.OutcomeID,
@@ -836,6 +889,8 @@ func (q *Queries) LatestProposedPlanRevision(ctx context.Context, arg LatestProp
 		&i.ContractRevisionNumber,
 		&i.Status,
 		&i.Summary,
+		&i.AssumptionsJson,
+		&i.BlockersJson,
 		&i.RunBriefCoreDigest,
 		&i.RunBriefCompiledDigest,
 		&i.CreatedAt,

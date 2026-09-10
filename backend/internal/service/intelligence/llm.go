@@ -238,11 +238,20 @@ type planReply struct {
 // confirms, and the control plane still validates.
 func (p *LLMProvider) AnalyzeContract(ctx context.Context, request ports.ContractIntelligenceRequest) (ports.ContractIntelligenceResponse, error) {
 	if p == nil || p.client == nil {
-		return ports.ContractIntelligenceResponse{}, fmt.Errorf("waldo reasoning is not configured")
+		// A classified failure so this reaches the owner as an actionable
+		// setup state rather than an opaque 500.
+		return ports.ContractIntelligenceResponse{}, ports.NewReasoningFailure(
+			ports.ReasoningNotConfigured, "Waldo reasoning is not configured", nil)
 	}
 
 	var input strings.Builder
 	fmt.Fprintf(&input, "Stated outcome:\n%s\n", strings.TrimSpace(request.Session.Statement))
+	if len(request.ConversationRefs) > 0 {
+		fmt.Fprintf(&input, "\nConversation evidence references:\n")
+		for _, ref := range request.ConversationRefs {
+			fmt.Fprintf(&input, "- episode=%s turn=%s position=%d\n", ref.EpisodeID, ref.TurnID, ref.Position)
+		}
+	}
 	if answer := strings.TrimSpace(request.ClarificationText); answer != "" {
 		question := ""
 		if request.Clarification != nil {
@@ -251,8 +260,10 @@ func (p *LLMProvider) AnalyzeContract(ctx context.Context, request ports.Contrac
 		fmt.Fprintf(&input, "\nThe owner was asked: %s\nThey answered: %s\nDo not ask again; propose the Contract.\n", question, answer)
 	}
 	if request.PreviousProposal != nil {
-		fmt.Fprintf(&input, "\nA previous proposal titled %q was not accepted. Produce a better one.\n", request.PreviousProposal.Title)
+		previous, _ := json.Marshal(request.PreviousProposal)
+		fmt.Fprintf(&input, "\nThe previous Contract proposal was not accepted. Preserve useful material, correct it where needed, and produce an immutable replacement:\n%s\n", previous)
 	}
+	appendRepositoryContext(&input, request.RepositoryContext)
 
 	response, err := p.client.Complete(ctx, ports.LLMRequest{
 		System:     contractSystemPrompt,
@@ -270,8 +281,10 @@ func (p *LLMProvider) AnalyzeContract(ctx context.Context, request ports.Contrac
 	}
 
 	provenance := ports.IntelligenceProvenance{
-		EffectiveProvider: LLMProviderID,
+		EffectiveProvider: domain.IntelligenceProviderID(p.client.ID()),
 		EffectiveModel:    response.EffectiveModel,
+		InputTokens:       response.InputTokens,
+		OutputTokens:      response.OutputTokens,
 	}
 
 	// A clarification is only honoured when the owner has not already
@@ -330,10 +343,6 @@ func (p *LLMProvider) AnalyzeContract(ctx context.Context, request ports.Contrac
 		ClarificationNotes: trimAll(source.Assumptions),
 		Facets:             []domain.ContractFacet{{Kind: facetKind(source.Facet), Summary: strings.TrimSpace(source.Title)}},
 	}
-	if answer := strings.TrimSpace(request.ClarificationText); answer != "" {
-		proposal.TemporalCondition = &answer
-	}
-
 	return ports.ContractIntelligenceResponse{
 		Result:     ports.IntakeAnalysisResult{Proposal: proposal},
 		Provenance: provenance,
@@ -344,7 +353,8 @@ func (p *LLMProvider) AnalyzeContract(ctx context.Context, request ports.Contrac
 // reply is non-authoritative: Kennel compiles the canonical PlanRevision.
 func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntelligenceRequest) (ports.PlanIntelligenceResponse, error) {
 	if p == nil || p.client == nil {
-		return ports.PlanIntelligenceResponse{}, fmt.Errorf("waldo reasoning is not configured")
+		return ports.PlanIntelligenceResponse{}, ports.NewReasoningFailure(
+			ports.ReasoningNotConfigured, "Waldo reasoning is not configured", nil)
 	}
 
 	var input strings.Builder
@@ -361,6 +371,10 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 	if len(request.Contract.NonGoals) > 0 {
 		fmt.Fprintf(&input, "\nExplicitly not in scope:\n- %s\n", strings.Join(request.Contract.NonGoals, "\n- "))
 	}
+	if feedback := strings.TrimSpace(request.ReplanFeedback); feedback != "" {
+		fmt.Fprintf(&input, "\nOwner replan feedback (this is an explicit new proposal request):\n%s\n", feedback)
+	}
+	appendRepositoryContext(&input, request.RepositoryContext)
 
 	response, err := p.client.Complete(ctx, ports.LLMRequest{
 		System:     planSystemPrompt,
@@ -402,10 +416,34 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 			Blockers:    trimAll(reply.Blockers),
 		},
 		Provenance: ports.IntelligenceProvenance{
-			EffectiveProvider: LLMProviderID,
+			EffectiveProvider: domain.IntelligenceProviderID(p.client.ID()),
 			EffectiveModel:    response.EffectiveModel,
+			InputTokens:       response.InputTokens,
+			OutputTokens:      response.OutputTokens,
 		},
 	}, nil
+}
+
+func appendRepositoryContext(input *strings.Builder, snapshot ports.RepositoryContextSnapshot) {
+	input.WriteString("\nBounded repository context (inspected facts only; no checks were run):\n")
+	if snapshot.UnavailableReason != "" {
+		fmt.Fprintf(input, "- context unavailable: %s\n", snapshot.UnavailableReason)
+		return
+	}
+	fmt.Fprintf(input, "- project: %s\n- root: %s\n- revision: %s\n- dirty: %t\n- context digest: %s\n", snapshot.ProjectID, snapshot.Root, snapshot.Revision, snapshot.Dirty, snapshot.Digest)
+	if snapshot.ProjectBrief != nil {
+		brief, _ := json.Marshal(snapshot.ProjectBrief)
+		fmt.Fprintf(input, "- Project Brief:\n%s\n", brief)
+	}
+	for _, instruction := range snapshot.Instructions {
+		fmt.Fprintf(input, "- instruction file %s:\n%s\n", instruction.Path, instruction.Content)
+	}
+	for _, file := range snapshot.Files {
+		fmt.Fprintf(input, "- inspected file %s:\n%s\n", file.Path, file.Content)
+	}
+	if len(snapshot.CheckCommands) > 0 {
+		fmt.Fprintf(input, "- discovered check commands (not executed):\n- %s\n", strings.Join(snapshot.CheckCommands, "\n- "))
+	}
 }
 
 // sortedAliasKeys returns the model-facing criterion aliases in stable order

@@ -86,7 +86,7 @@ func TestHealthProbesIncludeAppImageIdentity(t *testing.T) {
 	client := &http.Client{Timeout: 2 * time.Second}
 
 	t.Run("reports KENNEL_APPIMAGE when set", func(t *testing.T) {
-		t.Setenv("KENNEL_APPIMAGE", "/home/user/Apps/agent-orchestrator.AppImage")
+		t.Setenv("KENNEL_APPIMAGE", "/home/user/Apps/kennel.AppImage")
 		router := newTestRouter(config.Config{}, discardLogger(), nil)
 		srv := httptest.NewServer(router)
 		defer srv.Close()
@@ -103,7 +103,7 @@ func TestHealthProbesIncludeAppImageIdentity(t *testing.T) {
 			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 				t.Fatalf("decode %s: %v", path, err)
 			}
-			if body.AppImagePath != "/home/user/Apps/agent-orchestrator.AppImage" {
+			if body.AppImagePath != "/home/user/Apps/kennel.AppImage" {
 				t.Errorf("GET %s appImagePath = %q, want the KENNEL_APPIMAGE value", path, body.AppImagePath)
 			}
 		}

@@ -44,6 +44,20 @@ func mandatoryPlanStopConditions() []string {
 // fully-routed proposal. Project provider/model state is consulted here only as
 // preference. The persisted WorkUnit bindings are the authority used later.
 func (s *Service) ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) (PlanView, error) {
+	return s.proposePlan(ctx, outcomeID, expectedContractRevision, "")
+}
+
+// ReplanPlan is an explicit owner-directed revision request. Feedback is
+// carried into a new immutable proposal; it never mutates or reuses an
+// approved/proposed plan in place.
+func (s *Service) ReplanPlan(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64, feedback string) (PlanView, error) {
+	if strings.TrimSpace(feedback) == "" {
+		return PlanView{}, apierr.Invalid("PLAN_REPLAN_FEEDBACK_REQUIRED", "Explain what the next proposal must change", nil)
+	}
+	return s.proposePlan(ctx, outcomeID, expectedContractRevision, strings.TrimSpace(feedback))
+}
+
+func (s *Service) proposePlan(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64, replanFeedback string) (PlanView, error) {
 	outcomeRecord, ok, err := s.store.GetOutcome(ctx, outcomeID)
 	if err != nil {
 		return PlanView{}, err
@@ -81,17 +95,19 @@ func (s *Service) ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, e
 	// execution preference naturally produces a fresh proposal. Explicit
 	// re-planning is a separate command surface rather than pretending current
 	// runtime readiness is part of immutable Plan identity.
-	if existing, found, err := s.store.LatestProposedPlanRevision(ctx, outcomeID, revision.Number); err != nil {
-		return PlanView{}, err
-	} else if found && planUsesPreference(existing, routingPreference) {
-		return PlanView{Outcome: outcomeRecord, Plan: existing}, nil
+	if replanFeedback == "" {
+		if existing, found, err := s.store.LatestProposedPlanRevision(ctx, outcomeID, revision.Number); err != nil {
+			return PlanView{}, err
+		} else if found && planUsesPreference(existing, routingPreference) {
+			return PlanView{Outcome: outcomeRecord, Plan: existing}, nil
+		}
 	}
 
 	aliases, err := criterionAliases(revision)
 	if err != nil {
 		return PlanView{}, err
 	}
-	draft, err := s.draftPlanWithProvenance(ctx, projectID, outcomeRecord, revision, aliases)
+	draft, err := s.draftPlanWithProvenance(ctx, projectID, outcomeRecord, revision, aliases, replanFeedback)
 	if err != nil {
 		return PlanView{}, err
 	}
@@ -113,6 +129,8 @@ func (s *Service) ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, e
 		ContractRevisionNumber: revision.Number,
 		Status:                 domain.PlanStatusProposed,
 		Summary:                draft.Summary,
+		Assumptions:            append([]string(nil), draft.Assumptions...),
+		Blockers:               append([]string(nil), draft.Blockers...),
 		WorkUnits:              units,
 		Grants:                 grants,
 		RoutingDecisions:       routingDecisions,

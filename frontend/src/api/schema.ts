@@ -892,6 +892,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read daemon-derived WorkUnit schedule state without launching work */
+        get: operations["getOutcomePlanSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/plans/replan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a new immutable Plan proposal from explicit owner feedback */
+        post: operations["replanOutcomePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/proof": {
         parameters: {
             query?: never;
@@ -2300,6 +2334,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/reasoning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Configure Waldo reasoning without returning the stored credential */
+        patch: operations["updateReasoning"];
+        trace?: never;
+    };
+    "/api/v1/settings/reasoning/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Probe the configured reasoning provider once and record whether it works */
+        post: operations["verifyReasoning"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/session-interface": {
         parameters: {
             query?: never;
@@ -2890,6 +2958,22 @@ export interface components {
         };
         ControllersResolveReviewCommentResponse: {
             ok: boolean;
+        };
+        ControllersRoutingDecisionResponse: {
+            capabilitySnapshot?: string;
+            effectivePreference?: components["schemas"]["ControllersRoutingPreferenceResponse"];
+            policyVersion: string;
+            recommendedModel?: string;
+            recommendedModelSelection?: string;
+            recommendedProvider?: string;
+            role: string;
+            status: string;
+            workUnitId: string;
+        };
+        ControllersRoutingPreferenceResponse: {
+            model?: string;
+            modelSelection: string;
+            provider: string;
         };
         ControllersSecurePairingStatus: {
             active: boolean;
@@ -3692,6 +3776,8 @@ export interface components {
             plan: components["schemas"]["PlanRevisionResponse"];
         };
         PlanRevisionResponse: {
+            assumptions: string[];
+            blockers: string[];
             /** Format: int64 */
             contractRevisionNumber: number;
             /** Format: date-time */
@@ -3701,6 +3787,7 @@ export interface components {
             /** Format: int64 */
             number: number;
             outcomeId: string;
+            routingDecisions: components["schemas"]["ControllersRoutingDecisionResponse"][];
             runBriefCompiledDigest?: string;
             runBriefCoreDigest: string;
             status: string;
@@ -3710,10 +3797,16 @@ export interface components {
         PlanWorkUnitResponse: {
             /** Format: int64 */
             contractRevisionNumber: number;
+            criterionIds: string[];
+            dependsOn: string[];
             evidenceChecks: string[];
             id: string;
             kind: string;
+            model?: string;
+            modelSelection?: string;
             outputSummary: string;
+            provider?: string;
+            requiredCapabilities: string[];
             stopConditions: string[];
             title: string;
             verificationRequirement: string;
@@ -3847,6 +3940,18 @@ export interface components {
             platform?: string;
             token?: string;
         };
+        ReasoningResponse: {
+            configured: boolean;
+            effort: string;
+            error?: string;
+            errorCode?: string;
+            keyConfigured: boolean;
+            model: string;
+            provider: string;
+            ready: boolean;
+            verified: boolean;
+            verifiedAt?: null | string;
+        };
         RecordEvidenceRequest: {
             contentDigest: string;
             contractRevisionId: string;
@@ -3926,6 +4031,11 @@ export interface components {
             displayName: string;
             ok: boolean;
             sessionId: string;
+        };
+        ReplanPlanRequest: {
+            /** Format: int64 */
+            expectedContractRevision: number;
+            feedback: string;
         };
         ResolveCommentsResponse: {
             ok: boolean;
@@ -4047,6 +4157,40 @@ export interface components {
             killed?: boolean;
             ok: boolean;
             sessionId: string;
+        };
+        ScheduleAttemptBrief: {
+            /** Format: date-time */
+            createdAt: string;
+            id: string;
+            status: string;
+            /** Format: date-time */
+            updatedAt: string;
+            workUnitId: string;
+        };
+        ScheduleEnvelope: {
+            schedule: components["schemas"]["ScheduleResponse"];
+        };
+        ScheduleResponse: {
+            activeAttempt?: components["schemas"]["ScheduleAttemptBrief"];
+            custodyHeldByWorkUnitId?: string;
+            nextRunnableWorkUnitId?: string;
+            /** @enum {string} */
+            noRunnableReason?: "all_units_proven" | "attempt_executing" | "attempt_paused" | "awaiting_proof";
+            outcomeId: string;
+            plan: components["schemas"]["PlanRevisionResponse"];
+            workUnits: components["schemas"]["ScheduleWorkUnitResponse"][];
+        };
+        ScheduleWorkUnitResponse: {
+            attempts: components["schemas"]["ScheduleAttemptBrief"][];
+            /** @enum {string} */
+            blockedReason?: "awaiting_dependency_proof" | "custody_held";
+            blockingDependencies: string[];
+            criterionReady: {
+                [key: string]: boolean;
+            } | null;
+            /** @enum {string} */
+            state: "blocked" | "runnable" | "executing" | "proven" | "retryable" | "paused";
+            workUnit: components["schemas"]["PlanWorkUnitResponse"];
         };
         SendConversationMessageRequest: {
             attachments?: components["schemas"]["ConversationImageContentRequest"][];
@@ -4315,6 +4459,7 @@ export interface components {
             chatHarnesses: string[];
             /** @enum {string} */
             defaultSessionMode: "chat" | "tui";
+            reasoning: components["schemas"]["ReasoningResponse"];
         };
         ShellTerminalEnvelope: {
             shellTerminal: components["schemas"]["ShellTerminalResponse"];
@@ -4369,7 +4514,7 @@ export interface components {
             harness?: string;
             planRevisionId: string;
             requestKey: string;
-            workUnitId: string;
+            workUnitId?: string;
         };
         StartPreviewServerRequest: {
             /** @description Named preview configuration. Optional when exactly one configuration exists. */
@@ -4464,6 +4609,13 @@ export interface components {
         UpdateProjectSettingsInput: {
             config: components["schemas"]["ProjectConfig"];
             displayName: string;
+        };
+        UpdateReasoningRequest: {
+            apiKey?: string;
+            clearKey?: boolean;
+            effort?: string;
+            model?: string;
+            provider: string;
         };
         UpdateSessionInterfaceRequest: {
             /** @enum {string} */
@@ -7944,6 +8096,139 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomePlanSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+                /** @description Plan revision identifier, e.g. plan-<uuid>. */
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    replanOutcomePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplanPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13789,6 +14074,113 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    updateReasoning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReasoningRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReasoningResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    verifyReasoning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReasoningResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

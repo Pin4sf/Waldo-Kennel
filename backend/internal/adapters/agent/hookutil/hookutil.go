@@ -15,7 +15,7 @@ import (
 // GitignoreSentinel marks a workspace .gitignore as Kennel-managed so
 // EnsureWorkspaceGitignore can rewrite its own file idempotently while never
 // touching a user- or repo-provided .gitignore at the same path.
-const GitignoreSentinel = "# managed by agent-orchestrator: Kennel hook files stay out of git status"
+const GitignoreSentinel = "# managed by kennel: Kennel hook files stay out of git status"
 
 // EnsureWorkspaceGitignore writes a self-ignoring .gitignore into dir covering
 // the named Kennel-installed files. Hook files land in fresh session worktrees as

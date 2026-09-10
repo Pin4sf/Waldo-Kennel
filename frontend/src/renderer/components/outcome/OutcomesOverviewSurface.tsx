@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Flag, Network } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +8,7 @@ import { cn } from "../../lib/utils";
 import { deriveOutcomeDashboardPresentation } from "../../lib/outcome-dashboard-presentation";
 import { buildOutcomeTree, outcomeDestinationStage, type OutcomeDestinationStage } from "../../lib/outcome-tree";
 import type { WorkspaceSummary } from "../../types/workspace";
+import { useUiStore } from "../../stores/ui-store";
 
 type OutcomesOverviewSurfaceProps = {
 	onOpenOutcome: (projectId: string, outcome: OutcomeRecord, stage: OutcomeDestinationStage) => void;
@@ -33,12 +34,30 @@ export function OutcomesOverviewSurface({ onOpenOutcome }: OutcomesOverviewSurfa
 	const { t } = useTranslation();
 	const workspaceQuery = useWorkspaceQuery();
 	const workspaces = workspaceQuery.data ?? [];
+	const view = useUiStore((state) => state.outcomeRunViewMode);
+	const setView = useUiStore((state) => state.setOutcomeRunViewMode);
+	const [query, setQuery] = useState("");
+	const [projectFilter, setProjectFilter] = useState("all");
+	const visibleWorkspaces = useMemo(() => workspaces.filter((workspace) => projectFilter === "all" || workspace.id === projectFilter), [projectFilter, workspaces]);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto" data-testid="outcomes-overview-surface">
+			<div className="flex flex-wrap items-end justify-between gap-3">
 			<div className="max-w-xl">
 				<h2 className="text-base font-medium">{t("outcome.overview.heading")}</h2>
 				<p className="text-muted-foreground text-sm">{t("outcome.overview.intro")}</p>
+			</div>
+			<div className="flex flex-wrap items-center gap-2">
+				<input aria-label={t("shell.search")} className="h-8 rounded-md border border-border bg-card px-2 text-xs outline-hidden focus-visible:ring-2 focus-visible:ring-ring/70" onChange={(event) => setQuery(event.target.value)} placeholder={t("shell.search")} value={query} />
+				<select aria-label={t("command.group.projects")} className="h-8 rounded-md border border-border bg-card px-2 text-xs" onChange={(event) => setProjectFilter(event.target.value)} value={projectFilter}>
+					<option value="all">{t("command.group.projects")}</option>
+					{workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
+				</select>
+				<div className="flex rounded-md border border-border p-0.5">
+					<button aria-pressed={view === "board"} className="rounded px-2 py-1 text-xs aria-pressed:bg-interactive-hover" onClick={() => setView("board")} type="button">{t("shell.viewBoard")}</button>
+					<button aria-pressed={view === "list"} className="rounded px-2 py-1 text-xs aria-pressed:bg-interactive-hover" onClick={() => setView("list")} type="button">{t("shell.viewList")}</button>
+				</div>
+			</div>
 			</div>
 
 			{workspaceQuery.isLoading ? (
@@ -51,8 +70,8 @@ export function OutcomesOverviewSurface({ onOpenOutcome }: OutcomesOverviewSurfa
 				</p>
 			) : (
 				<div className="flex flex-col gap-5">
-					{workspaces.map((workspace) => (
-						<ProjectOutcomesGroup key={workspace.id} onOpenOutcome={onOpenOutcome} workspace={workspace} />
+					{visibleWorkspaces.map((workspace) => (
+						<ProjectOutcomesGroup key={workspace.id} onOpenOutcome={onOpenOutcome} query={query} view={view} workspace={workspace} />
 					))}
 				</div>
 			)}
@@ -63,14 +82,21 @@ export function OutcomesOverviewSurface({ onOpenOutcome }: OutcomesOverviewSurfa
 function ProjectOutcomesGroup({
 	workspace,
 	onOpenOutcome,
+	query,
+	view,
 }: {
 	workspace: WorkspaceSummary;
 	onOpenOutcome: (projectId: string, outcome: OutcomeRecord, stage: OutcomeDestinationStage) => void;
+	query: string;
+	view: "board" | "list";
 }) {
 	const { t } = useTranslation();
 	const outcomesQuery = useProjectOutcomes(workspace.id);
 	const outcomes = outcomesQuery.outcomes;
-	const outcomeTree = buildOutcomeTree(outcomes);
+	const outcomeTree = buildOutcomeTree(outcomes).filter((node) => {
+		const needle = query.trim().toLocaleLowerCase();
+		return !needle || node.outcome.title.toLocaleLowerCase().includes(needle);
+	});
 
 	if (!outcomesQuery.isLoading && !outcomesQuery.failure && outcomes.length === 0) return null;
 
@@ -90,7 +116,7 @@ function ProjectOutcomesGroup({
 			) : outcomesQuery.isLoading ? (
 				<p className="text-muted-foreground text-xs">{t("outcome.overview.loading")}</p>
 			) : (
-				<ul className="flex flex-col gap-1">
+				<ul className={cn("gap-1", view === "board" ? "grid grid-cols-1 md:grid-cols-2" : "flex flex-col")}>
 					{outcomeTree.map((node) => (
 						<Fragment key={node.outcome.id}>
 							<OutcomeOverviewRow

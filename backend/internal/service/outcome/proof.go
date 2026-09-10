@@ -417,7 +417,25 @@ func (s *Service) validateProofTarget(ctx context.Context, outcomeID domain.Outc
 		if err != nil {
 			return err
 		}
-		if !ok || attempt.ContractRevisionNumber != current.Number || subjectRevision != string(attempt.ID) {
+		if !ok || attempt.ContractRevisionNumber != current.Number {
+			return subjectMismatch()
+		}
+		// An Attempt's revision is the artifact version it retained, the same
+		// way a Plan subject's revision is the plan id. Proof about an Attempt
+		// is proof about the bytes it produced, and bytes that were never
+		// retained cannot have been checked -- so recording proof before
+		// retention is refused rather than accepted and bound to nothing.
+		if s.receipts == nil {
+			return apierr.Internal("ATTEMPT_RECEIPTS_UNAVAILABLE", "Attempt receipt storage is unavailable")
+		}
+		receipt, retained, err := s.receipts.GetAttemptReceipt(ctx, attempt.ID)
+		if err != nil {
+			return err
+		}
+		if !retained || !receipt.RetentionState.Complete() {
+			return apierr.Invalid("ATTEMPT_ARTIFACT_NOT_RETAINED", "This Attempt has no complete retained result to verify yet", map[string]any{"attemptId": string(attempt.ID)})
+		}
+		if subjectRevision != receipt.ArtifactVersion {
 			return subjectMismatch()
 		}
 		plan, ok, err := s.store.GetPlanRevision(ctx, outcomeID, attempt.PlanRevisionID)

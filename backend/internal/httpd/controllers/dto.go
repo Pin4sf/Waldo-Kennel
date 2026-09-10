@@ -1785,7 +1785,37 @@ type SettingsResponse struct {
 	DefaultSessionMode string `json:"defaultSessionMode" enum:"chat,tui"`
 	// ChatHarnesses are the agents that can run in chat mode today. Empty means
 	// chat cannot be used yet, which a client should say plainly.
-	ChatHarnesses []string `json:"chatHarnesses"`
+	ChatHarnesses []string          `json:"chatHarnesses"`
+	Reasoning     ReasoningResponse `json:"reasoning"`
+}
+
+// ReasoningResponse reports reasoning readiness without returning a secret.
+type ReasoningResponse struct {
+	Provider   string `json:"provider"`
+	Model      string `json:"model"`
+	Effort     string `json:"effort"`
+	Configured bool   `json:"configured"`
+	// Ready means only that a call can be attempted: a provider is selected and
+	// a matching credential is present. It is not a claim that reasoning works.
+	Ready bool `json:"ready"`
+	// KeyConfigured means a credential exists for the selected provider. It may
+	// still be revoked or mistyped.
+	KeyConfigured bool `json:"keyConfigured"`
+	// Verified means an actual probe succeeded for exactly the provider and
+	// model selected now. It drops back to false when either changes.
+	Verified   bool    `json:"verified"`
+	VerifiedAt *string `json:"verifiedAt,omitempty"`
+	ErrorCode  string  `json:"errorCode,omitempty"`
+	Error      string  `json:"error,omitempty"`
+}
+
+// UpdateReasoningRequest changes daemon-owned reasoning selection and secret state.
+type UpdateReasoningRequest struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model,omitempty"`
+	Effort   string `json:"effort,omitempty"`
+	APIKey   string `json:"apiKey,omitempty"`
+	ClearKey bool   `json:"clearKey,omitempty"`
 }
 
 // UpdateSessionInterfaceRequest changes the default interface for new sessions.
@@ -2543,36 +2573,44 @@ type RecordEvidenceRequest struct {
 	CriterionID              string `json:"criterionId"`
 	SubjectType              string `json:"subjectType"`
 	SubjectID                string `json:"subjectId"`
-	SubjectRevision          string `json:"subjectRevision"`
-	Kind                     string `json:"kind"`
-	SourceType               string `json:"sourceType"`
-	SourceRef                string `json:"sourceRef"`
-	ProducerType             string `json:"producerType"`
-	ProducerRef              string `json:"producerRef"`
-	Summary                  string `json:"summary"`
-	ContentDigest            string `json:"contentDigest"`
-	RequestKey               string `json:"requestKey"`
+	// SubjectRevision identifies which version of the subject was examined:
+	// the Contract revision for an Outcome, the plan id for a Plan or WorkUnit,
+	// and for an Attempt the retained artifact version its result was checked
+	// against. An Attempt with nothing retained yet cannot carry proof.
+	SubjectRevision string `json:"subjectRevision"`
+	Kind            string `json:"kind"`
+	SourceType      string `json:"sourceType"`
+	SourceRef       string `json:"sourceRef"`
+	ProducerType    string `json:"producerType"`
+	ProducerRef     string `json:"producerRef"`
+	Summary         string `json:"summary"`
+	ContentDigest   string `json:"contentDigest"`
+	RequestKey      string `json:"requestKey"`
 }
 
 // RecordVerificationRequest declares what was checked and the verifier's
 // actual independence from the producer. It cannot accept an Outcome.
 type RecordVerificationRequest struct {
-	ExpectedContractRevision int64    `json:"expectedContractRevision"`
-	ContractRevisionID       string   `json:"contractRevisionId"`
-	CriterionID              string   `json:"criterionId"`
-	SubjectType              string   `json:"subjectType"`
-	SubjectID                string   `json:"subjectId"`
-	SubjectRevision          string   `json:"subjectRevision"`
-	EvidenceItemIDs          []string `json:"evidenceItemIds"`
-	Method                   string   `json:"method"`
-	IndependenceClass        string   `json:"independenceClass"`
-	Result                   string   `json:"result"`
-	ProducerRef              string   `json:"producerRef,omitempty"`
-	VerifierRef              string   `json:"verifierRef"`
-	ProducerProvider         string   `json:"producerProvider,omitempty"`
-	VerifierProvider         string   `json:"verifierProvider,omitempty"`
-	Detail                   string   `json:"detail,omitempty"`
-	RequestKey               string   `json:"requestKey"`
+	ExpectedContractRevision int64  `json:"expectedContractRevision"`
+	ContractRevisionID       string `json:"contractRevisionId"`
+	CriterionID              string `json:"criterionId"`
+	SubjectType              string `json:"subjectType"`
+	SubjectID                string `json:"subjectId"`
+	// SubjectRevision identifies which version of the subject was examined:
+	// the Contract revision for an Outcome, the plan id for a Plan or WorkUnit,
+	// and for an Attempt the retained artifact version its result was checked
+	// against. An Attempt with nothing retained yet cannot carry proof.
+	SubjectRevision   string   `json:"subjectRevision"`
+	EvidenceItemIDs   []string `json:"evidenceItemIds"`
+	Method            string   `json:"method"`
+	IndependenceClass string   `json:"independenceClass"`
+	Result            string   `json:"result"`
+	ProducerRef       string   `json:"producerRef,omitempty"`
+	VerifierRef       string   `json:"verifierRef"`
+	ProducerProvider  string   `json:"producerProvider,omitempty"`
+	VerifierProvider  string   `json:"verifierProvider,omitempty"`
+	Detail            string   `json:"detail,omitempty"`
+	RequestKey        string   `json:"requestKey"`
 }
 
 // DecideAcceptanceRequest is the sole API authority that may append a user
@@ -2777,6 +2815,13 @@ type ProposePlanRequest struct {
 	ExpectedContractRevision int64 `json:"expectedContractRevision"`
 }
 
+// ReplanPlanRequest is the explicit feedback boundary for a new immutable
+// proposal. Reloading the ordinary plan route remains idempotent.
+type ReplanPlanRequest struct {
+	ExpectedContractRevision int64  `json:"expectedContractRevision"`
+	Feedback                 string `json:"feedback"`
+}
+
 // ApprovePlanRequest is the body for POST
 // /outcomes/{outcomeId}/plans/{planId}/approval. ExpectedContractRevision
 // guards against approving while the contract moved ahead unseen.
@@ -2790,10 +2835,36 @@ type PlanWorkUnitResponse struct {
 	Kind                    string   `json:"kind"`
 	Title                   string   `json:"title"`
 	ContractRevisionNumber  int64    `json:"contractRevisionNumber"`
+	DependsOn               []string `json:"dependsOn"`
+	CriterionIDs            []string `json:"criterionIds"`
+	Provider                string   `json:"provider,omitempty"`
+	ModelSelection          string   `json:"modelSelection,omitempty"`
+	Model                   string   `json:"model,omitempty"`
+	RequiredCapabilities    []string `json:"requiredCapabilities"`
 	OutputSummary           string   `json:"outputSummary"`
 	EvidenceChecks          []string `json:"evidenceChecks"`
 	VerificationRequirement string   `json:"verificationRequirement"`
 	StopConditions          []string `json:"stopConditions"`
+}
+
+// RoutingPreferenceResponse describes the effective provider/model preference.
+type RoutingPreferenceResponse struct {
+	Provider       string `json:"provider"`
+	ModelSelection string `json:"modelSelection"`
+	Model          string `json:"model,omitempty"`
+}
+
+// RoutingDecisionResponse explains how the daemon resolved one WorkUnit route.
+type RoutingDecisionResponse struct {
+	WorkUnitID                string                     `json:"workUnitId"`
+	Status                    string                     `json:"status"`
+	PolicyVersion             string                     `json:"policyVersion"`
+	CapabilitySnapshot        string                     `json:"capabilitySnapshot,omitempty"`
+	Role                      string                     `json:"role"`
+	EffectivePreference       *RoutingPreferenceResponse `json:"effectivePreference,omitempty"`
+	RecommendedProvider       string                     `json:"recommendedProvider,omitempty"`
+	RecommendedModelSelection string                     `json:"recommendedModelSelection,omitempty"`
+	RecommendedModel          string                     `json:"recommendedModel,omitempty"`
 }
 
 // CapabilityGrantResponse is one scoped capability the plan authorizes.
@@ -2812,8 +2883,11 @@ type PlanRevisionResponse struct {
 	ContractRevisionNumber int64                     `json:"contractRevisionNumber"`
 	Status                 string                    `json:"status"`
 	Summary                string                    `json:"summary"`
+	Assumptions            []string                  `json:"assumptions"`
+	Blockers               []string                  `json:"blockers"`
 	WorkUnits              []PlanWorkUnitResponse    `json:"workUnits"`
 	Grants                 []CapabilityGrantResponse `json:"grants"`
+	RoutingDecisions       []RoutingDecisionResponse `json:"routingDecisions"`
 	RunBriefCoreDigest     string                    `json:"runBriefCoreDigest"`
 	RunBriefCompiledDigest string                    `json:"runBriefCompiledDigest,omitempty"`
 	CreatedAt              time.Time                 `json:"createdAt"`
@@ -2824,17 +2898,93 @@ type PlanEnvelope struct {
 	Plan PlanRevisionResponse `json:"plan"`
 }
 
+// ScheduleWorkUnitResponse is the daemon-derived state for one canonical
+// WorkUnit. React must render this projection rather than recreate eligibility.
+type ScheduleWorkUnitResponse struct {
+	WorkUnit PlanWorkUnitResponse   `json:"workUnit"`
+	State    string                 `json:"state" enum:"blocked,runnable,executing,proven,retryable,paused"`
+	Attempts []ScheduleAttemptBrief `json:"attempts"`
+	// BlockedReason distinguishes waiting on dependency proof from waiting on
+	// the serial custody fence. Empty unless the unit is blocked.
+	BlockedReason        string          `json:"blockedReason,omitempty" enum:"awaiting_dependency_proof,custody_held"`
+	BlockingDependencies []string        `json:"blockingDependencies"`
+	CriterionReady       map[string]bool `json:"criterionReady"`
+}
+
+// ScheduleAttemptBrief is the bounded Attempt identity shown in a schedule.
+type ScheduleAttemptBrief struct {
+	ID         string    `json:"id"`
+	WorkUnitID string    `json:"workUnitId"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+// ScheduleResponse is the daemon-derived, read-only Plan schedule projection.
+type ScheduleResponse struct {
+	OutcomeID              string                     `json:"outcomeId"`
+	Plan                   PlanRevisionResponse       `json:"plan"`
+	WorkUnits              []ScheduleWorkUnitResponse `json:"workUnits"`
+	NextRunnableWorkUnitID string                     `json:"nextRunnableWorkUnitId,omitempty"`
+	ActiveAttempt          *ScheduleAttemptBrief      `json:"activeAttempt,omitempty"`
+	// CustodyHeldByWorkUnitID names the unit holding the serial fence, if any.
+	CustodyHeldByWorkUnitID string `json:"custodyHeldByWorkUnitId,omitempty"`
+	// NoRunnableReason explains an empty runnable set, so a Mission with
+	// nothing to start can say why instead of showing an endless spinner.
+	NoRunnableReason string `json:"noRunnableReason,omitempty" enum:"all_units_proven,attempt_executing,attempt_paused,awaiting_proof"`
+}
+
+// ScheduleEnvelope wraps a daemon-derived Plan schedule response.
+type ScheduleEnvelope struct {
+	Schedule ScheduleResponse `json:"schedule"`
+}
+
 func workUnitResponse(unit domain.WorkUnit) PlanWorkUnitResponse {
 	return PlanWorkUnitResponse{
 		ID:                      string(unit.ID),
 		Kind:                    string(unit.Kind),
 		Title:                   unit.Title,
 		ContractRevisionNumber:  unit.ContractRevisionNumber,
+		DependsOn:               stringWorkUnitIDs(unit.DependsOn),
+		CriterionIDs:            stringCriterionIDs(unit.CriterionIDs),
+		Provider:                string(unit.Provider),
+		ModelSelection:          string(unit.ModelSelection),
+		Model:                   unit.Model,
+		RequiredCapabilities:    append([]string(nil), unit.RequiredCapabilities...),
 		OutputSummary:           unit.OutputSummary,
 		EvidenceChecks:          unit.EvidenceChecks,
 		VerificationRequirement: unit.VerificationRequirement,
 		StopConditions:          unit.StopConditions,
 	}
+}
+
+func stringWorkUnitIDs(ids []domain.WorkUnitID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, string(id))
+	}
+	return out
+}
+
+func stringCriterionIDs(ids []domain.CriterionID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, string(id))
+	}
+	return out
+}
+
+func routingDecisionResponse(decision domain.WorkUnitRoutingDecision) RoutingDecisionResponse {
+	response := RoutingDecisionResponse{
+		WorkUnitID: string(decision.WorkUnitID), Status: string(decision.Decision.Status),
+		PolicyVersion: decision.Decision.PolicyVersion, CapabilitySnapshot: decision.Decision.CapabilitySnapshot,
+		Role: string(decision.Decision.Role), RecommendedProvider: decision.Decision.RecommendedProvider,
+		RecommendedModelSelection: string(decision.Decision.RecommendedModelSelection), RecommendedModel: decision.Decision.RecommendedModel,
+	}
+	if preference := decision.Decision.EffectivePreference; preference != nil {
+		response.EffectivePreference = &RoutingPreferenceResponse{Provider: preference.Provider, ModelSelection: string(preference.ModelSelection), Model: preference.Model}
+	}
+	return response
 }
 
 func capabilityGrantResponse(grant domain.CapabilityGrant) CapabilityGrantResponse {
@@ -2843,6 +2993,35 @@ func capabilityGrantResponse(grant domain.CapabilityGrant) CapabilityGrantRespon
 		Name:  grant.Name,
 		Scope: grant.Scope,
 	}
+}
+
+func scheduleResponse(view outcomevc.ScheduleView) ScheduleResponse {
+	units := make([]ScheduleWorkUnitResponse, 0, len(view.WorkUnits))
+	for _, entry := range view.WorkUnits {
+		attempts := make([]ScheduleAttemptBrief, 0, len(entry.Attempts))
+		for _, attempt := range entry.Attempts {
+			attempts = append(attempts, ScheduleAttemptBrief{ID: string(attempt.ID), WorkUnitID: string(attempt.WorkUnitID), Status: string(attempt.Status), CreatedAt: attempt.CreatedAt, UpdatedAt: attempt.UpdatedAt})
+		}
+		ready := make(map[string]bool, len(entry.CriterionReady))
+		for criterion, value := range entry.CriterionReady {
+			ready[string(criterion)] = value
+		}
+		dependencies := make([]string, 0, len(entry.BlockingDependencies))
+		for _, dependency := range entry.BlockingDependencies {
+			dependencies = append(dependencies, string(dependency))
+		}
+		units = append(units, ScheduleWorkUnitResponse{WorkUnit: workUnitResponse(entry.WorkUnit), State: string(entry.State), Attempts: attempts, BlockedReason: string(entry.BlockedReason), BlockingDependencies: dependencies, CriterionReady: ready})
+	}
+	response := ScheduleResponse{
+		OutcomeID: string(view.Plan.OutcomeID), Plan: planRevisionResponse(view.Plan), WorkUnits: units,
+		NextRunnableWorkUnitID:  string(view.NextRunnableID),
+		CustodyHeldByWorkUnitID: string(view.CustodyHeldBy),
+		NoRunnableReason:        string(view.NoRunnableReason),
+	}
+	if view.ActiveAttempt != nil {
+		response.ActiveAttempt = &ScheduleAttemptBrief{ID: string(view.ActiveAttempt.ID), WorkUnitID: string(view.ActiveAttempt.WorkUnitID), Status: string(view.ActiveAttempt.Status), CreatedAt: view.ActiveAttempt.CreatedAt, UpdatedAt: view.ActiveAttempt.UpdatedAt}
+	}
+	return response
 }
 
 func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
@@ -2854,6 +3033,10 @@ func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
 	for _, grant := range plan.Grants {
 		grants = append(grants, capabilityGrantResponse(grant))
 	}
+	routing := make([]RoutingDecisionResponse, 0, len(plan.RoutingDecisions))
+	for _, decision := range plan.RoutingDecisions {
+		routing = append(routing, routingDecisionResponse(decision))
+	}
 	return PlanRevisionResponse{
 		ID:                     string(plan.ID),
 		OutcomeID:              string(plan.OutcomeID),
@@ -2861,8 +3044,11 @@ func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
 		ContractRevisionNumber: plan.ContractRevisionNumber,
 		Status:                 string(plan.Status),
 		Summary:                plan.Summary,
+		Assumptions:            append([]string(nil), plan.Assumptions...),
+		Blockers:               append([]string(nil), plan.Blockers...),
 		WorkUnits:              units,
 		Grants:                 grants,
+		RoutingDecisions:       routing,
 		RunBriefCoreDigest:     plan.RunBriefCoreDigest,
 		RunBriefCompiledDigest: plan.RunBriefCompiledDigest,
 		CreatedAt:              plan.CreatedAt,
@@ -2873,16 +3059,15 @@ func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
 // /outcomes/{outcomeId}/attempts. RequestKey makes admission exactly-once:
 // replaying a delivered key resolves the original attempt.
 //
-// WorkUnitID names which approved unit of the Plan this Attempt executes. It is
-// required: an approved Plan may hold several WorkUnits, and the provider/model
-// binding frozen at approval belongs to one of them specifically.
+// WorkUnitID is an optional legacy assertion. When omitted, the daemon selects
+// the next dependency-ready WorkUnit from the approved Plan.
 //
 // Harness is accepted only for historical clients and is ignored. Provider and
 // model come from the approved WorkUnit's immutable ExecutionBinding, and no
 // caller or mutable Project default may reinterpret it after approval.
 type StartOutcomeAttemptRequest struct {
 	PlanRevisionID string `json:"planRevisionId"`
-	WorkUnitID     string `json:"workUnitId"`
+	WorkUnitID     string `json:"workUnitId,omitempty"`
 	Harness        string `json:"harness,omitempty"`
 	RequestKey     string `json:"requestKey"`
 }

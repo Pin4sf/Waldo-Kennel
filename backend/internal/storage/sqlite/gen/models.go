@@ -73,9 +73,18 @@ type AgentSwitch struct {
 }
 
 type AppSetting struct {
-	ID                 int64
-	DefaultSessionMode domain.SessionMode
-	UpdatedAt          time.Time
+	ID                               int64
+	DefaultSessionMode               domain.SessionMode
+	UpdatedAt                        time.Time
+	ReasoningProvider                string
+	ReasoningModel                   string
+	ReasoningEffort                  string
+	ReasoningVerifiedAt              sql.NullString
+	ReasoningVerifiedProvider        string
+	ReasoningVerifiedModel           string
+	ReasoningGeneration              int64
+	ReasoningVerifiedGeneration      int64
+	ReasoningVerificationFingerprint string
 }
 
 type Attempt struct {
@@ -89,6 +98,18 @@ type Attempt struct {
 	RequestKey             sql.NullString
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
+}
+
+type AttemptArtifactFile struct {
+	ID                string
+	AttemptID         string
+	RelativePath      string
+	ChangeKind        string
+	ContentDigest     string
+	SizeBytes         sql.NullInt64
+	FileMode          sql.NullInt64
+	IsBinary          int64
+	UnsupportedReason string
 }
 
 type AttemptFence struct {
@@ -108,6 +129,29 @@ type AttemptObservation struct {
 	Kind      string
 	Payload   string
 	CreatedAt time.Time
+}
+
+type AttemptReceipt struct {
+	AttemptID              string
+	OutcomeID              string
+	PlanRevisionID         string
+	WorkUnitID             string
+	ContractRevisionNumber int64
+	ArtifactVersion        string
+	WorkspaceKind          string
+	WorkspacePath          string
+	RepositoryPath         string
+	RepositoryIdentity     string
+	BaseRevision           string
+	ResultRevision         string
+	WorkspaceDirty         int64
+	RetentionState         string
+	RetentionDetail        string
+	TerminationReason      string
+	ObservedAt             time.Time
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	FrozenAt               sql.NullTime
 }
 
 type AttemptRecoveryReceipt struct {
@@ -497,6 +541,9 @@ type IntelligenceRun struct {
 	FailureDetail      string
 	CreatedAt          time.Time
 	CompletedAt        sql.NullTime
+	InputTokens        sql.NullInt64
+	OutputTokens       sql.NullInt64
+	DurationMs         sql.NullInt64
 }
 
 type ModelUsageEvent struct {
@@ -659,6 +706,8 @@ type PlanRevision struct {
 	RunBriefCoreDigest     string
 	RunBriefCompiledDigest string
 	CreatedAt              time.Time
+	AssumptionsJson        string
+	BlockersJson           string
 	RoutingDecisionsJson   sql.NullString
 }
 

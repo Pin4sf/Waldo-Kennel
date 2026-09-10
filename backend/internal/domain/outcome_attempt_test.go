@@ -9,7 +9,9 @@ import (
 
 // TestAttemptTransitionLegality pins the trigger-guarded lifecycle: only the
 // ratified transitions are legal, terminal statuses accept nothing, and the
-// running -> succeeded shortcut #31 forbids is absent from the map.
+// running -> succeeded shortcut stays absent: success is never assigned from a
+// live process. The only route into succeeded is from reconciled — execution
+// ended — and only once the WorkUnit's proof is satisfied.
 func TestAttemptTransitionLegality(t *testing.T) {
 	legal := [][2]AttemptStatus{
 		{AttemptQueued, AttemptRunning},
@@ -24,6 +26,7 @@ func TestAttemptTransitionLegality(t *testing.T) {
 		{AttemptPaused, AttemptRunning},
 		{AttemptPaused, AttemptCancelled},
 		{AttemptPaused, AttemptLost},
+		{AttemptReconciled, AttemptSucceeded},
 	}
 	for _, pair := range legal {
 		if !AttemptTransitionLegal(pair[0], pair[1]) {
@@ -32,8 +35,15 @@ func TestAttemptTransitionLegality(t *testing.T) {
 	}
 
 	illegal := [][2]AttemptStatus{
-		// The load-bearing absence: no #31 path ever writes succeeded.
+		// The load-bearing absence: success can never be assigned straight from
+		// a running process, only after execution has ended.
 		{AttemptRunning, AttemptSucceeded},
+		{AttemptQueued, AttemptSucceeded},
+		{AttemptPaused, AttemptSucceeded},
+		// A classified success cannot be walked back.
+		{AttemptSucceeded, AttemptReconciled},
+		// A reconciled attempt is never re-opened for execution.
+		{AttemptReconciled, AttemptPaused},
 		{AttemptQueued, AttemptReconciled},
 		{AttemptQueued, AttemptPaused},
 		// Terminal states accept nothing.

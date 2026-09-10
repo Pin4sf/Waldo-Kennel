@@ -491,3 +491,33 @@ func (q *Queries) ListVerificationRunsForOutcome(ctx context.Context, outcomeID 
 	}
 	return items, nil
 }
+
+const outcomeProofGeneration = `-- name: OutcomeProofGeneration :one
+SELECT
+    (SELECT COUNT(*) FROM evidence_items e WHERE e.outcome_id = ?)
+  + (SELECT COUNT(*) FROM verification_runs v WHERE v.outcome_id = ?)
+  + (SELECT COUNT(*) FROM acceptance_decisions a WHERE a.outcome_id = ?)
+  + (SELECT COUNT(*) FROM outcome_corrections c WHERE c.outcome_id = ?) AS generation
+`
+
+type OutcomeProofGenerationParams struct {
+	OutcomeID   string
+	OutcomeID_2 string
+	OutcomeID_3 string
+	OutcomeID_4 string
+}
+
+// Proof records are append-only. Their combined count changes atomically with
+// every evidence, verification or owner correction commit, regardless of when
+// the caller assigned its timestamp.
+func (q *Queries) OutcomeProofGeneration(ctx context.Context, arg OutcomeProofGenerationParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, outcomeProofGeneration,
+		arg.OutcomeID,
+		arg.OutcomeID_2,
+		arg.OutcomeID_3,
+		arg.OutcomeID_4,
+	)
+	var generation int64
+	err := row.Scan(&generation)
+	return generation, err
+}

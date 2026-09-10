@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	sdk "github.com/anthropics/anthropic-sdk-go"
@@ -39,6 +40,12 @@ type Config struct {
 	Model  string
 	// Effort tunes reasoning depth. Empty means the API default.
 	Effort string
+	// HTTPClient and BaseURL are injectable for controlled conformance tests.
+	HTTPClient *http.Client
+	BaseURL    string
+	// MaxRetries is explicit so a paid/ambiguous reasoning call is never
+	// duplicated by an SDK default. Production uses zero.
+	MaxRetries int
 }
 
 // Client is a bounded, non-authoritative reasoning client.
@@ -53,7 +60,12 @@ var _ ports.LLMClient = (*Client)(nil)
 // ErrNotConfigured reports that no reasoning credential is available. Waldo
 // cannot think without one, and the caller must surface that truthfully rather
 // than silently degrading to a canned answer.
-var ErrNotConfigured = errors.New("no Waldo reasoning key is configured")
+//
+// It is a classified ReasoningFailure so the setup state survives the whole way
+// to the API as an actionable code instead of an opaque 500. Identity still
+// works with errors.Is because this is a single package-level value.
+var ErrNotConfigured error = ports.NewReasoningFailure(
+	ports.ReasoningNotConfigured, "No Waldo reasoning key is configured", nil)
 
 // New builds a client, or returns ErrNotConfigured when no key is present.
 func New(cfg Config) (*Client, error) {
@@ -65,8 +77,15 @@ func New(cfg Config) (*Client, error) {
 	if model == "" {
 		model = DefaultModel
 	}
+	options := []option.RequestOption{option.WithAPIKey(key), option.WithMaxRetries(cfg.MaxRetries)}
+	if cfg.HTTPClient != nil {
+		options = append(options, option.WithHTTPClient(cfg.HTTPClient))
+	}
+	if strings.TrimSpace(cfg.BaseURL) != "" {
+		options = append(options, option.WithBaseURL(strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")))
+	}
 	return &Client{
-		api:    sdk.NewClient(option.WithAPIKey(key)),
+		api:    sdk.NewClient(options...),
 		model:  model,
 		effort: sdk.OutputConfigEffort(strings.TrimSpace(cfg.Effort)),
 	}, nil
@@ -114,10 +133,13 @@ func (c *Client) Complete(ctx context.Context, req ports.LLMRequest) (ports.LLMR
 
 	message, err := c.api.Messages.New(ctx, params)
 	if err != nil {
-		return ports.LLMResponse{}, fmt.Errorf("waldo reasoning call failed: %w", err)
+		// The SDK carries the HTTP status on its own error type; the shared
+		// classifier owns the status-to-meaning rule so both adapters agree.
+		return ports.LLMResponse{}, ports.ClassifyReasoningTransport(ctx, statusOf(err), err)
 	}
 	if message.StopReason == sdk.StopReasonRefusal {
-		return ports.LLMResponse{}, fmt.Errorf("waldo reasoning was declined (%s)", message.StopDetails.Category)
+		return ports.LLMResponse{}, ports.NewReasoningFailure(ports.ReasoningDeclined,
+			fmt.Sprintf("Waldo reasoning was declined (%s)", message.StopDetails.Category), nil)
 	}
 
 	var body strings.Builder
@@ -128,16 +150,30 @@ func (c *Client) Complete(ctx context.Context, req ports.LLMRequest) (ports.LLMR
 	}
 	raw := strings.TrimSpace(body.String())
 	if raw == "" {
-		return ports.LLMResponse{}, fmt.Errorf("waldo reasoning returned no %s payload", req.SchemaName)
+		return ports.LLMResponse{}, ports.NewReasoningFailure(ports.ReasoningInvalidOutput,
+			fmt.Sprintf("Waldo reasoning returned no %s payload", req.SchemaName), nil)
 	}
 	if !json.Valid([]byte(raw)) {
-		return ports.LLMResponse{}, fmt.Errorf("waldo reasoning returned malformed %s JSON", req.SchemaName)
+		return ports.LLMResponse{}, ports.NewReasoningFailure(ports.ReasoningInvalidOutput,
+			fmt.Sprintf("Waldo reasoning returned malformed %s JSON", req.SchemaName), nil)
 	}
 
 	return ports.LLMResponse{
 		JSON:           []byte(raw),
 		EffectiveModel: message.Model,
-		InputTokens:    message.Usage.InputTokens,
-		OutputTokens:   message.Usage.OutputTokens,
+		InputTokens:    int64Ptr(message.Usage.InputTokens),
+		OutputTokens:   int64Ptr(message.Usage.OutputTokens),
 	}, nil
+}
+
+func int64Ptr(value int64) *int64 { return &value }
+
+// statusOf extracts the HTTP status the SDK recorded on a failed call, or zero
+// when the failure never reached a response (dial, deadline, cancellation).
+func statusOf(err error) int {
+	var apiErr *sdk.Error
+	if errors.As(err, &apiErr) {
+		return apiErr.StatusCode
+	}
+	return 0
 }
