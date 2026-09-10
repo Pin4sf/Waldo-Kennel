@@ -48,22 +48,52 @@ func (c ApprovedCheck) Validate() error {
 	if len(c.Argv) == 0 {
 		return fmt.Errorf("approved check %s has no command", c.ID)
 	}
-	for _, argument := range c.Argv {
-		if strings.TrimSpace(argument) == "" || strings.IndexByte(argument, 0) >= 0 {
-			return fmt.Errorf("approved check %s has a blank or NUL argument", c.ID)
+	if err := validateCheckExecutable(c.ID, c.Argv[0]); err != nil {
+		return err
+	}
+	// Arguments are kept exactly as proposed, so an empty or whitespace-only
+	// one is refused here rather than trimmed away. Dropping it would shift
+	// every later argument into a different position and run a command nobody
+	// reviewed; accepting it would let an approved check carry an argument
+	// whose intent cannot be read.
+	for position, argument := range c.Argv[1:] {
+		if strings.IndexByte(argument, 0) >= 0 {
+			return fmt.Errorf("approved check %s argument %d contains NUL", c.ID, position+1)
 		}
-	}
-	executable := strings.ToLower(c.Argv[0])
-	if strings.ContainsAny(executable, `/\`) {
-		return fmt.Errorf("approved check %s must name a discrete executable, not a path", c.ID)
-	}
-	switch executable {
-	case "sh", "bash", "zsh", "fish", "cmd", "powershell", "pwsh", "env", "eval", "exec":
-		// A shell turns one reviewed command into an unreviewable program.
-		return fmt.Errorf("approved check %s may not run a shell", c.ID)
+		if strings.TrimSpace(argument) == "" {
+			return fmt.Errorf("approved check %s argument %d is empty or whitespace only; state the argument explicitly", c.ID, position+1)
+		}
 	}
 	if c.TimeoutSeconds <= 0 || c.TimeoutSeconds > ApprovedCheckMaxTimeoutSeconds {
 		return fmt.Errorf("approved check %s timeout must be between 1 and %d seconds", c.ID, ApprovedCheckMaxTimeoutSeconds)
+	}
+	return nil
+}
+
+// validateCheckExecutable checks argv[0] on its own terms.
+//
+// It is not an ordinary argument: it decides what program runs, so it must be
+// a bare name the check runner resolves from its own fixed PATH. Surrounding
+// whitespace is refused rather than trimmed, because the stored vector is
+// what will be executed and a name that only works after trimming is not the
+// name that was approved.
+func validateCheckExecutable(id ApprovedCheckID, executable string) error {
+	if strings.IndexByte(executable, 0) >= 0 {
+		return fmt.Errorf("approved check %s executable contains NUL", id)
+	}
+	if executable == "" || strings.TrimSpace(executable) == "" {
+		return fmt.Errorf("approved check %s names no executable", id)
+	}
+	if executable != strings.TrimSpace(executable) {
+		return fmt.Errorf("approved check %s executable %q has surrounding whitespace", id, executable)
+	}
+	if strings.ContainsAny(executable, `/\`) {
+		return fmt.Errorf("approved check %s must name a discrete executable, not a path", id)
+	}
+	switch strings.ToLower(executable) {
+	case "sh", "bash", "zsh", "fish", "cmd", "powershell", "pwsh", "env", "eval", "exec":
+		// A shell turns one reviewed command into an unreviewable program.
+		return fmt.Errorf("approved check %s may not run a shell", id)
 	}
 	return nil
 }

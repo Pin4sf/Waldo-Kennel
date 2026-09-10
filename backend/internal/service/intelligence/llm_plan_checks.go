@@ -8,10 +8,15 @@ import (
 
 // planDraftChecks narrows model-proposed check commands into draft shape.
 //
-// Nothing here decides whether a command is allowed; that is the control
-// plane's job at compile time. This only trims and drops entries too empty to
-// mean anything, so an obviously malformed suggestion does not reach
-// validation as a confusing error about a blank argument.
+// The argument vector is copied verbatim. These are program arguments, not
+// labels: trimming them would change what the command does, and dropping an
+// empty one would shift every argument after it into a different position —
+// silently turning the proposal into a different command than the one that
+// will be reviewed. Whether an empty argument is acceptable is a decision the
+// control plane makes explicitly when it compiles the proposal; it is not
+// something normalization may quietly resolve.
+//
+// The criterion alias is a label, so trimming it is safe and useful.
 func planDraftChecks(proposed []struct {
 	CriterionAlias string   `json:"criterionAlias"`
 	Argv           []string `json:"argv"`
@@ -19,13 +24,16 @@ func planDraftChecks(proposed []struct {
 }) []domain.PlanDraftCheck {
 	checks := make([]domain.PlanDraftCheck, 0, len(proposed))
 	for _, item := range proposed {
-		argv := trimAll(item.Argv)
 		alias := strings.TrimSpace(item.CriterionAlias)
-		if alias == "" || len(argv) == 0 {
+		if alias == "" && len(item.Argv) == 0 {
+			// Nothing was proposed here at all. Anything less empty than this
+			// reaches validation and is refused with a reason.
 			continue
 		}
 		checks = append(checks, domain.PlanDraftCheck{
-			CriterionAlias: alias, Argv: argv, TimeoutSeconds: item.TimeoutSeconds,
+			CriterionAlias: alias,
+			Argv:           append([]string(nil), item.Argv...),
+			TimeoutSeconds: item.TimeoutSeconds,
 		})
 	}
 	return checks
