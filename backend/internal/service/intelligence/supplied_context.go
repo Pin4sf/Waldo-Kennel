@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -57,16 +58,16 @@ func BuildSuppliedDocumentContext(ctx context.Context, paths []string) (ports.Re
 		if sensitiveContextFile(filepath.Base(path)) || sensitiveSuppliedDocument(path) {
 			return ports.RepositoryContextSnapshot{}, fmt.Errorf("supplied document %q is secret-like and cannot be selected", filepath.Base(path))
 		}
-		if info.Size() > suppliedContextMaxFile || total+int(info.Size()) > suppliedContextMaxBytes {
+		remaining := suppliedContextMaxBytes - total
+		if remaining > suppliedContextMaxFile {
+			remaining = suppliedContextMaxFile
+		}
+		if info.Size() > int64(remaining) {
 			return ports.RepositoryContextSnapshot{}, fmt.Errorf("supplied document bounds exceeded at %q", filepath.Base(path))
 		}
-		body, err := os.ReadFile(path)
+		body, err := readBoundedDocument(ctx, path, info, remaining)
 		if err != nil {
-			return ports.RepositoryContextSnapshot{}, err
-		}
-		after, err := os.Lstat(path)
-		if err != nil || after.Size() != info.Size() || after.ModTime() != info.ModTime() || after.Mode().Perm() != info.Mode().Perm() {
-			return ports.RepositoryContextSnapshot{}, fmt.Errorf("supplied document %q changed during read", filepath.Base(path))
+			return ports.RepositoryContextSnapshot{}, fmt.Errorf("supplied document %q: %w", filepath.Base(path), err)
 		}
 		if strings.IndexByte(string(body), 0) >= 0 {
 			return ports.RepositoryContextSnapshot{}, fmt.Errorf("supplied document %q is binary", filepath.Base(path))
@@ -76,6 +77,57 @@ func BuildSuppliedDocumentContext(ctx context.Context, paths []string) (ports.Re
 	}
 	snapshot.Dirty = false
 	return finalizeContext(snapshot), nil
+}
+
+// afterLstat is a test seam for the window between deciding a path is a safe,
+// in-bounds regular file and actually opening it. It is nil in production.
+var afterLstat func(path string)
+
+// readBoundedDocument reads at most limit bytes from the file identified by
+// info, and refuses anything that is no longer that exact file.
+//
+// Checking the size and then calling os.ReadFile is not a bound: the path can
+// grow, or be replaced by a symlink to something much larger, between the two
+// calls, and the read would allocate whatever is there now. The bound has to be
+// applied at the operation that reads, and identity has to be checked against
+// the open descriptor rather than the path.
+func readBoundedDocument(ctx context.Context, path string, info os.FileInfo, limit int) ([]byte, error) {
+	if hook := afterLstat; hook != nil {
+		hook(path)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	opened, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	// os.SameFile compares device and inode, so a path swapped for a symlink to
+	// another file is caught here even though Open followed it.
+	if !opened.Mode().IsRegular() || !os.SameFile(info, opened) {
+		return nil, errors.New("changed between selection and read")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	// limit+1 so an over-bound file is detected without ever buffering it.
+	body, err := io.ReadAll(io.LimitReader(f, int64(limit)+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > limit {
+		return nil, fmt.Errorf("exceeds the %d byte bound", limit)
+	}
+	after, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !os.SameFile(info, after) || after.Size() != info.Size() || after.ModTime() != info.ModTime() || after.Mode().Perm() != info.Mode().Perm() {
+		return nil, errors.New("changed during read")
+	}
+	return body, nil
 }
 
 func supportedDocument(path string) bool {
