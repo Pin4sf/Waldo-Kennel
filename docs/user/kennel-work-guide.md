@@ -24,6 +24,8 @@ and Decision history are views inside the same Mission.
 State the desired result in natural language. When reasoning returns a proposal,
 review its desired result, criteria and expected evidence, constraints, exclusions,
 pause conditions, facets, time boundary, clarification notes and permission ceiling.
+If reasoning fails, the captured intake stays available. Configure reasoning opens the existing local settings inline; retry becomes available once readiness is reported. There is no offline proposal fallback.
+
 The initial view is read-only. Edit draft opens the existing editors; Review draft
 returns to the same draft without discarding changes. Confirmation remains explicit.
 A recoverable revision error keeps the edits and does not confirm a stale proposal.

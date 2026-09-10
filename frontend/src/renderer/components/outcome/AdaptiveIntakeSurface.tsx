@@ -87,24 +87,6 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		await queryClient.invalidateQueries({ queryKey: intakeAnalysisRequestQueryKey(intakeId) });
 	}
 
-	/** Stop waiting and take the proposal that is always available. */
-	async function takeOfflineProposal() {
-		if (!snapshot || !intakeId || pending) return;
-		setPending(true); setError(null);
-		try {
-			// Close any open ask first: an analysis that starts while one is
-			// still open would be refused as a conflict.
-			if (openAsk) {
-				await apiClient.POST("/api/v1/intakes/{intakeId}/analysis-request/cancellation", { params: { path: { intakeId } } });
-			}
-			const { data, error: apiError } = await apiClient.POST("/api/v1/intakes/{intakeId}/analysis", {
-				params: { path: { intakeId } },
-				body: { expectedProposalRevision: snapshot.session.currentProposalRevision, offline: true },
-			});
-			if (apiError) throw apiError;
-			await refreshIntake(data.intake);
-		} catch (cause) { setError(apiErrorMessage(cause)); } finally { setPending(false); }
-	}
 
 	/**
 	 * Release the intake rather than wait. This is a durable cancellation, not
@@ -174,7 +156,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 				// re-reading it this surface keeps the pre-analysis snapshot and
 				// falls through to a bare error message with nothing to click.
 				// Re-reading is what puts the person on the recovery surface,
-				// where the offline proposal and a retry actually live.
+				// where reasoning setup and explicit retry are available.
 				void query.refetch();
 			})
 			.finally(() => setPending(false));
@@ -335,21 +317,19 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		return (
 			<IntakeAnalysisWaiting
 				onRelease={() => void releaseWhileWaiting()}
-				onUseOffline={() => void takeOfflineProposal()}
 				pending={pending}
 				request={openAsk ? analysisRequest.request : undefined}
 			/>
 		);
 	}
 	// Any failed analysis lands here, whether an agent produced a draft the
-	// daemon refused or nothing was ever asked. Both need the same two ways
-	// forward; only the refused one also has something to show.
+	// daemon refused or nothing was ever asked. Setup and explicit retry are
+	// available; only the refused one also has a draft to inspect.
 	if (snapshot.session.status === "analysis_failed" && !pending) {
 		return (
 			<IntakeAnalysisRefused
 				failureCode={snapshot.session.failureCode}
 				onRetry={() => void retryAgentAnalysis()}
-				onUseOffline={() => void takeOfflineProposal()}
 				pending={pending}
 				request={refusedAsk}
 			/>

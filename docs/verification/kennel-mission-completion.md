@@ -233,3 +233,40 @@ Screenshot: `docs/verification/kennel-mission-evidence/intake-live-reasoning-blo
 The existing recovery UI still advertises Use the offline proposal instead, conflicting
 with ADR0012; it was not invoked. Reported to the review task as an additional concrete
 integration defect, unchanged by this bounded intake continuity follow-up.
+
+
+## Retired offline recovery correction (after 6641b404d)
+
+ADR0012 and `backend/internal/service/intake/service.go:chooseAnalyzer` agree: the
+compatibility offline argument selects no alternate analyzer. Removed the frontend
+`offline: true` request path and offline CTA from both waiting and failed intake states.
+Waiting retains explicit release. Failed analysis offers the existing local reasoning
+settings inline and explicit retry only when settings report ready. Without a refused
+proposal, recovery no longer claims that a draft exists below the message.
+Captured intake/answers are not rewritten; opening setup performs no mutation.
+Historical proposal provenance display remains readable; no old records were rewritten.
+
+Live browser PASS: reload the same failed intake, no offline CTA, retry disabled,
+Configure reasoning opens provider/model/effort/API-key controls and actual readiness
+reason. URL retains `intake-3b3b0e84-458b-4f20-a921-889cccbef5eb`; no settings were saved,
+no retry or confirmation was sent, and no credentials were entered. Screenshot:
+`docs/verification/kennel-mission-evidence/intake-reasoning-setup.jpg`.
+Targeted API-fixture regression: 18 passing, including unconfigured failed analysis
+with no offline action, no automatic retry/write and inline setup access.
+
+Backend typed-error mapping gap also affects
+`POST /api/v1/intakes/intake-3b3b0e84-458b-4f20-a921-889cccbef5eb/analysis`:
+observed HTTP500 at 2026-09-10T15:47:42.931+05:30, logged reason
+`reasoning provider is not configured; choose anthropic or openai`; durable failure code
+`INTAKE_ANALYSIS_FAILED`. This should carry a typed retryable provider-readiness reason,
+not require the renderer to infer it from text. The UI uses existing settings readiness
+for recovery and does not parse that prose into authority or lifecycle state.
+
+Recovery verification logs: `/tmp/kennel-intake-recovery-tests.log`,
+`/tmp/kennel-intake-recovery-all-tests.log`, `/tmp/kennel-intake-recovery-types.log`,
+`/tmp/kennel-intake-recovery-build.log`, `/tmp/kennel-intake-recovery-lint.log`.
+
+Final recovery checks: full frontend 221 files, 2715 passing, 6 skipped; typecheck and
+package exit0. Root lint first failed on an existing parallel golangci-lint lock;
+retry completed with0 issues (`/tmp/kennel-intake-recovery-lint-retry.log`). No other
+process was stopped or its lock removed. No backend/generated files changed.

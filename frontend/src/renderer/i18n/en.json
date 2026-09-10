@@ -2352,5 +2352,8 @@
 	"mission.noMatchingOutcomes": "No Outcomes match this view. Check Filters or define an Outcome from the Project sidebar.",
 	"outcome.intake.readDraft": "Review draft",
 	"outcome.intake.editDraft": "Edit draft",
-	"outcome.intake.openOutcome": "Open Outcome"
+	"outcome.intake.openOutcome": "Open Outcome",
+	"outcome.intake.reasoningFailedTitle": "Reasoning could not prepare the Contract",
+	"outcome.intake.reasoningFailedBody": "Your intake is saved. Check the configured reasoning provider, then retry when it is ready. No Outcome has been created.",
+	"outcome.intake.configureReasoning": "Configure reasoning"
 }
