@@ -122,10 +122,10 @@ func (s *Store) SetReasoningVerificationForGeneration(ctx context.Context, verif
 	if verifiedAt != nil {
 		stamp = sql.NullString{String: verifiedAt.UTC().Format(time.RFC3339Nano), Valid: true}
 	}
-	clear := verifiedAt == nil
+	clearValue := verifiedAt == nil
 	var generationArg interface{} = generation
 	var fingerprintArg interface{} = fingerprint
-	if clear {
+	if clearValue {
 		generationArg = nil
 		fingerprintArg = nil
 	}

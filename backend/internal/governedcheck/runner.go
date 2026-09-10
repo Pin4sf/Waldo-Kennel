@@ -18,11 +18,15 @@ import (
 )
 
 var (
+	// ErrCapabilityDenied means the approved Attempt lacks worktree execution.
 	ErrCapabilityDenied = errors.New("governed check capability denied")
-	ErrInvalidCommand   = errors.New("governed check command is invalid")
-	ErrOutputLimit      = errors.New("governed check output limit exceeded")
+	// ErrInvalidCommand means the check is not a discrete allowed command.
+	ErrInvalidCommand = errors.New("governed check command is invalid")
+	// ErrOutputLimit means the bounded check output was exceeded.
+	ErrOutputLimit = errors.New("governed check output limit exceeded")
 )
 
+// Request is the immutable execution boundary for one deterministic check.
 type Request struct {
 	Policy         domain.AttemptExecutionPolicy
 	WorkspaceRoot  string
@@ -32,6 +36,7 @@ type Request struct {
 	MaxOutputBytes int
 }
 
+// Result records bounded check output and termination facts.
 type Result struct {
 	Output          string
 	ExitCode        int
@@ -40,6 +45,7 @@ type Result struct {
 	OutputTruncated bool
 }
 
+// Run executes one check under the supplied Attempt policy.
 func Run(ctx context.Context, req Request) (Result, error) {
 	if err := req.Policy.Validate(); err != nil {
 		return Result{}, fmt.Errorf("invalid execution policy: %w", err)

@@ -21,6 +21,7 @@ type Handoff struct {
 	Files         []HandoffFile
 }
 
+// HandoffFile is one deterministic, verified predecessor change.
 type HandoffFile struct {
 	RelativePath  string
 	ChangeKind    domain.ArtifactChangeKind

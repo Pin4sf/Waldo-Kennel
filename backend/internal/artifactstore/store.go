@@ -22,8 +22,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/google/uuid"
+
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
 const (
@@ -78,6 +79,7 @@ type Store struct {
 	maxDuration time.Duration
 }
 
+// New creates a bounded filesystem artifact store under an application-state root.
 func New(cfg Config) (*Store, error) {
 	if strings.TrimSpace(cfg.Root) == "" {
 		return nil, errors.New("artifact store root is required")
@@ -154,8 +156,8 @@ func (s *Store) Retain(ctx context.Context, in Input) (Result, error) {
 	if err := os.MkdirAll(stage, 0o750); err != nil {
 		return Result{}, fmt.Errorf("create artifact staging: %w", err)
 	}
-	defer os.RemoveAll(stage) // only removes this capture's private staging area
-	if err := s.publishFiles(ctx, stage, root, files, capture.bytes, receipt.RetentionState == domain.RetentionRetained); err != nil {
+	defer func() { _ = os.RemoveAll(stage) }() // only removes this capture's private staging area
+	if err := s.publishFiles(ctx, stage, files, capture.bytes, receipt.RetentionState == domain.RetentionRetained); err != nil {
 		return Result{}, err
 	}
 	final := ""
@@ -344,7 +346,7 @@ func readStable(ctx context.Context, path string, before os.FileInfo, maxBytes i
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	var out bytes.Buffer
 	buf := make([]byte, maxReadBuffer)
 	for {
@@ -445,7 +447,7 @@ func parsePorcelain(data string, paths map[string]domain.ArtifactChangeKind) {
 	}
 }
 
-func (s *Store) publishFiles(ctx context.Context, stage, root string, files []domain.ArtifactFile, content map[string][]byte, complete bool) error {
+func (s *Store) publishFiles(ctx context.Context, stage string, files []domain.ArtifactFile, content map[string][]byte, complete bool) error {
 	if !complete {
 		return nil
 	}
@@ -463,7 +465,11 @@ func (s *Store) publishFiles(ctx context.Context, stage, root string, files []do
 		}
 		mode := os.FileMode(0o644)
 		if file.FileMode != nil {
-			mode = os.FileMode(*file.FileMode)
+			modeValue := *file.FileMode
+			if modeValue < 0 || modeValue > int64(^uint32(0)) {
+				return fmt.Errorf("artifact %s has an invalid file mode", file.RelativePath)
+			}
+			mode = os.FileMode(uint32(modeValue))
 		}
 		if err := os.WriteFile(dst, content[file.RelativePath], mode); err != nil {
 			return err
@@ -526,7 +532,7 @@ func syncTree(root string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return f.Sync()
 }
 func syncDir(path string) error {
@@ -534,7 +540,7 @@ func syncDir(path string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return f.Sync()
 }
 

@@ -292,7 +292,7 @@ func (s *Service) verifyReasoningWith(ctx context.Context, probe ReasoningProbe)
 		status.ErrorCode, status.Error = "VERIFICATION_STALE", "Verification finished for an older reasoning configuration; verify the current settings"
 		return status, nil
 	}
-	if err := s.setVerification(ctx, &verified, cfg.Provider, cfg.Model, start.ReasoningGeneration, fingerprint); err != nil {
+	if err := s.setVerification(ctx, &verified, cfg.Provider, cfg.Model); err != nil {
 		return ReasoningStatus{}, err
 	}
 	return s.GetReasoning(ctx)
@@ -329,7 +329,7 @@ func (s *Service) clearVerification(ctx context.Context, generation int64, finge
 	return s.store.SetReasoningVerification(ctx, nil, "", "", s.now())
 }
 
-func (s *Service) setVerification(ctx context.Context, at *time.Time, provider, model string, generation int64, fingerprint string) error {
+func (s *Service) setVerification(ctx context.Context, at *time.Time, provider, model string) error {
 	if _, ok := s.store.(VerificationGenerationStore); ok {
 		return nil
 	}
