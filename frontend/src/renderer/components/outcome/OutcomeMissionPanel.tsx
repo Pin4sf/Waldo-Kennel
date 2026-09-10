@@ -154,9 +154,7 @@ export function OutcomeMissionPanel({
 								)}
 							</div>
 							<div hidden={tab !== "execution"}>
-								<fieldset disabled={stale || connection !== "connected"} className="min-w-0">
-									<OutcomeRunSurface outcomeId={outcomeId} onReviewProof={() => setTab("result")} />
-								</fieldset>
+								<OutcomeRunSurface outcomeId={outcomeId} admissionBlocked={stale || connection !== "connected"} onReviewProof={() => setTab("result")} />
 								<MissionUsage outcomeId={outcomeId} projectId={projectId} />
 							</div>
 							<div hidden={tab !== "result"}>

@@ -50,8 +50,9 @@ Terminal inspection is optional, available only after an Attempt has a session.
 Evidence & result reuses the current criterion evidence, verification and explicit
 owner acceptance/rework controls. Provider completion and green checks do not accept
 an Outcome. Decision history shows recorded owner decisions and Contract revisions.
-Disconnected updates are visibly marked; decision controls are withheld until the
-stream reconnects. Reconnection refetches current Mission facts.
+Disconnected updates are visibly marked; new admission is withheld until the
+stream reconnects. Existing Attempt cancel and containment remain available through
+HTTP under daemon validation, even if the Plan is stale. Reconnection refetches current Mission facts.
 
 ## Current limits
 

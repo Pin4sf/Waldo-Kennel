@@ -109,3 +109,21 @@ Automated tests cover graph/table selection, reordered refresh, removed selectio
 unknown proof/dependency reason, stale approval withholding, lost replan response,
 CDC/reconnect invalidation, focused navigation and existing owner-only acceptance.
 Full launch acceptance, packaged interaction and provider enforcement are open.
+
+## Review correction: safety controls
+
+Parent review of `d12bb9cb5` correctly identified that disabling the entire Execution
+fieldset on stale authority or disconnected SSE also disabled cancellation and
+containment. The correction passes an admission-only block to OutcomeRunSurface:
+Start/replacement admission is withheld, while cancel/contain/reconcile continue to
+call their existing HTTP endpoints under daemon validation. Lost SSE is a freshness
+warning, not evidence that HTTP control is unreachable. Mutation pending still prevents
+duplicate safety requests; an actual HTTP refusal remains visible.
+
+`OutcomeMissionSafety.test.tsx` mounts the real Execution surface inside Mission and
+covers stale/current Contract versus connected/disconnected SSE, empty admission,
+active cancellation and unconfirmed containment. Six cases pass. RED against the two
+original d12bb9cb5 components and GREEN after restoring the fix are recorded in
+`/tmp/kennel-mission-safety-red.log` and `/tmp/kennel-mission-safety-green.log`.
+The bootstrap failure is a root-script cleanup gap: bootstrap still attempts the
+removed frontend/src/landing package. This lane does not change the root script.

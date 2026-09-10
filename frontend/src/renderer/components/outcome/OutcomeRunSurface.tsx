@@ -29,6 +29,8 @@ import {
 
 type OutcomeRunSurfaceProps = {
 	outcomeId: string;
+	/** Stale authority or reconnect uncertainty blocks admission, never containment. */
+	admissionBlocked?: boolean;
 	onReviewProof?: () => void;
 };
 
@@ -72,7 +74,7 @@ function statusBadgeKey(status: string): MessageKey | undefined {
  * completion is never presented as success, transcripts are never read, and
  * no provider name is treated as a policy.
  */
-export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfaceProps) {
+export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked = false }: OutcomeRunSurfaceProps) {
 	const { t } = useTranslation();
 	const planQuery = useOutcomePlan(outcomeId);
 	const attemptsQuery = useOutcomeAttempts(outcomeId);
@@ -96,7 +98,7 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfac
 	// Lineage order is ascending by number; the current attempt is the newest.
 	const current: AttemptRecord | undefined =
 		attempts.length > 0 ? attempts[attempts.length - 1] : undefined;
-	const canStartNew = planApproved && !pending && Boolean(schedule?.nextRunnableWorkUnitId) && (!current || current.fence === undefined);
+	const canStartNew = !admissionBlocked && planApproved && !pending && Boolean(schedule?.nextRunnableWorkUnitId) && (!current || current.fence === undefined);
 
 	const outcomeRunViewMode = useUiStore((state) => state.outcomeRunViewMode);
 	const boardColumns = useMemo(() => boardAttentionZoneOrder.map((zone) => getAttentionZoneViewForZone(zone, t)), [t]);
@@ -119,7 +121,7 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfac
 	const engageCurrentAttempt = () => openAttemptPanel();
 
 	async function startAttempt() {
-		if (!plan || pending || !schedule?.nextRunnableWorkUnitId) return;
+		if (admissionBlocked || !plan || pending || !schedule?.nextRunnableWorkUnitId) return;
 		try {
 			await start.start({
 				planRevisionId: plan.id,
@@ -171,7 +173,7 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof }: OutcomeRunSurfac
 					<Button
 						className="mt-3"
 						data-testid="outcome-run-start"
-						disabled={pending || scheduleQuery.isLoading || !schedule?.nextRunnableWorkUnitId}
+						disabled={admissionBlocked || pending || scheduleQuery.isLoading || !schedule?.nextRunnableWorkUnitId}
 						onClick={() => void startAttempt()}
 					>
 						{start.pending && <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />}
