@@ -2,6 +2,7 @@ package outcome_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
@@ -109,5 +110,44 @@ func TestTakeoverReview_CheckOwnershipIsPublishedBeforeReservationReturns(t *tes
 	}
 	if got := h.runner.totalChecksInvoked(); got != 1 {
 		t.Fatalf("check invocations = %d, want one", got)
+	}
+}
+
+func TestTakeoverReview_PartitionErrorReleasesEarlierOwnership(t *testing.T) {
+	h := newCheckedHarness(t, nil)
+	second := h.check
+	second.ID = "chk-2"
+	second.CriterionID = h.criterion(t)
+	h.store.attachApprovedCheck(t, h.outcomeID, second)
+	failing := &failingCheckRunStore{
+		checkRunFakeStore: h.runs,
+		failAt:            2,
+		reserveErr:        errors.New("reservation store unavailable"),
+	}
+	h.svc.WithCheckRunner(h.runner, failing)
+	ctx := context.Background()
+
+	if err := h.svc.ReconcileAttemptOutcomes(ctx); err == nil {
+		t.Fatal("partition failure was swallowed")
+	}
+	first, found, err := h.runs.GetAttemptCheckRun(ctx, h.attempt.ID, h.check.ID, h.receipt.ArtifactVersion)
+	if err != nil || !found || first.State != ports.CheckRunReserved {
+		t.Fatalf("first reservation after partition error = found:%v state:%s err:%v, want reserved", found, first.State, err)
+	}
+
+	// The next reconciliation proves that the first ownership witness was
+	// released: it may close the abandoned reservation as unknown instead of
+	// treating it as a live callback forever.
+	failing.failAt = 0
+	if err := h.svc.ReconcileAttemptOutcomes(ctx); err != nil {
+		t.Fatalf("reconcile after partition failure: %v", err)
+	}
+	first, found, err = h.runs.GetAttemptCheckRun(ctx, h.attempt.ID, h.check.ID, h.receipt.ArtifactVersion)
+	if err != nil || !found || first.State != ports.CheckRunUnknown {
+		t.Fatalf("first reservation after cleanup = found:%v state:%s err:%v, want unknown", found, first.State, err)
+	}
+	secondRun, found, err := h.runs.GetAttemptCheckRun(ctx, h.attempt.ID, second.ID, h.receipt.ArtifactVersion)
+	if err != nil || !found || secondRun.State != ports.CheckRunObserved {
+		t.Fatalf("second check after cleanup = found:%v state:%s err:%v, want observed", found, secondRun.State, err)
 	}
 }

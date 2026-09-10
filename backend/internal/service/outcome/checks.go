@@ -83,9 +83,10 @@ func (s *Service) partitionCheckRuns(
 	receipt domain.AttemptReceipt,
 	checks []domain.ApprovedCheck,
 ) (pending []domain.ApprovedCheck, recorded []ports.AttemptCheckRun, err error) {
+	owned := make([]domain.ApprovedCheck, 0, len(checks))
 	defer func() {
 		if err != nil {
-			for _, check := range pending {
+			for _, check := range owned {
 				s.releaseActiveCheckReservation(attempt.ID, check.ID, receipt.ArtifactVersion)
 			}
 		}
@@ -123,6 +124,7 @@ func (s *Service) partitionCheckRuns(
 		switch {
 		case reserveErr == nil:
 			pending = append(pending, check)
+			owned = append(owned, check)
 		case errors.Is(reserveErr, ports.ErrCheckRunAlreadyReserved):
 			s.releaseActiveCheckReservation(attempt.ID, check.ID, receipt.ArtifactVersion)
 			// Another reconciler owns this invocation. Leaving it to them is

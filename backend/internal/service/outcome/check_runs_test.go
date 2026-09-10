@@ -39,6 +39,21 @@ func (s *reentrantAfterCommitCheckRunStore) ReserveAttemptCheckRun(ctx context.C
 	return err
 }
 
+type failingCheckRunStore struct {
+	*checkRunFakeStore
+	failAt     int
+	calls      int
+	reserveErr error
+}
+
+func (s *failingCheckRunStore) ReserveAttemptCheckRun(ctx context.Context, run ports.AttemptCheckRun) error {
+	s.calls++
+	if s.calls == s.failAt {
+		return s.reserveErr
+	}
+	return s.checkRunFakeStore.ReserveAttemptCheckRun(ctx, run)
+}
+
 func newCheckedHarness(t *testing.T, observe func(domain.ApprovedCheck) ports.AttemptCheckObservation) *checkedHarness {
 	t.Helper()
 	base := newClassificationHarness(t)
