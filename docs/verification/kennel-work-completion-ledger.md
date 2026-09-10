@@ -205,7 +205,7 @@ is labelled `daemon-fixture` and never described as live conformance.
 | Final HEAD before this ledger correction | `0d41cb6c439969384bc9fc742e6428d0f88a08de` |
 | Final code head before evidence-only updates | `bf4679f3f` |
 | Branch / worktree | `codex/kennel-work-completion` / `/Users/shivanshfulper/.codex/worktrees/kennel-work-completion` |
-| Remote base | `origin/beta` at `9396c3844ee00cf2c350df0426f4224d33ef87de`; `27` commits ahead, `0` behind |
+| Remote base | `origin/beta` at `9396c3844ee00cf2c350df0426f4224d33ef87de`; merge-base matches and no remote changes were made |
 | Package | `/Users/shivanshfulper/.codex/worktrees/kennel-work-completion/frontend/out/Kennel-darwin-arm64/Kennel.app` |
 | Package executable SHA-256 | `d1383e07b3dd17b2783c3364a1df372403b6cc50c3372046f06bb85b92d12920` |
 | Full race log | `/tmp/kennel-work-completion-race.log` |
