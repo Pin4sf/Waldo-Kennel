@@ -83,6 +83,13 @@ func (s *Service) partitionCheckRuns(
 	receipt domain.AttemptReceipt,
 	checks []domain.ApprovedCheck,
 ) (pending []domain.ApprovedCheck, recorded []ports.AttemptCheckRun, err error) {
+	defer func() {
+		if err != nil {
+			for _, check := range pending {
+				s.releaseActiveCheckReservation(attempt.ID, check.ID, receipt.ArtifactVersion)
+			}
+		}
+	}()
 	for _, check := range checks {
 		existing, found, err := s.checkRuns.GetAttemptCheckRun(ctx, attempt.ID, check.ID, receipt.ArtifactVersion)
 		if err != nil {
@@ -102,18 +109,26 @@ func (s *Service) partitionCheckRuns(
 			recorded = append(recorded, run)
 			continue
 		}
+		// Publish ownership before calling into the durable store. The store
+		// may synchronously re-enter reconciliation after its INSERT commits
+		// but before returning; publishing afterward leaves a window where a
+		// live reservation is mistaken for an abandoned one. A count keeps two
+		// same-service reconcilers from releasing each other's witness when one
+		// loses the durable reservation race.
+		s.markActiveCheckReservation(attempt.ID, check.ID, receipt.ArtifactVersion)
 		reserveErr := s.checkRuns.ReserveAttemptCheckRun(ctx, ports.AttemptCheckRun{
 			ID: "chkrun-" + uuid.NewString(), AttemptID: attempt.ID, CheckID: check.ID,
 			ArtifactVersion: receipt.ArtifactVersion, ReservationEpoch: s.checkReservationEpoch, ReservedAt: s.clock(),
 		})
 		switch {
 		case reserveErr == nil:
-			s.markActiveCheckReservation(attempt.ID, check.ID, receipt.ArtifactVersion)
 			pending = append(pending, check)
 		case errors.Is(reserveErr, ports.ErrCheckRunAlreadyReserved):
+			s.releaseActiveCheckReservation(attempt.ID, check.ID, receipt.ArtifactVersion)
 			// Another reconciler owns this invocation. Leaving it to them is
 			// the whole point of reserving before running.
 		default:
+			s.releaseActiveCheckReservation(attempt.ID, check.ID, receipt.ArtifactVersion)
 			return nil, nil, reserveErr
 		}
 	}
@@ -204,13 +219,18 @@ func checkReservationKey(attemptID domain.AttemptID, checkID domain.ApprovedChec
 func (s *Service) markActiveCheckReservation(attemptID domain.AttemptID, checkID domain.ApprovedCheckID, artifactVersion string) {
 	s.checkReservationMu.Lock()
 	defer s.checkReservationMu.Unlock()
-	s.activeCheckRuns[checkReservationKey(attemptID, checkID, artifactVersion)] = struct{}{}
+	s.activeCheckRuns[checkReservationKey(attemptID, checkID, artifactVersion)]++
 }
 
 func (s *Service) releaseActiveCheckReservation(attemptID domain.AttemptID, checkID domain.ApprovedCheckID, artifactVersion string) {
 	s.checkReservationMu.Lock()
 	defer s.checkReservationMu.Unlock()
-	delete(s.activeCheckRuns, checkReservationKey(attemptID, checkID, artifactVersion))
+	key := checkReservationKey(attemptID, checkID, artifactVersion)
+	if owners := s.activeCheckRuns[key]; owners > 1 {
+		s.activeCheckRuns[key] = owners - 1
+		return
+	}
+	delete(s.activeCheckRuns, key)
 }
 
 func (s *Service) activeCheckReservation(run ports.AttemptCheckRun) bool {
@@ -219,8 +239,7 @@ func (s *Service) activeCheckReservation(run ports.AttemptCheckRun) bool {
 	}
 	s.checkReservationMu.Lock()
 	defer s.checkReservationMu.Unlock()
-	_, active := s.activeCheckRuns[checkReservationKey(run.AttemptID, run.CheckID, run.ArtifactVersion)]
-	return active
+	return s.activeCheckRuns[checkReservationKey(run.AttemptID, run.CheckID, run.ArtifactVersion)] > 0
 }
 
 // recordCheckObservation writes one check's evidence and its verification run.

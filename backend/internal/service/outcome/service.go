@@ -120,7 +120,7 @@ type Service struct {
 	// once-only ownership remains the durable check-run reservation.
 	checkReservationEpoch string
 	checkReservationMu    sync.Mutex
-	activeCheckRuns       map[string]struct{}
+	activeCheckRuns       map[string]int
 	// runIntents holds the owner's durable authorization to keep working
 	// through an approved Plan. Absent means only per-Attempt Start exists,
 	// which is a reduced capability, never an assumed authorization.
@@ -171,7 +171,7 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
 	}
-	service := &Service{store: store, clock: clock, checkReservationEpoch: uuid.NewString(), activeCheckRuns: map[string]struct{}{}}
+	service := &Service{store: store, clock: clock, checkReservationEpoch: uuid.NewString(), activeCheckRuns: map[string]int{}}
 	if proof, ok := store.(ports.OutcomeProofStore); ok {
 		service.proof = proof
 	}

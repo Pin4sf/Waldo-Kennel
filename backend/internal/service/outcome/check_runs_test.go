@@ -20,6 +20,25 @@ type checkedHarness struct {
 	check  domain.ApprovedCheck
 }
 
+// reentrantAfterCommitCheckRunStore models a durable reservation store whose
+// INSERT has committed but whose Reserve call has not returned to the caller.
+// That is the publication window a process-local ownership marker must cover.
+type reentrantAfterCommitCheckRunStore struct {
+	*checkRunFakeStore
+	reenter    func() error
+	reentered  bool
+	reentryErr error
+}
+
+func (s *reentrantAfterCommitCheckRunStore) ReserveAttemptCheckRun(ctx context.Context, run ports.AttemptCheckRun) error {
+	err := s.checkRunFakeStore.ReserveAttemptCheckRun(ctx, run)
+	if err == nil && !s.reentered {
+		s.reentered = true
+		s.reentryErr = s.reenter()
+	}
+	return err
+}
+
 func newCheckedHarness(t *testing.T, observe func(domain.ApprovedCheck) ports.AttemptCheckObservation) *checkedHarness {
 	t.Helper()
 	base := newClassificationHarness(t)

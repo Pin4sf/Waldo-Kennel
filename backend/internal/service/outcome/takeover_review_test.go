@@ -84,3 +84,30 @@ func TestTakeoverReview_ActiveCheckReservationIsNotInterrupted(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestTakeoverReview_CheckOwnershipIsPublishedBeforeReservationReturns(t *testing.T) {
+	h := newCheckedHarness(t, nil)
+	ctx := context.Background()
+	wrapper := &reentrantAfterCommitCheckRunStore{checkRunFakeStore: h.runs}
+	h.svc.WithCheckRunner(h.runner, wrapper)
+	wrapper.reenter = func() error {
+		return h.svc.ReconcileAttemptOutcomes(ctx)
+	}
+
+	if err := h.svc.ReconcileAttemptOutcomes(ctx); err != nil {
+		t.Fatalf("outer reconcile: %v", err)
+	}
+	if wrapper.reentryErr != nil {
+		t.Fatalf("re-entrant reconcile: %v", wrapper.reentryErr)
+	}
+	run, found, err := h.runs.GetAttemptCheckRun(ctx, h.attempt.ID, h.check.ID, h.receipt.ArtifactVersion)
+	if err != nil || !found {
+		t.Fatalf("reservation: found=%v err=%v", found, err)
+	}
+	if run.State != ports.CheckRunObserved {
+		t.Fatalf("reservation state = %s, want observed; a live row was treated as abandoned", run.State)
+	}
+	if got := h.runner.totalChecksInvoked(); got != 1 {
+		t.Fatalf("check invocations = %d, want one", got)
+	}
+}
