@@ -161,6 +161,49 @@ func TestAttemptStore_FencedAdmissionIsAtomicAndExclusive(t *testing.T) {
 	}
 }
 
+func TestAttemptStore_AdmissionBindsRunIntentGenerationAndRejectsPauseWinner(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "attempt-run-intent")
+	started, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentRunning, domain.RunCommandStart, 0, "run-start", "start/attempt"))
+	if err != nil {
+		t.Fatalf("append start: %v", err)
+	}
+
+	admission := admissionFor(outcomeID, plan, "attempt-before-pause", domain.FenceSubjectForProject("attempt-run-intent"))
+	admission.RunIntentGeneration = started.Generation
+	attempt, err := s.CreateAttemptWithFence(ctx, admission)
+	if err != nil {
+		t.Fatalf("admit running attempt: %v", err)
+	}
+	if attempt.RunIntentGeneration != started.Generation {
+		t.Fatalf("attempt run generation = %d, want %d", attempt.RunIntentGeneration, started.Generation)
+	}
+
+	paused, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentPaused, domain.RunCommandPause, started.Generation, "run-pause", "pause/attempt"))
+	if err != nil {
+		t.Fatalf("append pause: %v", err)
+	}
+
+	stale := admissionFor(outcomeID, plan, "attempt-after-pause", "different-fence")
+	stale.RunIntentGeneration = started.Generation
+	_, err = s.CreateAttemptWithFence(ctx, stale)
+	var conflict *ports.AttemptRunIntentConflictError
+	if !errors.As(err, &conflict) {
+		t.Fatalf("stale admission = %v, want AttemptRunIntentConflictError", err)
+	}
+	if conflict.Current != paused.Generation || conflict.Desired != domain.RunIntentPaused {
+		t.Fatalf("conflict = %+v, want paused generation %d", conflict, paused.Generation)
+	}
+	attempts, err := s.ListAttempts(ctx, outcomeID)
+	if err != nil {
+		t.Fatalf("list attempts: %v", err)
+	}
+	if len(attempts) != 1 {
+		t.Fatalf("stale admission created %d attempts, want the original one only", len(attempts))
+	}
+}
+
 func TestAttemptStore_ReusedRequestKeyWithDifferentOutcomeConflicts(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

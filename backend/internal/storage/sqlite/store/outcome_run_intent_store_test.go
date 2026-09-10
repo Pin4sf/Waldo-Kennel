@@ -2,10 +2,12 @@ package store_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
@@ -14,6 +16,97 @@ func runIntent(outcomeID domain.OutcomeID, planID domain.PlanRevisionID, desired
 		ID: domain.RunIntentID("ri-" + key), OutcomeID: outcomeID, Desired: desired,
 		PlanRevisionID: planID, ContractRevisionNumber: 1,
 		RequestKey: key, RequestedAt: time.Unix(100, 0).UTC(),
+	}
+}
+
+func commandedRunIntent(outcomeID domain.OutcomeID, planID domain.PlanRevisionID, desired domain.RunIntentDesired, command domain.RunCommand, expectedGeneration int64, key, fingerprint string) domain.OutcomeRunIntent {
+	intent := runIntent(outcomeID, planID, desired, key)
+	intent.Command = command
+	intent.ExpectedGeneration = expectedGeneration
+	intent.ExpectedGenerationSet = true
+	intent.RequestFingerprint = fingerprint
+	return intent
+}
+
+func TestAppendRunIntent_ConflictsOnCompleteReplayIdentityAndStaleGeneration(t *testing.T) {
+	s := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "runintent-fences")
+
+	started, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentRunning, domain.RunCommandStart, 0, "same-key", "start/fences"))
+	if err != nil {
+		t.Fatalf("append start: %v", err)
+	}
+	paused, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentPaused, domain.RunCommandPause, started.Generation, "pause-key", "pause/fences"))
+	if err != nil {
+		t.Fatalf("append pause: %v", err)
+	}
+	if paused.Generation != 2 {
+		t.Fatalf("pause generation = %d, want 2", paused.Generation)
+	}
+
+	_, err = s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentRunning, domain.RunCommandStart, 0, "same-key", "different-start/fences"))
+	var replayConflict *ports.RunIntentReplayConflictError
+	if !errors.As(err, &replayConflict) {
+		t.Fatalf("changed replay = %v, want RunIntentReplayConflictError", err)
+	}
+
+	_, err = s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentRunning, domain.RunCommandResume, started.Generation, "stale-key", "stale-resume/fences"))
+	var generationConflict *ports.RunIntentGenerationConflictError
+	if !errors.As(err, &generationConflict) {
+		t.Fatalf("stale generation = %v, want RunIntentGenerationConflictError", err)
+	}
+	if generationConflict.Current != paused.Generation {
+		t.Fatalf("stale generation current = %d, want %d", generationConflict.Current, paused.Generation)
+	}
+
+	secondPlan, secondOutcome := seedApprovedPlan(t, s, "runintent-fences-second")
+	_, err = s.AppendRunIntent(ctx, commandedRunIntent(secondOutcome, secondPlan.ID, domain.RunIntentRunning, domain.RunCommandStart, 0, "same-key", "start/fences"))
+	if !errors.As(err, &replayConflict) {
+		t.Fatalf("cross-outcome replay = %v, want RunIntentReplayConflictError", err)
+	}
+	if replayConflict.Existing.OutcomeID != outcomeID {
+		t.Fatalf("cross-outcome conflict named %s, want original %s", replayConflict.Existing.OutcomeID, outcomeID)
+	}
+}
+
+func TestAppendRunIntent_ConcurrentInitialCompareAndSwapHasOneWinner(t *testing.T) {
+	s := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "runintent-concurrent-cas")
+	intents := []domain.OutcomeRunIntent{
+		commandedRunIntent(outcomeID, plan.ID, domain.RunIntentRunning, domain.RunCommandStart, 0, "cas-a", "cas-a"),
+		commandedRunIntent(outcomeID, plan.ID, domain.RunIntentRunning, domain.RunCommandStart, 0, "cas-b", "cas-b"),
+	}
+	results := make(chan error, len(intents))
+	for _, intent := range intents {
+		go func(candidate domain.OutcomeRunIntent) {
+			_, err := s.AppendRunIntent(ctx, candidate)
+			results <- err
+		}(intent)
+	}
+
+	winners := 0
+	for range intents {
+		err := <-results
+		if err == nil {
+			winners++
+			continue
+		}
+		var conflict *ports.RunIntentGenerationConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("concurrent append = %v, want the loser to fail its CAS", err)
+		}
+	}
+	if winners != 1 {
+		t.Fatalf("concurrent append winners = %d, want exactly one", winners)
+	}
+	history, err := s.ListRunIntents(ctx, outcomeID)
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	if len(history) != 1 || history[0].Generation != 1 {
+		t.Fatalf("history = %+v, want one generation-1 authorization", history)
 	}
 }
 

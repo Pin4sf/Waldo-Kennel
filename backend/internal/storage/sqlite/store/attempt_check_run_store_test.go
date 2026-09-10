@@ -24,7 +24,7 @@ func TestReserveAttemptCheckRun_AdmitsExactlyOneInvoker(t *testing.T) {
 	}
 	run := ports.AttemptCheckRun{
 		ID: "chkrun-1", AttemptID: attempt.ID, CheckID: "chk-1",
-		ArtifactVersion: "artifact-v1", ReservedAt: time.Unix(100, 0).UTC(),
+		ArtifactVersion: "artifact-v1", ReservationEpoch: "daemon-epoch-1", ReservedAt: time.Unix(100, 0).UTC(),
 	}
 
 	if err := s.ReserveAttemptCheckRun(ctx, run); err != nil {
@@ -42,6 +42,9 @@ func TestReserveAttemptCheckRun_AdmitsExactlyOneInvoker(t *testing.T) {
 	}
 	if stored.ID != "chkrun-1" || stored.State != ports.CheckRunReserved {
 		t.Fatalf("stored run = %+v, want the first reservation still holding it", stored)
+	}
+	if stored.ReservationEpoch != run.ReservationEpoch {
+		t.Fatalf("reservation epoch = %q, want %q", stored.ReservationEpoch, run.ReservationEpoch)
 	}
 	// A different artifact version is a different question and gets its own
 	// run: re-checking new output is not a duplicate invocation.

@@ -129,6 +129,7 @@ var shippedMigrations = map[int64]string{
 	123: "0123_attempt_check_runs.sql",
 	124: "0124_outcome_run_intent.sql",
 	125: "0125_outcome_document_context.sql",
+	126: "0126_atomic_run_admission.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

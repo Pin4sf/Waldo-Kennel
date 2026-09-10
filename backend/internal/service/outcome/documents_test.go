@@ -53,9 +53,19 @@ func (f *documentContextFakeStore) GetDocumentContext(_ context.Context, id doma
 	return selection, ok, nil
 }
 
-func (f *documentContextFakeStore) ApproveDocumentContext(_ context.Context, id domain.DocumentContextID, at time.Time) error {
+func (f *documentContextFakeStore) ApproveDocumentContext(_ context.Context, outcomeID domain.OutcomeID, id domain.DocumentContextID, digest string, at time.Time) error {
 	selection, ok := f.byID[id]
-	if !ok || selection.Approved() {
+	if !ok {
+		return &ports.DocumentContextApprovalConflictError{OutcomeID: outcomeID, ContextID: id}
+	}
+	if selection.OutcomeID != outcomeID || selection.Digest != digest {
+		return &ports.DocumentContextApprovalConflictError{OutcomeID: outcomeID, ContextID: id}
+	}
+	current, found, _ := f.CurrentDocumentContext(context.Background(), outcomeID)
+	if !found || current.ID != id || current.Digest != digest {
+		return &ports.DocumentContextApprovalConflictError{OutcomeID: outcomeID, ContextID: id}
+	}
+	if selection.Approved() {
 		return nil
 	}
 	approved := at.UTC()
