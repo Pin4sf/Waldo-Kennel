@@ -1,6 +1,10 @@
 // Package governedcheck is the deterministic check boundary for an admitted
 // WorkUnit. It accepts a discrete executable/argument vector, never a shell
 // string, and never inherits the daemon's environment.
+//
+// Those are hygiene, not enforcement. The approved filesystem, execution and
+// network limits are applied by an Enforcement mechanism, and Run refuses to
+// execute anything when none is available. See enforcement.go.
 package governedcheck
 
 import (
@@ -28,22 +32,41 @@ var (
 
 // Request is the immutable execution boundary for one deterministic check.
 type Request struct {
-	Policy         domain.AttemptExecutionPolicy
-	WorkspaceRoot  string
-	Argv           []string
-	Environment    map[string]string
-	Timeout        time.Duration
+	Policy        domain.AttemptExecutionPolicy
+	WorkspaceRoot string
+	Argv          []string
+	Environment   map[string]string
+	Timeout       time.Duration
+	// Enforcement applies the approved limits. When nil, Run resolves the
+	// mechanism available on this host and fails closed if there is none.
+	Enforcement    Enforcement
 	MaxOutputBytes int
 }
 
 // Result records bounded check output and termination facts.
 type Result struct {
-	Output          string
-	ExitCode        int
+	Output   string
+	ExitCode int
+	// EnforcedBy names the mechanism that held the boundary, so evidence can
+	// never imply a confinement that did not exist.
+	EnforcedBy      string
 	TimedOut        bool
 	Cancelled       bool
 	OutputTruncated bool
+	// TerminationUnknown means the check's process tree could not be confirmed
+	// stopped within the bounded wait. Custody is retained: an unknown
+	// termination is not a finished check and never releases the workspace.
+	TerminationUnknown bool
 }
+
+const (
+	// killGrace is how long the process group has after SIGTERM before the
+	// group is killed outright.
+	killGrace = 2 * time.Second
+	// waitSlack bounds Wait itself, so a descendant holding the output pipe
+	// open cannot keep Run from returning.
+	waitSlack = 3 * time.Second
+)
 
 // Run executes one check under the supplied Attempt policy.
 func Run(ctx context.Context, req Request) (Result, error) {
@@ -74,17 +97,39 @@ func Run(ctx context.Context, req Request) (Result, error) {
 	if req.Timeout <= 0 {
 		req.Timeout = 2 * time.Minute
 	}
+	// Resolve enforcement before doing anything with a process. If the approved
+	// limits cannot be applied, no check runs at all.
+	enforcement := req.Enforcement
+	if enforcement == nil {
+		if enforcement, err = Available(req.Policy); err != nil {
+			return Result{}, err
+		}
+	}
 	ctx, cancel := context.WithTimeout(ctx, req.Timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, req.Argv[0], req.Argv[1:]...)
-	cmd.Dir = root
-	cmd.Env = safeEnvironment(req.Environment)
+	cmd, err := enforcement.Command(ctx, req, root)
+	if err != nil {
+		return Result{}, err
+	}
+	if cmd == nil {
+		return Result{}, fmt.Errorf("%w: %s returned no command", ErrEnforcementUnavailable, enforcement.Name())
+	}
 	configureProcessGroup(cmd)
+	// Cancellation must reach the whole group the check created. The default
+	// signals only the leader, so a check that spawned children would leave
+	// them running -- and holding the output pipe -- after Run returned.
+	cmd.Cancel = func() error { return terminateTree(cmd, killGrace) }
+	cmd.WaitDelay = killGrace + waitSlack
 	var output boundedBuffer
 	output.limit = req.MaxOutputBytes
 	cmd.Stdout, cmd.Stderr = &output, &output
 	err = cmd.Run()
-	result := Result{Output: output.String(), ExitCode: 0, OutputTruncated: output.truncated}
+	result := Result{Output: output.String(), ExitCode: 0, EnforcedBy: enforcement.Name(), OutputTruncated: output.truncated}
+	if errors.Is(err, exec.ErrWaitDelay) {
+		// The process tree outlived the bounded wait. Report it rather than
+		// letting a still-running descendant look like a completed check.
+		result.TerminationUnknown = true
+	}
 	if output.truncated {
 		return result, ErrOutputLimit
 	}
