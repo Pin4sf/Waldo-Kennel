@@ -19,6 +19,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/modelcatalog"
 	chatdriverregistry "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/registry"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/runtime/runtimeselect"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/artifactstore"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/autoreview"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/browserruntime"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
@@ -414,6 +415,12 @@ func Run() error {
 	// exposed by agentSvc; execution consumes the exact-binding attempt spawner;
 	// proof, decomposition, scheduling, and liveness stay on this same authority.
 	reaper := sessionReaper{sessions: sessionSvc}
+	artifactContent, artifactErr := artifactstore.New(artifactstore.Config{Root: filepath.Join(cfg.DataDir, "artifacts")})
+	if artifactErr != nil {
+		return fmt.Errorf("attempt artifact store: %w", artifactErr)
+	}
+	attempts := attemptSpawner{sessions: sessionSvc, projects: store, agents: agents}
+	attempts.retention = &attemptArtifactRetainer{sessions: sessionSvc, refs: store, artifacts: artifactContent}
 	// Waldo thinks with its own model; coding agents only execute authorized
 	// work. The provider resolves current settings at each call, so missing or
 	// invalid credentials remain actionable without daemon restart.
@@ -427,7 +434,8 @@ func Run() error {
 	}
 	outcomeSvc := outcomevc.New(store, nil).
 		WithPlanning(intelligenceProvider, agentSvc).
-		WithExecution(attemptSpawner{sessions: sessionSvc, projects: store, agents: agents}, store).
+		WithExecution(attempts, store).
+		WithAttemptRetainer(attempts).
 		WithProofStore(store).
 		WithAnalystSessionReaper(reaper)
 	// Composed Outcomes (ADR 0007) have no proposer wired: decomposition used

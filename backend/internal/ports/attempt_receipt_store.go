@@ -61,3 +61,11 @@ type ClassifyAttemptInput struct {
 type AttemptSuccessFinalizer interface {
 	ClassifyAttemptSucceeded(context.Context, ClassifyAttemptInput) error
 }
+
+// AttemptRetainer materializes the daemon-owned workspace for an ended
+// Attempt. It is separate from AttemptReceiptStore because filesystem
+// publication and database receipt persistence have different crash/retry
+// boundaries.
+type AttemptRetainer interface {
+	RetainAttempt(context.Context, domain.Attempt) error
+}

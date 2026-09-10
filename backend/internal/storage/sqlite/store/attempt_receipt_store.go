@@ -206,6 +206,10 @@ func (s *Store) ClassifyAttemptSucceeded(ctx context.Context, in ports.ClassifyA
 	if receipt.RetentionState != string(domain.RetentionRetained) || receipt.ArtifactVersion != in.ArtifactVersion {
 		return fmt.Errorf("%w: expected artifact %q, found %q with retention %q", ports.ErrAttemptReceiptNotReady, in.ArtifactVersion, receipt.ArtifactVersion, receipt.RetentionState)
 	}
+	if receipt.OutcomeID != string(attempt.OutcomeID) || receipt.PlanRevisionID != string(attempt.PlanRevisionID) ||
+		receipt.WorkUnitID != string(attempt.WorkUnitID) || receipt.ContractRevisionNumber != attempt.ContractRevisionNumber {
+		return fmt.Errorf("%w: receipt lineage does not match producing attempt", ports.ErrAttemptClassificationStale)
+	}
 	if receipt.OutcomeID != string(in.OutcomeID) || receipt.PlanRevisionID == "" || receipt.WorkUnitID == "" {
 		return fmt.Errorf("receipt %s has invalid producing lineage", in.AttemptID)
 	}

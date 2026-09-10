@@ -105,6 +105,7 @@ type Service struct {
 	// profile still schedules and reports truthfully; when absent, artifact
 	// continuity is unavailable rather than silently faked.
 	receipts ports.AttemptReceiptStore
+	retainer ports.AttemptRetainer
 
 	staleHeartbeat time.Duration
 }
@@ -153,6 +154,14 @@ func (s *Service) WithExecution(spawner ports.AttemptSessionSpawner, heartbeats 
 	s.spawner = spawner
 	s.heartbeats = heartbeats
 	s.staleHeartbeat = domain.DefaultStaleHeartbeatWindow
+	return s
+}
+
+// WithAttemptRetainer attaches the restart-safe workspace capture used before
+// an ended Attempt can satisfy proof. Without it, the service fails closed and
+// leaves the Attempt reconciled rather than classifying a manifest-only result.
+func (s *Service) WithAttemptRetainer(retainer ports.AttemptRetainer) *Service {
+	s.retainer = retainer
 	return s
 }
 

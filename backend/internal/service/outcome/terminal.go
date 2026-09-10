@@ -83,6 +83,11 @@ func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain
 			// the owner can see exactly which criteria are unmet.
 			continue
 		}
+		if s.retainer != nil {
+			if err := s.retainer.RetainAttempt(ctx, attempt); err != nil {
+				return fmt.Errorf("retain result for %s: %w", attempt.ID, err)
+			}
+		}
 		if s.receipts == nil {
 			return fmt.Errorf("attempt %s cannot be classified: receipt storage is unavailable", attempt.ID)
 		}

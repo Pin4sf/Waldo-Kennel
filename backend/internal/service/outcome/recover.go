@@ -223,6 +223,12 @@ func (s *Service) accountTerminalCustody(ctx context.Context, attempt domain.Att
 // recoveryReplace forces the lost verdict and hands custody back so the next
 // StartAttempt may issue a fresh fence. Replacement is always a NEW row.
 func (s *Service) recoveryReplace(ctx context.Context, in RecoveryInput, attempt domain.Attempt) (RecoveryView, error) {
+	// A succeeded Attempt has already passed the immutable-result boundary. It
+	// does not need a fresh provider-stop assertion; recovery may only repair
+	// the fence left behind by a crash after classification.
+	if attempt.Status == domain.AttemptSucceeded {
+		return s.accountSucceededCustody(ctx, attempt)
+	}
 	facts, fErr := s.heartbeatFacts(ctx, attempt.ID)
 	if fErr != nil {
 		return RecoveryView{}, fErr
