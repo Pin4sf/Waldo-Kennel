@@ -28,11 +28,6 @@ var ErrEnforcementUnavailable = errors.New("no mechanism can enforce the approve
 // sandbox the policy is mapped into (Codex TUI --sandbox workspace-write with
 // sandbox_workspace_write.network_access=false and an empty writable_roots,
 // or Codex Chat's turn-level sandboxPolicy) -- can do that.
-//
-// There is deliberately no implementation of this interface in production code
-// yet. Until a mechanism exists that can be shown to deny an out-of-workspace
-// write and a network effect, Run fails closed rather than executing checks
-// through bare exec and labelling the result governed.
 type Enforcement interface {
 	// Name identifies the enforcing mechanism, and is recorded on the result
 	// so evidence says what actually held the boundary.
@@ -53,6 +48,9 @@ func Available(policy domain.AttemptExecutionPolicy) (Enforcement, error) {
 	if err := policy.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid execution policy: %w", err)
 	}
+	if !policy.Has(domain.CapabilityWorktreeRead) || !policy.Has(domain.CapabilityWorktreeExec) {
+		return nil, fmt.Errorf("%w: checks require explicit worktree.read and worktree.exec", ErrEnforcementUnavailable)
+	}
 	for _, capability := range policy.RequiredCapabilities {
 		switch capability {
 		case domain.CapabilityWorktreeRead, domain.CapabilityWorktreeWrite, domain.CapabilityWorktreeExec:
@@ -60,6 +58,11 @@ func Available(policy domain.AttemptExecutionPolicy) (Enforcement, error) {
 			// An unrecognised capability cannot be translated into a confinement
 			// rule, and running without it would grant more than was approved.
 			return nil, fmt.Errorf("%w: capability %q has no enforcement mapping", ErrEnforcementUnavailable, capability)
+		}
+	}
+	for _, grant := range policy.Grants {
+		if grant.Scope != "worktree/*" {
+			return nil, fmt.Errorf("%w: scope %q has no exact enforcement mapping", ErrEnforcementUnavailable, grant.Scope)
 		}
 	}
 	return platformEnforcement(policy)

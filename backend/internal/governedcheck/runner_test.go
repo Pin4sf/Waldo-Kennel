@@ -20,7 +20,7 @@ import (
 )
 
 func checkPolicy() domain.AttemptExecutionPolicy {
-	return domain.AttemptExecutionPolicy{OutcomeID: "o", PlanRevisionID: "p", WorkUnitID: "u", ContractRevisionNumber: 1, RunBriefCoreDigest: "brief", RequiredCapabilities: []string{domain.CapabilityWorktreeExec}, Grants: []domain.CapabilityGrant{{ID: "g", Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"}}}
+	return domain.AttemptExecutionPolicy{OutcomeID: "o", PlanRevisionID: "p", WorkUnitID: "u", ContractRevisionNumber: 1, RunBriefCoreDigest: "brief", RequiredCapabilities: []string{domain.CapabilityWorktreeExec, domain.CapabilityWorktreeRead}, Grants: []domain.CapabilityGrant{{ID: "g", Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"}, {ID: "g-read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"}}}
 }
 
 // unenforced runs a check with no confinement whatsoever. It exists only to
@@ -202,9 +202,10 @@ func requireEnforcement(t *testing.T) {
 
 func writePolicy() domain.AttemptExecutionPolicy {
 	policy := checkPolicy()
-	policy.RequiredCapabilities = []string{domain.CapabilityWorktreeExec, domain.CapabilityWorktreeWrite}
+	policy.RequiredCapabilities = []string{domain.CapabilityWorktreeExec, domain.CapabilityWorktreeRead, domain.CapabilityWorktreeWrite}
 	policy.Grants = []domain.CapabilityGrant{
 		{ID: "g", Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"},
+		{ID: "g-read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
 		{ID: "g-write", Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"},
 	}
 	return policy
@@ -292,7 +293,7 @@ func TestRunRejectsShellAndCapabilityWidening(t *testing.T) {
 	}
 	policy := checkPolicy()
 	policy.RequiredCapabilities = []string{domain.CapabilityWorktreeRead}
-	policy.Grants[0].Name = domain.CapabilityWorktreeRead
+	policy.Grants = policy.Grants[1:]
 	if _, err := Run(context.Background(), Request{Policy: policy, Enforcement: unenforced{}, WorkspaceRoot: t.TempDir(), Argv: []string{"true"}}); !errors.Is(err, ErrCapabilityDenied) {
 		t.Fatalf("capability err = %v", err)
 	}
@@ -304,7 +305,7 @@ func TestDeniedCheckStartsNoProcess(t *testing.T) {
 	workspace := t.TempDir()
 	policy := checkPolicy()
 	policy.RequiredCapabilities = []string{domain.CapabilityWorktreeRead}
-	policy.Grants[0].Name = domain.CapabilityWorktreeRead
+	policy.Grants = policy.Grants[1:]
 	if _, err := Run(context.Background(), Request{
 		Policy: policy, Enforcement: unenforced{}, WorkspaceRoot: workspace,
 		Argv: []string{"touch", "should-not-exist"}, Timeout: time.Second,
@@ -313,5 +314,39 @@ func TestDeniedCheckStartsNoProcess(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(workspace, "should-not-exist")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("a capability-denied check still ran its command")
+	}
+}
+
+func TestRestrictedScopeFailsBeforeExecution(t *testing.T) {
+	policy := writePolicy()
+	for i := range policy.Grants {
+		if policy.Grants[i].Name == domain.CapabilityWorktreeWrite {
+			policy.Grants[i].Scope = "worktree/docs/*"
+		}
+	}
+	_, err := Run(context.Background(), Request{Policy: policy, WorkspaceRoot: t.TempDir(), Argv: []string{"touch", "outside-docs"}})
+	if !errors.Is(err, ErrEnforcementUnavailable) {
+		t.Fatalf("restricted scope must refuse: %v", err)
+	}
+}
+
+func TestEnforcedCheckCannotReadOutsideData(t *testing.T) {
+	requireEnforcement(t)
+	canary := filepath.Join(t.TempDir(), "private-data")
+	if err := os.WriteFile(canary, []byte("outside-data-canary"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Run(context.Background(), Request{Policy: checkPolicy(), WorkspaceRoot: t.TempDir(), Argv: []string{"cat", canary}})
+	if err == nil || strings.Contains(result.Output, "outside-data-canary") {
+		t.Fatalf("outside data read was allowed: %v", err)
+	}
+}
+
+func TestExecOnlyPolicyIsNotAnEnforceableCheck(t *testing.T) {
+	policy := checkPolicy()
+	policy.RequiredCapabilities = policy.RequiredCapabilities[:1]
+	policy.Grants = policy.Grants[:1]
+	if _, err := Available(policy); !errors.Is(err, ErrEnforcementUnavailable) {
+		t.Fatalf("missing explicit read authority must refuse: %v", err)
 	}
 }

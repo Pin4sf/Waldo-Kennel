@@ -67,9 +67,13 @@ func (s seatbelt) profile() string {
 	rules := []string{
 		"(version 1)",
 		"(deny default)",
-		// Reading is what makes a check possible at all, and the approved
-		// capabilities always include worktree.read alongside exec.
-		"(allow file-read*)",
+		// Executable runtime resources are readable; owner data is confined
+		// to the authorized workspace. Metadata alone exposes no file bytes.
+		"(allow file-read-metadata)",
+		"(allow file-read-xattr)",
+		`(allow file-read* (literal "/"))`,
+		`(allow file-read-data (subpath (param "WORKSPACE")))`,
+		`(allow file-read* (subpath "/System") (subpath "/usr/lib") (subpath "/usr/bin") (subpath "/bin") (subpath "/usr/share") (subpath "/dev") (subpath "/private/preboot") (subpath "/private/var/db/dyld") (subpath "/Library/Apple"))`,
 		"(allow process-exec)",
 		"(allow process-fork)",
 		"(allow sysctl-read)",
