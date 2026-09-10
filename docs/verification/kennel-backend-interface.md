@@ -19,7 +19,7 @@ local state or to fall back to a legacy session launch.
 
 | Need | Operation | Notes |
 |---|---|---|
-| Outcomes of one Project | `GET /api/v1/projects/{id}/outcomes` | `OutcomesEnvelope`; no cross-project list yet — see §2.1 |
+| Outcomes of one Project | `GET /api/v1/projects/{id}/outcomes` | `OutcomesEnvelope`; for the derived Board state of the same Outcomes see §2.1 |
 | One Outcome + full contract history | `GET /api/v1/outcomes/{outcomeId}` | `Outcome`, `Current`, `History`, `LatestPlan` |
 | Current Plan | `GET /api/v1/outcomes/{outcomeId}/plan` | |
 | Schedule, dependency reasons, custody | `GET /api/v1/outcomes/{outcomeId}/plans/{planId}/schedule` | Per-unit `state` (`blocked`/`runnable`/`executing`/`proven`/`retryable`/`paused`), `blockedReason` (`awaiting_dependency_proof`/`custody_held`), `blockingDependencies`, `nextRunnableId`, `custodyHeldBy`, `noRunnableReason` (`all_units_proven`/`attempt_executing`/`attempt_paused`/`awaiting_proof`). **This is the canonical graph overlay — do not recompute eligibility in the renderer.** |
@@ -48,42 +48,41 @@ by the C13 slice below. Also expect `UPSTREAM_ARTIFACT_MISSING`,
 All paths are under `/api/v1`. All responses are the repository's standard
 envelope; errors are `envelope.APIError` with a stable `code`.
 
-### 2.1 Cross-project Outcome board — `GET /outcomes`
+### 2.1 Board projection — `GET /projects/{id}/outcome-run-states`
 
-Board and List are views over the same top-level Outcomes, so the projection is
-served once by the daemon rather than assembled per Project in the renderer.
+Board and List are views over the same Outcomes, so the derived Mission state
+each card shows is served by the daemon rather than recomputed per card in the
+renderer. One call returns every row for one Project.
 
-Query: `projectId` (optional filter), `scope` = `top_level` (default) | `all`,
-`limit` (default 200, max 500).
+Query: `scope` = `top_level` (default) | `all`. `top_level` omits contributing
+Outcomes, which belong inside their parent's Mission.
 
-`OutcomeBoardEnvelope { outcomes: OutcomeBoardEntry[], observedAt }`
+`OutcomeRunStatesEnvelope { runStates: OutcomeRunState[], observedAt }`, where
+each entry is exactly the §2.2 `OutcomeRunState` shape. There is deliberately
+no second board-only DTO: a card and its Mission header must never be able to
+disagree.
 
-`OutcomeBoardEntry`:
+Fields most useful to a card: `title`, `projectId`, `state`, `attentionReason`,
+`blocker`, `planStatus`, `planBindsCurrentContract`, `activeAttemptStatus`,
+`provenCriteria`/`requiredCriteria` (counts, **not** a percentage) and
+`acceptedAt`.
 
-| Field | Meaning |
-|---|---|
-| `id`, `projectId`, `projectName`, `title` | identity |
-| `parentOutcomeId` | non-empty for a contributing Outcome (excluded from `top_level`) |
-| `contractRevisionNumber`, `contractRevisionId` | current revision |
-| `shape` | `direct` \| `decomposed` \| `undecided` |
-| `planRevisionId`, `planStatus`, `planBindsCurrentContract` | a `false` here is the stale-plan case |
-| `state` | `define` \| `ready_to_authorize` \| `in_progress` \| `needs_you` \| `ready_for_review` \| `accepted` — derived from canonical facts, never stored |
-| `attentionReason` | stable code, non-empty whenever `state` is `needs_you` |
-| `attentionDetail` | human sentence for that code |
-| `nextAction` | one action code from §2.2's vocabulary, or empty |
-| `activeAttemptId`, `activeAttemptStatus` | |
-| `provenCriteria`, `requiredCriteria` | integers; **not** a percentage |
-| `acceptedAt` | nullable |
-| `updatedAt` | freshness for this row |
-
-Errors: `400`, `500`. **This operation ships implemented in the API commit** —
-it is a projection over facts that already exist.
+Errors: `400`, `500`, and `501` if the daemon has no Outcome service wired.
+**This operation ships implemented in the API commit.**
 
 ### 2.2 Run state and eligible actions — `GET /outcomes/{outcomeId}/run`
 
-`OutcomeRunStateEnvelope { outcomeId, intent, eligibleActions, blocker, freshness }`
+`OutcomeRunStateEnvelope { runState: OutcomeRunState }`, where `OutcomeRunState`
+carries `outcomeId`, `projectId`, `title`, `parentOutcomeId`, `state`,
+`attentionReason`, `intent`, `eligibleActions`, `blocker`, `freshness`,
+`planStatus`, `planBindsCurrentContract`, `activeAttemptId`,
+`activeAttemptStatus`, `provenCriteria`, `requiredCriteria` and `acceptedAt`.
 
-- `intent`: `null` until the run-intent slice lands, then
+- `state`: `define` | `ready_to_authorize` | `in_progress` | `needs_you` |
+  `ready_for_review` | `accepted`, derived on every read and never stored.
+  `attentionReason` is a stable code, non-empty exactly when `state` is
+  `needs_you`, so "Needs you" always carries a concrete reason.
+- `intent`: **absent** until the run-intent slice lands, then
   `{ generation, desired: "idle"|"running"|"paused"|"cancelled", planRevisionId,
   requestedAt, acknowledgedAt|null, activeAttemptId|null, lastError|null }`.
   `generation` is the optimistic-concurrency token for §2.3.
@@ -100,8 +99,9 @@ it is a projection over facts that already exist.
   the projection was computed from; a mutation that returns a lower value than
   one you already hold is stale and must be discarded.
 
-Errors: `404 OUTCOME_NOT_FOUND`, `500`. Never `501` — a run state with a `null`
-intent and everything-unavailable actions is a truthful answer.
+Errors: `404 OUTCOME_NOT_FOUND`, `500`, and `501` only when the daemon has no
+Outcome service wired at all. An absent `intent` with refused pause/resume is a
+truthful answer, not an error.
 
 ### 2.3 Run intent commands — `POST /outcomes/{outcomeId}/run`
 
@@ -160,9 +160,13 @@ and the renderer must show it as such.
 ### 2.5 Attributed usage — `GET /outcomes/{outcomeId}/usage`
 
 `OutcomeUsageEnvelope { outcomeId, planning, totals, workUnits[], attempts[], observedAt }`
-where each usage block is
-`{ inputTokens?, outputTokens?, totalTokens?, requests?, costUsd?, costEstimated,
-pricingProvenance }`.
+where each usage block is `AttributedUsage`:
+`{ totals: UsageTotals, requests?, costUsd?, costEstimated, pricingProvenance }`.
+`UsageTotals` is the existing normalized telemetry shape already used by
+`/usage/sessions` — `inputTokens`, `uncachedInputTokens`, `cacheReadTokens`,
+`cacheWriteTokens`, `outputTokens`, `reasoningTokens` — reused rather than
+duplicated. Planning usage is reported separately from execution so reasoning
+spend is never presented as work a provider did.
 
 Every numeric is **nullable and null means unknown** — do not coerce to zero.
 `costEstimated` is `true` unless `pricingProvenance` names a real price source;
@@ -213,8 +217,8 @@ already hold is a stale response and must be discarded, not rendered.
 
 | Operation | Lands with |
 |---|---|
-| §2.1 board | the API commit (implemented immediately) |
-| §2.2 run state | the API commit (implemented; `intent` is `null`, actions derived from existing facts) |
+| §2.1 board projection | the API commit (implemented immediately) |
+| §2.2 run state | the API commit (implemented; `intent` is **absent**, actions derived from existing facts) |
 | §2.3 run commands | run-intent slice — `501 RUN_INTENT_UNAVAILABLE` until then |
 | §2.4 delivery | delivery slice — `501 DELIVERY_UNAVAILABLE` until then |
 | §2.5 usage | usage slice — `501 USAGE_ATTRIBUTION_UNAVAILABLE` until then |

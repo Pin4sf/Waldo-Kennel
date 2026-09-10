@@ -1,0 +1,139 @@
+package controllers
+
+import (
+	"context"
+	"net/http"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apispec"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/envelope"
+	outcomevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
+)
+
+// RunStateReader is the Mission supervision read boundary: where an Outcome
+// stands and what the owner may do next. It is deliberately separate from the
+// write interfaces so a daemon that can report state is never assumed able to
+// change it.
+type RunStateReader interface {
+	GetRunState(context.Context, domain.OutcomeID) (outcomevc.RunStateView, error)
+	ListProjectRunStates(context.Context, domain.ProjectID, bool) ([]outcomevc.RunStateView, error)
+}
+
+// registerRunRoutes mounts the Mission supervision, delivery and attributed
+// usage routes.
+//
+// The write routes are registered before their services exist on purpose: an
+// operation that answers 501 with a stable code is a truthful product state
+// the renderer can show, whereas a missing route is an opaque 404 that invites
+// a hand-written client-side substitute.
+func (c *OutcomesController) registerRunRoutes(r chi.Router) {
+	r.Get("/projects/{id}/outcome-run-states", c.listProjectRunStates)
+	r.Get("/outcomes/{outcomeId}/run", c.getRunState)
+	r.Post("/outcomes/{outcomeId}/run", c.commandRun)
+	r.Get("/outcomes/{outcomeId}/deliveries", c.listDeliveries)
+	r.Post("/outcomes/{outcomeId}/deliveries", c.requestDelivery)
+	r.Get("/outcomes/{outcomeId}/deliveries/{deliveryId}", c.getDelivery)
+	r.Get("/outcomes/{outcomeId}/usage", c.getOutcomeUsage)
+}
+
+func (c *OutcomesController) runStates() (RunStateReader, bool) {
+	reader, ok := c.Svc.(RunStateReader)
+	return reader, ok && c.Svc != nil
+}
+
+func (c *OutcomesController) getRunState(w http.ResponseWriter, r *http.Request) {
+	reader, ok := c.runStates()
+	if !ok {
+		apispec.NotImplemented(w, r, http.MethodGet, "/api/v1/outcomes/{outcomeId}/run")
+		return
+	}
+	view, err := reader.GetRunState(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, OutcomeRunStateEnvelope{RunState: outcomeRunStateResponse(view)})
+}
+
+func (c *OutcomesController) listProjectRunStates(w http.ResponseWriter, r *http.Request) {
+	reader, ok := c.runStates()
+	if !ok {
+		apispec.NotImplemented(w, r, http.MethodGet, "/api/v1/projects/{id}/outcome-run-states")
+		return
+	}
+	// Contributing Outcomes belong inside their parent's Mission, so the Board
+	// asks for top-level rows unless the caller explicitly widens the scope.
+	topLevelOnly := r.URL.Query().Get("scope") != "all"
+	views, err := reader.ListProjectRunStates(r.Context(), domain.ProjectID(chi.URLParam(r, "id")), topLevelOnly)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	states := make([]OutcomeRunStateResponse, 0, len(views))
+	for _, view := range views {
+		states = append(states, outcomeRunStateResponse(view))
+	}
+	envelope.WriteJSON(w, http.StatusOK, OutcomeRunStatesEnvelope{RunStates: states, ObservedAt: time.Now().UTC()})
+}
+
+func (c *OutcomesController) commandRun(w http.ResponseWriter, r *http.Request) {
+	envelope.WriteAPIError(w, r, http.StatusNotImplemented, "not_implemented", "RUN_INTENT_UNAVAILABLE",
+		"Durable run intent is not implemented in this daemon; start Attempts individually", nil)
+}
+
+func (c *OutcomesController) listDeliveries(w http.ResponseWriter, r *http.Request) {
+	envelope.WriteAPIError(w, r, http.StatusNotImplemented, "not_implemented", "DELIVERY_UNAVAILABLE",
+		"Durable delivery is not implemented in this daemon", nil)
+}
+
+func (c *OutcomesController) requestDelivery(w http.ResponseWriter, r *http.Request) {
+	envelope.WriteAPIError(w, r, http.StatusNotImplemented, "not_implemented", "DELIVERY_UNAVAILABLE",
+		"Durable delivery is not implemented in this daemon", nil)
+}
+
+func (c *OutcomesController) getDelivery(w http.ResponseWriter, r *http.Request) {
+	envelope.WriteAPIError(w, r, http.StatusNotImplemented, "not_implemented", "DELIVERY_UNAVAILABLE",
+		"Durable delivery is not implemented in this daemon", nil)
+}
+
+func (c *OutcomesController) getOutcomeUsage(w http.ResponseWriter, r *http.Request) {
+	envelope.WriteAPIError(w, r, http.StatusNotImplemented, "not_implemented", "USAGE_ATTRIBUTION_UNAVAILABLE",
+		"Usage attributed to this Outcome is not implemented in this daemon", nil)
+}
+
+func outcomeRunStateResponse(view outcomevc.RunStateView) OutcomeRunStateResponse {
+	actions := make([]RunActionEligibilityResponse, 0, len(view.EligibleActions))
+	for _, action := range view.EligibleActions {
+		actions = append(actions, RunActionEligibilityResponse{
+			Action: string(action.Action), Available: action.Available, Reason: action.Reason,
+		})
+	}
+	out := OutcomeRunStateResponse{
+		OutcomeID: string(view.OutcomeID), ProjectID: string(view.ProjectID), Title: view.Title,
+		ParentOutcomeID: string(view.ParentOutcomeID), State: string(view.State),
+		AttentionReason: view.AttentionReason, EligibleActions: actions,
+		PlanStatus: string(view.PlanStatus), PlanBindsCurrentContract: view.PlanBindsCurrentContract,
+		ActiveAttemptID: string(view.ActiveAttemptID), ActiveAttemptStatus: string(view.ActiveAttemptStatus),
+		ProvenCriteria: view.ProvenCriteria, RequiredCriteria: view.RequiredCriteria,
+		AcceptedAt: view.AcceptedAt,
+		Freshness: RunFreshnessResponse{
+			ObservedAt: view.Freshness.ObservedAt, ContractRevisionNumber: view.Freshness.ContractRevisionNumber,
+			PlanRevisionID: string(view.Freshness.PlanRevisionID), ProofGeneration: view.Freshness.ProofGeneration,
+		},
+	}
+	if view.Blocker != nil {
+		out.Blocker = &RunBlockerResponse{Code: view.Blocker.Code, Message: view.Blocker.Message, Detail: view.Blocker.Detail}
+	}
+	if view.Intent != nil {
+		out.Intent = &RunIntentResponse{
+			Generation: view.Intent.Generation, Desired: view.Intent.Desired,
+			PlanRevisionID: string(view.Intent.PlanRevisionID), RequestedAt: view.Intent.RequestedAt,
+			AcknowledgedAt: view.Intent.AcknowledgedAt, ActiveAttemptID: string(view.Intent.ActiveAttemptID),
+			LastError: view.Intent.LastError,
+		}
+	}
+	return out
+}

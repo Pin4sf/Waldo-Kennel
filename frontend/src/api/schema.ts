@@ -824,6 +824,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List durable deliveries of this Outcome's retained results */
+        get: operations["listOutcomeDeliveries"];
+        put?: never;
+        /** Deliver one exact reviewed artifact to a destination */
+        post: operations["requestOutcomeDelivery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/deliveries/{deliveryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one delivery record */
+        get: operations["getOutcomeDelivery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/evidence": {
         parameters: {
             query?: never;
@@ -960,6 +995,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one Outcome's Mission state, eligible actions and blocker */
+        get: operations["getOutcomeRunState"];
+        put?: never;
+        /** Record durable run intent (start, pause, resume, cancel) */
+        post: operations["commandOutcomeRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read reasoning and execution usage attributed to this Outcome */
+        get: operations["getOutcomeUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/verifications": {
         parameters: {
             query?: never;
@@ -1042,6 +1112,23 @@ export interface paths {
         put?: never;
         /** Capture one simple natural-language Outcome statement */
         post: operations["createOutcomeIntake"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/outcome-run-states": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Board projection: Mission state and eligible actions for a Project's Outcomes */
+        get: operations["listProjectOutcomeRunStates"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2860,6 +2947,13 @@ export interface components {
             stale: boolean;
             waived: components["schemas"]["UpstreamBlockResponse"][];
         };
+        ControllersAttributedUsageResponse: {
+            costEstimated: boolean;
+            costUsd: null | number;
+            pricingProvenance?: string;
+            requests: null | number;
+            totals: components["schemas"]["UsageTotalsResponse"];
+        };
         ControllersIntakeAnalysisRequestEnvelope: {
             request: components["schemas"]["ControllersIntakeAnalysisRequestResponse"];
         };
@@ -2941,6 +3035,100 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        ControllersOutcomeDeliveriesEnvelope: {
+            deliveries: components["schemas"]["ControllersOutcomeDeliveryResponse"][];
+        };
+        ControllersOutcomeDeliveryEnvelope: {
+            delivery: components["schemas"]["ControllersOutcomeDeliveryResponse"];
+        };
+        ControllersOutcomeDeliveryResponse: {
+            artifactVersion: string;
+            attemptId: string;
+            /** Format: int64 */
+            byteCount: number;
+            /** Format: date-time */
+            completedAt?: null | string;
+            destination: string;
+            /** @enum {string} */
+            disposition: "accepted" | "draft";
+            failureCode?: string;
+            failureDetail?: string;
+            fileCount: number;
+            id: string;
+            manifestPath?: string;
+            outcomeId: string;
+            /** Format: date-time */
+            requestedAt: string;
+            /** @enum {string} */
+            state: "pending" | "succeeded" | "failed" | "cancelled";
+            workUnitId?: string;
+        };
+        ControllersOutcomeRunCommandRequest: {
+            /** @enum {string} */
+            action: "start" | "pause" | "resume" | "cancel";
+            /** Format: int64 */
+            expectedContractRevision: number;
+            /** Format: int64 */
+            expectedGeneration?: number;
+            planRevisionId: string;
+            requestKey: string;
+        };
+        ControllersOutcomeRunStateEnvelope: {
+            runState: components["schemas"]["ControllersOutcomeRunStateResponse"];
+        };
+        ControllersOutcomeRunStateResponse: {
+            /** Format: date-time */
+            acceptedAt?: null | string;
+            activeAttemptId?: string;
+            activeAttemptStatus?: string;
+            attentionReason?: string;
+            blocker?: components["schemas"]["ControllersRunBlockerResponse"];
+            eligibleActions: components["schemas"]["ControllersRunActionEligibilityResponse"][];
+            freshness: components["schemas"]["ControllersRunFreshnessResponse"];
+            intent?: components["schemas"]["ControllersRunIntentResponse"];
+            outcomeId: string;
+            parentOutcomeId?: string;
+            planBindsCurrentContract: boolean;
+            planStatus?: string;
+            projectId: string;
+            provenCriteria: number;
+            requiredCriteria: number;
+            /** @enum {string} */
+            state: "define" | "ready_to_authorize" | "in_progress" | "needs_you" | "ready_for_review" | "accepted";
+            title: string;
+        };
+        ControllersOutcomeRunStatesEnvelope: {
+            /** Format: date-time */
+            observedAt: string;
+            runStates: components["schemas"]["ControllersOutcomeRunStateResponse"][];
+        };
+        ControllersOutcomeUsageAttemptResponse: {
+            attemptId: string;
+            usage: components["schemas"]["ControllersAttributedUsageResponse"];
+            workUnitId: string;
+        };
+        ControllersOutcomeUsageEnvelope: {
+            attempts: components["schemas"]["ControllersOutcomeUsageAttemptResponse"][];
+            /** Format: date-time */
+            observedAt: string;
+            outcomeId: string;
+            planning: components["schemas"]["ControllersAttributedUsageResponse"];
+            totals: components["schemas"]["ControllersAttributedUsageResponse"];
+            workUnits: components["schemas"]["ControllersOutcomeUsageWorkUnitResponse"][];
+        };
+        ControllersOutcomeUsageWorkUnitResponse: {
+            usage: components["schemas"]["ControllersAttributedUsageResponse"];
+            workUnitId: string;
+        };
+        ControllersRequestOutcomeDeliveryRequest: {
+            acceptanceDecisionId?: string;
+            artifactVersion: string;
+            attemptId: string;
+            destination: string;
+            /** @enum {string} */
+            disposition: "accepted" | "draft";
+            requestKey: string;
+        };
         ControllersRequestRereviewRequest: {
             /** @description Tracked pull request URL. Required when the session has multiple PRs. */
             pullRequestUrl?: string;
@@ -2974,6 +3162,41 @@ export interface components {
             model?: string;
             modelSelection: string;
             provider: string;
+        };
+        ControllersRunActionEligibilityResponse: {
+            /** @enum {string} */
+            action: "clarify" | "propose_plan" | "review_plan" | "approve_plan" | "start" | "pause" | "resume" | "cancel" | "review_result" | "request_changes" | "accept" | "export";
+            available: boolean;
+            reason?: string;
+        };
+        ControllersRunBlockerResponse: {
+            code: string;
+            detail?: {
+                [key: string]: unknown;
+            };
+            message: string;
+        };
+        ControllersRunFreshnessResponse: {
+            /** Format: int64 */
+            contractRevisionNumber: number;
+            /** Format: date-time */
+            observedAt: string;
+            planRevisionId?: string;
+            /** Format: int64 */
+            proofGeneration: number;
+        };
+        ControllersRunIntentResponse: {
+            /** Format: date-time */
+            acknowledgedAt?: null | string;
+            activeAttemptId?: string;
+            /** @enum {string} */
+            desired: "idle" | "running" | "paused" | "cancelled";
+            /** Format: int64 */
+            generation: number;
+            lastError?: string;
+            planRevisionId?: string;
+            /** Format: date-time */
+            requestedAt: string;
         };
         ControllersSecurePairingStatus: {
             active: boolean;
@@ -7882,6 +8105,180 @@ export interface operations {
             };
         };
     };
+    listOutcomeDeliveries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDeliveriesEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    requestOutcomeDelivery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersRequestOutcomeDeliveryRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDeliveryEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomeDelivery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+                /** @description Delivery identifier, e.g. dlv-<uuid>. */
+                deliveryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDeliveryEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     recordOutcomeEvidence: {
         parameters: {
             query?: never;
@@ -8414,6 +8811,178 @@ export interface operations {
             };
         };
     };
+    getOutcomeRunState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeRunStateEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    commandOutcomeRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersOutcomeRunCommandRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeRunStateEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomeUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeUsageEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     recordOutcomeVerification: {
         parameters: {
             query?: never;
@@ -8810,6 +9379,59 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listProjectOutcomeRunStates: {
+        parameters: {
+            query?: {
+                /** @description top_level (default) lists only Project-level Outcomes; all includes contributing Outcomes. */
+                scope?: "top_level" | "all";
+            };
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeRunStatesEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

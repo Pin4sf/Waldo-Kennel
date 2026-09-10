@@ -2370,6 +2370,147 @@ paths:
       summary: Authorize a decomposition, creating its contributing Outcomes
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/deliveries:
+    get:
+      operationId: listOutcomeDeliveries
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersOutcomeDeliveriesEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: List durable deliveries of this Outcome's retained results
+      tags:
+      - outcomes
+    post:
+      operationId: requestOutcomeDelivery
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersRequestOutcomeDeliveryRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersOutcomeDeliveryEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Deliver one exact reviewed artifact to a destination
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/deliveries/{deliveryId}:
+    get:
+      operationId: getOutcomeDelivery
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Delivery identifier, e.g. dlv-<uuid>.
+        in: path
+        name: deliveryId
+        required: true
+        schema:
+          description: Delivery identifier, e.g. dlv-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersOutcomeDeliveryEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read one delivery record
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/evidence:
     post:
       operationId: recordOutcomeEvidence
@@ -2801,6 +2942,140 @@ paths:
       summary: Append an immutable contract revision (optimistic concurrency)
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/run:
+    get:
+      operationId: getOutcomeRunState
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersOutcomeRunStateEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read one Outcome's Mission state, eligible actions and blocker
+      tags:
+      - outcomes
+    post:
+      operationId: commandOutcomeRun
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersOutcomeRunCommandRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersOutcomeRunStateEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Record durable run intent (start, pause, resume, cancel)
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/usage:
+    get:
+      operationId: getOutcomeUsage
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersOutcomeUsageEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read reasoning and execution usage attributed to this Outcome
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/verifications:
     post:
       operationId: recordOutcomeVerification
@@ -3130,6 +3405,57 @@ paths:
       summary: Capture one simple natural-language Outcome statement
       tags:
       - intakes
+  /api/v1/projects/{id}/outcome-run-states:
+    get:
+      operationId: listProjectOutcomeRunStates
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      - description: top_level (default) lists only Project-level Outcomes; all includes
+          contributing Outcomes.
+        in: query
+        name: scope
+        schema:
+          description: top_level (default) lists only Project-level Outcomes; all
+            includes contributing Outcomes.
+          enum:
+          - top_level
+          - all
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersOutcomeRunStatesEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: 'Board projection: Mission state and eligible actions for a Project''s
+        Outcomes'
+      tags:
+      - outcomes
   /api/v1/projects/{id}/outcomes:
     get:
       operationId: listProjectOutcomes
@@ -8720,6 +9046,28 @@ components:
       - waived
       - attention
       type: object
+    ControllersAttributedUsageResponse:
+      properties:
+        costEstimated:
+          type: boolean
+        costUsd:
+          type:
+          - "null"
+          - number
+        pricingProvenance:
+          type: string
+        requests:
+          type:
+          - "null"
+          - integer
+        totals:
+          $ref: '#/components/schemas/UsageTotalsResponse'
+      required:
+      - totals
+      - requests
+      - costUsd
+      - costEstimated
+      type: object
     ControllersIntakeAnalysisRequestEnvelope:
       properties:
         request:
@@ -8932,6 +9280,257 @@ components:
       - createdAt
       - updatedAt
       type: object
+    ControllersOutcomeDeliveriesEnvelope:
+      properties:
+        deliveries:
+          items:
+            $ref: '#/components/schemas/ControllersOutcomeDeliveryResponse'
+          type: array
+      required:
+      - deliveries
+      type: object
+    ControllersOutcomeDeliveryEnvelope:
+      properties:
+        delivery:
+          $ref: '#/components/schemas/ControllersOutcomeDeliveryResponse'
+      required:
+      - delivery
+      type: object
+    ControllersOutcomeDeliveryResponse:
+      properties:
+        artifactVersion:
+          type: string
+        attemptId:
+          type: string
+        byteCount:
+          format: int64
+          type: integer
+        completedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        destination:
+          type: string
+        disposition:
+          enum:
+          - accepted
+          - draft
+          type: string
+        failureCode:
+          type: string
+        failureDetail:
+          type: string
+        fileCount:
+          type: integer
+        id:
+          type: string
+        manifestPath:
+          type: string
+        outcomeId:
+          type: string
+        requestedAt:
+          format: date-time
+          type: string
+        state:
+          enum:
+          - pending
+          - succeeded
+          - failed
+          - cancelled
+          type: string
+        workUnitId:
+          type: string
+      required:
+      - id
+      - outcomeId
+      - attemptId
+      - artifactVersion
+      - disposition
+      - destination
+      - state
+      - fileCount
+      - byteCount
+      - requestedAt
+      type: object
+    ControllersOutcomeRunCommandRequest:
+      properties:
+        action:
+          enum:
+          - start
+          - pause
+          - resume
+          - cancel
+          type: string
+        expectedContractRevision:
+          format: int64
+          type: integer
+        expectedGeneration:
+          format: int64
+          type: integer
+        planRevisionId:
+          type: string
+        requestKey:
+          type: string
+      required:
+      - action
+      - planRevisionId
+      - expectedContractRevision
+      - requestKey
+      type: object
+    ControllersOutcomeRunStateEnvelope:
+      properties:
+        runState:
+          $ref: '#/components/schemas/ControllersOutcomeRunStateResponse'
+      required:
+      - runState
+      type: object
+    ControllersOutcomeRunStateResponse:
+      properties:
+        acceptedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        activeAttemptId:
+          type: string
+        activeAttemptStatus:
+          type: string
+        attentionReason:
+          type: string
+        blocker:
+          $ref: '#/components/schemas/ControllersRunBlockerResponse'
+        eligibleActions:
+          items:
+            $ref: '#/components/schemas/ControllersRunActionEligibilityResponse'
+          type: array
+        freshness:
+          $ref: '#/components/schemas/ControllersRunFreshnessResponse'
+        intent:
+          $ref: '#/components/schemas/ControllersRunIntentResponse'
+        outcomeId:
+          type: string
+        parentOutcomeId:
+          type: string
+        planBindsCurrentContract:
+          type: boolean
+        planStatus:
+          type: string
+        projectId:
+          type: string
+        provenCriteria:
+          type: integer
+        requiredCriteria:
+          type: integer
+        state:
+          enum:
+          - define
+          - ready_to_authorize
+          - in_progress
+          - needs_you
+          - ready_for_review
+          - accepted
+          type: string
+        title:
+          type: string
+      required:
+      - outcomeId
+      - projectId
+      - title
+      - state
+      - eligibleActions
+      - freshness
+      - planBindsCurrentContract
+      - provenCriteria
+      - requiredCriteria
+      type: object
+    ControllersOutcomeRunStatesEnvelope:
+      properties:
+        observedAt:
+          format: date-time
+          type: string
+        runStates:
+          items:
+            $ref: '#/components/schemas/ControllersOutcomeRunStateResponse'
+          type: array
+      required:
+      - runStates
+      - observedAt
+      type: object
+    ControllersOutcomeUsageAttemptResponse:
+      properties:
+        attemptId:
+          type: string
+        usage:
+          $ref: '#/components/schemas/ControllersAttributedUsageResponse'
+        workUnitId:
+          type: string
+      required:
+      - attemptId
+      - workUnitId
+      - usage
+      type: object
+    ControllersOutcomeUsageEnvelope:
+      properties:
+        attempts:
+          items:
+            $ref: '#/components/schemas/ControllersOutcomeUsageAttemptResponse'
+          type: array
+        observedAt:
+          format: date-time
+          type: string
+        outcomeId:
+          type: string
+        planning:
+          $ref: '#/components/schemas/ControllersAttributedUsageResponse'
+        totals:
+          $ref: '#/components/schemas/ControllersAttributedUsageResponse'
+        workUnits:
+          items:
+            $ref: '#/components/schemas/ControllersOutcomeUsageWorkUnitResponse'
+          type: array
+      required:
+      - outcomeId
+      - planning
+      - totals
+      - workUnits
+      - attempts
+      - observedAt
+      type: object
+    ControllersOutcomeUsageWorkUnitResponse:
+      properties:
+        usage:
+          $ref: '#/components/schemas/ControllersAttributedUsageResponse'
+        workUnitId:
+          type: string
+      required:
+      - workUnitId
+      - usage
+      type: object
+    ControllersRequestOutcomeDeliveryRequest:
+      properties:
+        acceptanceDecisionId:
+          type: string
+        artifactVersion:
+          type: string
+        attemptId:
+          type: string
+        destination:
+          type: string
+        disposition:
+          enum:
+          - accepted
+          - draft
+          type: string
+        requestKey:
+          type: string
+      required:
+      - attemptId
+      - artifactVersion
+      - destination
+      - disposition
+      - requestKey
+      type: object
     ControllersRequestRereviewRequest:
       properties:
         pullRequestUrl:
@@ -9007,6 +9606,93 @@ components:
       required:
       - provider
       - modelSelection
+      type: object
+    ControllersRunActionEligibilityResponse:
+      properties:
+        action:
+          enum:
+          - clarify
+          - propose_plan
+          - review_plan
+          - approve_plan
+          - start
+          - pause
+          - resume
+          - cancel
+          - review_result
+          - request_changes
+          - accept
+          - export
+          type: string
+        available:
+          type: boolean
+        reason:
+          type: string
+      required:
+      - action
+      - available
+      type: object
+    ControllersRunBlockerResponse:
+      properties:
+        code:
+          type: string
+        detail:
+          additionalProperties: {}
+          type: object
+        message:
+          type: string
+      required:
+      - code
+      - message
+      type: object
+    ControllersRunFreshnessResponse:
+      properties:
+        contractRevisionNumber:
+          format: int64
+          type: integer
+        observedAt:
+          format: date-time
+          type: string
+        planRevisionId:
+          type: string
+        proofGeneration:
+          format: int64
+          type: integer
+      required:
+      - observedAt
+      - contractRevisionNumber
+      - proofGeneration
+      type: object
+    ControllersRunIntentResponse:
+      properties:
+        acknowledgedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        activeAttemptId:
+          type: string
+        desired:
+          enum:
+          - idle
+          - running
+          - paused
+          - cancelled
+          type: string
+        generation:
+          format: int64
+          type: integer
+        lastError:
+          type: string
+        planRevisionId:
+          type: string
+        requestedAt:
+          format: date-time
+          type: string
+      required:
+      - generation
+      - desired
+      - requestedAt
       type: object
     ControllersSecurePairingStatus:
       properties:
