@@ -88,13 +88,31 @@ func (s *Store) GetDocumentContext(ctx context.Context, id domain.DocumentContex
 
 // ApproveDocumentContext records the owner's approval of a selection. It is
 // write-once and one-way; a second approval changes nothing.
-func (s *Store) ApproveDocumentContext(ctx context.Context, id domain.DocumentContextID, at time.Time) error {
+func (s *Store) ApproveDocumentContext(ctx context.Context, outcomeID domain.OutcomeID, id domain.DocumentContextID, digest string, at time.Time) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	if _, err := s.qw.ApproveOutcomeDocumentContext(ctx, gen.ApproveOutcomeDocumentContextParams{
+	tx, err := s.writeDB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin approve document context %s: %w", id, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	txq := s.qw.WithTx(tx)
+	rows, err := txq.ApproveOutcomeDocumentContext(ctx, gen.ApproveOutcomeDocumentContextParams{
 		ApprovedAt: sql.NullTime{Time: at.UTC(), Valid: true}, ID: string(id),
-	}); err != nil {
+		OutcomeID: string(outcomeID), Digest: string(digest), OutcomeID_2: string(outcomeID),
+	})
+	if err != nil {
 		return fmt.Errorf("approve document context %s: %w", id, err)
+	}
+	if rows == 0 {
+		current, currentErr := txq.CurrentOutcomeDocumentContext(ctx, string(outcomeID))
+		if currentErr == nil && current.ID == string(id) && current.Digest == string(digest) && current.State == "approved" {
+			return nil
+		}
+		return &ports.DocumentContextApprovalConflictError{OutcomeID: outcomeID, ContextID: id}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit approved document context %s: %w", id, err)
 	}
 	return nil
 }

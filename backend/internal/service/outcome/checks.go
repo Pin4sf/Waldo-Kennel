@@ -89,6 +89,12 @@ func (s *Service) partitionCheckRuns(
 			return nil, nil, err
 		}
 		if found {
+			if existing.State == ports.CheckRunReserved && s.activeCheckReservation(existing) {
+				// This daemon is already inside the provider callback for the
+				// reservation. A re-entrant reconciler must not infer abandonment
+				// from the row's reserved state.
+				continue
+			}
 			run, err := s.resolveExistingCheckRun(ctx, attempt, receipt, check, existing)
 			if err != nil {
 				return nil, nil, err
@@ -98,10 +104,11 @@ func (s *Service) partitionCheckRuns(
 		}
 		reserveErr := s.checkRuns.ReserveAttemptCheckRun(ctx, ports.AttemptCheckRun{
 			ID: "chkrun-" + uuid.NewString(), AttemptID: attempt.ID, CheckID: check.ID,
-			ArtifactVersion: receipt.ArtifactVersion, ReservedAt: s.clock(),
+			ArtifactVersion: receipt.ArtifactVersion, ReservationEpoch: s.checkReservationEpoch, ReservedAt: s.clock(),
 		})
 		switch {
 		case reserveErr == nil:
+			s.markActiveCheckReservation(attempt.ID, check.ID, receipt.ArtifactVersion)
 			pending = append(pending, check)
 		case errors.Is(reserveErr, ports.ErrCheckRunAlreadyReserved):
 			// Another reconciler owns this invocation. Leaving it to them is
@@ -155,6 +162,11 @@ func (s *Service) invokeReservedChecks(
 	receipt domain.AttemptReceipt,
 	pending []domain.ApprovedCheck,
 ) ([]ports.AttemptCheckRun, error) {
+	defer func() {
+		for _, check := range pending {
+			s.releaseActiveCheckReservation(attempt.ID, check.ID, receipt.ArtifactVersion)
+		}
+	}()
 	policy, err := domain.BuildAttemptExecutionPolicy(attempt.OutcomeID, plan, unit, plan.RunBriefCoreDigest)
 	if err != nil {
 		return nil, fmt.Errorf("build check policy for %s: %w", attempt.ID, err)
@@ -183,6 +195,32 @@ func (s *Service) invokeReservedChecks(
 		runs = append(runs, run)
 	}
 	return runs, nil
+}
+
+func checkReservationKey(attemptID domain.AttemptID, checkID domain.ApprovedCheckID, artifactVersion string) string {
+	return string(attemptID) + "\x00" + string(checkID) + "\x00" + artifactVersion
+}
+
+func (s *Service) markActiveCheckReservation(attemptID domain.AttemptID, checkID domain.ApprovedCheckID, artifactVersion string) {
+	s.checkReservationMu.Lock()
+	defer s.checkReservationMu.Unlock()
+	s.activeCheckRuns[checkReservationKey(attemptID, checkID, artifactVersion)] = struct{}{}
+}
+
+func (s *Service) releaseActiveCheckReservation(attemptID domain.AttemptID, checkID domain.ApprovedCheckID, artifactVersion string) {
+	s.checkReservationMu.Lock()
+	defer s.checkReservationMu.Unlock()
+	delete(s.activeCheckRuns, checkReservationKey(attemptID, checkID, artifactVersion))
+}
+
+func (s *Service) activeCheckReservation(run ports.AttemptCheckRun) bool {
+	if run.ReservationEpoch == "" || run.ReservationEpoch != s.checkReservationEpoch {
+		return false
+	}
+	s.checkReservationMu.Lock()
+	defer s.checkReservationMu.Unlock()
+	_, active := s.activeCheckRuns[checkReservationKey(run.AttemptID, run.CheckID, run.ArtifactVersion)]
+	return active
 }
 
 // recordCheckObservation writes one check's evidence and its verification run.

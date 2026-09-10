@@ -43,10 +43,18 @@ func (c RunCommand) Valid() bool {
 // latest row and know exactly what it may do, and lets a client's stale
 // command be refused by generation rather than silently applied.
 type OutcomeRunIntent struct {
-	ID                     RunIntentID
-	OutcomeID              OutcomeID
-	Generation             int64
-	Desired                RunIntentDesired
+	ID         RunIntentID
+	OutcomeID  OutcomeID
+	Generation int64
+	Desired    RunIntentDesired
+	// Command and the expected-generation fields are admission inputs. They
+	// are retained on the value passed to the store so the storage transaction
+	// can validate the transition that the service composed; only the request
+	// fingerprint is persisted for replay.
+	Command                RunCommand
+	ExpectedGeneration     int64
+	ExpectedGenerationSet  bool
+	RequestFingerprint     string
 	PlanRevisionID         PlanRevisionID
 	ContractRevisionNumber int64
 	// RequestKey is the owner command's replay identity. Repeating a key

@@ -2,10 +2,22 @@ package ports
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
+
+// DocumentContextApprovalConflictError means the selected revision or digest
+// stopped being the Outcome's current selection before approval committed.
+type DocumentContextApprovalConflictError struct {
+	OutcomeID domain.OutcomeID
+	ContextID domain.DocumentContextID
+}
+
+func (e *DocumentContextApprovalConflictError) Error() string {
+	return fmt.Sprintf("document context %s is no longer the current selection for outcome %s", e.ContextID, e.OutcomeID)
+}
 
 // DocumentContextStore owns which local documents an Outcome is about.
 //
@@ -20,8 +32,9 @@ type DocumentContextStore interface {
 	AppendDocumentContext(context.Context, domain.OutcomeDocumentContext) (domain.OutcomeDocumentContext, error)
 	CurrentDocumentContext(context.Context, domain.OutcomeID) (domain.OutcomeDocumentContext, bool, error)
 	GetDocumentContext(context.Context, domain.DocumentContextID) (domain.OutcomeDocumentContext, bool, error)
-	// ApproveDocumentContext is write-once and one-way.
-	ApproveDocumentContext(context.Context, domain.DocumentContextID, time.Time) error
+	// ApproveDocumentContext is write-once and one-way. The Outcome, revision
+	// digest, and current-selection predicate are checked at the write boundary.
+	ApproveDocumentContext(context.Context, domain.OutcomeID, domain.DocumentContextID, string, time.Time) error
 }
 
 // DocumentSnapshotStore holds the approved bytes themselves.

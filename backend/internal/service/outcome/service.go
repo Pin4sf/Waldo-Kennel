@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -114,6 +115,12 @@ type Service struct {
 	// been invoked against which retained artifact. Without it a repeated
 	// reconciliation tick would relaunch every command again.
 	checkRuns ports.AttemptCheckRunStore
+	// checkReservationEpoch identifies this daemon invocation. The active set
+	// is only a liveness witness for re-entrant reconciliation in this process;
+	// once-only ownership remains the durable check-run reservation.
+	checkReservationEpoch string
+	checkReservationMu    sync.Mutex
+	activeCheckRuns       map[string]struct{}
 	// runIntents holds the owner's durable authorization to keep working
 	// through an approved Plan. Absent means only per-Attempt Start exists,
 	// which is a reduced capability, never an assumed authorization.
@@ -164,7 +171,7 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
 	}
-	service := &Service{store: store, clock: clock}
+	service := &Service{store: store, clock: clock, checkReservationEpoch: uuid.NewString(), activeCheckRuns: map[string]struct{}{}}
 	if proof, ok := store.(ports.OutcomeProofStore); ok {
 		service.proof = proof
 	}

@@ -2,6 +2,9 @@ package outcome
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,6 +13,7 @@ import (
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Stable refusals for owner run commands.
@@ -78,9 +82,9 @@ func (s *Service) CommandRun(ctx context.Context, outcomeID domain.OutcomeID, in
 	if replay, found, err := s.runIntents.FindRunIntentByRequestKey(ctx, strings.TrimSpace(in.RequestKey)); err != nil {
 		return RunStateView{}, err
 	} else if found {
-		if replay.OutcomeID != outcomeID {
+		if replay.OutcomeID != outcomeID || replay.RequestFingerprint == "" || replay.RequestFingerprint != runCommandFingerprint(outcomeID, in) {
 			return RunStateView{}, apierr.Conflict(CodeRunActionInvalid,
-				"That request key already authorized a different Outcome's run",
+				"That request key already authorized different run-command semantics",
 				map[string]any{"requestKey": strings.TrimSpace(in.RequestKey), "outcomeId": string(replay.OutcomeID)})
 		}
 		return s.GetRunState(ctx, outcomeID)
@@ -90,10 +94,18 @@ func (s *Service) CommandRun(ctx context.Context, outcomeID domain.OutcomeID, in
 	if err != nil {
 		return RunStateView{}, err
 	}
-	if in.ExpectedGeneration > 0 && hasCurrent && current.Generation != in.ExpectedGeneration {
+	if in.ExpectedGeneration > 0 && (!hasCurrent || current.Generation != in.ExpectedGeneration) {
 		return RunStateView{}, apierr.Conflict(CodeRunIntentStale,
 			"This Outcome's run intent moved on; reload and decide again",
 			map[string]any{"expectedGeneration": in.ExpectedGeneration, "currentGeneration": current.Generation})
+	}
+	// An omitted generation still gets a compare-and-swap expectation at the
+	// durable boundary. For the first command that expectation is "no row";
+	// for later commands it is the generation just read. This closes the race
+	// where two callers both observe the same state and both append a command.
+	expectedGeneration := in.ExpectedGeneration
+	if expectedGeneration == 0 && hasCurrent {
+		expectedGeneration = current.Generation
 	}
 	currentDesired := domain.RunIntentIdle
 	if hasCurrent {
@@ -108,6 +120,15 @@ func (s *Service) CommandRun(ctx context.Context, outcomeID domain.OutcomeID, in
 
 	planID, contractRevision := in.PlanRevisionID, in.ExpectedContractRevision
 	if desired == domain.RunIntentRunning {
+		if in.ExpectedContractRevision < 1 || in.ExpectedContractRevision != record.CurrentRevisionNumber {
+			return RunStateView{}, apierr.Conflict(CodeRunIntentStale,
+				"Start or resume must name the current reviewed Contract revision",
+				map[string]any{"expectedContractRevision": in.ExpectedContractRevision, "currentRevision": record.CurrentRevisionNumber})
+		}
+		if in.PlanRevisionID.IsZero() {
+			return RunStateView{}, apierr.Conflict(CodeRunIntentStale,
+				"Start or resume must name the reviewed Plan revision", nil)
+		}
 		// Authorizing work re-validates the Plan every time. A pause that
 		// happened before the Contract moved on must not be resumable into
 		// execution against an approved Plan that no longer binds it.
@@ -128,15 +149,50 @@ func (s *Service) CommandRun(ctx context.Context, outcomeID domain.OutcomeID, in
 	appended, err := s.runIntents.AppendRunIntent(ctx, domain.OutcomeRunIntent{
 		ID: domain.RunIntentID("ri-" + uuid.NewString()), OutcomeID: outcomeID,
 		Desired: desired, PlanRevisionID: planID, ContractRevisionNumber: contractRevision,
-		RequestKey: strings.TrimSpace(in.RequestKey), RequestedAt: s.clock(),
+		Command: in.Command, ExpectedGeneration: expectedGeneration,
+		ExpectedGenerationSet: true,
+		RequestFingerprint:    runCommandFingerprint(outcomeID, in),
+		RequestKey:            strings.TrimSpace(in.RequestKey), RequestedAt: s.clock(),
 	})
 	if err != nil {
+		var generationConflict *ports.RunIntentGenerationConflictError
+		if errors.As(err, &generationConflict) {
+			return RunStateView{}, apierr.Conflict(CodeRunIntentStale,
+				"This run intent changed while the command was being recorded; reload and decide again", nil)
+		}
+		var replayConflict *ports.RunIntentReplayConflictError
+		if errors.As(err, &replayConflict) {
+			return RunStateView{}, apierr.Conflict(CodeRunActionInvalid,
+				"That request key already authorized different run-command semantics", nil)
+		}
 		return RunStateView{}, err
 	}
 	if err := s.applyStopIntent(ctx, outcomeID, appended); err != nil {
 		return RunStateView{}, err
 	}
 	return s.GetRunState(ctx, outcomeID)
+}
+
+// runCommandFingerprint is the replay identity of the complete owner request,
+// not merely its idempotency key or resulting desired state. JSON gives the
+// storage boundary one stable, opaque value to compare without reinterpreting
+// a historical command.
+func runCommandFingerprint(outcomeID domain.OutcomeID, in RunCommandInput) string {
+	request := struct {
+		OutcomeID          domain.OutcomeID
+		Command            domain.RunCommand
+		PlanRevisionID     domain.PlanRevisionID
+		ExpectedContract   int64
+		ExpectedGeneration int64
+		RequestKey         string
+	}{
+		OutcomeID: outcomeID, Command: in.Command, PlanRevisionID: in.PlanRevisionID,
+		ExpectedContract: in.ExpectedContractRevision, ExpectedGeneration: in.ExpectedGeneration,
+		RequestKey: strings.TrimSpace(in.RequestKey),
+	}
+	encoded, _ := json.Marshal(request)
+	sum := sha256.Sum256(encoded)
+	return hex.EncodeToString(sum[:])
 }
 
 // RunIntentsEnabled reports whether this daemon can hold durable run intent.
@@ -364,21 +420,21 @@ func runContinuationKey(intent domain.OutcomeRunIntent, unitID domain.WorkUnitID
 // a pause the owner can click past by using a different button is not a
 // pause. An Outcome that has never been started has no intent and is not
 // gated — Start is how one begins.
-func (s *Service) refuseAdmissionAgainstRunIntent(ctx context.Context, outcomeID domain.OutcomeID) error {
+func (s *Service) refuseAdmissionAgainstRunIntent(ctx context.Context, outcomeID domain.OutcomeID) (int64, error) {
 	intent, found, err := s.currentRunIntent(ctx, outcomeID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if !found {
-		return nil
+		return 0, nil
 	}
 	switch intent.Desired {
 	case domain.RunIntentPaused, domain.RunIntentCancelled:
-		return apierr.Conflict(CodeRunActionUnavailable,
+		return 0, apierr.Conflict(CodeRunActionUnavailable,
 			fmt.Sprintf("This Outcome's run is %s; resume or start it before admitting more work", intent.Desired),
 			map[string]any{"outcomeId": string(outcomeID), "desired": string(intent.Desired), "generation": intent.Generation})
 	}
-	return nil
+	return intent.Generation, nil
 }
 
 // currentRunIntent reads the authorization admission must respect.

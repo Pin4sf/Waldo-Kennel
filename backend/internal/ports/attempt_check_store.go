@@ -38,6 +38,9 @@ type AttemptCheckRun struct {
 	CheckID         domain.ApprovedCheckID
 	ArtifactVersion string
 	State           CheckRunState
+	// ReservationEpoch identifies the daemon invocation that owns the live
+	// reservation. A reservation alone is not proof that its invoker died.
+	ReservationEpoch string
 
 	Observation AttemptCheckObservation
 	// ArtifactChanged and ObservedArtifactVersion record whether the run

@@ -176,7 +176,8 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	// A pause prevents subsequent admission. Checking it here, before any
 	// durable row is written, is what makes "paused" mean the work stops
 	// rather than the button stops being offered.
-	if err := s.refuseAdmissionAgainstRunIntent(ctx, outcomeID); err != nil {
+	runIntentGeneration, err := s.refuseAdmissionAgainstRunIntent(ctx, outcomeID)
+	if err != nil {
 		return AttemptView{}, err
 	}
 
@@ -272,6 +273,7 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	attempt, err := s.store.CreateAttemptWithFence(ctx, ports.AttemptAdmission{
 		OutcomeID: outcomeID, PlanRevisionID: plan.ID, WorkUnitID: unit.ID,
 		ContractRevisionNumber: plan.ContractRevisionNumber,
+		RunIntentGeneration:    runIntentGeneration,
 		RequestKey:             strings.TrimSpace(in.RequestKey), FenceSubject: domain.FenceSubjectForProject(projectID), At: now,
 	})
 	if err != nil {
@@ -290,6 +292,15 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 			return AttemptView{}, apierr.Conflict(CodeAttemptFenceHeld,
 				"Another Attempt holds custody of this Project worktree — reconcile it first",
 				map[string]any{"subject": held.Subject, "holder": held.Holder, "attemptedFor": held.OutcomeID})
+		}
+		var runConflict *ports.AttemptRunIntentConflictError
+		if errors.As(err, &runConflict) {
+			if runConflict.Desired == domain.RunIntentPaused || runConflict.Desired == domain.RunIntentCancelled {
+				return AttemptView{}, apierr.Conflict(CodeRunActionUnavailable,
+					"The Outcome was paused or cancelled before this Attempt could be admitted", nil)
+			}
+			return AttemptView{}, apierr.Conflict(CodeRunIntentStale,
+				"The Outcome's run authorization changed before this Attempt could be admitted", nil)
 		}
 		return AttemptView{}, err
 	}

@@ -28,7 +28,7 @@ func (s *Store) ReserveAttemptCheckRun(ctx context.Context, run ports.AttemptChe
 	defer s.writeMu.Unlock()
 	err := s.qw.ReserveAttemptCheckRun(ctx, gen.ReserveAttemptCheckRunParams{
 		ID: run.ID, AttemptID: string(run.AttemptID), CheckID: string(run.CheckID),
-		ArtifactVersion: run.ArtifactVersion, ReservedAt: run.ReservedAt.UTC(),
+		ArtifactVersion: run.ArtifactVersion, ReservationEpoch: run.ReservationEpoch, ReservedAt: run.ReservedAt.UTC(),
 	})
 	if err == nil {
 		return nil
@@ -52,7 +52,7 @@ func (s *Store) GetAttemptCheckRun(ctx context.Context, attemptID domain.Attempt
 	if err != nil {
 		return ports.AttemptCheckRun{}, false, fmt.Errorf("read check run %s/%s: %w", attemptID, checkID, err)
 	}
-	return checkRunFromRow(row), true, nil
+	return checkRunFromGetRow(row), true, nil
 }
 
 // ListAttemptCheckRuns returns every recorded run for one retained artifact.
@@ -65,7 +65,7 @@ func (s *Store) ListAttemptCheckRuns(ctx context.Context, attemptID domain.Attem
 	}
 	runs := make([]ports.AttemptCheckRun, 0, len(rows))
 	for _, row := range rows {
-		runs = append(runs, checkRunFromRow(row))
+		runs = append(runs, checkRunFromListRow(row))
 	}
 	return runs, nil
 }
@@ -110,22 +110,34 @@ func (s *Store) MarkAttemptCheckRunUnknown(ctx context.Context, attemptID domain
 }
 
 func checkRunFromRow(row gen.AttemptCheckRun) ports.AttemptCheckRun {
+	return checkRunFromValues(row.ID, row.AttemptID, row.CheckID, row.ArtifactVersion, row.State, row.ReservationEpoch, row.Ran, row.Passed, row.ExitCode, row.EnforcedBy, row.TimedOut, row.Cancelled, row.TerminationUnknown, row.OutputTruncated, row.Output, row.Unavailable, row.ArtifactChanged, row.ObservedArtifactVersion, row.ReservedAt, row.ObservedAt)
+}
+
+func checkRunFromGetRow(row gen.GetAttemptCheckRunRow) ports.AttemptCheckRun {
+	return checkRunFromValues(row.ID, row.AttemptID, row.CheckID, row.ArtifactVersion, row.State, row.ReservationEpoch, row.Ran, row.Passed, row.ExitCode, row.EnforcedBy, row.TimedOut, row.Cancelled, row.TerminationUnknown, row.OutputTruncated, row.Output, row.Unavailable, row.ArtifactChanged, row.ObservedArtifactVersion, row.ReservedAt, row.ObservedAt)
+}
+
+func checkRunFromListRow(row gen.ListAttemptCheckRunsRow) ports.AttemptCheckRun {
+	return checkRunFromValues(row.ID, row.AttemptID, row.CheckID, row.ArtifactVersion, row.State, row.ReservationEpoch, row.Ran, row.Passed, row.ExitCode, row.EnforcedBy, row.TimedOut, row.Cancelled, row.TerminationUnknown, row.OutputTruncated, row.Output, row.Unavailable, row.ArtifactChanged, row.ObservedArtifactVersion, row.ReservedAt, row.ObservedAt)
+}
+
+func checkRunFromValues(id, attemptID, checkID, artifactVersion, state, reservationEpoch string, ran, passed, exitCode int64, enforcedBy string, timedOut, cancelled, terminationUnknown, outputTruncated int64, output, unavailable string, artifactChanged int64, observedArtifactVersion string, reservedAt time.Time, observedAt sql.NullTime) ports.AttemptCheckRun {
 	run := ports.AttemptCheckRun{
-		ID: row.ID, AttemptID: domain.AttemptID(row.AttemptID),
-		CheckID: domain.ApprovedCheckID(row.CheckID), ArtifactVersion: row.ArtifactVersion,
-		State: ports.CheckRunState(row.State),
+		ID: id, AttemptID: domain.AttemptID(attemptID),
+		CheckID: domain.ApprovedCheckID(checkID), ArtifactVersion: artifactVersion,
+		State: ports.CheckRunState(state), ReservationEpoch: reservationEpoch,
 		Observation: ports.AttemptCheckObservation{
-			ArtifactVersion: row.ArtifactVersion,
-			EnforcedBy:      row.EnforcedBy, Ran: row.Ran == 1, ExitCode: int(row.ExitCode),
-			Passed: row.Passed == 1, TimedOut: row.TimedOut == 1, Cancelled: row.Cancelled == 1,
-			TerminationUnknown: row.TerminationUnknown == 1, OutputTruncated: row.OutputTruncated == 1,
-			Output: row.Output, Unavailable: row.Unavailable, StartedAt: row.ReservedAt,
+			ArtifactVersion: artifactVersion,
+			EnforcedBy:      enforcedBy, Ran: ran == 1, ExitCode: int(exitCode),
+			Passed: passed == 1, TimedOut: timedOut == 1, Cancelled: cancelled == 1,
+			TerminationUnknown: terminationUnknown == 1, OutputTruncated: outputTruncated == 1,
+			Output: output, Unavailable: unavailable, StartedAt: reservedAt,
 		},
-		ArtifactChanged: row.ArtifactChanged == 1, ObservedArtifactVersion: row.ObservedArtifactVersion,
-		ReservedAt: row.ReservedAt,
+		ArtifactChanged: artifactChanged == 1, ObservedArtifactVersion: observedArtifactVersion,
+		ReservedAt: reservedAt,
 	}
-	if row.ObservedAt.Valid {
-		at := row.ObservedAt.Time
+	if observedAt.Valid {
+		at := observedAt.Time
 		run.ObservedAt = &at
 		run.Observation.EndedAt = at
 	}
@@ -143,5 +155,5 @@ func (s *Store) getCheckRunLocked(ctx context.Context, attemptID domain.AttemptI
 	if err != nil {
 		return ports.AttemptCheckRun{}, false, err
 	}
-	return checkRunFromRow(row), true, nil
+	return checkRunFromGetRow(row), true, nil
 }

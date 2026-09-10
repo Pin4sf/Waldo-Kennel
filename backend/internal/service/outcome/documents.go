@@ -2,6 +2,7 @@ package outcome
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/google/uuid"
@@ -99,13 +100,18 @@ func (s *Service) ApproveDocuments(ctx context.Context, outcomeID domain.Outcome
 	if !found {
 		return DocumentContextView{}, apierr.Conflict(CodeDocumentContextStale, "Select documents before approving them", nil)
 	}
-	if expected := strings.TrimSpace(expectedDigest); expected != "" && expected != current.Digest {
+	if expected := strings.TrimSpace(expectedDigest); expected == "" || expected != current.Digest {
 		return DocumentContextView{}, apierr.Conflict(CodeDocumentContextStale,
 			"The selection changed since you reviewed it; reload and approve the current one",
 			map[string]any{"expectedDigest": expected, "currentDigest": current.Digest})
 	}
 	if !current.Approved() {
-		if err := s.documents.ApproveDocumentContext(ctx, current.ID, s.clock()); err != nil {
+		if err := s.documents.ApproveDocumentContext(ctx, outcomeID, current.ID, current.Digest, s.clock()); err != nil {
+			var conflict *ports.DocumentContextApprovalConflictError
+			if errors.As(err, &conflict) {
+				return DocumentContextView{}, apierr.Conflict(CodeDocumentContextStale,
+					"The selection changed before approval was recorded; reload and review the current one", nil)
+			}
 			return DocumentContextView{}, err
 		}
 	}

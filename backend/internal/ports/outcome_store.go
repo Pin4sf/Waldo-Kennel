@@ -31,9 +31,53 @@ type AttemptAdmission struct {
 	PlanRevisionID         domain.PlanRevisionID
 	WorkUnitID             domain.WorkUnitID
 	ContractRevisionNumber int64
-	RequestKey             string
-	FenceSubject           string
-	At                     time.Time
+	// RunIntentGeneration is the owner authorization generation observed by
+	// the service. Storage revalidates it in the same transaction that inserts
+	// the Attempt and fence, so a pause/cancel cannot land between a read and
+	// admission.
+	RunIntentGeneration int64
+	RequestKey          string
+	FenceSubject        string
+	At                  time.Time
+}
+
+// RunIntentReplayConflictError reports reuse of a run-command key with a
+// different complete request fingerprint. The key is not a generic lock: it
+// identifies one exact owner command.
+type RunIntentReplayConflictError struct {
+	Existing domain.OutcomeRunIntent
+	Request  domain.OutcomeRunIntent
+}
+
+func (e *RunIntentReplayConflictError) Error() string {
+	return fmt.Sprintf("run intent request key is already bound to different command semantics for outcome %s", e.Existing.OutcomeID)
+}
+
+// RunIntentGenerationConflictError reports a failed durable compare-and-swap
+// for an owner command.
+type RunIntentGenerationConflictError struct {
+	OutcomeID domain.OutcomeID
+	Expected  int64
+	Current   int64
+	Found     bool
+}
+
+func (e *RunIntentGenerationConflictError) Error() string {
+	return fmt.Sprintf("run intent for outcome %s changed from expected generation %d to %d", e.OutcomeID, e.Expected, e.Current)
+}
+
+// AttemptRunIntentConflictError reports an Attempt admission that lost the
+// authorization race in the same storage transaction.
+type AttemptRunIntentConflictError struct {
+	OutcomeID domain.OutcomeID
+	Expected  int64
+	Current   int64
+	Desired   domain.RunIntentDesired
+	Found     bool
+}
+
+func (e *AttemptRunIntentConflictError) Error() string {
+	return fmt.Sprintf("attempt admission lost run authorization for outcome %s: expected generation %d, current %d (%s)", e.OutcomeID, e.Expected, e.Current, e.Desired)
 }
 
 // OutcomeStore is the canonical durable boundary for Outcome control-plane

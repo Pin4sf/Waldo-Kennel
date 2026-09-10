@@ -98,6 +98,7 @@ type Attempt struct {
 	RequestKey             sql.NullString
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
+	RunIntentGeneration    int64
 }
 
 type AttemptArtifactFile struct {
@@ -132,6 +133,7 @@ type AttemptCheckRun struct {
 	ObservedArtifactVersion string
 	ReservedAt              time.Time
 	ObservedAt              sql.NullTime
+	ReservationEpoch        string
 }
 
 type AttemptFence struct {
@@ -647,6 +649,7 @@ type OutcomeRunIntent struct {
 	RequestKey             string
 	RequestedAt            time.Time
 	AcknowledgedAt         sql.NullTime
+	RequestFingerprint     string
 }
 
 type PR struct {

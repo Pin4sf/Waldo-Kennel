@@ -31,7 +31,11 @@ func (s *Store) AppendRunIntent(ctx context.Context, intent domain.OutcomeRunInt
 	// A replayed command must return the generation it already produced,
 	// never authorize a second one.
 	if existing, err := txq.FindOutcomeRunIntentByRequestKey(ctx, intent.RequestKey); err == nil {
-		return runIntentFromRow(existing), nil
+		existingIntent := runIntentFromRequestKeyRow(existing)
+		if existingIntent.OutcomeID != intent.OutcomeID || existingIntent.RequestFingerprint != intent.RequestFingerprint {
+			return domain.OutcomeRunIntent{}, &ports.RunIntentReplayConflictError{Existing: existingIntent, Request: intent}
+		}
+		return existingIntent, nil
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return domain.OutcomeRunIntent{}, fmt.Errorf("find run intent by request key: %w", err)
 	}
@@ -45,6 +49,29 @@ func (s *Store) AppendRunIntent(ctx context.Context, intent domain.OutcomeRunInt
 	default:
 		intent.Generation = current.Generation + 1
 	}
+	if intent.ExpectedGenerationSet {
+		currentGeneration := int64(0)
+		found := !errors.Is(err, sql.ErrNoRows)
+		if found {
+			currentGeneration = current.Generation
+		}
+		if (found && currentGeneration != intent.ExpectedGeneration) || (!found && intent.ExpectedGeneration != 0) {
+			return domain.OutcomeRunIntent{}, &ports.RunIntentGenerationConflictError{
+				OutcomeID: intent.OutcomeID, Expected: intent.ExpectedGeneration,
+				Current: currentGeneration, Found: found,
+			}
+		}
+	}
+	if intent.Command != "" {
+		currentDesired := domain.RunIntentIdle
+		if !errors.Is(err, sql.ErrNoRows) {
+			currentDesired = domain.RunIntentDesired(current.Desired)
+		}
+		expectedDesired, ok := domain.NextRunIntent(currentDesired, intent.Command)
+		if !ok || expectedDesired != intent.Desired {
+			return domain.OutcomeRunIntent{}, fmt.Errorf("run intent command %q is not an allowed transition from %q", intent.Command, currentDesired)
+		}
+	}
 	// Validation runs after the store assigns the generation: the caller does
 	// not supply one, and a guessed value must never be able to overwrite
 	// somebody else's authorization.
@@ -56,7 +83,8 @@ func (s *Store) AppendRunIntent(ctx context.Context, intent domain.OutcomeRunInt
 		ID: string(intent.ID), OutcomeID: string(intent.OutcomeID), Generation: intent.Generation,
 		Desired: string(intent.Desired), PlanRevisionID: string(intent.PlanRevisionID),
 		ContractRevisionNumber: intent.ContractRevisionNumber,
-		RequestKey:             intent.RequestKey, RequestedAt: intent.RequestedAt,
+		RequestKey:             intent.RequestKey, RequestFingerprint: intent.RequestFingerprint,
+		RequestedAt: intent.RequestedAt,
 	}); err != nil {
 		return domain.OutcomeRunIntent{}, fmt.Errorf("create run intent: %w", err)
 	}
@@ -76,7 +104,7 @@ func (s *Store) CurrentRunIntent(ctx context.Context, outcomeID domain.OutcomeID
 	if err != nil {
 		return domain.OutcomeRunIntent{}, false, fmt.Errorf("current run intent for %s: %w", outcomeID, err)
 	}
-	return runIntentFromRow(row), true, nil
+	return runIntentFromCurrentRow(row), true, nil
 }
 
 // FindRunIntentByRequestKey resolves a command's replay identity.
@@ -88,7 +116,7 @@ func (s *Store) FindRunIntentByRequestKey(ctx context.Context, requestKey string
 	if err != nil {
 		return domain.OutcomeRunIntent{}, false, fmt.Errorf("find run intent by request key: %w", err)
 	}
-	return runIntentFromRow(row), true, nil
+	return runIntentFromRequestKeyRow(row), true, nil
 }
 
 // ListRunIntents returns an Outcome's full authorization history, oldest
@@ -100,7 +128,7 @@ func (s *Store) ListRunIntents(ctx context.Context, outcomeID domain.OutcomeID) 
 	}
 	intents := make([]domain.OutcomeRunIntent, 0, len(rows))
 	for _, row := range rows {
-		intents = append(intents, runIntentFromRow(row))
+		intents = append(intents, runIntentFromListRow(row))
 	}
 	return intents, nil
 }
@@ -116,7 +144,7 @@ func (s *Store) ListOutcomesWithRunIntent(ctx context.Context, desired domain.Ru
 	}
 	intents := make([]domain.OutcomeRunIntent, 0, len(rows))
 	for _, row := range rows {
-		intents = append(intents, runIntentFromRow(row))
+		intents = append(intents, runIntentFromCurrentListRow(row))
 	}
 	return intents, nil
 }
@@ -139,15 +167,34 @@ func (s *Store) AcknowledgeRunIntent(ctx context.Context, outcomeID domain.Outco
 var _ ports.RunIntentStore = (*Store)(nil)
 
 func runIntentFromRow(row gen.OutcomeRunIntent) domain.OutcomeRunIntent {
+	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt)
+}
+
+func runIntentFromCurrentRow(row gen.CurrentOutcomeRunIntentRow) domain.OutcomeRunIntent {
+	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt)
+}
+
+func runIntentFromRequestKeyRow(row gen.FindOutcomeRunIntentByRequestKeyRow) domain.OutcomeRunIntent {
+	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt)
+}
+
+func runIntentFromListRow(row gen.ListOutcomeRunIntentsRow) domain.OutcomeRunIntent {
+	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt)
+}
+
+func runIntentFromCurrentListRow(row gen.ListCurrentRunIntentsByDesiredRow) domain.OutcomeRunIntent {
+	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt)
+}
+
+func runIntentFromValues(id, outcomeID string, generation int64, desired, planID string, contractRevision int64, requestKey, fingerprint string, requestedAt time.Time, acknowledgedAt sql.NullTime) domain.OutcomeRunIntent {
 	intent := domain.OutcomeRunIntent{
-		ID: domain.RunIntentID(row.ID), OutcomeID: domain.OutcomeID(row.OutcomeID),
-		Generation: row.Generation, Desired: domain.RunIntentDesired(row.Desired),
-		PlanRevisionID:         domain.PlanRevisionID(row.PlanRevisionID),
-		ContractRevisionNumber: row.ContractRevisionNumber,
-		RequestKey:             row.RequestKey, RequestedAt: row.RequestedAt,
+		ID: domain.RunIntentID(id), OutcomeID: domain.OutcomeID(outcomeID),
+		Generation: generation, Desired: domain.RunIntentDesired(desired),
+		PlanRevisionID: domain.PlanRevisionID(planID), ContractRevisionNumber: contractRevision,
+		RequestKey: requestKey, RequestFingerprint: fingerprint, RequestedAt: requestedAt,
 	}
-	if row.AcknowledgedAt.Valid {
-		at := row.AcknowledgedAt.Time
+	if acknowledgedAt.Valid {
+		at := acknowledgedAt.Time
 		intent.AcknowledgedAt = &at
 	}
 	return intent
