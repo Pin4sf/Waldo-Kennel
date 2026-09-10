@@ -2573,36 +2573,44 @@ type RecordEvidenceRequest struct {
 	CriterionID              string `json:"criterionId"`
 	SubjectType              string `json:"subjectType"`
 	SubjectID                string `json:"subjectId"`
-	SubjectRevision          string `json:"subjectRevision"`
-	Kind                     string `json:"kind"`
-	SourceType               string `json:"sourceType"`
-	SourceRef                string `json:"sourceRef"`
-	ProducerType             string `json:"producerType"`
-	ProducerRef              string `json:"producerRef"`
-	Summary                  string `json:"summary"`
-	ContentDigest            string `json:"contentDigest"`
-	RequestKey               string `json:"requestKey"`
+	// SubjectRevision identifies which version of the subject was examined:
+	// the Contract revision for an Outcome, the plan id for a Plan or WorkUnit,
+	// and for an Attempt the retained artifact version its result was checked
+	// against. An Attempt with nothing retained yet cannot carry proof.
+	SubjectRevision string `json:"subjectRevision"`
+	Kind            string `json:"kind"`
+	SourceType      string `json:"sourceType"`
+	SourceRef       string `json:"sourceRef"`
+	ProducerType    string `json:"producerType"`
+	ProducerRef     string `json:"producerRef"`
+	Summary         string `json:"summary"`
+	ContentDigest   string `json:"contentDigest"`
+	RequestKey      string `json:"requestKey"`
 }
 
 // RecordVerificationRequest declares what was checked and the verifier's
 // actual independence from the producer. It cannot accept an Outcome.
 type RecordVerificationRequest struct {
-	ExpectedContractRevision int64    `json:"expectedContractRevision"`
-	ContractRevisionID       string   `json:"contractRevisionId"`
-	CriterionID              string   `json:"criterionId"`
-	SubjectType              string   `json:"subjectType"`
-	SubjectID                string   `json:"subjectId"`
-	SubjectRevision          string   `json:"subjectRevision"`
-	EvidenceItemIDs          []string `json:"evidenceItemIds"`
-	Method                   string   `json:"method"`
-	IndependenceClass        string   `json:"independenceClass"`
-	Result                   string   `json:"result"`
-	ProducerRef              string   `json:"producerRef,omitempty"`
-	VerifierRef              string   `json:"verifierRef"`
-	ProducerProvider         string   `json:"producerProvider,omitempty"`
-	VerifierProvider         string   `json:"verifierProvider,omitempty"`
-	Detail                   string   `json:"detail,omitempty"`
-	RequestKey               string   `json:"requestKey"`
+	ExpectedContractRevision int64  `json:"expectedContractRevision"`
+	ContractRevisionID       string `json:"contractRevisionId"`
+	CriterionID              string `json:"criterionId"`
+	SubjectType              string `json:"subjectType"`
+	SubjectID                string `json:"subjectId"`
+	// SubjectRevision identifies which version of the subject was examined:
+	// the Contract revision for an Outcome, the plan id for a Plan or WorkUnit,
+	// and for an Attempt the retained artifact version its result was checked
+	// against. An Attempt with nothing retained yet cannot carry proof.
+	SubjectRevision   string   `json:"subjectRevision"`
+	EvidenceItemIDs   []string `json:"evidenceItemIds"`
+	Method            string   `json:"method"`
+	IndependenceClass string   `json:"independenceClass"`
+	Result            string   `json:"result"`
+	ProducerRef       string   `json:"producerRef,omitempty"`
+	VerifierRef       string   `json:"verifierRef"`
+	ProducerProvider  string   `json:"producerProvider,omitempty"`
+	VerifierProvider  string   `json:"verifierProvider,omitempty"`
+	Detail            string   `json:"detail,omitempty"`
+	RequestKey        string   `json:"requestKey"`
 }
 
 // DecideAcceptanceRequest is the sole API authority that may append a user

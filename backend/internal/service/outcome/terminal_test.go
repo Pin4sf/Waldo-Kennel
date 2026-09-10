@@ -25,12 +25,12 @@ func TestAttemptProvenRequiresProofBoundToThisAttempt(t *testing.T) {
 	attempt := attemptOn("att-a", unit.ID, plan, domain.AttemptReconciled)
 
 	// Ended, but nothing proved: staying reconciled is the truthful state.
-	if attemptProven(unit, attempt, proof) {
+	if attemptProven(unit, attempt, retainedArtifactV1, proof) {
 		t.Fatal("an ended attempt with no proof must not be classified as succeeded")
 	}
 
-	addProvenAttemptCriterion(&proof, plan, attempt, "crit-a", time.Unix(100, 0).UTC())
-	if !attemptProven(unit, attempt, proof) {
+	addProvenAttemptCriterion(&proof, plan, attempt, retainedArtifactV1, "crit-a", time.Unix(100, 0).UTC())
+	if !attemptProven(unit, attempt, retainedArtifactV1, proof) {
 		t.Fatal("proof bound to this attempt must classify it as succeeded")
 	}
 }
@@ -45,12 +45,12 @@ func TestAttemptProvenDoesNotBorrowAnotherAttemptsProof(t *testing.T) {
 	produced := attemptOn("att-second", unit.ID, plan, domain.AttemptReconciled)
 	producedNothing := attemptOn("att-first", unit.ID, plan, domain.AttemptReconciled)
 
-	addProvenAttemptCriterion(&proof, plan, produced, "crit-a", time.Unix(100, 0).UTC())
+	addProvenAttemptCriterion(&proof, plan, produced, retainedArtifactV1, "crit-a", time.Unix(100, 0).UTC())
 
-	if !attemptProven(unit, produced, proof) {
+	if !attemptProven(unit, produced, retainedArtifactV1, proof) {
 		t.Fatal("the attempt that produced the proof must be classified as succeeded")
 	}
-	if attemptProven(unit, producedNothing, proof) {
+	if attemptProven(unit, producedNothing, retainedArtifactV1, proof) {
 		t.Fatal("an attempt must never be classified as succeeded on another attempt's proof")
 	}
 
@@ -93,7 +93,7 @@ func TestAttemptProvenIgnoresWorkUnitScopedProof(t *testing.T) {
 		})
 	}
 
-	if attemptProven(unit, attempt, proof) {
+	if attemptProven(unit, attempt, retainedArtifactV1, proof) {
 		t.Fatal("WorkUnit-scoped proof names no attempt and must not classify one")
 	}
 	if !workUnitProven(plan, unit, []domain.Attempt{attempt}, proof) {
@@ -109,7 +109,7 @@ func TestAttemptProvenRefusesAUnitWithNoCriteria(t *testing.T) {
 	unit := plan.WorkUnits[0]
 	unit.CriterionIDs = nil
 	attempt := attemptOn("att-a", unit.ID, plan, domain.AttemptReconciled)
-	if attemptProven(unit, attempt, schedulerProofFixture(plan)) {
+	if attemptProven(unit, attempt, retainedArtifactV1, schedulerProofFixture(plan)) {
 		t.Fatal("a unit with no criteria must never classify as succeeded")
 	}
 }
@@ -123,12 +123,12 @@ func TestAttemptProvenRequiresEveryCriterion(t *testing.T) {
 	proof := schedulerProofFixture(plan)
 	attempt := attemptOn("att-a", unit.ID, plan, domain.AttemptReconciled)
 
-	addProvenAttemptCriterion(&proof, plan, attempt, "crit-a", time.Unix(100, 0).UTC())
-	if attemptProven(unit, attempt, proof) {
+	addProvenAttemptCriterion(&proof, plan, attempt, retainedArtifactV1, "crit-a", time.Unix(100, 0).UTC())
+	if attemptProven(unit, attempt, retainedArtifactV1, proof) {
 		t.Fatal("one proved criterion out of two must not classify as succeeded")
 	}
-	addProvenAttemptCriterion(&proof, plan, attempt, "crit-b", time.Unix(101, 0).UTC())
-	if !attemptProven(unit, attempt, proof) {
+	addProvenAttemptCriterion(&proof, plan, attempt, retainedArtifactV1, "crit-b", time.Unix(101, 0).UTC())
+	if !attemptProven(unit, attempt, retainedArtifactV1, proof) {
 		t.Fatal("every criterion proved must classify as succeeded")
 	}
 }
@@ -140,13 +140,13 @@ func TestAttemptProvenRefusesDelegatedCriteria(t *testing.T) {
 	unit := plan.WorkUnits[0]
 	proof := schedulerProofFixture(plan)
 	attempt := attemptOn("att-a", unit.ID, plan, domain.AttemptReconciled)
-	addProvenAttemptCriterion(&proof, plan, attempt, "crit-a", time.Unix(100, 0).UTC())
+	addProvenAttemptCriterion(&proof, plan, attempt, retainedArtifactV1, "crit-a", time.Unix(100, 0).UTC())
 	for i := range proof.Criteria {
 		if proof.Criteria[i].Criterion.ID == "crit-a" {
 			proof.Criteria[i].Delegated = true
 		}
 	}
-	if attemptProven(unit, attempt, proof) {
+	if attemptProven(unit, attempt, retainedArtifactV1, proof) {
 		t.Fatal("a delegated criterion must not classify this attempt as succeeded")
 	}
 }
@@ -167,5 +167,48 @@ func TestOnlyAnEndedAttemptCanBecomeSucceeded(t *testing.T) {
 	}
 	if domain.AttemptTransitionLegal(domain.AttemptSucceeded, domain.AttemptReconciled) {
 		t.Fatal("a classified success must not be walked back")
+	}
+}
+
+// Proof about an Attempt is proof about the bytes it produced. If the output
+// changes after it was checked, the same proof no longer describes the result,
+// and the honest state is unproved -- not succeeded on a check of something
+// that is gone.
+func TestAttemptProvenRefusesProofRecordedAgainstAnEarlierArtifact(t *testing.T) {
+	plan := schedulerPlanFixture()
+	unit := plan.WorkUnits[0]
+	proof := schedulerProofFixture(plan)
+	attempt := attemptOn("att-a", unit.ID, plan, domain.AttemptReconciled)
+
+	addProvenAttemptCriterion(&proof, plan, attempt, retainedArtifactV1, "crit-a", time.Unix(100, 0).UTC())
+	if !attemptProven(unit, attempt, retainedArtifactV1, proof) {
+		t.Fatal("proof recorded against the retained artifact must classify it")
+	}
+
+	// The workspace produced new bytes after the check ran.
+	if attemptProven(unit, attempt, "artifact-v2", proof) {
+		t.Fatal("proof that examined v1 must not classify v2 as succeeded")
+	}
+
+	// And once the new version is itself checked, it classifies again.
+	addProvenAttemptCriterion(&proof, plan, attempt, "artifact-v2", "crit-a", time.Unix(200, 0).UTC())
+	if !attemptProven(unit, attempt, "artifact-v2", proof) {
+		t.Fatal("proof recorded against the new artifact must classify it")
+	}
+}
+
+// An attempt with nothing retained has no artifact for proof to be about.
+func TestAttemptProvenRequiresARetainedArtifactVersion(t *testing.T) {
+	plan := schedulerPlanFixture()
+	unit := plan.WorkUnits[0]
+	proof := schedulerProofFixture(plan)
+	attempt := attemptOn("att-a", unit.ID, plan, domain.AttemptReconciled)
+	addProvenAttemptCriterion(&proof, plan, attempt, retainedArtifactV1, "crit-a", time.Unix(100, 0).UTC())
+
+	if attemptProven(unit, attempt, "", proof) {
+		t.Fatal("an attempt with no retained artifact must never classify as succeeded")
+	}
+	if attemptProven(unit, attempt, "   ", proof) {
+		t.Fatal("a blank artifact version must never classify as succeeded")
 	}
 }

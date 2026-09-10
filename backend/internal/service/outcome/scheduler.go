@@ -224,9 +224,11 @@ func proofFactBelongsToWorkUnit(plan domain.PlanRevision, unit domain.WorkUnit, 
 	case domain.ProofSubjectWorkUnit:
 		return subjectID == string(unit.ID) && subjectRevision == string(plan.ID)
 	case domain.ProofSubjectAttempt:
-		if subjectID != subjectRevision {
-			return false
-		}
+		// The artifact version in subjectRevision is deliberately ignored here.
+		// Scheduling asks whether the unit is proved at all, so proof naming any
+		// attempt of this unit counts, whichever version of its output was
+		// examined. Classifying a *particular* attempt is the stricter question
+		// attemptProven answers, and that one does bind to the version.
 		for _, attempt := range attempts {
 			if string(attempt.ID) == subjectID && attempt.WorkUnitID == unit.ID && attempt.PlanRevisionID == plan.ID && attempt.OutcomeID == plan.OutcomeID && attempt.ContractRevisionNumber == plan.ContractRevisionNumber {
 				return true

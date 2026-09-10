@@ -182,6 +182,63 @@ test/dev wiring, never in the production registry, unreachable from normal
 provider selection, and no production fallback resolves to them. Their evidence
 is labelled `daemon-fixture` and never described as live conformance.
 
+## Independent review closure — 2026-09-10
+
+Source: [`2026-09-10-luna-independent-review.md`](2026-09-10-luna-independent-review.md),
+reviewing `ae7aa5690`. Each row was reproduced before it was fixed, and each fix
+carries a permanent test at the boundary that actually failed rather than at a
+helper.
+
+| ID | Defect | Status | Test | Proof level |
+|---|---|---|---|---|
+| ST1 | A file declined by the byte bound was appended with no digest and no reason, so receipt validation rejected the whole receipt and `Retain` returned an error instead of a persistable incomplete record | **fixed** `35f67d7d2` | `TestRetainKeepsAValidReceiptWhenTheByteBoundDeclinesAFile`, `TestRetainReportsIncompleteAfterPartialCapture` | automated |
+| ST2 | `Setpgid` created a process group but cancellation signalled only the leader, so a check that backgrounded a child left it running and holding the output pipe | **fixed** `258a47802` | `TestRunStopsTheWholeProcessTreeOnTimeout` — verified red-green against leader-only cancellation | automated |
+| ST3 | A retained artifact named `KENNEL-EXPORT.json` was overwritten by the delivery manifest and the export reported success | **fixed** `35f67d7d2` | `TestExportRefusesReservedManifestNameCollision` | automated |
+| ST4 | Porcelain `XY<space><path>` was trimmed, retaining `" report.txt "` under the name `report.txt` | **fixed** `35f67d7d2` | `TestParsePorcelainPreservesPathBytes`, `TestRetainPreservesGitPathsWithSurroundingSpaces` | automated |
+| ST5 | Publication synced only the top staging directory, so a published manifest version could name nested content that was never durable | **fixed** `35f67d7d2` | `TestPublishedNestedContentIsFlushedBeforePublication` — asserts the ordering contract; **does not** simulate power loss | automated (crash guarantee **not** claimed) |
+| SP1 | `governedcheck` enforced nothing: it rejected some shell names and then called bare `exec.CommandContext`, and an out-of-workspace write succeeded | **fixed by failing closed** `258a47802` | `TestRunFailsClosedWithoutAnEnforcementMechanism` with an out-of-workspace canary; `TestAvailableReportsNoMechanism` | automated; real sandbox enforcement **blocked** |
+| SP3 | Export checked owner, kind and Outcome only, so an older decision for that Outcome labelled any newer artifact accepted | **fixed** `35f67d7d2` | `TestExportRefusesStaleOrMismatchedAcceptance` — stale revision, wrong artifact version, and both missing | automated |
+| SP6 | Size was checked and then `os.ReadFile` read whatever was there, so growth or replacement allocated past the declared bound before rejection | **fixed** `17d1c8a5f` | `TestSuppliedDocumentRefusesGrowthBetweenSelectionAndRead`, `...RefusesReplacementWithASymlink`, `...RespectsCancellation` — verified red-green | automated |
+| Primary | Proof was judged before retention ran, and the artifact version bound into classification was whatever retention produced afterwards. Proof naming the Attempt did not establish that the retained bytes were checked | **fixed** — see below | `TestAttemptProvenRefusesProofRecordedAgainstAnEarlierArtifact`, `TestClassificationRefusesProofThatChangedAfterTheJudgement`, `TestClassificationRefusesAfterTheContractIsRevised` | automated |
+
+### The proof-to-bytes binding
+
+Three changes, because the gap had three parts.
+
+**Order.** `reconcileOutcomeAttempts` now retains before it judges, matching arrow
+two before arrow three in the sequence contract. Retaining afterwards meant the
+bytes classified as successful were produced after the check that approved them.
+
+**Binding.** For an Attempt subject, `SubjectRevision` is now the retained
+artifact version rather than a copy of the attempt id — the same shape every
+other subject type already uses, where the revision says which version of the
+subject was examined. Proof recorded against `v1` therefore leaves the attempt
+unproved once the output becomes `v2`, which is the honest answer: nobody has
+checked the current result. Recording attempt proof before anything is retained
+is refused with `ATTEMPT_ARTIFACT_NOT_RETAINED`.
+
+Scheduling deliberately ignores the version: `workUnitProven` asks whether the
+unit is proved at all, and any attempt of the unit answers that. Classifying a
+particular attempt is the stricter question, and only that one binds to bytes.
+
+**Revalidation.** `ClassifyAttemptSucceeded` now carries the Contract revision the
+judgement was made under and the moment proof was read, and revalidates both
+inside the committing transaction. Evidence and verifications are append-only, so
+any fact bound to the Attempt at or after that moment means the judgement rests
+on a proof state that no longer exists, and the classification is refused as
+stale — the next reconciliation reads proof again and decides on what is now
+true. A Contract revised since the judgement refuses the same way.
+
+### Still open from the review
+
+| ID | Item | Why it is still open |
+|---|---|---|
+| SP1 | Real sandbox enforcement for checks | The enforcing runtime is a provider adapter sandbox, not reachable as a standalone check runner. Checks fail closed until it is. Recorded **blocked**, not passing |
+| SP2 | `Compose`/`Apply`, `Export` and `SuppliedContext` have no production callers | Verified directly: `governedcheck` has zero non-test importers, `SuppliedContext` zero references outside its own file, and the daemon uses only `artifactstore.Retain`. Adapters exist; the features do not |
+| SP4 | B1 Board/List | `OutcomesOverviewSurface.tsx` toggles a two-column CSS grid. No status columns, no attention or history filter, no fact-derived state |
+| SP5 | F focused shell | `frontend/src/main.ts` still initializes Island unconditionally |
+| ST5 | Filesystem crash guarantee | The ordering contract is tested; power loss is not simulated. Claimed as ordering only |
+
 ## Phase log
 
 | Phase | Commits | Gates run | Outcome |

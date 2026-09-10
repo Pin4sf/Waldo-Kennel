@@ -10,6 +10,43 @@ import (
 	"time"
 )
 
+const countAttemptProofFactsSince = `-- name: CountAttemptProofFactsSince :one
+SELECT
+    (SELECT COUNT(*) FROM evidence_items e
+      WHERE e.outcome_id = ? AND e.subject_type = 'attempt' AND e.subject_id = ?
+        AND e.created_at >= ?)
+  + (SELECT COUNT(*) FROM verification_runs v
+      WHERE v.outcome_id = ? AND v.subject_type = 'attempt' AND v.subject_id = ?
+        AND v.created_at >= ?) AS facts
+`
+
+type CountAttemptProofFactsSinceParams struct {
+	OutcomeID   string
+	SubjectID   string
+	CreatedAt   time.Time
+	OutcomeID_2 string
+	SubjectID_2 string
+	CreatedAt_2 time.Time
+}
+
+// CountAttemptProofFactsSince supports the classification transaction: it
+// reports whether any proof fact bound to this Attempt landed after the moment
+// the reconciler read proof. Evidence and verifications are append-only, so a
+// nonzero count is the only way the judgement could have gone stale.
+func (q *Queries) CountAttemptProofFactsSince(ctx context.Context, arg CountAttemptProofFactsSinceParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAttemptProofFactsSince,
+		arg.OutcomeID,
+		arg.SubjectID,
+		arg.CreatedAt,
+		arg.OutcomeID_2,
+		arg.SubjectID_2,
+		arg.CreatedAt_2,
+	)
+	var facts int64
+	err := row.Scan(&facts)
+	return facts, err
+}
+
 const createAcceptanceDecision = `-- name: CreateAcceptanceDecision :exec
 INSERT INTO acceptance_decisions (
     id, outcome_id, contract_revision_id, kind, actor_type, summary,

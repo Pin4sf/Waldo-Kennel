@@ -181,6 +181,11 @@ func (s *Store) ClassifyAttemptSucceeded(ctx context.Context, in ports.ClassifyA
 	if in.At.IsZero() || in.OutcomeID.IsZero() || in.AttemptID.IsZero() || strings.TrimSpace(in.ArtifactVersion) == "" {
 		return fmt.Errorf("attempt classification requires identity, artifact version and timestamp")
 	}
+	if in.ContractRevisionNumber < 1 || in.ProofObservedAt.IsZero() {
+		// Without these the transaction cannot tell whether the proof it is
+		// committing on still holds, and would be a second unchecked read.
+		return fmt.Errorf("attempt classification requires the judged contract revision and proof horizon")
+	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	tx, err := s.writeDB.BeginTx(ctx, nil)
@@ -212,6 +217,32 @@ func (s *Store) ClassifyAttemptSucceeded(ctx context.Context, in ports.ClassifyA
 	}
 	if receipt.OutcomeID != string(in.OutcomeID) || receipt.PlanRevisionID == "" || receipt.WorkUnitID == "" {
 		return fmt.Errorf("receipt %s has invalid producing lineage", in.AttemptID)
+	}
+	// Revalidate the two things the judgement rested on, inside the same
+	// transaction that commits it. Reading the receipt again is not enough:
+	// proof naming the Attempt does not establish that the proof still holds,
+	// or that it was recorded under the revision now in force.
+	if attempt.ContractRevisionNumber != in.ContractRevisionNumber {
+		return ports.ErrAttemptClassificationStale
+	}
+	currentRevision, err := q.MaxContractRevisionNumber(ctx, in.OutcomeID)
+	if err != nil {
+		return fmt.Errorf("read current contract revision for %s: %w", in.OutcomeID, err)
+	}
+	if current, ok := currentRevision.(int64); !ok || current != in.ContractRevisionNumber {
+		return ports.ErrAttemptClassificationStale
+	}
+	facts, err := q.CountAttemptProofFactsSince(ctx, gen.CountAttemptProofFactsSinceParams{
+		OutcomeID: string(in.OutcomeID), SubjectID: string(in.AttemptID), CreatedAt: in.ProofObservedAt.UTC(),
+		OutcomeID_2: string(in.OutcomeID), SubjectID_2: string(in.AttemptID), CreatedAt_2: in.ProofObservedAt.UTC(),
+	})
+	if err != nil {
+		return fmt.Errorf("read proof horizon for %s: %w", in.AttemptID, err)
+	}
+	if facts > 0 {
+		// A contradiction, or any other fact, arrived after the judgement. The
+		// next reconciliation reads proof again and decides on what is now true.
+		return ports.ErrAttemptClassificationStale
 	}
 	if attempt.Status == domain.AttemptSucceeded {
 		if !receipt.FrozenAt.Valid {

@@ -3,11 +3,13 @@ package store_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
@@ -157,11 +159,7 @@ func TestClassifyAttemptSucceededCommitsReceiptObservationAndCustody(t *testing.
 	if err := s.SaveAttemptReceipt(ctx, receipt); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ClassifyAttemptSucceeded(ctx, ports.ClassifyAttemptInput{
-		OutcomeID: outcomeID, AttemptID: attempt.ID, ExpectedStatus: domain.AttemptReconciled,
-		ArtifactVersion: receipt.ArtifactVersion, ObservationKind: domain.ObservationAttemptClassified,
-		ObservationPayload: `{"result":"proved"}`, At: at,
-	}); err != nil {
+	if err := s.ClassifyAttemptSucceeded(ctx, classifyInput(outcomeID, attempt.ID, receipt.ArtifactVersion, at)); err != nil {
 		t.Fatal(err)
 	}
 	got, ok, err := s.GetAttempt(ctx, outcomeID, attempt.ID)
@@ -281,4 +279,138 @@ func TestArtifactPathCannotEscapeTheWorkspace(t *testing.T) {
 			t.Fatalf("path %q must be rejected", path)
 		}
 	}
+}
+
+// classifyInput is the shape a reconciler sends: the artifact it judged, the
+// Contract revision it judged under, and when it read proof.
+func classifyInput(outcomeID domain.OutcomeID, attemptID domain.AttemptID, artifactVersion string, at time.Time) ports.ClassifyAttemptInput {
+	return ports.ClassifyAttemptInput{
+		OutcomeID: outcomeID, AttemptID: attemptID, ExpectedStatus: domain.AttemptReconciled,
+		ArtifactVersion: artifactVersion, ContractRevisionNumber: 1, ProofObservedAt: at,
+		ObservationKind: domain.ObservationAttemptClassified, ObservationPayload: `{"result":"proved"}`, At: at,
+	}
+}
+
+func reconciledAttemptWithReceipt(t *testing.T, s *sqlite.Store, project string, at time.Time) (domain.OutcomeID, domain.PlanRevision, domain.Attempt, domain.AttemptReceipt) {
+	t.Helper()
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, project)
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-"+project, domain.FenceSubjectForProject(domain.ProjectID(project))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.TransitionAttemptStatus(ctx, outcomeID, attempt.ID, domain.AttemptQueued, domain.AttemptRunning, at); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.TransitionAttemptStatus(ctx, outcomeID, attempt.ID, domain.AttemptRunning, domain.AttemptReconciled, at); err != nil {
+		t.Fatal(err)
+	}
+	receipt := receiptFixture(attempt.ID, outcomeID, plan, at)
+	if err := s.SaveAttemptReceipt(ctx, receipt); err != nil {
+		t.Fatal(err)
+	}
+	return outcomeID, plan, attempt, receipt
+}
+
+func assertStillReconciled(t *testing.T, s *sqlite.Store, outcomeID domain.OutcomeID, attemptID domain.AttemptID) {
+	t.Helper()
+	ctx := context.Background()
+	got, ok, err := s.GetAttempt(ctx, outcomeID, attemptID)
+	if err != nil || !ok {
+		t.Fatalf("read attempt: %v ok=%v", err, ok)
+	}
+	if got.Status != domain.AttemptReconciled {
+		t.Fatalf("status = %s, want the attempt left reconciled", got.Status)
+	}
+	receipt, ok, err := s.GetAttemptReceipt(ctx, attemptID)
+	if err != nil || !ok {
+		t.Fatalf("read receipt: %v ok=%v", err, ok)
+	}
+	if receipt.Frozen() {
+		t.Fatal("a refused classification froze the receipt")
+	}
+}
+
+// The judgement is made outside the transaction, so the transaction has to
+// check that it still holds. Evidence and verifications are append-only: a
+// contradiction landing after the reconciler read proof means the classification
+// rests on a proof state that no longer exists.
+func TestClassificationRefusesProofThatChangedAfterTheJudgement(t *testing.T) {
+	s := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	at := time.Date(2026, 9, 10, 10, 0, 0, 0, time.UTC)
+	outcomeID, _, attempt, receipt := reconciledAttemptWithReceipt(t, s, "classify-race", at)
+
+	// A contradiction arrives after the reconciler read proof.
+	if err := s.CreateEvidenceItem(ctx, domain.EvidenceItem{
+		ID: "ev-contradiction", OutcomeID: outcomeID, ContractRevisionID: "cr-classify-race",
+		CriterionID: firstCriterionID(t, s, outcomeID), SubjectType: domain.ProofSubjectAttempt,
+		SubjectID: string(attempt.ID), SubjectRevision: receipt.ArtifactVersion,
+		Kind: domain.EvidenceContradicting, SourceType: domain.EvidenceSourceDeterministicCheck,
+		SourceRef: "check", ProducerType: domain.EvidenceProducerTool, ProducerRef: "tool",
+		Summary:       "the retained result does not satisfy the criterion",
+		ContentDigest: strings.Repeat("a", 64), RequestKey: "rk-contradiction",
+		RequestFingerprint: strings.Repeat("b", 64), CreatedAt: at.Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("record contradiction: %v", err)
+	}
+
+	err := s.ClassifyAttemptSucceeded(ctx, classifyInput(outcomeID, attempt.ID, receipt.ArtifactVersion, at))
+	if !errors.Is(err, ports.ErrAttemptClassificationStale) {
+		t.Fatalf("err = %v, want the classification refused as stale", err)
+	}
+	assertStillReconciled(t, s, outcomeID, attempt.ID)
+}
+
+// Proof is bound to a Contract revision. If the Outcome has been revised since
+// the judgement, that proof cannot classify work under the new revision.
+func TestClassificationRefusesAfterTheContractIsRevised(t *testing.T) {
+	s := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	at := time.Date(2026, 9, 10, 10, 0, 0, 0, time.UTC)
+	outcomeID, _, attempt, receipt := reconciledAttemptWithReceipt(t, s, "classify-revised", at)
+
+	if _, err := s.AppendContractRevision(ctx, outcomeID, 1, domain.ContractRevision{
+		ID: "cr-classify-revised-2", OutcomeID: outcomeID, Number: 2,
+		Goal: "Record focus locally, with weekly rollups.", SuccessCriteria: []string{"Blocks are recorded."},
+		Review: "Deterministic checks.",
+	}); err != nil {
+		t.Fatalf("revise contract: %v", err)
+	}
+
+	err := s.ClassifyAttemptSucceeded(ctx, classifyInput(outcomeID, attempt.ID, receipt.ArtifactVersion, at))
+	if !errors.Is(err, ports.ErrAttemptClassificationStale) {
+		t.Fatalf("err = %v, want the classification refused as stale", err)
+	}
+	assertStillReconciled(t, s, outcomeID, attempt.ID)
+}
+
+// A classification that names neither the revision it judged under nor when it
+// read proof is a second unchecked read, and is refused outright.
+func TestClassificationRequiresItsJudgementContext(t *testing.T) {
+	s := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	at := time.Date(2026, 9, 10, 10, 0, 0, 0, time.UTC)
+	outcomeID, _, attempt, receipt := reconciledAttemptWithReceipt(t, s, "classify-context", at)
+
+	bare := classifyInput(outcomeID, attempt.ID, receipt.ArtifactVersion, at)
+	bare.ContractRevisionNumber = 0
+	bare.ProofObservedAt = time.Time{}
+	if err := s.ClassifyAttemptSucceeded(ctx, bare); err == nil {
+		t.Fatal("classification without its judgement context was accepted")
+	}
+	assertStillReconciled(t, s, outcomeID, attempt.ID)
+}
+
+func firstCriterionID(t *testing.T, s *sqlite.Store, outcomeID domain.OutcomeID) domain.CriterionID {
+	t.Helper()
+	revisions, err := s.ListContractRevisions(context.Background(), outcomeID)
+	if err != nil || len(revisions) == 0 {
+		t.Fatalf("read contract: %v revisions=%d", err, len(revisions))
+	}
+	current := revisions[len(revisions)-1]
+	if len(current.Criteria) == 0 {
+		t.Fatal("contract fixture has no criteria")
+	}
+	return current.Criteria[0].ID
 }

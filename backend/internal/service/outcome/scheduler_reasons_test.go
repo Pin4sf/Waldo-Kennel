@@ -118,7 +118,7 @@ func TestScheduleAlwaysExplainsAnEmptyRunnableSet(t *testing.T) {
 		ID: "att-a", OutcomeID: plan.OutcomeID, PlanRevisionID: plan.ID,
 		WorkUnitID: "wu-a", ContractRevisionNumber: 1, Status: domain.AttemptRunning,
 	}
-	addProvenAttemptCriterion(&proof, plan, attempt, "crit-a", time.Unix(100, 0).UTC())
+	addProvenAttemptCriterion(&proof, plan, attempt, retainedArtifactV1, "crit-a", time.Unix(100, 0).UTC())
 
 	// A is proven; B is now admissible, so there is still something runnable.
 	view, err := deriveSchedule(plan, []domain.Attempt{attempt}, proof)
@@ -133,7 +133,7 @@ func TestScheduleAlwaysExplainsAnEmptyRunnableSet(t *testing.T) {
 	addProvenAttemptCriterion(&proof, plan, domain.Attempt{
 		ID: "att-b", OutcomeID: plan.OutcomeID, PlanRevisionID: plan.ID,
 		WorkUnitID: "wu-b", ContractRevisionNumber: 1, Status: domain.AttemptRunning,
-	}, "crit-b", time.Unix(200, 0).UTC())
+	}, retainedArtifactV1, "crit-b", time.Unix(200, 0).UTC())
 	done, err := deriveSchedule(plan, []domain.Attempt{
 		{ID: "att-a", OutcomeID: plan.OutcomeID, PlanRevisionID: plan.ID, WorkUnitID: "wu-a", ContractRevisionNumber: 1, Status: domain.AttemptReconciled},
 		{ID: "att-b", OutcomeID: plan.OutcomeID, PlanRevisionID: plan.ID, WorkUnitID: "wu-b", ContractRevisionNumber: 1, Status: domain.AttemptReconciled},

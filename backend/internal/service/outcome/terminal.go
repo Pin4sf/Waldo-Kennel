@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
@@ -55,11 +57,19 @@ func (s *Service) ReconcileAttemptOutcomes(ctx context.Context) error {
 }
 
 func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain.OutcomeID, ended []domain.Attempt) error {
+	if s.receipts == nil {
+		return fmt.Errorf("outcome %s cannot be classified: receipt storage is unavailable", outcomeID)
+	}
+	// Capture the horizon before reading proof. The classification transaction
+	// uses it to refuse a commit if any fact bound to the attempt landed after
+	// this judgement was made.
+	observedAt := s.clock()
 	proof, err := s.GetProof(ctx, outcomeID)
 	if err != nil {
 		return err
 	}
 	plans := map[domain.PlanRevisionID]domain.PlanRevision{}
+	var failures []error
 	for _, attempt := range ended {
 		plan, ok := plans[attempt.PlanRevisionID]
 		if !ok {
@@ -77,33 +87,44 @@ func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain
 		if !ok {
 			continue
 		}
-		if !attemptProven(unit, attempt, proof) {
-			// Absent, failing or contradictory proof leaves the attempt
-			// reconciled. That is a truthful resting state, not a failure, and
-			// the owner can see exactly which criteria are unmet.
-			continue
-		}
+		// Arrow two runs before arrow three: the artifact has to exist before
+		// proof can be about it. Retaining only after judging proof would mean
+		// the bytes classified as successful were produced after the check.
 		if s.retainer != nil {
 			if err := s.retainer.RetainAttempt(ctx, attempt); err != nil {
-				return fmt.Errorf("retain result for %s: %w", attempt.ID, err)
+				// An unretainable workspace leaves this attempt reconciled. It
+				// is not a reason to abandon its siblings.
+				failures = append(failures, fmt.Errorf("retain result for %s: %w", attempt.ID, err))
+				continue
 			}
-		}
-		if s.receipts == nil {
-			return fmt.Errorf("attempt %s cannot be classified: receipt storage is unavailable", attempt.ID)
 		}
 		receipt, found, err := s.receipts.GetAttemptReceipt(ctx, attempt.ID)
 		if err != nil {
 			return fmt.Errorf("read receipt for %s: %w", attempt.ID, err)
 		}
 		if !found {
-			return fmt.Errorf("attempt %s cannot be classified: %w", attempt.ID, ports.ErrAttemptReceiptMissing)
+			failures = append(failures, fmt.Errorf("attempt %s cannot be classified: %w", attempt.ID, ports.ErrAttemptReceiptMissing))
+			continue
 		}
 		if !receipt.RetentionState.Complete() {
-			return fmt.Errorf("attempt %s cannot be classified: %w", attempt.ID, ports.ErrAttemptReceiptNotReady)
+			failures = append(failures, fmt.Errorf("attempt %s cannot be classified: %w", attempt.ID, ports.ErrAttemptReceiptNotReady))
+			continue
 		}
-		if err := s.promoteAttemptToSucceeded(ctx, attempt); err != nil {
+		if !attemptProven(unit, attempt, receipt.ArtifactVersion, proof) {
+			// Absent, failing or contradictory proof leaves the attempt
+			// reconciled. So does proof that named an earlier artifact version:
+			// the output changed after it was checked, so it is unproved again.
+			continue
+		}
+		if err := s.promoteAttemptToSucceeded(ctx, attempt, receipt, observedAt); err != nil {
 			return err
 		}
+	}
+	if len(failures) == 1 {
+		return failures[0]
+	}
+	if len(failures) > 1 {
+		return errors.Join(failures...)
 	}
 	return nil
 }
@@ -114,20 +135,10 @@ func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain
 // Freezing here is the point at which "what the owner reviewed" becomes stable:
 // after this, a later retention pass over the same workspace cannot replace the
 // manifest that success was assigned on.
-func (s *Service) promoteAttemptToSucceeded(ctx context.Context, attempt domain.Attempt) error {
-	if s.receipts == nil {
-		return fmt.Errorf("receipt storage is unavailable")
-	}
-	receipt, found, err := s.receipts.GetAttemptReceipt(ctx, attempt.ID)
-	if err != nil {
-		return fmt.Errorf("read receipt for %s: %w", attempt.ID, err)
-	}
-	if !found {
-		return fmt.Errorf("%w for %s", ports.ErrAttemptReceiptMissing, attempt.ID)
-	}
-	if !receipt.RetentionState.Complete() {
-		return fmt.Errorf("%w for %s", ports.ErrAttemptReceiptNotReady, attempt.ID)
-	}
+func (s *Service) promoteAttemptToSucceeded(ctx context.Context, attempt domain.Attempt, receipt domain.AttemptReceipt, proofObservedAt time.Time) error {
+	// The receipt is the one proof was judged against, passed in rather than
+	// read again. A third read could return a different artifact version than
+	// the one the judgement used.
 	finalizer, ok := s.store.(ports.AttemptSuccessFinalizer)
 	if !ok {
 		return fmt.Errorf("attempt success finalizer is unavailable")
@@ -137,7 +148,8 @@ func (s *Service) promoteAttemptToSucceeded(ctx context.Context, attempt domain.
 	})
 	if err := finalizer.ClassifyAttemptSucceeded(ctx, ports.ClassifyAttemptInput{
 		OutcomeID: attempt.OutcomeID, AttemptID: attempt.ID, ExpectedStatus: domain.AttemptReconciled,
-		ArtifactVersion: receipt.ArtifactVersion, ObservationKind: domain.ObservationAttemptClassified,
+		ArtifactVersion: receipt.ArtifactVersion, ContractRevisionNumber: attempt.ContractRevisionNumber,
+		ProofObservedAt: proofObservedAt, ObservationKind: domain.ObservationAttemptClassified,
 		ObservationPayload: payload, At: s.clock(),
 	}); err != nil {
 		if errors.Is(err, ports.ErrAttemptClassificationStale) {
@@ -151,7 +163,13 @@ func (s *Service) promoteAttemptToSucceeded(ctx context.Context, attempt domain.
 }
 
 // attemptProven reports whether every criterion the WorkUnit carries is proved
-// against THIS attempt.
+// against THIS attempt AND against the exact bytes it retained.
+//
+// The artifact version is the second half of the binding. An attempt id alone
+// says a check ran on this attempt; it does not say the check ran on what the
+// attempt now holds. Proof recorded against an earlier retained version leaves
+// the attempt unproved once the output changes, which is the honest answer:
+// nobody has checked the current result.
 //
 // Scoping to the single attempt is deliberate. workUnitProven answers a
 // different question — is this unit proved at all — and matches proof across
@@ -163,7 +181,10 @@ func (s *Service) promoteAttemptToSucceeded(ctx context.Context, attempt domain.
 // It deliberately takes no plan. Classification depends only on the unit's
 // criteria and on proof naming this attempt, so passing a plan would imply the
 // answer could vary with plan identity when it cannot.
-func attemptProven(unit domain.WorkUnit, attempt domain.Attempt, proof ProofView) bool {
+func attemptProven(unit domain.WorkUnit, attempt domain.Attempt, artifactVersion string, proof ProofView) bool {
+	if strings.TrimSpace(artifactVersion) == "" {
+		return false
+	}
 	if len(unit.CriterionIDs) == 0 {
 		return false
 	}
@@ -174,12 +195,12 @@ func attemptProven(unit domain.WorkUnit, attempt domain.Attempt, proof ProofView
 		}
 		scoped := CriterionProofView{Criterion: criterion.Criterion}
 		for _, item := range criterion.Evidence {
-			if proofFactNamesAttempt(attempt, item.SubjectType, item.SubjectID, item.SubjectRevision) {
+			if proofFactNamesAttempt(attempt, artifactVersion, item.SubjectType, item.SubjectID, item.SubjectRevision) {
 				scoped.Evidence = append(scoped.Evidence, item)
 			}
 		}
 		for _, run := range criterion.Verifications {
-			if proofFactNamesAttempt(attempt, run.SubjectType, run.SubjectID, run.SubjectRevision) {
+			if proofFactNamesAttempt(attempt, artifactVersion, run.SubjectType, run.SubjectID, run.SubjectRevision) {
 				scoped.Verifications = append(scoped.Verifications, run)
 			}
 		}
@@ -192,17 +213,22 @@ func attemptProven(unit domain.WorkUnit, attempt domain.Attempt, proof ProofView
 	return true
 }
 
-// proofFactNamesAttempt matches only proof bound to this exact attempt.
-// WorkUnit-scoped proof names no attempt and therefore cannot say which one
-// succeeded.
-func proofFactNamesAttempt(attempt domain.Attempt, subjectType domain.ProofSubjectType, subjectID, subjectRevision string) bool {
+// proofFactNamesAttempt matches only proof bound to this exact attempt and the
+// exact artifact version it produced.
+//
+// For an attempt subject, SubjectID is the attempt and SubjectRevision is the
+// retained artifact version the fact was recorded against -- the same shape
+// every other subject type uses, where the revision identifies which version of
+// the subject was examined. WorkUnit-scoped proof names no attempt and
+// therefore cannot say which one succeeded.
+func proofFactNamesAttempt(attempt domain.Attempt, artifactVersion string, subjectType domain.ProofSubjectType, subjectID, subjectRevision string) bool {
 	if subjectType != domain.ProofSubjectAttempt {
 		return false
 	}
-	if subjectID != subjectRevision {
+	if subjectID != string(attempt.ID) {
 		return false
 	}
-	return subjectID == string(attempt.ID)
+	return subjectRevision == artifactVersion
 }
 
 func planWorkUnit(plan domain.PlanRevision, id domain.WorkUnitID) (domain.WorkUnit, bool) {

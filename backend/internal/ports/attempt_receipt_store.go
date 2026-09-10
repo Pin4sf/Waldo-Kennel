@@ -47,10 +47,21 @@ type AttemptReceiptStore interface {
 // Attempt to a successful, reviewed result. Implementations must commit the
 // status, receipt freeze, observation and custody release as one unit.
 type ClassifyAttemptInput struct {
-	OutcomeID          domain.OutcomeID
-	AttemptID          domain.AttemptID
-	ExpectedStatus     domain.AttemptStatus
-	ArtifactVersion    string
+	OutcomeID       domain.OutcomeID
+	AttemptID       domain.AttemptID
+	ExpectedStatus  domain.AttemptStatus
+	ArtifactVersion string
+	// ContractRevisionNumber is the revision the classification was judged
+	// under. The transaction refuses if the Outcome has since been revised,
+	// because proof bound to the old revision cannot classify work under a new
+	// one.
+	ContractRevisionNumber int64
+	// ProofObservedAt is when the reconciler read proof. Evidence and
+	// verifications are append-only, so any fact bound to this Attempt that
+	// landed at or after this moment means the judgement was made against a
+	// proof state that no longer holds, and the classification is refused as
+	// stale rather than committed on a stale read.
+	ProofObservedAt    time.Time
 	ObservationKind    string
 	ObservationPayload string
 	At                 time.Time
