@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/artifactstore"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
@@ -105,8 +106,10 @@ type Service struct {
 	// receipts records what each attempt produced. Optional so a degraded
 	// profile still schedules and reports truthfully; when absent, artifact
 	// continuity is unavailable rather than silently faked.
-	receipts ports.AttemptReceiptStore
-	retainer ports.AttemptRetainer
+	receipts          ports.AttemptReceiptStore
+	deliveryStore     ports.DeliveryStore
+	deliveryArtifacts *artifactstore.Store
+	retainer          ports.AttemptRetainer
 	// checks executes an Attempt's approved deterministic checks under its own
 	// frozen policy. Absent means a WorkUnit's checks simply do not run, which
 	// leaves its criteria unproved rather than assumed proved.

@@ -398,6 +398,20 @@ var changeLogWriters = []struct {
 		since: "0123",
 		sql:   "CREATE TRIGGER outcome_run_intents_cdc_acknowledged\nAFTER UPDATE ON outcome_run_intents\nWHEN OLD.acknowledged_at IS NULL AND NEW.acknowledged_at IS NOT NULL\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT rs.project_id FROM outcomes o JOIN responsibility_spaces rs ON rs.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL,\n        'outcome_run_intent_changed',\n        json_object('outcomeId', NEW.outcome_id, 'generation', NEW.generation, 'desired', NEW.desired, 'acknowledged', 1),\n        NEW.acknowledged_at\n    );\nEND;",
 	},
+	{
+		name:  "outcome_deliveries_cdc_insert",
+		table: "outcome_deliveries",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		since: "0127",
+		sql:   "CREATE TRIGGER outcome_deliveries_cdc_insert\nAFTER INSERT ON outcome_deliveries\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES ((SELECT rs.project_id FROM outcomes o JOIN responsibility_spaces rs ON rs.id = o.space_id WHERE o.id = NEW.outcome_id), NULL, 'outcome_delivery_changed', json_object('outcomeId', NEW.outcome_id, 'deliveryId', NEW.id, 'state', NEW.state, 'artifactVersion', NEW.artifact_version), NEW.requested_at);\nEND;",
+	},
+	{
+		name:  "outcome_deliveries_cdc_update",
+		table: "outcome_deliveries",
+		deps:  []string{"outcomes", "responsibility_spaces"},
+		since: "0127",
+		sql:   "CREATE TRIGGER outcome_deliveries_cdc_update\nAFTER UPDATE ON outcome_deliveries\nWHEN OLD.state <> NEW.state\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES ((SELECT rs.project_id FROM outcomes o JOIN responsibility_spaces rs ON rs.id = o.space_id WHERE o.id = NEW.outcome_id), NULL, 'outcome_delivery_changed', json_object('outcomeId', NEW.outcome_id, 'deliveryId', NEW.id, 'state', NEW.state, 'artifactVersion', NEW.artifact_version), COALESCE(NEW.completed_at, NEW.requested_at));\nEND;",
+	},
 }
 
 // restoreChangeLogWriters recreates any missing change_log-writing trigger

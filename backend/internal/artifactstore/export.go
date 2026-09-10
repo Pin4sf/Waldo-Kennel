@@ -12,7 +12,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+)
+
+var (
+	// ErrExportDestinationConflict means the owner-selected destination already exists.
+	ErrExportDestinationConflict = errors.New("export destination conflicts with existing content")
+	// ErrExportDestinationUnsafe means the owner-selected destination cannot be safely confined.
+	ErrExportDestinationUnsafe = errors.New("export destination is unsafe")
+	// ErrExportManifestCollision means retained content uses the reserved manifest name.
+	ErrExportManifestCollision = errors.New("export manifest name collides with retained content")
+	// ErrExportArtifactMissing means a retained blob could not be verified during export.
+	ErrExportArtifactMissing = errors.New("retained export artifact is missing or corrupt")
 )
 
 // ExportRequest is the owner-triggered delivery boundary. The caller must
@@ -38,9 +51,11 @@ type ExportRequest struct {
 	Destination             string
 }
 
-// manifestName is reserved for delivery metadata. A retained artifact may
+// ManifestName is reserved for delivery metadata. A retained artifact may
 // legitimately use it, so a collision is refused rather than resolved.
-const manifestName = "KENNEL-EXPORT.json"
+const ManifestName = "KENNEL-EXPORT.json"
+
+const manifestName = ManifestName
 
 // ExportManifest records the exact retained result and disposition delivered.
 // Deleted paths stay listed: a delivery that silently drops them would not
@@ -118,42 +133,46 @@ func (s *Store) Export(ctx context.Context, req ExportRequest) (ExportManifest, 
 			continue
 		}
 		if strings.EqualFold(file.RelativePath, manifestName) {
-			return ExportManifest{}, fmt.Errorf("retained artifact %q collides with the reserved delivery manifest name", file.RelativePath)
+			return ExportManifest{}, fmt.Errorf("%w: %q", ErrExportManifestCollision, file.RelativePath)
 		}
 	}
 	if !filepath.IsAbs(req.Destination) {
 		return ExportManifest{}, errors.New("export destination must be absolute")
 	}
 	dest := filepath.Clean(req.Destination)
-	if info, err := os.Stat(dest); err == nil {
-		if !info.IsDir() {
-			return ExportManifest{}, errors.New("export destination is not a directory")
+	if info, err := os.Lstat(dest); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return ExportManifest{}, fmt.Errorf("%w: destination is a symlink", ErrExportDestinationUnsafe)
 		}
-		entries, readErr := os.ReadDir(dest)
-		if readErr != nil {
-			return ExportManifest{}, readErr
-		}
-		if len(entries) != 0 {
-			return ExportManifest{}, errors.New("export destination is not empty")
-		}
-	} else if errors.Is(err, os.ErrNotExist) {
-		if err := os.MkdirAll(dest, 0o750); err != nil {
-			return ExportManifest{}, err
-		}
-	} else {
+		return ExportManifest{}, fmt.Errorf("%w: destination already exists", ErrExportDestinationConflict)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return ExportManifest{}, fmt.Errorf("%w: %w", ErrExportDestinationUnsafe, err)
+	}
+	parent := filepath.Dir(dest)
+	if err := os.MkdirAll(parent, 0o750); err != nil {
 		return ExportManifest{}, err
 	}
+	stage := filepath.Join(parent, "."+filepath.Base(dest)+".kennel-export-"+uuid.NewString())
+	if err := os.Mkdir(stage, 0o750); err != nil {
+		return ExportManifest{}, err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = os.RemoveAll(stage)
+		}
+	}()
 	for _, file := range req.Receipt.Files {
 		if file.ChangeKind == domain.ArtifactDeleted {
 			continue
 		}
 		body, mode, err := s.Read(ctx, req.Receipt, file)
 		if err != nil {
-			return ExportManifest{}, fmt.Errorf("read export input %s: %w", file.RelativePath, err)
+			return ExportManifest{}, fmt.Errorf("%w: read %s: %w", ErrExportArtifactMissing, file.RelativePath, err)
 		}
-		full, err := confinedPath(dest, file.RelativePath)
+		full, err := confinedPath(stage, file.RelativePath)
 		if err != nil {
-			return ExportManifest{}, err
+			return ExportManifest{}, fmt.Errorf("%w: %w", ErrExportDestinationUnsafe, err)
 		}
 		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 			return ExportManifest{}, err
@@ -190,8 +209,15 @@ func (s *Store) Export(ctx context.Context, req ExportRequest) (ExportManifest, 
 	if err != nil {
 		return ExportManifest{}, err
 	}
-	if err := os.WriteFile(filepath.Join(dest, manifestName), append(encoded, '\n'), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(stage, manifestName), append(encoded, '\n'), 0o600); err != nil {
 		return ExportManifest{}, err
 	}
+	if err := os.Rename(stage, dest); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return ExportManifest{}, fmt.Errorf("%w: destination appeared during export", ErrExportDestinationConflict)
+		}
+		return ExportManifest{}, err
+	}
+	committed = true
 	return manifest, nil
 }

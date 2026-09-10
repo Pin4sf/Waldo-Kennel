@@ -167,7 +167,14 @@ one), `DELIVERY_ARTIFACT_MISSING`, `DELIVERY_NOT_ACCEPTED` (accepted disposition
 without a current acceptance for that exact artifact),
 `DELIVERY_DESTINATION_CONFLICT` (existing files — the owner must choose),
 `DELIVERY_DESTINATION_UNSAFE` (traversal or symlink escape),
-`DELIVERY_MANIFEST_COLLISION`; `501 DELIVERY_UNAVAILABLE` until the slice lands.
+`DELIVERY_MANIFEST_COLLISION`; `501 DELIVERY_UNAVAILABLE` when this capability
+is not wired in a degraded daemon.
+
+The production daemon wires this boundary to the SQLite delivery ledger and
+artifact store. A pending row is never reported as delivered; a restart marks
+it `failed` with `DELIVERY_INTERRUPTED`, and a failed atomic staging attempt
+does not claim a partial destination. Degraded daemons may still return the
+501 capability response.
 
 Delivery is **transfer of one exact artifact**, never merge, PR, deploy or
 publication, and never implies acceptance. A draft export is labelled `draft`

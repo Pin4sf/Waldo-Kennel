@@ -448,7 +448,13 @@ func Run() error {
 		WithRunIntents(store).
 		WithDocuments(store, artifactContent).
 		WithProofStore(store).
+		WithDelivery(store, artifactContent).
 		WithAnalystSessionReaper(reaper)
+	if interrupted, err := outcomeSvc.ReconcileDeliveries(ctx); err != nil {
+		log.Warn("could not reconcile pending deliveries after daemon restart", "error", err)
+	} else if interrupted > 0 {
+		log.Info("marked interrupted deliveries failed after daemon restart", "count", interrupted)
+	}
 	// Composed Outcomes (ADR 0007) have no proposer wired: decomposition used
 	// to work by spawning a coding agent and hoping it POSTed a proposal back,
 	// which is the same pattern that broke Outcome intake. AskForDecomposition

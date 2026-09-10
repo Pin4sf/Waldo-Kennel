@@ -14,6 +14,14 @@ import (
 	outcomevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
+// DeliveryManager is the controller-facing durable delivery boundary.
+type DeliveryManager interface {
+	DeliveriesEnabled() bool
+	ListDeliveries(context.Context, domain.OutcomeID) ([]domain.OutcomeDelivery, error)
+	GetDelivery(context.Context, domain.OutcomeID, domain.DeliveryID) (domain.OutcomeDelivery, error)
+	RequestDelivery(context.Context, domain.OutcomeID, outcomevc.RequestDeliveryInput) (domain.OutcomeDelivery, error)
+}
+
 // RunStateReader is the Mission supervision read boundary: where an Outcome
 // stands and what the owner may do next. It is deliberately separate from the
 // write interfaces so a daemon that can report state is never assumed able to
@@ -211,18 +219,79 @@ func (c *OutcomesController) commandRun(w http.ResponseWriter, r *http.Request) 
 }
 
 func (c *OutcomesController) listDeliveries(w http.ResponseWriter, r *http.Request) {
-	envelope.WriteAPIError(w, r, http.StatusNotImplemented, "not_implemented", "DELIVERY_UNAVAILABLE",
-		"Durable delivery is not implemented in this daemon", nil)
+	manager, ok := c.deliveryManager()
+	if !ok {
+		c.deliveryUnavailable(w, r)
+		return
+	}
+	deliveries, err := manager.ListDeliveries(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	items := make([]OutcomeDeliveryResponse, 0, len(deliveries))
+	for _, delivery := range deliveries {
+		items = append(items, outcomeDeliveryResponse(delivery))
+	}
+	envelope.WriteJSON(w, http.StatusOK, OutcomeDeliveriesEnvelope{Deliveries: items})
 }
 
 func (c *OutcomesController) requestDelivery(w http.ResponseWriter, r *http.Request) {
-	envelope.WriteAPIError(w, r, http.StatusNotImplemented, "not_implemented", "DELIVERY_UNAVAILABLE",
-		"Durable delivery is not implemented in this daemon", nil)
+	manager, ok := c.deliveryManager()
+	if !ok {
+		c.deliveryUnavailable(w, r)
+		return
+	}
+	var req RequestOutcomeDeliveryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "DELIVERY_REQUEST_INVALID", "Invalid JSON body", nil)
+		return
+	}
+	delivery, err := manager.RequestDelivery(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.RequestDeliveryInput{
+		AttemptID: domain.AttemptID(req.AttemptID), ArtifactVersion: req.ArtifactVersion,
+		Destination: req.Destination, Disposition: domain.DeliveryDisposition(req.Disposition),
+		AcceptanceDecisionID: domain.AcceptanceDecisionID(req.AcceptanceDecisionID), RequestKey: req.RequestKey,
+	})
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusCreated, OutcomeDeliveryEnvelope{Delivery: outcomeDeliveryResponse(delivery)})
 }
 
 func (c *OutcomesController) getDelivery(w http.ResponseWriter, r *http.Request) {
+	manager, ok := c.deliveryManager()
+	if !ok {
+		c.deliveryUnavailable(w, r)
+		return
+	}
+	delivery, err := manager.GetDelivery(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), domain.DeliveryID(chi.URLParam(r, "deliveryId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, OutcomeDeliveryEnvelope{Delivery: outcomeDeliveryResponse(delivery)})
+}
+
+func (c *OutcomesController) deliveryManager() (DeliveryManager, bool) {
+	manager, ok := c.Svc.(DeliveryManager)
+	return manager, ok && c.Svc != nil && manager.DeliveriesEnabled()
+}
+
+func (c *OutcomesController) deliveryUnavailable(w http.ResponseWriter, r *http.Request) {
 	envelope.WriteAPIError(w, r, http.StatusNotImplemented, "not_implemented", "DELIVERY_UNAVAILABLE",
-		"Durable delivery is not implemented in this daemon", nil)
+		"Durable delivery is not available in this daemon", nil)
+}
+
+func outcomeDeliveryResponse(delivery domain.OutcomeDelivery) OutcomeDeliveryResponse {
+	return OutcomeDeliveryResponse{
+		ID: string(delivery.ID), OutcomeID: string(delivery.OutcomeID), AttemptID: string(delivery.AttemptID),
+		WorkUnitID: string(delivery.WorkUnitID), ArtifactVersion: delivery.ArtifactVersion,
+		Disposition: string(delivery.Disposition), Destination: delivery.Destination, State: string(delivery.State),
+		ManifestPath: delivery.ManifestPath, FileCount: delivery.FileCount, ByteCount: delivery.ByteCount,
+		FailureCode: delivery.FailureCode, FailureDetail: delivery.FailureDetail,
+		RequestedAt: delivery.RequestedAt, CompletedAt: delivery.CompletedAt,
+	}
 }
 
 func (c *OutcomesController) getOutcomeUsage(w http.ResponseWriter, r *http.Request) {
