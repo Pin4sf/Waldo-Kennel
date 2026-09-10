@@ -4405,8 +4405,9 @@ export interface components {
         };
         ScheduleWorkUnitResponse: {
             attempts: components["schemas"]["ScheduleAttemptBrief"][];
+            blockedDetail?: string;
             /** @enum {string} */
-            blockedReason?: "awaiting_dependency_proof" | "custody_held";
+            blockedReason?: "awaiting_dependency_proof" | "custody_held" | "upstream_artifact_unavailable";
             blockingDependencies: string[];
             criterionReady: {
                 [key: string]: boolean;

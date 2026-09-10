@@ -106,4 +106,89 @@ Requirement numbers are the assignment's implementation sequence.
 
 | Slice | Commit | Gates run | Claim level |
 |---|---|---|---|
-| _(appended per commit below)_ | | | |
+| Delta + interface note | `7929898` | n/a (docs) | `source` |
+| Mission run state + declared run/delivery/usage API | `34e2705` | `go build`, `go vet`, `go test ./...`, `npm run lint`, `npm run frontend:typecheck` | `automated` |
+| C13 artifact continuity | _(this commit)_ | `go build`, `go vet`, `go test ./...`, `go test -race` on touched packages, `npm run lint`, `npm run frontend:typecheck` | `automated`; real-provider and packaged acceptance open |
+
+## C13 artifact continuity — what is now true, and what is not
+
+### Behavior
+
+`UPSTREAM_MATERIALIZATION_UNAVAILABLE` is gone because provisioning actually
+happens at the launch seam, not because the gate was relaxed. The path is:
+
+1. `service/outcome/attempt.go` resolves `admittedInputsFor` **before** taking
+   the worktree fence. It returns `ports.AttemptInputRef` values pinning the
+   producing Attempt, its WorkUnit and its **exact artifact version**.
+2. Those references travel through `ports.AttemptSpawnRequest.Inputs` →
+   `ports.SpawnConfig.AttemptInputs` into the session manager.
+3. `Manager.provisionAttemptInputs` runs after the workspace holds the approved
+   base and before any launch path. No provisioner wired means the spawn is
+   refused, never silently skipped.
+4. `daemon.attemptInputProvisioner` re-reads each receipt by Attempt id and
+   refuses unless the stored artifact version, WorkUnit and frozen state all
+   match what was admitted. `artifactstore.Compose` then reads and digest-checks
+   every blob, and `artifactstore.Materialize` writes the changes onto the base
+   checkout — additions, modifications, executable modes, binary bytes and
+   deletions — then re-reads what it wrote before returning.
+5. The exact versions are recorded on the admission snapshot
+   (`inputArtifactVersions`) and folded into the compiled brief digest, so a
+   replay fingerprint distinguishes the same WorkUnit run against different
+   predecessor output.
+
+Failure is reported as a **known pre-launch failure**, not an unknown start:
+`UPSTREAM_MATERIALIZATION_FAILED` plus an `input_provisioning_failed`
+observation, and the Attempt is ended so its custody is released for a
+deliberate retry. The session manager destroys the workspace only when it is
+clean, so a partially provisioned tree stays inspectable.
+
+The schedule projection gained `upstream_artifact_unavailable`
+(`WorkUnitScheduleView.BlockedReason`) with a `blockedDetail` naming the
+specific refusal, so a unit whose dependency is *proved* but whose output
+cannot be handed down no longer displays as runnable.
+
+### Two defects found and fixed while implementing this
+
+- `artifactstore.Compose` deduplicated predecessors by **artifact version**.
+  Because that version is a digest over the manifest, two different WorkUnits
+  producing byte-identical output shared one, and a legitimate shared-ancestry
+  join was refused as a repeated predecessor. It now deduplicates by producing
+  Attempt.
+- `artifactstore.Apply` required an **empty** destination and skipped
+  deletions, so it could not materialize onto an approved base at all. It is
+  replaced by `Materialize`, which writes onto the base checkout, applies
+  deletions, verifies base compatibility, and refuses paths that leave custody
+  through a name or through an existing symlink.
+
+### Evidence
+
+| Behavior | Test | Level |
+|---|---|---|
+| A writes distinctive bytes → durable state closed and reopened → A's workspace removed → B holds exactly those bytes, executable mode, binary content, deletion and unchanged base files | `internal/daemon` `TestProvisionAttemptInputs_HandsTheExactRetainedResultToASuccessorAfterRestart` (real SQLite + real blob store + real Git clones) | `automated` |
+| Corrupt, replaced, unfrozen, wrong-WorkUnit and missing upstream results all refuse, writing nothing | `internal/daemon` `TestProvisionAttemptInputs_RefusesAnythingButTheAdmittedArtifact` | `automated` |
+| Unwired retention refuses instead of launching without inputs | `internal/daemon` `..._RefusesWhenRetentionIsUnwired`, `internal/session_manager` `TestProvisionAttemptInputs_RefusesWhenHandoffIsUnwired` | `automated` |
+| Base files, modes, binaries and deletions survive materialization onto a base | `internal/artifactstore` `TestMaterialize_GivesTheSuccessorTheExactPredecessorTreeOnTopOfItsBase` | `automated` |
+| Incompatible base refuses and writes nothing | `TestMaterialize_RefusesAWorkspaceOnADifferentBase` | `automated` |
+| Traversal, absolute paths and symlinked directories refuse | `TestMaterialize_RefusesPathsThatLeaveTheSuccessorWorkspace` | `automated` |
+| Conflicting bytes/modes and repeated predecessors refuse; byte-identical shared ancestry joins | `TestCompose_RefusesPredecessorsThatCannotBeJoined` | `automated` |
+| Provisioning failure ends the Attempt, records a non-ambiguous observation, binds no session | `internal/service/outcome` `TestStartAttempt_InputProvisioningFailureEndsTheAttemptWithoutLaunching` | `automated` |
+| A replayed Start returns the same Attempt and launches once | `TestStartAttempt_ReplayedRequestKeyDoesNotLaunchTwice` | `automated` |
+| A proved dependency with unusable output is not offered as runnable | `TestDeriveSchedule_AProvedDependencyWithUnusableOutputIsNotRunnable` | `automated` |
+
+### What this is **not**
+
+- Not live-provider evidence. No provider process was launched in any of these
+  tests; the spawner is a double at the service level, and the daemon-level
+  test exercises provisioning directly.
+- Not packaged or real-daemon acceptance. Nothing here was observed in the
+  built desktop package or through a booted daemon end to end.
+- Not owner acceptance.
+
+### Cross-lane touch
+
+Widening the `blockedReason` enum broke `frontend:typecheck`, because the
+renderer maps that enum exhaustively to i18n keys. One line was added to each
+of the eight `frontend/src/renderer/i18n/*.json` files
+(`outcome.missionGraph.blocked.upstream_artifact_unavailable`) to keep the
+repository typechecking. No renderer component was changed; the Mission Control
+task owns the wording and may replace it.

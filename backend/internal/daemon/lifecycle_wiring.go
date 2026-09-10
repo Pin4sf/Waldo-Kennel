@@ -145,6 +145,11 @@ type sessionLifecycle interface {
 	// SetReviewerTerminator late-binds worker lifecycle teardown to the review
 	// service, which is built alongside the controller-facing service below.
 	SetReviewerTerminator(terminator sessionmanager.ReviewerTerminator)
+	// SetAttemptInputProvisioner late-binds artifact handoff, which needs the
+	// artifact store and receipt store built later in boot. Without it a
+	// governed successor with dependencies is refused rather than launched on
+	// a workspace missing its inputs.
+	SetAttemptInputProvisioner(provisioner ports.AttemptInputProvisioner)
 }
 
 // sessionLifecycleMessenger adapts sessionLifecycle to ports.AgentMessenger so

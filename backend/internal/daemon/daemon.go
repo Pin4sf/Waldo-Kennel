@@ -421,6 +421,10 @@ func Run() error {
 	}
 	attempts := attemptSpawner{sessions: sessionSvc, projects: store, agents: agents}
 	attempts.retention = &attemptArtifactRetainer{sessions: sessionSvc, refs: store, artifacts: artifactContent}
+	// Artifact continuity has two halves and both are wired here: retention
+	// captures what an Attempt produced, provisioning gives those exact bytes
+	// to its successor before that successor's provider starts.
+	sessMgr.SetAttemptInputProvisioner(&attemptInputProvisioner{receipts: store, artifacts: artifactContent})
 	// Waldo thinks with its own model; coding agents only execute authorized
 	// work. The provider resolves current settings at each call, so missing or
 	// invalid credentials remain actionable without daemon restart.

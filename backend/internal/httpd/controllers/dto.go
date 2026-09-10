@@ -2904,9 +2904,14 @@ type ScheduleWorkUnitResponse struct {
 	WorkUnit PlanWorkUnitResponse   `json:"workUnit"`
 	State    string                 `json:"state" enum:"blocked,runnable,executing,proven,retryable,paused"`
 	Attempts []ScheduleAttemptBrief `json:"attempts"`
-	// BlockedReason distinguishes waiting on dependency proof from waiting on
-	// the serial custody fence. Empty unless the unit is blocked.
-	BlockedReason        string          `json:"blockedReason,omitempty" enum:"awaiting_dependency_proof,custody_held"`
+	// BlockedReason distinguishes waiting on dependency proof, waiting on the
+	// serial custody fence, and a dependency that is proved but whose output
+	// cannot be handed down. Empty unless the unit is blocked.
+	BlockedReason string `json:"blockedReason,omitempty" enum:"awaiting_dependency_proof,custody_held,upstream_artifact_unavailable"`
+	// BlockedDetail names the specific refusal behind the reason, so
+	// "upstream artifact unavailable" can say whether the predecessor's result
+	// is missing, incomplete, unfrozen or mislineaged.
+	BlockedDetail        string          `json:"blockedDetail,omitempty"`
 	BlockingDependencies []string        `json:"blockingDependencies"`
 	CriterionReady       map[string]bool `json:"criterionReady"`
 }
@@ -3010,7 +3015,7 @@ func scheduleResponse(view outcomevc.ScheduleView) ScheduleResponse {
 		for _, dependency := range entry.BlockingDependencies {
 			dependencies = append(dependencies, string(dependency))
 		}
-		units = append(units, ScheduleWorkUnitResponse{WorkUnit: workUnitResponse(entry.WorkUnit), State: string(entry.State), Attempts: attempts, BlockedReason: string(entry.BlockedReason), BlockingDependencies: dependencies, CriterionReady: ready})
+		units = append(units, ScheduleWorkUnitResponse{WorkUnit: workUnitResponse(entry.WorkUnit), State: string(entry.State), Attempts: attempts, BlockedReason: string(entry.BlockedReason), BlockedDetail: entry.BlockedDetail, BlockingDependencies: dependencies, CriterionReady: ready})
 	}
 	response := ScheduleResponse{
 		OutcomeID: string(view.Plan.OutcomeID), Plan: planRevisionResponse(view.Plan), WorkUnits: units,

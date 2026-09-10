@@ -34,6 +34,12 @@ type SpawnConfig struct {
 	// It is validated by readiness and again at the actual provider boundary.
 	ExecutionPolicy *domain.AttemptExecutionPolicy
 
+	// AttemptInputs are the retained predecessor results a governed successor
+	// was admitted with. Non-empty requires an AttemptInputProvisioner; the
+	// session manager refuses to launch rather than start the successor on a
+	// workspace missing its inputs.
+	AttemptInputs []AttemptInputRef
+
 	RequestedMode domain.SessionMode
 	DisplayName   string
 	Attachments   []SpawnAttachment

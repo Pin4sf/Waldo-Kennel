@@ -109,6 +109,63 @@ func (r *attemptArtifactRetainer) RetainAttempt(ctx context.Context, attempt dom
 	return nil
 }
 
+// attemptInputProvisioner materializes the exact retained predecessor results
+// a successor was admitted with.
+//
+// It resolves each input by Attempt identity *and* artifact version, so a
+// retained result that has since been replaced is refused rather than
+// substituted. That is the whole point of recording versions at admission: the
+// successor must receive the bytes the owner's approved schedule authorized,
+// not whatever the upstream WorkUnit happens to hold now.
+type attemptInputProvisioner struct {
+	receipts  ports.AttemptReceiptStore
+	artifacts *artifactstore.Store
+}
+
+var _ ports.AttemptInputProvisioner = (*attemptInputProvisioner)(nil)
+
+func (p *attemptInputProvisioner) ProvisionAttemptInputs(ctx context.Context, req ports.AttemptInputProvisionRequest) error {
+	if p == nil || p.receipts == nil || p.artifacts == nil {
+		return fmt.Errorf("%w: artifact retention is not wired", ports.ErrAttemptInputProvisioning)
+	}
+	if len(req.Inputs) == 0 {
+		return nil
+	}
+	receipts := make([]domain.AttemptReceipt, 0, len(req.Inputs))
+	for _, input := range req.Inputs {
+		receipt, found, err := p.receipts.GetAttemptReceipt(ctx, input.AttemptID)
+		if err != nil {
+			return fmt.Errorf("%w: read retained result for %s: %w", ports.ErrAttemptInputProvisioning, input.AttemptID, err)
+		}
+		if !found {
+			return fmt.Errorf("%w: attempt %s retained no result", ports.ErrAttemptInputProvisioning, input.AttemptID)
+		}
+		if receipt.ArtifactVersion != input.ArtifactVersion || receipt.WorkUnitID != input.WorkUnitID {
+			return fmt.Errorf("%w: attempt %s now holds artifact %s for %s, not the admitted %s for %s",
+				ports.ErrAttemptInputProvisioning, input.AttemptID, receipt.ArtifactVersion, receipt.WorkUnitID,
+				input.ArtifactVersion, input.WorkUnitID)
+		}
+		if !receipt.Frozen() {
+			return fmt.Errorf("%w: attempt %s result is not frozen and could still change", ports.ErrAttemptInputProvisioning, input.AttemptID)
+		}
+		receipts = append(receipts, receipt)
+	}
+	// Compose reads every blob and verifies its digest and mode, so a corrupt
+	// or missing artifact fails here rather than reaching the workspace.
+	handoff, err := p.artifacts.Compose(ctx, receipts)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	if handoff.WorkspaceKind != req.WorkspaceKind {
+		return fmt.Errorf("%w: predecessors worked in a %s but this successor has a %s",
+			ports.ErrAttemptInputProvisioning, handoff.WorkspaceKind, req.WorkspaceKind)
+	}
+	if err := p.artifacts.Materialize(ctx, handoff, req.WorkspacePath, req.BaseRevision); err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	return nil
+}
+
 var _ ports.AttemptSessionSpawner = attemptSpawner{}
 
 func (a attemptSpawner) ProfileReadiness(ctx context.Context, projectID domain.ProjectID, binding domain.ExecutionBinding, policy *domain.AttemptExecutionPolicy) (ports.AgentProfileReadiness, error) {
@@ -160,6 +217,7 @@ func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest
 		ExecutionPolicy: req.ExecutionPolicy,
 		Prompt:          req.Prompt,
 		DisplayName:     req.DisplayName,
+		AttemptInputs:   req.Inputs,
 	}, binding)
 	if err != nil {
 		return ports.AttemptSpawnResult{}, err

@@ -280,6 +280,11 @@ const (
 	ObservationOwnerPause        = "owner_paused"
 	ObservationOwnerResume       = "owner_resumed"
 	ObservationRecoveryAttention = "needs_attention"
+	// ObservationInputProvisioningFailed records a successor whose predecessor
+	// results could not be placed in its workspace. It is deliberately not an
+	// ambiguous start: provisioning precedes any provider process, so this
+	// fact asserts that nothing was launched.
+	ObservationInputProvisioningFailed = "input_provisioning_failed"
 )
 
 // AttemptFence is the custody lock over one worktree subject. At most ONE

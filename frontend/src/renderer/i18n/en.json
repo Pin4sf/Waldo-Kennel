@@ -2196,6 +2196,7 @@
 	"outcome.missionGraph.state.retryable": "needs another attempt",
 	"outcome.missionGraph.blocked.awaiting_dependency_proof": "Waiting for proof from: {{units}}",
 	"outcome.missionGraph.blocked.custody_held": "Ready, but another work unit holds the workspace",
+	"outcome.missionGraph.blocked.upstream_artifact_unavailable": "A dependency is proved, but its result cannot be handed to this work unit",
 	"outcome.missionGraph.noRunnable.all_units_proven": "Every work unit is proved. Review the result and decide whether to accept it.",
 	"outcome.missionGraph.noRunnable.attempt_executing": "An attempt is working now. Kennel runs one at a time.",
 	"outcome.missionGraph.noRunnable.attempt_paused": "A paused attempt holds the workspace. Resume or cancel it to continue.",

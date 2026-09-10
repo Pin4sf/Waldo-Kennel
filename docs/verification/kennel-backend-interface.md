@@ -22,7 +22,7 @@ local state or to fall back to a legacy session launch.
 | Outcomes of one Project | `GET /api/v1/projects/{id}/outcomes` | `OutcomesEnvelope`; for the derived Board state of the same Outcomes see §2.1 |
 | One Outcome + full contract history | `GET /api/v1/outcomes/{outcomeId}` | `Outcome`, `Current`, `History`, `LatestPlan` |
 | Current Plan | `GET /api/v1/outcomes/{outcomeId}/plan` | |
-| Schedule, dependency reasons, custody | `GET /api/v1/outcomes/{outcomeId}/plans/{planId}/schedule` | Per-unit `state` (`blocked`/`runnable`/`executing`/`proven`/`retryable`/`paused`), `blockedReason` (`awaiting_dependency_proof`/`custody_held`), `blockingDependencies`, `nextRunnableId`, `custodyHeldBy`, `noRunnableReason` (`all_units_proven`/`attempt_executing`/`attempt_paused`/`awaiting_proof`). **This is the canonical graph overlay — do not recompute eligibility in the renderer.** |
+| Schedule, dependency reasons, custody | `GET /api/v1/outcomes/{outcomeId}/plans/{planId}/schedule` | Per-unit `state` (`blocked`/`runnable`/`executing`/`proven`/`retryable`/`paused`), `blockedReason` (`awaiting_dependency_proof`/`custody_held`/`upstream_artifact_unavailable`) plus `blockedDetail` naming the specific upstream refusal, `blockingDependencies`, `nextRunnableId`, `custodyHeldBy`, `noRunnableReason` (`all_units_proven`/`attempt_executing`/`attempt_paused`/`awaiting_proof`). **This is the canonical graph overlay — do not recompute eligibility in the renderer.** |
 | Proof / evidence / verification / acceptance | `GET /api/v1/outcomes/{outcomeId}/proof` | criterion-bound; carries the proof horizon |
 | Attempts | `GET /api/v1/outcomes/{outcomeId}/attempts`, `.../attempts/{attemptId}` | |
 | Start one Attempt | `POST /api/v1/outcomes/{outcomeId}/attempts` | takes an idempotency `requestKey`; this stays the low-level operation. Owner-facing Start is §2.2 |
@@ -33,10 +33,17 @@ local state or to fall back to a legacy session launch.
 
 ### Refusals the UI must render truthfully today
 
-`UPSTREAM_MATERIALIZATION_UNAVAILABLE` (409) from `POST .../attempts` means the
-dependency's retained result is valid but this build cannot yet provision it
-into a successor workspace. It is deliberately fail-closed and is removed only
-by the C13 slice below. Also expect `UPSTREAM_ARTIFACT_MISSING`,
+`UPSTREAM_MATERIALIZATION_UNAVAILABLE` no longer exists: successor provisioning
+is implemented, so a dependent WorkUnit now really starts with its
+predecessors' retained bytes. Its replacement is
+`UPSTREAM_MATERIALIZATION_FAILED` (409), which means validated predecessor
+results could not be placed in the successor's workspace — and asserts that
+**no provider was launched**. The Attempt is ended and the reason is recorded;
+the owner may retry deliberately after repairing the upstream result.
+
+A unit in this situation is also visible before Start: its schedule entry is
+`blocked` with `blockedReason: upstream_artifact_unavailable` and a
+`blockedDetail` naming which refusal applies. Also expect `UPSTREAM_ARTIFACT_MISSING`,
 `UPSTREAM_ARTIFACT_INCOMPLETE`, `UPSTREAM_ARTIFACT_UNREVIEWED`,
 `UPSTREAM_LINEAGE_MISMATCH`, `PLAN_NOT_APPROVED`, `PLAN_BRIEF_INVALIDATED`,
 `ATTEMPT_FENCE_HELD`, `AGENT_BINARY_NOT_FOUND`, `AGENT_PROFILE_NOT_READY`,

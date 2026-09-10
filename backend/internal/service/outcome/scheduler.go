@@ -2,6 +2,7 @@ package outcome
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
@@ -60,6 +61,15 @@ const (
 	// unit currently owns the workspace. This is the serial execution limit,
 	// not a fault.
 	BlockedCustodyHeld WorkUnitBlockedReason = "custody_held"
+	// BlockedUpstreamArtifactUnavailable means a dependency is proved but the
+	// bytes it produced cannot be handed down — missing, incomplete, unfrozen
+	// or mislineaged retention.
+	//
+	// Proof and artifact eligibility are different facts, and a graph that
+	// showed such a unit as runnable would be inviting a Start the daemon is
+	// certain to refuse. The Contract criterion is satisfied; the successor
+	// still has nothing to build on.
+	BlockedUpstreamArtifactUnavailable WorkUnitBlockedReason = "upstream_artifact_unavailable"
 )
 
 // ScheduleNoRunnableReason explains an empty runnable set.
@@ -91,7 +101,11 @@ type WorkUnitScheduleView struct {
 	BlockingDependencies []domain.WorkUnitID
 	// BlockedReason is set only when State is blocked, and says which kind of
 	// blocked it is.
-	BlockedReason  WorkUnitBlockedReason
+	BlockedReason WorkUnitBlockedReason
+	// BlockedDetail carries the specific refusal code behind a blocked state
+	// when there is one, so "upstream artifact unavailable" can say which of
+	// missing, incomplete, unreviewed or mislineaged it actually is.
+	BlockedDetail  string
 	CriterionReady map[domain.CriterionID]bool
 }
 
@@ -270,10 +284,45 @@ func (s *Service) GetSchedule(ctx context.Context, outcomeID domain.OutcomeID, p
 	if err != nil {
 		return ScheduleView{}, err
 	}
-	return deriveSchedule(plan, attempts, proof)
+	return deriveSchedule(plan, attempts, proof, s.upstreamArtifactBlocks(ctx, plan, attempts))
 }
 
-func deriveSchedule(plan domain.PlanRevision, attempts []domain.Attempt, proof ProofView) (ScheduleView, error) {
+// upstreamArtifactBlocks reports, per WorkUnit, why its predecessors' retained
+// results cannot be handed down — using exactly the checks admission runs, so
+// the graph and Start agree about what can begin.
+//
+// A store that cannot answer yields no blocks rather than a fabricated one:
+// admission stays the authority that refuses, and a read-only projection must
+// not invent a blocker it did not establish.
+func (s *Service) upstreamArtifactBlocks(ctx context.Context, plan domain.PlanRevision, attempts []domain.Attempt) map[domain.WorkUnitID]string {
+	blocks := map[domain.WorkUnitID]string{}
+	if s.receipts == nil {
+		return blocks
+	}
+	scoped := attemptsForPlan(plan, attempts)
+	lookup := func(id domain.AttemptID) (domain.AttemptReceipt, bool, error) {
+		return s.receipts.GetAttemptReceipt(ctx, id)
+	}
+	for _, unit := range plan.WorkUnits {
+		if len(unit.DependsOn) == 0 {
+			continue
+		}
+		_, err := upstreamReceiptsFor(unit, scoped, lookup)
+		if err == nil {
+			continue
+		}
+		var api *apierr.Error
+		if errors.As(err, &api) && api.Code != CodeUpstreamArtifactMissing {
+			// UPSTREAM_ARTIFACT_MISSING already has a truthful graph state:
+			// the dependency is simply not proved yet, which the dependency
+			// walk below reports as awaiting proof.
+			blocks[unit.ID] = api.Code
+		}
+	}
+	return blocks
+}
+
+func deriveSchedule(plan domain.PlanRevision, attempts []domain.Attempt, proof ProofView, artifactBlocks map[domain.WorkUnitID]string) (ScheduleView, error) {
 	ordered, err := plan.TopologicalWorkUnits()
 	if err != nil {
 		return ScheduleView{}, err
@@ -337,6 +386,12 @@ func deriveSchedule(plan domain.PlanRevision, attempts []domain.Attempt, proof P
 			switch {
 			case len(entry.BlockingDependencies) > 0:
 				entry.State, entry.BlockedReason = WorkUnitScheduleBlocked, BlockedAwaitingDependencyProof
+			case artifactBlocks[unit.ID] != "":
+				// Every dependency is proved, yet its output cannot be given
+				// to this unit. Reporting it runnable would offer a Start that
+				// admission is certain to refuse.
+				entry.State, entry.BlockedReason = WorkUnitScheduleBlocked, BlockedUpstreamArtifactUnavailable
+				entry.BlockedDetail = artifactBlocks[unit.ID]
 			case active != nil:
 				// Ready on its own terms, waiting only for the serial fence.
 				entry.State, entry.BlockedReason = WorkUnitScheduleBlocked, BlockedCustodyHeld

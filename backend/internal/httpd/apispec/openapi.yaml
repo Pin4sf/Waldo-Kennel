@@ -12901,10 +12901,13 @@ components:
           items:
             $ref: '#/components/schemas/ScheduleAttemptBrief'
           type: array
+        blockedDetail:
+          type: string
         blockedReason:
           enum:
           - awaiting_dependency_proof
           - custody_held
+          - upstream_artifact_unavailable
           type: string
         blockingDependencies:
           items:
