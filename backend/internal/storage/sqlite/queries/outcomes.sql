@@ -185,6 +185,36 @@ ORDER BY i.outcome_id;
 UPDATE outcome_run_intents SET acknowledged_at = ?
 WHERE outcome_id = ? AND generation = ? AND acknowledged_at IS NULL;
 
+-- Supplied-document context. Revisions are append-only; the only permitted
+-- mutation is the write-once, one-way approval.
+
+-- name: CreateOutcomeDocumentContext :exec
+INSERT INTO outcome_document_contexts (id, outcome_id, revision, digest, state, selected_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- name: CreateOutcomeDocumentSource :exec
+INSERT INTO outcome_document_sources (id, context_id, position, source_path, name, content_digest, size_bytes)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- name: CurrentOutcomeDocumentContext :one
+SELECT id, outcome_id, revision, digest, state, selected_at, approved_at
+FROM outcome_document_contexts WHERE outcome_id = ? ORDER BY revision DESC LIMIT 1;
+
+-- name: GetOutcomeDocumentContext :one
+SELECT id, outcome_id, revision, digest, state, selected_at, approved_at
+FROM outcome_document_contexts WHERE id = ?;
+
+-- name: MaxOutcomeDocumentContextRevision :one
+SELECT CAST(COALESCE(MAX(revision), 0) AS INTEGER) FROM outcome_document_contexts WHERE outcome_id = ?;
+
+-- name: ListOutcomeDocumentSources :many
+SELECT id, context_id, position, source_path, name, content_digest, size_bytes
+FROM outcome_document_sources WHERE context_id = ? ORDER BY position;
+
+-- name: ApproveOutcomeDocumentContext :execrows
+UPDATE outcome_document_contexts SET state = 'approved', approved_at = ?
+WHERE id = ? AND state = 'selected';
+
 -- Composed Outcomes (ADR 0007). Contribution is criterion-bound and
 -- append-only; there is deliberately no update or delete query.
 

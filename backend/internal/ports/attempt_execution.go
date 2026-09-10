@@ -26,6 +26,9 @@ type AttemptSpawnRequest struct {
 	// before the provider starts; an empty slice means the WorkUnit has no
 	// dependencies, never that provisioning may be skipped.
 	Inputs []AttemptInputRef
+	// Documents is the approved supplied-document snapshot for a staged
+	// Outcome. Nil for repository work.
+	Documents *AttemptDocumentInputs
 }
 
 // AttemptSpawnResult reports the spawned subordinate session and, when the

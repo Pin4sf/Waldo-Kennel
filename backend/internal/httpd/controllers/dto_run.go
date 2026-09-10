@@ -188,3 +188,51 @@ type OutcomeUsageEnvelope struct {
 	Attempts   []OutcomeUsageAttemptResponse  `json:"attempts"`
 	ObservedAt time.Time                      `json:"observedAt"`
 }
+
+// SelectOutcomeDocumentsRequest is the owner's explicit selection of local
+// documents. Paths are absolute and chosen by the owner; nothing is
+// discovered by traversal.
+type SelectOutcomeDocumentsRequest struct {
+	Paths []string `json:"paths"`
+}
+
+// ApproveOutcomeDocumentsRequest confirms the reviewed scope. The digest is
+// required so a selection made after the owner looked away cannot be approved
+// by a click aimed at the one they read.
+type ApproveOutcomeDocumentsRequest struct {
+	ExpectedDigest string `json:"expectedDigest"`
+}
+
+// DocumentSourceResponse is one selected document as it was when selected.
+// SourcePath is provenance: execution reads the snapshot, never the original.
+type DocumentSourceResponse struct {
+	ID            string `json:"id"`
+	Position      int    `json:"position"`
+	SourcePath    string `json:"sourcePath"`
+	Name          string `json:"name"`
+	ContentDigest string `json:"contentDigest"`
+	SizeBytes     int64  `json:"sizeBytes"`
+}
+
+// OutcomeDocumentContextResponse is one immutable selection revision.
+type OutcomeDocumentContextResponse struct {
+	ID        string `json:"id"`
+	OutcomeID string `json:"outcomeId"`
+	Revision  int64  `json:"revision"`
+	// Digest identifies the selected bytes as a set and is what binds a
+	// proposal to the material it was grounded in.
+	Digest     string                   `json:"digest"`
+	State      string                   `json:"state" enum:"selected,approved"`
+	SelectedAt time.Time                `json:"selectedAt"`
+	ApprovedAt *time.Time               `json:"approvedAt,omitempty"`
+	Sources    []DocumentSourceResponse `json:"sources"`
+	// ChangedSources names documents whose bytes on disk no longer match the
+	// approved snapshot. The run still uses the snapshot; this is what lets
+	// the owner deliberately re-select instead of finding out in the result.
+	ChangedSources []string `json:"changedSources"`
+}
+
+// OutcomeDocumentContextEnvelope is the { documentContext } body.
+type OutcomeDocumentContextEnvelope struct {
+	DocumentContext OutcomeDocumentContextResponse `json:"documentContext"`
+}

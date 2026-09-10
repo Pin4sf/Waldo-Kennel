@@ -827,7 +827,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	// launch path runs, so the provider never sees a tree that is missing the
 	// work it is supposed to build on. A failure here leaves the workspace
 	// inspectable: rollback destroys it only when it is clean.
-	if len(cfg.AttemptInputs) > 0 {
+	if len(cfg.AttemptInputs) > 0 || cfg.AttemptDocuments != nil {
 		if err := m.provisionAttemptInputs(ctx, cfg, project, ws); err != nil {
 			m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
 			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: %w", id, err)
@@ -1095,7 +1095,8 @@ func (m *Manager) provisionAttemptInputs(ctx context.Context, cfg ports.SpawnCon
 		baseRevision, _ = resolveSpawnDiffBase(ctx, ws.Path, ws.BaseRef)
 	}
 	return provisioner.ProvisionAttemptInputs(ctx, ports.AttemptInputProvisionRequest{
-		Inputs: cfg.AttemptInputs, WorkspacePath: ws.Path, WorkspaceKind: kind, BaseRevision: baseRevision,
+		Inputs: cfg.AttemptInputs, Documents: cfg.AttemptDocuments,
+		WorkspacePath: ws.Path, WorkspaceKind: kind, BaseRevision: baseRevision,
 	})
 }
 

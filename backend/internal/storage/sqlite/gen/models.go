@@ -617,6 +617,26 @@ type OutcomeCorrection struct {
 	CreatedAt          time.Time
 }
 
+type OutcomeDocumentContext struct {
+	ID         string
+	OutcomeID  string
+	Revision   int64
+	Digest     string
+	State      string
+	SelectedAt time.Time
+	ApprovedAt sql.NullTime
+}
+
+type OutcomeDocumentSource struct {
+	ID            string
+	ContextID     string
+	Position      int64
+	SourcePath    string
+	Name          string
+	ContentDigest string
+	SizeBytes     int64
+}
+
 type OutcomeRunIntent struct {
 	ID                     string
 	OutcomeID              string

@@ -39,6 +39,9 @@ type SpawnConfig struct {
 	// session manager refuses to launch rather than start the successor on a
 	// workspace missing its inputs.
 	AttemptInputs []AttemptInputRef
+	// AttemptDocuments is the approved supplied-document snapshot a staged
+	// Outcome runs against.
+	AttemptDocuments *AttemptDocumentInputs
 
 	RequestedMode domain.SessionMode
 	DisplayName   string

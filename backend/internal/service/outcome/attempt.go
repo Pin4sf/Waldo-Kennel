@@ -254,6 +254,19 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if err != nil {
 		return AttemptView{}, err
 	}
+	// A supplied-document Outcome stages its approved snapshot the same way,
+	// at the same seam, under the same refusal: unreviewed or edited material
+	// never reaches a provider.
+	documents, hasDocuments, err := s.approvedDocumentsForAdmission(ctx, outcomeID)
+	if err != nil {
+		return AttemptView{}, err
+	}
+	var documentInputs *ports.AttemptDocumentInputs
+	if hasDocuments {
+		documentInputs = &ports.AttemptDocumentInputs{
+			ContextID: documents.ID, Revision: documents.Revision, Digest: documents.Digest,
+		}
+	}
 
 	now := s.clock()
 	attempt, err := s.store.CreateAttemptWithFence(ctx, ports.AttemptAdmission{
@@ -286,7 +299,7 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		ProjectID: projectID, Harness: binding.Provider, ModelSelection: binding.ModelSelection, Model: binding.Model,
 		ExecutionPolicy: &policy,
 		Prompt:          prompt, DisplayName: fmt.Sprintf("%s · %s · attempt %d", outcomeRecord.Title, unit.Title, attempt.Number),
-		Inputs: inputs,
+		Inputs: inputs, Documents: documentInputs,
 	})
 	if err != nil {
 		// Input provisioning happens before any provider process exists, so
@@ -328,6 +341,7 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		// them is what lets a replay or an audit say which bytes the successor
 		// was actually built on, rather than re-resolving "the latest".
 		"inputArtifactVersions": inputArtifactVersions(inputs),
+		"documentContext":       documentInputs,
 	})
 	if err != nil {
 		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous, fmt.Errorf("admission snapshot failed: %w", err))

@@ -120,6 +120,10 @@ func (r *attemptArtifactRetainer) RetainAttempt(ctx context.Context, attempt dom
 type attemptInputProvisioner struct {
 	receipts  ports.AttemptReceiptStore
 	artifacts *artifactstore.Store
+	// contexts resolves an approved supplied-document selection. Absent means
+	// document Outcomes cannot be staged, which is refused rather than
+	// approximated with the owner's live files.
+	contexts ports.DocumentContextStore
 }
 
 var _ ports.AttemptInputProvisioner = (*attemptInputProvisioner)(nil)
@@ -127,6 +131,14 @@ var _ ports.AttemptInputProvisioner = (*attemptInputProvisioner)(nil)
 func (p *attemptInputProvisioner) ProvisionAttemptInputs(ctx context.Context, req ports.AttemptInputProvisionRequest) error {
 	if p == nil || p.receipts == nil || p.artifacts == nil {
 		return fmt.Errorf("%w: artifact retention is not wired", ports.ErrAttemptInputProvisioning)
+	}
+	if len(req.Inputs) == 0 && req.Documents == nil {
+		return nil
+	}
+	if req.Documents != nil {
+		if err := p.provisionDocuments(req); err != nil {
+			return err
+		}
 	}
 	if len(req.Inputs) == 0 {
 		return nil
@@ -161,6 +173,42 @@ func (p *attemptInputProvisioner) ProvisionAttemptInputs(ctx context.Context, re
 			ports.ErrAttemptInputProvisioning, handoff.WorkspaceKind, req.WorkspaceKind)
 	}
 	if err := p.artifacts.Materialize(ctx, handoff, req.WorkspacePath, req.BaseRevision); err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	return nil
+}
+
+// provisionDocuments stages the approved supplied-document snapshot.
+//
+// It reads the snapshot the owner approved, never their original files: an
+// Outcome must not come to mean something different because a document was
+// edited after approval. The digest recorded at admission is re-checked here,
+// so a snapshot that is not the one authorized refuses rather than runs.
+func (p *attemptInputProvisioner) provisionDocuments(req ports.AttemptInputProvisionRequest) error {
+	if p.contexts == nil {
+		return fmt.Errorf("%w: supplied-document context is not wired", ports.ErrAttemptInputProvisioning)
+	}
+	selection, found, err := p.contexts.GetDocumentContext(context.Background(), req.Documents.ContextID)
+	if err != nil {
+		return fmt.Errorf("%w: read approved documents: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	if !found {
+		return fmt.Errorf("%w: approved document context %s is missing", ports.ErrAttemptInputProvisioning, req.Documents.ContextID)
+	}
+	if !selection.Approved() {
+		return fmt.Errorf("%w: document context %s is not approved", ports.ErrAttemptInputProvisioning, selection.ID)
+	}
+	if selection.Digest != req.Documents.Digest || selection.Revision != req.Documents.Revision {
+		return fmt.Errorf("%w: document context %s is revision %d/%s, not the admitted %d/%s",
+			ports.ErrAttemptInputProvisioning, selection.ID, selection.Revision, selection.Digest,
+			req.Documents.Revision, req.Documents.Digest)
+	}
+	handoff, err := p.artifacts.DocumentHandoff(selection.ID, selection.Sources)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	// A staged folder has no revisions, so no base is claimed for it.
+	if err := p.artifacts.Materialize(context.Background(), handoff, req.WorkspacePath, ""); err != nil {
 		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
 	}
 	return nil
@@ -211,13 +259,14 @@ func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest
 		return ports.AttemptSpawnResult{}, err
 	}
 	sess, _, _, err := a.sessions.SpawnExactAttempt(ctx, ports.SpawnConfig{
-		ProjectID:       req.ProjectID,
-		Kind:            domain.KindWorker,
-		Harness:         binding.Provider,
-		ExecutionPolicy: req.ExecutionPolicy,
-		Prompt:          req.Prompt,
-		DisplayName:     req.DisplayName,
-		AttemptInputs:   req.Inputs,
+		ProjectID:        req.ProjectID,
+		Kind:             domain.KindWorker,
+		Harness:          binding.Provider,
+		ExecutionPolicy:  req.ExecutionPolicy,
+		Prompt:           req.Prompt,
+		DisplayName:      req.DisplayName,
+		AttemptInputs:    req.Inputs,
+		AttemptDocuments: req.Documents,
 	}, binding)
 	if err != nil {
 		return ports.AttemptSpawnResult{}, err

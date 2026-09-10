@@ -47,6 +47,101 @@ func (c *OutcomesController) registerRunRoutes(r chi.Router) {
 	r.Post("/outcomes/{outcomeId}/deliveries", c.requestDelivery)
 	r.Get("/outcomes/{outcomeId}/deliveries/{deliveryId}", c.getDelivery)
 	r.Get("/outcomes/{outcomeId}/usage", c.getOutcomeUsage)
+	r.Get("/outcomes/{outcomeId}/documents", c.getDocumentContext)
+	r.Post("/outcomes/{outcomeId}/documents", c.selectDocuments)
+	r.Post("/outcomes/{outcomeId}/documents/approval", c.approveDocuments)
+}
+
+// DocumentContextManager is the supplied-document boundary. DocumentsEnabled
+// answers separately from the method set so a daemon that cannot hold
+// documents reports it honestly instead of failing mid-write.
+type DocumentContextManager interface {
+	DocumentsEnabled() bool
+	SelectDocuments(context.Context, domain.OutcomeID, []string) (outcomevc.DocumentContextView, error)
+	ApproveDocuments(context.Context, domain.OutcomeID, string) (outcomevc.DocumentContextView, error)
+	GetDocumentContext(context.Context, domain.OutcomeID) (outcomevc.DocumentContextView, error)
+}
+
+func (c *OutcomesController) documents() (DocumentContextManager, bool) {
+	manager, ok := c.Svc.(DocumentContextManager)
+	return manager, ok && c.Svc != nil && manager.DocumentsEnabled()
+}
+
+func (c *OutcomesController) documentsUnavailable(w http.ResponseWriter, r *http.Request) {
+	envelope.WriteAPIError(w, r, http.StatusNotImplemented, "not_implemented", "DOCUMENT_CONTEXT_UNAVAILABLE",
+		"Supplied-document Outcomes are not available in this daemon", nil)
+}
+
+func (c *OutcomesController) getDocumentContext(w http.ResponseWriter, r *http.Request) {
+	manager, ok := c.documents()
+	if !ok {
+		c.documentsUnavailable(w, r)
+		return
+	}
+	view, err := manager.GetDocumentContext(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, OutcomeDocumentContextEnvelope{DocumentContext: documentContextResponse(view)})
+}
+
+func (c *OutcomesController) selectDocuments(w http.ResponseWriter, r *http.Request) {
+	manager, ok := c.documents()
+	if !ok {
+		c.documentsUnavailable(w, r)
+		return
+	}
+	var req SelectOutcomeDocumentsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	view, err := manager.SelectDocuments(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), req.Paths)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusCreated, OutcomeDocumentContextEnvelope{DocumentContext: documentContextResponse(view)})
+}
+
+func (c *OutcomesController) approveDocuments(w http.ResponseWriter, r *http.Request) {
+	manager, ok := c.documents()
+	if !ok {
+		c.documentsUnavailable(w, r)
+		return
+	}
+	var req ApproveOutcomeDocumentsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	view, err := manager.ApproveDocuments(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), req.ExpectedDigest)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, OutcomeDocumentContextEnvelope{DocumentContext: documentContextResponse(view)})
+}
+
+func documentContextResponse(view outcomevc.DocumentContextView) OutcomeDocumentContextResponse {
+	sources := make([]DocumentSourceResponse, 0, len(view.Context.Sources))
+	for _, source := range view.Context.Sources {
+		sources = append(sources, DocumentSourceResponse{
+			ID: source.ID, Position: source.Position, SourcePath: source.SourcePath,
+			Name: source.Name, ContentDigest: source.ContentDigest, SizeBytes: source.SizeBytes,
+		})
+	}
+	changed := view.ChangedSources
+	if changed == nil {
+		changed = []string{}
+	}
+	return OutcomeDocumentContextResponse{
+		ID: string(view.Context.ID), OutcomeID: string(view.Context.OutcomeID),
+		Revision: view.Context.Revision, Digest: view.Context.Digest,
+		State: string(view.Context.State), SelectedAt: view.Context.SelectedAt,
+		ApprovedAt: view.Context.ApprovedAt, Sources: sources, ChangedSources: changed,
+	}
 }
 
 func (c *OutcomesController) runStates() (RunStateReader, bool) {

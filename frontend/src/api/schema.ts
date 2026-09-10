@@ -859,6 +859,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the selected supplied documents and whether their sources changed */
+        get: operations["getOutcomeDocumentContext"];
+        put?: never;
+        /** Select local documents as this Outcome's material and snapshot their bytes */
+        post: operations["selectOutcomeDocuments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/documents/approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve the reviewed document scope so work may be staged from it */
+        post: operations["approveOutcomeDocuments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/evidence": {
         parameters: {
             query?: never;
@@ -2947,6 +2982,9 @@ export interface components {
             stale: boolean;
             waived: components["schemas"]["UpstreamBlockResponse"][];
         };
+        ControllersApproveOutcomeDocumentsRequest: {
+            expectedDigest: string;
+        };
         ControllersApprovedCheckResponse: {
             argv: string[];
             criterionId: string;
@@ -2960,6 +2998,15 @@ export interface components {
             pricingProvenance?: string;
             requests: null | number;
             totals: components["schemas"]["UsageTotalsResponse"];
+        };
+        ControllersDocumentSourceResponse: {
+            contentDigest: string;
+            id: string;
+            name: string;
+            position: number;
+            /** Format: int64 */
+            sizeBytes: number;
+            sourcePath: string;
         };
         ControllersIntakeAnalysisRequestEnvelope: {
             request: components["schemas"]["ControllersIntakeAnalysisRequestResponse"];
@@ -3069,6 +3116,24 @@ export interface components {
             /** @enum {string} */
             state: "pending" | "succeeded" | "failed" | "cancelled";
             workUnitId?: string;
+        };
+        ControllersOutcomeDocumentContextEnvelope: {
+            documentContext: components["schemas"]["ControllersOutcomeDocumentContextResponse"];
+        };
+        ControllersOutcomeDocumentContextResponse: {
+            /** Format: date-time */
+            approvedAt?: null | string;
+            changedSources: string[];
+            digest: string;
+            id: string;
+            outcomeId: string;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            selectedAt: string;
+            sources: components["schemas"]["ControllersDocumentSourceResponse"][];
+            /** @enum {string} */
+            state: "selected" | "approved";
         };
         ControllersOutcomeRunCommandRequest: {
             /** @enum {string} */
@@ -3212,6 +3277,9 @@ export interface components {
             host: string;
             port: number;
             reason: string;
+        };
+        ControllersSelectOutcomeDocumentsRequest: {
+            paths: string[];
         };
         ControllersSessionView: {
             activeAgentSwitch?: components["schemas"]["AgentSwitch"];
@@ -8261,6 +8329,200 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomeDocumentContext: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDocumentContextEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    selectOutcomeDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersSelectOutcomeDocumentsRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDocumentContextEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    approveOutcomeDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersApproveOutcomeDocumentsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDocumentContextEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

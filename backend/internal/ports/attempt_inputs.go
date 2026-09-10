@@ -29,11 +29,24 @@ type AttemptInputRef struct {
 	ArtifactVersion string
 }
 
+// AttemptDocumentInputs names the approved supplied-document snapshot a
+// staged Outcome runs against. Naming the revision and digest rather than
+// paths is what stops execution re-reading the owner's originals.
+type AttemptDocumentInputs struct {
+	ContextID domain.DocumentContextID
+	Revision  int64
+	Digest    string
+}
+
 // AttemptInputProvisionRequest is the daemon-owned materialization boundary.
 // Every field is derived from durable Attempt and workspace records; no client
 // path or provider claim reaches it.
 type AttemptInputProvisionRequest struct {
-	Inputs        []AttemptInputRef
+	Inputs []AttemptInputRef
+	// Documents is the approved supplied-document snapshot, when this Outcome
+	// is a document Outcome. Predecessor artifacts and approved documents
+	// share one seam so both obey one fail-closed rule.
+	Documents     *AttemptDocumentInputs
 	WorkspacePath string
 	WorkspaceKind domain.WorkspaceKind
 	// BaseRevision is the successor workspace's own resolved base. It must

@@ -88,6 +88,24 @@ func (q *Queries) AnswerDecompositionRequest(ctx context.Context, arg AnswerDeco
 	return result.RowsAffected()
 }
 
+const approveOutcomeDocumentContext = `-- name: ApproveOutcomeDocumentContext :execrows
+UPDATE outcome_document_contexts SET state = 'approved', approved_at = ?
+WHERE id = ? AND state = 'selected'
+`
+
+type ApproveOutcomeDocumentContextParams struct {
+	ApprovedAt sql.NullTime
+	ID         string
+}
+
+func (q *Queries) ApproveOutcomeDocumentContext(ctx context.Context, arg ApproveOutcomeDocumentContextParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, approveOutcomeDocumentContext, arg.ApprovedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const approvePlanRevision = `-- name: ApprovePlanRevision :execrows
 UPDATE plan_revisions SET status = 'approved'
 WHERE id = ? AND outcome_id = ? AND status = 'proposed'
@@ -474,6 +492,63 @@ func (q *Queries) CreateOutcome(ctx context.Context, arg CreateOutcomeParams) er
 	return err
 }
 
+const createOutcomeDocumentContext = `-- name: CreateOutcomeDocumentContext :exec
+
+INSERT INTO outcome_document_contexts (id, outcome_id, revision, digest, state, selected_at)
+VALUES (?, ?, ?, ?, ?, ?)
+`
+
+type CreateOutcomeDocumentContextParams struct {
+	ID         string
+	OutcomeID  string
+	Revision   int64
+	Digest     string
+	State      string
+	SelectedAt time.Time
+}
+
+// Supplied-document context. Revisions are append-only; the only permitted
+// mutation is the write-once, one-way approval.
+func (q *Queries) CreateOutcomeDocumentContext(ctx context.Context, arg CreateOutcomeDocumentContextParams) error {
+	_, err := q.db.ExecContext(ctx, createOutcomeDocumentContext,
+		arg.ID,
+		arg.OutcomeID,
+		arg.Revision,
+		arg.Digest,
+		arg.State,
+		arg.SelectedAt,
+	)
+	return err
+}
+
+const createOutcomeDocumentSource = `-- name: CreateOutcomeDocumentSource :exec
+INSERT INTO outcome_document_sources (id, context_id, position, source_path, name, content_digest, size_bytes)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateOutcomeDocumentSourceParams struct {
+	ID            string
+	ContextID     string
+	Position      int64
+	SourcePath    string
+	Name          string
+	ContentDigest string
+	SizeBytes     int64
+}
+
+func (q *Queries) CreateOutcomeDocumentSource(ctx context.Context, arg CreateOutcomeDocumentSourceParams) error {
+	_, err := q.db.ExecContext(ctx, createOutcomeDocumentSource,
+		arg.ID,
+		arg.ContextID,
+		arg.Position,
+		arg.SourcePath,
+		arg.Name,
+		arg.ContentDigest,
+		arg.SizeBytes,
+	)
+	return err
+}
+
 const createOutcomeRunIntent = `-- name: CreateOutcomeRunIntent :exec
 
 INSERT INTO outcome_run_intents
@@ -617,6 +692,26 @@ func (q *Queries) CreateWorkUnitCheck(ctx context.Context, arg CreateWorkUnitChe
 		arg.TimeoutSeconds,
 	)
 	return err
+}
+
+const currentOutcomeDocumentContext = `-- name: CurrentOutcomeDocumentContext :one
+SELECT id, outcome_id, revision, digest, state, selected_at, approved_at
+FROM outcome_document_contexts WHERE outcome_id = ? ORDER BY revision DESC LIMIT 1
+`
+
+func (q *Queries) CurrentOutcomeDocumentContext(ctx context.Context, outcomeID string) (OutcomeDocumentContext, error) {
+	row := q.db.QueryRowContext(ctx, currentOutcomeDocumentContext, outcomeID)
+	var i OutcomeDocumentContext
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Revision,
+		&i.Digest,
+		&i.State,
+		&i.SelectedAt,
+		&i.ApprovedAt,
+	)
+	return i, err
 }
 
 const currentOutcomeRunIntent = `-- name: CurrentOutcomeRunIntent :one
@@ -902,6 +997,26 @@ func (q *Queries) GetOutcome(ctx context.Context, id domain.OutcomeID) (Outcome,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ParentOutcomeID,
+	)
+	return i, err
+}
+
+const getOutcomeDocumentContext = `-- name: GetOutcomeDocumentContext :one
+SELECT id, outcome_id, revision, digest, state, selected_at, approved_at
+FROM outcome_document_contexts WHERE id = ?
+`
+
+func (q *Queries) GetOutcomeDocumentContext(ctx context.Context, id string) (OutcomeDocumentContext, error) {
+	row := q.db.QueryRowContext(ctx, getOutcomeDocumentContext, id)
+	var i OutcomeDocumentContext
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Revision,
+		&i.Digest,
+		&i.State,
+		&i.SelectedAt,
+		&i.ApprovedAt,
 	)
 	return i, err
 }
@@ -1565,6 +1680,42 @@ func (q *Queries) ListOpenDecompositionRequests(ctx context.Context) ([]Decompos
 	return items, nil
 }
 
+const listOutcomeDocumentSources = `-- name: ListOutcomeDocumentSources :many
+SELECT id, context_id, position, source_path, name, content_digest, size_bytes
+FROM outcome_document_sources WHERE context_id = ? ORDER BY position
+`
+
+func (q *Queries) ListOutcomeDocumentSources(ctx context.Context, contextID string) ([]OutcomeDocumentSource, error) {
+	rows, err := q.db.QueryContext(ctx, listOutcomeDocumentSources, contextID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OutcomeDocumentSource{}
+	for rows.Next() {
+		var i OutcomeDocumentSource
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContextID,
+			&i.Position,
+			&i.SourcePath,
+			&i.Name,
+			&i.ContentDigest,
+			&i.SizeBytes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOutcomeRunIntents = `-- name: ListOutcomeRunIntents :many
 SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, requested_at, acknowledged_at
 FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation
@@ -1758,6 +1909,17 @@ SELECT CAST(COALESCE(MAX(number), 0) AS INTEGER) FROM decomposition_revisions WH
 
 func (q *Queries) MaxDecompositionRevisionNumber(ctx context.Context, outcomeID domain.OutcomeID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, maxDecompositionRevisionNumber, outcomeID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const maxOutcomeDocumentContextRevision = `-- name: MaxOutcomeDocumentContextRevision :one
+SELECT CAST(COALESCE(MAX(revision), 0) AS INTEGER) FROM outcome_document_contexts WHERE outcome_id = ?
+`
+
+func (q *Queries) MaxOutcomeDocumentContextRevision(ctx context.Context, outcomeID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, maxOutcomeDocumentContextRevision, outcomeID)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err

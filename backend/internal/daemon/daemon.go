@@ -424,7 +424,7 @@ func Run() error {
 	// Artifact continuity has two halves and both are wired here: retention
 	// captures what an Attempt produced, provisioning gives those exact bytes
 	// to its successor before that successor's provider starts.
-	sessMgr.SetAttemptInputProvisioner(&attemptInputProvisioner{receipts: store, artifacts: artifactContent})
+	sessMgr.SetAttemptInputProvisioner(&attemptInputProvisioner{receipts: store, artifacts: artifactContent, contexts: store})
 	// Deterministic checks run under the same frozen policy as the Attempt
 	// that produced the result, in the workspace that produced it.
 	attemptChecks := &attemptCheckRunner{sessions: sessionSvc, refs: store, artifacts: artifactContent}
@@ -445,6 +445,7 @@ func Run() error {
 		WithAttemptRetainer(attempts).
 		WithCheckRunner(attemptChecks, store).
 		WithRunIntents(store).
+		WithDocuments(store, artifactContent).
 		WithProofStore(store).
 		WithAnalystSessionReaper(reaper)
 	// Composed Outcomes (ADR 0007) have no proposer wired: decomposition used

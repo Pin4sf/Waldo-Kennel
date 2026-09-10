@@ -58,6 +58,13 @@ func (s *Service) draftPlanWithProvenance(
 	if projectErr != nil {
 		return domain.PlanDraftProposal{}, projectErr
 	}
+	// A supplied-document Outcome is grounded in the snapshot the owner
+	// selected, not in whatever those files contain now and not in the
+	// Project directory. The context digest travels into the run's input
+	// digest below, so a proposal is bound to the exact material it saw.
+	if err := s.groundInSelectedDocuments(ctx, outcome.ID, &request.RepositoryContext); err != nil {
+		return domain.PlanDraftProposal{}, err
+	}
 	encoded, err := json.Marshal(request)
 	if err != nil {
 		return domain.PlanDraftProposal{}, fmt.Errorf("encode plan intelligence input: %w", err)

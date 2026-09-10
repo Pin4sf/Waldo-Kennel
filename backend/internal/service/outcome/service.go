@@ -118,6 +118,11 @@ type Service struct {
 	// through an approved Plan. Absent means only per-Attempt Start exists,
 	// which is a reduced capability, never an assumed authorization.
 	runIntents ports.RunIntentStore
+	// documents and documentBytes hold supplied-document Outcomes: which
+	// local documents were selected and approved, and the snapshot of their
+	// bytes that execution actually reads.
+	documents     ports.DocumentContextStore
+	documentBytes ports.DocumentSnapshotStore
 
 	staleHeartbeat time.Duration
 }
@@ -125,6 +130,15 @@ type Service struct {
 // WithRunIntents wires durable run intent and serial continuation.
 func (s *Service) WithRunIntents(store ports.RunIntentStore) *Service {
 	s.runIntents = store
+	return s
+}
+
+// WithDocuments wires supplied-document Outcomes. Both halves are required:
+// a record of what was approved without the approved bytes could only be
+// honoured by re-reading the owner's files, which is the thing this path
+// exists to avoid.
+func (s *Service) WithDocuments(contexts ports.DocumentContextStore, snapshots ports.DocumentSnapshotStore) *Service {
+	s.documents, s.documentBytes = contexts, snapshots
 	return s
 }
 

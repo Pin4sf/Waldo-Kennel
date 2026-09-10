@@ -2511,6 +2511,159 @@ paths:
       summary: Read one delivery record
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/documents:
+    get:
+      operationId: getOutcomeDocumentContext
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersOutcomeDocumentContextEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read the selected supplied documents and whether their sources changed
+      tags:
+      - outcomes
+    post:
+      operationId: selectOutcomeDocuments
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersSelectOutcomeDocumentsRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersOutcomeDocumentContextEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Select local documents as this Outcome's material and snapshot their
+        bytes
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/documents/approval:
+    post:
+      operationId: approveOutcomeDocuments
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersApproveOutcomeDocumentsRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControllersOutcomeDocumentContextEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Approve the reviewed document scope so work may be staged from it
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/evidence:
     post:
       operationId: recordOutcomeEvidence
@@ -9046,6 +9199,13 @@ components:
       - waived
       - attention
       type: object
+    ControllersApproveOutcomeDocumentsRequest:
+      properties:
+        expectedDigest:
+          type: string
+      required:
+      - expectedDigest
+      type: object
     ControllersApprovedCheckResponse:
       properties:
         argv:
@@ -9086,6 +9246,29 @@ components:
       - requests
       - costUsd
       - costEstimated
+      type: object
+    ControllersDocumentSourceResponse:
+      properties:
+        contentDigest:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        position:
+          type: integer
+        sizeBytes:
+          format: int64
+          type: integer
+        sourcePath:
+          type: string
+      required:
+      - id
+      - position
+      - sourcePath
+      - name
+      - contentDigest
+      - sizeBytes
       type: object
     ControllersIntakeAnalysisRequestEnvelope:
       properties:
@@ -9371,6 +9554,55 @@ components:
       - fileCount
       - byteCount
       - requestedAt
+      type: object
+    ControllersOutcomeDocumentContextEnvelope:
+      properties:
+        documentContext:
+          $ref: '#/components/schemas/ControllersOutcomeDocumentContextResponse'
+      required:
+      - documentContext
+      type: object
+    ControllersOutcomeDocumentContextResponse:
+      properties:
+        approvedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        changedSources:
+          items:
+            type: string
+          type: array
+        digest:
+          type: string
+        id:
+          type: string
+        outcomeId:
+          type: string
+        revision:
+          format: int64
+          type: integer
+        selectedAt:
+          format: date-time
+          type: string
+        sources:
+          items:
+            $ref: '#/components/schemas/ControllersDocumentSourceResponse'
+          type: array
+        state:
+          enum:
+          - selected
+          - approved
+          type: string
+      required:
+      - id
+      - outcomeId
+      - revision
+      - digest
+      - state
+      - selectedAt
+      - sources
+      - changedSources
       type: object
     ControllersOutcomeRunCommandRequest:
       properties:
@@ -9734,6 +9966,15 @@ components:
       - host
       - port
       - reason
+      type: object
+    ControllersSelectOutcomeDocumentsRequest:
+      properties:
+        paths:
+          items:
+            type: string
+          type: array
+      required:
+      - paths
       type: object
     ControllersSessionView:
       properties:
