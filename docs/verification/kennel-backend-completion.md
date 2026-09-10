@@ -109,7 +109,8 @@ Requirement numbers are the assignment's implementation sequence.
 | Delta + interface note | `7929898` | n/a (docs) | `source` |
 | Mission run state + declared run/delivery/usage API | `34e2705` | `go build`, `go vet`, `go test ./...`, `npm run lint`, `npm run frontend:typecheck` | `automated` |
 | C13 artifact continuity | `f350bef` | `go build`, `go vet`, `go test ./...`, `go test -race` on touched packages, `npm run lint`, `npm run frontend:typecheck` | `automated`; real-provider and packaged acceptance open |
-| Governed checks in the production lifecycle | _(this commit)_ | `go build`, `go vet`, `go test ./...`, `go test -race` on touched packages, `npm run lint`, `npm run sqlc`, `npm run api`, `npm run frontend:typecheck` | `automated`; real-provider and packaged acceptance open |
+| Governed checks in the production lifecycle | `16b492b` | `go build`, `go vet`, `go test ./...`, `go test -race` on touched packages, `npm run lint`, `npm run sqlc`, `npm run api`, `npm run frontend:typecheck` | `automated`; real-provider and packaged acceptance open |
+| Review corrections R1–R3 + launch-boundary test | `49c1cc5`, `97601dd`, `1afc59b`, _(this commit)_ | `go build`, `go vet`, `go test ./...`, `npm run lint`, `npm run sqlc`, `npm run api`, `npm run frontend:typecheck` | `automated` |
 
 ## C13 artifact continuity — what is now true, and what is not
 
@@ -268,3 +269,87 @@ unchanged and still cover the boundary itself.
 - Not live-provider conformance and not packaged acceptance.
 - The two enforced-execution tests **skip** on a host with no enforcement
   mechanism. On this machine (macOS, `/usr/bin/sandbox-exec` present) they ran.
+
+
+## Review corrections — checkpoint `16b492bea`
+
+A reviewer traced three source defects in the checks slice. Each was
+reproduced with a failing regression before being fixed, and none was
+addressed by weakening a guard.
+
+### R1 — the generation fence was defeated by the read order (P1)
+
+After checks wrote new proof, the refresh read `GetProof` first and
+`OutcomeProofGeneration` second. A contradicting record committing between
+them is counted in the generation while missing from the snapshot, so
+classification's commit-time revalidation sees the generation it expects and
+accepts proof that no longer holds.
+
+Fixed by reading the generation first, in one function whose contract *is*
+the ordering. **Red-green shown:** with the previous order the regression
+reports the Attempt classified as `succeeded` on the stale snapshot; with the
+fix it stays `reconciled`. The interleaved record commits on a store hook, not
+a sleep.
+
+- `TestReconcileAttemptOutcomes_RefusesProofThatChangedUnderTheSnapshot`
+- `TestReconcileAttemptOutcomes_ClassifiesAProvedAttempt` (the same fixture
+  without an interleaved write, so the refusal is attributable to the race)
+
+### R2 — checks re-executed on every reconciliation tick (P1)
+
+`RunAttemptChecks` was invoked before consulting any stored result, and
+reconciliation re-enumerates every ended Attempt each tick. A failing check
+relaunched its command indefinitely; a crash between the evidence write and
+its verification relaunched it; two reconcilers could launch it at once. A
+rerun also produced different output under the same request key, so the proof
+write returned a replay conflict that never resolved.
+
+Fixed with durable check-run identity (migration **0123**, `attempt_check_runs`):
+one row per (Attempt, check, artifact version), **reserved before invocation**,
+completed once with an immutable observation. Both proof writes derive from
+that stored observation, so a restart between them rebuilds byte-identical
+content. A reservation that survives a restart is `unknown` — never retried,
+never reported as failed — and its partially written fields are discarded,
+because an incomplete observation is none.
+
+- `TestApprovedChecks_AFailingCheckIsNotRelaunchedOnEveryTick` (three ticks, one invocation)
+- `TestApprovedChecks_ARestartAfterEvidenceCompletesProofWithoutRerunning`
+- `TestApprovedChecks_ConcurrentReconcilersLaunchTheCommandOnce`
+- `TestApprovedChecks_AnInterruptedRunIsUnknownAndNeverRetried`
+- `TestApprovedChecks_APassingCheckProvesTheCriterionOnce` (green half)
+- store level: `TestReserveAttemptCheckRun_AdmitsExactlyOneInvoker`,
+  `TestRecordAttemptCheckObservation_IsWriteOnce`,
+  `TestMarkAttemptCheckRunUnknown_OnlyClosesAnIncompleteReservation`
+
+### R3 — normalization rewrote argv (P2)
+
+Proposed arguments went through `trimAll`, which trims each one and drops
+empties — changing what the command does and shifting positional arguments.
+Now the vector is copied verbatim; the executable is validated separately (a
+bare name, no path, no shell, no surrounding whitespace) and an empty or
+whitespace-only argument is refused **by position** rather than removed.
+
+- `TestPlanDraftChecks_PreservesTheArgumentVectorExactly`
+- `TestPlanDraftChecks_DoesNotCopyTheProposalsBackingArray`
+- `TestApprovedCheckValidate_AcceptsMeaningfulWhitespaceInsideArguments`
+- `TestApprovedCheckValidate_RefusesArgumentsItWillNotSilentlyRewrite`
+
+### C13 launch boundary (reviewer follow-up)
+
+The reviewer noted the daemon-level C13 test calls provisioning directly. A
+real launch-boundary test now drives `Manager.Spawn`:
+
+- `TestSpawn_MaterializesInputsBeforeTheProviderIsLaunched` — measures that
+  the runtime had created nothing when provisioning was asked for
+- `TestSpawn_RefusesToLaunchWhenInputsCannotBeMaterialized` — corrupt input
+  and unwired handoff both leave the runtime with **zero** sessions created
+- `TestSpawn_WithoutAdmittedInputsDoesNotConsultTheProvisioner`
+
+These use the session-manager fakes, so they prove the launch **ordering and
+refusal**, not provider conformance.
+
+### Contract delta published
+
+`docs/verification/kennel-backend-interface.md` §2.6 now states the
+`approvedChecks` shape on `PlanWorkUnit`, that authorization must display it,
+and that `inconclusive` must not be rendered as `failed`.

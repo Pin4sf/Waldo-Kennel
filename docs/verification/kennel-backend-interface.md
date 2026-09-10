@@ -181,6 +181,50 @@ without provenance no exact cost is claimed and the renderer must not print one.
 
 Errors: `404`; `501 USAGE_ATTRIBUTION_UNAVAILABLE` until the slice lands.
 
+## 2.6 Contract delta already shipped: approved checks on Plan WorkUnits
+
+`PlanWorkUnit` in the generated schema now carries `approvedChecks`, and
+**authorization must show them**. They are the commands Kennel itself will run
+and record as independent observation; approving a Plan approves them, so a
+Plan review that does not display them is not an informed authorization.
+
+```
+approvedChecks: {
+  id: string            // minted by the daemon, never by the proposal
+  criterionId: string   // a criterion this WorkUnit owns
+  argv: string[]        // discrete arguments, never a command line
+  timeoutSeconds: number
+}[]
+```
+
+Rendering notes:
+
+- Show `argv` as a command, but do not join and re-split it: the vector is
+  exact, and an argument may legitimately contain spaces.
+- `criterionId` binds the check to the criterion it proves. Show the criterion
+  text, not the raw id.
+- The array is frequently **empty**, and that is a real state, not a loading
+  one: not every WorkUnit can be proved by a command, and no live provider has
+  yet proposed one. An empty list means those criteria will not be proved by a
+  deterministic check.
+- `timeoutSeconds` is a bound the daemon chose or clamped, not the model's
+  request.
+
+Results appear through the existing proof projection: one `EvidenceItem` with
+`sourceType: deterministic_check` and `producerType: tool`, plus a
+`VerificationRun` with `independenceClass: deterministic`, both bound to the
+criterion, the producing Attempt and the exact artifact version. Three
+verification results matter and must read differently:
+
+| Result | Meaning |
+|---|---|
+| `passed` | the command ran under an enforcement mechanism and exited zero |
+| `failed` | it ran and exited non-zero — a problem with the work |
+| `inconclusive` | it never ran, could not be confirmed stopped, or changed the result it was checking — usually a problem with the host or the check, **not** the work |
+
+Do not collapse `inconclusive` into `failed`. A host with no sandbox and a red
+test send the owner to fix different things.
+
 ## 3. Freshness and reconnect
 
 There is one canonical change feed: trigger-backed CDC in `change_log`, streamed
