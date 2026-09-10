@@ -106,8 +106,18 @@ type Service struct {
 	// continuity is unavailable rather than silently faked.
 	receipts ports.AttemptReceiptStore
 	retainer ports.AttemptRetainer
+	// checks executes an Attempt's approved deterministic checks under its own
+	// frozen policy. Absent means a WorkUnit's checks simply do not run, which
+	// leaves its criteria unproved rather than assumed proved.
+	checks ports.AttemptCheckRunner
 
 	staleHeartbeat time.Duration
+}
+
+// WithCheckRunner wires deterministic check execution into classification.
+func (s *Service) WithCheckRunner(runner ports.AttemptCheckRunner) *Service {
+	s.checks = runner
+	return s
 }
 
 // WithStaleHeartbeat configures the stale-attempt threshold.

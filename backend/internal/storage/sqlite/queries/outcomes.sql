@@ -104,6 +104,17 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 SELECT id, plan_revision_id, kind, title, contract_revision_number, output_summary, evidence_checks, verification_requirement, stop_conditions
 FROM work_units WHERE plan_revision_id = ?;
 
+-- Approved deterministic checks are frozen Plan authority; there is
+-- deliberately no update or delete query.
+
+-- name: CreateWorkUnitCheck :exec
+INSERT INTO work_unit_checks (id, work_unit_id, criterion_id, position, argv, timeout_seconds)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- name: ListWorkUnitChecksForWorkUnit :many
+SELECT id, work_unit_id, criterion_id, position, argv, timeout_seconds
+FROM work_unit_checks WHERE work_unit_id = ? ORDER BY position;
+
 -- name: CreateCapabilityGrant :exec
 INSERT INTO capability_grants (id, plan_revision_id, name, scope)
 VALUES (?, ?, ?, ?);

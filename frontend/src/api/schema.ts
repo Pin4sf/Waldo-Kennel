@@ -2947,6 +2947,13 @@ export interface components {
             stale: boolean;
             waived: components["schemas"]["UpstreamBlockResponse"][];
         };
+        ControllersApprovedCheckResponse: {
+            argv: string[];
+            criterionId: string;
+            id: string;
+            /** Format: int64 */
+            timeoutSeconds: number;
+        };
         ControllersAttributedUsageResponse: {
             costEstimated: boolean;
             costUsd: null | number;
@@ -4018,6 +4025,7 @@ export interface components {
             workUnits: components["schemas"]["PlanWorkUnitResponse"][];
         };
         PlanWorkUnitResponse: {
+            approvedChecks: components["schemas"]["ControllersApprovedCheckResponse"][];
             /** Format: int64 */
             contractRevisionNumber: number;
             criterionIds: string[];

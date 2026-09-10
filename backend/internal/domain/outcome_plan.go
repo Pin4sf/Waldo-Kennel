@@ -88,6 +88,11 @@ type WorkUnit struct {
 	DependsOn               []WorkUnitID
 	CriterionIDs            []CriterionID
 	RequiredCapabilities    []string
+	// Checks are the deterministic commands the owner authorized for this
+	// unit. EvidenceChecks above stay prose for the provider to read; these
+	// are what Kennel itself runs and records as independent observation.
+	// Empty is valid: not every WorkUnit can be proved by a command.
+	Checks []ApprovedCheck
 }
 
 // Validate checks the work unit's structural and binding invariants.
@@ -130,6 +135,9 @@ func (w WorkUnit) Validate() error {
 		return err
 	}
 	if err := validateCriterionIDs(w.CriterionIDs); err != nil {
+		return err
+	}
+	if err := ValidateApprovedChecks(w.Checks, w.CriterionIDs); err != nil {
 		return err
 	}
 	if err := validateUniqueCapabilityNames(w.RequiredCapabilities); err != nil {
@@ -596,6 +604,7 @@ type runBriefWorkUnit struct {
 	DependsOn               []string `json:"dependsOn,omitempty"`
 	CriterionIDs            []string `json:"criterionIds,omitempty"`
 	RequiredCapabilities    []string `json:"requiredCapabilities,omitempty"`
+	Checks                  []string `json:"approvedChecks,omitempty"`
 }
 
 type runBriefCore struct {
@@ -643,6 +652,10 @@ func ComputePlanRunBriefCoreDigest(revision ContractRevision, units []WorkUnit, 
 			EvidenceChecks: sortedTrimmed(unit.EvidenceChecks), VerificationRequirement: unit.VerificationRequirement,
 			StopConditions: sortedTrimmed(unit.StopConditions), DependsOn: dependencies, CriterionIDs: criteria,
 			RequiredCapabilities: sortedTrimmed(unit.RequiredCapabilities),
+			// Approved checks are frozen authority: if the command that will
+			// be run could change after approval, the owner did not approve
+			// what runs.
+			Checks: runBriefChecks(unit.Checks),
 		})
 	}
 	grantNames := make([]string, 0, len(grants))
@@ -667,6 +680,16 @@ func ComputePlanRunBriefCoreDigest(revision ContractRevision, units []WorkUnit, 
 // one-unit callers; new Plan formation uses ComputePlanRunBriefCoreDigest.
 func ComputeRunBriefCoreDigest(revision ContractRevision, unit WorkUnit, grants []CapabilityGrant) (string, error) {
 	return ComputePlanRunBriefCoreDigest(revision, []WorkUnit{unit}, grants)
+}
+
+// runBriefChecks renders approved checks in a stable order for the digest.
+func runBriefChecks(checks []ApprovedCheck) []string {
+	out := make([]string, 0, len(checks))
+	for _, check := range checks {
+		out = append(out, fmt.Sprintf("%s|%s|%d|%s", check.ID, check.CriterionID, check.TimeoutSeconds, strings.Join(check.Argv, "\x00")))
+	}
+	sort.Strings(out)
+	return out
 }
 
 func sortedTrimmed(in []string) []string {

@@ -1120,6 +1120,15 @@ type WorkUnit struct {
 	StopConditions          string
 }
 
+type WorkUnitCheck struct {
+	ID             string
+	WorkUnitID     string
+	CriterionID    string
+	Position       int64
+	Argv           string
+	TimeoutSeconds int64
+}
+
 type WorkUnitCriterionBinding struct {
 	WorkUnitID         string
 	ContractRevisionID string

@@ -108,7 +108,8 @@ Requirement numbers are the assignment's implementation sequence.
 |---|---|---|---|
 | Delta + interface note | `7929898` | n/a (docs) | `source` |
 | Mission run state + declared run/delivery/usage API | `34e2705` | `go build`, `go vet`, `go test ./...`, `npm run lint`, `npm run frontend:typecheck` | `automated` |
-| C13 artifact continuity | _(this commit)_ | `go build`, `go vet`, `go test ./...`, `go test -race` on touched packages, `npm run lint`, `npm run frontend:typecheck` | `automated`; real-provider and packaged acceptance open |
+| C13 artifact continuity | `f350bef` | `go build`, `go vet`, `go test ./...`, `go test -race` on touched packages, `npm run lint`, `npm run frontend:typecheck` | `automated`; real-provider and packaged acceptance open |
+| Governed checks in the production lifecycle | _(this commit)_ | `go build`, `go vet`, `go test ./...`, `go test -race` on touched packages, `npm run lint`, `npm run sqlc`, `npm run api`, `npm run frontend:typecheck` | `automated`; real-provider and packaged acceptance open |
 
 ## C13 artifact continuity — what is now true, and what is not
 
@@ -192,3 +193,78 @@ of the eight `frontend/src/renderer/i18n/*.json` files
 (`outcome.missionGraph.blocked.upstream_artifact_unavailable`) to keep the
 repository typechecking. No renderer component was changed; the Mission Control
 task owns the wording and may replace it.
+
+
+## Governed checks and evidence — what is now true, and what is not
+
+### Behavior
+
+`internal/governedcheck` had no production caller. It now has one, and the
+Plan carries the commands it runs.
+
+1. **Approved checks are Plan authority.** `domain.ApprovedCheck` is an
+   argument vector bound to a criterion, with a bounded timeout. It lives on
+   the WorkUnit alongside the prose `EvidenceChecks` the provider reads, and it
+   is folded into the RunBrief core digest — so if the command could change
+   after approval, the frozen digest would no longer match and the Attempt
+   would be refused. Migration **0122** adds `work_unit_checks` with
+   update/delete triggers, a `json_array_length(argv) >= 1` constraint and a
+   timeout bound, so approved authority is frozen in the schema too.
+2. **Model output is a proposal.** `compileApprovedChecks` resolves the
+   criterion alias to internal identity, refuses a criterion the WorkUnit does
+   not own, mints the identifier itself, bounds an absent or absurd timeout,
+   and hands the command to `domain.ValidateApprovedChecks`, which refuses a
+   shell (`sh`, `bash`, `env`, …) and an executable given as a path.
+3. **Checks run under the Attempt's own frozen policy**, in the workspace that
+   Attempt produced, via `daemon.attemptCheckRunner` →
+   `governedcheck.Run`. Capabilities are not widened for checking: a check that
+   could do more than the work it checks is a hole in the same fence.
+4. **The result is re-measured afterwards.** `artifactstore.ObserveVersion`
+   recomputes the workspace manifest; if it differs from the retained artifact
+   version — or cannot be measured at all — every pass from that run becomes
+   `inconclusive` rather than being attached to bytes that no longer exist.
+5. **Proof is written through the canonical services.** Each observation
+   produces an `EvidenceItem` (`deterministic_check` / producer `tool`) and a
+   `VerificationRun` (`deterministic`), both bound to criterion + producing
+   Attempt + exact artifact version, with a deterministic request key over
+   those three so a repeated reconciliation tick replays instead of
+   double-recording.
+6. **Classification consumes that proof.** `ReconcileAttemptOutcomes` runs the
+   checks before judging `attemptProven`, then re-reads the proof projection
+   **and** the append-only proof generation, because new rows moved it. Process
+   completion still proves nothing on its own.
+
+A check that never launched — no enforcement mechanism, an invalid command —
+is recorded `inconclusive`, never `failed`. A host without a sandbox has a
+setup problem; a red check has a work problem, and the owner fixes them
+differently.
+
+### Evidence
+
+| Behavior | Test | Level |
+|---|---|---|
+| Approved commands run enforced in the producing workspace; pass and failure are distinguished and the enforcing mechanism is named | `internal/daemon` `TestRunAttemptChecks_ObservesPassAndFailureInTheProducingWorkspace` | `automated` (real seatbelt on macOS; skips where no mechanism exists) |
+| A check that rewrites the result it is checking is detected | `TestRunAttemptChecks_DetectsACheckThatRewritesTheResultItChecks` | `automated` |
+| An unenforceable policy reports "did not run", not "failed" | `TestRunAttemptChecks_ReportsAnUnenforceablePolicyAsNotRun` | `automated` |
+| did-not-run / failed / changed-under-check / unconfirmed-termination map to distinct proof verdicts | `internal/service/outcome` `TestCheckVerdict_DistinguishesDidNotRunFromFailed` | `automated` |
+| Evidence never implies a confinement that did not exist | `TestCheckVerifierRef_NeverImpliesConfinementThatDidNotExist` | `automated` |
+| Repeated ticks replay; a new artifact version gets its own observation | `TestCheckRequestKey_IsPerAttemptPerArtifactPerCheck` | `automated` |
+| Shells, path executables, unknown and unowned criteria are refused at compile time; ids and timeouts are re-decided by the daemon | `TestCompileApprovedChecks_*` | `automated` |
+| Changing a command or timeout changes the frozen Plan digest | `TestApprovedChecksAreFrozenByThePlanDigest` | `automated` |
+| Checks survive readback in approved order with their criterion binding | `internal/storage/sqlite/store` `TestApprovedChecksRoundTripInApprovedOrder` | `automated` |
+| Rewriting, re-binding, re-ordering, widening or deleting an approved check is refused by the schema | `internal/storage/sqlite` `TestMigration0122ApprovedChecksAreFrozenAuthority`, `..._RefusesUnboundedAndEmptyChecks` | `automated` |
+
+Existing enforcement canaries in `internal/governedcheck/runner_test.go`
+(out-of-workspace write denied, network denied, process-tree termination) are
+unchanged and still cover the boundary itself.
+
+### What this is **not**
+
+- **Not proof that any real Plan carries checks yet.** The reasoning adapter
+  now accepts a `checkCommands` field, but no live provider run has produced
+  one. Until a real proposal does, a Plan's `approvedChecks` is empty and the
+  criteria it would prove stay unproved — which is the fail-closed direction,
+  not a silent pass.
+- Not live-provider conformance and not packaged acceptance.
+- The two enforced-execution tests **skip** on a host with no enforcement
+  mechanism. On this machine (macOS, `/usr/bin/sandbox-exec` present) they ran.

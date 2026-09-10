@@ -425,6 +425,9 @@ func Run() error {
 	// captures what an Attempt produced, provisioning gives those exact bytes
 	// to its successor before that successor's provider starts.
 	sessMgr.SetAttemptInputProvisioner(&attemptInputProvisioner{receipts: store, artifacts: artifactContent})
+	// Deterministic checks run under the same frozen policy as the Attempt
+	// that produced the result, in the workspace that produced it.
+	attemptChecks := &attemptCheckRunner{sessions: sessionSvc, refs: store, artifacts: artifactContent}
 	// Waldo thinks with its own model; coding agents only execute authorized
 	// work. The provider resolves current settings at each call, so missing or
 	// invalid credentials remain actionable without daemon restart.
@@ -440,6 +443,7 @@ func Run() error {
 		WithPlanning(intelligenceProvider, agentSvc).
 		WithExecution(attempts, store).
 		WithAttemptRetainer(attempts).
+		WithCheckRunner(attemptChecks).
 		WithProofStore(store).
 		WithAnalystSessionReaper(reaper)
 	// Composed Outcomes (ADR 0007) have no proposer wired: decomposition used

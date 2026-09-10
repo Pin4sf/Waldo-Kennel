@@ -169,6 +169,39 @@ func (s *Store) Retain(ctx context.Context, in Input) (Result, error) {
 	return Result{Receipt: receipt, ContentDir: final, PublishedNew: final != ""}, nil
 }
 
+// ObserveVersion measures what a workspace currently holds, without
+// publishing anything.
+//
+// It exists so a caller can ask whether the bytes it retained are still the
+// bytes present after something else touched the workspace — a deterministic
+// check that rewrites a lockfile, say. Recomputing the manifest is the only
+// honest way to answer that: a pass taken from pre-change content must not be
+// attached to post-change output.
+func (s *Store) ObserveVersion(ctx context.Context, in Input) (string, error) {
+	if s.maxDuration > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.maxDuration)
+		defer cancel()
+	}
+	if !in.WorkspaceKind.Valid() {
+		return "", fmt.Errorf("unsupported workspace kind %q", in.WorkspaceKind)
+	}
+	root, err := physicalDirectory(in.WorkspacePath)
+	if err != nil {
+		return "", fmt.Errorf("workspace custody: %w", err)
+	}
+	files, capture, err := s.collect(ctx, root, in)
+	if err != nil {
+		return "", err
+	}
+	if !capture.state.Complete() {
+		// An incomplete observation cannot prove the result is unchanged, and
+		// claiming a version for it would be worse than saying so.
+		return "", fmt.Errorf("workspace observation is %s: %s", capture.state, capture.detail)
+	}
+	return string(domain.ArtifactManifestDigest(files)), nil
+}
+
 type captureState struct {
 	state              domain.RetentionState
 	detail             string

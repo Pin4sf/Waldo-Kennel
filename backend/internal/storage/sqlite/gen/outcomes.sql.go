@@ -537,6 +537,35 @@ func (q *Queries) CreateWorkUnit(ctx context.Context, arg CreateWorkUnitParams) 
 	return err
 }
 
+const createWorkUnitCheck = `-- name: CreateWorkUnitCheck :exec
+
+INSERT INTO work_unit_checks (id, work_unit_id, criterion_id, position, argv, timeout_seconds)
+VALUES (?, ?, ?, ?, ?, ?)
+`
+
+type CreateWorkUnitCheckParams struct {
+	ID             string
+	WorkUnitID     string
+	CriterionID    string
+	Position       int64
+	Argv           string
+	TimeoutSeconds int64
+}
+
+// Approved deterministic checks are frozen Plan authority; there is
+// deliberately no update or delete query.
+func (q *Queries) CreateWorkUnitCheck(ctx context.Context, arg CreateWorkUnitCheckParams) error {
+	_, err := q.db.ExecContext(ctx, createWorkUnitCheck,
+		arg.ID,
+		arg.WorkUnitID,
+		arg.CriterionID,
+		arg.Position,
+		arg.Argv,
+		arg.TimeoutSeconds,
+	)
+	return err
+}
+
 const findOutcomeByIdempotencyKey = `-- name: FindOutcomeByIdempotencyKey :one
 SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
 FROM outcomes WHERE idempotency_key = ?
@@ -1329,6 +1358,41 @@ func (q *Queries) ListOutcomesByProject(ctx context.Context, projectID domain.Pr
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ParentOutcomeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkUnitChecksForWorkUnit = `-- name: ListWorkUnitChecksForWorkUnit :many
+SELECT id, work_unit_id, criterion_id, position, argv, timeout_seconds
+FROM work_unit_checks WHERE work_unit_id = ? ORDER BY position
+`
+
+func (q *Queries) ListWorkUnitChecksForWorkUnit(ctx context.Context, workUnitID string) ([]WorkUnitCheck, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkUnitChecksForWorkUnit, workUnitID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkUnitCheck{}
+	for rows.Next() {
+		var i WorkUnitCheck
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkUnitID,
+			&i.CriterionID,
+			&i.Position,
+			&i.Argv,
+			&i.TimeoutSeconds,
 		); err != nil {
 			return nil, err
 		}

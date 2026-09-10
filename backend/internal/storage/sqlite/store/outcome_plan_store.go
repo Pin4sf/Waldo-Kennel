@@ -135,6 +135,21 @@ VALUES (?, ?)`, unit.ID, capability); err != nil {
 				return domain.PlanRevision{}, fmt.Errorf("persist work unit %s required capability %s: %w", unit.ID, capability, err)
 			}
 		}
+		// Position is stored so the approved order is the executed order: a
+		// build check that runs after the test that depends on it is a
+		// different check set than the one reviewed.
+		for position, check := range unit.Checks {
+			argv, err := marshalJSONStrings(check.Argv)
+			if err != nil {
+				return domain.PlanRevision{}, fmt.Errorf("plan %s check %s argv: %w", plan.ID, check.ID, err)
+			}
+			if err := txq.CreateWorkUnitCheck(ctx, gen.CreateWorkUnitCheckParams{
+				ID: string(check.ID), WorkUnitID: string(unit.ID), CriterionID: string(check.CriterionID),
+				Position: int64(position), Argv: argv, TimeoutSeconds: check.TimeoutSeconds,
+			}); err != nil {
+				return domain.PlanRevision{}, fmt.Errorf("persist work unit %s approved check %s: %w", unit.ID, check.ID, err)
+			}
+		}
 	}
 
 	// Dependencies are inserted after every WorkUnit exists, so forward edges
@@ -429,6 +444,21 @@ WHERE work_unit_id = ?
 			return fmt.Errorf("list required capabilities for work unit %s: %w", unit.ID, err)
 		}
 		unit.RequiredCapabilities = append(unit.RequiredCapabilities, capabilities...)
+
+		checkRows, err := s.qr.ListWorkUnitChecksForWorkUnit(ctx, string(unit.ID))
+		if err != nil {
+			return fmt.Errorf("list approved checks for work unit %s: %w", unit.ID, err)
+		}
+		for _, row := range checkRows {
+			argv, err := unmarshalJSONStrings(row.Argv)
+			if err != nil {
+				return fmt.Errorf("approved check %s argv: %w", row.ID, err)
+			}
+			unit.Checks = append(unit.Checks, domain.ApprovedCheck{
+				ID: domain.ApprovedCheckID(row.ID), CriterionID: domain.CriterionID(row.CriterionID),
+				Argv: argv, TimeoutSeconds: row.TimeoutSeconds,
+			})
+		}
 	}
 
 	// Keep serialized readback deterministic even if SQLite row order changes.

@@ -2845,6 +2845,20 @@ type PlanWorkUnitResponse struct {
 	EvidenceChecks          []string `json:"evidenceChecks"`
 	VerificationRequirement string   `json:"verificationRequirement"`
 	StopConditions          []string `json:"stopConditions"`
+	// ApprovedChecks are the deterministic commands Kennel itself will run
+	// and record as independent observation. EvidenceChecks above stay prose
+	// for the provider to read; these are authority frozen at approval.
+	ApprovedChecks []ApprovedCheckResponse `json:"approvedChecks"`
+}
+
+// ApprovedCheckResponse is one deterministic check the owner authorized,
+// bound to the criterion it proves. Argv is a discrete argument vector, never
+// a command line: a shell string would make approved authority unreadable.
+type ApprovedCheckResponse struct {
+	ID             string   `json:"id"`
+	CriterionID    string   `json:"criterionId"`
+	Argv           []string `json:"argv"`
+	TimeoutSeconds int64    `json:"timeoutSeconds"`
 }
 
 // RoutingPreferenceResponse describes the effective provider/model preference.
@@ -2960,7 +2974,19 @@ func workUnitResponse(unit domain.WorkUnit) PlanWorkUnitResponse {
 		EvidenceChecks:          unit.EvidenceChecks,
 		VerificationRequirement: unit.VerificationRequirement,
 		StopConditions:          unit.StopConditions,
+		ApprovedChecks:          approvedCheckResponses(unit.Checks),
 	}
+}
+
+func approvedCheckResponses(checks []domain.ApprovedCheck) []ApprovedCheckResponse {
+	out := make([]ApprovedCheckResponse, 0, len(checks))
+	for _, check := range checks {
+		out = append(out, ApprovedCheckResponse{
+			ID: string(check.ID), CriterionID: string(check.CriterionID),
+			Argv: append([]string(nil), check.Argv...), TimeoutSeconds: check.TimeoutSeconds,
+		})
+	}
+	return out
 }
 
 func stringWorkUnitIDs(ids []domain.WorkUnitID) []string {

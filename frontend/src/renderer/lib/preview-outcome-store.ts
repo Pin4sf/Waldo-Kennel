@@ -148,6 +148,7 @@ export function proposePreviewPlan(outcomeId: string, expectedContractRevision: 
 				provider: "codex",
 				modelSelection: "provider_default",
 				requiredCapabilities: ["worktree.read", "worktree.write", "worktree.exec"],
+				approvedChecks: [],
 				outputSummary: "Produce the agreed result inside the selected project without exceeding the approved scope.",
 				evidenceChecks: [...outcome.currentRevision.successCriteria],
 				verificationRequirement: outcome.currentRevision.review,

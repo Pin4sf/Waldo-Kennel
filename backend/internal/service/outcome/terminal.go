@@ -113,6 +113,24 @@ func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain
 			failures = append(failures, fmt.Errorf("attempt %s cannot be classified: %w", attempt.ID, ports.ErrAttemptReceiptNotReady))
 			continue
 		}
+		// Approved checks run before proof is judged, and their results are
+		// what proof is judged on. Process completion is not criterion proof;
+		// something has to have actually checked the retained bytes.
+		wrote, checkErr := s.runApprovedChecks(ctx, attempt, plan, unit, receipt, proof.Contract)
+		if checkErr != nil {
+			failures = append(failures, checkErr)
+			continue
+		}
+		if wrote {
+			// New proof rows moved the append-only generation, so the reads
+			// this classification commits against have to be taken again.
+			if proof, err = s.GetProof(ctx, outcomeID); err != nil {
+				return err
+			}
+			if generation, err = finalizer.OutcomeProofGeneration(ctx, outcomeID); err != nil {
+				return err
+			}
+		}
 		if !attemptProven(unit, attempt, receipt.ArtifactVersion, proof) {
 			// Absent, failing or contradictory proof leaves the attempt
 			// reconciled. So does proof that named an earlier artifact version:

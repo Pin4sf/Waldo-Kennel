@@ -125,6 +125,7 @@ var shippedMigrations = map[int64]string{
 	119: "0119_attempt_receipts_and_success.sql",
 	120: "0120_immutable_attempt_receipts.sql",
 	121: "0121_reasoning_verification_generation.sql",
+	122: "0122_work_unit_approved_checks.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they
