@@ -274,7 +274,7 @@ func (d *Driver) connect(
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		ClientInfo: &acpsdk.Implementation{
 			Name:    "kennel",
-			Title:   pointer("Agent Orchestrator"),
+			Title:   pointer("Kennel"),
 			Version: "0.1.0",
 		},
 		ClientCapabilities: acpsdk.ClientCapabilities{

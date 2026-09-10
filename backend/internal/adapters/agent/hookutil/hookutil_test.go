@@ -112,3 +112,47 @@ func TestEnsureWorkspaceGitignoreLeavesForeignFileUntouched(t *testing.T) {
 		t.Fatalf("foreign .gitignore was modified: %q", data)
 	}
 }
+
+// The sentinel was renamed away from the donor product's name. A workspace that
+// still carries the old one is Kennel's own file and must keep being rewritten;
+// treating it as somebody else's .gitignore would leave that worktree
+// permanently undeletable.
+func TestLegacySentinelIsStillRecognisedAsKennelManaged(t *testing.T) {
+	dir := t.TempDir()
+	legacy := legacyGitignoreSentinel + "\n/old-hook-file\n"
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnsureWorkspaceGitignore(dir, "hook.json"); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), GitignoreSentinel) {
+		t.Fatalf("legacy-managed .gitignore was not rewritten with the current sentinel:\n%s", content)
+	}
+	if strings.Contains(string(content), "/old-hook-file") {
+		t.Fatal("rewrite kept stale entries from the legacy file")
+	}
+}
+
+// A .gitignore Kennel did not write is still never touched.
+func TestForeignGitignoreIsLeftAlone(t *testing.T) {
+	dir := t.TempDir()
+	foreign := "# the repository's own ignore file\nnode_modules/\n"
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(foreign), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnsureWorkspaceGitignore(dir, "hook.json"); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != foreign {
+		t.Fatalf("a foreign .gitignore was modified:\n%s", content)
+	}
+}

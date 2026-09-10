@@ -15,7 +15,19 @@ import (
 // GitignoreSentinel marks a workspace .gitignore as Kennel-managed so
 // EnsureWorkspaceGitignore can rewrite its own file idempotently while never
 // touching a user- or repo-provided .gitignore at the same path.
-const GitignoreSentinel = "# managed by agent-orchestrator: Kennel hook files stay out of git status"
+const GitignoreSentinel = "# managed by kennel: Kennel hook files stay out of git status"
+
+// legacyGitignoreSentinel is the sentinel Kennel wrote before the rename. A
+// workspace carrying it is still Kennel's own file, so it stays recognised for
+// rewrite -- dropping it would silently orphan every existing managed
+// workspace, whose worktree would then stay dirty forever. Newly written files
+// always carry the current sentinel.
+const legacyGitignoreSentinel = "# managed by agent-orchestrator: Kennel hook files stay out of git status"
+
+// kennelManagedGitignore reports whether content is a .gitignore Kennel wrote.
+func kennelManagedGitignore(content string) bool {
+	return strings.Contains(content, GitignoreSentinel) || strings.Contains(content, legacyGitignoreSentinel)
+}
 
 // EnsureWorkspaceGitignore writes a self-ignoring .gitignore into dir covering
 // the named Kennel-installed files. Hook files land in fresh session worktrees as
@@ -34,7 +46,7 @@ func EnsureWorkspaceGitignore(dir string, names ...string) error {
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
-	if err == nil && !strings.Contains(string(existing), GitignoreSentinel) {
+	if err == nil && !kennelManagedGitignore(string(existing)) {
 		return nil
 	}
 	var b strings.Builder
