@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
@@ -60,10 +59,14 @@ func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain
 	if s.receipts == nil {
 		return fmt.Errorf("outcome %s cannot be classified: receipt storage is unavailable", outcomeID)
 	}
-	// Capture the horizon before reading proof. The classification transaction
-	// uses it to refuse a commit if any fact bound to the attempt landed after
-	// this judgement was made.
-	observedAt := s.clock()
+	finalizer, ok := s.store.(ports.AttemptSuccessFinalizer)
+	if !ok {
+		return fmt.Errorf("attempt success finalizer is unavailable")
+	}
+	generation, err := finalizer.OutcomeProofGeneration(ctx, outcomeID)
+	if err != nil {
+		return err
+	}
 	proof, err := s.GetProof(ctx, outcomeID)
 	if err != nil {
 		return err
@@ -116,7 +119,7 @@ func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain
 			// the output changed after it was checked, so it is unproved again.
 			continue
 		}
-		if err := s.promoteAttemptToSucceeded(ctx, attempt, receipt, observedAt); err != nil {
+		if err := s.promoteAttemptToSucceeded(ctx, attempt, receipt, generation); err != nil {
 			return err
 		}
 	}
@@ -135,7 +138,7 @@ func (s *Service) reconcileOutcomeAttempts(ctx context.Context, outcomeID domain
 // Freezing here is the point at which "what the owner reviewed" becomes stable:
 // after this, a later retention pass over the same workspace cannot replace the
 // manifest that success was assigned on.
-func (s *Service) promoteAttemptToSucceeded(ctx context.Context, attempt domain.Attempt, receipt domain.AttemptReceipt, proofObservedAt time.Time) error {
+func (s *Service) promoteAttemptToSucceeded(ctx context.Context, attempt domain.Attempt, receipt domain.AttemptReceipt, proofGeneration int64) error {
 	// The receipt is the one proof was judged against, passed in rather than
 	// read again. A third read could return a different artifact version than
 	// the one the judgement used.
@@ -149,7 +152,7 @@ func (s *Service) promoteAttemptToSucceeded(ctx context.Context, attempt domain.
 	if err := finalizer.ClassifyAttemptSucceeded(ctx, ports.ClassifyAttemptInput{
 		OutcomeID: attempt.OutcomeID, AttemptID: attempt.ID, ExpectedStatus: domain.AttemptReconciled,
 		ArtifactVersion: receipt.ArtifactVersion, ContractRevisionNumber: attempt.ContractRevisionNumber,
-		ProofObservedAt: proofObservedAt, ObservationKind: domain.ObservationAttemptClassified,
+		ProofGeneration: &proofGeneration, ObservationKind: domain.ObservationAttemptClassified,
 		ObservationPayload: payload, At: s.clock(),
 	}); err != nil {
 		if errors.Is(err, ports.ErrAttemptClassificationStale) {

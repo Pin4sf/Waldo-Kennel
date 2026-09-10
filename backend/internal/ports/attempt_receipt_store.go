@@ -56,12 +56,9 @@ type ClassifyAttemptInput struct {
 	// because proof bound to the old revision cannot classify work under a new
 	// one.
 	ContractRevisionNumber int64
-	// ProofObservedAt is when the reconciler read proof. Evidence and
-	// verifications are append-only, so any fact bound to this Attempt that
-	// landed at or after this moment means the judgement was made against a
-	// proof state that no longer holds, and the classification is refused as
-	// stale rather than committed on a stale read.
-	ProofObservedAt    time.Time
+	// ProofGeneration is the append-only proof record count observed before
+	// reading proof. Nil means no validated observation was made.
+	ProofGeneration    *int64
 	ObservationKind    string
 	ObservationPayload string
 	At                 time.Time
@@ -70,6 +67,7 @@ type ClassifyAttemptInput struct {
 // AttemptSuccessFinalizer prevents the terminal service from implementing a
 // crash-sensitive multi-write protocol above storage.
 type AttemptSuccessFinalizer interface {
+	OutcomeProofGeneration(context.Context, domain.OutcomeID) (int64, error)
 	ClassifyAttemptSucceeded(context.Context, ClassifyAttemptInput) error
 }
 

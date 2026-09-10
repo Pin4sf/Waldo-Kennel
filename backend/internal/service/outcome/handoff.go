@@ -144,15 +144,16 @@ func upstreamReceiptUsable(unit domain.WorkUnit, dependencyID domain.WorkUnitID,
 	return nil
 }
 
-// requireUpstreamArtifacts admits a successor only when every dependency's
-// exact result is available to hand down.
-//
-// It resolves the receipts and keeps only the verdict. Materializing those
-// bytes into the successor's workspace is the other half of continuity and is
-// not wired yet, so this deliberately does not pretend to deliver them -- it
-// refuses the cases where delivery would be impossible or would silently hand
-// over the wrong work.
+// requireUpstreamArtifacts validates dependency receipts, then refuses launch
+// until canonical workspace materialization can consume their exact versions.
+// A metadata-only gate must never admit a successor on the original base.
 func (s *Service) requireUpstreamArtifacts(ctx context.Context, plan domain.PlanRevision, unit domain.WorkUnit) error {
-	_, err := s.resolveUpstreamReceipts(ctx, plan, unit)
-	return err
+	receipts, err := s.resolveUpstreamReceipts(ctx, plan, unit)
+	if err != nil {
+		return err
+	}
+	if len(receipts) != 0 {
+		return apierr.Conflict("UPSTREAM_MATERIALIZATION_UNAVAILABLE", "Dependency results are retained, but this build cannot yet provision them into a successor workspace", map[string]any{"workUnitId": unit.ID})
+	}
+	return nil
 }

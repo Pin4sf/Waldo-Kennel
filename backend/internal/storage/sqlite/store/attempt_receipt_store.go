@@ -181,7 +181,7 @@ func (s *Store) ClassifyAttemptSucceeded(ctx context.Context, in ports.ClassifyA
 	if in.At.IsZero() || in.OutcomeID.IsZero() || in.AttemptID.IsZero() || strings.TrimSpace(in.ArtifactVersion) == "" {
 		return fmt.Errorf("attempt classification requires identity, artifact version and timestamp")
 	}
-	if in.ContractRevisionNumber < 1 || in.ProofObservedAt.IsZero() {
+	if in.ContractRevisionNumber < 1 || in.ProofGeneration == nil {
 		// Without these the transaction cannot tell whether the proof it is
 		// committing on still holds, and would be a second unchecked read.
 		return fmt.Errorf("attempt classification requires the judged contract revision and proof horizon")
@@ -232,16 +232,11 @@ func (s *Store) ClassifyAttemptSucceeded(ctx context.Context, in ports.ClassifyA
 	if current, ok := currentRevision.(int64); !ok || current != in.ContractRevisionNumber {
 		return ports.ErrAttemptClassificationStale
 	}
-	facts, err := q.CountAttemptProofFactsSince(ctx, gen.CountAttemptProofFactsSinceParams{
-		OutcomeID: string(in.OutcomeID), SubjectID: string(in.AttemptID), CreatedAt: in.ProofObservedAt.UTC(),
-		OutcomeID_2: string(in.OutcomeID), SubjectID_2: string(in.AttemptID), CreatedAt_2: in.ProofObservedAt.UTC(),
-	})
+	generation, err := q.OutcomeProofGeneration(ctx, proofGenerationParams(in.OutcomeID))
 	if err != nil {
-		return fmt.Errorf("read proof horizon for %s: %w", in.AttemptID, err)
+		return fmt.Errorf("read proof generation: %w", err)
 	}
-	if facts > 0 {
-		// A contradiction, or any other fact, arrived after the judgement. The
-		// next reconciliation reads proof again and decides on what is now true.
+	if generation != *in.ProofGeneration {
 		return ports.ErrAttemptClassificationStale
 	}
 	if attempt.Status == domain.AttemptSucceeded {
@@ -360,4 +355,13 @@ func int64Ptr(value sql.NullInt64) *int64 {
 	}
 	out := value.Int64
 	return &out
+}
+
+// OutcomeProofGeneration returns a commit-ordered token for append-only proof.
+func (s *Store) OutcomeProofGeneration(ctx context.Context, outcomeID domain.OutcomeID) (int64, error) {
+	return s.qr.OutcomeProofGeneration(ctx, proofGenerationParams(outcomeID))
+}
+
+func proofGenerationParams(id domain.OutcomeID) gen.OutcomeProofGenerationParams {
+	return gen.OutcomeProofGenerationParams{OutcomeID: string(id), OutcomeID_2: string(id), OutcomeID_3: string(id), OutcomeID_4: string(id)}
 }

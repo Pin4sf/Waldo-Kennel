@@ -286,7 +286,7 @@ func TestArtifactPathCannotEscapeTheWorkspace(t *testing.T) {
 func classifyInput(outcomeID domain.OutcomeID, attemptID domain.AttemptID, artifactVersion string, at time.Time) ports.ClassifyAttemptInput {
 	return ports.ClassifyAttemptInput{
 		OutcomeID: outcomeID, AttemptID: attemptID, ExpectedStatus: domain.AttemptReconciled,
-		ArtifactVersion: artifactVersion, ContractRevisionNumber: 1, ProofObservedAt: at,
+		ArtifactVersion: artifactVersion, ContractRevisionNumber: 1, ProofGeneration: new(int64),
 		ObservationKind: domain.ObservationAttemptClassified, ObservationPayload: `{"result":"proved"}`, At: at,
 	}
 }
@@ -341,7 +341,8 @@ func TestClassificationRefusesProofThatChangedAfterTheJudgement(t *testing.T) {
 	at := time.Date(2026, 9, 10, 10, 0, 0, 0, time.UTC)
 	outcomeID, _, attempt, receipt := reconciledAttemptWithReceipt(t, s, "classify-race", at)
 
-	// A contradiction arrives after the reconciler read proof.
+	// A contradiction commits after the proof read, but its timestamp was
+	// assigned earlier. Wall-clock comparison must not miss this writer.
 	if err := s.CreateEvidenceItem(ctx, domain.EvidenceItem{
 		ID: "ev-contradiction", OutcomeID: outcomeID, ContractRevisionID: "cr-classify-race",
 		CriterionID: firstCriterionID(t, s, outcomeID), SubjectType: domain.ProofSubjectAttempt,
@@ -350,7 +351,7 @@ func TestClassificationRefusesProofThatChangedAfterTheJudgement(t *testing.T) {
 		SourceRef: "check", ProducerType: domain.EvidenceProducerTool, ProducerRef: "tool",
 		Summary:       "the retained result does not satisfy the criterion",
 		ContentDigest: strings.Repeat("a", 64), RequestKey: "rk-contradiction",
-		RequestFingerprint: strings.Repeat("b", 64), CreatedAt: at.Add(time.Minute),
+		RequestFingerprint: strings.Repeat("b", 64), CreatedAt: at.Add(-time.Minute),
 	}); err != nil {
 		t.Fatalf("record contradiction: %v", err)
 	}
@@ -395,7 +396,7 @@ func TestClassificationRequiresItsJudgementContext(t *testing.T) {
 
 	bare := classifyInput(outcomeID, attempt.ID, receipt.ArtifactVersion, at)
 	bare.ContractRevisionNumber = 0
-	bare.ProofObservedAt = time.Time{}
+	bare.ProofGeneration = nil
 	if err := s.ClassifyAttemptSucceeded(ctx, bare); err == nil {
 		t.Fatal("classification without its judgement context was accepted")
 	}
