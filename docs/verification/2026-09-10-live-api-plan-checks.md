@@ -22,3 +22,9 @@ Synthetic data only; no user repository contents sent. Key read privately from l
 Request correction with clear feedback: modification requires write intent; verification must fail against the unchanged baseline and pass against the desired result; constraints are not unresolved blockers. Inspect the new proposal before approval. Never silently change the model's authority or accept a check merely because it exits zero. General arbitrary-command semantic verification is not solved by this schema fix.
 
 Pending product work remains: real execution, independent criterion evidence, restart/continuation, rework, durable delivery integration, worker bridge, Outcome conversation, usage and native Electron journey. Codex harness reasoning remains unavailable due unproven confinement; direct API mode is explicit.
+
+## Final gate result and correction attempt
+
+Full backend `go test ./...` completed exit0. Scoped independent review approved the schema repair; focused tests reran after improving the argv fixture.
+
+An explicit owner-style correction request generated Plan3 (HTTP201, ~4 seconds). It repaired modify-and-execute permission selection, but still emitted an output-printing Python command without an assertion and a nonempty 'None identified' blocker. Parent reviewed that exact argv and ran it against the unchanged synthetic baseline: stdout `Hello World\n`, exit0. Therefore it does not establish the requested `Hello Kennel` criterion and the Plan remains unapproved. This is evidence of model proposal-quality limits at the configured minimal effort, not a reason to weaken daemon proof gates or silently substitute a stronger model. No further inference retry was made in this checkpoint.
