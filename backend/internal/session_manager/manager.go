@@ -4,6 +4,7 @@ package sessionmanager
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -812,7 +813,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		// row is deleted outright instead of accumulating as a terminated orphan
 		// in session lists (e.g. when gitworktree refuses the branch).
 		m.rollbackSpawnSeedRow(ctx, id)
-		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: workspace: %w", id, err)
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: workspace: %w: %w", id, ports.ErrAttemptWorkspacePreparation, err)
 	}
 
 	// Per-project workspace provisioning: symlink shared files, then run any
@@ -3140,7 +3141,21 @@ func generatedBranchNamespace(dataDir string) string {
 	if isDefaultDevDataDir(dataDir) {
 		return "dev"
 	}
-	return ""
+	if strings.TrimSpace(dataDir) == "" {
+		return ""
+	}
+	root, err := filepath.Abs(dataDir)
+	if err != nil {
+		root = filepath.Clean(dataDir)
+	}
+	if home, err := os.UserHomeDir(); err == nil && root == filepath.Join(home, ".kennel", "data") {
+		return ""
+	}
+	// Session counters are local to each data directory, but Git branches are
+	// shared by every profile importing the repository. Namespace custom profiles
+	// without renaming persisted branches or touching another profile's worktree.
+	digest := sha256.Sum256([]byte(root))
+	return fmt.Sprintf("profile-%x", digest[:8])
 }
 
 func isDefaultDevDataDir(dataDir string) bool {

@@ -112,3 +112,33 @@ func TestStartAttempt_ReplayedRequestKeyDoesNotLaunchTwice(t *testing.T) {
 		t.Fatalf("spawn calls = %d, want exactly one launch", calls)
 	}
 }
+
+func TestStartAttempt_WorkspaceFailureIsKnownAndReleasesCustody(t *testing.T) {
+	svc, store, spawner, _, outcomeID, planID := newAttemptHarness(t)
+	plan, err := svc.GetLatestPlan(context.Background(), outcomeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rememberFirstWorkUnit(plan.Plan)
+	spawner.failNextSpawn(fmt.Errorf("%w: branch checked out in another profile", ports.ErrAttemptWorkspacePreparation))
+	_, err = svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if requireAPICode(t, err) != "ATTEMPT_WORKSPACE_PREPARATION_FAILED" {
+		t.Fatal(err)
+	}
+	attempts, err := store.ListAttempts(context.Background(), outcomeID)
+	if err != nil || len(attempts) != 1 || attempts[0].Status != domain.AttemptFailed {
+		t.Fatalf("failure not terminal: %+v %v", attempts, err)
+	}
+	observations, err := store.ListAttemptObservations(context.Background(), attempts[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, observation := range observations {
+		if observation.Kind == domain.ObservationAdmissionAmbiguous {
+			t.Fatal("known workspace failure treated as unknown launch")
+		}
+	}
+	if _, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID)); err != nil {
+		t.Fatalf("known failure held custody against retry: %v", err)
+	}
+}

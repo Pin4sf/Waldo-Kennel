@@ -324,7 +324,7 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		// this failure is known rather than ambiguous. It is recorded and the
 		// Attempt is ended, leaving any partially provisioned workspace
 		// attributable instead of holding custody for a run that never began.
-		if errors.Is(err, ports.ErrAttemptInputProvisioning) {
+		if errors.Is(err, ports.ErrAttemptInputProvisioning) || errors.Is(err, ports.ErrAttemptWorkspacePreparation) {
 			return AttemptView{}, s.admitProvisioningFailure(ctx, outcomeID, unit, attempt, err)
 		}
 		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationAdmissionAmbiguous, err)
@@ -637,8 +637,13 @@ func computeCompiledBriefDigest(binding domain.ExecutionBinding, mode domain.Ses
 // manager when it holds partial content, so failed custody stays inspectable.
 func (s *Service) admitProvisioningFailure(ctx context.Context, outcomeID domain.OutcomeID, unit domain.WorkUnit, attempt domain.Attempt, cause error) error {
 	payload := mustJSON(map[string]any{"error": cause.Error(), "workUnitId": string(unit.ID), "providerLaunched": false})
+	kind := domain.ObservationInputProvisioningFailed
+	if errors.Is(cause, ports.ErrAttemptWorkspacePreparation) {
+		kind = domain.ObservationAdmissionFailed
+	}
+
 	var errs []error
-	if _, err := s.store.AppendAttemptObservation(ctx, attempt.ID, domain.ObservationInputProvisioningFailed, payload, s.clock()); err != nil {
+	if _, err := s.store.AppendAttemptObservation(ctx, attempt.ID, kind, payload, s.clock()); err != nil {
 		errs = append(errs, fmt.Errorf("record provisioning failure for %s: %w", attempt.ID, err))
 	}
 	if rows, err := s.store.TransitionAttemptStatus(ctx, outcomeID, attempt.ID, domain.AttemptQueued, domain.AttemptFailed, s.clock()); err != nil {
@@ -647,6 +652,10 @@ func (s *Service) admitProvisioningFailure(ctx context.Context, outcomeID domain
 		errs = append(errs, fmt.Errorf("end unprovisioned attempt %s: %d rows changed", attempt.ID, rows))
 	}
 	refused := materializationFailed(unit, attempt.ID, cause)
+	if errors.Is(cause, ports.ErrAttemptWorkspacePreparation) {
+		refused = apierr.New(apierr.KindConflict, "ATTEMPT_WORKSPACE_PREPARATION_FAILED", "The workspace could not be prepared; no provider was started", map[string]any{"attemptId": string(attempt.ID), "detail": cause.Error()})
+	}
+
 	if len(errs) > 0 {
 		return errors.Join(append(errs, refused)...)
 	}

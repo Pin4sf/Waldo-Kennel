@@ -16,6 +16,11 @@ import (
 // reconciling a run that never began.
 var ErrAttemptInputProvisioning = errors.New("attempt input provisioning failed")
 
+// ErrAttemptWorkspacePreparation is emitted only before provider launch when
+// the session manager cannot create the workspace. Partial workspace debris may
+// remain; it does not imply an unknown provider process.
+var ErrAttemptWorkspacePreparation = errors.New("attempt workspace preparation failed")
+
 // AttemptInputRef names one exact retained predecessor result admitted to a
 // successor.
 //
