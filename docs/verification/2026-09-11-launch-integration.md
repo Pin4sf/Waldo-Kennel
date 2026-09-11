@@ -32,6 +32,14 @@ The new UI currently offers repository-context planning only; the approved-docum
 
 Real session binding, two criterion checks, and restart idempotency have the bounded canary evidence above. Live desktop terminal interaction, unassisted provider completion, a live planning conversation, broader proof discrimination, and delivery acceptance remain open. Provider completion and green checks do not accept an Outcome. The historical queued/unconfirmed user Attempt remains untouched; reconciliation requires truthful stop evidence or the owner's assertion.
 
-## Preservation
+## Follow-up: onboarding and accessible reasoning settings
+
+- `4be9f994550c746ef24d9bdc20450b08ccc17131` removes the Session alerts onboarding test. The previous screen declared an alert sent immediately after a notification request, without delivery confirmation. Actual notification functionality is unchanged. Eight focused tests and typecheck passed.
+- `72443a2bc5e767cd4ff5b1e05592f483463882d6` exposes Settings in the Work sidebar and adds a dedicated AI providers & API keys section. The Work layout previously hid the entire sidebar footer. Ninety-nine focused tests and typecheck passed; the sidebar entry and dedicated settings page were visually verified in the live-daemon browser at desktop width.
+- A fresh Settings-enabled desktop package and package identity checks passed at `72443a2bc5e767cd4ff5b1e05592f483463882d6`, in the separate locked `/private/tmp/kennel-onboarding-package-20260911` worktree. The original running package was not overwritten. Logs: `/private/tmp/kennel-settings-package-build.log` and `/private/tmp/kennel-settings-package-identity.log`.
+- Packaged updater configuration names `Pin4sf/Waldo-Kennel` and `kennel-updater`; it is not configured against the old Agent Orchestrator repository. Release download and installation were not exercised.
+- Agent Orchestrator was imported through the daemon project API from `/Users/shivanshfulper/Developer/Pin4sf/agent-orchestrator`, observed clean at `e01c02eeef1be7b5a7d48f916919a16ae3770740`. The user selected a read-only architecture and gap assessment. No assessment Outcome or provider execution has yet been started; native reasoning reports `REASONING_NOT_READY`, and direct-API setup awaits the user's private key entry. The repository remains unmodified.
+
+## Saved state
 
 Active worktrees remain locked. Local recovery bundles and dirty-file snapshots are under `/Users/shivanshfulper/Developer/Pin4sf/kennel-launch-safety/20260911T155523Z`; ownership is recorded in the adjacent `ACTIVE-WORK.md`. The primary checkout and unrelated worktrees are preserved. No push, merge, deployment, or owner AcceptanceDecision is performed by this checkpoint.
