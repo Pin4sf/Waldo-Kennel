@@ -392,7 +392,11 @@ func (s *Service) runPlanningTurn(ctx context.Context, outcomeID domain.OutcomeI
 	if err != nil {
 		return PlanningView{}, err
 	}
-	request := ports.PlanningDiscussionRequest{Binding: session.Binding, Outcome: view.Outcome, Contract: revision, CriterionAliases: aliases, RepositoryContext: snapshot, Turns: turns, Finalize: finalize}
+	request := ports.PlanningDiscussionRequest{
+		Binding: session.Binding, Outcome: view.Outcome, Contract: revision, CriterionAliases: aliases,
+		RepositoryContext: snapshot, RepositoryToolUse: session.ContextMode == domain.PlanningContextRepositoryRead,
+		Turns: turns, Finalize: finalize,
+	}
 	encodedRequest, _ := json.Marshal(request)
 	run := domain.IntelligenceRun{
 		ID: domain.IntelligenceRunID("intel-" + uuid.NewString()), Kind: domain.IntelligenceRunPlanDraft,

@@ -217,7 +217,7 @@ func TestCaptureAndAnalyzeSimpleOutcomeAdvancesDirectlyToReady(t *testing.T) {
 		t.Fatalf("Capture() status = %q, want captured", captured.Session.Status)
 	}
 
-	ready, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0})
+	ready, err := service.Analyze(context.Background(), captured.Session.ID, AnalyzeInput{ExpectedProposalRevision: 0, RepositoryToolUse: true})
 	if err != nil {
 		t.Fatalf("Analyze() error = %v", err)
 	}
@@ -229,6 +229,9 @@ func TestCaptureAndAnalyzeSimpleOutcomeAdvancesDirectlyToReady(t *testing.T) {
 	}
 	if len(analyzer.seen.ConversationRefs) != 1 || analyzer.seen.ConversationRefs[0].TurnID != "turn-7" {
 		t.Fatalf("analyzer provenance = %+v, want referenced turn id", analyzer.seen.ConversationRefs)
+	}
+	if !analyzer.seen.RepositoryToolUse {
+		t.Fatal("explicit repository tool authority was not propagated")
 	}
 }
 
@@ -276,6 +279,7 @@ func TestMaterialClarificationIsAskedOnceThenAnswerProducesProposal(t *testing.T
 	ready, err := service.AnswerClarification(context.Background(), captured.Session.ID, AnswerClarificationInput{
 		ExpectedProposalRevision: 0,
 		Answer:                   "Use the Mac's local calendar day.",
+		RepositoryToolUse:        true,
 	})
 	if err != nil {
 		t.Fatalf("AnswerClarification() error = %v", err)
@@ -285,6 +289,9 @@ func TestMaterialClarificationIsAskedOnceThenAnswerProducesProposal(t *testing.T
 	}
 	if analyzer.seen.ClarificationText != "Use the Mac's local calendar day." {
 		t.Fatalf("analyzer clarification answer = %q", analyzer.seen.ClarificationText)
+	}
+	if !analyzer.seen.RepositoryToolUse {
+		t.Fatal("clarification turn lost explicit repository tool authority")
 	}
 }
 

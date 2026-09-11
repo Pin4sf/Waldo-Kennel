@@ -83,6 +83,9 @@ type PlanningDiscussionRequest struct {
 	Contract          domain.ContractRevision
 	CriterionAliases  map[string]domain.CriterionID
 	RepositoryContext RepositoryContextSnapshot
+	// RepositoryToolUse comes from the PlanningSession's frozen, owner-approved
+	// repository_read grant. A repository packet alone never grants native tools.
+	RepositoryToolUse bool
 	Turns             []domain.PlanningTurn
 	Finalize          bool
 }

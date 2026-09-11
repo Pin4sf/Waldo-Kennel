@@ -44,6 +44,28 @@ func TestAnalyzeContractPreservesClarificationAsContextNotTemporalSemantics(t *t
 	}
 }
 
+func TestAnalyzeContractPropagatesOnlyExplicitRepositoryToolAuthority(t *testing.T) {
+	for _, authorized := range []bool{false, true} {
+		client := &captureLLMClient{result: `{"decision":"propose","proposal":{"title":"Inspect","desiredState":"Architecture is understood","criteria":[{"text":"Assessment cites source","evidenceExpected":["file references"]}],"reviewMethod":"Review citations","constraints":[],"nonGoals":[],"authorityCeiling":{"readWorkspace":true,"writeWorkspace":false,"executeLocal":false,"useNetwork":false,"commitLocal":false,"createPR":false,"deploy":false,"externalEffect":false},"stopConditions":[],"assumptions":[],"facet":"software"}}`}
+		root := t.TempDir()
+		_, err := NewLLMProvider(client).AnalyzeContract(context.Background(), ports.ContractIntelligenceRequest{
+			Session:           domain.IntakeSession{Statement: "Understand the architecture"},
+			RepositoryContext: ports.RepositoryContextSnapshot{Root: root},
+			RepositoryToolUse: authorized,
+		})
+		if err != nil {
+			t.Fatalf("authorized=%t: %v", authorized, err)
+		}
+		if authorized {
+			if client.request.ContextAccess.Mode != ports.ReasoningContextRepositoryRead || client.request.ContextAccess.Root != root {
+				t.Fatalf("authorized context access = %+v", client.request.ContextAccess)
+			}
+		} else if client.request.ContextAccess != (ports.ReasoningContextAccess{}) {
+			t.Fatalf("packet-only context widened = %+v", client.request.ContextAccess)
+		}
+	}
+}
+
 func TestDraftPlanCarriesExplicitReplanFeedbackAndChecks(t *testing.T) {
 	client := &captureLLMClient{result: `{"summary":"Use the inspected check","workUnits":[{"key":"W1","title":"Implement","intent":"modify_and_execute","outputSummary":"Changed code and verified it","criteriaCovered":["C1"],"dependsOn":[],"evidenceIdeas":["test output"]}],"assumptions":[],"blockers":[]}`}
 	provider := NewLLMProvider(client)
@@ -154,5 +176,21 @@ func TestDiscussPlanCarriesConversationAndRestrictsUnapprovedCommands(t *testing
 	intents := unit["intent"].(map[string]any)["enum"].([]any)
 	if len(intents) != 2 || intents[0] != "inspect" || intents[1] != "modify" {
 		t.Fatalf("interactive planning intents = %#v", intents)
+	}
+}
+
+func TestDiscussPlanPropagatesFrozenRepositoryToolGrant(t *testing.T) {
+	client := &captureLLMClient{result: `{"decision":"clarification","message":"One choice remains.","clarification":{"question":"Which layer?","reason":"It changes the evidence.","recommendation":"Trace the runtime layer.","alternatives":["Trace the UI layer"]}}`}
+	root := t.TempDir()
+	_, err := NewLLMProvider(client).DiscussPlan(context.Background(), ports.PlanningDiscussionRequest{
+		Contract:          domain.ContractRevision{Number: 1, Goal: "Assess architecture", AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true}},
+		RepositoryContext: ports.RepositoryContextSnapshot{Root: root},
+		RepositoryToolUse: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.request.ContextAccess.Mode != ports.ReasoningContextRepositoryRead || client.request.ContextAccess.Root != root {
+		t.Fatalf("planning context access = %+v", client.request.ContextAccess)
 	}
 }

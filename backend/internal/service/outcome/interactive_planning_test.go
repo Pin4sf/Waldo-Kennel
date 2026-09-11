@@ -20,16 +20,17 @@ import (
 )
 
 type interactivePlanningFake struct {
-	repositoryObserved bool
-	candidateCalls     int
-	discussCalls       int
-	candidateErr       error
-	candidates         []ports.PlanningCandidate
-	effectiveModel     string
-	beforeDiscuss      func()
-	discussStarted     chan struct{}
-	discussRelease     chan struct{}
-	ignoreCancellation bool
+	repositoryObserved        bool
+	repositoryToolUseObserved bool
+	candidateCalls            int
+	discussCalls              int
+	candidateErr              error
+	candidates                []ports.PlanningCandidate
+	effectiveModel            string
+	beforeDiscuss             func()
+	discussStarted            chan struct{}
+	discussRelease            chan struct{}
+	ignoreCancellation        bool
 }
 
 func initPlanningRepo(t *testing.T) string {
@@ -70,6 +71,7 @@ func (f *interactivePlanningFake) PlanningCandidates(context.Context) ([]ports.P
 }
 func (f *interactivePlanningFake) DiscussPlan(ctx context.Context, request ports.PlanningDiscussionRequest) (ports.PlanningDiscussionResponse, error) {
 	f.discussCalls++
+	f.repositoryToolUseObserved = f.repositoryToolUseObserved || request.RepositoryToolUse
 	if f.discussStarted != nil {
 		close(f.discussStarted)
 	}
@@ -209,8 +211,8 @@ func TestInteractivePlanning_RepositoryDiscussionProducesOnlyAProposedPlan(t *te
 	if err != nil {
 		t.Fatalf("continue planning: %v", err)
 	}
-	if !provider.repositoryObserved || len(view.Turns) != 2 || view.Turns[1].Kind != domain.PlanningTurnClarification || view.ProposedPlan != nil {
-		t.Fatalf("clarification planning view = %+v repositoryObserved=%v", view, provider.repositoryObserved)
+	if !provider.repositoryObserved || !provider.repositoryToolUseObserved || len(view.Turns) != 2 || view.Turns[1].Kind != domain.PlanningTurnClarification || view.ProposedPlan != nil {
+		t.Fatalf("clarification planning view = %+v repositoryObserved=%v repositoryToolUse=%v", view, provider.repositoryObserved, provider.repositoryToolUseObserved)
 	}
 
 	view, err = svc.ContinuePlanning(ctx, created.Outcome.ID, view.Session.ID, outcome.PlanningMessageInput{

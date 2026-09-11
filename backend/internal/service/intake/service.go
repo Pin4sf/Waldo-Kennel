@@ -32,6 +32,9 @@ type CaptureInput struct {
 // AnalyzeInput guards analyzer work with an expected revision.
 type AnalyzeInput struct {
 	ExpectedProposalRevision int64
+	// RepositoryToolUse explicitly allows the configured native reasoner to
+	// inspect the registered repository read-only for this analysis call.
+	RepositoryToolUse bool
 	// Offline runs the deterministic floor instead of the configured analyzer.
 	// It is how a person stops waiting for an agent and takes the proposal
 	// that is always available, and it never asks an agent anything.
@@ -42,6 +45,9 @@ type AnalyzeInput struct {
 type AnswerClarificationInput struct {
 	ExpectedProposalRevision int64
 	Answer                   string
+	// RepositoryToolUse must be re-authorized for the clarification turn; an
+	// earlier call's authority is never inferred or persisted as execution state.
+	RepositoryToolUse bool
 	// Offline preserves an explicit deterministic analysis choice through the
 	// material-question round trip instead of handing the answer to a live provider.
 	Offline bool
@@ -201,7 +207,8 @@ func (service *Service) Analyze(ctx context.Context, id domain.IntakeSessionID, 
 	ticket, err := service.chooseAnalyzer(input.Offline).Analyze(ctx, ports.IntakeAnalysisInput{
 		Session: analyzing.Session, ConversationRefs: analyzing.ConversationRefs,
 		PreviousProposal: analyzing.Proposal, Clarification: analyzing.Clarification,
-		Defer: deferral.open,
+		RepositoryToolUse: input.RepositoryToolUse,
+		Defer:             deferral.open,
 	})
 	if err != nil {
 		// An analyzer that opened an ask and then failed has left one nothing
@@ -243,6 +250,7 @@ func (service *Service) AnswerClarification(ctx context.Context, id domain.Intak
 		Session: analyzing.Session, ConversationRefs: analyzing.ConversationRefs,
 		PreviousProposal: analyzing.Proposal, Clarification: analyzing.Clarification,
 		ClarificationText: input.Answer,
+		RepositoryToolUse: input.RepositoryToolUse,
 		Defer:             deferral.open,
 	})
 	if err != nil {
