@@ -11,10 +11,10 @@ Implements recoverable Trash/Restore and explicit permanent deletion. See [ADR 0
 - Retained filesystem tests: removing an owned symlink does not traverse it; path traversal and replaced document root refused.
 - Service tests: invalid confirmation, stale revision and active execution do not mutate state; explicit confirmation follows Trash and durable cleanup admission before purge.
 - Renderer tests: visible title, both choices, explicit confirmation word, active blockers, pending cleanup prevents Restore.
-- Full Go build/vet/test passed. Affected SQLite/service/artifact/HTTP suites and HTTP/spec parity passed. Race testing passed across SQLite, Outcome service, artifactstore and HTTP packages.
+- Full Go build/vet/test passed. Affected SQLite/service/artifact/HTTP suites and HTTP/spec parity passed. The final full `go test -race ./...` passed on `5a75940d3`, including SQLite store (313.526 seconds).
 - Full frontend suite: 227 files, 2741 passed, 6 skipped. Typecheck passed. Localized deletion/i18n checks passed. Earlier execution without localhost permissions failed socket tests; the subsequent permitted run passed.
 - Go lint: zero findings after resolving integrated-branch findings as well as deletion changes.
-- Final packaged Electron build passed. Bootstrap passed. Foundation gate results are recorded in the PR after the final committed run.
+- Final packaged Electron build passed. Bootstrap passed. The complete `npm run test:foundation` gate passed on `5a75940d3`: Go build/test/vet, shared packages, Island, frontend typecheck/test/build, pod gate and clean sqlc/API regeneration. `npx @redwoodjs/agent-ci run --all` exited 0 but reported no relevant workflows for this branch; it adds no test evidence.
 
 ## Real daemon and packaged app
 
