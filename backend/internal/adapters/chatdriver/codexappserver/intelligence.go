@@ -25,7 +25,7 @@ const defaultIntelligenceTimeout = 2 * time.Minute
 
 const intelligenceTurnAckTimeout = 5 * time.Second
 
-const intelligencePermissionProfile = "kennel_reasoning_read"
+const intelligencePermissionProfile = ":read-only"
 
 // IntelligenceConfig selects the exact harness request. Empty Model and Effort
 // preserve Codex's provider-default semantics; the adapter never fills either
@@ -216,16 +216,9 @@ func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model
 		return nil, err
 	}
 
-	// The named profile is the enforcement boundary: only the minimal runtime
-	// surface and this request's workspace are readable; writes and network are
-	// absent. Prompt wording below is defense in depth, not authority.
-	profile := map[string]any{
-		"filesystem": map[string]any{
-			":minimal": "read",
-			workspace:  "read",
-		},
-		"network": map[string]any{"enabled": false},
-	}
+	// Use Codex's native read-only profile rather than synthesizing a Kennel
+	// permission table. This keeps local tools and skills on the normal harness
+	// path while the pre-authorization proposal call remains effect-free.
 	params := map[string]any{
 		"cwd":                   workspace,
 		"approvalPolicy":        "never",
@@ -234,8 +227,6 @@ func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model
 		"environments":          []any{},
 		"ephemeral":             true,
 		"config": map[string]any{
-			"default_permissions": intelligencePermissionProfile,
-			"permissions":         map[string]any{intelligencePermissionProfile: profile},
 			// Local plugins and their skills remain available. Apps and MCP servers
 			// stay out of this one-shot path because it cannot relay an interactive
 			// approval before an external effect; ordinary Session UI owns that loop.

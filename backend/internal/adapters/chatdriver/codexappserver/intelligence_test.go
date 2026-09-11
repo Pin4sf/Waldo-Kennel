@@ -75,21 +75,11 @@ func TestIntelligenceClientPinsBoundedStructuredTurn(t *testing.T) {
 	if got, ok := startParams.Config["mcp_servers"].(map[string]any); !ok || len(got) != 0 {
 		t.Fatalf("ambient MCP config = %#v, want an explicit empty map", startParams.Config["mcp_servers"])
 	}
-	profiles, ok := startParams.Config["permissions"].(map[string]any)
-	if !ok {
-		t.Fatalf("permission profiles = %#v", startParams.Config["permissions"])
+	if _, found := startParams.Config["permissions"]; found {
+		t.Fatalf("native permission table was shadowed: %#v", startParams.Config["permissions"])
 	}
-	profile, ok := profiles[intelligencePermissionProfile].(map[string]any)
-	if !ok {
-		t.Fatalf("reasoning permission profile = %#v", profiles[intelligencePermissionProfile])
-	}
-	filesystem, ok := profile["filesystem"].(map[string]any)
-	if !ok || filesystem[":minimal"] != "read" || filesystem[startParams.RuntimeRoots[0]] != "read" || len(filesystem) != 2 {
-		t.Fatalf("reasoning filesystem scope = %#v", profile["filesystem"])
-	}
-	network, ok := profile["network"].(map[string]any)
-	if !ok || network["enabled"] != false {
-		t.Fatalf("reasoning network scope = %#v", profile["network"])
+	if _, found := startParams.Config["default_permissions"]; found {
+		t.Fatalf("native default permission was shadowed: %#v", startParams.Config["default_permissions"])
 	}
 	features, ok := startParams.Config["features"].(map[string]any)
 	if !ok || features["apps"] != false {
@@ -225,11 +215,8 @@ func TestIntelligenceClientPinsAuthorizedRepositoryReadWithoutWidening(t *testin
 	if len(startParams.RuntimeRoots) != 1 || startParams.RuntimeRoots[0] != root {
 		t.Fatalf("repository runtime roots = %v", startParams.RuntimeRoots)
 	}
-	profiles := startParams.Config["permissions"].(map[string]any)
-	profile := profiles[intelligencePermissionProfile].(map[string]any)
-	filesystem := profile["filesystem"].(map[string]any)
-	if filesystem[root] != "read" || filesystem[":minimal"] != "read" || len(filesystem) != 2 {
-		t.Fatalf("repository filesystem scope = %#v", filesystem)
+	if _, found := startParams.Config["permissions"]; found {
+		t.Fatalf("repository reasoning shadowed native permission profiles: %#v", startParams.Config["permissions"])
 	}
 
 	turn := srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
