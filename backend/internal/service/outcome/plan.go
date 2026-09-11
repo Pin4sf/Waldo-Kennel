@@ -246,6 +246,9 @@ func (s *Service) compileAndRoutePlan(
 			RequiredCapabilities:    requiredCapabilities,
 			Checks:                  approvedChecks,
 		}
+		if err := validateWorkUnitChecksAreExecutable(unit); err != nil {
+			return nil, nil, err
+		}
 		if err := validateWorkUnitWithinContractCeiling(revision, unit); err != nil {
 			return nil, nil, err
 		}
@@ -342,6 +345,42 @@ func contractCapabilityCeiling(revision domain.ContractRevision) []string {
 		allowed = append(allowed, domain.CapabilityWorktreeExec)
 	}
 	return allowed
+}
+
+// validateWorkUnitChecksAreExecutable refuses a Plan proposing checks the
+// WorkUnit carrying them could never run.
+//
+// governedcheck launches nothing without worktree execution in the Attempt's
+// frozen policy, so checks on a unit that only reads or writes are recorded as
+// unavailable at reconciliation time — truthfully, but far too late. The owner
+// has by then approved a Plan whose criterion coverage was never real. Refusing
+// here moves that discovery to approval, where it is a Plan to revise rather
+// than a result to explain.
+//
+// The refusal deliberately does not widen the unit's capabilities to fit the
+// checks. Execution authority granted to satisfy a check would also be granted
+// to the provider running the work, which is a larger authority than anyone
+// proposed. Naming the wrong intent is the proposal's defect to correct.
+func validateWorkUnitChecksAreExecutable(unit domain.WorkUnit) error {
+	if len(unit.Checks) == 0 {
+		return nil
+	}
+	for _, capability := range unit.RequiredCapabilities {
+		if capability == domain.CapabilityWorktreeExec {
+			return nil
+		}
+	}
+	commands := make([]string, 0, len(unit.Checks))
+	for _, check := range unit.Checks {
+		commands = append(commands, strings.Join(check.Argv, " "))
+	}
+	return apierr.New(apierr.KindConflict, "PLAN_CHECK_EXECUTION_REQUIRED",
+		"This WorkUnit proposes deterministic checks but does not require "+domain.CapabilityWorktreeExec+
+			", so the checks could never run and its criteria would go unproved; propose them on an executing WorkUnit",
+		map[string]any{
+			"workUnitId": string(unit.ID), "checks": commands,
+			"requiredCapabilities": unit.RequiredCapabilities,
+		})
 }
 
 func validateWorkUnitWithinContractCeiling(revision domain.ContractRevision, unit domain.WorkUnit) error {

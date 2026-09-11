@@ -102,6 +102,78 @@ func TestCompileApprovedChecks_RefusesWhatApprovalCouldNotHonestlyCover(t *testi
 	}
 }
 
+// TestValidateWorkUnitChecksAreExecutable is the planning-quality gate for the
+// case the runtime already fails closed on but approval could not see.
+//
+// governedcheck refuses to launch any check unless the Attempt's frozen policy
+// carries worktree execution, so checks on a unit that only reads are recorded
+// as unavailable — truthfully, but after approval, after an Attempt, and after
+// the owner believed the criterion was covered. Approval has to be able to see
+// it, so a Plan that proposes checks a WorkUnit could never run is refused.
+func TestValidateWorkUnitChecksAreExecutable(t *testing.T) {
+	check := domain.ApprovedCheck{ID: "chk-1", CriterionID: "crit-a", Argv: []string{"go", "test", "./..."}, TimeoutSeconds: 60}
+
+	cases := []struct {
+		name         string
+		intent       domain.WorkUnitIntent
+		checks       []domain.ApprovedCheck
+		wantRefusal  bool
+		wantErrorHas string
+	}{
+		{
+			name:   "an inspecting unit may carry no checks",
+			intent: domain.WorkUnitIntentInspect,
+		},
+		{
+			name:         "an inspecting unit may not carry checks it cannot run",
+			intent:       domain.WorkUnitIntentInspect,
+			checks:       []domain.ApprovedCheck{check},
+			wantRefusal:  true,
+			wantErrorHas: domain.CapabilityWorktreeExec,
+		},
+		{
+			name:         "a modifying unit may not either",
+			intent:       domain.WorkUnitIntentModify,
+			checks:       []domain.ApprovedCheck{check},
+			wantRefusal:  true,
+			wantErrorHas: domain.CapabilityWorktreeExec,
+		},
+		{
+			name:   "an executing unit may",
+			intent: domain.WorkUnitIntentExecute,
+			checks: []domain.ApprovedCheck{check},
+		},
+		{
+			name:   "so may one that modifies and executes",
+			intent: domain.WorkUnitIntentModifyAndExecute,
+			checks: []domain.ApprovedCheck{check},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			capabilities, err := tc.intent.RequiredCapabilities()
+			if err != nil {
+				t.Fatalf("capabilities: %v", err)
+			}
+			unit := domain.WorkUnit{ID: "wu-a", RequiredCapabilities: capabilities, Checks: tc.checks}
+			err = validateWorkUnitChecksAreExecutable(unit)
+			if !tc.wantRefusal {
+				if err != nil {
+					t.Fatalf("unexpected refusal: %v", err)
+				}
+				return
+			}
+			if code := compileCheckCode(t, err); code != "PLAN_CHECK_EXECUTION_REQUIRED" {
+				t.Fatalf("code = %q, want PLAN_CHECK_EXECUTION_REQUIRED", code)
+			}
+			if !strings.Contains(err.Error(), tc.wantErrorHas) {
+				t.Fatalf("refusal %q does not name %q", err, tc.wantErrorHas)
+			}
+		})
+	}
+}
+
 // TestApprovedChecksAreFrozenByThePlanDigest is what makes them authority: if
 // the command could change after approval, the owner did not approve what runs.
 func TestApprovedChecksAreFrozenByThePlanDigest(t *testing.T) {
