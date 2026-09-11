@@ -2860,11 +2860,13 @@ export interface components {
             /** Format: int64 */
             expectedProposalRevision: number;
             offline?: boolean;
+            repositoryToolUse?: boolean;
         };
         AnswerIntakeClarificationRequest: {
             answer: string;
             /** Format: int64 */
             expectedProposalRevision: number;
+            repositoryToolUse?: boolean;
         };
         AppendWaldoTurnRequest: {
             contextAttachmentIds?: string[];

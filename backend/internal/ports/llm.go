@@ -1,6 +1,51 @@
 package ports
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+	"strings"
+)
+
+// ReasoningContextMode identifies the filesystem context a native reasoning
+// adapter may expose to model tools. The zero value is packet-only: request
+// text may contain a bounded snapshot, but tools receive no Project access.
+type ReasoningContextMode string
+
+const (
+	// ReasoningContextPacketOnly exposes only the bounded context rendered into
+	// the request text; native tools receive no Project root.
+	ReasoningContextPacketOnly ReasoningContextMode = ""
+	// ReasoningContextRepositoryRead exposes the selected Project root through
+	// the native provider's read-only investigation boundary.
+	ReasoningContextRepositoryRead ReasoningContextMode = "repository_read"
+)
+
+// ReasoningContextAccess is request-scoped authority for native reasoning.
+// It never grants writes, arbitrary network access, or execution authority.
+type ReasoningContextAccess struct {
+	Mode ReasoningContextMode
+	Root string
+}
+
+// Validate rejects ambiguous native context rather than letting an adapter
+// infer authority from prompt text or the presence of a repository packet.
+func (a ReasoningContextAccess) Validate() error {
+	switch a.Mode {
+	case ReasoningContextPacketOnly:
+		if strings.TrimSpace(a.Root) != "" {
+			return fmt.Errorf("packet-only reasoning cannot name a repository root")
+		}
+		return nil
+	case ReasoningContextRepositoryRead:
+		if !filepath.IsAbs(strings.TrimSpace(a.Root)) {
+			return fmt.Errorf("repository-read reasoning requires an absolute root")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported reasoning context mode %q", a.Mode)
+	}
+}
 
 // LLMRequest is one bounded, non-authoritative reasoning call. Kennel never
 // sends authority, acceptance, or fencing decisions through this port: the
@@ -18,6 +63,9 @@ type LLMRequest struct {
 	Schema map[string]any
 	// MaxTokens bounds the reply. Zero means the adapter's default.
 	MaxTokens int64
+	// ContextAccess carries explicit, provider-neutral native tool authority.
+	// Direct API adapters use the already-rendered packet and ignore this field.
+	ContextAccess ReasoningContextAccess
 }
 
 // LLMResponse carries the raw structured reply plus honest provenance. An

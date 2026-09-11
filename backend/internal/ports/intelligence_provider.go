@@ -50,6 +50,10 @@ type ContractIntelligenceRequest struct {
 	Clarification     *domain.ClarificationRequest
 	ClarificationText string
 	RepositoryContext RepositoryContextSnapshot
+	// RepositoryToolUse is explicit owner authority for a native reasoner to
+	// inspect the registered repository. The bounded packet remains available
+	// when false; its presence alone never grants tools.
+	RepositoryToolUse bool
 }
 
 // ContractIntelligenceResponse is structured proposal material. It is not a

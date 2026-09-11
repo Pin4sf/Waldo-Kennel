@@ -52,10 +52,11 @@ type conversation struct {
 	// governedSandboxPolicy is sent on every governed turn. Thread/start only
 	// accepts a broad sandbox name; turn/start carries the effective boundary.
 	governedSandboxPolicy map[string]any
-	// intelligenceReadOnly pins the separate Waldo proposal surface to a
-	// read-only, no-network turn policy. It must never be inferred from the
-	// ordinary Chat permission modes.
-	intelligenceReadOnly bool
+	// intelligencePermissions names the request-scoped, injected permission
+	// profile pinned on every Waldo proposal turn. It must never be inferred
+	// from ordinary Chat permission modes.
+	intelligencePermissions string
+	intelligenceWorkspace   string
 
 	mu      sync.Mutex
 	pending map[string]*parkedRequest
@@ -259,11 +260,14 @@ func (c *conversation) sendTurn(ctx context.Context, msg ports.ChatUserMessage, 
 	if len(outputSchema) > 0 {
 		params["outputSchema"] = append(json.RawMessage(nil), outputSchema...)
 	}
-	if c.intelligenceReadOnly {
-		// Read-only does not itself express network policy. Pin both fields on
-		// every proposal turn, even if a caller supplied other Chat settings.
+	if c.intelligencePermissions != "" {
+		// The named profile carries exact filesystem roots plus network denial.
+		// Pin it and the runtime root on every proposal turn; sandboxPolicy cannot
+		// be combined with a permissions profile in the app-server protocol.
 		params["approvalPolicy"] = "never"
-		params["sandboxPolicy"] = map[string]any{"type": "readOnly", "networkAccess": false}
+		params["permissions"] = c.intelligencePermissions
+		params["runtimeWorkspaceRoots"] = []string{c.intelligenceWorkspace}
+		params["environments"] = []any{}
 	}
 	if c.governedSandboxPolicy != nil {
 		params["approvalPolicy"] = "on-request"

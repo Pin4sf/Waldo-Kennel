@@ -2071,6 +2071,9 @@ type IntakeConversationRefInput struct {
 // AnalyzeIntakeRequest guards analysis with an expected proposal revision.
 type AnalyzeIntakeRequest struct {
 	ExpectedProposalRevision int64 `json:"expectedProposalRevision"`
+	// RepositoryToolUse explicitly authorizes the selected native reasoner to
+	// inspect the registered repository read-only for this call.
+	RepositoryToolUse bool `json:"repositoryToolUse,omitempty"`
 	// Offline runs the deterministic baseline instead of asking an agent. It
 	// is how a person stops waiting and takes the proposal that is always
 	// available, and it asks no agent anything.
@@ -2081,6 +2084,7 @@ type AnalyzeIntakeRequest struct {
 type AnswerIntakeClarificationRequest struct {
 	ExpectedProposalRevision int64  `json:"expectedProposalRevision"`
 	Answer                   string `json:"answer"`
+	RepositoryToolUse        bool   `json:"repositoryToolUse,omitempty"`
 }
 
 // ReviseIntakeProposalRequest appends a reviewed immutable proposal.

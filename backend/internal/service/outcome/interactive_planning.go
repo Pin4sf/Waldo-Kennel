@@ -392,7 +392,14 @@ func (s *Service) runPlanningTurn(ctx context.Context, outcomeID domain.OutcomeI
 	if err != nil {
 		return PlanningView{}, err
 	}
-	request := ports.PlanningDiscussionRequest{Binding: session.Binding, Outcome: view.Outcome, Contract: revision, CriterionAliases: aliases, RepositoryContext: snapshot, Turns: turns, Finalize: finalize}
+	request := ports.PlanningDiscussionRequest{
+		Binding: session.Binding, Outcome: view.Outcome, Contract: revision, CriterionAliases: aliases,
+		// The frozen repository snapshot supplies planning context for every
+		// provider. Native repository tools remain a separately conformed mode;
+		// this launch path never silently upgrades packet access into tool access.
+		RepositoryContext: snapshot, RepositoryToolUse: false,
+		Turns: turns, Finalize: finalize,
+	}
 	encodedRequest, _ := json.Marshal(request)
 	run := domain.IntelligenceRun{
 		ID: domain.IntelligenceRunID("intel-" + uuid.NewString()), Kind: domain.IntelligenceRunPlanDraft,

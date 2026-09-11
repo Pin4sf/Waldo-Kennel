@@ -9016,6 +9016,8 @@ components:
           type: integer
         offline:
           type: boolean
+        repositoryToolUse:
+          type: boolean
       required:
       - expectedProposalRevision
       type: object
@@ -9026,6 +9028,8 @@ components:
         expectedProposalRevision:
           format: int64
           type: integer
+        repositoryToolUse:
+          type: boolean
       required:
       - expectedProposalRevision
       - answer

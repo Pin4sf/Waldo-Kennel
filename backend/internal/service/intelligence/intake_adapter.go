@@ -50,6 +50,7 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 		PreviousProposal:  input.PreviousProposal,
 		Clarification:     input.Clarification,
 		ClarificationText: input.ClarificationText,
+		RepositoryToolUse: input.RepositoryToolUse,
 	}
 	if a.projects != nil {
 		project, found, err := a.projects.GetProject(ctx, string(input.Session.ProjectID))

@@ -105,7 +105,11 @@ func (controller *IntakesController) analyze(w http.ResponseWriter, r *http.Requ
 	if !decodeIntakeJSON(w, r, &request) {
 		return
 	}
-	snapshot, err := controller.Svc.Analyze(r.Context(), domain.IntakeSessionID(chi.URLParam(r, "intakeId")), intakevc.AnalyzeInput{ExpectedProposalRevision: request.ExpectedProposalRevision, Offline: request.Offline})
+	snapshot, err := controller.Svc.Analyze(r.Context(), domain.IntakeSessionID(chi.URLParam(r, "intakeId")), intakevc.AnalyzeInput{
+		ExpectedProposalRevision: request.ExpectedProposalRevision,
+		RepositoryToolUse:        request.RepositoryToolUse,
+		Offline:                  request.Offline,
+	})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -122,7 +126,11 @@ func (controller *IntakesController) answer(w http.ResponseWriter, r *http.Reque
 	if !decodeIntakeJSON(w, r, &request) {
 		return
 	}
-	snapshot, err := controller.Svc.AnswerClarification(r.Context(), domain.IntakeSessionID(chi.URLParam(r, "intakeId")), intakevc.AnswerClarificationInput{ExpectedProposalRevision: request.ExpectedProposalRevision, Answer: request.Answer})
+	snapshot, err := controller.Svc.AnswerClarification(r.Context(), domain.IntakeSessionID(chi.URLParam(r, "intakeId")), intakevc.AnswerClarificationInput{
+		ExpectedProposalRevision: request.ExpectedProposalRevision,
+		Answer:                   request.Answer,
+		RepositoryToolUse:        request.RepositoryToolUse,
+	})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return

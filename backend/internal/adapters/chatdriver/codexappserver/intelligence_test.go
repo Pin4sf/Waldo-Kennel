@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -25,15 +26,11 @@ func testIntelligenceRequest() ports.LLMRequest {
 	}
 }
 
-func TestIntelligenceCapabilityFailsClosedWithoutConfinementProof(t *testing.T) {
+func TestIntelligenceCapabilityFailsClosedBeforePermissionProfileProtocol(t *testing.T) {
 	d, _ := newTestDriver(t)
-	d.intelligenceBoundaryAvailable = false
-	_, err := d.startIntelligence(context.Background(), "/tmp/kennel-intelligence-test", "", "")
-	if !errors.Is(err, ports.ErrChatUnsupported) {
-		t.Fatalf("startIntelligence error = %v, want unsupported confinement", err)
-	}
-	if err := d.ProbeIntelligence(context.Background()); !errors.Is(err, ports.ErrChatUnsupported) {
-		t.Fatalf("ProbeIntelligence error = %v, want unsupported confinement", err)
+	d.versionProbe = func(context.Context, string) (string, error) { return "codex-cli 0.153.3", nil }
+	if err := d.ProbeIntelligence(context.Background()); !errors.Is(err, ports.ErrChatDriverIncompatible) {
+		t.Fatalf("ProbeIntelligence error = %v, want incompatible permission-profile protocol", err)
 	}
 }
 
@@ -56,7 +53,9 @@ func TestIntelligenceClientPinsBoundedStructuredTurn(t *testing.T) {
 	start := srv.awaitFrame(func(f frame) bool { return f.Method == "thread/start" })
 	var startParams struct {
 		ApprovalPolicy string         `json:"approvalPolicy"`
-		Sandbox        string         `json:"sandbox"`
+		Permissions    string         `json:"permissions"`
+		RuntimeRoots   []string       `json:"runtimeWorkspaceRoots"`
+		Environments   []any          `json:"environments"`
 		Ephemeral      bool           `json:"ephemeral"`
 		Model          string         `json:"model"`
 		Config         map[string]any `json:"config"`
@@ -64,8 +63,11 @@ func TestIntelligenceClientPinsBoundedStructuredTurn(t *testing.T) {
 	if err := json.Unmarshal(start.Params, &startParams); err != nil {
 		t.Fatalf("thread/start params: %v", err)
 	}
-	if startParams.ApprovalPolicy != "never" || startParams.Sandbox != "read-only" || !startParams.Ephemeral {
+	if startParams.ApprovalPolicy != "never" || startParams.Permissions != intelligencePermissionProfile || !startParams.Ephemeral {
 		t.Fatalf("unsafe intelligence thread posture: %+v", startParams)
+	}
+	if len(startParams.RuntimeRoots) != 1 || len(startParams.Environments) != 0 {
+		t.Fatalf("intelligence runtime scope = roots:%v environments:%v", startParams.RuntimeRoots, startParams.Environments)
 	}
 	if startParams.Model != "approved-model" {
 		t.Fatalf("thread model = %q, want approved-model", startParams.Model)
@@ -73,9 +75,21 @@ func TestIntelligenceClientPinsBoundedStructuredTurn(t *testing.T) {
 	if got, ok := startParams.Config["mcp_servers"].(map[string]any); !ok || len(got) != 0 {
 		t.Fatalf("ambient MCP config = %#v, want an explicit empty map", startParams.Config["mcp_servers"])
 	}
+	if _, found := startParams.Config["permissions"]; found {
+		t.Fatalf("native permission table was shadowed: %#v", startParams.Config["permissions"])
+	}
+	if _, found := startParams.Config["default_permissions"]; found {
+		t.Fatalf("native default permission was shadowed: %#v", startParams.Config["default_permissions"])
+	}
 	features, ok := startParams.Config["features"].(map[string]any)
-	if !ok || features["plugins"] != false || features["apps"] != false {
-		t.Fatalf("ambient plugin/app config = %#v", startParams.Config["features"])
+	if !ok || features["apps"] != false {
+		t.Fatalf("ambient app config = %#v", startParams.Config["features"])
+	}
+	if features["plugins"] == false {
+		t.Fatalf("Kennel plugins were disabled: %#v", startParams.Config["features"])
+	}
+	if _, found := startParams.Config["skills"]; found {
+		t.Fatalf("repository-local skills were overconstrained: %#v", startParams.Config["skills"])
 	}
 
 	turn := srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
@@ -83,18 +97,25 @@ func TestIntelligenceClientPinsBoundedStructuredTurn(t *testing.T) {
 		Model          string          `json:"model"`
 		Effort         string          `json:"effort"`
 		ApprovalPolicy string          `json:"approvalPolicy"`
-		SandboxPolicy  map[string]any  `json:"sandboxPolicy"`
+		Permissions    string          `json:"permissions"`
+		RuntimeRoots   []string        `json:"runtimeWorkspaceRoots"`
 		OutputSchema   json.RawMessage `json:"outputSchema"`
 		ClientMessage  string          `json:"clientUserMessageId"`
+		Input          []struct {
+			Text string `json:"text"`
+		} `json:"input"`
 	}
 	if err := json.Unmarshal(turn.Params, &turnParams); err != nil {
 		t.Fatalf("turn/start params: %v", err)
 	}
-	if turnParams.Model != "approved-model" || turnParams.Effort != "high" || turnParams.ApprovalPolicy != "never" {
+	if turnParams.Model != "approved-model" || turnParams.Effort != "high" || turnParams.ApprovalPolicy != "never" || turnParams.Permissions != intelligencePermissionProfile {
 		t.Fatalf("turn selection/posture = %+v", turnParams)
 	}
-	if turnParams.SandboxPolicy["type"] != "readOnly" || turnParams.SandboxPolicy["networkAccess"] != false {
-		t.Fatalf("turn sandbox policy = %#v", turnParams.SandboxPolicy)
+	if len(turnParams.RuntimeRoots) != 1 || turnParams.RuntimeRoots[0] != startParams.RuntimeRoots[0] {
+		t.Fatalf("turn runtime roots = %#v", turnParams.RuntimeRoots)
+	}
+	if len(turnParams.Input) != 1 || !strings.Contains(turnParams.Input[0].Text, "Do not use tools") {
+		t.Fatalf("packet-only prompt did not retain no-tool instruction: %#v", turnParams.Input)
 	}
 	if !json.Valid(turnParams.OutputSchema) || turnParams.ClientMessage == "" {
 		t.Fatalf("structured output or idempotency key missing: schema=%s id=%q", turnParams.OutputSchema, turnParams.ClientMessage)
@@ -117,6 +138,81 @@ func TestIntelligenceClientPinsBoundedStructuredTurn(t *testing.T) {
 	}
 	if got.response.EffectiveModel != "gpt-test" || got.response.NativeSessionRef != "thread-1" {
 		t.Fatalf("provenance = %+v", got.response)
+	}
+}
+
+func TestIntelligenceClientPreservesProviderDefaultSelection(t *testing.T) {
+	d, srv := newTestDriver(t)
+	client := NewIntelligenceClient(d, IntelligenceConfig{Timeout: time.Second})
+	result := make(chan struct {
+		response ports.LLMResponse
+		err      error
+	}, 1)
+	go func() {
+		response, err := client.Complete(context.Background(), testIntelligenceRequest())
+		result <- struct {
+			response ports.LLMResponse
+			err      error
+		}{response: response, err: err}
+	}()
+
+	start := srv.awaitFrame(func(f frame) bool { return f.Method == "thread/start" })
+	var startParams map[string]any
+	if err := json.Unmarshal(start.Params, &startParams); err != nil {
+		t.Fatal(err)
+	}
+	if _, found := startParams["model"]; found {
+		t.Fatalf("provider-default thread named a model: %#v", startParams["model"])
+	}
+	turn := srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
+	var turnParams map[string]any
+	if err := json.Unmarshal(turn.Params, &turnParams); err != nil {
+		t.Fatal(err)
+	}
+	if _, found := turnParams["model"]; found {
+		t.Fatalf("provider-default turn named a model: %#v", turnParams["model"])
+	}
+
+	srv.push(`{"method":"item/completed","params":{"threadId":"thread-1","turnId":"turn-1","item":{"id":"msg-1","type":"agentMessage","text":"{\"summary\":\"default\"}"}}}`)
+	srv.push(`{"method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"completed","items":[]}}}`)
+	got := <-result
+	if got.err != nil || got.response.EffectiveModel != "gpt-test" {
+		t.Fatalf("provider-default result = %+v err=%v", got.response, got.err)
+	}
+}
+
+func TestIntelligenceClientRejectsUnverifiedRepositoryToolMode(t *testing.T) {
+	d, _ := newTestDriver(t)
+	root := t.TempDir()
+	root, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := NewIntelligenceClient(d, IntelligenceConfig{Timeout: time.Second})
+	request := testIntelligenceRequest()
+	request.ContextAccess = ports.ReasoningContextAccess{Mode: ports.ReasoningContextRepositoryRead, Root: root}
+
+	_, err = client.Complete(context.Background(), request)
+	var failure *ports.ReasoningFailure
+	if !errors.As(err, &failure) || failure.Kind != ports.ReasoningUnavailable || !strings.Contains(failure.Error(), "not available") {
+		t.Fatalf("Complete error = %v, want explicit repository-tool unavailability", err)
+	}
+}
+
+func TestIntelligenceClientFailsClosedOnReportedFileChange(t *testing.T) {
+	d, srv := newTestDriver(t)
+	client := NewIntelligenceClient(d, IntelligenceConfig{Timeout: time.Second})
+	result := make(chan error, 1)
+	go func() {
+		_, err := client.Complete(context.Background(), testIntelligenceRequest())
+		result <- err
+	}()
+	srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
+	srv.push(`{"method":"item/started","params":{"threadId":"thread-1","turnId":"turn-1","item":{"id":"change-1","type":"fileChange","changes":[]}}}`)
+	err := <-result
+	var failure *ports.ReasoningFailure
+	if !errors.As(err, &failure) || failure.Err == nil || !strings.Contains(failure.Err.Error(), "forbidden file change") {
+		t.Fatalf("Complete error = %v, want forbidden file change", err)
 	}
 }
 

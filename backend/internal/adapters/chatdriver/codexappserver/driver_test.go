@@ -121,7 +121,7 @@ func newTestDriver(t *testing.T) (*Driver, *scriptedServer) {
 		responses: map[string]string{
 			"initialize":     `{"userAgent":"ao/test","codexHome":"/tmp/.codex"}`,
 			"model/list":     `{"data":[{"id":"gpt-test","displayName":"GPT Test","isDefault":true}]}`,
-			"thread/start":   `{"thread":{"id":"thread-1"},"model":"gpt-test","cwd":"/tmp/ws"}`,
+			"thread/start":   `{"thread":{"id":"thread-1"},"model":"gpt-test","cwd":"/tmp/ws","approvalPolicy":"never","activePermissionProfile":{"id":":read-only"}}`,
 			"turn/start":     `{"turn":{"id":"turn-1","status":"inProgress","items":[]}}`,
 			"turn/interrupt": `{}`,
 			"thread/resume":  `{"thread":{"id":"thread-1"}}`,
@@ -172,11 +172,10 @@ func newTestDriver(t *testing.T) (*Driver, *scriptedServer) {
 	}()
 
 	d := &Driver{
-		plugin:                        fakePlugin{bin: "codex", authStatus: ports.AgentAuthStatusAuthorized},
-		log:                           slog.New(slog.DiscardHandler),
-		intelligenceBoundaryAvailable: true,
+		plugin: fakePlugin{bin: "codex", authStatus: ports.AgentAuthStatusAuthorized},
+		log:    slog.New(slog.DiscardHandler),
 		versionProbe: func(context.Context, string) (string, error) {
-			return "codex-cli 0.146.0", nil
+			return "codex-cli 0.153.4", nil
 		},
 		spawn: func(context.Context, string, string, []string) (*process, error) {
 			return &process{

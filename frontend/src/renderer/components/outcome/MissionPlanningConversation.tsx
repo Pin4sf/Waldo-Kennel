@@ -68,6 +68,15 @@ export function MissionPlanningConversation({
 		requestKeys.current = {};
 	}, [outcomeId, contractRevision]);
 
+	// A single admitted candidate is already the owner's configured choice.
+	// Select it automatically so the normal path is one clear Start action;
+	// multiple candidates still require an explicit choice.
+	useEffect(() => {
+		if (!activeSession && !candidateId && !candidatesQuery.isLoading && readyCandidates.length === 1) {
+			setCandidateId(readyCandidates[0].id);
+		}
+	}, [activeSession, candidateId, candidatesQuery.isLoading, readyCandidates]);
+
 	function stableRequestKey(action: string, fingerprint: string, expectedRevision?: number) {
 		const existing = requestKeys.current[action];
 		if (existing?.fingerprint === fingerprint) return existing.key;

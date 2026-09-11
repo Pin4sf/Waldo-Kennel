@@ -115,7 +115,7 @@ func TestVerificationDoesNotSurviveAProviderOrModelChange(t *testing.T) {
 	}
 }
 
-func TestCodexVerificationExpiresWithoutAnExternalIdentityBinding(t *testing.T) {
+func TestCodexVerificationRemainsBoundToTheSelectedHarnessConfiguration(t *testing.T) {
 	stamp := time.Now().UTC()
 	snapshot := Snapshot{
 		ReasoningVerifiedAt:       &stamp,
@@ -128,8 +128,8 @@ func TestCodexVerificationExpiresWithoutAnExternalIdentityBinding(t *testing.T) 
 	verified, at := verificationFor(snapshot, ReasoningConfig{
 		Mode: "codex_harness", Provider: "codex", Model: "gpt-test", Effort: "high",
 	})
-	if verified || at != nil {
-		t.Fatalf("Codex verification survived without external identity binding: verified=%v at=%v", verified, at)
+	if !verified || at == nil || !at.Equal(stamp) {
+		t.Fatalf("Codex verification was not reported for the exact probed configuration: verified=%v at=%v", verified, at)
 	}
 }
 

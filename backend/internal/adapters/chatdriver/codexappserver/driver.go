@@ -32,6 +32,9 @@ const (
 	// extension. initialize plus model/list alone cannot prove those mutating
 	// methods without creating provider state during preflight.
 	minimumCodexVersion = "0.146.0"
+	// Native reasoning relies on request-scoped permission profiles and runtime
+	// workspace roots introduced after the original Chat conformance floor.
+	minimumCodexIntelligenceVersion = "0.153.4"
 )
 
 // handshakeTimeout bounds initialize and thread open. These are local IPC calls
@@ -66,11 +69,6 @@ type Driver struct {
 	log          *slog.Logger
 	spawn        spawnFunc
 	versionProbe versionProbeFunc
-
-	// This remains false until the installed app-server proves a deterministic
-	// no-tool or constrained-read posture. Read-only sandboxing plus a scratch
-	// cwd is not enough for approved-packet-only reasoning.
-	intelligenceBoundaryAvailable bool
 }
 
 // New builds a Chat driver over the existing Codex agent plugin.
@@ -209,13 +207,33 @@ func (d *Driver) Probe(ctx context.Context) (ports.ChatCapabilities, error) {
 	return capabilities(), nil
 }
 
-// ProbeIntelligence reports whether this install can safely host bounded Waldo
-// proposals. General Codex chat availability is not sufficient for this mode.
+// ProbeIntelligence reports whether this install exposes the permission-profile
+// protocol needed by bounded Waldo proposals. The owner-triggered structured
+// verification still proves the model path separately.
 func (d *Driver) ProbeIntelligence(ctx context.Context) error {
-	if !d.intelligenceBoundaryAvailable {
-		return fmt.Errorf("%w: Codex app-server has no proven no-tool or constrained-read boundary for Waldo reasoning", ports.ErrChatUnsupported)
+	if d == nil || d.plugin == nil {
+		return fmt.Errorf("%w: Codex app-server plugin is unavailable", ports.ErrChatDriverUnavailable)
 	}
-	_, err := d.Probe(ctx)
+	bin, err := d.plugin.ResolveBinary(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrChatDriverUnavailable, err)
+	}
+	versionProbe := d.versionProbe
+	if versionProbe == nil {
+		versionProbe = installedCodexVersion
+	}
+	versionCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	versionOutput, err := versionProbe(versionCtx, bin)
+	cancel()
+	if err != nil {
+		return fmt.Errorf("%w: read Codex version: %w", ports.ErrChatDriverIncompatible, err)
+	}
+	installed, ok := parseCodexVersion(versionOutput)
+	minimum, _ := parseCodexVersion(minimumCodexIntelligenceVersion)
+	if !ok || installed.less(minimum) {
+		return fmt.Errorf("%w: Codex native reasoning requires %s or newer", ports.ErrChatDriverIncompatible, minimumCodexIntelligenceVersion)
+	}
+	_, err = d.Probe(ctx)
 	return err
 }
 

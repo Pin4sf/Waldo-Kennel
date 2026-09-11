@@ -116,7 +116,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		try {
 			const { data, error: apiError } = await apiClient.POST("/api/v1/intakes/{intakeId}/analysis", {
 				params: { path: { intakeId } },
-				body: { expectedProposalRevision: snapshot.session.currentProposalRevision },
+				body: { expectedProposalRevision: snapshot.session.currentProposalRevision, repositoryToolUse: false },
 			});
 			if (apiError) throw apiError;
 			await refreshIntake(data.intake);
@@ -148,7 +148,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		if (!intakeId || !snapshot || snapshot.session.status !== "captured" || analyzed.current === intakeId) return;
 		analyzed.current = intakeId;
 		setPending(true); setError(null);
-		void apiClient.POST("/api/v1/intakes/{intakeId}/analysis", { params: { path: { intakeId } }, body: { expectedProposalRevision: snapshot.session.currentProposalRevision } })
+		void apiClient.POST("/api/v1/intakes/{intakeId}/analysis", { params: { path: { intakeId } }, body: { expectedProposalRevision: snapshot.session.currentProposalRevision, repositoryToolUse: false } })
 			.then(({ data, error: apiError }) => { if (apiError) throw apiError; setSnapshot(data.intake); })
 			.catch((cause) => {
 				setError(apiErrorMessage(cause));
@@ -201,7 +201,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 	async function answerQuestion(event: FormEvent) {
 		event.preventDefault(); if (!snapshot || !intakeId || !answer.trim() || pending) return;
 		setPending(true); setError(null);
-		try { const { data, error: apiError } = await apiClient.POST("/api/v1/intakes/{intakeId}/clarification", { params: { path: { intakeId } }, body: { expectedProposalRevision: snapshot.session.currentProposalRevision, answer: answer.trim() } }); if (apiError) throw apiError; setSnapshot(data.intake); }
+		try { const { data, error: apiError } = await apiClient.POST("/api/v1/intakes/{intakeId}/clarification", { params: { path: { intakeId } }, body: { expectedProposalRevision: snapshot.session.currentProposalRevision, answer: answer.trim(), repositoryToolUse: false } }); if (apiError) throw apiError; setSnapshot(data.intake); }
 		catch (cause) { setError(apiErrorMessage(cause)); } finally { setPending(false); }
 	}
 

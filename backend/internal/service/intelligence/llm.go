@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -357,11 +358,16 @@ func (p *LLMProvider) AnalyzeContract(ctx context.Context, request ports.Contrac
 	}
 	appendRepositoryContext(&input, request.RepositoryContext)
 
+	contextAccess, err := reasoningContextAccess(request.RepositoryToolUse, request.RepositoryContext)
+	if err != nil {
+		return ports.ContractIntelligenceResponse{}, err
+	}
 	response, err := p.client.Complete(ctx, ports.LLMRequest{
-		System:     contractSystemPrompt,
-		User:       input.String(),
-		SchemaName: "contract_proposal",
-		Schema:     contractSchema(),
+		System:        contractSystemPrompt,
+		User:          input.String(),
+		SchemaName:    "contract_proposal",
+		Schema:        contractSchema(),
+		ContextAccess: contextAccess,
 	})
 	if err != nil {
 		return ports.ContractIntelligenceResponse{}, err
@@ -580,9 +586,13 @@ func (p *LLMProvider) DiscussPlan(ctx context.Context, request ports.PlanningDis
 		input.WriteString("Local command execution is forbidden: a Plan proposal must encode checkCommands as null and cannot use an executing intent.\n")
 	}
 
+	contextAccess, err := reasoningContextAccess(request.RepositoryToolUse, request.RepositoryContext)
+	if err != nil {
+		return ports.PlanningDiscussionResponse{}, err
+	}
 	response, err := p.client.Complete(ctx, ports.LLMRequest{
 		System: planningDiscussionSystemPrompt, User: input.String(), SchemaName: "planning_turn",
-		Schema: schema,
+		Schema: schema, ContextAccess: contextAccess,
 	})
 	if err != nil {
 		return ports.PlanningDiscussionResponse{}, err
@@ -637,6 +647,23 @@ func (p *LLMProvider) DiscussPlan(ctx context.Context, request ports.PlanningDis
 		return ports.PlanningDiscussionResponse{}, fmt.Errorf("waldo returned a planning turn without an owner-facing message")
 	}
 	return ports.PlanningDiscussionResponse{Result: result, Provenance: provenance}, nil
+}
+
+func reasoningContextAccess(authorized bool, snapshot ports.RepositoryContextSnapshot) (ports.ReasoningContextAccess, error) {
+	if !authorized {
+		return ports.ReasoningContextAccess{}, nil
+	}
+	root := filepath.Clean(strings.TrimSpace(snapshot.Root))
+	if snapshot.UnavailableReason != "" || !filepath.IsAbs(root) {
+		return ports.ReasoningContextAccess{}, ports.NewReasoningFailure(
+			ports.ReasoningInvalidOutput, "Authorized repository context is unavailable for native inspection", nil)
+	}
+	access := ports.ReasoningContextAccess{Mode: ports.ReasoningContextRepositoryRead, Root: root}
+	if err := access.Validate(); err != nil {
+		return ports.ReasoningContextAccess{}, ports.NewReasoningFailure(
+			ports.ReasoningInvalidOutput, "Authorized repository context is invalid for native inspection", err)
+	}
+	return access, nil
 }
 
 func restrictPlanSchemaToContract(schema map[string]any, ceiling domain.ProposedAuthority) error {

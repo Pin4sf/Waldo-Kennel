@@ -33,16 +33,30 @@ beforeEach(() => {
 });
 
 describe("MissionPlanningConversation", () => {
-	it("defaults to repository read scope and requires an admitted candidate", async () => {
+	it("defaults to repository packet scope and selects the sole admitted candidate", async () => {
 		postMock.mockResolvedValue({ data: { planning: { session: { id: "planning-1", outcomeId: "out-1", contractRevisionId: "cr-3", contractRevisionNumber: 3, revision: 1, status: "active", waitingOn: "owner", contextMode: "repository_read", contextDigest: "ctx", planningGrantDigest: "grant", binding: candidate.binding, createdAt: "2026-09-11T00:00:00Z", updatedAt: "2026-09-11T00:00:00Z" }, turns: [] } }, error: undefined });
 		const user = userEvent.setup();
 		renderConversation();
 		const start = await screen.findByTestId("planning-start");
-		expect(start).toBeDisabled();
-		await user.click(screen.getByRole("radio", { name: /openai/i }));
-		expect(start).toBeEnabled();
+		await vi.waitFor(() => expect(start).toBeEnabled());
+		expect(screen.getByRole("radio", { name: /openai/i })).toBeChecked();
 		await user.click(start);
 		expect(postMock).toHaveBeenCalledWith("/api/v1/outcomes/{outcomeId}/planning-sessions", expect.objectContaining({ body: { expectedContractRevision: 3, candidateId: candidate.id, contextMode: "repository_read", requestKey: expect.any(String) } }));
+		expect(screen.getByText(/bounded repository context packet/i)).toBeInTheDocument();
+	});
+
+	it("describes native planning as bounded packet reasoning", async () => {
+		const nativeCandidate = { id: "native_harness|codex|provider_default", ready: true, binding: { mode: "native_harness", provider: "codex", modelSelection: "provider_default" } };
+		getMock.mockImplementation(async (url: string) => {
+			if (url.endsWith("/planning-candidates")) return { data: { candidates: [nativeCandidate] }, error: undefined };
+			return { data: undefined, error: { code: "PLANNING_SESSION_NOT_FOUND", message: "none" } };
+		});
+		renderConversation();
+		await vi.waitFor(() => expect(screen.getByRole("radio", { name: /codex/i })).toBeChecked());
+		const user = userEvent.setup();
+		await user.click(screen.getByRole("button", { name: "Change" }));
+		expect(screen.getByText(/bounded repository context packet/i)).toBeInTheDocument();
+		expect(screen.queryByText(/local tools and Kennel skills/i)).not.toBeInTheDocument();
 	});
 
 	it("renders a clarification and Contract-change proposal without mutating the Contract", async () => {

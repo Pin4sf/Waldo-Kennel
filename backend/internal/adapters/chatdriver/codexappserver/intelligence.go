@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,6 +24,8 @@ const IntelligenceProviderID = "codex-app-server"
 const defaultIntelligenceTimeout = 2 * time.Minute
 
 const intelligenceTurnAckTimeout = 5 * time.Second
+
+const intelligencePermissionProfile = ":read-only"
 
 // IntelligenceConfig selects the exact harness request. Empty Model and Effort
 // preserve Codex's provider-default semantics; the adapter never fills either
@@ -89,12 +92,22 @@ func (c *IntelligenceClient) Complete(ctx context.Context, request ports.LLMRequ
 			ports.ReasoningUnauthorized, "Codex is not signed in; sign in with the Codex harness before asking Waldo to reason", ports.ErrChatAuthRequired)
 	}
 
-	workspace, err := os.MkdirTemp("", "kennel-codex-intelligence-")
-	if err != nil {
+	if err := request.ContextAccess.Validate(); err != nil {
 		return ports.LLMResponse{}, ports.NewReasoningFailure(
-			ports.ReasoningUnavailable, "Waldo could not create disposable Codex reasoning state", err)
+			ports.ReasoningInvalidOutput, "Waldo received invalid native reasoning context authority", err)
 	}
-	defer func() { _ = os.RemoveAll(workspace) }()
+	if request.ContextAccess.Mode == ports.ReasoningContextRepositoryRead {
+		return ports.LLMResponse{}, ports.NewReasoningFailure(
+			ports.ReasoningUnavailable,
+			"Native repository tools are not available in this Codex planning build; use Kennel's bounded repository packet instead",
+			nil,
+		)
+	}
+	workspace, cleanup, err := intelligenceWorkspace(request.ContextAccess)
+	if err != nil {
+		return ports.LLMResponse{}, err
+	}
+	defer cleanup()
 
 	conv, err := c.driver.startIntelligence(callCtx, workspace, request.System, c.cfg.Model)
 	if err != nil {
@@ -114,7 +127,8 @@ func (c *IntelligenceClient) Complete(ctx context.Context, request ports.LLMRequ
 		return ports.LLMResponse{}, ports.NewReasoningFailure(
 			ports.ReasoningInvalidOutput, "Waldo's reasoning request is empty", nil)
 	}
-	text += "\n\nReturn only the JSON object required by the structured output schema. Do not use Markdown fences, commentary, tools, skills, MCP servers, or external effects."
+	text += "\n\nReturn only the JSON object required by the structured output schema. Do not use Markdown fences or commentary."
+	text += " Do not use tools, skills, MCP servers, or external effects."
 	if request.MaxTokens > 0 {
 		// Codex's app-server schema has no max-output-tokens field. Keep the
 		// existing port's bounded intent visible to the model, while native
@@ -171,12 +185,31 @@ func (c *IntelligenceClient) Complete(ctx context.Context, request ports.LLMRequ
 	}, nil
 }
 
+func intelligenceWorkspace(access ports.ReasoningContextAccess) (string, func(), error) {
+	if access.Mode == ports.ReasoningContextRepositoryRead {
+		root, err := filepath.EvalSymlinks(filepath.Clean(access.Root))
+		if err != nil {
+			return "", func() {}, ports.NewReasoningFailure(
+				ports.ReasoningUnavailable, "The authorized repository root could not be resolved", err)
+		}
+		info, err := os.Stat(root)
+		if err != nil || !info.IsDir() {
+			return "", func() {}, ports.NewReasoningFailure(
+				ports.ReasoningUnavailable, "The authorized repository root is unavailable", err)
+		}
+		return root, func() {}, nil
+	}
+	workspace, err := os.MkdirTemp("", "kennel-codex-intelligence-")
+	if err != nil {
+		return "", func() {}, ports.NewReasoningFailure(
+			ports.ReasoningUnavailable, "Waldo could not create disposable Codex reasoning state", err)
+	}
+	return workspace, func() { _ = os.RemoveAll(workspace) }, nil
+}
+
 func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model string) (*conversation, error) {
 	if d == nil || d.plugin == nil {
 		return nil, ports.ErrChatUnsupported
-	}
-	if !d.intelligenceBoundaryAvailable {
-		return nil, fmt.Errorf("%w: Codex app-server has no proven no-tool or constrained-read boundary for Waldo reasoning", ports.ErrChatUnsupported)
 	}
 	if !strings.HasPrefix(workspace, string(os.PathSeparator)) {
 		return nil, fmt.Errorf("intelligence workspace must be absolute")
@@ -186,19 +219,23 @@ func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model
 		return nil, err
 	}
 
-	// These session flags reduce ambient context for the proposal-only thread,
-	// but are not sufficient confinement proof on their own. The capability gate
-	// above remains closed until tools and unrelated filesystem reads cannot
-	// escape the approved packet.
+	// Use Codex's native read-only profile rather than synthesizing a Kennel
+	// permission table. This keeps local tools and skills on the normal harness
+	// path while the pre-authorization proposal call remains effect-free.
 	params := map[string]any{
-		"cwd":            workspace,
-		"approvalPolicy": "never",
-		"sandbox":        "read-only",
-		"ephemeral":      true,
+		"cwd":                   workspace,
+		"approvalPolicy":        "never",
+		"permissions":           intelligencePermissionProfile,
+		"runtimeWorkspaceRoots": []string{workspace},
+		"environments":          []any{},
+		"ephemeral":             true,
 		"config": map[string]any{
-			"features":    map[string]any{"plugins": false, "apps": false},
-			"skills":      map[string]any{"include_instructions": false},
-			"mcp_servers": map[string]any{},
+			// Local plugins and their skills remain available. Apps and MCP servers
+			// stay out of this one-shot path because it cannot relay an interactive
+			// approval before an external effect; ordinary Session UI owns that loop.
+			"features":                 map[string]any{"apps": false},
+			"mcp_servers":              map[string]any{},
+			"shell_environment_policy": reasoningShellEnvironment(),
 		},
 	}
 	if system = strings.TrimSpace(system); system != "" {
@@ -213,8 +250,12 @@ func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model
 		Thread struct {
 			ID string `json:"id"`
 		} `json:"thread"`
-		Model           string `json:"model"`
-		ReasoningEffort string `json:"reasoningEffort"`
+		Model                   string `json:"model"`
+		ReasoningEffort         string `json:"reasoningEffort"`
+		ApprovalPolicy          string `json:"approvalPolicy"`
+		ActivePermissionProfile *struct {
+			ID string `json:"id"`
+		} `json:"activePermissionProfile"`
 	}
 	if err := conv.conn.request(ctx, "thread/start", params, &resp); err != nil {
 		_ = conv.Close()
@@ -224,9 +265,27 @@ func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model
 		_ = conv.Close()
 		return nil, errors.New("thread/start returned no thread id")
 	}
+	if resp.ApprovalPolicy != "never" || resp.ActivePermissionProfile == nil || resp.ActivePermissionProfile.ID != intelligencePermissionProfile {
+		_ = conv.Close()
+		return nil, fmt.Errorf("thread/start did not activate Kennel's bounded reasoning permission profile")
+	}
 	conv.start(resp.Thread.ID, resp.Model, resp.ReasoningEffort, nil)
-	conv.intelligenceReadOnly = true
+	conv.intelligencePermissions = intelligencePermissionProfile
+	conv.intelligenceWorkspace = workspace
 	return conv, nil
+}
+
+func reasoningShellEnvironment() map[string]any {
+	path := strings.TrimSpace(os.Getenv("PATH"))
+	if path == "" {
+		path = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+	}
+	// Expose only executable discovery. Inheriting no other variables prevents
+	// provider tools from receiving API keys or unrelated daemon configuration.
+	return map[string]any{
+		"inherit": "none",
+		"set":     map[string]any{"PATH": path},
+	}
 }
 
 func waitForIntelligenceTurn(ctx context.Context, conv *conversation, turnID string) ([]byte, error) {
@@ -274,6 +333,10 @@ func waitForIntelligenceTurn(ctx context.Context, conv *conversation, turnID str
 				reply = []byte(strings.TrimSpace(ev.Text))
 			case ports.ChatEventApprovalRequested, ports.ChatEventInputRequested:
 				return nil, errors.New("codex requested an unsupported interactive decision during bounded reasoning")
+			case ports.ChatEventActivityStarted, ports.ChatEventActivityCompleted:
+				if ev.ActivityKind == domain.ActivityKindFileChange {
+					return nil, errors.New("codex reported a forbidden file change during bounded reasoning")
+				}
 			case ports.ChatEventError:
 				if ev.Err != nil {
 					return nil, ev.Err
