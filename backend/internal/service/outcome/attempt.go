@@ -180,6 +180,13 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if err != nil {
 		return AttemptView{}, err
 	}
+	// So does a standing correction naming the Plan or Contract. Admission has
+	// to enforce it too: continuation admits through here, and the direct
+	// per-Attempt Start would otherwise be the way around a refusal the
+	// Mission shows the owner.
+	if err := s.refuseExecutionAgainstCorrection(ctx, outcomeID); err != nil {
+		return AttemptView{}, err
+	}
 
 	plan, found, err := s.store.GetPlanRevision(ctx, outcomeID, in.PlanRevisionID)
 	if err != nil {

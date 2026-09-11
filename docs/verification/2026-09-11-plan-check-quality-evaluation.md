@@ -40,8 +40,15 @@ Three properties keep the grade honest:
   Plan compiler would refuse. A shell is refused without touching a fixture.
 - a command that cannot be resolved is `unusable`, not `broken`. "This machine
   has no such tool" is not a verdict about the check.
-- a timeout is a non-pass, so a check that hangs is `broken` rather than
-  accidentally separating anything.
+- an **interrupted** run — a timeout, or a cancelled context — is rejected
+  before anything is read as pass or fail, so it is `unusable` on either side.
+  This one was wrong in the first version of the grader and is worth stating
+  plainly: a command that times out on the known-wrong fixture and exits zero on
+  the correct one has the exact shape of discrimination, one side not passing
+  and the other passing. It was graded `discriminating` and `Trustworthy()`,
+  which would bless a check on the strength of a hang. Nobody knows what a
+  timed-out run would have concluded. The symmetric case only ever looked
+  `broken`, which is why covering it alone missed this.
 
 It is evaluation, not runtime policy. It runs owner-written fixtures, never a
 real workspace, and decides nothing about acceptance.

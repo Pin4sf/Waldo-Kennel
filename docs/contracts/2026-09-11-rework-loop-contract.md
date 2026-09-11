@@ -29,6 +29,14 @@ Absent means no rework or reopen stands against the current Contract revision.
 | `plan_revision_required` | `start` | The standing correction names the current Plan. Running that same approved Plan again would reproduce the result the owner rejected. `propose_plan` becomes available instead. |
 | `contract_revision_required` | `start` | The standing correction names the Contract. Nothing below it can be revised while the agreement itself is what is wrong. |
 
+Both are enforced, not merely displayed. `POST /outcomes/{id}/run` with
+`action=start` or `action=resume`, and the direct per-Attempt start, all refuse
+with **409 `CORRECTION_REVISION_REQUIRED`** while such a correction stands. The
+error detail carries `targetType`, `targetId`, `decisionId` and a `reason` equal
+to the eligibility code above, so the refused command and the refused action
+name the same policy. A renderer may rely on eligibility and the command
+agreeing here; it is one shared decision, not two.
+
 ### `runState.blocker.detail` on `rework_required`
 
 When `attentionReason` is `rework_required`, the blocker's existing free-form
@@ -71,14 +79,24 @@ they already did. After rework the renderer should expect:
 `accept` does not halt anything: accepting is not rejecting, and an Outcome with
 nothing left to run has no authorization worth cancelling.
 
-### Idempotency
+### Idempotency, and what a replay may not do
 
 The halt's replay identity is the acceptance decision, so retrying a correction
 whose decision committed but whose halt failed **finishes** it rather than
 appending a second cancellation. Sending the same `requestKey` twice yields one
-decision and one intent generation. A concurrent owner command that moved the
-intent first is left alone — it cannot have moved it into a state that admits
-work, since only Start does that.
+decision and one intent generation, and the retry carries out the stop the first
+attempt did not — including cancelling an Attempt still running under it.
+
+A replay arriving **after** the owner has authorized fresh work does nothing at
+all. The durable store resolves a repeated request key before it checks
+generations, so a retried correction gets its own old cancellation back; that
+row is fenced against the authorization in force, and a decision the owner has
+moved past can never stop the work they authorized after it.
+
+A daemon restart reaches the same place: reconciliation now carries out an
+unacknowledged stop whose effect never happened, rather than only acknowledging
+ones whose work had already ended. Pause still leaves running work alone, and a
+cancellation is still acknowledged only once the stop is proven.
 
 ## Corrections resolve themselves
 

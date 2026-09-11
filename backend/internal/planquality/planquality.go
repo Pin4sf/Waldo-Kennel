@@ -75,12 +75,17 @@ type Case struct {
 
 // Observation is what one fixture run produced.
 type Observation struct {
-	Ran      bool
-	Passed   bool
-	ExitCode int
-	TimedOut bool
-	Output   string
-	Err      string
+	Ran bool
+	// Conclusive is false when the run was interrupted rather than finished —
+	// a timeout, or a cancelled context. An interrupted run has no pass or
+	// fail to read: nobody knows what the command would have concluded, so
+	// treating its non-zero-ness as a verdict would invent a measurement.
+	Conclusive bool
+	Passed     bool
+	ExitCode   int
+	TimedOut   bool
+	Output     string
+	Err        string
 }
 
 // Result is one graded Case.
@@ -124,6 +129,14 @@ func grade(knownWrong, correct Observation) (Verdict, string) {
 		return Unusable, "the check could not be executed against both fixtures: " +
 			strings.TrimSpace(knownWrong.Err+" "+correct.Err)
 	}
+	// An interrupted run is rejected before anything is read as pass or fail.
+	// A command that times out on the known-wrong fixture and exits zero on the
+	// correct one looks exactly like discrimination and is not: the timeout is
+	// inconclusive, so nothing has shown the command tested the criterion.
+	if !knownWrong.Conclusive || !correct.Conclusive {
+		return Unusable, "the check was interrupted rather than finishing, so its result is inconclusive: " +
+			strings.TrimSpace(knownWrong.Err+" "+correct.Err)
+	}
 	switch {
 	case !knownWrong.Passed && correct.Passed:
 		return Discriminating, fmt.Sprintf(
@@ -158,17 +171,26 @@ func run(ctx context.Context, check domain.ApprovedCheck, dir string) Observatio
 		output = append(output[:maxCapturedOutput], "…"...)
 	}
 	observation := Observation{Output: string(output)}
-	if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
-		observation.Ran, observation.TimedOut = true, true
-		observation.Err = fmt.Sprintf("timed out after %ds", check.TimeoutSeconds)
+	// The run was cut short, so whatever it had produced is not a result. Ran
+	// stays true because the command did execute and may have had effects; what
+	// it must not do is contribute a pass or a fail.
+	if runCtx.Err() != nil {
+		observation.Ran = true
+		observation.TimedOut = errors.Is(runCtx.Err(), context.DeadlineExceeded)
+		if observation.TimedOut {
+			observation.Err = fmt.Sprintf("timed out after %ds", check.TimeoutSeconds)
+		} else {
+			observation.Err = "interrupted: " + runCtx.Err().Error()
+		}
 		return observation
 	}
 	var exit *exec.ExitError
 	switch {
 	case err == nil:
-		observation.Ran, observation.Passed = true, true
+		observation.Ran, observation.Conclusive, observation.Passed = true, true, true
 	case errors.As(err, &exit):
-		observation.Ran, observation.ExitCode = true, exit.ExitCode()
+		observation.Ran, observation.Conclusive = true, true
+		observation.ExitCode = exit.ExitCode()
 	default:
 		// The command never started — an unresolvable executable, most often.
 		// That is not a failing check; it is an ungradable one.

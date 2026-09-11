@@ -31,6 +31,11 @@ const (
 	// CodeRunCustodyUnknown means execution of unknown status survives, so
 	// authorizing more work could duplicate it.
 	CodeRunCustodyUnknown = "RUN_CUSTODY_UNKNOWN"
+	// CodeCorrectionRevisionRequired means the owner's standing correction
+	// names the Plan or the Contract, so running the same approved Plan again
+	// would reproduce the result they rejected. The detail carries the target
+	// and the matching eligibility reason.
+	CodeCorrectionRevisionRequired = "CORRECTION_REVISION_REQUIRED"
 )
 
 // RunCommandInput is one owner command against an Outcome's run intent.
@@ -137,6 +142,14 @@ func (s *Service) CommandRun(ctx context.Context, outcomeID domain.OutcomeID, in
 			return RunStateView{}, err
 		}
 		planID, contractRevision = plan.ID, plan.ContractRevisionNumber
+		// A standing correction naming the Plan or Contract refuses both Start
+		// and Resume, because both authorize execution of the very Plan the
+		// owner rejected. The Mission refuses the same move for the same
+		// reason; this is what makes that refusal a boundary rather than a
+		// rendering choice.
+		if err := s.refuseExecutionAgainstCorrection(ctx, outcomeID); err != nil {
+			return RunStateView{}, err
+		}
 		if err := s.refuseUnknownSurvivingWork(ctx, outcomeID); err != nil {
 			return RunStateView{}, err
 		}
@@ -185,7 +198,8 @@ func (s *Service) CommandRun(ctx context.Context, outcomeID domain.OutcomeID, in
 // on the owner's behalf; it only stops claiming they already did.
 //
 // The decision is the replay identity, so retrying a correction whose halt
-// failed completes it instead of appending a second cancellation.
+// failed completes it instead of appending a second cancellation — and a replay
+// arriving after the owner has authorized new work does nothing at all.
 func (s *Service) HaltRunForCorrection(ctx context.Context, outcomeID domain.OutcomeID, decisionID domain.AcceptanceDecisionID) error {
 	if s.runIntents == nil {
 		return nil
@@ -197,13 +211,33 @@ func (s *Service) HaltRunForCorrection(ctx context.Context, outcomeID domain.Out
 	if !found {
 		return nil
 	}
+	requestKey := correctionHaltRequestKey(decisionID)
+
+	// Resolve this correction's own cancellation before deciding anything. It
+	// may already exist for two very different reasons, and they must not be
+	// confused: its stop effect may have failed and be owed a retry, or the
+	// owner may have authorized fresh work since, which supersedes it.
+	if recorded, ok, err := s.runIntents.FindRunIntentByRequestKey(ctx, requestKey); err != nil {
+		return err
+	} else if ok {
+		if recorded.OutcomeID != outcomeID || recorded.Generation != current.Generation {
+			// Superseded. A decision the owner has moved past may not stop the
+			// work they authorized after it.
+			return nil
+		}
+		// Still the authorization in force, so its stop effect is still owed.
+		// applyStopIntent is idempotent: an already-cancelled Attempt and an
+		// already-acknowledged generation both no-op.
+		return s.applyStopIntent(ctx, outcomeID, recorded)
+	}
+
 	desired, ok := domain.NextRunIntent(current.Desired, domain.RunCommandCancel)
 	if !ok {
-		// Already idle or cancelled: there is no authorization to end, and
-		// appending one would invent an owner command they never gave.
+		// Already idle or cancelled by something else: there is no
+		// authorization of ours to end, and appending one would invent an owner
+		// command they never gave.
 		return nil
 	}
-	requestKey := "correction:" + string(decisionID)
 	appended, err := s.runIntents.AppendRunIntent(ctx, domain.OutcomeRunIntent{
 		ID: domain.RunIntentID("ri-" + uuid.NewString()), OutcomeID: outcomeID,
 		Desired: desired, PlanRevisionID: current.PlanRevisionID,
@@ -225,7 +259,25 @@ func (s *Service) HaltRunForCorrection(ctx context.Context, outcomeID domain.Out
 		}
 		return err
 	}
+	// The durable store resolves a repeated request key before it checks
+	// generations, so the row that came back may be an older cancellation
+	// rather than the one this call appended. Applying that to whatever is
+	// running now is how a stale decision cancels current work, so the effect
+	// is fenced to the authorization actually in force.
+	inForce, found, err := s.runIntents.CurrentRunIntent(ctx, outcomeID)
+	if err != nil {
+		return err
+	}
+	if !found || inForce.Generation != appended.Generation {
+		return nil
+	}
 	return s.applyStopIntent(ctx, outcomeID, appended)
+}
+
+// correctionHaltRequestKey is the replay identity of "this decision ended this
+// Outcome's run".
+func correctionHaltRequestKey(decisionID domain.AcceptanceDecisionID) string {
+	return "correction:" + string(decisionID)
 }
 
 // correctionHaltFingerprint is the replay identity of "this decision ended this
@@ -363,8 +415,17 @@ func (s *Service) applyStopIntent(ctx context.Context, outcomeID domain.OutcomeI
 	return s.runIntents.AcknowledgeRunIntent(ctx, outcomeID, intent.Generation, s.clock())
 }
 
-// ReconcileRunIntents acknowledges stop requests whose work has since ended,
-// and is restart-safe: it derives everything from durable facts.
+// ReconcileRunIntents carries out stop requests whose effect has not happened
+// yet and acknowledges the ones whose work has since ended. It is restart-safe:
+// everything is derived from durable facts.
+//
+// Carrying the effect out — rather than only acknowledging — is what closes the
+// window between a cancellation's durable append and the stop it implies. A
+// process that died in that window left the Attempt running under an
+// authorization that already said it was cancelled, and nothing afterwards
+// looked again. applyStopIntent is the same helper the original command used,
+// so pause still leaves running work alone and cancel still acknowledges only a
+// proven stop.
 func (s *Service) ReconcileRunIntents(ctx context.Context) error {
 	if s.runIntents == nil {
 		return nil
@@ -379,15 +440,9 @@ func (s *Service) ReconcileRunIntents(ctx context.Context) error {
 			if intent.Acknowledged() {
 				continue
 			}
-			attempts, err := s.store.ListAttempts(ctx, intent.OutcomeID)
-			if err != nil {
-				failures = append(failures, err)
-				continue
-			}
-			if activeAttempt(attempts) != nil {
-				continue
-			}
-			if err := s.runIntents.AcknowledgeRunIntent(ctx, intent.OutcomeID, intent.Generation, s.clock()); err != nil {
+			// Only the current generation is listed, so this cannot apply a
+			// superseded stop to work authorized after it.
+			if err := s.applyStopIntent(ctx, intent.OutcomeID, intent); err != nil {
 				failures = append(failures, err)
 			}
 		}

@@ -126,10 +126,10 @@ func TestEvaluate_AnUnresolvableCommandIsUngradableRatherThanFailing(t *testing.
 	}
 }
 
-// TestEvaluate_ATimeoutIsNotAPass keeps a check that hangs from being graded as
-// having separated anything. It ran, it did not pass, and on both fixtures that
-// is broken rather than discriminating.
-func TestEvaluate_ATimeoutIsNotAPass(t *testing.T) {
+// TestEvaluate_AHangingCheckIsUngradableRatherThanAVerdict is the end-to-end
+// half of the interruption rule. A command that never finishes has no result to
+// read, so it is ungradable rather than failing.
+func TestEvaluate_AHangingCheckIsUngradableRatherThanAVerdict(t *testing.T) {
 	knownWrong, correct := greetingFixtures(t)
 	hang := domain.ApprovedCheck{
 		ID: "chk-hang", CriterionID: "crit-greeting", Argv: []string{"sleep", "5"}, TimeoutSeconds: 1,
@@ -138,11 +138,11 @@ func TestEvaluate_ATimeoutIsNotAPass(t *testing.T) {
 		Name: "hanging check", Criterion: "anything", Check: hang,
 		KnownWrongDir: knownWrong, CorrectDir: correct,
 	})
-	if result.Verdict != planquality.Broken {
-		t.Fatalf("verdict = %q, want broken", result.Verdict)
+	if result.Verdict != planquality.Unusable {
+		t.Fatalf("verdict = %q, want unusable\n%s", result.Verdict, result.Explanation)
 	}
-	if !result.KnownWrong.TimedOut || result.KnownWrong.Passed {
-		t.Fatalf("known-wrong observation = %+v, want a timed-out non-pass", result.KnownWrong)
+	if !result.KnownWrong.TimedOut || result.KnownWrong.Conclusive || result.KnownWrong.Passed {
+		t.Fatalf("known-wrong observation = %+v, want a timed-out inconclusive non-pass", result.KnownWrong)
 	}
 }
 

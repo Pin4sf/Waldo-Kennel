@@ -70,17 +70,44 @@ func (h *reworkHarness) authorize(t *testing.T, key string) {
 	}
 }
 
+// admitAttempt lets the daemon admit the next unit under the current
+// authorization and leaves that Attempt running.
+func (h *reworkHarness) admitAttempt(t *testing.T, key string) domain.Attempt {
+	t.Helper()
+	before := h.attemptIDs(t)
+	if err := h.svc.ContinueAuthorizedRuns(context.Background()); err != nil {
+		t.Fatalf("continue authorized runs (%s): %v", key, err)
+	}
+	return h.newAttemptSince(t, before)
+}
+
+// attemptStatus re-reads one Attempt's durable status.
+func (h *reworkHarness) attemptStatus(t *testing.T, id domain.AttemptID) domain.AttemptStatus {
+	t.Helper()
+	attempt, ok, err := h.store.GetAttempt(context.Background(), h.outcomeID, id)
+	if err != nil || !ok {
+		t.Fatalf("read attempt %s: ok=%v err=%v", id, ok, err)
+	}
+	return attempt.Status
+}
+
+// currentIntent re-reads the authorization in force.
+func (h *reworkHarness) currentIntent(t *testing.T) domain.OutcomeRunIntent {
+	t.Helper()
+	intent, found, err := h.intents.CurrentRunIntent(context.Background(), h.outcomeID)
+	if err != nil || !found {
+		t.Fatalf("read intent: found=%v err=%v", found, err)
+	}
+	return intent
+}
+
 // runToProvedResult lets the daemon admit the next unit under the current
 // authorization, ends that Attempt with a retained artifact, and records the
 // proof the criterion needs. It returns the Attempt the daemon admitted.
 func (h *reworkHarness) runToProvedResult(t *testing.T, key string) domain.Attempt {
 	t.Helper()
 	ctx := context.Background()
-	before := h.attemptIDs(t)
-	if err := h.svc.ContinueAuthorizedRuns(ctx); err != nil {
-		t.Fatalf("continue authorized runs (%s): %v", key, err)
-	}
-	attempt := h.newAttemptSince(t, before)
+	attempt := h.admitAttempt(t, key)
 
 	if _, err := h.store.TransitionAttemptStatus(ctx, h.outcomeID, attempt.ID,
 		attempt.Status, domain.AttemptReconciled, h.now); err != nil {

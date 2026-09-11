@@ -326,17 +326,26 @@ func (in missionInputs) commandApplies(command domain.RunCommand) bool {
 	return ok
 }
 
-// correctionRequires names the lineage seam the owner's standing correction
-// says must change before work runs again, when that seam is above the
-// WorkUnit. A correction targeting an Attempt or WorkUnit is satisfied by
-// running the approved Plan again, so it names nothing here.
+func (in missionInputs) correctionRequires() domain.ReentryTargetType {
+	return correctionRequiringRevision(in.proof, in.planFound, in.plan.ID)
+}
+
+// correctionRequiringRevision names the lineage seam the owner's standing
+// correction says must change before execution may be authorized again, when
+// that seam is above the WorkUnit. A correction targeting an Attempt or
+// WorkUnit is satisfied by running the approved Plan again, so it names nothing.
+//
+// This is the single source for both the Mission's offered moves and the
+// admission that honours them. Deriving it twice is how an authority boundary
+// ends up living in a client: the projection refuses Start while the daemon
+// accepts it.
 //
 // Corrections against a superseded Contract revision are already filtered out
 // of the proof, and a Plan correction stops naming the current Plan as soon as
 // a fresh one is proposed — so both resolve themselves rather than needing a
 // separate "correction addressed" record.
-func (in missionInputs) correctionRequires() domain.ReentryTargetType {
-	correction := in.proof.ActiveCorrection
+func correctionRequiringRevision(proof ProofView, planFound bool, planID domain.PlanRevisionID) domain.ReentryTargetType {
+	correction := proof.ActiveCorrection
 	if correction == nil {
 		return ""
 	}
@@ -344,11 +353,57 @@ func (in missionInputs) correctionRequires() domain.ReentryTargetType {
 	case domain.ReentryTargetContract:
 		return domain.ReentryTargetContract
 	case domain.ReentryTargetPlan:
-		if in.planFound && correction.TargetID == string(in.plan.ID) {
+		if planFound && correction.TargetID == string(planID) {
 			return domain.ReentryTargetPlan
 		}
 	}
 	return ""
+}
+
+// correctionRefusalReason maps a blocking correction target to the stable
+// eligibility reason clients already branch on, so the refused command and the
+// refused action name the same policy.
+func correctionRefusalReason(target domain.ReentryTargetType) string {
+	if target == domain.ReentryTargetContract {
+		return ReasonContractRevisionRequired
+	}
+	return ReasonPlanRevisionRequired
+}
+
+// refuseExecutionAgainstCorrection is the admission half of the correction
+// policy. Every path that authorizes or admits execution runs it, because a
+// boundary only one route honours is a boundary with a way around it.
+func (s *Service) refuseExecutionAgainstCorrection(ctx context.Context, outcomeID domain.OutcomeID) error {
+	if s.proof == nil {
+		return nil
+	}
+	proof, err := s.GetProof(ctx, outcomeID)
+	if err != nil {
+		return err
+	}
+	if proof.ActiveCorrection == nil {
+		// The overwhelmingly common case, and the only Plan read is avoided.
+		return nil
+	}
+	plan, planFound, err := s.store.GetLatestPlanRevision(ctx, outcomeID)
+	if err != nil {
+		return err
+	}
+	target := correctionRequiringRevision(proof, planFound, plan.ID)
+	if target == "" {
+		return nil
+	}
+	message := "The owner's correction names this Outcome's Plan — propose and approve a revised Plan before authorizing work"
+	if target == domain.ReentryTargetContract {
+		message = "The owner's correction names this Outcome's Contract — revise and confirm the Contract before authorizing work"
+	}
+	return apierr.Conflict(CodeCorrectionRevisionRequired, message, map[string]any{
+		"outcomeId":  string(outcomeID),
+		"targetType": string(target),
+		"targetId":   proof.ActiveCorrection.TargetID,
+		"decisionId": string(proof.ActiveCorrection.DecisionID),
+		"reason":     correctionRefusalReason(target),
+	})
 }
 
 // continuationAdmits reports whether the recorded authorization can still put
