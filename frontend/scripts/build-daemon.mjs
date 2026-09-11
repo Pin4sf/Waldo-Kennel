@@ -1,8 +1,8 @@
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { createBuildIdentity } from "./build-identity.mjs";
 import { meetsMinimumVersion, parseGoVersion, parseMinimumGoVersion } from "./go-version.mjs";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
@@ -22,7 +22,7 @@ const revisionResult = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, 
 const buildRevision = revisionResult.status === 0 ? revisionResult.stdout.trim() : "unknown";
 // A fresh identity per daemon build catches an older process that still serves
 // from the same executable path after the packaged file has been rebuilt.
-const buildIdentity = process.env.KENNEL_BUILD_ID?.trim() || `build-${randomUUID()}`;
+const buildIdentity = createBuildIdentity();
 
 if (!minimumGoVersion) {
 	console.error("Could not determine the required Go version from backend/go.mod.");
