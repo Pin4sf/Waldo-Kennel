@@ -76,4 +76,3 @@ Suggested Work route for the live renderer:
 - `post-restart-sessions.json`
 - `daemon-1.log`, `daemon-2.log`, `daemon-3.log`, `daemon-4.log`
 - `/private/tmp/kennel-live-canary.Ot5oEU/data/hooks.log`
-
