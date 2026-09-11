@@ -64,14 +64,14 @@ export function resolveDaemonLaunch(
 export type BundledDaemonProbe = {
 	executablePath?: string;
 	appImagePath?: string;
+	buildIdentity?: string;
 };
 
 /**
- * Identity check for a bundled daemon. Under AppImage the executable path is a
- * random /tmp/.mount_* path regenerated on every launch, so identity is the
- * stable outer .AppImage file path the daemon reports (KENNEL_APPIMAGE, echoed as
- * appImagePath) — compared against this process's own APPIMAGE. Outside
- * AppImage the packaged executable path is stable and compared directly.
+ * Identity check for a bundled daemon. The process-reported build identity is
+ * checked first; executable/install paths remain compatibility checks after a
+ * build match (for AppImage relaunches). Legacy packages without expected build
+ * metadata fail closed rather than claiming path equality proves process identity.
  *
  * Returns an error message, or null when the probed daemon belongs to this
  * install. A probe that cannot prove its identity (missing field) fails closed.
@@ -81,7 +81,17 @@ export function bundledDaemonIdentityError(
 	expectedCommand: string,
 	appImagePath: string | undefined,
 	samePath: (a: string, b: string) => boolean,
+	expectedBuildIdentity?: string,
 ): string | null {
+	if (expectedBuildIdentity === undefined) {
+		return "This Kennel app does not include daemon build identity metadata. Rebuild the app before starting it.";
+	}
+	if (!probe.buildIdentity) {
+		return "An older Kennel daemon is already running, but it does not report its build identity. Rebuild this app and restart it.";
+	}
+	if (probe.buildIdentity !== expectedBuildIdentity) {
+		return `Another Kennel daemon is already running with build identity ${probe.buildIdentity}; expected ${expectedBuildIdentity}. Stop the other daemon before using this app.`;
+	}
 	if (appImagePath) {
 		if (!probe.appImagePath) {
 			return "An older Kennel daemon is already running, but it does not report its install identity. Stop it and restart this app.";

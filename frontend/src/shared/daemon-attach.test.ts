@@ -117,6 +117,12 @@ describe("parseDaemonProbe", () => {
 		expect(probe?.appImagePath).toBe("/home/user/Apps/kennel.AppImage");
 	});
 
+	it("carries daemon build identity and revision when reported", () => {
+		const probe = parseDaemonProbe("healthz", { ...healthBody, buildIdentity: "build-current", buildRevision: "abc123" });
+		expect(probe?.buildIdentity).toBe("build-current");
+		expect(probe?.buildRevision).toBe("abc123");
+	});
+
 	it("drops appImagePath when absent or not a string", () => {
 		expect(parseDaemonProbe("healthz", healthBody)?.appImagePath).toBeUndefined();
 		expect(parseDaemonProbe("healthz", { ...healthBody, appImagePath: 42 })?.appImagePath).toBeUndefined();

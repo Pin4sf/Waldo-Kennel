@@ -1,4 +1,5 @@
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -14,7 +15,14 @@ const isWindowsDev = process.platform === "win32" && process.argv.includes("--de
 const windowsDevOutDir = join(outDir, `dev-${Date.now()}-${process.pid}`);
 const buildOutPath = isWindowsDev ? join(windowsDevOutDir, "kennel-daemon.exe") : outPath;
 const windowsDevManifestPath = join(outDir, "dev-daemon.json");
+const buildIdentityManifestPath = join(outDir, "build-identity.json");
 const minimumGoVersion = parseMinimumGoVersion(readFileSync(join(backendRoot, "go.mod"), "utf8"));
+
+const revisionResult = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" });
+const buildRevision = revisionResult.status === 0 ? revisionResult.stdout.trim() : "unknown";
+// A fresh identity per daemon build catches an older process that still serves
+// from the same executable path after the packaged file has been rebuilt.
+const buildIdentity = process.env.KENNEL_BUILD_ID?.trim() || `build-${randomUUID()}`;
 
 if (!minimumGoVersion) {
 	console.error("Could not determine the required Go version from backend/go.mod.");
@@ -51,11 +59,18 @@ if (isWindowsDev) {
 	mkdirSync(outDir, { recursive: true });
 }
 
-const result = spawnSync("go", ["build", "-o", buildOutPath, "./cmd/kennel"], {
-	cwd: backendRoot,
-	stdio: "inherit",
-	windowsHide: true,
-});
+const result = spawnSync(
+	"go",
+	[
+		"build",
+		"-ldflags",
+		`-X github.com/Pin4sf/Waldo-Kennel/backend/internal/daemonmeta.BuildIdentity=${buildIdentity} -X github.com/Pin4sf/Waldo-Kennel/backend/internal/daemonmeta.BuildRevision=${buildRevision}`,
+		"-o",
+		buildOutPath,
+		"./cmd/kennel",
+	],
+	{ cwd: backendRoot, stdio: "inherit", windowsHide: true },
+);
 
 if (result.error) {
 	console.error(`failed to start go build: ${result.error.message}`);
@@ -65,6 +80,11 @@ if (result.error) {
 if (result.status !== 0) {
 	process.exit(result.status ?? 1);
 }
+
+writeFileSync(
+	buildIdentityManifestPath,
+	`${JSON.stringify({ identity: buildIdentity, revision: buildRevision }, null, 2)}\n`,
+);
 
 if (isWindowsDev) {
 	writeFileSync(windowsDevManifestPath, `${JSON.stringify({ path: buildOutPath }, null, 2)}\n`);

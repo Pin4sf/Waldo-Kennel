@@ -613,6 +613,7 @@ func Run() error {
 		// it just will not auto-stop when a frontend dies. Do not block startup on it.
 		log.Warn("supervisor: listener unavailable; frontend-death auto-stop disabled", "err", err)
 	} else {
+		srv.SetSupervisorAddress(addr)
 		log.Info("supervisor: listening", "addr", addr)
 		sup := supervisor.New(supervisorGrace, srv.RequestShutdown, log)
 		go func() {
