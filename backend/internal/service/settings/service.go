@@ -267,6 +267,7 @@ func (s *Service) WithReasoningProbe(probe ReasoningProbe) *Service {
 // protocol, or sign-in state is unavailable.
 type ReasoningAvailability func(context.Context, ReasoningConfig) error
 
+// WithReasoningAvailability wires the machine-aware reasoning readiness check.
 func (s *Service) WithReasoningAvailability(check ReasoningAvailability) *Service {
 	s.availability = check
 	return s
@@ -378,7 +379,7 @@ func (s *Service) SetReasoning(ctx context.Context, input ReasoningInput) (Reaso
 		return ReasoningStatus{}, fmt.Errorf("reasoning provider must be anthropic, openai, or codex")
 	}
 	if provider == "codex" && strings.TrimSpace(input.APIKey) != "" {
-		return ReasoningStatus{}, fmt.Errorf("Codex harness mode uses Codex sign-in; do not provide an API key")
+		return ReasoningStatus{}, fmt.Errorf("codex harness mode uses Codex sign-in; do not provide an API key")
 	}
 	if provider != "codex" && s.secrets == nil {
 		return ReasoningStatus{}, fmt.Errorf("local reasoning secret store is unavailable")

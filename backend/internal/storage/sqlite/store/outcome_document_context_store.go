@@ -99,14 +99,14 @@ func (s *Store) ApproveDocumentContext(ctx context.Context, outcomeID domain.Out
 	txq := s.qw.WithTx(tx)
 	rows, err := txq.ApproveOutcomeDocumentContext(ctx, gen.ApproveOutcomeDocumentContextParams{
 		ApprovedAt: sql.NullTime{Time: at.UTC(), Valid: true}, ID: string(id),
-		OutcomeID: string(outcomeID), Digest: string(digest), OutcomeID_2: string(outcomeID),
+		OutcomeID: string(outcomeID), Digest: digest, OutcomeID_2: string(outcomeID),
 	})
 	if err != nil {
 		return fmt.Errorf("approve document context %s: %w", id, err)
 	}
 	if rows == 0 {
 		current, currentErr := txq.CurrentOutcomeDocumentContext(ctx, string(outcomeID))
-		if currentErr == nil && current.ID == string(id) && current.Digest == string(digest) && current.State == "approved" {
+		if currentErr == nil && current.ID == string(id) && current.Digest == digest && current.State == "approved" {
 			return nil
 		}
 		return &ports.DocumentContextApprovalConflictError{OutcomeID: outcomeID, ContextID: id}

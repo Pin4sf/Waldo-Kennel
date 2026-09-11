@@ -112,11 +112,6 @@ func (s *Store) MarkAttemptCheckRunUnknown(ctx context.Context, attemptID domain
 	return nil
 }
 
-func checkRunFromRow(row gen.AttemptCheckRun) ports.AttemptCheckRun {
-	run := checkRunFromValues(row.ID, row.AttemptID, row.CheckID, row.ArtifactVersion, row.State, row.ReservationEpoch, row.Ran, row.Passed, row.ExitCode, row.EnforcedBy, row.TimedOut, row.Cancelled, row.TerminationUnknown, row.OutputTruncated, row.Output, row.Unavailable, row.ArtifactChanged, row.ObservedArtifactVersion, row.ReservedAt, row.ObservedAt)
-	return withBaseline(run, row.BaselineRan, row.BaselinePassed, row.BaselineDetail)
-}
-
 func checkRunFromGetRow(row gen.GetAttemptCheckRunRow) ports.AttemptCheckRun {
 	run := checkRunFromValues(row.ID, row.AttemptID, row.CheckID, row.ArtifactVersion, row.State, row.ReservationEpoch, row.Ran, row.Passed, row.ExitCode, row.EnforcedBy, row.TimedOut, row.Cancelled, row.TerminationUnknown, row.OutputTruncated, row.Output, row.Unavailable, row.ArtifactChanged, row.ObservedArtifactVersion, row.ReservedAt, row.ObservedAt)
 	return withBaseline(run, row.BaselineRan, row.BaselinePassed, row.BaselineDetail)

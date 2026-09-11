@@ -166,10 +166,6 @@ func (s *Store) AcknowledgeRunIntent(ctx context.Context, outcomeID domain.Outco
 
 var _ ports.RunIntentStore = (*Store)(nil)
 
-func runIntentFromRow(row gen.OutcomeRunIntent) domain.OutcomeRunIntent {
-	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt)
-}
-
 func runIntentFromCurrentRow(row gen.CurrentOutcomeRunIntentRow) domain.OutcomeRunIntent {
 	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt)
 }

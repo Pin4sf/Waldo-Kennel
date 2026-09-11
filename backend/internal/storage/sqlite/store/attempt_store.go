@@ -86,12 +86,10 @@ func (s *Store) CreateAttemptWithFence(ctx context.Context, in ports.AttemptAdmi
 	currentIntent, intentErr := txq.CurrentOutcomeRunIntent(ctx, string(in.OutcomeID))
 	currentGeneration := int64(0)
 	currentDesired := domain.RunIntentDesired("")
-	if errors.Is(intentErr, sql.ErrNoRows) {
-		intentErr = nil
-	} else if intentErr == nil {
+	if intentErr == nil {
 		currentGeneration = currentIntent.Generation
 		currentDesired = domain.RunIntentDesired(currentIntent.Desired)
-	} else {
+	} else if !errors.Is(intentErr, sql.ErrNoRows) {
 		return domain.Attempt{}, fmt.Errorf("read run authorization for %s: %w", in.OutcomeID, intentErr)
 	}
 	if currentDesired == "" {
@@ -455,10 +453,6 @@ func (s *Store) ListRecoveryReceipts(ctx context.Context, attemptID domain.Attem
 		})
 	}
 	return out, nil
-}
-
-func attemptFromRow(row gen.Attempt) domain.Attempt {
-	return attemptFromValues(row.ID, row.OutcomeID, row.PlanRevisionID, row.WorkUnitID, row.Number, row.Status, row.ContractRevisionNumber, row.RunIntentGeneration, row.RequestKey, row.CreatedAt, row.UpdatedAt)
 }
 
 func attemptFromFindRow(row gen.FindAttemptByIdempotencyKeyRow) domain.Attempt {

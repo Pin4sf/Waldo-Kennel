@@ -53,6 +53,7 @@ func NewIntelligenceClient(driver *Driver, cfg IntelligenceConfig) *Intelligence
 	return &IntelligenceClient{driver: driver, cfg: cfg}
 }
 
+// ID identifies the bounded Codex reasoning provider.
 func (*IntelligenceClient) ID() string { return IntelligenceProviderID }
 
 // Complete sends one native structured-output turn. Only the settled assistant
@@ -230,7 +231,7 @@ func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model
 
 func waitForIntelligenceTurn(ctx context.Context, conv *conversation, turnID string) ([]byte, error) {
 	if strings.TrimSpace(turnID) == "" {
-		return nil, errors.New("Codex reasoning turn has no provider turn id")
+		return nil, errors.New("codex reasoning turn has no provider turn id")
 	}
 	var reply []byte
 	for {
@@ -248,7 +249,7 @@ func waitForIntelligenceTurn(ctx context.Context, conv *conversation, turnID str
 			return nil, ctx.Err()
 		case ev, ok := <-conv.Events():
 			if !ok {
-				return nil, errors.New("Codex reasoning conversation ended before turn completion")
+				return nil, errors.New("codex reasoning conversation ended before turn completion")
 			}
 			// A canceled context and an already-queued success event can both be
 			// ready in this select. Recheck after receiving the event so cancellation
@@ -272,21 +273,21 @@ func waitForIntelligenceTurn(ctx context.Context, conv *conversation, turnID str
 			case ports.ChatEventMessageCompleted:
 				reply = []byte(strings.TrimSpace(ev.Text))
 			case ports.ChatEventApprovalRequested, ports.ChatEventInputRequested:
-				return nil, errors.New("Codex requested an unsupported interactive decision during bounded reasoning")
+				return nil, errors.New("codex requested an unsupported interactive decision during bounded reasoning")
 			case ports.ChatEventError:
 				if ev.Err != nil {
 					return nil, ev.Err
 				}
-				return nil, errors.New("Codex reasoning provider reported an error")
+				return nil, errors.New("codex reasoning provider reported an error")
 			case ports.ChatEventTurnCompleted:
 				if ev.TurnState != domain.TurnStateCompleted {
 					if ev.Err != nil {
 						return nil, ev.Err
 					}
-					return nil, fmt.Errorf("Codex reasoning turn ended as %s", ev.TurnState)
+					return nil, fmt.Errorf("codex reasoning turn ended as %s", ev.TurnState)
 				}
 				if len(reply) == 0 {
-					return nil, errors.New("Codex completed reasoning without a settled assistant message")
+					return nil, errors.New("codex completed reasoning without a settled assistant message")
 				}
 				return reply, nil
 			}

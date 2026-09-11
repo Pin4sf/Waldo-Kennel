@@ -407,7 +407,14 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 
 	schema := planSchema(sortedAliasKeys(request.CriterionAliases))
 	if !ceiling.ExecuteLocal {
-		unit := schema["properties"].(map[string]any)["workUnits"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+		unit := schema
+		for _, key := range []string{"properties", "workUnits", "items", "properties"} {
+			next, ok := unit[key].(map[string]any)
+			if !ok {
+				return ports.PlanIntelligenceResponse{}, fmt.Errorf("invalid plan schema at %s", key)
+			}
+			unit = next
+		}
 		// A null field is portable across strict-output providers, unlike a
 		// maxItems:0 bound that some schema adapters must strip. It decodes to
 		// no proposed checks; the daemon still validates every returned Plan.
