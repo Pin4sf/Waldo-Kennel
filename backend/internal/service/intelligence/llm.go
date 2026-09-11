@@ -58,6 +58,7 @@ Rules:
 - intent classifies the work: "inspect" reads only; "modify" edits files; "execute" runs commands; "modify_and_execute" does both. Choose the LEAST intent that can do the unit's job — it decides how much authority the unit is granted.
 - criteriaCovered references the criterion aliases given to you (C1, C2, ...). Every criterion should be covered by at least one unit.
 - evidenceIdeas are the artifacts that would prove the unit did its job.
+- checkCommands are proposed deterministic local checks: criterionAlias, exact argv array (not shell text), and timeoutSeconds. Never invoke sh, bash, zsh, or another shell, including shell -c: the daemon rejects shell-based checks even when local command execution is allowed. Do not use pipes, redirection, command substitution, or shell operators. Invoke a permitted executable directly with individual arguments. For exact file content checks, an available python3 interpreter may use -c with a read-only assertion that exits nonzero for missing or incorrect bytes. Do not propose a check that only prints the file. Ground them in the approved context. A check must exit nonzero when its criterion is false, not merely print output. Use execute or modify_and_execute intent when checks execute commands. Never widen the Contract authority. Return an empty list only when no safe deterministic check is available; explain the verification limitation in blockers.
 - Record real assumptions and real blockers. An empty list is the honest answer when there are none; never invent them.
 
 Return only the structured object.`
@@ -148,7 +149,8 @@ func stringArray(description string) map[string]any {
 	}
 }
 
-func planSchema() map[string]any {
+func planSchema(aliases []string) map[string]any {
+	criterionAlias := map[string]any{"type": "string", "enum": aliases}
 	return map[string]any{
 		"type":                 "object",
 		"additionalProperties": false,
@@ -162,7 +164,7 @@ func planSchema() map[string]any {
 				"items": map[string]any{
 					"type":                 "object",
 					"additionalProperties": false,
-					"required":             []any{"key", "title", "intent", "outputSummary", "criteriaCovered"},
+					"required":             []any{"key", "title", "intent", "outputSummary", "criteriaCovered", "checkCommands"},
 					"properties": map[string]any{
 						"key":   map[string]any{"type": "string", "description": "stable short id such as W1"},
 						"title": map[string]any{"type": "string"},
@@ -171,9 +173,23 @@ func planSchema() map[string]any {
 							"enum": []any{"inspect", "modify", "execute", "modify_and_execute"},
 						},
 						"outputSummary":   map[string]any{"type": "string", "description": "the observable result of this unit"},
-						"criteriaCovered": stringArray("criterion aliases such as C1"),
+						"criteriaCovered": map[string]any{"type": "array", "items": criterionAlias},
 						"dependsOn":       stringArray("keys of units that must finish first"),
 						"evidenceIdeas":   stringArray("artifacts that would prove this unit"),
+						"checkCommands": map[string]any{
+							"type":        "array",
+							"description": "Proposed local checks, subject to owner approval and daemon validation",
+							"items": map[string]any{
+								"type":                 "object",
+								"additionalProperties": false,
+								"required":             []any{"criterionAlias", "argv", "timeoutSeconds"},
+								"properties": map[string]any{
+									"criterionAlias": criterionAlias,
+									"argv":           stringArray("Exact executable and arguments; preserve each argument verbatim"),
+									"timeoutSeconds": map[string]any{"type": "integer", "minimum": 1},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -228,6 +244,11 @@ type planReply struct {
 		CriteriaCovered []string `json:"criteriaCovered"`
 		DependsOn       []string `json:"dependsOn"`
 		EvidenceIdeas   []string `json:"evidenceIdeas"`
+		CheckCommands   []struct {
+			CriterionAlias string   `json:"criterionAlias"`
+			Argv           []string `json:"argv"`
+			TimeoutSeconds int64    `json:"timeoutSeconds"`
+		} `json:"checkCommands"`
 	} `json:"workUnits"`
 	Assumptions []string `json:"assumptions"`
 	Blockers    []string `json:"blockers"`
@@ -283,6 +304,7 @@ func (p *LLMProvider) AnalyzeContract(ctx context.Context, request ports.Contrac
 	provenance := ports.IntelligenceProvenance{
 		EffectiveProvider: domain.IntelligenceProviderID(p.client.ID()),
 		EffectiveModel:    response.EffectiveModel,
+		NativeSessionRef:  response.NativeSessionRef,
 		InputTokens:       response.InputTokens,
 		OutputTokens:      response.OutputTokens,
 	}
@@ -371,16 +393,44 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 	if len(request.Contract.NonGoals) > 0 {
 		fmt.Fprintf(&input, "\nExplicitly not in scope:\n- %s\n", strings.Join(request.Contract.NonGoals, "\n- "))
 	}
+	ceiling := request.Contract.AuthorityCeiling
+	fmt.Fprintf(&input, "\nFrozen Contract permissions (false means forbidden; this proposal cannot change them):\nreadWorkspace=%t\nwriteWorkspace=%t\nexecuteLocal=%t\nuseNetwork=%t\ncommitLocal=%t\ncreatePR=%t\ndeploy=%t\nexternalEffect=%t\n",
+		ceiling.ReadWorkspace, ceiling.WriteWorkspace, ceiling.ExecuteLocal, ceiling.UseNetwork,
+		ceiling.CommitLocal, ceiling.CreatePR, ceiling.Deploy, ceiling.ExternalEffect)
+	if !ceiling.ExecuteLocal {
+		input.WriteString("Local command execution is forbidden: checkCommands must be empty. Use permitted inspection and evidence for owner review; do not invent executable verification or claim manual review proves a criterion automatically. If the result needs more authority, state that as a blocker requiring an owner Contract revision.\n")
+	}
 	if feedback := strings.TrimSpace(request.ReplanFeedback); feedback != "" {
 		fmt.Fprintf(&input, "\nOwner replan feedback (this is an explicit new proposal request):\n%s\n", feedback)
 	}
 	appendRepositoryContext(&input, request.RepositoryContext)
 
+	schema := planSchema(sortedAliasKeys(request.CriterionAliases))
+	if !ceiling.ExecuteLocal {
+		unit := schema
+		for _, key := range []string{"properties", "workUnits", "items", "properties"} {
+			next, ok := unit[key].(map[string]any)
+			if !ok {
+				return ports.PlanIntelligenceResponse{}, fmt.Errorf("invalid plan schema at %s", key)
+			}
+			unit = next
+		}
+		// A null field is portable across strict-output providers, unlike a
+		// maxItems:0 bound that some schema adapters must strip. It decodes to
+		// no proposed checks; the daemon still validates every returned Plan.
+		unit["checkCommands"] = map[string]any{"type": "null", "description": "No executable checks: the Contract forbids local command execution"}
+		intents := []any{"inspect"}
+		if ceiling.WriteWorkspace {
+			intents = append(intents, "modify")
+		}
+		unit["intent"] = map[string]any{"type": "string", "enum": intents}
+		input.WriteString("For this read-only command boundary, encode checkCommands as null as required by the schema.\n")
+	}
 	response, err := p.client.Complete(ctx, ports.LLMRequest{
 		System:     planSystemPrompt,
 		User:       input.String(),
 		SchemaName: "plan_draft",
-		Schema:     planSchema(),
+		Schema:     schema,
 	})
 	if err != nil {
 		return ports.PlanIntelligenceResponse{}, err
@@ -405,6 +455,7 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 			CriteriaCovered: trimAll(unit.CriteriaCovered),
 			DependsOn:       trimAll(unit.DependsOn),
 			EvidenceIdeas:   trimAll(unit.EvidenceIdeas),
+			CheckCommands:   planDraftChecks(unit.CheckCommands),
 		})
 	}
 
@@ -418,6 +469,7 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 		Provenance: ports.IntelligenceProvenance{
 			EffectiveProvider: domain.IntelligenceProviderID(p.client.ID()),
 			EffectiveModel:    response.EffectiveModel,
+			NativeSessionRef:  response.NativeSessionRef,
 			InputTokens:       response.InputTokens,
 			OutputTokens:      response.OutputTokens,
 		},
@@ -427,8 +479,7 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 func appendRepositoryContext(input *strings.Builder, snapshot ports.RepositoryContextSnapshot) {
 	input.WriteString("\nBounded repository context (inspected facts only; no checks were run):\n")
 	if snapshot.UnavailableReason != "" {
-		fmt.Fprintf(input, "- context unavailable: %s\n", snapshot.UnavailableReason)
-		return
+		fmt.Fprintf(input, "- context limitation: %s\n", snapshot.UnavailableReason)
 	}
 	fmt.Fprintf(input, "- project: %s\n- root: %s\n- revision: %s\n- dirty: %t\n- context digest: %s\n", snapshot.ProjectID, snapshot.Root, snapshot.Revision, snapshot.Dirty, snapshot.Digest)
 	if snapshot.ProjectBrief != nil {
@@ -436,10 +487,10 @@ func appendRepositoryContext(input *strings.Builder, snapshot ports.RepositoryCo
 		fmt.Fprintf(input, "- Project Brief:\n%s\n", brief)
 	}
 	for _, instruction := range snapshot.Instructions {
-		fmt.Fprintf(input, "- instruction file %s:\n%s\n", instruction.Path, instruction.Content)
+		fmt.Fprintf(input, "- instruction file %s (truncated: %t):\n%s\n", instruction.Path, instruction.Truncated, instruction.Content)
 	}
 	for _, file := range snapshot.Files {
-		fmt.Fprintf(input, "- inspected file %s:\n%s\n", file.Path, file.Content)
+		fmt.Fprintf(input, "- inspected file %s (truncated: %t):\n%s\n", file.Path, file.Truncated, file.Content)
 	}
 	if len(snapshot.CheckCommands) > 0 {
 		fmt.Fprintf(input, "- discovered check commands (not executed):\n- %s\n", strings.Join(snapshot.CheckCommands, "\n- "))

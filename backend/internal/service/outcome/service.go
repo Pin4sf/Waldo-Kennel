@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/artifactstore"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
@@ -66,6 +68,7 @@ type ReviseContractInput struct {
 	Constraints          []string
 	NonGoals             []string
 	Clarification        string
+	CriterionEvidence    [][]string
 	EvidenceExpectations []domain.ContractEvidenceExpectation
 	AuthorityCeiling     domain.ProposedAuthority
 	StopConditions       []string
@@ -104,10 +107,59 @@ type Service struct {
 	// receipts records what each attempt produced. Optional so a degraded
 	// profile still schedules and reports truthfully; when absent, artifact
 	// continuity is unavailable rather than silently faked.
-	receipts ports.AttemptReceiptStore
-	retainer ports.AttemptRetainer
+	receipts          ports.AttemptReceiptStore
+	deliveryStore     ports.DeliveryStore
+	deliveryArtifacts *artifactstore.Store
+	retainer          ports.AttemptRetainer
+	// checks executes an Attempt's approved deterministic checks under its own
+	// frozen policy. Absent means a WorkUnit's checks simply do not run, which
+	// leaves its criteria unproved rather than assumed proved.
+	checks ports.AttemptCheckRunner
+	// checkRuns is the durable record of which approved checks have already
+	// been invoked against which retained artifact. Without it a repeated
+	// reconciliation tick would relaunch every command again.
+	checkRuns ports.AttemptCheckRunStore
+	// checkReservationEpoch identifies this daemon invocation. The active set
+	// is only a liveness witness for re-entrant reconciliation in this process;
+	// once-only ownership remains the durable check-run reservation.
+	checkReservationEpoch string
+	checkReservationMu    sync.Mutex
+	activeCheckRuns       map[string]int
+	// runIntents holds the owner's durable authorization to keep working
+	// through an approved Plan. Absent means only per-Attempt Start exists,
+	// which is a reduced capability, never an assumed authorization.
+	runIntents ports.RunIntentStore
+	// documents and documentBytes hold supplied-document Outcomes: which
+	// local documents were selected and approved, and the snapshot of their
+	// bytes that execution actually reads.
+	documents     ports.DocumentContextStore
+	documentBytes ports.DocumentSnapshotStore
 
 	staleHeartbeat time.Duration
+}
+
+// WithRunIntents wires durable run intent and serial continuation.
+func (s *Service) WithRunIntents(store ports.RunIntentStore) *Service {
+	s.runIntents = store
+	return s
+}
+
+// WithDocuments wires supplied-document Outcomes. Both halves are required:
+// a record of what was approved without the approved bytes could only be
+// honoured by re-reading the owner's files, which is the thing this path
+// exists to avoid.
+func (s *Service) WithDocuments(contexts ports.DocumentContextStore, snapshots ports.DocumentSnapshotStore) *Service {
+	s.documents, s.documentBytes = contexts, snapshots
+	return s
+}
+
+// WithCheckRunner wires deterministic check execution into classification.
+// Both the runner and the durable run record are required: executing checks
+// without a durable record of having executed them would relaunch real
+// commands on every reconciliation tick.
+func (s *Service) WithCheckRunner(runner ports.AttemptCheckRunner, runs ports.AttemptCheckRunStore) *Service {
+	s.checks, s.checkRuns = runner, runs
+	return s
 }
 
 // WithStaleHeartbeat configures the stale-attempt threshold.
@@ -123,7 +175,7 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
 	}
-	service := &Service{store: store, clock: clock}
+	service := &Service{store: store, clock: clock, checkReservationEpoch: uuid.NewString(), activeCheckRuns: map[string]int{}}
 	if proof, ok := store.(ports.OutcomeProofStore); ok {
 		service.proof = proof
 	}
@@ -281,10 +333,12 @@ func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in Re
 		return View{}, err
 	}
 
-	if _, ok, err := s.store.GetOutcome(ctx, id); err != nil {
+	previous, err := s.Get(ctx, id)
+	if err != nil {
 		return View{}, err
-	} else if !ok {
-		return View{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
+	}
+	if in.ExecutionPreference == nil {
+		in.ExecutionPreference = previous.Current.ExecutionPreference
 	}
 
 	next := domain.ContractRevision{
@@ -305,6 +359,18 @@ func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in Re
 		CreatedAt:            s.clock(),
 	}
 	next.Criteria = stableCriteria(next.ID, next.SuccessCriteria)
+	if in.CriterionEvidence != nil {
+		if len(in.CriterionEvidence) != len(next.Criteria) {
+			return View{}, apierr.Invalid("CONTRACT_EVIDENCE_MISMATCH", "Provide evidence expectations for each success criterion", nil)
+		}
+		next.EvidenceExpectations = nil
+		for i, descriptions := range in.CriterionEvidence {
+			if len(descriptions) > 0 {
+				next.EvidenceExpectations = append(next.EvidenceExpectations, domain.ContractEvidenceExpectation{CriterionID: next.Criteria[i].ID, Descriptions: descriptions})
+			}
+		}
+	}
+
 	number, err := s.store.AppendContractRevision(ctx, id, in.ExpectedRevision, next)
 	if err != nil {
 		var conflict *ports.OutcomeConflictError

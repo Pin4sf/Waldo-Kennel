@@ -82,6 +82,9 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Get("/projects/{id}/outcomes", c.list)
 	r.Post("/projects/{id}/outcomes", c.create)
 	r.Get("/outcomes/{outcomeId}", c.get)
+	r.Get("/projects/{id}/outcome-trash", c.trashedOutcomes)
+	r.Get("/outcomes/{outcomeId}/deletion", c.deletionPreview)
+	r.Post("/outcomes/{outcomeId}/deletion", c.changeDeletion)
 	r.Post("/outcomes/{outcomeId}/revisions", c.revise)
 	r.Post("/outcomes/{outcomeId}/plans", c.proposePlan)
 	r.Post("/outcomes/{outcomeId}/plans/replan", c.replanPlan)
@@ -111,6 +114,7 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Post("/outcomes/{outcomeId}/acceptance-decisions", c.decideAcceptance)
 	r.Get("/outcomes/{outcomeId}/acceptance-batch", c.batchEligibility)
 	r.Post("/outcomes/{outcomeId}/acceptance-batch", c.acceptContributorBatch)
+	c.registerRunRoutes(r)
 }
 
 func (c *OutcomesController) getProof(w http.ResponseWriter, r *http.Request) {
@@ -371,16 +375,23 @@ func (c *OutcomesController) revise(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
 		return
 	}
+	facets := make([]domain.ContractFacet, 0, len(req.Facets))
+	for _, facet := range req.Facets {
+		facets = append(facets, domain.ContractFacet{Kind: domain.ContractFacetKind(facet.Kind), Summary: facet.Summary, Requirements: facet.Requirements})
+	}
 	view, err := c.Svc.ReviseContract(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.ReviseContractInput{
-		ExpectedRevision: req.ExpectedRevision,
-		Goal:             req.Goal,
-		SuccessCriteria:  req.SuccessCriteria,
-		Review:           req.Review,
-		Constraints:      req.Constraints,
-		NonGoals:         req.NonGoals,
-		Clarification:    req.Clarification,
-		AuthorityCeiling: proposedAuthority(req.AuthorityCeiling),
-		StopConditions:   req.StopConditions,
+		CriterionEvidence: req.CriterionEvidence,
+		TemporalCondition: req.TemporalCondition,
+		Facets:            facets,
+		ExpectedRevision:  req.ExpectedRevision,
+		Goal:              req.Goal,
+		SuccessCriteria:   req.SuccessCriteria,
+		Review:            req.Review,
+		Constraints:       req.Constraints,
+		NonGoals:          req.NonGoals,
+		Clarification:     req.Clarification,
+		AuthorityCeiling:  proposedAuthority(req.AuthorityCeiling),
+		StopConditions:    req.StopConditions,
 	})
 	if err != nil {
 		envelope.WriteError(w, r, err)

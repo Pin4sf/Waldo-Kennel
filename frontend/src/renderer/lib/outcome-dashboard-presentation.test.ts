@@ -29,7 +29,7 @@ describe("deriveOutcomeDashboardPresentation", () => {
 		})).toEqual({
 			nextActionKey: "outcome.dashboard.reviewApprovedPlan",
 			stageKey: "outcome.dashboard.authorizedStage",
-			stateKey: "outcome.dashboard.executionNotConnected",
+			stateKey: "mission.authorizationRecorded",
 		});
 	});
 

@@ -17,7 +17,7 @@ npm run shared:check
 npm run test:island
 npm --prefix frontend run typecheck
 npm --prefix frontend test
-npm --prefix frontend/src/landing run build
+npm --prefix frontend run build
 node --test scripts/kennel-e2e-pod-gate.test.mjs
 
 npm run sqlc

@@ -10,9 +10,9 @@ import (
 func scheduleFor(t *testing.T, attempts []domain.Attempt) ScheduleView {
 	t.Helper()
 	plan := schedulerPlanFixture()
-	view, err := deriveSchedule(plan, attempts, schedulerProofFixture(plan))
+	view, err := deriveSchedule(plan, attempts, schedulerProofFixture(plan), nil)
 	if err != nil {
-		t.Fatalf("deriveSchedule() error = %v", err)
+		t.Fatalf("deriveSchedule error = %v", err)
 	}
 	return view
 }
@@ -121,7 +121,7 @@ func TestScheduleAlwaysExplainsAnEmptyRunnableSet(t *testing.T) {
 	addProvenAttemptCriterion(&proof, plan, attempt, retainedArtifactV1, "crit-a", time.Unix(100, 0).UTC())
 
 	// A is proven; B is now admissible, so there is still something runnable.
-	view, err := deriveSchedule(plan, []domain.Attempt{attempt}, proof)
+	view, err := deriveSchedule(plan, []domain.Attempt{attempt}, proof, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestScheduleAlwaysExplainsAnEmptyRunnableSet(t *testing.T) {
 	done, err := deriveSchedule(plan, []domain.Attempt{
 		{ID: "att-a", OutcomeID: plan.OutcomeID, PlanRevisionID: plan.ID, WorkUnitID: "wu-a", ContractRevisionNumber: 1, Status: domain.AttemptReconciled},
 		{ID: "att-b", OutcomeID: plan.OutcomeID, PlanRevisionID: plan.ID, WorkUnitID: "wu-b", ContractRevisionNumber: 1, Status: domain.AttemptReconciled},
-	}, proof)
+	}, proof, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestScheduleContainsEveryApprovedUnitInDependencyOrder(t *testing.T) {
 	plan := schedulerPlanFixture()
 	// Serialize B before A: dependency correctness must not depend on order.
 	plan.WorkUnits = []domain.WorkUnit{plan.WorkUnits[1], plan.WorkUnits[0]}
-	view, err := deriveSchedule(plan, nil, schedulerProofFixture(plan))
+	view, err := deriveSchedule(plan, nil, schedulerProofFixture(plan), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

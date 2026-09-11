@@ -2129,6 +2129,9 @@ func TestSpawn_DeletesSeedRowOnWorkspaceFailure(t *testing.T) {
 	if !errors.Is(err, ports.ErrWorkspaceBranchCheckedOutElsewhere) {
 		t.Fatalf("err = %v, want ports.ErrWorkspaceBranchCheckedOutElsewhere", err)
 	}
+	if !errors.Is(err, ports.ErrAttemptWorkspacePreparation) {
+		t.Fatal("workspace failure lost its pre-launch classification")
+	}
 	if rec, present := st.sessions["mer-1"]; present {
 		t.Fatalf("seed row must be deleted, got %+v", rec)
 	}
@@ -7393,4 +7396,22 @@ func (m *flipOnNudgeMessenger) Send(_ context.Context, _ domain.SessionID, msg s
 		m.flipped = true
 	}
 	return nil
+}
+
+func TestSpawn_CustomProfilesDoNotReuseBranches(t *testing.T) {
+	first, firstStore, _, _ := newManager()
+	second, secondStore, _, _ := newManager()
+	first.dataDir = t.TempDir()
+	second.dataDir = t.TempDir()
+	a, _, _, err := first.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _, _, err := second.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstStore.sessions[a.ID].Metadata.Branch == secondStore.sessions[b.ID].Metadata.Branch {
+		t.Fatal("independent profiles generated the same checked-out branch")
+	}
 }

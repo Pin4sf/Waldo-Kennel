@@ -146,7 +146,10 @@ func TestStoreComposeRejectsConflictAndAppliesExactBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	destination := filepath.Join(t.TempDir(), "successor")
-	if err := store.Apply(context.Background(), handoff, destination); err != nil {
+	if err := os.MkdirAll(destination, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Materialize(context.Background(), handoff, destination, ""); err != nil {
 		t.Fatal(err)
 	}
 	body, err := os.ReadFile(filepath.Join(destination, "answer.txt"))

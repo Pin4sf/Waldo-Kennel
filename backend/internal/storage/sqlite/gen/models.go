@@ -98,6 +98,7 @@ type Attempt struct {
 	RequestKey             sql.NullString
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
+	RunIntentGeneration    int64
 }
 
 type AttemptArtifactFile struct {
@@ -110,6 +111,32 @@ type AttemptArtifactFile struct {
 	FileMode          sql.NullInt64
 	IsBinary          int64
 	UnsupportedReason string
+}
+
+type AttemptCheckRun struct {
+	ID                      string
+	AttemptID               string
+	CheckID                 string
+	ArtifactVersion         string
+	State                   string
+	Ran                     int64
+	Passed                  int64
+	ExitCode                int64
+	EnforcedBy              string
+	TimedOut                int64
+	Cancelled               int64
+	TerminationUnknown      int64
+	OutputTruncated         int64
+	Output                  string
+	Unavailable             string
+	ArtifactChanged         int64
+	ObservedArtifactVersion string
+	ReservedAt              time.Time
+	ObservedAt              sql.NullTime
+	ReservationEpoch        string
+	BaselineRan             int64
+	BaselinePassed          int64
+	BaselineDetail          string
 }
 
 type AttemptFence struct {
@@ -593,6 +620,73 @@ type OutcomeCorrection struct {
 	TargetType         string
 	TargetID           string
 	CreatedAt          time.Time
+}
+
+type OutcomeDelivery struct {
+	ID                   string
+	OutcomeID            string
+	AttemptID            string
+	WorkUnitID           string
+	ArtifactVersion      string
+	Disposition          string
+	Destination          string
+	AcceptanceDecisionID string
+	RequestKey           string
+	RequestFingerprint   string
+	State                string
+	ManifestPath         string
+	FileCount            int64
+	ByteCount            int64
+	FailureCode          string
+	FailureDetail        string
+	RequestedAt          time.Time
+	CompletedAt          sql.NullTime
+	CompletionSource     string
+}
+
+type OutcomeDocumentContext struct {
+	ID         string
+	OutcomeID  string
+	Revision   int64
+	Digest     string
+	State      string
+	SelectedAt time.Time
+	ApprovedAt sql.NullTime
+}
+
+type OutcomeDocumentSource struct {
+	ID            string
+	ContextID     string
+	Position      int64
+	SourcePath    string
+	Name          string
+	ContentDigest string
+	SizeBytes     int64
+}
+
+type OutcomePurgeScope struct {
+	TableName string
+	RowID     int64
+}
+
+type OutcomeRunIntent struct {
+	ID                     string
+	OutcomeID              string
+	Generation             int64
+	Desired                string
+	PlanRevisionID         string
+	ContractRevisionNumber int64
+	RequestKey             string
+	RequestedAt            time.Time
+	AcknowledgedAt         sql.NullTime
+	RequestFingerprint     string
+}
+
+type OutcomeTrash struct {
+	OutcomeID   string
+	TrashRootID string
+	Erasing     int64
+	DeletedAt   time.Time
 }
 
 type PR struct {
@@ -1118,6 +1212,15 @@ type WorkUnit struct {
 	EvidenceChecks          string
 	VerificationRequirement string
 	StopConditions          string
+}
+
+type WorkUnitCheck struct {
+	ID             string
+	WorkUnitID     string
+	CriterionID    string
+	Position       int64
+	Argv           string
+	TimeoutSeconds int64
 }
 
 type WorkUnitCriterionBinding struct {

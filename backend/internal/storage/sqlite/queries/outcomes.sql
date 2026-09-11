@@ -23,13 +23,13 @@ FROM outcomes WHERE idempotency_key = ?;
 
 -- name: GetOutcome :one
 SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
-FROM outcomes WHERE id = ?;
+FROM outcomes WHERE id = ? AND NOT EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=outcomes.id);
 
 -- name: ListOutcomesByProject :many
 SELECT o.id, o.space_id, o.title, o.current_revision_number, o.idempotency_key, o.created_at, o.updated_at, o.parent_outcome_id
 FROM outcomes o
 JOIN responsibility_spaces rs ON rs.id = o.space_id
-WHERE rs.project_id = ? AND rs.kind = 'WorkProject'
+WHERE rs.project_id = ? AND rs.kind = 'WorkProject' AND NOT EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=o.id)
 ORDER BY o.created_at, o.id;
 
 -- name: AdvanceOutcomeCurrentRevision :execrows
@@ -104,6 +104,17 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 SELECT id, plan_revision_id, kind, title, contract_revision_number, output_summary, evidence_checks, verification_requirement, stop_conditions
 FROM work_units WHERE plan_revision_id = ?;
 
+-- Approved deterministic checks are frozen Plan authority; there is
+-- deliberately no update or delete query.
+
+-- name: CreateWorkUnitCheck :exec
+INSERT INTO work_unit_checks (id, work_unit_id, criterion_id, position, argv, timeout_seconds)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- name: ListWorkUnitChecksForWorkUnit :many
+SELECT id, work_unit_id, criterion_id, position, argv, timeout_seconds
+FROM work_unit_checks WHERE work_unit_id = ? ORDER BY position;
+
 -- name: CreateCapabilityGrant :exec
 INSERT INTO capability_grants (id, plan_revision_id, name, scope)
 VALUES (?, ?, ?, ?);
@@ -111,6 +122,104 @@ VALUES (?, ?, ?, ?);
 -- name: ListCapabilityGrantsForPlan :many
 SELECT id, plan_revision_id, name, scope
 FROM capability_grants WHERE plan_revision_id = ?;
+
+-- Durable check-run identity. The reservation is inserted before the command
+-- is invoked; the observation is written once and never changed.
+
+-- name: ReserveAttemptCheckRun :exec
+INSERT INTO attempt_check_runs (id, attempt_id, check_id, artifact_version, state, reservation_epoch, reserved_at)
+VALUES (?, ?, ?, ?, 'reserved', ?, ?);
+
+-- name: GetAttemptCheckRun :one
+SELECT id, attempt_id, check_id, artifact_version, state, reservation_epoch, ran, passed, exit_code, enforced_by,
+       timed_out, cancelled, termination_unknown, output_truncated, output, unavailable,
+       baseline_ran, baseline_passed, baseline_detail,
+       artifact_changed, observed_artifact_version, reserved_at, observed_at
+FROM attempt_check_runs WHERE attempt_id = ? AND check_id = ? AND artifact_version = ?;
+
+-- name: ListAttemptCheckRuns :many
+SELECT id, attempt_id, check_id, artifact_version, state, reservation_epoch, ran, passed, exit_code, enforced_by,
+       timed_out, cancelled, termination_unknown, output_truncated, output, unavailable,
+       baseline_ran, baseline_passed, baseline_detail,
+       artifact_changed, observed_artifact_version, reserved_at, observed_at
+FROM attempt_check_runs WHERE attempt_id = ? AND artifact_version = ? ORDER BY reserved_at, id;
+
+-- name: RecordAttemptCheckObservation :execrows
+UPDATE attempt_check_runs
+SET state = 'observed', ran = ?, passed = ?, exit_code = ?, enforced_by = ?,
+    timed_out = ?, cancelled = ?, termination_unknown = ?, output_truncated = ?,
+    output = ?, unavailable = ?,
+    baseline_ran = ?, baseline_passed = ?, baseline_detail = ?,
+    artifact_changed = ?, observed_artifact_version = ?,
+    observed_at = ?
+WHERE attempt_id = ? AND check_id = ? AND artifact_version = ? AND state = 'reserved';
+
+-- name: MarkAttemptCheckRunUnknown :execrows
+UPDATE attempt_check_runs SET state = 'unknown', observed_at = ?
+WHERE attempt_id = ? AND check_id = ? AND artifact_version = ? AND state = 'reserved';
+
+-- Durable run intent. Generations are append-only; the only permitted
+-- mutation is the write-once acknowledgement.
+
+-- name: CreateOutcomeRunIntent :exec
+INSERT INTO outcome_run_intents
+    (id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: CurrentOutcomeRunIntent :one
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at
+FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation DESC LIMIT 1;
+
+-- name: FindOutcomeRunIntentByRequestKey :one
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at
+FROM outcome_run_intents WHERE request_key = ?;
+
+-- name: ListOutcomeRunIntents :many
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at
+FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation;
+
+-- name: ListCurrentRunIntentsByDesired :many
+SELECT i.id, i.outcome_id, i.generation, i.desired, i.plan_revision_id, i.contract_revision_number, i.request_key, i.request_fingerprint, i.requested_at, i.acknowledged_at
+FROM outcome_run_intents i
+WHERE i.desired = ? AND NOT EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=i.outcome_id)
+  AND i.generation = (SELECT MAX(g.generation) FROM outcome_run_intents g WHERE g.outcome_id = i.outcome_id)
+ORDER BY i.outcome_id;
+
+-- name: AcknowledgeOutcomeRunIntent :execrows
+UPDATE outcome_run_intents SET acknowledged_at = ?
+WHERE outcome_id = ? AND generation = ? AND acknowledged_at IS NULL;
+
+-- Supplied-document context. Revisions are append-only; the only permitted
+-- mutation is the write-once, one-way approval.
+
+-- name: CreateOutcomeDocumentContext :exec
+INSERT INTO outcome_document_contexts (id, outcome_id, revision, digest, state, selected_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- name: CreateOutcomeDocumentSource :exec
+INSERT INTO outcome_document_sources (id, context_id, position, source_path, name, content_digest, size_bytes)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- name: CurrentOutcomeDocumentContext :one
+SELECT id, outcome_id, revision, digest, state, selected_at, approved_at
+FROM outcome_document_contexts WHERE outcome_id = ? ORDER BY revision DESC LIMIT 1;
+
+-- name: GetOutcomeDocumentContext :one
+SELECT id, outcome_id, revision, digest, state, selected_at, approved_at
+FROM outcome_document_contexts WHERE id = ?;
+
+-- name: MaxOutcomeDocumentContextRevision :one
+SELECT CAST(COALESCE(MAX(revision), 0) AS INTEGER) FROM outcome_document_contexts WHERE outcome_id = ?;
+
+-- name: ListOutcomeDocumentSources :many
+SELECT id, context_id, position, source_path, name, content_digest, size_bytes
+FROM outcome_document_sources WHERE context_id = ? ORDER BY position;
+
+-- name: ApproveOutcomeDocumentContext :execrows
+UPDATE outcome_document_contexts SET state = 'approved', approved_at = ?
+WHERE outcome_document_contexts.id = ? AND outcome_document_contexts.outcome_id = ?
+  AND outcome_document_contexts.digest = ? AND outcome_document_contexts.state = 'selected'
+  AND outcome_document_contexts.revision = (SELECT MAX(current.revision) FROM outcome_document_contexts AS current WHERE current.outcome_id = ?);
 
 -- Composed Outcomes (ADR 0007). Contribution is criterion-bound and
 -- append-only; there is deliberately no update or delete query.

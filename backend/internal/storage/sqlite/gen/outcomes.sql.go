@@ -13,6 +13,25 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
+const acknowledgeOutcomeRunIntent = `-- name: AcknowledgeOutcomeRunIntent :execrows
+UPDATE outcome_run_intents SET acknowledged_at = ?
+WHERE outcome_id = ? AND generation = ? AND acknowledged_at IS NULL
+`
+
+type AcknowledgeOutcomeRunIntentParams struct {
+	AcknowledgedAt sql.NullTime
+	OutcomeID      string
+	Generation     int64
+}
+
+func (q *Queries) AcknowledgeOutcomeRunIntent(ctx context.Context, arg AcknowledgeOutcomeRunIntentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, acknowledgeOutcomeRunIntent, arg.AcknowledgedAt, arg.OutcomeID, arg.Generation)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const advanceOutcomeCurrentRevision = `-- name: AdvanceOutcomeCurrentRevision :execrows
 UPDATE outcomes
 SET current_revision_number = ?, updated_at = ?
@@ -62,6 +81,35 @@ func (q *Queries) AnswerDecompositionRequest(ctx context.Context, arg AnswerDeco
 		arg.DecompositionID,
 		arg.AnsweredAt,
 		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const approveOutcomeDocumentContext = `-- name: ApproveOutcomeDocumentContext :execrows
+UPDATE outcome_document_contexts SET state = 'approved', approved_at = ?
+WHERE outcome_document_contexts.id = ? AND outcome_document_contexts.outcome_id = ?
+  AND outcome_document_contexts.digest = ? AND outcome_document_contexts.state = 'selected'
+  AND outcome_document_contexts.revision = (SELECT MAX(current.revision) FROM outcome_document_contexts AS current WHERE current.outcome_id = ?)
+`
+
+type ApproveOutcomeDocumentContextParams struct {
+	ApprovedAt  sql.NullTime
+	ID          string
+	OutcomeID   string
+	Digest      string
+	OutcomeID_2 string
+}
+
+func (q *Queries) ApproveOutcomeDocumentContext(ctx context.Context, arg ApproveOutcomeDocumentContextParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, approveOutcomeDocumentContext,
+		arg.ApprovedAt,
+		arg.ID,
+		arg.OutcomeID,
+		arg.Digest,
+		arg.OutcomeID_2,
 	)
 	if err != nil {
 		return 0, err
@@ -455,6 +503,99 @@ func (q *Queries) CreateOutcome(ctx context.Context, arg CreateOutcomeParams) er
 	return err
 }
 
+const createOutcomeDocumentContext = `-- name: CreateOutcomeDocumentContext :exec
+
+INSERT INTO outcome_document_contexts (id, outcome_id, revision, digest, state, selected_at)
+VALUES (?, ?, ?, ?, ?, ?)
+`
+
+type CreateOutcomeDocumentContextParams struct {
+	ID         string
+	OutcomeID  string
+	Revision   int64
+	Digest     string
+	State      string
+	SelectedAt time.Time
+}
+
+// Supplied-document context. Revisions are append-only; the only permitted
+// mutation is the write-once, one-way approval.
+func (q *Queries) CreateOutcomeDocumentContext(ctx context.Context, arg CreateOutcomeDocumentContextParams) error {
+	_, err := q.db.ExecContext(ctx, createOutcomeDocumentContext,
+		arg.ID,
+		arg.OutcomeID,
+		arg.Revision,
+		arg.Digest,
+		arg.State,
+		arg.SelectedAt,
+	)
+	return err
+}
+
+const createOutcomeDocumentSource = `-- name: CreateOutcomeDocumentSource :exec
+INSERT INTO outcome_document_sources (id, context_id, position, source_path, name, content_digest, size_bytes)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateOutcomeDocumentSourceParams struct {
+	ID            string
+	ContextID     string
+	Position      int64
+	SourcePath    string
+	Name          string
+	ContentDigest string
+	SizeBytes     int64
+}
+
+func (q *Queries) CreateOutcomeDocumentSource(ctx context.Context, arg CreateOutcomeDocumentSourceParams) error {
+	_, err := q.db.ExecContext(ctx, createOutcomeDocumentSource,
+		arg.ID,
+		arg.ContextID,
+		arg.Position,
+		arg.SourcePath,
+		arg.Name,
+		arg.ContentDigest,
+		arg.SizeBytes,
+	)
+	return err
+}
+
+const createOutcomeRunIntent = `-- name: CreateOutcomeRunIntent :exec
+
+INSERT INTO outcome_run_intents
+    (id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateOutcomeRunIntentParams struct {
+	ID                     string
+	OutcomeID              string
+	Generation             int64
+	Desired                string
+	PlanRevisionID         string
+	ContractRevisionNumber int64
+	RequestKey             string
+	RequestFingerprint     string
+	RequestedAt            time.Time
+}
+
+// Durable run intent. Generations are append-only; the only permitted
+// mutation is the write-once acknowledgement.
+func (q *Queries) CreateOutcomeRunIntent(ctx context.Context, arg CreateOutcomeRunIntentParams) error {
+	_, err := q.db.ExecContext(ctx, createOutcomeRunIntent,
+		arg.ID,
+		arg.OutcomeID,
+		arg.Generation,
+		arg.Desired,
+		arg.PlanRevisionID,
+		arg.ContractRevisionNumber,
+		arg.RequestKey,
+		arg.RequestFingerprint,
+		arg.RequestedAt,
+	)
+	return err
+}
+
 const createPlanRevision = `-- name: CreatePlanRevision :exec
 
 INSERT INTO plan_revisions (id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest)
@@ -537,6 +678,91 @@ func (q *Queries) CreateWorkUnit(ctx context.Context, arg CreateWorkUnitParams) 
 	return err
 }
 
+const createWorkUnitCheck = `-- name: CreateWorkUnitCheck :exec
+
+INSERT INTO work_unit_checks (id, work_unit_id, criterion_id, position, argv, timeout_seconds)
+VALUES (?, ?, ?, ?, ?, ?)
+`
+
+type CreateWorkUnitCheckParams struct {
+	ID             string
+	WorkUnitID     string
+	CriterionID    string
+	Position       int64
+	Argv           string
+	TimeoutSeconds int64
+}
+
+// Approved deterministic checks are frozen Plan authority; there is
+// deliberately no update or delete query.
+func (q *Queries) CreateWorkUnitCheck(ctx context.Context, arg CreateWorkUnitCheckParams) error {
+	_, err := q.db.ExecContext(ctx, createWorkUnitCheck,
+		arg.ID,
+		arg.WorkUnitID,
+		arg.CriterionID,
+		arg.Position,
+		arg.Argv,
+		arg.TimeoutSeconds,
+	)
+	return err
+}
+
+const currentOutcomeDocumentContext = `-- name: CurrentOutcomeDocumentContext :one
+SELECT id, outcome_id, revision, digest, state, selected_at, approved_at
+FROM outcome_document_contexts WHERE outcome_id = ? ORDER BY revision DESC LIMIT 1
+`
+
+func (q *Queries) CurrentOutcomeDocumentContext(ctx context.Context, outcomeID string) (OutcomeDocumentContext, error) {
+	row := q.db.QueryRowContext(ctx, currentOutcomeDocumentContext, outcomeID)
+	var i OutcomeDocumentContext
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Revision,
+		&i.Digest,
+		&i.State,
+		&i.SelectedAt,
+		&i.ApprovedAt,
+	)
+	return i, err
+}
+
+const currentOutcomeRunIntent = `-- name: CurrentOutcomeRunIntent :one
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at
+FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation DESC LIMIT 1
+`
+
+type CurrentOutcomeRunIntentRow struct {
+	ID                     string
+	OutcomeID              string
+	Generation             int64
+	Desired                string
+	PlanRevisionID         string
+	ContractRevisionNumber int64
+	RequestKey             string
+	RequestFingerprint     string
+	RequestedAt            time.Time
+	AcknowledgedAt         sql.NullTime
+}
+
+func (q *Queries) CurrentOutcomeRunIntent(ctx context.Context, outcomeID string) (CurrentOutcomeRunIntentRow, error) {
+	row := q.db.QueryRowContext(ctx, currentOutcomeRunIntent, outcomeID)
+	var i CurrentOutcomeRunIntentRow
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Generation,
+		&i.Desired,
+		&i.PlanRevisionID,
+		&i.ContractRevisionNumber,
+		&i.RequestKey,
+		&i.RequestFingerprint,
+		&i.RequestedAt,
+		&i.AcknowledgedAt,
+	)
+	return i, err
+}
+
 const findOutcomeByIdempotencyKey = `-- name: FindOutcomeByIdempotencyKey :one
 SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
 FROM outcomes WHERE idempotency_key = ?
@@ -558,6 +784,42 @@ func (q *Queries) FindOutcomeByIdempotencyKey(ctx context.Context, idempotencyKe
 	return i, err
 }
 
+const findOutcomeRunIntentByRequestKey = `-- name: FindOutcomeRunIntentByRequestKey :one
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at
+FROM outcome_run_intents WHERE request_key = ?
+`
+
+type FindOutcomeRunIntentByRequestKeyRow struct {
+	ID                     string
+	OutcomeID              string
+	Generation             int64
+	Desired                string
+	PlanRevisionID         string
+	ContractRevisionNumber int64
+	RequestKey             string
+	RequestFingerprint     string
+	RequestedAt            time.Time
+	AcknowledgedAt         sql.NullTime
+}
+
+func (q *Queries) FindOutcomeRunIntentByRequestKey(ctx context.Context, requestKey string) (FindOutcomeRunIntentByRequestKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, findOutcomeRunIntentByRequestKey, requestKey)
+	var i FindOutcomeRunIntentByRequestKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Generation,
+		&i.Desired,
+		&i.PlanRevisionID,
+		&i.ContractRevisionNumber,
+		&i.RequestKey,
+		&i.RequestFingerprint,
+		&i.RequestedAt,
+		&i.AcknowledgedAt,
+	)
+	return i, err
+}
+
 const findWorkResponsibilitySpaceByProject = `-- name: FindWorkResponsibilitySpaceByProject :one
 SELECT id, kind, project_id, created_at
 FROM responsibility_spaces WHERE project_id = ? AND kind = 'WorkProject'
@@ -571,6 +833,77 @@ func (q *Queries) FindWorkResponsibilitySpaceByProject(ctx context.Context, proj
 		&i.Kind,
 		&i.ProjectID,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getAttemptCheckRun = `-- name: GetAttemptCheckRun :one
+SELECT id, attempt_id, check_id, artifact_version, state, reservation_epoch, ran, passed, exit_code, enforced_by,
+       timed_out, cancelled, termination_unknown, output_truncated, output, unavailable,
+       baseline_ran, baseline_passed, baseline_detail,
+       artifact_changed, observed_artifact_version, reserved_at, observed_at
+FROM attempt_check_runs WHERE attempt_id = ? AND check_id = ? AND artifact_version = ?
+`
+
+type GetAttemptCheckRunParams struct {
+	AttemptID       string
+	CheckID         string
+	ArtifactVersion string
+}
+
+type GetAttemptCheckRunRow struct {
+	ID                      string
+	AttemptID               string
+	CheckID                 string
+	ArtifactVersion         string
+	State                   string
+	ReservationEpoch        string
+	Ran                     int64
+	Passed                  int64
+	ExitCode                int64
+	EnforcedBy              string
+	TimedOut                int64
+	Cancelled               int64
+	TerminationUnknown      int64
+	OutputTruncated         int64
+	Output                  string
+	Unavailable             string
+	BaselineRan             int64
+	BaselinePassed          int64
+	BaselineDetail          string
+	ArtifactChanged         int64
+	ObservedArtifactVersion string
+	ReservedAt              time.Time
+	ObservedAt              sql.NullTime
+}
+
+func (q *Queries) GetAttemptCheckRun(ctx context.Context, arg GetAttemptCheckRunParams) (GetAttemptCheckRunRow, error) {
+	row := q.db.QueryRowContext(ctx, getAttemptCheckRun, arg.AttemptID, arg.CheckID, arg.ArtifactVersion)
+	var i GetAttemptCheckRunRow
+	err := row.Scan(
+		&i.ID,
+		&i.AttemptID,
+		&i.CheckID,
+		&i.ArtifactVersion,
+		&i.State,
+		&i.ReservationEpoch,
+		&i.Ran,
+		&i.Passed,
+		&i.ExitCode,
+		&i.EnforcedBy,
+		&i.TimedOut,
+		&i.Cancelled,
+		&i.TerminationUnknown,
+		&i.OutputTruncated,
+		&i.Output,
+		&i.Unavailable,
+		&i.BaselineRan,
+		&i.BaselinePassed,
+		&i.BaselineDetail,
+		&i.ArtifactChanged,
+		&i.ObservedArtifactVersion,
+		&i.ReservedAt,
+		&i.ObservedAt,
 	)
 	return i, err
 }
@@ -721,7 +1054,7 @@ func (q *Queries) GetLatestPlanRevision(ctx context.Context, outcomeID domain.Ou
 
 const getOutcome = `-- name: GetOutcome :one
 SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
-FROM outcomes WHERE id = ?
+FROM outcomes WHERE id = ? AND NOT EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=outcomes.id)
 `
 
 func (q *Queries) GetOutcome(ctx context.Context, id domain.OutcomeID) (Outcome, error) {
@@ -736,6 +1069,26 @@ func (q *Queries) GetOutcome(ctx context.Context, id domain.OutcomeID) (Outcome,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ParentOutcomeID,
+	)
+	return i, err
+}
+
+const getOutcomeDocumentContext = `-- name: GetOutcomeDocumentContext :one
+SELECT id, outcome_id, revision, digest, state, selected_at, approved_at
+FROM outcome_document_contexts WHERE id = ?
+`
+
+func (q *Queries) GetOutcomeDocumentContext(ctx context.Context, id string) (OutcomeDocumentContext, error) {
+	row := q.db.QueryRowContext(ctx, getOutcomeDocumentContext, id)
+	var i OutcomeDocumentContext
+	err := row.Scan(
+		&i.ID,
+		&i.OutcomeID,
+		&i.Revision,
+		&i.Digest,
+		&i.State,
+		&i.SelectedAt,
+		&i.ApprovedAt,
 	)
 	return i, err
 }
@@ -897,6 +1250,92 @@ func (q *Queries) LatestProposedPlanRevision(ctx context.Context, arg LatestProp
 		&i.RoutingDecisionsJson,
 	)
 	return i, err
+}
+
+const listAttemptCheckRuns = `-- name: ListAttemptCheckRuns :many
+SELECT id, attempt_id, check_id, artifact_version, state, reservation_epoch, ran, passed, exit_code, enforced_by,
+       timed_out, cancelled, termination_unknown, output_truncated, output, unavailable,
+       baseline_ran, baseline_passed, baseline_detail,
+       artifact_changed, observed_artifact_version, reserved_at, observed_at
+FROM attempt_check_runs WHERE attempt_id = ? AND artifact_version = ? ORDER BY reserved_at, id
+`
+
+type ListAttemptCheckRunsParams struct {
+	AttemptID       string
+	ArtifactVersion string
+}
+
+type ListAttemptCheckRunsRow struct {
+	ID                      string
+	AttemptID               string
+	CheckID                 string
+	ArtifactVersion         string
+	State                   string
+	ReservationEpoch        string
+	Ran                     int64
+	Passed                  int64
+	ExitCode                int64
+	EnforcedBy              string
+	TimedOut                int64
+	Cancelled               int64
+	TerminationUnknown      int64
+	OutputTruncated         int64
+	Output                  string
+	Unavailable             string
+	BaselineRan             int64
+	BaselinePassed          int64
+	BaselineDetail          string
+	ArtifactChanged         int64
+	ObservedArtifactVersion string
+	ReservedAt              time.Time
+	ObservedAt              sql.NullTime
+}
+
+func (q *Queries) ListAttemptCheckRuns(ctx context.Context, arg ListAttemptCheckRunsParams) ([]ListAttemptCheckRunsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAttemptCheckRuns, arg.AttemptID, arg.ArtifactVersion)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttemptCheckRunsRow{}
+	for rows.Next() {
+		var i ListAttemptCheckRunsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AttemptID,
+			&i.CheckID,
+			&i.ArtifactVersion,
+			&i.State,
+			&i.ReservationEpoch,
+			&i.Ran,
+			&i.Passed,
+			&i.ExitCode,
+			&i.EnforcedBy,
+			&i.TimedOut,
+			&i.Cancelled,
+			&i.TerminationUnknown,
+			&i.OutputTruncated,
+			&i.Output,
+			&i.Unavailable,
+			&i.BaselineRan,
+			&i.BaselinePassed,
+			&i.BaselineDetail,
+			&i.ArtifactChanged,
+			&i.ObservedArtifactVersion,
+			&i.ReservedAt,
+			&i.ObservedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listCapabilityGrantsForPlan = `-- name: ListCapabilityGrantsForPlan :many
@@ -1189,6 +1628,61 @@ func (q *Queries) ListContributionLinksForParent(ctx context.Context, parentOutc
 	return items, nil
 }
 
+const listCurrentRunIntentsByDesired = `-- name: ListCurrentRunIntentsByDesired :many
+SELECT i.id, i.outcome_id, i.generation, i.desired, i.plan_revision_id, i.contract_revision_number, i.request_key, i.request_fingerprint, i.requested_at, i.acknowledged_at
+FROM outcome_run_intents i
+WHERE i.desired = ? AND NOT EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=i.outcome_id)
+  AND i.generation = (SELECT MAX(g.generation) FROM outcome_run_intents g WHERE g.outcome_id = i.outcome_id)
+ORDER BY i.outcome_id
+`
+
+type ListCurrentRunIntentsByDesiredRow struct {
+	ID                     string
+	OutcomeID              string
+	Generation             int64
+	Desired                string
+	PlanRevisionID         string
+	ContractRevisionNumber int64
+	RequestKey             string
+	RequestFingerprint     string
+	RequestedAt            time.Time
+	AcknowledgedAt         sql.NullTime
+}
+
+func (q *Queries) ListCurrentRunIntentsByDesired(ctx context.Context, desired string) ([]ListCurrentRunIntentsByDesiredRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCurrentRunIntentsByDesired, desired)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCurrentRunIntentsByDesiredRow{}
+	for rows.Next() {
+		var i ListCurrentRunIntentsByDesiredRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OutcomeID,
+			&i.Generation,
+			&i.Desired,
+			&i.PlanRevisionID,
+			&i.ContractRevisionNumber,
+			&i.RequestKey,
+			&i.RequestFingerprint,
+			&i.RequestedAt,
+			&i.AcknowledgedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDecompositionContributions = `-- name: ListDecompositionContributions :many
 SELECT id, decomposition_id, ref, position, title, goal, success_criteria, review, constraints, non_goals, authority, claimed_criteria, child_outcome_id
 FROM decomposition_contributions WHERE decomposition_id = ?
@@ -1303,11 +1797,99 @@ func (q *Queries) ListOpenDecompositionRequests(ctx context.Context) ([]Decompos
 	return items, nil
 }
 
+const listOutcomeDocumentSources = `-- name: ListOutcomeDocumentSources :many
+SELECT id, context_id, position, source_path, name, content_digest, size_bytes
+FROM outcome_document_sources WHERE context_id = ? ORDER BY position
+`
+
+func (q *Queries) ListOutcomeDocumentSources(ctx context.Context, contextID string) ([]OutcomeDocumentSource, error) {
+	rows, err := q.db.QueryContext(ctx, listOutcomeDocumentSources, contextID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OutcomeDocumentSource{}
+	for rows.Next() {
+		var i OutcomeDocumentSource
+		if err := rows.Scan(
+			&i.ID,
+			&i.ContextID,
+			&i.Position,
+			&i.SourcePath,
+			&i.Name,
+			&i.ContentDigest,
+			&i.SizeBytes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOutcomeRunIntents = `-- name: ListOutcomeRunIntents :many
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at
+FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation
+`
+
+type ListOutcomeRunIntentsRow struct {
+	ID                     string
+	OutcomeID              string
+	Generation             int64
+	Desired                string
+	PlanRevisionID         string
+	ContractRevisionNumber int64
+	RequestKey             string
+	RequestFingerprint     string
+	RequestedAt            time.Time
+	AcknowledgedAt         sql.NullTime
+}
+
+func (q *Queries) ListOutcomeRunIntents(ctx context.Context, outcomeID string) ([]ListOutcomeRunIntentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOutcomeRunIntents, outcomeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOutcomeRunIntentsRow{}
+	for rows.Next() {
+		var i ListOutcomeRunIntentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OutcomeID,
+			&i.Generation,
+			&i.Desired,
+			&i.PlanRevisionID,
+			&i.ContractRevisionNumber,
+			&i.RequestKey,
+			&i.RequestFingerprint,
+			&i.RequestedAt,
+			&i.AcknowledgedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOutcomesByProject = `-- name: ListOutcomesByProject :many
 SELECT o.id, o.space_id, o.title, o.current_revision_number, o.idempotency_key, o.created_at, o.updated_at, o.parent_outcome_id
 FROM outcomes o
 JOIN responsibility_spaces rs ON rs.id = o.space_id
-WHERE rs.project_id = ? AND rs.kind = 'WorkProject'
+WHERE rs.project_id = ? AND rs.kind = 'WorkProject' AND NOT EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=o.id)
 ORDER BY o.created_at, o.id
 `
 
@@ -1329,6 +1911,41 @@ func (q *Queries) ListOutcomesByProject(ctx context.Context, projectID domain.Pr
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ParentOutcomeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkUnitChecksForWorkUnit = `-- name: ListWorkUnitChecksForWorkUnit :many
+SELECT id, work_unit_id, criterion_id, position, argv, timeout_seconds
+FROM work_unit_checks WHERE work_unit_id = ? ORDER BY position
+`
+
+func (q *Queries) ListWorkUnitChecksForWorkUnit(ctx context.Context, workUnitID string) ([]WorkUnitCheck, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkUnitChecksForWorkUnit, workUnitID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkUnitCheck{}
+	for rows.Next() {
+		var i WorkUnitCheck
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkUnitID,
+			&i.CriterionID,
+			&i.Position,
+			&i.Argv,
+			&i.TimeoutSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -1381,6 +1998,31 @@ func (q *Queries) ListWorkUnitsForPlan(ctx context.Context, planRevisionID domai
 	return items, nil
 }
 
+const markAttemptCheckRunUnknown = `-- name: MarkAttemptCheckRunUnknown :execrows
+UPDATE attempt_check_runs SET state = 'unknown', observed_at = ?
+WHERE attempt_id = ? AND check_id = ? AND artifact_version = ? AND state = 'reserved'
+`
+
+type MarkAttemptCheckRunUnknownParams struct {
+	ObservedAt      sql.NullTime
+	AttemptID       string
+	CheckID         string
+	ArtifactVersion string
+}
+
+func (q *Queries) MarkAttemptCheckRunUnknown(ctx context.Context, arg MarkAttemptCheckRunUnknownParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markAttemptCheckRunUnknown,
+		arg.ObservedAt,
+		arg.AttemptID,
+		arg.CheckID,
+		arg.ArtifactVersion,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const maxContractRevisionNumber = `-- name: MaxContractRevisionNumber :one
 SELECT COALESCE(MAX(number), 0) FROM contract_revisions WHERE outcome_id = ?
 `
@@ -1403,6 +2045,17 @@ func (q *Queries) MaxDecompositionRevisionNumber(ctx context.Context, outcomeID 
 	return column_1, err
 }
 
+const maxOutcomeDocumentContextRevision = `-- name: MaxOutcomeDocumentContextRevision :one
+SELECT CAST(COALESCE(MAX(revision), 0) AS INTEGER) FROM outcome_document_contexts WHERE outcome_id = ?
+`
+
+func (q *Queries) MaxOutcomeDocumentContextRevision(ctx context.Context, outcomeID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, maxOutcomeDocumentContextRevision, outcomeID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const maxPlanRevisionNumber = `-- name: MaxPlanRevisionNumber :one
 SELECT COALESCE(MAX(number), 0) FROM plan_revisions WHERE outcome_id = ?
 `
@@ -1412,4 +2065,94 @@ func (q *Queries) MaxPlanRevisionNumber(ctx context.Context, outcomeID domain.Ou
 	var coalesce interface{}
 	err := row.Scan(&coalesce)
 	return coalesce, err
+}
+
+const recordAttemptCheckObservation = `-- name: RecordAttemptCheckObservation :execrows
+UPDATE attempt_check_runs
+SET state = 'observed', ran = ?, passed = ?, exit_code = ?, enforced_by = ?,
+    timed_out = ?, cancelled = ?, termination_unknown = ?, output_truncated = ?,
+    output = ?, unavailable = ?,
+    baseline_ran = ?, baseline_passed = ?, baseline_detail = ?,
+    artifact_changed = ?, observed_artifact_version = ?,
+    observed_at = ?
+WHERE attempt_id = ? AND check_id = ? AND artifact_version = ? AND state = 'reserved'
+`
+
+type RecordAttemptCheckObservationParams struct {
+	Ran                     int64
+	Passed                  int64
+	ExitCode                int64
+	EnforcedBy              string
+	TimedOut                int64
+	Cancelled               int64
+	TerminationUnknown      int64
+	OutputTruncated         int64
+	Output                  string
+	Unavailable             string
+	BaselineRan             int64
+	BaselinePassed          int64
+	BaselineDetail          string
+	ArtifactChanged         int64
+	ObservedArtifactVersion string
+	ObservedAt              sql.NullTime
+	AttemptID               string
+	CheckID                 string
+	ArtifactVersion         string
+}
+
+func (q *Queries) RecordAttemptCheckObservation(ctx context.Context, arg RecordAttemptCheckObservationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, recordAttemptCheckObservation,
+		arg.Ran,
+		arg.Passed,
+		arg.ExitCode,
+		arg.EnforcedBy,
+		arg.TimedOut,
+		arg.Cancelled,
+		arg.TerminationUnknown,
+		arg.OutputTruncated,
+		arg.Output,
+		arg.Unavailable,
+		arg.BaselineRan,
+		arg.BaselinePassed,
+		arg.BaselineDetail,
+		arg.ArtifactChanged,
+		arg.ObservedArtifactVersion,
+		arg.ObservedAt,
+		arg.AttemptID,
+		arg.CheckID,
+		arg.ArtifactVersion,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const reserveAttemptCheckRun = `-- name: ReserveAttemptCheckRun :exec
+
+INSERT INTO attempt_check_runs (id, attempt_id, check_id, artifact_version, state, reservation_epoch, reserved_at)
+VALUES (?, ?, ?, ?, 'reserved', ?, ?)
+`
+
+type ReserveAttemptCheckRunParams struct {
+	ID               string
+	AttemptID        string
+	CheckID          string
+	ArtifactVersion  string
+	ReservationEpoch string
+	ReservedAt       time.Time
+}
+
+// Durable check-run identity. The reservation is inserted before the command
+// is invoked; the observation is written once and never changed.
+func (q *Queries) ReserveAttemptCheckRun(ctx context.Context, arg ReserveAttemptCheckRunParams) error {
+	_, err := q.db.ExecContext(ctx, reserveAttemptCheckRun,
+		arg.ID,
+		arg.AttemptID,
+		arg.CheckID,
+		arg.ArtifactVersion,
+		arg.ReservationEpoch,
+		arg.ReservedAt,
+	)
+	return err
 }

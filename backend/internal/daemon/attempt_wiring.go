@@ -109,6 +109,111 @@ func (r *attemptArtifactRetainer) RetainAttempt(ctx context.Context, attempt dom
 	return nil
 }
 
+// attemptInputProvisioner materializes the exact retained predecessor results
+// a successor was admitted with.
+//
+// It resolves each input by Attempt identity *and* artifact version, so a
+// retained result that has since been replaced is refused rather than
+// substituted. That is the whole point of recording versions at admission: the
+// successor must receive the bytes the owner's approved schedule authorized,
+// not whatever the upstream WorkUnit happens to hold now.
+type attemptInputProvisioner struct {
+	receipts  ports.AttemptReceiptStore
+	artifacts *artifactstore.Store
+	// contexts resolves an approved supplied-document selection. Absent means
+	// document Outcomes cannot be staged, which is refused rather than
+	// approximated with the owner's live files.
+	contexts ports.DocumentContextStore
+}
+
+var _ ports.AttemptInputProvisioner = (*attemptInputProvisioner)(nil)
+
+func (p *attemptInputProvisioner) ProvisionAttemptInputs(ctx context.Context, req ports.AttemptInputProvisionRequest) error {
+	if p == nil || p.receipts == nil || p.artifacts == nil {
+		return fmt.Errorf("%w: artifact retention is not wired", ports.ErrAttemptInputProvisioning)
+	}
+	if len(req.Inputs) == 0 && req.Documents == nil {
+		return nil
+	}
+	if req.Documents != nil {
+		if err := p.provisionDocuments(req); err != nil {
+			return err
+		}
+	}
+	if len(req.Inputs) == 0 {
+		return nil
+	}
+	receipts := make([]domain.AttemptReceipt, 0, len(req.Inputs))
+	for _, input := range req.Inputs {
+		receipt, found, err := p.receipts.GetAttemptReceipt(ctx, input.AttemptID)
+		if err != nil {
+			return fmt.Errorf("%w: read retained result for %s: %w", ports.ErrAttemptInputProvisioning, input.AttemptID, err)
+		}
+		if !found {
+			return fmt.Errorf("%w: attempt %s retained no result", ports.ErrAttemptInputProvisioning, input.AttemptID)
+		}
+		if receipt.ArtifactVersion != input.ArtifactVersion || receipt.WorkUnitID != input.WorkUnitID {
+			return fmt.Errorf("%w: attempt %s now holds artifact %s for %s, not the admitted %s for %s",
+				ports.ErrAttemptInputProvisioning, input.AttemptID, receipt.ArtifactVersion, receipt.WorkUnitID,
+				input.ArtifactVersion, input.WorkUnitID)
+		}
+		if !receipt.Frozen() {
+			return fmt.Errorf("%w: attempt %s result is not frozen and could still change", ports.ErrAttemptInputProvisioning, input.AttemptID)
+		}
+		receipts = append(receipts, receipt)
+	}
+	// Compose reads every blob and verifies its digest and mode, so a corrupt
+	// or missing artifact fails here rather than reaching the workspace.
+	handoff, err := p.artifacts.Compose(ctx, receipts)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	if handoff.WorkspaceKind != req.WorkspaceKind {
+		return fmt.Errorf("%w: predecessors worked in a %s but this successor has a %s",
+			ports.ErrAttemptInputProvisioning, handoff.WorkspaceKind, req.WorkspaceKind)
+	}
+	if err := p.artifacts.Materialize(ctx, handoff, req.WorkspacePath, req.BaseRevision); err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	return nil
+}
+
+// provisionDocuments stages the approved supplied-document snapshot.
+//
+// It reads the snapshot the owner approved, never their original files: an
+// Outcome must not come to mean something different because a document was
+// edited after approval. The digest recorded at admission is re-checked here,
+// so a snapshot that is not the one authorized refuses rather than runs.
+func (p *attemptInputProvisioner) provisionDocuments(req ports.AttemptInputProvisionRequest) error {
+	if p.contexts == nil {
+		return fmt.Errorf("%w: supplied-document context is not wired", ports.ErrAttemptInputProvisioning)
+	}
+	selection, found, err := p.contexts.GetDocumentContext(context.Background(), req.Documents.ContextID)
+	if err != nil {
+		return fmt.Errorf("%w: read approved documents: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	if !found {
+		return fmt.Errorf("%w: approved document context %s is missing", ports.ErrAttemptInputProvisioning, req.Documents.ContextID)
+	}
+	if !selection.Approved() {
+		return fmt.Errorf("%w: document context %s is not approved", ports.ErrAttemptInputProvisioning, selection.ID)
+	}
+	if selection.Digest != req.Documents.Digest || selection.Revision != req.Documents.Revision {
+		return fmt.Errorf("%w: document context %s is revision %d/%s, not the admitted %d/%s",
+			ports.ErrAttemptInputProvisioning, selection.ID, selection.Revision, selection.Digest,
+			req.Documents.Revision, req.Documents.Digest)
+	}
+	handoff, err := p.artifacts.DocumentHandoff(selection.ID, selection.Sources)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	// A staged folder has no revisions, so no base is claimed for it.
+	if err := p.artifacts.Materialize(context.Background(), handoff, req.WorkspacePath, ""); err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	return nil
+}
+
 var _ ports.AttemptSessionSpawner = attemptSpawner{}
 
 func (a attemptSpawner) ProfileReadiness(ctx context.Context, projectID domain.ProjectID, binding domain.ExecutionBinding, policy *domain.AttemptExecutionPolicy) (ports.AgentProfileReadiness, error) {
@@ -154,12 +259,14 @@ func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest
 		return ports.AttemptSpawnResult{}, err
 	}
 	sess, _, _, err := a.sessions.SpawnExactAttempt(ctx, ports.SpawnConfig{
-		ProjectID:       req.ProjectID,
-		Kind:            domain.KindWorker,
-		Harness:         binding.Provider,
-		ExecutionPolicy: req.ExecutionPolicy,
-		Prompt:          req.Prompt,
-		DisplayName:     req.DisplayName,
+		ProjectID:        req.ProjectID,
+		Kind:             domain.KindWorker,
+		Harness:          binding.Provider,
+		ExecutionPolicy:  req.ExecutionPolicy,
+		Prompt:           req.Prompt,
+		DisplayName:      req.DisplayName,
+		AttemptInputs:    req.Inputs,
+		AttemptDocuments: req.Documents,
 	}, binding)
 	if err != nil {
 		return ports.AttemptSpawnResult{}, err
@@ -215,10 +322,24 @@ func reconcile(ctx context.Context, attempts attemptLivenessHook, log *slog.Logg
 	if err := attempts.ReconcileAttemptOutcomes(ctx); err != nil {
 		log.Warn("attempt outcome reconciliation"+suffix, "err", err)
 	}
+	// Stop requests are acknowledged before continuation is considered, so a
+	// pause that arrived while the last Attempt was ending takes effect on
+	// this tick rather than after one more unit has been admitted.
+	if err := attempts.ReconcileRunIntents(ctx); err != nil {
+		log.Warn("run intent reconciliation"+suffix, "err", err)
+	}
+	if err := attempts.ContinueAuthorizedRuns(ctx); err != nil {
+		log.Warn("authorized run continuation"+suffix, "err", err)
+	}
 }
 
 type attemptLivenessHook interface {
 	EvaluateAttemptLiveness(ctx context.Context) error
 	// ReconcileAttemptOutcomes classifies attempts whose execution has ended.
 	ReconcileAttemptOutcomes(ctx context.Context) error
+	// ReconcileRunIntents acknowledges stop requests whose work has ended.
+	ReconcileRunIntents(ctx context.Context) error
+	// ContinueAuthorizedRuns admits the next eligible WorkUnit for Outcomes
+	// the owner has authorized to keep running.
+	ContinueAuthorizedRuns(ctx context.Context) error
 }

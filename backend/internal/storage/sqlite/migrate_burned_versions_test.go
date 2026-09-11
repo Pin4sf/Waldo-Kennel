@@ -125,6 +125,16 @@ var shippedMigrations = map[int64]string{
 	119: "0119_attempt_receipts_and_success.sql",
 	120: "0120_immutable_attempt_receipts.sql",
 	121: "0121_reasoning_verification_generation.sql",
+	122: "0122_work_unit_approved_checks.sql",
+	123: "0123_attempt_check_runs.sql",
+	124: "0124_outcome_run_intent.sql",
+	125: "0125_outcome_document_context.sql",
+	126: "0126_atomic_run_admission.sql",
+	127: "0127_outcome_delivery.sql",
+	128: "0128_outcome_delivery_recovery.sql",
+	129: "0129_attempt_check_baseline.sql",
+	130: "0130_outcome_trash.sql",
+	131: "0131_outcome_purge_scope.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

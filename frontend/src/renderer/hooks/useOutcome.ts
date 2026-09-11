@@ -318,7 +318,7 @@ export const PLAN_CONTRACT_STALE = "PLAN_CONTRACT_STALE";
 /** Authority layers no longer allow every capability the plan freezes. */
 export const PLAN_CAPABILITY_UNAUTHORIZED = "PLAN_CAPABILITY_UNAUTHORIZED";
 
-function planQueryKey(outcomeId: string | undefined) {
+export function planQueryKey(outcomeId: string | undefined) {
 	return ["outcome-plan", outcomeId ?? ""] as const;
 }
 
@@ -350,7 +350,7 @@ export interface OutcomePlanQueryResult {
 export type ScheduleRecord = components["schemas"]["ScheduleResponse"];
 type ScheduleEnvelope = components["schemas"]["ScheduleEnvelope"];
 
-async function fetchOutcomeSchedule(outcomeId: string, planId: string): Promise<ScheduleRecord> {
+export async function fetchOutcomeSchedule(outcomeId: string, planId: string): Promise<ScheduleRecord> {
 	if (usesPreviewWorkspaceData) {
 		const plan = getPreviewPlan(outcomeId);
 		if (!plan || plan.id !== planId) throw { code: PLAN_NOT_FOUND, message: "No preview plan exists yet." };
@@ -734,7 +734,7 @@ export function outcomeProofQueryKey(outcomeId: string | undefined) {
 	return ["outcome-proof", outcomeId ?? ""] as const;
 }
 
-async function fetchOutcomeProof(outcomeId: string): Promise<OutcomeProofRecord> {
+export async function fetchOutcomeProof(outcomeId: string): Promise<OutcomeProofRecord> {
 	if (usesPreviewWorkspaceData) {
 		throw { code: "OUTCOME_PROOF_UNAVAILABLE", message: "Proof is available only from a running Kennel daemon." };
 	}

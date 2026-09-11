@@ -183,7 +183,13 @@ func migrate(db *sql.DB) error {
 	if err := reconcilePlanReviewSchema(db); err != nil {
 		return fmt.Errorf("reconcile plan-review schema: %w", err)
 	}
-	return reconcileSchema(db)
+	if err := reconcileSchema(db); err != nil {
+		return err
+	}
+	if err := installOutcomeDeletionSchema(db); err != nil {
+		return fmt.Errorf("install scoped Outcome deletion guards: %w", err)
+	}
+	return nil
 }
 
 // preparePlanReviewContextMigration lets a degraded profile with burned
@@ -1405,3 +1411,6 @@ WHERE type = 'table' AND name = 'sessions'`,
 	}
 	return nil
 }
+
+//go:embed schema/outcome_deletion_guards.sql
+var outcomeDeletionGuardsDDL string

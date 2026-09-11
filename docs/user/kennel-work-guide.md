@@ -1,60 +1,81 @@
 # Kennel Work guide
 
-Kennel Work manages Outcomes. A provider session is only the execution
-machinery used to make an Outcome true; it is not the responsibility itself.
+The user manages Outcomes. Kennel manages their execution. Provider sessions are
+technical detail beneath an Outcome, not the responsibility itself.
 
-## Start a software Outcome
+## Open and review an Outcome
 
-1. Open Work and choose a registered Project.
-2. Describe the Outcome and its success criteria. Keep criteria observable.
-3. Review the proposed Contract and Plan. Check the WorkUnit order, required
-   capabilities, stop conditions, and verification expectations.
-4. Approve the Plan. Approval authorizes the exact provider/model binding; it
-   does not start execution.
-5. Choose Start in Act & Observe. The graph is serial in the current launch
-   build. A WorkUnit waiting for proof or custody is not an error.
-6. Pause, cancel, or answer an Outcome-local question from the Work surface.
-   A quiet or unreachable provider is not proof that work stopped; recovery
-   remains conservative and may require your confirmation.
-7. Review the retained result and deterministic checks in Prove & Close.
-   Provider completion, a commit, or a green check does not accept an Outcome.
-8. Explicitly accept the Outcome, request rework, or reopen it. Only the owner
-   creates the AcceptanceDecision.
+Open Work, choose a Project and describe the result and observable success criteria.
+Use Outcomes to browse the portfolio as Board or List. Search and Project filtering
+narrow the list; contributing Outcomes are hidden until explicitly included.
 
-## Reasoning and provider setup
+Selecting a direct Outcome opens Mission beside the portfolio on wide windows.
+Drag the divider to adjust Mission width, or focus it and use the arrow keys. Double-click resets its width. Expand Mission fills the workspace.
+Narrow windows show Mission with Project/Outcome navigation still available on the
+left. Back to Outcomes returns to the mounted portfolio and its filters.
 
-Waldo reasoning credentials are separate from provider authentication. A
-configured key is not the same as a verified key. Use Settings → Reasoning →
-Verify after changing provider, model, endpoint, or credential. Verification
-is bound to that exact configuration and old in-flight probes cannot stamp a
-replacement configuration. Kennel provider readiness is machine- and
-capability-derived; there is no silent fallback to another provider.
+Mission keeps the selected title, Project, Contract/Plan revision and connection
+status visible. Contract shows the desired result, criteria, constraints, permission
+ceiling, review requirements and pause conditions. Plan, Execution, Evidence & result,
+and Decision history are views inside the same Mission.
 
-## Results and restart recovery
+## Review an intake proposal
 
-Ended Attempts are retained before they can be classified as successful.
-Retained bytes include tracked committed changes since the recorded base,
-dirty/staged edits, untracked files, deletions, executable mode, and binaries.
-Secret-like files, symlinks, special files, inconsistent reads, and bounds are
-reported as unsupported or incomplete rather than silently omitted.
+State the desired result in natural language. When reasoning returns a proposal,
+review its desired result, criteria and expected evidence, constraints, exclusions,
+pause conditions, facets, time boundary, clarification notes and permission ceiling.
+If reasoning fails, the captured intake stays available. Configure reasoning opens the existing local settings inline; retry becomes available once readiness is reported. There is no offline proposal fallback.
 
-Restarting the daemon replays durable liveness, retention, receipt, proof and
-custody facts. It does not repeat a provider call merely because a process was
-quiet. Never delete a workspace or artifact directory that Kennel has not
-identified as owned and safely retained.
+The initial view is read-only. Edit draft opens the existing editors; Review draft
+returns to the same draft without discarding changes. Confirmation remains explicit.
+A recoverable revision error keeps the edits and does not confirm a stale proposal.
 
-## Supplied documents and delivery
+Confirmation opens the recorded Outcome in its Project Mission. Revisiting a confirmed
+intake offers Open Outcome; it navigates to that same ID without confirming again.
+Closing Mission returns to the Project portfolio.
 
-The current launch build advertises the repository/software path. Supplied
-document Outcomes remain a bounded staged-folder capability under active
-implementation; PDF/OCR, external research, and network ingestion are not
-implied. Do not treat a plain folder as a Git worktree.
+## Configure reasoning and authorize
 
-When delivery is available, Export is an owner-triggered copy of an accepted
-result (or visibly labelled draft where allowed). It preserves additions,
-deletions, binary bytes and modes, checks the recorded base, refuses unsafe
-destinations and does not merge, deploy, or delete the source workspace.
+Waldo reasoning uses the owner's configured provider/model and credential. In Plan,
+unavailable reasoning is explained before proposal. Expand Waldo reasoning to use the
+existing settings controls without leaving Mission. A saved credential and verified
+readiness are different facts; Kennel does not silently choose another provider.
 
-For local dogfood, set `VITE_KENNEL_WORK_LAUNCH=1` in the renderer environment
-to make Work the focused shell and hide ambient Waldo chrome. This is
-reversible and does not alter durable data or historical deep links.
+Review all WorkUnits and dependencies in Graph or Table. Select a unit to inspect its
+expected output, checks, capabilities, stops, proof readiness and Attempt history.
+Graph arrows support keyboard selection. Branching dependencies do not imply parallel
+execution; the daemon enforces serial custody.
+
+Approve authorizes the exact Plan revision. Start is separate, in Execution. A Plan
+bound to an older Contract cannot be approved from the current screen. Request revised
+Plan records your feedback through the existing proposal API. If a response is lost,
+feedback remains and resubmission is withheld: refresh and review the current Plan
+before deciding whether another request is needed.
+
+## Observe and review
+
+Execution shows daemon schedule and Attempt facts. Start and available cancellation
+or recovery actions use existing daemon admission. Durable Outcome pause/continue is
+not exposed yet. A quiet provider does not prove that execution stopped.
+
+Recorded usage lists reported tokens for sessions bound to this Outcome, preserving
+unknown and incomplete reports. It does not claim total planning usage or cost.
+Terminal inspection is optional, available only after an Attempt has a session.
+
+Evidence & result reuses the current criterion evidence, verification and explicit
+owner acceptance/rework controls. Provider completion and green checks do not accept
+an Outcome. Decision history shows recorded owner decisions and Contract revisions.
+Disconnected updates are visibly marked; new admission is withheld until the
+stream reconnects. Existing Attempt cancel and containment remain available through
+HTTP under daemon validation, even if the Plan is stale. Reconnection refetches current Mission facts.
+
+## Current limits
+
+The Board shows Define, Ready to authorize, Authorized, In progress, Needs you and Ready for review columns, including empty columns. Filters optionally include Accepted history and contributing Outcomes. List shows the same Outcomes and their state. Status reads share Mission’s proof/schedule cache, bounded to 24 Outcomes per Project before Show more. Supplied-document selection, retained
+artifact browsing and durable export require backend interfaces still under development.
+Acceptance does not export, merge, publish or deploy files. No export success is implied.
+
+Focused Work is the default. Home and standalone Waldo chat are hidden; existing data
+is retained. `VITE_KENNEL_WORK_LAUNCH=0` opts out for development. Island startup retains
+its separate explicit opt-in. A full live-provider and packaged end-to-end release
+rehearsal remains required before launch claims.

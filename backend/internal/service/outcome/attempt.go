@@ -173,6 +173,20 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if !gate.Clear() {
 		return AttemptView{}, blockedError(outcomeID, gate)
 	}
+	// A pause prevents subsequent admission. Checking it here, before any
+	// durable row is written, is what makes "paused" mean the work stops
+	// rather than the button stops being offered.
+	runIntentGeneration, err := s.refuseAdmissionAgainstRunIntent(ctx, outcomeID)
+	if err != nil {
+		return AttemptView{}, err
+	}
+	// So does a standing correction naming the Plan or Contract. Admission has
+	// to enforce it too: continuation admits through here, and the direct
+	// per-Attempt Start would otherwise be the way around a refusal the
+	// Mission shows the owner.
+	if err := s.refuseExecutionAgainstCorrection(ctx, outcomeID); err != nil {
+		return AttemptView{}, err
+	}
 
 	plan, found, err := s.store.GetPlanRevision(ctx, outcomeID, in.PlanRevisionID)
 	if err != nil {
@@ -241,16 +255,32 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	}
 
 	// A successor may not be admitted until its predecessors' exact results are
-	// retained, complete and frozen. Checking here, before the fence is taken,
-	// means a blocked successor never holds custody it cannot use.
-	if err := s.requireUpstreamArtifacts(ctx, plan, unit); err != nil {
+	// retained, complete and frozen. Resolving here, before the fence is taken,
+	// means a blocked successor never holds custody it cannot use — and the
+	// versions resolved now are the ones launch must materialize.
+	inputs, err := s.admittedInputsFor(ctx, plan, unit)
+	if err != nil {
 		return AttemptView{}, err
+	}
+	// A supplied-document Outcome stages its approved snapshot the same way,
+	// at the same seam, under the same refusal: unreviewed or edited material
+	// never reaches a provider.
+	documents, hasDocuments, err := s.approvedDocumentsForAdmission(ctx, outcomeID)
+	if err != nil {
+		return AttemptView{}, err
+	}
+	var documentInputs *ports.AttemptDocumentInputs
+	if hasDocuments {
+		documentInputs = &ports.AttemptDocumentInputs{
+			ContextID: documents.ID, Revision: documents.Revision, Digest: documents.Digest,
+		}
 	}
 
 	now := s.clock()
 	attempt, err := s.store.CreateAttemptWithFence(ctx, ports.AttemptAdmission{
 		OutcomeID: outcomeID, PlanRevisionID: plan.ID, WorkUnitID: unit.ID,
 		ContractRevisionNumber: plan.ContractRevisionNumber,
+		RunIntentGeneration:    runIntentGeneration,
 		RequestKey:             strings.TrimSpace(in.RequestKey), FenceSubject: domain.FenceSubjectForProject(projectID), At: now,
 	})
 	if err != nil {
@@ -270,6 +300,15 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 				"Another Attempt holds custody of this Project worktree — reconcile it first",
 				map[string]any{"subject": held.Subject, "holder": held.Holder, "attemptedFor": held.OutcomeID})
 		}
+		var runConflict *ports.AttemptRunIntentConflictError
+		if errors.As(err, &runConflict) {
+			if runConflict.Desired == domain.RunIntentPaused || runConflict.Desired == domain.RunIntentCancelled {
+				return AttemptView{}, apierr.Conflict(CodeRunActionUnavailable,
+					"The Outcome was paused or cancelled before this Attempt could be admitted", nil)
+			}
+			return AttemptView{}, apierr.Conflict(CodeRunIntentStale,
+				"The Outcome's run authorization changed before this Attempt could be admitted", nil)
+		}
 		return AttemptView{}, err
 	}
 
@@ -278,8 +317,16 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		ProjectID: projectID, Harness: binding.Provider, ModelSelection: binding.ModelSelection, Model: binding.Model,
 		ExecutionPolicy: &policy,
 		Prompt:          prompt, DisplayName: fmt.Sprintf("%s · %s · attempt %d", outcomeRecord.Title, unit.Title, attempt.Number),
+		Inputs: inputs, Documents: documentInputs,
 	})
 	if err != nil {
+		// Input provisioning happens before any provider process exists, so
+		// this failure is known rather than ambiguous. It is recorded and the
+		// Attempt is ended, leaving any partially provisioned workspace
+		// attributable instead of holding custody for a run that never began.
+		if errors.Is(err, ports.ErrAttemptInputProvisioning) || errors.Is(err, ports.ErrAttemptWorkspacePreparation) {
+			return AttemptView{}, s.admitProvisioningFailure(ctx, outcomeID, unit, attempt, err)
+		}
 		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationAdmissionAmbiguous, err)
 	}
 	if binding.ModelSelection == domain.ExecutionBindingModelExplicit && strings.TrimSpace(spawned.EffectiveModel) != "" && strings.TrimSpace(spawned.EffectiveModel) != binding.Model {
@@ -293,7 +340,7 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if err != nil {
 		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous, fmt.Errorf("execution policy digest failed: %w", err))
 	}
-	compiled := computeCompiledBriefDigest(binding, mode, recomputed, policyDigest)
+	compiled := computeCompiledBriefDigest(binding, mode, recomputed, policyDigest, inputs)
 	snapshot, err := json.Marshal(map[string]any{
 		"snapshotVersion":        domain.AdmissionSnapshotVersion,
 		"harness":                string(binding.Provider),
@@ -308,6 +355,11 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		"executionPolicyDigest":  policyDigest,
 		"sessionId":              session.ID,
 		"requestedAt":            now,
+		// The exact predecessor artifacts this Attempt consumed. Recording
+		// them is what lets a replay or an audit say which bytes the successor
+		// was actually built on, rather than re-resolving "the latest".
+		"inputArtifactVersions": inputArtifactVersions(inputs),
+		"documentContext":       documentInputs,
 	})
 	if err != nil {
 		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous, fmt.Errorf("admission snapshot failed: %w", err))
@@ -567,9 +619,47 @@ func (s *Service) authorizeAttemptCapabilities(revision domain.ContractRevision,
 	return nil
 }
 
-func computeCompiledBriefDigest(binding domain.ExecutionBinding, mode domain.SessionMode, core, policyDigest string) string {
-	sum := sha256.Sum256([]byte("v2|" + string(binding.Provider) + "|" + string(binding.ModelSelection) + "|" + binding.Model + "|" + string(mode) + "|" + core + "|" + policyDigest))
+// computeCompiledBriefDigest identifies exactly what this Attempt was launched
+// with. Input artifact versions are part of that identity: the same WorkUnit
+// run against different predecessor output is different work, and a replay
+// fingerprint that ignored the inputs would call the two the same.
+func computeCompiledBriefDigest(binding domain.ExecutionBinding, mode domain.SessionMode, core, policyDigest string, inputs []ports.AttemptInputRef) string {
+	sum := sha256.Sum256([]byte("v3|" + string(binding.Provider) + "|" + string(binding.ModelSelection) + "|" + binding.Model +
+		"|" + string(mode) + "|" + core + "|" + policyDigest + "|" + strings.Join(inputArtifactVersions(inputs), ",")))
 	return hex.EncodeToString(sum[:])
+}
+
+// admitProvisioningFailure records a known pre-launch failure and ends the
+// Attempt so its custody is released for a deliberate retry.
+//
+// Nothing ran, so holding the worktree fence would block the owner without
+// protecting anything. The workspace itself is left alone by the session
+// manager when it holds partial content, so failed custody stays inspectable.
+func (s *Service) admitProvisioningFailure(ctx context.Context, outcomeID domain.OutcomeID, unit domain.WorkUnit, attempt domain.Attempt, cause error) error {
+	payload := mustJSON(map[string]any{"error": cause.Error(), "workUnitId": string(unit.ID), "providerLaunched": false})
+	kind := domain.ObservationInputProvisioningFailed
+	if errors.Is(cause, ports.ErrAttemptWorkspacePreparation) {
+		kind = domain.ObservationAdmissionFailed
+	}
+
+	var errs []error
+	if _, err := s.store.AppendAttemptObservation(ctx, attempt.ID, kind, payload, s.clock()); err != nil {
+		errs = append(errs, fmt.Errorf("record provisioning failure for %s: %w", attempt.ID, err))
+	}
+	if rows, err := s.store.TransitionAttemptStatus(ctx, outcomeID, attempt.ID, domain.AttemptQueued, domain.AttemptFailed, s.clock()); err != nil {
+		errs = append(errs, fmt.Errorf("end unprovisioned attempt %s: %w", attempt.ID, err))
+	} else if rows != 1 {
+		errs = append(errs, fmt.Errorf("end unprovisioned attempt %s: %d rows changed", attempt.ID, rows))
+	}
+	refused := materializationFailed(unit, attempt.ID, cause)
+	if errors.Is(cause, ports.ErrAttemptWorkspacePreparation) {
+		refused = apierr.New(apierr.KindConflict, "ATTEMPT_WORKSPACE_PREPARATION_FAILED", "The workspace could not be prepared; no provider was started", map[string]any{"attemptId": string(attempt.ID), "detail": cause.Error()})
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(append(errs, refused)...)
+	}
+	return refused
 }
 
 func renderRunBriefPrompt(revision domain.ContractRevision, unit domain.WorkUnit) string {

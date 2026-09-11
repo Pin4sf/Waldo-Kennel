@@ -13,6 +13,7 @@ import { aoBridge } from "../lib/bridge";
 import { isMacPlatform } from "../lib/platform";
 import { cn } from "../lib/utils";
 import { refreshAgentsIfStale, useAgentsQuery } from "../hooks/useAgentsQuery";
+import { useSettings, useUpdateReasoning } from "../hooks/useSettings";
 import { useKeybindingsStore } from "../stores/keybindings-store";
 import { useUiStore, type SessionsViewMode } from "../stores/ui-store";
 import { AgentAvatar } from "./AgentAvatar";
@@ -260,6 +261,9 @@ function AgentStep() {
 	const defaultAgentId = useUiStore((state) => state.defaultAgentId);
 	const setDefaultAgentId = useUiStore((state) => state.setDefaultAgentId);
 	const agentsQuery = useAgentsQuery();
+	const { settings } = useSettings();
+	const { update: updateReasoning } = useUpdateReasoning();
+	const [reasoningNotice, setReasoningNotice] = useState<string | null>(null);
 
 	// The daemon probes agent binaries at boot, so an agent installed after launch
 	// is invisible until something re-probes. Asking a person to pick is exactly
@@ -277,6 +281,41 @@ function AgentStep() {
 			label: agent.label || agentLabel(agent.id),
 		}));
 	}, [agentsQuery.data]);
+
+	const selectAgent = (agentId: string, label: string, isSelected: boolean) => {
+		const nextAgentId = isSelected ? "" : agentId;
+		setDefaultAgentId(nextAgentId);
+		if (isSelected) {
+			setReasoningNotice(null);
+			return;
+		}
+
+		if (agentId !== "codex") {
+			setReasoningNotice(t("onboarding.agent.reasoningUnavailable", { agent: label }));
+			return;
+		}
+
+		if (settings?.reasoning.provider === "codex") {
+			setReasoningNotice(
+				settings.reasoning.ready
+					? t("onboarding.agent.reasoningReady")
+					: t("onboarding.agent.reasoningNotReady"),
+			);
+			return;
+		}
+
+		void updateReasoning({
+			provider: "codex",
+			model: settings?.reasoning.model ?? "",
+			effort: settings?.reasoning.effort ?? "",
+		}).then((status) => {
+			setReasoningNotice(
+				status?.ready ? t("onboarding.agent.reasoningReady") : t("onboarding.agent.reasoningNotReady"),
+			);
+		}).catch(() => {
+			setReasoningNotice(t("onboarding.agent.reasoningSyncFailed"));
+		});
+	};
 
 	return (
 		<div className="flex flex-col gap-4.5">
@@ -305,7 +344,7 @@ function AgentStep() {
 										: "border-border bg-transparent text-muted-foreground hover:bg-popover hover:text-foreground",
 								)}
 								key={agent.id}
-								onClick={() => setDefaultAgentId(isSelected ? "" : agent.id)}
+								onClick={() => selectAgent(agent.id, agent.label, isSelected)}
 								type="button"
 							>
 								<AgentAvatar provider={agent.id} />
@@ -323,6 +362,7 @@ function AgentStep() {
 					})}
 				</div>
 			)}
+			{reasoningNotice ? <p className="text-2xs text-passive" role="status">{reasoningNotice}</p> : null}
 			<p className="text-2xs text-passive">{t("onboarding.agent.perSessionHint")}</p>
 		</div>
 	);

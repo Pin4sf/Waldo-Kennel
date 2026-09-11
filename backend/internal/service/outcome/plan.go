@@ -228,6 +228,10 @@ func (s *Service) compileAndRoutePlan(
 		if err != nil {
 			return nil, nil, apierr.Invalid("PLAN_DRAFT_INTENT_INVALID", err.Error(), map[string]any{"workUnitKey": draftUnit.Key})
 		}
+		approvedChecks, err := compileApprovedChecks(unitID, draftUnit.CheckCommands, aliases, criteria)
+		if err != nil {
+			return nil, nil, err
+		}
 		unit := domain.WorkUnit{
 			ID:                      unitID,
 			Kind:                    domain.WorkUnitDirect,
@@ -240,6 +244,10 @@ func (s *Service) compileAndRoutePlan(
 			DependsOn:               dependencies,
 			CriterionIDs:            criteria,
 			RequiredCapabilities:    requiredCapabilities,
+			Checks:                  approvedChecks,
+		}
+		if err := validateWorkUnitChecksAreExecutable(unit); err != nil {
+			return nil, nil, err
 		}
 		if err := validateWorkUnitWithinContractCeiling(revision, unit); err != nil {
 			return nil, nil, err
@@ -272,6 +280,54 @@ func (s *Service) compileAndRoutePlan(
 	return units, decisions, nil
 }
 
+// defaultApprovedCheckTimeoutSeconds is the bound applied when a proposal
+// names none. Named operational policy: a check has to be bounded, and the
+// model's silence is not permission to run indefinitely.
+const defaultApprovedCheckTimeoutSeconds int64 = 300
+
+// compileApprovedChecks turns proposed check commands into approved authority.
+//
+// Model output is a proposal, so every part of it is re-decided here: the
+// criterion alias is resolved to internal identity and must be one this
+// WorkUnit actually owns, the identifier is minted by the daemon rather than
+// accepted from the proposal, an unbounded timeout is bounded, and the command
+// shape is validated by the domain — which refuses a shell outright.
+func compileApprovedChecks(
+	unitID domain.WorkUnitID,
+	proposed []domain.PlanDraftCheck,
+	aliases map[string]domain.CriterionID,
+	owned []domain.CriterionID,
+) ([]domain.ApprovedCheck, error) {
+	if len(proposed) == 0 {
+		return nil, nil
+	}
+	checks := make([]domain.ApprovedCheck, 0, len(proposed))
+	for i, draft := range proposed {
+		criterionID, ok := aliases[strings.TrimSpace(draft.CriterionAlias)]
+		if !ok {
+			return nil, apierr.Invalid("PLAN_DRAFT_CHECK_CRITERION_UNKNOWN",
+				"A proposed check named an unknown Contract criterion alias",
+				map[string]any{"workUnitId": string(unitID), "alias": draft.CriterionAlias})
+		}
+		timeout := draft.TimeoutSeconds
+		if timeout <= 0 || timeout > domain.ApprovedCheckMaxTimeoutSeconds {
+			timeout = defaultApprovedCheckTimeoutSeconds
+		}
+		checks = append(checks, domain.ApprovedCheck{
+			// The daemon mints the identity: a proposal-supplied id could
+			// collide with, or impersonate, a check from another Plan.
+			ID:             domain.ApprovedCheckID(fmt.Sprintf("chk-%s-%d", uuid.NewString(), i+1)),
+			CriterionID:    criterionID,
+			Argv:           append([]string(nil), draft.Argv...),
+			TimeoutSeconds: timeout,
+		})
+	}
+	if err := domain.ValidateApprovedChecks(checks, owned); err != nil {
+		return nil, apierr.Invalid("PLAN_DRAFT_CHECK_INVALID", err.Error(), map[string]any{"workUnitId": string(unitID)})
+	}
+	return checks, nil
+}
+
 // contractCapabilityCeiling converts the confirmed typed ceiling to capability
 // names. It never invents authority for a missing/zero ceiling. Read is implied
 // by write/execute because neither operation can be performed meaningfully on
@@ -289,6 +345,42 @@ func contractCapabilityCeiling(revision domain.ContractRevision) []string {
 		allowed = append(allowed, domain.CapabilityWorktreeExec)
 	}
 	return allowed
+}
+
+// validateWorkUnitChecksAreExecutable refuses a Plan proposing checks the
+// WorkUnit carrying them could never run.
+//
+// governedcheck launches nothing without worktree execution in the Attempt's
+// frozen policy, so checks on a unit that only reads or writes are recorded as
+// unavailable at reconciliation time — truthfully, but far too late. The owner
+// has by then approved a Plan whose criterion coverage was never real. Refusing
+// here moves that discovery to approval, where it is a Plan to revise rather
+// than a result to explain.
+//
+// The refusal deliberately does not widen the unit's capabilities to fit the
+// checks. Execution authority granted to satisfy a check would also be granted
+// to the provider running the work, which is a larger authority than anyone
+// proposed. Naming the wrong intent is the proposal's defect to correct.
+func validateWorkUnitChecksAreExecutable(unit domain.WorkUnit) error {
+	if len(unit.Checks) == 0 {
+		return nil
+	}
+	for _, capability := range unit.RequiredCapabilities {
+		if capability == domain.CapabilityWorktreeExec {
+			return nil
+		}
+	}
+	commands := make([]string, 0, len(unit.Checks))
+	for _, check := range unit.Checks {
+		commands = append(commands, strings.Join(check.Argv, " "))
+	}
+	return apierr.New(apierr.KindConflict, "PLAN_CHECK_EXECUTION_REQUIRED",
+		"This WorkUnit proposes deterministic checks but does not require "+domain.CapabilityWorktreeExec+
+			", so the checks could never run and its criteria would go unproved; propose them on an executing WorkUnit",
+		map[string]any{
+			"workUnitId": string(unit.ID), "checks": commands,
+			"requiredCapabilities": unit.RequiredCapabilities,
+		})
 }
 
 func validateWorkUnitWithinContractCeiling(revision domain.ContractRevision, unit domain.WorkUnit) error {

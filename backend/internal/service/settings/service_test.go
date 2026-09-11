@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 type allChatHarnesses struct{}
@@ -157,5 +158,52 @@ func TestSetReasoningDoesNotReuseCredentialWhenProviderChanges(t *testing.T) {
 	}
 	if got := secret.values["openai"]; got != "" {
 		t.Fatalf("OpenAI credential unexpectedly populated from Anthropic key: %q", got)
+	}
+}
+
+func TestCodexReasoningUsesHarnessReadinessInsteadOfAnAPIKey(t *testing.T) {
+	store := &reasoningSettingsStore{snapshot: Snapshot{ReasoningProvider: "codex", ReasoningModel: "gpt-test", ReasoningEffort: "high"}}
+	available := false
+	svc := New(store, nil, nil).
+		WithReasoningEnvLookup(func(name string) string {
+			if name == "KENNEL_WALDO_API_KEY" {
+				return "ambient-api-key-must-not-enter-codex-mode"
+			}
+			return ""
+		}).
+		WithReasoningAvailability(func(context.Context, ReasoningConfig) error {
+			if available {
+				return nil
+			}
+			return ports.NewReasoningFailure(ports.ReasoningUnavailable, "Codex app-server is unavailable", nil)
+		})
+
+	status, err := svc.GetReasoning(context.Background())
+	if err != nil || status.Mode != "codex_harness" || status.Provider != "codex" || !status.Configured || status.Ready || status.KeyConfigured || status.ErrorCode != "REASONING_NOT_READY" {
+		t.Fatalf("unavailable Codex status = %#v, err=%v", status, err)
+	}
+	cfg, err := svc.ResolveReasoning(context.Background())
+	if err != nil || cfg.APIKey != "" || cfg.KeySource != "codex-app-server-sign-in" {
+		t.Fatalf("Codex reasoning resolved an API key: cfg=%#v err=%v", cfg, err)
+	}
+	available = true
+	status, err = svc.GetReasoning(context.Background())
+	if err != nil || !status.Ready || status.KeyConfigured || status.Mode != "codex_harness" {
+		t.Fatalf("available Codex status = %#v, err=%v", status, err)
+	}
+}
+
+func TestSetReasoningCodexDoesNotRequireOrAcceptAnAPIKey(t *testing.T) {
+	store := &reasoningSettingsStore{}
+	svc := New(store, nil, nil).WithReasoningEnvLookup(func(string) string { return "" })
+	status, err := svc.SetReasoning(context.Background(), ReasoningInput{Provider: "codex", Model: "provider-default"})
+	if err != nil {
+		t.Fatalf("set Codex reasoning: %v", err)
+	}
+	if status.Provider != "codex" || status.Mode != "codex_harness" || status.KeyConfigured {
+		t.Fatalf("Codex selection = %#v", status)
+	}
+	if _, err := svc.SetReasoning(context.Background(), ReasoningInput{Provider: "codex", APIKey: "must-not-be-used"}); err == nil {
+		t.Fatal("Codex harness unexpectedly accepted an API key")
 	}
 }

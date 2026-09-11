@@ -66,3 +66,62 @@ func TestDraftPlanCarriesExplicitReplanFeedbackAndChecks(t *testing.T) {
 		}
 	}
 }
+
+func TestPlanSchemaAllowsExecutableCriterionChecks(t *testing.T) {
+	properties := planSchema([]string{"C1"})["properties"].(map[string]any)
+	unit := properties["workUnits"].(map[string]any)["items"].(map[string]any)
+	checks, ok := unit["properties"].(map[string]any)["checkCommands"].(map[string]any)
+	if !ok {
+		t.Fatal("structured plan schema forbids executable checkCommands accepted by the compiler")
+	}
+	item := checks["items"].(map[string]any)
+	for _, name := range []string{"criterionAlias", "argv", "timeoutSeconds"} {
+		if _, ok := item["properties"].(map[string]any)[name]; !ok {
+			t.Errorf("check schema missing %s", name)
+		}
+	}
+}
+
+func TestDraftPlanPreservesExecutableCheckArguments(t *testing.T) {
+	client := &captureLLMClient{result: `{"summary":"Verify greeting","workUnits":[{"key":"W1","title":"Change and check","intent":"modify_and_execute","outputSummary":"Correct greeting","criteriaCovered":["C1"],"checkCommands":[{"criterionAlias":"C1","argv":["python3","-c","import subprocess; assert subprocess.check_output(['python3', 'greet.py']) == b'Hello Kennel\\n'\n"],"timeoutSeconds":12}]}]}`}
+	result, err := NewLLMProvider(client).DraftPlan(context.Background(), ports.PlanIntelligenceRequest{CriterionAliases: map[string]domain.CriterionID{"C1": "criterion-1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checks := result.Proposal.WorkUnits[0].CheckCommands
+	if len(checks) != 1 || checks[0].CriterionAlias != "C1" || checks[0].TimeoutSeconds != 12 || len(checks[0].Argv) != 3 || checks[0].Argv[2] != "import subprocess; assert subprocess.check_output(['python3', 'greet.py']) == b'Hello Kennel\\n'\n" {
+		t.Fatalf("check arguments or criterion binding changed: %#v", checks)
+	}
+}
+
+func TestDraftPlanReceivesFrozenPermissions(t *testing.T) {
+	for _, execute := range []bool{false, true} {
+		client := &captureLLMClient{result: `{"workUnits":[]}`}
+		_, err := NewLLMProvider(client).DraftPlan(context.Background(), ports.PlanIntelligenceRequest{
+			Contract: domain.ContractRevision{AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true, ExecuteLocal: execute}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "executeLocal=false"
+		if execute {
+			want = "executeLocal=true"
+		}
+		for _, field := range []string{"readWorkspace=true", "writeWorkspace=false", want, "useNetwork=false", "commitLocal=false", "createPR=false", "deploy=false", "externalEffect=false"} {
+			if !strings.Contains(client.request.User, field) {
+				t.Errorf("missing frozen permission %s", field)
+			}
+		}
+		unit := client.request.Schema["properties"].(map[string]any)["workUnits"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+		wantType := "null"
+		if execute {
+			wantType = "array"
+		}
+		if unit["checkCommands"].(map[string]any)["type"] != wantType {
+			t.Fatal("schema permits checks outside the frozen command boundary")
+		}
+		if !execute && !strings.Contains(client.request.User, "checkCommands must be empty") {
+			t.Error("read-only planning omitted the command-check restriction")
+		}
+	}
+}

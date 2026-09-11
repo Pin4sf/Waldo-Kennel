@@ -3,9 +3,12 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/codex"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/codexappserver"
 	llmanthropic "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/llm/anthropic"
 	llmopenai "github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/llm/openai"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
@@ -20,6 +23,7 @@ import (
 const (
 	providerAnthropic = "anthropic"
 	providerOpenAI    = "openai"
+	providerCodex     = "codex"
 )
 
 // reasoningConfig is the resolved answer to "whose model, and with what key".
@@ -61,6 +65,8 @@ func resolveReasoningConfig(lookup func(string) string) (reasoningConfig, error)
 		cfg.Provider = providerAnthropic
 	case providerOpenAI:
 		cfg.Provider = providerOpenAI
+	case providerCodex:
+		cfg.Provider = providerCodex
 	case "":
 		// No stated preference: follow the key the owner actually has.
 		switch {
@@ -75,7 +81,11 @@ func resolveReasoningConfig(lookup func(string) string) (reasoningConfig, error)
 		}
 	default:
 		return reasoningConfig{}, fmt.Errorf(
-			"KENNEL_WALDO_PROVIDER is %q; Waldo reasons with %q or %q", requested, providerAnthropic, providerOpenAI)
+			"KENNEL_WALDO_PROVIDER is %q; Waldo reasons with %q, %q, or %q", requested, providerAnthropic, providerOpenAI, providerCodex)
+	}
+	if cfg.Provider == providerCodex {
+		cfg.KeySource = "codex-app-server-sign-in"
+		return cfg, nil
 	}
 
 	// KENNEL_WALDO_API_KEY is preferred for both providers so an owner can keep
@@ -113,6 +123,8 @@ func newReasoner(cfg reasoningConfig) (ports.LLMClient, error) {
 			return nil, err
 		}
 		return client, nil
+	case providerCodex:
+		return newCodexReasoner(cfg, slog.Default())
 	default:
 		client, err := llmanthropic.New(llmanthropic.Config{APIKey: cfg.APIKey, Model: cfg.Model, Effort: cfg.Effort, BaseURL: cfg.BaseURL, MaxRetries: 0})
 		if err != nil {
@@ -125,12 +137,18 @@ func newReasoner(cfg reasoningConfig) (ports.LLMClient, error) {
 // configuredIntelligenceProvider resolves settings at call time. A fresh
 // profile can therefore configure a credential and retry without restarting
 // the daemon; the renderer never receives the credential.
-type configuredIntelligenceProvider struct{ settings *settingssvc.Service }
+type configuredIntelligenceProvider struct {
+	settings *settingssvc.Service
+	log      *slog.Logger
+}
 
 var _ ports.IntelligenceProvider = (*configuredIntelligenceProvider)(nil)
 
-func newConfiguredIntelligenceProvider(settings *settingssvc.Service) *configuredIntelligenceProvider {
-	return &configuredIntelligenceProvider{settings: settings}
+func newConfiguredIntelligenceProvider(settings *settingssvc.Service, log *slog.Logger) *configuredIntelligenceProvider {
+	if log == nil {
+		log = slog.Default()
+	}
+	return &configuredIntelligenceProvider{settings: settings, log: log}
 }
 
 func (*configuredIntelligenceProvider) ID() domain.IntelligenceProviderID {
@@ -145,10 +163,23 @@ func (p *configuredIntelligenceProvider) client(ctx context.Context) (ports.LLMC
 	if err != nil {
 		return nil, err
 	}
+	if cfg.Provider == providerCodex {
+		return newCodexReasoner(reasoningConfig{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort}, p.log)
+	}
 	return newReasoner(reasoningConfig{
 		Provider: cfg.Provider, APIKey: cfg.APIKey, Model: cfg.Model, Effort: cfg.Effort,
 		BaseURL: p.settings.ReasoningBaseURL(),
 	})
+}
+
+func newCodexReasoner(cfg reasoningConfig, log *slog.Logger) (ports.LLMClient, error) {
+	if log == nil {
+		log = slog.Default()
+	}
+	driver := codexappserver.New(codex.New(), log)
+	return codexappserver.NewIntelligenceClient(driver, codexappserver.IntelligenceConfig{
+		Model: cfg.Model, Effort: cfg.Effort, Timeout: 2 * time.Minute,
+	}), nil
 }
 
 func (p *configuredIntelligenceProvider) AnalyzeContract(ctx context.Context, request ports.ContractIntelligenceRequest) (ports.ContractIntelligenceResponse, error) {
@@ -181,10 +212,16 @@ const probeReasoningBudget = 30 * time.Second
 // fails at the provider. This is the only thing that may set verified state,
 // and it runs only when the owner asks, because the call may be billed.
 func probeReasoning(ctx context.Context, cfg settingssvc.ReasoningConfig) error {
-	client, err := newReasoner(reasoningConfig{
-		Provider: cfg.Provider, APIKey: cfg.APIKey, Model: cfg.Model, Effort: cfg.Effort,
-		BaseURL: cfg.BaseURL,
-	})
+	var client ports.LLMClient
+	var err error
+	if cfg.Provider == providerCodex {
+		client, err = newCodexReasoner(reasoningConfig{Provider: cfg.Provider, Model: cfg.Model, Effort: cfg.Effort}, slog.Default())
+	} else {
+		client, err = newReasoner(reasoningConfig{
+			Provider: cfg.Provider, APIKey: cfg.APIKey, Model: cfg.Model, Effort: cfg.Effort,
+			BaseURL: cfg.BaseURL,
+		})
+	}
 	if err != nil {
 		return err
 	}
@@ -205,4 +242,14 @@ func probeReasoning(ctx context.Context, cfg settingssvc.ReasoningConfig) error 
 		},
 	})
 	return err
+}
+
+// probeReasoningAvailability is local/protocol evidence only. It never marks
+// the selected model verified and never sends a model turn.
+func probeReasoningAvailability(ctx context.Context, cfg settingssvc.ReasoningConfig) error {
+	if cfg.Provider != providerCodex {
+		return nil
+	}
+	driver := codexappserver.New(codex.New(), slog.Default())
+	return driver.ProbeIntelligence(ctx)
 }

@@ -23,6 +23,12 @@ const { getMock, postMock, navigateMock, chooseDirectoryMock, daemonStatusMock, 
 	}),
 );
 
+const launchMode = vi.hoisted(() => ({ focused: false }));
+vi.mock("../../lib/preview-mode", () => ({
+ usesPreviewWorkspaceData: false,
+ get usesWorkLaunchMode() { return launchMode.focused; },
+}));
+
 vi.mock("../../lib/api-client", () => ({
 	apiClient: { GET: getMock, POST: postMock },
 	apiErrorMessage: (e: unknown) => (e instanceof Error ? e.message : "error"),
@@ -41,6 +47,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 	return { ...actual, useNavigate: () => navigateMock };
 });
 
+import { ShellProvider, type ShellContextValue } from "../../lib/shell-context";
 import { WorkEnterSurface } from "../../components/outcome/WorkEnterSurface";
 
 type Project = { id: string; name: string; path: string };
@@ -76,11 +83,24 @@ function renderSurface() {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+ launchMode.focused = false;
 	daemonStatusMock.mockResolvedValue({ state: "ready", port: 3001 });
 	respondWith([]);
 });
 
 describe("Work-first Enter surface", () => {
+ it("opens focused Work directly at Outcome project selection without probing execution providers", async () => {
+  launchMode.focused = true;
+  respondWith([{ id: "proj-1", name: "my-app", path: "/repo/my-app" }], CODEX_UNAUTHORIZED);
+  renderSurface();
+  expect(await screen.findByRole("heading", { name: "Choose a project for your Outcome" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /start with work/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /set up home/i })).not.toBeInTheDocument();
+  await userEvent.click(await screen.findByRole("button", { name: /my-app/ }));
+  expect(navigateMock).toHaveBeenCalledWith({ to: "/work", search: { project: "proj-1" } });
+  expect(getMock).not.toHaveBeenCalledWith("/api/v1/agents");
+  expect(postMock).not.toHaveBeenCalled();
+ });
 	it("recommends Start with Work while offering Home as an equal alternative", async () => {
 		renderSurface();
 		const work = await screen.findByRole("button", { name: /start with work/i });
@@ -133,6 +153,21 @@ describe("Work-first Enter surface", () => {
 		expect(navigateMock).toHaveBeenCalledWith({ to: "/home" });
 	});
 
+ it("tracks the shell daemon becoming ready without a stale independent probe", async () => {
+  launchMode.focused = true;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const shell: ShellContextValue = {
+   daemonStatus: { state: "stopped" }, workspaceStartupState: "ready",
+   createProject: vi.fn(), initializeProjectRepository: vi.fn(),
+  };
+  const view = (value: ShellContextValue) => <QueryClientProvider client={client}><ShellProvider value={value}><WorkEnterSurface /></ShellProvider></QueryClientProvider>;
+  const rendered = render(view(shell));
+  expect(screen.getByTestId("enter-blocked-daemon")).toBeInTheDocument();
+  rendered.rerender(view({ ...shell, daemonStatus: { state: "ready", port: 3001 } }));
+  expect(screen.queryByTestId("enter-blocked-daemon")).not.toBeInTheDocument();
+  expect(daemonStatusMock).not.toHaveBeenCalled();
+ });
+
 	it("shows a distinct daemon-offline state", async () => {
 		daemonStatusMock.mockResolvedValue({ state: "stopped" });
 		renderSurface();
@@ -157,15 +192,18 @@ describe("Work-first Enter surface", () => {
 	it("shows a distinct invalid-folder state", async () => {
 		chooseDirectoryMock.mockResolvedValue("/Users/me/.kennel/data/inside");
 		scanImportFolderMock.mockResolvedValue({
-			repos: [{ reason: "Selected folder is inside Kennel's internal data directory." }],
+			path: "/Users/me/.kennel/data/inside",
+			repos: [{ name: "inside", path: "/Users/me/.kennel/data/inside", status: "error", reason: "Selected folder is inside Kennel's internal data directory." }],
 			setupWarning: null,
 		});
 		renderSurface();
 
 		await userEvent.click(await screen.findByRole("button", { name: /start with work/i }));
 		await userEvent.click(await screen.findByRole("button", { name: /add a project/i }));
+		expect(chooseDirectoryMock).not.toHaveBeenCalled();
+		await userEvent.click(screen.getByRole("button", { name: /^Import existing work/i }));
 
-		expect(await screen.findByTestId("enter-error-folder")).toBeInTheDocument();
+		expect((await screen.findAllByText("Selected folder is inside Kennel's internal data directory.")).length).toBeGreaterThan(0);
 		expect(screen.queryByTestId("enter-blocked-daemon")).not.toBeInTheDocument();
 	});
 });

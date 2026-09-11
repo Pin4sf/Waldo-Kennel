@@ -79,6 +79,23 @@ type PlanDraftWorkUnit struct {
 	CriteriaCovered []string
 	DependsOn       []string
 	EvidenceIdeas   []string
+	// CheckCommands are proposed deterministic checks. Like everything else
+	// in a draft they are a suggestion: the control plane resolves the
+	// criterion alias, validates the command shape and bounds the timeout
+	// before any of it becomes approved authority.
+	CheckCommands []PlanDraftCheck
+}
+
+// MaxPlanDraftChecksPerWorkUnit bounds pathological planning output. It is
+// named operational policy, not a law of Outcomes.
+const MaxPlanDraftChecksPerWorkUnit = 8
+
+// PlanDraftCheck is one proposed deterministic check, still in model-facing
+// terms: it names a criterion by alias, not by internal identity.
+type PlanDraftCheck struct {
+	CriterionAlias string
+	Argv           []string
+	TimeoutSeconds int64
 }
 
 // Validate checks the bounded, non-authoritative draft shape.
@@ -119,6 +136,17 @@ func (p PlanDraftProposal) Validate() error {
 		}
 		if err := validateUniqueNonBlankPlanDraftList("evidence idea", unit.EvidenceIdeas); err != nil {
 			return fmt.Errorf("plan draft work unit %q: %w", key, err)
+		}
+		if len(unit.CheckCommands) > MaxPlanDraftChecksPerWorkUnit {
+			return fmt.Errorf("plan draft work unit %q proposes %d checks; maximum is %d", key, len(unit.CheckCommands), MaxPlanDraftChecksPerWorkUnit)
+		}
+		for i, check := range unit.CheckCommands {
+			if strings.TrimSpace(check.CriterionAlias) == "" {
+				return fmt.Errorf("plan draft work unit %q check %d names no criterion", key, i+1)
+			}
+			if len(check.Argv) == 0 {
+				return fmt.Errorf("plan draft work unit %q check %d has no command", key, i+1)
+			}
 		}
 		units[key] = unit
 	}

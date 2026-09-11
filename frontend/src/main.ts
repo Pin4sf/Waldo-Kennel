@@ -133,11 +133,17 @@ if (process.platform === "win32") {
 // keeps this directory open, and two Chromium instances sharing one profile
 // corrupt its LevelDB stores. Mirrors how dev already isolates running.json and
 // the daemon data dir into ~/.kennel/dev.
+// Explicit isolation for packaged acceptance tests and separate local profiles.
+// Reject relative overrides so state cannot land in an accidental working directory.
+const electronDataDir = process.env.KENNEL_ELECTRON_DATA_DIR;
+if (electronDataDir && !path.isAbsolute(electronDataDir)) {
+	throw new Error("KENNEL_ELECTRON_DATA_DIR must be an absolute path");
+}
 app.setPath(
 	"userData",
-	app.isPackaged
+	electronDataDir ?? (app.isPackaged
 		? path.join(os.homedir(), STATE_DIRECTORY_NAME, "electron")
-		: path.join(os.homedir(), STATE_DIRECTORY_NAME, "dev", "electron"),
+		: path.join(os.homedir(), STATE_DIRECTORY_NAME, "dev", "electron")),
 );
 
 let mainWindow: BaseWindow | null = null;
@@ -1736,7 +1742,7 @@ ipcMain.handle("telemetry:getBootstrap", () =>
 );
 async function chooseDirectory(title: string): Promise<string | null> {
 	const options: OpenDialogOptions = {
-		properties: ["openDirectory"],
+		properties: ["openDirectory", "createDirectory"],
 		title,
 	};
 	// On Windows, parenting the common file dialog forces a repaint of the main
@@ -2108,7 +2114,7 @@ app.whenReady().then(async () => {
 		}
 	}
 
-	if (process.platform === "darwin" && app.isPackaged) {
+	if (process.platform === "darwin" && app.isPackaged && !electronDataDir) {
 		const bundlePath = resolveBundlePath();
 		const action = decideRelocation({
 			inApplicationsFolder: app.isInApplicationsFolder(),

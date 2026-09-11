@@ -8,6 +8,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
+import type { components } from "../../api/schema";
 import type { SessionMode } from "../types/workspace";
 
 export const settingsQueryKey = ["settings"] as const;
@@ -18,6 +19,7 @@ export interface Settings {
 	/** Agents that can run in chat mode today. Empty means chat is unavailable. */
 	chatHarnesses: string[];
 	reasoning: {
+        mode?: string;
 		provider: string;
 		model: string;
 		effort: string;
@@ -73,7 +75,7 @@ export function useVerifyReasoning() {
 export function useUpdateReasoning() {
 	const queryClient = useQueryClient();
 	const mutation = useMutation({
-		mutationFn: async (input: { provider: "anthropic" | "openai"; model: string; effort: string; apiKey?: string }) => {
+		mutationFn: async (input: components["schemas"]["UpdateReasoningRequest"]) => {
 			const { data, error } = await apiClient.PATCH("/api/v1/settings/reasoning", { body: input });
 			if (error) throw error;
 			return data;
@@ -82,7 +84,7 @@ export function useUpdateReasoning() {
 	});
 
 	return {
-		update: (input: { provider: "anthropic" | "openai"; model: string; effort: string; apiKey?: string }) => mutation.mutateAsync(input),
+		update: (input: components["schemas"]["UpdateReasoningRequest"]) => mutation.mutateAsync(input),
 		saving: mutation.isPending,
 		error: mutation.error ? apiErrorMessage(mutation.error) : undefined,
 	};

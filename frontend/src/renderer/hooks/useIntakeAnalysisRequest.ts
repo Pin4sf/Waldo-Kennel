@@ -45,18 +45,13 @@ export function useIntakeAnalysisRequest(intakeId: string | undefined, { poll }:
 	};
 }
 
-/**
- * Who authored the proposal now on screen.
- *
- * There is no stored "authored by" field, and adding one would duplicate a
- * fact the request already records. A fulfilled ask means its agent's proposal
- * became the current one; anything else — no ask, refused, expired, cancelled
- * — means what is on screen came from the deterministic baseline.
+/** A callback records an attributed agent. Its absence does not identify the
+ * proposal source: direct API reasoning completes inline without a callback.
  */
 export function proposalProvenance(request: IntakeAnalysisRequest | undefined): {
-	kind: "agent" | "offline";
+	kind: "agent" | "unattributed";
 	harness?: string;
 } {
 	if (request?.status === "fulfilled") return { kind: "agent", harness: request.harness };
-	return { kind: "offline" };
+	return { kind: "unattributed" };
 }

@@ -235,7 +235,8 @@ describe("OutcomeDecideAuthorizeSurface", () => {
 		});
 		renderSurface();
 
-		await userEvent.click(await screen.findByTestId("outcome-approve-plan"));
+		expect(screen.queryByTestId("outcome-approve-plan")).not.toBeInTheDocument();
+		expect(postMock).not.toHaveBeenCalled();
 
 		expect(await screen.findByTestId("outcome-plan-conflict")).toBeInTheDocument();
 		expect(screen.getByTestId("outcome-plan-reload")).toBeInTheDocument();

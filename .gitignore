@@ -31,3 +31,4 @@ frontend/resources/acp-runtime/
 *.sqlite*
 *.log
 .DS_Store
+/.env

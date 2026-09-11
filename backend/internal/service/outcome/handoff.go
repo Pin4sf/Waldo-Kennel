@@ -6,6 +6,7 @@ import (
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // Stable refusals for a successor that cannot be given its predecessors' work.
@@ -144,16 +145,50 @@ func upstreamReceiptUsable(unit domain.WorkUnit, dependencyID domain.WorkUnitID,
 	return nil
 }
 
-// requireUpstreamArtifacts validates dependency receipts, then refuses launch
-// until canonical workspace materialization can consume their exact versions.
-// A metadata-only gate must never admit a successor on the original base.
-func (s *Service) requireUpstreamArtifacts(ctx context.Context, plan domain.PlanRevision, unit domain.WorkUnit) error {
+// CodeUpstreamMaterializationFailed reports that validated predecessor results
+// could not be placed in the successor's workspace. No provider was launched.
+const CodeUpstreamMaterializationFailed = "UPSTREAM_MATERIALIZATION_FAILED"
+
+// admittedInputsFor resolves the exact retained predecessor results this
+// WorkUnit may consume, as immutable references.
+//
+// Pinning the artifact version here — not just the producing Attempt — is what
+// makes the handoff replayable. Admission authorized these bytes; a restart or
+// a later retry must materialize the same ones, even if the upstream WorkUnit
+// has since produced something newer.
+func (s *Service) admittedInputsFor(ctx context.Context, plan domain.PlanRevision, unit domain.WorkUnit) ([]ports.AttemptInputRef, error) {
 	receipts, err := s.resolveUpstreamReceipts(ctx, plan, unit)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if len(receipts) != 0 {
-		return apierr.Conflict("UPSTREAM_MATERIALIZATION_UNAVAILABLE", "Dependency results are retained, but this build cannot yet provision them into a successor workspace", map[string]any{"workUnitId": unit.ID})
+	inputs := make([]ports.AttemptInputRef, 0, len(receipts))
+	for _, receipt := range receipts {
+		inputs = append(inputs, ports.AttemptInputRef{
+			AttemptID: receipt.AttemptID, WorkUnitID: receipt.WorkUnitID, ArtifactVersion: receipt.ArtifactVersion,
+		})
 	}
-	return nil
+	return inputs, nil
+}
+
+// inputArtifactVersions is the ordered version list recorded on the admission
+// snapshot, so what a successor consumed stays inspectable after the fact.
+func inputArtifactVersions(inputs []ports.AttemptInputRef) []string {
+	versions := make([]string, 0, len(inputs))
+	for _, input := range inputs {
+		versions = append(versions, input.ArtifactVersion)
+	}
+	return versions
+}
+
+// materializationFailed converts a provisioning failure into a refusal that
+// says a provider was NOT launched.
+//
+// Provisioning runs before any process exists, so this is a known failure, not
+// an ambiguous start. Reporting it as unresolved would send the owner to
+// reconcile a run that never began; reporting it as an ordinary conflict would
+// hide that a workspace may hold partial inputs.
+func materializationFailed(unit domain.WorkUnit, attemptID domain.AttemptID, cause error) error {
+	return apierr.Conflict(CodeUpstreamMaterializationFailed,
+		"This WorkUnit's inputs could not be provisioned, so nothing was started",
+		map[string]any{"workUnitId": unit.ID, "attemptId": attemptID, "detail": cause.Error()})
 }

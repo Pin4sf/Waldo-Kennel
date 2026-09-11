@@ -269,7 +269,7 @@ paths:
       tags: [GitHub]
       responses:
         "200":
-          description: The GitHub App installation was disconnected from AO.
+          description: The GitHub App installation was disconnected from Kennel.
           content:
             application/json:
               schema:
@@ -343,7 +343,7 @@ paths:
               $ref: "#/components/schemas/CreateGitHubScratchProjectInput"
       responses:
         "201":
-          description: GitHub repository, AO project, and first orchestrator created.
+          description: GitHub repository, Kennel project, and first orchestrator created.
           content:
             application/json:
               schema:
@@ -453,7 +453,7 @@ paths:
       tags: [Reviews]
       responses:
         "200":
-          description: AO review planning state and recorded runs for the session.
+          description: Kennel review planning state and recorded runs for the session.
           content:
             application/json:
               schema:

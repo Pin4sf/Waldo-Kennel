@@ -86,6 +86,12 @@ export function MissionWorkUnitGraph({
 		() => new Map(nodes.map((node) => [node.id, node.unit.title])),
 		[nodes],
 	);
+	const edges = useMemo(
+		() => nodes
+			.flatMap((node) => node.upstream.map((from) => ({ from, to: node.id })))
+			.sort((left, right) => `${left.from}:${left.to}`.localeCompare(`${right.from}:${right.to}`)),
+		[nodes],
+	);
 
 	// Selection is the caller's state so it survives CDC refetches: the graph
 	// re-renders from new daemon facts without losing what the owner had open.
@@ -157,6 +163,21 @@ export function MissionWorkUnitGraph({
 					{t(`outcome.missionGraph.noRunnable.${schedule.noRunnableReason}`)}
 				</p>
 			) : null}
+
+			{edges.length > 0 && (
+				<section aria-label={t("outcome.missionGraph.edgesAria")} className="rounded-md border border-border bg-muted/20 p-2" data-testid="mission-graph-edges">
+					<h4 className="text-2xs font-medium uppercase tracking-wide text-passive">{t("outcome.missionGraph.edgesHeading")}</h4>
+					<div className="mt-1 space-y-1">
+						{edges.map(({ from, to }) => (
+							<div className="flex min-w-0 items-center gap-2 text-2xs" data-from={from} data-testid="mission-graph-edge" data-to={to} key={`${from}:${to}`}>
+								<span className="min-w-0 flex-1 truncate">{titleOf.get(from) ?? t("outcome.missionGraph.unknownDependency")}</span>
+								<span aria-hidden="true" className="text-passive">→</span>
+								<span className="min-w-0 flex-1 truncate font-medium">{titleOf.get(to) ?? t("outcome.missionGraph.unknownWorkUnit")}</span>
+							</div>
+						))}
+					</div>
+				</section>
+			)}
 
 			{/* The ordered list IS the accessible equivalent: DOM order is
 			    dependency order, and each node's label carries its state and

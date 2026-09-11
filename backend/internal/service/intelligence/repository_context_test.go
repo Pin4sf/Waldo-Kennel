@@ -2,6 +2,7 @@ package intelligence
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,69 @@ import (
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
+
+func TestLargeRepositoryRetainsInspectedContextAtEntryLimit(t *testing.T) {
+	root := t.TempDir()
+	if err := runGit(root, "init", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("verified repository overview"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deep := filepath.Join(root, "source")
+	if err := os.Mkdir(deep, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < contextMaxVisited+1; i++ {
+		if err := os.WriteFile(filepath.Join(deep, fmt.Sprintf("entry-%04d.dat", i)), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snapshot, err := BuildRepositoryContext(context.Background(), domain.ProjectRecord{ID: "large", Path: root}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Files) != 1 || snapshot.Files[0].Content != "verified repository overview" {
+		t.Fatalf("bounded traversal discarded inspected root context: %#v", snapshot.Files)
+	}
+	if !strings.Contains(snapshot.UnavailableReason, "partial") {
+		t.Fatalf("missing partial-context notice: %q", snapshot.UnavailableReason)
+	}
+	var prompt strings.Builder
+	appendRepositoryContext(&prompt, snapshot)
+	if !strings.Contains(prompt.String(), "verified repository overview") || !strings.Contains(prompt.String(), "partial") {
+		t.Fatalf("model did not receive both inspected facts and their limit: %s", prompt.String())
+	}
+}
+
+func TestMainContextIncludesBoundedPrefixesAndRejectsSymlinkedPriorityDirectories(t *testing.T) {
+	root := t.TempDir()
+	if err := runGit(root, "init", "-q"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte(strings.Repeat("r", contextMaxFile+50)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "STATUS.md"), []byte("outside-context-canary"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "docs")); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := BuildRepositoryContext(context.Background(), domain.ProjectRecord{ID: "prefix", Path: root}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Files) != 1 || snapshot.Files[0].Path != "README.md" || !snapshot.Files[0].Truncated || len(snapshot.Files[0].Content) != contextMaxFile {
+		t.Fatalf("expected a bounded README prefix only: %#v", snapshot.Files)
+	}
+	var prompt strings.Builder
+	appendRepositoryContext(&prompt, snapshot)
+	if strings.Contains(prompt.String(), "outside-context-canary") || !strings.Contains(prompt.String(), "README.md (truncated: true)") {
+		t.Fatal("context escaped its root or failed to disclose truncation")
+	}
+}
 
 func TestBuildRepositoryContextBoundsFilesAndExcludesIgnoredSymlinkedSecrets(t *testing.T) {
 	root := t.TempDir()

@@ -37,7 +37,7 @@ func (s *Store) FindAttemptByIdempotencyKey(ctx context.Context, key string) (do
 	if err != nil {
 		return domain.Attempt{}, false, fmt.Errorf("find attempt by idempotency key: %w", err)
 	}
-	return attemptFromRow(row), true, nil
+	return attemptFromFindRow(row), true, nil
 }
 
 // CreateAttemptWithFence atomically persists one scheduler-selected WorkUnit
@@ -79,6 +79,48 @@ func (s *Store) CreateAttemptWithFence(ctx context.Context, in ports.AttemptAdmi
 		return domain.Attempt{}, fmt.Errorf("max attempt number for %s: unexpected type %T", in.OutcomeID, maxNum)
 	}
 
+	// Re-read the owner authorization on the same transaction that creates the
+	// Attempt and fence. A service-level precheck is useful for fast refusal,
+	// but only this boundary can prevent a pause/cancel from landing between
+	// that read and durable admission.
+	currentIntent, intentErr := txq.CurrentOutcomeRunIntent(ctx, string(in.OutcomeID))
+	currentGeneration := int64(0)
+	currentDesired := domain.RunIntentDesired("")
+	if intentErr == nil {
+		currentGeneration = currentIntent.Generation
+		currentDesired = domain.RunIntentDesired(currentIntent.Desired)
+	} else if !errors.Is(intentErr, sql.ErrNoRows) {
+		return domain.Attempt{}, fmt.Errorf("read run authorization for %s: %w", in.OutcomeID, intentErr)
+	}
+	if currentDesired == "" {
+		currentDesired = domain.RunIntentIdle
+	}
+	if currentDesired != domain.RunIntentIdle && currentDesired != domain.RunIntentRunning {
+		return domain.Attempt{}, &ports.AttemptRunIntentConflictError{
+			OutcomeID: in.OutcomeID, Expected: in.RunIntentGeneration,
+			Current: currentGeneration, Desired: currentDesired, Found: currentGeneration > 0,
+		}
+	}
+	if in.RunIntentGeneration > 0 {
+		if currentGeneration != in.RunIntentGeneration || currentDesired != domain.RunIntentRunning || domain.PlanRevisionID(currentIntent.PlanRevisionID) != in.PlanRevisionID || currentIntent.ContractRevisionNumber != in.ContractRevisionNumber {
+			return domain.Attempt{}, &ports.AttemptRunIntentConflictError{
+				OutcomeID: in.OutcomeID, Expected: in.RunIntentGeneration,
+				Current: currentGeneration, Desired: currentDesired, Found: currentGeneration > 0,
+			}
+		}
+	} else if currentDesired == domain.RunIntentRunning {
+		// A direct Attempt start that raced with a newly recorded Start is
+		// still bound to the current authorization, so its durable lineage is
+		// explicit rather than silently bypassing the run intent.
+		in.RunIntentGeneration = currentGeneration
+		if domain.PlanRevisionID(currentIntent.PlanRevisionID) != in.PlanRevisionID || currentIntent.ContractRevisionNumber != in.ContractRevisionNumber {
+			return domain.Attempt{}, &ports.AttemptRunIntentConflictError{
+				OutcomeID: in.OutcomeID, Expected: 0,
+				Current: currentGeneration, Desired: currentDesired, Found: true,
+			}
+		}
+	}
+
 	key := sql.NullString{String: strings.TrimSpace(in.RequestKey), Valid: true}
 	attempt := domain.Attempt{
 		ID:                     domain.AttemptID("att-" + uuid.NewString()),
@@ -91,6 +133,7 @@ func (s *Store) CreateAttemptWithFence(ctx context.Context, in ports.AttemptAdmi
 		CreatedAt:              in.At,
 		UpdatedAt:              in.At,
 		ContractRevisionNumber: in.ContractRevisionNumber,
+		RunIntentGeneration:    in.RunIntentGeneration,
 	}
 	if err := attempt.Validate(); err != nil {
 		return domain.Attempt{}, err
@@ -103,13 +146,14 @@ func (s *Store) CreateAttemptWithFence(ctx context.Context, in ports.AttemptAdmi
 		Number:                 attempt.Number,
 		Status:                 attempt.Status,
 		ContractRevisionNumber: attempt.ContractRevisionNumber,
+		RunIntentGeneration:    attempt.RunIntentGeneration,
 		RequestKey:             key,
 	}); err != nil {
 		if isSQLiteUnique(err) && strings.Contains(err.Error(), "request_key") {
 			row, findErr := txq.FindAttemptByIdempotencyKey(ctx, key)
 			if findErr == nil {
-				winner := attemptFromRow(row)
-				if winner.OutcomeID != in.OutcomeID || winner.PlanRevisionID != in.PlanRevisionID || winner.WorkUnitID != in.WorkUnitID || winner.ContractRevisionNumber != in.ContractRevisionNumber {
+				winner := attemptFromFindRow(row)
+				if winner.OutcomeID != in.OutcomeID || winner.PlanRevisionID != in.PlanRevisionID || winner.WorkUnitID != in.WorkUnitID || winner.ContractRevisionNumber != in.ContractRevisionNumber || winner.RunIntentGeneration != in.RunIntentGeneration {
 					return winner, &ports.AttemptReplayConflictError{
 						Attempt: winner, OutcomeID: in.OutcomeID, PlanRevisionID: in.PlanRevisionID, WorkUnitID: in.WorkUnitID,
 					}
@@ -151,7 +195,7 @@ func (s *Store) GetAttempt(ctx context.Context, outcomeID domain.OutcomeID, atte
 	if err != nil {
 		return domain.Attempt{}, false, fmt.Errorf("get attempt %s: %w", attemptID, err)
 	}
-	return attemptFromRow(row), true, nil
+	return attemptFromGetRow(row), true, nil
 }
 
 // ListAttempts loads attempts belonging to an Outcome.
@@ -162,7 +206,7 @@ func (s *Store) ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) ([
 	}
 	out := make([]domain.Attempt, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, attemptFromRow(row))
+		out = append(out, attemptFromListOutcomeRow(row))
 	}
 	return out, nil
 }
@@ -188,7 +232,7 @@ func (s *Store) ListAttemptsByStatus(ctx context.Context, status domain.AttemptS
 	}
 	out := make([]domain.Attempt, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, attemptFromRow(row))
+		out = append(out, attemptFromListStatusRow(row))
 	}
 	return out, nil
 }
@@ -411,15 +455,31 @@ func (s *Store) ListRecoveryReceipts(ctx context.Context, attemptID domain.Attem
 	return out, nil
 }
 
-func attemptFromRow(row gen.Attempt) domain.Attempt {
+func attemptFromFindRow(row gen.FindAttemptByIdempotencyKeyRow) domain.Attempt {
+	return attemptFromValues(row.ID, row.OutcomeID, row.PlanRevisionID, row.WorkUnitID, row.Number, row.Status, row.ContractRevisionNumber, row.RunIntentGeneration, row.RequestKey, row.CreatedAt, row.UpdatedAt)
+}
+
+func attemptFromGetRow(row gen.GetAttemptRow) domain.Attempt {
+	return attemptFromValues(row.ID, row.OutcomeID, row.PlanRevisionID, row.WorkUnitID, row.Number, row.Status, row.ContractRevisionNumber, row.RunIntentGeneration, row.RequestKey, row.CreatedAt, row.UpdatedAt)
+}
+
+func attemptFromListOutcomeRow(row gen.ListAttemptsForOutcomeRow) domain.Attempt {
+	return attemptFromValues(row.ID, row.OutcomeID, row.PlanRevisionID, row.WorkUnitID, row.Number, row.Status, row.ContractRevisionNumber, row.RunIntentGeneration, row.RequestKey, row.CreatedAt, row.UpdatedAt)
+}
+
+func attemptFromListStatusRow(row gen.ListAttemptsByStatusRow) domain.Attempt {
+	return attemptFromValues(row.ID, row.OutcomeID, row.PlanRevisionID, row.WorkUnitID, row.Number, row.Status, row.ContractRevisionNumber, row.RunIntentGeneration, row.RequestKey, row.CreatedAt, row.UpdatedAt)
+}
+
+func attemptFromValues(id domain.AttemptID, outcomeID domain.OutcomeID, planID domain.PlanRevisionID, unitID domain.WorkUnitID, number int64, status domain.AttemptStatus, contractRevision, runIntentGeneration int64, requestKeyValue sql.NullString, createdAt, updatedAt time.Time) domain.Attempt {
 	var requestKey string
-	if row.RequestKey.Valid {
-		requestKey = row.RequestKey.String
+	if requestKeyValue.Valid {
+		requestKey = requestKeyValue.String
 	}
 	return domain.Attempt{
-		ID: row.ID, OutcomeID: row.OutcomeID, PlanRevisionID: row.PlanRevisionID, WorkUnitID: row.WorkUnitID,
-		Number: row.Number, Status: row.Status, RequestKey: requestKey, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		ContractRevisionNumber: row.ContractRevisionNumber,
+		ID: id, OutcomeID: outcomeID, PlanRevisionID: planID, WorkUnitID: unitID,
+		Number: number, Status: status, RequestKey: requestKey, CreatedAt: createdAt, UpdatedAt: updatedAt,
+		ContractRevisionNumber: contractRevision, RunIntentGeneration: runIntentGeneration,
 	}
 }
 
