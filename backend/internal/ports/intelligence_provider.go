@@ -26,6 +26,8 @@ type RepositoryContextSnapshot struct {
 type RepositoryContextFile struct {
 	Path    string
 	Content string
+	// Truncated means Content is a prefix, not the complete source file.
+	Truncated bool
 }
 
 // IntelligenceProvenance is provider-reported reasoning provenance. Unknown

@@ -451,8 +451,7 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 func appendRepositoryContext(input *strings.Builder, snapshot ports.RepositoryContextSnapshot) {
 	input.WriteString("\nBounded repository context (inspected facts only; no checks were run):\n")
 	if snapshot.UnavailableReason != "" {
-		fmt.Fprintf(input, "- context unavailable: %s\n", snapshot.UnavailableReason)
-		return
+		fmt.Fprintf(input, "- context limitation: %s\n", snapshot.UnavailableReason)
 	}
 	fmt.Fprintf(input, "- project: %s\n- root: %s\n- revision: %s\n- dirty: %t\n- context digest: %s\n", snapshot.ProjectID, snapshot.Root, snapshot.Revision, snapshot.Dirty, snapshot.Digest)
 	if snapshot.ProjectBrief != nil {
@@ -460,10 +459,10 @@ func appendRepositoryContext(input *strings.Builder, snapshot ports.RepositoryCo
 		fmt.Fprintf(input, "- Project Brief:\n%s\n", brief)
 	}
 	for _, instruction := range snapshot.Instructions {
-		fmt.Fprintf(input, "- instruction file %s:\n%s\n", instruction.Path, instruction.Content)
+		fmt.Fprintf(input, "- instruction file %s (truncated: %t):\n%s\n", instruction.Path, instruction.Truncated, instruction.Content)
 	}
 	for _, file := range snapshot.Files {
-		fmt.Fprintf(input, "- inspected file %s:\n%s\n", file.Path, file.Content)
+		fmt.Fprintf(input, "- inspected file %s (truncated: %t):\n%s\n", file.Path, file.Truncated, file.Content)
 	}
 	if len(snapshot.CheckCommands) > 0 {
 		fmt.Fprintf(input, "- discovered check commands (not executed):\n- %s\n", strings.Join(snapshot.CheckCommands, "\n- "))

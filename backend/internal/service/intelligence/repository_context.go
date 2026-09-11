@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,6 +25,8 @@ const (
 	contextMaxVisited    = 512
 	contextMaxCandidates = contextMaxFiles * 3
 )
+
+var errContextEntryLimit = errors.New("repository inspection reached its entry limit; context is partial")
 
 // ProjectSource is the read-only registry seam needed to locate a registered
 // repository. It deliberately exposes no writer or command-execution port.
@@ -66,7 +69,9 @@ func BuildRepositoryContext(ctx context.Context, project domain.ProjectRecord, b
 	files, instructions, checks, collectErr := boundedFiles(inspectCtx, snapshot.Root)
 	snapshot.Files, snapshot.Instructions, snapshot.CheckCommands = files, instructions, checks
 	if collectErr != nil {
-		if errors.Is(collectErr, context.Canceled) || errors.Is(collectErr, context.DeadlineExceeded) {
+		if errors.Is(collectErr, errContextEntryLimit) {
+			snapshot.UnavailableReason = errContextEntryLimit.Error()
+		} else if errors.Is(collectErr, context.Canceled) || errors.Is(collectErr, context.DeadlineExceeded) {
 			snapshot.UnavailableReason = "repository inspection stopped before its bounded context was complete"
 		} else if snapshot.UnavailableReason == "" {
 			snapshot.UnavailableReason = "repository files could not be inspected safely"
@@ -93,6 +98,25 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 		"package.json": true, "go.mod": true, "Makefile": true,
 	}
 	var candidates []string
+	// Main project context must not lose its budget to a large source tree or
+	// a directory of workflow files encountered first in lexical traversal.
+	first := []string{"AGENTS.md", "README.md", "README", "README.txt", "package.json", "go.mod", "Makefile", "docs/STATUS.md", "docs/architecture.md"}
+	seen := map[string]bool{}
+	rank := map[string]int{}
+	for index, rel := range first {
+		rank[rel] = index + 1
+		if !regularContextPath(root, rel) {
+			continue
+		}
+		ignored, err := ignoredByGit(ctx, root, rel)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if !ignored {
+			candidates = append(candidates, rel)
+			seen[rel] = true
+		}
+	}
 	visited := 0
 	walkErr := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -103,7 +127,10 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 		}
 		visited++
 		if visited > contextMaxVisited {
-			return fmt.Errorf("repository inspection exceeded %d filesystem entries", contextMaxVisited)
+			// Reaching a bounded discovery limit does not invalidate files found
+			// before it. Stop discovery and inspect those candidates normally.
+			collectErr = errContextEntryLimit
+			return filepath.SkipAll
 		}
 		if path != root && entry.Type()&os.ModeSymlink != 0 {
 			if entry.IsDir() {
@@ -124,7 +151,7 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 			}
 			return nil
 		}
-		if sensitiveContextFile(rel) || (!priorityContextFile(rel, priority) && !shallowTextCandidate(rel)) {
+		if seen[rel] || sensitiveContextFile(rel) || (!priorityContextFile(rel, priority) && !shallowTextCandidate(rel)) {
 			return nil
 		}
 		ignored, err := ignoredByGit(ctx, root, rel)
@@ -143,7 +170,19 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 	if walkErr != nil && !errors.Is(walkErr, filepath.SkipAll) {
 		return nil, nil, nil, walkErr
 	}
-	sort.Strings(candidates)
+	sort.Slice(candidates, func(i, j int) bool {
+		a, b := rank[candidates[i]], rank[candidates[j]]
+		if a != b {
+			if a == 0 {
+				return false
+			}
+			if b == 0 {
+				return true
+			}
+			return a < b
+		}
+		return candidates[i] < candidates[j]
+	})
 	seenBytes := 0
 	for _, rel := range candidates {
 		if err := ctx.Err(); err != nil {
@@ -154,18 +193,28 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 		}
 		path := filepath.Join(root, rel)
 		info, err := os.Stat(path)
-		if err != nil || info.Size() > contextMaxFile {
+		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
-		content, err := os.ReadFile(path)
+		file, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		content, err := io.ReadAll(io.LimitReader(file, contextMaxFile+1))
+		_ = file.Close()
 		if err != nil || strings.IndexByte(string(content), 0) >= 0 {
 			continue
+		}
+		truncated := len(content) > contextMaxFile
+		if truncated {
+			content = content[:contextMaxFile]
 		}
 		remaining := contextMaxBytes - seenBytes
 		if len(content) > remaining {
 			content = content[:remaining]
+			truncated = true
 		}
-		item := ports.RepositoryContextFile{Path: filepath.ToSlash(rel), Content: string(content)}
+		item := ports.RepositoryContextFile{Path: filepath.ToSlash(rel), Content: string(content), Truncated: truncated}
 		seenBytes += len(content)
 		if filepath.Base(rel) == "AGENTS.md" || strings.HasPrefix(filepath.ToSlash(rel), "docs/AGENTS") {
 			instructions = append(instructions, item)
@@ -177,7 +226,27 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 		}
 	}
 	sort.Strings(checks)
-	return files, instructions, uniqueStrings(checks), nil
+	return files, instructions, uniqueStrings(checks), collectErr
+}
+
+// Explicit priority paths receive the same no-symlink rule as discovery.
+func regularContextPath(root, rel string) bool {
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	path := root
+	for index, part := range parts {
+		path = filepath.Join(path, part)
+		info, err := os.Lstat(path)
+		if err != nil || info.Mode()&os.ModeSymlink != 0 {
+			return false
+		}
+		if index == len(parts)-1 {
+			return info.Mode().IsRegular()
+		}
+		if !info.IsDir() {
+			return false
+		}
+	}
+	return false
 }
 
 func excludedContextDir(rel string) bool {
