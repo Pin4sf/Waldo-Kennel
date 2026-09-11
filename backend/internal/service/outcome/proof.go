@@ -51,11 +51,11 @@ type CriterionProofView struct {
 
 // ProofView is the service projection of Outcome proof.
 type ProofView struct {
-	OutcomeID    domain.OutcomeID
-	Contract     domain.ContractRevision
-	Status       ProofStatus
-	NextAction   string
-	Criteria     []CriterionProofView
+	OutcomeID   domain.OutcomeID
+	Contract    domain.ContractRevision
+	Status      ProofStatus
+	NextAction  string
+	Criteria    []CriterionProofView
 	Decisions   []domain.AcceptanceDecision
 	Corrections []domain.OutcomeCorrection
 	// ActiveCorrection is the correction attached to the decision that set the

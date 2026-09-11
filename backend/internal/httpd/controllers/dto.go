@@ -2704,13 +2704,13 @@ type CriterionProofResponse struct {
 
 // OutcomeProofResponse is the daemon-derived Prove & Close read model.
 type OutcomeProofResponse struct {
-	OutcomeID    string                       `json:"outcomeId"`
-	Contract     ContractRevisionResponse     `json:"contractRevision"`
-	Status       string                       `json:"status"`
-	NextAction   string                       `json:"nextAction"`
-	Criteria     []CriterionProofResponse     `json:"criteria"`
-	Decisions    []AcceptanceDecisionResponse `json:"decisions"`
-	Corrections  []OutcomeCorrectionResponse  `json:"corrections"`
+	OutcomeID   string                       `json:"outcomeId"`
+	Contract    ContractRevisionResponse     `json:"contractRevision"`
+	Status      string                       `json:"status"`
+	NextAction  string                       `json:"nextAction"`
+	Criteria    []CriterionProofResponse     `json:"criteria"`
+	Decisions   []AcceptanceDecisionResponse `json:"decisions"`
+	Corrections []OutcomeCorrectionResponse  `json:"corrections"`
 	// ActiveCorrectionID names the correction that set the current proof
 	// horizon — what the owner most recently asked to be changed. Corrections
 	// is an append-only history; this is the one still standing. Absent when no
