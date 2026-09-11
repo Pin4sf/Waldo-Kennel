@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/codexappserver"
 	settingssvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/settings"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
 )
@@ -118,6 +119,16 @@ func TestNativePlanningCandidateRequiresSuccessfulPacketVerification(t *testing.
 	if candidates[0].Binding.Mode != "native_harness" {
 		t.Fatalf("candidate binding = %+v", candidates[0].Binding)
 	}
+	// The candidate's Provider must equal the exact provenance ID the Codex
+	// harness client reports as EffectiveProvider (codexappserver.IntelligenceProviderID,
+	// "codex-app-server"), not the raw "codex" settings string. Otherwise
+	// interactive_planning.go's response.Provenance.EffectiveProvider !=
+	// session.Binding.Provider check can never match, and every native Codex
+	// planning turn is refused as PLANNING_PROVIDER_MISMATCH regardless of
+	// what the model actually answered.
+	if string(candidates[0].Binding.Provider) != codexappserver.IntelligenceProviderID {
+		t.Fatalf("candidate provider = %q, want %q (the Codex client's actual EffectiveProvider)", candidates[0].Binding.Provider, codexappserver.IntelligenceProviderID)
+	}
 
 	status, err := svc.VerifyReasoning(ctx)
 	if err != nil || !status.Verified {
@@ -126,5 +137,8 @@ func TestNativePlanningCandidateRequiresSuccessfulPacketVerification(t *testing.
 	candidates, err = provider.PlanningCandidates(ctx)
 	if err != nil || len(candidates) != 1 || !candidates[0].Ready || candidates[0].UnavailableCode != "" {
 		t.Fatalf("verified native candidates = %+v, err=%v", candidates, err)
+	}
+	if string(candidates[0].Binding.Provider) != codexappserver.IntelligenceProviderID {
+		t.Fatalf("verified candidate provider = %q, want %q", candidates[0].Binding.Provider, codexappserver.IntelligenceProviderID)
 	}
 }
