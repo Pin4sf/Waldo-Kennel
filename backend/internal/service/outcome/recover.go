@@ -21,6 +21,7 @@ import (
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
 // RecoverAttempt applies one owner-directed recovery verb:
@@ -323,19 +324,12 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 		}
 		target := domain.AttemptReconciled
 		outcome := "provider session ended; result unclassified"
+		releaseReason := ""
 		if facts.completionBoundary == domain.AttemptCompletionProcessExit &&
 			!domain.SupervisedExitSucceeded(facts.exitCode, facts.exitReason) {
 			target = domain.AttemptFailed
 			outcome = "governed provider process exited unsuccessfully"
-		}
-		rows, err := s.store.TransitionAttemptStatus(ctx, attempt.OutcomeID, attempt.ID,
-			domain.AttemptRunning, target, s.clock())
-		if err != nil {
-			failures = append(failures, fmt.Errorf("attempt %s: %w", attempt.ID, err))
-			continue
-		}
-		if rows == 0 {
-			continue // moved concurrently; next tick sees the truth
+			releaseReason = "governed_provider_process_failed"
 		}
 		payload := mustJSON(map[string]any{
 			"sessionId":  facts.sessionID,
@@ -343,13 +337,22 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 			"exitCode":   facts.exitCode,
 			"exitReason": facts.exitReason,
 		})
-		if _, err := s.store.AppendAttemptObservation(ctx, attempt.ID, domain.ObservationProviderExit, payload, s.clock()); err != nil {
-			failures = append(failures, fmt.Errorf("observation for %s: %w", attempt.ID, err))
+		// The transition, its observation, and (for a failure) the custody
+		// release commit atomically. A crash or write failure between them
+		// would otherwise leave a terminal Attempt holding its workspace fence
+		// forever: normal liveness scanning only revisits Running attempts, so
+		// nothing else would ever converge that cleanup.
+		_, applied, err := s.store.TerminateRunningAttemptWithObservation(ctx, ports.AttemptRunningTermination{
+			OutcomeID: attempt.OutcomeID, AttemptID: attempt.ID, TargetStatus: target,
+			ObservationKind: domain.ObservationProviderExit, ObservationPayload: payload,
+			ReleaseReason: releaseReason, At: s.clock(),
+		})
+		if err != nil {
+			failures = append(failures, fmt.Errorf("attempt %s: %w", attempt.ID, err))
+			continue
 		}
-		if target == domain.AttemptFailed {
-			if err := s.releaseCustody(ctx, attempt.ID, "governed_provider_process_failed"); err != nil {
-				failures = append(failures, fmt.Errorf("release failed provider custody for %s: %w", attempt.ID, err))
-			}
+		if !applied {
+			continue // moved concurrently; next tick sees the truth
 		}
 	}
 	switch len(failures) {

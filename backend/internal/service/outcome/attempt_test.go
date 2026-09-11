@@ -1292,3 +1292,72 @@ func TestLivenessLoopClassifiesMissingExitCodeAsFailed(t *testing.T) {
 		t.Fatalf("status = %s, want failed", reread.Attempt.Status)
 	}
 }
+
+// livenessLoopFailureConvergenceCase drives fix #3: a governed provider
+// exit's Running->Failed transition, observation, and custody release must
+// commit atomically. Injecting a failure at either step must roll back the
+// whole operation (Attempt still Running, fence still held, no observation
+// recorded) rather than stranding a partial commit; a retried tick must then
+// converge to exactly one terminal outcome with custody released and no
+// duplicate observation or Attempt.
+func livenessLoopFailureConvergenceCase(t *testing.T, injectAt string) {
+	t.Helper()
+	svc, store, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	spawner.completionBoundary = domain.AttemptCompletionProcessExit
+	view, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := domain.SessionID(view.Sessions[0].SessionID)
+	exitCode := 17
+	rec := heartbeats.sessions[sessionID]
+	rec.IsTerminated = true
+	rec.Metadata.SupervisedProcessExitCode = &exitCode
+	rec.Metadata.SupervisedProcessExitReason = "failed"
+	heartbeats.sessions[sessionID] = rec
+
+	store.injectRunningTerminationFailureAt = injectAt
+	if err := svc.EvaluateAttemptLiveness(context.Background()); err == nil {
+		t.Fatalf("expected injected %s failure to surface", injectAt)
+	}
+	mid, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mid.Attempt.Status != domain.AttemptRunning {
+		t.Fatalf("status after injected %s failure = %s, want still running (no partial commit)", injectAt, mid.Attempt.Status)
+	}
+	if mid.Fence == nil {
+		t.Fatalf("custody released despite injected %s failure before any commit", injectAt)
+	}
+	if len(mid.Observations) != 0 {
+		t.Fatalf("observation recorded despite injected %s failure: %d", injectAt, len(mid.Observations))
+	}
+
+	// Restart/reconcile: the Attempt is still Running, so the next liveness
+	// pass revisits it and retries the whole operation from scratch.
+	if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
+		t.Fatalf("retry after injected %s failure: %v", injectAt, err)
+	}
+	final, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if final.Attempt.Status != domain.AttemptFailed {
+		t.Fatalf("status after convergence = %s, want failed", final.Attempt.Status)
+	}
+	if final.Fence != nil {
+		t.Fatal("custody must be released once the failure converges")
+	}
+	if len(final.Observations) != 1 {
+		t.Fatalf("observation count after convergence = %d, want exactly one (no duplicate)", len(final.Observations))
+	}
+}
+
+func TestLivenessLoopConvergesAfterInjectedObservationWriteFailure(t *testing.T) {
+	livenessLoopFailureConvergenceCase(t, "observation")
+}
+
+func TestLivenessLoopConvergesAfterInjectedCustodyReleaseFailure(t *testing.T) {
+	livenessLoopFailureConvergenceCase(t, "release")
+}
