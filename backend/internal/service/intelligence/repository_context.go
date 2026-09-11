@@ -18,11 +18,19 @@ import (
 )
 
 const (
-	contextMaxFiles      = 32
-	contextMaxBytes      = 96 * 1024
-	contextMaxFile       = 12 * 1024
-	contextMaxRuntime    = 2 * time.Second
-	contextMaxVisited    = 512
+	contextMaxFiles   = 32
+	contextMaxBytes   = 96 * 1024
+	contextMaxFile    = 12 * 1024
+	contextMaxRuntime = 2 * time.Second
+	// contextMaxVisited bounds directory-walk discovery, not content exposure:
+	// contextMaxFiles/contextMaxBytes/contextMaxFile still cap what actually
+	// reaches the model, and contextMaxRuntime remains the real backstop
+	// against a pathological tree. A real mid-size repository can easily hold
+	// several thousand non-vendored entries (most excluded/irrelevant), so a
+	// too-low visit cap gives up discovery before it ever reaches the files
+	// that matter — observed directly against a ~3,500-entry real repository
+	// during the launch-stabilization end-to-end exercise.
+	contextMaxVisited    = 20000
 	contextMaxCandidates = contextMaxFiles * 3
 )
 
