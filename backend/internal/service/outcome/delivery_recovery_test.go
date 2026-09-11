@@ -316,6 +316,58 @@ func TestVerifyExport_RefusesASymlinkStandingInForADeliveredArtifact(t *testing.
 	}
 }
 
+// TestVerifyExport_RefusesASymlinkedDirectoryInsideTheDestination is the
+// confinement hole a leaf check cannot see.
+//
+// confinedPath is lexical, so a component *between* the destination and an
+// artifact escapes it: `dest/nested` replaced by a link to another directory
+// still joins to a path under `dest`, and the final component found through it
+// is a perfectly ordinary regular file. Verification would then confirm a
+// delivery whose artifacts are not at the destination at all — and would do so
+// for content nobody delivered, since identical bytes anywhere satisfy the
+// digest.
+//
+// Following a symlinked *parent of the destination* stays deliberate: the
+// export wrote through it, so reading through it is how the bytes are found.
+// Inside the delivered tree the export creates only real directories and
+// regular files, so any link there is not ours.
+func TestVerifyExport_RefusesASymlinkedDirectoryInsideTheDestination(t *testing.T) {
+	h := newDeliveryReviewHarness(t)
+	destination := filepath.Join(t.TempDir(), "escaped-bundle")
+	delivered := deliverThenLoseTheLedger(t, h, destination, "dlv-escaped")
+
+	// An identical copy of the nested artifact, outside the destination.
+	outside := filepath.Join(t.TempDir(), "outside")
+	if err := os.Mkdir(outside, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "deep.txt"), []byte("deep\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(destination, "nested")
+	if err := os.RemoveAll(nested); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, nested); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	recovery, err := h.svc.ReconcileDeliveries(context.Background())
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if recovery.Recovered != 0 {
+		t.Fatalf("recovery = %+v, want nothing confirmed through a symlinked directory", recovery)
+	}
+	after := h.reload(t, delivered.ID)
+	if after.State != domain.DeliveryFailed || after.FailureCode != "DELIVERY_RECOVERY_MISMATCH" {
+		t.Fatalf("delivery = %+v, want failed/DELIVERY_RECOVERY_MISMATCH", after)
+	}
+	if after.CompletionSource == domain.DeliveryRecovered && after.State == domain.DeliverySucceeded {
+		t.Fatal("a delivery was confirmed through a directory pointing outside the destination")
+	}
+}
+
 // snapshotTree renders a destination's entries and contents so a test can
 // prove recovery did not touch them.
 //
