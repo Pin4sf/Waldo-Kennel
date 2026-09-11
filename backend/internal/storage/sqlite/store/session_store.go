@@ -361,7 +361,7 @@ func mapListAllSessionsRows(rows []gen.ListAllSessionsRow) []domain.SessionRecor
 }
 
 func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
-	return domain.SessionRecord{
+	rec := domain.SessionRecord{
 		ID:                row.ID,
 		ProjectID:         row.ProjectID,
 		IssueID:           row.IssueID,
@@ -405,6 +405,11 @@ func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
 		CreatedAt:         row.CreatedAt,
 		UpdatedAt:         row.UpdatedAt,
 	}
+	rec.Metadata.GovernedExecutionPolicyDigest = row.GovernedExecutionPolicyDigest
+	rec.Metadata.SupervisorCapabilityVerifier = row.SupervisorCapabilityVerifier
+	rec.Metadata.SupervisedProcessExitCode = nullInt64ToIntPtr(row.SupervisedProcessExitCode)
+	rec.Metadata.SupervisedProcessExitReason = row.SupervisedProcessExitReason
+	return rec
 }
 
 func getSessionRowToRecord(row gen.GetSessionRow) domain.SessionRecord {
@@ -421,7 +426,7 @@ func listAllSessionsRowToRecord(row gen.ListAllSessionsRow) domain.SessionRecord
 
 func recordToInsert(rec domain.SessionRecord, num int64) gen.InsertSessionParams {
 	activity := normalActivity(rec.Activity, rec.CreatedAt)
-	return gen.InsertSessionParams{
+	params := gen.InsertSessionParams{
 		ID:                        rec.ID,
 		ProjectID:                 rec.ProjectID,
 		Num:                       num,
@@ -462,11 +467,16 @@ func recordToInsert(rec domain.SessionRecord, num int64) gen.InsertSessionParams
 		CreatedAt:                 rec.CreatedAt,
 		UpdatedAt:                 rec.UpdatedAt,
 	}
+	params.GovernedExecutionPolicyDigest = rec.Metadata.GovernedExecutionPolicyDigest
+	params.SupervisorCapabilityVerifier = rec.Metadata.SupervisorCapabilityVerifier
+	params.SupervisedProcessExitCode = intPtrToNullInt64(rec.Metadata.SupervisedProcessExitCode)
+	params.SupervisedProcessExitReason = rec.Metadata.SupervisedProcessExitReason
+	return params
 }
 
 func recordToUpdate(rec domain.SessionRecord) gen.UpdateSessionParams {
 	activity := normalActivity(rec.Activity, rec.UpdatedAt)
-	return gen.UpdateSessionParams{
+	params := gen.UpdateSessionParams{
 		ID:                        rec.ID,
 		IssueID:                   rec.IssueID,
 		Kind:                      rec.Kind,
@@ -503,6 +513,11 @@ func recordToUpdate(rec domain.SessionRecord) gen.UpdateSessionParams {
 		ControllerGeneration:      rec.Metadata.ControllerGeneration,
 		UpdatedAt:                 rec.UpdatedAt,
 	}
+	params.GovernedExecutionPolicyDigest = rec.Metadata.GovernedExecutionPolicyDigest
+	params.SupervisorCapabilityVerifier = rec.Metadata.SupervisorCapabilityVerifier
+	params.SupervisedProcessExitCode = intPtrToNullInt64(rec.Metadata.SupervisedProcessExitCode)
+	params.SupervisedProcessExitReason = rec.Metadata.SupervisedProcessExitReason
+	return params
 }
 
 // nullTimeToTime / timeToNullTime bridge the nullable first_signal_at column
@@ -526,6 +541,21 @@ func nullTimeToTimePtr(t sql.NullTime) *time.Time {
 		return nil
 	}
 	return &t.Time
+}
+
+func nullInt64ToIntPtr(value sql.NullInt64) *int {
+	if !value.Valid {
+		return nil
+	}
+	converted := int(value.Int64)
+	return &converted
+}
+
+func intPtrToNullInt64(value *int) sql.NullInt64 {
+	if value == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: int64(*value), Valid: true}
 }
 
 func timePtrToNullTime(t *time.Time) sql.NullTime {

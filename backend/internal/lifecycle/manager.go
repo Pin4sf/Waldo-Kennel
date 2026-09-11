@@ -965,6 +965,7 @@ func (m *Manager) MarkSpawned(ctx context.Context, id domain.SessionID, metadata
 		if !ok {
 			return nil, fmt.Errorf("lifecycle: MarkSpawned for unknown session %q", id)
 		}
+		previousLaunchID := strings.TrimSpace(rec.Metadata.RuntimeLaunchID)
 		now := m.clock()
 		rec.IsTerminated = false
 		rec.Activity = domain.Activity{State: domain.ActivityIdle, LastActivityAt: now}
@@ -973,6 +974,14 @@ func (m *Manager) MarkSpawned(ctx context.Context, id domain.SessionID, metadata
 		// a stale "signals worked once" fact.
 		rec.FirstSignalAt = time.Time{}
 		rec.Metadata = mergeMetadata(rec.Metadata, metadata)
+		if launchID == "" || launchID != previousLaunchID {
+			// A supervisor capability and its exit observation belong to exactly
+			// one runtime generation. Omission on a new generation clears the old
+			// verifier; exit facts can only be written by the trusted observer.
+			rec.Metadata.SupervisorCapabilityVerifier = metadata.SupervisorCapabilityVerifier
+			rec.Metadata.SupervisedProcessExitCode = nil
+			rec.Metadata.SupervisedProcessExitReason = ""
+		}
 		rec.UpdatedAt = now
 		if err := m.store.UpdateSession(ctx, rec); err != nil {
 			return nil, err
@@ -1260,6 +1269,7 @@ func mergeMetadata(base, in domain.SessionMetadata) domain.SessionMetadata {
 	set(&base.LatestAssistantUpdate, in.LatestAssistantUpdate)
 	set(&base.NativeTranscriptPath, in.NativeTranscriptPath)
 	set(&base.BrowserCapabilityVerifier, in.BrowserCapabilityVerifier)
+	set(&base.GovernedExecutionPolicyDigest, in.GovernedExecutionPolicyDigest)
 	// The chat controller's resume handle. Without this a restart has no thread to
 	// resume and the conversation is stranded — the provider still holds it, but
 	// Kennel no longer knows its id.

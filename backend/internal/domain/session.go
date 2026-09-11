@@ -77,6 +77,16 @@ type SessionMetadata struct {
 	// policy. A non-empty marker with missing or invalid evidence must block
 	// recovery rather than inherit mutable Project preferences.
 	GovernedExecutionPolicyDigest string `json:"governedExecutionPolicyDigest,omitempty"`
+	// SupervisorCapabilityVerifier authenticates completion reports from the
+	// exact supervised worker generation. The bearer capability is never
+	// persisted or exposed to the provider process.
+	SupervisorCapabilityVerifier string `json:"-"`
+	// SupervisedProcessExitCode and SupervisedProcessExitReason are trusted
+	// supervisor observations for the current RuntimeLaunchID. Nil means no
+	// authenticated exit report was recorded; zero is a successful process exit,
+	// not Outcome success or owner Acceptance.
+	SupervisedProcessExitCode   *int   `json:"-"`
+	SupervisedProcessExitReason string `json:"-"`
 }
 
 // SessionRecord is the persistence shape. It intentionally stores only durable
