@@ -7,7 +7,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient, apiErrorMessage } from "../lib/api-client";
+import { apiClient, apiErrorCode, apiErrorMessage } from "../lib/api-client";
 import type { components } from "../../api/schema";
 import type { SessionMode } from "../types/workspace";
 
@@ -69,6 +69,8 @@ export function useVerifyReasoning() {
 		verify: () => mutation.mutateAsync(),
 		verifying: mutation.isPending,
 		error: mutation.error ? apiErrorMessage(mutation.error) : undefined,
+		errorCode: mutation.error ? apiErrorCode(mutation.error) : undefined,
+		reset: mutation.reset,
 	};
 }
 

@@ -2,6 +2,7 @@ package outcome
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
@@ -270,6 +271,9 @@ func (s *Service) runStateFor(ctx context.Context, record domain.Outcome, projec
 			RequestedAt:      intent.RequestedAt,
 			AcknowledgedAt:   intent.AcknowledgedAt, ActiveAttemptID: view.ActiveAttemptID,
 		}
+		if intent.AdmissionFailure != nil {
+			view.Intent.LastError = intent.AdmissionFailure.Message
+		}
 	}
 
 	var schedule *ScheduleView
@@ -460,6 +464,17 @@ func deriveMissionState(in missionInputs) (MissionState, string, *RunBlocker) {
 			Message: "Recorded proof does not support acceptance — request changes or repair the evidence",
 			Detail:  correctionDetail(in.proof.ActiveCorrection),
 		}
+	}
+	if in.intent != nil && in.intent.AdmissionFailure != nil {
+		failure := in.intent.AdmissionFailure
+		detail := map[string]any{"generation": in.intent.Generation, "workUnitId": string(failure.WorkUnitID)}
+		var persisted map[string]any
+		if json.Unmarshal([]byte(failure.DetailJSON), &persisted) == nil {
+			for key, value := range persisted {
+				detail[key] = value
+			}
+		}
+		return MissionNeedsYou, failure.Code, &RunBlocker{Code: failure.Code, Message: failure.Message, Detail: detail}
 	}
 	// Nothing is in flight. What happens next is decided by the durable
 	// authorization, not by the schedule alone: an authorized run continues

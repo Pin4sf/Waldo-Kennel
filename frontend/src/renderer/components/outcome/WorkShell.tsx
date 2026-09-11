@@ -12,6 +12,7 @@ import { TopbarButton } from "../TopbarButton";
 import { useCanGoForward } from "../TitlebarNav";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { OutcomeAttemptTerminalPanel } from "./OutcomeAttemptTerminalPanel";
+import { newestAttempt } from "./OutcomeRunBoardAdapters";
 
 type WorkShellProps = {
 	/** Absent on the Enter surface, before a project is chosen. */
@@ -58,6 +59,7 @@ export function WorkShell({ projectId, outcomeId, children }: WorkShellProps) {
 	const outcomeRunViewMode = useUiStore((state) => state.outcomeRunViewMode);
 	const setOutcomeRunViewMode = useUiStore((state) => state.setOutcomeRunViewMode);
 	const isAttemptPanelOpen = useUiStore((state) => state.isOutcomeAttemptPanelOpen);
+	const panelAttemptId = useUiStore((state) => state.outcomeAttemptPanelAttemptId);
 	const toggleAttemptPanel = useUiStore((state) => state.toggleOutcomeAttemptPanel);
 	const closeAttemptPanel = useUiStore((state) => state.closeOutcomeAttemptPanel);
 
@@ -67,7 +69,12 @@ export function WorkShell({ projectId, outcomeId, children }: WorkShellProps) {
 	// reachable from every later stage too — not just Act & Observe.
 	const attemptsQuery = useOutcomeAttempts(outcomeId);
 	const attempts = attemptsQuery.attempts ?? [];
-	const currentAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : undefined;
+	const newest = newestAttempt(attempts);
+	// An explicit Engage target is authoritative while it remains in the
+	// lineage. Do not silently fall back to the newest Attempt if a refresh has
+	// temporarily omitted that historical row: opening a different Attempt is a
+	// false technical action, not a useful recovery.
+	const currentAttempt = panelAttemptId ? attempts.find((attempt) => attempt.id === panelAttemptId) : newest;
 
 	// A stale attempt from a previously viewed Outcome must never linger
 	// behind the toggle after the person switches to a different one.

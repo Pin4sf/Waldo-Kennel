@@ -4,11 +4,10 @@ import type { AppLocale } from "../../i18n";
 import { useLocaleStore } from "../../stores/locale-store";
 import { useUiStore } from "../../stores/ui-store";
 import { SettingsOptionMenu, type SettingsOption } from "./SettingsOptionMenu";
-import { SettingsLinkRow, SettingsRow } from "./SettingsRow";
+import { SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
 import { cn } from "../../lib/utils";
 import { Switch } from "../ui/switch";
-import { ReasoningSettingsSection } from "./ReasoningSettingsSection";
 import { useSettings, useUpdateSessionInterface } from "../../hooks/useSettings";
 import type { SessionMode } from "../../types/workspace";
 
@@ -81,10 +80,8 @@ const COLOR_THEME_OPTIONS = [
 ] satisfies SettingsOption<ThemeStyle>[];
 
 export function GeneralSettingsSection({
-	onConnectMobile,
 	titleHidden,
 }: {
-	onConnectMobile: () => void;
 	titleHidden?: boolean;
 }) {
 	const { t } = useTranslation();
@@ -154,7 +151,6 @@ export function GeneralSettingsSection({
 				</p>
 			) : null}
 			<SessionInterfaceRow />
-			<ReasoningSettingsSection />
 			<SettingsRow label={t("settings.developerMode")}>
 				<Switch
 					aria-label={t("settings.developerMode")}
@@ -162,7 +158,6 @@ export function GeneralSettingsSection({
 					onCheckedChange={setDeveloperMode}
 				/>
 			</SettingsRow>
-			<SettingsLinkRow label={t("settings.connectMobile")} onClick={onConnectMobile} />
 		</SettingsSection>
 	);
 }

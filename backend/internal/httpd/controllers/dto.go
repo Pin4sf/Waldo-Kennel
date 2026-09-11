@@ -2906,25 +2906,147 @@ type CapabilityGrantResponse struct {
 // PlanRevisionResponse is the canonical Decide & Authorize read model: the
 // frozen Work Unit, active-on-approval grants, and the RunBrief core digest.
 type PlanRevisionResponse struct {
-	ID                     string                    `json:"id"`
-	OutcomeID              string                    `json:"outcomeId"`
-	Number                 int64                     `json:"number"`
-	ContractRevisionNumber int64                     `json:"contractRevisionNumber"`
-	Status                 string                    `json:"status"`
-	Summary                string                    `json:"summary"`
-	Assumptions            []string                  `json:"assumptions"`
-	Blockers               []string                  `json:"blockers"`
-	WorkUnits              []PlanWorkUnitResponse    `json:"workUnits"`
-	Grants                 []CapabilityGrantResponse `json:"grants"`
-	RoutingDecisions       []RoutingDecisionResponse `json:"routingDecisions"`
-	RunBriefCoreDigest     string                    `json:"runBriefCoreDigest"`
-	RunBriefCompiledDigest string                    `json:"runBriefCompiledDigest,omitempty"`
-	CreatedAt              time.Time                 `json:"createdAt"`
+	ID                      string                    `json:"id"`
+	OutcomeID               string                    `json:"outcomeId"`
+	Number                  int64                     `json:"number"`
+	ContractRevisionNumber  int64                     `json:"contractRevisionNumber"`
+	Status                  string                    `json:"status"`
+	Summary                 string                    `json:"summary"`
+	Assumptions             []string                  `json:"assumptions"`
+	Blockers                []string                  `json:"blockers"`
+	WorkUnits               []PlanWorkUnitResponse    `json:"workUnits"`
+	Grants                  []CapabilityGrantResponse `json:"grants"`
+	RoutingDecisions        []RoutingDecisionResponse `json:"routingDecisions"`
+	RunBriefCoreDigest      string                    `json:"runBriefCoreDigest"`
+	RunBriefCompiledDigest  string                    `json:"runBriefCompiledDigest,omitempty"`
+	PlanningSessionID       string                    `json:"planningSessionId,omitempty"`
+	SourceIntelligenceRunID string                    `json:"sourceIntelligenceRunId,omitempty"`
+	CreatedAt               time.Time                 `json:"createdAt"`
 }
 
 // PlanEnvelope is the { plan } response body for plan reads and writes.
 type PlanEnvelope struct {
 	Plan PlanRevisionResponse `json:"plan"`
+}
+
+// PlanningSessionIDParam documents the planning-session route parameter.
+type PlanningSessionIDParam struct {
+	PlanningSessionID string `path:"planningSessionId" description:"Planning conversation identifier."`
+}
+
+// PlanningCandidatesQuery binds candidate discovery to a Contract revision.
+type PlanningCandidatesQuery struct {
+	ContractRevision int64 `query:"contractRevision" minimum:"1" description:"Confirmed Contract revision to plan against."`
+}
+
+// StartPlanningRequest opens a conversation with one exact candidate.
+type StartPlanningRequest struct {
+	ExpectedContractRevision int64  `json:"expectedContractRevision" minimum:"1"`
+	CandidateID              string `json:"candidateId"`
+	ContextMode              string `json:"contextMode,omitempty" enum:"repository_read,supplied_packet" description:"Defaults to repository_read."`
+	RequestKey               string `json:"requestKey"`
+}
+
+// PlanningMessageRequest appends one idempotent owner message.
+type PlanningMessageRequest struct {
+	ExpectedSessionRevision int64  `json:"expectedSessionRevision" minimum:"1"`
+	Text                    string `json:"text"`
+	RequestKey              string `json:"requestKey"`
+}
+
+// PlanningFinalizeRequest asks the planner for a structured proposal.
+type PlanningFinalizeRequest struct {
+	ExpectedSessionRevision int64  `json:"expectedSessionRevision" minimum:"1"`
+	RequestKey              string `json:"requestKey"`
+}
+
+// PlanningCancelRequest closes the optimistic planning revision.
+type PlanningCancelRequest struct {
+	ExpectedSessionRevision int64 `json:"expectedSessionRevision" minimum:"1"`
+}
+
+// PlanningBindingResponse exposes the frozen provider/model selection.
+type PlanningBindingResponse struct {
+	Mode           string `json:"mode" enum:"direct_api,native_harness"`
+	Provider       string `json:"provider"`
+	ModelSelection string `json:"modelSelection" enum:"provider_default,explicit"`
+	Model          string `json:"model,omitempty"`
+	Effort         string `json:"effort,omitempty"`
+}
+
+// PlanningCandidateResponse describes one selectable or unavailable planner.
+type PlanningCandidateResponse struct {
+	ID                string                  `json:"id"`
+	Binding           PlanningBindingResponse `json:"binding"`
+	Ready             bool                    `json:"ready"`
+	UnavailableCode   string                  `json:"unavailableCode,omitempty"`
+	UnavailableDetail string                  `json:"unavailableDetail,omitempty"`
+}
+
+// PlanningCandidatesEnvelope is the candidate-list response body.
+type PlanningCandidatesEnvelope struct {
+	Candidates []PlanningCandidateResponse `json:"candidates"`
+}
+
+// PlanningClarificationResponse is a compact owner-decision card.
+type PlanningClarificationResponse struct {
+	Question       string   `json:"question"`
+	Reason         string   `json:"reason"`
+	Recommendation string   `json:"recommendation"`
+	Alternatives   []string `json:"alternatives"`
+}
+
+// PlanningContractChangeResponse recommends but never applies Contract edits.
+type PlanningContractChangeResponse struct {
+	Summary       string   `json:"summary"`
+	ChangedFields []string `json:"changedFields"`
+}
+
+// PlanningTurnResponse is one normalized owner-visible conversation turn.
+type PlanningTurnResponse struct {
+	ID                string                          `json:"id"`
+	Sequence          int64                           `json:"sequence"`
+	ReplyToTurnID     string                          `json:"replyToTurnId,omitempty"`
+	Role              string                          `json:"role" enum:"owner,planner"`
+	Kind              string                          `json:"kind" enum:"message,finalize_request,clarification,contract_change_proposal,plan_proposal"`
+	Text              string                          `json:"text"`
+	Clarification     *PlanningClarificationResponse  `json:"clarification,omitempty"`
+	ContractChange    *PlanningContractChangeResponse `json:"contractChange,omitempty"`
+	IntelligenceRunID string                          `json:"intelligenceRunId,omitempty"`
+	CreatedAt         time.Time                       `json:"createdAt"`
+}
+
+// PlanningSessionResponse exposes canonical conversation state and provenance.
+type PlanningSessionResponse struct {
+	ID                     string                  `json:"id"`
+	OutcomeID              string                  `json:"outcomeId"`
+	ContractRevisionID     string                  `json:"contractRevisionId"`
+	ContractRevisionNumber int64                   `json:"contractRevisionNumber"`
+	Revision               int64                   `json:"revision"`
+	Status                 string                  `json:"status" enum:"active,proposal_ready,superseded,cancelled"`
+	WaitingOn              string                  `json:"waitingOn" enum:"owner,provider,none"`
+	Binding                PlanningBindingResponse `json:"binding"`
+	ContextMode            string                  `json:"contextMode" enum:"repository_read,supplied_packet"`
+	ContextDigest          string                  `json:"contextDigest"`
+	PlanningGrantDigest    string                  `json:"planningGrantDigest"`
+	EffectiveProvider      string                  `json:"effectiveProvider,omitempty"`
+	EffectiveModel         string                  `json:"effectiveModel,omitempty"`
+	LastFailureCode        string                  `json:"lastFailureCode,omitempty"`
+	LastFailureDetail      string                  `json:"lastFailureDetail,omitempty"`
+	CreatedAt              time.Time               `json:"createdAt"`
+	UpdatedAt              time.Time               `json:"updatedAt"`
+}
+
+// PlanningResponse joins one session, its turns, and optional proposed Plan.
+type PlanningResponse struct {
+	Session      PlanningSessionResponse `json:"session"`
+	Turns        []PlanningTurnResponse  `json:"turns"`
+	ProposedPlan *PlanRevisionResponse   `json:"proposedPlan,omitempty"`
+}
+
+// PlanningEnvelope is the interactive-planning response body.
+type PlanningEnvelope struct {
+	Planning PlanningResponse `json:"planning"`
 }
 
 // ScheduleWorkUnitResponse is the daemon-derived state for one canonical
@@ -3084,20 +3206,22 @@ func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
 		routing = append(routing, routingDecisionResponse(decision))
 	}
 	return PlanRevisionResponse{
-		ID:                     string(plan.ID),
-		OutcomeID:              string(plan.OutcomeID),
-		Number:                 plan.Number,
-		ContractRevisionNumber: plan.ContractRevisionNumber,
-		Status:                 string(plan.Status),
-		Summary:                plan.Summary,
-		Assumptions:            append([]string(nil), plan.Assumptions...),
-		Blockers:               append([]string(nil), plan.Blockers...),
-		WorkUnits:              units,
-		Grants:                 grants,
-		RoutingDecisions:       routing,
-		RunBriefCoreDigest:     plan.RunBriefCoreDigest,
-		RunBriefCompiledDigest: plan.RunBriefCompiledDigest,
-		CreatedAt:              plan.CreatedAt,
+		ID:                      string(plan.ID),
+		OutcomeID:               string(plan.OutcomeID),
+		Number:                  plan.Number,
+		ContractRevisionNumber:  plan.ContractRevisionNumber,
+		Status:                  string(plan.Status),
+		Summary:                 plan.Summary,
+		Assumptions:             append([]string(nil), plan.Assumptions...),
+		Blockers:                append([]string(nil), plan.Blockers...),
+		WorkUnits:               units,
+		Grants:                  grants,
+		RoutingDecisions:        routing,
+		RunBriefCoreDigest:      plan.RunBriefCoreDigest,
+		RunBriefCompiledDigest:  plan.RunBriefCompiledDigest,
+		PlanningSessionID:       plan.PlanningSessionID.String(),
+		SourceIntelligenceRunID: plan.SourceIntelligenceRunID.String(),
+		CreatedAt:               plan.CreatedAt,
 	}
 }
 

@@ -297,3 +297,57 @@ func TestMigration0102SurvivesSkippedOutcomeMigrations(t *testing.T) {
 		}
 	}
 }
+
+// TestInteractivePlanningSchemaReconcilesBurnedMigration pins the companion
+// recovery path for 0133: a foreign or interrupted build may record the
+// version without installing its physical tables. Startup must restore the
+// complete shape without fabricating any planning rows.
+func TestInteractivePlanningSchemaReconcilesBurnedMigration(t *testing.T) {
+	db := openContractTestDB(t)
+	upTo(t, db, 131)
+	mustExec(t, db, `INSERT INTO goose_db_version (version_id, is_applied) VALUES (133, 1)`)
+
+	if err := migrate(db); err != nil {
+		t.Fatalf("migrate with burned 0133: %v", err)
+	}
+
+	for _, table := range []string{"planning_sessions", "planning_turns"} {
+		var n int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = ?`, table,
+		).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("table %s present=%d err=%v, want reconciled", table, n, err)
+		}
+	}
+	for _, column := range []string{"planning_session_id", "source_intelligence_run_id"} {
+		var n int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM pragma_table_info('plan_revisions') WHERE name = ?`, column,
+		).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("plan_revisions column %s present=%d err=%v, want reconciled", column, n, err)
+		}
+	}
+	for _, trigger := range []string{
+		"plan_revisions_planning_source_guard",
+		"planning_sessions_update_guard",
+		"planning_turns_immutable_update",
+		"planning_turns_immutable_delete",
+		"planning_sessions_cdc_insert",
+		"planning_sessions_cdc_update",
+	} {
+		var n int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name = ?`, trigger,
+		).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("trigger %s present=%d err=%v, want reconciled", trigger, n, err)
+		}
+	}
+
+	var sessions int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM planning_sessions`).Scan(&sessions); err != nil {
+		t.Fatalf("count planning sessions: %v", err)
+	}
+	if sessions != 0 {
+		t.Fatalf("planning sessions=%d, want no synthesized authority", sessions)
+	}
+}

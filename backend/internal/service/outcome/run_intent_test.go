@@ -2,6 +2,9 @@ package outcome_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -182,6 +185,249 @@ func TestContinueAuthorizedRuns_AdmitsEachEligibleWorkUnitOnce(t *testing.T) {
 	if calls := h.spawner.spawnCalls(); calls != 1 {
 		t.Fatalf("providers launched = %d, want one", calls)
 	}
+}
+
+func TestContinueAuthorizedRuns_ReadinessFailureIsActionableAndNotBlindlyRetried(t *testing.T) {
+	h := newRunHarness(t)
+	h.spawner.setReadiness(ports.AgentProfileReadiness{Ready: false, Detail: "Sign in to the selected Codex profile"})
+	h.mustCommand(t, domain.RunCommandStart, "rk-start")
+	ctx := context.Background()
+
+	if err := h.svc.ContinueAuthorizedRuns(ctx); err != nil {
+		t.Fatalf("first continuation: %v", err)
+	}
+	view, err := h.svc.GetRunState(ctx, h.outcomeID)
+	if err != nil {
+		t.Fatalf("run state: %v", err)
+	}
+	if view.State != outcome.MissionNeedsYou || view.Blocker == nil || view.Blocker.Code != outcome.CodeAgentProfileNotReady {
+		t.Fatalf("state = %q blocker=%+v, want an actionable readiness blocker", view.State, view.Blocker)
+	}
+	if view.Intent == nil || !strings.Contains(view.Intent.LastError, "not ready") {
+		t.Fatalf("intent = %+v, want persisted last error", view.Intent)
+	}
+	if err := h.svc.ContinueAuthorizedRuns(ctx); err != nil {
+		t.Fatalf("second continuation: %v", err)
+	}
+	if calls := h.spawner.readinessCalls(); calls != 1 {
+		t.Fatalf("readiness probes = %d, want one until deliberate re-authorization", calls)
+	}
+
+	h.mustCommand(t, domain.RunCommandPause, "rk-pause")
+	h.spawner.setReadiness(ports.AgentProfileReadiness{Ready: true})
+	h.mustCommand(t, domain.RunCommandResume, "rk-resume")
+	if err := h.svc.ContinueAuthorizedRuns(ctx); err != nil {
+		t.Fatalf("continuation after deliberate retry: %v", err)
+	}
+	if calls := h.spawner.spawnCalls(); calls != 1 {
+		t.Fatalf("providers launched = %d, want the new generation to supersede the blocker", calls)
+	}
+}
+
+func TestContinueAuthorizedRuns_ReconstructsPrelaunchBlockerAfterRestart(t *testing.T) {
+	h := newRunHarness(t)
+	h.mustCommand(t, domain.RunCommandStart, "rk-start")
+	ctx := context.Background()
+	unitID := firstWorkUnitOfPlan[h.planID]
+	requestKey := fmt.Sprintf("run:%s:%d:%s", h.outcomeID, 1, unitID)
+	h.spawner.failNextSpawn(&ports.AttemptPrelaunchError{
+		Stage: "prepare_tui_launch",
+		Err:   errors.New("launch command could not be prepared"),
+	})
+	_, err := h.svc.StartAttempt(ctx, h.outcomeID, outcome.StartAttemptInput{
+		PlanRevisionID: h.planID,
+		WorkUnitID:     unitID,
+		RequestKey:     requestKey,
+	})
+	if requireAPICode(t, err) != outcome.CodeAttemptPrelaunchFailed {
+		t.Fatalf("prelaunch failure = %v, want %s", err, outcome.CodeAttemptPrelaunchFailed)
+	}
+	intent, found, err := h.intents.CurrentRunIntent(ctx, h.outcomeID)
+	if err != nil || !found || intent.AdmissionFailure != nil {
+		t.Fatalf("pre-crash intent = %+v found=%v err=%v, want failure not yet recorded", intent, found, err)
+	}
+
+	// Simulate a daemon restart after FailAttemptBeforeLaunch committed but
+	// before continuation copied its typed blocker onto the run intent.
+	restarted := outcome.New(h.store, nil).
+		WithExecution(h.spawner, newFakeHeartbeats()).
+		WithRunIntents(h.intents)
+	if err := restarted.ContinueAuthorizedRuns(ctx); err != nil {
+		t.Fatalf("restart continuation: %v", err)
+	}
+	intent, found, err = h.intents.CurrentRunIntent(ctx, h.outcomeID)
+	if err != nil || !found || intent.AdmissionFailure == nil {
+		t.Fatalf("recovered intent = %+v found=%v err=%v, want durable blocker", intent, found, err)
+	}
+	if intent.AdmissionFailure.Code != outcome.CodeAttemptPrelaunchFailed || intent.AdmissionFailure.WorkUnitID != unitID {
+		t.Fatalf("recovered blocker = %+v, want typed prelaunch failure for %s", intent.AdmissionFailure, unitID)
+	}
+	if calls := h.spawner.spawnCalls(); calls != 1 {
+		t.Fatalf("provider spawn calls = %d, want the original failed call only", calls)
+	}
+	view, err := restarted.GetRunState(ctx, h.outcomeID)
+	if err != nil {
+		t.Fatalf("run state: %v", err)
+	}
+	if view.State != outcome.MissionNeedsYou || view.Blocker == nil || view.Blocker.Code != outcome.CodeAttemptPrelaunchFailed {
+		t.Fatalf("state=%s blocker=%+v, want recovered Needs You blocker", view.State, view.Blocker)
+	}
+}
+
+func TestContinueAuthorizedRuns_DoesNotCarryRecoveredFailureIntoNewerGeneration(t *testing.T) {
+	h := newRunHarness(t)
+	h.mustCommand(t, domain.RunCommandStart, "rk-start")
+	ctx := context.Background()
+	unitID := firstWorkUnitOfPlan[h.planID]
+	h.spawner.failNextSpawn(&ports.AttemptPrelaunchError{
+		Stage: "prepare_tui_launch",
+		Err:   errors.New("launch command could not be prepared"),
+	})
+	_, err := h.svc.StartAttempt(ctx, h.outcomeID, outcome.StartAttemptInput{
+		PlanRevisionID: h.planID,
+		WorkUnitID:     unitID,
+		RequestKey:     fmt.Sprintf("run:%s:%d:%s", h.outcomeID, 1, unitID),
+	})
+	if requireAPICode(t, err) != outcome.CodeAttemptPrelaunchFailed {
+		t.Fatalf("prelaunch failure = %v, want %s", err, outcome.CodeAttemptPrelaunchFailed)
+	}
+
+	h.mustCommand(t, domain.RunCommandPause, "rk-pause")
+	h.mustCommand(t, domain.RunCommandResume, "rk-resume")
+	restarted := outcome.New(h.store, nil).
+		WithExecution(h.spawner, newFakeHeartbeats()).
+		WithRunIntents(h.intents)
+	if err := restarted.ContinueAuthorizedRuns(ctx); err != nil {
+		t.Fatalf("new-generation continuation: %v", err)
+	}
+	intent, found, err := h.intents.CurrentRunIntent(ctx, h.outcomeID)
+	if err != nil || !found || intent.Generation != 3 || intent.AdmissionFailure != nil {
+		t.Fatalf("current intent = %+v found=%v err=%v, want clean running generation 3", intent, found, err)
+	}
+	if calls := h.spawner.spawnCalls(); calls != 2 {
+		t.Fatalf("provider spawn calls = %d, want failed generation 1 plus one generation 3 launch", calls)
+	}
+	if err := restarted.ContinueAuthorizedRuns(ctx); err != nil {
+		t.Fatalf("repeated continuation: %v", err)
+	}
+	if calls := h.spawner.spawnCalls(); calls != 2 {
+		t.Fatalf("provider spawn calls after repeated tick = %d, want no duplicate launch", calls)
+	}
+}
+
+func TestRecordObservation_RejectsSystemOwnedPrelaunchKinds(t *testing.T) {
+	h := newRunHarness(t)
+	ctx := context.Background()
+	attempt, err := h.svc.StartAttempt(ctx, h.outcomeID, startInput(h.planID))
+	if err != nil {
+		t.Fatalf("start attempt: %v", err)
+	}
+	for _, kind := range []string{domain.ObservationAdmissionFailed, domain.ObservationInputProvisioningFailed} {
+		t.Run(kind, func(t *testing.T) {
+			_, err := h.svc.RecordObservation(ctx, h.outcomeID, attempt.Attempt.ID, outcome.RecordObservationInput{
+				Kind: kind, Payload: `{"admissionFailure":{"code":"forged"}}`,
+			})
+			if requireAPICode(t, err) != "OBSERVATION_KIND_RESERVED" {
+				t.Fatalf("reserved observation = %v, want OBSERVATION_KIND_RESERVED", err)
+			}
+		})
+	}
+}
+
+func TestContinueAuthorizedRuns_RejectsInvalidTypedPrelaunchFacts(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		rewrite       func(string, domain.WorkUnitID) string
+		errorContains string
+	}{
+		{
+			name: "malformed typed failure",
+			rewrite: func(_ string, unitID domain.WorkUnitID) string {
+				return fmt.Sprintf(`{"workUnitId":%q,"providerLaunched":false,"admissionFailure":"not-an-object"}`, unitID)
+			},
+			errorContains: "decode typed prelaunch observation",
+		},
+		{
+			name: "mismatched work unit",
+			rewrite: func(payload string, unitID domain.WorkUnitID) string {
+				return strings.ReplaceAll(payload, string(unitID), "wu-other")
+			},
+			errorContains: "belongs to work unit",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newRunHarness(t)
+			ctx, unitID, attemptID := leavePrelaunchFailureUncopied(t, h)
+			h.store.mu.Lock()
+			observation := h.store.obs[attemptID][0]
+			observation.Payload = tc.rewrite(observation.Payload, unitID)
+			h.store.obs[attemptID][0] = observation
+			h.store.mu.Unlock()
+
+			restarted := outcome.New(h.store, nil).
+				WithExecution(h.spawner, newFakeHeartbeats()).
+				WithRunIntents(h.intents)
+			err := restarted.ContinueAuthorizedRuns(ctx)
+			if err == nil || !strings.Contains(err.Error(), tc.errorContains) {
+				t.Fatalf("continuation error = %v, want %q", err, tc.errorContains)
+			}
+			intent, found, readErr := h.intents.CurrentRunIntent(ctx, h.outcomeID)
+			if readErr != nil || !found || intent.AdmissionFailure != nil {
+				t.Fatalf("intent = %+v found=%v err=%v, want no invented blocker", intent, found, readErr)
+			}
+			if calls := h.spawner.spawnCalls(); calls != 1 {
+				t.Fatalf("provider spawn calls = %d, want no replay launch", calls)
+			}
+		})
+	}
+}
+
+func TestContinueAuthorizedRuns_DoesNotInventFailureFromLegacyUntypedObservation(t *testing.T) {
+	h := newRunHarness(t)
+	ctx, unitID, attemptID := leavePrelaunchFailureUncopied(t, h)
+	h.store.mu.Lock()
+	observation := h.store.obs[attemptID][0]
+	observation.Payload = fmt.Sprintf(`{"error":"legacy diagnostic only","workUnitId":%q,"providerLaunched":false}`, unitID)
+	h.store.obs[attemptID][0] = observation
+	h.store.mu.Unlock()
+
+	restarted := outcome.New(h.store, nil).
+		WithExecution(h.spawner, newFakeHeartbeats()).
+		WithRunIntents(h.intents)
+	if err := restarted.ContinueAuthorizedRuns(ctx); err != nil {
+		t.Fatalf("legacy continuation: %v", err)
+	}
+	intent, found, err := h.intents.CurrentRunIntent(ctx, h.outcomeID)
+	if err != nil || !found || intent.AdmissionFailure != nil {
+		t.Fatalf("intent = %+v found=%v err=%v, want no failure inferred from legacy prose", intent, found, err)
+	}
+	if calls := h.spawner.spawnCalls(); calls != 1 {
+		t.Fatalf("provider spawn calls = %d, want no replay launch", calls)
+	}
+}
+
+func leavePrelaunchFailureUncopied(t *testing.T, h *runHarness) (context.Context, domain.WorkUnitID, domain.AttemptID) {
+	t.Helper()
+	h.mustCommand(t, domain.RunCommandStart, "rk-start")
+	ctx := context.Background()
+	unitID := firstWorkUnitOfPlan[h.planID]
+	h.spawner.failNextSpawn(&ports.AttemptPrelaunchError{
+		Stage: "prepare_tui_launch",
+		Err:   errors.New("launch command could not be prepared"),
+	})
+	_, err := h.svc.StartAttempt(ctx, h.outcomeID, outcome.StartAttemptInput{
+		PlanRevisionID: h.planID,
+		WorkUnitID:     unitID,
+		RequestKey:     fmt.Sprintf("run:%s:%d:%s", h.outcomeID, 1, unitID),
+	})
+	if requireAPICode(t, err) != outcome.CodeAttemptPrelaunchFailed {
+		t.Fatalf("prelaunch failure = %v, want %s", err, outcome.CodeAttemptPrelaunchFailed)
+	}
+	attempts, err := h.store.ListAttempts(ctx, h.outcomeID)
+	if err != nil || len(attempts) != 1 {
+		t.Fatalf("attempts = %+v err=%v, want one failed attempt", attempts, err)
+	}
+	return ctx, unitID, attempts[0].ID
 }
 
 // TestContinueAuthorizedRuns_DoesNothingWhilePausedOrCancelled is the restart

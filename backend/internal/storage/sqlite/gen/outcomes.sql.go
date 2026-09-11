@@ -728,21 +728,27 @@ func (q *Queries) CurrentOutcomeDocumentContext(ctx context.Context, outcomeID s
 }
 
 const currentOutcomeRunIntent = `-- name: CurrentOutcomeRunIntent :one
-SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at,
+       admission_failure_code, admission_failure_message, admission_failure_detail, admission_failure_work_unit_id, admission_failed_at
 FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation DESC LIMIT 1
 `
 
 type CurrentOutcomeRunIntentRow struct {
-	ID                     string
-	OutcomeID              string
-	Generation             int64
-	Desired                string
-	PlanRevisionID         string
-	ContractRevisionNumber int64
-	RequestKey             string
-	RequestFingerprint     string
-	RequestedAt            time.Time
-	AcknowledgedAt         sql.NullTime
+	ID                         string
+	OutcomeID                  string
+	Generation                 int64
+	Desired                    string
+	PlanRevisionID             string
+	ContractRevisionNumber     int64
+	RequestKey                 string
+	RequestFingerprint         string
+	RequestedAt                time.Time
+	AcknowledgedAt             sql.NullTime
+	AdmissionFailureCode       string
+	AdmissionFailureMessage    string
+	AdmissionFailureDetail     string
+	AdmissionFailureWorkUnitID string
+	AdmissionFailedAt          sql.NullTime
 }
 
 func (q *Queries) CurrentOutcomeRunIntent(ctx context.Context, outcomeID string) (CurrentOutcomeRunIntentRow, error) {
@@ -759,6 +765,11 @@ func (q *Queries) CurrentOutcomeRunIntent(ctx context.Context, outcomeID string)
 		&i.RequestFingerprint,
 		&i.RequestedAt,
 		&i.AcknowledgedAt,
+		&i.AdmissionFailureCode,
+		&i.AdmissionFailureMessage,
+		&i.AdmissionFailureDetail,
+		&i.AdmissionFailureWorkUnitID,
+		&i.AdmissionFailedAt,
 	)
 	return i, err
 }
@@ -785,21 +796,27 @@ func (q *Queries) FindOutcomeByIdempotencyKey(ctx context.Context, idempotencyKe
 }
 
 const findOutcomeRunIntentByRequestKey = `-- name: FindOutcomeRunIntentByRequestKey :one
-SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at,
+       admission_failure_code, admission_failure_message, admission_failure_detail, admission_failure_work_unit_id, admission_failed_at
 FROM outcome_run_intents WHERE request_key = ?
 `
 
 type FindOutcomeRunIntentByRequestKeyRow struct {
-	ID                     string
-	OutcomeID              string
-	Generation             int64
-	Desired                string
-	PlanRevisionID         string
-	ContractRevisionNumber int64
-	RequestKey             string
-	RequestFingerprint     string
-	RequestedAt            time.Time
-	AcknowledgedAt         sql.NullTime
+	ID                         string
+	OutcomeID                  string
+	Generation                 int64
+	Desired                    string
+	PlanRevisionID             string
+	ContractRevisionNumber     int64
+	RequestKey                 string
+	RequestFingerprint         string
+	RequestedAt                time.Time
+	AcknowledgedAt             sql.NullTime
+	AdmissionFailureCode       string
+	AdmissionFailureMessage    string
+	AdmissionFailureDetail     string
+	AdmissionFailureWorkUnitID string
+	AdmissionFailedAt          sql.NullTime
 }
 
 func (q *Queries) FindOutcomeRunIntentByRequestKey(ctx context.Context, requestKey string) (FindOutcomeRunIntentByRequestKeyRow, error) {
@@ -816,6 +833,11 @@ func (q *Queries) FindOutcomeRunIntentByRequestKey(ctx context.Context, requestK
 		&i.RequestFingerprint,
 		&i.RequestedAt,
 		&i.AcknowledgedAt,
+		&i.AdmissionFailureCode,
+		&i.AdmissionFailureMessage,
+		&i.AdmissionFailureDetail,
+		&i.AdmissionFailureWorkUnitID,
+		&i.AdmissionFailedAt,
 	)
 	return i, err
 }
@@ -1013,23 +1035,25 @@ func (q *Queries) GetDecompositionRevision(ctx context.Context, arg GetDecomposi
 }
 
 const getLatestPlanRevision = `-- name: GetLatestPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, planning_session_id, source_intelligence_run_id, routing_decisions_json
 FROM plan_revisions WHERE outcome_id = ? ORDER BY number DESC LIMIT 1
 `
 
 type GetLatestPlanRevisionRow struct {
-	ID                     domain.PlanRevisionID
-	OutcomeID              domain.OutcomeID
-	Number                 int64
-	ContractRevisionNumber int64
-	Status                 string
-	Summary                string
-	AssumptionsJson        string
-	BlockersJson           string
-	RunBriefCoreDigest     string
-	RunBriefCompiledDigest string
-	CreatedAt              time.Time
-	RoutingDecisionsJson   sql.NullString
+	ID                      domain.PlanRevisionID
+	OutcomeID               domain.OutcomeID
+	Number                  int64
+	ContractRevisionNumber  int64
+	Status                  string
+	Summary                 string
+	AssumptionsJson         string
+	BlockersJson            string
+	RunBriefCoreDigest      string
+	RunBriefCompiledDigest  string
+	CreatedAt               time.Time
+	PlanningSessionID       sql.NullString
+	SourceIntelligenceRunID sql.NullString
+	RoutingDecisionsJson    sql.NullString
 }
 
 func (q *Queries) GetLatestPlanRevision(ctx context.Context, outcomeID domain.OutcomeID) (GetLatestPlanRevisionRow, error) {
@@ -1047,6 +1071,8 @@ func (q *Queries) GetLatestPlanRevision(ctx context.Context, outcomeID domain.Ou
 		&i.RunBriefCoreDigest,
 		&i.RunBriefCompiledDigest,
 		&i.CreatedAt,
+		&i.PlanningSessionID,
+		&i.SourceIntelligenceRunID,
 		&i.RoutingDecisionsJson,
 	)
 	return i, err
@@ -1094,7 +1120,7 @@ func (q *Queries) GetOutcomeDocumentContext(ctx context.Context, id string) (Out
 }
 
 const getPlanRevision = `-- name: GetPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, planning_session_id, source_intelligence_run_id, routing_decisions_json
 FROM plan_revisions WHERE id = ? AND outcome_id = ?
 `
 
@@ -1104,18 +1130,20 @@ type GetPlanRevisionParams struct {
 }
 
 type GetPlanRevisionRow struct {
-	ID                     domain.PlanRevisionID
-	OutcomeID              domain.OutcomeID
-	Number                 int64
-	ContractRevisionNumber int64
-	Status                 string
-	Summary                string
-	AssumptionsJson        string
-	BlockersJson           string
-	RunBriefCoreDigest     string
-	RunBriefCompiledDigest string
-	CreatedAt              time.Time
-	RoutingDecisionsJson   sql.NullString
+	ID                      domain.PlanRevisionID
+	OutcomeID               domain.OutcomeID
+	Number                  int64
+	ContractRevisionNumber  int64
+	Status                  string
+	Summary                 string
+	AssumptionsJson         string
+	BlockersJson            string
+	RunBriefCoreDigest      string
+	RunBriefCompiledDigest  string
+	CreatedAt               time.Time
+	PlanningSessionID       sql.NullString
+	SourceIntelligenceRunID sql.NullString
+	RoutingDecisionsJson    sql.NullString
 }
 
 func (q *Queries) GetPlanRevision(ctx context.Context, arg GetPlanRevisionParams) (GetPlanRevisionRow, error) {
@@ -1133,6 +1161,8 @@ func (q *Queries) GetPlanRevision(ctx context.Context, arg GetPlanRevisionParams
 		&i.RunBriefCoreDigest,
 		&i.RunBriefCompiledDigest,
 		&i.CreatedAt,
+		&i.PlanningSessionID,
+		&i.SourceIntelligenceRunID,
 		&i.RoutingDecisionsJson,
 	)
 	return i, err
@@ -1207,7 +1237,7 @@ func (q *Queries) LatestDecompositionRevision(ctx context.Context, outcomeID dom
 }
 
 const latestProposedPlanRevision = `-- name: LatestProposedPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, planning_session_id, source_intelligence_run_id, routing_decisions_json
 FROM plan_revisions WHERE outcome_id = ? AND contract_revision_number = ? AND status = 'proposed'
 ORDER BY number DESC LIMIT 1
 `
@@ -1218,18 +1248,20 @@ type LatestProposedPlanRevisionParams struct {
 }
 
 type LatestProposedPlanRevisionRow struct {
-	ID                     domain.PlanRevisionID
-	OutcomeID              domain.OutcomeID
-	Number                 int64
-	ContractRevisionNumber int64
-	Status                 string
-	Summary                string
-	AssumptionsJson        string
-	BlockersJson           string
-	RunBriefCoreDigest     string
-	RunBriefCompiledDigest string
-	CreatedAt              time.Time
-	RoutingDecisionsJson   sql.NullString
+	ID                      domain.PlanRevisionID
+	OutcomeID               domain.OutcomeID
+	Number                  int64
+	ContractRevisionNumber  int64
+	Status                  string
+	Summary                 string
+	AssumptionsJson         string
+	BlockersJson            string
+	RunBriefCoreDigest      string
+	RunBriefCompiledDigest  string
+	CreatedAt               time.Time
+	PlanningSessionID       sql.NullString
+	SourceIntelligenceRunID sql.NullString
+	RoutingDecisionsJson    sql.NullString
 }
 
 func (q *Queries) LatestProposedPlanRevision(ctx context.Context, arg LatestProposedPlanRevisionParams) (LatestProposedPlanRevisionRow, error) {
@@ -1247,6 +1279,8 @@ func (q *Queries) LatestProposedPlanRevision(ctx context.Context, arg LatestProp
 		&i.RunBriefCoreDigest,
 		&i.RunBriefCompiledDigest,
 		&i.CreatedAt,
+		&i.PlanningSessionID,
+		&i.SourceIntelligenceRunID,
 		&i.RoutingDecisionsJson,
 	)
 	return i, err
@@ -1629,7 +1663,8 @@ func (q *Queries) ListContributionLinksForParent(ctx context.Context, parentOutc
 }
 
 const listCurrentRunIntentsByDesired = `-- name: ListCurrentRunIntentsByDesired :many
-SELECT i.id, i.outcome_id, i.generation, i.desired, i.plan_revision_id, i.contract_revision_number, i.request_key, i.request_fingerprint, i.requested_at, i.acknowledged_at
+SELECT i.id, i.outcome_id, i.generation, i.desired, i.plan_revision_id, i.contract_revision_number, i.request_key, i.request_fingerprint, i.requested_at, i.acknowledged_at,
+       i.admission_failure_code, i.admission_failure_message, i.admission_failure_detail, i.admission_failure_work_unit_id, i.admission_failed_at
 FROM outcome_run_intents i
 WHERE i.desired = ? AND NOT EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=i.outcome_id)
   AND i.generation = (SELECT MAX(g.generation) FROM outcome_run_intents g WHERE g.outcome_id = i.outcome_id)
@@ -1637,16 +1672,21 @@ ORDER BY i.outcome_id
 `
 
 type ListCurrentRunIntentsByDesiredRow struct {
-	ID                     string
-	OutcomeID              string
-	Generation             int64
-	Desired                string
-	PlanRevisionID         string
-	ContractRevisionNumber int64
-	RequestKey             string
-	RequestFingerprint     string
-	RequestedAt            time.Time
-	AcknowledgedAt         sql.NullTime
+	ID                         string
+	OutcomeID                  string
+	Generation                 int64
+	Desired                    string
+	PlanRevisionID             string
+	ContractRevisionNumber     int64
+	RequestKey                 string
+	RequestFingerprint         string
+	RequestedAt                time.Time
+	AcknowledgedAt             sql.NullTime
+	AdmissionFailureCode       string
+	AdmissionFailureMessage    string
+	AdmissionFailureDetail     string
+	AdmissionFailureWorkUnitID string
+	AdmissionFailedAt          sql.NullTime
 }
 
 func (q *Queries) ListCurrentRunIntentsByDesired(ctx context.Context, desired string) ([]ListCurrentRunIntentsByDesiredRow, error) {
@@ -1669,6 +1709,11 @@ func (q *Queries) ListCurrentRunIntentsByDesired(ctx context.Context, desired st
 			&i.RequestFingerprint,
 			&i.RequestedAt,
 			&i.AcknowledgedAt,
+			&i.AdmissionFailureCode,
+			&i.AdmissionFailureMessage,
+			&i.AdmissionFailureDetail,
+			&i.AdmissionFailureWorkUnitID,
+			&i.AdmissionFailedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1834,21 +1879,27 @@ func (q *Queries) ListOutcomeDocumentSources(ctx context.Context, contextID stri
 }
 
 const listOutcomeRunIntents = `-- name: ListOutcomeRunIntents :many
-SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at,
+       admission_failure_code, admission_failure_message, admission_failure_detail, admission_failure_work_unit_id, admission_failed_at
 FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation
 `
 
 type ListOutcomeRunIntentsRow struct {
-	ID                     string
-	OutcomeID              string
-	Generation             int64
-	Desired                string
-	PlanRevisionID         string
-	ContractRevisionNumber int64
-	RequestKey             string
-	RequestFingerprint     string
-	RequestedAt            time.Time
-	AcknowledgedAt         sql.NullTime
+	ID                         string
+	OutcomeID                  string
+	Generation                 int64
+	Desired                    string
+	PlanRevisionID             string
+	ContractRevisionNumber     int64
+	RequestKey                 string
+	RequestFingerprint         string
+	RequestedAt                time.Time
+	AcknowledgedAt             sql.NullTime
+	AdmissionFailureCode       string
+	AdmissionFailureMessage    string
+	AdmissionFailureDetail     string
+	AdmissionFailureWorkUnitID string
+	AdmissionFailedAt          sql.NullTime
 }
 
 func (q *Queries) ListOutcomeRunIntents(ctx context.Context, outcomeID string) ([]ListOutcomeRunIntentsRow, error) {
@@ -1871,6 +1922,11 @@ func (q *Queries) ListOutcomeRunIntents(ctx context.Context, outcomeID string) (
 			&i.RequestFingerprint,
 			&i.RequestedAt,
 			&i.AcknowledgedAt,
+			&i.AdmissionFailureCode,
+			&i.AdmissionFailureMessage,
+			&i.AdmissionFailureDetail,
+			&i.AdmissionFailureWorkUnitID,
+			&i.AdmissionFailedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -2121,6 +2177,43 @@ func (q *Queries) RecordAttemptCheckObservation(ctx context.Context, arg RecordA
 		arg.AttemptID,
 		arg.CheckID,
 		arg.ArtifactVersion,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const recordOutcomeRunAdmissionFailure = `-- name: RecordOutcomeRunAdmissionFailure :execrows
+UPDATE outcome_run_intents
+SET admission_failure_code = ?, admission_failure_message = ?, admission_failure_detail = ?,
+    admission_failure_work_unit_id = ?, admission_failed_at = ?
+WHERE outcome_run_intents.outcome_id = ? AND outcome_run_intents.generation = ? AND outcome_run_intents.desired = 'running'
+  AND outcome_run_intents.admission_failure_code = ''
+  AND outcome_run_intents.generation = (SELECT MAX(current.generation) FROM outcome_run_intents AS current WHERE current.outcome_id = ?)
+`
+
+type RecordOutcomeRunAdmissionFailureParams struct {
+	AdmissionFailureCode       string
+	AdmissionFailureMessage    string
+	AdmissionFailureDetail     string
+	AdmissionFailureWorkUnitID string
+	AdmissionFailedAt          sql.NullTime
+	OutcomeID                  string
+	Generation                 int64
+	OutcomeID_2                string
+}
+
+func (q *Queries) RecordOutcomeRunAdmissionFailure(ctx context.Context, arg RecordOutcomeRunAdmissionFailureParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, recordOutcomeRunAdmissionFailure,
+		arg.AdmissionFailureCode,
+		arg.AdmissionFailureMessage,
+		arg.AdmissionFailureDetail,
+		arg.AdmissionFailureWorkUnitID,
+		arg.AdmissionFailedAt,
+		arg.OutcomeID,
+		arg.Generation,
+		arg.OutcomeID_2,
 	)
 	if err != nil {
 		return 0, err

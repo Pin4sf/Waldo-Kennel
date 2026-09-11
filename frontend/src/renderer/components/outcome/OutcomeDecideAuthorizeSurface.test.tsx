@@ -110,60 +110,51 @@ beforeEach(() => {
 });
 
 describe("OutcomeDecideAuthorizeSurface", () => {
-	it("offers drafting the plan when none exists and renders the proposal from the daemon answer", async () => {
-		postMock.mockResolvedValue({ data: planEnvelope(), error: undefined });
+	it("requires an admitted planning provider and defaults to repository read scope", async () => {
+		getMock.mockImplementation(async (url: string) => {
+			if (url === "/api/v1/outcomes/{outcomeId}") return { data: outcomeEnvelope(1), error: undefined };
+			if (url === "/api/v1/outcomes/{outcomeId}/plan") return { data: undefined, error: { code: "PLAN_NOT_FOUND", message: "no plan yet" } };
+			if (url === "/api/v1/outcomes/{outcomeId}/planning-candidates") {
+				return { data: { candidates: [{ id: "candidate-1", ready: true, binding: { mode: "direct_api", provider: "openai", modelSelection: "explicit", model: "gpt-5.6" } }] }, error: undefined };
+			}
+			if (url === "/api/v1/outcomes/{outcomeId}/planning-session") return { data: undefined, error: { code: "PLANNING_SESSION_NOT_FOUND", message: "no planning session yet" } };
+			return { data: undefined, error: undefined };
+		});
+		postMock.mockResolvedValue({
+			data: {
+				planning: {
+					session: { id: "planning-1", outcomeId: "out-1", contractRevisionId: "cr-1", contractRevisionNumber: 1, revision: 1, status: "active", waitingOn: "owner", contextMode: "repository_read", contextDigest: "ctx", planningGrantDigest: "grant", binding: { mode: "direct_api", provider: "openai", modelSelection: "explicit", model: "gpt-5.6" }, createdAt: "2026-09-11T00:00:00Z", updatedAt: "2026-09-11T00:00:00Z" },
+				turns: [{ id: "turn-1", sequence: 1, role: "planner", kind: "clarification", text: "What should the first slice prove?", createdAt: "2026-09-11T00:00:00Z", clarification: { question: "What should the first slice prove?", reason: "Keep the plan bounded.", recommendation: "Use one vertical slice.", alternatives: ["One vertical slice"] } }],
+				},
+			},
+			error: undefined,
+		});
 		renderSurface();
 
-		expect(await screen.findByTestId("outcome-propose-plan")).toBeEnabled();
-		await userEvent.click(screen.getByTestId("outcome-propose-plan"));
+		expect(await screen.findByRole("radio", { name: /openai/i })).not.toBeChecked();
+		expect(screen.getByTestId("planning-start")).toBeDisabled();
+		await userEvent.click(screen.getByRole("radio", { name: /openai/i }));
+		expect(screen.getByTestId("planning-start")).toBeEnabled();
+		await userEvent.click(screen.getByTestId("planning-start"));
 
 		const [url, init] = postMock.mock.calls[0];
-		expect(url).toBe("/api/v1/outcomes/{outcomeId}/plans");
-		expect(init.body).toEqual({ expectedContractRevision: 1 });
-
-		const card = await screen.findByTestId("outcome-plan-card");
-		expect(card).toHaveTextContent('Deliver "Local Focus Ledger"');
-		expect(card).toHaveTextContent("worktree.read");
-		expect(card).toHaveTextContent("Positive minutes create one block.");
-		expect(screen.getByTestId("outcome-approve-plan")).toBeInTheDocument();
+		expect(url).toBe("/api/v1/outcomes/{outcomeId}/planning-sessions");
+		expect(init.body).toEqual({ expectedContractRevision: 1, candidateId: "candidate-1", contextMode: "repository_read", requestKey: expect.any(String) });
+		expect(await screen.findByTestId("planning-turns")).toHaveTextContent("What should the first slice prove?");
 	});
 
-	it("never claims authorization before the daemon approves", async () => {
-		let resolvePost: ((value: unknown) => void) | undefined;
-		postMock.mockImplementation(async (_url: string, init?: { body: unknown }) => {
-			if (String(postMock.mock.calls.length) && resolvePost === undefined && JSON.stringify(init?.body ?? {}).includes("expectedContractRevision")) {
-				if (postMock.mock.calls.length === 1) {
-					return { data: planEnvelope(), error: undefined };
-				}
-			}
-			return new Promise((resolve) => {
-				resolvePost = resolve;
-				resolve(undefined as never);
-			}) as never;
+	it("keeps planning proposal separate from owner Plan approval", async () => {
+		getMock.mockImplementation(async (url: string) => {
+			if (url === "/api/v1/outcomes/{outcomeId}") return { data: outcomeEnvelope(1), error: undefined };
+			if (url === "/api/v1/outcomes/{outcomeId}/plan") return { data: planEnvelope(), error: undefined };
+			if (url === "/api/v1/outcomes/{outcomeId}/planning-session") return { data: undefined, error: { code: "PLANNING_SESSION_NOT_FOUND", message: "none" } };
+			return { data: undefined, error: undefined };
 		});
-		// Simpler deterministic stub: first call proposes, second hangs.
-		postMock.mockReset();
-		let release!: (value: unknown) => void;
-		postMock.mockImplementationOnce(async () => ({ data: planEnvelope(), error: undefined }));
-		postMock.mockImplementationOnce(
-			() =>
-				new Promise((resolve) => {
-					release = resolve;
-				}),
-		);
 		renderSurface();
-
-		await userEvent.click(await screen.findByTestId("outcome-propose-plan"));
-		await screen.findByTestId("outcome-plan-card");
-
-		await userEvent.click(screen.getByTestId("outcome-approve-plan"));
-		expect(screen.queryByText(/authorized/i)).not.toBeInTheDocument();
-		expect(screen.getByTestId("outcome-approve-plan")).toBeDisabled();
-
-		release({ data: planEnvelope({ status: "approved" }), error: undefined });
-		await waitFor(() =>
-			expect(screen.getByTestId("outcome-plan-card")).toHaveTextContent(/authorized/i),
-		);
+		const card = await screen.findByTestId("outcome-plan-card");
+		expect(card).toHaveTextContent(/proposed/i);
+		expect(screen.getByTestId("outcome-approve-plan")).toBeInTheDocument();
+		expect(screen.queryByText(/start execution/i)).not.toBeInTheDocument();
 	});
 
 	it("approves with the revision the approver was looking at", async () => {

@@ -514,6 +514,11 @@ func (s *Service) ContinueAuthorizedRuns(ctx context.Context) error {
 	}
 	var failures []error
 	for _, intent := range intents {
+		if intent.AdmissionFailure != nil {
+			// This exact authorization already reached a durable, owner-visible
+			// refusal. Only a new owner generation may retry it.
+			continue
+		}
 		if err := s.continueOneRun(ctx, intent); err != nil {
 			failures = append(failures, fmt.Errorf("outcome %s: %w", intent.OutcomeID, err))
 		}
@@ -543,12 +548,17 @@ func (s *Service) continueOneRun(ctx context.Context, intent domain.OutcomeRunIn
 	if schedule.NextRunnableID.IsZero() {
 		return nil
 	}
-	_, err = s.StartAttempt(ctx, intent.OutcomeID, StartAttemptInput{
+	requestKey := runContinuationKey(intent, schedule.NextRunnableID)
+	attemptView, err := s.StartAttempt(ctx, intent.OutcomeID, StartAttemptInput{
 		PlanRevisionID: intent.PlanRevisionID,
 		WorkUnitID:     schedule.NextRunnableID,
-		RequestKey:     runContinuationKey(intent, schedule.NextRunnableID),
+		RequestKey:     requestKey,
 	})
 	if err == nil {
+		_, recoveryErr := s.recordRecoveredPrelaunchFailure(ctx, intent, schedule.NextRunnableID, attemptView)
+		if recoveryErr != nil {
+			return recoveryErr
+		}
 		return nil
 	}
 	// Every refusal here is already a durable, owner-visible fact: a blocked
@@ -557,9 +567,89 @@ func (s *Service) continueOneRun(ctx context.Context, intent domain.OutcomeRunIn
 	// failure is exactly the loop this design refuses to build.
 	var api *apierr.Error
 	if asAPIErr(err, &api) {
+		attempt, found, findErr := s.store.FindAttemptByIdempotencyKey(ctx, requestKey)
+		if findErr != nil {
+			return findErr
+		}
+		if found && attemptActiveForScheduling(attempt.Status) {
+			// The provider boundary was crossed or could not be disproved. Its
+			// Attempt and fence remain the recovery surface; never downgrade that
+			// uncertainty into a retryable run-intent blocker.
+			return nil
+		}
+		if found {
+			attemptView, viewErr := s.GetAttempt(ctx, attempt.OutcomeID, attempt.ID)
+			if viewErr != nil {
+				return viewErr
+			}
+			recovered, recoveryErr := s.recordRecoveredPrelaunchFailure(ctx, intent, schedule.NextRunnableID, attemptView)
+			if recoveryErr != nil {
+				return recoveryErr
+			}
+			if recovered {
+				return nil
+			}
+		}
+		detail, marshalErr := json.Marshal(api.Details)
+		if marshalErr != nil {
+			return fmt.Errorf("encode run admission failure detail: %w", marshalErr)
+		}
+		if string(detail) == "null" {
+			detail = []byte("{}")
+		}
+		_, recordErr := s.runIntents.RecordRunAdmissionFailure(ctx, intent.OutcomeID, intent.Generation, domain.RunAdmissionFailure{
+			Code: api.Code, Message: api.Message, DetailJSON: string(detail),
+			WorkUnitID: schedule.NextRunnableID, OccurredAt: s.clock(),
+		})
+		if recordErr != nil {
+			return recordErr
+		}
 		return nil
 	}
 	return err
+}
+
+func (s *Service) recordRecoveredPrelaunchFailure(ctx context.Context, intent domain.OutcomeRunIntent, unitID domain.WorkUnitID, attempt AttemptView) (bool, error) {
+	failure, found, err := prelaunchFailureFromAttempt(attempt, unitID)
+	if err != nil || !found {
+		return found, err
+	}
+	_, err = s.runIntents.RecordRunAdmissionFailure(ctx, intent.OutcomeID, intent.Generation, failure)
+	return true, err
+}
+
+func prelaunchFailureFromAttempt(attempt AttemptView, unitID domain.WorkUnitID) (domain.RunAdmissionFailure, bool, error) {
+	if attempt.Attempt.Status != domain.AttemptFailed {
+		return domain.RunAdmissionFailure{}, false, nil
+	}
+	if attempt.Attempt.WorkUnitID != unitID {
+		return domain.RunAdmissionFailure{}, false, fmt.Errorf("prelaunch replay attempt %s belongs to work unit %s, expected %s", attempt.Attempt.ID, attempt.Attempt.WorkUnitID, unitID)
+	}
+	for i := len(attempt.Observations) - 1; i >= 0; i-- {
+		observation := attempt.Observations[i]
+		if !systemOwnedPrelaunchObservationKind(observation.Kind) {
+			continue
+		}
+		var payload prelaunchObservationPayload
+		if err := json.Unmarshal([]byte(observation.Payload), &payload); err != nil {
+			return domain.RunAdmissionFailure{}, false, fmt.Errorf("decode typed prelaunch observation %s: %w", observation.ID, err)
+		}
+		if payload.AdmissionFailure == nil {
+			continue
+		}
+		if payload.ProviderLaunched == nil || *payload.ProviderLaunched {
+			return domain.RunAdmissionFailure{}, false, fmt.Errorf("prelaunch observation %s does not prove providerLaunched=false", observation.ID)
+		}
+		failure := *payload.AdmissionFailure
+		if err := failure.Validate(); err != nil {
+			return domain.RunAdmissionFailure{}, false, fmt.Errorf("validate prelaunch observation %s: %w", observation.ID, err)
+		}
+		if failure.WorkUnitID != unitID || payload.WorkUnitID != unitID {
+			return domain.RunAdmissionFailure{}, false, fmt.Errorf("prelaunch observation %s belongs to work unit %s/%s, expected %s", observation.ID, payload.WorkUnitID, failure.WorkUnitID, unitID)
+		}
+		return failure, true, nil
+	}
+	return domain.RunAdmissionFailure{}, false, nil
 }
 
 // runContinuationKey is the replay identity of "this generation admitting

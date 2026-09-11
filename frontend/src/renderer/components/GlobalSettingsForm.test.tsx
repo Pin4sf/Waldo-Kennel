@@ -181,6 +181,8 @@ describe("GlobalSettingsForm", () => {
 		expect(screen.getByText("General")).toBeInTheDocument();
 		expect(screen.getByText("Language")).toBeInTheDocument();
 		expect(screen.getByText("Updates")).toBeInTheDocument();
+		expect(screen.getByText("Waldo reasoning")).toBeInTheDocument();
+		expect(screen.getByLabelText("API key")).toBeInTheDocument();
 		expect(screen.getByText("Get help")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Report a problem" })).toBeInTheDocument();
 	});
@@ -188,12 +190,10 @@ describe("GlobalSettingsForm", () => {
 	it("gives settings link rows internal padding and rounded borders", async () => {
 		renderForm();
 
-		const connectMobile = await screen.findByRole("button", { name: "Connect Mobile" });
 		const keyboardShortcuts = screen.getByRole("button", { name: "Keyboard shortcuts" });
 
-		for (const row of [connectMobile, keyboardShortcuts]) {
-			expect(row).toHaveClass("settings-row-bar", "settings-link-row");
-		}
+		expect(keyboardShortcuts).toHaveClass("settings-row-bar", "settings-link-row");
+		expect(screen.queryByRole("button", { name: "Connect Mobile" })).not.toBeInTheDocument();
 	});
 
 	it("updates Island visibility immediately and opens its detailed settings", async () => {

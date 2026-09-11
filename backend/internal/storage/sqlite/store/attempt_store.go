@@ -364,6 +364,62 @@ func (s *Store) AppendAttemptObservation(ctx context.Context, attemptID domain.A
 	return obs, nil
 }
 
+// FailAttemptBeforeLaunch atomically records the known failure, ends the
+// queued Attempt, and releases its custody. A crash can therefore never expose
+// a failed Attempt whose open fence permanently blocks a fresh admission.
+func (s *Store) FailAttemptBeforeLaunch(ctx context.Context, in ports.AttemptPrelaunchFailure) (domain.AttemptObservation, error) {
+	if in.OutcomeID.IsZero() || in.AttemptID.IsZero() || strings.TrimSpace(in.ObservationKind) == "" || strings.TrimSpace(in.ReleaseReason) == "" || in.At.IsZero() {
+		return domain.AttemptObservation{}, fmt.Errorf("prelaunch failure requires outcome, attempt, observation kind, release reason, and timestamp")
+	}
+	payload := in.ObservationPayload
+	if payload == "" {
+		payload = "{}"
+	}
+	obs := domain.AttemptObservation{ID: "obs-" + uuid.NewString(), AttemptID: in.AttemptID, Kind: in.ObservationKind, Payload: payload, CreatedAt: in.At}
+
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	tx, err := s.writeDB.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.AttemptObservation{}, fmt.Errorf("begin prelaunch failure for %s: %w", in.AttemptID, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	txq := s.qw.WithTx(tx)
+	maxSeq, err := txq.MaxAttemptObservationSeq(ctx, in.AttemptID)
+	if err != nil {
+		return domain.AttemptObservation{}, fmt.Errorf("max observation seq for %s: %w", in.AttemptID, err)
+	}
+	prior, ok := maxSeq.(int64)
+	if !ok {
+		return domain.AttemptObservation{}, fmt.Errorf("max observation seq for %s: unexpected type %T", in.AttemptID, maxSeq)
+	}
+	obs.Seq = prior + 1
+	if err := obs.Validate(); err != nil {
+		return domain.AttemptObservation{}, err
+	}
+	if err := txq.CreateAttemptObservation(ctx, gen.CreateAttemptObservationParams{ID: obs.ID, AttemptID: obs.AttemptID, Seq: obs.Seq, Kind: obs.Kind, Payload: obs.Payload}); err != nil {
+		return domain.AttemptObservation{}, fmt.Errorf("append prelaunch observation for %s: %w", in.AttemptID, err)
+	}
+	rows, err := txq.TransitionAttemptStatus(ctx, gen.TransitionAttemptStatusParams{Status: domain.AttemptFailed, UpdatedAt: in.At, ID: in.AttemptID, OutcomeID: in.OutcomeID, Status_2: domain.AttemptQueued})
+	if err != nil {
+		return domain.AttemptObservation{}, fmt.Errorf("end prelaunch attempt %s: %w", in.AttemptID, err)
+	}
+	if rows != 1 {
+		return domain.AttemptObservation{}, fmt.Errorf("end prelaunch attempt %s: %d rows changed", in.AttemptID, rows)
+	}
+	rows, err = txq.ReleaseAttemptFence(ctx, gen.ReleaseAttemptFenceParams{ReleasedAt: sql.NullTime{Time: in.At, Valid: true}, ReleaseReason: in.ReleaseReason, AttemptID: in.AttemptID})
+	if err != nil {
+		return domain.AttemptObservation{}, fmt.Errorf("release prelaunch fence for %s: %w", in.AttemptID, err)
+	}
+	if rows != 1 {
+		return domain.AttemptObservation{}, fmt.Errorf("release prelaunch fence for %s: %d rows changed", in.AttemptID, rows)
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.AttemptObservation{}, fmt.Errorf("commit prelaunch failure for %s: %w", in.AttemptID, err)
+	}
+	return obs, nil
+}
+
 // ListAttemptObservations loads observations for an attempt.
 func (s *Store) ListAttemptObservations(ctx context.Context, attemptID domain.AttemptID) ([]domain.AttemptObservation, error) {
 	rows, err := s.qr.ListAttemptObservationsForAttempt(ctx, attemptID)

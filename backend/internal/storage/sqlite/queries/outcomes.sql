@@ -84,16 +84,16 @@ WHERE id = ? AND outcome_id = ? AND status = 'proposed';
 SELECT COALESCE(MAX(number), 0) FROM plan_revisions WHERE outcome_id = ?;
 
 -- name: LatestProposedPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, planning_session_id, source_intelligence_run_id, routing_decisions_json
 FROM plan_revisions WHERE outcome_id = ? AND contract_revision_number = ? AND status = 'proposed'
 ORDER BY number DESC LIMIT 1;
 
 -- name: GetPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, planning_session_id, source_intelligence_run_id, routing_decisions_json
 FROM plan_revisions WHERE id = ? AND outcome_id = ?;
 
 -- name: GetLatestPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, planning_session_id, source_intelligence_run_id, routing_decisions_json
 FROM plan_revisions WHERE outcome_id = ? ORDER BY number DESC LIMIT 1;
 
 -- name: CreateWorkUnit :exec
@@ -167,19 +167,23 @@ INSERT INTO outcome_run_intents
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: CurrentOutcomeRunIntent :one
-SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at,
+       admission_failure_code, admission_failure_message, admission_failure_detail, admission_failure_work_unit_id, admission_failed_at
 FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation DESC LIMIT 1;
 
 -- name: FindOutcomeRunIntentByRequestKey :one
-SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at,
+       admission_failure_code, admission_failure_message, admission_failure_detail, admission_failure_work_unit_id, admission_failed_at
 FROM outcome_run_intents WHERE request_key = ?;
 
 -- name: ListOutcomeRunIntents :many
-SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at
+SELECT id, outcome_id, generation, desired, plan_revision_id, contract_revision_number, request_key, request_fingerprint, requested_at, acknowledged_at,
+       admission_failure_code, admission_failure_message, admission_failure_detail, admission_failure_work_unit_id, admission_failed_at
 FROM outcome_run_intents WHERE outcome_id = ? ORDER BY generation;
 
 -- name: ListCurrentRunIntentsByDesired :many
-SELECT i.id, i.outcome_id, i.generation, i.desired, i.plan_revision_id, i.contract_revision_number, i.request_key, i.request_fingerprint, i.requested_at, i.acknowledged_at
+SELECT i.id, i.outcome_id, i.generation, i.desired, i.plan_revision_id, i.contract_revision_number, i.request_key, i.request_fingerprint, i.requested_at, i.acknowledged_at,
+       i.admission_failure_code, i.admission_failure_message, i.admission_failure_detail, i.admission_failure_work_unit_id, i.admission_failed_at
 FROM outcome_run_intents i
 WHERE i.desired = ? AND NOT EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=i.outcome_id)
   AND i.generation = (SELECT MAX(g.generation) FROM outcome_run_intents g WHERE g.outcome_id = i.outcome_id)
@@ -188,6 +192,14 @@ ORDER BY i.outcome_id;
 -- name: AcknowledgeOutcomeRunIntent :execrows
 UPDATE outcome_run_intents SET acknowledged_at = ?
 WHERE outcome_id = ? AND generation = ? AND acknowledged_at IS NULL;
+
+-- name: RecordOutcomeRunAdmissionFailure :execrows
+UPDATE outcome_run_intents
+SET admission_failure_code = ?, admission_failure_message = ?, admission_failure_detail = ?,
+    admission_failure_work_unit_id = ?, admission_failed_at = ?
+WHERE outcome_run_intents.outcome_id = ? AND outcome_run_intents.generation = ? AND outcome_run_intents.desired = 'running'
+  AND outcome_run_intents.admission_failure_code = ''
+  AND outcome_run_intents.generation = (SELECT MAX(current.generation) FROM outcome_run_intents AS current WHERE current.outcome_id = ?);
 
 -- Supplied-document context. Revisions are append-only; the only permitted
 -- mutation is the write-once, one-way approval.

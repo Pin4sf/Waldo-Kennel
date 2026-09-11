@@ -4,7 +4,6 @@ import {
 	ChevronDown,
 	FileText,
 	Loader2,
-	RefreshCw,
 	ShieldCheck,
 } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
@@ -19,10 +18,10 @@ import {
 	useOutcomePlan,
 	useOutcomeProof,
 	useOutcomeSchedule,
-	useProposeOutcomePlan,
 	type OutcomeFailure,
 	type PlanRecord,
 } from "../../hooks/useOutcome";
+import { MissionPlanningConversation } from "./MissionPlanningConversation";
 import { MissionPlanView } from "./MissionPlanView";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
 import { Badge } from "../ui/badge";
@@ -32,6 +31,8 @@ type OutcomeDecideAuthorizeSurfaceProps = {
 	outcomeId: string;
 	/** Returns to observed session activity without claiming an Attempt was started. */
 	onReviewWork?: () => void;
+	/** Returns to the Contract editor when planning proposes a Contract change. */
+	onReviewContract?: () => void;
 };
 
 /** Every plan section stays open by default — the plan is short enough that
@@ -47,29 +48,18 @@ const PLAN_SECTION_VALUES = ["desired-state", "evidence", "verification", "pause
  * and a contract that moved ahead forces a fresh brief instead of a silent
  * authority transfer.
  */
-export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: OutcomeDecideAuthorizeSurfaceProps) {
+export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork, onReviewContract }: OutcomeDecideAuthorizeSurfaceProps) {
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
 
 	const outcomeQuery = useOutcome(outcomeId);
 	const planQuery = useOutcomePlan(outcomeId);
-	const propose = useProposeOutcomePlan(outcomeId);
 	const approve = useApproveOutcomePlan(outcomeId);
 	const [approving, setApproving] = useState(false);
 
-	const pending = propose.pending || approve.pending || approving;
-	const failure = propose.failure ?? approve.failure ?? planQuery.failure;
+	const pending = approve.pending || approving;
+	const failure = approve.failure ?? planQuery.failure;
 	const plan = planQuery.plan;
-
-	async function proposePlan() {
-		const outcome = outcomeQuery.outcome;
-		if (!outcome || pending) return;
-		try {
-			await propose.propose({ expectedContractRevision: outcome.currentRevisionNumber });
-		} catch {
-			// Failure state derives from the mutation's typed error.
-		}
-	}
 
 	async function approvePlan() {
 		const outcome = outcomeQuery.outcome;
@@ -88,7 +78,6 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: Outco
 	}
 
 	async function reloadCurrentFacts() {
-		propose.reset();
 		approve.reset();
 		if (outcomeQuery.outcome) {
 			try {
@@ -125,38 +114,32 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: Outco
 				<pre data-testid="decide-debug">{JSON.stringify({ ...__dbg, failureRaw: failure ?? null })}</pre>
 			)}
 
-			{!plan && !planQuery.isLoading && !failure && (
-				<div className="max-w-xl rounded-group hairline border-border bg-card px-4.5 py-3.5">
-					<h3 className="text-sm font-medium">{t("outcome.decide.proposeTitle")}</h3>
-					<p className="mt-1 text-muted-foreground text-sm">{t("outcome.decide.proposeBody")}</p>
-					<Button
-						className="mt-3"
-						data-testid="outcome-propose-plan"
-						disabled={pending || !outcomeQuery.outcome}
-						onClick={() => void proposePlan()}
-					>
-						{propose.pending && <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />}
-						{t("outcome.decide.proposeCta")}
-					</Button>
-				</div>
-			)}
-
 			{plan && <PlanReviewCard outcomeId={outcomeId} plan={plan} />}
+
+			{outcomeQuery.outcome && (plan ? (
+				<details className="mx-auto w-full max-w-2xl rounded-group hairline border-border bg-card px-4.5 py-3.5">
+					<summary className="cursor-pointer text-sm font-medium">{t("planning.details")}</summary>
+					<div className="mt-3">
+						<MissionPlanningConversation
+							contractRevision={outcomeQuery.outcome.currentRevisionNumber}
+							onReviewContract={onReviewContract}
+							outcomeId={outcomeId}
+						/>
+					</div>
+				</details>
+			) : (
+				<MissionPlanningConversation
+					contractRevision={outcomeQuery.outcome.currentRevisionNumber}
+					onReviewContract={onReviewContract}
+					outcomeId={outcomeId}
+				/>
+			))}
+
+			{!plan && !planQuery.isLoading && !failure && !outcomeQuery.outcome && null}
 
 			{plan?.status === "proposed" && !isStaleConflict && !isAuthorityBlocked && (
 				<div className="mx-auto flex w-full max-w-2xl flex-col gap-2">
 					<div className="flex items-center justify-between gap-3">
-						<Button
-							className="bg-card hover:bg-card/80"
-							data-testid="outcome-plan-update"
-							disabled={pending}
-							onClick={() => void proposePlan()}
-							type="button"
-							variant="outline"
-						>
-							<RefreshCw aria-hidden="true" className="size-3.5" />
-							{t("outcome.decide.updateCta")}
-						</Button>
 						<Button data-testid="outcome-approve-plan" disabled={pending} onClick={() => void approvePlan()} variant="secondary">
 							{pending && <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />}
 							<ShieldCheck aria-hidden="true" className="size-3.5" />
@@ -201,7 +184,7 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: Outco
 			)}
 
 			{!isStaleConflict && !isAuthorityBlocked && failure && failure.code !== PLAN_CONTRACT_STALE && (
-				<PlanFailureBanners failure={failure} onRetry={() => void proposePlan()} />
+				<PlanFailureBanners failure={failure} onRetry={() => planQuery.refetch()} />
 			)}
 		</div>
 	);

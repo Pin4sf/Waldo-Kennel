@@ -33,4 +33,8 @@ type RunIntentStore interface {
 	// AcknowledgeRunIntent marks a generation as having taken effect.
 	// Write-once and idempotent.
 	AcknowledgeRunIntent(context.Context, domain.OutcomeID, int64, time.Time) error
+	// RecordRunAdmissionFailure attaches a failure only to the still-current
+	// running generation. false means the authorization moved on or a prior
+	// failure already won, so a stale asynchronous result must be discarded.
+	RecordRunAdmissionFailure(context.Context, domain.OutcomeID, int64, domain.RunAdmissionFailure) (bool, error)
 }

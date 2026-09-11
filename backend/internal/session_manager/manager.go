@@ -691,11 +691,23 @@ func New(d Deps) *Manager {
 // workspace and runtime, then reports completion to the LCM. If workspace
 // materialization fails the still-seed row is deleted outright; a later failure
 // parks the row as terminated and rolls back what was built.
-func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.SessionRecord, int, int, error) {
+func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (rec domain.SessionRecord, promptBytes, systemPromptBytes int, err error) {
+	prelaunchStage := "load_project"
+	providerLaunchAttempted := false
+	defer func() {
+		if err == nil || providerLaunchAttempted {
+			return
+		}
+		var classified *ports.AttemptPrelaunchError
+		if !errors.As(err, &classified) {
+			err = &ports.AttemptPrelaunchError{Stage: prelaunchStage, Err: err}
+		}
+	}()
 	project, err := m.loadProject(ctx, cfg.ProjectID)
 	if err != nil {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
 	}
+	prelaunchStage = "resolve_execution"
 	cfg, project.Config, err = prepareSpawnExecution(cfg, project.Config)
 	if err != nil {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
@@ -727,6 +739,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	// Reject an unknown harness before any durable state is created. Doing this
 	// after CreateSession would leave a terminated orphan row and waste a
 	// worktree on a spawn that can never launch.
+	prelaunchStage = "provider_admission"
 	agent, ok := m.agents.Agent(cfg.Harness)
 	if !ok {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: %q", ErrUnknownHarness, cfg.Harness)
@@ -757,6 +770,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	// cannot honor should cost nothing, not leave a terminated row and a worktree
 	// behind. It never falls back to TUI — that would put the user in a terminal
 	// they deliberately did not ask for.
+	prelaunchStage = "session_mode_preflight"
 	mode := m.resolveSessionMode(ctx, cfg.RequestedMode)
 	if mode == domain.SessionModeChat {
 		if m.chat == nil {
@@ -785,14 +799,16 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		}
 	}
 
+	prelaunchStage = "build_prompt"
 	prompt, systemPrompt, err := m.buildSpawnTexts(ctx, cfg)
 	if err != nil {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: prompt: %w", err)
 	}
-	promptBytes := len(prompt)
-	systemPromptBytes := len(systemPrompt)
+	promptBytes = len(prompt)
+	systemPromptBytes = len(systemPrompt)
 
-	rec, err := m.store.CreateSession(ctx, seedRecord(cfg, m.clock()))
+	prelaunchStage = "create_session"
+	rec, err = m.store.CreateSession(ctx, seedRecord(cfg, m.clock()))
 	if err != nil {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: create: %w", err)
 	}
@@ -803,6 +819,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: system prompt file: %w", id, err)
 	}
 
+	prelaunchStage = "prepare_workspace"
 	branch := cfg.Branch
 	if branch == "" {
 		branch = DefaultSpawnBranch(id, cfg.Kind, sessionPrefix(project), projectKind, m.dataDir)
@@ -858,15 +875,17 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	// provisioning, attachments. From here the two modes launch different
 	// controllers, and exactly one of them runs.
 	if mode == domain.SessionModeChat {
+		prelaunchStage = "chat_controller"
 		rec, err = m.launchChatController(ctx, chatSpawn{
-			cfg:              cfg,
-			project:          project,
-			projectKind:      projectKind,
-			record:           rec,
-			workspace:        ws,
-			workspaceProject: workspaceProject,
-			prompt:           prompt,
-			systemPrompt:     systemPrompt,
+			cfg:                  cfg,
+			project:              project,
+			projectKind:          projectKind,
+			record:               rec,
+			workspace:            ws,
+			workspaceProject:     workspaceProject,
+			prompt:               prompt,
+			systemPrompt:         systemPrompt,
+			beforeProviderLaunch: func() { providerLaunchAttempted = true },
 		})
 		if err != nil {
 			return domain.SessionRecord{}, 0, 0, err
@@ -876,6 +895,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 
 	// Defensive re-lookup: the adapter resolved before any durable state was
 	// created above; this guards against registry churn during provisioning.
+	prelaunchStage = "prepare_tui_launch"
 	if _, ok := m.agents.Agent(cfg.Harness); !ok {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: no agent adapter for harness %q", id, cfg.Harness)
@@ -941,6 +961,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: prepare launch: %w", id, err)
 	}
 	defer m.lcm.CancelLaunch(id, launchID)
+	providerLaunchAttempted = true
 	handle, err := m.runtime.Create(ctx, ports.RuntimeConfig{
 		SessionID:     id,
 		WorkspacePath: ws.Path,

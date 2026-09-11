@@ -143,6 +143,40 @@ func (f *attemptFakeStore) CreateAttemptWithFence(_ context.Context, admission p
 	return attempt, nil
 }
 
+func (f *attemptFakeStore) FailAttemptBeforeLaunch(_ context.Context, in ports.AttemptPrelaunchFailure) (domain.AttemptObservation, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i, attempt := range f.attempts[in.OutcomeID] {
+		if attempt.ID != in.AttemptID || attempt.Status != domain.AttemptQueued {
+			continue
+		}
+		var fenceSubject string
+		var fenceIndex int
+		var foundFence bool
+		for subject, history := range f.fences {
+			for j, fence := range history {
+				if fence.AttemptID == in.AttemptID && fence.Open() {
+					fenceSubject, fenceIndex, foundFence = subject, j, true
+				}
+			}
+		}
+		if !foundFence {
+			return domain.AttemptObservation{}, errors.New("open fence required")
+		}
+		observation := domain.AttemptObservation{ID: "obs-" + strings.ToLower(in.ObservationKind) + "-" + strconv.Itoa(len(f.obs[in.AttemptID])+1), AttemptID: in.AttemptID, Seq: int64(len(f.obs[in.AttemptID]) + 1), Kind: in.ObservationKind, Payload: in.ObservationPayload, CreatedAt: in.At}
+		if err := observation.Validate(); err != nil {
+			return domain.AttemptObservation{}, err
+		}
+		f.obs[in.AttemptID] = append(f.obs[in.AttemptID], observation)
+		f.attempts[in.OutcomeID][i].Status = domain.AttemptFailed
+		f.attempts[in.OutcomeID][i].UpdatedAt = in.At
+		f.fences[fenceSubject][fenceIndex].ReleasedAt = in.At
+		f.fences[fenceSubject][fenceIndex].ReleaseReason = in.ReleaseReason
+		return observation, nil
+	}
+	return domain.AttemptObservation{}, errors.New("queued attempt required")
+}
+
 // openFenceLocked resolves the open fence over a subject. ok=false when free.
 func (f *attemptFakeStore) openFenceLocked(subject string) (domain.AttemptFence, bool) {
 	for _, fence := range f.fences[subject] {
@@ -335,6 +369,7 @@ type fakeSpawner struct {
 	mu           sync.Mutex
 	readiness    ports.AgentProfileReadiness
 	readinessErr error
+	readinessN   int
 	spawnErr     error
 	terminateErr error
 	// terminateResult shapes the next successful Terminate answer; nil means
@@ -350,10 +385,23 @@ type fakeSpawner struct {
 func (f *fakeSpawner) ProfileReadiness(_ context.Context, _ domain.ProjectID, _ domain.ExecutionBinding, _ *domain.AttemptExecutionPolicy) (ports.AgentProfileReadiness, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.readinessN++
 	if f.readinessErr != nil {
 		return ports.AgentProfileReadiness{}, f.readinessErr
 	}
 	return f.readiness, nil
+}
+
+func (f *fakeSpawner) readinessCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.readinessN
+}
+
+func (f *fakeSpawner) setReadiness(readiness ports.AgentProfileReadiness) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.readiness = readiness
 }
 
 func (f *fakeSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (ports.AttemptSpawnResult, error) {
@@ -361,7 +409,9 @@ func (f *fakeSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (p
 	defer f.mu.Unlock()
 	f.spawned = append(f.spawned, req)
 	if f.spawnErr != nil {
-		return ports.AttemptSpawnResult{}, f.spawnErr
+		err := f.spawnErr
+		f.spawnErr = nil
+		return ports.AttemptSpawnResult{}, err
 	}
 	f.sessionN++
 	rec := domain.SessionRecord{
@@ -493,6 +543,9 @@ func (f *fakeStore) FindAttemptByIdempotencyKey(context.Context, string) (domain
 }
 func (f *fakeStore) CreateAttemptWithFence(context.Context, ports.AttemptAdmission) (domain.Attempt, error) {
 	return domain.Attempt{}, nil
+}
+func (f *fakeStore) FailAttemptBeforeLaunch(context.Context, ports.AttemptPrelaunchFailure) (domain.AttemptObservation, error) {
+	return domain.AttemptObservation{}, nil
 }
 func (f *fakeStore) GetAttempt(context.Context, domain.OutcomeID, domain.AttemptID) (domain.Attempt, bool, error) {
 	return domain.Attempt{}, false, nil

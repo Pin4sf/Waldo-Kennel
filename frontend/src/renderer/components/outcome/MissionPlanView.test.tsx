@@ -89,3 +89,20 @@ it("shows exact approved check argument boundaries and timeout before graph sele
  expect(screen.getByText("Timeout: 17 seconds")).toBeVisible();
  expect(screen.getAllByText("Every source attributed").length).toBeGreaterThan(0);
 });
+
+it("engages the selected WorkUnit's newest Attempt instead of the global newest Attempt", async () => {
+	const user = userEvent.setup();
+	const selectedAttempt = {
+		id: "attempt-for-b",
+		number: 2,
+		workUnitId: "b",
+		sessions: [{ id: "ref-b", seq: 1, sessionId: "session-b", harness: "codex", mode: "tui", boundAt: "2026-08-30T00:00:00Z", runBriefCoreDigest: "b" }],
+	} as unknown as components["schemas"]["AttemptResponse"];
+	const globalAttempt = { ...selectedAttempt, id: "attempt-for-a", number: 3, workUnitId: "a" };
+	const onOpenAttempt = vi.fn();
+	render(<MissionPlanView attempts={[selectedAttempt, globalAttempt]} onOpenAttempt={onOpenAttempt} schedule={{ workUnits: units.map((workUnit) => ({ workUnit, state: "runnable", attempts: [], blockingDependencies: [], criterionReady: {} })) } as never} workUnits={units} />);
+	await user.click(screen.getByRole("button", { name: /Publish analysis —/ }));
+	await user.click(screen.getByRole("button", { name: "Engage" }));
+	expect(onOpenAttempt).toHaveBeenCalledWith(selectedAttempt);
+	expect(screen.queryByText("session-b")).not.toBeInTheDocument();
+});

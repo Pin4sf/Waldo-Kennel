@@ -450,6 +450,11 @@ func Run() error {
 		WithProofStore(store).
 		WithDelivery(store, artifactContent).
 		WithAnalystSessionReaper(reaper)
+	if recovered, recoveryErr := outcomeSvc.RecoverInterruptedPlanning(ctx); recoveryErr != nil {
+		return fmt.Errorf("recover interrupted Outcome planning: %w", recoveryErr)
+	} else if recovered > 0 {
+		log.Warn("recovered interrupted planning conversations into explicit owner decisions", "count", recovered)
+	}
 	// Pending delivery rows are resolved by reading their destinations, so a
 	// transfer that completed and lost only its ledger write is recovered
 	// rather than reported as a failure the owner cannot explain.
@@ -613,6 +618,7 @@ func Run() error {
 		// it just will not auto-stop when a frontend dies. Do not block startup on it.
 		log.Warn("supervisor: listener unavailable; frontend-death auto-stop disabled", "err", err)
 	} else {
+		srv.SetSupervisorAddress(addr)
 		log.Info("supervisor: listening", "addr", addr)
 		sup := supervisor.New(supervisorGrace, srv.RequestShutdown, log)
 		go func() {

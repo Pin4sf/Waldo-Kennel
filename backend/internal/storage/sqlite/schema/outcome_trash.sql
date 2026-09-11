@@ -7,6 +7,17 @@ DROP TRIGGER IF EXISTS outcome_trash_plan_guard;
 CREATE TRIGGER outcome_trash_plan_guard BEFORE INSERT ON plan_revisions
 WHEN EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=NEW.outcome_id)
 BEGIN SELECT RAISE(ABORT, 'Outcome is in Trash'); END;
+DROP TRIGGER IF EXISTS outcome_trash_planning_session_guard;
+CREATE TRIGGER outcome_trash_planning_session_guard BEFORE INSERT ON planning_sessions
+WHEN EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=NEW.outcome_id)
+BEGIN SELECT RAISE(ABORT, 'Outcome is in Trash'); END;
+DROP TRIGGER IF EXISTS outcome_trash_planning_turn_guard;
+CREATE TRIGGER outcome_trash_planning_turn_guard BEFORE INSERT ON planning_turns
+WHEN EXISTS (
+ SELECT 1 FROM planning_sessions s JOIN outcome_trash t ON t.outcome_id=s.outcome_id
+ WHERE s.id=NEW.planning_session_id
+)
+BEGIN SELECT RAISE(ABORT, 'Outcome is in Trash'); END;
 DROP TRIGGER IF EXISTS outcome_trash_contract_guard;
 CREATE TRIGGER outcome_trash_contract_guard BEFORE INSERT ON contract_revisions
 WHEN EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=NEW.outcome_id)

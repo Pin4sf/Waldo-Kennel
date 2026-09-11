@@ -419,6 +419,78 @@ func TestAttemptStore_ReconcileReleasesCustodyForReplacement(t *testing.T) {
 	}
 }
 
+func TestFailAttemptBeforeLaunch_AtomicallyTerminalizesAndReleasesForFreshGeneration(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "prelaunch-release")
+	subject := domain.FenceSubjectForProject("prelaunch-release")
+	started, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentRunning, domain.RunCommandStart, 0, "run-start-prelaunch", "start/prelaunch"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstAdmission := admissionFor(outcomeID, plan, "attempt-prelaunch-1", subject)
+	firstAdmission.RunIntentGeneration = started.Generation
+	first, err := s.CreateAttemptWithFence(ctx, firstAdmission)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.FailAttemptBeforeLaunch(ctx, ports.AttemptPrelaunchFailure{
+		OutcomeID: outcomeID, AttemptID: first.ID, ObservationKind: domain.ObservationAdmissionFailed,
+		ObservationPayload: `{"providerLaunched":false}`, ReleaseReason: "provider_not_launched", At: time.Unix(200, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("fail before launch: %v", err)
+	}
+	stored, found, err := s.GetAttempt(ctx, outcomeID, first.ID)
+	if err != nil || !found || stored.Status != domain.AttemptFailed {
+		t.Fatalf("attempt = %+v found=%v err=%v, want failed", stored, found, err)
+	}
+	if _, open, err := s.OpenFenceForSubject(ctx, subject); err != nil || open {
+		t.Fatalf("fence open=%v err=%v, want released", open, err)
+	}
+	paused, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentPaused, domain.RunCommandPause, started.Generation, "run-pause-prelaunch", "pause/prelaunch"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resumed, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentRunning, domain.RunCommandResume, paused.Generation, "run-resume-prelaunch", "resume/prelaunch"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondAdmission := admissionFor(outcomeID, plan, "attempt-prelaunch-2", subject)
+	secondAdmission.RunIntentGeneration = resumed.Generation
+	second, err := s.CreateAttemptWithFence(ctx, secondAdmission)
+	if err != nil {
+		t.Fatalf("fresh generation/key admission: %v", err)
+	}
+	if second.ID == first.ID || second.Number != 2 {
+		t.Fatalf("second = %+v, want distinct attempt #2", second)
+	}
+}
+
+func TestFailAttemptBeforeLaunch_RollsBackAllFactsWhenTerminalizationLosesItsGuard(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "prelaunch-rollback")
+	subject := domain.FenceSubjectForProject("prelaunch-rollback")
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "attempt-prelaunch-rollback", subject))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.FailAttemptBeforeLaunch(ctx, ports.AttemptPrelaunchFailure{
+		OutcomeID: "wrong-outcome", AttemptID: attempt.ID, ObservationKind: domain.ObservationAdmissionFailed,
+		ObservationPayload: `{"providerLaunched":false}`, ReleaseReason: "provider_not_launched", At: time.Unix(300, 0).UTC(),
+	})
+	if err == nil {
+		t.Fatal("mismatched lineage must fail the atomic operation")
+	}
+	observations, err := s.ListAttemptObservations(ctx, attempt.ID)
+	if err != nil || len(observations) != 0 {
+		t.Fatalf("observations = %+v err=%v, want rollback", observations, err)
+	}
+	if fence, open, err := s.OpenFenceForSubject(ctx, subject); err != nil || !open || fence.AttemptID != attempt.ID {
+		t.Fatalf("fence = %+v open=%v err=%v, want original custody intact", fence, open, err)
+	}
+}
+
 // TestAttemptStore_FenceLeaseRenewal pins the renewable-lease facts: renewal
 // refreshes only OPEN fences for the custodian, and a released fence freezes
 // forever (trigger-refused).

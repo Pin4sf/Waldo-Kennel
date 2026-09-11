@@ -99,6 +99,27 @@ func (f *runIntentFakeStore) AcknowledgeRunIntent(_ context.Context, outcomeID d
 	return nil
 }
 
+func (f *runIntentFakeStore) RecordRunAdmissionFailure(_ context.Context, outcomeID domain.OutcomeID, generation int64, failure domain.RunAdmissionFailure) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := failure.Validate(); err != nil {
+		return false, err
+	}
+	history := f.byOutcome[outcomeID]
+	if len(history) == 0 {
+		return false, nil
+	}
+	current := &history[len(history)-1]
+	if current.Generation != generation || current.Desired != domain.RunIntentRunning || current.AdmissionFailure != nil {
+		return false, nil
+	}
+	copyFailure := failure
+	current.AdmissionFailure = &copyFailure
+	f.byOutcome[outcomeID] = history
+	f.byRequest[current.RequestKey] = *current
+	return true, nil
+}
+
 func (f *runIntentFakeStore) generations(outcomeID domain.OutcomeID) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()

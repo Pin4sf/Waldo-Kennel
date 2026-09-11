@@ -321,6 +321,10 @@ func TestChatSpawnRejectedBeforeDurableStateWhenUnsupported(t *testing.T) {
 	if !errors.Is(err, ports.ErrChatUnsupported) {
 		t.Fatalf("err = %v, want ErrChatUnsupported", err)
 	}
+	var prelaunch *ports.AttemptPrelaunchError
+	if !errors.As(err, &prelaunch) || prelaunch.Stage != "session_mode_preflight" {
+		t.Fatalf("err = %v, want proven session_mode_preflight failure", err)
+	}
 
 	sessions, listErr := store.ListAllSessions(context.Background())
 	if listErr != nil {
@@ -513,6 +517,10 @@ func TestChatSpawnRollsBackWhenControllerFailsToStart(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected a failed controller start to fail the spawn")
+	}
+	var prelaunch *ports.AttemptPrelaunchError
+	if errors.As(err, &prelaunch) {
+		t.Fatalf("StartChat was invoked; failure must remain ambiguous, got prelaunch stage %q", prelaunch.Stage)
 	}
 	if runtime.created != 0 {
 		t.Error("a failed chat spawn created a terminal runtime")

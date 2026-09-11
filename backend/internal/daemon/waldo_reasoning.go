@@ -143,6 +143,7 @@ type configuredIntelligenceProvider struct {
 }
 
 var _ ports.IntelligenceProvider = (*configuredIntelligenceProvider)(nil)
+var _ ports.PlanningIntelligenceProvider = (*configuredIntelligenceProvider)(nil)
 
 func newConfiguredIntelligenceProvider(settings *settingssvc.Service, log *slog.Logger) *configuredIntelligenceProvider {
 	if log == nil {
@@ -196,6 +197,80 @@ func (p *configuredIntelligenceProvider) DraftPlan(ctx context.Context, request 
 		return ports.PlanIntelligenceResponse{}, err
 	}
 	return intelligencesvc.NewLLMProvider(client).DraftPlan(ctx, request)
+}
+
+func (p *configuredIntelligenceProvider) PlanningCandidates(ctx context.Context) ([]ports.PlanningCandidate, error) {
+	if p == nil || p.settings == nil {
+		return nil, fmt.Errorf("reasoning settings are unavailable")
+	}
+	status, err := p.settings.GetReasoning(ctx)
+	if err != nil {
+		return nil, err
+	}
+	selection := domain.PlanningModelProviderDefault
+	model := ""
+	if strings.TrimSpace(status.Model) != "" {
+		selection, model = domain.PlanningModelExplicit, strings.TrimSpace(status.Model)
+	}
+	mode := domain.PlanningModeDirectAPI
+	ready := status.Ready
+	code, detail := status.ErrorCode, status.Error
+	if status.Provider == providerCodex {
+		mode = domain.PlanningModeNativeHarness
+		ready = false
+		code = "PLANNING_NATIVE_NOT_IMPLEMENTED"
+		detail = "Native Codex planning requires a separately proven read-only planning-session boundary"
+	}
+	binding := domain.PlanningBinding{
+		Mode: mode, Provider: domain.IntelligenceProviderID(status.Provider), ModelSelection: selection,
+		Model: model, Effort: strings.TrimSpace(status.Effort),
+	}
+	return []ports.PlanningCandidate{{
+		ID: planningCandidateID(binding), Binding: binding, Ready: ready,
+		UnavailableCode: code, UnavailableDetail: detail,
+	}}, nil
+}
+
+func (p *configuredIntelligenceProvider) DiscussPlan(ctx context.Context, request ports.PlanningDiscussionRequest) (ports.PlanningDiscussionResponse, error) {
+	if request.Binding.Mode != domain.PlanningModeDirectAPI {
+		return ports.PlanningDiscussionResponse{}, ports.NewReasoningFailure(
+			ports.ReasoningUnavailable, "Native harness planning is not implemented in this slice", nil)
+	}
+	if p == nil || p.settings == nil {
+		return ports.PlanningDiscussionResponse{}, ports.NewReasoningFailure(
+			ports.ReasoningNotConfigured, "Reasoning settings are unavailable", nil)
+	}
+	cfg, err := p.settings.ResolveReasoning(ctx)
+	if err != nil {
+		return ports.PlanningDiscussionResponse{}, err
+	}
+	selection := domain.PlanningModelProviderDefault
+	model := ""
+	if strings.TrimSpace(cfg.Model) != "" {
+		selection, model = domain.PlanningModelExplicit, strings.TrimSpace(cfg.Model)
+	}
+	current := domain.PlanningBinding{
+		Mode: domain.PlanningModeDirectAPI, Provider: domain.IntelligenceProviderID(cfg.Provider),
+		ModelSelection: selection, Model: model, Effort: strings.TrimSpace(cfg.Effort),
+	}
+	if cfg.Provider == providerCodex || current != request.Binding {
+		return ports.PlanningDiscussionResponse{}, ports.NewReasoningFailure(
+			ports.ReasoningUnavailable,
+			"The selected planning provider or model changed; start a new planning session instead of silently substituting it", nil)
+	}
+	client, err := newReasoner(reasoningConfig{
+		Provider: cfg.Provider, APIKey: cfg.APIKey, Model: cfg.Model, Effort: cfg.Effort, BaseURL: cfg.BaseURL,
+	})
+	if err != nil {
+		return ports.PlanningDiscussionResponse{}, err
+	}
+	return intelligencesvc.NewLLMProvider(client).DiscussPlan(ctx, request)
+}
+
+func planningCandidateID(binding domain.PlanningBinding) string {
+	return strings.Join([]string{
+		string(binding.Mode), string(binding.Provider), string(binding.ModelSelection), binding.Model, binding.Effort,
+	}, ":")
 }
 
 // probeReasoningBudget bounds one readiness probe. Named operational policy: a

@@ -2850,6 +2850,424 @@ paths:
       summary: Read the newest plan of any status for this Outcome
       tags:
       - outcomes
+  /api/v1/outcomes/{outcomeId}/planning-candidates:
+    get:
+      operationId: listOutcomePlanningCandidates
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Confirmed Contract revision to plan against.
+        in: query
+        name: contractRevision
+        schema:
+          description: Confirmed Contract revision to plan against.
+          format: int64
+          minimum: 1
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanningCandidatesEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Service Unavailable
+      summary: List exact available planning-agent choices for a confirmed Contract
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/planning-session:
+    get:
+      operationId: getCurrentOutcomePlanning
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanningEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read the newest planning conversation for an Outcome
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/planning-sessions:
+    post:
+      operationId: startOutcomePlanning
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartPlanningRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanningEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Service Unavailable
+      summary: Start one Contract-bound planning conversation with frozen read-only
+        context
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/planning-sessions/{planningSessionId}:
+    get:
+      operationId: getOutcomePlanning
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Planning conversation identifier.
+        in: path
+        name: planningSessionId
+        required: true
+        schema:
+          description: Planning conversation identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanningEnvelope'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Read one bounded planning conversation and its proposal
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/planning-sessions/{planningSessionId}/cancel:
+    post:
+      operationId: cancelOutcomePlanning
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Planning conversation identifier.
+        in: path
+        name: planningSessionId
+        required: true
+        schema:
+          description: Planning conversation identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanningCancelRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanningEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Cancel an active planning conversation without creating execution authority
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/planning-sessions/{planningSessionId}/messages:
+    post:
+      operationId: continueOutcomePlanning
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Planning conversation identifier.
+        in: path
+        name: planningSessionId
+        required: true
+        schema:
+          description: Planning conversation identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanningMessageRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanningEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Service Unavailable
+      summary: Send one owner message and receive one structured planning reply
+      tags:
+      - outcomes
+  /api/v1/outcomes/{outcomeId}/planning-sessions/{planningSessionId}/proposal:
+    post:
+      operationId: finalizeOutcomePlanning
+      parameters:
+      - description: Outcome identifier, e.g. out-<uuid>.
+        in: path
+        name: outcomeId
+        required: true
+        schema:
+          description: Outcome identifier, e.g. out-<uuid>.
+          type: string
+      - description: Planning conversation identifier.
+        in: path
+        name: planningSessionId
+        required: true
+        schema:
+          description: Planning conversation identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanningFinalizeRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanningEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Service Unavailable
+      summary: Ask for a Plan proposal; clarification may still be returned when required
+      tags:
+      - outcomes
   /api/v1/outcomes/{outcomeId}/plans:
     post:
       operationId: proposeOutcomePlan
@@ -12299,6 +12717,8 @@ components:
           type: integer
         outcomeId:
           type: string
+        planningSessionId:
+          type: string
         routingDecisions:
           items:
             $ref: '#/components/schemas/ControllersRoutingDecisionResponse'
@@ -12306,6 +12726,8 @@ components:
         runBriefCompiledDigest:
           type: string
         runBriefCoreDigest:
+          type: string
+        sourceIntelligenceRunId:
           type: string
         status:
           type: string
@@ -12388,6 +12810,250 @@ components:
       - verificationRequirement
       - stopConditions
       - approvedChecks
+      type: object
+    PlanningBindingResponse:
+      properties:
+        effort:
+          type: string
+        mode:
+          enum:
+          - direct_api
+          - native_harness
+          type: string
+        model:
+          type: string
+        modelSelection:
+          enum:
+          - provider_default
+          - explicit
+          type: string
+        provider:
+          type: string
+      required:
+      - mode
+      - provider
+      - modelSelection
+      type: object
+    PlanningCancelRequest:
+      properties:
+        expectedSessionRevision:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+      - expectedSessionRevision
+      type: object
+    PlanningCandidateResponse:
+      properties:
+        binding:
+          $ref: '#/components/schemas/PlanningBindingResponse'
+        id:
+          type: string
+        ready:
+          type: boolean
+        unavailableCode:
+          type: string
+        unavailableDetail:
+          type: string
+      required:
+      - id
+      - binding
+      - ready
+      type: object
+    PlanningCandidatesEnvelope:
+      properties:
+        candidates:
+          items:
+            $ref: '#/components/schemas/PlanningCandidateResponse'
+          type: array
+      required:
+      - candidates
+      type: object
+    PlanningClarificationResponse:
+      properties:
+        alternatives:
+          items:
+            type: string
+          type: array
+        question:
+          type: string
+        reason:
+          type: string
+        recommendation:
+          type: string
+      required:
+      - question
+      - reason
+      - recommendation
+      - alternatives
+      type: object
+    PlanningContractChangeResponse:
+      properties:
+        changedFields:
+          items:
+            type: string
+          type: array
+        summary:
+          type: string
+      required:
+      - summary
+      - changedFields
+      type: object
+    PlanningEnvelope:
+      properties:
+        planning:
+          $ref: '#/components/schemas/PlanningResponse'
+      required:
+      - planning
+      type: object
+    PlanningFinalizeRequest:
+      properties:
+        expectedSessionRevision:
+          format: int64
+          minimum: 1
+          type: integer
+        requestKey:
+          type: string
+      required:
+      - expectedSessionRevision
+      - requestKey
+      type: object
+    PlanningMessageRequest:
+      properties:
+        expectedSessionRevision:
+          format: int64
+          minimum: 1
+          type: integer
+        requestKey:
+          type: string
+        text:
+          type: string
+      required:
+      - expectedSessionRevision
+      - text
+      - requestKey
+      type: object
+    PlanningResponse:
+      properties:
+        proposedPlan:
+          $ref: '#/components/schemas/PlanRevisionResponse'
+        session:
+          $ref: '#/components/schemas/PlanningSessionResponse'
+        turns:
+          items:
+            $ref: '#/components/schemas/PlanningTurnResponse'
+          type: array
+      required:
+      - session
+      - turns
+      type: object
+    PlanningSessionResponse:
+      properties:
+        binding:
+          $ref: '#/components/schemas/PlanningBindingResponse'
+        contextDigest:
+          type: string
+        contextMode:
+          enum:
+          - repository_read
+          - supplied_packet
+          type: string
+        contractRevisionId:
+          type: string
+        contractRevisionNumber:
+          format: int64
+          type: integer
+        createdAt:
+          format: date-time
+          type: string
+        effectiveModel:
+          type: string
+        effectiveProvider:
+          type: string
+        id:
+          type: string
+        lastFailureCode:
+          type: string
+        lastFailureDetail:
+          type: string
+        outcomeId:
+          type: string
+        planningGrantDigest:
+          type: string
+        revision:
+          format: int64
+          type: integer
+        status:
+          enum:
+          - active
+          - proposal_ready
+          - superseded
+          - cancelled
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        waitingOn:
+          enum:
+          - owner
+          - provider
+          - none
+          type: string
+      required:
+      - id
+      - outcomeId
+      - contractRevisionId
+      - contractRevisionNumber
+      - revision
+      - status
+      - waitingOn
+      - binding
+      - contextMode
+      - contextDigest
+      - planningGrantDigest
+      - createdAt
+      - updatedAt
+      type: object
+    PlanningTurnResponse:
+      properties:
+        clarification:
+          $ref: '#/components/schemas/PlanningClarificationResponse'
+        contractChange:
+          $ref: '#/components/schemas/PlanningContractChangeResponse'
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        intelligenceRunId:
+          type: string
+        kind:
+          enum:
+          - message
+          - finalize_request
+          - clarification
+          - contract_change_proposal
+          - plan_proposal
+          type: string
+        replyToTurnId:
+          type: string
+        role:
+          enum:
+          - owner
+          - planner
+          type: string
+        sequence:
+          format: int64
+          type: integer
+        text:
+          type: string
+      required:
+      - id
+      - sequence
+      - role
+      - kind
+      - text
+      - createdAt
       type: object
     PortsOutcomeDeletionPreview:
       properties:
@@ -14285,6 +14951,27 @@ components:
           type: string
       required:
       - planRevisionId
+      - requestKey
+      type: object
+    StartPlanningRequest:
+      properties:
+        candidateId:
+          type: string
+        contextMode:
+          description: Defaults to repository_read.
+          enum:
+          - repository_read
+          - supplied_packet
+          type: string
+        expectedContractRevision:
+          format: int64
+          minimum: 1
+          type: integer
+        requestKey:
+          type: string
+      required:
+      - expectedContractRevision
+      - candidateId
       - requestKey
       type: object
     StartPreviewServerRequest:

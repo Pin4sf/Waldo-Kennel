@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } from "../ui/dialog";
+import { agentLabel } from "@pin4sf/kennel-product-ui";
 import { ApprovedChecks } from "./ApprovedChecks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -7,6 +8,7 @@ import type { AttemptRecord } from "../../hooks/useOutcome";
 import { MissionWorkUnitGraph } from "./MissionWorkUnitGraph";
 import { layerByDependency } from "../../lib/dependency-layers";
 import { Button } from "../ui/button";
+import { newestAttempt } from "./OutcomeRunBoardAdapters";
 
 type Unit = components["schemas"]["PlanWorkUnitResponse"];
 type Schedule = components["schemas"]["ScheduleResponse"];
@@ -17,11 +19,13 @@ export function MissionPlanView({
 	schedule,
 	criterionText,
 	attempts,
+	onOpenAttempt,
 }: {
 	workUnits: Unit[];
 	schedule?: Schedule;
 	criterionText?: (id: string) => string | undefined;
 	attempts?: AttemptRecord[];
+	onOpenAttempt?: (attempt: AttemptRecord) => void;
 }) {
 	const { t } = useTranslation();
 	const [view, setView] = useState<"graph" | "table">("graph");
@@ -32,6 +36,7 @@ export function MissionPlanView({
 	const selected = units.find((unit) => unit.id === selectedId);
 	const entry = schedule?.workUnits.find((item) => item.workUnit.id === selectedId);
 	const selectedAttempts = attempts?.filter((attempt) => attempt.workUnitId === selectedId) ?? [];
+	const selectedAttempt = newestAttempt(selectedAttempts);
 	const title = (id: string) => units.find((unit) => unit.id === id)?.title ?? id;
 	return (
 		<section className="flex min-w-0 flex-col gap-3" data-testid="mission-plan-view">
@@ -201,11 +206,21 @@ export function MissionPlanView({
 							<dd>
 								{selectedAttempts.length > 0 ? (
 									<ul className="space-y-1">
-										{selectedAttempts.flatMap((attempt) => attempt.sessions.map((session) => (
-											<li key={session.id}>
-												<code>{session.sessionId}</code> · {session.harness} · {session.mode ?? t("mission.modeUnknown")}
+										{selectedAttempts.map((attempt) => (
+											<li className="flex items-center justify-between gap-2" key={attempt.id}>
+												<span>
+													{t("outcome.run.attemptFallbackTitle", { number: attempt.number })}
+													{attempt.sessions.length > 0
+														? ` · ${attempt.sessions.map((session) => `${agentLabel(session.harness)} · ${session.mode ?? t("mission.modeUnknown")}`).join(" · ")}`
+														: ""}
+												</span>
+												{attempt.id === selectedAttempt?.id && attempt.sessions.length > 0 && onOpenAttempt ? (
+													<Button onClick={() => onOpenAttempt(attempt)} size="sm" variant="outline">
+														{t("outcome.run.engageCta")}
+													</Button>
+												) : null}
 											</li>
-										)))}
+										))}
 									</ul>
 								) : (
 									t("mission.noSessions")

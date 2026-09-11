@@ -193,3 +193,56 @@ func TestOutcomeDeletionPreservesImmutableGuardsAndFencesLateWrites(t *testing.T
 		t.Fatalf("durable erasure authority leaked: %d %v", count, err)
 	}
 }
+
+func TestOutcomeDeletionPurgesOwnedPlanningHistoryThroughGovernedScope(t *testing.T) {
+	dir := t.TempDir()
+	s := sqlitetest.MustOpenAt(t, dir)
+	ctx := context.Background()
+	revision := seedProviderPlanOutcome(t, s)
+	now := time.Date(2026, 9, 11, 13, 0, 0, 0, time.UTC)
+	session := planningSessionFixture(revision, now)
+	if _, _, err := s.CreatePlanningSession(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	owner := domain.PlanningTurn{
+		ID: "planning-purge-owner", Role: domain.PlanningTurnOwner, Kind: domain.PlanningTurnMessage,
+		Text: "Retain this planning history until governed erasure.", RequestKey: "planning-purge-turn",
+		RequestFingerprint: domain.DigestSHA256([]byte("planning-purge-turn")), CreatedAt: now.Add(time.Second),
+	}
+	waiting, _, _, err := s.AppendPlanningOwnerTurn(ctx, session.ID, session.Revision, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.ClosePlanningSession(ctx, session.ID, waiting.Revision, domain.PlanningSessionCancelled); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := sql.Open("sqlite", filepath.Join(dir, "kennel.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err = db.Exec("DELETE FROM planning_turns WHERE id=?", owner.ID); err == nil {
+		t.Fatal("ordinary delete bypassed planning-turn immutability")
+	}
+
+	preview, err := s.PreviewOutcomeDeletion(ctx, revision.OutcomeID)
+	if err != nil || len(preview.Blockers) != 0 {
+		t.Fatalf("preview with planning history=%+v err=%v", preview, err)
+	}
+	if err = s.ChangeOutcomeTrash(ctx, revision.OutcomeID, preview.Revision, true); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.BeginOutcomePurge(ctx, revision.OutcomeID, preview.Revision); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.PurgeOutcomeRecords(ctx, revision.OutcomeID, preview.Revision); err != nil {
+		t.Fatalf("purge planning history: %v", err)
+	}
+	for _, table := range []string{"planning_turns", "planning_sessions"} {
+		var count int
+		if err = db.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("%s retained %d rows after governed purge: %v", table, count, err)
+		}
+	}
+}

@@ -332,6 +332,8 @@ func daemonProbePayload(status string, cfg config.Config) map[string]any {
 	if cfg.StartupWorkingDirectory != "" {
 		payload["startupWorkingDirectory"] = cfg.StartupWorkingDirectory
 	}
+	payload["buildIdentity"] = daemonmeta.BuildIdentity
+	payload["buildRevision"] = daemonmeta.BuildRevision
 	// KENNEL_APPIMAGE is set by the Electron app at spawn time when it runs from an
 	// AppImage. The value is the stable outer .AppImage file path, which the
 	// app's daemon identity check compares instead of the transient

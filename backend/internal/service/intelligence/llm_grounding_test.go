@@ -125,3 +125,34 @@ func TestDraftPlanReceivesFrozenPermissions(t *testing.T) {
 		}
 	}
 }
+
+func TestDiscussPlanCarriesConversationAndRestrictsUnapprovedCommands(t *testing.T) {
+	client := &captureLLMClient{result: `{"decision":"clarification","message":"One choice remains.","clarification":{"question":"Keep this local?","reason":"Remote work needs authority.","recommendation":"Keep it local.","alternatives":["Add remote delivery later"]}}`}
+	result, err := NewLLMProvider(client).DiscussPlan(context.Background(), ports.PlanningDiscussionRequest{
+		Outcome:           domain.Outcome{Title: "Interactive plan"},
+		Contract:          domain.ContractRevision{Number: 2, Goal: "Make one local change", AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true, WriteWorkspace: true}, Criteria: []domain.ContractCriterion{{ID: "criterion-1", Text: "The result is reviewable"}}},
+		CriterionAliases:  map[string]domain.CriterionID{"C1": "criterion-1"},
+		RepositoryContext: ports.RepositoryContextSnapshot{Revision: "abc123", Files: []ports.RepositoryContextFile{{Path: "README.md", Content: "grounded planning"}}},
+		Turns:             []domain.PlanningTurn{{Role: domain.PlanningTurnOwner, Kind: domain.PlanningTurnMessage, Text: "Inspect first"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Result.Kind != ports.PlanningResultClarification || result.Result.Clarification == nil {
+		t.Fatalf("planning result = %+v", result.Result)
+	}
+	for _, want := range []string{"Inspect first", "README.md", "abc123", "Local command execution is forbidden"} {
+		if !strings.Contains(client.request.User, want) {
+			t.Errorf("planning prompt omitted %q", want)
+		}
+	}
+	proposal := client.request.Schema["properties"].(map[string]any)["proposal"].(map[string]any)
+	unit := proposal["properties"].(map[string]any)["workUnits"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+	if unit["checkCommands"].(map[string]any)["type"] != "null" {
+		t.Fatal("interactive planning schema permitted command checks outside the Contract ceiling")
+	}
+	intents := unit["intent"].(map[string]any)["enum"].([]any)
+	if len(intents) != 2 || intents[0] != "inspect" || intents[1] != "modify" {
+		t.Fatalf("interactive planning intents = %#v", intents)
+	}
+}

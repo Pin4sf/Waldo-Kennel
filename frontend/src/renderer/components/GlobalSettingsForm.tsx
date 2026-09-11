@@ -6,18 +6,17 @@ import { ReportProblemDialog } from "./settings/ReportProblemDialog";
 import { SettingsLinkRow } from "./settings/SettingsRow";
 import { SettingsSection } from "./settings/SettingsSection";
 import { UpdatesSection } from "./settings/UpdatesSection";
+import { ReasoningSettingsSection } from "./settings/ReasoningSettingsSection";
 import { useUiStore } from "../stores/ui-store";
 
-export type GlobalSettingsSection = "general" | "updates" | "help" | "all";
+export type GlobalSettingsSection = "general" | "reasoning" | "updates" | "help" | "all";
 
 export function GlobalSettingsForm({
 	section = "all",
 	onOpenKeyboardShortcuts,
-	onOpenConnectMobile,
 }: {
 	section?: GlobalSettingsSection;
 	onOpenKeyboardShortcuts?: () => void;
-	onOpenConnectMobile?: () => void;
 }) {
 	const { t } = useTranslation();
 	const [reportProblemOpen, setReportProblemOpen] = useState(false);
@@ -38,7 +37,6 @@ export function GlobalSettingsForm({
 				{(section === "all" || section === "general") && (
 					<>
 						<GeneralSettingsSection
-							onConnectMobile={() => onOpenConnectMobile?.()}
 							titleHidden={leadingTitleHidden}
 						/>
 						<SettingsSection title={t("settings.preferences")} grouped>
@@ -60,6 +58,7 @@ export function GlobalSettingsForm({
 					</>
 				)}
 				{(section === "all" || section === "updates") && <UpdatesSection titleHidden={leadingTitleHidden} />}
+				{(section === "all" || section === "reasoning") && <ReasoningSettingsSection titleHidden={leadingTitleHidden} />}
 				{(section === "all" || section === "help") && (
 					<SettingsSection title={t("settings.getHelp")} titleHidden={leadingTitleHidden} grouped>
 						<SettingsLinkRow label={t("settings.reportProblem")} onClick={() => setReportProblemOpen(true)} />

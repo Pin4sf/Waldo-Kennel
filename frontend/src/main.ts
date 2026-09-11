@@ -43,7 +43,12 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { type DaemonLaunchSpec, bundledDaemonIdentityError, resolveDaemonLaunch } from "./shared/daemon-launch";
+import {
+	type DaemonLaunchSpec,
+	bundledDaemonIdentityError,
+	resolveDaemonLaunch,
+	resolveExpectedDaemonBuildIdentity,
+} from "./shared/daemon-launch";
 import { APP_ID, AUTH_PROTOCOL, PRODUCT_NAME, STATE_DIRECTORY_NAME } from "./shared/product-identity";
 import { createListenPortScanner, defaultRunFilePath, parseRunFile } from "./shared/daemon-discovery";
 import type { DaemonStatus } from "./shared/daemon-status";
@@ -198,9 +203,9 @@ let isFlashing = false;
 const isDev = !app.isPackaged;
 
 // Dev mode uses a separate port and state subdirectory so it never collides with
-// a concurrently running installed-app daemon. The subdir also isolates supervise.sock
-// on Unix (backend derives it as dir(RunFilePath)/supervise.sock) and the named pipe
-// on Windows (supervisorPipeFromRunFile derives it from the same dir basename).
+// a concurrently running installed-app daemon. The subdir also isolates the
+// supervisor named pipe on Windows; Unix supervisor addresses are published in
+// running.json because their short paths are per-daemon and random.
 const DEV_DAEMON_PORT = 3032;
 const DEV_STATE_SUBDIR = "dev"; // ~/.kennel/dev/
 
@@ -651,8 +656,8 @@ function telemetryOverrides(): Record<string, string> {
 		KENNEL_TELEMETRY_REMOTE: process.env.KENNEL_TELEMETRY_REMOTE ?? "off",
 		KENNEL_TELEMETRY_POSTHOG_KEY: process.env.KENNEL_TELEMETRY_POSTHOG_KEY ?? DEFAULT_POSTHOG_PROJECT_KEY,
 		KENNEL_TELEMETRY_POSTHOG_HOST: process.env.KENNEL_TELEMETRY_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST,
-		// The daemon binary has no version of its own that release tooling sets,
-		// so without this every daemon event lands unattributable to a release.
+		// Keep desktop release attribution separate from the daemon's process-owned
+		// build identity reported by /healthz and /readyz.
 		KENNEL_TELEMETRY_APP_VERSION: process.env.KENNEL_TELEMETRY_APP_VERSION ?? app.getVersion(),
 		// Kill switch: forwarded so a noisy stream can be silenced by env on an
 		// install that already exists, without shipping a new build.
@@ -815,7 +820,19 @@ async function readDaemonProbe(port: number, endpoint: "healthz" | "readyz"): Pr
 }
 
 function daemonIdentityError(launch: DaemonLaunchSpec, probe: DaemonProbe): string | null {
+	const expectedBuildIdentity = readExpectedDaemonBuildIdentity(launch);
+	if (launch.source === "bundled" && expectedBuildIdentity === undefined) {
+		return "This Kennel app does not include daemon build identity metadata. Rebuild the app before starting it.";
+	}
 	if (launch.source === "dev") {
+		if (expectedBuildIdentity !== undefined) {
+			if (!probe.buildIdentity) {
+				return "An older Kennel daemon is already running, but it does not report its build identity. Rebuild this app and restart it.";
+			}
+			if (probe.buildIdentity !== expectedBuildIdentity) {
+				return `Another Kennel daemon is already running with build identity ${probe.buildIdentity}; expected ${expectedBuildIdentity}. Stop the other daemon before using this checkout.`;
+			}
+		}
 		const cwdMatches = probe.workingDirectory ? samePath(probe.workingDirectory, launch.cwd) : false;
 		const startupCwdMatches = probe.startupWorkingDirectory
 			? samePath(probe.startupWorkingDirectory, launch.cwd)
@@ -833,9 +850,19 @@ function daemonIdentityError(launch: DaemonLaunchSpec, probe: DaemonProbe): stri
 	}
 
 	if (launch.source === "bundled") {
-		return bundledDaemonIdentityError(probe, launch.command, process.env.APPIMAGE, samePath);
+		return bundledDaemonIdentityError(probe, launch.command, process.env.APPIMAGE, samePath, expectedBuildIdentity);
 	}
 	return null;
+}
+
+function readExpectedDaemonBuildIdentity(launch: DaemonLaunchSpec): string | undefined {
+	return resolveExpectedDaemonBuildIdentity(launch, app.getAppPath(), (manifestPath) => {
+		try {
+			return readFileSync(manifestPath, "utf8");
+		} catch {
+			return null;
+		}
+	});
 }
 
 /**
@@ -909,12 +936,16 @@ function establishBrowserRuntimeLink(): void {
 
 function establishSupervisorLink(): void {
 	const rfp = runFilePath();
-	const addr =
-		process.platform === "win32"
-			? supervisorPipeFromRunFile(rfp)
-			: rfp
-				? path.join(path.dirname(rfp), "supervise.sock")
-				: null;
+	let info: ReturnType<typeof parseRunFile> = null;
+	if (rfp) {
+		try {
+			info = parseRunFile(readFileSync(rfp, "utf8"));
+		} catch {
+			// The daemon may be between run-file replacement and readiness; the
+			// next status refresh will retry the link.
+		}
+	}
+	const addr = info?.supervisorAddress ?? (process.platform === "win32" ? supervisorPipeFromRunFile(rfp) : null);
 	if (addr) {
 		supervisorLink?.dispose();
 		supervisorLink = connectSupervisor(addr, {

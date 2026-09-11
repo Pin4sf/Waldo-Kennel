@@ -630,6 +630,7 @@
 	"settings.sessionInterface.terminal": "终端",
 	"settings.sessionInterface.unavailable": "适用于新会话。目前没有已安装的代理支持聊天。",
 	"settings.reasoning.title": "Waldo reasoning",
+	"settings.reasoning.navigation": "AI 提供商和 API 密钥",
 	"settings.reasoning.provider": "Provider",
 	"settings.reasoning.model": "Model",
 	"settings.reasoning.effort": "Reasoning effort",
@@ -644,6 +645,9 @@
 	"settings.reasoning.verify": "Verify now",
 	"settings.reasoning.verifying": "Verifying…",
 	"settings.reasoning.missing": "Configure a provider and credential to enable reasoning.",
+	"settings.reasoning.draftChanged": "Unsaved provider change. Save before checking readiness.",
+	"settings.reasoning.credentialRejected": "The saved reasoning credential was rejected. Replace it and verify again.",
+	"settings.reasoning.unavailable": "Reasoning is unavailable for this provider. Check its setup and retry.",
 	"settings.reasoning.save": "Save reasoning settings",
 	"settings.reasoning.saving": "Saving…",
 	"settings.reasoning.privacy": "The key is kept in the local daemon secret store and is never returned to the renderer or stored in Work records.",
@@ -2534,5 +2538,7 @@
 	"deletion.outcomeLabel": "Outcome",
 	"deletion.preserved": "Your imported project and exported files stay untouched.",
 	"deletion.details": "What will be removed",
-	"deletion.retainedDetails": "Permanent deletion removes owned sessions, clean workspaces and saved evidence. Shared or unresolved work blocks cleanup. Provider history, logs and backups are preserved."
+	"deletion.retainedDetails": "Permanent deletion removes owned sessions, clean workspaces and saved evidence. Shared or unresolved work blocks cleanup. Provider history, logs and backups are preserved.",
+	"planning.title": "与代理一起制定计划", "planning.intro": "选择已获准的代理和读取范围。规划只提出建议，不授权命令、编辑、外部影响或执行。", "planning.actionFailed": "规划操作失败：{{message}}", "planning.loading": "正在加载当前规划会话…", "planning.checkingCandidates": "正在检查已获准的规划代理…", "planning.start": "开始规划", "planning.providerLegend": "规划代理", "planning.providerHelp": "为此 Contract 修订选择确切的已获准推理代理。Kennel 不会静默切换提供商。", "planning.noCandidates": "当前没有为此 Outcome 获准的规划代理。", "planning.explicitModel": "明确模型", "planning.providerDefault": "提供商默认模型", "planning.subscriptionAgent": "订阅代理", "planning.apiReasoner": "API 推理器", "planning.available": "可用", "planning.unavailable": "不可用", "planning.unavailableCode": "PLANNING_UNAVAILABLE", "planning.unavailableDetail": "此代理无法满足规划边界。", "planning.contextLegend": "读取范围", "planning.contextHelp": "规划只能调查上下文。命令、编辑、外部影响和 Plan 审批仍需单独授权。", "planning.repositoryLabel": "检查仓库（只读）", "planning.repositoryHelp": "Kennel 会冻结一个有界的仓库上下文包。推理代理不会获得文件系统、命令、网络或编辑权限。", "planning.packetLabel": "使用已批准的提供包", "planning.packetHelp": "不会授予仓库访问权限。只有存在已批准的上下文包时，守护进程才会接受。", "planning.scopeFrozen": "此读取范围已为当前规划会话冻结。", "planning.scope": "读取范围：{{scope}}", "planning.repositoryScope": "仓库上下文", "planning.packetScope": "提供包", "planning.change": "更改", "planning.details": "规划详情", "planning.grantDigest": "授权摘要", "planning.binding": "绑定", "planning.effective": "生效", "planning.waiting": "正在等待代理", "planning.preparing": "代理正在准备第一个问题。", "planning.messageLabel": "给规划代理留言", "planning.messagePlaceholder": "回答一个问题或补充有界的说明…", "planning.send": "发送", "planning.prepare": "准备 Plan 提案", "planning.cancel": "取消", "planning.proposalReady": "Plan 提案已在上方准备好，可进入现有审核和所有者批准步骤。开始执行仍是独立操作。", "planning.startAnother": "开始另一个规划会话", "planning.planner": "规划器", "planning.owner": "你", "planning.why": "原因", "planning.suggested": "建议", "planning.contractChangeTitle": "建议更改 Contract", "planning.changedFields": "已更改字段", "planning.contractChangeNote": "这只是提案。针对新修订进行规划前，请在 Contract 编辑器中确认。", "planning.reviewContract": "审核 Contract", "planning.status.active": "规划中", "planning.status.proposal_ready": "提案已准备好", "planning.status.superseded": "已被替代", "planning.status.cancelled": "已取消",
+	"terminal.liveDesktopRequired": "Open this session in the Kennel desktop app to view its live terminal."
 }

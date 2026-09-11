@@ -1,4 +1,9 @@
-const reasoning = vi.hoisted(() => ({ ready: true }));
+const reasoning = vi.hoisted(() => ({
+	ready: true,
+	provider: undefined as string | undefined,
+	configured: false,
+	errorCode: undefined as string | undefined,
+}));
 vi.mock("../../hooks/useSettings", () => ({useSettings: () => ({settings:{reasoning}})}));
 vi.mock("../settings/ReasoningSettingsSection", () => ({ReasoningSettingsSection: () => <p>Reasoning settings</p>}));
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -12,7 +17,14 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({ ...(await importO
 
 import { AdaptiveIntakeSurface } from "./AdaptiveIntakeSurface";
 
-beforeEach(() => { reasoning.ready = true; vi.clearAllMocks(); postMock.mockResolvedValue({ data: { intake: { session: { id: "intake-1", status: "captured" }, conversationRefs: [] } }, error: undefined }); });
+beforeEach(() => {
+	reasoning.ready = true;
+	reasoning.provider = undefined;
+	reasoning.configured = false;
+	reasoning.errorCode = undefined;
+	vi.clearAllMocks();
+	postMock.mockResolvedValue({ data: { intake: { session: { id: "intake-1", status: "captured" }, conversationRefs: [] } }, error: undefined });
+});
 
 it("starts with one Outcome statement prompt and supports keyboard submission", async () => {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -228,6 +240,19 @@ it("offers reasoning setup without writing or retrying when analysis fails uncon
  expect(screen.getByText("Reasoning settings")).toBeVisible();
  expect(postMock).not.toHaveBeenCalled();
  expect(navigateMock).not.toHaveBeenCalled();
+});
+
+it("shows safe native availability guidance instead of exposing the coarse intake failure code", async () => {
+	reasoning.ready = false;
+	reasoning.provider = "codex";
+	reasoning.configured = true;
+	reasoning.errorCode = "REASONING_NOT_READY";
+	respondWith({session:{id:"intake-native",status:"analysis_failed",currentProposalRevision:0,failureCode:"INTAKE_ANALYSIS_FAILED"},conversationRefs:[]},null);
+
+	expect(await screen.findByRole("heading", { name: "Reasoning could not prepare the Contract" })).toBeInTheDocument();
+	expect(screen.getByRole("alert")).toHaveTextContent(/Your intake is saved/);
+	expect(screen.getByRole("status")).toHaveTextContent(/Codex is selected for sessions, but its App Server is not ready/);
+	expect(screen.queryByText("INTAKE_ANALYSIS_FAILED")).not.toBeInTheDocument();
 });
 
 it("keeps a refused draft inspectable beside the reason it was refused", async () => {

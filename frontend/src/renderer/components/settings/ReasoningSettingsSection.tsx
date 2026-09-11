@@ -6,6 +6,7 @@ import { SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
+import { normalizeReasoningErrorCode, reasoningStatusMessage } from "../../lib/reasoning-status";
 
 const providers = [
 	{ value: "anthropic", label: "Anthropic / Claude API" },
@@ -17,7 +18,7 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 	const { t } = useTranslation();
 	const { settings, isLoading, error: loadError } = useSettings();
 	const { update, saving, error: saveError } = useUpdateReasoning();
-	const { verify, verifying, error: verifyError } = useVerifyReasoning();
+	const { verify, verifying, error: verifyError, errorCode: verifyErrorCode, reset: resetVerification } = useVerifyReasoning();
 	const [provider, setProvider] = useState<"anthropic" | "openai" | "codex">("anthropic");
 	const [model, setModel] = useState("");
 	const [effort, setEffort] = useState("");
@@ -42,16 +43,19 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 		!saveError &&
 		!verifyError &&
 		!loadError;
+	const statusWithVerifyError = verifyError
+		? status
+			? { ...status, errorCode: normalizeReasoningErrorCode(verifyErrorCode) ?? "REASONING_UNAVAILABLE" }
+			: { provider, configured: true, ready: true, verified: false, errorCode: normalizeReasoningErrorCode(verifyErrorCode) ?? "REASONING_UNAVAILABLE" }
+		: status;
 	const message =
 		saveError ??
-		verifyError ??
 		loadError ??
-		status?.error ??
-		(status?.verified
-			? t("settings.reasoning.verified")
-			: status?.configured
-				? t("settings.reasoning.unverified")
-				: t("settings.reasoning.missing"));
+		(draftDirty
+			? t("settings.reasoning.draftChanged")
+			: verifyError
+				? reasoningStatusMessage(statusWithVerifyError, provider, t)
+				: reasoningStatusMessage(status, provider, t));
 
 	return (
 		<SettingsSection title={t("settings.reasoning.title")} titleHidden={titleHidden} grouped>
@@ -101,7 +105,9 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 							setApiKey(event.target.value);
 						}}
 						placeholder={
-							status?.keyConfigured ? t("settings.reasoning.keyConfigured") : t("settings.reasoning.keyMissing")
+							status?.provider === provider && status.keyConfigured
+								? t("settings.reasoning.keyConfigured")
+								: t("settings.reasoning.keyMissing")
 						}
 						disabled={saving}
 						aria-label={t("settings.reasoning.apiKey")}
@@ -125,20 +131,23 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 					type="button"
 					variant="secondary"
 					disabled={saving || verifying}
-					onClick={() =>
-						void update({ provider, model, effort, ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}) }).then(() => {
-							setApiKey("");
-							setDraftDirty(false);
-						})
-					}
+					onClick={() => {
+						void update({ provider, model, effort, ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}) })
+							.then(() => {
+								setApiKey("");
+								setDraftDirty(false);
+								resetVerification();
+							})
+							.catch(() => undefined);
+					}}
 				>
 					{saving ? t("settings.reasoning.saving") : t("settings.reasoning.save")}
 				</Button>
 				<Button
 					type="button"
 					variant="ghost"
-					disabled={!status?.ready || !status?.configured || saving || verifying}
-					onClick={() => void verify()}
+					disabled={!status?.ready || !status?.configured || saving || verifying || draftDirty}
+					onClick={() => void verify().catch(() => undefined)}
 				>
 					{verifying ? t("settings.reasoning.verifying") : t("settings.reasoning.verify")}
 				</Button>
