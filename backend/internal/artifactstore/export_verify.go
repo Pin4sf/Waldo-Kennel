@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
@@ -80,13 +81,17 @@ type ExportVerificationResult struct {
 // already exists, and a recovery that wrote anything would be a second
 // transfer rather than a reading of the first.
 //
-// The destination is resolved once and every artifact is read through the same
-// confinement the export used, so a symlink inside the delivered tree cannot
-// make an unrelated file count as delivered content. A symlinked *parent* is
-// followed, exactly as the export followed it — see DLV-02: that is how the
-// bytes got there, so verification has to look in the same place. The resolved
-// path is reported back so the ledger can record where the artifact actually
-// is rather than only where it was asked to go.
+// Every artifact is read with no symbolic link anywhere between the destination
+// and the file, so nothing outside the delivered tree can count as delivered
+// content — see readDeliveredFile, which is where that is enforced and why a
+// leaf check alone is not enough.
+//
+// A symlinked *parent of the destination* is followed, exactly as the export
+// followed it. That is DLV-02 and it is deliberate here: the export wrote
+// through that link, so the bytes really are behind it and refusing to look
+// would report a completed transfer as missing. The open half of DLV-02 is that
+// neither the ledger nor this result records the resolved path, so both still
+// name where the delivery was asked to go rather than where it is.
 func (s *Store) VerifyExport(ctx context.Context, req VerifyExportRequest) ExportVerificationResult {
 	if err := req.Receipt.Validate(); err != nil {
 		return ExportVerificationResult{Verification: ExportUnreadable,
@@ -156,7 +161,7 @@ func (s *Store) VerifyExport(ctx context.Context, req VerifyExportRequest) Expor
 			result.Detail = fmt.Sprintf("delivered path %q escapes the destination", file.RelativePath)
 			return result
 		}
-		body, err := readDeliveredFile(ctx, full)
+		body, err := readDeliveredFile(ctx, dest, full)
 		switch {
 		case errors.Is(err, os.ErrNotExist):
 			result.Verification = ExportMismatch
@@ -165,6 +170,10 @@ func (s *Store) VerifyExport(ctx context.Context, req VerifyExportRequest) Expor
 		case errors.Is(err, errDeliveredNotRegular):
 			result.Verification = ExportMismatch
 			result.Detail = fmt.Sprintf("delivered path %q is not a regular file", file.RelativePath)
+			return result
+		case errors.Is(err, errDeliveredLinkedComponent):
+			result.Verification = ExportMismatch
+			result.Detail = fmt.Sprintf("delivered path %q is reached through a symbolic link, so it is not content this delivery wrote", file.RelativePath)
 			return result
 		case err != nil:
 			result.Verification = ExportUnreadable
@@ -190,23 +199,66 @@ func (s *Store) VerifyExport(ctx context.Context, req VerifyExportRequest) Expor
 	return result
 }
 
-// errDeliveredNotRegular means a delivered path exists but is a symlink,
-// directory or device rather than the file that was retained.
-var errDeliveredNotRegular = errors.New("delivered path is not a regular file")
+var (
+	// errDeliveredNotRegular means a delivered path exists but is a symlink,
+	// directory or device rather than the file that was retained.
+	errDeliveredNotRegular = errors.New("delivered path is not a regular file")
+	// errDeliveredLinkedComponent means some directory between the destination
+	// and a delivered artifact is a symbolic link.
+	errDeliveredLinkedComponent = errors.New("delivered path is reached through a symbolic link")
+)
 
-// readDeliveredFile reads one delivered artifact without following a symlink
-// at its final component. A link there could make an arbitrary file on the
-// machine read as delivered content and turn a mismatch into a false match.
-func readDeliveredFile(ctx context.Context, path string) ([]byte, error) {
+// readDeliveredFile reads one delivered artifact from inside the destination,
+// refusing any symbolic link on the way to it.
+//
+// Checking only the final component is not enough, and this is the whole point
+// of the function. confinedPath is lexical, so a *directory* between the
+// destination and the artifact escapes it: replace `dest/nested` with a link to
+// another directory and `dest/nested/deep.txt` still joins to a path under
+// `dest`, while the file found through it is an ordinary regular file
+// somewhere else entirely. Since a digest matches identical bytes wherever they
+// live, verification would then confirm a delivery whose artifacts were never
+// at the destination.
+//
+// Every component below the destination is therefore checked, not just the
+// leaf. The export creates only real directories and regular files inside the
+// bundle it commits, so a link anywhere in that tree is not content this
+// delivery wrote. Following a symlinked parent *of* the destination stays
+// deliberate and is resolved by the caller before this is ever reached: the
+// export wrote through it, so reading through it is how the bytes are found.
+func readDeliveredFile(ctx context.Context, root, path string) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	info, err := os.Lstat(path)
+	relative, err := filepath.Rel(root, path)
 	if err != nil {
 		return nil, err
 	}
-	if !info.Mode().IsRegular() {
-		return nil, errDeliveredNotRegular
+	// Walk down from the destination so the first link encountered is reported,
+	// rather than whatever the kernel resolved the whole path to.
+	walked := root
+	segments := strings.Split(relative, string(filepath.Separator))
+	for i, segment := range segments {
+		if segment == "" || segment == "." {
+			continue
+		}
+		walked = filepath.Join(walked, segment)
+		info, err := os.Lstat(walked)
+		if err != nil {
+			return nil, err
+		}
+		switch {
+		case info.Mode()&os.ModeSymlink != 0:
+			return nil, errDeliveredLinkedComponent
+		case i == len(segments)-1:
+			if !info.Mode().IsRegular() {
+				return nil, errDeliveredNotRegular
+			}
+		case !info.IsDir():
+			// A non-directory where a directory has to be: whatever this
+			// delivery wrote, it is not still here.
+			return nil, errDeliveredNotRegular
+		}
 	}
 	return os.ReadFile(path)
 }

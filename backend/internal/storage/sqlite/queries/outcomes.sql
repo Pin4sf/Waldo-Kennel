@@ -133,12 +133,14 @@ VALUES (?, ?, ?, ?, 'reserved', ?, ?);
 -- name: GetAttemptCheckRun :one
 SELECT id, attempt_id, check_id, artifact_version, state, reservation_epoch, ran, passed, exit_code, enforced_by,
        timed_out, cancelled, termination_unknown, output_truncated, output, unavailable,
+       baseline_ran, baseline_passed, baseline_detail,
        artifact_changed, observed_artifact_version, reserved_at, observed_at
 FROM attempt_check_runs WHERE attempt_id = ? AND check_id = ? AND artifact_version = ?;
 
 -- name: ListAttemptCheckRuns :many
 SELECT id, attempt_id, check_id, artifact_version, state, reservation_epoch, ran, passed, exit_code, enforced_by,
        timed_out, cancelled, termination_unknown, output_truncated, output, unavailable,
+       baseline_ran, baseline_passed, baseline_detail,
        artifact_changed, observed_artifact_version, reserved_at, observed_at
 FROM attempt_check_runs WHERE attempt_id = ? AND artifact_version = ? ORDER BY reserved_at, id;
 
@@ -146,7 +148,9 @@ FROM attempt_check_runs WHERE attempt_id = ? AND artifact_version = ? ORDER BY r
 UPDATE attempt_check_runs
 SET state = 'observed', ran = ?, passed = ?, exit_code = ?, enforced_by = ?,
     timed_out = ?, cancelled = ?, termination_unknown = ?, output_truncated = ?,
-    output = ?, unavailable = ?, artifact_changed = ?, observed_artifact_version = ?,
+    output = ?, unavailable = ?,
+    baseline_ran = ?, baseline_passed = ?, baseline_detail = ?,
+    artifact_changed = ?, observed_artifact_version = ?,
     observed_at = ?
 WHERE attempt_id = ? AND check_id = ? AND artifact_version = ? AND state = 'reserved';
 

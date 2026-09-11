@@ -135,9 +135,13 @@ func (r *countingCheckRunner) RunAttemptChecks(_ context.Context, req ports.Atte
 			result.Observations = append(result.Observations, observe(check))
 			continue
 		}
+		// A default pass is a DISCRIMINATING pass: the command failed against a
+		// workspace holding none of the work, which is what lets a zero exit
+		// support the criterion at all.
 		result.Observations = append(result.Observations, ports.AttemptCheckObservation{
 			Check: check, ArtifactVersion: req.Receipt.ArtifactVersion,
 			Ran: true, Passed: true, EnforcedBy: "test-enforcement",
+			BaselineRan: true, BaselinePassed: false,
 		})
 	}
 	return result, nil

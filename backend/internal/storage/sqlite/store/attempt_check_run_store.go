@@ -87,6 +87,9 @@ func (s *Store) RecordAttemptCheckObservation(ctx context.Context, run ports.Att
 		TerminationUnknown: boolToInt(run.Observation.TerminationUnknown),
 		OutputTruncated:    boolToInt(run.Observation.OutputTruncated),
 		Output:             run.Observation.Output, Unavailable: run.Observation.Unavailable,
+		BaselineRan:     boolToInt(run.Observation.BaselineRan),
+		BaselinePassed:  boolToInt(run.Observation.BaselinePassed),
+		BaselineDetail:  run.Observation.BaselineDetail,
 		ArtifactChanged: boolToInt(run.ArtifactChanged), ObservedArtifactVersion: run.ObservedArtifactVersion,
 		ObservedAt: sql.NullTime{Time: observedAt.UTC(), Valid: true},
 		AttemptID:  string(run.AttemptID), CheckID: string(run.CheckID), ArtifactVersion: run.ArtifactVersion,
@@ -110,15 +113,32 @@ func (s *Store) MarkAttemptCheckRunUnknown(ctx context.Context, attemptID domain
 }
 
 func checkRunFromRow(row gen.AttemptCheckRun) ports.AttemptCheckRun {
-	return checkRunFromValues(row.ID, row.AttemptID, row.CheckID, row.ArtifactVersion, row.State, row.ReservationEpoch, row.Ran, row.Passed, row.ExitCode, row.EnforcedBy, row.TimedOut, row.Cancelled, row.TerminationUnknown, row.OutputTruncated, row.Output, row.Unavailable, row.ArtifactChanged, row.ObservedArtifactVersion, row.ReservedAt, row.ObservedAt)
+	run := checkRunFromValues(row.ID, row.AttemptID, row.CheckID, row.ArtifactVersion, row.State, row.ReservationEpoch, row.Ran, row.Passed, row.ExitCode, row.EnforcedBy, row.TimedOut, row.Cancelled, row.TerminationUnknown, row.OutputTruncated, row.Output, row.Unavailable, row.ArtifactChanged, row.ObservedArtifactVersion, row.ReservedAt, row.ObservedAt)
+	return withBaseline(run, row.BaselineRan, row.BaselinePassed, row.BaselineDetail)
 }
 
 func checkRunFromGetRow(row gen.GetAttemptCheckRunRow) ports.AttemptCheckRun {
-	return checkRunFromValues(row.ID, row.AttemptID, row.CheckID, row.ArtifactVersion, row.State, row.ReservationEpoch, row.Ran, row.Passed, row.ExitCode, row.EnforcedBy, row.TimedOut, row.Cancelled, row.TerminationUnknown, row.OutputTruncated, row.Output, row.Unavailable, row.ArtifactChanged, row.ObservedArtifactVersion, row.ReservedAt, row.ObservedAt)
+	run := checkRunFromValues(row.ID, row.AttemptID, row.CheckID, row.ArtifactVersion, row.State, row.ReservationEpoch, row.Ran, row.Passed, row.ExitCode, row.EnforcedBy, row.TimedOut, row.Cancelled, row.TerminationUnknown, row.OutputTruncated, row.Output, row.Unavailable, row.ArtifactChanged, row.ObservedArtifactVersion, row.ReservedAt, row.ObservedAt)
+	return withBaseline(run, row.BaselineRan, row.BaselinePassed, row.BaselineDetail)
 }
 
 func checkRunFromListRow(row gen.ListAttemptCheckRunsRow) ports.AttemptCheckRun {
-	return checkRunFromValues(row.ID, row.AttemptID, row.CheckID, row.ArtifactVersion, row.State, row.ReservationEpoch, row.Ran, row.Passed, row.ExitCode, row.EnforcedBy, row.TimedOut, row.Cancelled, row.TerminationUnknown, row.OutputTruncated, row.Output, row.Unavailable, row.ArtifactChanged, row.ObservedArtifactVersion, row.ReservedAt, row.ObservedAt)
+	run := checkRunFromValues(row.ID, row.AttemptID, row.CheckID, row.ArtifactVersion, row.State, row.ReservationEpoch, row.Ran, row.Passed, row.ExitCode, row.EnforcedBy, row.TimedOut, row.Cancelled, row.TerminationUnknown, row.OutputTruncated, row.Output, row.Unavailable, row.ArtifactChanged, row.ObservedArtifactVersion, row.ReservedAt, row.ObservedAt)
+	return withBaseline(run, row.BaselineRan, row.BaselinePassed, row.BaselineDetail)
+}
+
+// withBaseline attaches the known-wrong baseline to a stored run.
+//
+// It is applied after the positional mapping rather than threaded through it:
+// that signature is already at the limit of what is readable, and the baseline
+// is exactly the kind of field that must not be silently dropped by landing in
+// the wrong position. Historical rows default to no baseline, which is the
+// truthful answer — nothing was established for them.
+func withBaseline(run ports.AttemptCheckRun, ran, passed int64, detail string) ports.AttemptCheckRun {
+	run.Observation.BaselineRan = ran == 1
+	run.Observation.BaselinePassed = passed == 1
+	run.Observation.BaselineDetail = detail
+	return run
 }
 
 func checkRunFromValues(id, attemptID, checkID, artifactVersion, state, reservationEpoch string, ran, passed, exitCode int64, enforcedBy string, timedOut, cancelled, terminationUnknown, outputTruncated int64, output, unavailable string, artifactChanged int64, observedArtifactVersion string, reservedAt time.Time, observedAt sql.NullTime) ports.AttemptCheckRun {

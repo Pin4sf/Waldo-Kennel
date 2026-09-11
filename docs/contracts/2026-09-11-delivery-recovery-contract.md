@@ -77,9 +77,11 @@ rather than at the literal path shown. This is DLV-02 and is unchanged by this
 slice; it is recorded here so a renderer does not present the path as a resolved
 location.
 
-A symlink standing in for a delivered artifact *inside* the destination is
-refused: it reports `DELIVERY_RECOVERY_MISMATCH` rather than letting an
-identical file elsewhere count as delivered content.
+Inside the destination, **no symbolic link is followed at all** — not at the
+artifact itself and not at any directory on the way to it. Either reports
+`DELIVERY_RECOVERY_MISMATCH`. A digest matches identical bytes wherever they
+live, so without this a delivery could be confirmed from content that was never
+transferred.
 
 ## Reconciliation timing
 

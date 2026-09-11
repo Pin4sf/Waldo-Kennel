@@ -53,6 +53,20 @@ type AttemptCheckObservation struct {
 	// Unavailable explains a check that could not be run at all.
 	Unavailable string
 
+	// BaselineRan reports whether the same command was also run against a
+	// known-wrong baseline — a pristine empty workspace under the same frozen
+	// policy. Without one, nothing has shown this check's result depends on the
+	// work at all, and a zero exit from it cannot support the criterion.
+	BaselineRan bool
+	// BaselinePassed is true when the check passed with none of the work
+	// present, which means its exit status says nothing about the criterion.
+	// It establishes workspace dependence only: a check that fails the baseline
+	// could still be testing the wrong thing, which owner-supplied fixtures
+	// (internal/planquality) are for.
+	BaselinePassed bool
+	// BaselineDetail explains a baseline that could not be established.
+	BaselineDetail string
+
 	StartedAt time.Time
 	EndedAt   time.Time
 }

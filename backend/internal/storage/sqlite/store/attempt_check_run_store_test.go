@@ -77,6 +77,7 @@ func TestRecordAttemptCheckObservation_IsWriteOnce(t *testing.T) {
 	run.Observation = ports.AttemptCheckObservation{
 		Ran: true, Passed: false, ExitCode: 1, EnforcedBy: "macos-seatbelt-workspace-write",
 		Output: "FAIL\n", EndedAt: time.Unix(200, 0).UTC(),
+		BaselineRan: true, BaselinePassed: false,
 	}
 	if err := s.RecordAttemptCheckObservation(ctx, run); err != nil {
 		t.Fatalf("record observation: %v", err)
@@ -104,6 +105,52 @@ func TestRecordAttemptCheckObservation_IsWriteOnce(t *testing.T) {
 	}
 	if stored.Observation.EnforcedBy != "macos-seatbelt-workspace-write" {
 		t.Fatalf("the enforcing mechanism was lost: %+v", stored.Observation)
+	}
+	// The known-wrong baseline has to survive with the observation. Losing it
+	// would turn a check that was shown to depend on the work back into one
+	// that merely exited zero, so a replayed run would silently stop proving
+	// its criterion.
+	if !stored.Observation.BaselineRan || stored.Observation.BaselinePassed {
+		t.Fatalf("the known-wrong baseline was lost: %+v", stored.Observation)
+	}
+}
+
+// TestAttemptCheckRun_WithoutABaselineRecordsNoneRatherThanAPassingOne keeps a
+// row that predates baselines, or whose baseline could not be established,
+// from reading as one that failed the baseline. The two mean opposite things
+// for whether a passing check may support its criterion.
+func TestAttemptCheckRun_WithoutABaselineRecordsNoneRatherThanAPassingOne(t *testing.T) {
+	s := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "checkrunnobaseline")
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-nobaseline", domain.FenceSubjectForProject("checkrunnobaseline")))
+	if err != nil {
+		t.Fatalf("admit attempt: %v", err)
+	}
+	run := ports.AttemptCheckRun{
+		ID: "chkrun-nb", AttemptID: attempt.ID, CheckID: "chk-1",
+		ArtifactVersion: "artifact-v1", ReservedAt: time.Unix(100, 0).UTC(),
+	}
+	if err := s.ReserveAttemptCheckRun(ctx, run); err != nil {
+		t.Fatalf("reserve: %v", err)
+	}
+	run.Observation = ports.AttemptCheckObservation{
+		Ran: true, Passed: true, EnforcedBy: "macos-seatbelt-workspace-write",
+		EndedAt:        time.Unix(200, 0).UTC(),
+		BaselineDetail: "baseline did not finish, so nothing was established",
+	}
+	if err := s.RecordAttemptCheckObservation(ctx, run); err != nil {
+		t.Fatalf("record observation: %v", err)
+	}
+	stored, found, err := s.GetAttemptCheckRun(ctx, attempt.ID, "chk-1", "artifact-v1")
+	if err != nil || !found {
+		t.Fatalf("read run: found=%v err=%v", found, err)
+	}
+	if stored.Observation.BaselineRan || stored.Observation.BaselinePassed {
+		t.Fatalf("an unestablished baseline read back as established: %+v", stored.Observation)
+	}
+	if stored.Observation.BaselineDetail == "" {
+		t.Fatal("the reason no baseline was established was lost")
 	}
 }
 

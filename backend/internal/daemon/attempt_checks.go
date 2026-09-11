@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -79,10 +80,58 @@ func (r *attemptCheckRunner) measure(ctx context.Context, req ports.AttemptCheck
 	return observed, ""
 }
 
+// runBaseline runs the same command against a pristine empty workspace, under
+// the same frozen policy, to establish whether its result depends on the work
+// at all.
+//
+// A zero exit proves the criterion only if a non-zero exit was possible. A
+// command that passes with none of the work present — the recorded live failure
+// printed the expected string and exited zero — cannot be evidence that the
+// work happened. The baseline is what makes that detectable without a denylist
+// of commands that "do not count", which would be folklore and wrong for the
+// next command nobody listed.
+//
+// It establishes workspace dependence: necessary for the check to be evidence,
+// not sufficient. A check that fails here could still be testing the wrong
+// thing; owner-supplied fixtures are what answer that.
+//
+// The run is confined to a temporary directory that is removed afterwards, so
+// it cannot touch the result it is about. A baseline that cannot be established
+// is reported as unestablished rather than assumed either way.
+func (r *attemptCheckRunner) runBaseline(ctx context.Context, req ports.AttemptCheckRequest, check domain.ApprovedCheck, observation *ports.AttemptCheckObservation) {
+	root, err := os.MkdirTemp("", "kennel-check-baseline-")
+	if err != nil {
+		observation.BaselineDetail = "baseline workspace could not be created: " + err.Error()
+		return
+	}
+	defer func() { _ = os.RemoveAll(root) }()
+
+	run, err := governedcheck.Run(ctx, governedcheck.Request{
+		Policy:        req.Policy,
+		WorkspaceRoot: root,
+		Argv:          append([]string(nil), check.Argv...),
+		Timeout:       time.Duration(check.TimeoutSeconds) * time.Second,
+	})
+	switch {
+	case err != nil && run.EnforcedBy == "":
+		observation.BaselineDetail = "baseline could not be run: " + err.Error()
+	case run.TerminationUnknown, run.TimedOut, run.Cancelled:
+		// An interrupted baseline is not a failing baseline. Reading it as one
+		// would let a command that merely hung count as having discriminated.
+		observation.BaselineDetail = "baseline did not finish, so nothing was established"
+	default:
+		observation.BaselineRan = true
+		observation.BaselinePassed = err == nil
+	}
+}
+
 func (r *attemptCheckRunner) runOne(ctx context.Context, req ports.AttemptCheckRequest, check domain.ApprovedCheck, workspace string) ports.AttemptCheckObservation {
 	observation := ports.AttemptCheckObservation{
 		Check: check, ArtifactVersion: req.Receipt.ArtifactVersion, StartedAt: r.now(),
 	}
+	// The baseline runs first and in its own directory, so it can never observe
+	// or disturb the retained result the real run is about.
+	r.runBaseline(ctx, req, check, &observation)
 	run, err := governedcheck.Run(ctx, governedcheck.Request{
 		Policy:        req.Policy,
 		WorkspaceRoot: workspace,

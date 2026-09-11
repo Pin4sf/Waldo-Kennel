@@ -840,6 +840,7 @@ func (q *Queries) FindWorkResponsibilitySpaceByProject(ctx context.Context, proj
 const getAttemptCheckRun = `-- name: GetAttemptCheckRun :one
 SELECT id, attempt_id, check_id, artifact_version, state, reservation_epoch, ran, passed, exit_code, enforced_by,
        timed_out, cancelled, termination_unknown, output_truncated, output, unavailable,
+       baseline_ran, baseline_passed, baseline_detail,
        artifact_changed, observed_artifact_version, reserved_at, observed_at
 FROM attempt_check_runs WHERE attempt_id = ? AND check_id = ? AND artifact_version = ?
 `
@@ -867,6 +868,9 @@ type GetAttemptCheckRunRow struct {
 	OutputTruncated         int64
 	Output                  string
 	Unavailable             string
+	BaselineRan             int64
+	BaselinePassed          int64
+	BaselineDetail          string
 	ArtifactChanged         int64
 	ObservedArtifactVersion string
 	ReservedAt              time.Time
@@ -893,6 +897,9 @@ func (q *Queries) GetAttemptCheckRun(ctx context.Context, arg GetAttemptCheckRun
 		&i.OutputTruncated,
 		&i.Output,
 		&i.Unavailable,
+		&i.BaselineRan,
+		&i.BaselinePassed,
+		&i.BaselineDetail,
 		&i.ArtifactChanged,
 		&i.ObservedArtifactVersion,
 		&i.ReservedAt,
@@ -1248,6 +1255,7 @@ func (q *Queries) LatestProposedPlanRevision(ctx context.Context, arg LatestProp
 const listAttemptCheckRuns = `-- name: ListAttemptCheckRuns :many
 SELECT id, attempt_id, check_id, artifact_version, state, reservation_epoch, ran, passed, exit_code, enforced_by,
        timed_out, cancelled, termination_unknown, output_truncated, output, unavailable,
+       baseline_ran, baseline_passed, baseline_detail,
        artifact_changed, observed_artifact_version, reserved_at, observed_at
 FROM attempt_check_runs WHERE attempt_id = ? AND artifact_version = ? ORDER BY reserved_at, id
 `
@@ -1274,6 +1282,9 @@ type ListAttemptCheckRunsRow struct {
 	OutputTruncated         int64
 	Output                  string
 	Unavailable             string
+	BaselineRan             int64
+	BaselinePassed          int64
+	BaselineDetail          string
 	ArtifactChanged         int64
 	ObservedArtifactVersion string
 	ReservedAt              time.Time
@@ -1306,6 +1317,9 @@ func (q *Queries) ListAttemptCheckRuns(ctx context.Context, arg ListAttemptCheck
 			&i.OutputTruncated,
 			&i.Output,
 			&i.Unavailable,
+			&i.BaselineRan,
+			&i.BaselinePassed,
+			&i.BaselineDetail,
 			&i.ArtifactChanged,
 			&i.ObservedArtifactVersion,
 			&i.ReservedAt,
@@ -2057,7 +2071,9 @@ const recordAttemptCheckObservation = `-- name: RecordAttemptCheckObservation :e
 UPDATE attempt_check_runs
 SET state = 'observed', ran = ?, passed = ?, exit_code = ?, enforced_by = ?,
     timed_out = ?, cancelled = ?, termination_unknown = ?, output_truncated = ?,
-    output = ?, unavailable = ?, artifact_changed = ?, observed_artifact_version = ?,
+    output = ?, unavailable = ?,
+    baseline_ran = ?, baseline_passed = ?, baseline_detail = ?,
+    artifact_changed = ?, observed_artifact_version = ?,
     observed_at = ?
 WHERE attempt_id = ? AND check_id = ? AND artifact_version = ? AND state = 'reserved'
 `
@@ -2073,6 +2089,9 @@ type RecordAttemptCheckObservationParams struct {
 	OutputTruncated         int64
 	Output                  string
 	Unavailable             string
+	BaselineRan             int64
+	BaselinePassed          int64
+	BaselineDetail          string
 	ArtifactChanged         int64
 	ObservedArtifactVersion string
 	ObservedAt              sql.NullTime
@@ -2093,6 +2112,9 @@ func (q *Queries) RecordAttemptCheckObservation(ctx context.Context, arg RecordA
 		arg.OutputTruncated,
 		arg.Output,
 		arg.Unavailable,
+		arg.BaselineRan,
+		arg.BaselinePassed,
+		arg.BaselineDetail,
 		arg.ArtifactChanged,
 		arg.ObservedArtifactVersion,
 		arg.ObservedAt,

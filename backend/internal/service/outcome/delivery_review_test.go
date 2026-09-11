@@ -35,6 +35,14 @@ func newDeliveryReviewHarness(t *testing.T) *deliveryReviewHarness {
 	if err := os.WriteFile(filepath.Join(workspace, "answer.txt"), []byte("accepted\n"), 0o640); err != nil {
 		t.Fatal(err)
 	}
+	// A nested artifact, so verification has an intermediate directory to
+	// resolve rather than only leaf files.
+	if err := os.Mkdir(filepath.Join(workspace, "nested"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workspace, "nested", "deep.txt"), []byte("deep\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
 	attempt := domain.Attempt{
 		ID: "attempt-review", OutcomeID: "outcome-review", WorkUnitID: "unit-review",
 		PlanRevisionID: "plan-review", ContractRevisionNumber: 1,

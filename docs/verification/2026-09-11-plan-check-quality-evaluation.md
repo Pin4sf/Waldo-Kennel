@@ -109,23 +109,58 @@ earlier refusal, not a replacement for either.
 an inconclusive verification, and a criterion is still ready only when the
 latest supporting evidence carries a passing verification bound to it.
 
-## What is still open, and needs an owner decision
+## Runtime gating — now enforced
 
-The falsifier grades proposals; it does not yet gate runtime proof. `checkVerdict`
-still maps any passing check to `VerificationPassed`, so a vacuous check that
-survives review would still produce criterion proof.
+> Added after this evaluation was first written, in the commit that follows it.
 
-Closing that means recording per-check **discrimination provenance** — the
-demonstration that this check separates a known-wrong baseline from a correct
-result — and treating a pass without it as inconclusive. That is the right end
-state, and it is deliberately not done here: applied today it would make every
-existing check inconclusive, because no discrimination evidence exists anywhere
-yet, and the Outcome loop would stop reaching review at all. Sequencing it —
-collect discrimination evidence first, then require it — is a product decision.
+The falsifier above grades *proposals*. It did not gate runtime proof:
+`checkVerdict` mapped any passing check to `VerificationPassed`, so a vacuous
+check that survived review still produced criterion proof. That is now closed.
 
-The narrower interim step, if that is wanted sooner: surface at Plan review
-which criteria are covered only by checks whose discrimination has never been
-demonstrated, so approval is informed without changing what proof means.
+**The gate.** A check that passed supports its criterion only if it was also
+shown to be able to fail. The demonstration is a **known-wrong baseline**: the
+same command, under the same frozen Attempt policy, run against a pristine empty
+workspace holding none of the work. A command that passes there passes whatever
+the Attempt did.
+
+| Real run | Baseline | Verification |
+|---|---|---|
+| passed | ran, failed | `passed` — the result depended on the work |
+| passed | ran, passed | `inconclusive` — this is the recorded live failure |
+| passed | not established | `inconclusive` — nothing showed it could fail |
+| failed | any | `failed`, as before |
+| did not run | any | `inconclusive`, as before |
+
+The evidence summary says which of the two inconclusive cases it was, because
+"this check is useless" and "we could not establish a baseline" send an owner
+somewhere different. The baseline is durable (migration 0129) so a replayed or
+interrupted run does not silently lose it, and an unestablished baseline reads
+back as unestablished rather than as one that failed.
+
+**What this claims, precisely.** Failing the baseline establishes *workspace
+dependence*. That is a **necessary** condition for a check to be evidence, not a
+sufficient one: a check that fails on an empty workspace could still be testing
+the wrong thing. Demonstrating that it tests the *right* thing needs
+owner-supplied known-wrong and correct fixtures, which is what
+`internal/planquality` is for and which is still not wired into approval.
+
+**Costs, stated plainly.** Every check now runs twice — once against the result
+and once against an empty directory — bounded by the same timeout. The baseline
+runs first, in its own temporary directory that is removed afterwards, so it
+cannot observe or disturb the result it is about.
+
+**Consequence for existing Plans.** Any check whose result does not depend on
+the workspace stops proving its criterion. That is the intended effect and it is
+deliberately loud: such a check was never evidence, and the Outcome it belonged
+to was reaching review on a zero exit that meant nothing.
+
+## What is still open
+
+Owner fixtures are not wired into Plan approval, so nothing yet establishes that
+a workspace-dependent check tests the *correct* criterion. The evaluator exists
+and is regression-tested; connecting it to approval — and deciding whether an
+owner must attest discrimination before approving a Plan — remains a product
+decision.
 
 ## Evidence and limits
 
