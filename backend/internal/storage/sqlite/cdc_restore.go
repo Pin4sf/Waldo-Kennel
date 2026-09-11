@@ -24,6 +24,10 @@ var changeLogWriters = []struct {
 	// is restored only when the subject table and every dependency physically
 	// exist, so partially migrated profiles never carry half-built triggers.
 	deps []string
+	// columns lists subject-table columns introduced after the table itself.
+	// Degraded or intentionally partial migration tests must not receive a
+	// trigger that references columns their schema does not yet have.
+	columns []string
 	// since is the migration filename prefix that introduced this writer, for
 	// writers added after the 0106 rebuild-detach guard began. A rebuild
 	// migration cannot be expected to detach a writer that did not exist when
@@ -399,6 +403,14 @@ var changeLogWriters = []struct {
 		sql:   "CREATE TRIGGER outcome_run_intents_cdc_acknowledged\nAFTER UPDATE ON outcome_run_intents\nWHEN OLD.acknowledged_at IS NULL AND NEW.acknowledged_at IS NOT NULL\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT rs.project_id FROM outcomes o JOIN responsibility_spaces rs ON rs.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL,\n        'outcome_run_intent_changed',\n        json_object('outcomeId', NEW.outcome_id, 'generation', NEW.generation, 'desired', NEW.desired, 'acknowledged', 1),\n        NEW.acknowledged_at\n    );\nEND;",
 	},
 	{
+		name:    "outcome_run_intents_cdc_failure",
+		table:   "outcome_run_intents",
+		deps:    []string{"outcomes", "responsibility_spaces"},
+		columns: []string{"admission_failure_code", "admission_failed_at"},
+		since:   "0132",
+		sql:     "CREATE TRIGGER outcome_run_intents_cdc_failure\nAFTER UPDATE ON outcome_run_intents\nWHEN OLD.admission_failure_code = '' AND NEW.admission_failure_code <> ''\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (\n        (SELECT rs.project_id FROM outcomes o JOIN responsibility_spaces rs ON rs.id = o.space_id WHERE o.id = NEW.outcome_id),\n        NULL,\n        'outcome_run_intent_changed',\n        json_object('outcomeId', NEW.outcome_id, 'generation', NEW.generation, 'desired', NEW.desired, 'admissionFailed', 1),\n        NEW.admission_failed_at\n    );\nEND;",
+	},
+	{
 		name:  "outcome_deliveries_cdc_insert",
 		table: "outcome_deliveries",
 		deps:  []string{"outcomes", "responsibility_spaces"},
@@ -455,6 +467,20 @@ func restoreChangeLogWriters(db *sql.DB) error {
 		if !ready {
 			// A trigger body that joins an absent table would abort every
 			// future write to its subject; defer until dependencies land.
+			continue
+		}
+		for _, column := range w.columns {
+			var c int
+			query := fmt.Sprintf("SELECT count(*) FROM pragma_table_info('%s') WHERE name=?", w.table)
+			if err := db.QueryRow(query, column).Scan(&c); err != nil {
+				return fmt.Errorf("inspect column %s.%s for %s: %w", w.table, column, w.name, err)
+			}
+			if c == 0 {
+				ready = false
+				break
+			}
+		}
+		if !ready {
 			continue
 		}
 		if _, err := db.Exec(w.sql); err != nil {

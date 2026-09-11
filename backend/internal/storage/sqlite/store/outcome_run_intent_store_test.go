@@ -228,3 +228,38 @@ func TestAcknowledgeRunIntent_IsWriteOnce(t *testing.T) {
 		t.Fatalf("acknowledgement = %v, want the first one to stand", current.AcknowledgedAt)
 	}
 }
+
+func TestRecordRunAdmissionFailure_IsWriteOnceAndRejectsStaleGeneration(t *testing.T) {
+	s := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "runfailure")
+	started, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentRunning, domain.RunCommandStart, 0, "runfailure-start", "start/runfailure"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	failure := domain.RunAdmissionFailure{Code: "AGENT_PROFILE_NOT_READY", Message: "Profile is unavailable", DetailJSON: `{"detail":"sign in"}`, WorkUnitID: plan.WorkUnits[0].ID, OccurredAt: time.Unix(500, 0).UTC()}
+	recorded, err := s.RecordRunAdmissionFailure(ctx, outcomeID, started.Generation, failure)
+	if err != nil || !recorded {
+		t.Fatalf("recorded=%v err=%v", recorded, err)
+	}
+	recorded, err = s.RecordRunAdmissionFailure(ctx, outcomeID, started.Generation, domain.RunAdmissionFailure{Code: "OTHER", Message: "rewrite", DetailJSON: `{}`, WorkUnitID: plan.WorkUnits[0].ID, OccurredAt: time.Unix(600, 0).UTC()})
+	if err != nil || recorded {
+		t.Fatalf("rewrite recorded=%v err=%v, want write-once no-op", recorded, err)
+	}
+	current, found, err := s.CurrentRunIntent(ctx, outcomeID)
+	if err != nil || !found || current.AdmissionFailure == nil || current.AdmissionFailure.Code != failure.Code {
+		t.Fatalf("current = %+v found=%v err=%v", current, found, err)
+	}
+	paused, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentPaused, domain.RunCommandPause, started.Generation, "runfailure-pause", "pause/runfailure"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorded, err = s.RecordRunAdmissionFailure(ctx, outcomeID, started.Generation, failure)
+	if err != nil || recorded {
+		t.Fatalf("stale failure recorded=%v err=%v, want no-op after generation %d", recorded, err, paused.Generation)
+	}
+	history, err := s.ListRunIntents(ctx, outcomeID)
+	if err != nil || len(history) != 2 || history[0].AdmissionFailure == nil || history[1].AdmissionFailure != nil {
+		t.Fatalf("history = %+v err=%v, want preserved old blocker and clean new generation", history, err)
+	}
+}

@@ -106,6 +106,10 @@ const (
 	CodeAgentProfileNotReady = "AGENT_PROFILE_NOT_READY"
 	// CodeAgentBinaryNotFound indicates that the selected provider binary is absent.
 	CodeAgentBinaryNotFound = "AGENT_BINARY_NOT_FOUND"
+	// CodeAttemptPrelaunchFailed proves launch failed before the provider boundary.
+	CodeAttemptPrelaunchFailed = "ATTEMPT_PRELAUNCH_FAILED"
+	// CodeAttemptWorkspacePreparationFailed is the specialized workspace form.
+	CodeAttemptWorkspacePreparationFailed = "ATTEMPT_WORKSPACE_PREPARATION_FAILED"
 	// CodePlanNotApproved indicates that owner approval is missing.
 	CodePlanNotApproved = "PLAN_NOT_APPROVED"
 	// CodePlanBriefInvalidated indicates the approved plan no longer matches context.
@@ -324,8 +328,9 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		// this failure is known rather than ambiguous. It is recorded and the
 		// Attempt is ended, leaving any partially provisioned workspace
 		// attributable instead of holding custody for a run that never began.
-		if errors.Is(err, ports.ErrAttemptInputProvisioning) || errors.Is(err, ports.ErrAttemptWorkspacePreparation) {
-			return AttemptView{}, s.admitProvisioningFailure(ctx, outcomeID, unit, attempt, err)
+		var prelaunch *ports.AttemptPrelaunchError
+		if errors.Is(err, ports.ErrAttemptInputProvisioning) || errors.Is(err, ports.ErrAttemptWorkspacePreparation) || errors.As(err, &prelaunch) {
+			return AttemptView{}, s.admitPrelaunchFailure(ctx, outcomeID, unit, attempt, err)
 		}
 		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationAdmissionAmbiguous, err)
 	}
@@ -629,35 +634,35 @@ func computeCompiledBriefDigest(binding domain.ExecutionBinding, mode domain.Ses
 	return hex.EncodeToString(sum[:])
 }
 
-// admitProvisioningFailure records a known pre-launch failure and ends the
+// admitPrelaunchFailure records a known pre-launch failure and ends the
 // Attempt so its custody is released for a deliberate retry.
 //
 // Nothing ran, so holding the worktree fence would block the owner without
 // protecting anything. The workspace itself is left alone by the session
 // manager when it holds partial content, so failed custody stays inspectable.
-func (s *Service) admitProvisioningFailure(ctx context.Context, outcomeID domain.OutcomeID, unit domain.WorkUnit, attempt domain.Attempt, cause error) error {
+func (s *Service) admitPrelaunchFailure(ctx context.Context, outcomeID domain.OutcomeID, unit domain.WorkUnit, attempt domain.Attempt, cause error) error {
 	payload := mustJSON(map[string]any{"error": cause.Error(), "workUnitId": string(unit.ID), "providerLaunched": false})
 	kind := domain.ObservationInputProvisioningFailed
 	if errors.Is(cause, ports.ErrAttemptWorkspacePreparation) {
 		kind = domain.ObservationAdmissionFailed
 	}
 
-	var errs []error
-	if _, err := s.store.AppendAttemptObservation(ctx, attempt.ID, kind, payload, s.clock()); err != nil {
-		errs = append(errs, fmt.Errorf("record provisioning failure for %s: %w", attempt.ID, err))
-	}
-	if rows, err := s.store.TransitionAttemptStatus(ctx, outcomeID, attempt.ID, domain.AttemptQueued, domain.AttemptFailed, s.clock()); err != nil {
-		errs = append(errs, fmt.Errorf("end unprovisioned attempt %s: %w", attempt.ID, err))
-	} else if rows != 1 {
-		errs = append(errs, fmt.Errorf("end unprovisioned attempt %s: %d rows changed", attempt.ID, rows))
+	if _, err := s.store.FailAttemptBeforeLaunch(ctx, ports.AttemptPrelaunchFailure{
+		OutcomeID: outcomeID, AttemptID: attempt.ID, ObservationKind: kind,
+		ObservationPayload: payload, ReleaseReason: "provider_not_launched", At: s.clock(),
+	}); err != nil {
+		return errors.Join(fmt.Errorf("record prelaunch failure for %s: %w", attempt.ID, err), materializationFailed(unit, attempt.ID, cause))
 	}
 	refused := materializationFailed(unit, attempt.ID, cause)
 	if errors.Is(cause, ports.ErrAttemptWorkspacePreparation) {
-		refused = apierr.New(apierr.KindConflict, "ATTEMPT_WORKSPACE_PREPARATION_FAILED", "The workspace could not be prepared; no provider was started", map[string]any{"attemptId": string(attempt.ID), "detail": cause.Error()})
-	}
-
-	if len(errs) > 0 {
-		return errors.Join(append(errs, refused)...)
+		refused = apierr.New(apierr.KindConflict, CodeAttemptWorkspacePreparationFailed, "The workspace could not be prepared; no provider was started", map[string]any{"attemptId": string(attempt.ID), "detail": cause.Error()})
+	} else if errors.Is(cause, ports.ErrAgentBinaryNotFound) {
+		refused = apierr.New(apierr.KindConflict, CodeAgentBinaryNotFound, "The authorized agent binary is not installed on this machine; no provider was started", map[string]any{"attemptId": string(attempt.ID), "detail": cause.Error()})
+	} else {
+		var prelaunch *ports.AttemptPrelaunchError
+		if errors.As(cause, &prelaunch) {
+			refused = apierr.New(apierr.KindConflict, CodeAttemptPrelaunchFailed, "The Attempt could not launch; no provider was started", map[string]any{"attemptId": string(attempt.ID), "stage": prelaunch.Stage, "detail": cause.Error()})
+		}
 	}
 	return refused
 }

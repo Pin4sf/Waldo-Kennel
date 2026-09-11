@@ -21,6 +21,29 @@ var ErrAttemptInputProvisioning = errors.New("attempt input provisioning failed"
 // remain; it does not imply an unknown provider process.
 var ErrAttemptWorkspacePreparation = errors.New("attempt workspace preparation failed")
 
+// AttemptPrelaunchError proves Spawn failed before any provider launch API was
+// invoked. Stage is adapter-neutral diagnostic provenance; callers may use the
+// proof to terminalize the Attempt and release custody without guessing that a
+// provider might still be alive.
+type AttemptPrelaunchError struct {
+	Stage string
+	Err   error
+}
+
+func (e *AttemptPrelaunchError) Error() string {
+	if e == nil || e.Err == nil {
+		return "attempt failed before provider launch"
+	}
+	return e.Err.Error()
+}
+
+func (e *AttemptPrelaunchError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 // AttemptInputRef names one exact retained predecessor result admitted to a
 // successor.
 //

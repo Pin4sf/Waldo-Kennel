@@ -118,6 +118,7 @@ type OutcomeStore interface {
 	GetOutcomeProjectID(context.Context, domain.OutcomeID) (domain.ProjectID, bool, error)
 	FindAttemptByIdempotencyKey(context.Context, string) (domain.Attempt, bool, error)
 	CreateAttemptWithFence(context.Context, AttemptAdmission) (domain.Attempt, error)
+	FailAttemptBeforeLaunch(context.Context, AttemptPrelaunchFailure) (domain.AttemptObservation, error)
 	GetAttempt(context.Context, domain.OutcomeID, domain.AttemptID) (domain.Attempt, bool, error)
 	ListAttempts(context.Context, domain.OutcomeID) ([]domain.Attempt, error)
 	TransitionAttemptStatus(context.Context, domain.OutcomeID, domain.AttemptID, domain.AttemptStatus, domain.AttemptStatus, time.Time) (int64, error)
@@ -132,6 +133,18 @@ type OutcomeStore interface {
 	RenewFenceForAttempt(context.Context, domain.AttemptID, time.Time) (int64, error)
 	CreateRecoveryReceipt(context.Context, domain.AttemptRecoveryReceipt) error
 	ListRecoveryReceipts(context.Context, domain.AttemptID) ([]domain.AttemptRecoveryReceipt, error)
+}
+
+// AttemptPrelaunchFailure is the single atomic store operation for a failure
+// proven to have happened before provider launch. Observation, queued-to-failed
+// terminalization, and custody release must either all commit or all roll back.
+type AttemptPrelaunchFailure struct {
+	OutcomeID          domain.OutcomeID
+	AttemptID          domain.AttemptID
+	ObservationKind    string
+	ObservationPayload string
+	ReleaseReason      string
+	At                 time.Time
 }
 
 // AttemptFenceHeldError reports exclusive worktree custody held by another

@@ -670,16 +670,21 @@ type OutcomePurgeScope struct {
 }
 
 type OutcomeRunIntent struct {
-	ID                     string
-	OutcomeID              string
-	Generation             int64
-	Desired                string
-	PlanRevisionID         string
-	ContractRevisionNumber int64
-	RequestKey             string
-	RequestedAt            time.Time
-	AcknowledgedAt         sql.NullTime
-	RequestFingerprint     string
+	ID                         string
+	OutcomeID                  string
+	Generation                 int64
+	Desired                    string
+	PlanRevisionID             string
+	ContractRevisionNumber     int64
+	RequestKey                 string
+	RequestedAt                time.Time
+	AcknowledgedAt             sql.NullTime
+	RequestFingerprint         string
+	AdmissionFailureCode       string
+	AdmissionFailureMessage    string
+	AdmissionFailureDetail     string
+	AdmissionFailureWorkUnitID string
+	AdmissionFailedAt          sql.NullTime
 }
 
 type OutcomeTrash struct {

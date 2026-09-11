@@ -2001,8 +2001,13 @@ func TestSpawn_StampsUTCTimestamps(t *testing.T) {
 func TestSpawn_RollsBackOnRuntimeFailure(t *testing.T) {
 	m, st, _, ws := newManager()
 	m.runtime = &fakeRuntime{createErr: errors.New("boom")}
-	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer"}); err == nil {
+	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer"})
+	if err == nil {
 		t.Fatal("expected failure")
+	}
+	var prelaunch *ports.AttemptPrelaunchError
+	if errors.As(err, &prelaunch) {
+		t.Fatalf("runtime.Create was invoked; failure must remain ambiguous, got prelaunch stage %q", prelaunch.Stage)
 	}
 	if ws.destroyed != 1 {
 		t.Fatal("workspace should roll back")
@@ -4336,6 +4341,10 @@ func TestSpawn_RejectsMissingAgentBinary(t *testing.T) {
 	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
 	if !errors.Is(err, ports.ErrAgentBinaryNotFound) {
 		t.Fatalf("err = %v, want ports.ErrAgentBinaryNotFound", err)
+	}
+	var prelaunch *ports.AttemptPrelaunchError
+	if !errors.As(err, &prelaunch) || prelaunch.Stage != "prepare_tui_launch" {
+		t.Fatalf("err = %v, want proven prepare_tui_launch failure", err)
 	}
 	if rt.created != 0 {
 		t.Fatal("runtime.Create must NOT run when the agent binary is missing")

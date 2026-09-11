@@ -2,6 +2,7 @@ package outcome_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -181,6 +182,43 @@ func TestContinueAuthorizedRuns_AdmitsEachEligibleWorkUnitOnce(t *testing.T) {
 	}
 	if calls := h.spawner.spawnCalls(); calls != 1 {
 		t.Fatalf("providers launched = %d, want one", calls)
+	}
+}
+
+func TestContinueAuthorizedRuns_ReadinessFailureIsActionableAndNotBlindlyRetried(t *testing.T) {
+	h := newRunHarness(t)
+	h.spawner.setReadiness(ports.AgentProfileReadiness{Ready: false, Detail: "Sign in to the selected Codex profile"})
+	h.mustCommand(t, domain.RunCommandStart, "rk-start")
+	ctx := context.Background()
+
+	if err := h.svc.ContinueAuthorizedRuns(ctx); err != nil {
+		t.Fatalf("first continuation: %v", err)
+	}
+	view, err := h.svc.GetRunState(ctx, h.outcomeID)
+	if err != nil {
+		t.Fatalf("run state: %v", err)
+	}
+	if view.State != outcome.MissionNeedsYou || view.Blocker == nil || view.Blocker.Code != outcome.CodeAgentProfileNotReady {
+		t.Fatalf("state = %q blocker=%+v, want an actionable readiness blocker", view.State, view.Blocker)
+	}
+	if view.Intent == nil || !strings.Contains(view.Intent.LastError, "not ready") {
+		t.Fatalf("intent = %+v, want persisted last error", view.Intent)
+	}
+	if err := h.svc.ContinueAuthorizedRuns(ctx); err != nil {
+		t.Fatalf("second continuation: %v", err)
+	}
+	if calls := h.spawner.readinessCalls(); calls != 1 {
+		t.Fatalf("readiness probes = %d, want one until deliberate re-authorization", calls)
+	}
+
+	h.mustCommand(t, domain.RunCommandPause, "rk-pause")
+	h.spawner.setReadiness(ports.AgentProfileReadiness{Ready: true})
+	h.mustCommand(t, domain.RunCommandResume, "rk-resume")
+	if err := h.svc.ContinueAuthorizedRuns(ctx); err != nil {
+		t.Fatalf("continuation after deliberate retry: %v", err)
+	}
+	if calls := h.spawner.spawnCalls(); calls != 1 {
+		t.Fatalf("providers launched = %d, want the new generation to supersede the blocker", calls)
 	}
 }
 

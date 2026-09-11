@@ -2,11 +2,13 @@ package outcome_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
 // TestStartAttempt_RootWorkUnitIsAdmittedWithNoInputs pins the other half of
@@ -122,7 +124,7 @@ func TestStartAttempt_WorkspaceFailureIsKnownAndReleasesCustody(t *testing.T) {
 	rememberFirstWorkUnit(plan.Plan)
 	spawner.failNextSpawn(fmt.Errorf("%w: branch checked out in another profile", ports.ErrAttemptWorkspacePreparation))
 	_, err = svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
-	if requireAPICode(t, err) != "ATTEMPT_WORKSPACE_PREPARATION_FAILED" {
+	if requireAPICode(t, err) != outcome.CodeAttemptWorkspacePreparationFailed {
 		t.Fatal(err)
 	}
 	attempts, err := store.ListAttempts(context.Background(), outcomeID)
@@ -138,7 +140,35 @@ func TestStartAttempt_WorkspaceFailureIsKnownAndReleasesCustody(t *testing.T) {
 			t.Fatal("known workspace failure treated as unknown launch")
 		}
 	}
-	if _, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID)); err != nil {
+	retry := startInput(planID)
+	retry.RequestKey = "req-start-after-known-workspace-failure"
+	if _, err := svc.StartAttempt(context.Background(), outcomeID, retry); err != nil {
 		t.Fatalf("known failure held custody against retry: %v", err)
+	}
+	if calls := spawner.spawnCalls(); calls != 2 {
+		t.Fatalf("spawn calls = %d, want failed launch plus deliberate retry", calls)
+	}
+}
+
+func TestStartAttempt_ProvenPrelaunchFailureIsTerminalAndRetryable(t *testing.T) {
+	svc, store, spawner, _, outcomeID, planID := newAttemptHarness(t)
+	plan, err := svc.GetLatestPlan(context.Background(), outcomeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rememberFirstWorkUnit(plan.Plan)
+	spawner.failNextSpawn(&ports.AttemptPrelaunchError{Stage: "prepare_tui_launch", Err: errors.New("launch command could not be prepared")})
+	_, err = svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if requireAPICode(t, err) != outcome.CodeAttemptPrelaunchFailed {
+		t.Fatal(err)
+	}
+	attempts, err := store.ListAttempts(context.Background(), outcomeID)
+	if err != nil || len(attempts) != 1 || attempts[0].Status != domain.AttemptFailed {
+		t.Fatalf("attempts = %+v err=%v, want one failed prelaunch attempt", attempts, err)
+	}
+	retry := startInput(planID)
+	retry.RequestKey = "req-start-after-generic-prelaunch-failure"
+	if _, err := svc.StartAttempt(context.Background(), outcomeID, retry); err != nil {
+		t.Fatalf("fresh retry: %v", err)
 	}
 }

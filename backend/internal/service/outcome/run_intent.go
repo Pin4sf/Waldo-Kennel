@@ -514,6 +514,11 @@ func (s *Service) ContinueAuthorizedRuns(ctx context.Context) error {
 	}
 	var failures []error
 	for _, intent := range intents {
+		if intent.AdmissionFailure != nil {
+			// This exact authorization already reached a durable, owner-visible
+			// refusal. Only a new owner generation may retry it.
+			continue
+		}
 		if err := s.continueOneRun(ctx, intent); err != nil {
 			failures = append(failures, fmt.Errorf("outcome %s: %w", intent.OutcomeID, err))
 		}
@@ -543,10 +548,11 @@ func (s *Service) continueOneRun(ctx context.Context, intent domain.OutcomeRunIn
 	if schedule.NextRunnableID.IsZero() {
 		return nil
 	}
+	requestKey := runContinuationKey(intent, schedule.NextRunnableID)
 	_, err = s.StartAttempt(ctx, intent.OutcomeID, StartAttemptInput{
 		PlanRevisionID: intent.PlanRevisionID,
 		WorkUnitID:     schedule.NextRunnableID,
-		RequestKey:     runContinuationKey(intent, schedule.NextRunnableID),
+		RequestKey:     requestKey,
 	})
 	if err == nil {
 		return nil
@@ -557,6 +563,30 @@ func (s *Service) continueOneRun(ctx context.Context, intent domain.OutcomeRunIn
 	// failure is exactly the loop this design refuses to build.
 	var api *apierr.Error
 	if asAPIErr(err, &api) {
+		attempt, found, findErr := s.store.FindAttemptByIdempotencyKey(ctx, requestKey)
+		if findErr != nil {
+			return findErr
+		}
+		if found && attemptActiveForScheduling(attempt.Status) {
+			// The provider boundary was crossed or could not be disproved. Its
+			// Attempt and fence remain the recovery surface; never downgrade that
+			// uncertainty into a retryable run-intent blocker.
+			return nil
+		}
+		detail, marshalErr := json.Marshal(api.Details)
+		if marshalErr != nil {
+			return fmt.Errorf("encode run admission failure detail: %w", marshalErr)
+		}
+		if string(detail) == "null" {
+			detail = []byte("{}")
+		}
+		_, recordErr := s.runIntents.RecordRunAdmissionFailure(ctx, intent.OutcomeID, intent.Generation, domain.RunAdmissionFailure{
+			Code: api.Code, Message: api.Message, DetailJSON: string(detail),
+			WorkUnitID: schedule.NextRunnableID, OccurredAt: s.clock(),
+		})
+		if recordErr != nil {
+			return recordErr
+		}
 		return nil
 	}
 	return err

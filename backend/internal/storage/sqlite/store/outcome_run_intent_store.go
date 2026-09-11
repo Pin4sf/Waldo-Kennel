@@ -164,25 +164,50 @@ func (s *Store) AcknowledgeRunIntent(ctx context.Context, outcomeID domain.Outco
 	return nil
 }
 
+// RecordRunAdmissionFailure records a blocker only on the still-current
+// running generation. The guarded update is the stale-result fence: if the
+// owner has paused, cancelled, or deliberately re-authorized, the old result
+// changes zero rows and cannot contaminate the newer decision.
+func (s *Store) RecordRunAdmissionFailure(ctx context.Context, outcomeID domain.OutcomeID, generation int64, failure domain.RunAdmissionFailure) (bool, error) {
+	if outcomeID.IsZero() || generation < 1 {
+		return false, fmt.Errorf("record run admission failure requires outcome and generation")
+	}
+	if err := failure.Validate(); err != nil {
+		return false, err
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.RecordOutcomeRunAdmissionFailure(ctx, gen.RecordOutcomeRunAdmissionFailureParams{
+		AdmissionFailureCode: failure.Code, AdmissionFailureMessage: failure.Message,
+		AdmissionFailureDetail: failure.DetailJSON, AdmissionFailureWorkUnitID: string(failure.WorkUnitID),
+		AdmissionFailedAt: sql.NullTime{Time: failure.OccurredAt, Valid: true},
+		OutcomeID:         string(outcomeID), Generation: generation, OutcomeID_2: string(outcomeID),
+	})
+	if err != nil {
+		return false, fmt.Errorf("record run admission failure %s/%d: %w", outcomeID, generation, err)
+	}
+	return rows == 1, nil
+}
+
 var _ ports.RunIntentStore = (*Store)(nil)
 
 func runIntentFromCurrentRow(row gen.CurrentOutcomeRunIntentRow) domain.OutcomeRunIntent {
-	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt)
+	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt, row.AdmissionFailureCode, row.AdmissionFailureMessage, row.AdmissionFailureDetail, row.AdmissionFailureWorkUnitID, row.AdmissionFailedAt)
 }
 
 func runIntentFromRequestKeyRow(row gen.FindOutcomeRunIntentByRequestKeyRow) domain.OutcomeRunIntent {
-	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt)
+	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt, row.AdmissionFailureCode, row.AdmissionFailureMessage, row.AdmissionFailureDetail, row.AdmissionFailureWorkUnitID, row.AdmissionFailedAt)
 }
 
 func runIntentFromListRow(row gen.ListOutcomeRunIntentsRow) domain.OutcomeRunIntent {
-	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt)
+	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt, row.AdmissionFailureCode, row.AdmissionFailureMessage, row.AdmissionFailureDetail, row.AdmissionFailureWorkUnitID, row.AdmissionFailedAt)
 }
 
 func runIntentFromCurrentListRow(row gen.ListCurrentRunIntentsByDesiredRow) domain.OutcomeRunIntent {
-	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt)
+	return runIntentFromValues(row.ID, row.OutcomeID, row.Generation, row.Desired, row.PlanRevisionID, row.ContractRevisionNumber, row.RequestKey, row.RequestFingerprint, row.RequestedAt, row.AcknowledgedAt, row.AdmissionFailureCode, row.AdmissionFailureMessage, row.AdmissionFailureDetail, row.AdmissionFailureWorkUnitID, row.AdmissionFailedAt)
 }
 
-func runIntentFromValues(id, outcomeID string, generation int64, desired, planID string, contractRevision int64, requestKey, fingerprint string, requestedAt time.Time, acknowledgedAt sql.NullTime) domain.OutcomeRunIntent {
+func runIntentFromValues(id, outcomeID string, generation int64, desired, planID string, contractRevision int64, requestKey, fingerprint string, requestedAt time.Time, acknowledgedAt sql.NullTime, failureCode, failureMessage, failureDetail, failureWorkUnitID string, failedAt sql.NullTime) domain.OutcomeRunIntent {
 	intent := domain.OutcomeRunIntent{
 		ID: domain.RunIntentID(id), OutcomeID: domain.OutcomeID(outcomeID),
 		Generation: generation, Desired: domain.RunIntentDesired(desired),
@@ -192,6 +217,9 @@ func runIntentFromValues(id, outcomeID string, generation int64, desired, planID
 	if acknowledgedAt.Valid {
 		at := acknowledgedAt.Time
 		intent.AcknowledgedAt = &at
+	}
+	if failureCode != "" && failedAt.Valid {
+		intent.AdmissionFailure = &domain.RunAdmissionFailure{Code: failureCode, Message: failureMessage, DetailJSON: failureDetail, WorkUnitID: domain.WorkUnitID(failureWorkUnitID), OccurredAt: failedAt.Time}
 	}
 	return intent
 }

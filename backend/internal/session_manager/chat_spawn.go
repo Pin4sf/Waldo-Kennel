@@ -97,14 +97,15 @@ type ChatStarted struct {
 // chatSpawn bundles the shared state the chat launch needs from Spawn, so the
 // signature does not grow to a dozen positional arguments.
 type chatSpawn struct {
-	cfg              ports.SpawnConfig
-	project          domain.ProjectRecord
-	projectKind      domain.ProjectKind
-	record           domain.SessionRecord
-	workspace        ports.WorkspaceInfo
-	workspaceProject *ports.WorkspaceProjectInfo
-	prompt           string
-	systemPrompt     string
+	cfg                  ports.SpawnConfig
+	project              domain.ProjectRecord
+	projectKind          domain.ProjectKind
+	record               domain.SessionRecord
+	workspace            ports.WorkspaceInfo
+	workspaceProject     *ports.WorkspaceProjectInfo
+	prompt               string
+	systemPrompt         string
+	beforeProviderLaunch func()
 }
 
 // launchChatController starts the provider controller for a chat session and
@@ -134,6 +135,9 @@ func (m *Manager) launchChatController(ctx context.Context, in chatSpawn) (domai
 		controllerCommitted bool
 		completionErr       error
 	)
+	if in.beforeProviderLaunch != nil {
+		in.beforeProviderLaunch()
+	}
 	_, err := m.chat.StartChat(ctx, ChatStart{
 		SessionID:             id,
 		ProjectID:             in.cfg.ProjectID,

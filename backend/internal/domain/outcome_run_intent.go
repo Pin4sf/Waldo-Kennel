@@ -1,10 +1,32 @@
 package domain
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 )
+
+// RunAdmissionFailure is the write-once reason one running authorization could
+// not admit its next WorkUnit. A later owner command creates a new generation;
+// it never clears or rewrites this history.
+type RunAdmissionFailure struct {
+	Code       string
+	Message    string
+	DetailJSON string
+	WorkUnitID WorkUnitID
+	OccurredAt time.Time
+}
+
+func (f RunAdmissionFailure) Validate() error {
+	if strings.TrimSpace(f.Code) == "" || strings.TrimSpace(f.Message) == "" || f.WorkUnitID.IsZero() || f.OccurredAt.IsZero() {
+		return fmt.Errorf("run admission failure requires code, message, work unit, and timestamp")
+	}
+	if !json.Valid([]byte(f.DetailJSON)) {
+		return fmt.Errorf("run admission failure detail must be valid JSON")
+	}
+	return nil
+}
 
 // RunIntentID identifies one generation of an Outcome's run intent.
 type RunIntentID string
@@ -64,7 +86,8 @@ type OutcomeRunIntent struct {
 	// AcknowledgedAt separates a request from its effect. A pause is
 	// acknowledged once no further admission can follow; a cancel once the
 	// provider stop is proven. Nil means the request has not taken effect yet.
-	AcknowledgedAt *time.Time
+	AcknowledgedAt   *time.Time
+	AdmissionFailure *RunAdmissionFailure
 }
 
 // Acknowledged reports whether this intent has taken effect.
@@ -102,6 +125,14 @@ func (i OutcomeRunIntent) Validate() error {
 	}
 	if i.RequestedAt.IsZero() {
 		return fmt.Errorf("run intent requested timestamp is required")
+	}
+	if i.AdmissionFailure != nil {
+		if i.Desired != RunIntentRunning {
+			return fmt.Errorf("only a running intent may carry an admission failure")
+		}
+		if err := i.AdmissionFailure.Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
