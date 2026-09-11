@@ -70,7 +70,11 @@ export function WorkShell({ projectId, outcomeId, children }: WorkShellProps) {
 	const attemptsQuery = useOutcomeAttempts(outcomeId);
 	const attempts = attemptsQuery.attempts ?? [];
 	const newest = newestAttempt(attempts);
-	const currentAttempt = (panelAttemptId ? attempts.find((attempt) => attempt.id === panelAttemptId) : undefined) ?? newest;
+	// An explicit Engage target is authoritative while it remains in the
+	// lineage. Do not silently fall back to the newest Attempt if a refresh has
+	// temporarily omitted that historical row: opening a different Attempt is a
+	// false technical action, not a useful recovery.
+	const currentAttempt = panelAttemptId ? attempts.find((attempt) => attempt.id === panelAttemptId) : newest;
 
 	// A stale attempt from a previously viewed Outcome must never linger
 	// behind the toggle after the person switches to a different one.

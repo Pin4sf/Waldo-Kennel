@@ -88,4 +88,11 @@ describe("OutcomeAttemptTerminalPanel session engagement", () => {
 		expect(screen.getByTestId("terminal-pane")).toHaveTextContent("session-old");
 		expect(screen.queryByTestId("chat-surface")).not.toBeInTheDocument();
 	});
+
+	it("does not expose a new shell terminal before a bound session resolves", () => {
+		workspaceQueryMock.mockReturnValue({ data: [] });
+		render(<OutcomeAttemptTerminalPanel attempt={attempt([newestChatBinding])} onClose={vi.fn()} />);
+
+		expect(screen.queryByRole("button", { name: /new terminal/i })).not.toBeInTheDocument();
+	});
 });

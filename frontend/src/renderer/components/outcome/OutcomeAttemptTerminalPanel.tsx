@@ -166,7 +166,7 @@ export function OutcomeAttemptTerminalPanel({ attempt, onClose }: OutcomeAttempt
 							{t("outcome.run.panelSessionTab", { agent: agentLabel(binding.harness) })}
 						</button>
 					))}
-					{resolvedSession?.mode !== "chat" && shellTerminalsForSession.length > 0 ? (
+					{resolvedSession && resolvedSession.mode !== "chat" && shellTerminalsForSession.length > 0 ? (
 						<>
 							<span aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
 							{shellTerminalsForSession.map((terminal) => (
@@ -183,7 +183,7 @@ export function OutcomeAttemptTerminalPanel({ attempt, onClose }: OutcomeAttempt
 					) : null}
 				</div>
 				<div className="flex shrink-0 items-center gap-0.5">
-					{resolvedSession?.mode !== "chat" ? (
+					{resolvedSession && resolvedSession.mode !== "chat" ? (
 						<button
 							aria-label={t("outcome.run.panelNewTerminal")}
 							className="inline-flex size-control-sm items-center justify-center rounded-md text-passive transition-colors hover:bg-interactive-hover hover:text-foreground"

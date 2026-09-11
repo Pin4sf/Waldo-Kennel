@@ -97,8 +97,8 @@ it("engages the selected WorkUnit's newest Attempt instead of the global newest 
 		number: 2,
 		workUnitId: "b",
 		sessions: [{ id: "ref-b", seq: 1, sessionId: "session-b", harness: "codex", mode: "tui", boundAt: "2026-08-30T00:00:00Z", runBriefCoreDigest: "b" }],
-	} as never;
-	const globalAttempt = { ...selectedAttempt, id: "attempt-for-a", number: 3, workUnitId: "a" } as never;
+	} as unknown as components["schemas"]["AttemptResponse"];
+	const globalAttempt = { ...selectedAttempt, id: "attempt-for-a", number: 3, workUnitId: "a" };
 	const onOpenAttempt = vi.fn();
 	render(<MissionPlanView attempts={[selectedAttempt, globalAttempt]} onOpenAttempt={onOpenAttempt} schedule={{ workUnits: units.map((workUnit) => ({ workUnit, state: "runnable", attempts: [], blockingDependencies: [], criterionReady: {} })) } as never} workUnits={units} />);
 	await user.click(screen.getByRole("button", { name: /Publish analysis —/ }));
