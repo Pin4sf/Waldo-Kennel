@@ -14,6 +14,8 @@ import { Button } from "../ui/button";
 import { OutcomeDecideAuthorizeSurface } from "./OutcomeDecideAuthorizeSurface";
 import { OutcomeRunSurface } from "./OutcomeRunSurface";
 import { OutcomeProveCloseSurface } from "./OutcomeProveCloseSurface";
+import { OutcomeDeliveryPanel } from "./OutcomeDeliveryPanel";
+import { OutcomeDocumentsPanel } from "./OutcomeDocumentsPanel";
 import type { OutcomeDestinationStage } from "../../lib/outcome-tree";
 
 /** One identity boundary for all direct-Outcome views and their local drafts. */
@@ -142,6 +144,7 @@ export function OutcomeMissionPanel({
 						<div className="min-h-0 flex-1 overflow-auto pr-2">
 							<div hidden={tab !== "contract"}>
 								<ContractOverview contract={outcome.currentRevision} />
+								<OutcomeDocumentsPanel outcomeId={outcomeId} />
 								<Button className="mt-4" onClick={() => setTab("plan")}>
 									{t("outcome.dashboard.reviewPlan")}
 								</Button>
@@ -185,7 +188,7 @@ export function OutcomeMissionPanel({
 								<fieldset disabled={connection !== "connected"} className="min-w-0">
 									<OutcomeProveCloseSurface outcomeId={outcomeId} />
 								</fieldset>
-								<p className="mt-4 text-xs text-muted-foreground">{t("mission.exportUnavailable")}</p>
+								<OutcomeDeliveryPanel outcomeId={outcomeId} />
 							</div>
 							<div hidden={tab !== "history"}>
 								<ul className="mb-4 space-y-3">
