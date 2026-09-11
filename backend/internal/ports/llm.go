@@ -13,7 +13,11 @@ import (
 type ReasoningContextMode string
 
 const (
-	ReasoningContextPacketOnly     ReasoningContextMode = ""
+	// ReasoningContextPacketOnly exposes only the bounded context rendered into
+	// the request text; native tools receive no Project root.
+	ReasoningContextPacketOnly ReasoningContextMode = ""
+	// ReasoningContextRepositoryRead exposes the selected Project root through
+	// the native provider's read-only investigation boundary.
 	ReasoningContextRepositoryRead ReasoningContextMode = "repository_read"
 )
 
