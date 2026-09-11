@@ -47,6 +47,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 	return { ...actual, useNavigate: () => navigateMock };
 });
 
+import { ShellProvider, type ShellContextValue } from "../../lib/shell-context";
 import { WorkEnterSurface } from "../../components/outcome/WorkEnterSurface";
 
 type Project = { id: string; name: string; path: string };
@@ -151,6 +152,21 @@ describe("Work-first Enter surface", () => {
 		await waitFor(() => expect(postMock).not.toHaveBeenCalled());
 		expect(navigateMock).toHaveBeenCalledWith({ to: "/home" });
 	});
+
+ it("tracks the shell daemon becoming ready without a stale independent probe", async () => {
+  launchMode.focused = true;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const shell: ShellContextValue = {
+   daemonStatus: { state: "stopped" }, workspaceStartupState: "ready",
+   createProject: vi.fn(), initializeProjectRepository: vi.fn(),
+  };
+  const view = (value: ShellContextValue) => <QueryClientProvider client={client}><ShellProvider value={value}><WorkEnterSurface /></ShellProvider></QueryClientProvider>;
+  const rendered = render(view(shell));
+  expect(screen.getByTestId("enter-blocked-daemon")).toBeInTheDocument();
+  rendered.rerender(view({ ...shell, daemonStatus: { state: "ready", port: 3001 } }));
+  expect(screen.queryByTestId("enter-blocked-daemon")).not.toBeInTheDocument();
+  expect(daemonStatusMock).not.toHaveBeenCalled();
+ });
 
 	it("shows a distinct daemon-offline state", async () => {
 		daemonStatusMock.mockResolvedValue({ state: "stopped" });

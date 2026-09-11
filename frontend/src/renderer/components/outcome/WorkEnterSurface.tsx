@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient, apiErrorMessage } from "../../lib/api-client";
+import { createProjectConfig } from "../../lib/create-project-config";
+import { useShellMaybe } from "../../lib/shell-context";
 import { aoBridge } from "../../lib/bridge";
 import { mockWorkspaces } from "../../lib/mock-data";
 import { usesPreviewWorkspaceData, usesWorkLaunchMode } from "../../lib/preview-mode";
@@ -44,12 +46,14 @@ async function fetchAgents(): Promise<AgentInventory> {
 export function WorkEnterSurface() {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
+	const shell = useShellMaybe();
 	const [destination, setDestination] = useState<EnterDestination>(usesWorkLaunchMode ? "work" : "undecided");
 
 	const daemonQuery = useQuery({
 		queryKey: ["daemon-status", "enter"],
 		queryFn: () => aoBridge.daemon.getStatus(),
-		enabled: !usesPreviewWorkspaceData,
+		enabled: !usesPreviewWorkspaceData && !shell,
+		refetchInterval: 2_000,
 	});
 	const projectsQuery = useQuery({
 		queryKey: ["projects", "enter"],
@@ -70,7 +74,7 @@ export function WorkEnterSurface() {
 
 	// The daemon owns every canonical fact this surface would act on, so an
 	// unavailable daemon is stated plainly rather than rendered as an empty list.
-	const daemonReady = usesPreviewWorkspaceData || daemonQuery.data?.state === "ready";
+	const daemonReady = usesPreviewWorkspaceData || (shell?.daemonStatus ?? daemonQuery.data)?.state === "ready";
 
 	// Catalog readiness is an advisory local probe, never a spawn precheck. An
 	// unauthorized provider is therefore Action Required — an exact human-only
@@ -79,7 +83,14 @@ export function WorkEnterSurface() {
 		agentsQuery.data?.authorized?.some((agent) => agent.id === V0_PROVIDER_ID) ?? !agentsQuery.isSuccess;
 
 	async function createProject(input: CreateProjectInput): Promise<void> {
-		const { error } = await apiClient.POST("/api/v1/projects", { body: input });
+		if (shell) {
+			await shell.createProject(input);
+			await projectsQuery.refetch();
+			return;
+		}
+		const { error } = await apiClient.POST("/api/v1/projects", {
+			body: { path: input.path, asWorkspace: input.asWorkspace, config: createProjectConfig(input) },
+		});
 		if (error) throw new Error(apiErrorMessage(error));
 		await projectsQuery.refetch();
 	}
