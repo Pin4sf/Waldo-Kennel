@@ -173,6 +173,34 @@ describe("ReasoningSettingsSection", () => {
 		expect(screen.queryByText("Verified for this provider and model.")).not.toBeInTheDocument();
 	});
 
+	it("shows safe generic guidance when verification returns an unknown code", () => {
+		vi.mocked(useSettings).mockReturnValue({
+			settings: {
+				...settings,
+				reasoning: {
+					...settings.reasoning,
+					provider: "openai",
+					configured: true,
+					ready: true,
+					verified: true,
+				},
+			},
+			isLoading: false,
+			error: undefined,
+		});
+		vi.mocked(useVerifyReasoning).mockReturnValue({
+			verify,
+			verifying: false,
+			error: "server failure",
+			errorCode: "INTERNAL_SERVER_ERROR",
+			reset: resetVerification,
+		});
+
+		renderSection();
+		expect(screen.getByRole("status")).toHaveTextContent("Reasoning is unavailable for this provider. Check its setup and retry.");
+		expect(screen.queryByText("Verified for this provider and model.")).not.toBeInTheDocument();
+	});
+
 	it("clears a failed verification when saving new reasoning settings succeeds", async () => {
 		const user = userEvent.setup();
 		vi.mocked(useVerifyReasoning).mockReturnValue({

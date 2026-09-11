@@ -6,7 +6,7 @@ import { SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
-import { reasoningStatusMessage } from "../../lib/reasoning-status";
+import { normalizeReasoningErrorCode, reasoningStatusMessage } from "../../lib/reasoning-status";
 
 const providers = [
 	{ value: "anthropic", label: "Anthropic / Claude API" },
@@ -45,8 +45,8 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 		!loadError;
 	const statusWithVerifyError = verifyError
 		? status
-			? { ...status, errorCode: verifyErrorCode ?? "REASONING_UNAVAILABLE" }
-			: { provider, configured: true, ready: true, verified: false, errorCode: verifyErrorCode ?? "REASONING_UNAVAILABLE" }
+			? { ...status, errorCode: normalizeReasoningErrorCode(verifyErrorCode) ?? "REASONING_UNAVAILABLE" }
+			: { provider, configured: true, ready: true, verified: false, errorCode: normalizeReasoningErrorCode(verifyErrorCode) ?? "REASONING_UNAVAILABLE" }
 		: status;
 	const message =
 		saveError ??

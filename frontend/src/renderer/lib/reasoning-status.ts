@@ -8,6 +8,28 @@ export type ReasoningStatusLike = {
   errorCode?: string;
 };
 
+const reasoningErrorCodes = new Set([
+  "MISSING_CREDENTIAL",
+  "CREDENTIAL_REJECTED",
+  "AUTH_REQUIRED",
+  "PROVIDER_NOT_READY",
+  "REASONING_NOT_READY",
+  "REASONING_RATE_LIMITED",
+  "REASONING_TIMED_OUT",
+  "REASONING_CANCELLED",
+  "REASONING_DECLINED",
+  "REASONING_INCOMPLETE",
+  "REASONING_INVALID_OUTPUT",
+  "REASONING_UNAVAILABLE",
+]);
+
+/** Keep mutation failures on the stable, renderer-safe error vocabulary. */
+export function normalizeReasoningErrorCode(
+  code: string | undefined,
+): string | undefined {
+  return code && reasoningErrorCodes.has(code) ? code : undefined;
+}
+
 /**
  * Render only stable, allowlisted readiness states. The daemon's free-form
  * detail is deliberately not treated as renderer-safe content; the stable
