@@ -18,6 +18,7 @@ type RunAdmissionFailure struct {
 	OccurredAt time.Time  `json:"occurredAt"`
 }
 
+// Validate checks the required admission failure fields and detail encoding.
 func (f RunAdmissionFailure) Validate() error {
 	if strings.TrimSpace(f.Code) == "" || strings.TrimSpace(f.Message) == "" || f.WorkUnitID.IsZero() || f.OccurredAt.IsZero() {
 		return fmt.Errorf("run admission failure requires code, message, work unit, and timestamp")

@@ -11,8 +11,8 @@ func TestWriteReadRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "running.json")
 	want := Info{
 		PID: 4242, Port: 3001,
-		StartedAt: time.Now().UTC().Truncate(time.Second),
-		AppRunID:  "apprun-1",
+		StartedAt:         time.Now().UTC().Truncate(time.Second),
+		AppRunID:          "apprun-1",
 		SupervisorAddress: "/tmp/kennel-supervise-test.sock",
 	}
 

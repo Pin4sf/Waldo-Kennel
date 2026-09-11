@@ -471,8 +471,7 @@ func restoreChangeLogWriters(db *sql.DB) error {
 		}
 		for _, column := range w.columns {
 			var c int
-			query := fmt.Sprintf("SELECT count(*) FROM pragma_table_info('%s') WHERE name=?", w.table)
-			if err := db.QueryRow(query, column).Scan(&c); err != nil {
+			if err := db.QueryRow("SELECT count(*) FROM pragma_table_info(?) WHERE name=?", w.table, column).Scan(&c); err != nil {
 				return fmt.Errorf("inspect column %s.%s for %s: %w", w.table, column, w.name, err)
 			}
 			if c == 0 {

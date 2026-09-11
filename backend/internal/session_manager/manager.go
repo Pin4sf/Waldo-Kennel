@@ -691,7 +691,7 @@ func New(d Deps) *Manager {
 // workspace and runtime, then reports completion to the LCM. If workspace
 // materialization fails the still-seed row is deleted outright; a later failure
 // parks the row as terminated and rolls back what was built.
-func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (rec domain.SessionRecord, promptBytes int, systemPromptBytes int, err error) {
+func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (rec domain.SessionRecord, promptBytes, systemPromptBytes int, err error) {
 	prelaunchStage := "load_project"
 	providerLaunchAttempted := false
 	defer func() {
