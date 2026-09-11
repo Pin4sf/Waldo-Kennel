@@ -81,3 +81,29 @@ func TestGovernedProcessExitRequiresCapabilityAndExactGenerationBeforeTerminatio
 		t.Fatal("authenticated exact-generation process exit did not terminate governed session")
 	}
 }
+
+// TestRecordSupervisedProcessExitRejectsContradictoryFacts covers the
+// Manager-level defense-in-depth check: even with a valid capability and
+// generation, a contradictory report (exit code 0 paired with a non-"exited"
+// reason) must be refused before it is ever persisted, so a caller that
+// bypasses the HTTP boundary cannot smuggle a "zero-plus-failure" report
+// into durable state.
+func TestRecordSupervisedProcessExitRejectsContradictoryFacts(t *testing.T) {
+	base := newFakeStore()
+	base.sessions["session-1"] = domain.SessionRecord{
+		ID: "session-1", Harness: domain.HarnessCodex,
+		Metadata: domain.SessionMetadata{
+			RuntimeLaunchID: "launch-1", SupervisorCapabilityVerifier: "verifier-1",
+		},
+	}
+	manager := New(base, nil, WithSupervisorCapabilityValidator(fixedSupervisorValidator{}))
+
+	code := 0
+	contradictory := ports.SupervisedProcessExit{LaunchID: "launch-1", ExitCode: &code, Reason: "failed"}
+	if err := manager.RecordSupervisedProcessExit(ctx, "session-1", contradictory, "token-1"); !errors.Is(err, ports.ErrSupervisedExitInvalid) {
+		t.Fatalf("contradictory exit error = %v, want ErrSupervisedExitInvalid", err)
+	}
+	if base.sessions["session-1"].Metadata.SupervisedProcessExitCode != nil || base.sessions["session-1"].Metadata.SupervisedProcessExitReason != "" {
+		t.Fatal("contradictory report must not be persisted")
+	}
+}
