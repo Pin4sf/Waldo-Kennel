@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { appI18n } from "../../i18n";
@@ -61,6 +61,19 @@ describe("ReasoningSettingsSection", () => {
 		await user.click(save);
 		expect(update).toHaveBeenCalledWith({ provider: "codex", model: "", effort: "" });
 		expect(verify).not.toHaveBeenCalled();
+	});
+
+	it("shows an explicit saved check after persistence and returns to Save when edited", async () => {
+		const user = userEvent.setup();
+		renderSection();
+
+		const save = screen.getByRole("button", { name: "Save reasoning settings" });
+		await user.click(save);
+		await waitFor(() => expect(screen.getByRole("button", { name: "Saved" })).toBeInTheDocument());
+		expect(screen.getByRole("button", { name: "Saved" }).querySelector("svg")).toBeInTheDocument();
+
+		await user.type(screen.getByRole("textbox", { name: "Model" }), "gpt-5");
+		expect(screen.getByRole("button", { name: "Save reasoning settings" })).toBeInTheDocument();
 	});
 
 	it("surfaces daemon-derived Codex sign-in readiness without enabling verification", () => {

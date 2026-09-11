@@ -199,14 +199,14 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 	}
 
 	async function answerQuestion(event: FormEvent) {
-		event.preventDefault(); if (!snapshot || !intakeId || !answer.trim()) return;
+		event.preventDefault(); if (!snapshot || !intakeId || !answer.trim() || pending) return;
 		setPending(true); setError(null);
 		try { const { data, error: apiError } = await apiClient.POST("/api/v1/intakes/{intakeId}/clarification", { params: { path: { intakeId } }, body: { expectedProposalRevision: snapshot.session.currentProposalRevision, answer: answer.trim() } }); if (apiError) throw apiError; setSnapshot(data.intake); }
 		catch (cause) { setError(apiErrorMessage(cause)); } finally { setPending(false); }
 	}
 
 	async function confirm() {
-		if (!snapshot || !draft || !intakeId) return;
+		if (!snapshot || !draft || !intakeId || pending) return;
 		setPending(true); setError(null);
 		try {
 			let current = snapshot;
