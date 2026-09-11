@@ -674,7 +674,7 @@
 	"settings.reasoning.save": "Save reasoning settings",
 	"settings.reasoning.saving": "Saving…",
 	"settings.reasoning.privacy": "The key is kept in the local daemon secret store and is never returned to the renderer or stored in Work records.",
-	"settings.reasoning.codexSetup": "Codex App Server sign-in is not ready. Install or sign in to Codex, then restart Kennel and save again.",
+	"settings.reasoning.codexSetup": "Codex reasoning is unavailable. See the reported reason above: signing in alone does not establish reasoning capability. You can explicitly choose an API provider instead.",
 	"settings.project.trackerIntake": "Intake do tracker",
 	"settings.project.workspaceRepos": "Repos do workspace",
 	"settings.project.worktrees": "Worktrees",
