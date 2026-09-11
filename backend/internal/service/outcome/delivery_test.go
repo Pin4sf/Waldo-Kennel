@@ -89,8 +89,21 @@ func (s *memoryDeliveryStore) CompleteOutcomeDelivery(_ context.Context, deliver
 	return true, nil
 }
 
-func (s *memoryDeliveryStore) FailPendingOutcomeDeliveries(_ context.Context, _ time.Time, _, _ string) (int64, error) {
-	return 0, nil
+// FailPendingOutcomeDeliveries mirrors the SQLite query, which closes every
+// still-pending row regardless of which process opened it.
+func (s *memoryDeliveryStore) FailPendingOutcomeDeliveries(_ context.Context, at time.Time, code, detail string) (int64, error) {
+	var changed int64
+	for id, delivery := range s.byID {
+		if delivery.State != domain.DeliveryPending {
+			continue
+		}
+		completed := at
+		delivery.State, delivery.FailureCode, delivery.FailureDetail, delivery.CompletedAt =
+			domain.DeliveryFailed, code, detail, &completed
+		s.byID[id], s.byKey[delivery.RequestKey] = delivery, delivery
+		changed++
+	}
+	return changed, nil
 }
 
 func TestRequestDeliveryBindsCurrentAcceptanceAndIsIdempotent(t *testing.T) {
