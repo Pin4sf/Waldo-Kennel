@@ -325,8 +325,10 @@ func outcomeRunStateResponse(view outcomevc.RunStateView) OutcomeRunStateRespons
 	if view.Intent != nil {
 		out.Intent = &RunIntentResponse{
 			Generation: view.Intent.Generation, Desired: view.Intent.Desired,
-			PlanRevisionID: string(view.Intent.PlanRevisionID), RequestedAt: view.Intent.RequestedAt,
-			AcknowledgedAt: view.Intent.AcknowledgedAt, ActiveAttemptID: string(view.Intent.ActiveAttemptID),
+			PlanRevisionID:   string(view.Intent.PlanRevisionID),
+			BindsCurrentPlan: view.Intent.BindsCurrentPlan,
+			RequestedAt:      view.Intent.RequestedAt,
+			AcknowledgedAt:   view.Intent.AcknowledgedAt, ActiveAttemptID: string(view.Intent.ActiveAttemptID),
 			LastError: view.Intent.LastError,
 		}
 	}

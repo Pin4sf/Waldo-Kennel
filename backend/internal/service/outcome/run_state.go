@@ -78,6 +78,17 @@ const (
 	ReasonRunIntentUnavailable = "run_intent_unavailable"
 	ReasonDeliveryUnavailable  = "delivery_unavailable"
 	ReasonNotAccepted          = "not_accepted"
+	// ReasonRunAlreadyAuthorized means durable run intent already authorizes
+	// continuation, so Start has nothing left to authorize. CommandRun refuses
+	// a second Start for exactly this reason.
+	ReasonRunAlreadyAuthorized = "run_already_authorized"
+	// ReasonRunPaused means the owner paused this run. The next move is Resume
+	// — reporting "start required" here would name a different command.
+	ReasonRunPaused = "run_paused"
+	// ReasonRunIntentPlanSuperseded means the authorized run names a Plan
+	// revision the Outcome has moved past, so continuation can admit nothing.
+	// Cancel and re-authorize is the only way forward.
+	ReasonRunIntentPlanSuperseded = "run_intent_plan_superseded"
 )
 
 // RunActionEligibility is one action and whether the daemon will honour it.
@@ -92,13 +103,17 @@ type RunActionEligibility struct {
 // nil until durable run intent exists; a nil intent is a truthful answer, not
 // an error, and means only per-Attempt Start is available.
 type RunIntentView struct {
-	Generation      int64
-	Desired         string
-	PlanRevisionID  domain.PlanRevisionID
-	RequestedAt     time.Time
-	AcknowledgedAt  *time.Time
-	ActiveAttemptID domain.AttemptID
-	LastError       string
+	Generation     int64
+	Desired        string
+	PlanRevisionID domain.PlanRevisionID
+	// BindsCurrentPlan is false when the authorization names a Plan revision
+	// the Outcome has since moved past. Continuation schedules against the
+	// Plan the intent names, so a superseded one admits nothing.
+	BindsCurrentPlan bool
+	RequestedAt      time.Time
+	AcknowledgedAt   *time.Time
+	ActiveAttemptID  domain.AttemptID
+	LastError        string
 }
 
 // RunBlocker is the single concrete reason an Outcome needs its owner.
@@ -237,11 +252,16 @@ func (s *Service) runStateFor(ctx context.Context, record domain.Outcome, projec
 	if err != nil {
 		return RunStateView{}, err
 	}
+	var currentIntent *domain.OutcomeRunIntent
 	if hasIntent {
+		held := intent
+		currentIntent = &held
 		view.Intent = &RunIntentView{
 			Generation: intent.Generation, Desired: string(intent.Desired),
-			PlanRevisionID: intent.PlanRevisionID, RequestedAt: intent.RequestedAt,
-			AcknowledgedAt: intent.AcknowledgedAt, ActiveAttemptID: view.ActiveAttemptID,
+			PlanRevisionID:   intent.PlanRevisionID,
+			BindsCurrentPlan: planFound && intent.PlanRevisionID == plan.ID,
+			RequestedAt:      intent.RequestedAt,
+			AcknowledgedAt:   intent.AcknowledgedAt, ActiveAttemptID: view.ActiveAttemptID,
 		}
 	}
 
@@ -253,14 +273,13 @@ func (s *Service) runStateFor(ctx context.Context, record domain.Outcome, projec
 		}
 	}
 
-	view.State, view.AttentionReason, view.Blocker = deriveMissionState(missionInputs{
+	inputs := missionInputs{
 		planFound: planFound, plan: plan, planBinds: view.PlanBindsCurrentContract,
 		proof: proof, gate: gate, active: active, schedule: schedule,
-	})
-	view.EligibleActions = deriveEligibleActions(view, missionInputs{
-		planFound: planFound, plan: plan, planBinds: view.PlanBindsCurrentContract,
-		proof: proof, gate: gate, active: active, schedule: schedule,
-	})
+		intent: currentIntent, runIntentsEnabled: s.RunIntentsEnabled(),
+	}
+	view.State, view.AttentionReason, view.Blocker = deriveMissionState(inputs)
+	view.EligibleActions = deriveEligibleActions(view, inputs)
 	return view, nil
 }
 
@@ -274,6 +293,41 @@ type missionInputs struct {
 	gate      domain.ContributionStartGate
 	active    *domain.Attempt
 	schedule  *ScheduleView
+	// intent is the durable authorization to keep running. Nil means none has
+	// been recorded, which reads as idle rather than as an error.
+	intent *domain.OutcomeRunIntent
+	// runIntentsEnabled distinguishes a daemon that cannot hold run intent
+	// from one that simply has none yet. The two refuse Pause for different
+	// reasons and only the first is a wiring fault.
+	runIntentsEnabled bool
+}
+
+// desiredRun is the authorization the daemon will act on. No recorded intent
+// is idle: an Outcome nobody has started yet.
+func (in missionInputs) desiredRun() domain.RunIntentDesired {
+	if in.intent == nil {
+		return domain.RunIntentIdle
+	}
+	return in.intent.Desired
+}
+
+// commandApplies asks the same transition policy CommandRun asks. Routing both
+// through domain.NextRunIntent is what stops the Mission offering a move the
+// command endpoint rejects — the KUX-002 contradiction.
+func (in missionInputs) commandApplies(command domain.RunCommand) bool {
+	_, ok := domain.NextRunIntent(in.desiredRun(), command)
+	return ok
+}
+
+// continuationAdmits reports whether the recorded authorization can still put
+// work in flight without the owner. ContinueAuthorizedRuns schedules against
+// the Plan the intent names, so an intent naming a superseded Plan admits
+// nothing however runnable the current Plan looks.
+func (in missionInputs) continuationAdmits() bool {
+	if in.desiredRun() != domain.RunIntentRunning || !in.planFound {
+		return false
+	}
+	return in.intent.PlanRevisionID == in.plan.ID
 }
 
 func deriveMissionState(in missionInputs) (MissionState, string, *RunBlocker) {
@@ -319,10 +373,35 @@ func deriveMissionState(in missionInputs) (MissionState, string, *RunBlocker) {
 			Message: "Recorded proof does not support acceptance — request changes or repair the evidence",
 		}
 	}
+	// Nothing is in flight. What happens next is decided by the durable
+	// authorization, not by the schedule alone: an authorized run continues
+	// without the owner, and only an unauthorized one is their move.
+	switch in.desiredRun() {
+	case domain.RunIntentRunning:
+		if !in.continuationAdmits() {
+			return MissionNeedsYou, ReasonRunIntentPlanSuperseded, &RunBlocker{
+				Code:    ReasonRunIntentPlanSuperseded,
+				Message: "The authorized run names a Plan this Outcome has moved past — cancel it and authorize the current Plan",
+				Detail:  map[string]any{"authorizedPlanId": string(in.intent.PlanRevisionID)},
+			}
+		}
+		if in.schedule != nil && !in.schedule.NextRunnableID.IsZero() {
+			// The owner already authorized continuation and the daemon admits
+			// the next unit itself. Asking for another Start here would offer a
+			// command CommandRun refuses.
+			return MissionInProgress, "", nil
+		}
+	case domain.RunIntentPaused:
+		return MissionNeedsYou, ReasonRunPaused, &RunBlocker{
+			Code:    ReasonRunPaused,
+			Message: "This run is paused — resume it to admit further work, or cancel it",
+			Detail:  map[string]any{"generation": in.intent.Generation},
+		}
+	}
 	if in.schedule != nil && !in.schedule.NextRunnableID.IsZero() {
-		// Something can start and nothing is running. Without durable run
-		// intent the owner is the only thing that can start it, so this is
-		// honestly an owner decision rather than progress.
+		// Something can start and no authorization is in force, so the owner is
+		// the only thing that can start it. That is honestly an owner decision
+		// rather than progress.
 		return MissionNeedsYou, ReasonStartRequired, &RunBlocker{
 			Code:    ReasonStartRequired,
 			Message: "The next WorkUnit is ready to start",
@@ -373,6 +452,12 @@ func deriveEligibleActions(view RunStateView, in missionInputs) []RunActionEligi
 	}
 	approve := allow(RunActionApprovePlan, in.planFound && in.plan.Status == domain.PlanStatusProposed && in.gate.Clear(), approveReason)
 
+	// Start, Pause, Resume and Cancel are run-intent commands, so their
+	// eligibility is asked of the same transition policy CommandRun applies.
+	// An Attempt of unknown status also refuses Start, but only a queued or
+	// running Attempt can be unaccountable, and that is already the
+	// attempt_active case below.
+	startApplies := in.commandApplies(domain.RunCommandStart)
 	startReason := ReasonPlanNotApproved
 	switch {
 	case executing:
@@ -381,24 +466,40 @@ func deriveEligibleActions(view RunStateView, in missionInputs) []RunActionEligi
 		startReason = ReasonAttemptPaused
 	case !in.gate.Clear():
 		startReason = ReasonContributionBlocked
+	case !startApplies:
+		startReason = ReasonRunAlreadyAuthorized
 	case planApproved && !runnable:
 		startReason = ReasonNothingRunnable
 	case in.planFound && !in.planBinds:
 		startReason = ReasonPlanStale
 	}
-	start := allow(RunActionStart, planApproved && runnable && !executing && !paused && in.gate.Clear(), startReason)
+	start := allow(RunActionStart,
+		planApproved && runnable && !executing && !paused && in.gate.Clear() && startApplies, startReason)
 
-	// Pause and Resume need durable run intent to mean anything: without it
-	// there is no authorization to suspend or reinstate. Say so rather than
-	// offering a control that would silently do nothing.
+	// Pause and Resume need durable run intent to mean anything: without the
+	// storage there is no authorization to suspend or reinstate. Say so rather
+	// than offering a control that would silently do nothing.
 	pause := allow(RunActionPause, false, ReasonRunIntentUnavailable)
 	resume := allow(RunActionResume, false, ReasonRunIntentUnavailable)
-	if view.Intent != nil {
-		pause = allow(RunActionPause, view.Intent.Desired == string(domain.RunIntentRunning), ReasonNoActiveRun)
-		resume = allow(RunActionResume, view.Intent.Desired == string(domain.RunIntentPaused), ReasonNoActiveRun)
-	}
-
 	cancel := allow(RunActionCancel, executing || paused, ReasonNoActiveRun)
+	if in.runIntentsEnabled {
+		pause = allow(RunActionPause, in.commandApplies(domain.RunCommandPause), ReasonNoActiveRun)
+		// Resuming re-authorizes execution, so CommandRun re-validates the Plan
+		// exactly as Start does. Offering Resume against a stale Plan would
+		// name a command that is about to be refused.
+		resumeReason := ReasonNoActiveRun
+		if in.commandApplies(domain.RunCommandResume) && !planApproved {
+			resumeReason = ReasonPlanStale
+			if !in.planFound || in.plan.Status != domain.PlanStatusApproved {
+				resumeReason = ReasonPlanNotApproved
+			}
+		}
+		resume = allow(RunActionResume, in.commandApplies(domain.RunCommandResume) && planApproved, resumeReason)
+		// Cancel stays available for a live Attempt even with no intent, because
+		// CancelAttempt is its own path; an authorized run with nothing yet in
+		// flight must also be stoppable, or the owner cannot undo a Start.
+		cancel = allow(RunActionCancel, executing || paused || in.commandApplies(domain.RunCommandCancel), ReasonNoActiveRun)
+	}
 
 	hasResult := view.ProvenCriteria > 0 || in.active != nil
 	reviewResult := allow(RunActionReviewResult, hasResult, ReasonProofIncomplete)

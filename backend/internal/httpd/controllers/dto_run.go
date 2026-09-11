@@ -26,10 +26,14 @@ type RunActionEligibilityResponse struct {
 // It is absent until durable run intent exists; absent means only per-Attempt
 // Start is available, not that a run is idle.
 type RunIntentResponse struct {
-	Generation     int64     `json:"generation"`
-	Desired        string    `json:"desired" enum:"idle,running,paused,cancelled"`
-	PlanRevisionID string    `json:"planRevisionId,omitempty"`
-	RequestedAt    time.Time `json:"requestedAt"`
+	Generation     int64  `json:"generation"`
+	Desired        string `json:"desired" enum:"idle,running,paused,cancelled"`
+	PlanRevisionID string `json:"planRevisionId,omitempty"`
+	// BindsCurrentPlan is false when the authorization names a Plan revision
+	// the Outcome has moved past. Continuation schedules against the Plan the
+	// intent names, so a superseded one can admit nothing until it is cancelled.
+	BindsCurrentPlan bool      `json:"bindsCurrentPlan"`
+	RequestedAt      time.Time `json:"requestedAt"`
 	// AcknowledgedAt is what separates an acknowledged pause/cancel from a
 	// requested one. Absent means the request has not yet taken effect.
 	AcknowledgedAt  *time.Time `json:"acknowledgedAt,omitempty"`

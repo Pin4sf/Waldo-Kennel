@@ -127,6 +127,65 @@ func TestGetOutcomeRunStateRoute_ServesTheDerivedMissionProjection(t *testing.T)
 	}
 }
 
+// TestGetOutcomeRunStateRoute_ServesTheAuthorizationTheDaemonWillActuponUs
+// keeps the wire contract able to express an authorized run between WorkUnits:
+// in_progress with Start refused, and an intent that says which Plan it binds.
+func TestGetOutcomeRunStateRoute_ServesTheAuthorizationTheDaemonWillActUpon(t *testing.T) {
+	fake := &runStateFake{fakeOutcomeService: &fakeOutcomeService{}}
+	fake.runState = func(context.Context, domain.OutcomeID) (outcomevc.RunStateView, error) {
+		view := sampleRunState()
+		view.State, view.AttentionReason, view.Blocker = outcomevc.MissionInProgress, "", nil
+		view.Intent = &outcomevc.RunIntentView{
+			Generation: 2, Desired: string(domain.RunIntentRunning),
+			PlanRevisionID: "plan-1", BindsCurrentPlan: true, RequestedAt: time.Now().UTC(),
+		}
+		view.EligibleActions = []outcomevc.RunActionEligibility{
+			{Action: outcomevc.RunActionStart, Reason: outcomevc.ReasonRunAlreadyAuthorized},
+			{Action: outcomevc.RunActionCancel, Available: true},
+		}
+		return view, nil
+	}
+	srv := newRunStateTestServer(t, fake)
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/outcomes/out-1/run", "")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", status, body)
+	}
+	var decoded struct {
+		RunState struct {
+			State  string `json:"state"`
+			Intent *struct {
+				Desired          string `json:"desired"`
+				PlanRevisionID   string `json:"planRevisionId"`
+				BindsCurrentPlan bool   `json:"bindsCurrentPlan"`
+			} `json:"intent"`
+			EligibleActions []struct {
+				Action    string `json:"action"`
+				Available bool   `json:"available"`
+				Reason    string `json:"reason"`
+			} `json:"eligibleActions"`
+		} `json:"runState"`
+	}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("decode: %v (%s)", err, body)
+	}
+	if decoded.RunState.State != "in_progress" {
+		t.Fatalf("state = %q, want in_progress", decoded.RunState.State)
+	}
+	intent := decoded.RunState.Intent
+	if intent == nil || intent.Desired != "running" || intent.PlanRevisionID != "plan-1" || !intent.BindsCurrentPlan {
+		t.Fatalf("intent = %+v, want a running authorization bound to plan-1", intent)
+	}
+	for _, action := range decoded.RunState.EligibleActions {
+		if action.Action == "start" && (action.Available || action.Reason != outcomevc.ReasonRunAlreadyAuthorized) {
+			t.Fatalf("start = %+v, want refused with %s", action, outcomevc.ReasonRunAlreadyAuthorized)
+		}
+		if action.Action == "cancel" && !action.Available {
+			t.Fatalf("cancel = %+v, want an authorized run to be stoppable", action)
+		}
+	}
+}
+
 func TestListProjectOutcomeRunStatesRoute_DefaultsToTopLevelOutcomes(t *testing.T) {
 	fake := &runStateFake{fakeOutcomeService: &fakeOutcomeService{}}
 	fake.listStates = func(_ context.Context, id domain.ProjectID, _ bool) ([]outcomevc.RunStateView, error) {

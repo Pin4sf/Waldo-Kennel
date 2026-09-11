@@ -258,3 +258,34 @@ func TestCommandRun_UnwiredRunIntentsReportUnavailable(t *testing.T) {
 		t.Fatalf("continuation without run intent should be a no-op, got %v", err)
 	}
 }
+
+// TestRunState_AuthorizedRunBetweenWorkUnitsDoesNotOfferAnotherStart is the
+// KUX-002 regression. With running intent recorded and no Attempt yet admitted
+// — the gap after Start and the gap between serial WorkUnits — the Mission
+// projected needs_you/start_required and offered Start, a command CommandRun
+// refuses because Start does not apply to an already-running intent.
+func TestRunState_AuthorizedRunBetweenWorkUnitsDoesNotOfferAnotherStart(t *testing.T) {
+	h := newRunHarness(t)
+	h.mustCommand(t, domain.RunCommandStart, "rk-start")
+
+	view, err := h.svc.GetRunState(context.Background(), h.outcomeID)
+	if err != nil {
+		t.Fatalf("run state: %v", err)
+	}
+	if view.State != outcome.MissionInProgress {
+		t.Fatalf("state = %q/%q, want in_progress: the daemon admits the next unit itself",
+			view.State, view.AttentionReason)
+	}
+	if start := runActionFor(view, outcome.RunActionStart); start.Available {
+		t.Fatal("Start was offered while the run is already authorized")
+	}
+	// The projection and the command endpoint must refuse for the same reason.
+	if _, err := h.command(t, domain.RunCommandStart, "rk-start-again"); requireAPICode(t, err) != outcome.CodeRunActionUnavailable {
+		t.Fatalf("second start = %v, want RUN_ACTION_UNAVAILABLE", err)
+	}
+	// An authorized run with nothing yet running must still be stoppable:
+	// CommandRun accepts cancel from a running intent.
+	if cancel := runActionFor(view, outcome.RunActionCancel); !cancel.Available {
+		t.Fatalf("cancel = %+v, want it offered", cancel)
+	}
+}

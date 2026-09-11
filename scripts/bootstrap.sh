@@ -18,7 +18,6 @@ npm --prefix packages/cloud-client ci
 npm --prefix packages/kennel-island ci
 npm --prefix frontend/acp-runtime ci --ignore-scripts
 npm --prefix frontend ci
-npm --prefix frontend/src/landing ci
 npm --prefix scripts ci
 
 echo "Kennel foundation dependencies installed."

@@ -9923,6 +9923,8 @@ components:
           - string
         activeAttemptId:
           type: string
+        bindsCurrentPlan:
+          type: boolean
         desired:
           enum:
           - idle
@@ -9943,6 +9945,7 @@ components:
       required:
       - generation
       - desired
+      - bindsCurrentPlan
       - requestedAt
       type: object
     ControllersSecurePairingStatus:

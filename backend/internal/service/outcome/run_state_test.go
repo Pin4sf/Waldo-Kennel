@@ -121,6 +121,122 @@ func TestDeriveMissionState_ReportsTheMilestoneItsFactsSupport(t *testing.T) {
 	}
 }
 
+// runningIntentFor authorizes continuation of exactly the plan in these inputs.
+func runningIntentFor(in missionInputs, desired domain.RunIntentDesired) *domain.OutcomeRunIntent {
+	return &domain.OutcomeRunIntent{
+		Generation: 3, Desired: desired, PlanRevisionID: in.plan.ID,
+	}
+}
+
+// TestDeriveMissionState_FollowsDurableRunIntentBetweenWorkUnits is the KUX-002
+// state half: with nothing in flight, what happens next is decided by the
+// recorded authorization, not by the schedule alone.
+func TestDeriveMissionState_FollowsDurableRunIntentBetweenWorkUnits(t *testing.T) {
+	cases := []struct {
+		name      string
+		mutate    func(*missionInputs)
+		wantState MissionState
+		wantWhy   string
+	}{
+		{
+			name:      "no recorded intent leaves starting to the owner",
+			mutate:    func(*missionInputs) {},
+			wantState: MissionNeedsYou, wantWhy: ReasonStartRequired,
+		},
+		{
+			name: "an authorized run continues without the owner",
+			mutate: func(in *missionInputs) {
+				in.intent = runningIntentFor(*in, domain.RunIntentRunning)
+			},
+			wantState: MissionInProgress,
+		},
+		{
+			name: "a paused run names Resume, not Start",
+			mutate: func(in *missionInputs) {
+				in.intent = runningIntentFor(*in, domain.RunIntentPaused)
+			},
+			wantState: MissionNeedsYou, wantWhy: ReasonRunPaused,
+		},
+		{
+			name: "a cancelled run is the owner's to restart",
+			mutate: func(in *missionInputs) {
+				in.intent = runningIntentFor(*in, domain.RunIntentCancelled)
+			},
+			wantState: MissionNeedsYou, wantWhy: ReasonStartRequired,
+		},
+		{
+			name: "an authorization naming a superseded Plan can admit nothing",
+			mutate: func(in *missionInputs) {
+				intent := runningIntentFor(*in, domain.RunIntentRunning)
+				intent.PlanRevisionID = "plan-previous"
+				in.intent = intent
+			},
+			wantState: MissionNeedsYou, wantWhy: ReasonRunIntentPlanSuperseded,
+		},
+		{
+			name: "an authorized run with nothing runnable still reports the schedule's reason",
+			mutate: func(in *missionInputs) {
+				in.intent = runningIntentFor(*in, domain.RunIntentRunning)
+				in.schedule = &ScheduleView{Plan: in.plan, NoRunnableReason: NoRunnableAwaitingProof}
+			},
+			wantState: MissionNeedsYou, wantWhy: string(NoRunnableAwaitingProof),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			in := approvedPlanInputs()
+			in.runIntentsEnabled = true
+			tc.mutate(&in)
+			state, why, blocker := deriveMissionState(in)
+			if state != tc.wantState || why != tc.wantWhy {
+				t.Fatalf("state = %q/%q, want %q/%q", state, why, tc.wantState, tc.wantWhy)
+			}
+			if state == MissionNeedsYou && (blocker == nil || blocker.Code != why || blocker.Message == "") {
+				t.Fatalf("needs_you carried no usable blocker: %+v", blocker)
+			}
+			if state != MissionNeedsYou && blocker != nil {
+				t.Fatalf("non-blocking state %q carried blocker %+v", state, blocker)
+			}
+		})
+	}
+}
+
+// TestDeriveEligibleActions_RunCommandsMatchTheTransitionPolicy proves the
+// offered moves and domain.NextRunIntent cannot disagree — the invariant whose
+// absence produced KUX-002.
+func TestDeriveEligibleActions_RunCommandsMatchTheTransitionPolicy(t *testing.T) {
+	commands := map[RunAction]domain.RunCommand{
+		RunActionStart:  domain.RunCommandStart,
+		RunActionPause:  domain.RunCommandPause,
+		RunActionResume: domain.RunCommandResume,
+		RunActionCancel: domain.RunCommandCancel,
+	}
+
+	for _, desired := range []domain.RunIntentDesired{
+		domain.RunIntentIdle, domain.RunIntentRunning, domain.RunIntentPaused, domain.RunIntentCancelled,
+	} {
+		t.Run(string(desired), func(t *testing.T) {
+			in := approvedPlanInputs()
+			in.runIntentsEnabled = true
+			in.intent = runningIntentFor(in, desired)
+			actions := deriveEligibleActions(RunStateView{}, in)
+
+			for action, command := range commands {
+				_, applies := domain.NextRunIntent(desired, command)
+				got := actionFor(actions, action)
+				// Everything else about these inputs — approved binding Plan,
+				// runnable unit, clear gate, no Attempt — permits the command,
+				// so the transition policy is the only thing left deciding.
+				if got.Available != applies {
+					t.Fatalf("%s available = %v (reason %q), but NextRunIntent(%s, %s) applies = %v",
+						action, got.Available, got.Reason, desired, command, applies)
+				}
+			}
+		})
+	}
+}
+
 func TestDeriveMissionState_BlockedContributionOutranksPlanProgress(t *testing.T) {
 	in := approvedPlanInputs()
 	in.gate = domain.ContributionStartGate{

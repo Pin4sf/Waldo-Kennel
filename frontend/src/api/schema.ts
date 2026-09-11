@@ -3261,6 +3261,7 @@ export interface components {
             /** Format: date-time */
             acknowledgedAt?: null | string;
             activeAttemptId?: string;
+            bindsCurrentPlan: boolean;
             /** @enum {string} */
             desired: "idle" | "running" | "paused" | "cancelled";
             /** Format: int64 */
