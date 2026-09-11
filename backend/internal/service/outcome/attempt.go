@@ -26,6 +26,16 @@ type heartbeatSource interface {
 	GetSession(ctx context.Context, id domain.SessionID) (domain.SessionRecord, bool, error)
 }
 
+// prelaunchObservationPayload is the typed durable bridge between the Attempt
+// transaction and run-intent reconciliation. Error remains diagnostic prose;
+// AdmissionFailure is the only field recovery may use as policy identity.
+type prelaunchObservationPayload struct {
+	Error            string                      `json:"error"`
+	WorkUnitID       domain.WorkUnitID           `json:"workUnitId"`
+	ProviderLaunched *bool                       `json:"providerLaunched"`
+	AdmissionFailure *domain.RunAdmissionFailure `json:"admissionFailure"`
+}
+
 // AttemptManager is the controller-facing Act & Observe boundary.
 type AttemptManager interface {
 	StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, in StartAttemptInput) (AttemptView, error)
@@ -530,6 +540,9 @@ func (s *Service) RecordObservation(ctx context.Context, outcomeID domain.Outcom
 	if kind == "" {
 		return domain.AttemptObservation{}, apierr.Invalid("OBSERVATION_KIND_REQUIRED", "Name what was observed", nil)
 	}
+	if systemOwnedPrelaunchObservationKind(kind) {
+		return domain.AttemptObservation{}, apierr.Invalid("OBSERVATION_KIND_RESERVED", "That observation kind is written only by Attempt admission", nil)
+	}
 	payload := in.Payload
 	if payload == "" {
 		payload = "{}"
@@ -641,30 +654,55 @@ func computeCompiledBriefDigest(binding domain.ExecutionBinding, mode domain.Ses
 // protecting anything. The workspace itself is left alone by the session
 // manager when it holds partial content, so failed custody stays inspectable.
 func (s *Service) admitPrelaunchFailure(ctx context.Context, outcomeID domain.OutcomeID, unit domain.WorkUnit, attempt domain.Attempt, cause error) error {
-	payload := mustJSON(map[string]any{"error": cause.Error(), "workUnitId": string(unit.ID), "providerLaunched": false})
 	kind := domain.ObservationAdmissionFailed
 	if errors.Is(cause, ports.ErrAttemptInputProvisioning) {
 		kind = domain.ObservationInputProvisioningFailed
 	}
+	refused := prelaunchRefusal(unit, attempt.ID, cause)
+	detailJSON := mustJSON(refused.Details)
+	if detailJSON == "" || detailJSON == "null" {
+		detailJSON = "{}"
+	}
+	failedAt := s.clock()
+	failure := domain.RunAdmissionFailure{
+		Code: refused.Code, Message: refused.Message, DetailJSON: detailJSON,
+		WorkUnitID: unit.ID, OccurredAt: failedAt,
+	}
+	providerLaunched := false
+	payload := mustJSON(prelaunchObservationPayload{
+		Error: cause.Error(), WorkUnitID: unit.ID, ProviderLaunched: &providerLaunched,
+		AdmissionFailure: &failure,
+	})
 
 	if _, err := s.store.FailAttemptBeforeLaunch(ctx, ports.AttemptPrelaunchFailure{
 		OutcomeID: outcomeID, AttemptID: attempt.ID, ObservationKind: kind,
-		ObservationPayload: payload, ReleaseReason: "provider_not_launched", At: s.clock(),
+		ObservationPayload: payload, ReleaseReason: "provider_not_launched", At: failedAt,
 	}); err != nil {
-		return errors.Join(fmt.Errorf("record prelaunch failure for %s: %w", attempt.ID, err), materializationFailed(unit, attempt.ID, cause))
-	}
-	refused := materializationFailed(unit, attempt.ID, cause)
-	if errors.Is(cause, ports.ErrAttemptWorkspacePreparation) {
-		refused = apierr.New(apierr.KindConflict, CodeAttemptWorkspacePreparationFailed, "The workspace could not be prepared; no provider was started", map[string]any{"attemptId": string(attempt.ID), "detail": cause.Error()})
-	} else if errors.Is(cause, ports.ErrAgentBinaryNotFound) {
-		refused = apierr.New(apierr.KindConflict, CodeAgentBinaryNotFound, "The authorized agent binary is not installed on this machine; no provider was started", map[string]any{"attemptId": string(attempt.ID), "detail": cause.Error()})
-	} else if !errors.Is(cause, ports.ErrAttemptInputProvisioning) {
-		var prelaunch *ports.AttemptPrelaunchError
-		if errors.As(cause, &prelaunch) {
-			refused = apierr.New(apierr.KindConflict, CodeAttemptPrelaunchFailed, "The Attempt could not launch; no provider was started", map[string]any{"attemptId": string(attempt.ID), "stage": prelaunch.Stage, "detail": cause.Error()})
-		}
+		return errors.Join(fmt.Errorf("record prelaunch failure for %s: %w", attempt.ID, err), refused)
 	}
 	return refused
+}
+
+func prelaunchRefusal(unit domain.WorkUnit, attemptID domain.AttemptID, cause error) *apierr.Error {
+	if errors.Is(cause, ports.ErrAttemptInputProvisioning) {
+		return materializationFailed(unit, attemptID, cause)
+	}
+	if errors.Is(cause, ports.ErrAttemptWorkspacePreparation) {
+		return apierr.New(apierr.KindConflict, CodeAttemptWorkspacePreparationFailed, "The workspace could not be prepared; no provider was started", map[string]any{"attemptId": string(attemptID), "detail": cause.Error()})
+	}
+	if errors.Is(cause, ports.ErrAgentBinaryNotFound) {
+		return apierr.New(apierr.KindConflict, CodeAgentBinaryNotFound, "The authorized agent binary is not installed on this machine; no provider was started", map[string]any{"attemptId": string(attemptID), "detail": cause.Error()})
+	}
+	detail := map[string]any{"attemptId": string(attemptID), "detail": cause.Error()}
+	var prelaunch *ports.AttemptPrelaunchError
+	if errors.As(cause, &prelaunch) {
+		detail["stage"] = prelaunch.Stage
+	}
+	return apierr.New(apierr.KindConflict, CodeAttemptPrelaunchFailed, "The Attempt could not launch; no provider was started", detail)
+}
+
+func systemOwnedPrelaunchObservationKind(kind string) bool {
+	return kind == domain.ObservationAdmissionFailed || kind == domain.ObservationInputProvisioningFailed
 }
 
 func renderRunBriefPrompt(revision domain.ContractRevision, unit domain.WorkUnit) string {

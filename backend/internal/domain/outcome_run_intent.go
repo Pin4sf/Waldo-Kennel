@@ -11,11 +11,11 @@ import (
 // not admit its next WorkUnit. A later owner command creates a new generation;
 // it never clears or rewrites this history.
 type RunAdmissionFailure struct {
-	Code       string
-	Message    string
-	DetailJSON string
-	WorkUnitID WorkUnitID
-	OccurredAt time.Time
+	Code       string     `json:"code"`
+	Message    string     `json:"message"`
+	DetailJSON string     `json:"detailJson"`
+	WorkUnitID WorkUnitID `json:"workUnitId"`
+	OccurredAt time.Time  `json:"occurredAt"`
 }
 
 func (f RunAdmissionFailure) Validate() error {

@@ -549,12 +549,16 @@ func (s *Service) continueOneRun(ctx context.Context, intent domain.OutcomeRunIn
 		return nil
 	}
 	requestKey := runContinuationKey(intent, schedule.NextRunnableID)
-	_, err = s.StartAttempt(ctx, intent.OutcomeID, StartAttemptInput{
+	attemptView, err := s.StartAttempt(ctx, intent.OutcomeID, StartAttemptInput{
 		PlanRevisionID: intent.PlanRevisionID,
 		WorkUnitID:     schedule.NextRunnableID,
 		RequestKey:     requestKey,
 	})
 	if err == nil {
+		_, recoveryErr := s.recordRecoveredPrelaunchFailure(ctx, intent, schedule.NextRunnableID, attemptView)
+		if recoveryErr != nil {
+			return recoveryErr
+		}
 		return nil
 	}
 	// Every refusal here is already a durable, owner-visible fact: a blocked
@@ -573,6 +577,19 @@ func (s *Service) continueOneRun(ctx context.Context, intent domain.OutcomeRunIn
 			// uncertainty into a retryable run-intent blocker.
 			return nil
 		}
+		if found {
+			attemptView, viewErr := s.GetAttempt(ctx, attempt.OutcomeID, attempt.ID)
+			if viewErr != nil {
+				return viewErr
+			}
+			recovered, recoveryErr := s.recordRecoveredPrelaunchFailure(ctx, intent, schedule.NextRunnableID, attemptView)
+			if recoveryErr != nil {
+				return recoveryErr
+			}
+			if recovered {
+				return nil
+			}
+		}
 		detail, marshalErr := json.Marshal(api.Details)
 		if marshalErr != nil {
 			return fmt.Errorf("encode run admission failure detail: %w", marshalErr)
@@ -590,6 +607,49 @@ func (s *Service) continueOneRun(ctx context.Context, intent domain.OutcomeRunIn
 		return nil
 	}
 	return err
+}
+
+func (s *Service) recordRecoveredPrelaunchFailure(ctx context.Context, intent domain.OutcomeRunIntent, unitID domain.WorkUnitID, attempt AttemptView) (bool, error) {
+	failure, found, err := prelaunchFailureFromAttempt(attempt, unitID)
+	if err != nil || !found {
+		return found, err
+	}
+	_, err = s.runIntents.RecordRunAdmissionFailure(ctx, intent.OutcomeID, intent.Generation, failure)
+	return true, err
+}
+
+func prelaunchFailureFromAttempt(attempt AttemptView, unitID domain.WorkUnitID) (domain.RunAdmissionFailure, bool, error) {
+	if attempt.Attempt.Status != domain.AttemptFailed {
+		return domain.RunAdmissionFailure{}, false, nil
+	}
+	if attempt.Attempt.WorkUnitID != unitID {
+		return domain.RunAdmissionFailure{}, false, fmt.Errorf("prelaunch replay attempt %s belongs to work unit %s, expected %s", attempt.Attempt.ID, attempt.Attempt.WorkUnitID, unitID)
+	}
+	for i := len(attempt.Observations) - 1; i >= 0; i-- {
+		observation := attempt.Observations[i]
+		if !systemOwnedPrelaunchObservationKind(observation.Kind) {
+			continue
+		}
+		var payload prelaunchObservationPayload
+		if err := json.Unmarshal([]byte(observation.Payload), &payload); err != nil {
+			return domain.RunAdmissionFailure{}, false, fmt.Errorf("decode typed prelaunch observation %s: %w", observation.ID, err)
+		}
+		if payload.AdmissionFailure == nil {
+			continue
+		}
+		if payload.ProviderLaunched == nil || *payload.ProviderLaunched {
+			return domain.RunAdmissionFailure{}, false, fmt.Errorf("prelaunch observation %s does not prove providerLaunched=false", observation.ID)
+		}
+		failure := *payload.AdmissionFailure
+		if err := failure.Validate(); err != nil {
+			return domain.RunAdmissionFailure{}, false, fmt.Errorf("validate prelaunch observation %s: %w", observation.ID, err)
+		}
+		if failure.WorkUnitID != unitID || payload.WorkUnitID != unitID {
+			return domain.RunAdmissionFailure{}, false, fmt.Errorf("prelaunch observation %s belongs to work unit %s/%s, expected %s", observation.ID, payload.WorkUnitID, failure.WorkUnitID, unitID)
+		}
+		return failure, true, nil
+	}
+	return domain.RunAdmissionFailure{}, false, nil
 }
 
 // runContinuationKey is the replay identity of "this generation admitting

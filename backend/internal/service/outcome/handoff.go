@@ -187,7 +187,7 @@ func inputArtifactVersions(inputs []ports.AttemptInputRef) []string {
 // an ambiguous start. Reporting it as unresolved would send the owner to
 // reconcile a run that never began; reporting it as an ordinary conflict would
 // hide that a workspace may hold partial inputs.
-func materializationFailed(unit domain.WorkUnit, attemptID domain.AttemptID, cause error) error {
+func materializationFailed(unit domain.WorkUnit, attemptID domain.AttemptID, cause error) *apierr.Error {
 	return apierr.Conflict(CodeUpstreamMaterializationFailed,
 		"This WorkUnit's inputs could not be provisioned, so nothing was started",
 		map[string]any{"workUnitId": unit.ID, "attemptId": attemptID, "detail": cause.Error()})
