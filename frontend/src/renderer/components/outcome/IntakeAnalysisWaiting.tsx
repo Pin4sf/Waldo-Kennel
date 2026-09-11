@@ -161,7 +161,7 @@ export function IntakeAnalysisRefused({
  * agent-authored one look identical on screen while being worth very different
  * amounts of trust.
  */
-export function ProposalProvenanceNote({ kind, harness }: { kind: "agent" | "offline"; harness?: string }) {
+export function ProposalProvenanceNote({ kind, harness }: { kind: "agent" | "unattributed"; harness?: string }) {
 	const { t } = useTranslation();
 	const label = useHarnessLabel(harness);
 	if (kind === "agent") {
@@ -173,8 +173,8 @@ export function ProposalProvenanceNote({ kind, harness }: { kind: "agent" | "off
 		);
 	}
 	return (
-		<p className="text-2xs text-warning" data-testid="proposal-provenance">
-			{t("outcome.intake.provenance.offline")}
+		<p className="text-2xs text-passive" data-testid="proposal-provenance">
+			{t("outcome.intake.provenance.unattributed")}
 		</p>
 	);
 }

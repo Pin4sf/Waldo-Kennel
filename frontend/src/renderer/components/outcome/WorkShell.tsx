@@ -225,7 +225,7 @@ export function WorkShell({ projectId, outcomeId, children }: WorkShellProps) {
 			</div>
 
 			<div className="flex min-h-0 flex-1 gap-2.5 overflow-hidden">
-				<div className="min-w-0 min-h-0 flex-1" data-project-id={projectId} data-outcome-id={outcomeId}>
+				<div className="min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain" data-project-id={projectId} data-outcome-id={outcomeId}>
 					{children}
 				</div>
 				{isAttemptPanelOpen && currentAttempt ? (

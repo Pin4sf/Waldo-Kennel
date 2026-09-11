@@ -370,7 +370,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 					    always emitted; a narrowed or model-authored ceiling would
 					    have been described wrongly. */}
 					<IntakeAuthorityEditor
-						readOnly={!editing}
+						readOnly={pending}
 						onChange={(authorityCeiling) => setDraft({ ...draft, authorityCeiling })}
 						value={draft.authorityCeiling}
 					/>
@@ -384,9 +384,14 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 					<Button disabled={pending || problems.length > 0} onClick={() => void confirm()}>
 						{pending ? t("outcome.intake.confirming") : t("outcome.intake.confirm")}
 					</Button>
+					<details className="border-t border-border pt-3">
+						<summary className="cursor-pointer text-xs text-muted-foreground">{t("outcome.intake.cancel")}</summary>
+						<div className="mt-3 flex flex-col gap-2">
 					<label className="text-xs font-medium text-muted-foreground" htmlFor="intake-cancellation-reason">{t("outcome.intake.cancelReason")}</label>
 					<input id="intake-cancellation-reason" className="rounded-md hairline border-border bg-background px-2.5 py-1.5 text-xs" onChange={(event) => setCancellationReason(event.target.value)} value={cancellationReason} />
 					<Button disabled={pending || !cancellationReason.trim()} variant="outline" onClick={() => void cancel()}>{t("outcome.intake.cancel")}</Button>
+						</div>
+					</details>
 					{error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
 				</aside>
 			</section>

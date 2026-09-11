@@ -2,7 +2,7 @@ import { useUiStore } from "../../stores/ui-store";
 vi.mock("../../hooks/useMissionAttention", () => ({
 	useMissionAttention: (outcomes: Array<{ id: string }>) =>
 		new Map(
-			outcomes.map((outcome) => [outcome.id, { lane: outcome.id.startsWith("accepted") ? "accepted" : "define" }]),
+			outcomes.map((outcome) => [outcome.id, { lane: outcome.id.startsWith("accepted") ? "accepted" : outcome.id.startsWith("review") ? "review" : "define" }]),
 		),
 }));
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -174,7 +174,7 @@ describe("OutcomesOverviewSurface", () => {
 	});
 });
 
-it("keeps accepted history out of the active portfolio until requested", async () => {
+it("shows accepted Outcomes in Finished on the board", async () => {
 	workspaceQueryMock.mockReturnValue({ data: [workspace("p", "Project")], isLoading: false });
 	projectOutcomesQueryMock.mockReturnValue({
 		outcomes: [outcome("active", "Current work"), outcome("accepted-one", "Accepted work")],
@@ -183,13 +183,13 @@ it("keeps accepted history out of the active portfolio until requested", async (
 	});
 	renderSurface();
 	expect(screen.getByText("Current work")).toBeInTheDocument();
-	expect(screen.queryByText("Accepted work")).not.toBeInTheDocument();
+	expect(screen.getByText("Accepted work")).toBeInTheDocument();
 	await userEvent.click(screen.getByText("Filters"));
 	await userEvent.selectOptions(screen.getByRole("combobox", { name: "Outcome status" }), "history");
 	expect(screen.getByText("Accepted work")).toBeInTheDocument();
 });
 
-it("keeps empty lifecycle columns visible and uses the same Outcomes in List", async () => {
+it("groups the board into four useful columns and keeps the same Outcomes in List", async () => {
 	workspaceQueryMock.mockReturnValue({ data: [workspace("p", "Project")], isLoading: false });
 	projectOutcomesQueryMock.mockReturnValue({
 		outcomes: [outcome("active", "Current work")],
@@ -198,10 +198,34 @@ it("keeps empty lifecycle columns visible and uses the same Outcomes in List", a
 	});
 	useUiStore.setState({ outcomeRunViewMode: "board" });
 	renderSurface();
-	expect(screen.getByRole("heading", { name: /Ready to authorize/ })).toBeInTheDocument();
+	expect(screen.getByRole("heading", { name: /To do/ })).toBeInTheDocument();
+	expect(screen.getByRole("heading", { name: /Needs you/ })).toBeInTheDocument();
+	expect(screen.getByRole("heading", { name: /Finished/ })).toBeInTheDocument();
+	expect(screen.queryByRole("heading", { name: /Ready to authorize/ })).not.toBeInTheDocument();
 	expect(screen.getByRole("heading", { name: /In progress/ })).toBeInTheDocument();
 	expect(screen.getByText("Filters").closest("details")).not.toHaveAttribute("open");
 	act(() => useUiStore.setState({ outcomeRunViewMode: "list" }));
 	expect(screen.getAllByTestId("outcomes-overview-row")).toHaveLength(1);
 	expect(screen.getByText("Current work")).toBeInTheDocument();
+});
+
+it("keeps reviewable Outcomes in the Needs you filter and applies Active consistently", async () => {
+	workspaceQueryMock.mockReturnValue({ data: [workspace("p", "Project")], isLoading: false });
+	projectOutcomesQueryMock.mockReturnValue({
+		outcomes: [outcome("review-one", "Ready for owner review"), outcome("accepted-one", "Finished work")],
+		isLoading: false, refetch: vi.fn(),
+	});
+	useUiStore.setState({ outcomeRunViewMode: "board" });
+	renderSurface();
+	expect(screen.getByText("Finished work")).toBeInTheDocument();
+	await userEvent.click(screen.getByText("Filters"));
+	const filter = screen.getByRole("combobox", { name: "Outcome status" });
+	await userEvent.selectOptions(filter, "needsYou");
+	expect(screen.getByText("Ready for owner review")).toBeInTheDocument();
+	expect(screen.queryByText("Finished work")).not.toBeInTheDocument();
+	await userEvent.selectOptions(filter, "active");
+	expect(screen.queryByText("Finished work")).not.toBeInTheDocument();
+	act(() => useUiStore.setState({ outcomeRunViewMode: "list" }));
+	expect(screen.getByText("Ready for owner review")).toBeInTheDocument();
+	expect(screen.queryByText("Finished work")).not.toBeInTheDocument();
 });

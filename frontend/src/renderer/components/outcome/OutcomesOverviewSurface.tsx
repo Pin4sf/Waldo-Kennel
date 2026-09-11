@@ -1,5 +1,5 @@
 import { useMissionAttention } from "../../hooks/useMissionAttention";
-import { MISSION_LANES, type MissionAttention } from "../../lib/mission-attention";
+import { type MissionAttention } from "../../lib/mission-attention";
 import { Fragment, useMemo, useState } from "react";
 import { Flag, Network } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -30,7 +30,7 @@ export function OutcomesOverviewSurface({
 	const workspaces = workspaceQuery.data ?? [];
 	const view = useUiStore((state) => state.outcomeRunViewMode);
 
-	const [attentionFilter, setAttentionFilter] = useState("active");
+	const [attentionFilter, setAttentionFilter] = useState("history");
 	const [includeContributors, setIncludeContributors] = useState(false);
 	const [query, setQuery] = useState("");
 	const [localProjectFilter, setLocalProjectFilter] = useState("all");
@@ -156,17 +156,16 @@ function ProjectOutcomesGroup({
 
 	const visibleNodes = outcomeTree.slice(0, limit);
 	const attention = useMissionAttention(visibleNodes.map((node) => node.outcome), workspace.id);
-	const filteredNodes = visibleNodes.filter(
-		(node) =>
-			attentionFilter === "history" ||
-			(attentionFilter === "needsYou"
-				? attention.get(node.outcome.id)?.lane === "needsYou"
-				: attention.get(node.outcome.id)?.lane !== "accepted"),
-	);
-	const lanes =
-		view === "board"
-			? MISSION_LANES.filter((lane) => (lane !== "accepted" || attentionFilter === "history") && (lane !== "unavailable" || visibleNodes.some(node => attention.get(node.outcome.id)?.lane === "unavailable")))
-			: [undefined];
+	// Board buckets group derived states; acceptance remains a daemon fact.
+	const boardLane = (lane?: string) => lane === "accepted" ? "accepted" : lane === "observe" ? "observe" : lane === "define" || lane === "authorize" ? "define" : "needsYou";
+	const filteredNodes = visibleNodes.filter((node) => {
+		const lane = attention.get(node.outcome.id)?.lane;
+		return attentionFilter === "history" || (attentionFilter === "needsYou"
+			? boardLane(lane) === "needsYou"
+			: lane !== "accepted");
+	});
+	const lanes = view === "board" ? (["define", "observe", "needsYou", "accepted"] as const) : [undefined];
+
 
 	if (!showEmpty && !outcomesQuery.isLoading && !outcomesQuery.failure && outcomes.length === 0) return null;
 
@@ -196,7 +195,7 @@ function ProjectOutcomesGroup({
 								key={lane ?? "list"}
 								className={cn(
 									"min-w-0",
-									view === "board" && "w-[285px] shrink-0 rounded-2xl bg-surface/50 p-1 min-h-80",
+									view === "board" && "min-w-[220px] flex-1 rounded-2xl bg-surface/50 p-1 min-h-80",
 								)}
 							>
 								{lane && (
@@ -205,7 +204,7 @@ function ProjectOutcomesGroup({
 											aria-hidden="true"
 											className={cn(
 												"size-2 rounded-full",
-												lane === "needsYou" || lane === "authorize"
+												lane === "needsYou"
 													? "bg-orange-400"
 													: lane === "observe"
 														? "bg-blue-400"
@@ -214,15 +213,15 @@ function ProjectOutcomesGroup({
 															: "bg-muted-foreground",
 											)}
 										/>
-										{t(`mission.lane.${lane}`)}
+										{t(`mission.boardLane.${lane}`)}
 										<span className="ml-auto tabular-nums text-muted-foreground">
-											{filteredNodes.filter((node) => attention.get(node.outcome.id)?.lane === lane).length}
+											{filteredNodes.filter((node) => boardLane(attention.get(node.outcome.id)?.lane) === lane).length}
 										</span>
 									</h4>
 								)}
 								<ul className="flex flex-col gap-2">
 									{filteredNodes
-										.filter((node) => !lane || attention.get(node.outcome.id)?.lane === lane)
+										.filter((node) => !lane || boardLane(attention.get(node.outcome.id)?.lane) === lane)
 										.map((node) => (
 											<Fragment key={node.outcome.id}>
 												<OutcomeOverviewRow

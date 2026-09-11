@@ -398,12 +398,15 @@ export function IntakeAuthorityEditor({
 					{readOnly ? (
 						<span className="text-xs">{t(value[key] ? "mission.allowed" : "mission.denied")}</span>
 					) : (
+						<span className="flex items-center gap-2">
+						<span>{t(value[key] ? "mission.allowed" : "mission.denied")}</span>
 						<Switch
 							aria-label={t(AUTHORITY_LABEL_KEYS[key] as never)}
 							checked={value[key]}
 							onCheckedChange={(checked) => onChange({ ...value, [key]: checked })}
 							size="sm"
 						/>
+						</span>
 					)}
 				</label>
 			))}

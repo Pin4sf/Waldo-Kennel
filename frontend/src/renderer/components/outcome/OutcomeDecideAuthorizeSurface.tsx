@@ -345,8 +345,9 @@ function PlanFailureBanners({ failure, onRetry }: { failure: OutcomeFailure; onR
 	if (failure.kind === "retryable") {
 		return (
 			<div className="max-w-xl rounded-group hairline border-border bg-card px-4.5 py-3.5" data-testid="outcome-plan-retryable" role="alert">
-				<h3 className="text-sm font-medium">{t("outcome.understand.retryableTitle")}</h3>
-				<p className="mt-1 text-muted-foreground text-sm">{failure.message}</p>
+				<h3 className="text-sm font-medium">{t("outcome.plan.failedTitle")}</h3>
+				<p className="mt-1 text-muted-foreground text-sm">{failure.code === "PLAN_DRAFT_CHECK_INVALID" ? t("outcome.plan.invalidCheck") : failure.message}</p>
+				{failure.code === "PLAN_DRAFT_CHECK_INVALID" && <p className="mt-2 break-words text-xs text-muted-foreground">{failure.message}</p>}
 				<Button className="mt-3" onClick={onRetry} size="sm" type="button" variant="outline">
 					{t("outcome.understand.retry")}
 				</Button>

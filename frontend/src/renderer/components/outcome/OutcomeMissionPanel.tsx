@@ -52,7 +52,7 @@ export function OutcomeMissionPanel({
 	const stale = Boolean(plan && outcome && plan.contractRevisionNumber !== outcome.currentRevisionNumber);
 	return (
 		<section
-			className="flex h-full min-h-0 min-w-0 flex-col"
+			className="mx-auto flex h-full min-h-0 min-w-0 w-full max-w-5xl flex-col px-4 py-3"
 			aria-label={outcome?.title ?? t("mission.contract")}
 			data-testid="outcome-mission-panel"
 		>
@@ -62,7 +62,7 @@ export function OutcomeMissionPanel({
 						{projects.data?.find((project) => project.id === projectId)?.name ?? projectId}
 					</span>
 					<div className="flex gap-1">
-						<Button size="sm" variant="ghost" onClick={onExpand}>
+						<Button className="hidden @[1050px]/mission:inline-flex" size="sm" variant="ghost" onClick={onExpand}>
 							{expanded ? (
 								<Minimize2 aria-hidden="true" className="size-3.5" />
 							) : (
@@ -141,7 +141,7 @@ export function OutcomeMissionPanel({
 								</Button>
 							))}
 						</nav>
-						<div className="min-h-0 flex-1 overflow-auto pr-2">
+						<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-2 pb-6">
 							<div hidden={tab !== "contract"}>
 								<ContractOverview contract={outcome.currentRevision} />
 								<OutcomeDocumentsPanel outcomeId={outcomeId} />
@@ -235,9 +235,11 @@ function ContractOverview({
 }) {
 	const { t } = useTranslation();
 	return (
-		<dl className="space-y-4 text-sm">
-			<dt className="font-medium">{t("mission.goal")}</dt>
-			<dd className="whitespace-pre-wrap break-words">{contract.goal}</dd>
+		<div className="divide-y divide-border rounded-xl border border-border bg-card text-sm [&>div]:px-4 [&>div]:py-3">
+			<div>
+			<h3 className="font-medium">{t("mission.goal")}</h3>
+			<div className="mt-2 whitespace-pre-wrap break-words">{contract.goal}</div>
+			</div>
 			{(
 				[
 					["criteria", contract.criteria.map((criterion) => criterion.text)],
@@ -247,8 +249,9 @@ function ContractOverview({
 				] as const
 			).map(([label, values]) => (
 				<div key={label}>
-					<dt className="mb-1 font-medium">{t(`mission.${label}`)}</dt>
-					<dd className="text-muted-foreground">
+					<details open={label === "criteria"}>
+					<summary className="cursor-pointer font-medium">{t(`mission.${label}`)} <span className="text-muted-foreground">({values.length})</span></summary>
+					<div className="text-muted-foreground">
 						{values.length ? (
 							<ul className="list-disc space-y-1 pl-4">
 								{values.map((value, index) => (
@@ -260,16 +263,17 @@ function ContractOverview({
 						) : (
 							t("mission.none")
 						)}
-					</dd>
+					</div>
+					</details>
 				</div>
 			))}
 			<div>
-				<dt className="mb-1 font-medium">{t("mission.review")}</dt>
-				<dd>{contract.review || t("mission.none")}</dd>
+				<h3 className="mb-1 font-medium">{t("mission.review")}</h3>
+				<div>{contract.review || t("mission.none")}</div>
 			</div>
 			<div>
-				<dt className="mb-1 font-medium">{t("mission.permissions")}</dt>
-				<dd className="text-xs text-muted-foreground">
+				<h3 className="mb-1 font-medium">{t("mission.permissions")}</h3>
+				<div className="text-xs text-muted-foreground">
 					{contract.authorityCeiling ? (
 						<ul className="grid grid-cols-2 gap-2">
 							{Object.entries(contract.authorityCeiling).map(([name, allowed]) => (
@@ -282,8 +286,8 @@ function ContractOverview({
 					) : (
 						t("mission.unknown")
 					)}
-				</dd>
+				</div>
 			</div>
-		</dl>
+		</div>
 	);
 }

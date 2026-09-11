@@ -83,7 +83,7 @@ describe("ReasoningSettingsSection", () => {
 		renderSection();
 
 		expect(screen.getByText("Codex app-server is unavailable")).toBeInTheDocument();
-		expect(screen.getByText(/Install or sign in to Codex/)).toBeInTheDocument();
+		expect(screen.getByText(/signing in alone does not establish reasoning capability/)).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Verify now" })).toBeDisabled();
 	});
 

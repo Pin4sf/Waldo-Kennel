@@ -121,7 +121,7 @@ it("shows every part of the Contract proposal, not just the four editable fields
 	expect(screen.getByText(/software · Desktop change/)).toBeInTheDocument();
 	expect(screen.getByText("Scope is the desktop app only")).toBeInTheDocument();
 
- expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+ expect(screen.getByRole("switch", { name: "Write in the workspace" })).toBeEnabled();
  expect(screen.getAllByText("Allowed")).toHaveLength(2);
  expect(screen.getAllByText("Not allowed")).toHaveLength(6);
  expect(screen.queryByRole("textbox", {name:"Time boundary"})).not.toBeInTheDocument();
@@ -215,7 +215,7 @@ it("names the agent that is working and always offers a way out of waiting", asy
 	// An anonymous spinner gives a person nothing to judge; the harness is named.
 	expect(screen.getByRole("heading", { name: /codex is reading the project/i })).toBeInTheDocument();
 	expect(screen.queryByRole("button", { name: "Use the offline proposal instead" })).not.toBeInTheDocument();
-	expect(screen.getByRole("button", { name: "Release this intake" })).toBeEnabled();
+	expect(screen.getByRole("button", { name: "Cancel request" })).toBeEnabled();
 });
 
 it("offers reasoning setup without writing or retrying when analysis fails unconfigured", async () => {
@@ -254,7 +254,7 @@ it("says whether anything actually analyzed the proposal on screen", async () =>
 	// No ask ever happened, so this came from the deterministic baseline and
 	// the person should expect to rewrite the criteria.
 	respondWith(ready, null);
-	expect(await screen.findByTestId("proposal-provenance")).toHaveTextContent(/No agent analyzed this/i);
+	expect(await screen.findByTestId("proposal-provenance")).toHaveTextContent(/Its author is not recorded/i);
 });
 
 it("clears the box after a captured statement but keeps it after a rejected one", async () => {

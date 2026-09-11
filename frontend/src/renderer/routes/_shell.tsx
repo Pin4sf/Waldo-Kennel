@@ -721,7 +721,7 @@ function ShellLayout() {
 								/>
 								<main
 									className={cn(
-										"relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
+										"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
 										!usesWorkProjectShell && !isSidebarOpen && "sidebar-hidden",
 																				!isHomeRoute && !usesWorkLaunchMode && "waldo-launcher-reserved",
 									)}
