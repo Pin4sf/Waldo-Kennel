@@ -467,6 +467,13 @@ BEGIN
     SELECT CASE WHEN NOT EXISTS (
         SELECT 1 FROM planning_sessions s
         JOIN planning_turns t ON t.planning_session_id = s.id
+        JOIN contract_revisions cr
+          ON cr.id = s.contract_revision_id
+         AND cr.outcome_id = s.outcome_id
+         AND cr.number = s.contract_revision_number
+        JOIN outcomes o
+          ON o.id = s.outcome_id
+         AND o.current_revision_number = s.contract_revision_number
         WHERE s.id = NEW.planning_session_id
           AND s.outcome_id = NEW.outcome_id
           AND s.contract_revision_number = NEW.contract_revision_number

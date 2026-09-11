@@ -71,16 +71,37 @@ func (s *Service) StartPlanning(ctx context.Context, outcomeID domain.OutcomeID,
 	if strings.TrimSpace(in.RequestKey) == "" {
 		return PlanningView{}, apierr.Invalid("PLANNING_REQUEST_KEY_REQUIRED", "A request key is required", nil)
 	}
-	outcomeRecord, revision, err := s.planningLineage(ctx, outcomeID, in.ExpectedContractRevision)
-	if err != nil {
-		return PlanningView{}, err
-	}
 	contextMode := in.ContextMode
 	if contextMode == "" {
 		contextMode = domain.PlanningContextRepositoryRead
 	}
 	if !contextMode.Valid() {
 		return PlanningView{}, apierr.Invalid("PLANNING_CONTEXT_INVALID", "Choose repository context or an approved supplied-document packet", nil)
+	}
+	requestKey := strings.TrimSpace(in.RequestKey)
+	fingerprint := planningStartFingerprint(outcomeID, in.ExpectedContractRevision, strings.TrimSpace(in.CandidateID), contextMode)
+	if existing, found, err := s.planningSessions.GetPlanningSessionByRequestKey(ctx, requestKey); err != nil {
+		return PlanningView{}, err
+	} else if found {
+		if existing.RequestFingerprint != fingerprint {
+			return PlanningView{}, planningAPIError(&ports.PlanningRequestConflictError{RequestKey: requestKey})
+		}
+		outcomeRecord, found, err := s.store.GetOutcome(ctx, existing.OutcomeID)
+		if err != nil {
+			return PlanningView{}, err
+		}
+		if !found {
+			return PlanningView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
+		}
+		existing, err = s.reconcilePlanningContract(ctx, outcomeRecord, existing)
+		if err != nil {
+			return PlanningView{}, err
+		}
+		return s.planningView(ctx, outcomeRecord, existing)
+	}
+	outcomeRecord, revision, err := s.planningLineage(ctx, outcomeID, in.ExpectedContractRevision)
+	if err != nil {
+		return PlanningView{}, err
 	}
 	if contextMode == domain.PlanningContextRepositoryRead && !planningRepositoryReadAllowed(revision) {
 		return PlanningView{}, apierr.New(apierr.KindConflict, "PLANNING_REPOSITORY_READ_REQUIRED",
@@ -118,19 +139,9 @@ func (s *Service) StartPlanning(ctx context.Context, outcomeID domain.OutcomeID,
 	if err != nil {
 		return PlanningView{}, err
 	}
-	var briefSource interface {
-		GetCurrentProjectBriefRevision(context.Context, domain.ProjectID) (domain.ProjectBriefRevision, bool, error)
-	}
-	if candidate, ok := s.store.(interface {
-		GetCurrentProjectBriefRevision(context.Context, domain.ProjectID) (domain.ProjectBriefRevision, bool, error)
-	}); ok {
-		briefSource = candidate
-	}
-	snapshot, err := intelligencesvc.BuildRepositoryContext(ctx, project, briefSource)
-	if err != nil {
-		return PlanningView{}, err
-	}
+	var snapshot ports.RepositoryContextSnapshot
 	if contextMode == domain.PlanningContextSuppliedPacket {
+		snapshot.ProjectID = projectID
 		if err := s.groundInSelectedDocuments(ctx, outcomeID, &snapshot); err != nil {
 			return PlanningView{}, err
 		}
@@ -145,8 +156,22 @@ func (s *Service) StartPlanning(ctx context.Context, outcomeID domain.OutcomeID,
 			return PlanningView{}, fmt.Errorf("encode supplied planning context: %w", digestErr)
 		}
 		snapshot.Digest = domain.DigestSHA256(digestInput)
-	} else if snapshot.UnavailableReason != "" {
-		return PlanningView{}, apierr.Unavailable("PLANNING_REPOSITORY_UNAVAILABLE", snapshot.UnavailableReason, nil)
+	} else {
+		var briefSource interface {
+			GetCurrentProjectBriefRevision(context.Context, domain.ProjectID) (domain.ProjectBriefRevision, bool, error)
+		}
+		if candidate, ok := s.store.(interface {
+			GetCurrentProjectBriefRevision(context.Context, domain.ProjectID) (domain.ProjectBriefRevision, bool, error)
+		}); ok {
+			briefSource = candidate
+		}
+		snapshot, err = intelligencesvc.BuildRepositoryContext(ctx, project, briefSource)
+		if err != nil {
+			return PlanningView{}, err
+		}
+		if snapshot.UnavailableReason != "" {
+			return PlanningView{}, apierr.Unavailable("PLANNING_REPOSITORY_UNAVAILABLE", snapshot.UnavailableReason, nil)
+		}
 	}
 	contextJSON, err := json.Marshal(snapshot)
 	if err != nil {
@@ -159,20 +184,13 @@ func (s *Service) StartPlanning(ctx context.Context, outcomeID domain.OutcomeID,
 		Writes               bool `json:"writes"`
 		ExternalEffects      bool `json:"externalEffects"`
 	}{RepositoryPacketRead: contextMode == domain.PlanningContextRepositoryRead, SuppliedPacketRead: contextMode == domain.PlanningContextSuppliedPacket})
-	fingerprintJSON, _ := json.Marshal(struct {
-		OutcomeID string                     `json:"outcomeId"`
-		Revision  int64                      `json:"contractRevision"`
-		Candidate string                     `json:"candidateId"`
-		Context   domain.PlanningContextMode `json:"contextMode"`
-		Digest    domain.SHA256Digest        `json:"contextDigest"`
-	}{string(outcomeID), revision.Number, selected.ID, contextMode, snapshot.Digest})
 	now := s.clock().UTC()
 	session := domain.PlanningSession{
 		ID: domain.PlanningSessionID("planning-" + uuid.NewString()), OutcomeID: outcomeID, ProjectID: projectID,
 		ContractRevisionID: revision.ID, ContractRevisionNumber: revision.Number, Revision: 1,
 		Status: domain.PlanningSessionActive, WaitingOn: domain.PlanningWaitingOwner, Binding: selected.Binding,
 		ContextMode: contextMode, PlanningGrantDigest: domain.DigestSHA256(grantJSON), ContextDigest: snapshot.Digest,
-		ContextSnapshotJSON: contextJSON, RequestKey: strings.TrimSpace(in.RequestKey), RequestFingerprint: domain.DigestSHA256(fingerprintJSON),
+		ContextSnapshotJSON: contextJSON, RequestKey: requestKey, RequestFingerprint: fingerprint,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	saved, _, err := s.planningSessions.CreatePlanningSession(ctx, session)
@@ -201,6 +219,10 @@ func (s *Service) GetPlanning(ctx context.Context, outcomeID domain.OutcomeID, s
 	if !found {
 		return PlanningView{}, apierr.NotFound("PLANNING_SESSION_NOT_FOUND", "That planning conversation does not exist")
 	}
+	session, err = s.reconcilePlanningContract(ctx, outcomeRecord, session)
+	if err != nil {
+		return PlanningView{}, err
+	}
 	return s.planningView(ctx, outcomeRecord, session)
 }
 
@@ -222,6 +244,10 @@ func (s *Service) GetCurrentPlanning(ctx context.Context, outcomeID domain.Outco
 	}
 	if !found {
 		return PlanningView{}, apierr.NotFound("PLANNING_SESSION_NOT_FOUND", "This Outcome has no planning conversation yet")
+	}
+	session, err = s.reconcilePlanningContract(ctx, outcomeRecord, session)
+	if err != nil {
+		return PlanningView{}, err
 	}
 	return s.planningView(ctx, outcomeRecord, session)
 }
@@ -252,6 +278,19 @@ func (s *Service) CancelPlanning(ctx context.Context, outcomeID domain.OutcomeID
 	return s.planningView(ctx, view.Outcome, closed)
 }
 
+// RecoverInterruptedPlanning returns crash-interrupted direct-API waits to the
+// owner. It never replays a possibly billed provider request automatically.
+func (s *Service) RecoverInterruptedPlanning(ctx context.Context) (int64, error) {
+	if s.planningSessions == nil {
+		return 0, apierr.Internal("PLANNING_UNWIRED", "Interactive planning is unavailable in this environment")
+	}
+	recovered, err := s.planningSessions.RecoverInterruptedPlanningSessions(ctx, s.clock())
+	if err != nil {
+		return 0, apierr.Internal("PLANNING_RECOVERY_FAILED", "Interrupted planning conversations could not be recovered")
+	}
+	return recovered, nil
+}
+
 func (s *Service) runPlanningTurn(ctx context.Context, outcomeID domain.OutcomeID, sessionID domain.PlanningSessionID, expectedRevision int64, text, requestKey string, finalize bool) (PlanningView, error) {
 	if s.planningSessions == nil || s.planningDialogue == nil || s.intelligenceRuns == nil || s.routing == nil {
 		return PlanningView{}, apierr.Internal("PLANNING_UNWIRED", "Interactive planning is unavailable in this environment")
@@ -263,14 +302,8 @@ func (s *Service) runPlanningTurn(ctx context.Context, outcomeID domain.OutcomeI
 	if err != nil {
 		return PlanningView{}, err
 	}
-	if view.Outcome.CurrentRevisionNumber != view.Session.ContractRevisionNumber {
-		if view.Session.Status == domain.PlanningSessionActive {
-			_, _ = s.planningSessions.ClosePlanningSession(ctx, sessionID, view.Session.Revision, domain.PlanningSessionSuperseded)
-		}
+	if view.Outcome.CurrentRevisionNumber != view.Session.ContractRevisionNumber || view.Session.Status == domain.PlanningSessionSuperseded {
 		return PlanningView{}, apierr.New(apierr.KindConflict, "PLANNING_CONTRACT_STALE", "The Contract changed. Start a new planning conversation.", map[string]any{"currentRevision": view.Outcome.CurrentRevisionNumber})
-	}
-	if view.Session.Status != domain.PlanningSessionActive {
-		return PlanningView{}, apierr.New(apierr.KindConflict, "PLANNING_SESSION_CLOSED", "This planning conversation is closed", nil)
 	}
 	payload, _ := json.Marshal(struct {
 		SessionID string `json:"sessionId"`
@@ -289,6 +322,9 @@ func (s *Service) runPlanningTurn(ctx context.Context, outcomeID domain.OutcomeI
 	}
 	session, storedOwner, replay, err := s.planningSessions.AppendPlanningOwnerTurn(ctx, sessionID, expectedRevision, ownerTurn)
 	if err != nil {
+		if view.Session.Status != domain.PlanningSessionActive {
+			return PlanningView{}, apierr.New(apierr.KindConflict, "PLANNING_SESSION_CLOSED", "This planning conversation is closed", nil)
+		}
 		return PlanningView{}, planningAPIError(err)
 	}
 	if replay {
@@ -337,11 +373,19 @@ func (s *Service) runPlanningTurn(ctx context.Context, outcomeID domain.OutcomeI
 		_, _ = s.planningSessions.SetPlanningSessionFailure(cleanup, sessionID, session.Revision, code, detail)
 		return PlanningView{}, intelligencesvc.APIError(err)
 	}
+	provenanceFailureCode, provenanceFailureDetail := "", ""
 	if response.Provenance.EffectiveProvider.IsZero() || response.Provenance.EffectiveProvider != session.Binding.Provider {
+		provenanceFailureCode = "PLANNING_PROVIDER_MISMATCH"
+		provenanceFailureDetail = "The planning response did not come from the selected provider"
+	} else if session.Binding.ModelSelection == domain.PlanningModelExplicit && strings.TrimSpace(response.Provenance.EffectiveModel) != session.Binding.Model {
+		provenanceFailureCode = "PLANNING_MODEL_MISMATCH"
+		provenanceFailureDetail = "The planning response did not use the selected explicit model"
+	}
+	if provenanceFailureCode != "" {
 		completed := s.clock().UTC()
-		_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", "PLANNING_PROVIDER_MISMATCH", "The planning response did not come from the selected provider", &completed)
-		_, _ = s.planningSessions.SetPlanningSessionFailure(ctx, sessionID, session.Revision, "PLANNING_PROVIDER_MISMATCH", "The planning response did not come from the selected provider")
-		return PlanningView{}, apierr.New(apierr.KindConflict, "PLANNING_PROVIDER_MISMATCH", "The planning provider changed. Start a new planning conversation.", nil)
+		_ = s.intelligenceRuns.UpdateIntelligenceRunStatus(ctx, run.ID, domain.IntelligenceRunFailed, "", provenanceFailureCode, provenanceFailureDetail, &completed)
+		_, _ = s.planningSessions.SetPlanningSessionFailure(ctx, sessionID, session.Revision, provenanceFailureCode, provenanceFailureDetail)
+		return PlanningView{}, apierr.New(apierr.KindConflict, provenanceFailureCode, "The planning provider or model changed. Start a new planning conversation.", nil)
 	}
 	encodedResult, err := json.Marshal(response.Result)
 	if err != nil {
@@ -372,10 +416,24 @@ func (s *Service) runPlanningTurn(ctx context.Context, outcomeID domain.OutcomeI
 	if err != nil {
 		return PlanningView{}, planningAPIError(err)
 	}
-	if response.Result.Kind == ports.PlanningResultPlanProposal {
-		return s.finishPlanningProposal(ctx, view.Outcome, revision, session, run.ID, response.Result)
+	currentOutcome, found, err := s.store.GetOutcome(ctx, outcomeID)
+	if err != nil {
+		return PlanningView{}, err
 	}
-	return s.planningView(ctx, view.Outcome, session)
+	if !found {
+		return PlanningView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
+	}
+	session, err = s.reconcilePlanningContract(ctx, currentOutcome, session)
+	if err != nil {
+		return PlanningView{}, err
+	}
+	if session.Status == domain.PlanningSessionSuperseded {
+		return PlanningView{}, apierr.New(apierr.KindConflict, "PLANNING_CONTRACT_STALE", "The Contract changed. Start a new planning conversation.", map[string]any{"currentRevision": currentOutcome.CurrentRevisionNumber})
+	}
+	if response.Result.Kind == ports.PlanningResultPlanProposal {
+		return s.finishPlanningProposal(ctx, currentOutcome, revision, session, run.ID, response.Result)
+	}
+	return s.planningView(ctx, currentOutcome, session)
 }
 
 func (s *Service) resumePlanningReply(ctx context.Context, outcomeRecord domain.Outcome, session domain.PlanningSession, owner domain.PlanningTurn) (PlanningView, error) {
@@ -458,14 +516,76 @@ func (s *Service) finishPlanningProposal(ctx context.Context, outcomeRecord doma
 		if existing, found, findErr := s.planningSessions.GetPlanRevisionByPlanningSession(ctx, outcomeRecord.ID, session.ID); findErr == nil && found {
 			saved = existing
 		} else {
+			currentOutcome, outcomeFound, outcomeErr := s.store.GetOutcome(ctx, outcomeRecord.ID)
+			if outcomeErr != nil {
+				return PlanningView{}, outcomeErr
+			}
+			if outcomeFound {
+				session, outcomeErr = s.reconcilePlanningContract(ctx, currentOutcome, session)
+				if outcomeErr != nil {
+					return PlanningView{}, outcomeErr
+				}
+				if session.Status == domain.PlanningSessionSuperseded {
+					return PlanningView{}, apierr.New(apierr.KindConflict, "PLANNING_CONTRACT_STALE", "The Contract changed. Start a new planning conversation.", map[string]any{"currentRevision": currentOutcome.CurrentRevisionNumber})
+				}
+			}
 			return PlanningView{}, err
 		}
 	}
-	session, err = s.planningSessions.LinkPlanningSessionPlan(ctx, session.ID, session.Revision, saved.ID, saved.SourceIntelligenceRunID)
+	session, found, err := s.planningSessions.GetPlanningSession(ctx, outcomeRecord.ID, session.ID)
 	if err != nil {
-		return PlanningView{}, planningAPIError(err)
+		return PlanningView{}, err
+	}
+	if !found {
+		return PlanningView{}, apierr.NotFound("PLANNING_SESSION_NOT_FOUND", "That planning conversation does not exist")
+	}
+	// Compatibility for a Plan written by an older feature build that crashed
+	// before the session link. New canonical SQLite writes link atomically.
+	if session.Status == domain.PlanningSessionActive {
+		session, err = s.planningSessions.LinkPlanningSessionPlan(ctx, session.ID, session.Revision, saved.ID, saved.SourceIntelligenceRunID)
+		if err != nil {
+			currentOutcome, outcomeFound, outcomeErr := s.store.GetOutcome(ctx, outcomeRecord.ID)
+			if outcomeErr != nil {
+				return PlanningView{}, outcomeErr
+			}
+			if outcomeFound {
+				session, outcomeErr = s.reconcilePlanningContract(ctx, currentOutcome, session)
+				if outcomeErr != nil {
+					return PlanningView{}, outcomeErr
+				}
+				if session.Status == domain.PlanningSessionSuperseded {
+					return PlanningView{}, apierr.New(apierr.KindConflict, "PLANNING_CONTRACT_STALE", "The Contract changed. Start a new planning conversation.", map[string]any{"currentRevision": currentOutcome.CurrentRevisionNumber})
+				}
+			}
+			return PlanningView{}, planningAPIError(err)
+		}
 	}
 	return s.planningView(ctx, outcomeRecord, session)
+}
+
+func (s *Service) reconcilePlanningContract(ctx context.Context, outcomeRecord domain.Outcome, session domain.PlanningSession) (domain.PlanningSession, error) {
+	for attempt := 0; attempt < 2; attempt++ {
+		if session.Status != domain.PlanningSessionActive || session.ContractRevisionNumber == outcomeRecord.CurrentRevisionNumber {
+			return session, nil
+		}
+		closed, err := s.planningSessions.ClosePlanningSession(ctx, session.ID, session.Revision, domain.PlanningSessionSuperseded)
+		if err == nil {
+			return closed, nil
+		}
+		var conflict *ports.PlanningSessionRevisionConflictError
+		if !errors.As(err, &conflict) {
+			return domain.PlanningSession{}, planningAPIError(err)
+		}
+		var found bool
+		session, found, err = s.planningSessions.GetPlanningSession(ctx, outcomeRecord.ID, session.ID)
+		if err != nil {
+			return domain.PlanningSession{}, err
+		}
+		if !found {
+			return domain.PlanningSession{}, apierr.NotFound("PLANNING_SESSION_NOT_FOUND", "That planning conversation does not exist")
+		}
+	}
+	return domain.PlanningSession{}, apierr.New(apierr.KindConflict, "PLANNING_REVISION_CONFLICT", "The planning conversation changed. Reload and try again.", nil)
 }
 
 func (s *Service) planningView(ctx context.Context, outcomeRecord domain.Outcome, session domain.PlanningSession) (PlanningView, error) {
@@ -504,6 +624,16 @@ func planningRepositoryReadAllowed(revision domain.ContractRevision) bool {
 	return revision.AuthorityCeiling.ReadWorkspace || revision.AuthorityCeiling.WriteWorkspace || revision.AuthorityCeiling.ExecuteLocal
 }
 
+func planningStartFingerprint(outcomeID domain.OutcomeID, revision int64, candidateID string, contextMode domain.PlanningContextMode) domain.SHA256Digest {
+	payload, _ := json.Marshal(struct {
+		OutcomeID string                     `json:"outcomeId"`
+		Revision  int64                      `json:"contractRevision"`
+		Candidate string                     `json:"candidateId"`
+		Context   domain.PlanningContextMode `json:"contextMode"`
+	}{string(outcomeID), revision, candidateID, contextMode})
+	return domain.DigestSHA256(payload)
+}
+
 func planningTurnKind(result ports.PlanningResult) (domain.PlanningTurnKind, error) {
 	switch result.Kind {
 	case ports.PlanningResultClarification:
@@ -525,6 +655,10 @@ func planningAPIError(err error) error {
 	var request *ports.PlanningRequestConflictError
 	if errors.As(err, &request) {
 		return apierr.New(apierr.KindConflict, "PLANNING_REQUEST_CONFLICT", "That request key was already used for a different planning action", nil)
+	}
+	var finalize *ports.PlanningFinalizeConflictError
+	if errors.As(err, &finalize) {
+		return apierr.New(apierr.KindConflict, "PLANNING_FINALIZE_CONFLICT", "The Contract or planning conversation changed before the Plan could be saved", nil)
 	}
 	return err
 }

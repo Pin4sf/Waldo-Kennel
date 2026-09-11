@@ -3,6 +3,7 @@ package ports
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
@@ -23,6 +24,14 @@ type PlanningRequestConflictError struct{ RequestKey string }
 
 func (e *PlanningRequestConflictError) Error() string {
 	return fmt.Sprintf("planning request key %q is already bound to different semantics", e.RequestKey)
+}
+
+// PlanningFinalizeConflictError reports that a planning-sourced Plan lost its
+// Contract/session fence in the same transaction that attempted persistence.
+type PlanningFinalizeConflictError struct{ SessionID domain.PlanningSessionID }
+
+func (e *PlanningFinalizeConflictError) Error() string {
+	return fmt.Sprintf("planning session %s is no longer finalizable", e.SessionID)
 }
 
 // PlanningCandidate is one exact owner-selectable provider/model binding.
@@ -94,6 +103,7 @@ type PlanningIntelligenceProvider interface {
 // PlanningSessionStore persists conversations and their canonical Plan link.
 type PlanningSessionStore interface {
 	CreatePlanningSession(context.Context, domain.PlanningSession) (domain.PlanningSession, bool, error)
+	GetPlanningSessionByRequestKey(context.Context, string) (domain.PlanningSession, bool, error)
 	GetPlanningSession(context.Context, domain.OutcomeID, domain.PlanningSessionID) (domain.PlanningSession, bool, error)
 	GetCurrentPlanningSession(context.Context, domain.OutcomeID) (domain.PlanningSession, bool, error)
 	ListPlanningTurns(context.Context, domain.PlanningSessionID) ([]domain.PlanningTurn, error)
@@ -103,4 +113,5 @@ type PlanningSessionStore interface {
 	ClosePlanningSession(context.Context, domain.PlanningSessionID, int64, domain.PlanningSessionStatus) (domain.PlanningSession, error)
 	LinkPlanningSessionPlan(context.Context, domain.PlanningSessionID, int64, domain.PlanRevisionID, domain.IntelligenceRunID) (domain.PlanningSession, error)
 	GetPlanRevisionByPlanningSession(context.Context, domain.OutcomeID, domain.PlanningSessionID) (domain.PlanRevision, bool, error)
+	RecoverInterruptedPlanningSessions(context.Context, time.Time) (int64, error)
 }

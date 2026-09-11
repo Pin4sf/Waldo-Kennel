@@ -450,6 +450,11 @@ func Run() error {
 		WithProofStore(store).
 		WithDelivery(store, artifactContent).
 		WithAnalystSessionReaper(reaper)
+	if recovered, recoveryErr := outcomeSvc.RecoverInterruptedPlanning(ctx); recoveryErr != nil {
+		return fmt.Errorf("recover interrupted Outcome planning: %w", recoveryErr)
+	} else if recovered > 0 {
+		log.Warn("recovered interrupted planning conversations into explicit owner decisions", "count", recovered)
+	}
 	// Pending delivery rows are resolved by reading their destinations, so a
 	// transfer that completed and lost only its ledger write is recovered
 	// rather than reported as a failure the owner cannot explain.

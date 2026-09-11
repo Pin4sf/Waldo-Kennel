@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/gen"
 )
 
@@ -171,6 +173,32 @@ VALUES (?, ?)`, unit.ID, dependency); err != nil {
 			ID: grant.ID, PlanRevisionID: plan.ID, Name: grant.Name, Scope: grant.Scope,
 		}); err != nil {
 			return domain.PlanRevision{}, fmt.Errorf("create capability grant %s: %w", grant.ID, err)
+		}
+	}
+	if !plan.PlanningSessionID.IsZero() {
+		planningSession, err := txq.GetPlanningSessionByID(ctx, plan.PlanningSessionID.String())
+		if err != nil {
+			return domain.PlanRevision{}, fmt.Errorf("read planning session %s before finalization: %w", plan.PlanningSessionID, err)
+		}
+		now := time.Now().UTC()
+		changed, err := txq.LinkPlanningSessionPlan(ctx, gen.LinkPlanningSessionPlanParams{
+			ProposedPlanRevisionID: nullableString(string(plan.ID)),
+			UpdatedAt:              now,
+			ClosedAt:               sql.NullTime{Time: now, Valid: true},
+			ID:                     plan.PlanningSessionID.String(),
+			// The update itself reads and increments the current session
+			// revision inside this transaction. The write lock serializes all
+			// canonical writers, while the SQL also rechecks exact Contract
+			// identity/currentness and Plan provenance.
+			Revision:                planningSession.Revision,
+			ID_2:                    plan.ID,
+			SourceIntelligenceRunID: nullableString(string(plan.SourceIntelligenceRunID)),
+		})
+		if err != nil {
+			return domain.PlanRevision{}, fmt.Errorf("link planning session %s to plan %s: %w", plan.PlanningSessionID, plan.ID, err)
+		}
+		if changed != 1 {
+			return domain.PlanRevision{}, &ports.PlanningFinalizeConflictError{SessionID: plan.PlanningSessionID}
 		}
 	}
 

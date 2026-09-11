@@ -28,6 +28,8 @@ Every provider turn records an `IntelligenceRun`. A Plan proposal passes the exi
 
 A Contract revision makes an active PlanningSession stale. Continuation fails closed and the session is superseded; the owner starts a new conversation against the new revision. Requests and turns use idempotency keys plus optimistic session revisions.
 
+If the daemon restarts while a provider reply is outstanding, the session returns to owner control with an explicit ambiguous-reply state. Kennel does not automatically replay a request that may already have reached a billed provider. Reusing the original request key remains a read-only replay; the owner sends a new message to try again.
+
 Native Codex planning is a dependent slice. It remains visibly unavailable until its durable conversational continuity and effect confinement are proven at the actual runtime boundary. ADR 0013's packet-only Codex reasoning path is not treated as that proof and no existing readiness gate is widened here.
 
 ## UX projection
@@ -48,5 +50,6 @@ The frontend renders daemon state (`status`, `waitingOn`, turns, and optional pr
 - Planning can be conversational without making an intelligence provider authoritative.
 - Repository investigation is useful by default while effects stay separately governed.
 - A retry cannot duplicate an owner turn or canonical Plan.
+- Restart recovery is visible and recoverable without risking an implicit duplicate provider call.
 - Direct APIs do not preserve native provider conversation identity; Kennel supplies normalized continuity explicitly on each turn.
 - Live provider behavior, native Codex confinement, Electron usability, and owner acceptance remain separate verification gates.

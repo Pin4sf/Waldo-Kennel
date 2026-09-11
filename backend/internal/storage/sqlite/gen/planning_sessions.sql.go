@@ -510,6 +510,16 @@ WHERE planning_sessions.id = ?
   AND planning_sessions.status = 'active'
   AND planning_sessions.waiting_on = 'owner'
   AND EXISTS (
+      SELECT 1
+      FROM outcomes o
+      JOIN contract_revisions cr
+        ON cr.id = planning_sessions.contract_revision_id
+       AND cr.outcome_id = planning_sessions.outcome_id
+       AND cr.number = planning_sessions.contract_revision_number
+      WHERE o.id = planning_sessions.outcome_id
+        AND o.current_revision_number = planning_sessions.contract_revision_number
+  )
+  AND EXISTS (
       SELECT 1 FROM plan_revisions p
       WHERE p.id = ? AND p.planning_session_id = planning_sessions.id
         AND p.source_intelligence_run_id = ?
@@ -580,6 +590,23 @@ func (q *Queries) ListPlanningTurns(ctx context.Context, planningSessionID strin
 		return nil, err
 	}
 	return items, nil
+}
+
+const recoverInterruptedPlanningSessions = `-- name: RecoverInterruptedPlanningSessions :execrows
+UPDATE planning_sessions
+SET revision = revision + 1, waiting_on = 'owner',
+    last_failure_code = 'PLANNING_REPLY_AMBIGUOUS',
+    last_failure_detail = 'The daemon restarted before the planning reply was recorded. The original request will not be replayed automatically; send a new message to retry.',
+    updated_at = ?
+WHERE status = 'active' AND waiting_on = 'provider'
+`
+
+func (q *Queries) RecoverInterruptedPlanningSessions(ctx context.Context, updatedAt time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, recoverInterruptedPlanningSessions, updatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setPlanningSessionFailure = `-- name: SetPlanningSessionFailure :execrows

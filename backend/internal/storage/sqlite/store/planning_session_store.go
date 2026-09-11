@@ -58,6 +58,20 @@ func (s *Store) CreatePlanningSession(ctx context.Context, session domain.Planni
 	return result, replay, nil
 }
 
+// GetPlanningSessionByRequestKey resolves a start replay before mutable
+// candidate readiness or repository state is consulted.
+func (s *Store) GetPlanningSessionByRequestKey(ctx context.Context, requestKey string) (domain.PlanningSession, bool, error) {
+	row, err := s.qr.GetPlanningSessionByRequestKey(ctx, requestKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.PlanningSession{}, false, nil
+	}
+	if err != nil {
+		return domain.PlanningSession{}, false, fmt.Errorf("get planning session by request key %q: %w", requestKey, err)
+	}
+	mapped, err := planningSessionFromRow(row)
+	return mapped, true, err
+}
+
 // GetPlanningSession reads one session scoped to its Outcome.
 func (s *Store) GetPlanningSession(ctx context.Context, outcomeID domain.OutcomeID, sessionID domain.PlanningSessionID) (domain.PlanningSession, bool, error) {
 	row, err := s.qr.GetPlanningSession(ctx, gen.GetPlanningSessionParams{ID: sessionID.String(), OutcomeID: string(outcomeID)})
@@ -280,6 +294,18 @@ func (s *Store) GetPlanRevisionByPlanningSession(ctx context.Context, outcomeID 
 		CreatedAt: row.CreatedAt, PlanningSessionID: row.PlanningSessionID,
 		SourceIntelligenceRunID: row.SourceIntelligenceRunID, RoutingDecisionsJson: row.RoutingDecisionsJson,
 	})
+}
+
+// RecoverInterruptedPlanningSessions returns crash-interrupted provider waits
+// to explicit owner control without replaying a possibly billed model call.
+func (s *Store) RecoverInterruptedPlanningSessions(ctx context.Context, at time.Time) (int64, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	count, err := s.qw.RecoverInterruptedPlanningSessions(ctx, at.UTC())
+	if err != nil {
+		return 0, fmt.Errorf("recover interrupted planning sessions: %w", err)
+	}
+	return count, nil
 }
 
 func (s *Store) updatePlanningSession(ctx context.Context, sessionID domain.PlanningSessionID, expectedRevision int64, update func(*gen.Queries, time.Time) (int64, error)) (domain.PlanningSession, error) {

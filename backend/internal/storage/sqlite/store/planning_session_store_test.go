@@ -81,9 +81,9 @@ func TestPlanningSessionStore_IdempotentTurnsAndCanonicalPlanLink(t *testing.T) 
 	if err != nil {
 		t.Fatalf("append planning-sourced Plan: %v", err)
 	}
-	current, err = s.LinkPlanningSessionPlan(ctx, session.ID, 3, saved.ID, run.ID)
-	if err != nil {
-		t.Fatalf("link planning Plan: %v", err)
+	current, found, err := s.GetPlanningSession(ctx, revision.OutcomeID, session.ID)
+	if err != nil || !found {
+		t.Fatalf("read atomically linked planning session found=%v err=%v", found, err)
 	}
 	if current.Status != domain.PlanningSessionProposalReady || current.ProposedPlanRevisionID != saved.ID || current.WaitingOn != domain.PlanningWaitingNone {
 		t.Fatalf("proposal-ready session = %+v", current)
@@ -91,6 +91,61 @@ func TestPlanningSessionStore_IdempotentTurnsAndCanonicalPlanLink(t *testing.T) 
 	got, found, err := s.GetPlanRevisionByPlanningSession(ctx, revision.OutcomeID, session.ID)
 	if err != nil || !found || got.PlanningSessionID != session.ID || got.SourceIntelligenceRunID != run.ID {
 		t.Fatalf("planning Plan found=%v plan=%+v err=%v", found, got, err)
+	}
+}
+
+func TestPlanningSessionStore_RejectsPlanWhenContractChangesBeforeAtomicFinalize(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	revision := seedProviderPlanOutcome(t, s)
+	now := time.Date(2026, 9, 11, 10, 30, 0, 0, time.UTC)
+	session := planningSessionFixture(revision, now)
+	if _, _, err := s.CreatePlanningSession(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	owner := domain.PlanningTurn{
+		ID: "planning-race-owner", Role: domain.PlanningTurnOwner, Kind: domain.PlanningTurnFinalizeRequest,
+		Text: "Propose the plan now.", RequestKey: "planning-race-finalize",
+		RequestFingerprint: domain.DigestSHA256([]byte("planning-race-finalize")), CreatedAt: now.Add(time.Second),
+	}
+	waiting, storedOwner, _, err := s.AppendPlanningOwnerTurn(ctx, session.ID, 1, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := domain.IntelligenceRun{
+		ID: "intel-planning-race", Kind: domain.IntelligenceRunPlanDraft, ProjectID: session.ProjectID,
+		OutcomeID: revision.OutcomeID, ContractRevisionID: revision.ID, SourceRevision: revision.Number,
+		RequestedProvider: session.Binding.Provider, RequestedModel: session.Binding.Model,
+		InputDigest: domain.DigestSHA256([]byte("planning race input")), Status: domain.IntelligenceRunRunning, CreatedAt: now.Add(2 * time.Second),
+	}
+	if err := s.CreateIntelligenceRun(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	planner := domain.PlanningTurn{
+		ID: "planning-race-planner", ReplyToTurnID: storedOwner.ID, Role: domain.PlanningTurnPlanner,
+		Kind: domain.PlanningTurnPlanProposal, Text: "A Plan is ready.", StructuredPayload: []byte(`{"Kind":"plan_proposal"}`),
+		IntelligenceRunID: run.ID, CreatedAt: now.Add(3 * time.Second),
+	}
+	if _, err := s.AppendPlanningProviderTurn(ctx, session.ID, waiting.Revision, planner, "openai", "planner-test", ""); err != nil {
+		t.Fatal(err)
+	}
+	next := domain.ContractRevision{
+		ID: "planning-race-contract-2", OutcomeID: revision.OutcomeID,
+		Goal: "Use the new Contract.", SuccessCriteria: []string{"Only current-Contract Plans persist."},
+		Review: "Inspect lineage.", AuthorityCeiling: revision.AuthorityCeiling, CreatedAt: now.Add(4 * time.Second),
+	}
+	if _, err := s.AppendContractRevision(ctx, revision.OutcomeID, revision.Number, next); err != nil {
+		t.Fatal(err)
+	}
+	plan := canonicalGraphPlan(t, revision)
+	plan.ID = "stale-plan-from-planning-race"
+	plan.PlanningSessionID = session.ID
+	plan.SourceIntelligenceRunID = run.ID
+	if _, err := s.AppendPlanRevision(ctx, revision.OutcomeID, plan); err == nil {
+		t.Fatal("saved a planning Plan after its Contract stopped being current")
+	}
+	if _, found, err := s.GetLatestPlanRevision(ctx, revision.OutcomeID); err != nil || found {
+		t.Fatalf("stale planning Plan survived rollback found=%v err=%v", found, err)
 	}
 }
 
@@ -116,5 +171,47 @@ func TestPlanningSessionStore_RejectsChangedRequestAndStaleRevision(t *testing.T
 	var revisionConflict *ports.PlanningSessionRevisionConflictError
 	if !errors.As(err, &revisionConflict) || revisionConflict.Current != 1 {
 		t.Fatalf("stale revision error = %v", err)
+	}
+}
+
+func TestPlanningSessionStore_RecoversCrashAfterOwnerTurnBeforeRunCreation(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	revision := seedProviderPlanOutcome(t, s)
+	now := time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC)
+	session := planningSessionFixture(revision, now)
+	if _, _, err := s.CreatePlanningSession(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	owner := domain.PlanningTurn{
+		ID: "crash-window-owner", Role: domain.PlanningTurnOwner, Kind: domain.PlanningTurnMessage,
+		Text: "Inspect the bounded context.", RequestKey: "crash-window-key",
+		RequestFingerprint: domain.DigestSHA256([]byte("crash-window")), CreatedAt: now.Add(time.Second),
+	}
+	waiting, stored, replay, err := s.AppendPlanningOwnerTurn(ctx, session.ID, 1, owner)
+	if err != nil || replay || waiting.WaitingOn != domain.PlanningWaitingProvider {
+		t.Fatalf("persist crash-window turn session=%+v replay=%v err=%v", waiting, replay, err)
+	}
+	// Simulate process death at the exact boundary before CreateIntelligenceRun.
+	recovered, err := s.RecoverInterruptedPlanningSessions(ctx, now.Add(2*time.Second))
+	if err != nil || recovered != 1 {
+		t.Fatalf("recover interrupted planning sessions=%d err=%v", recovered, err)
+	}
+	got, found, err := s.GetPlanningSession(ctx, revision.OutcomeID, session.ID)
+	if err != nil || !found {
+		t.Fatalf("read recovered session found=%v err=%v", found, err)
+	}
+	if got.WaitingOn != domain.PlanningWaitingOwner || got.Revision != 3 || got.LastFailureCode != "PLANNING_REPLY_AMBIGUOUS" {
+		t.Fatalf("recovered session=%+v", got)
+	}
+	// The original key is a read-only replay. It must not create another owner
+	// turn or cause the provider call to be retried implicitly.
+	got, replayed, replay, err := s.AppendPlanningOwnerTurn(ctx, session.ID, 1, owner)
+	if err != nil || !replay || replayed.ID != stored.ID || got.Revision != 3 {
+		t.Fatalf("replay after recovery session=%+v turn=%+v replay=%v err=%v", got, replayed, replay, err)
+	}
+	turns, err := s.ListPlanningTurns(ctx, session.ID)
+	if err != nil || len(turns) != 1 {
+		t.Fatalf("turns after recovery=%+v err=%v", turns, err)
 	}
 }

@@ -143,6 +143,12 @@ BEFORE DELETE ON plan_revisions WHEN (1) AND NOT EXISTS (SELECT 1 FROM outcome_p
 BEGIN
     SELECT RAISE(ABORT, 'plan revisions are immutable');
 END;
+DROP TRIGGER IF EXISTS planning_turns_immutable_delete;
+CREATE TRIGGER planning_turns_immutable_delete
+BEFORE DELETE ON planning_turns WHEN (1) AND NOT EXISTS (SELECT 1 FROM outcome_purge_scope WHERE table_name='planning_turns' AND row_id=OLD.rowid)
+BEGIN
+    SELECT RAISE(ABORT, 'planning turns are immutable');
+END;
 DROP TRIGGER IF EXISTS responsibility_links_immutable_delete;
 CREATE TRIGGER responsibility_links_immutable_delete BEFORE DELETE ON responsibility_links WHEN (1) AND NOT EXISTS (SELECT 1 FROM outcome_purge_scope WHERE table_name='responsibility_links' AND row_id=OLD.rowid)
 BEGIN SELECT RAISE(ABORT, 'responsibility links are append-only'); END;

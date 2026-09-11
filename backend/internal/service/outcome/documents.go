@@ -191,7 +191,7 @@ func (s *Service) groundInSelectedDocuments(ctx context.Context, outcomeID domai
 	if !s.DocumentsEnabled() || snapshot == nil {
 		return nil
 	}
-	current, found, err := s.documents.CurrentDocumentContext(ctx, outcomeID)
+	current, found, err := s.approvedDocumentsForAdmission(ctx, outcomeID)
 	if err != nil || !found {
 		return err
 	}

@@ -2,6 +2,7 @@ package outcome_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/artifactstore"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
@@ -18,6 +20,27 @@ import (
 
 type interactivePlanningFake struct {
 	repositoryObserved bool
+	candidateCalls     int
+	discussCalls       int
+	candidateErr       error
+	candidates         []ports.PlanningCandidate
+	effectiveModel     string
+	beforeDiscuss      func()
+}
+
+func initPlanningRepo(t *testing.T) string {
+	t.Helper()
+	repo := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repo, "README.md"), []byte("planning fixture\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"config", "user.name", "Planning Test"}, {"config", "user.email", "planning@example.invalid"}, {"add", "README.md"}, {"commit", "-qm", "fixture"}} {
+		command := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, output)
+		}
+	}
+	return repo
 }
 
 func (*interactivePlanningFake) ID() domain.IntelligenceProviderID { return "openai" }
@@ -27,19 +50,40 @@ func (*interactivePlanningFake) AnalyzeContract(context.Context, ports.ContractI
 func (*interactivePlanningFake) DraftPlan(context.Context, ports.PlanIntelligenceRequest) (ports.PlanIntelligenceResponse, error) {
 	return ports.PlanIntelligenceResponse{}, fmt.Errorf("not used")
 }
-func (*interactivePlanningFake) PlanningCandidates(context.Context) ([]ports.PlanningCandidate, error) {
+
+func (f *interactivePlanningFake) PlanningCandidates(context.Context) ([]ports.PlanningCandidate, error) {
+	f.candidateCalls++
+	if f.candidateErr != nil {
+		return nil, f.candidateErr
+	}
+	if f.candidates != nil {
+		return f.candidates, nil
+	}
 	return []ports.PlanningCandidate{{
 		ID: "direct-openai-planner", Ready: true,
 		Binding: domain.PlanningBinding{Mode: domain.PlanningModeDirectAPI, Provider: "openai", ModelSelection: domain.PlanningModelExplicit, Model: "planner-test"},
 	}}, nil
 }
 func (f *interactivePlanningFake) DiscussPlan(_ context.Context, request ports.PlanningDiscussionRequest) (ports.PlanningDiscussionResponse, error) {
+	f.discussCalls++
+	if f.beforeDiscuss != nil {
+		hook := f.beforeDiscuss
+		f.beforeDiscuss = nil
+		hook()
+	}
 	for _, file := range request.RepositoryContext.Files {
 		if file.Path == "README.md" && strings.Contains(file.Content, "planning fixture") {
 			f.repositoryObserved = true
 		}
 	}
-	provenance := ports.IntelligenceProvenance{EffectiveProvider: "openai", EffectiveModel: "planner-test"}
+	effectiveModel := f.effectiveModel
+	if effectiveModel == "" {
+		effectiveModel = request.Binding.Model
+		if request.Binding.ModelSelection == domain.PlanningModelProviderDefault {
+			effectiveModel = "provider-resolved-model"
+		}
+	}
+	provenance := ports.IntelligenceProvenance{EffectiveProvider: request.Binding.Provider, EffectiveModel: effectiveModel}
 	latest := request.Turns[len(request.Turns)-1].Text
 	if request.Finalize {
 		return ports.PlanningDiscussionResponse{Provenance: provenance, Result: ports.PlanningResult{
@@ -139,8 +183,9 @@ func TestInteractivePlanning_RepositoryDiscussionProducesOnlyAProposedPlan(t *te
 		t.Fatalf("Contract changed through suggestion: revision=%d history=%d err=%v", unchanged.Outcome.CurrentRevisionNumber, len(unchanged.History), err)
 	}
 
+	finalizeExpectedRevision := view.Session.Revision
 	view, err = svc.FinalizePlanning(ctx, created.Outcome.ID, view.Session.ID, outcome.PlanningFinalizeInput{
-		ExpectedSessionRevision: view.Session.Revision, RequestKey: "planning-finalize",
+		ExpectedSessionRevision: finalizeExpectedRevision, RequestKey: "planning-finalize",
 	})
 	if err != nil {
 		t.Fatalf("finalize planning: %v", err)
@@ -151,8 +196,205 @@ func TestInteractivePlanning_RepositoryDiscussionProducesOnlyAProposedPlan(t *te
 	if view.ProposedPlan.PlanningSessionID != view.Session.ID || view.ProposedPlan.SourceIntelligenceRunID.IsZero() {
 		t.Fatalf("Plan lost planning provenance: %+v", view.ProposedPlan)
 	}
+	finalized := view
+	view, err = svc.FinalizePlanning(ctx, created.Outcome.ID, view.Session.ID, outcome.PlanningFinalizeInput{
+		ExpectedSessionRevision: finalizeExpectedRevision, RequestKey: "planning-finalize",
+	})
+	if err != nil {
+		t.Fatalf("replay finalized request: %v", err)
+	}
+	if view.ProposedPlan == nil || view.ProposedPlan.ID != finalized.ProposedPlan.ID || len(view.Turns) != len(finalized.Turns) || provider.discussCalls != 3 {
+		t.Fatalf("finalize replay duplicated work: view=%+v discussCalls=%d", view, provider.discussCalls)
+	}
 	attempts, err := store.ListAttempts(ctx, created.Outcome.ID)
 	if err != nil || len(attempts) != 0 {
 		t.Fatalf("planning created execution attempts: attempts=%+v err=%v", attempts, err)
+	}
+}
+
+func TestInteractivePlanning_StartReplayPrecedesMutableAdmissionChecks(t *testing.T) {
+	ctx := context.Background()
+	store := sqlitetest.MustOpen(t)
+	project := domain.ProjectRecord{ID: "planning-replay-project", Path: initPlanningRepo(t), DisplayName: "Replay", RegisteredAt: time.Now().UTC()}
+	if err := store.UpsertProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	provider := &interactivePlanningFake{}
+	svc := outcome.New(store, nil).WithPlanning(provider, &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}})
+	created, err := svc.Create(ctx, outcome.CreateInput{
+		ProjectID: domain.ProjectID(project.ID), Title: "Replay planning", Goal: "Keep retries exact.",
+		SuccessCriteria: []string{"One planning session exists."}, Review: "Inspect the session.",
+		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true}, RequestKey: "planning-replay-outcome",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := outcome.StartPlanningInput{ExpectedContractRevision: 1, CandidateID: "direct-openai-planner", RequestKey: "planning-replay-start"}
+	first, err := svc.StartPlanning(ctx, created.Outcome.ID, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.candidateErr = fmt.Errorf("inventory changed")
+	replayed, err := svc.StartPlanning(ctx, created.Outcome.ID, input)
+	if err != nil || replayed.Session.ID != first.Session.ID || provider.candidateCalls != 1 {
+		t.Fatalf("start replay session=%s calls=%d err=%v", replayed.Session.ID, provider.candidateCalls, err)
+	}
+	changed := input
+	changed.CandidateID = "another-planner"
+	if code := requireAPICode(t, func() error { _, err := svc.StartPlanning(ctx, created.Outcome.ID, changed); return err }()); code != "PLANNING_REQUEST_CONFLICT" {
+		t.Fatalf("changed replay code=%s", code)
+	}
+}
+
+func TestInteractivePlanning_ExplicitModelDriftFailsClosed(t *testing.T) {
+	ctx := context.Background()
+	store := sqlitetest.MustOpen(t)
+	project := domain.ProjectRecord{ID: "planning-model-project", Path: initPlanningRepo(t), DisplayName: "Model", RegisteredAt: time.Now().UTC()}
+	if err := store.UpsertProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	provider := &interactivePlanningFake{effectiveModel: "unexpected-model"}
+	svc := outcome.New(store, nil).WithPlanning(provider, &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}})
+	created, err := svc.Create(ctx, outcome.CreateInput{
+		ProjectID: domain.ProjectID(project.ID), Title: "Model provenance", Goal: "Use the selected model.",
+		SuccessCriteria: []string{"Model provenance is exact."}, Review: "Inspect provenance.",
+		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true}, RequestKey: "planning-model-outcome",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := svc.StartPlanning(ctx, created.Outcome.ID, outcome.StartPlanningInput{ExpectedContractRevision: 1, CandidateID: "direct-openai-planner", RequestKey: "planning-model-start"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.ContinuePlanning(ctx, created.Outcome.ID, view.Session.ID, outcome.PlanningMessageInput{ExpectedSessionRevision: view.Session.Revision, Text: "Continue.", RequestKey: "planning-model-turn"})
+	if code := requireAPICode(t, err); code != "PLANNING_MODEL_MISMATCH" {
+		t.Fatalf("model drift code=%s err=%v", code, err)
+	}
+	recovered, err := svc.GetCurrentPlanning(ctx, created.Outcome.ID)
+	if err != nil || recovered.Session.WaitingOn != domain.PlanningWaitingOwner || recovered.Session.LastFailureCode != "PLANNING_MODEL_MISMATCH" {
+		t.Fatalf("model mismatch state=%+v err=%v", recovered.Session, err)
+	}
+}
+
+func TestInteractivePlanning_ProviderDefaultRecordsResolvedModel(t *testing.T) {
+	ctx := context.Background()
+	store := sqlitetest.MustOpen(t)
+	project := domain.ProjectRecord{ID: "planning-default-project", Path: initPlanningRepo(t), DisplayName: "Default model", RegisteredAt: time.Now().UTC()}
+	if err := store.UpsertProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	provider := &interactivePlanningFake{candidates: []ports.PlanningCandidate{{
+		ID: "provider-default-planner", Ready: true,
+		Binding: domain.PlanningBinding{Mode: domain.PlanningModeDirectAPI, Provider: "openai", ModelSelection: domain.PlanningModelProviderDefault},
+	}}}
+	svc := outcome.New(store, nil).WithPlanning(provider, &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}})
+	created, err := svc.Create(ctx, outcome.CreateInput{
+		ProjectID: domain.ProjectID(project.ID), Title: "Default model", Goal: "Allow provider model resolution.",
+		SuccessCriteria: []string{"Effective model is recorded."}, Review: "Inspect provenance.",
+		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true}, RequestKey: "planning-default-outcome",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := svc.StartPlanning(ctx, created.Outcome.ID, outcome.StartPlanningInput{ExpectedContractRevision: 1, CandidateID: "provider-default-planner", RequestKey: "planning-default-start"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err = svc.ContinuePlanning(ctx, created.Outcome.ID, view.Session.ID, outcome.PlanningMessageInput{ExpectedSessionRevision: view.Session.Revision, Text: "Continue.", RequestKey: "planning-default-turn"})
+	if err != nil || view.Session.EffectiveModel != "provider-resolved-model" {
+		t.Fatalf("provider-default planning model=%q err=%v", view.Session.EffectiveModel, err)
+	}
+}
+
+func TestInteractivePlanning_ContractChangeDuringProviderCallSupersedesWithoutPlan(t *testing.T) {
+	ctx := context.Background()
+	store := sqlitetest.MustOpen(t)
+	project := domain.ProjectRecord{ID: "planning-race-project", Path: initPlanningRepo(t), DisplayName: "Contract race", RegisteredAt: time.Now().UTC()}
+	if err := store.UpsertProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	provider := &interactivePlanningFake{}
+	svc := outcome.New(store, nil).WithPlanning(provider, &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}})
+	created, err := svc.Create(ctx, outcome.CreateInput{
+		ProjectID: domain.ProjectID(project.ID), Title: "Contract race", Goal: "Keep the Plan on the current Contract.",
+		SuccessCriteria: []string{"No stale Plan is saved."}, Review: "Inspect Contract lineage.",
+		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true, WriteWorkspace: true}, RequestKey: "planning-race-outcome",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := svc.StartPlanning(ctx, created.Outcome.ID, outcome.StartPlanningInput{ExpectedContractRevision: 1, CandidateID: "direct-openai-planner", RequestKey: "planning-race-start"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.beforeDiscuss = func() {
+		_, reviseErr := svc.ReviseContract(ctx, created.Outcome.ID, outcome.ReviseContractInput{
+			ExpectedRevision: 1, Goal: "Keep the revised Plan on the current Contract.",
+			SuccessCriteria: []string{"No stale Plan is ever saved."}, Review: "Inspect revised Contract lineage.",
+			AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true, WriteWorkspace: true},
+		})
+		if reviseErr != nil {
+			t.Fatalf("revise during provider call: %v", reviseErr)
+		}
+	}
+	_, err = svc.FinalizePlanning(ctx, created.Outcome.ID, view.Session.ID, outcome.PlanningFinalizeInput{ExpectedSessionRevision: view.Session.Revision, RequestKey: "planning-race-finalize"})
+	if code := requireAPICode(t, err); code != "PLANNING_CONTRACT_STALE" {
+		t.Fatalf("contract race code=%s err=%v", code, err)
+	}
+	current, err := svc.GetCurrentPlanning(ctx, created.Outcome.ID)
+	if err != nil || current.Session.Status != domain.PlanningSessionSuperseded {
+		t.Fatalf("superseded planning state=%+v err=%v", current.Session, err)
+	}
+	if _, found, err := store.GetLatestPlanRevision(ctx, created.Outcome.ID); err != nil || found {
+		t.Fatalf("stale Plan persisted found=%v err=%v", found, err)
+	}
+}
+
+func TestInteractivePlanning_SuppliedPacketDoesNotReadRepository(t *testing.T) {
+	ctx := context.Background()
+	store := sqlitetest.MustOpen(t)
+	missingRepo := filepath.Join(t.TempDir(), "repository-does-not-exist")
+	project := domain.ProjectRecord{ID: "planning-doc-project", Path: missingRepo, DisplayName: "Documents", RegisteredAt: time.Now().UTC()}
+	if err := store.UpsertProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	snapshots, err := artifactstore.New(artifactstore.Config{Root: filepath.Join(t.TempDir(), "artifacts")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := &interactivePlanningFake{}
+	svc := outcome.New(store, nil).WithDocuments(store, snapshots).WithPlanning(provider, &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}})
+	created, err := svc.Create(ctx, outcome.CreateInput{
+		ProjectID: domain.ProjectID(project.ID), Title: "Document planning", Goal: "Plan from supplied material.",
+		SuccessCriteria: []string{"The repository is not read."}, Review: "Inspect frozen context.",
+		RequestKey: "planning-doc-outcome",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := filepath.Join(t.TempDir(), "brief.md")
+	if err := os.WriteFile(doc, []byte("# Supplied planning brief\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	selected, err := svc.SelectDocuments(ctx, created.Outcome.ID, []string{doc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ApproveDocuments(ctx, created.Outcome.ID, selected.Context.Digest); err != nil {
+		t.Fatal(err)
+	}
+	view, err := svc.StartPlanning(ctx, created.Outcome.ID, outcome.StartPlanningInput{
+		ExpectedContractRevision: 1, CandidateID: "direct-openai-planner", ContextMode: domain.PlanningContextSuppliedPacket, RequestKey: "planning-doc-start",
+	})
+	if err != nil {
+		t.Fatalf("start from supplied packet with unavailable repository: %v", err)
+	}
+	var snapshot ports.RepositoryContextSnapshot
+	if err := json.Unmarshal(view.Session.ContextSnapshotJSON, &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Root != "supplied-documents" || snapshot.UnavailableReason != "" {
+		t.Fatalf("supplied planning snapshot=%+v", snapshot)
 	}
 }
