@@ -28,7 +28,7 @@ Serial WorkUnit supervision
 The ordinary path should feel like one conversation, not configuration work:
 
 - keep the confirmed Contract collapsed to a one-line goal plus criteria count;
-- preselect the only ready planner, or remember the owner's last explicit choice when it is still admissible;
+- require an explicit planner choice, or remember the owner's last explicit choice when it is still admissible;
 - show the context choice once, before planning starts;
 - keep the latest planner question and composer in the primary reading path, with earlier turns collapsed;
 - make **Review Plan** the sole primary action when a proposal is ready;
@@ -61,6 +61,6 @@ The transition into execution reuses the same surface: after **Approve Plan**, t
 
 Use one concise disclosure near context selection:
 
-> The planner can read a bounded snapshot of this repository. It cannot run commands, edit files, or make external changes while planning.
+> A bounded snapshot of this repository is sent to your selected reasoning provider. The planner cannot run commands, edit files, or use network tools while planning.
 
 Plan approval and execution remain visibly separate actions. A generated Plan is ready for review, not accepted and not running.
