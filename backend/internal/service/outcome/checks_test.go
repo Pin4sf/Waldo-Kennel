@@ -8,12 +8,17 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
+// passingObservation is a check that passed AND was shown to depend on the
+// work: it failed against a workspace holding none of it. That second half is
+// what makes a zero exit criterion proof rather than a zero exit.
 func passingObservation() ports.AttemptCheckObservation {
 	return ports.AttemptCheckObservation{
-		Check:      domain.ApprovedCheck{ID: "chk-1", CriterionID: "crit-a", Argv: []string{"true"}, TimeoutSeconds: 30},
-		Ran:        true,
-		Passed:     true,
-		EnforcedBy: "macos-seatbelt-workspace-write",
+		Check:          domain.ApprovedCheck{ID: "chk-1", CriterionID: "crit-a", Argv: []string{"true"}, TimeoutSeconds: 30},
+		Ran:            true,
+		Passed:         true,
+		EnforcedBy:     "macos-seatbelt-workspace-write",
+		BaselineRan:    true,
+		BaselinePassed: false,
 	}
 }
 
@@ -66,6 +71,29 @@ func TestCheckVerdict_DistinguishesDidNotRunFromFailed(t *testing.T) {
 			observation:     passingObservation(),
 			artifactChanged: true,
 			wantKind:        domain.EvidenceSupporting, wantResult: domain.VerificationInconclusive,
+		},
+		{
+			// The recorded live failure: a command that exits zero whatever the
+			// Attempt did. It passes, and it passed with none of the work
+			// present, so its exit status says nothing about the criterion.
+			name: "a check that also passes with none of the work present proves nothing",
+			observation: func() ports.AttemptCheckObservation {
+				o := passingObservation()
+				o.BaselinePassed = true
+				return o
+			}(),
+			wantKind: domain.EvidenceSupporting, wantResult: domain.VerificationInconclusive,
+		},
+		{
+			// No baseline is not a failing baseline. Neither supports the
+			// criterion, and the two are told apart in the narrative.
+			name: "a passing check with no established baseline proves nothing",
+			observation: func() ports.AttemptCheckObservation {
+				o := passingObservation()
+				o.BaselineRan, o.BaselineDetail = false, "baseline did not finish"
+				return o
+			}(),
+			wantKind: domain.EvidenceSupporting, wantResult: domain.VerificationInconclusive,
 		},
 	}
 	for _, tc := range cases {

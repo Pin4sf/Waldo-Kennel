@@ -331,9 +331,35 @@ func checkVerdict(observation ports.AttemptCheckObservation, artifactChanged boo
 		return domain.EvidenceSupporting, domain.VerificationInconclusive
 	case !observation.Passed:
 		return domain.EvidenceContradicting, domain.VerificationFailed
+	case !checkDiscriminated(observation):
+		// The check passed, and nothing has shown it could have failed. A zero
+		// exit is criterion proof only when a non-zero exit was possible, so
+		// this is recorded as inconclusive rather than as the criterion holding.
+		return domain.EvidenceSupporting, domain.VerificationInconclusive
 	default:
 		return domain.EvidenceSupporting, domain.VerificationPassed
 	}
+}
+
+// checkDiscriminated reports whether this check's result was shown to depend on
+// the work at all.
+//
+// The demonstration is the known-wrong baseline: the same command, under the
+// same frozen policy, against a pristine workspace holding none of the work. A
+// command that passes there passes whatever the Attempt did, which is exactly
+// the recorded live failure — a check that printed the expected string and
+// exited zero against a criterion it never tested.
+//
+// A baseline that was never established is not the same as one that failed, and
+// neither may support a criterion. Both are inconclusive, and the narrative
+// says which.
+//
+// This is a necessary condition, not a sufficient one: a check that fails the
+// baseline is workspace-dependent, which does not make it correct about the
+// criterion. Owner-supplied fixtures (internal/planquality) are what answer
+// that, and this deliberately does not claim to.
+func checkDiscriminated(observation ports.AttemptCheckObservation) bool {
+	return observation.BaselineRan && !observation.BaselinePassed
 }
 
 // checkRequestKey is the replay identity of one check observation. It is
@@ -367,8 +393,12 @@ func checkNarrative(observation ports.AttemptCheckObservation, artifactChanged b
 		summary = fmt.Sprintf("%s could not be confirmed stopped", command)
 	case observation.TimedOut:
 		summary = fmt.Sprintf("%s timed out after %ds", command, observation.Check.TimeoutSeconds)
+	case observation.Passed && observation.BaselineRan && observation.BaselinePassed:
+		summary = fmt.Sprintf("%s exited 0, and also exited 0 with none of the work present, so it does not test this criterion", command)
+	case observation.Passed && !observation.BaselineRan:
+		summary = fmt.Sprintf("%s exited 0, but no known-wrong baseline was established, so nothing shows it could have failed", command)
 	case observation.Passed:
-		summary = fmt.Sprintf("%s exited 0", command)
+		summary = fmt.Sprintf("%s exited 0, and failed against a workspace holding none of the work", command)
 	default:
 		summary = fmt.Sprintf("%s exited %d", command, observation.ExitCode)
 	}
@@ -377,6 +407,10 @@ func checkNarrative(observation ports.AttemptCheckObservation, artifactChanged b
 	fmt.Fprintf(&b, "enforcedBy=%s exit=%d timedOut=%t cancelled=%t terminationUnknown=%t truncated=%t",
 		observation.EnforcedBy, observation.ExitCode, observation.TimedOut, observation.Cancelled,
 		observation.TerminationUnknown, observation.OutputTruncated)
+	fmt.Fprintf(&b, " baselineRan=%t baselinePassed=%t", observation.BaselineRan, observation.BaselinePassed)
+	if observation.BaselineDetail != "" {
+		fmt.Fprintf(&b, " baseline=%q", observation.BaselineDetail)
+	}
 	if !observation.StartedAt.IsZero() && !observation.EndedAt.IsZero() {
 		fmt.Fprintf(&b, " durationMs=%d", observation.EndedAt.Sub(observation.StartedAt).Milliseconds())
 	}

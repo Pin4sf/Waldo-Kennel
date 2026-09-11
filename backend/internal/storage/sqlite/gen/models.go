@@ -134,6 +134,9 @@ type AttemptCheckRun struct {
 	ReservedAt              time.Time
 	ObservedAt              sql.NullTime
 	ReservationEpoch        string
+	BaselineRan             int64
+	BaselinePassed          int64
+	BaselineDetail          string
 }
 
 type AttemptFence struct {
