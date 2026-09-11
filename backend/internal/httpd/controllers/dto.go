@@ -2711,7 +2711,12 @@ type OutcomeProofResponse struct {
 	Criteria     []CriterionProofResponse     `json:"criteria"`
 	Decisions    []AcceptanceDecisionResponse `json:"decisions"`
 	Corrections  []OutcomeCorrectionResponse  `json:"corrections"`
-	ProofHorizon *time.Time                   `json:"proofHorizon,omitempty"`
+	// ActiveCorrectionID names the correction that set the current proof
+	// horizon — what the owner most recently asked to be changed. Corrections
+	// is an append-only history; this is the one still standing. Absent when no
+	// rework or reopen stands against the current Contract revision.
+	ActiveCorrectionID string     `json:"activeCorrectionId,omitempty"`
+	ProofHorizon       *time.Time `json:"proofHorizon,omitempty"`
 }
 
 // OutcomeProofEnvelope wraps the canonical proof response.
@@ -2730,6 +2735,9 @@ func outcomeProofResponse(view outcomevc.ProofView) OutcomeProofResponse {
 	if !view.ProofHorizon.IsZero() {
 		horizon := view.ProofHorizon
 		response.ProofHorizon = &horizon
+	}
+	if view.ActiveCorrection != nil {
+		response.ActiveCorrectionID = string(view.ActiveCorrection.ID)
 	}
 	for _, criterion := range view.Criteria {
 		item := CriterionProofResponse{

@@ -11966,6 +11966,8 @@ components:
       type: object
     OutcomeProofResponse:
       properties:
+        activeCorrectionId:
+          type: string
         contractRevision:
           $ref: '#/components/schemas/ContractRevisionResponse'
         corrections:

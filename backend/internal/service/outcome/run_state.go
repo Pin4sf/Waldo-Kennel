@@ -89,6 +89,13 @@ const (
 	// revision the Outcome has moved past, so continuation can admit nothing.
 	// Cancel and re-authorize is the only way forward.
 	ReasonRunIntentPlanSuperseded = "run_intent_plan_superseded"
+	// ReasonPlanRevisionRequired means the owner's recorded correction names
+	// the Plan itself. Re-running the same approved Plan would reproduce the
+	// result they rejected.
+	ReasonPlanRevisionRequired = "plan_revision_required"
+	// ReasonContractRevisionRequired means the correction names the Contract.
+	// Nothing below it can be revised while the agreement is what is wrong.
+	ReasonContractRevisionRequired = "contract_revision_required"
 )
 
 // RunActionEligibility is one action and whether the daemon will honour it.
@@ -319,6 +326,31 @@ func (in missionInputs) commandApplies(command domain.RunCommand) bool {
 	return ok
 }
 
+// correctionRequires names the lineage seam the owner's standing correction
+// says must change before work runs again, when that seam is above the
+// WorkUnit. A correction targeting an Attempt or WorkUnit is satisfied by
+// running the approved Plan again, so it names nothing here.
+//
+// Corrections against a superseded Contract revision are already filtered out
+// of the proof, and a Plan correction stops naming the current Plan as soon as
+// a fresh one is proposed — so both resolve themselves rather than needing a
+// separate "correction addressed" record.
+func (in missionInputs) correctionRequires() domain.ReentryTargetType {
+	correction := in.proof.ActiveCorrection
+	if correction == nil {
+		return ""
+	}
+	switch correction.TargetType {
+	case domain.ReentryTargetContract:
+		return domain.ReentryTargetContract
+	case domain.ReentryTargetPlan:
+		if in.planFound && correction.TargetID == string(in.plan.ID) {
+			return domain.ReentryTargetPlan
+		}
+	}
+	return ""
+}
+
 // continuationAdmits reports whether the recorded authorization can still put
 // work in flight without the owner. ContinueAuthorizedRuns schedules against
 // the Plan the intent names, so an intent naming a superseded Plan admits
@@ -371,6 +403,7 @@ func deriveMissionState(in missionInputs) (MissionState, string, *RunBlocker) {
 		return MissionNeedsYou, ReasonReworkRequired, &RunBlocker{
 			Code:    ReasonReworkRequired,
 			Message: "Recorded proof does not support acceptance — request changes or repair the evidence",
+			Detail:  correctionDetail(in.proof.ActiveCorrection),
 		}
 	}
 	// Nothing is in flight. What happens next is decided by the durable
@@ -442,7 +475,11 @@ func deriveEligibleActions(view RunStateView, in missionInputs) []RunActionEligi
 	if accepted {
 		proposeReason = ReasonAlreadyAccepted
 	}
-	propose := allow(RunActionProposePlan, !accepted && (!in.planFound || !in.planBinds), proposeReason)
+	// A correction naming the current Plan is a request for a different Plan,
+	// so proposing one is the move — even though a binding approved Plan
+	// already exists, which is otherwise the reason to refuse.
+	planCorrected := in.correctionRequires() == domain.ReentryTargetPlan
+	propose := allow(RunActionProposePlan, !accepted && (!in.planFound || !in.planBinds || planCorrected), proposeReason)
 
 	review := allow(RunActionReviewPlan, in.planFound, ReasonNoPlan)
 
@@ -458,6 +495,10 @@ func deriveEligibleActions(view RunStateView, in missionInputs) []RunActionEligi
 	// running Attempt can be unaccountable, and that is already the
 	// attempt_active case below.
 	startApplies := in.commandApplies(domain.RunCommandStart)
+	// An owner correction naming the Plan or the Contract is not satisfied by
+	// running the same approved Plan again: doing so would reproduce the result
+	// they rejected. Only corrections at or below the WorkUnit are.
+	correctionTarget := in.correctionRequires()
 	startReason := ReasonPlanNotApproved
 	switch {
 	case executing:
@@ -468,13 +509,18 @@ func deriveEligibleActions(view RunStateView, in missionInputs) []RunActionEligi
 		startReason = ReasonContributionBlocked
 	case !startApplies:
 		startReason = ReasonRunAlreadyAuthorized
+	case correctionTarget == domain.ReentryTargetContract:
+		startReason = ReasonContractRevisionRequired
+	case correctionTarget == domain.ReentryTargetPlan:
+		startReason = ReasonPlanRevisionRequired
 	case planApproved && !runnable:
 		startReason = ReasonNothingRunnable
 	case in.planFound && !in.planBinds:
 		startReason = ReasonPlanStale
 	}
 	start := allow(RunActionStart,
-		planApproved && runnable && !executing && !paused && in.gate.Clear() && startApplies, startReason)
+		planApproved && runnable && !executing && !paused && in.gate.Clear() &&
+			startApplies && correctionTarget == "", startReason)
 
 	// Pause and Resume need durable run intent to mean anything: without the
 	// storage there is no authorization to suspend or reinstate. Say so rather
@@ -524,6 +570,24 @@ func deriveEligibleActions(view RunStateView, in missionInputs) []RunActionEligi
 		clarify, propose, review, approve, start, pause, resume, cancel,
 		reviewResult, requestChanges, accept, export,
 	}
+}
+
+// correctionDetail carries what the owner asked for into the blocker, so a
+// Mission saying "rework required" can also say what has to change and in
+// their own words. Nil correction yields nil detail rather than empty keys.
+func correctionDetail(correction *domain.OutcomeCorrection) map[string]any {
+	if correction == nil {
+		return nil
+	}
+	detail := map[string]any{
+		"decisionId": string(correction.DecisionID),
+		"targetType": string(correction.TargetType),
+		"feedback":   correction.Feedback,
+	}
+	if correction.TargetID != "" {
+		detail["targetId"] = correction.TargetID
+	}
+	return detail
 }
 
 func criterionCounts(proof ProofView) (required, proven int) {

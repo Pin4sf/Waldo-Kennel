@@ -124,6 +124,11 @@ func (f *receiptFakeStore) ListEvidenceItems(ctx context.Context, outcomeID doma
 // ClassifyAttemptSucceeded commits only if the Attempt is still in the
 // expected status and the proof generation the judgement rested on has not
 // moved. Those are the guards the read ordering exists to arm.
+//
+// It also releases the succeeded Attempt's custody fence, because the SQLite
+// store does so in the same transaction. Omitting it here made this fake claim
+// a serial Plan deadlocks after its first unit, which is not what the real
+// commit boundary does.
 func (f *receiptFakeStore) ClassifyAttemptSucceeded(ctx context.Context, in ports.ClassifyAttemptInput) error {
 	if in.ProofGeneration == nil || in.ContractRevisionNumber < 1 {
 		return ports.ErrAttemptClassificationStale
@@ -155,7 +160,10 @@ func (f *receiptFakeStore) ClassifyAttemptSucceeded(ctx context.Context, in port
 	if err := f.FreezeAttemptReceipt(ctx, in.AttemptID, in.At); err != nil {
 		return err
 	}
-	_, err = f.AppendAttemptObservation(ctx, in.AttemptID, in.ObservationKind, in.ObservationPayload, in.At)
+	if _, err := f.AppendAttemptObservation(ctx, in.AttemptID, in.ObservationKind, in.ObservationPayload, in.At); err != nil {
+		return err
+	}
+	_, err = f.ReleaseFenceForAttempt(ctx, in.AttemptID, "attempt_succeeded", in.At)
 	return err
 }
 

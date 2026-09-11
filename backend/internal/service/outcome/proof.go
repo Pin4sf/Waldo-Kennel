@@ -56,9 +56,13 @@ type ProofView struct {
 	Status       ProofStatus
 	NextAction   string
 	Criteria     []CriterionProofView
-	Decisions    []domain.AcceptanceDecision
-	Corrections  []domain.OutcomeCorrection
-	ProofHorizon time.Time
+	Decisions   []domain.AcceptanceDecision
+	Corrections []domain.OutcomeCorrection
+	// ActiveCorrection is the correction attached to the decision that set the
+	// horizon — what the owner most recently asked to be changed. Nil when no
+	// rework or reopen stands against the current Contract revision.
+	ActiveCorrection *domain.OutcomeCorrection
+	ProofHorizon     time.Time
 }
 
 // RecordEvidenceInput contains evidence tied to an Outcome criterion.
@@ -282,6 +286,12 @@ func (s *Service) DecideAcceptance(ctx context.Context, outcomeID domain.Outcome
 		if replay.OutcomeID != outcomeID || replay.RequestFingerprint != fingerprint {
 			return ProofView{}, replayConflict("ACCEPTANCE_REQUEST_CONFLICT", in.RequestKey)
 		}
+		// The halt is retried on replay, not skipped. A correction whose
+		// decision committed but whose halt failed is exactly the state a retry
+		// exists to finish, and the halt is idempotent on the decision.
+		if err := s.haltRunFor(ctx, outcomeID, replay); err != nil {
+			return ProofView{}, err
+		}
 		return s.GetProof(ctx, outcomeID)
 	}
 	current, err := s.requireCurrentContract(ctx, outcomeID, in.ExpectedContractRevision, in.ContractRevisionID)
@@ -348,13 +358,33 @@ func (s *Service) DecideAcceptance(ctx context.Context, outcomeID domain.Outcome
 	if err := s.proof.CreateAcceptanceDecision(ctx, decision, correction); err != nil {
 		if replay, ok, findErr := s.proof.FindAcceptanceDecisionByRequestKey(ctx, decision.RequestKey); findErr == nil && ok {
 			if replay.OutcomeID == outcomeID && replay.RequestFingerprint == fingerprint {
+				if haltErr := s.haltRunFor(ctx, outcomeID, replay); haltErr != nil {
+					return ProofView{}, haltErr
+				}
 				return s.GetProof(ctx, outcomeID)
 			}
 			return ProofView{}, replayConflict("ACCEPTANCE_REQUEST_CONFLICT", decision.RequestKey)
 		}
 		return ProofView{}, err
 	}
+	// The decision is durable before the run is stopped, so the owner's record
+	// can never be lost to a failed halt. A failed halt surfaces as an error the
+	// same request key retries, and the retry finishes it.
+	if err := s.haltRunFor(ctx, outcomeID, decision); err != nil {
+		return ProofView{}, err
+	}
 	return s.GetProof(ctx, outcomeID)
+}
+
+// haltRunFor ends the run authorization a rework or reopen decision
+// invalidates. Acceptance is deliberately not included: accepting does not
+// reject a result, and an Outcome with nothing left to run has no authorization
+// worth cancelling.
+func (s *Service) haltRunFor(ctx context.Context, outcomeID domain.OutcomeID, decision domain.AcceptanceDecision) error {
+	if decision.Kind != domain.AcceptanceRequestRework && decision.Kind != domain.AcceptanceReopen {
+		return nil
+	}
+	return s.HaltRunForCorrection(ctx, outcomeID, decision.ID)
 }
 
 func (s *Service) requireCurrentContract(ctx context.Context, outcomeID domain.OutcomeID, expected int64, revisionID domain.ContractRevisionID) (domain.ContractRevision, error) {
@@ -480,23 +510,34 @@ func planWorkUnitCoversCriterion(plan domain.PlanRevision, workUnitID domain.Wor
 func deriveProof(view View, allEvidence []domain.EvidenceItem, allVerifications []domain.VerificationRun, allDecisions []domain.AcceptanceDecision, corrections []domain.OutcomeCorrection, delegated map[domain.CriterionID]domain.DelegatedCriterion) ProofView {
 	currentDecisions := make([]domain.AcceptanceDecision, 0)
 	var horizon time.Time
+	var horizonDecision domain.AcceptanceDecisionID
 	for _, decision := range allDecisions {
 		if decision.ContractRevisionID != view.Current.ID {
 			continue
 		}
 		currentDecisions = append(currentDecisions, decision)
 		if (decision.Kind == domain.AcceptanceRequestRework || decision.Kind == domain.AcceptanceReopen) && decision.CreatedAt.After(horizon) {
-			horizon = decision.CreatedAt
+			horizon, horizonDecision = decision.CreatedAt, decision.ID
 		}
 	}
 	currentCorrections := make([]domain.OutcomeCorrection, 0)
+	var active *domain.OutcomeCorrection
 	for _, correction := range corrections {
-		if correction.ContractRevisionID == view.Current.ID {
-			currentCorrections = append(currentCorrections, correction)
+		if correction.ContractRevisionID != view.Current.ID {
+			continue
+		}
+		currentCorrections = append(currentCorrections, correction)
+		if correction.DecisionID == horizonDecision {
+			held := correction
+			active = &held
 		}
 	}
 
-	proof := ProofView{OutcomeID: view.Outcome.ID, Contract: view.Current, Status: ProofStatusActive, Decisions: currentDecisions, Corrections: currentCorrections, ProofHorizon: horizon}
+	proof := ProofView{
+		OutcomeID: view.Outcome.ID, Contract: view.Current, Status: ProofStatusActive,
+		Decisions: currentDecisions, Corrections: currentCorrections,
+		ActiveCorrection: active, ProofHorizon: horizon,
+	}
 	allReady := len(view.Current.Criteria) > 0
 	for _, criterion := range view.Current.Criteria {
 		criterionView := CriterionProofView{Criterion: criterion, Gap: "Add supporting Evidence for this criterion."}

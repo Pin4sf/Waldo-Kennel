@@ -4024,6 +4024,7 @@ export interface components {
             proof: components["schemas"]["OutcomeProofResponse"];
         };
         OutcomeProofResponse: {
+            activeCorrectionId?: string;
             contractRevision: components["schemas"]["ContractRevisionResponse"];
             corrections: components["schemas"]["OutcomeCorrectionResponse"][];
             criteria: components["schemas"]["CriterionProofResponse"][];

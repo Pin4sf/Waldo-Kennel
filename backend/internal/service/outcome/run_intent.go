@@ -173,6 +173,69 @@ func (s *Service) CommandRun(ctx context.Context, outcomeID domain.OutcomeID, in
 	return s.GetRunState(ctx, outcomeID)
 }
 
+// HaltRunForCorrection ends the authorization an owner correction invalidates.
+//
+// Requesting rework or reopening is the owner saying the recorded result is not
+// the one they want. Leaving the previous authorization in force has two
+// consequences, both wrong: the daemon would keep admitting WorkUnits against a
+// result the owner has just rejected, and — because Start does not apply to an
+// already-running intent — the owner could not authorize the revised work at
+// all. So the run is cancelled, which is the existing "stop, and require a
+// fresh Start" transition rather than a new state. Kennel never re-authorizes
+// on the owner's behalf; it only stops claiming they already did.
+//
+// The decision is the replay identity, so retrying a correction whose halt
+// failed completes it instead of appending a second cancellation.
+func (s *Service) HaltRunForCorrection(ctx context.Context, outcomeID domain.OutcomeID, decisionID domain.AcceptanceDecisionID) error {
+	if s.runIntents == nil {
+		return nil
+	}
+	current, found, err := s.runIntents.CurrentRunIntent(ctx, outcomeID)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return nil
+	}
+	desired, ok := domain.NextRunIntent(current.Desired, domain.RunCommandCancel)
+	if !ok {
+		// Already idle or cancelled: there is no authorization to end, and
+		// appending one would invent an owner command they never gave.
+		return nil
+	}
+	requestKey := "correction:" + string(decisionID)
+	appended, err := s.runIntents.AppendRunIntent(ctx, domain.OutcomeRunIntent{
+		ID: domain.RunIntentID("ri-" + uuid.NewString()), OutcomeID: outcomeID,
+		Desired: desired, PlanRevisionID: current.PlanRevisionID,
+		ContractRevisionNumber: current.ContractRevisionNumber,
+		Command:                domain.RunCommandCancel,
+		ExpectedGeneration:     current.Generation, ExpectedGenerationSet: true,
+		RequestFingerprint: correctionHaltFingerprint(outcomeID, decisionID),
+		RequestKey:         requestKey, RequestedAt: s.clock(),
+	})
+	if err != nil {
+		// A concurrent owner command already moved the intent. It cannot have
+		// moved it into a state that admits work — only Start does that, and a
+		// Start racing a rejection is the owner's own ordering to resolve — so
+		// re-reading and retrying here would fight them. The correction stands
+		// either way.
+		var generationConflict *ports.RunIntentGenerationConflictError
+		if errors.As(err, &generationConflict) {
+			return nil
+		}
+		return err
+	}
+	return s.applyStopIntent(ctx, outcomeID, appended)
+}
+
+// correctionHaltFingerprint is the replay identity of "this decision ended this
+// Outcome's run". It is not a runCommandFingerprint because no owner run
+// command was issued: the acceptance decision is the authority.
+func correctionHaltFingerprint(outcomeID domain.OutcomeID, decisionID domain.AcceptanceDecisionID) string {
+	sum := sha256.Sum256([]byte("correction-halt:" + string(outcomeID) + ":" + string(decisionID)))
+	return hex.EncodeToString(sum[:])
+}
+
 // runCommandFingerprint is the replay identity of the complete owner request,
 // not merely its idempotency key or resulting desired state. JSON gives the
 // storage boundary one stable, opaque value to compare without reinterpreting
