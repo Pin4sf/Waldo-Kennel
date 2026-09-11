@@ -1460,7 +1460,7 @@
 	"onboarding.start": "Let's go",
 	"onboarding.finish": "Finish",
 	"onboarding.welcome.heading": "Let's get Kennel set up",
-	"onboarding.welcome.body": "Three quick choices, then you can start putting agents to work. You can change all of them later in Settings.",
+	"onboarding.welcome.body": "Two quick choices, then you can start putting agents to work. You can change both later in Settings.",
 	"onboarding.welcome.agentTitle": "Coding agent",
 	"onboarding.welcome.agentBody": "Pick the agent new sessions start with",
 	"onboarding.welcome.alertsTitle": "Session alerts",
