@@ -47,7 +47,7 @@ type OutcomeLifecycleShellProps = {
 export function OutcomeLifecycleShell({ stage, projectId, outcomeId, children }: OutcomeLifecycleShellProps) {
 	return (
 		<div
-			className="flex h-full min-h-0 flex-col gap-4"
+			className="flex min-h-full flex-col gap-4"
 			data-outcome-id={outcomeId}
 			data-project-id={projectId}
 			data-stage={stage}

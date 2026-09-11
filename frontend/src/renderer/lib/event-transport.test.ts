@@ -50,7 +50,7 @@ class EventSourceStub {
 		this.handlers.set(type, listener);
 	}
 	emit(type: string, data: string) {
-		this.handlers.get(type)?.({ data } as unknown as Event);
+		this.handlers.get(type)?.({ data, type } as unknown as Event);
 	}
 	close() {
 		this.closed = true;
@@ -179,6 +179,28 @@ describe("createEventTransport", () => {
 		}
 	});
 
+	it("invalidates the open Plan schedule when outcome CDC changes durable execution facts", () => {
+		vi.useFakeTimers();
+		try {
+			const queryClient = fakeQueryClient();
+			createEventTransport(queryClient).connect();
+			EventSourceStub.instances[0].emit(
+				"outcome_attempt_recovered",
+				JSON.stringify({
+					outcomeId: "outcome-1",
+					payload: { planId: "plan-1" },
+				}),
+			);
+
+			vi.advanceTimersByTime(200);
+			expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+				queryKey: ["outcome-schedule", "outcome-1", "plan-1"],
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("tears down the source and the daemon listener on disconnect", () => {
 		const disconnect = createEventTransport(fakeQueryClient()).connect();
 
@@ -256,4 +278,22 @@ describe("createEventTransport", () => {
 		expect(getEventsConnectionState()).toBe("idle");
 		expect(unsubscribeBaseUrlMock).toHaveBeenCalledTimes(1);
 	});
+});
+
+it("refreshes portfolio and Mission facts after CDC and reconnect gaps", () => {
+	vi.useFakeTimers();
+	try {
+		const client = fakeQueryClient();
+		const disconnect = createEventTransport(client).connect();
+		const source = EventSourceStub.instances[0];
+		for (const trigger of [() => source.emit("outcome_contract_revised", JSON.stringify({outcomeId: "one"})), () => source.emit("outcome_run_intent_changed", JSON.stringify({outcomeId: "one"})), () => source.emit("outcome_attempt_retained", JSON.stringify({outcomeId: "one"})), () => source.onopen?.()]) {
+			vi.mocked(client.invalidateQueries).mockClear();
+			trigger();
+			vi.advanceTimersByTime(200);
+			for (const root of ["project-outcomes", "outcome", "outcome-plan", "outcome-proof", "outcome-attempts", "outcome-schedule", "outcome-run-state", "project-run-states"]) {
+				expect(client.invalidateQueries).toHaveBeenCalledWith({queryKey: [root]});
+			}
+		}
+		disconnect();
+	} finally { vi.useRealTimers(); }
 });

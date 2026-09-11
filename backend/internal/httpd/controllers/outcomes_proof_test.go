@@ -112,6 +112,56 @@ func TestOutcomeProofRoutesUseTypedContract(t *testing.T) {
 	}
 }
 
+// TestGetOutcomeProofRoute_NamesTheCorrectionStillStanding separates the
+// append-only correction history from the one the owner is currently waiting
+// on. A renderer that showed the whole list would keep asking for changes that
+// were already made.
+func TestGetOutcomeProofRoute_NamesTheCorrectionStillStanding(t *testing.T) {
+	fixture := proofFixture()
+	fixture.Status = outcomevc.ProofStatusReworkRequired
+	superseded := domain.OutcomeCorrection{
+		ID: "corr-old", DecisionID: "acc-old", OutcomeID: fixture.OutcomeID,
+		ContractRevisionID: fixture.Contract.ID, Feedback: "first pass was thin",
+		TargetType: domain.ReentryTargetWorkUnit, TargetID: "wu-1",
+	}
+	standing := domain.OutcomeCorrection{
+		ID: "corr-current", DecisionID: "acc-current", OutcomeID: fixture.OutcomeID,
+		ContractRevisionID: fixture.Contract.ID, Feedback: "the Plan itself is wrong",
+		TargetType: domain.ReentryTargetPlan, TargetID: "plan-1",
+	}
+	fixture.Corrections = []domain.OutcomeCorrection{superseded, standing}
+	fixture.ActiveCorrection = &standing
+
+	manager := &fakeProofManager{}
+	manager.get = func(context.Context, domain.OutcomeID) (outcomevc.ProofView, error) { return fixture, nil }
+	srv := newProofServer(t, manager)
+	defer srv.Close()
+
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/outcomes/out-proof/proof", "")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", status, body)
+	}
+	var decoded struct {
+		Proof struct {
+			ActiveCorrectionID string `json:"activeCorrectionId"`
+			Corrections        []struct {
+				ID string `json:"id"`
+			} `json:"corrections"`
+		} `json:"proof"`
+	}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("decode: %v (%s)", err, body)
+	}
+	if decoded.Proof.ActiveCorrectionID != "corr-current" {
+		t.Fatalf("activeCorrectionId = %q, want corr-current", decoded.Proof.ActiveCorrectionID)
+	}
+	// The superseded correction stays in the history: rework never erases what
+	// the owner asked for before.
+	if len(decoded.Proof.Corrections) != 2 {
+		t.Fatalf("corrections = %+v, want both retained", decoded.Proof.Corrections)
+	}
+}
+
 func TestOutcomeProofConflictPreservesRequestIDEnvelope(t *testing.T) {
 	manager := &fakeProofManager{}
 	manager.get = func(context.Context, domain.OutcomeID) (outcomevc.ProofView, error) {

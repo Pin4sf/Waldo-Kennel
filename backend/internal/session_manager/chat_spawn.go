@@ -54,6 +54,13 @@ type ChatLauncher interface {
 	StopChat(ctx context.Context, id domain.SessionID) error
 }
 
+// ChatExecutionPolicyLauncher is the governed-attempt preflight seam. Ordinary
+// Chat launchers need not implement it; an exact Attempt must fail closed when
+// the launcher cannot prove policy enforcement.
+type ChatExecutionPolicyLauncher interface {
+	PreflightChatExecutionPolicy(ctx context.Context, harness domain.AgentHarness, policy domain.AttemptExecutionPolicy) error
+}
+
 // ChatStart is what the launcher needs. It mirrors the terminal path's
 // LaunchConfig in spirit: everything resolved, nothing left to look up.
 type ChatStart struct {
@@ -69,6 +76,7 @@ type ChatStart struct {
 	Env                   map[string]string
 	Model                 string
 	Permissions           ports.PermissionMode
+	ExecutionPolicy       *domain.AttemptExecutionPolicy
 	SystemPrompt          string
 	AdditionalDirectories []string
 	// ProviderConversationID resumes a stored conversation instead of opening a
@@ -89,14 +97,15 @@ type ChatStarted struct {
 // chatSpawn bundles the shared state the chat launch needs from Spawn, so the
 // signature does not grow to a dozen positional arguments.
 type chatSpawn struct {
-	cfg              ports.SpawnConfig
-	project          domain.ProjectRecord
-	projectKind      domain.ProjectKind
-	record           domain.SessionRecord
-	workspace        ports.WorkspaceInfo
-	workspaceProject *ports.WorkspaceProjectInfo
-	prompt           string
-	systemPrompt     string
+	cfg                  ports.SpawnConfig
+	project              domain.ProjectRecord
+	projectKind          domain.ProjectKind
+	record               domain.SessionRecord
+	workspace            ports.WorkspaceInfo
+	workspaceProject     *ports.WorkspaceProjectInfo
+	prompt               string
+	systemPrompt         string
+	beforeProviderLaunch func()
 }
 
 // launchChatController starts the provider controller for a chat session and
@@ -126,6 +135,9 @@ func (m *Manager) launchChatController(ctx context.Context, in chatSpawn) (domai
 		controllerCommitted bool
 		completionErr       error
 	)
+	if in.beforeProviderLaunch != nil {
+		in.beforeProviderLaunch()
+	}
 	_, err := m.chat.StartChat(ctx, ChatStart{
 		SessionID:             id,
 		ProjectID:             in.cfg.ProjectID,
@@ -136,16 +148,18 @@ func (m *Manager) launchChatController(ctx context.Context, in chatSpawn) (domai
 		Env:                   env,
 		Model:                 agentConfig.Model,
 		Permissions:           agentConfig.Permissions,
+		ExecutionPolicy:       in.cfg.ExecutionPolicy,
 		SystemPrompt:          in.systemPrompt,
 		AdditionalDirectories: workspaceProjectDirectories(in.workspace.Path, in.workspaceProject),
 		ControllerReady: func(started ChatStarted) error {
 			metadata := domain.SessionMetadata{
-				Branch:            in.workspace.Branch,
-				WorkspacePath:     in.workspace.Path,
-				WorkspaceRepoPath: in.workspace.RepoPath,
-				Prompt:            in.prompt,
-				DiffBaseSHA:       diffBaseSHA,
-				DiffBaseRef:       diffBaseRef,
+				Branch:                        in.workspace.Branch,
+				WorkspacePath:                 in.workspace.Path,
+				WorkspaceRepoPath:             in.workspace.RepoPath,
+				Prompt:                        in.prompt,
+				DiffBaseSHA:                   diffBaseSHA,
+				DiffBaseRef:                   diffBaseRef,
+				GovernedExecutionPolicyDigest: in.record.Metadata.GovernedExecutionPolicyDigest,
 				// No RuntimeHandleID or RuntimeLaunchID: a chat session has no
 				// agent pane. Leaving them empty keeps the reaper from probing for
 				// a terminal that was never created.
@@ -274,6 +288,7 @@ func (m *Manager) resumeChatController(
 	rec domain.SessionRecord,
 	project domain.ProjectRecord,
 	ws ports.WorkspaceInfo,
+	execution *recoveryExecution,
 ) (RestoreResult, error) {
 	if m.chat == nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: %w: chat mode is not available in this build",
@@ -287,7 +302,10 @@ func (m *Manager) resumeChatController(
 		return RestoreResult{}, fmt.Errorf("%s %s: system prompt: %w", operation, rec.ID, err)
 	}
 
-	agentConfig := effectiveAgentConfig(rec.Kind, project.Config)
+	agentConfig, err := recoveryAgentConfig(rec, project, execution)
+	if err != nil {
+		return RestoreResult{}, fmt.Errorf("%s %s: %w", operation, rec.ID, err)
+	}
 	additionalDirectories, err := m.restoredWorkspaceProjectDirectories(ctx, rec, project, ws.Path)
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: workspace roots: %w", operation, rec.ID, err)
@@ -303,6 +321,7 @@ func (m *Manager) resumeChatController(
 		Env:                   m.runtimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env),
 		Model:                 agentConfig.Model,
 		Permissions:           agentConfig.Permissions,
+		ExecutionPolicy:       executionPolicy(execution),
 		SystemPrompt:          systemPrompt,
 		AdditionalDirectories: additionalDirectories,
 		// The handle that makes this a resume rather than a new conversation.
@@ -338,6 +357,14 @@ func (m *Manager) resumeChatController(
 	// Native continuity: the provider still holds the conversation, so the agent
 	// resumes with its own history rather than a replayed prompt.
 	return RestoreResult{Session: restored, Mode: RestoreModeNative}, nil
+}
+
+func executionPolicy(execution *recoveryExecution) *domain.AttemptExecutionPolicy {
+	if execution == nil {
+		return nil
+	}
+	policy := execution.policy
+	return &policy
 }
 
 func workspaceProjectDirectories(root string, project *ports.WorkspaceProjectInfo) []string {

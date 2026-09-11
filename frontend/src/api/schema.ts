@@ -824,6 +824,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/deletion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview Outcome deletion scope and active execution blockers */
+        get: operations["previewOutcomeDeletion"];
+        put?: never;
+        /** Move to Trash, restore, or permanently delete an inactive Outcome */
+        post: operations["changeOutcomeDeletion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List durable deliveries of this Outcome's retained results */
+        get: operations["listOutcomeDeliveries"];
+        put?: never;
+        /** Deliver one exact reviewed artifact to a destination */
+        post: operations["requestOutcomeDelivery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/deliveries/{deliveryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one delivery record */
+        get: operations["getOutcomeDelivery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the selected supplied documents and whether their sources changed */
+        get: operations["getOutcomeDocumentContext"];
+        put?: never;
+        /** Select local documents as this Outcome's material and snapshot their bytes */
+        post: operations["selectOutcomeDocuments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/documents/approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve the reviewed document scope so work may be staged from it */
+        post: operations["approveOutcomeDocuments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/evidence": {
         parameters: {
             query?: never;
@@ -852,6 +940,125 @@ export interface paths {
         get: operations["getLatestOutcomePlan"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/planning-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List exact available planning-agent choices for a confirmed Contract */
+        get: operations["listOutcomePlanningCandidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/planning-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the newest planning conversation for an Outcome */
+        get: operations["getCurrentOutcomePlanning"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/planning-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start one Contract-bound planning conversation with frozen read-only context */
+        post: operations["startOutcomePlanning"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/planning-sessions/{planningSessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one bounded planning conversation and its proposal */
+        get: operations["getOutcomePlanning"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/planning-sessions/{planningSessionId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel an active planning conversation without creating execution authority */
+        post: operations["cancelOutcomePlanning"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/planning-sessions/{planningSessionId}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send one owner message and receive one structured planning reply */
+        post: operations["continueOutcomePlanning"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/planning-sessions/{planningSessionId}/proposal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask for a Plan proposal; clarification may still be returned when required */
+        post: operations["finalizeOutcomePlanning"];
         delete?: never;
         options?: never;
         head?: never;
@@ -892,6 +1099,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read daemon-derived WorkUnit schedule state without launching work */
+        get: operations["getOutcomePlanSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/plans/replan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a new immutable Plan proposal from explicit owner feedback */
+        post: operations["replanOutcomePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/proof": {
         parameters: {
             query?: never;
@@ -920,6 +1161,41 @@ export interface paths {
         put?: never;
         /** Append an immutable contract revision (optimistic concurrency) */
         post: operations["reviseOutcomeContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one Outcome's Mission state, eligible actions and blocker */
+        get: operations["getOutcomeRunState"];
+        put?: never;
+        /** Record durable run intent (start, pause, resume, cancel) */
+        post: operations["commandOutcomeRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/outcomes/{outcomeId}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read reasoning and execution usage attributed to this Outcome */
+        get: operations["getOutcomeUsage"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1008,6 +1284,40 @@ export interface paths {
         put?: never;
         /** Capture one simple natural-language Outcome statement */
         post: operations["createOutcomeIntake"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/outcome-run-states": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Board projection: Mission state and eligible actions for a Project's Outcomes */
+        get: operations["listProjectOutcomeRunStates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/outcome-trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List recoverable Outcomes and pending permanent cleanup */
+        get: operations["listTrashedOutcomes"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2207,7 +2517,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Switch a logical AO session to another agent harness */
+        /** Switch a logical Kennel session to another agent harness */
         post: operations["switchSessionAgent"];
         delete?: never;
         options?: never;
@@ -2294,6 +2604,40 @@ export interface paths {
         get: operations["getSettings"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/reasoning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Configure Waldo reasoning without returning the stored credential */
+        patch: operations["updateReasoning"];
+        trace?: never;
+    };
+    "/api/v1/settings/reasoning/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Probe the configured reasoning provider once and record whether it works */
+        post: operations["verifyReasoning"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2438,11 +2782,6 @@ export interface components {
             path: string;
             projectId?: null | string;
         };
-        AgentAgentRoles: {
-            coordinator: boolean;
-            switchTarget: boolean;
-            worker: boolean;
-        };
         AgentConfig: {
             mode?: string;
             model?: string;
@@ -2464,7 +2803,7 @@ export interface components {
             /** @description Launch requires user-selected profile configuration beyond an installed binary. */
             requiresProfile?: boolean;
             /** @description Role admission derived from daemon policy. Clients must not re-derive it from provider names. */
-            roles: components["schemas"]["AgentAgentRoles"];
+            roles: components["schemas"]["AgentRoles"];
         };
         AgentModelInfo: {
             id: string;
@@ -2487,6 +2826,11 @@ export interface components {
             /** Format: date-time */
             validatedAt?: string;
             warning?: string;
+        };
+        AgentRoles: {
+            coordinator: boolean;
+            switchTarget: boolean;
+            worker: boolean;
         };
         AgentSwitch: {
             /** @enum {string} */
@@ -2516,11 +2860,13 @@ export interface components {
             /** Format: int64 */
             expectedProposalRevision: number;
             offline?: boolean;
+            repositoryToolUse?: boolean;
         };
         AnswerIntakeClarificationRequest: {
             answer: string;
             /** Format: int64 */
             expectedProposalRevision: number;
+            repositoryToolUse?: boolean;
         };
         AppendWaldoTurnRequest: {
             contextAttachmentIds?: string[];
@@ -2792,6 +3138,38 @@ export interface components {
             stale: boolean;
             waived: components["schemas"]["UpstreamBlockResponse"][];
         };
+        ControllersApproveOutcomeDocumentsRequest: {
+            expectedDigest: string;
+        };
+        ControllersApprovedCheckResponse: {
+            argv: string[];
+            criterionId: string;
+            id: string;
+            /** Format: int64 */
+            timeoutSeconds: number;
+        };
+        ControllersAttributedUsageResponse: {
+            costEstimated: boolean;
+            costUsd: null | number;
+            pricingProvenance?: string;
+            requests: null | number;
+            totals: components["schemas"]["UsageTotalsResponse"];
+        };
+        ControllersChangeOutcomeDeletionRequest: {
+            action: string;
+            confirmation: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        ControllersDocumentSourceResponse: {
+            contentDigest: string;
+            id: string;
+            name: string;
+            position: number;
+            /** Format: int64 */
+            sizeBytes: number;
+            sourcePath: string;
+        };
         ControllersIntakeAnalysisRequestEnvelope: {
             request: components["schemas"]["ControllersIntakeAnalysisRequestResponse"];
         };
@@ -2873,6 +3251,129 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        ControllersOutcomeDeletionEnvelope: {
+            deletion: components["schemas"]["PortsOutcomeDeletionPreview"];
+        };
+        ControllersOutcomeDeletionResult: {
+            action: string;
+        };
+        ControllersOutcomeDeliveriesEnvelope: {
+            deliveries: components["schemas"]["ControllersOutcomeDeliveryResponse"][];
+        };
+        ControllersOutcomeDeliveryEnvelope: {
+            delivery: components["schemas"]["ControllersOutcomeDeliveryResponse"];
+        };
+        ControllersOutcomeDeliveryResponse: {
+            artifactVersion: string;
+            attemptId: string;
+            /** Format: int64 */
+            byteCount: number;
+            /** Format: date-time */
+            completedAt?: null | string;
+            /** @enum {string} */
+            completionSource?: "observed" | "recovered";
+            destination: string;
+            /** @enum {string} */
+            disposition: "accepted" | "draft";
+            failureCode?: string;
+            failureDetail?: string;
+            fileCount: number;
+            id: string;
+            manifestPath?: string;
+            outcomeId: string;
+            /** Format: date-time */
+            requestedAt: string;
+            /** @enum {string} */
+            state: "pending" | "succeeded" | "failed" | "cancelled";
+            workUnitId?: string;
+        };
+        ControllersOutcomeDocumentContextEnvelope: {
+            documentContext: components["schemas"]["ControllersOutcomeDocumentContextResponse"];
+        };
+        ControllersOutcomeDocumentContextResponse: {
+            /** Format: date-time */
+            approvedAt?: null | string;
+            changedSources: string[];
+            digest: string;
+            id: string;
+            outcomeId: string;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            selectedAt: string;
+            sources: components["schemas"]["ControllersDocumentSourceResponse"][];
+            /** @enum {string} */
+            state: "selected" | "approved";
+        };
+        ControllersOutcomeRunCommandRequest: {
+            /** @enum {string} */
+            action: "start" | "pause" | "resume" | "cancel";
+            /** Format: int64 */
+            expectedContractRevision: number;
+            /** Format: int64 */
+            expectedGeneration?: number;
+            planRevisionId: string;
+            requestKey: string;
+        };
+        ControllersOutcomeRunStateEnvelope: {
+            runState: components["schemas"]["ControllersOutcomeRunStateResponse"];
+        };
+        ControllersOutcomeRunStateResponse: {
+            /** Format: date-time */
+            acceptedAt?: null | string;
+            activeAttemptId?: string;
+            activeAttemptStatus?: string;
+            attentionReason?: string;
+            blocker?: components["schemas"]["ControllersRunBlockerResponse"];
+            eligibleActions: components["schemas"]["ControllersRunActionEligibilityResponse"][];
+            freshness: components["schemas"]["ControllersRunFreshnessResponse"];
+            intent?: components["schemas"]["ControllersRunIntentResponse"];
+            outcomeId: string;
+            parentOutcomeId?: string;
+            planBindsCurrentContract: boolean;
+            planStatus?: string;
+            projectId: string;
+            provenCriteria: number;
+            requiredCriteria: number;
+            /** @enum {string} */
+            state: "define" | "ready_to_authorize" | "in_progress" | "needs_you" | "ready_for_review" | "accepted";
+            title: string;
+        };
+        ControllersOutcomeRunStatesEnvelope: {
+            /** Format: date-time */
+            observedAt: string;
+            runStates: components["schemas"]["ControllersOutcomeRunStateResponse"][];
+        };
+        ControllersOutcomeTrashEnvelope: {
+            outcomes: components["schemas"]["PortsOutcomeTrashEntry"][];
+        };
+        ControllersOutcomeUsageAttemptResponse: {
+            attemptId: string;
+            usage: components["schemas"]["ControllersAttributedUsageResponse"];
+            workUnitId: string;
+        };
+        ControllersOutcomeUsageEnvelope: {
+            attempts: components["schemas"]["ControllersOutcomeUsageAttemptResponse"][];
+            /** Format: date-time */
+            observedAt: string;
+            outcomeId: string;
+            planning: components["schemas"]["ControllersAttributedUsageResponse"];
+            totals: components["schemas"]["ControllersAttributedUsageResponse"];
+            workUnits: components["schemas"]["ControllersOutcomeUsageWorkUnitResponse"][];
+        };
+        ControllersOutcomeUsageWorkUnitResponse: {
+            usage: components["schemas"]["ControllersAttributedUsageResponse"];
+            workUnitId: string;
+        };
+        ControllersRequestOutcomeDeliveryRequest: {
+            acceptanceDecisionId?: string;
+            artifactVersion: string;
+            attemptId: string;
+            destination: string;
+            /** @enum {string} */
+            disposition: "accepted" | "draft";
+            requestKey: string;
+        };
         ControllersRequestRereviewRequest: {
             /** @description Tracked pull request URL. Required when the session has multiple PRs. */
             pullRequestUrl?: string;
@@ -2891,6 +3392,58 @@ export interface components {
         ControllersResolveReviewCommentResponse: {
             ok: boolean;
         };
+        ControllersRoutingDecisionResponse: {
+            capabilitySnapshot?: string;
+            effectivePreference?: components["schemas"]["ControllersRoutingPreferenceResponse"];
+            policyVersion: string;
+            recommendedModel?: string;
+            recommendedModelSelection?: string;
+            recommendedProvider?: string;
+            role: string;
+            status: string;
+            workUnitId: string;
+        };
+        ControllersRoutingPreferenceResponse: {
+            model?: string;
+            modelSelection: string;
+            provider: string;
+        };
+        ControllersRunActionEligibilityResponse: {
+            /** @enum {string} */
+            action: "clarify" | "propose_plan" | "review_plan" | "approve_plan" | "start" | "pause" | "resume" | "cancel" | "review_result" | "request_changes" | "accept" | "export";
+            available: boolean;
+            reason?: string;
+        };
+        ControllersRunBlockerResponse: {
+            code: string;
+            detail?: {
+                [key: string]: unknown;
+            };
+            message: string;
+        };
+        ControllersRunFreshnessResponse: {
+            /** Format: int64 */
+            contractRevisionNumber: number;
+            /** Format: date-time */
+            observedAt: string;
+            planRevisionId?: string;
+            /** Format: int64 */
+            proofGeneration: number;
+        };
+        ControllersRunIntentResponse: {
+            /** Format: date-time */
+            acknowledgedAt?: null | string;
+            activeAttemptId?: string;
+            bindsCurrentPlan: boolean;
+            /** @enum {string} */
+            desired: "idle" | "running" | "paused" | "cancelled";
+            /** Format: int64 */
+            generation: number;
+            lastError?: string;
+            planRevisionId?: string;
+            /** Format: date-time */
+            requestedAt: string;
+        };
         ControllersSecurePairingStatus: {
             active: boolean;
             available: boolean;
@@ -2898,6 +3451,9 @@ export interface components {
             host: string;
             port: number;
             reason: string;
+        };
+        ControllersSelectOutcomeDocumentsRequest: {
+            paths: string[];
         };
         ControllersSessionView: {
             activeAgentSwitch?: components["schemas"]["AgentSwitch"];
@@ -3185,12 +3741,14 @@ export interface components {
             statement: string;
         };
         CreateOutcomeRequest: {
+            authorityCeiling?: components["schemas"]["ControllersIntakeAuthority"];
             clarification?: string;
             constraints?: string[];
             goal: string;
             nonGoals?: string[];
             requestKey: string;
             review: string;
+            stopConditions?: string[];
             successCriteria: string[];
             title: string;
         };
@@ -3639,6 +4197,7 @@ export interface components {
             proof: components["schemas"]["OutcomeProofResponse"];
         };
         OutcomeProofResponse: {
+            activeCorrectionId?: string;
             contractRevision: components["schemas"]["ContractRevisionResponse"];
             corrections: components["schemas"]["OutcomeCorrectionResponse"][];
             criteria: components["schemas"]["CriterionProofResponse"][];
@@ -3690,6 +4249,8 @@ export interface components {
             plan: components["schemas"]["PlanRevisionResponse"];
         };
         PlanRevisionResponse: {
+            assumptions: string[];
+            blockers: string[];
             /** Format: int64 */
             contractRevisionNumber: number;
             /** Format: date-time */
@@ -3699,22 +4260,150 @@ export interface components {
             /** Format: int64 */
             number: number;
             outcomeId: string;
+            planningSessionId?: string;
+            routingDecisions: components["schemas"]["ControllersRoutingDecisionResponse"][];
             runBriefCompiledDigest?: string;
             runBriefCoreDigest: string;
+            sourceIntelligenceRunId?: string;
             status: string;
             summary: string;
             workUnits: components["schemas"]["PlanWorkUnitResponse"][];
         };
         PlanWorkUnitResponse: {
+            approvedChecks: components["schemas"]["ControllersApprovedCheckResponse"][];
             /** Format: int64 */
             contractRevisionNumber: number;
+            criterionIds: string[];
+            dependsOn: string[];
             evidenceChecks: string[];
             id: string;
             kind: string;
+            model?: string;
+            modelSelection?: string;
             outputSummary: string;
+            provider?: string;
+            requiredCapabilities: string[];
             stopConditions: string[];
             title: string;
             verificationRequirement: string;
+        };
+        PlanningBindingResponse: {
+            effort?: string;
+            /** @enum {string} */
+            mode: "direct_api" | "native_harness";
+            model?: string;
+            /** @enum {string} */
+            modelSelection: "provider_default" | "explicit";
+            provider: string;
+        };
+        PlanningCancelRequest: {
+            /** Format: int64 */
+            expectedSessionRevision: number;
+        };
+        PlanningCandidateResponse: {
+            binding: components["schemas"]["PlanningBindingResponse"];
+            id: string;
+            ready: boolean;
+            unavailableCode?: string;
+            unavailableDetail?: string;
+        };
+        PlanningCandidatesEnvelope: {
+            candidates: components["schemas"]["PlanningCandidateResponse"][];
+        };
+        PlanningClarificationResponse: {
+            alternatives: string[];
+            question: string;
+            reason: string;
+            recommendation: string;
+        };
+        PlanningContractChangeResponse: {
+            changedFields: string[];
+            summary: string;
+        };
+        PlanningEnvelope: {
+            planning: components["schemas"]["PlanningResponse"];
+        };
+        PlanningFinalizeRequest: {
+            /** Format: int64 */
+            expectedSessionRevision: number;
+            requestKey: string;
+        };
+        PlanningMessageRequest: {
+            /** Format: int64 */
+            expectedSessionRevision: number;
+            requestKey: string;
+            text: string;
+        };
+        PlanningResponse: {
+            proposedPlan?: components["schemas"]["PlanRevisionResponse"];
+            session: components["schemas"]["PlanningSessionResponse"];
+            turns: components["schemas"]["PlanningTurnResponse"][];
+        };
+        PlanningSessionResponse: {
+            binding: components["schemas"]["PlanningBindingResponse"];
+            contextDigest: string;
+            /** @enum {string} */
+            contextMode: "repository_read" | "supplied_packet";
+            contractRevisionId: string;
+            /** Format: int64 */
+            contractRevisionNumber: number;
+            /** Format: date-time */
+            createdAt: string;
+            effectiveModel?: string;
+            effectiveProvider?: string;
+            id: string;
+            lastFailureCode?: string;
+            lastFailureDetail?: string;
+            outcomeId: string;
+            planningGrantDigest: string;
+            /** Format: int64 */
+            revision: number;
+            /** @enum {string} */
+            status: "active" | "proposal_ready" | "superseded" | "cancelled";
+            /** Format: date-time */
+            updatedAt: string;
+            /** @enum {string} */
+            waitingOn: "owner" | "provider" | "none";
+        };
+        PlanningTurnResponse: {
+            clarification?: components["schemas"]["PlanningClarificationResponse"];
+            contractChange?: components["schemas"]["PlanningContractChangeResponse"];
+            /** Format: date-time */
+            createdAt: string;
+            id: string;
+            intelligenceRunId?: string;
+            /** @enum {string} */
+            kind: "message" | "finalize_request" | "clarification" | "contract_change_proposal" | "plan_proposal";
+            replyToTurnId?: string;
+            /** @enum {string} */
+            role: "owner" | "planner";
+            /** Format: int64 */
+            sequence: number;
+            text: string;
+        };
+        PortsOutcomeDeletionPreview: {
+            attemptIds: string[];
+            blockers: string[];
+            documentContextIds: string[];
+            erasing: boolean;
+            outcomeCount: number;
+            outcomeId: string;
+            projectId: string;
+            recordCount: number;
+            /** Format: int64 */
+            revision: number;
+            sessionIds: string[];
+            title: string;
+            trashed: boolean;
+            workspacePaths: string[];
+        };
+        PortsOutcomeTrashEntry: {
+            erasing: boolean;
+            outcomeId: string;
+            /** Format: int64 */
+            revision: number;
+            title: string;
+            trashed: boolean;
         };
         PreviewServerStatusResponse: {
             configuration?: string;
@@ -3845,6 +4534,19 @@ export interface components {
             platform?: string;
             token?: string;
         };
+        ReasoningResponse: {
+            configured: boolean;
+            effort: string;
+            error?: string;
+            errorCode?: string;
+            keyConfigured: boolean;
+            mode: string;
+            model: string;
+            provider: string;
+            ready: boolean;
+            verified: boolean;
+            verifiedAt?: null | string;
+        };
         RecordEvidenceRequest: {
             contentDigest: string;
             contractRevisionId: string;
@@ -3924,6 +4626,11 @@ export interface components {
             displayName: string;
             ok: boolean;
             sessionId: string;
+        };
+        ReplanPlanRequest: {
+            /** Format: int64 */
+            expectedContractRevision: number;
+            feedback: string;
         };
         ResolveCommentsResponse: {
             ok: boolean;
@@ -4022,14 +4729,19 @@ export interface components {
             proposal: components["schemas"]["IntakeProposalInput"];
         };
         ReviseOutcomeContractRequest: {
+            authorityCeiling?: components["schemas"]["ControllersIntakeAuthority"];
             clarification?: string;
             constraints?: string[];
+            criterionEvidence?: string[][];
             /** Format: int64 */
             expectedRevision: number;
+            facets?: components["schemas"]["ControllersIntakeFacet"][];
             goal: string;
             nonGoals?: string[];
             review: string;
+            stopConditions?: string[];
             successCriteria: string[];
+            temporalCondition?: null | string;
         };
         RoleOverride: {
             agent?: string;
@@ -4043,6 +4755,41 @@ export interface components {
             killed?: boolean;
             ok: boolean;
             sessionId: string;
+        };
+        ScheduleAttemptBrief: {
+            /** Format: date-time */
+            createdAt: string;
+            id: string;
+            status: string;
+            /** Format: date-time */
+            updatedAt: string;
+            workUnitId: string;
+        };
+        ScheduleEnvelope: {
+            schedule: components["schemas"]["ScheduleResponse"];
+        };
+        ScheduleResponse: {
+            activeAttempt?: components["schemas"]["ScheduleAttemptBrief"];
+            custodyHeldByWorkUnitId?: string;
+            nextRunnableWorkUnitId?: string;
+            /** @enum {string} */
+            noRunnableReason?: "all_units_proven" | "attempt_executing" | "attempt_paused" | "awaiting_proof";
+            outcomeId: string;
+            plan: components["schemas"]["PlanRevisionResponse"];
+            workUnits: components["schemas"]["ScheduleWorkUnitResponse"][];
+        };
+        ScheduleWorkUnitResponse: {
+            attempts: components["schemas"]["ScheduleAttemptBrief"][];
+            blockedDetail?: string;
+            /** @enum {string} */
+            blockedReason?: "awaiting_dependency_proof" | "custody_held" | "upstream_artifact_unavailable";
+            blockingDependencies: string[];
+            criterionReady: {
+                [key: string]: boolean;
+            } | null;
+            /** @enum {string} */
+            state: "blocked" | "runnable" | "executing" | "proven" | "retryable" | "paused";
+            workUnit: components["schemas"]["PlanWorkUnitResponse"];
         };
         SendConversationMessageRequest: {
             attachments?: components["schemas"]["ConversationImageContentRequest"][];
@@ -4215,13 +4962,13 @@ export interface components {
         SetActivityRequest: {
             /** @description Native agent session identifier used to resume its transcript. */
             agentSessionId?: string;
-            /** @description AO hook sub-command that produced this state (e.g. post-tool-use). */
+            /** @description Kennel hook sub-command that produced this state (e.g. post-tool-use). */
             event?: string;
             /** @description Latest assistant update exposed by the provider hook. */
             latestAssistantUpdate?: string;
             /** @description Latest real user prompt exposed by the provider hook. */
             latestUserPrompt?: string;
-            /** @description AO process generation that produced the signal. */
+            /** @description Kennel process generation that produced the signal. */
             launchId?: string;
             /**
              * @description Agent activity state reported by an agent hook. Optional for metadata-only hooks.
@@ -4258,9 +5005,9 @@ export interface components {
         SetReviewActivityRequest: {
             /** @description Native reviewer session identifier used to resume its transcript. */
             agentSessionId?: string;
-            /** @description AO hook sub-command that produced this signal. */
+            /** @description Kennel hook sub-command that produced this signal. */
             event?: string;
-            /** @description AO process generation that produced the signal. */
+            /** @description Kennel process generation that produced the signal. */
             launchId?: string;
             /**
              * @description Reviewer activity state reported by a hook. Accepted for forward compatibility, not used for session display state.
@@ -4311,6 +5058,7 @@ export interface components {
             chatHarnesses: string[];
             /** @enum {string} */
             defaultSessionMode: "chat" | "tui";
+            reasoning: components["schemas"]["ReasoningResponse"];
         };
         ShellTerminalEnvelope: {
             shellTerminal: components["schemas"]["ShellTerminalResponse"];
@@ -4365,6 +5113,18 @@ export interface components {
             harness?: string;
             planRevisionId: string;
             requestKey: string;
+            workUnitId?: string;
+        };
+        StartPlanningRequest: {
+            candidateId: string;
+            /**
+             * @description Defaults to repository_read.
+             * @enum {string}
+             */
+            contextMode?: "repository_read" | "supplied_packet";
+            /** Format: int64 */
+            expectedContractRevision: number;
+            requestKey: string;
         };
         StartPreviewServerRequest: {
             /** @description Named preview configuration. Optional when exactly one configuration exists. */
@@ -4402,7 +5162,7 @@ export interface components {
             retainedCriteria?: string[];
         };
         SubmitReviewInput: {
-            /** @description Review body recorded by AO. Required for changes_requested. */
+            /** @description Review body recorded by Kennel. Required for changes_requested. */
             body?: string;
             /** @description Id of the GitHub PR review the reviewer posted, if any. */
             githubReviewId?: string;
@@ -4414,7 +5174,7 @@ export interface components {
             verdict?: string;
         };
         SubmitReviewItem: {
-            /** @description Review body recorded by AO. Required for changes_requested. */
+            /** @description Review body recorded by Kennel. Required for changes_requested. */
             body?: string;
             /** @description Id of the GitHub PR review the reviewer posted, if any. */
             githubReviewId?: string;
@@ -4429,7 +5189,7 @@ export interface components {
             /** @description Optional model override for the target agent launch or resume. */
             model?: string;
             /**
-             * @description Agent harness to continue the logical AO session with. Only continuation-capable harnesses are admitted; worker-only harnesses fail closed.
+             * @description Agent harness to continue the logical Kennel session with. Only continuation-capable harnesses are admitted; worker-only harnesses fail closed.
              * @enum {string}
              */
             targetHarness: "codex";
@@ -4459,6 +5219,13 @@ export interface components {
         UpdateProjectSettingsInput: {
             config: components["schemas"]["ProjectConfig"];
             displayName: string;
+        };
+        UpdateReasoningRequest: {
+            apiKey?: string;
+            clearKey?: boolean;
+            effort?: string;
+            model?: string;
+            provider: string;
         };
         UpdateSessionInterfaceRequest: {
             /** @enum {string} */
@@ -4969,8 +5736,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Kennel worker. */
+                "X-Kennel-Browser-Capability"?: string;
             };
             path?: never;
             cookie?: never;
@@ -5058,12 +5825,12 @@ export interface operations {
     getBrowserStatus: {
         parameters: {
             query?: {
-                /** @description AO session identifier. */
+                /** @description Kennel session identifier. */
                 sessionId?: string;
             };
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Kennel worker. */
+                "X-Kennel-Browser-Capability"?: string;
             };
             path?: never;
             cookie?: never;
@@ -7725,6 +8492,487 @@ export interface operations {
             };
         };
     };
+    previewOutcomeDeletion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDeletionEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    changeOutcomeDeletion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersChangeOutcomeDeletionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDeletionResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listOutcomeDeliveries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDeliveriesEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    requestOutcomeDelivery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersRequestOutcomeDeliveryRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDeliveryEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomeDelivery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+                /** @description Delivery identifier, e.g. dlv-<uuid>. */
+                deliveryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDeliveryEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomeDocumentContext: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDocumentContextEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    selectOutcomeDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersSelectOutcomeDocumentsRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDocumentContextEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    approveOutcomeDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersApproveOutcomeDocumentsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDocumentContextEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     recordOutcomeEvidence: {
         parameters: {
             query?: never;
@@ -7847,6 +9095,509 @@ export interface operations {
             };
         };
     };
+    listOutcomePlanningCandidates: {
+        parameters: {
+            query?: {
+                /** @description Confirmed Contract revision to plan against. */
+                contractRevision?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanningCandidatesEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getCurrentOutcomePlanning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanningEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    startOutcomePlanning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartPlanningRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanningEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomePlanning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+                /** @description Planning conversation identifier. */
+                planningSessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanningEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    cancelOutcomePlanning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+                /** @description Planning conversation identifier. */
+                planningSessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanningCancelRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanningEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    continueOutcomePlanning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+                /** @description Planning conversation identifier. */
+                planningSessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanningMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanningEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    finalizeOutcomePlanning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+                /** @description Planning conversation identifier. */
+                planningSessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanningFinalizeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanningEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     proposeOutcomePlan: {
         parameters: {
             query?: never;
@@ -7939,6 +9690,139 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomePlanSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+                /** @description Plan revision identifier, e.g. plan-<uuid>. */
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    replanOutcomePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplanPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8097,6 +9981,178 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomeRunState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeRunStateEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    commandOutcomeRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersOutcomeRunCommandRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeRunStateEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getOutcomeUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeUsageEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8525,6 +10581,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listProjectOutcomeRunStates: {
+        parameters: {
+            query?: {
+                /** @description top_level (default) lists only Project-level Outcomes; all includes contributing Outcomes. */
+                scope?: "top_level" | "all";
+            };
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeRunStatesEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listTrashedOutcomes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeTrashEnvelope"];
                 };
             };
             /** @description Internal Server Error */
@@ -11482,7 +13632,7 @@ export interface operations {
             path: {
                 /** @description Session identifier, e.g. project-1. */
                 sessionId: string;
-                /** @description AO conversation turn identifier, from the snapshot's turns array. */
+                /** @description Kennel conversation turn identifier, from the snapshot's turns array. */
                 turnId: string;
             };
             cookie?: never;
@@ -11556,7 +13706,7 @@ export interface operations {
             path: {
                 /** @description Session identifier, e.g. project-1. */
                 sessionId: string;
-                /** @description AO conversation turn identifier, from the snapshot's turns array. */
+                /** @description Kennel conversation turn identifier, from the snapshot's turns array. */
                 turnId: string;
             };
             cookie?: never;
@@ -11617,7 +13767,7 @@ export interface operations {
             path: {
                 /** @description Session identifier, e.g. project-1. */
                 sessionId: string;
-                /** @description AO conversation turn identifier, from the snapshot's turns array. */
+                /** @description Kennel conversation turn identifier, from the snapshot's turns array. */
                 turnId: string;
             };
             cookie?: never;
@@ -12431,8 +14581,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Kennel worker. */
+                "X-Kennel-Browser-Capability"?: string;
             };
             path: {
                 /** @description Session identifier, e.g. project-1. */
@@ -12502,8 +14652,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Kennel worker. */
+                "X-Kennel-Browser-Capability"?: string;
             };
             path: {
                 /** @description Session identifier, e.g. project-1. */
@@ -12613,8 +14763,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description Opaque browser capability injected into the owning AO worker. */
-                "X-AO-Browser-Capability"?: string;
+                /** @description Opaque browser capability injected into the owning Kennel worker. */
+                "X-Kennel-Browser-Capability"?: string;
             };
             path: {
                 /** @description Session identifier, e.g. project-1. */
@@ -13784,6 +15934,113 @@ export interface operations {
             };
             /** @description Not Implemented */
             501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    updateReasoning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReasoningRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReasoningResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    verifyReasoning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReasoningResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

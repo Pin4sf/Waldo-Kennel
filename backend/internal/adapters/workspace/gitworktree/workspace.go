@@ -823,7 +823,7 @@ func (w *Workspace) existingWorktree(ctx context.Context, repo, path string, cfg
 // registeredWorktreeDirMissing reports whether a git-registered worktree's
 // directory no longer exists on disk. A worktree registration (and the
 // session's DB row) can outlive its directory when something removes the path
-// out of band of Kennel's own teardown (issue #2775: session agent-orchestrator-78
+// out of band of Kennel's own teardown (issue #2775: session sample-78
 // kept its branches and worktree registration but its directory was gone, so
 // handing that path straight to the runtime made the tmux launch command's
 // `cd <path> || exit` guard exit instantly with no diagnostic). When it reports

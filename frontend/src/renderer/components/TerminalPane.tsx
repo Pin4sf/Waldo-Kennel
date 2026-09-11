@@ -24,6 +24,7 @@ import {
 } from "../hooks/useTerminalSession";
 import { useSessionBrowserLink } from "../hooks/useSessionBrowserLink";
 import { getApiBaseUrl } from "../lib/api-client";
+import { usesLiveDaemonPreview } from "../lib/preview-mode";
 import {
 	createTerminalMux,
 	createTerminalMuxPool,
@@ -661,12 +662,16 @@ export function TerminalPane({
 			? requestedTerminalTarget
 			: ({ kind: "worker" } satisfies TerminalTarget);
 	const cache = useContext(TerminalCacheContext);
+	const { t } = useTranslation();
 	const terminalKey =
 		terminalTarget?.kind === "reviewer" || terminalTarget?.kind === "shell"
 			? terminalTarget.handleId
 			: (session?.terminalHandleId ?? "empty");
 
 	if (!window.kennel) {
+		if (usesLiveDaemonPreview) {
+			return <p className="p-4 text-sm text-muted-foreground" data-testid="live-terminal-unavailable">{t("terminal.liveDesktopRequired")}</p>;
+		}
 		// A standalone shell has no agent and no branch, so it previews as a plain
 		// prompt rather than borrowing the session's agent transcript.
 		if (terminalTarget?.kind === "shell") {
@@ -692,7 +697,7 @@ export function TerminalPane({
 				data-testid="session-terminal"
 				style={{ fontSize }}
 			>
-				<span className="text-terminal-dim">~/{session?.workspaceName ?? "reverbcode"}</span>{" "}
+				<span className="text-terminal-dim">~/{session?.workspaceName ?? "kennel"}</span>{" "}
 				{session?.branch ? <span className="text-accent">{session.branch}</span> : null}
 				{session?.branch ? " " : ""}$ {provider}
 				{"\n"}

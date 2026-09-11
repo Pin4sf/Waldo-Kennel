@@ -30,6 +30,9 @@ type IntakeAnalysisInput struct {
 	PreviousProposal  *domain.OutcomeContractProposal
 	Clarification     *domain.ClarificationRequest
 	ClarificationText string
+	// RepositoryToolUse is explicit authority for this analysis call only. It
+	// does not authorize writes, network effects, or later execution.
+	RepositoryToolUse bool
 
 	// Defer opens the durable request this analysis will answer on and returns
 	// where to answer. It is a capability rather than a field because minting

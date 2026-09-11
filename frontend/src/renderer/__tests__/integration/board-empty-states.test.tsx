@@ -155,7 +155,7 @@ describe("global board first launch", () => {
 		expect(screen.getByRole("status", { name: "Kennel is starting" })).toBeInTheDocument();
 		expect(screen.getByText("Kennel")).toBeInTheDocument();
 		expect(screen.getByText("Starting local services")).toHaveAttribute("aria-hidden", "true");
-		expect(screen.queryByText("Import to Kennel")).not.toBeInTheDocument();
+		expect(screen.queryByText("Add a project")).not.toBeInTheDocument();
 		expect(columnCount()).toBe(0);
 	});
 
@@ -163,10 +163,10 @@ describe("global board first launch", () => {
 		respondWith([], []);
 		renderBoard(<SessionsBoard />);
 
-		expect(await screen.findByText("Import to Kennel")).toBeInTheDocument();
-		expect(screen.getByText("What are you importing?")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Workspace" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Project" })).toBeInTheDocument();
+		expect(await screen.findByText("Add a project")).toBeInTheDocument();
+		expect(screen.getByText("Start something new or bring your existing work into Kennel.")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /^Start a new project/ })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /^Import existing work/ })).toBeInTheDocument();
 		expect(columnCount()).toBe(0);
 		// The welcome carries its own orientation — no dangling "Board" header.
 		expect(screen.queryByText("Board")).not.toBeInTheDocument();
@@ -177,7 +177,7 @@ describe("global board first launch", () => {
 		chooseDirectoryMock.mockResolvedValue(null);
 		renderBoard(<SessionsBoard />);
 
-		await userEvent.click(await screen.findByRole("button", { name: "Project" }));
+		await userEvent.click(await screen.findByRole("button", { name: /^Import existing work/ }));
 		expect(chooseDirectoryMock).toHaveBeenCalledTimes(1);
 		expect(chooseDirectoryMock).toHaveBeenCalledWith("Choose a project repository");
 	});
@@ -187,7 +187,8 @@ describe("global board first launch", () => {
 		chooseDirectoryMock.mockResolvedValue(null);
 		renderBoard(<SessionsBoard />);
 
-		await userEvent.click(await screen.findByRole("button", { name: "Workspace" }));
+		await userEvent.click(await screen.findByText("Importing multiple repositories?"));
+		await userEvent.click(screen.getByRole("button", { name: "Import workspace" }));
 		expect(chooseDirectoryMock).toHaveBeenCalledTimes(1);
 		expect(chooseDirectoryMock).toHaveBeenCalledWith("Choose a workspace folder");
 	});
@@ -197,7 +198,7 @@ describe("global board first launch", () => {
 		chooseDirectoryMock.mockRejectedValue(new Error("dialog unavailable"));
 		renderBoard(<SessionsBoard />);
 
-		await userEvent.click(await screen.findByRole("button", { name: "Project" }));
+		await userEvent.click(await screen.findByRole("button", { name: /^Import existing work/ }));
 		const messages = await screen.findAllByText("dialog unavailable");
 		expect(messages.some((el) => !el.classList.contains("sr-only"))).toBe(true);
 	});
@@ -207,7 +208,7 @@ describe("global board first launch", () => {
 		renderBoard(<SessionsBoard />);
 
 		expect(await screen.findByText("fix the bug")).toBeInTheDocument();
-		expect(screen.queryByText("Import to Kennel")).not.toBeInTheDocument();
+		expect(screen.queryByText("Add a project")).not.toBeInTheDocument();
 		expect(columnCount()).toBe(4);
 	});
 
@@ -242,7 +243,7 @@ describe("project board with no sessions", () => {
 		expect(await screen.findByText("Start by defining an outcome")).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Spawn Orchestrator" })).not.toBeInTheDocument();
 		expect(screen.getAllByRole("button", { name: "Define outcome" }).length).toBeGreaterThan(0);
-		expect(screen.queryByText("Import to Kennel")).not.toBeInTheDocument();
+		expect(screen.queryByText("Add a project")).not.toBeInTheDocument();
 		expect(columnCount()).toBe(0);
 	});
 

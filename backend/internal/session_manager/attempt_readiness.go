@@ -8,15 +8,10 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
-// ProfileReadinessForSpawn probes the profile gate EXACTLY the way Spawn
-// enforces it: the same adapter capability, resolved against the config the
-// launch would use (project role defaults merged with explicit request
-// overrides), so "ready" means launchable rather than merely installed.
-//
-// Attempt admission (#31) runs this during its fail-closed ordering, before
-// any durable row exists, and again before resuming a paused attempt. It is
-// deliberately a thin wrapper over the same helpers Spawn calls — duplicating
-// the merge rules elsewhere would let the two answers drift.
+// ProfileReadinessForSpawn probes the profile gate EXACTLY the way an ordinary
+// Spawn resolves it: Project role defaults merged with explicit request
+// overrides. Governed Attempts should use ProfileReadinessForExactSpawn so the
+// approved WorkUnit binding, not mutable Project model state, owns the probe.
 func ProfileReadinessForSpawn(
 	ctx context.Context,
 	agents ports.AgentResolver,
@@ -25,24 +20,65 @@ func ProfileReadinessForSpawn(
 	harness domain.AgentHarness,
 	overrides ports.AgentConfig,
 ) (ports.AgentProfileReadiness, error) {
+	resolvedHarness, config, err := spawnExecutionConfig(ports.SpawnConfig{
+		Kind:        kind,
+		Harness:     harness,
+		AgentConfig: overrides,
+	}, projectCfg)
+	if err != nil {
+		return ports.AgentProfileReadiness{}, err
+	}
+	return profileReadinessForConfig(ctx, agents, resolvedHarness, config, nil)
+}
+
+// ProfileReadinessForExactSpawn probes the frozen execution binding through the
+// same config resolver Manager.Spawn uses. provider_default therefore means an
+// actually empty concrete model even when the Project currently names one.
+func ProfileReadinessForExactSpawn(
+	ctx context.Context,
+	agents ports.AgentResolver,
+	projectCfg domain.ProjectConfig,
+	kind domain.SessionKind,
+	binding domain.ExecutionBinding,
+	overrides ports.AgentConfig,
+	policy *domain.AttemptExecutionPolicy,
+) (ports.AgentProfileReadiness, error) {
+	bindingCopy := binding
+	harness, config, err := spawnExecutionConfig(ports.SpawnConfig{
+		Kind:                  kind,
+		Harness:               binding.Provider,
+		AgentConfig:           overrides,
+		ExactExecutionBinding: &bindingCopy,
+	}, projectCfg)
+	if err != nil {
+		return ports.AgentProfileReadiness{}, err
+	}
+	return profileReadinessForConfig(ctx, agents, harness, config, policy)
+}
+
+func profileReadinessForConfig(
+	ctx context.Context,
+	agents ports.AgentResolver,
+	harness domain.AgentHarness,
+	config ports.AgentConfig,
+	policy *domain.AttemptExecutionPolicy,
+) (ports.AgentProfileReadiness, error) {
 	agent, ok := agents.Agent(harness)
 	if !ok {
-		// An unregistered harness can never launch; say so instead of failing
-		// the whole probe.
 		return ports.AgentProfileReadiness{
 			Ready:  false,
 			Detail: fmt.Sprintf("no agent adapter registered for %q", harness),
 		}, nil
 	}
+	if err := validateAgentExecutionPolicy(ctx, agent, harness, config, policy); err != nil {
+		return ports.AgentProfileReadiness{}, err
+	}
 	checker, ok := agent.(ports.AgentProfileReadinessChecker)
 	if !ok {
-		// Adapters without a profile gate have no launch dependency beyond
-		// binary presence, which Spawn itself validates authoritatively.
 		return ports.AgentProfileReadiness{
 			Ready:  true,
 			Detail: "harness declares no profile gate; spawn remains the validation point",
 		}, nil
 	}
-	probeConfig := applySpawnAgentConfig(freshAgentConfig(kind, harness, projectCfg), overrides)
-	return checker.ProfileReadiness(ctx, probeConfig)
+	return checker.ProfileReadiness(ctx, config)
 }

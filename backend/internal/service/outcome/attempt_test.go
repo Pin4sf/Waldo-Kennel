@@ -10,6 +10,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence/intelligencetest"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
@@ -22,7 +23,9 @@ func newAttemptHarness(t *testing.T) (*outcome.Service, *attemptFakeStore, *fake
 	store := newAttemptFakeStore()
 	spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true, Detail: "profile ok"}}
 	heartbeats := newFakeHeartbeats()
-	svc := outcome.NewWithExecution(store, nil, spawner, heartbeats)
+	svc := outcome.New(store, nil).
+		WithPlanning(intelligencetest.New(), &routingInventoryFake{candidates: []domain.RoutingCandidate{executionCandidate(domain.HarnessCodex, "")}}).
+		WithExecution(spawner, heartbeats)
 
 	ctx := context.Background()
 	view, err := svc.Create(ctx, validCreateInput())
@@ -42,8 +45,23 @@ func newAttemptHarness(t *testing.T) (*outcome.Service, *attemptFakeStore, *fake
 	return svc, store, spawner, heartbeats, view.Outcome.ID, planView.Plan.ID
 }
 
+// firstWorkUnitOfPlan lets startInput name the unit an Attempt executes without
+// every harness threading a WorkUnitID through its return signature. Naming the
+// unit is required now that a Plan may hold more than one.
+var firstWorkUnitOfPlan = map[domain.PlanRevisionID]domain.WorkUnitID{}
+
+func rememberFirstWorkUnit(plan domain.PlanRevision) {
+	if len(plan.WorkUnits) > 0 {
+		firstWorkUnitOfPlan[plan.ID] = plan.WorkUnits[0].ID
+	}
+}
+
 func startInput(planID domain.PlanRevisionID) outcome.StartAttemptInput {
-	return outcome.StartAttemptInput{PlanRevisionID: planID, RequestKey: "req-start-1"}
+	return outcome.StartAttemptInput{
+		PlanRevisionID: planID,
+		WorkUnitID:     firstWorkUnitOfPlan[planID],
+		RequestKey:     "req-start-1",
+	}
 }
 
 func requireAPICode(t *testing.T, err error) string {
@@ -53,6 +71,21 @@ func requireAPICode(t *testing.T, err error) string {
 		t.Fatalf("err = %v, want apierr.Error", err)
 	}
 	return apiErr.Code
+}
+
+func TestStartAttemptWithoutWorkUnitUsesDaemonSchedule(t *testing.T) {
+	svc, _, spawner, _, outcomeID, planID := newAttemptHarness(t)
+	view, err := svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, RequestKey: "req-daemon-selected"})
+	if err != nil {
+		t.Fatalf("daemon-selected start: %v", err)
+	}
+	want := firstWorkUnitOfPlan[planID]
+	if view.Attempt.WorkUnitID != want {
+		t.Fatalf("selected WorkUnit = %s, want scheduler unit %s", view.Attempt.WorkUnitID, want)
+	}
+	if spawner.spawnCalls() != 1 {
+		t.Fatalf("provider spawn calls = %d, want one", spawner.spawnCalls())
+	}
 }
 
 // TestStartAttemptFailClosedQuartetLeavesZeroRows maps the four pre-durable
@@ -86,7 +119,7 @@ func TestStartAttemptFailClosedQuartetLeavesZeroRows(t *testing.T) {
 			t.Fatalf("expected replayed proposal, ok=%v err=%v", ok, err)
 		}
 		_, err = svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{
-			PlanRevisionID: proposal.ID, RequestKey: "rk-unapproved",
+			PlanRevisionID: proposal.ID, WorkUnitID: firstWorkUnitOfPlan[proposal.ID], RequestKey: "rk-unapproved",
 		})
 		if code := requireAPICode(t, err); code != outcome.CodePlanNotApproved {
 			t.Fatalf("code = %s, want PLAN_NOT_APPROVED", code)
@@ -118,8 +151,13 @@ func TestStartAttemptFailClosedQuartetLeavesZeroRows(t *testing.T) {
 	t.Run("capability unauthorized", func(t *testing.T) {
 		store := newAttemptFakeStore()
 		spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true}}
-		wide := outcome.NewWithExecution(store, nil, spawner, newFakeHeartbeats())
-		narrow := outcome.NewWithExecution(store, nil, spawner, newFakeHeartbeats())
+		planning := &routingInventoryFake{candidates: []domain.RoutingCandidate{executionCandidate(domain.HarnessCodex, "")}}
+		wide := outcome.New(store, nil).
+			WithPlanning(intelligencetest.New(), planning).
+			WithExecution(spawner, newFakeHeartbeats())
+		narrow := outcome.New(store, nil).
+			WithPlanning(intelligencetest.New(), planning).
+			WithExecution(spawner, newFakeHeartbeats())
 		narrow.PolicyLayers = [][]string{{domain.CapabilityWorktreeRead}}
 		ctx := context.Background()
 		view, err := wide.Create(ctx, validCreateInput())
@@ -154,7 +192,7 @@ func TestStartAttemptFailClosedQuartetLeavesZeroRows(t *testing.T) {
 		}
 		spawner.readinessErr = ports.ErrAgentBinaryNotFound
 		spawner.readiness = ports.AgentProfileReadiness{}
-		_, err = svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, RequestKey: "rk-2"})
+		_, err = svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, WorkUnitID: firstWorkUnitOfPlan[planID], RequestKey: "rk-2"})
 		if code := requireAPICode(t, err); code != outcome.CodeAgentBinaryNotFound {
 			t.Fatalf("code = %s, want AGENT_BINARY_NOT_FOUND", code)
 		}
@@ -224,7 +262,7 @@ func TestStartAttemptAdmissionOrdering(t *testing.T) {
 	if len(ref.RunBriefCoreDigest) != 64 || len(ref.RunBriefCompiledDigest) != 64 {
 		t.Fatal("both digests must be recorded on the ref")
 	}
-	if !strings.Contains(ref.AdmissionSnapshot, `"snapshotVersion":1`) {
+	if !strings.Contains(ref.AdmissionSnapshot, `"snapshotVersion":2`) {
 		t.Fatalf("admission snapshot missing version pin: %s", ref.AdmissionSnapshot)
 	}
 	if view.Fence == nil || !view.Fence.Open() || view.Fence.AttemptID != view.Attempt.ID {
@@ -247,6 +285,9 @@ func TestStartAttemptAdmissionOrdering(t *testing.T) {
 	}
 	if !strings.Contains(req.Prompt, "Stop conditions:") {
 		t.Fatal("prompt must carry the stop conditions")
+	}
+	if req.ExecutionPolicy == nil || req.ExecutionPolicy.OutcomeID != outcomeID || req.ExecutionPolicy.PlanRevisionID != planID || req.ExecutionPolicy.WorkUnitID != firstWorkUnitOfPlan[planID] {
+		t.Fatalf("spawn policy = %+v, want attributed approved WorkUnit policy", req.ExecutionPolicy)
 	}
 
 	// First signal arrives: derivation flips to executing.
@@ -286,6 +327,25 @@ func TestStartAttemptReplayIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestStartAttemptReplayWithDifferentWorkUnitConflicts(t *testing.T) {
+	svc, _, spawner, _, outcomeID, planID := newAttemptHarness(t)
+	first, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatalf("first start: %v", err)
+	}
+	_, err = svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{
+		PlanRevisionID: planID,
+		WorkUnitID:     domain.WorkUnitID("different-work-unit"),
+		RequestKey:     startInput(planID).RequestKey,
+	})
+	if code := requireAPICode(t, err); code != outcome.CodeAttemptRequestKeyConflict {
+		t.Fatalf("code = %s, want %s", code, outcome.CodeAttemptRequestKeyConflict)
+	}
+	if spawner.spawnCalls() != 1 || first.Attempt.ID == "" {
+		t.Fatalf("replay conflict changed execution: first=%s spawns=%d", first.Attempt.ID, spawner.spawnCalls())
+	}
+}
+
 // TestAnySpawnRefusalIsAmbiguousNeverFailed pins the round-2 custody law: NO
 // spawn error is classifiable as a clean failure (the adapter may have
 // created the runtime before failing), so every refusal routes to admission
@@ -322,10 +382,13 @@ func TestAnySpawnRefusalIsAmbiguousNeverFailed(t *testing.T) {
 	}
 
 	// Replacement cannot bypass reconcile while the ambiguity holds custody.
-	if _, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, RequestKey: "rk-replace"}); err == nil {
+	if _, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, WorkUnitID: firstWorkUnitOfPlan[planID], RequestKey: "rk-replace"}); err == nil {
 		t.Fatal("replacement start must be refused while custody is unresolved")
-	} else if code := requireAPICode(t, err); code != outcome.CodeAttemptFenceHeld {
-		t.Fatalf("code = %s, want ATTEMPT_FENCE_HELD", code)
+	} else if code := requireAPICode(t, err); code != outcome.CodeAttemptFenceHeld && code != outcome.CodeNoRunnableWorkUnit {
+		// Scheduling answers before custody does now: the plan's only unit is
+		// still held by the unresolved attempt, so nothing is runnable. Either
+		// refusal proves the same thing — no replacement slipped past reconcile.
+		t.Fatalf("code = %s, want ATTEMPT_FENCE_HELD or NO_RUNNABLE_WORK_UNIT", code)
 	}
 }
 
@@ -437,7 +500,7 @@ func TestContainReconcileReplacementFlow(t *testing.T) {
 	}
 
 	// Safe next action: a replacement attempt acquires the freed subject.
-	replacement, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, RequestKey: "rk-replacement"})
+	replacement, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{PlanRevisionID: planID, WorkUnitID: firstWorkUnitOfPlan[planID], RequestKey: "rk-replacement"})
 	if err != nil {
 		t.Fatalf("replacement start: %v", err)
 	}
@@ -717,6 +780,7 @@ func assertReplacementStartable(t *testing.T, svc *outcome.Service, spawner *fak
 	spawner.mu.Unlock()
 	replacement, err := svc.StartAttempt(context.Background(), outcomeID, outcome.StartAttemptInput{
 		PlanRevisionID: planID,
+		WorkUnitID:     firstWorkUnitOfPlan[planID],
 		RequestKey:     "rk-replacement-" + time.Now().String(),
 	})
 	if err != nil {
@@ -749,7 +813,9 @@ func TestActivationUnknownKeepsLiveProviderUnconfirmed(t *testing.T) {
 	store.dropActivationOnce = true
 	spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true}}
 	heartbeats := newFakeHeartbeats()
-	svc := outcome.NewWithExecution(store, nil, spawner, heartbeats)
+	svc := outcome.New(store, nil).
+		WithPlanning(intelligencetest.New(), &routingInventoryFake{candidates: []domain.RoutingCandidate{executionCandidate(domain.HarnessCodex, "")}}).
+		WithExecution(spawner, heartbeats)
 
 	ctx := context.Background()
 	outcomeView, err := svc.Create(ctx, validCreateInput())
@@ -920,7 +986,7 @@ func TestBindFailureKeepsCustodyUntilOwnerContainment(t *testing.T) {
 	store := newAttemptFakeStore()
 	store.failBindOnce = true
 	spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true}}
-	svc := outcome.NewWithExecution(store, nil, spawner, newFakeHeartbeats())
+	svc := outcome.New(store, nil).WithPlanning(intelligencetest.New(), &routingInventoryFake{candidates: []domain.RoutingCandidate{executionCandidate(domain.HarnessCodex, "")}}).WithExecution(spawner, newFakeHeartbeats())
 
 	ctx := context.Background()
 	outcomeView, err := svc.Create(ctx, validCreateInput())
@@ -994,7 +1060,7 @@ func TestBindFailureKeepsCustodyUntilOwnerContainment(t *testing.T) {
 
 	// Replacement acquires the freed subject as a NEW attempt row.
 	replacement, err := svc.StartAttempt(ctx, outcomeID, outcome.StartAttemptInput{
-		PlanRevisionID: planView.Plan.ID, RequestKey: "rk-after-bind-failure",
+		PlanRevisionID: planView.Plan.ID, WorkUnitID: firstWorkUnitOfPlan[planView.Plan.ID], RequestKey: "rk-after-bind-failure",
 	})
 	if err != nil {
 		t.Fatalf("replacement start: %v", err)

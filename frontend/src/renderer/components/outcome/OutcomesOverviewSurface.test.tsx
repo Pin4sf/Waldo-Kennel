@@ -1,5 +1,12 @@
+import { useUiStore } from "../../stores/ui-store";
+vi.mock("../../hooks/useMissionAttention", () => ({
+	useMissionAttention: (outcomes: Array<{ id: string }>) =>
+		new Map(
+			outcomes.map((outcome) => [outcome.id, { lane: outcome.id.startsWith("accepted") ? "accepted" : outcome.id.startsWith("review") ? "review" : "define" }]),
+		),
+}));
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -68,8 +75,8 @@ describe("OutcomesOverviewSurface", () => {
 		renderSurface();
 
 		await waitFor(() => {
-			expect(screen.getByText("Waldo Kennel")).toBeInTheDocument();
-			expect(screen.getByText("Kennel Island")).toBeInTheDocument();
+			expect(screen.getByRole("heading", { name: "Waldo Kennel" })).toBeInTheDocument();
+			expect(screen.getByRole("heading", { name: "Kennel Island" })).toBeInTheDocument();
 		});
 		expect(screen.getByText("Ship the release")).toBeInTheDocument();
 		expect(screen.getByText("Fix the notch")).toBeInTheDocument();
@@ -92,7 +99,7 @@ describe("OutcomesOverviewSurface", () => {
 		expect(onOpenOutcome.mock.calls[0][2]).toBe("decide_authorize");
 	});
 
-	it("opens a decomposed parent on Mission Control and nests its contributors", async () => {
+	it("opens a decomposed parent and shows contributors only on request", async () => {
 		workspaceQueryMock.mockReturnValue({ data: [workspace("proj-1", "Waldo Kennel")], isLoading: false });
 		projectOutcomesQueryMock.mockReturnValue({
 			outcomes: [outcome("parent-1", "Ship the importer"), outcome("child-1", "Parse the archive", "parent-1")],
@@ -107,6 +114,9 @@ describe("OutcomesOverviewSurface", () => {
 
 		// A contributor answers for its own contract, so it keeps the ordinary
 		// destination — and is indented under the parent that claims it.
+		expect(screen.queryByText("Parse the archive")).not.toBeInTheDocument();
+		await user.click(screen.getByText("Filters"));
+		await user.click(screen.getByRole("checkbox", { name: "Include contributing Outcomes" }));
 		const contributor = screen.getByText("Parse the archive");
 		expect(contributor.closest("li")).toHaveClass("pl-6");
 		await user.click(contributor);
@@ -128,7 +138,7 @@ describe("OutcomesOverviewSurface", () => {
 		const onOpenOutcome = renderSurface();
 
 		await user.click(await screen.findByRole("button", { name: "Mission control for Ship the release" }));
-		expect(onOpenOutcome).toHaveBeenCalledWith("proj-1", expect.objectContaining({ id: "out-1" }), "decompose");
+		expect(onOpenOutcome).toHaveBeenCalledWith("proj-1", expect.objectContaining({ id: "out-1" }), "decide_authorize");
 	});
 
 	it("offers no decomposition action on a contributing Outcome", async () => {
@@ -162,4 +172,60 @@ describe("OutcomesOverviewSurface", () => {
 		await user.click(retry);
 		expect(refetch).toHaveBeenCalledTimes(1);
 	});
+});
+
+it("shows accepted Outcomes in Finished on the board", async () => {
+	workspaceQueryMock.mockReturnValue({ data: [workspace("p", "Project")], isLoading: false });
+	projectOutcomesQueryMock.mockReturnValue({
+		outcomes: [outcome("active", "Current work"), outcome("accepted-one", "Accepted work")],
+		isLoading: false,
+		refetch: vi.fn(),
+	});
+	renderSurface();
+	expect(screen.getByText("Current work")).toBeInTheDocument();
+	expect(screen.getByText("Accepted work")).toBeInTheDocument();
+	await userEvent.click(screen.getByText("Filters"));
+	await userEvent.selectOptions(screen.getByRole("combobox", { name: "Outcome status" }), "history");
+	expect(screen.getByText("Accepted work")).toBeInTheDocument();
+});
+
+it("groups the board into four useful columns and keeps the same Outcomes in List", async () => {
+	workspaceQueryMock.mockReturnValue({ data: [workspace("p", "Project")], isLoading: false });
+	projectOutcomesQueryMock.mockReturnValue({
+		outcomes: [outcome("active", "Current work")],
+		isLoading: false,
+		refetch: vi.fn(),
+	});
+	useUiStore.setState({ outcomeRunViewMode: "board" });
+	renderSurface();
+	expect(screen.getByRole("heading", { name: /To do/ })).toBeInTheDocument();
+	expect(screen.getByRole("heading", { name: /Needs you/ })).toBeInTheDocument();
+	expect(screen.getByRole("heading", { name: /Finished/ })).toBeInTheDocument();
+	expect(screen.queryByRole("heading", { name: /Ready to authorize/ })).not.toBeInTheDocument();
+	expect(screen.getByRole("heading", { name: /In progress/ })).toBeInTheDocument();
+	expect(screen.getByText("Filters").closest("details")).not.toHaveAttribute("open");
+	act(() => useUiStore.setState({ outcomeRunViewMode: "list" }));
+	expect(screen.getAllByTestId("outcomes-overview-row")).toHaveLength(1);
+	expect(screen.getByText("Current work")).toBeInTheDocument();
+});
+
+it("keeps reviewable Outcomes in the Needs you filter and applies Active consistently", async () => {
+	workspaceQueryMock.mockReturnValue({ data: [workspace("p", "Project")], isLoading: false });
+	projectOutcomesQueryMock.mockReturnValue({
+		outcomes: [outcome("review-one", "Ready for owner review"), outcome("accepted-one", "Finished work")],
+		isLoading: false, refetch: vi.fn(),
+	});
+	useUiStore.setState({ outcomeRunViewMode: "board" });
+	renderSurface();
+	expect(screen.getByText("Finished work")).toBeInTheDocument();
+	await userEvent.click(screen.getByText("Filters"));
+	const filter = screen.getByRole("combobox", { name: "Outcome status" });
+	await userEvent.selectOptions(filter, "needsYou");
+	expect(screen.getByText("Ready for owner review")).toBeInTheDocument();
+	expect(screen.queryByText("Finished work")).not.toBeInTheDocument();
+	await userEvent.selectOptions(filter, "active");
+	expect(screen.queryByText("Finished work")).not.toBeInTheDocument();
+	act(() => useUiStore.setState({ outcomeRunViewMode: "list" }));
+	expect(screen.getByText("Ready for owner review")).toBeInTheDocument();
+	expect(screen.queryByText("Finished work")).not.toBeInTheDocument();
 });

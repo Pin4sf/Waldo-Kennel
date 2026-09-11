@@ -4,6 +4,7 @@ package sessionmanager
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -395,6 +396,26 @@ type Manager struct {
 
 	reviewersMu sync.Mutex
 	reviewers   ReviewerTerminator
+
+	// attemptInputs materializes a governed successor's predecessor results
+	// into its workspace before launch. Late-bound because only the Outcome
+	// execution path uses it; a spawn that needs it and does not have it is
+	// refused rather than started without its inputs.
+	attemptInputsMu sync.Mutex
+	attemptInputs   ports.AttemptInputProvisioner
+}
+
+// SetAttemptInputProvisioner wires artifact handoff into governed spawning.
+func (m *Manager) SetAttemptInputProvisioner(provisioner ports.AttemptInputProvisioner) {
+	m.attemptInputsMu.Lock()
+	defer m.attemptInputsMu.Unlock()
+	m.attemptInputs = provisioner
+}
+
+func (m *Manager) attemptInputProvisioner() ports.AttemptInputProvisioner {
+	m.attemptInputsMu.Lock()
+	defer m.attemptInputsMu.Unlock()
+	return m.attemptInputs
 }
 
 // latestUserPromptRecorder narrows the post-delivery write to the single fact
@@ -670,8 +691,24 @@ func New(d Deps) *Manager {
 // workspace and runtime, then reports completion to the LCM. If workspace
 // materialization fails the still-seed row is deleted outright; a later failure
 // parks the row as terminated and rolls back what was built.
-func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.SessionRecord, int, int, error) {
+func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (rec domain.SessionRecord, promptBytes, systemPromptBytes int, err error) {
+	prelaunchStage := "load_project"
+	providerLaunchAttempted := false
+	defer func() {
+		if err == nil || providerLaunchAttempted {
+			return
+		}
+		var classified *ports.AttemptPrelaunchError
+		if !errors.As(err, &classified) {
+			err = &ports.AttemptPrelaunchError{Stage: prelaunchStage, Err: err}
+		}
+	}()
 	project, err := m.loadProject(ctx, cfg.ProjectID)
+	if err != nil {
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
+	}
+	prelaunchStage = "resolve_execution"
+	cfg, project.Config, err = prepareSpawnExecution(cfg, project.Config)
 	if err != nil {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
 	}
@@ -702,9 +739,14 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	// Reject an unknown harness before any durable state is created. Doing this
 	// after CreateSession would leave a terminated orphan row and waste a
 	// worktree on a spawn that can never launch.
+	prelaunchStage = "provider_admission"
 	agent, ok := m.agents.Agent(cfg.Harness)
 	if !ok {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w: %q", ErrUnknownHarness, cfg.Harness)
+	}
+	resolvedAgentConfig := applySpawnAgentConfig(freshAgentConfig(cfg.Kind, cfg.Harness, project.Config), cfg.AgentConfig)
+	if err := validateAgentExecutionPolicy(ctx, agent, cfg.Harness, resolvedAgentConfig, cfg.ExecutionPolicy); err != nil {
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: execution policy: %w", err)
 	}
 
 	// Profile readiness is enforced here, before any session row, worktree, or
@@ -714,9 +756,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	// "launchable", not merely installed. Spawn remains the authoritative
 	// validation point; this preflight only moves the truthful failure earlier.
 	if checker, ok := agent.(ports.AgentProfileReadinessChecker); ok {
-		probeConfig := freshAgentConfig(cfg.Kind, cfg.Harness, project.Config)
-		probeConfig = applySpawnAgentConfig(probeConfig, cfg.AgentConfig)
-		readiness, err := checker.ProfileReadiness(ctx, probeConfig)
+		readiness, err := checker.ProfileReadiness(ctx, resolvedAgentConfig)
 		if err != nil {
 			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %s readiness: %w", cfg.Harness, err)
 		}
@@ -730,6 +770,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	// cannot honor should cost nothing, not leave a terminated row and a worktree
 	// behind. It never falls back to TUI — that would put the user in a terminal
 	// they deliberately did not ask for.
+	prelaunchStage = "session_mode_preflight"
 	mode := m.resolveSessionMode(ctx, cfg.RequestedMode)
 	if mode == domain.SessionModeChat {
 		if m.chat == nil {
@@ -737,6 +778,15 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		}
 		if err := m.chat.PreflightChat(ctx, cfg.Harness); err != nil {
 			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
+		}
+		if cfg.ExecutionPolicy != nil {
+			policyLauncher, ok := m.chat.(ChatExecutionPolicyLauncher)
+			if !ok {
+				return domain.SessionRecord{}, 0, 0, &ports.ExecutionPolicyUnsupportedError{Harness: cfg.Harness, Capability: cfg.ExecutionPolicy.RequiredCapabilities[0], Detail: "the Chat launcher has no policy preflight"}
+			}
+			if err := policyLauncher.PreflightChatExecutionPolicy(ctx, cfg.Harness, *cfg.ExecutionPolicy); err != nil {
+				return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: execution policy: %w", err)
+			}
 		}
 	}
 	cfg.RequestedMode = mode
@@ -749,14 +799,16 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		}
 	}
 
+	prelaunchStage = "build_prompt"
 	prompt, systemPrompt, err := m.buildSpawnTexts(ctx, cfg)
 	if err != nil {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: prompt: %w", err)
 	}
-	promptBytes := len(prompt)
-	systemPromptBytes := len(systemPrompt)
+	promptBytes = len(prompt)
+	systemPromptBytes = len(systemPrompt)
 
-	rec, err := m.store.CreateSession(ctx, seedRecord(cfg, m.clock()))
+	prelaunchStage = "create_session"
+	rec, err = m.store.CreateSession(ctx, seedRecord(cfg, m.clock()))
 	if err != nil {
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: create: %w", err)
 	}
@@ -767,6 +819,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: system prompt file: %w", id, err)
 	}
 
+	prelaunchStage = "prepare_workspace"
 	branch := cfg.Branch
 	if branch == "" {
 		branch = DefaultSpawnBranch(id, cfg.Kind, sessionPrefix(project), projectKind, m.dataDir)
@@ -777,7 +830,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		// row is deleted outright instead of accumulating as a terminated orphan
 		// in session lists (e.g. when gitworktree refuses the branch).
 		m.rollbackSpawnSeedRow(ctx, id)
-		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: workspace: %w", id, err)
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: workspace: %w: %w", id, ports.ErrAttemptWorkspacePreparation, err)
 	}
 
 	// Per-project workspace provisioning: symlink shared files, then run any
@@ -785,6 +838,18 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	if err := m.provisionWorkspace(ctx, project, ws.Path); err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: provision: %w", id, err)
+	}
+
+	// A governed successor's inputs are its predecessors' retained output.
+	// They go in after the workspace holds the approved base and before any
+	// launch path runs, so the provider never sees a tree that is missing the
+	// work it is supposed to build on. A failure here leaves the workspace
+	// inspectable: rollback destroys it only when it is clean.
+	if len(cfg.AttemptInputs) > 0 || cfg.AttemptDocuments != nil {
+		if err := m.provisionAttemptInputs(ctx, cfg, project, ws); err != nil {
+			m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: %w", id, err)
+		}
 	}
 
 	// CLI agents receive the prompt as text and cannot consume inline binary
@@ -810,15 +875,17 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	// provisioning, attachments. From here the two modes launch different
 	// controllers, and exactly one of them runs.
 	if mode == domain.SessionModeChat {
+		prelaunchStage = "chat_controller"
 		rec, err = m.launchChatController(ctx, chatSpawn{
-			cfg:              cfg,
-			project:          project,
-			projectKind:      projectKind,
-			record:           rec,
-			workspace:        ws,
-			workspaceProject: workspaceProject,
-			prompt:           prompt,
-			systemPrompt:     systemPrompt,
+			cfg:                  cfg,
+			project:              project,
+			projectKind:          projectKind,
+			record:               rec,
+			workspace:            ws,
+			workspaceProject:     workspaceProject,
+			prompt:               prompt,
+			systemPrompt:         systemPrompt,
+			beforeProviderLaunch: func() { providerLaunchAttempted = true },
 		})
 		if err != nil {
 			return domain.SessionRecord{}, 0, 0, err
@@ -828,11 +895,12 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 
 	// Defensive re-lookup: the adapter resolved before any durable state was
 	// created above; this guards against registry churn during provisioning.
+	prelaunchStage = "prepare_tui_launch"
 	if _, ok := m.agents.Agent(cfg.Harness); !ok {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: no agent adapter for harness %q", id, cfg.Harness)
 	}
-	agentConfig := applySpawnAgentConfig(freshAgentConfig(cfg.Kind, cfg.Harness, project.Config), cfg.AgentConfig)
+	agentConfig := resolvedAgentConfig
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(id, cfg.ProjectID, cfg.IssueID, project.Config.Env)
 	if err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, true)
@@ -859,6 +927,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		IssueID:          string(cfg.IssueID),
 		Config:           agentConfig,
 		Permissions:      agentConfig.Permissions,
+		ExecutionPolicy:  cfg.ExecutionPolicy,
 	}
 	delivery, err := agent.GetPromptDeliveryStrategy(ctx, launchCfg)
 	if err != nil {
@@ -892,6 +961,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: prepare launch: %w", id, err)
 	}
 	defer m.lcm.CancelLaunch(id, launchID)
+	providerLaunchAttempted = true
 	handle, err := m.runtime.Create(ctx, ports.RuntimeConfig{
 		SessionID:     id,
 		WorkspacePath: ws.Path,
@@ -904,14 +974,15 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	}
 
 	metadata := domain.SessionMetadata{
-		Branch:                    ws.Branch,
-		WorkspacePath:             ws.Path,
-		WorkspaceRepoPath:         ws.RepoPath,
-		RuntimeHandleID:           handle.ID,
-		RuntimeLaunchID:           launchID,
-		Prompt:                    prompt,
-		LatestUserPrompt:          prompt,
-		BrowserCapabilityVerifier: browserCapabilityVerifier,
+		Branch:                        ws.Branch,
+		WorkspacePath:                 ws.Path,
+		WorkspaceRepoPath:             ws.RepoPath,
+		RuntimeHandleID:               handle.ID,
+		RuntimeLaunchID:               launchID,
+		Prompt:                        prompt,
+		LatestUserPrompt:              prompt,
+		BrowserCapabilityVerifier:     browserCapabilityVerifier,
+		GovernedExecutionPolicyDigest: rec.Metadata.GovernedExecutionPolicyDigest,
 	}
 	if projectKind == domain.ProjectKindSingleRepo {
 		metadata.DiffBaseSHA, metadata.DiffBaseRef = resolveSpawnDiffBase(ctx, ws.Path, ws.BaseRef)
@@ -1025,6 +1096,30 @@ func (m *Manager) createSessionWorkspace(ctx context.Context, project domain.Pro
 		}
 	}
 	return info.Root, &info, nil
+}
+
+// provisionAttemptInputs materializes the exact predecessor results this
+// Attempt was admitted with.
+//
+// The successor's base is resolved the same way the predecessor's retention
+// recorded its own, so the provisioner can refuse a workspace whose base is
+// not the one those changes were produced against. Without that check the same
+// diff could be written onto a different base and nobody would be told.
+func (m *Manager) provisionAttemptInputs(ctx context.Context, cfg ports.SpawnConfig, project domain.ProjectRecord, ws ports.WorkspaceInfo) error {
+	provisioner := m.attemptInputProvisioner()
+	if provisioner == nil {
+		return fmt.Errorf("%w: artifact handoff is not configured in this daemon", ports.ErrAttemptInputProvisioning)
+	}
+	kind := domain.WorkspaceStagedFolder
+	baseRevision := ""
+	if project.Kind.WithDefault() == domain.ProjectKindSingleRepo {
+		kind = domain.WorkspaceGitWorktree
+		baseRevision, _ = resolveSpawnDiffBase(ctx, ws.Path, ws.BaseRef)
+	}
+	return provisioner.ProvisionAttemptInputs(ctx, ports.AttemptInputProvisionRequest{
+		Inputs: cfg.AttemptInputs, Documents: cfg.AttemptDocuments,
+		WorkspacePath: ws.Path, WorkspaceKind: kind, BaseRevision: baseRevision,
+	})
 }
 
 func resolveSpawnDiffBase(ctx context.Context, root, defaultBranch string) (string, string) {
@@ -1723,6 +1818,10 @@ func (m *Manager) relaunchSessionFresh(ctx context.Context, operation string, re
 }
 
 func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation string, rec domain.SessionRecord, project domain.ProjectRecord, ws ports.WorkspaceInfo, restartHandle *ports.RuntimeHandle, forceFresh bool) (RestoreResult, error) {
+	execution, err := m.loadRecoveryExecution(ctx, rec)
+	if err != nil {
+		return RestoreResult{}, fmt.Errorf("%s %s: %w", operation, rec.ID, err)
+	}
 	// Relaunch dispatches from the currently committed persisted mode, never from
 	// a caller hint. The interface-transition coordinator changes that fact only
 	// after stopping the old controller, then reuses this ordinary restore path.
@@ -1732,7 +1831,7 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		} else if strings.TrimSpace(rec.Metadata.ProviderConversationID) == "" {
 			return RestoreResult{}, fmt.Errorf("%s %s: %w", operation, rec.ID, ErrIncompleteHandle)
 		}
-		return m.resumeChatController(ctx, operation, rec, project, ws)
+		return m.resumeChatController(ctx, operation, rec, project, ws, execution)
 	}
 
 	agent, ok := m.agents.Agent(rec.Harness)
@@ -1742,8 +1841,12 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	// Resume/relaunch enforces the same profile-readiness contract as spawn:
 	// an admitted harness whose selected configuration can no longer launch
 	// fails closed here, before any runtime or terminal state is touched.
+	agentConfig, err := recoveryAgentConfig(rec, project, execution)
+	if err != nil {
+		return RestoreResult{}, fmt.Errorf("%s %s: %w", operation, rec.ID, err)
+	}
 	if checker, ok := agent.(ports.AgentProfileReadinessChecker); ok {
-		readiness, err := checker.ProfileReadiness(ctx, freshAgentConfig(rec.Kind, rec.Harness, project.Config))
+		readiness, err := checker.ProfileReadiness(ctx, agentConfig)
 		if err != nil {
 			return RestoreResult{}, fmt.Errorf("%s %s: %s readiness: %w", operation, rec.ID, rec.Harness, err)
 		}
@@ -1769,7 +1872,6 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 
 	// Restore re-applies the project's resolved agent config so a configured
 	// model/permissions carry across a restore, matching fresh spawn.
-	agentConfig := effectiveAgentConfig(rec.Kind, project.Config)
 	env, browserCapabilityVerifier, err := m.launchRuntimeEnv(rec.ID, rec.ProjectID, rec.IssueID, project.Config.Env)
 	if err != nil {
 		return RestoreResult{}, fmt.Errorf("%s %s: browser capability: %w", operation, rec.ID, err)
@@ -1787,10 +1889,10 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 	var mode RestoreMode
 	if forceFresh {
 		argv, delivery, mode, err = freshLaunchArgv(ctx, agent, rec.ID, ws.Path, rec.Metadata,
-			systemPrompt, systemPromptFile, agentConfig, rec.Kind, m.dataDir, true)
+			systemPrompt, systemPromptFile, agentConfig, rec.Kind, m.dataDir, true, executionPolicy(execution))
 	} else {
 		argv, delivery, mode, err = restoreArgv(ctx, agent, rec.ID, ws.Path, rec.Metadata,
-			systemPrompt, systemPromptFile, agentConfig, rec.Kind, rec.Harness, m.dataDir)
+			systemPrompt, systemPromptFile, agentConfig, rec.Kind, rec.Harness, m.dataDir, executionPolicy(execution))
 	}
 	if err != nil {
 		m.cleanupSystemPromptDir(rec.ID)
@@ -1828,14 +1930,15 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		return RestoreResult{}, fmt.Errorf("%s %s: runtime: %w", operation, rec.ID, err)
 	}
 	metadata := domain.SessionMetadata{
-		Branch:                    ws.Branch,
-		WorkspacePath:             ws.Path,
-		WorkspaceRepoPath:         ws.RepoPath,
-		RuntimeHandleID:           handle.ID,
-		RuntimeLaunchID:           launchID,
-		AgentSessionID:            rec.Metadata.AgentSessionID,
-		Prompt:                    rec.Metadata.Prompt,
-		BrowserCapabilityVerifier: browserCapabilityVerifier,
+		Branch:                        ws.Branch,
+		WorkspacePath:                 ws.Path,
+		WorkspaceRepoPath:             ws.RepoPath,
+		RuntimeHandleID:               handle.ID,
+		RuntimeLaunchID:               launchID,
+		AgentSessionID:                rec.Metadata.AgentSessionID,
+		Prompt:                        rec.Metadata.Prompt,
+		BrowserCapabilityVerifier:     browserCapabilityVerifier,
+		GovernedExecutionPolicyDigest: rec.Metadata.GovernedExecutionPolicyDigest,
 	}
 	if err := m.lcm.MarkSpawned(ctx, rec.ID, metadata); err != nil {
 		_ = m.runtime.Destroy(ctx, handle)
@@ -2991,6 +3094,13 @@ func (m *Manager) cleanupRecords(ctx context.Context, project domain.ProjectID) 
 // ---- helpers ----
 
 func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
+	var governedPolicyDigest string
+	if cfg.ExecutionPolicy != nil {
+		// Spawn validates the policy before creating this row. The digest is a
+		// durable marker that tells recovery a matching Attempt snapshot is
+		// mandatory; the snapshot remains the authority for the actual policy.
+		governedPolicyDigest, _ = cfg.ExecutionPolicy.Digest()
+	}
 	return domain.SessionRecord{
 		ProjectID:   cfg.ProjectID,
 		IssueID:     cfg.IssueID,
@@ -3005,6 +3115,7 @@ func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 		Mode:             domain.NormalizeSessionMode(cfg.RequestedMode),
 		AutoInjectReview: true,
 		AutoInjectCI:     true,
+		Metadata:         domain.SessionMetadata{GovernedExecutionPolicyDigest: governedPolicyDigest},
 	}
 }
 
@@ -3051,7 +3162,21 @@ func generatedBranchNamespace(dataDir string) string {
 	if isDefaultDevDataDir(dataDir) {
 		return "dev"
 	}
-	return ""
+	if strings.TrimSpace(dataDir) == "" {
+		return ""
+	}
+	root, err := filepath.Abs(dataDir)
+	if err != nil {
+		root = filepath.Clean(dataDir)
+	}
+	if home, err := os.UserHomeDir(); err == nil && root == filepath.Join(home, ".kennel", "data") {
+		return ""
+	}
+	// Session counters are local to each data directory, but Git branches are
+	// shared by every profile importing the repository. Namespace custom profiles
+	// without renaming persisted branches or touching another profile's worktree.
+	digest := sha256.Sum256([]byte(root))
+	return fmt.Sprintf("profile-%x", digest[:8])
 }
 
 func isDefaultDevDataDir(dataDir string) bool {
@@ -3799,13 +3924,13 @@ func sleepContext(ctx context.Context, d time.Duration) error {
 // signals via ok=false (e.g. no native session id captured yet). Returns
 // ErrNotResumable when transcript-preserving restore is required but unavailable,
 // or when a promptless, unresumable worker has nothing to restore from.
-func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, kind domain.SessionKind, _ domain.AgentHarness, dataDir string) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
+func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, kind domain.SessionKind, _ domain.AgentHarness, dataDir string, policy *domain.AttemptExecutionPolicy) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
 	ref := ports.SessionRef{
 		ID:            string(id),
 		WorkspacePath: workspacePath,
 		Metadata:      map[string]string{ports.MetadataKeyAgentSessionID: meta.AgentSessionID},
 	}
-	cmd, ok, err := agent.GetRestoreCommand(ctx, ports.RestoreConfig{Session: ref, Kind: kind, DataDir: dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemPromptFile, Config: agentConfig, Permissions: agentConfig.Permissions})
+	cmd, ok, err := agent.GetRestoreCommand(ctx, ports.RestoreConfig{Session: ref, Kind: kind, DataDir: dataDir, SystemPrompt: systemPrompt, SystemPromptFile: systemPromptFile, Config: agentConfig, Permissions: agentConfig.Permissions, ExecutionPolicy: policy})
 	if err != nil {
 		return nil, "", "", fmt.Errorf("restore command: %w", err)
 	}
@@ -3813,13 +3938,13 @@ func restoreArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, wo
 		return cmd, ports.PromptDeliveryInCommand, RestoreModeNative, nil
 	}
 	return freshLaunchArgv(ctx, agent, id, workspacePath, meta, systemPrompt,
-		systemPromptFile, agentConfig, kind, dataDir, false)
+		systemPromptFile, agentConfig, kind, dataDir, false, policy)
 }
 
 // freshLaunchArgv builds the non-resume half of restoreArgv. Interface
 // transitions also use it when an adapter proves its reserved id has no
 // persisted history, both for preflight and for the actual target launch.
-func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, kind domain.SessionKind, dataDir string, allowPromptless bool) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
+func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID, workspacePath string, meta domain.SessionMetadata, systemPrompt, systemPromptFile string, agentConfig ports.AgentConfig, kind domain.SessionKind, dataDir string, allowPromptless bool, policy *domain.AttemptExecutionPolicy) ([]string, ports.PromptDeliveryStrategy, RestoreMode, error) {
 	// A saved prompt is replayed fresh. An orchestrator is promptless by design
 	// and relaunches with the system prompt only. A promptless WORKER has no task
 	// and no session id to restore from: do not blank-relaunch it.
@@ -3839,6 +3964,7 @@ func freshLaunchArgv(ctx context.Context, agent ports.Agent, id domain.SessionID
 		SystemPromptFile: systemPromptFile,
 		Config:           agentConfig,
 		Permissions:      agentConfig.Permissions,
+		ExecutionPolicy:  policy,
 	}
 	delivery, err := agent.GetPromptDeliveryStrategy(ctx, launchCfg)
 	if err != nil {

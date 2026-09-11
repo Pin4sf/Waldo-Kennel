@@ -165,11 +165,17 @@ func (id LoopDispositionID) IsZero() bool {
 type LoopDispositionKind string
 
 const (
-	LoopDispositionConfirm   LoopDispositionKind = "confirm"
-	LoopDispositionClose     LoopDispositionKind = "close"
-	LoopDispositionRelease   LoopDispositionKind = "release"
-	LoopDispositionReopen    LoopDispositionKind = "reopen"
-	LoopDispositionTransfer  LoopDispositionKind = "transfer"
+	// LoopDispositionConfirm records owner confirmation of an Open Loop.
+	LoopDispositionConfirm LoopDispositionKind = "confirm"
+	// LoopDispositionClose records owner closure of an Open Loop.
+	LoopDispositionClose LoopDispositionKind = "close"
+	// LoopDispositionRelease records owner release of an Open Loop.
+	LoopDispositionRelease LoopDispositionKind = "release"
+	// LoopDispositionReopen records owner reopening of an Open Loop.
+	LoopDispositionReopen LoopDispositionKind = "reopen"
+	// LoopDispositionTransfer records owner transfer of an Open Loop.
+	LoopDispositionTransfer LoopDispositionKind = "transfer"
+	// LoopDispositionSupersede records owner supersession of an Open Loop.
 	LoopDispositionSupersede LoopDispositionKind = "supersede"
 )
 
@@ -189,7 +195,9 @@ func (kind LoopDispositionKind) Valid() bool {
 type LoopDispositionActor string
 
 const (
-	LoopDispositionActorOwner    LoopDispositionActor = "owner"
+	// LoopDispositionActorOwner identifies the owner as decision maker.
+	LoopDispositionActorOwner LoopDispositionActor = "owner"
+	// LoopDispositionActorProvider is retained as an explicitly invalid actor.
 	LoopDispositionActorProvider LoopDispositionActor = "provider"
 )
 

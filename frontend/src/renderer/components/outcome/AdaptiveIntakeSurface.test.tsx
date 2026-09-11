@@ -1,3 +1,11 @@
+const reasoning = vi.hoisted(() => ({
+	ready: true,
+	provider: undefined as string | undefined,
+	configured: false,
+	errorCode: undefined as string | undefined,
+}));
+vi.mock("../../hooks/useSettings", () => ({useSettings: () => ({settings:{reasoning}})}));
+vi.mock("../settings/ReasoningSettingsSection", () => ({ReasoningSettingsSection: () => <p>Reasoning settings</p>}));
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -9,7 +17,14 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({ ...(await importO
 
 import { AdaptiveIntakeSurface } from "./AdaptiveIntakeSurface";
 
-beforeEach(() => { vi.clearAllMocks(); postMock.mockResolvedValue({ data: { intake: { session: { id: "intake-1", status: "captured" }, conversationRefs: [] } }, error: undefined }); });
+beforeEach(() => {
+	reasoning.ready = true;
+	reasoning.provider = undefined;
+	reasoning.configured = false;
+	reasoning.errorCode = undefined;
+	vi.clearAllMocks();
+	postMock.mockResolvedValue({ data: { intake: { session: { id: "intake-1", status: "captured" }, conversationRefs: [] } }, error: undefined });
+});
 
 it("starts with one Outcome statement prompt and supports keyboard submission", async () => {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -35,6 +50,24 @@ it("keeps the statement visibly unsaved when the daemon rejects capture", async 
 	expect(await screen.findByRole("alert")).toHaveTextContent("Daemon unavailable Your statement has not been saved.");
 	expect(statement).toHaveValue("Keep this statement local");
 	expect(navigateMock).not.toHaveBeenCalled();
+});
+
+it("disables duplicate capture while planning submission is in flight", async () => {
+	let resolveCapture: (value: unknown) => void = () => undefined;
+	postMock.mockReturnValueOnce(new Promise((resolve) => { resolveCapture = resolve; }));
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+	render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" /></QueryClientProvider>);
+
+	await userEvent.type(screen.getByRole("textbox", { name: /what would you like to make true/i }), "One submission");
+	await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+	const pendingButton = screen.getByRole("button", { name: /Saving/ });
+	expect(pendingButton).toBeDisabled();
+	await userEvent.click(pendingButton);
+	expect(postMock).toHaveBeenCalledTimes(1);
+
+	resolveCapture({ data: { intake: { session: { id: "intake-1", status: "captured" }, conversationRefs: [] } }, error: undefined });
+	await waitFor(() => expect(navigateMock).toHaveBeenCalled());
 });
 
 it("reuses one capture request key when the same submission is retried", async () => {
@@ -111,22 +144,23 @@ it("shows every part of the Contract proposal, not just the four editable fields
 	renderReady();
 
 	// Bounds the previous screen carried but never displayed.
-	expect(await screen.findByDisplayValue("Stay on this branch")).toBeInTheDocument();
-	expect(screen.getByDisplayValue("Rewriting the build")).toBeInTheDocument();
-	expect(screen.getByDisplayValue("Stop before any remote effect")).toBeInTheDocument();
-	expect(screen.getByDisplayValue("A release exists")).toBeInTheDocument();
-	expect(screen.getByDisplayValue("Desktop change")).toBeInTheDocument();
+	expect(await screen.findByText("Stay on this branch")).toBeInTheDocument();
+	expect(screen.getByText("Rewriting the build")).toBeInTheDocument();
+	expect(screen.getByText("Stop before any remote effect")).toBeInTheDocument();
+	expect(screen.getByText("A release exists")).toBeInTheDocument();
+	expect(screen.getByText(/software · Desktop change/)).toBeInTheDocument();
 	expect(screen.getByText("Scope is the desktop app only")).toBeInTheDocument();
 
-	// The ceiling is the proposal's own, not static prose: two flags on, six off.
-	expect(screen.getByRole("switch", { name: "Read the workspace" })).toBeChecked();
-	expect(screen.getByRole("switch", { name: "Write in the workspace" })).toBeChecked();
-	expect(screen.getByRole("switch", { name: "Run commands locally" })).not.toBeChecked();
-	expect(screen.getByRole("switch", { name: "Deploy" })).not.toBeChecked();
+ expect(screen.getByRole("switch", { name: "Write in the workspace" })).toBeEnabled();
+ expect(screen.getAllByText("Allowed")).toHaveLength(2);
+ expect(screen.getAllByText("Not allowed")).toHaveLength(6);
+ expect(screen.queryByRole("textbox", {name:"Time boundary"})).not.toBeInTheDocument();
+ expect(postMock).not.toHaveBeenCalled();
 });
 
 it("refuses to confirm a proposal the daemon would reject, and says which part", async () => {
 	renderReady();
+	await userEvent.click(await screen.findByRole("button", {name:"Edit draft"}));
 	await userEvent.click(await screen.findByRole("button", { name: "Remove stop condition 1" }));
 
 	expect(screen.getByTestId("intake-problems")).toHaveTextContent("At least one stop condition is required.");
@@ -138,6 +172,7 @@ it("sends narrowed authority and edited bounds as a revision before confirming",
 	postMock.mockResolvedValue({ data: { intake: { ...READY_PROPOSAL, session: { ...READY_PROPOSAL.session, status: "confirmed", currentProposalRevision: 2 }, confirmedOutcome: { id: "out-1" } } }, error: undefined });
 	renderReady();
 
+	await userEvent.click(await screen.findByRole("button", {name:"Edit draft"}));
 	await userEvent.click(await screen.findByRole("switch", { name: "Write in the workspace" }));
 	await userEvent.click(screen.getByRole("button", { name: /confirm outcome/i }));
 
@@ -154,6 +189,7 @@ it("treats a whitespace-only edit as no change at all", async () => {
 	postMock.mockResolvedValue({ data: { intake: { ...READY_PROPOSAL, session: { ...READY_PROPOSAL.session, status: "confirmed" }, confirmedOutcome: { id: "out-1" } } }, error: undefined });
 	renderReady();
 
+	await userEvent.click(await screen.findByRole("button", {name:"Edit draft"}));
 	await userEvent.type(await screen.findByRole("textbox", { name: "Time boundary" }), "   ");
 	await userEvent.click(screen.getByRole("button", { name: /confirm outcome/i }));
 
@@ -170,6 +206,7 @@ it("sends a cleared time boundary as absent rather than blank", async () => {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 	render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" intakeId="intake-full" /></QueryClientProvider>);
 
+	await userEvent.click(await screen.findByRole("button", {name:"Edit draft"}));
 	await userEvent.clear(await screen.findByRole("textbox", { name: "Time boundary" }));
 	await userEvent.click(screen.getByRole("button", { name: /confirm outcome/i }));
 
@@ -205,22 +242,36 @@ it("names the agent that is working and always offers a way out of waiting", asy
 	respondWith({ session: { id: "intake-waiting", status: "analyzing", currentProposalRevision: 0 }, conversationRefs: [] }, OPEN_ASK);
 
 	expect(await screen.findByTestId("intake-analysis-waiting")).toBeInTheDocument();
+	expect(screen.getByTestId("intake-analysis-waiting")).toHaveAttribute("aria-busy", "true");
 	// An anonymous spinner gives a person nothing to judge; the harness is named.
 	expect(screen.getByRole("heading", { name: /codex is reading the project/i })).toBeInTheDocument();
-	expect(screen.getByRole("button", { name: "Use the offline proposal instead" })).toBeEnabled();
-	expect(screen.getByRole("button", { name: "Release this intake" })).toBeEnabled();
+	expect(screen.queryByRole("button", { name: "Use the offline proposal instead" })).not.toBeInTheDocument();
+	expect(screen.getByRole("button", { name: "Cancel request" })).toBeEnabled();
 });
 
-it("closes the open ask before running the offline analysis, so it is not refused as a conflict", async () => {
-	postMock.mockResolvedValue({ data: { intake: { session: { id: "intake-waiting", status: "ready", currentProposalRevision: 1 }, conversationRefs: [], proposal: READY_PROPOSAL.proposal } }, error: undefined });
-	respondWith({ session: { id: "intake-waiting", status: "analyzing", currentProposalRevision: 0 }, conversationRefs: [] }, OPEN_ASK);
+it("offers reasoning setup without writing or retrying when analysis fails unconfigured", async () => {
+ reasoning.ready=false;
+ respondWith({session:{id:"intake-waiting",status:"analysis_failed",currentProposalRevision:0,failureCode:"INTAKE_ANALYSIS_FAILED"},conversationRefs:[]},null);
+ expect(await screen.findByRole("heading",{name:"Reasoning could not prepare the Contract"})).toBeInTheDocument();
+ expect(screen.getByRole("button",{name:"Ask an agent again"})).toBeDisabled();
+ expect(screen.queryByRole("button",{name:/offline proposal/i})).not.toBeInTheDocument();
+ await userEvent.click(screen.getByText("Configure reasoning"));
+ expect(screen.getByText("Reasoning settings")).toBeVisible();
+ expect(postMock).not.toHaveBeenCalled();
+ expect(navigateMock).not.toHaveBeenCalled();
+});
 
-	await userEvent.click(await screen.findByRole("button", { name: "Use the offline proposal instead" }));
+it("shows safe native availability guidance instead of exposing the coarse intake failure code", async () => {
+	reasoning.ready = false;
+	reasoning.provider = "codex";
+	reasoning.configured = true;
+	reasoning.errorCode = "REASONING_NOT_READY";
+	respondWith({session:{id:"intake-native",status:"analysis_failed",currentProposalRevision:0,failureCode:"INTAKE_ANALYSIS_FAILED"},conversationRefs:[]},null);
 
-	await waitFor(() => expect(postMock).toHaveBeenCalledTimes(2));
-	expect(postMock.mock.calls[0][0]).toBe("/api/v1/intakes/{intakeId}/analysis-request/cancellation");
-	expect(postMock.mock.calls[1][0]).toBe("/api/v1/intakes/{intakeId}/analysis");
-	expect(postMock.mock.calls[1][1].body).toMatchObject({ offline: true });
+	expect(await screen.findByRole("heading", { name: "Reasoning could not prepare the Contract" })).toBeInTheDocument();
+	expect(screen.getByRole("alert")).toHaveTextContent(/Your intake is saved/);
+	expect(screen.getByRole("status")).toHaveTextContent(/Codex is selected for sessions, but its App Server is not ready/);
+	expect(screen.queryByText("INTAKE_ANALYSIS_FAILED")).not.toBeInTheDocument();
 });
 
 it("keeps a refused draft inspectable beside the reason it was refused", async () => {
@@ -233,7 +284,7 @@ it("keeps a refused draft inspectable beside the reason it was refused", async (
 	expect(screen.getByRole("alert")).toHaveTextContent("At least one stop condition is required.");
 	expect(screen.getByText(/Half a contract/)).toBeInTheDocument();
 	// Both ways forward, so a refusal is never a dead end.
-	expect(screen.getByRole("button", { name: "Use the offline proposal instead" })).toBeEnabled();
+	expect(screen.queryByRole("button", { name: "Use the offline proposal instead" })).not.toBeInTheDocument();
 	expect(screen.getByRole("button", { name: "Ask an agent again" })).toBeEnabled();
 });
 
@@ -247,7 +298,7 @@ it("says whether anything actually analyzed the proposal on screen", async () =>
 	// No ask ever happened, so this came from the deterministic baseline and
 	// the person should expect to rewrite the criteria.
 	respondWith(ready, null);
-	expect(await screen.findByTestId("proposal-provenance")).toHaveTextContent(/No agent analyzed this/i);
+	expect(await screen.findByTestId("proposal-provenance")).toHaveTextContent(/Its author is not recorded/i);
 });
 
 it("clears the box after a captured statement but keeps it after a rejected one", async () => {
@@ -272,3 +323,34 @@ it("clears the box after a captured statement but keeps it after a rejected one"
 	await screen.findByRole("alert");
 	expect(statement).toHaveValue("Second Outcome");
 });
+
+ it("reopens the recorded Outcome from a reloaded confirmed intake without writing", async () => {
+ getMock.mockResolvedValue({data:{intake:{...READY_PROPOSAL,session:{...READY_PROPOSAL.session,status:"confirmed"},confirmedOutcome:{id:"existing-outcome"}}}});
+ const client = new QueryClient({defaultOptions:{queries:{retry:false}}});
+ render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" intakeId="intake-full" /></QueryClientProvider>);
+ await userEvent.click(await screen.findByRole("button",{name:"Open Outcome"}));
+ expect(navigateMock).toHaveBeenCalledWith({to:"/work",search:{project:"project-1",portfolio:"project-1",stage:"decide_authorize",outcome:"existing-outcome"}});
+ expect(postMock).not.toHaveBeenCalled();
+ });
+ it("confirms the reviewed revision and carries Project scope into Mission", async () => {
+ renderReady();
+ postMock.mockResolvedValue({data:{intake:{...READY_PROPOSAL,session:{...READY_PROPOSAL.session,status:"confirmed"},confirmedOutcome:{id:"confirmed-outcome"}}}});
+ await userEvent.click(await screen.findByRole("button",{name:/confirm outcome/i}));
+ expect(postMock).toHaveBeenCalledTimes(1);
+ expect(postMock).toHaveBeenCalledWith("/api/v1/intakes/{intakeId}/confirmation",expect.objectContaining({body:expect.objectContaining({expectedProposalRevision:1})}));
+ expect(navigateMock).toHaveBeenCalledWith({to:"/work",search:{project:"project-1",portfolio:"project-1",stage:"decide_authorize",outcome:"confirmed-outcome"}});
+ });
+ it("retains edited draft and revision fence after a recoverable proposal error", async () => {
+ renderReady();
+ await userEvent.click(await screen.findByRole("button",{name:"Edit draft"}));
+ await userEvent.type(screen.getByRole("textbox",{name:"Time boundary"}),"Before Friday");
+ postMock.mockResolvedValue({error:{code:"STALE_PROPOSAL"}});
+ await userEvent.click(screen.getByRole("button",{name:/confirm outcome/i}));
+ expect(await screen.findByRole("alert")).toBeInTheDocument();
+ expect(screen.getByRole("textbox",{name:"Time boundary"})).toHaveValue("Before Friday");
+ expect(postMock).toHaveBeenCalledTimes(1);
+ expect(postMock).toHaveBeenCalledWith("/api/v1/intakes/{intakeId}/proposals",expect.objectContaining({body:expect.objectContaining({expectedProposalRevision:1})}));
+ expect(navigateMock).not.toHaveBeenCalled();
+ await userEvent.click(screen.getByRole("button",{name:"Review draft"}));
+ expect(screen.getByText("Before Friday")).toBeInTheDocument();
+ });

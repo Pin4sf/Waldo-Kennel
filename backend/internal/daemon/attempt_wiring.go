@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/artifactstore"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	sessionmanager "github.com/Pin4sf/Waldo-Kennel/backend/internal/session_manager"
@@ -15,41 +17,211 @@ import (
 // running attempts against their bound session's heartbeat facts.
 const attemptLivenessInterval = 15 * time.Second
 
-// projectConfigSource is the narrow slice of the projects store the spawner
-// needs: the registered config a worker launch would resolve its agent
-// defaults from.
 type projectConfigSource interface {
 	GetProject(ctx context.Context, id string) (domain.ProjectRecord, bool, error)
 }
 
-// attemptSessionControl is the narrow slice of the session service the
-// spawner consumes: admission (Spawn), terminal intent (Kill), and the
-// durable record that provider-stop proof is read from afterwards.
-// *sessionsvc.Service satisfies this structurally; tests inject doubles.
+// attemptSessionControl is the subordinate runtime surface used by Outcome
+// execution. SpawnExactAttempt is intentionally distinct from ordinary Spawn:
+// approved WorkUnits have frozen provider/model semantics that mutable Project
+// preferences are not allowed to reinterpret.
 type attemptSessionControl interface {
-	Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Session, int, int, error)
+	SpawnExactAttempt(ctx context.Context, cfg ports.SpawnConfig, binding domain.ExecutionBinding) (domain.Session, int, int, error)
 	Kill(ctx context.Context, id domain.SessionID) (bool, error)
 	Get(ctx context.Context, id domain.SessionID) (domain.Session, error)
 }
 
-// attemptSpawner adapts the EXISTING session spawn path onto the narrow
-// ports.AttemptSessionSpawner seam. It adds no provider knowledge: readiness
-// goes through session_manager.ProfileReadinessForSpawn (the same checker and
-// config merge Spawn enforces), and spawning delegates to service/session.Spawn,
-// which re-probes internally. There is no fallback provider anywhere.
+type attemptRetentionSource interface {
+	ports.AttemptReceiptStore
+	LatestAttemptSessionRef(context.Context, domain.AttemptID) (domain.AttemptSessionRef, bool, error)
+}
+
 type attemptSpawner struct {
-	sessions attemptSessionControl
-	projects projectConfigSource
-	agents   ports.AgentResolver
+	sessions  attemptSessionControl
+	projects  projectConfigSource
+	agents    ports.AgentResolver
+	retention ports.AttemptRetainer
+}
+
+// RetainAttempt resolves the latest daemon-owned session binding and captures
+// its workspace. It never accepts a path from the client or from provider
+// prose. Existing complete receipts are checked for durable blobs so a daemon
+// restart can safely retry the database half of publication.
+func (a attemptSpawner) RetainAttempt(ctx context.Context, attempt domain.Attempt) error {
+	if a.retention == nil {
+		return fmt.Errorf("attempt artifact retention is not configured")
+	}
+	return a.retention.RetainAttempt(ctx, attempt)
+}
+
+type attemptArtifactRetainer struct {
+	sessions  attemptSessionControl
+	refs      attemptRetentionSource
+	artifacts *artifactstore.Store
+}
+
+var _ ports.AttemptRetainer = (*attemptArtifactRetainer)(nil)
+
+func (r *attemptArtifactRetainer) RetainAttempt(ctx context.Context, attempt domain.Attempt) error {
+	if r == nil || r.sessions == nil || r.refs == nil || r.artifacts == nil {
+		return fmt.Errorf("attempt artifact retainer is not fully wired")
+	}
+	if existing, ok, err := r.refs.GetAttemptReceipt(ctx, attempt.ID); err != nil {
+		return err
+	} else if ok && existing.RetentionState.Complete() {
+		for _, file := range existing.Files {
+			if file.ChangeKind == domain.ArtifactDeleted {
+				continue
+			}
+			if _, _, err := r.artifacts.Read(ctx, existing, file); err != nil {
+				return fmt.Errorf("verify retained blob %s: %w", file.RelativePath, err)
+			}
+		}
+		return nil
+	}
+	ref, found, err := r.refs.LatestAttemptSessionRef(ctx, attempt.ID)
+	if err != nil {
+		return fmt.Errorf("read session binding: %w", err)
+	}
+	if !found || strings.TrimSpace(ref.SessionID) == "" {
+		return fmt.Errorf("attempt %s has no daemon-owned session binding", attempt.ID)
+	}
+	session, err := r.sessions.Get(ctx, domain.SessionID(ref.SessionID))
+	if err != nil {
+		return fmt.Errorf("read session %s: %w", ref.SessionID, err)
+	}
+	kind := domain.WorkspaceStagedFolder
+	if strings.TrimSpace(session.Metadata.DiffBaseSHA) != "" || strings.TrimSpace(session.Metadata.WorkspaceRepoPath) != "" {
+		kind = domain.WorkspaceGitWorktree
+	}
+	result, err := r.artifacts.Retain(ctx, artifactstore.Input{
+		AttemptID: attempt.ID, OutcomeID: attempt.OutcomeID, PlanRevisionID: attempt.PlanRevisionID, WorkUnitID: attempt.WorkUnitID,
+		ContractRevisionNumber: attempt.ContractRevisionNumber, WorkspaceKind: kind, WorkspacePath: session.Metadata.WorkspacePath,
+		RepositoryPath: session.Metadata.WorkspaceRepoPath, BaseRevision: session.Metadata.DiffBaseSHA, BaseRef: session.Metadata.DiffBaseRef,
+		TerminationReason: string(attempt.Status),
+	})
+	if err != nil {
+		return err
+	}
+	if err := r.refs.SaveAttemptReceipt(ctx, result.Receipt); err != nil {
+		return fmt.Errorf("persist retained receipt: %w", err)
+	}
+	return nil
+}
+
+// attemptInputProvisioner materializes the exact retained predecessor results
+// a successor was admitted with.
+//
+// It resolves each input by Attempt identity *and* artifact version, so a
+// retained result that has since been replaced is refused rather than
+// substituted. That is the whole point of recording versions at admission: the
+// successor must receive the bytes the owner's approved schedule authorized,
+// not whatever the upstream WorkUnit happens to hold now.
+type attemptInputProvisioner struct {
+	receipts  ports.AttemptReceiptStore
+	artifacts *artifactstore.Store
+	// contexts resolves an approved supplied-document selection. Absent means
+	// document Outcomes cannot be staged, which is refused rather than
+	// approximated with the owner's live files.
+	contexts ports.DocumentContextStore
+}
+
+var _ ports.AttemptInputProvisioner = (*attemptInputProvisioner)(nil)
+
+func (p *attemptInputProvisioner) ProvisionAttemptInputs(ctx context.Context, req ports.AttemptInputProvisionRequest) error {
+	if p == nil || p.receipts == nil || p.artifacts == nil {
+		return fmt.Errorf("%w: artifact retention is not wired", ports.ErrAttemptInputProvisioning)
+	}
+	if len(req.Inputs) == 0 && req.Documents == nil {
+		return nil
+	}
+	if req.Documents != nil {
+		if err := p.provisionDocuments(req); err != nil {
+			return err
+		}
+	}
+	if len(req.Inputs) == 0 {
+		return nil
+	}
+	receipts := make([]domain.AttemptReceipt, 0, len(req.Inputs))
+	for _, input := range req.Inputs {
+		receipt, found, err := p.receipts.GetAttemptReceipt(ctx, input.AttemptID)
+		if err != nil {
+			return fmt.Errorf("%w: read retained result for %s: %w", ports.ErrAttemptInputProvisioning, input.AttemptID, err)
+		}
+		if !found {
+			return fmt.Errorf("%w: attempt %s retained no result", ports.ErrAttemptInputProvisioning, input.AttemptID)
+		}
+		if receipt.ArtifactVersion != input.ArtifactVersion || receipt.WorkUnitID != input.WorkUnitID {
+			return fmt.Errorf("%w: attempt %s now holds artifact %s for %s, not the admitted %s for %s",
+				ports.ErrAttemptInputProvisioning, input.AttemptID, receipt.ArtifactVersion, receipt.WorkUnitID,
+				input.ArtifactVersion, input.WorkUnitID)
+		}
+		if !receipt.Frozen() {
+			return fmt.Errorf("%w: attempt %s result is not frozen and could still change", ports.ErrAttemptInputProvisioning, input.AttemptID)
+		}
+		receipts = append(receipts, receipt)
+	}
+	// Compose reads every blob and verifies its digest and mode, so a corrupt
+	// or missing artifact fails here rather than reaching the workspace.
+	handoff, err := p.artifacts.Compose(ctx, receipts)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	if handoff.WorkspaceKind != req.WorkspaceKind {
+		return fmt.Errorf("%w: predecessors worked in a %s but this successor has a %s",
+			ports.ErrAttemptInputProvisioning, handoff.WorkspaceKind, req.WorkspaceKind)
+	}
+	if err := p.artifacts.Materialize(ctx, handoff, req.WorkspacePath, req.BaseRevision); err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	return nil
+}
+
+// provisionDocuments stages the approved supplied-document snapshot.
+//
+// It reads the snapshot the owner approved, never their original files: an
+// Outcome must not come to mean something different because a document was
+// edited after approval. The digest recorded at admission is re-checked here,
+// so a snapshot that is not the one authorized refuses rather than runs.
+func (p *attemptInputProvisioner) provisionDocuments(req ports.AttemptInputProvisionRequest) error {
+	if p.contexts == nil {
+		return fmt.Errorf("%w: supplied-document context is not wired", ports.ErrAttemptInputProvisioning)
+	}
+	selection, found, err := p.contexts.GetDocumentContext(context.Background(), req.Documents.ContextID)
+	if err != nil {
+		return fmt.Errorf("%w: read approved documents: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	if !found {
+		return fmt.Errorf("%w: approved document context %s is missing", ports.ErrAttemptInputProvisioning, req.Documents.ContextID)
+	}
+	if !selection.Approved() {
+		return fmt.Errorf("%w: document context %s is not approved", ports.ErrAttemptInputProvisioning, selection.ID)
+	}
+	if selection.Digest != req.Documents.Digest || selection.Revision != req.Documents.Revision {
+		return fmt.Errorf("%w: document context %s is revision %d/%s, not the admitted %d/%s",
+			ports.ErrAttemptInputProvisioning, selection.ID, selection.Revision, selection.Digest,
+			req.Documents.Revision, req.Documents.Digest)
+	}
+	handoff, err := p.artifacts.DocumentHandoff(selection.ID, selection.Sources)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	// A staged folder has no revisions, so no base is claimed for it.
+	if err := p.artifacts.Materialize(context.Background(), handoff, req.WorkspacePath, ""); err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrAttemptInputProvisioning, err)
+	}
+	return nil
 }
 
 var _ ports.AttemptSessionSpawner = attemptSpawner{}
 
-// ProfileReadiness probes whether the named harness can launch for a worker
-// on this project, using exactly the config a real spawn would resolve.
-func (a attemptSpawner) ProfileReadiness(ctx context.Context, projectID domain.ProjectID, harness domain.AgentHarness) (ports.AgentProfileReadiness, error) {
+func (a attemptSpawner) ProfileReadiness(ctx context.Context, projectID domain.ProjectID, binding domain.ExecutionBinding, policy *domain.AttemptExecutionPolicy) (ports.AgentProfileReadiness, error) {
 	if a.projects == nil || a.agents == nil {
 		return ports.AgentProfileReadiness{}, fmt.Errorf("attempt spawner is not fully wired")
+	}
+	if err := binding.ValidateForNewWork(); err != nil {
+		return profileNotReady(err.Error())
 	}
 	rec, ok, err := a.projects.GetProject(ctx, string(projectID))
 	if err != nil {
@@ -58,28 +230,53 @@ func (a attemptSpawner) ProfileReadiness(ctx context.Context, projectID domain.P
 	if !ok {
 		return ports.AgentProfileReadiness{Ready: false, Detail: "project is not registered"}, nil
 	}
-	return sessionmanager.ProfileReadinessForSpawn(ctx, a.agents, rec.Config, domain.KindWorker, harness, ports.AgentConfig{})
+
+	// Readiness consumes the same exact execution binding as launch. Project
+	// configuration may still contribute provider-neutral runtime settings, but
+	// it cannot rewrite the frozen provider/model selection after approval.
+	return sessionmanager.ProfileReadinessForExactSpawn(
+		ctx,
+		a.agents,
+		rec.Config,
+		domain.KindWorker,
+		binding,
+		ports.AgentConfig{},
+		policy,
+	)
 }
 
-// Spawn starts the worker session through the ordinary path.
-func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest) (domain.Session, error) {
-	sess, _, _, err := a.sessions.Spawn(ctx, ports.SpawnConfig{
-		ProjectID:   req.ProjectID,
-		Kind:        domain.KindWorker,
-		Harness:     req.Harness,
-		Prompt:      req.Prompt,
-		DisplayName: req.DisplayName,
-	})
-	return sess, err
+func profileNotReady(detail string) (ports.AgentProfileReadiness, error) {
+	return ports.AgentProfileReadiness{Ready: false, Detail: detail}, nil
 }
 
-// Terminate stops the bound provider session through the same authority that
-// spawned it. Kill's boolean reports WORKSPACE reclamation, so provider-stop
-// proof is derived separately from the durable session record: only a record
-// that shows the session terminated proves the provider stopped. A preserved
-// dirty worktree therefore still yields a proven stop with WorkspaceFreed=
-// false; an absent or un-terminated record stays unproven — custody law
-// treats UNKNOWN as NOT stopped.
+func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest) (ports.AttemptSpawnResult, error) {
+	binding := domain.ExecutionBinding{
+		Provider:       req.Harness,
+		ModelSelection: req.ModelSelection,
+		Model:          strings.TrimSpace(req.Model),
+	}
+	if err := binding.ValidateForNewWork(); err != nil {
+		return ports.AttemptSpawnResult{}, err
+	}
+	sess, _, _, err := a.sessions.SpawnExactAttempt(ctx, ports.SpawnConfig{
+		ProjectID:        req.ProjectID,
+		Kind:             domain.KindWorker,
+		Harness:          binding.Provider,
+		ExecutionPolicy:  req.ExecutionPolicy,
+		Prompt:           req.Prompt,
+		DisplayName:      req.DisplayName,
+		AttemptInputs:    req.Inputs,
+		AttemptDocuments: req.Documents,
+	}, binding)
+	if err != nil {
+		return ports.AttemptSpawnResult{}, err
+	}
+	// The ordinary session read model does not currently expose a runtime-
+	// reported effective model. Leave it unknown rather than fabricating one;
+	// the immutable requested binding remains recorded separately by Attempt.
+	return ports.AttemptSpawnResult{Session: sess}, nil
+}
+
 func (a attemptSpawner) Terminate(ctx context.Context, _ domain.ProjectID, sessionID string) (ports.TerminationResult, error) {
 	freed, err := a.sessions.Kill(ctx, domain.SessionID(sessionID))
 	if err != nil {
@@ -87,24 +284,13 @@ func (a attemptSpawner) Terminate(ctx context.Context, _ domain.ProjectID, sessi
 	}
 	rec, err := a.sessions.Get(ctx, domain.SessionID(sessionID))
 	if err != nil || !rec.IsTerminated {
-		// Absent row or a record without the termination fact = UNKNOWN
-		// runtime outcome, never a durable stop.
 		return ports.TerminationResult{}, fmt.Errorf("%w: durable record for %q does not show a terminated session", ports.ErrProviderStopUnproven, sessionID)
 	}
 	return ports.TerminationResult{ProviderStopped: true, WorkspaceFreed: freed}, nil
 }
 
-// runAttemptLivenessLoop drives the daemon-side reconcile hook for Act &
-// Observe: terminated provider sessions become reconciled attempts with an
-// ordered exit observation; silent heartbeats mutate nothing and stay derived
-// as unconfirmed until contain/reconcile decides.
 func runAttemptLivenessLoop(ctx context.Context, attempts attemptLivenessHook, log *slog.Logger) {
-	// Fold exits that happened while the daemon was down immediately, before
-	// the first periodic tick: restart must reconcile ended provider sessions
-	// without waiting a full interval.
-	if err := attempts.EvaluateAttemptLiveness(ctx); err != nil {
-		log.Warn("attempt liveness evaluation on boot", "err", err)
-	}
+	reconcile(ctx, attempts, log, "on boot")
 	ticker := time.NewTicker(attemptLivenessInterval)
 	defer ticker.Stop()
 	for {
@@ -112,15 +298,48 @@ func runAttemptLivenessLoop(ctx context.Context, attempts attemptLivenessHook, l
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := attempts.EvaluateAttemptLiveness(ctx); err != nil {
-				log.Warn("attempt liveness evaluation", "err", err)
-			}
+			reconcile(ctx, attempts, log, "")
 		}
 	}
 }
 
-// attemptLivenessHook is the narrow surface the loop consumes so tests can
-// inject a stub instead of the full outcome service.
+// reconcile runs both halves of the terminal-state sequence in order: decide
+// whether execution has ended, then classify what ended.
+//
+// Liveness runs first on purpose. Classification only ever looks at attempts
+// already recorded as reconciled, so running it after liveness lets an attempt
+// that just ended be classified in the same tick instead of waiting for the
+// next one. Both are pure functions of durable facts, so a failure in either
+// leaves state untouched and the next tick retries.
+func reconcile(ctx context.Context, attempts attemptLivenessHook, log *slog.Logger, when string) {
+	suffix := ""
+	if when != "" {
+		suffix = " " + when
+	}
+	if err := attempts.EvaluateAttemptLiveness(ctx); err != nil {
+		log.Warn("attempt liveness evaluation"+suffix, "err", err)
+	}
+	if err := attempts.ReconcileAttemptOutcomes(ctx); err != nil {
+		log.Warn("attempt outcome reconciliation"+suffix, "err", err)
+	}
+	// Stop requests are acknowledged before continuation is considered, so a
+	// pause that arrived while the last Attempt was ending takes effect on
+	// this tick rather than after one more unit has been admitted.
+	if err := attempts.ReconcileRunIntents(ctx); err != nil {
+		log.Warn("run intent reconciliation"+suffix, "err", err)
+	}
+	if err := attempts.ContinueAuthorizedRuns(ctx); err != nil {
+		log.Warn("authorized run continuation"+suffix, "err", err)
+	}
+}
+
 type attemptLivenessHook interface {
 	EvaluateAttemptLiveness(ctx context.Context) error
+	// ReconcileAttemptOutcomes classifies attempts whose execution has ended.
+	ReconcileAttemptOutcomes(ctx context.Context) error
+	// ReconcileRunIntents acknowledges stop requests whose work has ended.
+	ReconcileRunIntents(ctx context.Context) error
+	// ContinueAuthorizedRuns admits the next eligible WorkUnit for Outcomes
+	// the owner has authorized to keep running.
+	ContinueAuthorizedRuns(ctx context.Context) error
 }

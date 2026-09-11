@@ -304,7 +304,7 @@ func assertNoDestructiveRegistrationCleanup(t *testing.T, op, calls string) {
 // counterpart: session_manager.RestoreAll relies on workspace.Restore to
 // re-materialize a worktree whose directory disappeared, but Restore only
 // exercised that path when the git registration was ALSO gone. The observed
-// #2775 case (session agent-orchestrator-78) had a registration and DB row
+// #2775 case (session sample-78) had a registration and DB row
 // that survived a directory deletion, so Restore returned a handle to a
 // missing directory and the tmux launch command's `cd <path> || exit` guard
 // exited instantly with no diagnostic.
@@ -362,8 +362,8 @@ func TestRestoreRecreatesMissingRegisteredWorktreeWithForce(t *testing.T) {
 }
 
 // TestRestoreRecreatesOnRegisteredBranchNotCfgBranch is the regression test
-// for the real #2775 case: session agent-orchestrator-78 had its worktree
-// registered on a child branch (ao/agent-orchestrator-78/gh-pages-landing),
+// for the real #2775 case: session sample-78 had its worktree
+// registered on a child branch (sample/sample-78/gh-pages),
 // not the root branch Kennel would pass as cfg.Branch. When the directory is
 // missing and Restore falls through to recreate the worktree, it must
 // recreate it on the registration's OWN branch, not cfg.Branch: otherwise a

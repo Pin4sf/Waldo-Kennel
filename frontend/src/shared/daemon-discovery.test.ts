@@ -87,6 +87,12 @@ describe("parseRunFile", () => {
 		);
 	});
 
+	it("parses the backend-published supervisor locator", () => {
+		expect(parseRunFile(JSON.stringify({ pid: 4242, port: 3037, supervisorAddress: "/tmp/kennel-supervise.sock" }))).toEqual(
+			expect.objectContaining({ supervisorAddress: "/tmp/kennel-supervise.sock" }),
+		);
+	});
+
 	it("parses the app run that owns the daemon browser credential", () => {
 		expect(parseRunFile(JSON.stringify({ pid: 4242, port: 3037, appRunId: "apprun-current" }))).toEqual(
 			expect.objectContaining({ appRunId: "apprun-current" }),

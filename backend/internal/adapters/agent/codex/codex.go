@@ -24,6 +24,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/agentbase"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/binaryutil"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/agent/terminalui"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/codexpolicy"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
@@ -68,6 +69,20 @@ func (p *Plugin) SteersActiveTurn() bool { return true }
 
 var _ adapters.Adapter = (*Plugin)(nil)
 var _ ports.Agent = (*Plugin)(nil)
+
+// ValidateExecutionPolicy admits only the two Codex sandbox postures that
+// preserve the WorkUnit capability boundary: read-only inspection, or
+// workspace-write execution with provider network effects disabled. A
+// write-only or execute-without-write WorkUnit cannot be represented by Codex's
+// sandbox without widening authority, so it is refused before launch.
+func (p *Plugin) ValidateExecutionPolicy(ctx context.Context, _ ports.AgentConfig, policy domain.AttemptExecutionPolicy) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	_, err := codexpolicy.SandboxFor(policy)
+	return err
+}
+
 var _ ports.ActiveTurnSteerer = (*Plugin)(nil)
 var _ ports.AgentAuthChecker = (*Plugin)(nil)
 var _ ports.AgentInterfaceHandoff = (*Plugin)(nil)
@@ -127,6 +142,28 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		return nil, err
 	}
 	appendTerminalCompatibilityFlags(&providerArgs)
+	permission := cfg.Permissions
+	if cfg.ExecutionPolicy != nil {
+		if err := p.ValidateExecutionPolicy(ctx, cfg.Config, *cfg.ExecutionPolicy); err != nil {
+			return nil, err
+		}
+		sandbox, err := codexpolicy.SandboxFor(*cfg.ExecutionPolicy)
+		if err != nil {
+			return nil, err
+		}
+		providerArgs = append(providerArgs, "--sandbox", sandbox)
+		if sandbox == "workspace-write" {
+			// These settings are independent of --sandbox and can otherwise be
+			// widened by ~/.codex/config.toml.
+			providerArgs = append(providerArgs,
+				"-c", "sandbox_workspace_write.network_access=false",
+				"-c", "sandbox_workspace_write.writable_roots=[]",
+				"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
+				"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+			)
+		}
+		permission = ports.PermissionModeAcceptEdits
+	}
 	return agentruntime.BuildLaunchCommand(agentruntime.LaunchConfig{
 		Harness:          agentruntime.HarnessCodex,
 		Binary:           binary,
@@ -135,7 +172,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		Prompt:           cfg.Prompt,
 		SystemPrompt:     cfg.SystemPrompt,
 		SystemPromptFile: cfg.SystemPromptFile,
-		Permission:       agentruntime.PermissionPolicy(cfg.Permissions),
+		Permission:       agentruntime.PermissionPolicy(permission),
 		ProviderArgs:     providerArgs,
 	})
 }
@@ -165,6 +202,26 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		return nil, false, err
 	}
 	appendTerminalCompatibilityFlags(&providerArgs)
+	permission := cfg.Permissions
+	if cfg.ExecutionPolicy != nil {
+		if err := p.ValidateExecutionPolicy(ctx, cfg.Config, *cfg.ExecutionPolicy); err != nil {
+			return nil, false, err
+		}
+		sandbox, err := codexpolicy.SandboxFor(*cfg.ExecutionPolicy)
+		if err != nil {
+			return nil, false, err
+		}
+		providerArgs = append(providerArgs, "--sandbox", sandbox)
+		if sandbox == "workspace-write" {
+			providerArgs = append(providerArgs,
+				"-c", "sandbox_workspace_write.network_access=false",
+				"-c", "sandbox_workspace_write.writable_roots=[]",
+				"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
+				"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+			)
+		}
+		permission = ports.PermissionModeAcceptEdits
+	}
 	return agentruntime.BuildRestoreCommand(agentruntime.RestoreConfig{
 		Harness:          agentruntime.HarnessCodex,
 		Binary:           binary,
@@ -175,7 +232,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		Prompt:           cfg.Prompt,
 		SystemPrompt:     cfg.SystemPrompt,
 		SystemPromptFile: cfg.SystemPromptFile,
-		Permission:       agentruntime.PermissionPolicy(cfg.Permissions),
+		Permission:       agentruntime.PermissionPolicy(permission),
 		ProviderArgs:     providerArgs,
 	})
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence/intelligencetest"
 	outcomevc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
@@ -211,14 +212,14 @@ func TestAttemptRouteSurface(t *testing.T) {
 // controllerSpawner is the execution double for the functional HTTP test.
 type controllerSpawner struct{}
 
-func (controllerSpawner) ProfileReadiness(context.Context, domain.ProjectID, domain.AgentHarness) (ports.AgentProfileReadiness, error) {
+func (controllerSpawner) ProfileReadiness(context.Context, domain.ProjectID, domain.ExecutionBinding, *domain.AttemptExecutionPolicy) (ports.AgentProfileReadiness, error) {
 	return ports.AgentProfileReadiness{Ready: true, Detail: "test profile ok"}, nil
 }
 func (controllerSpawner) Terminate(_ context.Context, _ domain.ProjectID, _ string) (ports.TerminationResult, error) {
 	return ports.TerminationResult{ProviderStopped: true, WorkspaceFreed: true}, nil
 }
 
-func (controllerSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (domain.Session, error) {
+func (controllerSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (ports.AttemptSpawnResult, error) {
 	rec := domain.SessionRecord{
 		ID:      domain.SessionID("sess-func-" + req.Harness),
 		Mode:    domain.SessionModeTUI,
@@ -228,7 +229,7 @@ func (controllerSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest)
 			LastActivityAt: time.Now(),
 		},
 	}
-	return domain.Session{SessionRecord: rec}, nil
+	return ports.AttemptSpawnResult{Session: domain.Session{SessionRecord: rec}}, nil
 }
 
 // TestAttemptRoutesFunctionalThroughRealStore is the end-to-end proof for
@@ -245,7 +246,7 @@ func TestAttemptRoutesFunctionalThroughRealStore(t *testing.T) {
 		t.Fatalf("seed project: %v", err)
 	}
 	spawner := controllerSpawner{}
-	svc := outcomevc.NewWithExecution(storeHandle, nil, spawner, storeHandle)
+	svc := outcomevc.New(storeHandle, nil).WithPlanning(intelligencetest.New(), controllerRouting{}).WithExecution(spawner, storeHandle)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	srv := httptest.NewServer(httpd.NewRouterWithControl(config.Config{}, log, nil, httpd.APIDeps{
 		Outcomes: svc,
@@ -255,7 +256,7 @@ func TestAttemptRoutesFunctionalThroughRealStore(t *testing.T) {
 
 	// Build the approved lineage exactly like the Understand surfaces do.
 	respBytes, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/projects/mer/outcomes",
-		`{"title":"Local Focus Ledger","goal":"Record focus locally.","successCriteria":["Blocks are recorded."],"review":"Deterministic checks.","requestKey":"req-att-e2e"}`)
+		`{"title":"Local Focus Ledger","goal":"Record focus locally.","successCriteria":["Blocks are recorded."],"review":"Deterministic checks.","authorityCeiling":{"readWorkspace":true,"writeWorkspace":true,"executeLocal":true},"requestKey":"req-att-e2e"}`)
 	if status != http.StatusCreated {
 		t.Fatalf("create = %d: %s", status, respBytes)
 	}
@@ -266,11 +267,17 @@ func TestAttemptRoutesFunctionalThroughRealStore(t *testing.T) {
 	}
 	var planEnvelope struct {
 		Plan struct {
-			ID string `json:"id"`
+			ID        string `json:"id"`
+			WorkUnits []struct {
+				ID string `json:"id"`
+			} `json:"workUnits"`
 		} `json:"plan"`
 	}
 	if err := json.Unmarshal(planBytes, &planEnvelope); err != nil {
 		t.Fatal(err)
+	}
+	if len(planEnvelope.Plan.WorkUnits) == 0 {
+		t.Fatalf("plan carried no work units: %s", planBytes)
 	}
 	if _, aStatus, _ := doRequest(t, srv, http.MethodPost,
 		"/api/v1/outcomes/"+id+"/plans/"+planEnvelope.Plan.ID+"/approval", `{"expectedContractRevision":1}`); aStatus != http.StatusOK {
@@ -279,7 +286,8 @@ func TestAttemptRoutesFunctionalThroughRealStore(t *testing.T) {
 
 	// Start the attempt.
 	startBytes, sStatus, _ := doRequest(t, srv, http.MethodPost, "/api/v1/outcomes/"+id+"/attempts",
-		fmt.Sprintf(`{"planRevisionId":%q,"requestKey":"rk-start-e2e"}`, planEnvelope.Plan.ID))
+		fmt.Sprintf(`{"planRevisionId":%q,"workUnitId":%q,"requestKey":"rk-start-e2e"}`,
+			planEnvelope.Plan.ID, planEnvelope.Plan.WorkUnits[0].ID))
 	if sStatus != http.StatusCreated {
 		t.Fatalf("start = %d: %s", sStatus, startBytes)
 	}
@@ -315,16 +323,22 @@ func TestAttemptRoutesFunctionalThroughRealStore(t *testing.T) {
 
 	// Replay resolves the same attempt without a second row.
 	replayBytes, replayStatus, _ := doRequest(t, srv, http.MethodPost, "/api/v1/outcomes/"+id+"/attempts",
-		fmt.Sprintf(`{"planRevisionId":%q,"requestKey":"rk-start-e2e"}`, planEnvelope.Plan.ID))
+		fmt.Sprintf(`{"planRevisionId":%q,"workUnitId":%q,"requestKey":"rk-start-e2e"}`,
+			planEnvelope.Plan.ID, planEnvelope.Plan.WorkUnits[0].ID))
 	if replayStatus != http.StatusCreated || !strings.Contains(string(replayBytes), attemptEnvelope.Attempt.ID) {
 		t.Fatalf("replay = %d: %s", replayStatus, replayBytes)
 	}
 
-	// Custody is exclusive while the first attempt holds the fence.
+	// Custody is exclusive while the first attempt holds the fence. With a
+	// WorkUnit graph the refusal is more precise than the old project-wide
+	// fence: the plan's only unit is already running, so nothing is runnable.
 	heldBytes, heldStatus, _ := doRequest(t, srv, http.MethodPost, "/api/v1/outcomes/"+id+"/attempts",
-		fmt.Sprintf(`{"planRevisionId":%q,"requestKey":"rk-second"}`, planEnvelope.Plan.ID))
-	if heldStatus != http.StatusConflict || !strings.Contains(string(heldBytes), "ATTEMPT_FENCE_HELD") {
-		t.Fatalf("second admission = %d want 409 ATTEMPT_FENCE_HELD: %s", heldStatus, heldBytes)
+		fmt.Sprintf(`{"planRevisionId":%q,"workUnitId":%q,"requestKey":"rk-second"}`,
+			planEnvelope.Plan.ID, planEnvelope.Plan.WorkUnits[0].ID))
+	if heldStatus != http.StatusConflict ||
+		(!strings.Contains(string(heldBytes), "ATTEMPT_FENCE_HELD") &&
+			!strings.Contains(string(heldBytes), "NO_RUNNABLE_WORK_UNIT")) {
+		t.Fatalf("second admission = %d want 409 fence-held or no-runnable-unit: %s", heldStatus, heldBytes)
 	}
 
 	// Observations append ordered history.
@@ -349,7 +363,8 @@ func TestAttemptRoutesFunctionalThroughRealStore(t *testing.T) {
 		t.Fatalf("recover = %d: %s", recStatus, recBytes)
 	}
 	repBytes, repStatus, _ := doRequest(t, srv, http.MethodPost, "/api/v1/outcomes/"+id+"/attempts",
-		fmt.Sprintf(`{"planRevisionId":%q,"requestKey":"rk-replacement"}`, planEnvelope.Plan.ID))
+		fmt.Sprintf(`{"planRevisionId":%q,"workUnitId":%q,"requestKey":"rk-replacement"}`,
+			planEnvelope.Plan.ID, planEnvelope.Plan.WorkUnits[0].ID))
 	if repStatus != http.StatusCreated || !strings.Contains(string(repBytes), `"number":2`) {
 		t.Fatalf("replacement = %d: %s", repStatus, repBytes)
 	}

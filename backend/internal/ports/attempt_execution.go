@@ -7,63 +7,54 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
 
-// AttemptSpawnRequest is everything attempt admission (#31) hands the
-// execution seam to start one governed worker session.
+// AttemptSpawnRequest is the complete immutable execution binding admission
+// hands to the provider seam. Provider/model values come from the approved
+// WorkUnit; the spawner must not reread mutable Project preferences.
 type AttemptSpawnRequest struct {
-	ProjectID domain.ProjectID
-	Harness   domain.AgentHarness
-	// Prompt is the deterministic RunBrief text derived from the frozen plan —
-	// never a transcript replay.
-	Prompt string
-	// DisplayName labels the session in read models; empty falls back to the id.
-	DisplayName string
+	ProjectID      domain.ProjectID
+	Harness        domain.AgentHarness
+	ModelSelection domain.ExecutionBindingModelSelection
+	Model          string
+	// ExecutionPolicy is present only for a governed Attempt. A nil policy
+	// preserves ordinary session spawning; it must never be synthesized from
+	// mutable Project preferences.
+	ExecutionPolicy *domain.AttemptExecutionPolicy
+	Prompt          string
+	DisplayName     string
+	// Inputs are the exact retained predecessor results this Attempt was
+	// admitted with. They must be materialized into the successor workspace
+	// before the provider starts; an empty slice means the WorkUnit has no
+	// dependencies, never that provisioning may be skipped.
+	Inputs []AttemptInputRef
+	// Documents is the approved supplied-document snapshot for a staged
+	// Outcome. Nil for repository work.
+	Documents *AttemptDocumentInputs
 }
 
-// AttemptSessionSpawner is the narrow execution seam between attempt
-// admission (#31) and the real spawn path. The daemon adapts it over the
-// existing service/session.Spawn boundary and the agent registry's readiness
-// checker; tests inject fakes.
-//
-// There is NO silent provider fallback: the requested harness is the only
-// harness probed or spawned, and an unready harness fails admission closed.
+// AttemptSpawnResult reports the spawned subordinate session and, when the
+// provider/runtime can truthfully report it, the concrete effective model.
+// Empty EffectiveModel is valid for provider-default runtimes that do not
+// expose the selected model.
+type AttemptSpawnResult struct {
+	Session        domain.Session
+	EffectiveModel string
+}
+
+// AttemptSessionSpawner is the narrow boundary between governed Attempt
+// admission and the real session spawn path. Readiness and spawn both consume
+// the same exact immutable binding; no Project provider/model fallback is
+// permitted after Plan approval.
 type AttemptSessionSpawner interface {
-	// ProfileReadiness probes whether the named harness can launch for a
-	// worker on the given project, using the same checker and config merge
-	// session spawn consults. Adapters without a profile gate report ready
-	// with an explanatory detail.
-	ProfileReadiness(ctx context.Context, projectID domain.ProjectID, harness domain.AgentHarness) (AgentProfileReadiness, error)
-
-	// Spawn starts the provider session through the ordinary session service
-	// path, which re-probes readiness internally exactly like every other
-	// worker spawn.
-	Spawn(ctx context.Context, req AttemptSpawnRequest) (domain.Session, error)
-
-	// Terminate stops a bound provider session through the same authority
-	// that spawned it. It returns TWO independent facts: ProviderStopped is
-	// proven from the durable session record after teardown, and
-	// WorkspaceFreed only mirrors whether the workspace could be reclaimed.
-	// A preserved dirty worktree does NOT make the stop unproven; an absent
-	// or un-terminated durable record DOES — return ErrProviderStopUnproven
-	// in that case and callers MUST treat custody as held.
+	ProfileReadiness(ctx context.Context, projectID domain.ProjectID, binding domain.ExecutionBinding, policy *domain.AttemptExecutionPolicy) (AgentProfileReadiness, error)
+	Spawn(ctx context.Context, req AttemptSpawnRequest) (AttemptSpawnResult, error)
 	Terminate(ctx context.Context, projectID domain.ProjectID, sessionID string) (TerminationResult, error)
 }
 
-// TerminationResult separates the two facts one stop produces. They are
-// deliberately distinct: "the provider is no longer running" and "the
-// workspace was reclaimed" fail independently (a dirty worktree is preserved
-// while its provider is durably terminated), and conflating them either
-// fakes a live provider or hides kept evidence.
+// TerminationResult reports which parts of attempt termination were proven.
 type TerminationResult struct {
-	// ProviderStopped reports that the provider runtime is durably stopped,
-	// derived from the durable session record — never from a
-	// workspace-reclamation boolean.
 	ProviderStopped bool
-	// WorkspaceFreed reports whether the workspace was reclaimed. False means
-	// it was preserved for inspection; that says nothing about liveness.
-	WorkspaceFreed bool
+	WorkspaceFreed  bool
 }
 
-// ErrProviderStopUnproven reports a terminate whose runtime outcome could not
-// be proven (missing session row, record without a termination fact,
-// ambiguous kill). Custody law treats this as NOT stopped.
+// ErrProviderStopUnproven indicates that provider termination is ambiguous.
 var ErrProviderStopUnproven = errors.New("provider stop could not be proven")

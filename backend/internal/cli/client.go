@@ -123,10 +123,10 @@ func (c *commandContext) doJSONPathWithHeadersAndTimeout(
 		return err
 	}
 	if info == nil {
-		return fmt.Errorf("Kennel daemon is not running — start it with `kennel start`")
+		return fmt.Errorf("kennel daemon is not running — start it with `kennel start`")
 	}
 	if !c.deps.ProcessAlive(info.PID) {
-		return fmt.Errorf("Kennel daemon is not running (stale run-file at %s) — start it with `kennel start`", cfg.RunFilePath)
+		return fmt.Errorf("kennel daemon is not running (stale run-file at %s) — start it with `kennel start`", cfg.RunFilePath)
 	}
 
 	var reader io.Reader = http.NoBody

@@ -261,6 +261,15 @@ func focusLedgerPlan(outcomeID domain.OutcomeID, revision domain.ContractRevisio
 		EvidenceChecks:          []string{"validation, date boundary, aggregation, persistence checks pass"},
 		VerificationRequirement: "deterministic verification outside the producer session plus owner walkthrough",
 		StopConditions:          []string{"stop before unapproved dependencies, remote effects, or writes outside the worktree"},
+		// An approved unit carries its exact binding, and the plan may only
+		// grant what its units actually require.
+		Provider:       domain.HarnessCodex,
+		ModelSelection: domain.ExecutionBindingModelProviderDefault,
+		RequiredCapabilities: []string{
+			domain.CapabilityWorktreeRead,
+			domain.CapabilityWorktreeWrite,
+			domain.CapabilityWorktreeExec,
+		},
 	}
 	grants := []domain.CapabilityGrant{
 		{ID: domain.CapabilityGrantID("cg-read-" + fmt.Sprintf("%d", number)), Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
@@ -277,9 +286,22 @@ func focusLedgerPlan(outcomeID domain.OutcomeID, revision domain.ContractRevisio
 		ContractRevisionNumber: revision.Number,
 		Status:                 domain.PlanStatusProposed,
 		Summary:                "One direct Work Unit",
+		Assumptions:            []string{"The repository keeps the existing test runner"},
+		Blockers:               []string{"Owner must confirm the migration window"},
 		WorkUnits:              []domain.WorkUnit{unit},
 		Grants:                 grants,
-		RunBriefCoreDigest:     digest,
+		RoutingDecisions: []domain.WorkUnitRoutingDecision{{
+			WorkUnitID: unit.ID,
+			Decision: domain.RoutingDecision{
+				Status:                    domain.RoutingDecisionRecommended,
+				PolicyVersion:             domain.RoutingPolicyVersion,
+				Role:                      domain.RoutingRoleWorker,
+				RecommendedCandidateID:    string(domain.HarnessCodex),
+				RecommendedProvider:       string(domain.HarnessCodex),
+				RecommendedModelSelection: domain.ExecutionBindingModelProviderDefault,
+			},
+		}},
+		RunBriefCoreDigest: digest,
 	}
 }
 
@@ -320,6 +342,9 @@ func TestOutcomeStore_AppendApproveAndReadBackPlans(t *testing.T) {
 	}
 	if got.RunBriefCoreDigest != planIn.RunBriefCoreDigest {
 		t.Fatal("run brief core digest did not survive the round trip")
+	}
+	if len(got.Assumptions) != 1 || got.Assumptions[0] != planIn.Assumptions[0] || len(got.Blockers) != 1 || got.Blockers[0] != planIn.Blockers[0] {
+		t.Fatalf("plan review context = assumptions=%v blockers=%v", got.Assumptions, got.Blockers)
 	}
 
 	// Replay lookup binds both proposal status and contract revision.

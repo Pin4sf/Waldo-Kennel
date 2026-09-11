@@ -47,6 +47,17 @@ func seedApprovedPlan(t *testing.T, s *sqlite.Store, projectID string) (domain.P
 		EvidenceChecks:          []string{"checks pass"},
 		VerificationRequirement: "Deterministic checks.",
 		StopConditions:          []string{"stop before remote effects"},
+		// An approved unit carries the exact provider/model binding an Attempt
+		// must execute; there is no runtime default to fall back to.
+		Provider:       domain.HarnessCodex,
+		ModelSelection: domain.ExecutionBindingModelProviderDefault,
+		// Plan grants must be exactly what its units require: an unused grant
+		// is authority nobody asked for, and the plan is now rejected for it.
+		RequiredCapabilities: []string{
+			domain.CapabilityWorktreeRead,
+			domain.CapabilityWorktreeWrite,
+			domain.CapabilityWorktreeExec,
+		},
 	}
 	grants := []domain.CapabilityGrant{
 		{ID: domain.CapabilityGrantID("cg-read-" + projectID), Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
@@ -65,7 +76,20 @@ func seedApprovedPlan(t *testing.T, s *sqlite.Store, projectID string) (domain.P
 		Summary:                "One direct Work Unit",
 		WorkUnits:              []domain.WorkUnit{unit},
 		Grants:                 grants,
-		RunBriefCoreDigest:     digest,
+		// Approval freezes why this unit runs on this provider, so the plan
+		// carries the routing decision beside the binding it produced.
+		RoutingDecisions: []domain.WorkUnitRoutingDecision{{
+			WorkUnitID: unit.ID,
+			Decision: domain.RoutingDecision{
+				Status:                    domain.RoutingDecisionRecommended,
+				PolicyVersion:             domain.RoutingPolicyVersion,
+				Role:                      domain.RoutingRoleWorker,
+				RecommendedCandidateID:    string(domain.HarnessCodex),
+				RecommendedProvider:       string(domain.HarnessCodex),
+				RecommendedModelSelection: domain.ExecutionBindingModelProviderDefault,
+			},
+		}},
+		RunBriefCoreDigest: digest,
 	})
 	if err != nil {
 		t.Fatalf("append plan: %v", err)
@@ -86,7 +110,7 @@ func TestAttemptStore_FencedAdmissionIsAtomicAndExclusive(t *testing.T) {
 	plan, outcomeID := seedApprovedPlan(t, s, "mer")
 	subject := domain.FenceSubjectForProject("mer")
 
-	at, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "rk-att-1", subject, time.Now().UTC())
+	at, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-att-1", subject))
 	if err != nil {
 		t.Fatalf("create attempt: %v", err)
 	}
@@ -106,7 +130,7 @@ func TestAttemptStore_FencedAdmissionIsAtomicAndExclusive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list attempts: %v", err)
 	}
-	_, err = s.CreateAttemptWithFence(ctx, outcomeID, plan, "rk-att-2", subject, time.Now().UTC())
+	_, err = s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-att-2", subject))
 	var fenced *ports.AttemptFenceHeldError
 	if !errors.As(err, &fenced) {
 		t.Fatalf("second admission must fail with AttemptFenceHeldError, got %v", err)
@@ -137,13 +161,124 @@ func TestAttemptStore_FencedAdmissionIsAtomicAndExclusive(t *testing.T) {
 	}
 }
 
+func TestAttemptStore_AdmissionBindsRunIntentGenerationAndRejectsPauseWinner(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "attempt-run-intent")
+	started, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentRunning, domain.RunCommandStart, 0, "run-start", "start/attempt"))
+	if err != nil {
+		t.Fatalf("append start: %v", err)
+	}
+
+	admission := admissionFor(outcomeID, plan, "attempt-before-pause", domain.FenceSubjectForProject("attempt-run-intent"))
+	admission.RunIntentGeneration = started.Generation
+	attempt, err := s.CreateAttemptWithFence(ctx, admission)
+	if err != nil {
+		t.Fatalf("admit running attempt: %v", err)
+	}
+	if attempt.RunIntentGeneration != started.Generation {
+		t.Fatalf("attempt run generation = %d, want %d", attempt.RunIntentGeneration, started.Generation)
+	}
+
+	paused, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentPaused, domain.RunCommandPause, started.Generation, "run-pause", "pause/attempt"))
+	if err != nil {
+		t.Fatalf("append pause: %v", err)
+	}
+
+	stale := admissionFor(outcomeID, plan, "attempt-after-pause", "different-fence")
+	stale.RunIntentGeneration = started.Generation
+	_, err = s.CreateAttemptWithFence(ctx, stale)
+	var conflict *ports.AttemptRunIntentConflictError
+	if !errors.As(err, &conflict) {
+		t.Fatalf("stale admission = %v, want AttemptRunIntentConflictError", err)
+	}
+	if conflict.Current != paused.Generation || conflict.Desired != domain.RunIntentPaused {
+		t.Fatalf("conflict = %+v, want paused generation %d", conflict, paused.Generation)
+	}
+	attempts, err := s.ListAttempts(ctx, outcomeID)
+	if err != nil {
+		t.Fatalf("list attempts: %v", err)
+	}
+	if len(attempts) != 1 {
+		t.Fatalf("stale admission created %d attempts, want the original one only", len(attempts))
+	}
+}
+
+func TestAttemptStore_ReusedRequestKeyWithDifferentOutcomeConflicts(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	firstPlan, firstOutcome := seedApprovedPlan(t, s, "replay-first")
+	secondPlan, secondOutcome := seedApprovedPlan(t, s, "replay-second")
+	key := "same-request-key"
+	first, err := s.CreateAttemptWithFence(ctx, admissionFor(firstOutcome, firstPlan, key, domain.FenceSubjectForProject("replay-first")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := s.CreateAttemptWithFence(ctx, admissionFor(secondOutcome, secondPlan, key, domain.FenceSubjectForProject("replay-second")))
+	var conflict *ports.AttemptReplayConflictError
+	if !errors.As(err, &conflict) {
+		t.Fatalf("err = %v, want AttemptReplayConflictError", err)
+	}
+	if second.ID != first.ID || conflict.Attempt.ID != first.ID {
+		t.Fatalf("conflict attempt = %s/%s, want original %s", second.ID, conflict.Attempt.ID, first.ID)
+	}
+	if got, err := s.ListAttempts(ctx, secondOutcome); err != nil {
+		t.Fatal(err)
+	} else if len(got) != 0 {
+		t.Fatalf("conflicting replay created %d attempts for second outcome", len(got))
+	}
+}
+
+func TestAttemptStore_ConcurrentIdenticalAdmissionReturnsOneAttempt(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "replay-concurrent")
+	admission := admissionFor(outcomeID, plan, "concurrent-request-key", domain.FenceSubjectForProject("replay-concurrent"))
+	results := make(chan struct {
+		attempt domain.Attempt
+		err     error
+	}, 2)
+	for range 2 {
+		go func() {
+			attempt, err := s.CreateAttemptWithFence(ctx, admission)
+			results <- struct {
+				attempt domain.Attempt
+				err     error
+			}{attempt: attempt, err: err}
+		}()
+	}
+	var winner domain.Attempt
+	for range 2 {
+		result := <-results
+		if result.err == nil {
+			winner = result.attempt
+			continue
+		}
+		var replay *ports.AttemptReplayError
+		if !errors.As(result.err, &replay) {
+			t.Fatalf("concurrent result err = %v, want replay", result.err)
+		}
+		if replay.Attempt.ID == "" {
+			t.Fatal("replay omitted canonical attempt")
+		}
+	}
+	if winner.ID == "" {
+		t.Fatal("no admission winner")
+	}
+	if attempts, err := s.ListAttempts(ctx, outcomeID); err != nil {
+		t.Fatal(err)
+	} else if len(attempts) != 1 || attempts[0].ID != winner.ID {
+		t.Fatalf("attempts = %+v, want one winner %s", attempts, winner.ID)
+	}
+}
+
 // TestAttemptStore_GuardedTransitionsAndSessionRefs covers the trigger-backed
 // lifecycle seam, FK-free session refs, and ordered observations.
 func TestAttemptStore_GuardedTransitionsAndSessionRefs(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	plan, outcomeID := seedApprovedPlan(t, s, "mer")
-	at, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "", domain.FenceSubjectForProject("mer"), time.Now().UTC())
+	at, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-att-transitions", domain.FenceSubjectForProject("mer")))
 	if err != nil {
 		t.Fatalf("create attempt: %v", err)
 	}
@@ -195,6 +330,10 @@ func TestAttemptStore_GuardedTransitionsAndSessionRefs(t *testing.T) {
 	if err != nil || !ok || latest.SessionID != "provider-session-1" {
 		t.Fatalf("latest ref ok=%v err=%v", ok, err)
 	}
+	bySession, ok, err := s.LatestAttemptSessionRefForSession(ctx, "provider-session-1")
+	if err != nil || !ok || bySession.AttemptID != at.ID {
+		t.Fatalf("latest ref by session ok=%v err=%v attempt=%s", ok, err, bySession.AttemptID)
+	}
 
 	firstObs, err := s.AppendAttemptObservation(ctx, at.ID, domain.ObservationOwnerPause, `{"by":"owner"}`, now)
 	if err != nil {
@@ -222,7 +361,7 @@ func TestAttemptStore_ReconcileReleasesCustodyForReplacement(t *testing.T) {
 	ctx := context.Background()
 	plan, outcomeID := seedApprovedPlan(t, s, "mer")
 	subject := domain.FenceSubjectForProject("mer")
-	at, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "rk-a1", subject, time.Now().UTC())
+	at, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-a1", subject))
 	if err != nil {
 		t.Fatalf("create attempt: %v", err)
 	}
@@ -253,7 +392,7 @@ func TestAttemptStore_ReconcileReleasesCustodyForReplacement(t *testing.T) {
 	}
 
 	// Custody handover: the replacement is always a NEW attempt row.
-	replacement, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "rk-a2", subject, time.Now().UTC())
+	replacement, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-a2", subject))
 	if err != nil {
 		t.Fatalf("replacement admission: %v", err)
 	}
@@ -280,6 +419,78 @@ func TestAttemptStore_ReconcileReleasesCustodyForReplacement(t *testing.T) {
 	}
 }
 
+func TestFailAttemptBeforeLaunch_AtomicallyTerminalizesAndReleasesForFreshGeneration(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "prelaunch-release")
+	subject := domain.FenceSubjectForProject("prelaunch-release")
+	started, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentRunning, domain.RunCommandStart, 0, "run-start-prelaunch", "start/prelaunch"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstAdmission := admissionFor(outcomeID, plan, "attempt-prelaunch-1", subject)
+	firstAdmission.RunIntentGeneration = started.Generation
+	first, err := s.CreateAttemptWithFence(ctx, firstAdmission)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.FailAttemptBeforeLaunch(ctx, ports.AttemptPrelaunchFailure{
+		OutcomeID: outcomeID, AttemptID: first.ID, ObservationKind: domain.ObservationAdmissionFailed,
+		ObservationPayload: `{"providerLaunched":false}`, ReleaseReason: "provider_not_launched", At: time.Unix(200, 0).UTC(),
+	}); err != nil {
+		t.Fatalf("fail before launch: %v", err)
+	}
+	stored, found, err := s.GetAttempt(ctx, outcomeID, first.ID)
+	if err != nil || !found || stored.Status != domain.AttemptFailed {
+		t.Fatalf("attempt = %+v found=%v err=%v, want failed", stored, found, err)
+	}
+	if _, open, err := s.OpenFenceForSubject(ctx, subject); err != nil || open {
+		t.Fatalf("fence open=%v err=%v, want released", open, err)
+	}
+	paused, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentPaused, domain.RunCommandPause, started.Generation, "run-pause-prelaunch", "pause/prelaunch"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resumed, err := s.AppendRunIntent(ctx, commandedRunIntent(outcomeID, plan.ID, domain.RunIntentRunning, domain.RunCommandResume, paused.Generation, "run-resume-prelaunch", "resume/prelaunch"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondAdmission := admissionFor(outcomeID, plan, "attempt-prelaunch-2", subject)
+	secondAdmission.RunIntentGeneration = resumed.Generation
+	second, err := s.CreateAttemptWithFence(ctx, secondAdmission)
+	if err != nil {
+		t.Fatalf("fresh generation/key admission: %v", err)
+	}
+	if second.ID == first.ID || second.Number != 2 {
+		t.Fatalf("second = %+v, want distinct attempt #2", second)
+	}
+}
+
+func TestFailAttemptBeforeLaunch_RollsBackAllFactsWhenTerminalizationLosesItsGuard(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	plan, outcomeID := seedApprovedPlan(t, s, "prelaunch-rollback")
+	subject := domain.FenceSubjectForProject("prelaunch-rollback")
+	attempt, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "attempt-prelaunch-rollback", subject))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.FailAttemptBeforeLaunch(ctx, ports.AttemptPrelaunchFailure{
+		OutcomeID: "wrong-outcome", AttemptID: attempt.ID, ObservationKind: domain.ObservationAdmissionFailed,
+		ObservationPayload: `{"providerLaunched":false}`, ReleaseReason: "provider_not_launched", At: time.Unix(300, 0).UTC(),
+	})
+	if err == nil {
+		t.Fatal("mismatched lineage must fail the atomic operation")
+	}
+	observations, err := s.ListAttemptObservations(ctx, attempt.ID)
+	if err != nil || len(observations) != 0 {
+		t.Fatalf("observations = %+v err=%v, want rollback", observations, err)
+	}
+	if fence, open, err := s.OpenFenceForSubject(ctx, subject); err != nil || !open || fence.AttemptID != attempt.ID {
+		t.Fatalf("fence = %+v open=%v err=%v, want original custody intact", fence, open, err)
+	}
+}
+
 // TestAttemptStore_FenceLeaseRenewal pins the renewable-lease facts: renewal
 // refreshes only OPEN fences for the custodian, and a released fence freezes
 // forever (trigger-refused).
@@ -288,7 +499,7 @@ func TestAttemptStore_FenceLeaseRenewal(t *testing.T) {
 	ctx := context.Background()
 	plan, outcomeID := seedApprovedPlan(t, s, "mer")
 	subject := domain.FenceSubjectForProject("mer")
-	at, err := s.CreateAttemptWithFence(ctx, outcomeID, plan, "rk-lease", subject, time.Now().UTC())
+	at, err := s.CreateAttemptWithFence(ctx, admissionFor(outcomeID, plan, "rk-lease", subject))
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}

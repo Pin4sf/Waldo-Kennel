@@ -3,15 +3,10 @@ import {
 	CheckCircle2,
 	ChevronDown,
 	FileText,
-	ListChecks,
 	Loader2,
-	Pause,
-	RefreshCw,
-	Search,
 	ShieldCheck,
-	Target,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -21,10 +16,13 @@ import {
 	useApproveOutcomePlan,
 	useOutcome,
 	useOutcomePlan,
-	useProposeOutcomePlan,
+	useOutcomeProof,
+	useOutcomeSchedule,
 	type OutcomeFailure,
 	type PlanRecord,
 } from "../../hooks/useOutcome";
+import { MissionPlanningConversation } from "./MissionPlanningConversation";
+import { MissionPlanView } from "./MissionPlanView";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -33,6 +31,8 @@ type OutcomeDecideAuthorizeSurfaceProps = {
 	outcomeId: string;
 	/** Returns to observed session activity without claiming an Attempt was started. */
 	onReviewWork?: () => void;
+	/** Returns to the Contract editor when planning proposes a Contract change. */
+	onReviewContract?: () => void;
 };
 
 /** Every plan section stays open by default — the plan is short enough that
@@ -43,34 +43,23 @@ const PLAN_SECTION_VALUES = ["desired-state", "evidence", "verification", "pause
  * Decide & Authorize: "What exactly may the agent do, and who says so?"
  *
  * The surface renders only what the daemon answers. Proposing is a read-mostly
- * operation (the plan is derived deterministically from the frozen contract),
+ * operation (intelligence proposes against the current contract),
  * and Approve is the owner's authority gate: nothing executes until it lands,
  * and a contract that moved ahead forces a fresh brief instead of a silent
  * authority transfer.
  */
-export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: OutcomeDecideAuthorizeSurfaceProps) {
+export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork, onReviewContract }: OutcomeDecideAuthorizeSurfaceProps) {
 	const { t } = useTranslation();
 	const queryClient = useQueryClient();
 
 	const outcomeQuery = useOutcome(outcomeId);
 	const planQuery = useOutcomePlan(outcomeId);
-	const propose = useProposeOutcomePlan(outcomeId);
 	const approve = useApproveOutcomePlan(outcomeId);
 	const [approving, setApproving] = useState(false);
 
-	const pending = propose.pending || approve.pending || approving;
-	const failure = propose.failure ?? approve.failure ?? planQuery.failure;
+	const pending = approve.pending || approving;
+	const failure = approve.failure ?? planQuery.failure;
 	const plan = planQuery.plan;
-
-	async function proposePlan() {
-		const outcome = outcomeQuery.outcome;
-		if (!outcome || pending) return;
-		try {
-			await propose.propose({ expectedContractRevision: outcome.currentRevisionNumber });
-		} catch {
-			// Failure state derives from the mutation's typed error.
-		}
-	}
 
 	async function approvePlan() {
 		const outcome = outcomeQuery.outcome;
@@ -89,7 +78,6 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: Outco
 	}
 
 	async function reloadCurrentFacts() {
-		propose.reset();
 		approve.reset();
 		if (outcomeQuery.outcome) {
 			try {
@@ -112,7 +100,7 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: Outco
 		errorPlan: planQuery.failure ? String((planQuery.failure as OutcomeFailure).message) : null,
 	} as const;
 	const showDbg = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "").has("__dbg");
-	const isStaleConflict = failure?.code === PLAN_CONTRACT_STALE;
+	const isStaleConflict = failure?.code === PLAN_CONTRACT_STALE || Boolean(plan && outcomeQuery.outcome && plan.contractRevisionNumber !== outcomeQuery.outcome.currentRevisionNumber);
 	const isAuthorityBlocked = failure?.code === PLAN_CAPABILITY_UNAUTHORIZED;
 
 	return (
@@ -126,38 +114,32 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: Outco
 				<pre data-testid="decide-debug">{JSON.stringify({ ...__dbg, failureRaw: failure ?? null })}</pre>
 			)}
 
-			{!plan && !planQuery.isLoading && !failure && (
-				<div className="max-w-xl rounded-group hairline border-border bg-card px-4.5 py-3.5">
-					<h3 className="text-sm font-medium">{t("outcome.decide.proposeTitle")}</h3>
-					<p className="mt-1 text-muted-foreground text-sm">{t("outcome.decide.proposeBody")}</p>
-					<Button
-						className="mt-3"
-						data-testid="outcome-propose-plan"
-						disabled={pending || !outcomeQuery.outcome}
-						onClick={() => void proposePlan()}
-					>
-						{propose.pending && <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />}
-						{t("outcome.decide.proposeCta")}
-					</Button>
-				</div>
-			)}
+			{plan && <PlanReviewCard outcomeId={outcomeId} plan={plan} />}
 
-			{plan && <PlanReviewCard plan={plan} />}
+			{outcomeQuery.outcome && (plan ? (
+				<details className="mx-auto w-full max-w-2xl rounded-group hairline border-border bg-card px-4.5 py-3.5">
+					<summary className="cursor-pointer text-sm font-medium">{t("planning.details")}</summary>
+					<div className="mt-3">
+						<MissionPlanningConversation
+							contractRevision={outcomeQuery.outcome.currentRevisionNumber}
+							onReviewContract={onReviewContract}
+							outcomeId={outcomeId}
+						/>
+					</div>
+				</details>
+			) : (
+				<MissionPlanningConversation
+					contractRevision={outcomeQuery.outcome.currentRevisionNumber}
+					onReviewContract={onReviewContract}
+					outcomeId={outcomeId}
+				/>
+			))}
+
+			{!plan && !planQuery.isLoading && !failure && !outcomeQuery.outcome && null}
 
 			{plan?.status === "proposed" && !isStaleConflict && !isAuthorityBlocked && (
 				<div className="mx-auto flex w-full max-w-2xl flex-col gap-2">
 					<div className="flex items-center justify-between gap-3">
-						<Button
-							className="bg-card hover:bg-card/80"
-							data-testid="outcome-plan-update"
-							disabled={pending}
-							onClick={() => void proposePlan()}
-							type="button"
-							variant="outline"
-						>
-							<RefreshCw aria-hidden="true" className="size-3.5" />
-							{t("outcome.decide.updateCta")}
-						</Button>
 						<Button data-testid="outcome-approve-plan" disabled={pending} onClick={() => void approvePlan()} variant="secondary">
 							{pending && <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />}
 							<ShieldCheck aria-hidden="true" className="size-3.5" />
@@ -202,47 +184,75 @@ export function OutcomeDecideAuthorizeSurface({ outcomeId, onReviewWork }: Outco
 			)}
 
 			{!isStaleConflict && !isAuthorityBlocked && failure && failure.code !== PLAN_CONTRACT_STALE && (
-				<PlanFailureBanners failure={failure} onRetry={() => void proposePlan()} />
+				<PlanFailureBanners failure={failure} onRetry={() => planQuery.refetch()} />
 			)}
 		</div>
 	);
 }
 
-function PlanReviewCard({ plan }: { plan: PlanRecord }) {
+function PlanReviewCard({ outcomeId, plan }: { outcomeId: string; plan: PlanRecord }) {
 	const { t } = useTranslation();
+	const scheduleQuery = useOutcomeSchedule(outcomeId, plan.status === "approved" ? plan.id : undefined);
+	// Criterion text comes from the canonical proof read, so nodes and rows show
+	// the owner's own words instead of criterion ids.
+	const proofQuery = useOutcomeProof(outcomeId);
+	const criterionText = useCallback(
+		(criterionId: string) =>
+			proofQuery.proof?.criteria.find((criterion) => criterion.criterionId === criterionId)?.text,
+		[proofQuery.proof],
+	);
+	const titleOf = useMemo(
+		() => new Map(plan.workUnits.map((workUnit) => [workUnit.id, workUnit.title])),
+		[plan.workUnits],
+	);
+	// The first work unit is NOT the plan's identity: a multi-unit plan is named
+	// by its own summary. Using workUnits[0] here was the last remnant of the
+	// first-array-entry reading of a plan.
 	const unit = plan.workUnits[0];
+	const assumptions = plan.assumptions ?? [];
+	const blockers = plan.blockers ?? [];
+	const routingDecisions = plan.routingDecisions ?? [];
 	return (
 		<section className="mx-auto flex w-full max-w-2xl flex-col gap-2" data-testid="outcome-plan-card">
 			<div className="flex items-center justify-between gap-3 rounded-group hairline border-border bg-card px-4.5 py-3.5">
-				<h3 className="min-w-0 truncate text-sm font-medium text-foreground">{unit?.title ?? plan.summary}</h3>
+				<h3 className="min-w-0 truncate text-sm font-medium text-foreground">{plan.summary || unit?.title}</h3>
 				<Badge variant={plan.status === "approved" ? "success" : "accent"}>
 					{plan.status === "approved"
 						? t("outcome.decide.badgeApproved", { number: plan.number })
 						: t("outcome.decide.badgeProposed", { number: plan.number })}
 				</Badge>
 			</div>
+			{/* Proposed topology: no schedule exists before authorization, so the
+			    graph deliberately carries no execution state. */}
+			<div className="rounded-group hairline border-border bg-card px-4.5 py-3.5">
+				{plan.status !== "approved" || scheduleQuery.schedule ? (
+				<MissionPlanView
+					schedule={scheduleQuery.schedule}
+					criterionText={criterionText}
+					workUnits={plan.workUnits}
+				/>
+				) : <p className="text-xs text-muted-foreground">{scheduleQuery.failure?.message || t("mission.scheduleUnavailable")}</p>}
+			</div>
+
+			<div className="grid gap-2" data-testid="outcome-plan-work-units">
+				{plan.workUnits.map((workUnit, index) => (
+					<div className="rounded-group hairline border-border bg-card px-3.5 py-3" key={workUnit.id}>
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-sm font-medium">{index + 1}. {workUnit.title}</span>
+							<span className="text-xs text-muted-foreground">{workUnit.modelSelection === "provider_default" ? t("outcome.missionGraph.providerDefault") : workUnit.model || t("outcome.decide.modelUnreported")}</span>
+						</div>
+						<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+							{/* Criteria and dependencies read as words, not ids: a raw
+							    identifier is technical detail, not primary content. */}
+							<span>{t("outcome.decide.criteriaLabel")}: {criteriaLabel(workUnit.criterionIds, criterionText) || t("outcome.decide.criteriaNotRecorded")}</span>
+							<span>{t("outcome.decide.dependsOnLabel")}: {(workUnit.dependsOn ?? []).length > 0 ? (workUnit.dependsOn ?? []).map((id) => titleOf.get(id) ?? id).join(", ") : t("outcome.decide.dependsOnNone")}</span>
+							<span>{t("outcome.decide.providerLabel")}: {workUnit.provider || t("outcome.decide.providerUnbound")}</span>
+						</div>
+					</div>
+				))}
+			</div>
 
 			<Accordion className="flex flex-col gap-2" defaultValue={PLAN_SECTION_VALUES} type="multiple">
-				<PlanSection icon={<Target aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsDesiredState")} value="desired-state">
-					<p className="text-sm leading-body text-foreground/80">{unit?.outputSummary}</p>
-				</PlanSection>
-				<PlanSection icon={<ListChecks aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsEvidence")} value="evidence">
-					<ul className="list-disc space-y-1 pl-4 text-sm leading-body text-foreground/80">
-						{(unit?.evidenceChecks ?? []).map((check) => (
-							<li key={check}>{check}</li>
-						))}
-					</ul>
-				</PlanSection>
-				<PlanSection icon={<Search aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsVerification")} value="verification">
-					<p className="text-sm leading-body text-foreground/80">{unit?.verificationRequirement}</p>
-				</PlanSection>
-				<PlanSection icon={<Pause aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsStops")} value="pause-trigger">
-					<ul className="list-disc space-y-1 pl-4 text-sm leading-body text-foreground/80">
-						{(unit?.stopConditions ?? []).map((stop) => (
-							<li key={stop}>{stop}</li>
-						))}
-					</ul>
-				</PlanSection>
 				<PlanSection icon={<ShieldCheck aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsGrants")} value="permissions">
 					<ul className="flex flex-col gap-1.5">
 						{(plan.grants ?? []).map((grant) => (
@@ -256,6 +266,9 @@ function PlanReviewCard({ plan }: { plan: PlanRecord }) {
 				</PlanSection>
 				<PlanSection icon={<FileText aria-hidden="true" className="size-3.5" />} label={t("outcome.decide.factsBrief")} value="brief">
 					<code className="block break-all text-xs leading-body text-foreground/80">{plan.runBriefCoreDigest}</code>
+					{assumptions.length > 0 && <p className="mt-2 text-xs text-warning">{t("outcome.decide.assumptionsLabel")}: {assumptions.join(" · ")}</p>}
+					{blockers.length > 0 && <p className="mt-2 text-xs text-destructive">{t("outcome.decide.blockersLabel")}: {blockers.join(" · ")}</p>}
+					{routingDecisions.length > 0 && <p className="mt-2 text-xs text-muted-foreground">{t("outcome.decide.routingLabel")}: {routingDecisions.map((decision) => `${decision.workUnitId} → ${decision.recommendedProvider || "no candidate"}`).join(" · ")}</p>}
 				</PlanSection>
 			</Accordion>
 
@@ -315,8 +328,9 @@ function PlanFailureBanners({ failure, onRetry }: { failure: OutcomeFailure; onR
 	if (failure.kind === "retryable") {
 		return (
 			<div className="max-w-xl rounded-group hairline border-border bg-card px-4.5 py-3.5" data-testid="outcome-plan-retryable" role="alert">
-				<h3 className="text-sm font-medium">{t("outcome.understand.retryableTitle")}</h3>
-				<p className="mt-1 text-muted-foreground text-sm">{failure.message}</p>
+				<h3 className="text-sm font-medium">{t("outcome.plan.failedTitle")}</h3>
+				<p className="mt-1 text-muted-foreground text-sm">{failure.code === "PLAN_DRAFT_CHECK_INVALID" ? t("outcome.plan.invalidCheck") : failure.message}</p>
+				{failure.code === "PLAN_DRAFT_CHECK_INVALID" && <p className="mt-2 break-words text-xs text-muted-foreground">{failure.message}</p>}
 				<Button className="mt-3" onClick={onRetry} size="sm" type="button" variant="outline">
 					{t("outcome.understand.retry")}
 				</Button>
@@ -328,4 +342,20 @@ function PlanFailureBanners({ failure, onRetry }: { failure: OutcomeFailure; onR
 			{failure.message}
 		</p>
 	);
+}
+
+/**
+ * Criterion text for one work unit, falling back to nothing rather than to ids.
+ *
+ * An unresolved criterion is better shown as "not recorded" than as an opaque
+ * identifier the owner cannot act on.
+ */
+function criteriaLabel(
+	criterionIds: string[] | undefined,
+	criterionText: (criterionId: string) => string | undefined,
+): string {
+	return (criterionIds ?? [])
+		.map((id) => criterionText(id))
+		.filter((text): text is string => Boolean(text))
+		.join(" · ");
 }

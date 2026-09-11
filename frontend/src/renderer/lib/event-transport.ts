@@ -7,6 +7,7 @@ import { sessionScmSummaryQueryKey } from "../hooks/useSessionScmSummary";
 import { conversationQueryKey } from "../hooks/useConversation";
 import { agentSwitchesQueryRoot } from "../hooks/useAgentSwitches";
 import { sessionUsageQueryRoot } from "../hooks/useSessionUsageSummaries";
+import { outcomeScheduleQueryKey } from "../hooks/useOutcome";
 
 export type EventTransport = {
 	connect: () => () => void;
@@ -34,6 +35,23 @@ const CDC_EVENT_TYPES = [
 	"pr_session_changed",
 	"pr_review_thread_added",
 	"pr_review_thread_resolved",
+	"outcome_created",
+	"outcome_updated",
+	"outcome_contract_revised",
+	"outcome_plan_proposed",
+	"outcome_plan_approved",
+	"outcome_attempt_started",
+	"outcome_attempt_updated",
+	"outcome_attempt_session_bound",
+	"outcome_attempt_observed",
+	"outcome_attempt_recovered",
+	"outcome_evidence_recorded",
+	"outcome_verification_recorded",
+	"outcome_acceptance_decided",
+	"outcome_correction_recorded",
+ "outcome_run_intent_changed",
+ "outcome_attempt_retained",
+ "outcome_delivery_changed",
 ] as const;
 
 /**
@@ -48,16 +66,24 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 		connect() {
 			let debounce: ReturnType<typeof setTimeout> | undefined;
 			const pendingConversationSessions = new Set<string>();
+			const pendingOutcomeSchedules = new Set<readonly [string, string, string]>();
+			let allOutcomeSchedulesInvalidationPending = false;
 			let workspaceInvalidationPending = false;
+			let outcomeFactsInvalidationPending = false;
 			let retryTimer: ReturnType<typeof setTimeout> | undefined;
 			let source: EventSource | undefined;
 			let sourceBaseUrl: string | undefined;
 			const refreshWorkspaces = (event?: Event) => {
 				let conversationOnly = false;
+				const eventType = event?.type ?? "";
+				if (!event || eventType.startsWith("outcome_")) outcomeFactsInvalidationPending = true;
 				if (event && "data" in event) {
 					try {
 						const decoded = JSON.parse(String((event as MessageEvent).data)) as {
 							sessionId?: unknown;
+							outcomeId?: unknown;
+							planId?: unknown;
+							planRevisionId?: unknown;
 							payload?: unknown;
 						};
 						// The SSE endpoint sends the complete durable CDC event. Routing
@@ -78,7 +104,33 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 							pendingConversationSessions.add(decoded.sessionId);
 							conversationOnly = true;
 						}
+						if (eventType.startsWith("outcome_")) {
+							const outcomeId =
+								typeof decoded.outcomeId === "string"
+									? decoded.outcomeId
+									: typeof (payload as { outcomeId?: unknown } | undefined)?.outcomeId === "string"
+										? ((payload as { outcomeId: string }).outcomeId)
+										: "";
+							const planId =
+								typeof decoded.planId === "string"
+									? decoded.planId
+									: typeof decoded.planRevisionId === "string"
+										? decoded.planRevisionId
+										: typeof (payload as { planId?: unknown } | undefined)?.planId === "string"
+											? ((payload as { planId: string }).planId)
+											: typeof (payload as { planRevisionId?: unknown } | undefined)?.planRevisionId === "string"
+												? ((payload as { planRevisionId: string }).planRevisionId)
+												: "";
+							if (outcomeId && planId) {
+								pendingOutcomeSchedules.add(outcomeScheduleQueryKey(outcomeId, planId));
+							} else if (outcomeId) {
+								pendingOutcomeSchedules.add(outcomeScheduleQueryKey(outcomeId));
+							} else {
+								allOutcomeSchedulesInvalidationPending = true;
+							}
+						}
 					} catch {
+						if (eventType.startsWith("outcome_")) allOutcomeSchedulesInvalidationPending = true;
 						// A malformed CDC payload still invalidates workspaces; it simply
 						// cannot target a conversation cache precisely.
 					}
@@ -86,6 +138,14 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 				if (!conversationOnly) workspaceInvalidationPending = true;
 				if (debounce) clearTimeout(debounce);
 				debounce = setTimeout(() => {
+					if (outcomeFactsInvalidationPending) {
+						// A connected stream does not make cached responsibility facts current.
+						// Refresh the Mission and portfolio together after CDC or a reconnect gap.
+						for (const root of ["project-outcomes", "outcome", "outcome-plan", "outcome-attempts", "outcome-proof", "outcome-schedule", "outcome-run-state", "project-run-states", "outcome-planning-session", "outcome-planning-candidates"]) {
+							void queryClient.invalidateQueries({ queryKey: [root] });
+						}
+						outcomeFactsInvalidationPending = false;
+					}
 					if (workspaceInvalidationPending) {
 						void queryClient.invalidateQueries({ queryKey: workspaceQueryKey });
 						void queryClient.invalidateQueries({ queryKey: agentSwitchesQueryRoot });
@@ -93,6 +153,16 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 						void queryClient.invalidateQueries({ queryKey: sessionUsageQueryRoot });
 						workspaceInvalidationPending = false;
 					}
+					if (allOutcomeSchedulesInvalidationPending) {
+						void queryClient.invalidateQueries({ queryKey: ["outcome-schedule"] });
+ void queryClient.invalidateQueries({ queryKey: ["outcome-run-state"] });
+ void queryClient.invalidateQueries({ queryKey: ["project-run-states"] });
+						allOutcomeSchedulesInvalidationPending = false;
+					}
+					for (const queryKey of pendingOutcomeSchedules) {
+						void queryClient.invalidateQueries({ queryKey });
+					}
+					pendingOutcomeSchedules.clear();
 					for (const sessionId of pendingConversationSessions) {
 						void queryClient.invalidateQueries({ queryKey: conversationQueryKey(sessionId) });
 					}

@@ -31,6 +31,27 @@ export type AttemptBoardPresentation = BoardSessionPresentation & {
 	isCurrent: boolean;
 };
 
+/** Keep board, WorkShell, and Mission Control on the same durable lineage
+ * winner even when a compatibility payload is not already sorted. */
+export function newestAttempt(attempts: AttemptRecord[]): AttemptRecord | undefined {
+	return attempts.reduce<AttemptRecord | undefined>((newest, attempt) => {
+		if (!newest) return attempt;
+		if (attempt.number !== newest.number) return attempt.number > newest.number ? attempt : newest;
+		if (attempt.updatedAt !== newest.updatedAt) return attempt.updatedAt > newest.updatedAt ? attempt : newest;
+		return attempt.id > newest.id ? attempt : newest;
+	}, undefined);
+}
+
+/** Resolve the latest AgentSessionRef without relying on JSON/list order. */
+export function newestAttemptSession(attempt: AttemptRecord): AttemptRecord["sessions"][number] | undefined {
+	return attempt.sessions.reduce<AttemptRecord["sessions"][number] | undefined>((newest, session) => {
+		if (!newest) return session;
+		if (session.seq !== newest.seq) return session.seq > newest.seq ? session : newest;
+		if (session.boundAt !== newest.boundAt) return session.boundAt > newest.boundAt ? session : newest;
+		return session.id > newest.id ? session : newest;
+	}, undefined);
+}
+
 type AttemptPhase = AttemptRecord["presentation"]["phase"];
 
 /**
@@ -97,7 +118,7 @@ export function toAttemptBoardPresentation(
 		attempt,
 		id: attempt.id,
 		isCurrent,
-		provider: attempt.sessions[0]?.harness ?? "",
+		provider: newestAttemptSession(attempt)?.harness ?? "",
 		status: ZONE_DRIVER_STATUS[zone],
 		statusPresentation: {
 			className: ZONE_TEXT_CLASSNAME[zone],
@@ -196,7 +217,7 @@ function MergeAttemptLink({ href }: { href: string }) {
  * Attempt carries no PR field of its own; only its bound WorkspaceSession does.
  */
 function useAttemptMergeHref(attempt: AttemptRecord): string | undefined {
-	const latestBinding = attempt.sessions[attempt.sessions.length - 1];
+	const latestBinding = newestAttemptSession(attempt);
 	const sessionId = latestBinding?.sessionId;
 	const workspaceQuery = useWorkspaceQuery();
 	const scmQuery = useSessionScmSummary(sessionId);

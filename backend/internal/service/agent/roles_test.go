@@ -12,14 +12,6 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
-// fakeProfileAgent is an installed adapter whose profile gate reports the
-// given readiness, so enrichment can be tested without a real dsh binary.
-type fakeProfileAgent struct {
-	fakeAgent
-	ready  bool
-	detail string
-}
-
 // captureProfileAgent records the exact config the readiness probe received,
 // proving Project-config profiles reach the adapter gate.
 type captureProfileAgent struct {
@@ -61,10 +53,6 @@ func TestServiceResolveMissionRolesUsesProjectConfigForReadiness(t *testing.T) {
 	if !strings.Contains(strings.ToLower(roles.Worker.Reason), "profile") {
 		t.Fatalf("reason should carry the profile gate: %q", roles.Worker.Reason)
 	}
-}
-
-func (f fakeProfileAgent) ProfileReadiness(context.Context, ports.AgentConfig) (ports.AgentProfileReadiness, error) {
-	return ports.AgentProfileReadiness{Ready: f.ready, Detail: f.detail}, nil
 }
 
 // TestServiceResolveMissionRolesMismatchedOverrideHarnessIsCleared locks
@@ -196,7 +184,7 @@ func TestEnrichMissionRolesFailsClosedWhenAuthorizationNotGranted(t *testing.T) 
 		"unauthorized": ports.AgentAuthStatusUnauthorized,
 		"unknown":      ports.AgentAuthStatusUnknown,
 	} {
-		base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{}})
+		base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{Coordinator: "codex"}})
 		facts := map[domain.AgentHarness]RoleInventoryFact{
 			domain.HarnessCodex: {Installed: true, AuthApplicable: true, Auth: auth},
 		}
@@ -250,7 +238,7 @@ func TestEnrichMissionRolesCursorReadyAfterProfile(t *testing.T) {
 }
 
 func TestEnrichMissionRolesMarksUninstalledHarnessNotReady(t *testing.T) {
-	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{}})
+	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{Coordinator: "codex"}})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
 		domain.HarnessCodex: {Installed: false, AuthApplicable: true, Auth: ports.AgentAuthStatusAuthorized},
 	}
@@ -261,7 +249,11 @@ func TestEnrichMissionRolesMarksUninstalledHarnessNotReady(t *testing.T) {
 }
 
 func TestEnrichMissionRolesPassesReadyRolesThrough(t *testing.T) {
-	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{}})
+	// Every role is selected explicitly: roles no longer fall back to an
+	// implicit canonical default, so an unset role stays unassigned.
+	base := domain.ResolveMissionRoles(domain.ProjectConfig{AgentPreferences: domain.ProjectAgentPreferences{
+		DefaultWorker: "codex", Analyzer: "codex", Coordinator: "codex", Verifier: "codex",
+	}})
 	facts := map[domain.AgentHarness]RoleInventoryFact{
 		domain.HarnessCodex: {Installed: true, AuthApplicable: true, Auth: ports.AgentAuthStatusAuthorized},
 	}
@@ -281,7 +273,7 @@ func TestServiceResolveMissionRolesProbesLiveInventory(t *testing.T) {
 		{Harness: domain.HarnessCursor, Manifest: adapters.Manifest{ID: "cursor"}, Agent: &cursor.Plugin{}},
 		{Harness: domain.HarnessCodex, Manifest: adapters.Manifest{ID: "codex"}, Agent: fakeAuthAgent{fakeAgent: fakeAgent{}, status: ports.AgentAuthStatusAuthorized}},
 	})
-	roles := svc.ResolveMissionRoles(context.Background(), domain.ProjectAgentPreferences{DefaultWorker: "cursor"}, domain.ProjectConfig{})
+	roles := svc.ResolveMissionRoles(context.Background(), domain.ProjectAgentPreferences{DefaultWorker: "cursor", Coordinator: "codex"}, domain.ProjectConfig{})
 	// The real dsh binary is absent on this machine's test PATH and no profile
 	// is configured: the preference is honored but readiness fails closed.
 	if roles.Worker.Harness != domain.HarnessCursor {
@@ -299,11 +291,12 @@ func TestServiceResolveMissionRolesProbesLiveInventory(t *testing.T) {
 	}
 }
 
-// TestResolveMissionRolesCoordinatorFallbackIgnoresCandidateOrder proves the
-// canonical coordinator default is deterministic: with several admitted,
-// authorized adapters in the inventory — probed in different orders — a
-// stored non-coordinator preference still falls back to the same canonical
-// default with identical proposals.
+// TestResolveMissionRolesCoordinatorFallbackIgnoresCandidateOrder proves that
+// an unselected coordinator fails closed deterministically. There is no
+// canonical default any more: a Project selection is authority the owner gives
+// explicitly, so several admitted, authorized adapters in the inventory —
+// probed in different orders — must all leave the coordinator unassigned with
+// identical proposals rather than promoting whichever was probed first.
 func TestResolveMissionRolesCoordinatorFallbackIgnoresCandidateOrder(t *testing.T) {
 	prefs := domain.ProjectAgentPreferences{DefaultWorker: "cursor"}
 	build := func(order []domain.AgentHarness) *Service {
@@ -330,8 +323,8 @@ func TestResolveMissionRolesCoordinatorFallbackIgnoresCandidateOrder(t *testing.
 	var baseline domain.ResolvedMissionRoles
 	for i, order := range orderings {
 		got := build(order).ResolveMissionRoles(context.Background(), prefs, domain.ProjectConfig{})
-		if got.Coordinator.Harness != domain.HarnessCodex || got.Coordinator.Source != domain.RoleSourceDefault {
-			t.Fatalf("ordering %d coordinator = %+v, want canonical codex/default", i, got.Coordinator)
+		if got.Coordinator.Source != domain.RoleSourceUnassigned || got.Coordinator.Ready {
+			t.Fatalf("ordering %d coordinator = %+v, want unassigned and not ready", i, got.Coordinator)
 		}
 		if got.Worker.Harness != domain.HarnessCursor || got.Worker.Source != domain.RoleSourcePreference {
 			t.Fatalf("ordering %d worker = %+v, want honored cursor-harness preference", i, got.Worker)

@@ -26,6 +26,12 @@ type fakeStore struct {
 	keys     map[string]domain.OutcomeID
 	plans    map[domain.OutcomeID]domain.PlanRevision
 	links    map[domain.OutcomeID][]domain.ContributionLink
+	// intelRuns holds reasoning provenance. It is lazily created so the many
+	// existing constructors of this fake need not all be touched.
+	intelRuns map[domain.IntelligenceRunID]domain.IntelligenceRun
+	// proof is the in-memory Evidence/Verification/Acceptance record, created
+	// lazily for the same reason.
+	proof *proofFakeState
 
 	decompositions     map[domain.DecompositionRevisionID]domain.DecompositionRevision
 	decompositionOrder []domain.DecompositionRevisionID
@@ -147,7 +153,10 @@ func validCreateInput() outcome.CreateInput {
 		Goal:            "A user can record and review today's protected focus time locally.",
 		SuccessCriteria: []string{"Entering positive whole minutes creates one focus block."},
 		Review:          "Deterministic checks plus owner walkthrough.",
-		RequestKey:      "req-create-1",
+		// Without a ceiling the Contract authorizes nothing, so planning could
+		// never derive a legal WorkUnit. A realistic Outcome states one.
+		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true, WriteWorkspace: true, ExecuteLocal: true},
+		RequestKey:       "req-create-1",
 	}
 }
 
@@ -669,4 +678,37 @@ func (f *fakeStore) BindDecompositionRequestSession(_ context.Context, id domain
 	request.SessionID = sessionID
 	f.requests[id] = request
 	return nil
+}
+
+func TestRevisionEvidenceBindsNewCriterionIdentities(t *testing.T) {
+	svc, _ := newService()
+	ctx := context.Background()
+	original, err := svc.Create(ctx, validCreateInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	revised, err := svc.ReviseContract(ctx, original.Outcome.ID, outcome.ReviseContractInput{
+		ExpectedRevision: 1, Goal: "Revised goal", SuccessCriteria: []string{"New criterion"}, Review: "Owner reviews evidence",
+		CriterionEvidence: [][]string{{"Source path and quoted result"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(revised.Current.EvidenceExpectations) != 1 || revised.Current.EvidenceExpectations[0].CriterionID != revised.Current.Criteria[0].ID {
+		t.Fatalf("evidence is not bound to the new criterion: %#v", revised.Current)
+	}
+	if revised.Current.Criteria[0].ID == original.Current.Criteria[0].ID {
+		t.Fatal("revision reused old criterion identity")
+	}
+	_, err = svc.ReviseContract(ctx, original.Outcome.ID, outcome.ReviseContractInput{
+		ExpectedRevision: 2, Goal: "Invalid revision", SuccessCriteria: []string{"One", "Two"}, Review: "Owner review",
+		CriterionEvidence: [][]string{{"Only one"}},
+	})
+	if err == nil {
+		t.Fatal("mismatched criterion evidence was accepted")
+	}
+	current, err := svc.Get(ctx, original.Outcome.ID)
+	if err != nil || current.Current.Number != 2 {
+		t.Fatal("invalid revision changed current contract")
+	}
 }

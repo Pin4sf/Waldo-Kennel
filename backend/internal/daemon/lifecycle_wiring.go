@@ -145,6 +145,11 @@ type sessionLifecycle interface {
 	// SetReviewerTerminator late-binds worker lifecycle teardown to the review
 	// service, which is built alongside the controller-facing service below.
 	SetReviewerTerminator(terminator sessionmanager.ReviewerTerminator)
+	// SetAttemptInputProvisioner late-binds artifact handoff, which needs the
+	// artifact store and receipt store built later in boot. Without it a
+	// governed successor with dependencies is refused rather than launched on
+	// a workspace missing its inputs.
+	SetAttemptInputProvisioner(provisioner ports.AttemptInputProvisioner)
 }
 
 // sessionLifecycleMessenger adapts sessionLifecycle to ports.AgentMessenger so
@@ -458,6 +463,10 @@ func (c chatLauncher) PreflightChat(ctx context.Context, harness domain.AgentHar
 	return c.svc.PreflightChat(ctx, harness)
 }
 
+func (c chatLauncher) PreflightChatExecutionPolicy(ctx context.Context, harness domain.AgentHarness, policy domain.AttemptExecutionPolicy) error {
+	return c.svc.PreflightChatExecutionPolicy(ctx, harness, policy)
+}
+
 func (c chatLauncher) StartChat(ctx context.Context, cfg sessionmanager.ChatStart) (sessionmanager.ChatStarted, error) {
 	out, err := c.svc.StartChat(ctx, chatsvc.StartRequest{
 		SessionID:              cfg.SessionID,
@@ -469,6 +478,7 @@ func (c chatLauncher) StartChat(ctx context.Context, cfg sessionmanager.ChatStar
 		Env:                    cfg.Env,
 		Model:                  cfg.Model,
 		Permissions:            cfg.Permissions,
+		ExecutionPolicy:        cfg.ExecutionPolicy,
 		SystemPrompt:           cfg.SystemPrompt,
 		AdditionalDirectories:  cfg.AdditionalDirectories,
 		ProviderConversationID: cfg.ProviderConversationID,

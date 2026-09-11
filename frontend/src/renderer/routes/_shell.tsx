@@ -1,3 +1,4 @@
+import { createProjectConfig } from "../lib/create-project-config";
 import { createFileRoute, Outlet, useMatchRoute, useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import { isCancelledError, useQueryClient } from "@tanstack/react-query";
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
@@ -36,7 +37,7 @@ import { useWindowFullScreen } from "../hooks/useWindowFullScreen";
 import { useWorkspaceQuery, workspaceQueryKey, workspaceQueryOptions } from "../hooks/useWorkspaceQuery";
 import { apiClient, apiErrorCode, apiErrorMessage, hasTrustedApiBaseUrl } from "../lib/api-client";
 import { refreshDaemonStatus } from "../lib/daemon-status";
-import { usesPreviewWorkspaceData, usesWaldoUiPreview } from "../lib/preview-mode";
+import { usesPreviewWorkspaceData, usesWaldoUiPreview, usesWorkLaunchMode } from "../lib/preview-mode";
 import { addRendererExceptionStep, captureRendererEvent, captureRendererException } from "../lib/telemetry";
 import { ShellProvider } from "../lib/shell-context";
 import { restartProjectOrchestrator } from "../lib/restart-orchestrator";
@@ -79,62 +80,7 @@ function errorMessage(error: unknown) {
 	return error instanceof Error ? error.message : "Could not load projects";
 }
 
-type CreateProjectConfigInput = {
-	// Empty means the Project is registered now and provider setup is deferred.
-	workerAgent: string;
-	// Optional provider-scoped model preference. Empty means provider/Kennel
-	// default and never manufactures a provider or execution lock.
-	workerModel?: string;
-	workerMode?: string;
-	// Optional: present only after an explicit Advanced Settings choice. Empty
-	// means no coordinator is configured; the worker is never reused implicitly.
-	orchestratorAgent?: string;
-	orchestratorModel?: string;
-	orchestratorMode?: string;
-	trackerIntake?: components["schemas"]["TrackerIntakeConfig"];
-};
-
-function projectRoleAgentConfig(
-	model?: string,
-	mode?: string,
-): components["schemas"]["AgentConfig"] | undefined {
-	const cleanModel = model?.trim() ?? "";
-	const cleanMode = mode?.trim() ?? "";
-	if (!cleanModel && !cleanMode) return undefined;
-	return {
-		...(cleanModel ? { model: cleanModel } : {}),
-		...(cleanMode ? { mode: cleanMode } : {}),
-	};
-}
-
-export function createProjectConfig(input: CreateProjectConfigInput): components["schemas"]["ProjectConfig"] {
-	const workerAgentConfig = input.workerAgent
-		? projectRoleAgentConfig(input.workerModel, input.workerMode)
-		: undefined;
-	const orchestratorAgentConfig = input.orchestratorAgent
-		? projectRoleAgentConfig(input.orchestratorModel, input.orchestratorMode)
-		: undefined;
-	return {
-		...(input.workerAgent
-			? {
-					worker: {
-						agent: input.workerAgent as components["schemas"]["RoleOverride"]["agent"],
-						...(workerAgentConfig ? { agentConfig: workerAgentConfig } : {}),
-					},
-					agentPreferences: { defaultWorker: input.workerAgent },
-				}
-			: {}),
-		...(input.orchestratorAgent
-			? {
-					orchestrator: {
-						agent: input.orchestratorAgent as components["schemas"]["RoleOverride"]["agent"],
-						...(orchestratorAgentConfig ? { agentConfig: orchestratorAgentConfig } : {}),
-					},
-				}
-			: {}),
-		...(input.trackerIntake ? { trackerIntake: input.trackerIntake } : {}),
-	};
-}
+export { createProjectConfig } from "../lib/create-project-config";
 
 const isMac = isMacPlatform();
 const isWindows = isWindowsPlatform();
@@ -775,9 +721,9 @@ function ShellLayout() {
 								/>
 								<main
 									className={cn(
-										"relative flex min-w-0 flex-1 flex-col overflow-x-hidden",
+										"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
 										!usesWorkProjectShell && !isSidebarOpen && "sidebar-hidden",
-										!isHomeRoute && "waldo-launcher-reserved",
+																				!isHomeRoute && !usesWorkLaunchMode && "waldo-launcher-reserved",
 									)}
 								>
 									<div className="min-h-0 flex-1 overflow-x-hidden">
@@ -813,10 +759,10 @@ function ShellLayout() {
 											</CenterPanelShell>
 										)}
 									</div>
-									<div className="pointer-events-none absolute right-2 top-1.5 z-titlebar">
+									{!usesWorkLaunchMode ? <div className="pointer-events-none absolute right-2 top-1.5 z-titlebar">
 										<WaldoLauncher className="pointer-events-auto" />
-									</div>
-									{!isHomeRoute ? (
+									</div> : null}
+									{!isHomeRoute && !usesWorkLaunchMode ? (
 										<WaldoShellRail
 											contextLabel={waldoWorkContext}
 											daemonReady={daemonStatus.state === "ready"}

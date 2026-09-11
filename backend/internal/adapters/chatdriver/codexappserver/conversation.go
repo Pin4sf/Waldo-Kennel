@@ -49,6 +49,14 @@ type conversation struct {
 	events   chan ports.ChatEvent
 	// Effective defaults returned when Codex opened or resumed this thread.
 	threadModel, threadEffort string
+	// governedSandboxPolicy is sent on every governed turn. Thread/start only
+	// accepts a broad sandbox name; turn/start carries the effective boundary.
+	governedSandboxPolicy map[string]any
+	// intelligencePermissions names the request-scoped, injected permission
+	// profile pinned on every Waldo proposal turn. It must never be inferred
+	// from ordinary Chat permission modes.
+	intelligencePermissions string
+	intelligenceWorkspace   string
 
 	mu      sync.Mutex
 	pending map[string]*parkedRequest
@@ -116,10 +124,11 @@ func newConversation(proc *process, log *slog.Logger) *conversation {
 // start records the opened thread and begins translating notifications. It is
 // called once, after the thread is open, so no event is emitted for a
 // conversation the caller does not yet have a handle to.
-func (c *conversation) start(threadID, model, effort string) {
+func (c *conversation) start(threadID, model, effort string, governedSandboxPolicy map[string]any) {
 	c.threadID = threadID
 	c.threadModel = model
 	c.threadEffort = effort
+	c.governedSandboxPolicy = governedSandboxPolicy
 	go c.pump()
 }
 
@@ -222,6 +231,14 @@ func (c *conversation) emit(ev ports.ChatEvent) {
 
 // SendTurn delivers one message to the provider.
 func (c *conversation) SendTurn(ctx context.Context, msg ports.ChatUserMessage) (ports.ChatTurnRef, error) {
+	return c.sendTurn(ctx, msg, nil)
+}
+
+// sendTurn is the shared turn/start boundary. Structured reasoning uses the
+// provider's native outputSchema field; keeping that option inside this
+// adapter prevents a generic chat caller from smuggling provider wire fields
+// through the ports contract.
+func (c *conversation) sendTurn(ctx context.Context, msg ports.ChatUserMessage, outputSchema json.RawMessage) (ports.ChatTurnRef, error) {
 	if strings.TrimSpace(msg.Text) == "" {
 		// There is no keystroke concept here: an empty message is a caller bug,
 		// not a way to nudge the agent.
@@ -240,7 +257,28 @@ func (c *conversation) SendTurn(ctx context.Context, msg ports.ChatUserMessage) 
 		// must not produce a second turn.
 		params["clientUserMessageId"] = msg.ClientMessageID
 	}
+	if len(outputSchema) > 0 {
+		params["outputSchema"] = append(json.RawMessage(nil), outputSchema...)
+	}
+	if c.intelligencePermissions != "" {
+		// The named profile carries exact filesystem roots plus network denial.
+		// Pin it and the runtime root on every proposal turn; sandboxPolicy cannot
+		// be combined with a permissions profile in the app-server protocol.
+		params["approvalPolicy"] = "never"
+		params["permissions"] = c.intelligencePermissions
+		params["runtimeWorkspaceRoots"] = []string{c.intelligenceWorkspace}
+		params["environments"] = []any{}
+	}
+	if c.governedSandboxPolicy != nil {
+		params["approvalPolicy"] = "on-request"
+		params["sandboxPolicy"] = cloneSandboxPolicy(c.governedSandboxPolicy)
+	}
 	applyTurnSettings(params, msg.Settings)
+	if c.governedSandboxPolicy != nil {
+		// Per-turn UI settings must not widen the immutable Attempt boundary.
+		params["approvalPolicy"] = "on-request"
+		params["sandboxPolicy"] = cloneSandboxPolicy(c.governedSandboxPolicy)
+	}
 
 	var resp struct {
 		Turn struct {
@@ -249,6 +287,9 @@ func (c *conversation) SendTurn(ctx context.Context, msg ports.ChatUserMessage) 
 	}
 	if err := c.conn.request(ctx, "turn/start", params, &resp); err != nil {
 		return ports.ChatTurnRef{}, fmt.Errorf("turn/start: %w", err)
+	}
+	if strings.TrimSpace(resp.Turn.ID) == "" {
+		return ports.ChatTurnRef{}, errors.New("turn/start returned no turn id")
 	}
 
 	c.mu.Lock()
@@ -294,6 +335,30 @@ func turnSandboxPolicy(sandbox string) map[string]any {
 	default:
 		return map[string]any{"type": "dangerFullAccess"}
 	}
+}
+
+func turnSandboxPolicyForExecution(sandbox string) map[string]any {
+	if sandbox == "read-only" {
+		return map[string]any{
+			"type":          "readOnly",
+			"networkAccess": false,
+		}
+	}
+	return map[string]any{
+		"type":                "workspaceWrite",
+		"networkAccess":       false,
+		"writableRoots":       []string{},
+		"excludeSlashTmp":     true,
+		"excludeTmpdirEnvVar": true,
+	}
+}
+
+func cloneSandboxPolicy(policy map[string]any) map[string]any {
+	clone := make(map[string]any, len(policy))
+	for key, value := range policy {
+		clone[key] = value
+	}
+	return clone
 }
 
 // ListModels asks the provider which models this account may use.

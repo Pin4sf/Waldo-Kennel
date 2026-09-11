@@ -206,9 +206,9 @@ func TestMigrateDeepSeekHarnessSessionRoundTrip(t *testing.T) {
 
 	if _, err := db.Exec(`
 INSERT INTO projects (id, path, registered_at, config)
-VALUES ('agent-orchestrator', '/repo/agent-orchestrator', ?, '{}');
+VALUES ('sample-project', '/repo/sample-project', ?, '{}');
 INSERT INTO sessions (id, project_id, num, harness, activity_last_at, created_at, updated_at)
-VALUES ('agent-orchestrator-1', 'agent-orchestrator', 1, 'deepseek-harness', ?, ?, ?);
+VALUES ('sample-project-1', 'sample-project', 1, 'deepseek-harness', ?, ?, ?);
 `, time.Unix(100, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC()); err != nil {
 		t.Fatalf("insert deepseek-harness session after migrations: %v", err)
 	}
@@ -224,7 +224,7 @@ VALUES ('agent-orchestrator-1', 'agent-orchestrator', 1, 'deepseek-harness', ?, 
 	// unwritable exactly as before.
 	if _, err := db.Exec(`
 INSERT INTO sessions (id, project_id, num, harness, activity_last_at, created_at, updated_at)
-VALUES ('agent-orchestrator-2', 'agent-orchestrator', 2, 'not-a-real-harness', ?, ?, ?);
+VALUES ('sample-project-2', 'sample-project', 2, 'not-a-real-harness', ?, ?, ?);
 `, time.Unix(102, 0).UTC(), time.Unix(103, 0).UTC(), time.Unix(103, 0).UTC()); err == nil {
 		t.Fatal("session insert with bogus harness value succeeded, want a CHECK violation")
 	}
@@ -261,9 +261,9 @@ func TestMigrateRepairsSkippedMuseHarnessConstraint(t *testing.T) {
 	}
 	if _, err := db.Exec(`
 INSERT INTO projects (id, path, registered_at, config)
-VALUES ('agent-orchestrator', '/repo/agent-orchestrator', ?, '{}');
+VALUES ('sample-project', '/repo/sample-project', ?, '{}');
 INSERT INTO sessions (id, project_id, num, harness, activity_last_at, created_at, updated_at)
-VALUES ('agent-orchestrator-1', 'agent-orchestrator', 1, 'muse', ?, ?, ?);
+VALUES ('sample-project-1', 'sample-project', 1, 'muse', ?, ?, ?);
 `, time.Unix(100, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC()); err != nil {
 		t.Fatalf("insert muse session after repair: %v", err)
 	}
@@ -398,9 +398,9 @@ WHERE type = 'table' AND name = 'sessions'`,
 
 	if _, err := db.Exec(`
 INSERT INTO projects (id, path, registered_at, config)
-VALUES ('agent-orchestrator', '/repo/agent-orchestrator', ?, '{}');
+VALUES ('sample-project', '/repo/sample-project', ?, '{}');
 INSERT INTO sessions (id, project_id, num, harness, activity_last_at, created_at, updated_at)
-VALUES ('agent-orchestrator-1', 'agent-orchestrator', 1, 'prime-agent', ?, ?, ?);
+VALUES ('sample-project-1', 'sample-project', 1, 'prime-agent', ?, ?, ?);
 `, time.Unix(100, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC()); err != nil {
 		t.Fatalf("seed prime-agent session: %v", err)
 	}
@@ -470,9 +470,9 @@ func TestMigrateRepairsOMPHarnessConstraint(t *testing.T) {
 	}
 	if _, err := db.Exec(`
 INSERT INTO projects (id, path, registered_at, config)
-VALUES ('agent-orchestrator', '/repo/agent-orchestrator', ?, '{}');
+VALUES ('sample-project', '/repo/sample-project', ?, '{}');
 INSERT INTO sessions (id, project_id, num, harness, activity_last_at, created_at, updated_at)
-VALUES ('agent-orchestrator-1', 'agent-orchestrator', 1, 'omp', ?, ?, ?);
+VALUES ('sample-project-1', 'sample-project', 1, 'omp', ?, ?, ?);
 `, time.Unix(100, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC(), time.Unix(101, 0).UTC()); err != nil {
 		t.Fatalf("insert omp session after repair: %v", err)
 	}

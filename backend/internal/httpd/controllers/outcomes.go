@@ -17,10 +17,10 @@ import (
 // OutcomeService is the controller-facing Outcome contract (#21) plus the
 // Decide & Authorize boundary (#26).
 type OutcomeService interface {
-	Create(ctx context.Context, in outcomevc.CreateInput) (outcomevc.OutcomeView, error)
-	ReviseContract(ctx context.Context, id domain.OutcomeID, in outcomevc.ReviseContractInput) (outcomevc.OutcomeView, error)
-	Get(ctx context.Context, id domain.OutcomeID) (outcomevc.OutcomeView, error)
-	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]outcomevc.OutcomeView, error)
+	Create(ctx context.Context, in outcomevc.CreateInput) (outcomevc.View, error)
+	ReviseContract(ctx context.Context, id domain.OutcomeID, in outcomevc.ReviseContractInput) (outcomevc.View, error)
+	Get(ctx context.Context, id domain.OutcomeID) (outcomevc.View, error)
+	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]outcomevc.View, error)
 	ProposePlan(ctx context.Context, id domain.OutcomeID, expectedContractRevision int64) (outcomevc.PlanView, error)
 	ApprovePlan(ctx context.Context, id domain.OutcomeID, in outcomevc.ApprovePlanInput) (outcomevc.AuthorizedPlanView, error)
 	GetLatestPlan(ctx context.Context, id domain.OutcomeID) (outcomevc.PlanView, error)
@@ -82,10 +82,22 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Get("/projects/{id}/outcomes", c.list)
 	r.Post("/projects/{id}/outcomes", c.create)
 	r.Get("/outcomes/{outcomeId}", c.get)
+	r.Get("/projects/{id}/outcome-trash", c.trashedOutcomes)
+	r.Get("/outcomes/{outcomeId}/deletion", c.deletionPreview)
+	r.Post("/outcomes/{outcomeId}/deletion", c.changeDeletion)
 	r.Post("/outcomes/{outcomeId}/revisions", c.revise)
 	r.Post("/outcomes/{outcomeId}/plans", c.proposePlan)
+	r.Post("/outcomes/{outcomeId}/plans/replan", c.replanPlan)
 	r.Post("/outcomes/{outcomeId}/plans/{planId}/approval", c.approvePlan)
 	r.Get("/outcomes/{outcomeId}/plan", c.latestPlan)
+	r.Get("/outcomes/{outcomeId}/planning-candidates", c.planningCandidates)
+	r.Post("/outcomes/{outcomeId}/planning-sessions", c.startPlanning)
+	r.Get("/outcomes/{outcomeId}/planning-session", c.currentPlanning)
+	r.Get("/outcomes/{outcomeId}/planning-sessions/{planningSessionId}", c.getPlanning)
+	r.Post("/outcomes/{outcomeId}/planning-sessions/{planningSessionId}/messages", c.continuePlanning)
+	r.Post("/outcomes/{outcomeId}/planning-sessions/{planningSessionId}/proposal", c.finalizePlanning)
+	r.Post("/outcomes/{outcomeId}/planning-sessions/{planningSessionId}/cancel", c.cancelPlanning)
+	r.Get("/outcomes/{outcomeId}/plans/{planId}/schedule", c.schedule)
 	r.Post("/outcomes/{outcomeId}/attempts", c.startAttempt)
 	r.Get("/outcomes/{outcomeId}/attempts", c.listAttempts)
 	r.Get("/outcomes/{outcomeId}/attempts/{attemptId}", c.getAttempt)
@@ -109,6 +121,7 @@ func (c *OutcomesController) Register(r chi.Router) {
 	r.Post("/outcomes/{outcomeId}/acceptance-decisions", c.decideAcceptance)
 	r.Get("/outcomes/{outcomeId}/acceptance-batch", c.batchEligibility)
 	r.Post("/outcomes/{outcomeId}/acceptance-batch", c.acceptContributorBatch)
+	c.registerRunRoutes(r)
 }
 
 func (c *OutcomesController) getProof(w http.ResponseWriter, r *http.Request) {
@@ -234,6 +247,31 @@ func (c *OutcomesController) proposePlan(w http.ResponseWriter, r *http.Request)
 	envelope.WriteJSON(w, http.StatusCreated, PlanEnvelope{Plan: planRevisionResponse(view.Plan)})
 }
 
+func (c *OutcomesController) replanPlan(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/plans/replan")
+		return
+	}
+	var req ReplanPlanRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	replanner, ok := c.Svc.(interface {
+		ReplanPlan(context.Context, domain.OutcomeID, int64, string) (outcomevc.PlanView, error)
+	})
+	if !ok {
+		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/plans/replan")
+		return
+	}
+	view, err := replanner.ReplanPlan(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), req.ExpectedContractRevision, req.Feedback)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusCreated, PlanEnvelope{Plan: planRevisionResponse(view.Plan)})
+}
+
 func (c *OutcomesController) approvePlan(w http.ResponseWriter, r *http.Request) {
 	if c.Svc == nil {
 		apispec.NotImplemented(w, r, http.MethodPost, "/api/v1/outcomes/{outcomeId}/plans/{planId}/approval")
@@ -253,6 +291,26 @@ func (c *OutcomesController) approvePlan(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, PlanEnvelope{Plan: planRevisionResponse(view.Plan)})
+}
+
+func (c *OutcomesController) schedule(w http.ResponseWriter, r *http.Request) {
+	if c.Attempts == nil {
+		apispec.NotImplemented(w, r, http.MethodGet, "/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule")
+		return
+	}
+	scheduler, ok := c.Attempts.(interface {
+		GetSchedule(context.Context, domain.OutcomeID, domain.PlanRevisionID) (outcomevc.ScheduleView, error)
+	})
+	if !ok {
+		apispec.NotImplemented(w, r, http.MethodGet, "/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule")
+		return
+	}
+	view, err := scheduler.GetSchedule(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), domain.PlanRevisionID(chi.URLParam(r, "planId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, ScheduleEnvelope{Schedule: scheduleResponse(view)})
 }
 
 func (c *OutcomesController) latestPlan(w http.ResponseWriter, r *http.Request) {
@@ -287,7 +345,12 @@ func (c *OutcomesController) create(w http.ResponseWriter, r *http.Request) {
 		Constraints:     req.Constraints,
 		NonGoals:        req.NonGoals,
 		Clarification:   req.Clarification,
-		RequestKey:      req.RequestKey,
+		// Without a ceiling the Contract grants nothing and planning can never
+		// authorize a WorkUnit, so the direct-create path must be able to state
+		// one exactly as the Understand surfaces do.
+		AuthorityCeiling: proposedAuthority(req.AuthorityCeiling),
+		StopConditions:   req.StopConditions,
+		RequestKey:       req.RequestKey,
 	})
 	if err != nil {
 		envelope.WriteError(w, r, err)
@@ -319,14 +382,23 @@ func (c *OutcomesController) revise(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
 		return
 	}
+	facets := make([]domain.ContractFacet, 0, len(req.Facets))
+	for _, facet := range req.Facets {
+		facets = append(facets, domain.ContractFacet{Kind: domain.ContractFacetKind(facet.Kind), Summary: facet.Summary, Requirements: facet.Requirements})
+	}
 	view, err := c.Svc.ReviseContract(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.ReviseContractInput{
-		ExpectedRevision: req.ExpectedRevision,
-		Goal:             req.Goal,
-		SuccessCriteria:  req.SuccessCriteria,
-		Review:           req.Review,
-		Constraints:      req.Constraints,
-		NonGoals:         req.NonGoals,
-		Clarification:    req.Clarification,
+		CriterionEvidence: req.CriterionEvidence,
+		TemporalCondition: req.TemporalCondition,
+		Facets:            facets,
+		ExpectedRevision:  req.ExpectedRevision,
+		Goal:              req.Goal,
+		SuccessCriteria:   req.SuccessCriteria,
+		Review:            req.Review,
+		Constraints:       req.Constraints,
+		NonGoals:          req.NonGoals,
+		Clarification:     req.Clarification,
+		AuthorityCeiling:  proposedAuthority(req.AuthorityCeiling),
+		StopConditions:    req.StopConditions,
 	})
 	if err != nil {
 		envelope.WriteError(w, r, err)
@@ -348,6 +420,7 @@ func (c *OutcomesController) startAttempt(w http.ResponseWriter, r *http.Request
 	}
 	view, err := c.Attempts.StartAttempt(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.StartAttemptInput{
 		PlanRevisionID: domain.PlanRevisionID(req.PlanRevisionID),
+		WorkUnitID:     domain.WorkUnitID(req.WorkUnitID),
 		Harness:        domain.AgentHarness(req.Harness),
 		RequestKey:     req.RequestKey,
 	})
@@ -467,7 +540,7 @@ func (c *OutcomesController) getComposition(w http.ResponseWriter, r *http.Reque
 	}
 	// Each contributor carries its own contract so Mission Control can render
 	// the decomposition without a request per child.
-	contributors := make([]outcomevc.OutcomeView, 0, len(view.Contributors))
+	contributors := make([]outcomevc.View, 0, len(view.Contributors))
 	for _, contributor := range view.Contributors {
 		full, err := c.Svc.Get(r.Context(), contributor.Outcome.ID)
 		if err != nil {

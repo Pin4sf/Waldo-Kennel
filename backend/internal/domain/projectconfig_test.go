@@ -288,9 +288,9 @@ func TestWorkerOnlyProviderIsNeverPromotedToCoordinator(t *testing.T) {
 		t.Fatalf("worker = %+v, want explicit Cursor worker", roles.Worker)
 	}
 	for name, role := range map[string]ResolvedAgentRole{
-		"analyzer": roles.Analyzer,
+		"analyzer":    roles.Analyzer,
 		"coordinator": roles.Coordinator,
-		"verifier": roles.Verifier,
+		"verifier":    roles.Verifier,
 	} {
 		if role.Harness != "" || role.Source != RoleSourceUnassigned || role.Eligible || role.Ready {
 			t.Fatalf("%s was promoted from worker-only provider: %+v", name, role)

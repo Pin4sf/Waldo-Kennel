@@ -492,9 +492,15 @@ type recordingAgent struct {
 	fakeAgent
 	lastConfig   ports.AgentConfig
 	lastLaunch   ports.LaunchConfig
+	lastPolicy   *domain.AttemptExecutionPolicy
 	lastRestore  ports.RestoreConfig
 	launchCalls  int
 	restoreCalls int
+}
+
+func (a *recordingAgent) ValidateExecutionPolicy(_ context.Context, _ ports.AgentConfig, policy domain.AttemptExecutionPolicy) error {
+	a.lastPolicy = &policy
+	return nil
 }
 
 func (a *recordingAgent) GetLaunchCommand(_ context.Context, cfg ports.LaunchConfig) ([]string, error) {
@@ -1106,6 +1112,90 @@ func TestSpawn_ResolvesProjectConfig(t *testing.T) {
 	}
 	if got := ws.lastCfg.BaseBranch; got != "" {
 		t.Fatalf("automatic workspace base branch = %q, want empty for adapter inference", got)
+	}
+}
+
+func TestSpawn_ExactExecutionBindingReachesLaunchConfig(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
+		AgentConfig: domain.AgentConfig{Model: "mutable-project-model"},
+		Worker:      domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Model: "mutable-worker-model"}},
+	}}
+	agent := &recordingAgent{}
+	m := New(Deps{
+		Runtime: &fakeRuntime{}, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st,
+		Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: func(string) (string, error) { return "/bin/true", nil },
+	})
+
+	tests := []struct {
+		name    string
+		binding domain.ExecutionBinding
+		want    string
+	}{
+		{
+			name: "explicit model",
+			binding: domain.ExecutionBinding{
+				Provider: domain.HarnessCodex, ModelSelection: domain.ExecutionBindingModelExplicit, Model: "approved-model",
+			},
+			want: "approved-model",
+		},
+		{
+			name: "provider default",
+			binding: domain.ExecutionBinding{
+				Provider: domain.HarnessCodex, ModelSelection: domain.ExecutionBindingModelProviderDefault,
+			},
+			want: "",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			binding := test.binding
+			if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{
+				ProjectID: "mer", Kind: domain.KindWorker, AgentConfig: ports.AgentConfig{Model: "mutable-request-model"},
+				ExactExecutionBinding: &binding,
+			}); err != nil {
+				t.Fatalf("Spawn: %v", err)
+			}
+			if got := agent.lastLaunch.Config.Model; got != test.want {
+				t.Fatalf("launch model = %q, want %q", got, test.want)
+			}
+			if got := st.projects["mer"].Config.Worker.AgentConfig.Model; got != "mutable-worker-model" {
+				t.Fatalf("project worker model = %q, want it unchanged", got)
+			}
+		})
+	}
+}
+
+func TestSpawn_ExactExecutionPolicyOverridesProjectPermissionsAndReachesLaunch(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: domain.ProjectConfig{
+		AgentConfig: domain.AgentConfig{Permissions: domain.PermissionModeBypassPermissions},
+		Worker:      domain.RoleOverride{Harness: domain.HarnessCodex, AgentConfig: domain.AgentConfig{Permissions: domain.PermissionModeBypassPermissions}},
+	}}
+	agent := &recordingAgent{}
+	m := New(Deps{
+		Runtime: &fakeRuntime{}, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st,
+		Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: func(string) (string, error) { return "/bin/true", nil },
+	})
+	policy := &domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest: "brief", RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
+		Grants: []domain.CapabilityGrant{{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"}},
+	}
+	binding := domain.ExecutionBinding{Provider: domain.HarnessCodex, ModelSelection: domain.ExecutionBindingModelProviderDefault}
+	if _, _, _, err := m.Spawn(context.Background(), ports.SpawnConfig{
+		ProjectID: "mer", Kind: domain.KindWorker, ExactExecutionBinding: &binding, ExecutionPolicy: policy,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if agent.lastPolicy == nil || agent.lastPolicy.WorkUnitID != "wu-1" {
+		t.Fatal("execution policy did not reach the agent validation boundary")
+	}
+	if agent.lastLaunch.ExecutionPolicy == nil || agent.lastLaunch.ExecutionPolicy.Has(domain.CapabilityWorktreeWrite) {
+		t.Fatalf("launch policy = %+v, want narrow read-only policy", agent.lastLaunch.ExecutionPolicy)
+	}
+	if agent.lastLaunch.Permissions != domain.PermissionModeAcceptEdits {
+		t.Fatalf("governed launch retained mutable Project permission %q", agent.lastLaunch.Permissions)
 	}
 }
 
@@ -1911,8 +2001,13 @@ func TestSpawn_StampsUTCTimestamps(t *testing.T) {
 func TestSpawn_RollsBackOnRuntimeFailure(t *testing.T) {
 	m, st, _, ws := newManager()
 	m.runtime = &fakeRuntime{createErr: errors.New("boom")}
-	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer"}); err == nil {
+	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer"})
+	if err == nil {
 		t.Fatal("expected failure")
+	}
+	var prelaunch *ports.AttemptPrelaunchError
+	if errors.As(err, &prelaunch) {
+		t.Fatalf("runtime.Create was invoked; failure must remain ambiguous, got prelaunch stage %q", prelaunch.Stage)
 	}
 	if ws.destroyed != 1 {
 		t.Fatal("workspace should roll back")
@@ -2038,6 +2133,9 @@ func TestSpawn_DeletesSeedRowOnWorkspaceFailure(t *testing.T) {
 	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
 	if !errors.Is(err, ports.ErrWorkspaceBranchCheckedOutElsewhere) {
 		t.Fatalf("err = %v, want ports.ErrWorkspaceBranchCheckedOutElsewhere", err)
+	}
+	if !errors.Is(err, ports.ErrAttemptWorkspacePreparation) {
+		t.Fatal("workspace failure lost its pre-launch classification")
 	}
 	if rec, present := st.sessions["mer-1"]; present {
 		t.Fatalf("seed row must be deleted, got %+v", rec)
@@ -4243,6 +4341,10 @@ func TestSpawn_RejectsMissingAgentBinary(t *testing.T) {
 	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
 	if !errors.Is(err, ports.ErrAgentBinaryNotFound) {
 		t.Fatalf("err = %v, want ports.ErrAgentBinaryNotFound", err)
+	}
+	var prelaunch *ports.AttemptPrelaunchError
+	if !errors.As(err, &prelaunch) || prelaunch.Stage != "prepare_tui_launch" {
+		t.Fatalf("err = %v, want proven prepare_tui_launch failure", err)
 	}
 	if rt.created != 0 {
 		t.Fatal("runtime.Create must NOT run when the agent binary is missing")
@@ -7303,4 +7405,22 @@ func (m *flipOnNudgeMessenger) Send(_ context.Context, _ domain.SessionID, msg s
 		m.flipped = true
 	}
 	return nil
+}
+
+func TestSpawn_CustomProfilesDoNotReuseBranches(t *testing.T) {
+	first, firstStore, _, _ := newManager()
+	second, secondStore, _, _ := newManager()
+	first.dataDir = t.TempDir()
+	second.dataDir = t.TempDir()
+	a, _, _, err := first.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _, _, err := second.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstStore.sessions[a.ID].Metadata.Branch == secondStore.sessions[b.ID].Metadata.Branch {
+		t.Fatal("independent profiles generated the same checked-out branch")
+	}
 }

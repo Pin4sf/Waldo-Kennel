@@ -1785,7 +1785,40 @@ type SettingsResponse struct {
 	DefaultSessionMode string `json:"defaultSessionMode" enum:"chat,tui"`
 	// ChatHarnesses are the agents that can run in chat mode today. Empty means
 	// chat cannot be used yet, which a client should say plainly.
-	ChatHarnesses []string `json:"chatHarnesses"`
+	ChatHarnesses []string          `json:"chatHarnesses"`
+	Reasoning     ReasoningResponse `json:"reasoning"`
+}
+
+// ReasoningResponse reports reasoning readiness without returning a secret.
+type ReasoningResponse struct {
+	// Mode is "direct_api" for explicit Anthropic/OpenAI API credentials or
+	// "codex_harness" for the signed-in Codex app-server path.
+	Mode       string `json:"mode"`
+	Provider   string `json:"provider"`
+	Model      string `json:"model"`
+	Effort     string `json:"effort"`
+	Configured bool   `json:"configured"`
+	// Ready means only that a call can be attempted: a provider is selected and
+	// a matching credential is present. It is not a claim that reasoning works.
+	Ready bool `json:"ready"`
+	// KeyConfigured means a credential exists for the selected provider. It may
+	// still be revoked or mistyped.
+	KeyConfigured bool `json:"keyConfigured"`
+	// Verified means an actual probe succeeded for exactly the provider and
+	// model selected now. It drops back to false when either changes.
+	Verified   bool    `json:"verified"`
+	VerifiedAt *string `json:"verifiedAt,omitempty"`
+	ErrorCode  string  `json:"errorCode,omitempty"`
+	Error      string  `json:"error,omitempty"`
+}
+
+// UpdateReasoningRequest changes daemon-owned reasoning selection and secret state.
+type UpdateReasoningRequest struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model,omitempty"`
+	Effort   string `json:"effort,omitempty"`
+	APIKey   string `json:"apiKey,omitempty"`
+	ClearKey bool   `json:"clearKey,omitempty"`
 }
 
 // UpdateSessionInterfaceRequest changes the default interface for new sessions.
@@ -1900,7 +1933,15 @@ type CreateOutcomeRequest struct {
 	Constraints     []string `json:"constraints,omitempty"`
 	NonGoals        []string `json:"nonGoals,omitempty"`
 	Clarification   string   `json:"clarification,omitempty"`
-	RequestKey      string   `json:"requestKey"`
+	// AuthorityCeiling is the maximum authority any WorkUnit under this
+	// Contract may ever be granted. Omitting it creates an Outcome that can
+	// never be planned, because planning derives the least capabilities each
+	// unit needs and then checks them against this ceiling.
+	AuthorityCeiling IntakeAuthority `json:"authorityCeiling,omitempty"`
+	// StopConditions name the moments a human must decide before work
+	// continues.
+	StopConditions []string `json:"stopConditions,omitempty"`
+	RequestKey     string   `json:"requestKey"`
 }
 
 // ReviseOutcomeContractRequest is the body for POST
@@ -1914,6 +1955,16 @@ type ReviseOutcomeContractRequest struct {
 	Constraints      []string `json:"constraints,omitempty"`
 	NonGoals         []string `json:"nonGoals,omitempty"`
 	Clarification    string   `json:"clarification,omitempty"`
+	// AuthorityCeiling must be restated on every revision. A revision is a new
+	// immutable Contract, not a patch: omitting the ceiling here would grant
+	// the successor no authority at all and quietly make the Outcome
+	// unplannable.
+	AuthorityCeiling IntakeAuthority `json:"authorityCeiling,omitempty"`
+	StopConditions   []string        `json:"stopConditions,omitempty"`
+	// CriterionEvidence binds by position to the newly assigned criterion IDs.
+	CriterionEvidence [][]string    `json:"criterionEvidence,omitempty"`
+	TemporalCondition *string       `json:"temporalCondition,omitempty"`
+	Facets            []IntakeFacet `json:"facets,omitempty"`
 }
 
 // ContractRevisionResponse is one immutable contract revision.
@@ -2020,6 +2071,9 @@ type IntakeConversationRefInput struct {
 // AnalyzeIntakeRequest guards analysis with an expected proposal revision.
 type AnalyzeIntakeRequest struct {
 	ExpectedProposalRevision int64 `json:"expectedProposalRevision"`
+	// RepositoryToolUse explicitly authorizes the selected native reasoner to
+	// inspect the registered repository read-only for this call.
+	RepositoryToolUse bool `json:"repositoryToolUse,omitempty"`
 	// Offline runs the deterministic baseline instead of asking an agent. It
 	// is how a person stops waiting and takes the proposal that is always
 	// available, and it asks no agent anything.
@@ -2030,6 +2084,7 @@ type AnalyzeIntakeRequest struct {
 type AnswerIntakeClarificationRequest struct {
 	ExpectedProposalRevision int64  `json:"expectedProposalRevision"`
 	Answer                   string `json:"answer"`
+	RepositoryToolUse        bool   `json:"repositoryToolUse,omitempty"`
 }
 
 // ReviseIntakeProposalRequest appends a reviewed immutable proposal.
@@ -2529,36 +2584,44 @@ type RecordEvidenceRequest struct {
 	CriterionID              string `json:"criterionId"`
 	SubjectType              string `json:"subjectType"`
 	SubjectID                string `json:"subjectId"`
-	SubjectRevision          string `json:"subjectRevision"`
-	Kind                     string `json:"kind"`
-	SourceType               string `json:"sourceType"`
-	SourceRef                string `json:"sourceRef"`
-	ProducerType             string `json:"producerType"`
-	ProducerRef              string `json:"producerRef"`
-	Summary                  string `json:"summary"`
-	ContentDigest            string `json:"contentDigest"`
-	RequestKey               string `json:"requestKey"`
+	// SubjectRevision identifies which version of the subject was examined:
+	// the Contract revision for an Outcome, the plan id for a Plan or WorkUnit,
+	// and for an Attempt the retained artifact version its result was checked
+	// against. An Attempt with nothing retained yet cannot carry proof.
+	SubjectRevision string `json:"subjectRevision"`
+	Kind            string `json:"kind"`
+	SourceType      string `json:"sourceType"`
+	SourceRef       string `json:"sourceRef"`
+	ProducerType    string `json:"producerType"`
+	ProducerRef     string `json:"producerRef"`
+	Summary         string `json:"summary"`
+	ContentDigest   string `json:"contentDigest"`
+	RequestKey      string `json:"requestKey"`
 }
 
 // RecordVerificationRequest declares what was checked and the verifier's
 // actual independence from the producer. It cannot accept an Outcome.
 type RecordVerificationRequest struct {
-	ExpectedContractRevision int64    `json:"expectedContractRevision"`
-	ContractRevisionID       string   `json:"contractRevisionId"`
-	CriterionID              string   `json:"criterionId"`
-	SubjectType              string   `json:"subjectType"`
-	SubjectID                string   `json:"subjectId"`
-	SubjectRevision          string   `json:"subjectRevision"`
-	EvidenceItemIDs          []string `json:"evidenceItemIds"`
-	Method                   string   `json:"method"`
-	IndependenceClass        string   `json:"independenceClass"`
-	Result                   string   `json:"result"`
-	ProducerRef              string   `json:"producerRef,omitempty"`
-	VerifierRef              string   `json:"verifierRef"`
-	ProducerProvider         string   `json:"producerProvider,omitempty"`
-	VerifierProvider         string   `json:"verifierProvider,omitempty"`
-	Detail                   string   `json:"detail,omitempty"`
-	RequestKey               string   `json:"requestKey"`
+	ExpectedContractRevision int64  `json:"expectedContractRevision"`
+	ContractRevisionID       string `json:"contractRevisionId"`
+	CriterionID              string `json:"criterionId"`
+	SubjectType              string `json:"subjectType"`
+	SubjectID                string `json:"subjectId"`
+	// SubjectRevision identifies which version of the subject was examined:
+	// the Contract revision for an Outcome, the plan id for a Plan or WorkUnit,
+	// and for an Attempt the retained artifact version its result was checked
+	// against. An Attempt with nothing retained yet cannot carry proof.
+	SubjectRevision   string   `json:"subjectRevision"`
+	EvidenceItemIDs   []string `json:"evidenceItemIds"`
+	Method            string   `json:"method"`
+	IndependenceClass string   `json:"independenceClass"`
+	Result            string   `json:"result"`
+	ProducerRef       string   `json:"producerRef,omitempty"`
+	VerifierRef       string   `json:"verifierRef"`
+	ProducerProvider  string   `json:"producerProvider,omitempty"`
+	VerifierProvider  string   `json:"verifierProvider,omitempty"`
+	Detail            string   `json:"detail,omitempty"`
+	RequestKey        string   `json:"requestKey"`
 }
 
 // DecideAcceptanceRequest is the sole API authority that may append a user
@@ -2649,14 +2712,19 @@ type CriterionProofResponse struct {
 
 // OutcomeProofResponse is the daemon-derived Prove & Close read model.
 type OutcomeProofResponse struct {
-	OutcomeID    string                       `json:"outcomeId"`
-	Contract     ContractRevisionResponse     `json:"contractRevision"`
-	Status       string                       `json:"status"`
-	NextAction   string                       `json:"nextAction"`
-	Criteria     []CriterionProofResponse     `json:"criteria"`
-	Decisions    []AcceptanceDecisionResponse `json:"decisions"`
-	Corrections  []OutcomeCorrectionResponse  `json:"corrections"`
-	ProofHorizon *time.Time                   `json:"proofHorizon,omitempty"`
+	OutcomeID   string                       `json:"outcomeId"`
+	Contract    ContractRevisionResponse     `json:"contractRevision"`
+	Status      string                       `json:"status"`
+	NextAction  string                       `json:"nextAction"`
+	Criteria    []CriterionProofResponse     `json:"criteria"`
+	Decisions   []AcceptanceDecisionResponse `json:"decisions"`
+	Corrections []OutcomeCorrectionResponse  `json:"corrections"`
+	// ActiveCorrectionID names the correction that set the current proof
+	// horizon — what the owner most recently asked to be changed. Corrections
+	// is an append-only history; this is the one still standing. Absent when no
+	// rework or reopen stands against the current Contract revision.
+	ActiveCorrectionID string     `json:"activeCorrectionId,omitempty"`
+	ProofHorizon       *time.Time `json:"proofHorizon,omitempty"`
 }
 
 // OutcomeProofEnvelope wraps the canonical proof response.
@@ -2675,6 +2743,9 @@ func outcomeProofResponse(view outcomevc.ProofView) OutcomeProofResponse {
 	if !view.ProofHorizon.IsZero() {
 		horizon := view.ProofHorizon
 		response.ProofHorizon = &horizon
+	}
+	if view.ActiveCorrection != nil {
+		response.ActiveCorrectionID = string(view.ActiveCorrection.ID)
 	}
 	for _, criterion := range view.Criteria {
 		item := CriterionProofResponse{
@@ -2726,7 +2797,7 @@ func verificationRunResponse(run domain.VerificationRun) VerificationRunResponse
 	}
 }
 
-func outcomeResponse(view outcomevc.OutcomeView) OutcomeResponse {
+func outcomeResponse(view outcomevc.View) OutcomeResponse {
 	history := make([]ContractRevisionResponse, 0, len(view.History))
 	for _, rev := range view.History {
 		history = append(history, contractRevisionResponse(rev))
@@ -2763,6 +2834,13 @@ type ProposePlanRequest struct {
 	ExpectedContractRevision int64 `json:"expectedContractRevision"`
 }
 
+// ReplanPlanRequest is the explicit feedback boundary for a new immutable
+// proposal. Reloading the ordinary plan route remains idempotent.
+type ReplanPlanRequest struct {
+	ExpectedContractRevision int64  `json:"expectedContractRevision"`
+	Feedback                 string `json:"feedback"`
+}
+
 // ApprovePlanRequest is the body for POST
 // /outcomes/{outcomeId}/plans/{planId}/approval. ExpectedContractRevision
 // guards against approving while the contract moved ahead unseen.
@@ -2776,10 +2854,50 @@ type PlanWorkUnitResponse struct {
 	Kind                    string   `json:"kind"`
 	Title                   string   `json:"title"`
 	ContractRevisionNumber  int64    `json:"contractRevisionNumber"`
+	DependsOn               []string `json:"dependsOn"`
+	CriterionIDs            []string `json:"criterionIds"`
+	Provider                string   `json:"provider,omitempty"`
+	ModelSelection          string   `json:"modelSelection,omitempty"`
+	Model                   string   `json:"model,omitempty"`
+	RequiredCapabilities    []string `json:"requiredCapabilities"`
 	OutputSummary           string   `json:"outputSummary"`
 	EvidenceChecks          []string `json:"evidenceChecks"`
 	VerificationRequirement string   `json:"verificationRequirement"`
 	StopConditions          []string `json:"stopConditions"`
+	// ApprovedChecks are the deterministic commands Kennel itself will run
+	// and record as independent observation. EvidenceChecks above stay prose
+	// for the provider to read; these are authority frozen at approval.
+	ApprovedChecks []ApprovedCheckResponse `json:"approvedChecks"`
+}
+
+// ApprovedCheckResponse is one deterministic check the owner authorized,
+// bound to the criterion it proves. Argv is a discrete argument vector, never
+// a command line: a shell string would make approved authority unreadable.
+type ApprovedCheckResponse struct {
+	ID             string   `json:"id"`
+	CriterionID    string   `json:"criterionId"`
+	Argv           []string `json:"argv"`
+	TimeoutSeconds int64    `json:"timeoutSeconds"`
+}
+
+// RoutingPreferenceResponse describes the effective provider/model preference.
+type RoutingPreferenceResponse struct {
+	Provider       string `json:"provider"`
+	ModelSelection string `json:"modelSelection"`
+	Model          string `json:"model,omitempty"`
+}
+
+// RoutingDecisionResponse explains how the daemon resolved one WorkUnit route.
+type RoutingDecisionResponse struct {
+	WorkUnitID                string                     `json:"workUnitId"`
+	Status                    string                     `json:"status"`
+	PolicyVersion             string                     `json:"policyVersion"`
+	CapabilitySnapshot        string                     `json:"capabilitySnapshot,omitempty"`
+	Role                      string                     `json:"role"`
+	EffectivePreference       *RoutingPreferenceResponse `json:"effectivePreference,omitempty"`
+	RecommendedProvider       string                     `json:"recommendedProvider,omitempty"`
+	RecommendedModelSelection string                     `json:"recommendedModelSelection,omitempty"`
+	RecommendedModel          string                     `json:"recommendedModel,omitempty"`
 }
 
 // CapabilityGrantResponse is one scoped capability the plan authorizes.
@@ -2792,22 +2910,193 @@ type CapabilityGrantResponse struct {
 // PlanRevisionResponse is the canonical Decide & Authorize read model: the
 // frozen Work Unit, active-on-approval grants, and the RunBrief core digest.
 type PlanRevisionResponse struct {
-	ID                     string                    `json:"id"`
-	OutcomeID              string                    `json:"outcomeId"`
-	Number                 int64                     `json:"number"`
-	ContractRevisionNumber int64                     `json:"contractRevisionNumber"`
-	Status                 string                    `json:"status"`
-	Summary                string                    `json:"summary"`
-	WorkUnits              []PlanWorkUnitResponse    `json:"workUnits"`
-	Grants                 []CapabilityGrantResponse `json:"grants"`
-	RunBriefCoreDigest     string                    `json:"runBriefCoreDigest"`
-	RunBriefCompiledDigest string                    `json:"runBriefCompiledDigest,omitempty"`
-	CreatedAt              time.Time                 `json:"createdAt"`
+	ID                      string                    `json:"id"`
+	OutcomeID               string                    `json:"outcomeId"`
+	Number                  int64                     `json:"number"`
+	ContractRevisionNumber  int64                     `json:"contractRevisionNumber"`
+	Status                  string                    `json:"status"`
+	Summary                 string                    `json:"summary"`
+	Assumptions             []string                  `json:"assumptions"`
+	Blockers                []string                  `json:"blockers"`
+	WorkUnits               []PlanWorkUnitResponse    `json:"workUnits"`
+	Grants                  []CapabilityGrantResponse `json:"grants"`
+	RoutingDecisions        []RoutingDecisionResponse `json:"routingDecisions"`
+	RunBriefCoreDigest      string                    `json:"runBriefCoreDigest"`
+	RunBriefCompiledDigest  string                    `json:"runBriefCompiledDigest,omitempty"`
+	PlanningSessionID       string                    `json:"planningSessionId,omitempty"`
+	SourceIntelligenceRunID string                    `json:"sourceIntelligenceRunId,omitempty"`
+	CreatedAt               time.Time                 `json:"createdAt"`
 }
 
 // PlanEnvelope is the { plan } response body for plan reads and writes.
 type PlanEnvelope struct {
 	Plan PlanRevisionResponse `json:"plan"`
+}
+
+// PlanningSessionIDParam documents the planning-session route parameter.
+type PlanningSessionIDParam struct {
+	PlanningSessionID string `path:"planningSessionId" description:"Planning conversation identifier."`
+}
+
+// PlanningCandidatesQuery binds candidate discovery to a Contract revision.
+type PlanningCandidatesQuery struct {
+	ContractRevision int64 `query:"contractRevision" minimum:"1" description:"Confirmed Contract revision to plan against."`
+}
+
+// StartPlanningRequest opens a conversation with one exact candidate.
+type StartPlanningRequest struct {
+	ExpectedContractRevision int64  `json:"expectedContractRevision" minimum:"1"`
+	CandidateID              string `json:"candidateId"`
+	ContextMode              string `json:"contextMode,omitempty" enum:"repository_read,supplied_packet" description:"Defaults to repository_read."`
+	RequestKey               string `json:"requestKey"`
+}
+
+// PlanningMessageRequest appends one idempotent owner message.
+type PlanningMessageRequest struct {
+	ExpectedSessionRevision int64  `json:"expectedSessionRevision" minimum:"1"`
+	Text                    string `json:"text"`
+	RequestKey              string `json:"requestKey"`
+}
+
+// PlanningFinalizeRequest asks the planner for a structured proposal.
+type PlanningFinalizeRequest struct {
+	ExpectedSessionRevision int64  `json:"expectedSessionRevision" minimum:"1"`
+	RequestKey              string `json:"requestKey"`
+}
+
+// PlanningCancelRequest closes the optimistic planning revision.
+type PlanningCancelRequest struct {
+	ExpectedSessionRevision int64 `json:"expectedSessionRevision" minimum:"1"`
+}
+
+// PlanningBindingResponse exposes the frozen provider/model selection.
+type PlanningBindingResponse struct {
+	Mode           string `json:"mode" enum:"direct_api,native_harness"`
+	Provider       string `json:"provider"`
+	ModelSelection string `json:"modelSelection" enum:"provider_default,explicit"`
+	Model          string `json:"model,omitempty"`
+	Effort         string `json:"effort,omitempty"`
+}
+
+// PlanningCandidateResponse describes one selectable or unavailable planner.
+type PlanningCandidateResponse struct {
+	ID                string                  `json:"id"`
+	Binding           PlanningBindingResponse `json:"binding"`
+	Ready             bool                    `json:"ready"`
+	UnavailableCode   string                  `json:"unavailableCode,omitempty"`
+	UnavailableDetail string                  `json:"unavailableDetail,omitempty"`
+}
+
+// PlanningCandidatesEnvelope is the candidate-list response body.
+type PlanningCandidatesEnvelope struct {
+	Candidates []PlanningCandidateResponse `json:"candidates"`
+}
+
+// PlanningClarificationResponse is a compact owner-decision card.
+type PlanningClarificationResponse struct {
+	Question       string   `json:"question"`
+	Reason         string   `json:"reason"`
+	Recommendation string   `json:"recommendation"`
+	Alternatives   []string `json:"alternatives"`
+}
+
+// PlanningContractChangeResponse recommends but never applies Contract edits.
+type PlanningContractChangeResponse struct {
+	Summary       string   `json:"summary"`
+	ChangedFields []string `json:"changedFields"`
+}
+
+// PlanningTurnResponse is one normalized owner-visible conversation turn.
+type PlanningTurnResponse struct {
+	ID                string                          `json:"id"`
+	Sequence          int64                           `json:"sequence"`
+	ReplyToTurnID     string                          `json:"replyToTurnId,omitempty"`
+	Role              string                          `json:"role" enum:"owner,planner"`
+	Kind              string                          `json:"kind" enum:"message,finalize_request,clarification,contract_change_proposal,plan_proposal"`
+	Text              string                          `json:"text"`
+	Clarification     *PlanningClarificationResponse  `json:"clarification,omitempty"`
+	ContractChange    *PlanningContractChangeResponse `json:"contractChange,omitempty"`
+	IntelligenceRunID string                          `json:"intelligenceRunId,omitempty"`
+	CreatedAt         time.Time                       `json:"createdAt"`
+}
+
+// PlanningSessionResponse exposes canonical conversation state and provenance.
+type PlanningSessionResponse struct {
+	ID                     string                  `json:"id"`
+	OutcomeID              string                  `json:"outcomeId"`
+	ContractRevisionID     string                  `json:"contractRevisionId"`
+	ContractRevisionNumber int64                   `json:"contractRevisionNumber"`
+	Revision               int64                   `json:"revision"`
+	Status                 string                  `json:"status" enum:"active,proposal_ready,superseded,cancelled"`
+	WaitingOn              string                  `json:"waitingOn" enum:"owner,provider,none"`
+	Binding                PlanningBindingResponse `json:"binding"`
+	ContextMode            string                  `json:"contextMode" enum:"repository_read,supplied_packet"`
+	ContextDigest          string                  `json:"contextDigest"`
+	PlanningGrantDigest    string                  `json:"planningGrantDigest"`
+	EffectiveProvider      string                  `json:"effectiveProvider,omitempty"`
+	EffectiveModel         string                  `json:"effectiveModel,omitempty"`
+	LastFailureCode        string                  `json:"lastFailureCode,omitempty"`
+	LastFailureDetail      string                  `json:"lastFailureDetail,omitempty"`
+	CreatedAt              time.Time               `json:"createdAt"`
+	UpdatedAt              time.Time               `json:"updatedAt"`
+}
+
+// PlanningResponse joins one session, its turns, and optional proposed Plan.
+type PlanningResponse struct {
+	Session      PlanningSessionResponse `json:"session"`
+	Turns        []PlanningTurnResponse  `json:"turns"`
+	ProposedPlan *PlanRevisionResponse   `json:"proposedPlan,omitempty"`
+}
+
+// PlanningEnvelope is the interactive-planning response body.
+type PlanningEnvelope struct {
+	Planning PlanningResponse `json:"planning"`
+}
+
+// ScheduleWorkUnitResponse is the daemon-derived state for one canonical
+// WorkUnit. React must render this projection rather than recreate eligibility.
+type ScheduleWorkUnitResponse struct {
+	WorkUnit PlanWorkUnitResponse   `json:"workUnit"`
+	State    string                 `json:"state" enum:"blocked,runnable,executing,proven,retryable,paused"`
+	Attempts []ScheduleAttemptBrief `json:"attempts"`
+	// BlockedReason distinguishes waiting on dependency proof, waiting on the
+	// serial custody fence, and a dependency that is proved but whose output
+	// cannot be handed down. Empty unless the unit is blocked.
+	BlockedReason string `json:"blockedReason,omitempty" enum:"awaiting_dependency_proof,custody_held,upstream_artifact_unavailable"`
+	// BlockedDetail names the specific refusal behind the reason, so
+	// "upstream artifact unavailable" can say whether the predecessor's result
+	// is missing, incomplete, unfrozen or mislineaged.
+	BlockedDetail        string          `json:"blockedDetail,omitempty"`
+	BlockingDependencies []string        `json:"blockingDependencies"`
+	CriterionReady       map[string]bool `json:"criterionReady"`
+}
+
+// ScheduleAttemptBrief is the bounded Attempt identity shown in a schedule.
+type ScheduleAttemptBrief struct {
+	ID         string    `json:"id"`
+	WorkUnitID string    `json:"workUnitId"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+// ScheduleResponse is the daemon-derived, read-only Plan schedule projection.
+type ScheduleResponse struct {
+	OutcomeID              string                     `json:"outcomeId"`
+	Plan                   PlanRevisionResponse       `json:"plan"`
+	WorkUnits              []ScheduleWorkUnitResponse `json:"workUnits"`
+	NextRunnableWorkUnitID string                     `json:"nextRunnableWorkUnitId,omitempty"`
+	ActiveAttempt          *ScheduleAttemptBrief      `json:"activeAttempt,omitempty"`
+	// CustodyHeldByWorkUnitID names the unit holding the serial fence, if any.
+	CustodyHeldByWorkUnitID string `json:"custodyHeldByWorkUnitId,omitempty"`
+	// NoRunnableReason explains an empty runnable set, so a Mission with
+	// nothing to start can say why instead of showing an endless spinner.
+	NoRunnableReason string `json:"noRunnableReason,omitempty" enum:"all_units_proven,attempt_executing,attempt_paused,awaiting_proof"`
+}
+
+// ScheduleEnvelope wraps a daemon-derived Plan schedule response.
+type ScheduleEnvelope struct {
+	Schedule ScheduleResponse `json:"schedule"`
 }
 
 func workUnitResponse(unit domain.WorkUnit) PlanWorkUnitResponse {
@@ -2816,11 +3105,58 @@ func workUnitResponse(unit domain.WorkUnit) PlanWorkUnitResponse {
 		Kind:                    string(unit.Kind),
 		Title:                   unit.Title,
 		ContractRevisionNumber:  unit.ContractRevisionNumber,
+		DependsOn:               stringWorkUnitIDs(unit.DependsOn),
+		CriterionIDs:            stringCriterionIDs(unit.CriterionIDs),
+		Provider:                string(unit.Provider),
+		ModelSelection:          string(unit.ModelSelection),
+		Model:                   unit.Model,
+		RequiredCapabilities:    append([]string(nil), unit.RequiredCapabilities...),
 		OutputSummary:           unit.OutputSummary,
 		EvidenceChecks:          unit.EvidenceChecks,
 		VerificationRequirement: unit.VerificationRequirement,
 		StopConditions:          unit.StopConditions,
+		ApprovedChecks:          approvedCheckResponses(unit.Checks),
 	}
+}
+
+func approvedCheckResponses(checks []domain.ApprovedCheck) []ApprovedCheckResponse {
+	out := make([]ApprovedCheckResponse, 0, len(checks))
+	for _, check := range checks {
+		out = append(out, ApprovedCheckResponse{
+			ID: string(check.ID), CriterionID: string(check.CriterionID),
+			Argv: append([]string(nil), check.Argv...), TimeoutSeconds: check.TimeoutSeconds,
+		})
+	}
+	return out
+}
+
+func stringWorkUnitIDs(ids []domain.WorkUnitID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, string(id))
+	}
+	return out
+}
+
+func stringCriterionIDs(ids []domain.CriterionID) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, string(id))
+	}
+	return out
+}
+
+func routingDecisionResponse(decision domain.WorkUnitRoutingDecision) RoutingDecisionResponse {
+	response := RoutingDecisionResponse{
+		WorkUnitID: string(decision.WorkUnitID), Status: string(decision.Decision.Status),
+		PolicyVersion: decision.Decision.PolicyVersion, CapabilitySnapshot: decision.Decision.CapabilitySnapshot,
+		Role: string(decision.Decision.Role), RecommendedProvider: decision.Decision.RecommendedProvider,
+		RecommendedModelSelection: string(decision.Decision.RecommendedModelSelection), RecommendedModel: decision.Decision.RecommendedModel,
+	}
+	if preference := decision.Decision.EffectivePreference; preference != nil {
+		response.EffectivePreference = &RoutingPreferenceResponse{Provider: preference.Provider, ModelSelection: string(preference.ModelSelection), Model: preference.Model}
+	}
+	return response
 }
 
 func capabilityGrantResponse(grant domain.CapabilityGrant) CapabilityGrantResponse {
@@ -2829,6 +3165,35 @@ func capabilityGrantResponse(grant domain.CapabilityGrant) CapabilityGrantRespon
 		Name:  grant.Name,
 		Scope: grant.Scope,
 	}
+}
+
+func scheduleResponse(view outcomevc.ScheduleView) ScheduleResponse {
+	units := make([]ScheduleWorkUnitResponse, 0, len(view.WorkUnits))
+	for _, entry := range view.WorkUnits {
+		attempts := make([]ScheduleAttemptBrief, 0, len(entry.Attempts))
+		for _, attempt := range entry.Attempts {
+			attempts = append(attempts, ScheduleAttemptBrief{ID: string(attempt.ID), WorkUnitID: string(attempt.WorkUnitID), Status: string(attempt.Status), CreatedAt: attempt.CreatedAt, UpdatedAt: attempt.UpdatedAt})
+		}
+		ready := make(map[string]bool, len(entry.CriterionReady))
+		for criterion, value := range entry.CriterionReady {
+			ready[string(criterion)] = value
+		}
+		dependencies := make([]string, 0, len(entry.BlockingDependencies))
+		for _, dependency := range entry.BlockingDependencies {
+			dependencies = append(dependencies, string(dependency))
+		}
+		units = append(units, ScheduleWorkUnitResponse{WorkUnit: workUnitResponse(entry.WorkUnit), State: string(entry.State), Attempts: attempts, BlockedReason: string(entry.BlockedReason), BlockedDetail: entry.BlockedDetail, BlockingDependencies: dependencies, CriterionReady: ready})
+	}
+	response := ScheduleResponse{
+		OutcomeID: string(view.Plan.OutcomeID), Plan: planRevisionResponse(view.Plan), WorkUnits: units,
+		NextRunnableWorkUnitID:  string(view.NextRunnableID),
+		CustodyHeldByWorkUnitID: string(view.CustodyHeldBy),
+		NoRunnableReason:        string(view.NoRunnableReason),
+	}
+	if view.ActiveAttempt != nil {
+		response.ActiveAttempt = &ScheduleAttemptBrief{ID: string(view.ActiveAttempt.ID), WorkUnitID: string(view.ActiveAttempt.WorkUnitID), Status: string(view.ActiveAttempt.Status), CreatedAt: view.ActiveAttempt.CreatedAt, UpdatedAt: view.ActiveAttempt.UpdatedAt}
+	}
+	return response
 }
 
 func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
@@ -2840,28 +3205,43 @@ func planRevisionResponse(plan domain.PlanRevision) PlanRevisionResponse {
 	for _, grant := range plan.Grants {
 		grants = append(grants, capabilityGrantResponse(grant))
 	}
+	routing := make([]RoutingDecisionResponse, 0, len(plan.RoutingDecisions))
+	for _, decision := range plan.RoutingDecisions {
+		routing = append(routing, routingDecisionResponse(decision))
+	}
 	return PlanRevisionResponse{
-		ID:                     string(plan.ID),
-		OutcomeID:              string(plan.OutcomeID),
-		Number:                 plan.Number,
-		ContractRevisionNumber: plan.ContractRevisionNumber,
-		Status:                 string(plan.Status),
-		Summary:                plan.Summary,
-		WorkUnits:              units,
-		Grants:                 grants,
-		RunBriefCoreDigest:     plan.RunBriefCoreDigest,
-		RunBriefCompiledDigest: plan.RunBriefCompiledDigest,
-		CreatedAt:              plan.CreatedAt,
+		ID:                      string(plan.ID),
+		OutcomeID:               string(plan.OutcomeID),
+		Number:                  plan.Number,
+		ContractRevisionNumber:  plan.ContractRevisionNumber,
+		Status:                  string(plan.Status),
+		Summary:                 plan.Summary,
+		Assumptions:             append([]string(nil), plan.Assumptions...),
+		Blockers:                append([]string(nil), plan.Blockers...),
+		WorkUnits:               units,
+		Grants:                  grants,
+		RoutingDecisions:        routing,
+		RunBriefCoreDigest:      plan.RunBriefCoreDigest,
+		RunBriefCompiledDigest:  plan.RunBriefCompiledDigest,
+		PlanningSessionID:       plan.PlanningSessionID.String(),
+		SourceIntelligenceRunID: plan.SourceIntelligenceRunID.String(),
+		CreatedAt:               plan.CreatedAt,
 	}
 }
 
 // StartOutcomeAttemptRequest is the body for POST
 // /outcomes/{outcomeId}/attempts. RequestKey makes admission exactly-once:
-// replaying a delivered key resolves the original attempt. Harness is the
-// optional worker provider; empty uses the daemon's v0 default (Codex-first)
-// so provider naming stays a server-side policy.
+// replaying a delivered key resolves the original attempt.
+//
+// WorkUnitID is an optional legacy assertion. When omitted, the daemon selects
+// the next dependency-ready WorkUnit from the approved Plan.
+//
+// Harness is accepted only for historical clients and is ignored. Provider and
+// model come from the approved WorkUnit's immutable ExecutionBinding, and no
+// caller or mutable Project default may reinterpret it after approval.
 type StartOutcomeAttemptRequest struct {
 	PlanRevisionID string `json:"planRevisionId"`
+	WorkUnitID     string `json:"workUnitId,omitempty"`
 	Harness        string `json:"harness,omitempty"`
 	RequestKey     string `json:"requestKey"`
 }
@@ -3176,7 +3556,7 @@ func criterionClaimResponse(claim domain.CriterionClaim) CriterionClaimResponse 
 	}
 }
 
-func outcomeCompositionResponse(view outcomevc.CompositionView, contributors []outcomevc.OutcomeView) OutcomeCompositionResponse {
+func outcomeCompositionResponse(view outcomevc.CompositionView, contributors []outcomevc.View) OutcomeCompositionResponse {
 	resp := OutcomeCompositionResponse{
 		Shape:             string(view.Shape),
 		Contributors:      make([]ContributorResponse, 0, len(view.Contributors)),
@@ -3576,4 +3956,26 @@ func agentProposalInput(req SubmitAgentProposalRequest) outcomevc.ProposeDecompo
 		RetainedCriteria: req.RetainedCriteria,
 		Dependencies:     req.Dependencies,
 	})
+}
+
+// OutcomeDeletionEnvelope is the daemon's current erasure scope and blockers.
+type OutcomeDeletionEnvelope struct {
+	Deletion ports.OutcomeDeletionPreview `json:"deletion"`
+}
+
+// OutcomeTrashEnvelope lists recoverable Outcomes and cleanup jobs.
+type OutcomeTrashEnvelope struct {
+	Outcomes []ports.OutcomeTrashEntry `json:"outcomes"`
+}
+
+// ChangeOutcomeDeletionRequest names the current revision and explicit owner action.
+type ChangeOutcomeDeletionRequest struct {
+	Revision     int64  `json:"revision"`
+	Action       string `json:"action"`
+	Confirmation string `json:"confirmation"`
+}
+
+// OutcomeDeletionResult acknowledges a completed lifecycle action.
+type OutcomeDeletionResult struct {
+	Action string `json:"action"`
 }

@@ -54,11 +54,11 @@ export interface RelocationInputs {
 export function decideRelocation(inputs: RelocationInputs): RelocationAction {
 	if (inputs.inApplicationsFolder) return "stay";
 	if (!inputs.installedPresent) return "relocate";
-	// A same-named app is not necessarily this product. In particular, the legacy
-	// Agent Orchestrator bundle also shipped as Kennel.app. Never hand a launch to
-	// it (or trash it automatically) just because its display version compares as
-	// equal; run the requested build in place and let an explicit install replace
-	// the collision.
+	// A same-named app is not necessarily this product. The donor build Kennel was
+	// derived from also shipped as Kennel.app, so a collision here is a real case
+	// rather than a hypothetical. Never hand a launch to it (or trash it
+	// automatically) just because its display version compares as equal; run the
+	// requested build in place and let an explicit install replace the collision.
 	if (inputs.installedBundleIdentifier !== inputs.runningBundleIdentifier) return "stay";
 
 	const installed = semver.valid(inputs.installedVersion ?? "");

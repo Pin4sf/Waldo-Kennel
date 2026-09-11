@@ -7,6 +7,7 @@ import (
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence/intelligencetest"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
@@ -17,7 +18,9 @@ func newGatedContributorHarness(t *testing.T) (*outcome.Service, *attemptFakeSto
 	t.Helper()
 	store := newAttemptFakeStore()
 	spawner := &fakeSpawner{readiness: ports.AgentProfileReadiness{Ready: true, Detail: "profile ok"}}
-	svc := outcome.NewWithExecution(store, nil, spawner, newFakeHeartbeats())
+	svc := outcome.New(store, nil).
+		WithPlanning(intelligencetest.New(), &routingInventoryFake{candidates: []domain.RoutingCandidate{executionCandidate(domain.HarnessCodex, "")}}).
+		WithExecution(spawner, newFakeHeartbeats())
 
 	ctx := context.Background()
 	in := validCreateInput()
@@ -107,7 +110,7 @@ func TestStartAttemptAdmitsTheUpstreamContributor(t *testing.T) {
 		t.Fatalf("approve upstream plan: %v", err)
 	}
 	view, err := svc.StartAttempt(ctx, upstream, outcome.StartAttemptInput{
-		PlanRevisionID: plan.Plan.ID, RequestKey: "req-upstream-start",
+		PlanRevisionID: plan.Plan.ID, WorkUnitID: firstWorkUnitOfPlan[plan.Plan.ID], RequestKey: "req-upstream-start",
 	})
 	if err != nil {
 		t.Fatalf("the upstream contributor must be admitted: %v", err)

@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useSettings, useUpdateReasoning } from "../hooks/useSettings";
 import { useUiStore } from "../stores/ui-store";
 import { OnboardingTour } from "./OnboardingTour";
 
@@ -17,7 +18,7 @@ const ctx = vi.hoisted(() => ({
 		supported: { id: string; label: string }[];
 	},
 	isPending: false,
-	shownNotifications: [] as { id: string; title: string }[],
+	updateReasoning: vi.fn(),
 }));
 
 vi.mock("../hooks/useAgentsQuery", () => ({
@@ -25,14 +26,9 @@ vi.mock("../hooks/useAgentsQuery", () => ({
 	useAgentsQuery: () => ({ data: ctx.agents, isPending: ctx.isPending }),
 }));
 
-vi.mock("../lib/bridge", () => ({
-	aoBridge: {
-		notifications: {
-			show: vi.fn(async (notification: { id: string; title: string }) => {
-				ctx.shownNotifications.push(notification);
-			}),
-		},
-	},
+vi.mock("../hooks/useSettings", () => ({
+	useSettings: vi.fn(),
+	useUpdateReasoning: vi.fn(),
 }));
 
 function resetStore() {
@@ -47,8 +43,35 @@ function resetStore() {
 describe("OnboardingTour", () => {
 	beforeEach(() => {
 		window.localStorage.clear();
+		ctx.agents = {
+			authorized: [{ id: "codex", label: "Codex" }],
+			installed: [
+				{ id: "codex", label: "Codex" },
+				{ id: "claude-code", label: "Claude Code" },
+			],
+			supported: [],
+		};
 		ctx.isPending = false;
-		ctx.shownNotifications = [];
+		ctx.updateReasoning.mockReset();
+		ctx.updateReasoning.mockResolvedValue({ provider: "codex", ready: true });
+		vi.mocked(useSettings).mockReturnValue({
+			settings: {
+				defaultSessionMode: "tui",
+				chatHarnesses: ["codex"],
+				reasoning: {
+					provider: "openai",
+					model: "",
+					effort: "",
+					configured: true,
+					ready: true,
+					keyConfigured: true,
+					verified: false,
+				},
+			},
+			isLoading: false,
+			error: undefined,
+		});
+		vi.mocked(useUpdateReasoning).mockReturnValue({ update: ctx.updateReasoning, saving: false, error: undefined });
 		resetStore();
 	});
 
@@ -59,7 +82,7 @@ describe("OnboardingTour", () => {
 		rerender(<OnboardingTour daemonReady />);
 		expect(screen.getByTestId("onboarding-tour")).toBeInTheDocument();
 		expect(screen.getByText("Let's get Kennel set up")).toBeInTheDocument();
-		expect(screen.getByLabelText("Step 1 of 4")).toBeInTheDocument();
+		expect(screen.getByLabelText("Step 1 of 3")).toBeInTheDocument();
 	});
 
 	it("stays closed once the tour has been finished before", () => {
@@ -69,16 +92,16 @@ describe("OnboardingTour", () => {
 		expect(screen.queryByTestId("onboarding-tour")).not.toBeInTheDocument();
 	});
 
-	it("walks forward and back through the four steps", () => {
+	it("walks forward and back through the three steps", () => {
 		render(<OnboardingTour daemonReady />);
 
 		expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
 		fireEvent.click(screen.getByRole("button", { name: /Let's go/ }));
 		expect(screen.getByText("Coding agents")).toBeInTheDocument();
-		expect(screen.getByLabelText("Step 2 of 4")).toBeInTheDocument();
+		expect(screen.getByLabelText("Step 2 of 3")).toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("button", { name: /Next/ }));
-		expect(screen.getByText("Send yourself a test alert")).toBeInTheDocument();
+		expect(screen.getByText("Pick your layout")).toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("button", { name: "Back" }));
 		expect(screen.getByText("Coding agents")).toBeInTheDocument();
@@ -95,6 +118,17 @@ describe("OnboardingTour", () => {
 
 		expect(useUiStore.getState().defaultAgentId).toBe("claude-code");
 		expect(window.localStorage.getItem("kennel.agent.default")).toBe("claude-code");
+		expect(screen.getByText(/Waldo reasoning through Claude Code is not available yet/)).toBeInTheDocument();
+	});
+
+	it("binds an explicit Codex onboarding choice to daemon reasoning without verifying", async () => {
+		render(<OnboardingTour daemonReady />);
+		fireEvent.click(screen.getByRole("button", { name: /Let's go/ }));
+		fireEvent.click(screen.getByRole("button", { name: /codexCodex/i }));
+
+		await waitFor(() => expect(ctx.updateReasoning).toHaveBeenCalledWith({ provider: "codex", model: "", effort: "" }));
+		expect(ctx.updateReasoning).toHaveBeenCalledTimes(1);
+		expect(screen.getByText(/Codex is selected for Waldo reasoning/)).toBeInTheDocument();
 	});
 
 	it("explains how to install an agent when none are on the machine", () => {
@@ -113,21 +147,9 @@ describe("OnboardingTour", () => {
 		};
 	});
 
-	it("fires a real notification so a person can confirm alerts reach them", () => {
-		render(<OnboardingTour daemonReady />);
-		fireEvent.click(screen.getByRole("button", { name: /Let's go/ }));
-		fireEvent.click(screen.getByRole("button", { name: /Next/ }));
-		fireEvent.click(screen.getByRole("button", { name: "Send test" }));
-
-		expect(ctx.shownNotifications).toHaveLength(1);
-		expect(ctx.shownNotifications[0].title).toBe("Kennel is set up");
-		expect(screen.getByText("Alert sent")).toBeInTheDocument();
-	});
-
 	it("records the layout choice and closes on finish", () => {
 		render(<OnboardingTour daemonReady />);
 		fireEvent.click(screen.getByRole("button", { name: /Let's go/ }));
-		fireEvent.click(screen.getByRole("button", { name: /Next/ }));
 		fireEvent.click(screen.getByRole("button", { name: /Next/ }));
 
 		fireEvent.click(screen.getByRole("button", { name: "List" }));

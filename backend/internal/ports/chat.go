@@ -167,6 +167,9 @@ type ChatStartConfig struct {
 	// Permissions is Kennel's existing per-session approval policy. Drivers map it
 	// onto their provider's native approval and sandbox settings.
 	Permissions PermissionMode
+	// ExecutionPolicy is non-nil only for a governed Attempt. Chat adapters must
+	// validate and map it before opening a provider conversation.
+	ExecutionPolicy *domain.AttemptExecutionPolicy
 	// SystemPrompt carries Kennel's standing instructions for the session.
 	SystemPrompt string
 	// AdditionalDirectories are extra absolute workspace roots the provider may
@@ -186,6 +189,12 @@ type ChatResumeConfig struct {
 	WorkspacePath          string
 	Env                    map[string]string
 	Permissions            PermissionMode
+	// Model is the exact frozen model for governed recovery. Empty preserves
+	// provider-default semantics; it must not be filled from Project config.
+	Model string
+	// ExecutionPolicy is the frozen Attempt policy for governed recovery.
+	// Drivers must apply the same per-turn enforcement boundary as fresh start.
+	ExecutionPolicy *domain.AttemptExecutionPolicy
 	// SystemPrompt is recomputed by the session manager on restore and reapplied
 	// to the provider process. It is not persisted in the conversation transcript.
 	SystemPrompt          string
@@ -796,6 +805,13 @@ type ChatDriver interface {
 	// Resume reattaches to an existing one. It returns ErrChatResumeFailed
 	// rather than silently starting a new conversation.
 	Resume(ctx context.Context, cfg ChatResumeConfig) (ChatConversation, error)
+}
+
+// ChatExecutionPolicyChecker is optional for ordinary conversations but
+// mandatory for governed Attempts. The chat service calls it before creating
+// a provider conversation, so unsupported policy never creates provider state.
+type ChatExecutionPolicyChecker interface {
+	ValidateExecutionPolicy(ctx context.Context, policy domain.AttemptExecutionPolicy) error
 }
 
 // ChatConversation is one live controller. Exactly one exists per Chat session,

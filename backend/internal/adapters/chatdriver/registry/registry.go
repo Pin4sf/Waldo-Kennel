@@ -24,6 +24,7 @@ type Registry struct {
 
 var _ ports.ChatDriverRegistry = (*Registry)(nil)
 
+// New builds a registry from the supplied chat drivers.
 func New(drivers ...ports.ChatDriver) *Registry {
 	byHarness := make(map[domain.AgentHarness]ports.ChatDriver, len(drivers))
 	for _, driver := range drivers {
@@ -46,6 +47,7 @@ func Build(log *slog.Logger) *Registry {
 	)
 }
 
+// Driver resolves the chat driver for a harness.
 func (r *Registry) Driver(harness domain.AgentHarness) (ports.ChatDriver, error) {
 	driver, ok := r.drivers[harness]
 	if !ok {
@@ -54,11 +56,13 @@ func (r *Registry) Driver(harness domain.AgentHarness) (ports.ChatDriver, error)
 	return driver, nil
 }
 
+// SupportsChat reports whether a harness has a structured chat driver.
 func (r *Registry) SupportsChat(harness domain.AgentHarness) bool {
 	_, ok := r.drivers[harness]
 	return ok
 }
 
+// Harnesses returns the harnesses with registered chat drivers.
 func (r *Registry) Harnesses() []domain.AgentHarness {
 	out := make([]domain.AgentHarness, 0, len(r.drivers))
 	for harness := range r.drivers {

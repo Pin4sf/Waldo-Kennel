@@ -88,10 +88,16 @@ var LegalAttemptTransitions = map[AttemptStatus][]AttemptStatus{
 	AttemptQueued: {AttemptRunning, AttemptFailed, AttemptCancelled, AttemptLost},
 	AttemptPaused: {AttemptRunning, AttemptCancelled, AttemptLost},
 	// Running attempts end through reconcile (lost/reconciled), owner action
-	// (paused/cancelled), or truthful spawn/runner failure. There is no
-	// running -> succeeded transition anywhere in #31: success arrives only
-	// with #35's Verification binding.
+	// (paused/cancelled), or truthful spawn/runner failure. There is
+	// deliberately still no running -> succeeded edge: success is never
+	// assigned straight from a live process.
 	AttemptRunning: {AttemptPaused, AttemptFailed, AttemptCancelled, AttemptLost, AttemptReconciled},
+	// Reconciled means execution ended with the result unclassified. It is the
+	// only route to succeeded, and only once the WorkUnit's proof is satisfied
+	// — see docs/verification/2026-09-09-execution-to-admission-sequence.md.
+	// Reconciled is otherwise terminal: a classified success cannot be walked
+	// back, and a reconciled attempt is never re-opened for execution.
+	AttemptReconciled: {AttemptSucceeded},
 }
 
 // AttemptTransitionLegal reports whether from -> to is a legal stored
@@ -122,9 +128,13 @@ type Attempt struct {
 	// ContractRevisionNumber snapshots which contract revision the executing
 	// plan bound at admission; immutable for the attempt's life.
 	ContractRevisionNumber int64
-	RequestKey             string
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
+	// RunIntentGeneration binds this Attempt to the exact owner authorization
+	// that admitted it. Zero means this was an individually started Attempt
+	// before any durable run intent existed.
+	RunIntentGeneration int64
+	RequestKey          string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // Validate checks intrinsic attempt invariants. Number uniqueness per Outcome,
@@ -208,7 +218,7 @@ func (r AttemptSessionRef) Validate() error {
 
 // AdmissionSnapshotVersion pins the shape of the recorded admission snapshot
 // so later slices can evolve the payload without reinterpreting old rows.
-const AdmissionSnapshotVersion = 1
+const AdmissionSnapshotVersion = 2
 
 // AttemptObservation is one append-only, ordered fact observed about an
 // attempt. Observations are insertable ALWAYS — including for stale attempts
@@ -249,7 +259,12 @@ const (
 	ObservationAttemptContained = "contained"
 	ObservationAttemptResumed   = "resumed"
 	ObservationProviderExit     = "provider_exit"
-	ObservationAdmissionFailed  = "admission_failed"
+	// ObservationAttemptClassified marks the point where an ended attempt was
+	// judged against its WorkUnit's proof and classified. It exists so the
+	// owner can see that success was derived from evidence rather than from
+	// the provider having finished.
+	ObservationAttemptClassified = "attempt_classified"
+	ObservationAdmissionFailed   = "admission_failed"
 	// ObservationAdmissionAmbiguous marks a start whose outcome is UNKNOWN:
 	// the request may or may not have reached the provider. The attempt stays
 	// queued and derives as unconfirmed until reconcile decides.
@@ -269,6 +284,11 @@ const (
 	ObservationOwnerPause        = "owner_paused"
 	ObservationOwnerResume       = "owner_resumed"
 	ObservationRecoveryAttention = "needs_attention"
+	// ObservationInputProvisioningFailed records a successor whose predecessor
+	// results could not be placed in its workspace. It is deliberately not an
+	// ambiguous start: provisioning precedes any provider process, so this
+	// fact asserts that nothing was launched.
+	ObservationInputProvisioningFailed = "input_provisioning_failed"
 )
 
 // AttemptFence is the custody lock over one worktree subject. At most ONE

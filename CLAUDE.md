@@ -19,17 +19,17 @@ governs the current look.
 
 The app follows the **Kennel orchestrator design system** authored in Figma
 (file `Dl0WP9uIvx6QbSzZi7cZQY`, section `2984-17556`), per explicit user decision
-2026-08-22. This **supersedes the earlier "clone agent-orchestrator verbatim"
-direction**, which is kept in DESIGN.md for provenance only. Kennel Island is
-the same system tuned for the notch: reduced text hierarchy, simpler composition,
-and a `#000000` background at all times so it reads as continuous with the physical
+2026-08-22. It is the only design direction; earlier donor-derived direction has
+been removed rather than retained for provenance. Kennel Island is the same
+system tuned for the notch: reduced text hierarchy, simpler composition, and a
+`#000000` background at all times so it reads as continuous with the physical
 camera housing.
 
 Everything visual resolves through `frontend/src/styles/tokens.css`; never hardcode a
 hex, radius, or size in a component. Build new UI from shadcn primitives
 (`components/ui/*`) where a component fits. Do not deviate without explicit user
 approval. In QA/review, flag renderer code that diverges from the Figma system — do
-**not** re-flag agent-orchestrator or old design-reference mismatches.
+**not** re-flag old design-reference mismatches.
 
 When showing or demoing frontend changes, run `kennel preview [url]` from inside the
 session so the change renders in the desktop browser panel (the inspector rail's

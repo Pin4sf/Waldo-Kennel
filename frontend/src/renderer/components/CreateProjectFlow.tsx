@@ -1,5 +1,4 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { ProjectModePickerView } from "@pin4sf/kennel-product-ui";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, ChevronRight, Folder, FolderPlus, X, XCircle } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -14,9 +13,8 @@ export type CreateProjectInput = { path: string; asWorkspace?: boolean } & Creat
 
 type CreateProjectFlowMode = ProjectKind | "choose";
 
-// Shared create-project flow (native folder picker -> agent sheet -> create).
-// Sidebar opens the import-type picker as a dialog; the first-run board embeds
-// the same picker inline. Both still share the Git setup recovery path.
+// Shared project entry: new or existing work, location, then reviewed setup.
+// All entry points retain the same registration and Git recovery path.
 export function CreateProjectFlow({
 	children,
 	embedded = false,
@@ -56,13 +54,13 @@ export function CreateProjectFlow({
 	const hasModePicker = mode === "choose";
 	const isBusy = isChoosingPath || isCreating || isInitializing;
 
-	const openFolderStep = (kind: ProjectKind) => {
+	const openFolderStep = (kind: ProjectKind, startNew = false) => {
 		// Keep the selector mounted behind the native picker. Closing it first
 		// exposes a blank compositor frame on Windows before Explorer takes focus.
-		void chooseDirectory(kind);
+		void chooseDirectory(kind, startNew);
 	};
 
-	const chooseDirectory = async (kind: ProjectKind) => {
+	const chooseDirectory = async (kind: ProjectKind, startNew = false) => {
 		setError(null);
 		setValidationScan(null);
 		setRepositorySetup(null);
@@ -71,7 +69,7 @@ export function CreateProjectFlow({
 		setIsChoosingPath(true);
 		try {
 			const path = await aoBridge.app.chooseDirectory(
-				kind === "workspace" ? t("createProject.chooseWorkspace") : t("createProject.chooseRepo"),
+				startNew ? t("createProject.chooseNewFolder") : kind === "workspace" ? t("createProject.chooseWorkspace") : t("createProject.chooseRepo"),
 			);
 			if (path && kind === "single_repo") {
 				const preflight = await projectRepositoryPreflight(path);
@@ -315,7 +313,7 @@ function CreateProjectModeDialog({
 }: {
 	disabled: boolean;
 	onOpenChange: (open: boolean) => void;
-	onSelect: (kind: ProjectKind) => void;
+	onSelect: (kind: ProjectKind, startNew?: boolean) => void;
 	open: boolean;
 }) {
 	return (
@@ -330,7 +328,7 @@ function CreateProjectModeDialog({
 	);
 }
 
-/** Figma "Dialog - ModalContainer" — Workspace vs Project import chooser. */
+/** Shared project intent chooser, using the existing modal design tokens. */
 function ImportModePicker({
 	dialog = false,
 	disabled,
@@ -340,38 +338,38 @@ function ImportModePicker({
 	dialog?: boolean;
 	disabled: boolean;
 	onClose?: () => void;
-	onSelect: (kind: ProjectKind) => void;
+	onSelect: (kind: ProjectKind, startNew?: boolean) => void;
 }) {
 	const { t } = useTranslation();
 	return (
 		<>
 			{dialog && (
 				<>
-					<Dialog.Title className="sr-only">{t("createProject.importTitle")}</Dialog.Title>
-					<Dialog.Description className="sr-only">{t("createProject.importWhat")}</Dialog.Description>
+					<Dialog.Title className="sr-only">{t("createProject.addTitle")}</Dialog.Title>
+					<Dialog.Description className="sr-only">{t("createProject.addDescription")}</Dialog.Description>
 				</>
 			)}
-			<ProjectModePickerView
-				dialog={dialog}
-				disabled={disabled}
-				onClose={onClose}
-				onSelect={onSelect}
-				closeIcon={<X className="size-5" aria-hidden="true" strokeWidth={1.67} />}
-				folderIcon={<Folder className="size-[14px] shrink-0" aria-hidden="true" />}
-				labels={{
-					title: t("createProject.importTitle"),
-					description: t("createProject.importWhat"),
-					workspace: t("createProject.workspace"),
-					workspaceDescription: t("createProject.workspaceDesc"),
-					project: t("createProject.project"),
-					projectDescription: t("createProject.projectDesc"),
-					close: t("createProject.closeDialog"),
-					workspaceExample: "my-workspace/",
-					workspaceRepositories: ["web-app", "api-server", "shared-libs"],
-					projectExample: "web-app",
-					projectBranchExample: "main",
-				}}
-			/>
+			<div className="relative w-full rounded-welcome-panel border border-border bg-card p-6 shadow-lg">
+				<h2 className="text-lg font-semibold">{t("createProject.addTitle")}</h2>
+				<p className="mt-1 text-sm text-muted-foreground">{t("createProject.addDescription")}</p>
+				{onClose && <Button className="absolute right-3 top-3" variant="ghost" size="icon" aria-label={t("createProject.closeDialog")} onClick={onClose}><X className="size-4" /></Button>}
+				<div className="mt-5 grid gap-3 sm:grid-cols-2">
+					<button type="button" disabled={disabled} onClick={() => onSelect("single_repo", true)} className="rounded-lg border border-border p-4 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+						<FolderPlus className="mb-3 size-5" aria-hidden="true" />
+						<span className="block font-medium">{t("createProject.startNew")}</span>
+						<span className="mt-1 block text-sm text-muted-foreground">{t("createProject.startNewDescription")}</span>
+					</button>
+					<button type="button" disabled={disabled} onClick={() => onSelect("single_repo")} className="rounded-lg border border-border p-4 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+						<Folder className="mb-3 size-5" aria-hidden="true" />
+						<span className="block font-medium">{t("createProject.importExisting")}</span>
+						<span className="mt-1 block text-sm text-muted-foreground">{t("createProject.importExistingDescription")}</span>
+					</button>
+				</div>
+				<details className="mt-4 text-sm text-muted-foreground">
+					<summary className="cursor-pointer">{t("createProject.multipleRepositories")}</summary>
+					<Button variant="outline" className="mt-3" disabled={disabled} onClick={() => onSelect("workspace")}>{t("createProject.importWorkspace")}</Button>
+				</details>
+			</div>
 		</>
 	);
 }

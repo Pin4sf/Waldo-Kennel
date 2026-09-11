@@ -73,9 +73,18 @@ type AgentSwitch struct {
 }
 
 type AppSetting struct {
-	ID                 int64
-	DefaultSessionMode domain.SessionMode
-	UpdatedAt          time.Time
+	ID                               int64
+	DefaultSessionMode               domain.SessionMode
+	UpdatedAt                        time.Time
+	ReasoningProvider                string
+	ReasoningModel                   string
+	ReasoningEffort                  string
+	ReasoningVerifiedAt              sql.NullString
+	ReasoningVerifiedProvider        string
+	ReasoningVerifiedModel           string
+	ReasoningGeneration              int64
+	ReasoningVerifiedGeneration      int64
+	ReasoningVerificationFingerprint string
 }
 
 type Attempt struct {
@@ -89,6 +98,45 @@ type Attempt struct {
 	RequestKey             sql.NullString
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
+	RunIntentGeneration    int64
+}
+
+type AttemptArtifactFile struct {
+	ID                string
+	AttemptID         string
+	RelativePath      string
+	ChangeKind        string
+	ContentDigest     string
+	SizeBytes         sql.NullInt64
+	FileMode          sql.NullInt64
+	IsBinary          int64
+	UnsupportedReason string
+}
+
+type AttemptCheckRun struct {
+	ID                      string
+	AttemptID               string
+	CheckID                 string
+	ArtifactVersion         string
+	State                   string
+	Ran                     int64
+	Passed                  int64
+	ExitCode                int64
+	EnforcedBy              string
+	TimedOut                int64
+	Cancelled               int64
+	TerminationUnknown      int64
+	OutputTruncated         int64
+	Output                  string
+	Unavailable             string
+	ArtifactChanged         int64
+	ObservedArtifactVersion string
+	ReservedAt              time.Time
+	ObservedAt              sql.NullTime
+	ReservationEpoch        string
+	BaselineRan             int64
+	BaselinePassed          int64
+	BaselineDetail          string
 }
 
 type AttemptFence struct {
@@ -108,6 +156,29 @@ type AttemptObservation struct {
 	Kind      string
 	Payload   string
 	CreatedAt time.Time
+}
+
+type AttemptReceipt struct {
+	AttemptID              string
+	OutcomeID              string
+	PlanRevisionID         string
+	WorkUnitID             string
+	ContractRevisionNumber int64
+	ArtifactVersion        string
+	WorkspaceKind          string
+	WorkspacePath          string
+	RepositoryPath         string
+	RepositoryIdentity     string
+	BaseRevision           string
+	ResultRevision         string
+	WorkspaceDirty         int64
+	RetentionState         string
+	RetentionDetail        string
+	TerminationReason      string
+	ObservedAt             time.Time
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	FrozenAt               sql.NullTime
 }
 
 type AttemptRecoveryReceipt struct {
@@ -156,16 +227,17 @@ type ContractCriterium struct {
 }
 
 type ContractRevision struct {
-	ID              domain.ContractRevisionID
-	OutcomeID       domain.OutcomeID
-	Number          int64
-	Goal            string
-	SuccessCriteria string
-	Review          string
-	Constraints     string
-	NonGoals        string
-	Clarification   string
-	CreatedAt       time.Time
+	ID                      domain.ContractRevisionID
+	OutcomeID               domain.OutcomeID
+	Number                  int64
+	Goal                    string
+	SuccessCriteria         string
+	Review                  string
+	Constraints             string
+	NonGoals                string
+	Clarification           string
+	CreatedAt               time.Time
+	ExecutionPreferenceJson sql.NullString
 }
 
 type ContractRevisionIntakeCore struct {
@@ -402,6 +474,7 @@ type IntakeAnalysisRequest struct {
 	RefusalReason            string
 	CreatedAt                time.Time
 	AnsweredAt               sql.NullTime
+	IntelligenceRunID        sql.NullString
 }
 
 type IntakeClarification struct {
@@ -475,6 +548,31 @@ type IntakeSession struct {
 	UpdatedAt               time.Time
 }
 
+type IntelligenceRun struct {
+	ID                 string
+	Kind               string
+	ProjectID          string
+	IntakeID           sql.NullString
+	OutcomeID          sql.NullString
+	ContractRevisionID sql.NullString
+	SourceRevision     int64
+	RequestedProvider  string
+	RequestedModel     string
+	EffectiveProvider  string
+	EffectiveModel     string
+	NativeSessionRef   string
+	InputDigest        string
+	OutputDigest       string
+	Status             string
+	FailureCode        string
+	FailureDetail      string
+	CreatedAt          time.Time
+	CompletedAt        sql.NullTime
+	InputTokens        sql.NullInt64
+	OutputTokens       sql.NullInt64
+	DurationMs         sql.NullInt64
+}
+
 type ModelUsageEvent struct {
 	ID                  int64
 	BindingID           int64
@@ -522,6 +620,78 @@ type OutcomeCorrection struct {
 	TargetType         string
 	TargetID           string
 	CreatedAt          time.Time
+}
+
+type OutcomeDelivery struct {
+	ID                   string
+	OutcomeID            string
+	AttemptID            string
+	WorkUnitID           string
+	ArtifactVersion      string
+	Disposition          string
+	Destination          string
+	AcceptanceDecisionID string
+	RequestKey           string
+	RequestFingerprint   string
+	State                string
+	ManifestPath         string
+	FileCount            int64
+	ByteCount            int64
+	FailureCode          string
+	FailureDetail        string
+	RequestedAt          time.Time
+	CompletedAt          sql.NullTime
+	CompletionSource     string
+}
+
+type OutcomeDocumentContext struct {
+	ID         string
+	OutcomeID  string
+	Revision   int64
+	Digest     string
+	State      string
+	SelectedAt time.Time
+	ApprovedAt sql.NullTime
+}
+
+type OutcomeDocumentSource struct {
+	ID            string
+	ContextID     string
+	Position      int64
+	SourcePath    string
+	Name          string
+	ContentDigest string
+	SizeBytes     int64
+}
+
+type OutcomePurgeScope struct {
+	TableName string
+	RowID     int64
+}
+
+type OutcomeRunIntent struct {
+	ID                         string
+	OutcomeID                  string
+	Generation                 int64
+	Desired                    string
+	PlanRevisionID             string
+	ContractRevisionNumber     int64
+	RequestKey                 string
+	RequestedAt                time.Time
+	AcknowledgedAt             sql.NullTime
+	RequestFingerprint         string
+	AdmissionFailureCode       string
+	AdmissionFailureMessage    string
+	AdmissionFailureDetail     string
+	AdmissionFailureWorkUnitID string
+	AdmissionFailedAt          sql.NullTime
+}
+
+type OutcomeTrash struct {
+	OutcomeID   string
+	TrashRootID string
+	Erasing     int64
+	DeletedAt   time.Time
 }
 
 type PR struct {
@@ -626,15 +796,67 @@ type PRURLAlias struct {
 }
 
 type PlanRevision struct {
-	ID                     domain.PlanRevisionID
-	OutcomeID              domain.OutcomeID
-	Number                 int64
+	ID                      domain.PlanRevisionID
+	OutcomeID               domain.OutcomeID
+	Number                  int64
+	ContractRevisionNumber  int64
+	Status                  string
+	Summary                 string
+	RunBriefCoreDigest      string
+	RunBriefCompiledDigest  string
+	CreatedAt               time.Time
+	AssumptionsJson         string
+	BlockersJson            string
+	PlanningSessionID       sql.NullString
+	SourceIntelligenceRunID sql.NullString
+	RoutingDecisionsJson    sql.NullString
+}
+
+type PlanningSession struct {
+	ID                     string
+	OutcomeID              string
+	ProjectID              string
+	ContractRevisionID     string
 	ContractRevisionNumber int64
+	Revision               int64
+	LatestTurnSequence     int64
 	Status                 string
-	Summary                string
-	RunBriefCoreDigest     string
-	RunBriefCompiledDigest string
+	WaitingOn              string
+	Mode                   string
+	RequestedProvider      string
+	ModelSelection         string
+	RequestedModel         string
+	RequestedEffort        string
+	ContextMode            string
+	PlanningGrantDigest    string
+	ContextDigest          string
+	ContextSnapshotJson    string
+	EffectiveProvider      string
+	EffectiveModel         string
+	NativeConversationRef  string
+	ProposedPlanRevisionID sql.NullString
+	LastFailureCode        string
+	LastFailureDetail      string
+	RequestKey             string
+	RequestFingerprint     string
 	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	ClosedAt               sql.NullTime
+}
+
+type PlanningTurn struct {
+	ID                    string
+	PlanningSessionID     string
+	Sequence              int64
+	ReplyToTurnID         sql.NullString
+	Role                  string
+	Kind                  string
+	Text                  string
+	StructuredPayloadJson sql.NullString
+	IntelligenceRunID     sql.NullString
+	RequestKey            sql.NullString
+	RequestFingerprint    sql.NullString
+	CreatedAt             time.Time
 }
 
 type Project struct {
@@ -1044,6 +1266,39 @@ type WorkUnit struct {
 	EvidenceChecks          string
 	VerificationRequirement string
 	StopConditions          string
+}
+
+type WorkUnitCheck struct {
+	ID             string
+	WorkUnitID     string
+	CriterionID    string
+	Position       int64
+	Argv           string
+	TimeoutSeconds int64
+}
+
+type WorkUnitCriterionBinding struct {
+	WorkUnitID         string
+	ContractRevisionID string
+	CriterionID        string
+}
+
+type WorkUnitDependency struct {
+	WorkUnitID          string
+	DependsOnWorkUnitID string
+}
+
+type WorkUnitProviderBinding struct {
+	WorkUnitID     string
+	Provider       string
+	CreatedAt      time.Time
+	ModelSelection sql.NullString
+	Model          sql.NullString
+}
+
+type WorkUnitRequiredCapability struct {
+	WorkUnitID string
+	Capability string
 }
 
 type WorkspaceRepo struct {

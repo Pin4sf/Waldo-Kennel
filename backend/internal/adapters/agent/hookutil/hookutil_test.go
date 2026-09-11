@@ -112,3 +112,22 @@ func TestEnsureWorkspaceGitignoreLeavesForeignFileUntouched(t *testing.T) {
 		t.Fatalf("foreign .gitignore was modified: %q", data)
 	}
 }
+
+// A .gitignore Kennel did not write is still never touched.
+func TestForeignGitignoreIsLeftAlone(t *testing.T) {
+	dir := t.TempDir()
+	foreign := "# the repository's own ignore file\nnode_modules/\n"
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(foreign), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnsureWorkspaceGitignore(dir, "hook.json"); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != foreign {
+		t.Fatalf("a foreign .gitignore was modified:\n%s", content)
+	}
+}

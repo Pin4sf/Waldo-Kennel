@@ -3,7 +3,6 @@ package outcome_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"testing"
 
@@ -12,9 +11,9 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
 
-// planFakeStore extends the contract fake from contract_test.go with a real
-// in-memory plan store so policy tests exercise actual numbering, replay
-// lookup, and CAS semantics rather than stubs.
+// planFakeStore keeps immutable Plan revisions and their unit/grant payloads so
+// service tests exercise numbering, replay and approval CAS semantics without
+// depending on SQLite.
 type planFakeStore struct {
 	*fakeStore
 
@@ -46,8 +45,9 @@ func (f *planFakeStore) AppendPlanRevision(_ context.Context, outcomeID domain.O
 		return domain.PlanRevision{}, err
 	}
 	f.plans[outcomeID] = append(f.plans[outcomeID], plan)
-	f.units[plan.ID] = plan.WorkUnits
-	f.grants[plan.ID] = plan.Grants
+	f.units[plan.ID] = append([]domain.WorkUnit(nil), plan.WorkUnits...)
+	f.grants[plan.ID] = append([]domain.CapabilityGrant(nil), plan.Grants...)
+	rememberFirstWorkUnit(plan)
 	return plan, nil
 }
 
@@ -72,7 +72,7 @@ func (f *planFakeStore) GetPlanRevision(_ context.Context, outcomeID domain.Outc
 	for _, plan := range f.plans[outcomeID] {
 		if plan.ID == planID {
 			out := plan
-			out.WorkUnits, out.Grants = f.units[planID], f.grants[planID]
+			out.WorkUnits, out.Grants = append([]domain.WorkUnit(nil), f.units[planID]...), append([]domain.CapabilityGrant(nil), f.grants[planID]...)
 			return out, true, nil
 		}
 	}
@@ -87,7 +87,7 @@ func (f *planFakeStore) GetLatestPlanRevision(_ context.Context, outcomeID domai
 		return domain.PlanRevision{}, false, nil
 	}
 	plan := f.plans[outcomeID][n-1]
-	plan.WorkUnits, plan.Grants = f.units[plan.ID], f.grants[plan.ID]
+	plan.WorkUnits, plan.Grants = append([]domain.WorkUnit(nil), f.units[plan.ID]...), append([]domain.CapabilityGrant(nil), f.grants[plan.ID]...)
 	return plan, true, nil
 }
 
@@ -100,42 +100,15 @@ func (f *planFakeStore) ApprovePlanRevision(_ context.Context, outcomeID domain.
 		}
 		if plan.Status == domain.PlanStatusApproved {
 			out := plan
-			out.WorkUnits, out.Grants = f.units[planID], f.grants[planID]
+			out.WorkUnits, out.Grants = append([]domain.WorkUnit(nil), f.units[planID]...), append([]domain.CapabilityGrant(nil), f.grants[planID]...)
 			return out, true, nil
 		}
 		f.plans[outcomeID][i].Status = domain.PlanStatusApproved
 		out := f.plans[outcomeID][i]
-		out.WorkUnits, out.Grants = f.units[planID], f.grants[planID]
+		out.WorkUnits, out.Grants = append([]domain.WorkUnit(nil), f.units[planID]...), append([]domain.CapabilityGrant(nil), f.grants[planID]...)
 		return out, true, nil
 	}
 	return domain.PlanRevision{}, false, nil
-}
-
-func newPlanTestService(t *testing.T) (*outcome.Service, *planFakeStore, domain.OutcomeID) {
-	t.Helper()
-	store := newPlanFakeStore()
-	svc := outcome.New(store, nil)
-
-	store.mu.Lock()
-	store.fakeStore.spaces["mer"] = domain.ResponsibilitySpace{
-		ID: "rsp-plan", Kind: domain.ResponsibilitySpaceWorkProject, ProjectID: "mer",
-	}
-	store.mu.Unlock()
-
-	ctx := context.Background()
-	view, err := svc.Create(ctx, outcome.CreateInput{
-		ProjectID:       "mer",
-		Title:           "Local Focus Ledger",
-		Goal:            "Record today's protected focus time locally.",
-		SuccessCriteria: []string{"Entering positive whole minutes creates one focus block."},
-		Review:          "Deterministic checks plus owner walkthrough.",
-		Constraints:     []string{"Local only."},
-		RequestKey:      "req-plan-test",
-	})
-	if err != nil {
-		t.Fatalf("seed outcome: %v", err)
-	}
-	return svc, store, view.Outcome.ID
 }
 
 func apiCode(t *testing.T, err error) string {
@@ -147,198 +120,162 @@ func apiCode(t *testing.T, err error) string {
 	return apiErr.Code
 }
 
-func TestProposePlanIsDeterministicAndReplays(t *testing.T) {
-	svc, _, outcomeID := newPlanTestService(t)
-	ctx := context.Background()
+func TestProposePlanReentryIsIdempotent(t *testing.T) {
+	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
+	svc, store, outcomeID, provider := newPlanningTestService(t, router)
 
-	first, err := svc.ProposePlan(ctx, outcomeID, 1)
+	first, err := svc.ProposePlan(context.Background(), outcomeID, 2)
 	if err != nil {
-		t.Fatalf("propose: %v", err)
+		t.Fatalf("first propose: %v", err)
 	}
-	if first.Plan.Status != domain.PlanStatusProposed || first.Plan.Number != 1 {
-		t.Fatalf("first proposal = #%d %s", first.Plan.Number, first.Plan.Status)
-	}
-	if len(first.Plan.WorkUnits) != 1 || first.Plan.WorkUnits[0].Kind != domain.WorkUnitDirect {
-		t.Fatalf("v0 proposal must be exactly one direct unit: %+v", first.Plan.WorkUnits)
-	}
-	if len(first.Plan.Grants) != len(domain.V0RequiredCapabilities) {
-		t.Fatalf("grants = %+v, want the v0 trio", first.Plan.Grants)
-	}
-	// Evidence binds criteria; verification mirrors review.
-	if got := strings.Join(first.Plan.WorkUnits[0].EvidenceChecks, "|"); !strings.Contains(got, "focus block") {
-		t.Fatalf("evidence checks must bind success criteria, got %q", got)
-	}
-	if first.Plan.WorkUnits[0].VerificationRequirement == "" {
-		t.Fatal("verification requirement must mirror the contract review")
-	}
-
-	second, err := svc.ProposePlan(ctx, outcomeID, 1)
+	second, err := svc.ProposePlan(context.Background(), outcomeID, 2)
 	if err != nil {
-		t.Fatalf("re-propose: %v", err)
+		t.Fatalf("re-entry propose: %v", err)
 	}
 	if second.Plan.ID != first.Plan.ID || second.Plan.RunBriefCoreDigest != first.Plan.RunBriefCoreDigest {
-		t.Fatal("re-proposing one revision must replay, not stack duplicates")
+		t.Fatal("ordinary re-entry must return the immutable existing proposal")
+	}
+	if provider.calls != 1 {
+		t.Fatalf("plan intelligence calls = %d, want 1", provider.calls)
+	}
+	if got := len(store.plans[outcomeID]); got != 1 {
+		t.Fatalf("persisted plans = %d, want 1", got)
+	}
+}
+
+func TestReplanPlanWithFeedbackCreatesNewImmutableProposal(t *testing.T) {
+	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
+	svc, store, outcomeID, provider := newPlanningTestService(t, router)
+	first, err := svc.ProposePlan(context.Background(), outcomeID, 2)
+	if err != nil {
+		t.Fatalf("first propose: %v", err)
+	}
+	second, err := svc.ReplanPlan(context.Background(), outcomeID, 2, "Use the repository's distinctive check command")
+	if err != nil {
+		t.Fatalf("replan: %v", err)
+	}
+	if second.Plan.ID == first.Plan.ID || second.Plan.Number != 2 {
+		t.Fatalf("replan reused proposal: first=%+v second=%+v", first.Plan, second.Plan)
+	}
+	if provider.calls != 2 || len(store.plans[outcomeID]) != 2 {
+		t.Fatalf("replan calls/plans = %d/%d, want 2/2", provider.calls, len(store.plans[outcomeID]))
 	}
 }
 
 func TestProposePlanRejectsStaleContractPointer(t *testing.T) {
-	svc, _, outcomeID := newPlanTestService(t)
-	ctx := context.Background()
-
-	view, err := svc.Get(ctx, outcomeID)
-	if err != nil {
-		t.Fatalf("get outcome: %v", err)
-	}
-	if _, err := svc.ProposePlan(ctx, outcomeID, view.Outcome.CurrentRevisionNumber+5); err == nil {
+	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
+	svc, _, outcomeID, _ := newPlanningTestService(t, router)
+	if _, err := svc.ProposePlan(context.Background(), outcomeID, 99); err == nil {
 		t.Fatal("stale pointer must be refused")
 	} else if code := apiCode(t, err); code != "PLAN_CONTRACT_STALE" {
 		t.Fatalf("code = %s, want PLAN_CONTRACT_STALE", code)
 	}
 }
 
-func TestMaterialChangeForcesFreshBriefBeforeApproval(t *testing.T) {
-	svc, _, outcomeID := newPlanTestService(t)
+func TestContractRevisionMovementInvalidatesEarlierPlan(t *testing.T) {
+	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
+	svc, _, outcomeID, _ := newPlanningTestService(t, router)
 	ctx := context.Background()
 
-	firstView, err := svc.ProposePlan(ctx, outcomeID, 1)
+	first, err := svc.ProposePlan(ctx, outcomeID, 2)
 	if err != nil {
-		t.Fatalf("propose r1 plan: %v", err)
+		t.Fatalf("propose r2: %v", err)
 	}
-
-	// Owner edits the contract: r2 supersedes every plan bound to r1.
 	if _, err := svc.ReviseContract(ctx, outcomeID, outcome.ReviseContractInput{
-		ExpectedRevision: 1,
-		Goal:             "Record today's protected focus time locally, with notes.",
+		ExpectedRevision: 2,
+		Goal:             "Ship and verify the bounded change with an owner note.",
 		SuccessCriteria: []string{
-			"Entering positive whole minutes creates one focus block.",
-			"Notes are retained.",
+			"Implementation is present.",
+			"Verification proves the implementation behaves as required.",
 		},
-		Review: "Deterministic checks plus owner walkthrough.",
+		Review:           "Run deterministic verification and inspect the owner note.",
+		AuthorityCeiling: fullLocalAuthority(),
+		StopConditions:   []string{"Stop before remote effects."},
 	}); err != nil {
 		t.Fatalf("revise contract: %v", err)
 	}
 
-	_, err = svc.ApprovePlan(ctx, outcomeID, outcome.ApprovePlanInput{
-		PlanRevisionID:           firstView.Plan.ID,
-		ExpectedContractRevision: 2,
-	})
-	if err == nil {
-		t.Fatal("approving a plan bound to superseded r1 must be refused")
-	}
-	if code := apiCode(t, err); code != "PLAN_CONTRACT_STALE" {
+	if _, err := svc.ApprovePlan(ctx, outcomeID, outcome.ApprovePlanInput{PlanRevisionID: first.Plan.ID, ExpectedContractRevision: 3}); err == nil {
+		t.Fatal("plan bound to superseded Contract must not approve")
+	} else if code := apiCode(t, err); code != "PLAN_CONTRACT_STALE" {
 		t.Fatalf("code = %s, want PLAN_CONTRACT_STALE", code)
 	}
 
-	next, err := svc.ProposePlan(ctx, outcomeID, 2)
+	next, err := svc.ProposePlan(ctx, outcomeID, 3)
 	if err != nil {
-		t.Fatalf("propose r2 plan: %v", err)
+		t.Fatalf("propose r3: %v", err)
 	}
-	if next.Plan.ContractRevisionNumber != 2 || next.Plan.RunBriefCoreDigest == firstView.Plan.RunBriefCoreDigest {
-		t.Fatal("the r2 proposal must carry a fresh RunBrief digest")
+	if next.Plan.ContractRevisionNumber != 3 || next.Plan.RunBriefCoreDigest == first.Plan.RunBriefCoreDigest {
+		t.Fatal("material Contract revision must produce a fresh frozen Plan")
 	}
-
-	auth, err := svc.ApprovePlan(ctx, outcomeID, outcome.ApprovePlanInput{
-		PlanRevisionID:           next.Plan.ID,
-		ExpectedContractRevision: 2,
-	})
+	approved, err := svc.ApprovePlan(ctx, outcomeID, outcome.ApprovePlanInput{PlanRevisionID: next.Plan.ID, ExpectedContractRevision: 3})
 	if err != nil {
-		t.Fatalf("approve r2 plan: %v", err)
+		t.Fatalf("approve r3: %v", err)
 	}
-	if auth.Plan.Status != domain.PlanStatusApproved {
-		t.Fatalf("status = %s, want approved", auth.Plan.Status)
-	}
-
-	latest, err := svc.GetLatestPlan(ctx, outcomeID)
-	if err != nil || latest.Plan.ID != next.Plan.ID {
-		t.Fatalf("latest plan = %+v err=%v, want the approved r2 plan", latest, err)
+	if approved.Plan.Status != domain.PlanStatusApproved {
+		t.Fatalf("status = %s, want approved", approved.Plan.Status)
 	}
 }
 
-func TestProposeFailsClosedWhenAuthorityNarrows(t *testing.T) {
-	svc, store, outcomeID := newPlanTestService(t)
-	ctx := context.Background()
-
-	// A constrained environment offers only read: the full v0 trio cannot be
-	// granted, so proposing aborts instead of persisting a hollow plan.
+func TestProposeFailsClosedWhenDaemonPolicyNarrows(t *testing.T) {
+	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
+	svc, store, outcomeID, _ := newPlanningTestService(t, router)
 	svc.PolicyLayers = [][]string{{domain.CapabilityWorktreeRead}}
-	if _, err := svc.ProposePlan(ctx, outcomeID, 1); err == nil {
-		t.Fatal("narrowed authority must fail proposal closed")
+
+	if _, err := svc.ProposePlan(context.Background(), outcomeID, 2); err == nil {
+		t.Fatal("narrowed daemon authority must fail proposal closed")
 	} else if code := apiCode(t, err); code != "PLAN_CAPABILITY_UNAUTHORIZED" {
 		t.Fatalf("code = %s, want PLAN_CAPABILITY_UNAUTHORIZED", code)
 	}
-
-	store.mu.Lock()
-	persisted := len(store.plans[outcomeID])
-	store.mu.Unlock()
-	if persisted != 0 {
-		t.Fatalf("a refused proposal persisted %d plans; want none", persisted)
+	if got := len(store.plans[outcomeID]); got != 0 {
+		t.Fatalf("refused proposal persisted %d plans", got)
 	}
 }
 
-func TestLowerLayerCannotWidenAuthority(t *testing.T) {
-	svc, store, outcomeID := newPlanTestService(t)
-	ctx := context.Background()
-
-	// The runtime layer advertises network.fetch, but the upper policy ceiling
-	// does not. The intersection excludes everything beyond read, so the v0
-	// trio fails closed and no widening survives.
+func TestLowerPolicyLayerCannotWidenAuthority(t *testing.T) {
+	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
+	svc, store, outcomeID, _ := newPlanningTestService(t, router)
 	svc.PolicyLayers = [][]string{
 		{domain.CapabilityWorktreeRead},
 		{domain.CapabilityWorktreeRead, domain.CapabilityWorktreeWrite, domain.CapabilityWorktreeExec, "network.fetch"},
 	}
-	if _, err := svc.ProposePlan(ctx, outcomeID, 1); err == nil {
-		t.Fatal("widening attempt must fail closed")
+	if _, err := svc.ProposePlan(context.Background(), outcomeID, 2); err == nil {
+		t.Fatal("lower layer widening must fail closed")
 	} else if code := apiCode(t, err); code != "PLAN_CAPABILITY_UNAUTHORIZED" {
 		t.Fatalf("code = %s, want PLAN_CAPABILITY_UNAUTHORIZED", code)
 	}
-
-	store.mu.Lock()
-	persisted := len(store.plans[outcomeID])
-	store.mu.Unlock()
-	if persisted != 0 {
-		t.Fatal("no plan may persist when authority is exceeded")
+	if got := len(store.plans[outcomeID]); got != 0 {
+		t.Fatalf("refused proposal persisted %d plans", got)
 	}
 }
 
-func TestApproveRechecksAuthorityAtAuthorizationTime(t *testing.T) {
-	svc, _, outcomeID := newPlanTestService(t)
-	ctx := context.Background()
-
-	view, err := svc.ProposePlan(ctx, outcomeID, 1)
+func TestApproveRechecksCurrentPolicyWithoutRerouting(t *testing.T) {
+	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
+	svc, _, outcomeID, _ := newPlanningTestService(t, router)
+	view, err := svc.ProposePlan(context.Background(), outcomeID, 2)
 	if err != nil {
-		t.Fatalf("propose under full authority: %v", err)
+		t.Fatalf("propose: %v", err)
 	}
-
-	// Policy narrows after the proposal was recorded.
 	svc.PolicyLayers = [][]string{{domain.CapabilityWorktreeRead}}
-	_, err = svc.ApprovePlan(ctx, outcomeID, outcome.ApprovePlanInput{
-		PlanRevisionID:           view.Plan.ID,
-		ExpectedContractRevision: 1,
-	})
-	if err == nil {
-		t.Fatal("approval must re-run fail-closed checks against current authority")
-	}
-	if code := apiCode(t, err); code != "PLAN_CAPABILITY_UNAUTHORIZED" {
+	if _, err := svc.ApprovePlan(context.Background(), outcomeID, outcome.ApprovePlanInput{PlanRevisionID: view.Plan.ID, ExpectedContractRevision: 2}); err == nil {
+		t.Fatal("approval must recheck the current authority ceiling")
+	} else if code := apiCode(t, err); code != "PLAN_CAPABILITY_UNAUTHORIZED" {
 		t.Fatalf("code = %s, want PLAN_CAPABILITY_UNAUTHORIZED", code)
 	}
 }
 
 func TestApproveUnknownPlanIsNotFound(t *testing.T) {
-	svc, _, outcomeID := newPlanTestService(t)
-	ctx := context.Background()
-
-	if _, err := svc.ProposePlan(ctx, outcomeID, 1); err != nil {
+	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
+	svc, _, outcomeID, _ := newPlanningTestService(t, router)
+	if _, err := svc.ProposePlan(context.Background(), outcomeID, 2); err != nil {
 		t.Fatalf("propose: %v", err)
 	}
-	if _, err := svc.ApprovePlan(ctx, outcomeID, outcome.ApprovePlanInput{
-		PlanRevisionID:           "plan-missing",
-		ExpectedContractRevision: 1,
-	}); err == nil {
+	if _, err := svc.ApprovePlan(context.Background(), outcomeID, outcome.ApprovePlanInput{PlanRevisionID: "plan-missing", ExpectedContractRevision: 2}); err == nil {
 		t.Fatal("unknown plan must 404")
 	} else if code := apiCode(t, err); code != "PLAN_NOT_FOUND" {
 		t.Fatalf("code = %s, want PLAN_NOT_FOUND", code)
 	}
-	if _, err := svc.GetLatestPlan(ctx, "out-ghost"); err == nil {
+	if _, err := svc.GetLatestPlan(context.Background(), "out-ghost"); err == nil {
 		t.Fatal("plans for unknown outcomes must 404")
 	}
 }

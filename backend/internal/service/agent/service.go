@@ -78,11 +78,11 @@ type Info struct {
 	// spawn; this flag exists so clients never duplicate that policy.
 	RequiresProfile bool `json:"requiresProfile,omitempty" description:"Launch requires user-selected profile configuration beyond an installed binary."`
 	// Roles are the daemon's authoritative role admission for this harness.
-	Roles AgentRoles `json:"roles" description:"Role admission derived from daemon policy. Clients must not re-derive it from provider names."`
+	Roles Roles `json:"roles" description:"Role admission derived from daemon policy. Clients must not re-derive it from provider names."`
 }
 
-// AgentRoles reports which responsibilities a harness is admitted for.
-type AgentRoles struct {
+// Roles reports which responsibilities a harness is admitted for.
+type Roles struct {
 	Worker       bool `json:"worker"`
 	Coordinator  bool `json:"coordinator"`
 	SwitchTarget bool `json:"switchTarget"`
@@ -552,8 +552,8 @@ func (s *Service) probeAgent(ctx context.Context, item agentregistry.HarnessAgen
 
 // agentRoles derives the authoritative role admission for a harness from the
 // domain predicates, so API consumers never re-implement provider policy.
-func agentRoles(harness domain.AgentHarness) AgentRoles {
-	return AgentRoles{
+func agentRoles(harness domain.AgentHarness) Roles {
+	return Roles{
 		Worker:       harness.IsSelectableForNewWork(),
 		Coordinator:  harness.IsSelectableAsCoordinator(),
 		SwitchTarget: harness.IsSelectableAsSwitchTarget(),
@@ -716,6 +716,7 @@ func withPreferences(cfg domain.ProjectConfig, prefs domain.ProjectAgentPreferen
 	return cfg
 }
 
+// ResolveMissionRoles derives role assignments from preferences and readiness.
 func (s *Service) ResolveMissionRoles(ctx context.Context, prefs domain.ProjectAgentPreferences, cfg domain.ProjectConfig) domain.ResolvedMissionRoles {
 	base := domain.ResolveMissionRoles(withPreferences(cfg, prefs))
 	facts := s.InventoryRoleFacts(ctx, s.uniqueHarnesses(base))

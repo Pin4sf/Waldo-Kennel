@@ -1,6 +1,6 @@
-# Design System — ReverbCode
+# Design System — Kennel
 
-> Source of truth for the ReverbCode desktop UI (Electron + React 19 + Tailwind v4
+> Source of truth for the Kennel desktop UI (Electron + React 19 + Tailwind v4
 >
 > - Radix/shadcn + xterm, in `frontend/src/renderer`). Read this before any visual
 >   or UI change. Created by `/design-consultation` on 2026-06-09.
@@ -12,8 +12,8 @@ orchestrator design system** authored in Figma:
 
 - **Source of truth:** Figma file `Dl0WP9uIvx6QbSzZi7cZQY` ("Waldo"), section
   `2984-17556`. Board screen `2948:15618`, List screen `2960:16130`, choice panel
-  `2960:16912`. The Figma is gospel down to spacing and stroke width; where this
-  document or the agent-orchestrator direction below conflicts with it, **Figma wins**.
+  `2960:16912`. The Figma is gospel down to spacing and stroke width; where any
+  other part of this document conflicts with it, **Figma wins**.
 - **Notch tuning:** Kennel Island (`packages/kennel-island`) uses this same system,
   tuned for the notch with reduced text hierarchy, simpler composition, and a
   `#000000` background at all times so it reads as continuous with the physical
@@ -105,61 +105,9 @@ and rebuilt in this system:
   than the app's attention zones; `zone.action` stays "Needs you" and `zone.pending`
   stays "In review" until that model changes. "Ready" and "Running" were adopted.
 
----
-
-## Superseded — clone agent-orchestrator verbatim (2026-06-10)
-
-> Kept for provenance. The Figma direction above governs.
-
-
-By explicit user decision (2026-06-10), the renderer **clones the
-agent-orchestrator web app verbatim** in looks and design. This **supersedes the
-"match the reference" direction** documented in _Aesthetic Direction_ and the palette
-sections below — where they conflict, **agent-orchestrator wins**. Do not re-flag
-"this doesn't match the old reference" in QA/review; flag divergence from **agent-orchestrator**.
-
-- **Reference (the user's own app):** `~/Projects/agent-orchestrator/packages/web/src`
-  — `app/globals.css`, `app/mc-board.css`, `app/mc-sidebar.css`,
-  `components/{ProjectSidebar,Dashboard,SessionCard,SessionDetailHeader,SessionInspector,StatusBadge}.tsx`.
-- **Palette (live in `frontend/src/renderer/styles.css` `:root`):** `--bg #0a0b0d`,
-  `--bg-1 #15171b`, `--fg #f4f5f7`, `--fg-muted #9ba1aa`, `--fg-passive #646a73`,
-  hairline white-alpha borders, accent `--accent #4d8dff`; status palette updated in
-  PR 3 (token layer): working=blue `#60a5fa` (`--color-status-working`), needs-you=orange
-  `#fb923c` (`--color-status-needs-you`), in-review=yellow `#facc15`
-  (`--color-status-in-review`), ready/mergeable=green `#4ade80` (`--color-status-ready`),
-  fail=red via `--destructive` (`--color-status-exited`).
-  The sidebar rail is the cooler `#08090b`.
-- **Cloned surfaces:** the four-column gradient kanban board, the `ProjectSidebar`
-  (brand + project disclosure + nested session rows + Settings menu footer), the
-  session topbar (Kanban back button + identity + breathing `StatusBadge` pill), and
-  the shared `DashboardTopbar`/`DashboardSubhead` chrome (Coding/Reviews tabs · "N
-  working" pill · subhead) reused across board/review/PR/settings.
-- **Build with shadcn primitives** where a component fits (`components/ui/*`:
-  dropdown-menu, select, card, table, tooltip, …); agent-orchestrator's own
-  hand-rolled CSS components are structure/behaviour reference only.
-- The one carried-over divergence still holds: the **accent is refined blue**, and
-  the **terminal keeps its own palette**. Everything else tracks agent-orchestrator.
-- **Approved divergence (2026-06-10):** on macOS, a titlebar cluster (sidebar toggle +
-  back/forward history arrows, `TitlebarNav`) lives in the sidebar header below the
-  traffic lights — the web reference has no window chrome, so no analogue exists.
-  The toggle is pinned in the icon-rail column so it stays put during expand/collapse;
-  arrows hide when the sidebar is collapsed.
-- **Approved divergence (2026-06-10):** the session inspector rail is fully
-  collapsible, built on the shadcn resizable primitive (`pnpm dlx shadcn add
-resizable`, react-resizable-panels v4 `collapsible` panel + imperative API,
-  user-requested). The panel animates to 0% via a flex-grow transition while the
-  content keeps a stable min-width (yyork-style, no mid-animation reflow). Toggled
-  by a `PanelRight` icon button in the session topbar and ⌘⇧B; open state + split
-  width persist. The AO reference keeps the rail always visible.
-- **Approved divergence (2026-06-12):** on Win/Linux the shell topbar spans the
-  window and the sidebar hangs below it so the sidebar border stops at the header.
-  On macOS the shell topbar is hidden (in-panel actions) and the sidebar is
-  full-height; traffic-light clearance uses `--size-traffic-light-clearance` for
-  both the sidebar header pad and the window-drag strip.
-
 ## Product Context
 
-- **What this is:** ReverbCode is an Electron desktop app for supervising many parallel
+- **What this is:** Kennel is an Electron desktop app for supervising many parallel
   AI coding-agent sessions, backed by a Go daemon (`backend/`). The `ao` CLI is the
   thin client over the same daemon.
 - **Who it's for:** professional software engineers running multiple coding agents at
@@ -172,7 +120,7 @@ resizable`, react-resizable-panels v4 `collapsible` panel + imperative API,
 
 ### Product flow (what the UI must serve)
 
-ReverbCode is **orchestrator-led**, which is the one thing that differs from a flat
+Kennel is **orchestrator-led**, which is the one thing that differs from a flat
 list of independent sessions. Grounded in the daemon
 (`backend/internal/session_manager/manager.go`, `docs/architecture.md`):
 
@@ -195,10 +143,9 @@ list of independent sessions. Grounded in the daemon
 
 ## Aesthetic Direction
 
-> **Superseded (2026-06-10):** see the _Design direction — clone agent-orchestrator
-> verbatim_ banner at the top. The earlier reference framing below is retained for
-> history; the live look tracks agent-orchestrator (same flat near-black / hairline
-> family, so most of this still reads true).
+> **Superseded (2026-08-22):** the Figma banner at the top governs. This section is
+> retained because the live look is still the same flat near-black / hairline
+> family, so most of it reads true.
 
 - **Direction:** flat, near-black, hairline-bordered, utilitarian. Industrial control
   surface, calm chrome, the terminal as the center of gravity.
@@ -209,7 +156,7 @@ list of independent sessions. Grounded in the daemon
   structural). Tokens below were derived from that reference's renderer CSS.
 - **Deliberate tradeoff:** to match that reference, we use the **system font stack** (not
   a custom typeface) and its neutral palette. We diverge in exactly one place: the
-  accent is ReverbCode's **refined blue**, not the reference's jade green. The terminal
+  accent is Kennel's **refined blue**, not the reference's jade green. The terminal
   keeps green (it is the agent CLI).
 
 ## Typography
@@ -299,7 +246,7 @@ left rail stay name-only — no glyph.)
 - **Rail (240px), top → bottom:**
   1. **Orchestrator anchor** — pinned, single, visually distinct (blue 2px left bar,
      `--bg-2` fill, hub/`waypoints` icon, name "Orchestrator", a `5 agents · 2 need you`
-     mono summary). This is ReverbCode's one addition over the reference. Default landing view.
+     mono summary). This is Kennel's one addition over the reference. Default landing view.
   2. `PROJECTS` eyebrow label + a `+`.
   3. Project rows (folder icon + name) with nested **worker rows beneath**. Each project
      row has a hover-revealed **`+`** that opens the New-worker modal pre-scoped to that
@@ -388,9 +335,6 @@ mirrors the reference exactly. Launching from a project row pre-fills the Projec
   grayscale-blue theme. Migrate to this system: drop the Inter `font-family`, adopt the
   system stack, and replace the token values with the neutral ramp + blue accent above.
 - Keep tokens as CSS custom properties under `:root` (dark) and `:root[data-theme="light"]`.
-- A faithful HTML reference of all of the above (both views + topbar + spawn modal,
-  light/dark) is saved under
-  `~/.gstack/projects/aoagents-agent-orchestrator/designs/design-system-20260609/`.
 
 ## Decisions Log
 

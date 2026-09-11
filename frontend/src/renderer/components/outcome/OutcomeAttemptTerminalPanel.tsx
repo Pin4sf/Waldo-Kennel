@@ -20,6 +20,8 @@ import { useUiStore } from "../../stores/ui-store";
 import type { TerminalTarget } from "../../types/terminal";
 import { ShellTerminalTab } from "../ShellTerminalTab";
 import { TerminalPane } from "../TerminalPane";
+import { SessionChatSurface } from "../chat/SessionChatSurface";
+import { newestAttemptSession } from "./OutcomeRunBoardAdapters";
 
 type OutcomeAttemptTerminalPanelProps = {
 	attempt: AttemptRecord;
@@ -60,7 +62,7 @@ export function OutcomeAttemptTerminalPanel({ attempt, onClose }: OutcomeAttempt
 		}
 		return [...byId.values()];
 	}, [attempt.sessions]);
-	const latestBinding = sessionBindings[sessionBindings.length - 1];
+	const latestBinding = newestAttemptSession(attempt);
 
 	const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(latestBinding?.sessionId);
 	const [selectedTarget, setSelectedTarget] = useState<TerminalTarget>({ kind: "worker" });
@@ -164,7 +166,7 @@ export function OutcomeAttemptTerminalPanel({ attempt, onClose }: OutcomeAttempt
 							{t("outcome.run.panelSessionTab", { agent: agentLabel(binding.harness) })}
 						</button>
 					))}
-					{shellTerminalsForSession.length > 0 ? (
+					{resolvedSession && resolvedSession.mode !== "chat" && shellTerminalsForSession.length > 0 ? (
 						<>
 							<span aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
 							{shellTerminalsForSession.map((terminal) => (
@@ -181,7 +183,7 @@ export function OutcomeAttemptTerminalPanel({ attempt, onClose }: OutcomeAttempt
 					) : null}
 				</div>
 				<div className="flex shrink-0 items-center gap-0.5">
-					{resolvedSession ? (
+					{resolvedSession && resolvedSession.mode !== "chat" ? (
 						<button
 							aria-label={t("outcome.run.panelNewTerminal")}
 							className="inline-flex size-control-sm items-center justify-center rounded-md text-passive transition-colors hover:bg-interactive-hover hover:text-foreground"
@@ -206,7 +208,22 @@ export function OutcomeAttemptTerminalPanel({ attempt, onClose }: OutcomeAttempt
 			</div>
 
 			<div className="min-h-0 flex-1 overflow-hidden rounded-group hairline border-border bg-card">
-				{resolvedSession ? (
+				{resolvedSession?.mode === "chat" ? (
+					<SessionChatSurface
+						daemonReady={daemonReady}
+						onOpenShell={addShellTerminal}
+						openingShell={openShellTerminal.isPending}
+						onSelectChat={() => setSelectedTarget({ kind: "worker" })}
+						onSelectShellTerminal={selectShell}
+						session={resolvedSession}
+						shellError={openShellTerminal.error ? String(openShellTerminal.error) : undefined}
+						shellTarget={selectedTarget.kind === "shell" ? selectedTarget : undefined}
+						shellTerminals={shellTerminalsForSession}
+						onCloseShellTerminal={closeShell}
+						onRenameShellTerminal={(handleId, title) => renameShellTerminal.mutate({ handleId, title })}
+						theme={theme}
+					/>
+				) : resolvedSession ? (
 					<TerminalPane
 						daemonReady={daemonReady}
 						fontSize={TERMINAL_FONT_SIZE_DEFAULT}

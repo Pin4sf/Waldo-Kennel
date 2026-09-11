@@ -8,7 +8,7 @@ import (
 )
 
 // ProjectConfig is the typed per-project configuration — the SQLite twin of the
-// legacy agent-orchestrator.yaml `projects.<id>` block. It is persisted as one
+// legacy donor `projects.<id>` config block. It is persisted as one
 // JSON blob per project and resolved at spawn. Each field is typed and
 // validated; there is no free-form map.
 //

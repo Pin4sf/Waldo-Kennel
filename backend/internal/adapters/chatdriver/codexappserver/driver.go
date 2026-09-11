@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/chatdriver/processenv"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/adapters/codexpolicy"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
@@ -31,6 +32,9 @@ const (
 	// extension. initialize plus model/list alone cannot prove those mutating
 	// methods without creating provider state during preflight.
 	minimumCodexVersion = "0.146.0"
+	// Native reasoning relies on request-scoped permission profiles and runtime
+	// workspace roots introduced after the original Chat conformance floor.
+	minimumCodexIntelligenceVersion = "0.153.4"
 )
 
 // handshakeTimeout bounds initialize and thread open. These are local IPC calls
@@ -82,6 +86,18 @@ var _ ports.ChatDriver = (*Driver)(nil)
 
 // Harness reports which agent this driver serves.
 func (d *Driver) Harness() domain.AgentHarness { return domain.HarnessCodex }
+
+// ValidateExecutionPolicy admits only Codex sandbox postures that preserve the
+// approved WorkUnit boundary. Codex's workspace-write sandbox is the narrowest
+// tested posture that permits local command execution; it is not used for a
+// write-only or execute-without-write policy because that would widen authority.
+func (d *Driver) ValidateExecutionPolicy(ctx context.Context, policy domain.AttemptExecutionPolicy) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	_, err := codexpolicy.SandboxFor(policy)
+	return err
+}
 
 // capabilities is what a Codex app-server of a supported version provides. Each
 // entry here was exercised against a live app-server rather than read off a doc.
@@ -191,6 +207,36 @@ func (d *Driver) Probe(ctx context.Context) (ports.ChatCapabilities, error) {
 	return capabilities(), nil
 }
 
+// ProbeIntelligence reports whether this install exposes the permission-profile
+// protocol needed by bounded Waldo proposals. The owner-triggered structured
+// verification still proves the model path separately.
+func (d *Driver) ProbeIntelligence(ctx context.Context) error {
+	if d == nil || d.plugin == nil {
+		return fmt.Errorf("%w: Codex app-server plugin is unavailable", ports.ErrChatDriverUnavailable)
+	}
+	bin, err := d.plugin.ResolveBinary(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ports.ErrChatDriverUnavailable, err)
+	}
+	versionProbe := d.versionProbe
+	if versionProbe == nil {
+		versionProbe = installedCodexVersion
+	}
+	versionCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	versionOutput, err := versionProbe(versionCtx, bin)
+	cancel()
+	if err != nil {
+		return fmt.Errorf("%w: read Codex version: %w", ports.ErrChatDriverIncompatible, err)
+	}
+	installed, ok := parseCodexVersion(versionOutput)
+	minimum, _ := parseCodexVersion(minimumCodexIntelligenceVersion)
+	if !ok || installed.less(minimum) {
+		return fmt.Errorf("%w: Codex native reasoning requires %s or newer", ports.ErrChatDriverIncompatible, minimumCodexIntelligenceVersion)
+	}
+	_, err = d.Probe(ctx)
+	return err
+}
+
 type codexVersion [3]int
 
 var codexVersionPattern = regexp.MustCompile(`\b(\d+)\.(\d+)\.(\d+)\b`)
@@ -240,12 +286,28 @@ func (d *Driver) Start(ctx context.Context, cfg ports.ChatStartConfig) (ports.Ch
 		return nil, fmt.Errorf("workspace path must be absolute, got %q", cfg.WorkspacePath)
 	}
 
+	if cfg.ExecutionPolicy != nil {
+		if err := d.ValidateExecutionPolicy(ctx, *cfg.ExecutionPolicy); err != nil {
+			return nil, err
+		}
+	}
 	conv, err := d.connect(ctx, cfg.WorkspacePath, cfg.Env)
 	if err != nil {
 		return nil, err
 	}
 
 	policy, sandbox := approvalSettings(cfg.Permissions)
+	var governedSandboxPolicy map[string]any
+	if cfg.ExecutionPolicy != nil {
+		var err error
+		sandbox, err = codexpolicy.SandboxFor(*cfg.ExecutionPolicy)
+		if err != nil {
+			_ = conv.Close()
+			return nil, err
+		}
+		policy = "on-request"
+		governedSandboxPolicy = turnSandboxPolicyForExecution(sandbox)
+	}
 	params := map[string]any{
 		"cwd":            cfg.WorkspacePath,
 		"approvalPolicy": policy,
@@ -276,7 +338,7 @@ func (d *Driver) Start(ctx context.Context, cfg ports.ChatStartConfig) (ports.Ch
 		return nil, errors.New("thread/start returned no thread id")
 	}
 
-	conv.start(resp.Thread.ID, resp.Model, resp.ReasoningEffort)
+	conv.start(resp.Thread.ID, resp.Model, resp.ReasoningEffort, governedSandboxPolicy)
 	return conv, nil
 }
 
@@ -289,6 +351,11 @@ func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.
 	if !filepath.IsAbs(cfg.WorkspacePath) {
 		return nil, fmt.Errorf("workspace path must be absolute, got %q", cfg.WorkspacePath)
 	}
+	if cfg.ExecutionPolicy != nil {
+		if err := d.ValidateExecutionPolicy(ctx, *cfg.ExecutionPolicy); err != nil {
+			return nil, err
+		}
+	}
 
 	conv, err := d.connect(ctx, cfg.WorkspacePath, cfg.Env)
 	if err != nil {
@@ -296,11 +363,25 @@ func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.
 	}
 
 	policy, sandbox := approvalSettings(cfg.Permissions)
+	var governedSandboxPolicy map[string]any
+	if cfg.ExecutionPolicy != nil {
+		var err error
+		sandbox, err = codexpolicy.SandboxFor(*cfg.ExecutionPolicy)
+		if err != nil {
+			_ = conv.Close()
+			return nil, err
+		}
+		policy = "on-request"
+		governedSandboxPolicy = turnSandboxPolicyForExecution(sandbox)
+	}
 	params := map[string]any{
 		"threadId":       cfg.ProviderConversationID,
 		"cwd":            cfg.WorkspacePath,
 		"approvalPolicy": policy,
 		"sandbox":        sandbox,
+	}
+	if cfg.Model != "" {
+		params["model"] = cfg.Model
 	}
 	// Developer instructions are launch context, not durable conversation
 	// history. Reapply Kennel's current standing role when app-server reconstructs a
@@ -322,7 +403,7 @@ func (d *Driver) Resume(ctx context.Context, cfg ports.ChatResumeConfig) (ports.
 		return nil, fmt.Errorf("%w: %w", ports.ErrChatResumeFailed, err)
 	}
 
-	conv.start(cfg.ProviderConversationID, resp.Model, resp.ReasoningEffort)
+	conv.start(cfg.ProviderConversationID, resp.Model, resp.ReasoningEffort, governedSandboxPolicy)
 	return conv, nil
 }
 

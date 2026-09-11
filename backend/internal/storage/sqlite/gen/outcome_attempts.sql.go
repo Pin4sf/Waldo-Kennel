@@ -15,8 +15,8 @@ import (
 
 const createAttempt = `-- name: CreateAttempt :exec
 
-INSERT INTO attempts (id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, request_key)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO attempts (id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, run_intent_generation, request_key)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateAttemptParams struct {
@@ -27,6 +27,7 @@ type CreateAttemptParams struct {
 	Number                 int64
 	Status                 domain.AttemptStatus
 	ContractRevisionNumber int64
+	RunIntentGeneration    int64
 	RequestKey             sql.NullString
 }
 
@@ -41,6 +42,7 @@ func (q *Queries) CreateAttempt(ctx context.Context, arg CreateAttemptParams) er
 		arg.Number,
 		arg.Status,
 		arg.ContractRevisionNumber,
+		arg.RunIntentGeneration,
 		arg.RequestKey,
 	)
 	return err
@@ -127,13 +129,27 @@ func (q *Queries) CreateRecoveryReceipt(ctx context.Context, arg CreateRecoveryR
 }
 
 const findAttemptByIdempotencyKey = `-- name: FindAttemptByIdempotencyKey :one
-SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, request_key, created_at, updated_at
+SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, run_intent_generation, request_key, created_at, updated_at
 FROM attempts WHERE request_key = ?
 `
 
-func (q *Queries) FindAttemptByIdempotencyKey(ctx context.Context, requestKey sql.NullString) (Attempt, error) {
+type FindAttemptByIdempotencyKeyRow struct {
+	ID                     domain.AttemptID
+	OutcomeID              domain.OutcomeID
+	PlanRevisionID         domain.PlanRevisionID
+	WorkUnitID             domain.WorkUnitID
+	Number                 int64
+	Status                 domain.AttemptStatus
+	ContractRevisionNumber int64
+	RunIntentGeneration    int64
+	RequestKey             sql.NullString
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+func (q *Queries) FindAttemptByIdempotencyKey(ctx context.Context, requestKey sql.NullString) (FindAttemptByIdempotencyKeyRow, error) {
 	row := q.db.QueryRowContext(ctx, findAttemptByIdempotencyKey, requestKey)
-	var i Attempt
+	var i FindAttemptByIdempotencyKeyRow
 	err := row.Scan(
 		&i.ID,
 		&i.OutcomeID,
@@ -142,6 +158,7 @@ func (q *Queries) FindAttemptByIdempotencyKey(ctx context.Context, requestKey sq
 		&i.Number,
 		&i.Status,
 		&i.ContractRevisionNumber,
+		&i.RunIntentGeneration,
 		&i.RequestKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -170,7 +187,7 @@ func (q *Queries) FindOpenFenceBySubject(ctx context.Context, subject string) (A
 }
 
 const getAttempt = `-- name: GetAttempt :one
-SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, request_key, created_at, updated_at
+SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, run_intent_generation, request_key, created_at, updated_at
 FROM attempts WHERE id = ? AND outcome_id = ?
 `
 
@@ -179,9 +196,23 @@ type GetAttemptParams struct {
 	OutcomeID domain.OutcomeID
 }
 
-func (q *Queries) GetAttempt(ctx context.Context, arg GetAttemptParams) (Attempt, error) {
+type GetAttemptRow struct {
+	ID                     domain.AttemptID
+	OutcomeID              domain.OutcomeID
+	PlanRevisionID         domain.PlanRevisionID
+	WorkUnitID             domain.WorkUnitID
+	Number                 int64
+	Status                 domain.AttemptStatus
+	ContractRevisionNumber int64
+	RunIntentGeneration    int64
+	RequestKey             sql.NullString
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+func (q *Queries) GetAttempt(ctx context.Context, arg GetAttemptParams) (GetAttemptRow, error) {
 	row := q.db.QueryRowContext(ctx, getAttempt, arg.ID, arg.OutcomeID)
-	var i Attempt
+	var i GetAttemptRow
 	err := row.Scan(
 		&i.ID,
 		&i.OutcomeID,
@@ -190,6 +221,7 @@ func (q *Queries) GetAttempt(ctx context.Context, arg GetAttemptParams) (Attempt
 		&i.Number,
 		&i.Status,
 		&i.ContractRevisionNumber,
+		&i.RunIntentGeneration,
 		&i.RequestKey,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -236,6 +268,29 @@ FROM attempt_sessions WHERE attempt_id = ? ORDER BY seq DESC LIMIT 1
 
 func (q *Queries) LatestAttemptSessionRef(ctx context.Context, attemptID domain.AttemptID) (AttemptSession, error) {
 	row := q.db.QueryRowContext(ctx, latestAttemptSessionRef, attemptID)
+	var i AttemptSession
+	err := row.Scan(
+		&i.ID,
+		&i.AttemptID,
+		&i.Seq,
+		&i.SessionID,
+		&i.Harness,
+		&i.Mode,
+		&i.RunBriefCoreDigest,
+		&i.RunBriefCompiledDigest,
+		&i.AdmissionSnapshot,
+		&i.BoundAt,
+	)
+	return i, err
+}
+
+const latestAttemptSessionRefForSession = `-- name: LatestAttemptSessionRefForSession :one
+SELECT id, attempt_id, seq, session_id, harness, mode, run_brief_core_digest, run_brief_compiled_digest, admission_snapshot, bound_at
+FROM attempt_sessions WHERE session_id = ? ORDER BY bound_at DESC, seq DESC LIMIT 1
+`
+
+func (q *Queries) LatestAttemptSessionRefForSession(ctx context.Context, sessionID string) (AttemptSession, error) {
+	row := q.db.QueryRowContext(ctx, latestAttemptSessionRefForSession, sessionID)
 	var i AttemptSession
 	err := row.Scan(
 		&i.ID,
@@ -327,19 +382,33 @@ func (q *Queries) ListAttemptSessionRefsForAttempt(ctx context.Context, attemptI
 }
 
 const listAttemptsByStatus = `-- name: ListAttemptsByStatus :many
-SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, request_key, created_at, updated_at
+SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, run_intent_generation, request_key, created_at, updated_at
 FROM attempts WHERE status = ? ORDER BY outcome_id, number
 `
 
-func (q *Queries) ListAttemptsByStatus(ctx context.Context, status domain.AttemptStatus) ([]Attempt, error) {
+type ListAttemptsByStatusRow struct {
+	ID                     domain.AttemptID
+	OutcomeID              domain.OutcomeID
+	PlanRevisionID         domain.PlanRevisionID
+	WorkUnitID             domain.WorkUnitID
+	Number                 int64
+	Status                 domain.AttemptStatus
+	ContractRevisionNumber int64
+	RunIntentGeneration    int64
+	RequestKey             sql.NullString
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+func (q *Queries) ListAttemptsByStatus(ctx context.Context, status domain.AttemptStatus) ([]ListAttemptsByStatusRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAttemptsByStatus, status)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Attempt{}
+	items := []ListAttemptsByStatusRow{}
 	for rows.Next() {
-		var i Attempt
+		var i ListAttemptsByStatusRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OutcomeID,
@@ -348,6 +417,7 @@ func (q *Queries) ListAttemptsByStatus(ctx context.Context, status domain.Attemp
 			&i.Number,
 			&i.Status,
 			&i.ContractRevisionNumber,
+			&i.RunIntentGeneration,
 			&i.RequestKey,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -366,19 +436,33 @@ func (q *Queries) ListAttemptsByStatus(ctx context.Context, status domain.Attemp
 }
 
 const listAttemptsForOutcome = `-- name: ListAttemptsForOutcome :many
-SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, request_key, created_at, updated_at
+SELECT id, outcome_id, plan_revision_id, work_unit_id, number, status, contract_revision_number, run_intent_generation, request_key, created_at, updated_at
 FROM attempts WHERE outcome_id = ? ORDER BY number
 `
 
-func (q *Queries) ListAttemptsForOutcome(ctx context.Context, outcomeID domain.OutcomeID) ([]Attempt, error) {
+type ListAttemptsForOutcomeRow struct {
+	ID                     domain.AttemptID
+	OutcomeID              domain.OutcomeID
+	PlanRevisionID         domain.PlanRevisionID
+	WorkUnitID             domain.WorkUnitID
+	Number                 int64
+	Status                 domain.AttemptStatus
+	ContractRevisionNumber int64
+	RunIntentGeneration    int64
+	RequestKey             sql.NullString
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+func (q *Queries) ListAttemptsForOutcome(ctx context.Context, outcomeID domain.OutcomeID) ([]ListAttemptsForOutcomeRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAttemptsForOutcome, outcomeID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Attempt{}
+	items := []ListAttemptsForOutcomeRow{}
 	for rows.Next() {
-		var i Attempt
+		var i ListAttemptsForOutcomeRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OutcomeID,
@@ -387,6 +471,7 @@ func (q *Queries) ListAttemptsForOutcome(ctx context.Context, outcomeID domain.O
 			&i.Number,
 			&i.Status,
 			&i.ContractRevisionNumber,
+			&i.RunIntentGeneration,
 			&i.RequestKey,
 			&i.CreatedAt,
 			&i.UpdatedAt,

@@ -8,50 +8,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
 )
 
-func providerBoundPlanFixture(t *testing.T, provider domain.AgentHarness) (*domain.PlanRevision, domain.ContractRevision, *domain.WorkUnit, []domain.CapabilityGrant) {
-	t.Helper()
-	revision := domain.ContractRevision{
-		ID:              domain.ContractRevisionID("cr-provider-plan"),
-		OutcomeID:       domain.OutcomeID("out-provider-plan"),
-		Number:          1,
-		Goal:            "Deliver the provider-bound plan.",
-		SuccessCriteria: []string{"the selected provider is durable"},
-		Review:          "deterministic tests",
-	}
-	unit := domain.WorkUnit{
-		ID:                      domain.WorkUnitID("wu-provider-plan"),
-		Kind:                    domain.WorkUnitDirect,
-		Title:                   "Deliver provider-bound plan",
-		ContractRevisionNumber:  1,
-		Provider:                provider,
-		OutputSummary:           "A tested provider-bound result.",
-		EvidenceChecks:          []string{"provider binding round-trips"},
-		VerificationRequirement: "deterministic tests",
-		StopConditions:          []string{"stop before remote effects"},
-	}
-	grants := []domain.CapabilityGrant{
-		{ID: domain.CapabilityGrantID("cg-provider-read"), Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
-		{ID: domain.CapabilityGrantID("cg-provider-write"), Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"},
-		{ID: domain.CapabilityGrantID("cg-provider-exec"), Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"},
-	}
-	digest, err := domain.ComputeRunBriefCoreDigest(revision, unit, grants)
-	if err != nil {
-		t.Fatalf("compute plan digest: %v", err)
-	}
-	plan := &domain.PlanRevision{
-		ID:                     domain.PlanRevisionID("plan-provider-bound"),
-		OutcomeID:              revision.OutcomeID,
-		ContractRevisionNumber: 1,
-		Status:                 domain.PlanStatusProposed,
-		Summary:                "One provider-bound unit.",
-		WorkUnits:              []domain.WorkUnit{unit},
-		Grants:                 grants,
-		RunBriefCoreDigest:     digest,
-	}
-	return plan, revision, &unit, grants
-}
-
-func seedProviderPlanOutcome(t *testing.T, s *sqlite.Store) {
+func seedProviderPlanOutcome(t *testing.T, s *sqlite.Store) domain.ContractRevision {
 	t.Helper()
 	ctx := context.Background()
 	seedProject(t, s, "provider-project")
@@ -66,59 +23,133 @@ func seedProviderPlanOutcome(t *testing.T, s *sqlite.Store) {
 	if err := s.CreateOutcomeWithContract(ctx, outcome, revision, "req-provider-plan"); err != nil {
 		t.Fatalf("create provider plan outcome: %v", err)
 	}
+	history, err := s.ListContractRevisions(ctx, outcome.ID)
+	if err != nil || len(history) != 1 {
+		t.Fatalf("read seeded contract history: len=%d err=%v", len(history), err)
+	}
+	return history[0]
 }
 
-func TestOutcomeStore_WorkUnitProviderBindingRoundTrips(t *testing.T) {
-	s := newTestStore(t)
-	seedProviderPlanOutcome(t, s)
-	plan, _, _, _ := providerBoundPlanFixture(t, domain.HarnessClaudeCode)
-
-	saved, err := s.AppendPlanRevisionWithProvider(context.Background(), plan.OutcomeID, *plan)
-	if err != nil {
-		t.Fatalf("append provider-bound plan: %v", err)
-	}
-	if saved.WorkUnits[0].Provider != domain.HarnessClaudeCode {
-		t.Fatalf("saved provider = %q, want %q", saved.WorkUnits[0].Provider, domain.HarnessClaudeCode)
-	}
-	got, ok, err := s.GetWorkUnitProvider(context.Background(), saved.WorkUnits[0].ID)
-	if err != nil || !ok {
-		t.Fatalf("get work unit provider ok=%v err=%v", ok, err)
-	}
-	if got != domain.HarnessClaudeCode {
-		t.Fatalf("provider binding = %q, want %q", got, domain.HarnessClaudeCode)
+func recommendedRouting(unit domain.WorkUnit, candidateID string) domain.WorkUnitRoutingDecision {
+	return domain.WorkUnitRoutingDecision{
+		WorkUnitID: unit.ID,
+		Decision: domain.RoutingDecision{
+			Status:                    domain.RoutingDecisionRecommended,
+			PolicyVersion:             domain.RoutingPolicyVersion,
+			Role:                      domain.RoutingRoleWorker,
+			RecommendedCandidateID:    candidateID,
+			RecommendedProvider:       string(unit.Provider),
+			RecommendedModelSelection: unit.ModelSelection,
+			RecommendedModel:          unit.Model,
+		},
 	}
 }
 
-func TestOutcomeStore_LegacyWorkUnitWithoutProviderHasNoInventedBinding(t *testing.T) {
-	s := newTestStore(t)
-	seedProviderPlanOutcome(t, s)
-	plan, _, _, _ := providerBoundPlanFixture(t, "")
-	plan.ID = "plan-provider-legacy"
-	plan.WorkUnits[0].ID = "wu-provider-legacy"
-	plan.Grants[0].ID = "cg-provider-legacy-read"
-	plan.Grants[1].ID = "cg-provider-legacy-write"
-	plan.Grants[2].ID = "cg-provider-legacy-exec"
-	digest, err := domain.ComputeRunBriefCoreDigest(domain.ContractRevision{
-		ID:              "cr-provider-plan",
-		OutcomeID:       "out-provider-plan",
-		Number:          1,
-		Goal:            "Deliver the provider-bound plan.",
-		SuccessCriteria: []string{"the selected provider is durable"},
-		Review:          "deterministic tests",
-	}, plan.WorkUnits[0], plan.Grants)
-	if err != nil {
-		t.Fatalf("compute legacy digest: %v", err)
+func canonicalGraphPlan(t *testing.T, revision domain.ContractRevision) domain.PlanRevision {
+	t.Helper()
+	if len(revision.Criteria) == 0 {
+		t.Fatal("seeded contract has no canonical criteria")
 	}
-	plan.RunBriefCoreDigest = digest
+	criterionIDs := make([]domain.CriterionID, 0, len(revision.Criteria))
+	for _, criterion := range revision.Criteria {
+		criterionIDs = append(criterionIDs, criterion.ID)
+	}
 
-	if _, err := s.AppendPlanRevision(context.Background(), plan.OutcomeID, *plan); err != nil {
-		t.Fatalf("append legacy provider-less plan: %v", err)
+	inspect := domain.WorkUnit{
+		ID: "wu-inspect", Kind: domain.WorkUnitDirect, Title: "Inspect the repository",
+		ContractRevisionNumber: revision.Number,
+		Provider:               domain.HarnessCodex, ModelSelection: domain.ExecutionBindingModelProviderDefault,
+		OutputSummary: "A bounded repository assessment.", EvidenceChecks: []string{"repository state inspected"},
+		VerificationRequirement: "inspection is captured", StopConditions: []string{"stop before writes"},
+		CriterionIDs: []domain.CriterionID{criterionIDs[0]}, RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
 	}
-	got, ok, err := s.GetWorkUnitProvider(context.Background(), plan.WorkUnits[0].ID)
+	change := domain.WorkUnit{
+		ID: "wu-change", Kind: domain.WorkUnitDirect, Title: "Make the bounded change",
+		ContractRevisionNumber: revision.Number,
+		Provider:               domain.HarnessClaudeCode, ModelSelection: domain.ExecutionBindingModelExplicit, Model: "sonnet-test",
+		OutputSummary: "The requested change is ready for review.", EvidenceChecks: []string{"change is inspectable"},
+		VerificationRequirement: "deterministic verification passes", StopConditions: []string{"stop before remote effects"},
+		DependsOn: []domain.WorkUnitID{inspect.ID}, CriterionIDs: criterionIDs,
+		RequiredCapabilities: []string{domain.CapabilityWorktreeRead, domain.CapabilityWorktreeWrite},
+	}
+	grants := []domain.CapabilityGrant{
+		{ID: "cg-read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
+		{ID: "cg-write", Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"},
+	}
+	digest, err := domain.ComputePlanRunBriefCoreDigest(revision, []domain.WorkUnit{inspect, change}, grants)
 	if err != nil {
-		t.Fatalf("get legacy binding: %v", err)
+		t.Fatalf("compute graph digest: %v", err)
 	}
-	if ok || got != "" {
-		t.Fatalf("legacy provider binding = %q ok=%v, want empty/false", got, ok)
+	return domain.PlanRevision{
+		ID: "plan-graph", OutcomeID: revision.OutcomeID, ContractRevisionNumber: revision.Number,
+		Status: domain.PlanStatusProposed, Summary: "Inspect, then make the bounded change.",
+		WorkUnits: []domain.WorkUnit{change, inspect}, // deliberately reverse serialization order
+		Grants:    grants,
+		RoutingDecisions: []domain.WorkUnitRoutingDecision{
+			recommendedRouting(change, "claude-candidate"),
+			recommendedRouting(inspect, "codex-candidate"),
+		},
+		RunBriefCoreDigest: digest,
+	}
+}
+
+func TestOutcomeStore_CanonicalPlanGraphRoundTripsExactly(t *testing.T) {
+	s := newTestStore(t)
+	revision := seedProviderPlanOutcome(t, s)
+	plan := canonicalGraphPlan(t, revision)
+
+	saved, err := s.AppendPlanRevision(context.Background(), plan.OutcomeID, plan)
+	if err != nil {
+		t.Fatalf("append canonical graph plan: %v", err)
+	}
+	got, found, err := s.GetPlanRevision(context.Background(), plan.OutcomeID, saved.ID)
+	if err != nil || !found {
+		t.Fatalf("get canonical graph plan found=%v err=%v", found, err)
+	}
+	if len(got.WorkUnits) != 2 || len(got.RoutingDecisions) != 2 {
+		t.Fatalf("readback workUnits=%d routing=%d", len(got.WorkUnits), len(got.RoutingDecisions))
+	}
+	if err := got.ValidateAgainstContract(revision); err != nil {
+		t.Fatalf("criterion coverage did not round-trip: %v", err)
+	}
+	if err := domain.ValidateExactPlanCapabilityGrants(got.Grants, got.WorkUnits); err != nil {
+		t.Fatalf("required capabilities/grants did not round-trip: %v", err)
+	}
+	order, err := got.TopologicalWorkUnits()
+	if err != nil {
+		t.Fatalf("topological readback: %v", err)
+	}
+	if len(order) != 2 || order[0].ID != "wu-inspect" || order[1].ID != "wu-change" {
+		t.Fatalf("topological order=%v", []domain.WorkUnitID{order[0].ID, order[1].ID})
+	}
+	for _, unit := range got.WorkUnits {
+		binding, err := unit.ExecutionBindingForNewWork()
+		if err != nil {
+			t.Fatalf("work unit %s lost exact execution binding: %v", unit.ID, err)
+		}
+		var matching *domain.WorkUnitRoutingDecision
+		for i := range got.RoutingDecisions {
+			if got.RoutingDecisions[i].WorkUnitID == unit.ID {
+				matching = &got.RoutingDecisions[i]
+				break
+			}
+		}
+		if matching == nil {
+			t.Fatalf("work unit %s lost routing provenance", unit.ID)
+		}
+		if err := matching.ValidateAgainst(unit); err != nil {
+			t.Fatalf("routing/binding mismatch after readback for %s: %v (binding=%+v)", unit.ID, err, binding)
+		}
+	}
+}
+
+func TestOutcomeStore_CanonicalPlanRejectsUnusedCapabilityGrant(t *testing.T) {
+	s := newTestStore(t)
+	revision := seedProviderPlanOutcome(t, s)
+	plan := canonicalGraphPlan(t, revision)
+	plan.Grants = append(plan.Grants, domain.CapabilityGrant{ID: "cg-exec", Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"})
+
+	if _, err := s.AppendPlanRevision(context.Background(), plan.OutcomeID, plan); err == nil {
+		t.Fatal("canonical writer accepted an unused exec grant")
 	}
 }

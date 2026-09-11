@@ -73,3 +73,13 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 SELECT id, decision_id, outcome_id, contract_revision_id, feedback, target_type,
        target_id, created_at
 FROM outcome_corrections WHERE outcome_id = ? ORDER BY created_at, id;
+
+-- Proof records are append-only. Their combined count changes atomically with
+-- every evidence, verification or owner correction commit, regardless of when
+-- the caller assigned its timestamp.
+-- name: OutcomeProofGeneration :one
+SELECT
+    (SELECT COUNT(*) FROM evidence_items e WHERE e.outcome_id = ?)
+  + (SELECT COUNT(*) FROM verification_runs v WHERE v.outcome_id = ?)
+  + (SELECT COUNT(*) FROM acceptance_decisions a WHERE a.outcome_id = ?)
+  + (SELECT COUNT(*) FROM outcome_corrections c WHERE c.outcome_id = ?) AS generation;

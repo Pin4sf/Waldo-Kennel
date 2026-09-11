@@ -1,14 +1,9 @@
-// Act & Observe (#31): governed execution of an approved plan onto a real
-// provider session. Admission is fail-closed and ordered BEFORE any durable
-// row: approved plan -> current-contract binding -> grants survive the
-// authority intersection -> RunBrief core digest recomputes equal -> exact
-// bound-provider readiness probe. Only then do the attempt row, fence, session
-// ref, and running transition land. Any failure AFTER admission begins routes
-// to ambiguity — queued + unconfirmed + custody held — because the true
-// point-of-failure is unknowable after the fact; reconcile decides with
-// machine proof or a recorded owner assertion. Replacement is always a NEW
-// attempt row.
-
+// Act & Observe: governed execution of one scheduler-selected WorkUnit from an
+// approved Plan. Admission is fail-closed before durable execution state:
+// current Contract -> approved immutable Plan -> dependency-ready WorkUnit ->
+// exact capability/binding validation -> exact provider/model readiness. After
+// the Attempt row and custody fence exist, unknown launch outcomes remain
+// ambiguous and reconcileable rather than being relabeled as clean failure.
 package outcome
 
 import (
@@ -19,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -28,11 +22,18 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
-// heartbeatSource resolves bound-session heartbeat facts for derived
-// presentation. It is satisfied by the storage layer's ordinary session read;
-// services never touch SQLite directly.
 type heartbeatSource interface {
 	GetSession(ctx context.Context, id domain.SessionID) (domain.SessionRecord, bool, error)
+}
+
+// prelaunchObservationPayload is the typed durable bridge between the Attempt
+// transaction and run-intent reconciliation. Error remains diagnostic prose;
+// AdmissionFailure is the only field recovery may use as policy identity.
+type prelaunchObservationPayload struct {
+	Error            string                      `json:"error"`
+	WorkUnitID       domain.WorkUnitID           `json:"workUnitId"`
+	ProviderLaunched *bool                       `json:"providerLaunched"`
+	AdmissionFailure *domain.RunAdmissionFailure `json:"admissionFailure"`
 }
 
 // AttemptManager is the controller-facing Act & Observe boundary.
@@ -40,135 +41,120 @@ type AttemptManager interface {
 	StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, in StartAttemptInput) (AttemptView, error)
 	GetAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (AttemptView, error)
 	ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) ([]AttemptView, error)
+	GetSchedule(ctx context.Context, outcomeID domain.OutcomeID, planID domain.PlanRevisionID) (ScheduleView, error)
 	CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (AttemptView, error)
 	RecordObservation(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, in RecordObservationInput) (domain.AttemptObservation, error)
 	RecoverAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, in RecoveryInput) (RecoveryView, error)
 }
 
-// StartAttemptInput names the authorized plan to execute and carries the
-// client's idempotency key: replaying a delivered RequestKey resolves to the
-// original attempt without admitting anything twice.
+// StartAttemptInput names the exact approved WorkUnit this request intends to
+// execute. Harness remains a temporary compatibility assertion only; it never
+// chooses execution and may be removed from the HTTP surface after clients
+// migrate to WorkUnitID.
 type StartAttemptInput struct {
 	PlanRevisionID domain.PlanRevisionID
-	// Harness is a compatibility assertion only. The WorkUnit's immutable
-	// Provider chooses execution. Empty accepts that binding; a different value
-	// is rejected before any durable attempt state is written.
-	Harness    domain.AgentHarness
-	RequestKey string
+	WorkUnitID     domain.WorkUnitID
+	Harness        domain.AgentHarness
+	RequestKey     string
 }
 
-// RecordObservationInput appends one ordered observation. Observations are
-// inspectable on ANY attempt state but never mutate current truth.
+// RecordObservationInput contains one bounded attempt observation.
 type RecordObservationInput struct {
 	Kind    string
 	Payload string
 }
 
-// RecoveryAction enumerates the owner-directed recovery verbs.
+// RecoveryAction identifies the governed response to an uncertain attempt.
 type RecoveryAction string
 
-// Recovery verbs accepted by the recovery route; each maps to one handler.
-// There is deliberately NO resume verb: resuming a paused provider is a
-// provider-control operation that no #31 path can perform, and a database
-// label flip would fake state. Proving an already-running provider alive is
-// reconcile's job; real pause/resume waits for ADR 0007.
 const (
-	RecoveryActionContain   RecoveryAction = "contain"
+	// RecoveryActionContain preserves custody while the attempt is investigated.
+	RecoveryActionContain RecoveryAction = "contain"
+	// RecoveryActionReconcile requests reconciliation of ambiguous runtime state.
 	RecoveryActionReconcile RecoveryAction = "reconcile"
-	RecoveryActionReplace   RecoveryAction = "replace"
+	// RecoveryActionReplace requests a new attempt after reconciliation.
+	RecoveryActionReplace RecoveryAction = "replace"
+	// RecoveryActionAttention requests owner or operator attention.
 	RecoveryActionAttention RecoveryAction = "attention"
 )
 
-// Valid reports whether a is a supported recovery action.
+// Valid reports whether the recovery action is supported.
 func (a RecoveryAction) Valid() bool {
 	switch a {
-	case RecoveryActionContain, RecoveryActionReconcile,
-		RecoveryActionReplace, RecoveryActionAttention:
+	case RecoveryActionContain, RecoveryActionReconcile, RecoveryActionReplace, RecoveryActionAttention:
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
-// RecoveryInput directs containment/reconciliation for one attempt.
+// RecoveryInput contains the owner's recovery decision and provider-stop proof.
 type RecoveryInput struct {
-	Action RecoveryAction
-	// ConfirmProviderStopped is the OWNER's explicit assertion that the bound
-	// provider session is no longer running. Owner authority (invariant 5)
-	// permits custody release without machine proof, but the assertion is
-	// recorded as its own containment observation so it stays auditable.
+	Action                 RecoveryAction
 	ConfirmProviderStopped bool
 }
 
-// AttemptView is the Act & Observe read model: durable lineage plus DERIVED
-// presentation computed from stored status and heartbeat facts. Nothing here
-// is persisted back.
+// AttemptView is the service projection of one attempt and its evidence.
 type AttemptView struct {
 	Outcome      domain.Outcome
 	Attempt      domain.Attempt
 	Sessions     []domain.AttemptSessionRef
 	Observations []domain.AttemptObservation
 	Receipts     []domain.AttemptRecoveryReceipt
-	// Fence is the attempt's custody fence when it currently holds the subject.
 	Fence        *domain.AttemptFence
 	Presentation domain.AttemptPresentation
 }
 
-// RecoveryView pairs the post-recovery read model with the receipt that
-// recorded the verdict.
+// RecoveryView is the service projection of a recovery receipt.
 type RecoveryView struct {
 	Attempt AttemptView
 	Receipt *domain.AttemptRecoveryReceipt
 }
 
 const (
-	// CodeAgentProfileNotReady mirrors the shared admission vocabulary: the
-	// probed harness configuration cannot launch yet.
+	// CodeAgentProfileNotReady indicates that the selected profile cannot run yet.
 	CodeAgentProfileNotReady = "AGENT_PROFILE_NOT_READY"
-	// CodeAgentBinaryNotFound mirrors ports.ErrAgentBinaryNotFound surfacing.
+	// CodeAgentBinaryNotFound indicates that the selected provider binary is absent.
 	CodeAgentBinaryNotFound = "AGENT_BINARY_NOT_FOUND"
-	// CodePlanNotApproved refuses executing anything but an owner-approved plan.
+	// CodeAttemptPrelaunchFailed proves launch failed before the provider boundary.
+	CodeAttemptPrelaunchFailed = "ATTEMPT_PRELAUNCH_FAILED"
+	// CodeAttemptWorkspacePreparationFailed is the specialized workspace form.
+	CodeAttemptWorkspacePreparationFailed = "ATTEMPT_WORKSPACE_PREPARATION_FAILED"
+	// CodePlanNotApproved indicates that owner approval is missing.
 	CodePlanNotApproved = "PLAN_NOT_APPROVED"
-	// CodePlanBriefInvalidated reports the frozen brief no longer matches the
-	// current contract (or its own digest): a fresh proposal + approval is
-	// required before any admission.
+	// CodePlanBriefInvalidated indicates the approved plan no longer matches context.
 	CodePlanBriefInvalidated = "PLAN_BRIEF_INVALIDATED"
-	// CodeAttemptCapabilityUnauthorized reports narrowed authority at start time.
+	// CodeAttemptCapabilityUnauthorized indicates a grant exceeds current authority.
 	CodeAttemptCapabilityUnauthorized = "ATTEMPT_CAPABILITY_UNAUTHORIZED"
-	// CodeAttemptFenceHeld reports another attempt holds worktree custody.
+	// CodeAttemptFenceHeld indicates another attempt owns the custody fence.
 	CodeAttemptFenceHeld = "ATTEMPT_FENCE_HELD"
-	// CodeAttemptNotFound reports an unknown attempt under this Outcome.
+	// CodeNoRunnableWorkUnit reports that scheduling, not custody, is what
+	// refused: every WorkUnit in the approved Plan is either already running
+	// or still waiting on a dependency or required proof.
+	CodeNoRunnableWorkUnit = "NO_RUNNABLE_WORK_UNIT"
+	// CodeAttemptNotFound indicates that the requested attempt does not exist.
 	CodeAttemptNotFound = "ATTEMPT_NOT_FOUND"
-	// CodeAttemptLivenessUnproven refuses replace decisions without provable
-	// liveness evidence.
+	// CodeAttemptLivenessUnproven indicates that runtime liveness is unknown.
 	CodeAttemptLivenessUnproven = "ATTEMPT_LIVENESS_UNPROVEN"
-	// CodeAttemptActivationUnresolved reports a LIVE provider whose running
-	// transition could not be recorded durably.
+	// CodeAttemptActivationUnresolved indicates that activation could not be proven.
 	CodeAttemptActivationUnresolved = "ATTEMPT_ACTIVATION_UNRESOLVED"
-	// CodeAttemptCustodyUnproven refuses custody release while the bound
-	// provider's stop is unproven — the anti-duplicate-writer gate.
+	// CodeAttemptCustodyUnproven indicates that workspace custody is ambiguous.
 	CodeAttemptCustodyUnproven = "ATTEMPT_CUSTODY_UNPROVEN"
-	// CodeAttemptProviderStopFailed reports the terminate call failed; status
-	// is unchanged and custody stays held.
+	// CodeAttemptProviderStopFailed indicates provider termination failed.
 	CodeAttemptProviderStopFailed = "ATTEMPT_PROVIDER_STOP_FAILED"
-	// CodeAttemptStartUnresolved reports an admission whose outcome is unknown;
-	// reconcile with stop-confirmation is the only safe path.
+	// CodeAttemptExecutionPolicyUnsupported indicates the selected adapter cannot
+	// prove enforcement of the approved WorkUnit capabilities.
+	CodeAttemptExecutionPolicyUnsupported = "ATTEMPT_EXECUTION_POLICY_UNSUPPORTED"
+	// CodeAttemptRequestKeyConflict indicates idempotency-key reuse for different
+	// canonical Outcome/Plan/WorkUnit semantics.
+	CodeAttemptRequestKeyConflict = "ATTEMPT_REQUEST_KEY_CONFLICT"
+	// CodeAttemptStartUnresolved indicates that attempt activation is ambiguous.
 	CodeAttemptStartUnresolved = "ATTEMPT_START_UNRESOLVED"
 )
 
-// NewWithExecution builds the service with the Act & Observe seams wired.
-func NewWithExecution(store ports.OutcomeStore, clock func() time.Time, spawner ports.AttemptSessionSpawner, heartbeats heartbeatSource) *Service {
-	svc := New(store, clock)
-	svc.spawner = spawner
-	svc.heartbeats = heartbeats
-	svc.staleHeartbeat = domain.DefaultStaleHeartbeatWindow
-	return svc
-}
-
 var _ AttemptManager = (*Service)(nil)
 
-// StartAttempt admits one authorized plan onto a real provider session using
-// the ratified fail-closed ordering. Every refusal below happens BEFORE any
-// durable row exists.
+// StartAttempt admits one exact approved WorkUnit for execution.
 func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, in StartAttemptInput) (AttemptView, error) {
 	if s.spawner == nil || s.heartbeats == nil {
 		return AttemptView{}, apierr.Internal("ATTEMPT_EXECUTION_UNWIRED", "Attempt execution is not wired in this environment")
@@ -176,32 +162,46 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if strings.TrimSpace(in.RequestKey) == "" {
 		return AttemptView{}, apierr.Invalid("REQUEST_KEY_REQUIRED", "Provide an idempotency key for this start request", nil)
 	}
-
-	// Replay first: a delivered start never admits twice.
 	if existing, ok, err := s.store.FindAttemptByIdempotencyKey(ctx, in.RequestKey); err != nil {
 		return AttemptView{}, err
 	} else if ok {
+		if existing.OutcomeID != outcomeID || existing.PlanRevisionID != in.PlanRevisionID || (!in.WorkUnitID.IsZero() && existing.WorkUnitID != in.WorkUnitID) {
+			return AttemptView{}, apierr.Conflict(CodeAttemptRequestKeyConflict,
+				"That idempotency key is already bound to different Outcome/Plan/WorkUnit semantics",
+				map[string]any{"requestKey": strings.TrimSpace(in.RequestKey), "attemptId": existing.ID, "outcomeId": existing.OutcomeID, "planId": existing.PlanRevisionID, "workUnitId": existing.WorkUnitID})
+		}
 		return s.GetAttempt(ctx, existing.OutcomeID, existing.ID)
 	}
 
-	outcome, ok, err := s.store.GetOutcome(ctx, outcomeID)
+	outcomeRecord, ok, err := s.store.GetOutcome(ctx, outcomeID)
 	if err != nil {
 		return AttemptView{}, err
 	}
 	if !ok {
 		return AttemptView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
 	}
-	// Gate 0: a contributing Outcome may not start while a declared upstream
-	// sibling is unaccepted (ADR 0007). It runs first because it decides
-	// whether this responsibility may execute at all, before any question
-	// about which plan it would execute.
-	gate, err := s.startGateFor(ctx, outcome)
+	gate, err := s.startGateFor(ctx, outcomeRecord)
 	if err != nil {
 		return AttemptView{}, err
 	}
 	if !gate.Clear() {
 		return AttemptView{}, blockedError(outcomeID, gate)
 	}
+	// A pause prevents subsequent admission. Checking it here, before any
+	// durable row is written, is what makes "paused" mean the work stops
+	// rather than the button stops being offered.
+	runIntentGeneration, err := s.refuseAdmissionAgainstRunIntent(ctx, outcomeID)
+	if err != nil {
+		return AttemptView{}, err
+	}
+	// So does a standing correction naming the Plan or Contract. Admission has
+	// to enforce it too: continuation admits through here, and the direct
+	// per-Attempt Start would otherwise be the way around a refusal the
+	// Mission shows the owner.
+	if err := s.refuseExecutionAgainstCorrection(ctx, outcomeID); err != nil {
+		return AttemptView{}, err
+	}
+
 	plan, found, err := s.store.GetPlanRevision(ctx, outcomeID, in.PlanRevisionID)
 	if err != nil {
 		return AttemptView{}, err
@@ -209,81 +209,101 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	if !found {
 		return AttemptView{}, apierr.NotFound("PLAN_NOT_FOUND", "That plan does not exist")
 	}
-	plan, err = s.hydratePlanProvider(ctx, plan)
+	if plan.Status != domain.PlanStatusApproved {
+		return AttemptView{}, apierr.Conflict(CodePlanNotApproved, "Authorize this plan before starting an Attempt", map[string]any{"planId": plan.ID, "status": plan.Status})
+	}
+	if !plan.BindsCurrentContract(outcomeRecord.CurrentRevisionNumber) {
+		return AttemptView{}, apierr.Conflict(CodePlanBriefInvalidated,
+			fmt.Sprintf("Plan binds Contract revision %s; the Outcome is at %s — propose and approve a fresh Plan", formatI64(plan.ContractRevisionNumber), formatI64(outcomeRecord.CurrentRevisionNumber)),
+			map[string]any{"outcomeId": outcomeID, "planId": plan.ID, "planRevisionBinding": plan.ContractRevisionNumber, "currentRevision": outcomeRecord.CurrentRevisionNumber})
+	}
+
+	revision, err := s.currentRevision(ctx, outcomeRecord)
 	if err != nil {
 		return AttemptView{}, err
 	}
-	// Gate 1: only an owner-approved plan may execute.
-	if plan.Status != domain.PlanStatusApproved {
-		return AttemptView{}, apierr.Conflict(CodePlanNotApproved,
-			"Authorize this plan before starting an attempt",
-			map[string]any{"planId": string(plan.ID), "status": string(plan.Status)})
+	if err := plan.ValidateForApproval(revision); err != nil {
+		return AttemptView{}, apierr.Conflict(CodePlanBriefInvalidated, "The approved Plan no longer satisfies its Contract binding", map[string]any{"detail": err.Error()})
 	}
-	// Gate 2: the plan must still bind the Outcome's CURRENT contract revision.
-	if !plan.BindsCurrentContract(outcome.CurrentRevisionNumber) {
-		return AttemptView{}, apierr.Conflict(CodePlanBriefInvalidated,
-			fmt.Sprintf("Plan binds contract revision %s; the Outcome is at %s — propose and approve a fresh plan",
-				formatI64(plan.ContractRevisionNumber), formatI64(outcome.CurrentRevisionNumber)),
-			map[string]any{
-				"outcomeId":           string(outcomeID),
-				"planId":              string(plan.ID),
-				"planRevisionBinding": plan.ContractRevisionNumber,
-				"currentRevision":     outcome.CurrentRevisionNumber,
-			})
+	if err := s.authorizeAttemptCapabilities(revision, plan); err != nil {
+		return AttemptView{}, err
 	}
-	// Gate 3: execution provider identity must have been frozen into the Plan.
-	// Legacy provider-less plans remain readable history but cannot execute.
-	if len(plan.WorkUnits) != 1 || plan.WorkUnits[0].Provider == "" {
+
+	unit, err := s.selectWorkUnitForAttempt(ctx, outcomeID, plan, in.WorkUnitID)
+	if err != nil {
+		return AttemptView{}, err
+	}
+	binding, err := unit.ExecutionBindingForNewWork()
+	if err != nil {
 		return AttemptView{}, providerUnboundError(outcomeID)
 	}
-	harness := plan.WorkUnits[0].Provider
-	if requested := domain.AgentHarness(strings.TrimSpace(string(in.Harness))); requested != "" && requested != harness {
+	if requested := domain.AgentHarness(strings.TrimSpace(string(in.Harness))); requested != "" && requested != binding.Provider {
 		return AttemptView{}, apierr.Conflict(CodeAttemptProviderMismatch,
-			"The requested provider does not match the provider authorized by this plan",
-			map[string]any{
-				"planId":            string(plan.ID),
-				"authorizedProvider": string(harness),
-				"requestedProvider":  string(requested),
-			})
+			"The requested provider does not match the exact provider authorized for this WorkUnit",
+			map[string]any{"planId": plan.ID, "workUnitId": unit.ID, "authorizedProvider": binding.Provider, "requestedProvider": requested})
 	}
-	// Gate 4: every grant must still survive the authority intersection.
-	if err := s.authorizeAttemptCapabilities(plan.Grants); err != nil {
-		return AttemptView{}, err
-	}
-	// Gate 5: recompute the frozen RunBrief core digest from the CURRENT
-	// contract content; any material drift invalidates the brief.
-	revision, err := s.currentRevision(ctx, outcome)
-	if err != nil {
-		return AttemptView{}, err
-	}
-	recomputed, err := domain.ComputeRunBriefCoreDigest(revision, plan.WorkUnits[0], plan.Grants)
+
+	recomputed, err := domain.ComputePlanRunBriefCoreDigest(revision, plan.WorkUnits, plan.Grants)
 	if err != nil {
 		return AttemptView{}, err
 	}
 	if recomputed != plan.RunBriefCoreDigest {
 		return AttemptView{}, apierr.Conflict(CodePlanBriefInvalidated,
-			"The frozen RunBrief no longer matches the contract — propose and approve a fresh plan",
-			map[string]any{"outcomeId": string(outcomeID), "planId": string(plan.ID)})
+			"The frozen RunBrief no longer matches the Contract and Plan — propose and approve a fresh Plan",
+			map[string]any{"outcomeId": outcomeID, "planId": plan.ID})
 	}
+	policy, err := domain.BuildAttemptExecutionPolicy(outcomeID, plan, unit, recomputed)
+	if err != nil {
+		return AttemptView{}, apierr.Conflict(CodeAttemptCapabilityUnauthorized, "The approved WorkUnit capability packet is invalid", map[string]any{"detail": err.Error(), "workUnitId": unit.ID})
+	}
+
 	projectID, ok, err := s.store.GetOutcomeProjectID(ctx, outcomeID)
 	if err != nil {
 		return AttemptView{}, err
 	}
 	if !ok {
-		return AttemptView{}, apierr.NotFound("PROJECT_NOT_FOUND", "Register that project before starting attempts")
+		return AttemptView{}, apierr.NotFound("PROJECT_NOT_FOUND", "Register that Project before starting Attempts")
 	}
-
-	// Gate 6: profile readiness is checked for the EXACT provider authorized in
-	// the WorkUnit. There is no default and no fallback chain.
-	if err := s.probeReadiness(ctx, projectID, harness); err != nil {
+	if err := s.probeReadiness(ctx, projectID, binding, &policy); err != nil {
 		return AttemptView{}, err
 	}
 
-	now := s.clock()
-	attempt, err := s.store.CreateAttemptWithFence(ctx, outcomeID, plan, strings.TrimSpace(in.RequestKey), domain.FenceSubjectForProject(projectID), now)
+	// A successor may not be admitted until its predecessors' exact results are
+	// retained, complete and frozen. Resolving here, before the fence is taken,
+	// means a blocked successor never holds custody it cannot use — and the
+	// versions resolved now are the ones launch must materialize.
+	inputs, err := s.admittedInputsFor(ctx, plan, unit)
 	if err != nil {
-		// A lost same-request-key race serves the WINNER's attempt and never
-		// spawns a second provider session.
+		return AttemptView{}, err
+	}
+	// A supplied-document Outcome stages its approved snapshot the same way,
+	// at the same seam, under the same refusal: unreviewed or edited material
+	// never reaches a provider.
+	documents, hasDocuments, err := s.approvedDocumentsForAdmission(ctx, outcomeID)
+	if err != nil {
+		return AttemptView{}, err
+	}
+	var documentInputs *ports.AttemptDocumentInputs
+	if hasDocuments {
+		documentInputs = &ports.AttemptDocumentInputs{
+			ContextID: documents.ID, Revision: documents.Revision, Digest: documents.Digest,
+		}
+	}
+
+	now := s.clock()
+	attempt, err := s.store.CreateAttemptWithFence(ctx, ports.AttemptAdmission{
+		OutcomeID: outcomeID, PlanRevisionID: plan.ID, WorkUnitID: unit.ID,
+		ContractRevisionNumber: plan.ContractRevisionNumber,
+		RunIntentGeneration:    runIntentGeneration,
+		RequestKey:             strings.TrimSpace(in.RequestKey), FenceSubject: domain.FenceSubjectForProject(projectID), At: now,
+	})
+	if err != nil {
+		var replayConflict *ports.AttemptReplayConflictError
+		if errors.As(err, &replayConflict) {
+			return AttemptView{}, apierr.Conflict(CodeAttemptRequestKeyConflict,
+				"That idempotency key is already bound to different Outcome/Plan/WorkUnit semantics",
+				map[string]any{"requestKey": strings.TrimSpace(in.RequestKey), "attemptId": replayConflict.Attempt.ID, "outcomeId": replayConflict.Attempt.OutcomeID, "planId": replayConflict.Attempt.PlanRevisionID, "workUnitId": replayConflict.Attempt.WorkUnitID})
+		}
 		var replay *ports.AttemptReplayError
 		if errors.As(err, &replay) {
 			return s.GetAttempt(ctx, replay.Attempt.OutcomeID, replay.Attempt.ID)
@@ -291,79 +311,87 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		var held *ports.AttemptFenceHeldError
 		if errors.As(err, &held) {
 			return AttemptView{}, apierr.Conflict(CodeAttemptFenceHeld,
-				"Another attempt holds custody of this project's worktree — reconcile it first",
-				map[string]any{
-					"subject":      held.Subject,
-					"holder":       string(held.Holder),
-					"attemptedFor": string(held.OutcomeID),
-				})
+				"Another Attempt holds custody of this Project worktree — reconcile it first",
+				map[string]any{"subject": held.Subject, "holder": held.Holder, "attemptedFor": held.OutcomeID})
+		}
+		var runConflict *ports.AttemptRunIntentConflictError
+		if errors.As(err, &runConflict) {
+			if runConflict.Desired == domain.RunIntentPaused || runConflict.Desired == domain.RunIntentCancelled {
+				return AttemptView{}, apierr.Conflict(CodeRunActionUnavailable,
+					"The Outcome was paused or cancelled before this Attempt could be admitted", nil)
+			}
+			return AttemptView{}, apierr.Conflict(CodeRunIntentStale,
+				"The Outcome's run authorization changed before this Attempt could be admitted", nil)
 		}
 		return AttemptView{}, err
 	}
 
-	// Durable rows now exist: any failure from here on must leave TRUTHFUL
-	// state — failed attempt, observation, receipt — never a silent retry or
-	// an in-place replacement.
-	prompt := renderRunBriefPrompt(revision, plan)
-	session, err := s.spawner.Spawn(ctx, ports.AttemptSpawnRequest{
-		ProjectID:   projectID,
-		Harness:     harness,
-		Prompt:      prompt,
-		DisplayName: fmt.Sprintf("%s · attempt %d", outcome.Title, attempt.Number),
+	prompt := renderRunBriefPrompt(revision, unit)
+	spawned, err := s.spawner.Spawn(ctx, ports.AttemptSpawnRequest{
+		ProjectID: projectID, Harness: binding.Provider, ModelSelection: binding.ModelSelection, Model: binding.Model,
+		ExecutionPolicy: &policy,
+		Prompt:          prompt, DisplayName: fmt.Sprintf("%s · %s · attempt %d", outcomeRecord.Title, unit.Title, attempt.Number),
+		Inputs: inputs, Documents: documentInputs,
 	})
 	if err != nil {
-		// NO spawn error is classifiable as a clean failure from here: the
-		// adapter may have created the runtime before hitting the problem.
-		// Every failure after admission began routes to activation ambiguity —
-		// queued + unconfirmed + custody held — until reconcile decides with
-		// proof or owner assertion.
+		// Input provisioning happens before any provider process exists, so
+		// this failure is known rather than ambiguous. It is recorded and the
+		// Attempt is ended, leaving any partially provisioned workspace
+		// attributable instead of holding custody for a run that never began.
+		var prelaunch *ports.AttemptPrelaunchError
+		if errors.Is(err, ports.ErrAttemptInputProvisioning) || errors.Is(err, ports.ErrAttemptWorkspacePreparation) || errors.As(err, &prelaunch) {
+			return AttemptView{}, s.admitPrelaunchFailure(ctx, outcomeID, unit, attempt, err)
+		}
 		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationAdmissionAmbiguous, err)
 	}
+	if binding.ModelSelection == domain.ExecutionBindingModelExplicit && strings.TrimSpace(spawned.EffectiveModel) != "" && strings.TrimSpace(spawned.EffectiveModel) != binding.Model {
+		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous,
+			fmt.Errorf("provider reported effective model %q but Plan authorized %q", spawned.EffectiveModel, binding.Model))
+	}
 
+	session := spawned.Session
 	mode := session.Mode
-	compiled := computeCompiledBriefDigest(harness, mode, recomputed)
+	policyDigest, err := policy.Digest()
+	if err != nil {
+		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous, fmt.Errorf("execution policy digest failed: %w", err))
+	}
+	compiled := computeCompiledBriefDigest(binding, mode, recomputed, policyDigest, inputs)
 	snapshot, err := json.Marshal(map[string]any{
 		"snapshotVersion":        domain.AdmissionSnapshotVersion,
-		"harness":                string(harness),
+		"harness":                string(binding.Provider),
+		"modelSelection":         string(binding.ModelSelection),
+		"requestedModel":         binding.Model,
+		"effectiveModel":         strings.TrimSpace(spawned.EffectiveModel),
+		"workUnitId":             string(unit.ID),
 		"mode":                   string(mode),
 		"runBriefCoreDigest":     recomputed,
 		"runBriefCompiledDigest": compiled,
+		"executionPolicy":        policy,
+		"executionPolicyDigest":  policyDigest,
 		"sessionId":              session.ID,
 		"requestedAt":            now,
+		// The exact predecessor artifacts this Attempt consumed. Recording
+		// them is what lets a replay or an audit say which bytes the successor
+		// was actually built on, rather than re-resolving "the latest".
+		"inputArtifactVersions": inputArtifactVersions(inputs),
+		"documentContext":       documentInputs,
 	})
 	if err != nil {
-		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous,
-			fmt.Errorf("admission snapshot failed: %w", err))
+		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous, fmt.Errorf("admission snapshot failed: %w", err))
 	}
 	if _, err := s.store.BindAttemptSession(ctx, domain.AttemptSessionRef{
-		AttemptID:              attempt.ID,
-		SessionID:              string(session.ID),
-		Harness:                harness,
-		Mode:                   mode,
-		RunBriefCoreDigest:     recomputed,
-		RunBriefCompiledDigest: compiled,
-		AdmissionSnapshot:      string(snapshot),
-		BoundAt:                s.clock(),
+		AttemptID: attempt.ID, SessionID: string(session.ID), Harness: binding.Provider, Mode: mode,
+		RunBriefCoreDigest: recomputed, RunBriefCompiledDigest: compiled, AdmissionSnapshot: string(snapshot), BoundAt: s.clock(),
 	}); err != nil {
-		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous,
-			fmt.Errorf("session binding failed: %w", err))
+		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous, fmt.Errorf("session binding failed: %w", err))
 	}
 	rows, err := s.store.TransitionAttemptStatus(ctx, outcomeID, attempt.ID, domain.AttemptQueued, domain.AttemptRunning, s.clock())
 	if err != nil || rows != 1 {
-		// The provider session IS LIVE here; only the durable promotion
-		// failed. Never a raw 500: record actionable ambiguity, keep the
-		// fence, and let reconcile decide.
-		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous,
-			fmt.Errorf("activation not recorded (rows=%d): %w", rows, err))
+		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous, fmt.Errorf("activation not recorded (rows=%d): %w", rows, err))
 	}
 	return s.GetAttempt(ctx, outcomeID, attempt.ID)
 }
 
-// admitUnresolved records an UNKNOWN admission/activation outcome: status
-// stays queued (never failed, never silently running), an ambiguous
-// observation and a needs_attention receipt land, and the fence stays HELD so
-// no duplicate writer can start before reconcile decides. Internal recording
-// failures are joined into the returned error instead of being dropped.
 func (s *Service) admitUnresolved(ctx context.Context, attemptID domain.AttemptID, kind string, cause error) error {
 	detail := ""
 	if cause != nil {
@@ -375,11 +403,8 @@ func (s *Service) admitUnresolved(ctx context.Context, attemptID domain.AttemptI
 		errs = append(errs, fmt.Errorf("record ambiguous start (%s) for %s: %w", kind, attemptID, err))
 	}
 	if err := s.store.CreateRecoveryReceipt(ctx, domain.AttemptRecoveryReceipt{
-		ID:         "rcpt-" + uuid.NewString(),
-		AttemptID:  attemptID,
-		Resolution: domain.RecoveryNeedsAttention,
-		Detail:     string(payload),
-		CreatedAt:  s.clock(),
+		ID: "rcpt-" + uuid.NewString(), AttemptID: attemptID, Resolution: domain.RecoveryNeedsAttention,
+		Detail: string(payload), CreatedAt: s.clock(),
 	}); err != nil {
 		errs = append(errs, fmt.Errorf("record ambiguous activation receipt for %s: %w", attemptID, err))
 	}
@@ -387,49 +412,34 @@ func (s *Service) admitUnresolved(ctx context.Context, attemptID domain.AttemptI
 	if kind == domain.ObservationAdmissionAmbiguous {
 		code, headline = CodeAttemptStartUnresolved, "The start outcome is unknown"
 	}
-	unresolved := apierr.Conflict(code,
-		headline+" — the attempt stays unconfirmed until you reconcile it",
-		map[string]any{"attemptId": string(attemptID)})
+	unresolved := apierr.Conflict(code, headline+" — the Attempt stays unconfirmed until you reconcile it", map[string]any{"attemptId": attemptID})
 	if len(errs) > 0 {
 		return errors.Join(append(errs, unresolved)...)
 	}
 	return unresolved
 }
 
-// Pause/resume are deliberately ABSENT until a real provider-control
-// contract exists (ADR 0007 territory): a database "paused" label over a
-// still-running CLI agent is the exact dishonesty this stage forbids. The
-// stored `paused` status and its legal transitions remain reserved in the
-// schema for that future contract.
-
-// probeReadiness runs the admission profile probe against the spawner.
-func (s *Service) probeReadiness(ctx context.Context, projectID domain.ProjectID, harness domain.AgentHarness) error {
-	readiness, err := s.spawner.ProfileReadiness(ctx, projectID, harness)
+func (s *Service) probeReadiness(ctx context.Context, projectID domain.ProjectID, binding domain.ExecutionBinding, policy *domain.AttemptExecutionPolicy) error {
+	readiness, err := s.spawner.ProfileReadiness(ctx, projectID, binding, policy)
 	if err != nil {
+		var unsupported *ports.ExecutionPolicyUnsupportedError
+		if errors.As(err, &unsupported) {
+			return apierr.Conflict(CodeAttemptExecutionPolicyUnsupported, "The selected provider cannot enforce this approved WorkUnit policy", map[string]any{"harness": binding.Provider, "capability": unsupported.Capability, "detail": unsupported.Detail})
+		}
 		if errors.Is(err, ports.ErrAgentBinaryNotFound) {
-			return apierr.Conflict(CodeAgentBinaryNotFound,
-				"The agent binary is not installed on this machine", map[string]any{"harness": string(harness)})
+			return apierr.Conflict(CodeAgentBinaryNotFound, "The authorized agent binary is not installed on this machine", map[string]any{"harness": binding.Provider})
 		}
 		return err
 	}
 	if !readiness.Ready {
-		return apierr.Conflict(CodeAgentProfileNotReady,
-			"The selected agent profile is not ready to launch", map[string]any{
-				"harness": string(harness),
-				"detail":  readiness.Detail,
-			})
+		return apierr.Conflict(CodeAgentProfileNotReady, "The authorized agent profile/model is not ready to launch", map[string]any{
+			"harness": binding.Provider, "modelSelection": binding.ModelSelection, "model": binding.Model, "detail": readiness.Detail,
+		})
 	}
 	return nil
 }
 
-// CancelAttempt ends an active attempt by owner decision AND stops the bound
-// provider through the execution seam: canonical cancellation requires
-// provider authority, not a database status flip. The stop's two facts are
-// recorded separately — ProviderStopped gates the cancellation, and a
-// preserved dirty workspace is noted without pretending the provider lives.
-// If termination fails or stays unproven, the status is left untouched, the
-// fence stays held, and a needs_attention receipt records exactly what could
-// not be stopped.
+// CancelAttempt records a governed cancellation request for an attempt.
 func (s *Service) CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (AttemptView, error) {
 	attempt, _, err := s.requireAttempt(ctx, outcomeID, attemptID)
 	if err != nil {
@@ -438,9 +448,7 @@ func (s *Service) CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID,
 	switch attempt.Status {
 	case domain.AttemptQueued, domain.AttemptRunning, domain.AttemptPaused:
 	default:
-		return AttemptView{}, apierr.Conflict("ATTEMPT_ALREADY_ENDED",
-			fmt.Sprintf("Attempt already ended as %s", attempt.Status),
-			map[string]any{"status": string(attempt.Status)})
+		return AttemptView{}, apierr.Conflict("ATTEMPT_ALREADY_ENDED", fmt.Sprintf("Attempt already ended as %s", attempt.Status), map[string]any{"status": attempt.Status})
 	}
 	ref, bound, err := s.store.LatestAttemptSessionRef(ctx, attemptID)
 	if err != nil {
@@ -451,74 +459,57 @@ func (s *Service) CancelAttempt(ctx context.Context, outcomeID domain.OutcomeID,
 		return AttemptView{}, err
 	}
 	if !bound {
-		// An unbound attempt means admission never completed — its start
-		// outcome is UNKNOWN and a provider may or may not exist. Cancelling
-		// it as if nothing were running would be a false stop record.
 		return AttemptView{}, apierr.Conflict(CodeAttemptStartUnresolved,
-			"This start's outcome is unknown — reconcile with a stop confirmation instead of cancelling",
-			map[string]any{"attemptId": string(attemptID)})
+			"This start's outcome is unknown — reconcile with a stop confirmation instead of cancelling", map[string]any{"attemptId": attemptID})
 	}
-	var termination ports.TerminationResult
-	{
-		termRes, termErr := s.spawner.Terminate(ctx, projectID, ref.SessionID)
-		if termErr == nil && !termRes.ProviderStopped {
-			termErr = fmt.Errorf("%w: adapter could not prove the session stopped", ports.ErrProviderStopUnproven)
+	termRes, termErr := s.spawner.Terminate(ctx, projectID, ref.SessionID)
+	if termErr == nil && !termRes.ProviderStopped {
+		termErr = fmt.Errorf("%w: adapter could not prove the session stopped", ports.ErrProviderStopUnproven)
+	}
+	if termErr != nil {
+		payload := mustJSON(map[string]any{"error": termErr.Error(), "sessionId": ref.SessionID})
+		var errs []error
+		if _, obsErr := s.store.AppendAttemptObservation(ctx, attemptID, domain.ObservationProviderStopFailed, payload, s.clock()); obsErr != nil {
+			errs = append(errs, fmt.Errorf("record stop-failure observation for %s: %w", attemptID, obsErr))
 		}
-		if termErr != nil {
-			payload := mustJSON(map[string]any{"error": termErr.Error(), "sessionId": ref.SessionID})
-			var errs []error
-			if _, obsErr := s.store.AppendAttemptObservation(ctx, attemptID, domain.ObservationProviderStopFailed, payload, s.clock()); obsErr != nil {
-				errs = append(errs, fmt.Errorf("record stop-failure observation for %s: %w", attemptID, obsErr))
-			}
-			if rcptErr := s.store.CreateRecoveryReceipt(ctx, domain.AttemptRecoveryReceipt{
-				ID:         "rcpt-" + uuid.NewString(),
-				AttemptID:  attemptID,
-				Resolution: domain.RecoveryNeedsAttention,
-				Detail:     payload,
-				CreatedAt:  s.clock(),
-			}); rcptErr != nil {
-				errs = append(errs, fmt.Errorf("record stop-failure receipt for %s: %w", attemptID, rcptErr))
-			}
-			refused := apierr.Conflict(CodeAttemptProviderStopFailed,
-				"The provider session could not be stopped — cancel was NOT recorded; stop it and retry",
-				map[string]any{"attemptId": string(attemptID), "sessionId": ref.SessionID})
-			if len(errs) > 0 {
-				return AttemptView{}, errors.Join(append(errs, refused)...)
-			}
-			return AttemptView{}, refused
+		if rcptErr := s.store.CreateRecoveryReceipt(ctx, domain.AttemptRecoveryReceipt{
+			ID: "rcpt-" + uuid.NewString(), AttemptID: attemptID, Resolution: domain.RecoveryNeedsAttention, Detail: payload, CreatedAt: s.clock(),
+		}); rcptErr != nil {
+			errs = append(errs, fmt.Errorf("record stop-failure receipt for %s: %w", attemptID, rcptErr))
 		}
-		termination = termRes
+		refused := apierr.Conflict(CodeAttemptProviderStopFailed,
+			"The provider session could not be stopped — cancel was NOT recorded; stop it and retry", map[string]any{"attemptId": attemptID, "sessionId": ref.SessionID})
+		if len(errs) > 0 {
+			return AttemptView{}, errors.Join(append(errs, refused)...)
+		}
+		return AttemptView{}, refused
 	}
 	rows, err := s.store.TransitionAttemptStatus(ctx, outcomeID, attemptID, attempt.Status, domain.AttemptCancelled, s.clock())
 	if err != nil {
 		return AttemptView{}, err
 	}
 	if rows == 0 {
-		return AttemptView{}, apierr.Conflict("ATTEMPT_STATUS_MOVED", "The attempt changed state concurrently; reload and retry", nil)
+		return AttemptView{}, apierr.Conflict("ATTEMPT_STATUS_MOVED", "The Attempt changed state concurrently; reload and retry", nil)
 	}
-	payload, _ := json.Marshal(map[string]any{
-		"previousStatus":  string(attempt.Status),
-		"providerStopped": termination.ProviderStopped,
-		"workspaceFreed":  termination.WorkspaceFreed,
-	})
+	payload, _ := json.Marshal(map[string]any{"previousStatus": attempt.Status, "providerStopped": termRes.ProviderStopped, "workspaceFreed": termRes.WorkspaceFreed})
 	if _, err := s.store.AppendAttemptObservation(ctx, attemptID, domain.ObservationOwnerCancel, string(payload), s.clock()); err != nil {
 		return AttemptView{}, err
 	}
 	return s.GetAttempt(ctx, outcomeID, attemptID)
 }
 
-// GetAttempt reads one attempt's full read model with derived presentation.
+// GetAttempt returns the durable attempt projection and related facts.
 func (s *Service) GetAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (AttemptView, error) {
-	attempt, outcome, err := s.requireAttempt(ctx, outcomeID, attemptID)
+	attempt, outcomeRecord, err := s.requireAttempt(ctx, outcomeID, attemptID)
 	if err != nil {
 		return AttemptView{}, err
 	}
-	return s.readModel(ctx, outcome, attempt)
+	return s.readModel(ctx, outcomeRecord, attempt)
 }
 
-// ListAttempts reads every attempt of the Outcome in lineage order.
+// ListAttempts returns durable attempt projections for an Outcome.
 func (s *Service) ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) ([]AttemptView, error) {
-	outcome, ok, err := s.store.GetOutcome(ctx, outcomeID)
+	outcomeRecord, ok, err := s.store.GetOutcome(ctx, outcomeID)
 	if err != nil {
 		return nil, err
 	}
@@ -531,7 +522,7 @@ func (s *Service) ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) 
 	}
 	views := make([]AttemptView, 0, len(attempts))
 	for _, attempt := range attempts {
-		view, err := s.readModel(ctx, outcome, attempt)
+		view, err := s.readModel(ctx, outcomeRecord, attempt)
 		if err != nil {
 			return nil, err
 		}
@@ -540,9 +531,7 @@ func (s *Service) ListAttempts(ctx context.Context, outcomeID domain.OutcomeID) 
 	return views, nil
 }
 
-// RecordObservation appends one ordered observation. Insertable ALWAYS (D5):
-// stale attempts stay inspectable, and no observation ever mutates current
-// truth by itself.
+// RecordObservation appends a bounded observation to an attempt.
 func (s *Service) RecordObservation(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID, in RecordObservationInput) (domain.AttemptObservation, error) {
 	if _, _, err := s.requireAttempt(ctx, outcomeID, attemptID); err != nil {
 		return domain.AttemptObservation{}, err
@@ -550,6 +539,9 @@ func (s *Service) RecordObservation(ctx context.Context, outcomeID domain.Outcom
 	kind := strings.TrimSpace(in.Kind)
 	if kind == "" {
 		return domain.AttemptObservation{}, apierr.Invalid("OBSERVATION_KIND_REQUIRED", "Name what was observed", nil)
+	}
+	if systemOwnedPrelaunchObservationKind(kind) {
+		return domain.AttemptObservation{}, apierr.Invalid("OBSERVATION_KIND_RESERVED", "That observation kind is written only by Attempt admission", nil)
 	}
 	payload := in.Payload
 	if payload == "" {
@@ -560,9 +552,8 @@ func (s *Service) RecordObservation(ctx context.Context, outcomeID domain.Outcom
 	return s.store.AppendAttemptObservation(ctx, attemptID, kind, payload, s.clock())
 }
 
-// requireAttempt loads the attempt under its Outcome or answers typed 404s.
 func (s *Service) requireAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (domain.Attempt, domain.Outcome, error) {
-	outcome, ok, err := s.store.GetOutcome(ctx, outcomeID)
+	outcomeRecord, ok, err := s.store.GetOutcome(ctx, outcomeID)
 	if err != nil {
 		return domain.Attempt{}, domain.Outcome{}, err
 	}
@@ -574,14 +565,12 @@ func (s *Service) requireAttempt(ctx context.Context, outcomeID domain.OutcomeID
 		return domain.Attempt{}, domain.Outcome{}, err
 	}
 	if !found {
-		return domain.Attempt{}, domain.Outcome{}, apierr.NotFound(CodeAttemptNotFound, "That attempt does not exist for this Outcome")
+		return domain.Attempt{}, domain.Outcome{}, apierr.NotFound(CodeAttemptNotFound, "That Attempt does not exist for this Outcome")
 	}
-	return attempt, outcome, nil
+	return attempt, outcomeRecord, nil
 }
 
-// readModel assembles the view: lineage, observations, receipts, open fence,
-// and presentation derived from stored status plus heartbeat facts.
-func (s *Service) readModel(ctx context.Context, outcome domain.Outcome, attempt domain.Attempt) (AttemptView, error) {
+func (s *Service) readModel(ctx context.Context, outcomeRecord domain.Outcome, attempt domain.Attempt) (AttemptView, error) {
 	sessions, err := s.store.ListAttemptSessionRefs(ctx, attempt.ID)
 	if err != nil {
 		return AttemptView{}, err
@@ -601,22 +590,16 @@ func (s *Service) readModel(ctx context.Context, outcome domain.Outcome, attempt
 		if rec, present, err := s.heartbeats.GetSession(ctx, domain.SessionID(latest.SessionID)); err != nil {
 			return AttemptView{}, err
 		} else if present {
-			facts = domain.SessionHeartbeatFacts{
-				Present:        true,
-				ActivityState:  rec.Activity.State,
-				FirstSignalAt:  rec.FirstSignalAt,
-				LastActivityAt: rec.Activity.LastActivityAt,
-				IsTerminated:   rec.IsTerminated,
-			}
+			facts = domain.SessionHeartbeatFacts{Present: true, ActivityState: rec.Activity.State, FirstSignalAt: rec.FirstSignalAt, LastActivityAt: rec.Activity.LastActivityAt, IsTerminated: rec.IsTerminated}
 		}
 	}
 	unresolvedAdmission := false
 	for _, obs := range observations {
 		if obs.Kind == domain.ObservationAdmissionAmbiguous || obs.Kind == domain.ObservationActivationAmbiguous {
-			unresolvedAdmission = true // kinds are only ever appended
+			unresolvedAdmission = true
 		}
 	}
-	subjectProject, ok, err := s.store.GetOutcomeProjectID(ctx, outcome.ID)
+	subjectProject, ok, err := s.store.GetOutcomeProjectID(ctx, outcomeRecord.ID)
 	if err != nil {
 		return AttemptView{}, err
 	}
@@ -629,55 +612,104 @@ func (s *Service) readModel(ctx context.Context, outcome domain.Outcome, attempt
 		}
 	}
 	return AttemptView{
-		Outcome:      outcome,
-		Attempt:      attempt,
-		Sessions:     sessions,
-		Observations: observations,
-		Receipts:     receipts,
-		Fence:        fence,
-		Presentation: domain.DeriveAttemptPresentation(attempt.Status, facts, unresolvedAdmission,
-			domain.LivenessPolicy{Now: s.clock(), StaleHeartbeatAfter: s.staleHeartbeat}),
+		Outcome: outcomeRecord, Attempt: attempt, Sessions: sessions, Observations: observations, Receipts: receipts, Fence: fence,
+		Presentation: domain.DeriveAttemptPresentation(attempt.Status, facts, unresolvedAdmission, domain.LivenessPolicy{Now: s.clock(), StaleHeartbeatAfter: s.staleHeartbeat}),
 	}, nil
 }
 
-// authorizeAttemptCapabilities applies the same fail-closed gates as approval
-// but speaks the attempt vocabulary.
-func (s *Service) authorizeAttemptCapabilities(grants []domain.CapabilityGrant) error {
+func (s *Service) authorizeAttemptCapabilities(revision domain.ContractRevision, plan domain.PlanRevision) error {
+	for _, unit := range plan.WorkUnits {
+		if err := validateWorkUnitWithinContractCeiling(revision, unit); err != nil {
+			return apierr.New(apierr.KindConflict, CodeAttemptCapabilityUnauthorized, err.Error(), map[string]any{"workUnitId": unit.ID})
+		}
+	}
+	if err := domain.ValidateExactPlanCapabilityGrants(plan.Grants, plan.WorkUnits); err != nil {
+		return apierr.Invalid(CodeAttemptCapabilityUnauthorized, err.Error(), nil)
+	}
 	authoritative := s.authoritativeCapabilities()
-	if err := domain.GrantsFailClosed(grants, authoritative); err != nil {
-		names := make([]string, 0, len(grants))
-		for _, grant := range grants {
+	if err := domain.GrantsFailClosed(plan.Grants, authoritative); err != nil {
+		var names []string
+		for _, grant := range plan.Grants {
 			names = append(names, grant.Name)
 		}
-		return apierr.New(apierr.KindConflict, CodeAttemptCapabilityUnauthorized,
-			err.Error(),
-			map[string]any{"granted": names, "authoritative": authoritative})
-	}
-	if missing := domain.MissingRequiredCapabilities(grants); len(missing) > 0 {
-		return apierr.Invalid(CodeAttemptCapabilityUnauthorized,
-			"This environment cannot offer every capability the plan requires: "+strings.Join(missing, ", "),
-			map[string]any{"missing": missing})
+		return apierr.New(apierr.KindConflict, CodeAttemptCapabilityUnauthorized, err.Error(), map[string]any{"granted": names, "authoritative": authoritative})
 	}
 	return nil
 }
 
-// computeCompiledBriefDigest freezes the adapter-compiled brief identity:
-// core digest plus the concrete harness/mode it was compiled for. Versioned
-// so later slices can evolve compilation without reinterpreting old refs.
-func computeCompiledBriefDigest(harness domain.AgentHarness, mode domain.SessionMode, core string) string {
-	sum := sha256.Sum256([]byte("v0|" + string(harness) + "|" + string(mode) + "|" + core))
+// computeCompiledBriefDigest identifies exactly what this Attempt was launched
+// with. Input artifact versions are part of that identity: the same WorkUnit
+// run against different predecessor output is different work, and a replay
+// fingerprint that ignored the inputs would call the two the same.
+func computeCompiledBriefDigest(binding domain.ExecutionBinding, mode domain.SessionMode, core, policyDigest string, inputs []ports.AttemptInputRef) string {
+	sum := sha256.Sum256([]byte("v3|" + string(binding.Provider) + "|" + string(binding.ModelSelection) + "|" + binding.Model +
+		"|" + string(mode) + "|" + core + "|" + policyDigest + "|" + strings.Join(inputArtifactVersions(inputs), ",")))
 	return hex.EncodeToString(sum[:])
 }
 
-// renderRunBriefPrompt derives the deterministic provider-neutral task text
-// from the frozen contract and plan. It is a BRIEF, not a transcript: no
-// provider prose is parsed or persisted anywhere in #31.
-func renderRunBriefPrompt(revision domain.ContractRevision, plan domain.PlanRevision) string {
-	unit := plan.WorkUnits[0]
+// admitPrelaunchFailure records a known pre-launch failure and ends the
+// Attempt so its custody is released for a deliberate retry.
+//
+// Nothing ran, so holding the worktree fence would block the owner without
+// protecting anything. The workspace itself is left alone by the session
+// manager when it holds partial content, so failed custody stays inspectable.
+func (s *Service) admitPrelaunchFailure(ctx context.Context, outcomeID domain.OutcomeID, unit domain.WorkUnit, attempt domain.Attempt, cause error) error {
+	kind := domain.ObservationAdmissionFailed
+	if errors.Is(cause, ports.ErrAttemptInputProvisioning) {
+		kind = domain.ObservationInputProvisioningFailed
+	}
+	refused := prelaunchRefusal(unit, attempt.ID, cause)
+	detailJSON := mustJSON(refused.Details)
+	if detailJSON == "" || detailJSON == "null" {
+		detailJSON = "{}"
+	}
+	failedAt := s.clock()
+	failure := domain.RunAdmissionFailure{
+		Code: refused.Code, Message: refused.Message, DetailJSON: detailJSON,
+		WorkUnitID: unit.ID, OccurredAt: failedAt,
+	}
+	providerLaunched := false
+	payload := mustJSON(prelaunchObservationPayload{
+		Error: cause.Error(), WorkUnitID: unit.ID, ProviderLaunched: &providerLaunched,
+		AdmissionFailure: &failure,
+	})
+
+	if _, err := s.store.FailAttemptBeforeLaunch(ctx, ports.AttemptPrelaunchFailure{
+		OutcomeID: outcomeID, AttemptID: attempt.ID, ObservationKind: kind,
+		ObservationPayload: payload, ReleaseReason: "provider_not_launched", At: failedAt,
+	}); err != nil {
+		return errors.Join(fmt.Errorf("record prelaunch failure for %s: %w", attempt.ID, err), refused)
+	}
+	return refused
+}
+
+func prelaunchRefusal(unit domain.WorkUnit, attemptID domain.AttemptID, cause error) *apierr.Error {
+	if errors.Is(cause, ports.ErrAttemptInputProvisioning) {
+		return materializationFailed(unit, attemptID, cause)
+	}
+	if errors.Is(cause, ports.ErrAttemptWorkspacePreparation) {
+		return apierr.New(apierr.KindConflict, CodeAttemptWorkspacePreparationFailed, "The workspace could not be prepared; no provider was started", map[string]any{"attemptId": string(attemptID), "detail": cause.Error()})
+	}
+	if errors.Is(cause, ports.ErrAgentBinaryNotFound) {
+		return apierr.New(apierr.KindConflict, CodeAgentBinaryNotFound, "The authorized agent binary is not installed on this machine; no provider was started", map[string]any{"attemptId": string(attemptID), "detail": cause.Error()})
+	}
+	detail := map[string]any{"attemptId": string(attemptID), "detail": cause.Error()}
+	var prelaunch *ports.AttemptPrelaunchError
+	if errors.As(cause, &prelaunch) {
+		detail["stage"] = prelaunch.Stage
+	}
+	return apierr.New(apierr.KindConflict, CodeAttemptPrelaunchFailed, "The Attempt could not launch; no provider was started", detail)
+}
+
+func systemOwnedPrelaunchObservationKind(kind string) bool {
+	return kind == domain.ObservationAdmissionFailed || kind == domain.ObservationInputProvisioningFailed
+}
+
+func renderRunBriefPrompt(revision domain.ContractRevision, unit domain.WorkUnit) string {
 	var b strings.Builder
-	b.WriteString("Execute the following approved Work Unit inside your isolated worktree.\n\n")
+	b.WriteString("Execute the following approved WorkUnit inside your isolated worktree.\n\n")
 	b.WriteString("Goal: " + revision.Goal + "\n")
-	b.WriteString("Work unit: " + unit.Title + "\n")
+	b.WriteString("WorkUnit: " + unit.Title + "\n")
 	b.WriteString("Expected output: " + unit.OutputSummary + "\n")
 	b.WriteString("Evidence checks:\n")
 	for _, check := range unit.EvidenceChecks {

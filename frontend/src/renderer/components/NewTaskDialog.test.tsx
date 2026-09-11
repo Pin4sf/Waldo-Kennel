@@ -77,7 +77,14 @@ const agentInventory = {
 };
 
 async function waitForAgentCatalog() {
-	await waitFor(() => expect(screen.getAllByText("Codex").length).toBeGreaterThan(0));
+	await waitFor(() =>
+		expect(getMock.mock.calls.some(([path]) => path === "/api/v1/agents")).toBe(true),
+	);
+}
+
+async function selectCodex() {
+	await userEvent.click(screen.getByRole("button", { name: "Agent" }));
+	await userEvent.click(await screen.findByRole("menuitem", { name: "Codex" }));
 }
 
 beforeEach(() => {
@@ -109,7 +116,7 @@ describe("NewTaskDialog", () => {
 		expect(screen.queryByText("Runs with")).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Close new task dialog" })).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Agent" })).toHaveTextContent("Codex");
+		expect(screen.getByRole("button", { name: "Agent" })).toHaveTextContent("Select agent");
 		expect(await screen.findByLabelText("Model")).toHaveValue("");
 		expect(screen.getByRole("button", { name: "Add file" })).toBeInTheDocument();
 		expect(screen.getByLabelText("Outcome")).toHaveAttribute("placeholder", "Describe the result you want Kennel to deliver…");
@@ -138,6 +145,7 @@ describe("NewTaskDialog", () => {
 		const brief = "  Restore the fallback renderer after WebGL init fails.  ";
 
 		await waitForAgentCatalog();
+		await selectCodex();
 
 		await user.type(screen.getByLabelText("Outcome"), brief);
 		await user.type(screen.getByLabelText("Model"), "placeholder-model");
@@ -172,6 +180,7 @@ describe("NewTaskDialog", () => {
 		const { onCreated } = renderDialog();
 		const user = userEvent.setup();
 		await waitForAgentCatalog();
+		await selectCodex();
 
 		await user.type(screen.getByLabelText("Outcome"), "Fix it");
 		await user.click(screen.getByRole("button", { name: "Define outcome" }));
@@ -195,10 +204,10 @@ describe("NewTaskDialog", () => {
 
 		await user.click(screen.getByRole("button", { name: "Agent" }));
 		// Retired identities stay out; the admitted worker appears with its
-		// needs-install state (avatar-initial fallback, no logo asset yet).
+		// not-installed state (avatar-initial fallback, no logo asset yet).
 		expect((await screen.findAllByRole("menuitem")).map((option) => option.textContent)).toEqual([
 			"Codex",
-			"DDeepSeek HarnessNeeds install",
+			"DDeepSeek HarnessNot installed · Install the provider, then refresh",
 		]);
 		await user.click(screen.getByRole("menuitem", { name: "Codex" }));
 
@@ -232,8 +241,8 @@ describe("NewTaskDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Agent" }));
 		const options = await screen.findAllByRole("menuitem");
 		expect(options.map((option) => option.textContent)).toEqual([
-			"CodexAuth unknown",
-			"DDeepSeek HarnessNeeds install",
+			"CodexAuthentication unknown · Check provider setup, then refresh",
+			"DDeepSeek HarnessNot installed · Install the provider, then refresh",
 		]);
 		expect(options[0]).not.toHaveAttribute("aria-disabled", "true");
 		await user.click(options[0]);
@@ -382,6 +391,7 @@ describe("NewTaskDialog", () => {
 		renderDialog();
 		const user = userEvent.setup();
 		await waitForAgentCatalog();
+		await selectCodex();
 
 		await user.type(screen.getByLabelText("Outcome"), "Restore fallback renderer.");
 		await user.click(screen.getByRole("button", { name: "Define outcome" }));

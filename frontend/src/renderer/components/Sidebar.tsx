@@ -1,3 +1,4 @@
+import { usesWorkLaunchMode } from "../lib/preview-mode";
 import {
 	useQuery,
 	useQueryClient,
@@ -324,7 +325,7 @@ export function Sidebar({
 			>
 				{figmaBoard ? (
 					<button
-						aria-label={t("shell.orchestratorBoard")}
+						aria-label={t(usesWorkLaunchMode ? "work.shell.outcomesButton" : "shell.orchestratorBoard")}
 						className="figma-board-sidebar__brand"
 						onClick={selection.goWork}
 						style={noDragStyle}
@@ -344,7 +345,7 @@ export function Sidebar({
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<button
-								aria-label={t("shell.orchestratorBoard")}
+								aria-label={t(usesWorkLaunchMode ? "work.shell.outcomesButton" : "shell.orchestratorBoard")}
 								className={cn(
 									"grid h-5.5 w-5.5 shrink-0 place-items-center",
 									"group-data-[collapsible=icon]:size-control-board group-data-[collapsible=icon]:rounded-lg",
@@ -366,12 +367,12 @@ export function Sidebar({
 							</button>
 						</TooltipTrigger>
 						<TooltipContent side="right" hidden={state !== "collapsed"}>
-							{t("shell.orchestratorBoard")}
+							{t(usesWorkLaunchMode ? "work.shell.outcomesButton" : "shell.orchestratorBoard")}
 						</TooltipContent>
 					</Tooltip>
 					{isWindows ? (
 						<span
-							aria-label={t("shell.orchestratorBoard")}
+							aria-label={t(usesWorkLaunchMode ? "work.shell.outcomesButton" : "shell.orchestratorBoard")}
 							className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-sm font-bold leading-tight tracking-tight-lg text-foreground group-data-[collapsible=icon]:hidden"
 							onClick={selection.goWork}
 							onKeyDown={(event: KeyboardEvent<HTMLSpanElement>) => {
@@ -405,7 +406,7 @@ export function Sidebar({
 					figmaBoard ? "figma-board-sidebar__mode-switch" : "px-2 pb-3",
 				)}
 			>
-				<HomeWorkModeSwitch />
+				{!usesWorkLaunchMode && <HomeWorkModeSwitch />}
 			</div>
 
 			{selection.isHome ? (
@@ -545,7 +546,6 @@ export function Sidebar({
 			    margin matches the framed center-panel inset plus the 1px surface
 			    border so the two hairlines meet. Native fullscreen drops the
 			    mac inset, so the footer collapses to the 1px surface border. */}
-			{figmaBoard ? null : (
 			<SidebarFooter
 				className={cn(
 					"relative mt-auto gap-0 overflow-hidden border-t border-border-strong px-2 !py-2 transition-[padding] duration-200 ease-linear group-data-[collapsible=icon]:min-h-16 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:!pb-0 group-data-[collapsible=icon]:!pt-1.5",
@@ -603,7 +603,6 @@ export function Sidebar({
 					</Tooltip>
 				</div>
 			</SidebarFooter>
-			)}
 
 			{figmaBoard ? null : (
 				<>
@@ -733,7 +732,7 @@ function ProjectItem({
 	const outcomeTree = buildOutcomeTree(outcomes);
 
 	const openOutcome = (outcomeId: string, stage: "decompose" | "decide_authorize") => {
-		void navigate({ to: "/work", search: { project: workspace.id, stage, outcome: outcomeId } });
+		void navigate({ to: "/work", search: { project: workspace.id, stage, outcome: outcomeId, portfolio: workspace.id } });
 	};
 	const openNewOutcome = () => {
 		void navigate({ to: "/work", search: { project: workspace.id } });
@@ -878,7 +877,7 @@ function ProjectItem({
 	{/* Folder disclosure toggle: sibling of the nav button, absolutely positioned over
 	    the icon area so it intercepts clicks there without nesting buttons. */}
 	<button
-		aria-label={t("shell.toggleProject", { name: workspace.name })}
+		aria-label={t(usesWorkLaunchMode ? "shell.toggleProjectOutcomes" : "shell.toggleProject", { name: workspace.name })}
 		aria-expanded={expanded}
 		className={cn(
 			"absolute inset-y-0 z-10 group-data-[collapsible=icon]:hidden focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm",
@@ -1047,7 +1046,7 @@ function ProjectItem({
 										active={selection.activeOutcomeId === node.outcome.id}
 										figmaBoard={figmaBoard}
 										onOpen={() => openOutcome(node.outcome.id, outcomeDestinationStage(node))}
-										onOpenMissionControl={() => openOutcome(node.outcome.id, "decompose")}
+										onOpenMissionControl={() => openOutcome(node.outcome.id, outcomeDestinationStage(node))}
 										outcome={node.outcome}
 									/>
 									{node.contributors.map((contributor) => (

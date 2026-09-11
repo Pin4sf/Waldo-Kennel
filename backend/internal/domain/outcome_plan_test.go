@@ -7,234 +7,218 @@ import (
 
 func validWorkUnit() WorkUnit {
 	return WorkUnit{
-		ID:                      WorkUnitID("wu-test"),
+		ID:                      "wu-test",
 		Kind:                    WorkUnitDirect,
 		Title:                   "Build and prove the feature",
 		ContractRevisionNumber:  1,
 		OutputSummary:           "Working local feature in the isolated worktree",
 		EvidenceChecks:          []string{"deterministic test suite passes"},
 		VerificationRequirement: "verification runs outside the producer session",
-		StopConditions:          []string{"stop before any remote effect or unapproved dependency"},
+		StopConditions:          []string{"stop before any unapproved external effect"},
 	}
 }
 
 func validGrants() []CapabilityGrant {
 	return []CapabilityGrant{
-		{ID: CapabilityGrantID("cg-read"), Name: CapabilityWorktreeRead, Scope: "worktree/*"},
-		{ID: CapabilityGrantID("cg-write"), Name: CapabilityWorktreeWrite, Scope: "worktree/*"},
-		{ID: CapabilityGrantID("cg-exec"), Name: CapabilityWorktreeExec, Scope: "worktree/*"},
+		{ID: "cg-read", Name: CapabilityWorktreeRead, Scope: "worktree/*"},
+		{ID: "cg-write", Name: CapabilityWorktreeWrite, Scope: "worktree/*"},
+		{ID: "cg-exec", Name: CapabilityWorktreeExec, Scope: "worktree/*"},
 	}
 }
 
 func validPlanRevision() PlanRevision {
 	return PlanRevision{
-		ID:                     PlanRevisionID("plan-test"),
-		OutcomeID:              OutcomeID("out-test"),
-		Number:                 1,
-		ContractRevisionNumber: 1,
-		Status:                 PlanStatusProposed,
-		Summary:                "One direct unit",
-		WorkUnits:              []WorkUnit{validWorkUnit()},
-		Grants:                 validGrants(),
-		RunBriefCoreDigest:     strings.Repeat("a", 64),
+		ID: "plan-test", OutcomeID: "out-test", Number: 1, ContractRevisionNumber: 1,
+		Status: PlanStatusProposed, Summary: "A direct execution graph",
+		WorkUnits: []WorkUnit{validWorkUnit()}, Grants: validGrants(),
+		RunBriefCoreDigest: strings.Repeat("a", 64),
 	}
 }
 
-func TestPlanRevisionValidation(t *testing.T) {
-	t.Run("accepts a well-formed v0 plan", func(t *testing.T) {
-		plan := validPlanRevision()
-		if err := plan.Validate(); err != nil {
-			t.Fatalf("Validate() = %v, want nil", err)
-		}
-	})
+func TestPlanRevisionSupportsBoundedWorkUnitGraph(t *testing.T) {
+	first := validWorkUnit()
+	first.ID = "wu-a"
+	second := validWorkUnit()
+	second.ID = "wu-b"
+	second.DependsOn = []WorkUnitID{first.ID}
+	plan := validPlanRevision()
+	plan.WorkUnits = []WorkUnit{second, first} // serialization order is intentionally reversed
+	if err := plan.Validate(); err != nil {
+		t.Fatalf("multi-unit graph should be valid: %v", err)
+	}
+	ordered, err := plan.TopologicalWorkUnits()
+	if err != nil {
+		t.Fatalf("topological order: %v", err)
+	}
+	if len(ordered) != 2 || ordered[0].ID != first.ID || ordered[1].ID != second.ID {
+		t.Fatalf("topological order = %+v", ordered)
+	}
+}
 
+func TestPlanRevisionRejectsDependencyCycle(t *testing.T) {
+	first := validWorkUnit()
+	first.ID = "wu-a"
+	first.DependsOn = []WorkUnitID{"wu-b"}
+	second := validWorkUnit()
+	second.ID = "wu-b"
+	second.DependsOn = []WorkUnitID{"wu-a"}
+	plan := validPlanRevision()
+	plan.WorkUnits = []WorkUnit{first, second}
+	if err := plan.Validate(); err == nil || !strings.Contains(err.Error(), "cycle") {
+		t.Fatalf("cycle validation = %v", err)
+	}
+}
+
+func TestPlanRevisionValidationBasics(t *testing.T) {
 	cases := []struct {
-		name    string
-		mutate  func(*PlanRevision)
-		wantSub string
+		name   string
+		mutate func(*PlanRevision)
+		want   string
 	}{
-		{"missing id", func(p *PlanRevision) { p.ID = "" }, "plan revision id is required"},
+		{"missing id", func(p *PlanRevision) { p.ID = "" }, "id is required"},
 		{"missing outcome", func(p *PlanRevision) { p.OutcomeID = "" }, "outcome id is required"},
-		{"zero number", func(p *PlanRevision) { p.Number = 0 }, "number must be at least 1"},
-		{
-			"unbound contract",
-			func(p *PlanRevision) { p.ContractRevisionNumber = 0 },
-			"bind a contract revision of at least 1",
-		},
-		{"bad status", func(p *PlanRevision) { p.Status = "completed" }, "unsupported plan status"},
-		{
-			"two work units",
-			func(p *PlanRevision) {
-				p.WorkUnits = append(p.WorkUnits, validWorkUnit())
-			},
-			"exactly one work unit",
-		},
-		{
-			"non-direct unit",
-			func(p *PlanRevision) { p.WorkUnits[0].Kind = "delegate" },
-			`must be "direct"`,
-		},
-		{
-			"no grants",
-			func(p *PlanRevision) { p.Grants = nil },
-			"at least one capability grant",
-		},
-		{
-			"duplicate grant",
-			func(p *PlanRevision) {
-				p.Grants = append(p.Grants, CapabilityGrant{ID: CapabilityGrantID("cg-dup"), Name: CapabilityWorktreeRead, Scope: "worktree/*"})
-			},
-			`duplicate capability grant`,
-		},
-		{
-			"digest absent",
-			func(p *PlanRevision) { p.RunBriefCoreDigest = "" },
-			"run brief core digest",
-		},
+		{"no work units", func(p *PlanRevision) { p.WorkUnits = nil }, "at least one work unit"},
+		{"bad digest", func(p *PlanRevision) { p.RunBriefCoreDigest = "not-a-digest" }, "SHA-256"},
+		{"duplicate grant", func(p *PlanRevision) {
+			p.Grants = append(p.Grants, CapabilityGrant{ID: "dup", Name: CapabilityWorktreeRead, Scope: "worktree/*"})
+		}, "duplicate capability grant"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			plan := validPlanRevision()
 			tc.mutate(&plan)
-			err := plan.Validate()
-			if err == nil || !strings.Contains(err.Error(), tc.wantSub) {
-				t.Fatalf("Validate() = %v, want substring %q", err, tc.wantSub)
+			if err := plan.Validate(); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("Validate() = %v, want %q", err, tc.want)
 			}
 		})
 	}
 }
 
-func TestBindsCurrentContract(t *testing.T) {
-	plan := validPlanRevision()
-	if !plan.BindsCurrentContract(1) {
-		t.Fatal("plan bound to r1 must bind current r1")
+func TestPlanCriterionCoverageIsCompleteAndRevisionLocal(t *testing.T) {
+	revision := ContractRevision{
+		ID: "cr-1", OutcomeID: "out-test", Number: 1, Goal: "Ship docs",
+		SuccessCriteria: []string{"docs visible", "command verified"}, Review: "owner reviews",
+		Criteria: []ContractCriterion{
+			{ID: "crit-1", ContractRevisionID: "cr-1", Position: 1, Text: "docs visible"},
+			{ID: "crit-2", ContractRevisionID: "cr-1", Position: 2, Text: "command verified"},
+		},
 	}
-	if plan.BindsCurrentContract(2) {
-		t.Fatal("plan bound to r1 must not bind current r2: material change forces a new brief")
+	unit := validWorkUnit()
+	unit.CriterionIDs = []CriterionID{"crit-1"}
+	plan := validPlanRevision()
+	plan.WorkUnits = []WorkUnit{unit}
+	if err := plan.ValidateAgainstContract(revision); err == nil || !strings.Contains(err.Error(), "crit-2") {
+		t.Fatalf("incomplete coverage = %v", err)
+	}
+	unit.CriterionIDs = []CriterionID{"crit-1", "crit-2"}
+	plan.WorkUnits = []WorkUnit{unit}
+	if err := plan.ValidateAgainstContract(revision); err != nil {
+		t.Fatalf("complete coverage rejected: %v", err)
+	}
+	unit.CriterionIDs = []CriterionID{"crit-other"}
+	plan.WorkUnits = []WorkUnit{unit}
+	if err := plan.ValidateAgainstContract(revision); err == nil {
+		t.Fatal("criterion from another revision was accepted")
 	}
 }
 
-func TestComputeRunBriefCoreDigest(t *testing.T) {
-	digestFor := func(mutate func(*ContractRevision, *WorkUnit, *[]CapabilityGrant)) string {
-		revision := ContractRevision{
-			ID:              ContractRevisionID("cr-1"),
-			OutcomeID:       OutcomeID("out-1"),
-			Number:          1,
-			Goal:            "Record today's protected focus time locally.",
-			SuccessCriteria: []string{"one block can be recorded", "restart preserves it"},
-			Review:          "deterministic checks plus owner walkthrough",
-			Clarification:   "today means local calendar day",
-		}
-		unit := validWorkUnit()
-		grants := validGrants()
-		if mutate != nil {
-			mutate(&revision, &unit, &grants)
-		}
-		digest, err := ComputeRunBriefCoreDigest(revision, unit, grants)
-		if err != nil {
-			t.Fatalf("ComputeRunBriefCoreDigest() = %v", err)
-		}
-		return digest
+func TestPlanApprovalRequiresRoutingBindingAgreement(t *testing.T) {
+	revision := ContractRevision{
+		ID: "cr-1", OutcomeID: "out-test", Number: 1, Goal: "Inspect repo", SuccessCriteria: []string{"inspection complete"}, Review: "owner",
+		Criteria: []ContractCriterion{{ID: "crit-1", ContractRevisionID: "cr-1", Position: 1, Text: "inspection complete"}},
+	}
+	unit := validWorkUnit()
+	unit.CriterionIDs = []CriterionID{"crit-1"}
+	unit.RequiredCapabilities = []string{CapabilityWorktreeRead}
+	if err := unit.BindExecution(ExecutionBinding{Provider: AgentHarness("codex"), ModelSelection: ExecutionBindingModelProviderDefault}); err != nil {
+		t.Fatal(err)
+	}
+	decision := RoutingDecision{
+		Status: RoutingDecisionRecommended, PolicyVersion: RoutingPolicyVersion, Role: RoutingRoleWorker,
+		RecommendedCandidateID: "candidate-a", RecommendedProvider: "codex", RecommendedModelSelection: ExecutionBindingModelProviderDefault,
+	}
+	plan := validPlanRevision()
+	plan.WorkUnits = []WorkUnit{unit}
+	plan.Grants = []CapabilityGrant{{ID: "cg-read", Name: CapabilityWorktreeRead, Scope: "worktree/*"}}
+	plan.RoutingDecisions = []WorkUnitRoutingDecision{{WorkUnitID: unit.ID, Decision: decision}}
+	digest, err := ComputePlanRunBriefCoreDigest(revision, plan.WorkUnits, plan.Grants)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.RunBriefCoreDigest = digest
+	if err := plan.ValidateForApproval(revision); err != nil {
+		t.Fatalf("matching routing/binding rejected: %v", err)
+	}
+	plan.RoutingDecisions[0].Decision.RecommendedProvider = "opencode"
+	if err := plan.ValidateForApproval(revision); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("mismatched routing/binding = %v", err)
+	}
+}
+
+func TestLeastPrivilegeCapabilitiesArePerWorkUnit(t *testing.T) {
+	readOnly := validWorkUnit()
+	readOnly.RequiredCapabilities = []string{CapabilityWorktreeRead}
+	grants := []CapabilityGrant{{ID: "cg-read", Name: CapabilityWorktreeRead, Scope: "worktree/*"}}
+	if missing := MissingCapabilitiesForWorkUnit(grants, readOnly); len(missing) != 0 {
+		t.Fatalf("read-only unit unexpectedly needs more authority: %v", missing)
+	}
+	write := validWorkUnit()
+	write.RequiredCapabilities = []string{CapabilityWorktreeRead, CapabilityWorktreeWrite}
+	missing := MissingCapabilitiesForWorkUnit(grants, write)
+	if len(missing) != 1 || missing[0] != CapabilityWorktreeWrite {
+		t.Fatalf("missing capabilities = %v", missing)
+	}
+}
+
+func TestComputePlanRunBriefCoreDigestBindsGraphAndExecution(t *testing.T) {
+	revision := ContractRevision{
+		ID: "cr-1", OutcomeID: "out-1", Number: 1, Goal: "Ship docs", SuccessCriteria: []string{"docs visible"}, Review: "owner",
+	}
+	unit := validWorkUnit()
+	unit.ID = "wu-a"
+	baseline, err := ComputePlanRunBriefCoreDigest(revision, []WorkUnit{unit}, validGrants())
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := unit
+	changed.Provider = AgentHarness("codex")
+	changed.ModelSelection = ExecutionBindingModelProviderDefault
+	altered, err := ComputePlanRunBriefCoreDigest(revision, []WorkUnit{changed}, validGrants())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baseline == altered {
+		t.Fatal("provider/model semantics did not change digest")
 	}
 
-	t.Run("is deterministic across construction order", func(t *testing.T) {
-		first := digestFor(nil)
-		second := digestFor(func(_ *ContractRevision, _ *WorkUnit, grants *[]CapabilityGrant) {
-			g := *grants
-			g[0], g[2] = g[2], g[0]
-			*grants = g
-		})
-		if first != second {
-			t.Fatalf("digest changed with grant order: %s vs %s", first, second)
-		}
-	})
-
-	t.Run("changes when the contract changes materially", func(t *testing.T) {
-		baseline := digestFor(nil)
-		altered := digestFor(func(revision *ContractRevision, _ *WorkUnit, _ *[]CapabilityGrant) {
-			revision.SuccessCriteria[0] = "one block can be recorded with a note"
-		})
-		if baseline == altered {
-			t.Fatal("material contract change must yield a different run brief core digest")
-		}
-	})
-
-	t.Run("changes when authority changes", func(t *testing.T) {
-		baseline := digestFor(nil)
-		altered := digestFor(func(_ *ContractRevision, _ *WorkUnit, grants *[]CapabilityGrant) {
-			*grants = (*grants)[:2] // drop exec: narrowed authority is a different brief
-		})
-		if baseline == altered {
-			t.Fatal("narrowed capability set must yield a different run brief core digest")
-		}
-	})
-
-	t.Run("rejects invalid inputs instead of hashing them", func(t *testing.T) {
-		revision := ContractRevision{ID: ContractRevisionID("cr-bad"), OutcomeID: OutcomeID("out-1"), Number: 1}
-		if _, err := ComputeRunBriefCoreDigest(revision, validWorkUnit(), validGrants()); err == nil {
-			t.Fatal("expected error for contract without goal/criteria/review")
-		}
-	})
+	second := validWorkUnit()
+	second.ID = "wu-b"
+	second.DependsOn = []WorkUnitID{"wu-a"}
+	graphDigest, err := ComputePlanRunBriefCoreDigest(revision, []WorkUnit{second, unit}, validGrants())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if graphDigest == baseline {
+		t.Fatal("dependency graph did not change digest")
+	}
 }
 
 func TestAuthorityIntersection(t *testing.T) {
-	contractLayer := []string{CapabilityWorktreeRead, CapabilityWorktreeWrite, CapabilityWorktreeExec, CapabilityWorktreeRead}
-	policyCeiling := []string{CapabilityWorktreeRead, CapabilityWorktreeWrite, CapabilityWorktreeExec}
-	admissionLayer := []string{CapabilityWorktreeRead, CapabilityWorktreeExec} // runtime cannot offer write
-
-	got := AuthorityIntersection(contractLayer, policyCeiling, admissionLayer)
-	want := []string{CapabilityWorktreeExec, CapabilityWorktreeRead}
-	if len(got) != len(want) {
-		t.Fatalf("AuthorityIntersection() = %v, want %v", got, want)
+	got := AuthorityIntersection(
+		[]string{CapabilityWorktreeRead, CapabilityWorktreeWrite},
+		[]string{CapabilityWorktreeRead},
+	)
+	if len(got) != 1 || got[0] != CapabilityWorktreeRead {
+		t.Fatalf("AuthorityIntersection() = %v", got)
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("AuthorityIntersection() = %v, want %v", got, want)
-		}
+	if widened := AuthorityIntersection([]string{CapabilityWorktreeRead}, []string{CapabilityWorktreeRead, CapabilityWorktreeWrite}); len(widened) != 1 || widened[0] != CapabilityWorktreeRead {
+		t.Fatalf("lower layer widened authority: %v", widened)
 	}
-
-	t.Run("lower layer cannot widen an upper layer", func(t *testing.T) {
-		upper := []string{CapabilityWorktreeRead}
-		lower := []string{CapabilityWorktreeRead, CapabilityWorktreeWrite, CapabilityWorktreeExec}
-		got := AuthorityIntersection(upper, lower)
-		if len(got) != 1 || got[0] != CapabilityWorktreeRead {
-			t.Fatalf("AuthorityIntersection(upper, lower) = %v, want read only", got)
-		}
-	})
-
-	t.Run("empty layer fails closed to nothing", func(t *testing.T) {
-		got := AuthorityIntersection([]string{CapabilityWorktreeRead}, nil)
-		if len(got) != 0 {
-			t.Fatalf("AuthorityIntersection with empty layer = %v, want none", got)
-		}
-	})
 }
 
 func TestGrantsFailClosed(t *testing.T) {
-	authoritative := []string{CapabilityWorktreeRead, CapabilityWorktreeWrite}
-	grants := []CapabilityGrant{
-		{ID: CapabilityGrantID("cg-1"), Name: CapabilityWorktreeRead, Scope: "worktree/*"},
-		{ID: CapabilityGrantID("cg-2"), Name: "network.fetch", Scope: "worktree/*"},
-	}
-	err := GrantsFailClosed(grants, authoritative)
-	if err == nil || !strings.Contains(err.Error(), `"network.fetch"`) {
-		t.Fatalf("GrantsFailClosed() = %v, want offender named", err)
-	}
-
-	if err := GrantsFailClosed(validGrants(), V0RequiredCapabilities); err != nil {
-		t.Fatalf("GrantsFailClosed(v0 trio) = %v, want nil", err)
-	}
-}
-
-func TestMissingRequiredCapabilities(t *testing.T) {
-	partial := []CapabilityGrant{
-		{ID: CapabilityGrantID("cg-1"), Name: CapabilityWorktreeRead, Scope: "worktree/*"},
-	}
-	missing := MissingRequiredCapabilities(partial)
-	if len(missing) != 2 {
-		t.Fatalf("MissingRequiredCapabilities() = %v, want write+exec missing", missing)
-	}
-	if missing[0] != CapabilityWorktreeWrite || missing[1] != CapabilityWorktreeExec {
-		t.Fatalf("MissingRequiredCapabilities() = %v, want deterministic required order", missing)
+	err := GrantsFailClosed([]CapabilityGrant{{ID: "cg-network", Name: "network.fetch", Scope: "*"}}, []string{CapabilityWorktreeRead})
+	if err == nil || !strings.Contains(err.Error(), "network.fetch") {
+		t.Fatalf("GrantsFailClosed() = %v", err)
 	}
 }

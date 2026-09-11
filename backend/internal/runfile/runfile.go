@@ -39,6 +39,10 @@ type Info struct {
 	// address selected by the backend for this daemon launch. It is a locator,
 	// not an authentication secret; the runtime token stays out of this file.
 	BrowserRuntimeAddress string `json:"browserRuntimeAddress,omitempty"`
+	// SupervisorAddress is the exact Unix socket or Windows named-pipe address
+	// selected by the backend for this daemon launch. It is a locator only; the
+	// supervisor connection is liveness, not an authentication boundary.
+	SupervisorAddress string `json:"supervisorAddress,omitempty"`
 }
 
 // Write atomically writes running.json at path, creating parent directories

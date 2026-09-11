@@ -144,6 +144,8 @@ func schemaName(_ reflect.Type, defaultName string) string {
 var schemaNames = map[string]string{
 	"ControllersSettingsResponse":                     "SettingsResponse",
 	"ControllersUpdateSessionInterfaceRequest":        "UpdateSessionInterfaceRequest",
+	"ControllersReasoningResponse":                    "ReasoningResponse",
+	"ControllersUpdateReasoningRequest":               "UpdateReasoningRequest",
 	"ControllersConversationSnapshotResponse":         "ConversationSnapshotResponse",
 	"ControllersConversationTurnResponse":             "ConversationTurnResponse",
 	"ControllersConversationTurnDiffResponse":         "ConversationTurnDiffResponse",
@@ -364,8 +366,28 @@ var schemaNames = map[string]string{
 	"ControllersPlanRevisionResponse":                     "PlanRevisionResponse",
 	"ControllersPlanWorkUnitResponse":                     "PlanWorkUnitResponse",
 	"ControllersCapabilityGrantResponse":                  "CapabilityGrantResponse",
+	"ControllersScheduleWorkUnitResponse":                 "ScheduleWorkUnitResponse",
+	"ControllersScheduleAttemptBrief":                     "ScheduleAttemptBrief",
+	"ControllersScheduleResponse":                         "ScheduleResponse",
+	"ControllersScheduleEnvelope":                         "ScheduleEnvelope",
 	"ControllersProposePlanRequest":                       "ProposePlanRequest",
+	"ControllersReplanPlanRequest":                        "ReplanPlanRequest",
 	"ControllersApprovePlanRequest":                       "ApprovePlanRequest",
+	"ControllersPlanningSessionIDParam":                   "PlanningSessionIDParam",
+	"ControllersPlanningCandidatesQuery":                  "PlanningCandidatesQuery",
+	"ControllersStartPlanningRequest":                     "StartPlanningRequest",
+	"ControllersPlanningMessageRequest":                   "PlanningMessageRequest",
+	"ControllersPlanningFinalizeRequest":                  "PlanningFinalizeRequest",
+	"ControllersPlanningCancelRequest":                    "PlanningCancelRequest",
+	"ControllersPlanningBindingResponse":                  "PlanningBindingResponse",
+	"ControllersPlanningCandidateResponse":                "PlanningCandidateResponse",
+	"ControllersPlanningCandidatesEnvelope":               "PlanningCandidatesEnvelope",
+	"ControllersPlanningClarificationResponse":            "PlanningClarificationResponse",
+	"ControllersPlanningContractChangeResponse":           "PlanningContractChangeResponse",
+	"ControllersPlanningTurnResponse":                     "PlanningTurnResponse",
+	"ControllersPlanningSessionResponse":                  "PlanningSessionResponse",
+	"ControllersPlanningResponse":                         "PlanningResponse",
+	"ControllersPlanningEnvelope":                         "PlanningEnvelope",
 	"ControllersContractRevisionResponse":                 "ContractRevisionResponse",
 	"ControllersContractCriterionResponse":                "ContractCriterionResponse",
 	"ControllersOutcomeIDParam":                           "OutcomeIDParam",
@@ -551,7 +573,156 @@ func operations() []operation {
 	ops = append(ops, mobileDeviceOperations()...)
 	ops = append(ops, browserOperations()...)
 	ops = append(ops, shellTerminalOperations()...)
+	ops = append(ops, outcomeRunOperations()...)
 	return ops
+}
+
+// outcomeRunOperations declares the Mission supervision, delivery and
+// attributed-usage operations. Must stay 1:1 with the routes
+// OutcomesController.registerRunRoutes mounts (enforced by the parity test).
+//
+// The write operations are declared before their services exist so the
+// generated contract carries their exact shape while they still answer 501.
+func outcomeRunOperations() []operation {
+	return []operation{
+		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/outcome-run-states", id: "listProjectOutcomeRunStates", tag: "outcomes",
+			summary:    "Board projection: Mission state and eligible actions for a Project's Outcomes",
+			pathParams: []any{controllers.ProjectIDParam{}, controllers.OutcomeRunScopeParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeRunStatesEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/run", id: "getOutcomeRunState", tag: "outcomes",
+			summary:    "Read one Outcome's Mission state, eligible actions and blocker",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeRunStateEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/run", id: "commandOutcomeRun", tag: "outcomes",
+			summary:    "Record durable run intent (start, pause, resume, cancel)",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.OutcomeRunCommandRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeRunStateEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/outcome-trash", id: "listTrashedOutcomes", tag: "outcomes",
+			summary: "List recoverable Outcomes and pending permanent cleanup", pathParams: []any{controllers.ProjectIDParam{}},
+			resps: []respUnit{{http.StatusOK, controllers.OutcomeTrashEnvelope{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/deletion", id: "previewOutcomeDeletion", tag: "outcomes",
+			summary: "Preview Outcome deletion scope and active execution blockers", pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{{http.StatusOK, controllers.OutcomeDeletionEnvelope{}}, {http.StatusNotFound, envelope.APIError{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/deletion", id: "changeOutcomeDeletion", tag: "outcomes",
+			summary: "Move to Trash, restore, or permanently delete an inactive Outcome", pathParams: []any{controllers.OutcomeIDParam{}}, reqBody: controllers.ChangeOutcomeDeletionRequest{},
+			resps: []respUnit{{http.StatusOK, controllers.OutcomeDeletionResult{}}, {http.StatusBadRequest, envelope.APIError{}}, {http.StatusNotFound, envelope.APIError{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/deliveries", id: "listOutcomeDeliveries", tag: "outcomes",
+			summary:    "List durable deliveries of this Outcome's retained results",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeDeliveriesEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/deliveries", id: "requestOutcomeDelivery", tag: "outcomes",
+			summary:    "Deliver one exact reviewed artifact to a destination",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.RequestOutcomeDeliveryRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.OutcomeDeliveryEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/deliveries/{deliveryId}", id: "getOutcomeDelivery", tag: "outcomes",
+			summary:    "Read one delivery record",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.DeliveryIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeDeliveryEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/documents", id: "getOutcomeDocumentContext", tag: "outcomes",
+			summary:    "Read the selected supplied documents and whether their sources changed",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeDocumentContextEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/documents", id: "selectOutcomeDocuments", tag: "outcomes",
+			summary:    "Select local documents as this Outcome's material and snapshot their bytes",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.SelectOutcomeDocumentsRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.OutcomeDocumentContextEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/documents/approval", id: "approveOutcomeDocuments", tag: "outcomes",
+			summary:    "Approve the reviewed document scope so work may be staged from it",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.ApproveOutcomeDocumentsRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeDocumentContextEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/usage", id: "getOutcomeUsage", tag: "outcomes",
+			summary:    "Read reasoning and execution usage attributed to this Outcome",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.OutcomeUsageEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+	}
 }
 
 func waldoConversationOperations() []operation {
@@ -682,6 +853,28 @@ func shellTerminalOperations() []operation {
 			resps: []respUnit{
 				{http.StatusOK, controllers.SettingsResponse{}},
 				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPatch, path: "/api/v1/settings/reasoning", id: "updateReasoning", tag: "settings",
+			summary: "Configure Waldo reasoning without returning the stored credential",
+			reqBody: controllers.UpdateReasoningRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.ReasoningResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/settings/reasoning/verification", id: "verifyReasoning", tag: "settings",
+			summary: "Probe the configured reasoning provider once and record whether it works",
+			resps: []respUnit{
+				{http.StatusOK, controllers.ReasoningResponse{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusServiceUnavailable, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},
@@ -1328,10 +1521,74 @@ func notificationOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/planning-candidates", id: "listOutcomePlanningCandidates", tag: "outcomes",
+			summary:    "List exact available planning-agent choices for a confirmed Contract",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.PlanningCandidatesQuery{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.PlanningCandidatesEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusServiceUnavailable, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/planning-sessions", id: "startOutcomePlanning", tag: "outcomes",
+			summary:    "Start one Contract-bound planning conversation with frozen read-only context",
+			pathParams: []any{controllers.OutcomeIDParam{}}, reqBody: controllers.StartPlanningRequest{},
+			resps: []respUnit{{http.StatusCreated, controllers.PlanningEnvelope{}}, {http.StatusBadRequest, envelope.APIError{}}, {http.StatusConflict, envelope.APIError{}}, {http.StatusNotFound, envelope.APIError{}}, {http.StatusServiceUnavailable, envelope.APIError{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/planning-session", id: "getCurrentOutcomePlanning", tag: "outcomes",
+			summary:    "Read the newest planning conversation for an Outcome",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			resps:      []respUnit{{http.StatusOK, controllers.PlanningEnvelope{}}, {http.StatusNotFound, envelope.APIError{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/planning-sessions/{planningSessionId}", id: "getOutcomePlanning", tag: "outcomes",
+			summary:    "Read one bounded planning conversation and its proposal",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.PlanningSessionIDParam{}},
+			resps:      []respUnit{{http.StatusOK, controllers.PlanningEnvelope{}}, {http.StatusNotFound, envelope.APIError{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/planning-sessions/{planningSessionId}/messages", id: "continueOutcomePlanning", tag: "outcomes",
+			summary:    "Send one owner message and receive one structured planning reply",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.PlanningSessionIDParam{}}, reqBody: controllers.PlanningMessageRequest{},
+			resps: []respUnit{{http.StatusOK, controllers.PlanningEnvelope{}}, {http.StatusBadRequest, envelope.APIError{}}, {http.StatusConflict, envelope.APIError{}}, {http.StatusNotFound, envelope.APIError{}}, {http.StatusServiceUnavailable, envelope.APIError{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/planning-sessions/{planningSessionId}/proposal", id: "finalizeOutcomePlanning", tag: "outcomes",
+			summary:    "Ask for a Plan proposal; clarification may still be returned when required",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.PlanningSessionIDParam{}}, reqBody: controllers.PlanningFinalizeRequest{},
+			resps: []respUnit{{http.StatusOK, controllers.PlanningEnvelope{}}, {http.StatusBadRequest, envelope.APIError{}}, {http.StatusConflict, envelope.APIError{}}, {http.StatusNotFound, envelope.APIError{}}, {http.StatusServiceUnavailable, envelope.APIError{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/planning-sessions/{planningSessionId}/cancel", id: "cancelOutcomePlanning", tag: "outcomes",
+			summary:    "Cancel an active planning conversation without creating execution authority",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.PlanningSessionIDParam{}}, reqBody: controllers.PlanningCancelRequest{},
+			resps: []respUnit{{http.StatusOK, controllers.PlanningEnvelope{}}, {http.StatusBadRequest, envelope.APIError{}}, {http.StatusConflict, envelope.APIError{}}, {http.StatusNotFound, envelope.APIError{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}},
+		},
+		{
 			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/plans", id: "proposeOutcomePlan", tag: "outcomes",
 			summary:    "Propose the direct Work Unit plan bound to the current contract revision",
 			pathParams: []any{controllers.OutcomeIDParam{}},
 			reqBody:    controllers.ProposePlanRequest{},
+			resps: []respUnit{
+				{http.StatusCreated, controllers.PlanEnvelope{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/plans/replan", id: "replanOutcomePlan", tag: "outcomes",
+			summary:    "Create a new immutable Plan proposal from explicit owner feedback",
+			pathParams: []any{controllers.OutcomeIDParam{}},
+			reqBody:    controllers.ReplanPlanRequest{},
 			resps: []respUnit{
 				{http.StatusCreated, controllers.PlanEnvelope{}},
 				{http.StatusBadRequest, envelope.APIError{}},
@@ -1361,6 +1618,18 @@ func notificationOperations() []operation {
 			pathParams: []any{controllers.OutcomeIDParam{}},
 			resps: []respUnit{
 				{http.StatusOK, controllers.PlanEnvelope{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/plans/{planId}/schedule", id: "getOutcomePlanSchedule", tag: "outcomes",
+			summary:    "Read daemon-derived WorkUnit schedule state without launching work",
+			pathParams: []any{controllers.OutcomeIDParam{}, controllers.PlanIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, controllers.ScheduleEnvelope{}},
+				{http.StatusConflict, envelope.APIError{}},
 				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 				{http.StatusNotImplemented, envelope.APIError{}},

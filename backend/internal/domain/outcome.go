@@ -43,6 +43,11 @@ func (id CriterionID) IsZero() bool {
 	return strings.TrimSpace(string(id)) == ""
 }
 
+// String returns the raw identifier value.
+func (id CriterionID) String() string {
+	return string(id)
+}
+
 // ContractCriterion is one stable, ordered success criterion.
 type ContractCriterion struct {
 	ID                 CriterionID
@@ -152,7 +157,11 @@ type ContractRevision struct {
 	StopConditions       []string
 	TemporalCondition    *string
 	Facets               []ContractFacet
-	CreatedAt            time.Time
+	// ExecutionPreference is optional planning input owned by this immutable
+	// revision. When present it overrides the Project worker preference as a
+	// complete provider/model pair; it never authorizes execution by itself.
+	ExecutionPreference *ExecutionPreference
+	CreatedAt           time.Time
 }
 
 // Validate checks intrinsic revision invariants. Revision-number uniqueness
@@ -237,6 +246,11 @@ func (r ContractRevision) Validate() error {
 	}
 	for _, facet := range r.Facets {
 		if err := facet.Validate(); err != nil {
+			return err
+		}
+	}
+	if r.ExecutionPreference != nil {
+		if err := r.ExecutionPreference.Validate(); err != nil {
 			return err
 		}
 	}

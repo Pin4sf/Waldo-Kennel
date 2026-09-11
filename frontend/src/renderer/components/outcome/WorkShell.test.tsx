@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -75,6 +75,7 @@ describe("WorkShell", () => {
 		attemptsQueryMock.mockReset().mockReturnValue({ attempts: [], isLoading: false, refetch: vi.fn() });
 		useUiStore.setState({
 			isOutcomeAttemptPanelOpen: false,
+			outcomeAttemptPanelAttemptId: null,
 			outcomeRunViewMode: "board",
 			isCommandPaletteOpen: false,
 			isKeyboardShortcutsOpen: false,
@@ -85,6 +86,7 @@ describe("WorkShell", () => {
 	afterEach(() => {
 		useUiStore.setState({
 			isOutcomeAttemptPanelOpen: false,
+			outcomeAttemptPanelAttemptId: null,
 			outcomeRunViewMode: "board",
 			isCommandPaletteOpen: false,
 			isKeyboardShortcutsOpen: false,
@@ -128,6 +130,45 @@ describe("WorkShell", () => {
 
 		await user.click(screen.getByRole("button", { name: "close" }));
 		expect(screen.queryByTestId("mock-attempt-panel")).toBeNull();
+	});
+
+	it("uses a selected WorkUnit Attempt only for an explicit Engage target; the global toggle opens newest", async () => {
+		attemptsQueryMock.mockReturnValue({
+			attempts: [{ id: "att-old", number: 1 }, { id: "att-new", number: 2 }],
+			isLoading: false,
+			refetch: vi.fn(),
+		});
+		useUiStore.setState({ outcomeAttemptPanelAttemptId: "att-old" });
+		const user = userEvent.setup();
+		renderShell({ outcomeId: "out-1" });
+		expect(screen.queryByTestId("mock-attempt-panel")).toBeNull();
+		await user.click(screen.getByTestId("work-shell-terminal-toggle"));
+		expect(screen.getByTestId("mock-attempt-panel")).toHaveTextContent("att-new");
+	});
+
+	it("keeps an explicitly engaged historical Attempt when a newer Attempt arrives", () => {
+		attemptsQueryMock.mockReturnValue({
+			attempts: [{ id: "att-old", number: 1 }, { id: "att-new", number: 2 }],
+			isLoading: false,
+			refetch: vi.fn(),
+		});
+		renderShell({ outcomeId: "out-1" });
+		act(() => useUiStore.getState().openOutcomeAttemptPanel("att-old"));
+
+		expect(screen.getByTestId("mock-attempt-panel")).toHaveTextContent("att-old");
+	});
+
+	it("does not fall back to a different Attempt when an explicit target is temporarily absent", () => {
+		attemptsQueryMock.mockReturnValue({
+			attempts: [{ id: "att-new", number: 2 }],
+			isLoading: false,
+			refetch: vi.fn(),
+		});
+		renderShell({ outcomeId: "out-1" });
+		act(() => useUiStore.getState().openOutcomeAttemptPanel("att-old"));
+
+		expect(screen.queryByTestId("mock-attempt-panel")).not.toBeInTheDocument();
+		expect(screen.getByTestId("work-shell-terminal-toggle")).toBeDisabled();
 	});
 
 	it("never lets a dead button stand in for the Outcomes destination", async () => {

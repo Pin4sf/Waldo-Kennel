@@ -133,9 +133,7 @@ func (s *Service) maybeRecordOwnerContainment(ctx context.Context, attempt domai
 // requires proved provider stop; anything else escalates without deciding.
 func (s *Service) reconcileAttempt(ctx context.Context, in RecoveryInput, attempt domain.Attempt) (RecoveryView, error) {
 	if attempt.Status == domain.AttemptSucceeded {
-		return RecoveryView{}, apierr.Conflict("ATTEMPT_ALREADY_ENDED",
-			fmt.Sprintf("Attempt already ended as %s", attempt.Status),
-			map[string]any{"status": string(attempt.Status)})
+		return s.accountSucceededCustody(ctx, attempt)
 	}
 	facts, err := s.heartbeatFacts(ctx, attempt.ID)
 	if err != nil {
@@ -172,6 +170,33 @@ func (s *Service) reconcileAttempt(ctx context.Context, in RecoveryInput, attemp
 	}
 }
 
+// accountSucceededCustody repairs the only legitimate post-success recovery
+// case: an older process classified and froze the result but crashed before
+// releasing its fence. Success itself is already terminal and never becomes a
+// replacement authorization; this method only accounts for custody.
+func (s *Service) accountSucceededCustody(ctx context.Context, attempt domain.Attempt) (RecoveryView, error) {
+	if s.receipts == nil {
+		return RecoveryView{}, apierr.Conflict(CodeAttemptCustodyUnproven,
+			"Succeeded Attempt custody cannot be repaired because receipt storage is unavailable", nil)
+	}
+	receipt, ok, err := s.receipts.GetAttemptReceipt(ctx, attempt.ID)
+	if err != nil {
+		return RecoveryView{}, err
+	}
+	if !ok || !receipt.Frozen() || !receipt.RetentionState.Complete() {
+		return RecoveryView{}, apierr.Conflict(CodeAttemptCustodyUnproven,
+			"Succeeded Attempt custody stays held until its complete retained result is present and frozen", map[string]any{"attemptId": string(attempt.ID)})
+	}
+	if err := s.releaseCustody(ctx, attempt.ID, "succeeded_attempt_reconciled"); err != nil {
+		return RecoveryView{}, err
+	}
+	view, err := s.GetAttempt(ctx, attempt.OutcomeID, attempt.ID)
+	if err != nil {
+		return RecoveryView{}, err
+	}
+	return RecoveryView{Attempt: view}, nil
+}
+
 // accountTerminalCustody releases the fence a TERMINAL predecessor still
 // holds (failed-before-spawn, owner-cancelled, ended-unclassified) without
 // mutating its immutable record, then stamps the replacement receipt. This is
@@ -198,6 +223,12 @@ func (s *Service) accountTerminalCustody(ctx context.Context, attempt domain.Att
 // recoveryReplace forces the lost verdict and hands custody back so the next
 // StartAttempt may issue a fresh fence. Replacement is always a NEW row.
 func (s *Service) recoveryReplace(ctx context.Context, in RecoveryInput, attempt domain.Attempt) (RecoveryView, error) {
+	// A succeeded Attempt has already passed the immutable-result boundary. It
+	// does not need a fresh provider-stop assertion; recovery may only repair
+	// the fence left behind by a crash after classification.
+	if attempt.Status == domain.AttemptSucceeded {
+		return s.accountSucceededCustody(ctx, attempt)
+	}
 	facts, fErr := s.heartbeatFacts(ctx, attempt.ID)
 	if fErr != nil {
 		return RecoveryView{}, fErr
@@ -232,6 +263,8 @@ func (s *Service) recoveryReplace(ctx context.Context, in RecoveryInput, attempt
 			return RecoveryView{}, err
 		}
 		return RecoveryView{Attempt: view, Receipt: receipt}, nil
+	case domain.AttemptSucceeded:
+		return s.accountSucceededCustody(ctx, attempt)
 	default:
 		return RecoveryView{}, apierr.Conflict("ATTEMPT_ALREADY_ENDED",
 			fmt.Sprintf("Attempt already ended as %s", attempt.Status),

@@ -17,7 +17,9 @@ type QuickCaptureID string
 type QuickCaptureKind string
 
 const (
-	QuickCaptureKindNote              QuickCaptureKind = "note"
+	// QuickCaptureKindNote preserves capture text as a note.
+	QuickCaptureKindNote QuickCaptureKind = "note"
+	// QuickCaptureKindOpenLoopCandidate preserves a candidate for confirmation.
 	QuickCaptureKindOpenLoopCandidate QuickCaptureKind = "open_loop_candidate"
 )
 

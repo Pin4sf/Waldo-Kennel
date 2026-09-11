@@ -83,7 +83,7 @@ describe("MCP tool call", () => {
 		detail: {
 			server: "github",
 			toolName: "search_issues",
-			arguments: { repo: "aoagents/ao", state: "open" },
+			arguments: { repo: "Pin4sf/kennel", state: "open" },
 			result: { total: 2 },
 			success: true,
 		},
@@ -102,7 +102,7 @@ describe("MCP tool call", () => {
 		await userEvent.click(screen.getByRole("button"));
 		expect(screen.getByText("Arguments")).toBeInTheDocument();
 		expect(screen.getByText("Result")).toBeInTheDocument();
-		expect(screen.getByText(/aoagents\/ao/)).toBeInTheDocument();
+		expect(screen.getByText(/Pin4sf\/kennel/)).toBeInTheDocument();
 	});
 
 	it("reports a failed call as failed", () => {

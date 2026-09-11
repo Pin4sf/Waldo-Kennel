@@ -43,7 +43,7 @@ function respondWithProjectAndPRs() {
 								{
 									number: 279,
 									state: "draft",
-									url: "https://github.com/aoagents/ReverbCode/pull/279",
+									url: "https://github.com/Pin4sf/Waldo-Kennel/pull/279",
 									ci: "pending",
 									review: "pending",
 									mergeability: "unknown",
@@ -53,7 +53,7 @@ function respondWithProjectAndPRs() {
 								{
 									number: 278,
 									state: "open",
-									url: "https://github.com/aoagents/ReverbCode/pull/278",
+									url: "https://github.com/Pin4sf/Waldo-Kennel/pull/278",
 									ci: "passing",
 									review: "review_required",
 									mergeability: "clean",
@@ -63,7 +63,7 @@ function respondWithProjectAndPRs() {
 								{
 									number: 280,
 									state: "open",
-									url: "https://github.com/aoagents/ReverbCode/issues/280",
+									url: "https://github.com/Pin4sf/Waldo-Kennel/issues/280",
 									ci: "passing",
 									review: "approved",
 									mergeability: "clean",
@@ -73,7 +73,7 @@ function respondWithProjectAndPRs() {
 								{
 									number: 281,
 									state: "merged",
-									url: "https://github.com/aoagents/ReverbCode/pull/281",
+									url: "https://github.com/Pin4sf/Waldo-Kennel/pull/281",
 									ci: "passing",
 									review: "approved",
 									mergeability: "mergeable",
@@ -83,7 +83,7 @@ function respondWithProjectAndPRs() {
 								{
 									number: 282,
 									state: "closed",
-									url: "https://github.com/aoagents/ReverbCode/pull/282",
+									url: "https://github.com/Pin4sf/Waldo-Kennel/pull/282",
 									ci: "passing",
 									review: "approved",
 									mergeability: "unknown",
@@ -112,13 +112,13 @@ function respondWithAttentionPR() {
 					sessionId: "sess-1",
 					prs: [
 						{
-							url: "https://github.com/aoagents/ReverbCode/pull/278",
-							htmlUrl: "https://github.com/aoagents/ReverbCode/pull/278",
+							url: "https://github.com/Pin4sf/Waldo-Kennel/pull/278",
+							htmlUrl: "https://github.com/Pin4sf/Waldo-Kennel/pull/278",
 							number: 278,
 							title: "fix the bug",
 							state: "open",
 							provider: "github",
-							repo: "aoagents/ReverbCode",
+							repo: "Pin4sf/Waldo-Kennel",
 							author: "worker",
 							sourceBranch: "fix/bug",
 							targetBranch: "main",
@@ -134,10 +134,10 @@ function respondWithAttentionPR() {
 									{
 										reviewerId: "reviewer-a",
 										count: 1,
-										reviewUrl: "https://github.com/aoagents/ReverbCode/pull/278#pullrequestreview-1",
+										reviewUrl: "https://github.com/Pin4sf/Waldo-Kennel/pull/278#pullrequestreview-1",
 										links: [
 											{
-												url: "https://github.com/aoagents/ReverbCode/pull/278#discussion_r1",
+												url: "https://github.com/Pin4sf/Waldo-Kennel/pull/278#discussion_r1",
 												file: "main.go",
 												line: 12,
 											},
@@ -148,7 +148,7 @@ function respondWithAttentionPR() {
 							mergeability: {
 								state: "conflicting",
 								reasons: ["conflicts"],
-								prUrl: "https://github.com/aoagents/ReverbCode/pull/278",
+								prUrl: "https://github.com/Pin4sf/Waldo-Kennel/pull/278",
 								conflictFiles: [],
 							},
 							updatedAt: "2026-06-10T16:15:04Z",
@@ -177,7 +177,7 @@ function respondWithAttentionPR() {
 								{
 									number: 278,
 									state: "open",
-									url: "https://github.com/aoagents/ReverbCode/pull/278",
+									url: "https://github.com/Pin4sf/Waldo-Kennel/pull/278",
 									ci: "passing",
 									review: "changes_requested",
 									mergeability: "conflicting",
@@ -213,7 +213,7 @@ describe("PR hydration for a normal project (#251)", () => {
 		const artifact = await screen.findByRole("link", { name: "#278 open" });
 		expect(artifact).toHaveAttribute(
 			"href",
-			"https://github.com/aoagents/ReverbCode/pull/278",
+			"https://github.com/Pin4sf/Waldo-Kennel/pull/278",
 		);
 		expect(artifact).toHaveTextContent("Pull request #278");
 		expect(screen.queryByLabelText("#279 draft")).not.toBeInTheDocument();
@@ -231,7 +231,7 @@ describe("PR hydration for a normal project (#251)", () => {
 
 		expect(await screen.findByRole("link", { name: "#278 open" })).toHaveAttribute(
 			"href",
-			"https://github.com/aoagents/ReverbCode/pull/278",
+			"https://github.com/Pin4sf/Waldo-Kennel/pull/278",
 		);
 		expect(screen.queryByText("changes requested")).not.toBeInTheDocument();
 		expect(screen.queryByRole("link", { name: "conflicts" })).not.toBeInTheDocument();

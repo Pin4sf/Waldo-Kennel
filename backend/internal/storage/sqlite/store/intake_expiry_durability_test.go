@@ -39,15 +39,15 @@ func TestExpiredIntakeAnalysisIsDurableAcrossRestart(t *testing.T) {
 
 	expiredAt := request.ExpiresAt.Add(time.Second)
 	if err := store.AnswerIntakeAnalysisRequest(ctx, ports.IntakeAnalysisRequestAnswer{
-		RequestID: request.ID,
-		Status: domain.IntakeAnalysisExpired,
+		RequestID:     request.ID,
+		Status:        domain.IntakeAnalysisExpired,
 		RefusalReason: "No proposal arrived before the request expired",
-		At: expiredAt,
+		At:            expiredAt,
 	}); err != nil {
 		t.Fatalf("expire request: %v", err)
 	}
 
-	assertExpiredIntakeTruth(t, ctx, store, request.ID, request.IntakeID)
+	assertExpiredIntakeTruth(ctx, t, store, request.ID, request.IntakeID)
 
 	if err := store.Close(); err != nil {
 		t.Fatalf("close store before restart: %v", err)
@@ -63,20 +63,20 @@ func TestExpiredIntakeAnalysisIsDurableAcrossRestart(t *testing.T) {
 		}
 	}()
 
-	assertExpiredIntakeTruth(t, ctx, reopened, request.ID, request.IntakeID)
+	assertExpiredIntakeTruth(ctx, t, reopened, request.ID, request.IntakeID)
 
 	late := ports.IntakeAnalysisRequestAnswer{
-		RequestID: request.ID,
-		Status: domain.IntakeAnalysisFulfilled,
+		RequestID:   request.ID,
+		Status:      domain.IntakeAnalysisFulfilled,
 		RawProposal: `{"late":true}`,
-		At: expiredAt.Add(time.Minute),
+		At:          expiredAt.Add(time.Minute),
 	}
 	if err := reopened.AnswerIntakeAnalysisRequest(ctx, late); !errors.Is(err, ports.ErrIntakeAnalysisRequestClosed) {
 		t.Fatalf("late callback error = %v, want ErrIntakeAnalysisRequestClosed", err)
 	}
 }
 
-func assertExpiredIntakeTruth(t *testing.T, ctx context.Context, store interface {
+func assertExpiredIntakeTruth(ctx context.Context, t *testing.T, store interface {
 	GetIntake(context.Context, domain.IntakeSessionID) (ports.IntakeSnapshot, bool, error)
 	GetIntakeAnalysisRequest(context.Context, domain.IntakeAnalysisRequestID) (domain.IntakeAnalysisRequest, bool, error)
 }, requestID domain.IntakeAnalysisRequestID, intakeID domain.IntakeSessionID) {

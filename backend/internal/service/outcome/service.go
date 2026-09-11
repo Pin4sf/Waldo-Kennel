@@ -1,9 +1,6 @@
-// Package outcome owns the canonical Understand contract (#21): the daemon-side
-// authority for ResponsibilitySpaces, Outcomes, and their immutable
-// ContractRevisions. It deliberately knows nothing about plans, attempts,
-// evidence, or acceptance — those belong to later Work slices — and nothing
-// about providers: no provider message, session state, check, or commit can
-// create, revise, or conclude an Outcome.
+// Package outcome owns the Outcome control-plane authority: immutable Contracts,
+// Plans, Attempts, proof, and owner decisions. Provider processes remain
+// subordinate execution/provenance and cannot create or conclude responsibility.
 package outcome
 
 import (
@@ -12,155 +9,171 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/artifactstore"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 )
 
-// Manager is the controller-facing boundary for the Outcome contract.
+// Manager is the controller-facing boundary for canonical Outcome work.
 type Manager interface {
-	// Create records a new Outcome with ContractRevision 1 in the project's
-	// Work responsibility space. Replaying a delivered RequestKey resolves to
-	// the original Outcome without writing anything.
-	Create(ctx context.Context, in CreateInput) (OutcomeView, error)
-
-	// ReviseContract appends ContractRevision n+1 and moves the
-	// current-revision pointer from ExpectedRevision to it. A stale pointer is
-	// reported as *ports.OutcomeConflictError; prior revisions stay untouched.
-	ReviseContract(ctx context.Context, id domain.OutcomeID, in ReviseContractInput) (OutcomeView, error)
-
-	// Get reads the Outcome view: canonical facts plus full revision history.
-	Get(ctx context.Context, id domain.OutcomeID) (OutcomeView, error)
-
-	// ListByProject returns every canonical Outcome and current immutable
-	// contract belonging to the project's Work responsibility space.
-	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]OutcomeView, error)
-
-	// ProposeDecomposition validates a decomposition and records it as a
-	// proposal. It creates no Outcome and no binding: a refused proposal
-	// leaves nothing behind, and an accepted one is still only an offer.
+	Create(ctx context.Context, in CreateInput) (View, error)
+	ReviseContract(ctx context.Context, id domain.OutcomeID, in ReviseContractInput) (View, error)
+	Get(ctx context.Context, id domain.OutcomeID) (View, error)
+	ListByProject(ctx context.Context, projectID domain.ProjectID) ([]View, error)
 	ProposeDecomposition(ctx context.Context, parentID domain.OutcomeID, in ProposeDecompositionInput) (DecompositionView, error)
-
-	// AuthorizeDecomposition is the owner decision that creates the
-	// contributing Outcomes a proposal described. It re-runs every gate
-	// against the parent's current contract rather than trusting what passed
-	// at propose time.
 	AuthorizeDecomposition(ctx context.Context, parentID domain.OutcomeID, decompositionID domain.DecompositionRevisionID) (DecompositionView, error)
-
-	// LatestDecomposition reads the newest decomposition and whether the
-	// parent contract has moved past it.
 	LatestDecomposition(ctx context.Context, parentID domain.OutcomeID) (DecompositionView, error)
-
-	// WaiveContributionDependency records the owner's explicit override of a
-	// declared ordering. Only the owner may waive, and the reason is durable.
 	WaiveContributionDependency(ctx context.Context, parentID domain.OutcomeID, in WaiveDependencyInput) (DecompositionView, error)
-
-	// AskForDecomposition opens a durable request and starts an agent working
-	// on it. The proposal arrives later, over the API: the daemon has no
-	// synchronous model call.
 	AskForDecomposition(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) (DecompositionRequestView, error)
-
-	// SubmitAgentProposal is the callback an agent-authored proposal arrives
-	// on. It passes the SAME gates a hand-authored proposal does.
 	SubmitAgentProposal(ctx context.Context, requestID domain.DecompositionRequestID, token string, in ProposeDecompositionInput, raw string) (DecompositionRequestView, error)
-
-	// LatestDecompositionRequest reads an Outcome's newest ask.
 	LatestDecompositionRequest(ctx context.Context, outcomeID domain.OutcomeID) (DecompositionRequestView, error)
-
-	// CreateContribution adds one contributing Outcome beneath parentID. It is
-	// the transactional primitive authorization builds on; it is deliberately
-	// NOT exposed over HTTP, because an ad-hoc contribution would bypass the
-	// coverage, containment, and ordering gates.
-	CreateContribution(ctx context.Context, parentID domain.OutcomeID, in CreateContributionInput) (OutcomeView, error)
-
-	// Composition reports derived shape, contributing Outcomes, and criterion
-	// coverage. A direct Outcome answers shape "direct" with no contributors.
+	CreateContribution(ctx context.Context, parentID domain.OutcomeID, in CreateContributionInput) (View, error)
 	Composition(ctx context.Context, id domain.OutcomeID) (CompositionView, error)
-
-	// ProposePlan deterministically derives the smallest-sufficient direct
-	// Work Unit from the Outcome's current contract revision, freezes it into
-	// a RunBrief core digest, and records it as a proposed PlanRevision.
 	ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) (PlanView, error)
-
-	// ApprovePlan authorizes a proposed plan after re-checking that it still
-	// binds the current contract revision and that every capability grant
-	// survives all authority layers.
+	PlanningCandidates(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) ([]ports.PlanningCandidate, error)
+	StartPlanning(ctx context.Context, outcomeID domain.OutcomeID, in StartPlanningInput) (PlanningView, error)
+	GetPlanning(ctx context.Context, outcomeID domain.OutcomeID, sessionID domain.PlanningSessionID) (PlanningView, error)
+	GetCurrentPlanning(ctx context.Context, outcomeID domain.OutcomeID) (PlanningView, error)
+	ContinuePlanning(ctx context.Context, outcomeID domain.OutcomeID, sessionID domain.PlanningSessionID, in PlanningMessageInput) (PlanningView, error)
+	FinalizePlanning(ctx context.Context, outcomeID domain.OutcomeID, sessionID domain.PlanningSessionID, in PlanningFinalizeInput) (PlanningView, error)
+	CancelPlanning(ctx context.Context, outcomeID domain.OutcomeID, sessionID domain.PlanningSessionID, expectedRevision int64) (PlanningView, error)
 	ApprovePlan(ctx context.Context, outcomeID domain.OutcomeID, in ApprovePlanInput) (AuthorizedPlanView, error)
-
-	// GetLatestPlan reads the newest plan of any status for re-entry.
 	GetLatestPlan(ctx context.Context, outcomeID domain.OutcomeID) (PlanView, error)
 }
 
-// CreateInput carries one user-authored Understand statement. RequestKey is the
-// client's idempotency key for exactly-once creation.
+// CreateInput contains the initial owner-facing Outcome contract.
 type CreateInput struct {
-	ProjectID       domain.ProjectID
-	Title           string
-	Goal            string
-	SuccessCriteria []string
-	Review          string
-	Constraints     []string
-	NonGoals        []string
-	Clarification   string
-	RequestKey      string
+	ProjectID            domain.ProjectID
+	Title                string
+	Goal                 string
+	SuccessCriteria      []string
+	Review               string
+	Constraints          []string
+	NonGoals             []string
+	Clarification        string
+	EvidenceExpectations []domain.ContractEvidenceExpectation
+	AuthorityCeiling     domain.ProposedAuthority
+	StopConditions       []string
+	TemporalCondition    *string
+	Facets               []domain.ContractFacet
+	ExecutionPreference  *domain.ExecutionPreference
+	RequestKey           string
 }
 
-// ReviseContractInput supersedes the current contract. ExpectedRevision must
-// name the current revision; anything else conflicts.
+// ReviseContractInput contains a new immutable Contract revision.
 type ReviseContractInput struct {
-	ExpectedRevision int64
-	Goal             string
-	SuccessCriteria  []string
-	Review           string
-	Constraints      []string
-	NonGoals         []string
-	Clarification    string
+	ExpectedRevision     int64
+	Goal                 string
+	SuccessCriteria      []string
+	Review               string
+	Constraints          []string
+	NonGoals             []string
+	Clarification        string
+	CriterionEvidence    [][]string
+	EvidenceExpectations []domain.ContractEvidenceExpectation
+	AuthorityCeiling     domain.ProposedAuthority
+	StopConditions       []string
+	TemporalCondition    *string
+	Facets               []domain.ContractFacet
+	ExecutionPreference  *domain.ExecutionPreference
 }
 
-// OutcomeView is the read model over one Outcome's durable facts. LatestPlan is
-// populated for project listings so re-entry can derive stage and next action
-// without provider transcripts. Stage labels themselves are never persisted.
-type OutcomeView struct {
+// View is the service projection of an Outcome and its current plan.
+type View struct {
 	Outcome    domain.Outcome
 	Current    domain.ContractRevision
 	History    []domain.ContractRevision
 	LatestPlan *domain.PlanRevision
 }
 
-// Service implements Manager over ports.OutcomeStore.
+// Service is the single Outcome control-plane service. Optional seams are
+// injected explicitly; absence fails closed rather than inventing provider or
+// execution behavior.
 type Service struct {
 	store ports.OutcomeStore
 	proof ports.OutcomeProofStore
-	// proposer starts agent-authored decomposition work. Nil means unwired.
-	proposer ports.DecompositionProposer
-	// reaper ends a proposing session once its ask is closed. Optional.
-	reaper ports.AnalystSessionReaper
-	clock  func() time.Time
 
-	// PolicyLayers optionally narrows the authority ceiling for tests and
-	// constrained environments. Empty means the v0 default: the worktree-local
-	// capability trio. Authorization intersects every layer and fails closed.
+	proposer ports.DecompositionProposer
+	reaper   ports.AnalystSessionReaper
+	clock    func() time.Time
+
+	planIntelligence ports.IntelligenceProvider
+	planningDialogue ports.PlanningIntelligenceProvider
+	planningSessions ports.PlanningSessionStore
+	intelligenceRuns ports.IntelligenceRunStore
+	routing          ports.ExecutionRoutingInventory
+	planningTurnMu   sync.Mutex
+	planningTurns    map[domain.PlanningSessionID]*planningTurnCancellation
+
 	PolicyLayers [][]string
 
-	// Act & Observe seams (#31). spawner adapts the real session spawn path;
-	// heartbeats resolves bound-session facts for derived presentation. A nil
-	// spawner keeps every attempt admission refused (the controller answers
-	// 501) rather than half-wired.
 	spawner    ports.AttemptSessionSpawner
 	heartbeats heartbeatSource
+	// receipts records what each attempt produced. Optional so a degraded
+	// profile still schedules and reports truthfully; when absent, artifact
+	// continuity is unavailable rather than silently faked.
+	receipts          ports.AttemptReceiptStore
+	deliveryStore     ports.DeliveryStore
+	deliveryArtifacts *artifactstore.Store
+	retainer          ports.AttemptRetainer
+	// checks executes an Attempt's approved deterministic checks under its own
+	// frozen policy. Absent means a WorkUnit's checks simply do not run, which
+	// leaves its criteria unproved rather than assumed proved.
+	checks ports.AttemptCheckRunner
+	// checkRuns is the durable record of which approved checks have already
+	// been invoked against which retained artifact. Without it a repeated
+	// reconciliation tick would relaunch every command again.
+	checkRuns ports.AttemptCheckRunStore
+	// checkReservationEpoch identifies this daemon invocation. The active set
+	// is only a liveness witness for re-entrant reconciliation in this process;
+	// once-only ownership remains the durable check-run reservation.
+	checkReservationEpoch string
+	checkReservationMu    sync.Mutex
+	activeCheckRuns       map[string]int
+	// runIntents holds the owner's durable authorization to keep working
+	// through an approved Plan. Absent means only per-Attempt Start exists,
+	// which is a reduced capability, never an assumed authorization.
+	runIntents ports.RunIntentStore
+	// documents and documentBytes hold supplied-document Outcomes: which
+	// local documents were selected and approved, and the snapshot of their
+	// bytes that execution actually reads.
+	documents     ports.DocumentContextStore
+	documentBytes ports.DocumentSnapshotStore
 
-	// staleHeartbeat bounds how long a non-sticky running session may stay
-	// without activity before deriving unconfirmed. Zero uses the domain
-	// default; tests shrink it.
 	staleHeartbeat time.Duration
 }
 
-// WithStaleHeartbeat overrides the recency window used to derive unconfirmed
-// liveness. Positive durations only.
+// WithRunIntents wires durable run intent and serial continuation.
+func (s *Service) WithRunIntents(store ports.RunIntentStore) *Service {
+	s.runIntents = store
+	return s
+}
+
+// WithDocuments wires supplied-document Outcomes. Both halves are required:
+// a record of what was approved without the approved bytes could only be
+// honoured by re-reading the owner's files, which is the thing this path
+// exists to avoid.
+func (s *Service) WithDocuments(contexts ports.DocumentContextStore, snapshots ports.DocumentSnapshotStore) *Service {
+	s.documents, s.documentBytes = contexts, snapshots
+	return s
+}
+
+// WithCheckRunner wires deterministic check execution into classification.
+// Both the runner and the durable run record are required: executing checks
+// without a durable record of having executed them would relaunch real
+// commands on every reconciliation tick.
+func (s *Service) WithCheckRunner(runner ports.AttemptCheckRunner, runs ports.AttemptCheckRunStore) *Service {
+	s.checks, s.checkRuns = runner, runs
+	return s
+}
+
+// WithStaleHeartbeat configures the stale-attempt threshold.
 func (s *Service) WithStaleHeartbeat(d time.Duration) *Service {
 	if d > 0 {
 		s.staleHeartbeat = d
@@ -168,36 +181,75 @@ func (s *Service) WithStaleHeartbeat(d time.Duration) *Service {
 	return s
 }
 
-// New builds the service. clock may be nil for wall-clock time.
+// New constructs the Outcome control-plane service.
 func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
 	}
-	service := &Service{store: store, clock: clock}
+	service := &Service{
+		store: store, clock: clock, checkReservationEpoch: uuid.NewString(), activeCheckRuns: map[string]int{},
+		planningTurns: make(map[domain.PlanningSessionID]*planningTurnCancellation),
+	}
 	if proof, ok := store.(ports.OutcomeProofStore); ok {
 		service.proof = proof
+	}
+	if runs, ok := store.(ports.IntelligenceRunStore); ok {
+		service.intelligenceRuns = runs
+	}
+	if sessions, ok := store.(ports.PlanningSessionStore); ok {
+		service.planningSessions = sessions
+	}
+	// The SQLite store implements every one of these; the assertions keep the
+	// service usable with narrower fakes in tests rather than forcing each one
+	// to satisfy the whole surface.
+	if receipts, ok := store.(ports.AttemptReceiptStore); ok {
+		service.receipts = receipts
 	}
 	return service
 }
 
-// WithAnalystSessionReaper wires session cleanup for answered asks. A
-// proposing session has one job and is finished when its answer lands; leaving
-// it running holds a worktree and a runtime name the next spawn collides with.
+// WithPlanning wires non-authoritative planning and deterministic execution
+// routing. Neither dependency can authorize an Attempt; approval remains the
+// only transition from proposal to execution authority.
+func (s *Service) WithPlanning(provider ports.IntelligenceProvider, routing ports.ExecutionRoutingInventory) *Service {
+	s.planIntelligence = provider
+	if dialogue, ok := provider.(ports.PlanningIntelligenceProvider); ok {
+		s.planningDialogue = dialogue
+	}
+	s.routing = routing
+	return s
+}
+
+// WithExecution attaches the exact-bound execution seam to this same Outcome
+// service instance. There is no alternate execution service authority.
+func (s *Service) WithExecution(spawner ports.AttemptSessionSpawner, heartbeats heartbeatSource) *Service {
+	s.spawner = spawner
+	s.heartbeats = heartbeats
+	s.staleHeartbeat = domain.DefaultStaleHeartbeatWindow
+	return s
+}
+
+// WithAttemptRetainer attaches the restart-safe workspace capture used before
+// an ended Attempt can satisfy proof. Without it, the service fails closed and
+// leaves the Attempt reconciled rather than classifying a manifest-only result.
+func (s *Service) WithAttemptRetainer(retainer ports.AttemptRetainer) *Service {
+	s.retainer = retainer
+	return s
+}
+
+// WithAnalystSessionReaper attaches the compatibility analyst reaper.
 func (s *Service) WithAnalystSessionReaper(reaper ports.AnalystSessionReaper) *Service {
 	s.reaper = reaper
 	return s
 }
 
-// WithDecompositionProposer wires agent-authored decomposition. A nil proposer
-// leaves the ask refused with a truthful "not wired" answer rather than
-// pretending a request was started, mirroring every other unwired capability.
+// WithDecompositionProposer attaches non-authoritative decomposition proposal.
 func (s *Service) WithDecompositionProposer(proposer ports.DecompositionProposer) *Service {
 	s.proposer = proposer
 	return s
 }
 
-// WithProofStore supplies the append-only Work E proof boundary. Production
-// stores implement it directly; the explicit seam keeps older unit fakes small.
+// WithProofStore attaches the durable proof store.
 func (s *Service) WithProofStore(proof ports.OutcomeProofStore) *Service {
 	s.proof = proof
 	return s
@@ -205,33 +257,31 @@ func (s *Service) WithProofStore(proof ports.OutcomeProofStore) *Service {
 
 var _ Manager = (*Service)(nil)
 
-// Create records a new Outcome with ContractRevision 1, resolving replays by
-// request key.
-func (s *Service) Create(ctx context.Context, in CreateInput) (OutcomeView, error) {
+// Create persists an Outcome with its initial Contract revision.
+func (s *Service) Create(ctx context.Context, in CreateInput) (View, error) {
 	if strings.TrimSpace(string(in.ProjectID)) == "" {
-		return OutcomeView{}, apierr.Invalid("PROJECT_REQUIRED", "Choose the project this Outcome belongs to", nil)
+		return View{}, apierr.Invalid("PROJECT_REQUIRED", "Choose the project this Outcome belongs to", nil)
 	}
 	if strings.TrimSpace(in.RequestKey) == "" {
-		return OutcomeView{}, apierr.Invalid("REQUEST_KEY_REQUIRED", "Provide an idempotency key for this create", nil)
+		return View{}, apierr.Invalid("REQUEST_KEY_REQUIRED", "Provide an idempotency key for this create", nil)
 	}
 	content := normalizeContractContent(in.RequestKey, in.Title, in.Goal, in.SuccessCriteria, in.Review, in.Constraints, in.NonGoals, in.Clarification)
 	if err := validateTitle(content.title); err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	if err := validateContractCore(content); err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 
-	// Replay first: a delivered create never writes twice.
 	if existing, ok, err := s.store.FindOutcomeByIdempotencyKey(ctx, content.requestKey); err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	} else if ok {
 		return s.Get(ctx, existing.ID)
 	}
 
 	space, err := s.store.EnsureWorkResponsibilitySpace(ctx, in.ProjectID)
 	if err != nil {
-		return OutcomeView{}, mapStoreSpaceError(err)
+		return View{}, mapStoreSpaceError(err)
 	}
 	now := s.clock()
 	outcomeRecord := domain.Outcome{
@@ -240,29 +290,34 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (OutcomeView, erro
 		Title:   content.title,
 	}
 	first := domain.ContractRevision{
-		ID:              domain.ContractRevisionID("cr-" + uuid.NewString()),
-		OutcomeID:       outcomeRecord.ID,
-		Goal:            content.goal,
-		SuccessCriteria: content.criteria,
-		Review:          content.review,
-		Constraints:     content.constraints,
-		NonGoals:        content.nonGoals,
-		Clarification:   content.clarification,
-		CreatedAt:       now,
+		ID:                   domain.ContractRevisionID("cr-" + uuid.NewString()),
+		OutcomeID:            outcomeRecord.ID,
+		Goal:                 content.goal,
+		SuccessCriteria:      content.criteria,
+		Review:               content.review,
+		Constraints:          content.constraints,
+		NonGoals:             content.nonGoals,
+		Clarification:        content.clarification,
+		EvidenceExpectations: append([]domain.ContractEvidenceExpectation(nil), in.EvidenceExpectations...),
+		AuthorityCeiling:     in.AuthorityCeiling,
+		StopConditions:       append([]string(nil), in.StopConditions...),
+		TemporalCondition:    in.TemporalCondition,
+		Facets:               append([]domain.ContractFacet(nil), in.Facets...),
+		ExecutionPreference:  in.ExecutionPreference,
+		CreatedAt:            now,
 	}
 	first.Criteria = stableCriteria(first.ID, first.SuccessCriteria)
 	if err := s.store.CreateOutcomeWithContract(ctx, outcomeRecord, first, content.requestKey); err != nil {
-		// Either a genuine failure or a lost replay race against an identical
-		// request; resolve through the key so both paths serve the winner.
 		if existing, ok, findErr := s.store.FindOutcomeByIdempotencyKey(ctx, content.requestKey); findErr == nil && ok {
 			return s.Get(ctx, existing.ID)
 		}
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	return s.Get(ctx, outcomeRecord.ID)
 }
 
-func (s *Service) ListByProject(ctx context.Context, projectID domain.ProjectID) ([]OutcomeView, error) {
+// ListByProject returns Outcome projections for a project.
+func (s *Service) ListByProject(ctx context.Context, projectID domain.ProjectID) ([]View, error) {
 	if strings.TrimSpace(string(projectID)) == "" {
 		return nil, apierr.Invalid("PROJECT_REQUIRED", "Choose the project whose Outcomes should be listed", nil)
 	}
@@ -270,7 +325,7 @@ func (s *Service) ListByProject(ctx context.Context, projectID domain.ProjectID)
 	if err != nil {
 		return nil, err
 	}
-	views := make([]OutcomeView, 0, len(records))
+	views := make([]View, 0, len(records))
 	for _, record := range records {
 		view, err := s.Get(ctx, record.ID)
 		if err != nil {
@@ -288,49 +343,67 @@ func (s *Service) ListByProject(ctx context.Context, projectID domain.ProjectID)
 	return views, nil
 }
 
-// ReviseContract appends the next immutable revision under an optimistic
-// pointer guard.
-func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in ReviseContractInput) (OutcomeView, error) {
+// ReviseContract appends an owner-authored Contract revision.
+func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in ReviseContractInput) (View, error) {
 	if in.ExpectedRevision < 1 {
-		return OutcomeView{}, apierr.Invalid("EXPECTED_REVISION_REQUIRED", "State which contract revision this edit supersedes", nil)
+		return View{}, apierr.Invalid("EXPECTED_REVISION_REQUIRED", "State which contract revision this edit supersedes", nil)
 	}
 	content := normalizeContractContent("", "", in.Goal, in.SuccessCriteria, in.Review, in.Constraints, in.NonGoals, in.Clarification)
 	if err := validateContractCore(content); err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 
-	if _, ok, err := s.store.GetOutcome(ctx, id); err != nil {
-		return OutcomeView{}, err
-	} else if !ok {
-		return OutcomeView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
+	previous, err := s.Get(ctx, id)
+	if err != nil {
+		return View{}, err
+	}
+	if in.ExecutionPreference == nil {
+		in.ExecutionPreference = previous.Current.ExecutionPreference
 	}
 
 	next := domain.ContractRevision{
-		ID:              domain.ContractRevisionID("cr-" + uuid.NewString()),
-		OutcomeID:       id,
-		Goal:            content.goal,
-		SuccessCriteria: content.criteria,
-		Review:          content.review,
-		Constraints:     content.constraints,
-		NonGoals:        content.nonGoals,
-		Clarification:   content.clarification,
-		CreatedAt:       s.clock(),
+		ID:                   domain.ContractRevisionID("cr-" + uuid.NewString()),
+		OutcomeID:            id,
+		Goal:                 content.goal,
+		SuccessCriteria:      content.criteria,
+		Review:               content.review,
+		Constraints:          content.constraints,
+		NonGoals:             content.nonGoals,
+		Clarification:        content.clarification,
+		EvidenceExpectations: append([]domain.ContractEvidenceExpectation(nil), in.EvidenceExpectations...),
+		AuthorityCeiling:     in.AuthorityCeiling,
+		StopConditions:       append([]string(nil), in.StopConditions...),
+		TemporalCondition:    in.TemporalCondition,
+		Facets:               append([]domain.ContractFacet(nil), in.Facets...),
+		ExecutionPreference:  in.ExecutionPreference,
+		CreatedAt:            s.clock(),
 	}
 	next.Criteria = stableCriteria(next.ID, next.SuccessCriteria)
+	if in.CriterionEvidence != nil {
+		if len(in.CriterionEvidence) != len(next.Criteria) {
+			return View{}, apierr.Invalid("CONTRACT_EVIDENCE_MISMATCH", "Provide evidence expectations for each success criterion", nil)
+		}
+		next.EvidenceExpectations = nil
+		for i, descriptions := range in.CriterionEvidence {
+			if len(descriptions) > 0 {
+				next.EvidenceExpectations = append(next.EvidenceExpectations, domain.ContractEvidenceExpectation{CriterionID: next.Criteria[i].ID, Descriptions: descriptions})
+			}
+		}
+	}
+
 	number, err := s.store.AppendContractRevision(ctx, id, in.ExpectedRevision, next)
 	if err != nil {
 		var conflict *ports.OutcomeConflictError
 		if errors.As(err, &conflict) {
-			return OutcomeView{}, apierr.New(apierr.KindConflict, "OUTCOME_CONTRACT_CONFLICT",
-				fmt.Sprintf("Contract moved to revision %s; reload and retry against it",
-					strconv.FormatInt(conflict.CurrentRevisionNum, 10)),
+			return View{}, apierr.New(apierr.KindConflict, "OUTCOME_CONTRACT_CONFLICT",
+				fmt.Sprintf("Contract moved to revision %s; reload and retry against it", strconv.FormatInt(conflict.CurrentRevisionNum, 10)),
 				map[string]any{
 					"outcomeId":        string(id),
 					"expectedRevision": conflict.ExpectedRevisionNum,
 					"currentRevision":  conflict.CurrentRevisionNum,
 				})
 		}
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	_ = number
 	return s.Get(ctx, id)
@@ -349,28 +422,27 @@ func stableCriteria(revisionID domain.ContractRevisionID, texts []string) []doma
 	return criteria
 }
 
-// Get reads one Outcome's canonical facts plus full revision history.
-func (s *Service) Get(ctx context.Context, id domain.OutcomeID) (OutcomeView, error) {
+// Get returns the current Outcome projection.
+func (s *Service) Get(ctx context.Context, id domain.OutcomeID) (View, error) {
 	record, ok, err := s.store.GetOutcome(ctx, id)
 	if err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	if !ok {
-		return OutcomeView{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
+		return View{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
 	}
 	history, err := s.store.ListContractRevisions(ctx, id)
 	if err != nil {
-		return OutcomeView{}, err
+		return View{}, err
 	}
 	for _, rev := range history {
 		if rev.Number == record.CurrentRevisionNumber {
-			return OutcomeView{Outcome: record, Current: rev, History: history}, nil
+			return View{Outcome: record, Current: rev, History: history}, nil
 		}
 	}
-	return OutcomeView{}, fmt.Errorf("outcome %s points at missing revision %d", id, record.CurrentRevisionNumber)
+	return View{}, fmt.Errorf("outcome %s points at missing revision %d", id, record.CurrentRevisionNumber)
 }
 
-// contractContent is trimmed, validated Understand input.
 type contractContent struct {
 	requestKey    string
 	title         string
@@ -416,8 +488,6 @@ func validateTitle(title string) error {
 	return nil
 }
 
-// validateContractCore applies the Goal/Success/Review requirements every
-// immutable revision must satisfy.
 func validateContractCore(c contractContent) error {
 	switch {
 	case c.goal == "":
@@ -430,8 +500,6 @@ func validateContractCore(c contractContent) error {
 	return nil
 }
 
-// mapStoreSpaceError translates foreign-key failures on unknown projects into
-// the shared not-found envelope.
 func mapStoreSpaceError(err error) error {
 	lower := strings.ToLower(err.Error())
 	if strings.Contains(lower, "foreign key") || strings.Contains(lower, "no such table") {

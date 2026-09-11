@@ -63,9 +63,8 @@ type TelemetryConfig struct {
 	// users to install a new build. Local storage still records everything.
 	DisabledEvents []string
 	// AppVersion is the desktop app version the daemon was launched by, stamped
-	// on remote events so failures can be attributed to a release. The daemon
-	// binary has no reliable version of its own (see cli.Version, which release
-	// tooling does not currently override), so the supervisor passes it in.
+	// on remote events so failures can be attributed to a release. The daemon's
+	// own build identity is reported separately by daemonmeta in health probes.
 	AppVersion string
 }
 

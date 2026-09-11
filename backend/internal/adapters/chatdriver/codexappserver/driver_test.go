@@ -35,11 +35,12 @@ type scriptedServer struct {
 	t        *testing.T
 	toClient io.WriteCloser
 
-	mu        sync.Mutex
-	responses map[string]string
-	failures  map[string]string
-	seen      []frame
-	seenCh    chan frame
+	mu          sync.Mutex
+	responses   map[string]string
+	failures    map[string]string
+	seen        []frame
+	seenCh      chan frame
+	responsesCh chan string
 }
 
 // replyError scripts a JSON-RPC error for a method, which is how a test exercises a
@@ -120,13 +121,14 @@ func newTestDriver(t *testing.T) (*Driver, *scriptedServer) {
 		responses: map[string]string{
 			"initialize":     `{"userAgent":"ao/test","codexHome":"/tmp/.codex"}`,
 			"model/list":     `{"data":[{"id":"gpt-test","displayName":"GPT Test","isDefault":true}]}`,
-			"thread/start":   `{"thread":{"id":"thread-1"},"model":"gpt-test","cwd":"/tmp/ws"}`,
+			"thread/start":   `{"thread":{"id":"thread-1"},"model":"gpt-test","cwd":"/tmp/ws","approvalPolicy":"never","activePermissionProfile":{"id":":read-only"}}`,
 			"turn/start":     `{"turn":{"id":"turn-1","status":"inProgress","items":[]}}`,
 			"turn/interrupt": `{}`,
 			"thread/resume":  `{"thread":{"id":"thread-1"}}`,
 		},
-		failures: map[string]string{},
-		seenCh:   make(chan frame, 64),
+		failures:    map[string]string{},
+		seenCh:      make(chan frame, 64),
+		responsesCh: make(chan string, 64),
 	}
 
 	go func() {
@@ -161,6 +163,10 @@ func newTestDriver(t *testing.T) (*Driver, *scriptedServer) {
 				srv.push(`{"id":` + string(*f.ID) + `,"error":` + failure + `}`)
 			case known:
 				srv.push(`{"id":` + string(*f.ID) + `,"result":` + reply + `}`)
+				select {
+				case srv.responsesCh <- f.Method:
+				default:
+				}
 			}
 		}
 	}()
@@ -169,7 +175,7 @@ func newTestDriver(t *testing.T) (*Driver, *scriptedServer) {
 		plugin: fakePlugin{bin: "codex", authStatus: ports.AgentAuthStatusAuthorized},
 		log:    slog.New(slog.DiscardHandler),
 		versionProbe: func(context.Context, string) (string, error) {
-			return "codex-cli 0.146.0", nil
+			return "codex-cli 0.153.4", nil
 		},
 		spawn: func(context.Context, string, string, []string) (*process, error) {
 			return &process{
@@ -181,6 +187,22 @@ func newTestDriver(t *testing.T) (*Driver, *scriptedServer) {
 	}
 	t.Cleanup(func() { _ = serverWrites.Close() })
 	return d, srv
+}
+
+func (s *scriptedServer) awaitResponse(method string) {
+	s.t.Helper()
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case got := <-s.responsesCh:
+			if got == method {
+				return
+			}
+		case <-deadline:
+			s.t.Fatalf("timed out waiting for a response to %s", method)
+			return
+		}
+	}
 }
 
 // nextEvent returns the next event of interest, skipping ones the test does not
@@ -606,6 +628,55 @@ func TestResumeReappliesWorkspaceAndStandingInstructions(t *testing.T) {
 	}
 }
 
+func TestResumePinsGovernedPolicyAndFrozenModelOnEveryTurn(t *testing.T) {
+	d, srv := newTestDriver(t)
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest: "brief", RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
+		Grants: []domain.CapabilityGrant{{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"}},
+	}
+	conv, err := d.Resume(context.Background(), ports.ChatResumeConfig{
+		SessionID: "kennel-1", ProviderConversationID: "thread-1", WorkspacePath: "/tmp/ws",
+		Model: "approved-model", Permissions: ports.PermissionModeBypassPermissions, ExecutionPolicy: &policy,
+	})
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	defer func() { _ = conv.Close() }()
+
+	resume := srv.awaitFrame(func(f frame) bool { return f.Method == "thread/resume" })
+	var resumeParams struct {
+		Model          string `json:"model"`
+		ApprovalPolicy string `json:"approvalPolicy"`
+		Sandbox        string `json:"sandbox"`
+	}
+	if err := json.Unmarshal(resume.Params, &resumeParams); err != nil {
+		t.Fatalf("thread/resume params: %v", err)
+	}
+	if resumeParams.Model != "approved-model" || resumeParams.ApprovalPolicy != "on-request" || resumeParams.Sandbox != "read-only" {
+		t.Fatalf("resume binding = %+v, want approved-model/on-request/read-only", resumeParams)
+	}
+	if _, err := conv.SendTurn(context.Background(), ports.ChatUserMessage{
+		Text: "inspect", Settings: ports.ChatTurnSettings{Approval: ports.PermissionModeBypassPermissions},
+	}); err != nil {
+		t.Fatalf("SendTurn: %v", err)
+	}
+	turn := srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
+	var turnParams struct {
+		ApprovalPolicy string `json:"approvalPolicy"`
+		SandboxPolicy  struct {
+			Type          string `json:"type"`
+			NetworkAccess bool   `json:"networkAccess"`
+		} `json:"sandboxPolicy"`
+	}
+	if err := json.Unmarshal(turn.Params, &turnParams); err != nil {
+		t.Fatalf("turn/start params: %v", err)
+	}
+	if turnParams.ApprovalPolicy != "on-request" || turnParams.SandboxPolicy.Type != "readOnly" || turnParams.SandboxPolicy.NetworkAccess {
+		t.Fatalf("resumed turn boundary = %+v, want on-request/readOnly/network=false", turnParams)
+	}
+}
+
 func TestResumeRequiresStoredThreadID(t *testing.T) {
 	d, _ := newTestDriver(t)
 	_, err := d.Resume(context.Background(), ports.ChatResumeConfig{WorkspacePath: "/tmp/ws"})
@@ -709,6 +780,129 @@ func TestApprovalSettingsMirrorTUIPosture(t *testing.T) {
 		if policy != tc.policy || sandbox != tc.sandbox {
 			t.Errorf("approvalSettings(%q) = %q/%q, want %q/%q", tc.mode, policy, sandbox, tc.policy, tc.sandbox)
 		}
+	}
+}
+
+func TestStartMapsAttemptExecutionPolicyToNarrowSandbox(t *testing.T) {
+	d, srv := newTestDriver(t)
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest:   "brief",
+		RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
+		Grants:               []domain.CapabilityGrant{{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"}},
+	}
+	conv, err := d.Start(context.Background(), ports.ChatStartConfig{WorkspacePath: "/tmp/ws", Permissions: ports.PermissionModeBypassPermissions, ExecutionPolicy: &policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conv.Close() }()
+
+	sent := srv.awaitFrame(func(f frame) bool { return f.Method == "thread/start" })
+	var params struct {
+		ApprovalPolicy string `json:"approvalPolicy"`
+		Sandbox        string `json:"sandbox"`
+	}
+	if err := json.Unmarshal(sent.Params, &params); err != nil {
+		t.Fatal(err)
+	}
+	if params.ApprovalPolicy != "on-request" || params.Sandbox != "read-only" {
+		t.Fatalf("policy posture = %q/%q, want on-request/read-only", params.ApprovalPolicy, params.Sandbox)
+	}
+
+	if _, err := conv.SendTurn(context.Background(), ports.ChatUserMessage{
+		Text:     "inspect",
+		Settings: ports.ChatTurnSettings{Approval: ports.PermissionModeBypassPermissions},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	turn := srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
+	var turnParams struct {
+		ApprovalPolicy string `json:"approvalPolicy"`
+		SandboxPolicy  struct {
+			Type          string `json:"type"`
+			NetworkAccess bool   `json:"networkAccess"`
+		} `json:"sandboxPolicy"`
+	}
+	if err := json.Unmarshal(turn.Params, &turnParams); err != nil {
+		t.Fatal(err)
+	}
+	if turnParams.ApprovalPolicy != "on-request" || turnParams.SandboxPolicy.Type != "readOnly" || turnParams.SandboxPolicy.NetworkAccess {
+		t.Fatalf("governed turn boundary = %+v, want on-request/readOnly/network=false", turnParams)
+	}
+}
+
+func TestValidateExecutionPolicyRejectsRestrictedScope(t *testing.T) {
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest: "brief", RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
+		Grants: []domain.CapabilityGrant{{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/docs/*"}},
+	}
+	if err := (&Driver{}).ValidateExecutionPolicy(context.Background(), policy); err == nil {
+		t.Fatal("restricted worktree scope was accepted")
+	} else if !errors.Is(err, ports.ErrExecutionPolicyUnsupported) {
+		t.Fatalf("err = %v, want typed unsupported policy", err)
+	}
+}
+
+func TestValidateExecutionPolicyRejectsUnknownCapability(t *testing.T) {
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest:   "brief",
+		RequiredCapabilities: []string{"provider.unknown", domain.CapabilityWorktreeRead},
+		Grants: []domain.CapabilityGrant{
+			{ID: "unknown", Name: "provider.unknown", Scope: "worktree/*"},
+			{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
+		},
+	}
+	if err := (&Driver{}).ValidateExecutionPolicy(context.Background(), policy); err == nil {
+		t.Fatal("unknown capability was accepted alongside worktree.read")
+	} else if !errors.Is(err, ports.ErrExecutionPolicyUnsupported) {
+		t.Fatalf("err = %v, want typed unsupported policy", err)
+	}
+}
+
+func TestStartPinsWorkspaceWriteBoundaryOnEveryTurn(t *testing.T) {
+	d, srv := newTestDriver(t)
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest: "brief",
+		RequiredCapabilities: []string{
+			domain.CapabilityWorktreeExec, domain.CapabilityWorktreeRead, domain.CapabilityWorktreeWrite,
+		},
+		Grants: []domain.CapabilityGrant{
+			{ID: "exec", Name: domain.CapabilityWorktreeExec, Scope: "worktree/*"},
+			{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"},
+			{ID: "write", Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"},
+		},
+	}
+	conv, err := d.Start(context.Background(), ports.ChatStartConfig{WorkspacePath: "/tmp/ws", ExecutionPolicy: &policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conv.Close() }()
+	if _, err := conv.SendTurn(context.Background(), ports.ChatUserMessage{
+		Text:     "edit",
+		Settings: ports.ChatTurnSettings{Approval: ports.PermissionModeBypassPermissions},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	turn := srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
+	var params struct {
+		ApprovalPolicy string `json:"approvalPolicy"`
+		SandboxPolicy  struct {
+			Type                string   `json:"type"`
+			NetworkAccess       bool     `json:"networkAccess"`
+			WritableRoots       []string `json:"writableRoots"`
+			ExcludeSlashTmp     bool     `json:"excludeSlashTmp"`
+			ExcludeTmpdirEnvVar bool     `json:"excludeTmpdirEnvVar"`
+		} `json:"sandboxPolicy"`
+	}
+	if err := json.Unmarshal(turn.Params, &params); err != nil {
+		t.Fatal(err)
+	}
+	policyOnWire := params.SandboxPolicy
+	if params.ApprovalPolicy != "on-request" || policyOnWire.Type != "workspaceWrite" || policyOnWire.NetworkAccess || len(policyOnWire.WritableRoots) != 0 || !policyOnWire.ExcludeSlashTmp || !policyOnWire.ExcludeTmpdirEnvVar {
+		t.Fatalf("governed turn boundary = %+v, want workspaceWrite/network=false/empty-roots/temp-excluded", params)
 	}
 }
 

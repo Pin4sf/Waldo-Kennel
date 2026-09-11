@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/daemonmeta"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/runfile"
 )
 
@@ -66,6 +67,8 @@ func TestHealthProbesIncludeDaemonIdentity(t *testing.T) {
 			ExecutablePath          string `json:"executablePath"`
 			WorkingDirectory        string `json:"workingDirectory"`
 			StartupWorkingDirectory string `json:"startupWorkingDirectory"`
+			BuildIdentity           string `json:"buildIdentity"`
+			BuildRevision           string `json:"buildRevision"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 			t.Fatalf("decode %s: %v", path, err)
@@ -79,6 +82,12 @@ func TestHealthProbesIncludeDaemonIdentity(t *testing.T) {
 		if body.StartupWorkingDirectory != "/startup" {
 			t.Errorf("GET %s startupWorkingDirectory = %q, want /startup", path, body.StartupWorkingDirectory)
 		}
+		if body.BuildIdentity != daemonmeta.BuildIdentity {
+			t.Errorf("GET %s buildIdentity = %q, want %q", path, body.BuildIdentity, daemonmeta.BuildIdentity)
+		}
+		if body.BuildRevision != daemonmeta.BuildRevision {
+			t.Errorf("GET %s buildRevision = %q, want %q", path, body.BuildRevision, daemonmeta.BuildRevision)
+		}
 	}
 }
 
@@ -86,7 +95,7 @@ func TestHealthProbesIncludeAppImageIdentity(t *testing.T) {
 	client := &http.Client{Timeout: 2 * time.Second}
 
 	t.Run("reports KENNEL_APPIMAGE when set", func(t *testing.T) {
-		t.Setenv("KENNEL_APPIMAGE", "/home/user/Apps/agent-orchestrator.AppImage")
+		t.Setenv("KENNEL_APPIMAGE", "/home/user/Apps/kennel.AppImage")
 		router := newTestRouter(config.Config{}, discardLogger(), nil)
 		srv := httptest.NewServer(router)
 		defer srv.Close()
@@ -103,7 +112,7 @@ func TestHealthProbesIncludeAppImageIdentity(t *testing.T) {
 			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 				t.Fatalf("decode %s: %v", path, err)
 			}
-			if body.AppImagePath != "/home/user/Apps/agent-orchestrator.AppImage" {
+			if body.AppImagePath != "/home/user/Apps/kennel.AppImage" {
 				t.Errorf("GET %s appImagePath = %q, want the KENNEL_APPIMAGE value", path, body.AppImagePath)
 			}
 		}
@@ -148,6 +157,7 @@ func TestServerLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	srv.SetSupervisorAddress("/tmp/kennel-supervise-test.sock")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -168,6 +178,9 @@ func TestServerLifecycle(t *testing.T) {
 	}
 	if info.Port == 0 {
 		t.Error("run-file recorded port 0; want the actual bound port")
+	}
+	if info.SupervisorAddress != "/tmp/kennel-supervise-test.sock" {
+		t.Errorf("run-file supervisorAddress = %q, want published address", info.SupervisorAddress)
 	}
 
 	cancel()

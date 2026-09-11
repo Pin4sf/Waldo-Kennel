@@ -71,6 +71,12 @@ type SessionMetadata struct {
 	// session. Keeping the verifier durable lets a surviving worker authenticate
 	// after the desktop app or daemon restarts.
 	BrowserCapabilityVerifier string `json:"-"`
+	// GovernedExecutionPolicyDigest marks a session created for an admitted
+	// Attempt. It is only a recovery gate: the Attempt session-reference
+	// admission snapshot remains the authority for the frozen binding and
+	// policy. A non-empty marker with missing or invalid evidence must block
+	// recovery rather than inherit mutable Project preferences.
+	GovernedExecutionPolicyDigest string `json:"governedExecutionPolicyDigest,omitempty"`
 }
 
 // SessionRecord is the persistence shape. It intentionally stores only durable

@@ -21,7 +21,7 @@ type proofFakeStore struct {
 	corrections   []domain.OutcomeCorrection
 }
 
-func newProofService(t *testing.T) (*outcome.Service, *proofFakeStore, outcome.OutcomeView) {
+func newProofService(t *testing.T) (*outcome.Service, *proofFakeStore, outcome.View) {
 	t.Helper()
 	store := &proofFakeStore{fakeStore: newFakeStore()}
 	now := time.Date(2026, 8, 25, 20, 0, 0, 0, time.UTC)
@@ -41,7 +41,7 @@ func newProofService(t *testing.T) (*outcome.Service, *proofFakeStore, outcome.O
 	return service, store, view
 }
 
-func evidenceInput(view outcome.OutcomeView, criterion domain.ContractCriterion, key string) outcome.RecordEvidenceInput {
+func evidenceInput(view outcome.View, criterion domain.ContractCriterion, key string) outcome.RecordEvidenceInput {
 	return outcome.RecordEvidenceInput{
 		ExpectedContractRevision: view.Current.Number,
 		ContractRevisionID:       view.Current.ID,
@@ -60,7 +60,7 @@ func evidenceInput(view outcome.OutcomeView, criterion domain.ContractCriterion,
 	}
 }
 
-func verificationInput(view outcome.OutcomeView, criterion domain.ContractCriterion, evidenceID domain.EvidenceItemID, key string) outcome.RecordVerificationInput {
+func verificationInput(view outcome.View, criterion domain.ContractCriterion, evidenceID domain.EvidenceItemID, key string) outcome.RecordVerificationInput {
 	return outcome.RecordVerificationInput{
 		ExpectedContractRevision: view.Current.Number,
 		ContractRevisionID:       view.Current.ID,
