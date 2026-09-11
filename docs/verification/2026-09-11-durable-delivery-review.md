@@ -12,9 +12,15 @@
 
 This is a source and automated-boundary review. **No live delivery to a real
 owner destination was performed, and no owner accepted any result.** Nothing in
-the reviewed area was changed except test fidelity; the findings below are
-reported, not repaired, because two of the three require a product decision
-this review is not authorized to make.
+the reviewed area was changed except test fidelity; the findings below were
+reported, not repaired, because two of the three required a product decision
+this review was not authorized to make.
+
+> **Status, 11 September 2026 (later the same day).** DLV-01 and DLV-02's
+> read-boundary question were subsequently resolved under a separate delivery
+> recovery slice; DLV-03 went with them. DLV-02's own symlinked-parent
+> behaviour is unchanged and still open. Each finding below carries its
+> outcome. The original text is kept as written for provenance.
 
 ## Verdict
 
@@ -92,6 +98,14 @@ owner can simply retry.
 
 ## Findings
 
+### DLV-01 · P1 · RESOLVED — see `docs/contracts/2026-09-11-delivery-recovery-contract.md`
+
+Recovery now reads each pending destination and records the completion it can
+prove, labelled `completionSource: "recovered"`. Missing, mismatched,
+unreadable and unverifiable evidence each stay an explicit, distinct failure,
+and nothing is re-transferred or overwritten. The finding as originally written
+follows, for provenance.
+
 ### DLV-01 · P1 · A committed transfer that misses its ledger write is recorded as failed forever
 
 **Where:** `delivery.go:213` (completion follows the commit),
@@ -113,7 +127,9 @@ unrelated problem; and the only way to learn the truth is to inspect the
 filesystem by hand. Delivery history — the thing the ledger exists to be — is
 wrong, and stays wrong.
 
-**Proved by:** `TestReconcileDeliveries_CannotTellACommittedTransferFromAnAbandonedOne`.
+**Proved by:** `TestReconcileDeliveries_CannotTellACommittedTransferFromAnAbandonedOne`,
+since replaced by the recovery suite in `delivery_recovery_test.go` now that
+the behaviour it characterised is repaired.
 
 **Recommended:** have reconciliation read the destination manifest for each
 pending row and compare it against that row's Attempt, artifact version and
@@ -141,6 +157,13 @@ than the path the owner named and the path the ledger records.
 a symlink as the destination is refused, and the same link one level up is
 followed to a successful delivery.
 
+**Still open.** The recovery slice deliberately did not change it: the export
+follows a symlinked parent, so verification has to read through the same link
+or it would report a completed transfer as missing. That agreement is now
+pinned by `TestReconcileDeliveries_RecoversATransferThroughASymlinkedParent`,
+and a symlink standing in for an artifact *inside* the destination is refused.
+Recording the resolved path remains the recommendation below.
+
 The trust model matters here: the owner types the destination, so this is not
 an escalation so much as a truthfulness gap — `delivery.destination` and the
 `manifestPath` in the receipt name a path that is not where the bytes are.
@@ -151,6 +174,13 @@ break ordinary destinations. Resolve the parent with `filepath.EvalSymlinks`
 and persist the *resolved* destination on the delivery row, so the receipt tells
 the owner where the artifact actually is. Refuse only when the parent cannot be
 resolved.
+
+### DLV-03 · P3 · RESOLVED as a side effect of DLV-01
+
+The blanket `FailPendingOutcomeDeliveries` query is deleted. Recovery reads
+pending rows with `ListPendingOutcomeDeliveries` and decides each on its own
+evidence, so there is no longer an unscoped write to mis-fire. The finding as
+originally written follows, for provenance.
 
 ### DLV-03 · P3 · `FailPendingOutcomeDeliveries` is unscoped and safe only by call-site ordering
 

@@ -112,7 +112,8 @@ func (s *Store) CompleteOutcomeDelivery(ctx context.Context, delivery domain.Out
 			State: string(delivery.State), ManifestPath: delivery.ManifestPath,
 			FileCount: int64(delivery.FileCount), ByteCount: delivery.ByteCount,
 			FailureCode: delivery.FailureCode, FailureDetail: delivery.FailureDetail,
-			CompletedAt: nullableTime(delivery.CompletedAt), ID: string(delivery.ID),
+			CompletedAt:      nullableTime(delivery.CompletedAt),
+			CompletionSource: string(delivery.CompletionSource), ID: string(delivery.ID),
 		})
 		return err
 	})
@@ -122,22 +123,18 @@ func (s *Store) CompleteOutcomeDelivery(ctx context.Context, delivery domain.Out
 	return changed > 0, nil
 }
 
-// FailPendingOutcomeDeliveries closes unresolved requests after restart.
-func (s *Store) FailPendingOutcomeDeliveries(ctx context.Context, at time.Time, code, detail string) (int64, error) {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-	var changed int64
-	err := s.inTx(ctx, "fail pending deliveries", func(q *gen.Queries) error {
-		var err error
-		changed, err = q.FailPendingOutcomeDeliveries(ctx, gen.FailPendingOutcomeDeliveriesParams{
-			FailureCode: code, FailureDetail: detail, CompletedAt: sql.NullTime{Time: at, Valid: true},
-		})
-		return err
-	})
+// ListPendingOutcomeDeliveries reads every request whose filesystem effect is
+// still unresolved, so recovery can inspect each destination on its own.
+func (s *Store) ListPendingOutcomeDeliveries(ctx context.Context) ([]domain.OutcomeDelivery, error) {
+	rows, err := s.qr.ListPendingOutcomeDeliveries(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("fail pending deliveries: %w", err)
+		return nil, fmt.Errorf("list pending deliveries: %w", err)
 	}
-	return changed, nil
+	out := make([]domain.OutcomeDelivery, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, deliveryFromRow(row))
+	}
+	return out, nil
 }
 
 func deliveryFromRow(row gen.OutcomeDelivery) domain.OutcomeDelivery {
@@ -150,6 +147,11 @@ func deliveryFromRow(row gen.OutcomeDelivery) domain.OutcomeDelivery {
 		State: domain.DeliveryState(row.State), ManifestPath: row.ManifestPath,
 		FileCount: int(row.FileCount), ByteCount: row.ByteCount, FailureCode: row.FailureCode,
 		FailureDetail: row.FailureDetail, RequestedAt: row.RequestedAt,
+	}
+	if row.State != string(domain.DeliveryPending) {
+		// Historical rows predate recovery and default to 'observed'; a
+		// pending row has nothing to report yet.
+		delivery.CompletionSource = domain.DeliveryCompletionSource(row.CompletionSource)
 	}
 	if row.CompletedAt.Valid {
 		at := row.CompletedAt.Time

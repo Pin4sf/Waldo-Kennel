@@ -638,6 +638,7 @@ type OutcomeDelivery struct {
 	FailureDetail        string
 	RequestedAt          time.Time
 	CompletedAt          sql.NullTime
+	CompletionSource     string
 }
 
 type OutcomeDocumentContext struct {

@@ -14,19 +14,21 @@ import (
 const completeOutcomeDelivery = `-- name: CompleteOutcomeDelivery :execrows
 UPDATE outcome_deliveries
 SET state = ?, manifest_path = ?, file_count = ?, byte_count = ?,
-    failure_code = ?, failure_detail = ?, completed_at = ?
+    failure_code = ?, failure_detail = ?, completed_at = ?,
+    completion_source = ?
 WHERE id = ? AND state = 'pending'
 `
 
 type CompleteOutcomeDeliveryParams struct {
-	State         string
-	ManifestPath  string
-	FileCount     int64
-	ByteCount     int64
-	FailureCode   string
-	FailureDetail string
-	CompletedAt   sql.NullTime
-	ID            string
+	State            string
+	ManifestPath     string
+	FileCount        int64
+	ByteCount        int64
+	FailureCode      string
+	FailureDetail    string
+	CompletedAt      sql.NullTime
+	CompletionSource string
+	ID               string
 }
 
 func (q *Queries) CompleteOutcomeDelivery(ctx context.Context, arg CompleteOutcomeDeliveryParams) (int64, error) {
@@ -38,6 +40,7 @@ func (q *Queries) CompleteOutcomeDelivery(ctx context.Context, arg CompleteOutco
 		arg.FailureCode,
 		arg.FailureDetail,
 		arg.CompletedAt,
+		arg.CompletionSource,
 		arg.ID,
 	)
 	if err != nil {
@@ -102,28 +105,8 @@ func (q *Queries) CreateOutcomeDelivery(ctx context.Context, arg CreateOutcomeDe
 	return err
 }
 
-const failPendingOutcomeDeliveries = `-- name: FailPendingOutcomeDeliveries :execrows
-UPDATE outcome_deliveries
-SET state = 'failed', failure_code = ?, failure_detail = ?, completed_at = ?
-WHERE state = 'pending'
-`
-
-type FailPendingOutcomeDeliveriesParams struct {
-	FailureCode   string
-	FailureDetail string
-	CompletedAt   sql.NullTime
-}
-
-func (q *Queries) FailPendingOutcomeDeliveries(ctx context.Context, arg FailPendingOutcomeDeliveriesParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, failPendingOutcomeDeliveries, arg.FailureCode, arg.FailureDetail, arg.CompletedAt)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const findOutcomeDeliveryByRequestKey = `-- name: FindOutcomeDeliveryByRequestKey :one
-SELECT id, outcome_id, attempt_id, work_unit_id, artifact_version, disposition, destination, acceptance_decision_id, request_key, request_fingerprint, state, manifest_path, file_count, byte_count, failure_code, failure_detail, requested_at, completed_at FROM outcome_deliveries WHERE request_key = ?
+SELECT id, outcome_id, attempt_id, work_unit_id, artifact_version, disposition, destination, acceptance_decision_id, request_key, request_fingerprint, state, manifest_path, file_count, byte_count, failure_code, failure_detail, requested_at, completed_at, completion_source FROM outcome_deliveries WHERE request_key = ?
 `
 
 func (q *Queries) FindOutcomeDeliveryByRequestKey(ctx context.Context, requestKey string) (OutcomeDelivery, error) {
@@ -148,12 +131,13 @@ func (q *Queries) FindOutcomeDeliveryByRequestKey(ctx context.Context, requestKe
 		&i.FailureDetail,
 		&i.RequestedAt,
 		&i.CompletedAt,
+		&i.CompletionSource,
 	)
 	return i, err
 }
 
 const getOutcomeDelivery = `-- name: GetOutcomeDelivery :one
-SELECT id, outcome_id, attempt_id, work_unit_id, artifact_version, disposition, destination, acceptance_decision_id, request_key, request_fingerprint, state, manifest_path, file_count, byte_count, failure_code, failure_detail, requested_at, completed_at FROM outcome_deliveries WHERE outcome_id = ? AND id = ?
+SELECT id, outcome_id, attempt_id, work_unit_id, artifact_version, disposition, destination, acceptance_decision_id, request_key, request_fingerprint, state, manifest_path, file_count, byte_count, failure_code, failure_detail, requested_at, completed_at, completion_source FROM outcome_deliveries WHERE outcome_id = ? AND id = ?
 `
 
 type GetOutcomeDeliveryParams struct {
@@ -183,12 +167,13 @@ func (q *Queries) GetOutcomeDelivery(ctx context.Context, arg GetOutcomeDelivery
 		&i.FailureDetail,
 		&i.RequestedAt,
 		&i.CompletedAt,
+		&i.CompletionSource,
 	)
 	return i, err
 }
 
 const listOutcomeDeliveries = `-- name: ListOutcomeDeliveries :many
-SELECT id, outcome_id, attempt_id, work_unit_id, artifact_version, disposition, destination, acceptance_decision_id, request_key, request_fingerprint, state, manifest_path, file_count, byte_count, failure_code, failure_detail, requested_at, completed_at FROM outcome_deliveries WHERE outcome_id = ? ORDER BY requested_at, id
+SELECT id, outcome_id, attempt_id, work_unit_id, artifact_version, disposition, destination, acceptance_decision_id, request_key, request_fingerprint, state, manifest_path, file_count, byte_count, failure_code, failure_detail, requested_at, completed_at, completion_source FROM outcome_deliveries WHERE outcome_id = ? ORDER BY requested_at, id
 `
 
 func (q *Queries) ListOutcomeDeliveries(ctx context.Context, outcomeID string) ([]OutcomeDelivery, error) {
@@ -219,6 +204,54 @@ func (q *Queries) ListOutcomeDeliveries(ctx context.Context, outcomeID string) (
 			&i.FailureDetail,
 			&i.RequestedAt,
 			&i.CompletedAt,
+			&i.CompletionSource,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingOutcomeDeliveries = `-- name: ListPendingOutcomeDeliveries :many
+SELECT id, outcome_id, attempt_id, work_unit_id, artifact_version, disposition, destination, acceptance_decision_id, request_key, request_fingerprint, state, manifest_path, file_count, byte_count, failure_code, failure_detail, requested_at, completed_at, completion_source FROM outcome_deliveries WHERE state = 'pending' ORDER BY requested_at, id
+`
+
+func (q *Queries) ListPendingOutcomeDeliveries(ctx context.Context) ([]OutcomeDelivery, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingOutcomeDeliveries)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OutcomeDelivery{}
+	for rows.Next() {
+		var i OutcomeDelivery
+		if err := rows.Scan(
+			&i.ID,
+			&i.OutcomeID,
+			&i.AttemptID,
+			&i.WorkUnitID,
+			&i.ArtifactVersion,
+			&i.Disposition,
+			&i.Destination,
+			&i.AcceptanceDecisionID,
+			&i.RequestKey,
+			&i.RequestFingerprint,
+			&i.State,
+			&i.ManifestPath,
+			&i.FileCount,
+			&i.ByteCount,
+			&i.FailureCode,
+			&i.FailureDetail,
+			&i.RequestedAt,
+			&i.CompletedAt,
+			&i.CompletionSource,
 		); err != nil {
 			return nil, err
 		}

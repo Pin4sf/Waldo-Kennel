@@ -35,6 +35,27 @@ const (
 	DeliveryCancelled DeliveryState = "cancelled"
 )
 
+// DeliveryCompletionSource says how a terminal result was established. It is
+// durable because the two are not the same evidence.
+type DeliveryCompletionSource string
+
+const (
+	// DeliveryObserved means this daemon watched the transfer resolve and then
+	// wrote the row.
+	DeliveryObserved DeliveryCompletionSource = "observed"
+	// DeliveryRecovered means the row was left pending by a crash between the
+	// filesystem commit and the ledger write, and the result was established
+	// afterwards by reading the destination and re-digesting every delivered
+	// artifact against the retained result. It proves the bytes arrived;
+	// nobody watched them arrive.
+	DeliveryRecovered DeliveryCompletionSource = "recovered"
+)
+
+// Valid reports whether s is a known completion source.
+func (s DeliveryCompletionSource) Valid() bool {
+	return s == DeliveryObserved || s == DeliveryRecovered
+}
+
 // OutcomeDelivery records one exact artifact transfer and its observed result.
 type OutcomeDelivery struct {
 	ID                   DeliveryID
@@ -53,8 +74,12 @@ type OutcomeDelivery struct {
 	ByteCount            int64
 	FailureCode          string
 	FailureDetail        string
-	RequestedAt          time.Time
-	CompletedAt          *time.Time
+	// CompletionSource is empty while pending and names how a terminal result
+	// was established. A recovered success is still a success; it is simply
+	// not one anybody observed.
+	CompletionSource DeliveryCompletionSource
+	RequestedAt      time.Time
+	CompletedAt      *time.Time
 }
 
 // Validate checks the identity and terminal-state invariants of a delivery.
@@ -87,6 +112,14 @@ func (d OutcomeDelivery) Validate() error {
 	}
 	if d.State == DeliverySucceeded && d.ManifestPath == "" {
 		return fmt.Errorf("succeeded delivery requires a manifest path")
+	}
+	// A terminal row has to say how it was decided, and a pending one has
+	// nothing to say yet.
+	if d.State == DeliveryPending && d.CompletionSource != "" {
+		return fmt.Errorf("pending delivery cannot name a completion source")
+	}
+	if d.State != DeliveryPending && !d.CompletionSource.Valid() {
+		return fmt.Errorf("terminal delivery requires a valid completion source")
 	}
 	return nil
 }

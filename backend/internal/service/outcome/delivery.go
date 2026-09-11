@@ -27,6 +27,15 @@ const (
 	deliveryInterrupted      = "DELIVERY_INTERRUPTED"
 	deliveryFailed           = "DELIVERY_FAILED"
 	deliveryCancelled        = "DELIVERY_CANCELLED"
+	// deliveryRecoveryMismatch means the destination holds something that is
+	// not this delivery. Nothing was concluded and nothing was overwritten.
+	deliveryRecoveryMismatch = "DELIVERY_RECOVERY_MISMATCH"
+	// deliveryRecoveryUnreadable means the destination could not be read well
+	// enough to decide. Not deciding is reported as itself.
+	deliveryRecoveryUnreadable = "DELIVERY_RECOVERY_UNREADABLE"
+	// deliveryRecoveryUnverifiable means the retained result this delivery
+	// named is gone, so the destination has nothing to be checked against.
+	deliveryRecoveryUnverifiable = "DELIVERY_RECOVERY_UNVERIFIABLE"
 )
 
 // RequestDeliveryInput is the complete owner request. The artifact version is
@@ -48,7 +57,7 @@ type DeliveryManager interface {
 	ListDeliveries(context.Context, domain.OutcomeID) ([]domain.OutcomeDelivery, error)
 	GetDelivery(context.Context, domain.OutcomeID, domain.DeliveryID) (domain.OutcomeDelivery, error)
 	RequestDelivery(context.Context, domain.OutcomeID, RequestDeliveryInput) (domain.OutcomeDelivery, error)
-	ReconcileDeliveries(context.Context) (int64, error)
+	ReconcileDeliveries(context.Context) (DeliveryReconciliation, error)
 }
 
 // WithDelivery wires the durable delivery ledger and retained artifact store.
@@ -188,6 +197,9 @@ func (s *Service) RequestDelivery(ctx context.Context, outcomeID domain.OutcomeI
 	terminal := delivery
 	completed := s.clock().UTC()
 	terminal.CompletedAt = &completed
+	// This daemon watched the transfer resolve, so the result is observed
+	// rather than reconstructed from the destination afterwards.
+	terminal.CompletionSource = domain.DeliveryObserved
 	if exportErr != nil || ctx.Err() != nil {
 		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			terminal.State = domain.DeliveryCancelled
@@ -216,12 +228,152 @@ func (s *Service) RequestDelivery(ctx context.Context, outcomeID domain.OutcomeI
 	return terminal, nil
 }
 
-// ReconcileDeliveries closes requests left pending across a daemon restart.
-func (s *Service) ReconcileDeliveries(ctx context.Context) (int64, error) {
+// DeliveryReconciliation counts what a recovery pass concluded. The three are
+// separate because they are different facts about the destination, and an owner
+// acts on each differently.
+type DeliveryReconciliation struct {
+	// Recovered transfers completed and lost only their ledger write. Their
+	// destination was read and matched exactly.
+	Recovered int64
+	// Interrupted transfers left nothing at the destination.
+	Interrupted int64
+	// Ambiguous destinations hold something that is not this delivery, or could
+	// not be read. Nothing was concluded and nothing was written.
+	Ambiguous int64
+}
+
+// Closed is the number of pending rows this pass moved to a terminal state.
+func (r DeliveryReconciliation) Closed() int64 {
+	return r.Recovered + r.Interrupted + r.Ambiguous
+}
+
+// ReconcileDeliveries resolves requests left pending across a daemon restart by
+// reading each destination, rather than failing them all because the process
+// that owned them is gone.
+//
+// The window this exists for is narrow and real: the transfer commits with one
+// rename and the ledger row is written afterwards, so a crash between them
+// leaves the bytes delivered and the row pending. Failing that row was safe but
+// wrong — the evidence that would settle it is sitting at the destination, and
+// the owner was left with a ledger saying "failed", a retry saying "destination
+// conflict", and no way to learn the truth except by hand.
+//
+// Recovery reads and never writes. A verified destination is recorded as a
+// completed transfer whose result was established by reading rather than
+// observing; anything missing, unrecognised or unreadable stays an explicit
+// failure. It never re-transfers, never removes and never overwrites, so a
+// destination holding somebody else's files is left exactly as it is.
+//
+// A match proves the transfer completed. It is not, and never becomes, Outcome
+// acceptance.
+func (s *Service) ReconcileDeliveries(ctx context.Context) (DeliveryReconciliation, error) {
+	var summary DeliveryReconciliation
 	if !s.DeliveriesEnabled() {
-		return 0, nil
+		return summary, nil
 	}
-	return s.deliveryStore.FailPendingOutcomeDeliveries(context.WithoutCancel(ctx), s.clock().UTC(), deliveryInterrupted, "daemon restarted before delivery reached a terminal state")
+	// Recovery outlives the caller's cancellation: a pass abandoned halfway
+	// would leave rows pending with no later reader, which is the state it
+	// exists to remove.
+	ctx = context.WithoutCancel(ctx)
+	pending, err := s.deliveryStore.ListPendingOutcomeDeliveries(ctx)
+	if err != nil {
+		return summary, err
+	}
+	var failures []error
+	for _, delivery := range pending {
+		outcome, err := s.recoverOneDelivery(ctx, delivery)
+		if err != nil {
+			failures = append(failures, fmt.Errorf("delivery %s: %w", delivery.ID, err))
+			continue
+		}
+		switch outcome {
+		case domain.DeliverySucceeded:
+			summary.Recovered++
+		case deliveryOutcomeInterrupted:
+			summary.Interrupted++
+		default:
+			summary.Ambiguous++
+		}
+	}
+	if len(failures) == 1 {
+		return summary, failures[0]
+	}
+	if len(failures) > 1 {
+		return summary, fmt.Errorf("delivery reconciliation: %w", errors.Join(failures...))
+	}
+	return summary, nil
+}
+
+// deliveryOutcomeInterrupted and deliveryOutcomeAmbiguous distinguish the two
+// failure shapes inside this file without inventing new durable states: both
+// are DeliveryFailed on the row, told apart by their failure code.
+const (
+	deliveryOutcomeInterrupted = domain.DeliveryState("interrupted")
+	deliveryOutcomeAmbiguous   = domain.DeliveryState("ambiguous")
+)
+
+// recoverOneDelivery resolves exactly one pending row from its destination.
+func (s *Service) recoverOneDelivery(ctx context.Context, delivery domain.OutcomeDelivery) (domain.DeliveryState, error) {
+	terminal := delivery
+	completed := s.clock().UTC()
+	terminal.CompletedAt = &completed
+	terminal.CompletionSource = domain.DeliveryRecovered
+
+	fail := func(code, detail string, outcome domain.DeliveryState) (domain.DeliveryState, error) {
+		terminal.State = domain.DeliveryFailed
+		terminal.FailureCode, terminal.FailureDetail = code, detail
+		if err := s.completeDelivery(ctx, terminal); err != nil {
+			return "", err
+		}
+		return outcome, nil
+	}
+
+	// The retained result is the authority for what should be at the
+	// destination. Without it nothing can be verified, and inventing a success
+	// from a manifest alone would trust the destination to describe itself.
+	receipt, ok, err := s.receipts.GetAttemptReceipt(ctx, delivery.AttemptID)
+	if err != nil {
+		return "", err
+	}
+	if !ok || !receipt.RetentionState.Complete() || receipt.ArtifactVersion != delivery.ArtifactVersion {
+		return fail(deliveryRecoveryUnverifiable,
+			"the retained result this delivery named is no longer available to verify the destination against",
+			deliveryOutcomeAmbiguous)
+	}
+	contractRevisionID, err := s.contractRevisionForReceipt(ctx, delivery.OutcomeID, receipt.ContractRevisionNumber)
+	if err != nil {
+		var api *apierr.Error
+		if asAPIErr(err, &api) {
+			return fail(deliveryRecoveryUnverifiable, api.Message, deliveryOutcomeAmbiguous)
+		}
+		return "", err
+	}
+
+	verification := s.deliveryArtifacts.VerifyExport(ctx, artifactstore.VerifyExportRequest{
+		Destination: delivery.Destination, Receipt: receipt,
+		ContractRevisionID:   contractRevisionID,
+		AcceptanceDecisionID: delivery.AcceptanceDecisionID,
+		Draft:                delivery.Disposition == domain.DeliveryDraft,
+	})
+	switch verification.Verification {
+	case artifactstore.ExportVerified:
+		terminal.State = domain.DeliverySucceeded
+		terminal.ManifestPath = verification.ManifestPath
+		terminal.FileCount, terminal.ByteCount = verification.FileCount, verification.ByteCount
+		terminal.FailureCode, terminal.FailureDetail = "", ""
+		if err := s.completeDelivery(ctx, terminal); err != nil {
+			return "", err
+		}
+		return domain.DeliverySucceeded, nil
+	case artifactstore.ExportAbsent:
+		return fail(deliveryInterrupted,
+			"the daemon stopped before this delivery reached a terminal state, and nothing was transferred",
+			deliveryOutcomeInterrupted)
+	case artifactstore.ExportMismatch:
+		return fail(deliveryRecoveryMismatch, verification.Detail, deliveryOutcomeAmbiguous)
+	default:
+		return fail(deliveryRecoveryUnreadable, verification.Detail, deliveryOutcomeAmbiguous)
+	}
 }
 
 func (s *Service) completeDelivery(ctx context.Context, delivery domain.OutcomeDelivery) error {

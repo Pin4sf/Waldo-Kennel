@@ -288,7 +288,8 @@ func outcomeDeliveryResponse(delivery domain.OutcomeDelivery) OutcomeDeliveryRes
 		ID: string(delivery.ID), OutcomeID: string(delivery.OutcomeID), AttemptID: string(delivery.AttemptID),
 		WorkUnitID: string(delivery.WorkUnitID), ArtifactVersion: delivery.ArtifactVersion,
 		Disposition: string(delivery.Disposition), Destination: delivery.Destination, State: string(delivery.State),
-		ManifestPath: delivery.ManifestPath, FileCount: delivery.FileCount, ByteCount: delivery.ByteCount,
+		CompletionSource: string(delivery.CompletionSource),
+		ManifestPath:     delivery.ManifestPath, FileCount: delivery.FileCount, ByteCount: delivery.ByteCount,
 		FailureCode: delivery.FailureCode, FailureDetail: delivery.FailureDetail,
 		RequestedAt: delivery.RequestedAt, CompletedAt: delivery.CompletedAt,
 	}

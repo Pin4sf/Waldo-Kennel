@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -89,21 +90,22 @@ func (s *memoryDeliveryStore) CompleteOutcomeDelivery(_ context.Context, deliver
 	return true, nil
 }
 
-// FailPendingOutcomeDeliveries mirrors the SQLite query, which closes every
-// still-pending row regardless of which process opened it.
-func (s *memoryDeliveryStore) FailPendingOutcomeDeliveries(_ context.Context, at time.Time, code, detail string) (int64, error) {
-	var changed int64
-	for id, delivery := range s.byID {
-		if delivery.State != domain.DeliveryPending {
-			continue
+// ListPendingOutcomeDeliveries mirrors the SQLite query recovery reads, in the
+// same requested-at order.
+func (s *memoryDeliveryStore) ListPendingOutcomeDeliveries(_ context.Context) ([]domain.OutcomeDelivery, error) {
+	var pending []domain.OutcomeDelivery
+	for _, delivery := range s.byID {
+		if delivery.State == domain.DeliveryPending {
+			pending = append(pending, delivery)
 		}
-		completed := at
-		delivery.State, delivery.FailureCode, delivery.FailureDetail, delivery.CompletedAt =
-			domain.DeliveryFailed, code, detail, &completed
-		s.byID[id], s.byKey[delivery.RequestKey] = delivery, delivery
-		changed++
 	}
-	return changed, nil
+	sort.Slice(pending, func(i, j int) bool {
+		if !pending[i].RequestedAt.Equal(pending[j].RequestedAt) {
+			return pending[i].RequestedAt.Before(pending[j].RequestedAt)
+		}
+		return pending[i].ID < pending[j].ID
+	})
+	return pending, nil
 }
 
 func TestRequestDeliveryBindsCurrentAcceptanceAndIsIdempotent(t *testing.T) {

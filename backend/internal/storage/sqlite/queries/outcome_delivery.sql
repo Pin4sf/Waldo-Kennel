@@ -20,10 +20,9 @@ SELECT * FROM outcome_deliveries WHERE outcome_id = ? ORDER BY requested_at, id;
 -- name: CompleteOutcomeDelivery :execrows
 UPDATE outcome_deliveries
 SET state = ?, manifest_path = ?, file_count = ?, byte_count = ?,
-    failure_code = ?, failure_detail = ?, completed_at = ?
+    failure_code = ?, failure_detail = ?, completed_at = ?,
+    completion_source = ?
 WHERE id = ? AND state = 'pending';
 
--- name: FailPendingOutcomeDeliveries :execrows
-UPDATE outcome_deliveries
-SET state = 'failed', failure_code = ?, failure_detail = ?, completed_at = ?
-WHERE state = 'pending';
+-- name: ListPendingOutcomeDeliveries :many
+SELECT * FROM outcome_deliveries WHERE state = 'pending' ORDER BY requested_at, id;

@@ -123,11 +123,19 @@ type OutcomeDeliveryResponse struct {
 	Disposition     string `json:"disposition" enum:"accepted,draft"`
 	Destination     string `json:"destination"`
 	State           string `json:"state" enum:"pending,succeeded,failed,cancelled"`
-	ManifestPath    string `json:"manifestPath,omitempty"`
-	FileCount       int    `json:"fileCount"`
-	ByteCount       int64  `json:"byteCount"`
-	FailureCode     string `json:"failureCode,omitempty"`
-	FailureDetail   string `json:"failureDetail,omitempty"`
+	// CompletionSource says how a terminal result was established. "observed"
+	// means the daemon watched the transfer resolve; "recovered" means the row
+	// was left pending by a crash between the filesystem commit and the ledger
+	// write, and the result was established afterwards by reading the
+	// destination's manifest and re-digesting every delivered artifact against
+	// the retained result. A recovered success proves the bytes arrived; nobody
+	// watched them arrive. Absent while pending.
+	CompletionSource string `json:"completionSource,omitempty" enum:"observed,recovered"`
+	ManifestPath     string `json:"manifestPath,omitempty"`
+	FileCount        int    `json:"fileCount"`
+	ByteCount        int64  `json:"byteCount"`
+	FailureCode      string `json:"failureCode,omitempty"`
+	FailureDetail    string `json:"failureDetail,omitempty"`
 
 	RequestedAt time.Time  `json:"requestedAt"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`

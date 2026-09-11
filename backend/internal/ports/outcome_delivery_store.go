@@ -3,7 +3,6 @@ package ports
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 )
@@ -27,5 +26,10 @@ type DeliveryStore interface {
 	GetOutcomeDelivery(context.Context, domain.OutcomeID, domain.DeliveryID) (domain.OutcomeDelivery, bool, error)
 	ListOutcomeDeliveries(context.Context, domain.OutcomeID) ([]domain.OutcomeDelivery, error)
 	CompleteOutcomeDelivery(context.Context, domain.OutcomeDelivery) (bool, error)
-	FailPendingOutcomeDeliveries(context.Context, time.Time, string, string) (int64, error)
+	// ListPendingOutcomeDeliveries returns every request whose filesystem
+	// effect is still unresolved. Recovery inspects each destination on its
+	// own, so there is deliberately no blanket "fail everything pending":
+	// a transfer that completed and lost only its ledger write must not be
+	// recorded as failed alongside one that never started.
+	ListPendingOutcomeDeliveries(context.Context) ([]domain.OutcomeDelivery, error)
 }

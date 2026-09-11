@@ -450,10 +450,14 @@ func Run() error {
 		WithProofStore(store).
 		WithDelivery(store, artifactContent).
 		WithAnalystSessionReaper(reaper)
-	if interrupted, err := outcomeSvc.ReconcileDeliveries(ctx); err != nil {
+	// Pending delivery rows are resolved by reading their destinations, so a
+	// transfer that completed and lost only its ledger write is recovered
+	// rather than reported as a failure the owner cannot explain.
+	if recovery, err := outcomeSvc.ReconcileDeliveries(ctx); err != nil {
 		log.Warn("could not reconcile pending deliveries after daemon restart", "error", err)
-	} else if interrupted > 0 {
-		log.Info("marked interrupted deliveries failed after daemon restart", "count", interrupted)
+	} else if recovery.Closed() > 0 {
+		log.Info("resolved pending deliveries after daemon restart",
+			"recovered", recovery.Recovered, "interrupted", recovery.Interrupted, "ambiguous", recovery.Ambiguous)
 	}
 	// Composed Outcomes (ADR 0007) have no proposer wired: decomposition used
 	// to work by spawning a coding agent and hoping it POSTed a proposal back,

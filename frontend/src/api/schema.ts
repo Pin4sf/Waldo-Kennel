@@ -3102,6 +3102,8 @@ export interface components {
             byteCount: number;
             /** Format: date-time */
             completedAt?: null | string;
+            /** @enum {string} */
+            completionSource?: "observed" | "recovered";
             destination: string;
             /** @enum {string} */
             disposition: "accepted" | "draft";

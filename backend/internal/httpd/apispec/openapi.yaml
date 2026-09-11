@@ -9512,6 +9512,11 @@ components:
           type:
           - "null"
           - string
+        completionSource:
+          enum:
+          - observed
+          - recovered
+          type: string
         destination:
           type: string
         disposition:
