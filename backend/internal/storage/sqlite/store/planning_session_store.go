@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
@@ -209,12 +210,17 @@ func (s *Store) AppendPlanningProviderTurn(ctx context.Context, sessionID domain
 		}
 		persistedNativeRef := current.NativeConversationRef
 		if current.Binding.Mode == domain.PlanningModeNativeHarness {
+			if strings.TrimSpace(nativeRef) == "" {
+				return fmt.Errorf("planning session %s native reply requires per-run conversation provenance", sessionID)
+			}
 			if persistedNativeRef != "" && persistedNativeRef != nativeRef {
-				return fmt.Errorf("planning session %s native conversation is already %q", sessionID, persistedNativeRef)
+				return fmt.Errorf("planning session %s native conversation reference is already %q", sessionID, persistedNativeRef)
 			}
-			if persistedNativeRef == "" {
-				persistedNativeRef = nativeRef
-			}
+			// Native packet planning deliberately reconstructs each one-shot provider
+			// turn from Kennel's normalized history. Its provider thread belongs to
+			// the IntelligenceRun, not to the durable PlanningSession; never overwrite
+			// an older stable-session reference. The mismatch fence above preserves
+			// truthful semantics for historical sessions that already own one.
 		}
 		turn.PlanningSessionID = sessionID
 		turn.Sequence = current.LatestTurnSequence + 1

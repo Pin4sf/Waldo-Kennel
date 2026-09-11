@@ -181,8 +181,8 @@ func TestIntelligenceClientPreservesProviderDefaultSelection(t *testing.T) {
 	}
 }
 
-func TestIntelligenceClientPinsAuthorizedRepositoryReadWithoutWidening(t *testing.T) {
-	d, srv := newTestDriver(t)
+func TestIntelligenceClientRejectsUnverifiedRepositoryToolMode(t *testing.T) {
+	d, _ := newTestDriver(t)
 	root := t.TempDir()
 	root, err := filepath.EvalSymlinks(root)
 	if err != nil {
@@ -192,49 +192,10 @@ func TestIntelligenceClientPinsAuthorizedRepositoryReadWithoutWidening(t *testin
 	request := testIntelligenceRequest()
 	request.ContextAccess = ports.ReasoningContextAccess{Mode: ports.ReasoningContextRepositoryRead, Root: root}
 
-	result := make(chan error, 1)
-	go func() {
-		_, err := client.Complete(context.Background(), request)
-		result <- err
-	}()
-
-	start := srv.awaitFrame(func(f frame) bool { return f.Method == "thread/start" })
-	var startParams struct {
-		Cwd          string         `json:"cwd"`
-		Permissions  string         `json:"permissions"`
-		Sandbox      string         `json:"sandbox"`
-		RuntimeRoots []string       `json:"runtimeWorkspaceRoots"`
-		Config       map[string]any `json:"config"`
-	}
-	if err := json.Unmarshal(start.Params, &startParams); err != nil {
-		t.Fatalf("thread/start params: %v", err)
-	}
-	if startParams.Cwd != root || startParams.Permissions != intelligencePermissionProfile || startParams.Sandbox != "" {
-		t.Fatalf("repository reasoning posture = %+v", startParams)
-	}
-	if len(startParams.RuntimeRoots) != 1 || startParams.RuntimeRoots[0] != root {
-		t.Fatalf("repository runtime roots = %v", startParams.RuntimeRoots)
-	}
-	if _, found := startParams.Config["permissions"]; found {
-		t.Fatalf("repository reasoning shadowed native permission profiles: %#v", startParams.Config["permissions"])
-	}
-
-	turn := srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
-	var turnParams struct {
-		Input []struct {
-			Text string `json:"text"`
-		} `json:"input"`
-	}
-	if err := json.Unmarshal(turn.Params, &turnParams); err != nil {
-		t.Fatalf("turn/start params: %v", err)
-	}
-	if len(turnParams.Input) != 1 || !strings.Contains(turnParams.Input[0].Text, root) || strings.Contains(turnParams.Input[0].Text, "Do not use tools") || !strings.Contains(turnParams.Input[0].Text, "skills") {
-		t.Fatalf("repository tool instruction = %#v", turnParams.Input)
-	}
-	srv.push(`{"method":"item/completed","params":{"threadId":"thread-1","turnId":"turn-1","item":{"id":"msg-1","type":"agentMessage","text":"{\"summary\":\"inspected\"}"}}}`)
-	srv.push(`{"method":"turn/completed","params":{"threadId":"thread-1","turn":{"id":"turn-1","status":"completed","items":[]}}}`)
-	if err := <-result; err != nil {
-		t.Fatalf("Complete: %v", err)
+	_, err = client.Complete(context.Background(), request)
+	var failure *ports.ReasoningFailure
+	if !errors.As(err, &failure) || failure.Kind != ports.ReasoningUnavailable || !strings.Contains(failure.Error(), "not available") {
+		t.Fatalf("Complete error = %v, want explicit repository-tool unavailability", err)
 	}
 }
 

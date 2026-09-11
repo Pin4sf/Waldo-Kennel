@@ -30,8 +30,6 @@ type WorkSearch = {
 	outcome?: string;
 	/** Shared durable intake being reviewed before an Outcome exists. */
 	intake?: string;
-	/** Explicit request-scoped grant for native read-only repository tools. */
-	repositoryRead?: true;
 	/** Cross-project Outcomes overview, opened from WorkShell's Outcomes
 	 *  button. Independent of project/stage/outcome — it lists every Outcome
 	 *  across every project, not one project's lifecycle. */
@@ -53,7 +51,6 @@ function validateSearch(search: Record<string, unknown>): WorkSearch {
 		outcome: typeof search.outcome === "string" && search.outcome !== "" ? search.outcome : undefined,
 		intake:
 			typeof search.intake === "string" && search.intake !== "" && search.intake !== "new" ? search.intake : undefined,
-		repositoryRead: search.repositoryRead === true || search.repositoryRead === "true" ? true : undefined,
 		view: search.view === "outcomes" ? "outcomes" : undefined,
 	};
 }
@@ -72,7 +69,7 @@ export const Route = createFileRoute("/_shell/work")({
 });
 
 function WorkRoute() {
-	const { project, stage, outcome, intake, repositoryRead, view, portfolio } = Route.useSearch();
+	const { project, stage, outcome, intake, view, portfolio } = Route.useSearch();
 	const navigate = useNavigate();
 
 	// WorkShell renders the persistent top-bar chrome (List/Board, terminal
@@ -82,7 +79,7 @@ function WorkRoute() {
 	// ONLY visible chrome above a stage surface).
 	return (
 		<WorkShell outcomeId={outcome} projectId={project}>
-			{renderStageBody({ intake, navigate, outcome, project, repositoryRead, stage, view, portfolio })}
+			{renderStageBody({ intake, navigate, outcome, project, stage, view, portfolio })}
 		</WorkShell>
 	);
 }
@@ -93,7 +90,6 @@ function renderStageBody({
 	navigate,
 	outcome,
 	project,
-	repositoryRead,
 	stage,
 	view,
 }: {
@@ -102,7 +98,6 @@ function renderStageBody({
 	navigate: ReturnType<typeof useNavigate>;
 	outcome?: string;
 	project?: string;
-	repositoryRead?: true;
 	stage?: WorkSearch["stage"];
 	view?: WorkSearch["view"];
 }) {
@@ -143,7 +138,7 @@ function renderStageBody({
 		if (!outcome) {
 			return (
 				<OutcomeLifecycleShell projectId={project} stage="understand">
-					<AdaptiveIntakeSurface projectId={project} intakeId={intake} repositoryToolUse={repositoryRead === true} />
+					<AdaptiveIntakeSurface projectId={project} intakeId={intake} />
 				</OutcomeLifecycleShell>
 			);
 		}
@@ -159,7 +154,7 @@ function renderStageBody({
 			// A deep link without its Outcome falls back to Understand.
 			return (
 				<OutcomeLifecycleShell projectId={project} stage="understand">
-					<AdaptiveIntakeSurface projectId={project} intakeId={intake} repositoryToolUse={repositoryRead === true} />
+					<AdaptiveIntakeSurface projectId={project} intakeId={intake} />
 				</OutcomeLifecycleShell>
 			);
 		}
@@ -180,7 +175,7 @@ function renderStageBody({
 			// A deep link without its Outcome falls back to Understand.
 			return (
 				<OutcomeLifecycleShell projectId={project} stage="understand">
-					<AdaptiveIntakeSurface projectId={project} intakeId={intake} repositoryToolUse={repositoryRead === true} />
+					<AdaptiveIntakeSurface projectId={project} intakeId={intake} />
 				</OutcomeLifecycleShell>
 			);
 		}
@@ -207,7 +202,7 @@ function renderStageBody({
 			// A deep link without its Outcome falls back to Understand.
 			return (
 				<OutcomeLifecycleShell projectId={project} stage="understand">
-					<AdaptiveIntakeSurface projectId={project} intakeId={intake} repositoryToolUse={repositoryRead === true} />
+					<AdaptiveIntakeSurface projectId={project} intakeId={intake} />
 				</OutcomeLifecycleShell>
 			);
 		}
@@ -233,7 +228,7 @@ function renderStageBody({
 
 	return (
 		<OutcomeLifecycleShell projectId={project} stage="understand">
-			<AdaptiveIntakeSurface projectId={project} intakeId={intake} repositoryToolUse={repositoryRead === true} />
+			<AdaptiveIntakeSurface projectId={project} intakeId={intake} />
 		</OutcomeLifecycleShell>
 	);
 }

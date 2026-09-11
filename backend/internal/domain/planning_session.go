@@ -149,6 +149,9 @@ type PlanningSession struct {
 	ContextSnapshotJSON    json.RawMessage
 	EffectiveProvider      IntelligenceProviderID
 	EffectiveModel         string
+	// NativeConversationRef is reserved for a provider thread that is actually
+	// stable across this whole PlanningSession. One-shot native packet calls
+	// record their distinct thread references on their IntelligenceRuns instead.
 	NativeConversationRef  string
 	ProposedPlanRevisionID PlanRevisionID
 	LastFailureCode        string

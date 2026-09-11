@@ -48,7 +48,6 @@ export function MissionPlanningConversation({
 	const pending = start.pending || send.pending || finalize.pending || cancel.pending;
 	const conversationPending = send.pending || finalize.pending;
 	const readyCandidates = useMemo(() => candidatesQuery.candidates.filter((candidate) => candidate.ready), [candidatesQuery.candidates]);
-	const selectedCandidate = readyCandidates.find((candidate) => candidate.id === candidateId);
 	const actionError = start.failure ?? send.failure ?? finalize.failure ?? cancel.failure ?? candidatesQuery.failure ?? planningQuery.failure;
 	const failedAction = start.failure ? "start" : send.failure ? "message" : finalize.failure ? "proposal" : cancel.failure ? "cancel" : undefined;
 	function beginNewAttempt() {
@@ -68,6 +67,15 @@ export function MissionPlanningConversation({
 		setIgnoredSessionId(undefined);
 		requestKeys.current = {};
 	}, [outcomeId, contractRevision]);
+
+	// A single admitted candidate is already the owner's configured choice.
+	// Select it automatically so the normal path is one clear Start action;
+	// multiple candidates still require an explicit choice.
+	useEffect(() => {
+		if (!activeSession && !candidateId && !candidatesQuery.isLoading && readyCandidates.length === 1) {
+			setCandidateId(readyCandidates[0].id);
+		}
+	}, [activeSession, candidateId, candidatesQuery.isLoading, readyCandidates]);
 
 	function stableRequestKey(action: string, fingerprint: string, expectedRevision?: number) {
 		const existing = requestKeys.current[action];
@@ -107,7 +115,7 @@ export function MissionPlanningConversation({
 						<span>{t("planning.scope", { scope: contextMode === "repository_read" ? t("planning.repositoryScope") : t("planning.packetScope") })}</span>
 						<Button className="h-auto px-1 py-0 text-xs" onClick={() => setEditingContext((current) => !current)} size="sm" type="button" variant="ghost">{t("planning.change")}</Button>
 					</div>
-					{editingContext && <PlanningContextGrant value={contextMode} onChange={setContextMode} disabled={pending} nativeTools={selectedCandidate?.binding.mode === "native_harness"} />}
+					{editingContext && <PlanningContextGrant value={contextMode} onChange={setContextMode} disabled={pending} />}
 					<Button
 						data-testid="planning-start"
 						disabled={!candidateId || !contextMode || pending || Boolean(candidatesQuery.failure) || readyCandidates.every((candidate) => candidate.id !== candidateId)}
@@ -141,7 +149,7 @@ export function MissionPlanningConversation({
 							<p>{t("planning.grantDigest")}: <code>{activeSession.planningGrantDigest}</code></p>
 							<p>{t("planning.binding")}: {activeSession.binding.provider} · {activeSession.binding.modelSelection === "explicit" ? activeSession.binding.model ?? t("planning.explicitModel") : t("planning.providerDefault")}</p>
 							{activeSession.effectiveProvider && <p>{t("planning.effective")}: {activeSession.effectiveProvider}{activeSession.effectiveModel ? ` · ${activeSession.effectiveModel}` : ""}</p>}
-							<PlanningContextGrant value={activeSession.contextMode} locked suppliedPacketAvailable={activeSession.contextMode === "supplied_packet"} nativeTools={activeSession.binding.mode === "native_harness"} />
+							<PlanningContextGrant value={activeSession.contextMode} locked suppliedPacketAvailable={activeSession.contextMode === "supplied_packet"} />
 						</div>
 					</details>
 					<div className="flex flex-col gap-2" data-testid="planning-turns">

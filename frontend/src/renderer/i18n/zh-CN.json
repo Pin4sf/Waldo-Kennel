@@ -1998,8 +1998,6 @@
 	"outcome.intake.roles.replaceFailed": "The orchestrator could not be replaced.",
 	"outcome.intake.placeholder": "What should be true when this is done? Describe the result, not the steps.",
 	"outcome.intake.hint": "⌘↵ to continue · small Outcomes move ahead without ceremony",
-	"outcome.intake.repositoryTools": "使用项目上下文",
-	"planning.repositoryNativeHelp": "Codex 可以使用本地工具和 Kennel 技能来理解此项目。开始工作仍需你的批准。",
 	"outcome.intake.continue": "Continue",
 	"outcome.intake.saving": "Saving…",
 	"outcome.intake.unsaved": "Your statement has not been saved.",

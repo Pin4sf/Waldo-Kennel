@@ -3,6 +3,7 @@ package store_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -91,6 +92,52 @@ func TestPlanningSessionStore_IdempotentTurnsAndCanonicalPlanLink(t *testing.T) 
 	got, found, err := s.GetPlanRevisionByPlanningSession(ctx, revision.OutcomeID, session.ID)
 	if err != nil || !found || got.PlanningSessionID != session.ID || got.SourceIntelligenceRunID != run.ID {
 		t.Fatalf("planning Plan found=%v plan=%+v err=%v", found, got, err)
+	}
+}
+
+func TestPlanningSessionStore_NativePacketTurnsDoNotClaimSingleConversationRef(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	revision := seedProviderPlanOutcome(t, s)
+	now := time.Date(2026, 9, 11, 10, 15, 0, 0, time.UTC)
+	session := planningSessionFixture(revision, now)
+	session.Binding = domain.PlanningBinding{Mode: domain.PlanningModeNativeHarness, Provider: "codex-app-server", ModelSelection: domain.PlanningModelProviderDefault}
+	if _, _, err := s.CreatePlanningSession(ctx, session); err != nil {
+		t.Fatal(err)
+	}
+	for index, nativeRef := range []string{"native-turn-1", "native-turn-2"} {
+		owner := domain.PlanningTurn{
+			ID: domain.PlanningTurnID(fmt.Sprintf("native-owner-%d", index+1)), Role: domain.PlanningTurnOwner,
+			Kind: domain.PlanningTurnMessage, Text: "Continue from Kennel history.",
+			RequestKey: fmt.Sprintf("native-owner-key-%d", index+1), RequestFingerprint: domain.DigestSHA256([]byte(fmt.Sprintf("native-owner-%d", index+1))),
+			CreatedAt: now.Add(time.Duration(index*2+1) * time.Second),
+		}
+		waiting, storedOwner, _, err := s.AppendPlanningOwnerTurn(ctx, session.ID, int64(index*2+1), owner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		run := domain.IntelligenceRun{
+			ID: domain.IntelligenceRunID(fmt.Sprintf("native-run-%d", index+1)), Kind: domain.IntelligenceRunPlanDraft,
+			ProjectID: session.ProjectID, OutcomeID: revision.OutcomeID, ContractRevisionID: revision.ID, SourceRevision: revision.Number,
+			RequestedProvider: session.Binding.Provider, InputDigest: domain.DigestSHA256([]byte(fmt.Sprintf("native-run-%d", index+1))),
+			Status: domain.IntelligenceRunRunning, CreatedAt: now.Add(time.Duration(index*2+2) * time.Second),
+		}
+		if err := s.CreateIntelligenceRun(ctx, run); err != nil {
+			t.Fatal(err)
+		}
+		planner := domain.PlanningTurn{
+			ID: domain.PlanningTurnID(fmt.Sprintf("native-planner-%d", index+1)), ReplyToTurnID: storedOwner.ID,
+			Role: domain.PlanningTurnPlanner, Kind: domain.PlanningTurnClarification, Text: "A normalized reply.",
+			StructuredPayload: []byte(`{"Kind":"clarification"}`), IntelligenceRunID: run.ID,
+			CreatedAt: now.Add(time.Duration(index*2+2) * time.Second),
+		}
+		current, err := s.AppendPlanningProviderTurn(ctx, session.ID, waiting.Revision, planner, session.Binding.Provider, "gpt-live", nativeRef)
+		if err != nil {
+			t.Fatalf("append native reply %d: %v", index+1, err)
+		}
+		if current.NativeConversationRef != "" {
+			t.Fatalf("planning session claimed one native thread: %q", current.NativeConversationRef)
+		}
 	}
 }
 

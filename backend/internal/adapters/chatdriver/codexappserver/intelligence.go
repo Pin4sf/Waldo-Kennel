@@ -96,6 +96,13 @@ func (c *IntelligenceClient) Complete(ctx context.Context, request ports.LLMRequ
 		return ports.LLMResponse{}, ports.NewReasoningFailure(
 			ports.ReasoningInvalidOutput, "Waldo received invalid native reasoning context authority", err)
 	}
+	if request.ContextAccess.Mode == ports.ReasoningContextRepositoryRead {
+		return ports.LLMResponse{}, ports.NewReasoningFailure(
+			ports.ReasoningUnavailable,
+			"Native repository tools are not available in this Codex planning build; use Kennel's bounded repository packet instead",
+			nil,
+		)
+	}
 	workspace, cleanup, err := intelligenceWorkspace(request.ContextAccess)
 	if err != nil {
 		return ports.LLMResponse{}, err
@@ -121,11 +128,7 @@ func (c *IntelligenceClient) Complete(ctx context.Context, request ports.LLMRequ
 			ports.ReasoningInvalidOutput, "Waldo's reasoning request is empty", nil)
 	}
 	text += "\n\nReturn only the JSON object required by the structured output schema. Do not use Markdown fences or commentary."
-	if request.ContextAccess.Mode == ports.ReasoningContextRepositoryRead {
-		text += fmt.Sprintf(" You may use local tools and installed skills to inspect files under the authorized repository root %q. Do not request expanded permissions, read outside that root, write files, use network access, MCP servers, or external effects.", workspace)
-	} else {
-		text += " Do not use tools, skills, MCP servers, or external effects."
-	}
+	text += " Do not use tools, skills, MCP servers, or external effects."
 	if request.MaxTokens > 0 {
 		// Codex's app-server schema has no max-output-tokens field. Keep the
 		// existing port's bounded intent visible to the model, while native

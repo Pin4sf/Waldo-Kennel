@@ -2032,8 +2032,6 @@
 	"outcome.intake.roles.replaceFailed": "The orchestrator could not be replaced.",
 	"outcome.intake.placeholder": "What should be true when this is done? Describe the result, not the steps.",
 	"outcome.intake.hint": "⌘↵ to continue · small Outcomes move ahead without ceremony",
-	"outcome.intake.repositoryTools": "Usar contexto do projeto",
-	"planning.repositoryNativeHelp": "O Codex pode usar ferramentas locais e skills do Kennel para entender este projeto. Iniciar o trabalho ainda exige sua aprovação.",
 	"outcome.intake.continue": "Continue",
 	"outcome.intake.saving": "Saving…",
 	"outcome.intake.unsaved": "Your statement has not been saved.",

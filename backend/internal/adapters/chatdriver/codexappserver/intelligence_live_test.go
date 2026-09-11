@@ -50,10 +50,10 @@ func TestLiveCodexPacketIntelligence(t *testing.T) {
 	}
 }
 
-// TestLiveCodexIntelligence drives the exact one-shot structured planning
-// boundary used by intake and interactive planning. It is opt-in because it
-// uses the owner's signed-in Codex installation and spends a real model turn.
-func TestLiveCodexIntelligence(t *testing.T) {
+// TestLiveCodexRepositoryToolsRemainUnavailable keeps the optional live suite
+// truthful: the packet path above is launchable, while native repository tools
+// remain disabled until their permission and behavioral conformance is proven.
+func TestLiveCodexRepositoryToolsRemainUnavailable(t *testing.T) {
 	if os.Getenv("KENNEL_CODEX_LIVE") != "1" {
 		t.Skip("set KENNEL_CODEX_LIVE=1 to run against a real codex app-server")
 	}
@@ -72,7 +72,7 @@ func TestLiveCodexIntelligence(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()
 
-	response, err := client.Complete(ctx, ports.LLMRequest{
+	_, err := client.Complete(ctx, ports.LLMRequest{
 		System:     "Return the requested structured planning observation. Do not implement anything.",
 		User:       "Inspect hello.txt and report its non-empty line count.",
 		SchemaName: "live_planning_observation",
@@ -86,20 +86,11 @@ func TestLiveCodexIntelligence(t *testing.T) {
 		},
 		ContextAccess: ports.ReasoningContextAccess{Mode: ports.ReasoningContextRepositoryRead, Root: workspace},
 	})
-	if err != nil {
-		var failure *ports.ReasoningFailure
-		if errors.As(err, &failure) {
-			t.Fatalf("native intelligence: %v (cause: %v)", err, failure.Err)
-		}
-		t.Fatalf("native intelligence: %v", err)
+	if err == nil {
+		t.Fatal("expected native repository tools to remain unavailable")
 	}
-	var got struct {
-		LineCount int `json:"lineCount"`
-	}
-	if err := json.Unmarshal(response.JSON, &got); err != nil || got.LineCount != 2 {
-		t.Fatalf("native intelligence response = %s, err=%v", response.JSON, err)
-	}
-	if response.NativeSessionRef == "" || response.EffectiveModel == "" {
-		t.Fatalf("missing native provenance: %+v", response)
+	var failure *ports.ReasoningFailure
+	if !errors.As(err, &failure) || failure.Kind != ports.ReasoningUnavailable {
+		t.Fatalf("repository tool failure = %v", err)
 	}
 }

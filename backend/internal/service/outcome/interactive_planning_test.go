@@ -27,6 +27,7 @@ type interactivePlanningFake struct {
 	candidateErr              error
 	candidates                []ports.PlanningCandidate
 	effectiveModel            string
+	nativeRefs                []string
 	beforeDiscuss             func()
 	discussStarted            chan struct{}
 	discussRelease            chan struct{}
@@ -103,7 +104,11 @@ func (f *interactivePlanningFake) DiscussPlan(ctx context.Context, request ports
 			effectiveModel = "provider-resolved-model"
 		}
 	}
-	provenance := ports.IntelligenceProvenance{EffectiveProvider: request.Binding.Provider, EffectiveModel: effectiveModel}
+	nativeRef := ""
+	if len(f.nativeRefs) >= f.discussCalls {
+		nativeRef = f.nativeRefs[f.discussCalls-1]
+	}
+	provenance := ports.IntelligenceProvenance{EffectiveProvider: request.Binding.Provider, EffectiveModel: effectiveModel, NativeSessionRef: nativeRef}
 	latest := request.Turns[len(request.Turns)-1].Text
 	if request.Finalize {
 		return ports.PlanningDiscussionResponse{Provenance: provenance, Result: ports.PlanningResult{
@@ -152,7 +157,7 @@ func newPlanningCancellationFixture(t *testing.T, provider *interactivePlanningF
 	return svc, store, created.Outcome, started.Session
 }
 
-func TestInteractivePlanning_RepositoryDiscussionProducesOnlyAProposedPlan(t *testing.T) {
+func TestInteractivePlanning_NativePacketTurnsProduceOnlyAProposedPlan(t *testing.T) {
 	ctx := context.Background()
 	repo := t.TempDir()
 	if err := os.WriteFile(filepath.Join(repo, "README.md"), []byte("planning fixture\n"), 0o600); err != nil {
@@ -179,7 +184,13 @@ func TestInteractivePlanning_RepositoryDiscussionProducesOnlyAProposedPlan(t *te
 	if err := store.UpsertProject(ctx, project); err != nil {
 		t.Fatalf("register project: %v", err)
 	}
-	provider := &interactivePlanningFake{}
+	provider := &interactivePlanningFake{
+		candidates: []ports.PlanningCandidate{{
+			ID: "native-codex-planner", Ready: true,
+			Binding: domain.PlanningBinding{Mode: domain.PlanningModeNativeHarness, Provider: "codex", ModelSelection: domain.PlanningModelProviderDefault},
+		}},
+		nativeRefs: []string{"native-turn-1", "native-turn-2", "native-turn-3"},
+	}
 	router := &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}}
 	svc := outcome.New(store, nil).WithPlanning(provider, router)
 	created, err := svc.Create(ctx, outcome.CreateInput{
@@ -211,7 +222,7 @@ func TestInteractivePlanning_RepositoryDiscussionProducesOnlyAProposedPlan(t *te
 	if err != nil {
 		t.Fatalf("continue planning: %v", err)
 	}
-	if !provider.repositoryObserved || !provider.repositoryToolUseObserved || len(view.Turns) != 2 || view.Turns[1].Kind != domain.PlanningTurnClarification || view.ProposedPlan != nil {
+	if !provider.repositoryObserved || provider.repositoryToolUseObserved || len(view.Turns) != 2 || view.Turns[1].Kind != domain.PlanningTurnClarification || view.ProposedPlan != nil {
 		t.Fatalf("clarification planning view = %+v repositoryObserved=%v repositoryToolUse=%v", view, provider.repositoryObserved, provider.repositoryToolUseObserved)
 	}
 
@@ -241,6 +252,23 @@ func TestInteractivePlanning_RepositoryDiscussionProducesOnlyAProposedPlan(t *te
 	}
 	if view.ProposedPlan.PlanningSessionID != view.Session.ID || view.ProposedPlan.SourceIntelligenceRunID.IsZero() {
 		t.Fatalf("Plan lost planning provenance: %+v", view.ProposedPlan)
+	}
+	if view.Session.NativeConversationRef != "" {
+		t.Fatalf("packet planning session claimed one provider thread: %q", view.Session.NativeConversationRef)
+	}
+	var nativeRefs []string
+	for _, turn := range view.Turns {
+		if turn.Role != domain.PlanningTurnPlanner {
+			continue
+		}
+		run, found, err := store.GetIntelligenceRun(ctx, turn.IntelligenceRunID)
+		if err != nil || !found {
+			t.Fatalf("planning run %s found=%v err=%v", turn.IntelligenceRunID, found, err)
+		}
+		nativeRefs = append(nativeRefs, run.NativeSessionRef)
+	}
+	if fmt.Sprint(nativeRefs) != fmt.Sprint(provider.nativeRefs) {
+		t.Fatalf("per-turn native refs = %v, want %v", nativeRefs, provider.nativeRefs)
 	}
 	finalized := view
 	view, err = svc.FinalizePlanning(ctx, created.Outcome.ID, view.Session.ID, outcome.PlanningFinalizeInput{

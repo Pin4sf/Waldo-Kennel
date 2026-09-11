@@ -217,6 +217,14 @@ func (p *configuredIntelligenceProvider) PlanningCandidates(ctx context.Context)
 	code, detail := status.ErrorCode, status.Error
 	if status.Provider == providerCodex {
 		mode = domain.PlanningModeNativeHarness
+		// Local availability only proves that Kennel can attempt the signed-in
+		// harness. Native planning becomes selectable after the owner's real
+		// packet probe succeeds for this exact provider/model selection.
+		if ready && !status.Verified {
+			ready = false
+			code = "REASONING_NOT_VERIFIED"
+			detail = "Verify the signed-in Codex planning path in Settings before starting"
+		}
 	}
 	binding := domain.PlanningBinding{
 		Mode: mode, Provider: domain.IntelligenceProviderID(status.Provider), ModelSelection: selection,
