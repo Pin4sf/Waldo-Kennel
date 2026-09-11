@@ -648,6 +648,7 @@
 	"settings.sessionInterface.terminal": "ターミナル",
 	"settings.sessionInterface.unavailable": "新しいセッションに適用されます。チャットに対応するインストール済みエージェントはまだありません。",
 	"settings.reasoning.title": "Waldo reasoning",
+	"settings.reasoning.navigation": "AI プロバイダーと API キー",
 	"settings.reasoning.provider": "Provider",
 	"settings.reasoning.model": "Model",
 	"settings.reasoning.effort": "Reasoning effort",

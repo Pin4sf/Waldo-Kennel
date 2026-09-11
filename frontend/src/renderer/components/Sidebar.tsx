@@ -546,7 +546,6 @@ export function Sidebar({
 			    margin matches the framed center-panel inset plus the 1px surface
 			    border so the two hairlines meet. Native fullscreen drops the
 			    mac inset, so the footer collapses to the 1px surface border. */}
-			{figmaBoard ? null : (
 			<SidebarFooter
 				className={cn(
 					"relative mt-auto gap-0 overflow-hidden border-t border-border-strong px-2 !py-2 transition-[padding] duration-200 ease-linear group-data-[collapsible=icon]:min-h-16 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:!pb-0 group-data-[collapsible=icon]:!pt-1.5",
@@ -604,7 +603,6 @@ export function Sidebar({
 					</Tooltip>
 				</div>
 			</SidebarFooter>
-			)}
 
 			{figmaBoard ? null : (
 				<>

@@ -648,6 +648,7 @@
 	"settings.sessionInterface.terminal": "터미널",
 	"settings.sessionInterface.unavailable": "새 세션에 적용됩니다. 아직 채팅을 지원하는 설치된 에이전트가 없습니다.",
 	"settings.reasoning.title": "Waldo reasoning",
+	"settings.reasoning.navigation": "AI 제공자 및 API 키",
 	"settings.reasoning.provider": "Provider",
 	"settings.reasoning.model": "Model",
 	"settings.reasoning.effort": "Reasoning effort",

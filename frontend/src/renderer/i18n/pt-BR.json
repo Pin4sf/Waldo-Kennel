@@ -657,6 +657,7 @@
 	"settings.sessionInterface.terminal": "Terminal",
 	"settings.sessionInterface.unavailable": "Aplica-se a novas sessões. Nenhum agente instalado oferece suporte a chat ainda.",
 	"settings.reasoning.title": "Waldo reasoning",
+	"settings.reasoning.navigation": "Provedores de IA e chaves de API",
 	"settings.reasoning.provider": "Provider",
 	"settings.reasoning.model": "Model",
 	"settings.reasoning.effort": "Reasoning effort",

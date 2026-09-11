@@ -648,6 +648,7 @@
 	"settings.sessionInterface.terminal": "Terminal",
 	"settings.sessionInterface.unavailable": "Gilt für neue Sitzungen. Noch unterstützt kein installierter Agent Chat.",
 	"settings.reasoning.title": "Waldo reasoning",
+	"settings.reasoning.navigation": "KI-Anbieter und API-Schlüssel",
 	"settings.reasoning.provider": "Provider",
 	"settings.reasoning.model": "Model",
 	"settings.reasoning.effort": "Reasoning effort",

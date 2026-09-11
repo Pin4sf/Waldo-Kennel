@@ -630,6 +630,7 @@
 	"settings.sessionInterface.terminal": "终端",
 	"settings.sessionInterface.unavailable": "适用于新会话。目前没有已安装的代理支持聊天。",
 	"settings.reasoning.title": "Waldo reasoning",
+	"settings.reasoning.navigation": "AI 提供商和 API 密钥",
 	"settings.reasoning.provider": "Provider",
 	"settings.reasoning.model": "Model",
 	"settings.reasoning.effort": "Reasoning effort",

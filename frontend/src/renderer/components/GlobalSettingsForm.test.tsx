@@ -181,6 +181,8 @@ describe("GlobalSettingsForm", () => {
 		expect(screen.getByText("General")).toBeInTheDocument();
 		expect(screen.getByText("Language")).toBeInTheDocument();
 		expect(screen.getByText("Updates")).toBeInTheDocument();
+		expect(screen.getByText("Waldo reasoning")).toBeInTheDocument();
+		expect(screen.getByLabelText("API key")).toBeInTheDocument();
 		expect(screen.getByText("Get help")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Report a problem" })).toBeInTheDocument();
 	});

@@ -323,6 +323,22 @@ describe("Sidebar", () => {
 		expect(screen.queryByRole("navigation", { name: "Waldo mode" })).not.toBeInTheDocument();
 	});
 
+	it("keeps global Settings reachable in the focused Work sidebar", async () => {
+		const user = userEvent.setup();
+		renderSidebar({ figmaBoard: true });
+		const settings = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-label="Settings"]'));
+		expect(settings.length).toBeGreaterThan(0);
+		await user.click(settings.find((button) => button.tabIndex === 0)!);
+		expect(useUiStore.getState().settingsModal).toEqual({ scope: "global" });
+	});
+
+	it("keeps collapsed focused Work Settings keyboard-accessible", () => {
+		renderSidebar({ figmaBoard: true, initialOpen: false });
+		const settings = Array.from(document.querySelectorAll<HTMLButtonElement>('button[aria-label="Settings"]'));
+		const collapsed = settings.find((button) => !button.textContent?.includes("Settings"));
+		expect(collapsed).toHaveAttribute("tabindex", "0");
+	});
+
 	it("treats beta's Work entry route as an active Work destination", () => {
 		mockPathname.current = "/work";
 		renderSidebar();
