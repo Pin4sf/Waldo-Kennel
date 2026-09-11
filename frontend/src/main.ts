@@ -43,7 +43,12 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { type DaemonLaunchSpec, bundledDaemonIdentityError, resolveDaemonLaunch } from "./shared/daemon-launch";
+import {
+	type DaemonLaunchSpec,
+	bundledDaemonIdentityError,
+	resolveDaemonLaunch,
+	resolveExpectedDaemonBuildIdentity,
+} from "./shared/daemon-launch";
 import { APP_ID, AUTH_PROTOCOL, PRODUCT_NAME, STATE_DIRECTORY_NAME } from "./shared/product-identity";
 import { createListenPortScanner, defaultRunFilePath, parseRunFile } from "./shared/daemon-discovery";
 import type { DaemonStatus } from "./shared/daemon-status";
@@ -851,28 +856,13 @@ function daemonIdentityError(launch: DaemonLaunchSpec, probe: DaemonProbe): stri
 }
 
 function readExpectedDaemonBuildIdentity(launch: DaemonLaunchSpec): string | undefined {
-	if (launch.source === "configured") return undefined;
-	// Non-Windows dev launches use `go run`, whose default identity is the
-	// intentionally non-admitting "dev" value. Windows dev launches use the
-	// injected binary and manifest produced by build-daemon.mjs.
-	if (launch.source === "dev" && launch.command === "go") return undefined;
-	const candidates =
-		launch.source === "bundled"
-			? [path.join(path.dirname(launch.command), "build-identity.json")]
-			: [
-					path.join(app.getAppPath(), "daemon", "build-identity.json"),
-					path.join(path.dirname(launch.command), "build-identity.json"),
-				];
-	for (const manifestPath of candidates) {
+	return resolveExpectedDaemonBuildIdentity(launch, app.getAppPath(), (manifestPath) => {
 		try {
-			const raw = JSON.parse(readFileSync(manifestPath, "utf8")) as { identity?: unknown };
-			if (typeof raw.identity === "string" && raw.identity.trim()) return raw.identity.trim();
+			return readFileSync(manifestPath, "utf8");
 		} catch {
-			// A missing or malformed manifest is handled by the packaged fail-closed
-			// branch above; dev falls back to its existing checkout identity checks.
+			return null;
 		}
-	}
-	return undefined;
+	});
 }
 
 /**

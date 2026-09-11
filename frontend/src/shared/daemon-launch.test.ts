@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bundledDaemonIdentityError, resolveDaemonLaunch } from "./daemon-launch";
+import { bundledDaemonIdentityError, resolveDaemonLaunch, resolveExpectedDaemonBuildIdentity } from "./daemon-launch";
 
 describe("resolveDaemonLaunch", () => {
 	it("uses KENNEL_DAEMON_COMMAND when configured", () => {
@@ -200,5 +200,49 @@ describe("bundledDaemonIdentityError", () => {
 		).toBe(
 			"This Kennel app does not include daemon build identity metadata. Rebuild the app before starting it.",
 		);
+	});
+});
+
+describe("resolveExpectedDaemonBuildIdentity", () => {
+	const packaged = {
+		command: "/Applications/Kennel.app/Contents/Resources/daemon/kennel-daemon",
+		args: ["daemon"],
+		cwd: "/Users/alice/.kennel",
+		shell: false,
+		source: "bundled" as const,
+	};
+
+	it("reads the manifest beside the exact packaged daemon path", () => {
+		const reads: string[] = [];
+		const identity = resolveExpectedDaemonBuildIdentity(packaged, "/app", (manifestPath) => {
+			reads.push(manifestPath);
+			return manifestPath === "/Applications/Kennel.app/Contents/Resources/daemon/build-identity.json"
+				? JSON.stringify({ identity: "build-current" })
+				: null;
+		});
+		expect(identity).toBe("build-current");
+		expect(reads).toEqual(["/Applications/Kennel.app/Contents/Resources/daemon/build-identity.json"]);
+	});
+
+	it("returns undefined for missing or malformed package metadata", () => {
+		expect(resolveExpectedDaemonBuildIdentity(packaged, "/app", () => null)).toBeUndefined();
+		expect(resolveExpectedDaemonBuildIdentity(packaged, "/app", () => "not-json")).toBeUndefined();
+	});
+
+	it("does not require a package manifest for the non-Windows go-run dev path", () => {
+		const dev = resolveDaemonLaunch({}, false, "/resources", "/repo/frontend", "/home/alice", "darwin");
+		if (!dev) throw new Error("expected dev launch");
+		const readManifest = () => {
+			throw new Error("go-run dev must not read a package manifest");
+		};
+		expect(resolveExpectedDaemonBuildIdentity(dev, "/repo/frontend", readManifest)).toBeUndefined();
+	});
+
+	it("uses the dev daemon manifest when Windows dev launches a built binary", () => {
+		const dev = resolveDaemonLaunch({}, false, "/resources", "C:\\repo\\frontend", "C:\\Users\\alice", "win32");
+		if (!dev) throw new Error("expected dev launch");
+		expect(resolveExpectedDaemonBuildIdentity(dev, "C:\\repo\\frontend", (manifestPath) =>
+			manifestPath === "C:\\repo\\frontend/daemon/build-identity.json" ? JSON.stringify({ identity: "dev-current" }) : null,
+		)).toBe("dev-current");
 	});
 });

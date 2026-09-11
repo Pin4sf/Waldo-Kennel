@@ -68,6 +68,44 @@ export type BundledDaemonProbe = {
 };
 
 /**
+ * Resolve the expected identity from the build manifest shipped beside the
+ * daemon. The manifest is only an expected value; the running process must
+ * still report the same identity over health/readiness before attachment.
+ * `readManifest` is injected so this contract stays testable without Node fs.
+ */
+export function resolveExpectedDaemonBuildIdentity(
+	launch: DaemonLaunchSpec,
+	appPath: string,
+	readManifest: (path: string) => string | null,
+): string | undefined {
+	if (launch.source === "configured") return undefined;
+	// Non-Windows dev launches use `go run`, which intentionally has no package
+	// manifest. Existing checkout identity checks remain the dev guard there.
+	if (launch.source === "dev" && launch.command === "go") return undefined;
+	const candidates =
+		launch.source === "bundled"
+			? [`${parentPath(launch.command)}/build-identity.json`]
+			: [`${appPath.replace(/[\\/]+$/, "")}/daemon/build-identity.json`, `${parentPath(launch.command)}/build-identity.json`];
+	for (const manifestPath of candidates) {
+		const contents = readManifest(manifestPath);
+		if (contents === null) continue;
+		try {
+			const raw = JSON.parse(contents) as { identity?: unknown };
+			if (typeof raw.identity === "string" && raw.identity.trim()) return raw.identity.trim();
+		} catch {
+			// Try the next candidate; malformed metadata never proves a build match.
+		}
+	}
+	return undefined;
+}
+
+function parentPath(value: string): string {
+	const normalized = value.replaceAll("\\", "/").replace(/\/+$/, "");
+	const separator = normalized.lastIndexOf("/");
+	return separator === -1 ? "." : normalized.slice(0, separator);
+}
+
+/**
  * Identity check for a bundled daemon. The process-reported build identity is
  * checked first; executable/install paths remain compatibility checks after a
  * build match (for AppImage relaunches). Legacy packages without expected build
