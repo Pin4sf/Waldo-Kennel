@@ -680,6 +680,7 @@
 	"settings.reasoning.unavailable": "Reasoning is unavailable for this provider. Check its setup and retry.",
 	"settings.reasoning.save": "Save reasoning settings",
 	"settings.reasoning.saving": "Saving…",
+	"settings.reasoning.saved": "Saved",
 	"settings.reasoning.privacy": "The key is kept in the local daemon secret store and is never returned to the renderer or stored in Work records.",
 	"settings.reasoning.codexSetup": "Codex reasoning is unavailable. See the reported reason above: signing in alone does not establish reasoning capability. You can explicitly choose an API provider instead.",
 	"settings.project.trackerIntake": "Tracker intake",

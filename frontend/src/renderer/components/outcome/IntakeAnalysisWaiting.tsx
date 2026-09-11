@@ -2,6 +2,7 @@ import { useSettings } from "../../hooks/useSettings";
 import { ReasoningSettingsSection } from "../settings/ReasoningSettingsSection";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import waldoMark from "../../../../assets/waldo-mark.svg";
 
 import { useAgentsQuery } from "../../hooks/useAgentsQuery";
 import type { IntakeAnalysisRequest } from "../../hooks/useIntakeAnalysisRequest";
@@ -53,12 +54,15 @@ export function IntakeAnalysisWaiting({
 	const harness = useHarnessLabel(harnessId);
 	return (
 		<div
+			aria-busy="true"
+			aria-live="polite"
 			className="mx-auto flex h-full w-full max-w-xl flex-col items-center justify-center gap-4 px-4 text-center sm:px-8"
 			data-testid="intake-analysis-waiting"
 		>
 			<div className="flex items-center gap-2.5">
 				{harnessId ? <AgentAvatar provider={harnessId} className="size-icon-lg" decorative /> : null}
-				<Loader2 aria-hidden="true" className="size-4 animate-spin text-muted-foreground" />
+				<img alt="" aria-hidden="true" className="size-icon-sm opacity-75" data-brand="waldo" src={waldoMark} />
+				<Loader2 aria-hidden="true" className="size-4 animate-spin text-muted-foreground motion-reduce:animate-none" />
 			</div>
 			<div className="flex flex-col gap-1.5">
 				<h2 className="text-lg font-medium text-foreground">

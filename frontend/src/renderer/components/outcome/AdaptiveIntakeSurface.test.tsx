@@ -52,6 +52,24 @@ it("keeps the statement visibly unsaved when the daemon rejects capture", async 
 	expect(navigateMock).not.toHaveBeenCalled();
 });
 
+it("disables duplicate capture while planning submission is in flight", async () => {
+	let resolveCapture: (value: unknown) => void = () => undefined;
+	postMock.mockReturnValueOnce(new Promise((resolve) => { resolveCapture = resolve; }));
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+	render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" /></QueryClientProvider>);
+
+	await userEvent.type(screen.getByRole("textbox", { name: /what would you like to make true/i }), "One submission");
+	await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+	const pendingButton = screen.getByRole("button", { name: /Saving/ });
+	expect(pendingButton).toBeDisabled();
+	await userEvent.click(pendingButton);
+	expect(postMock).toHaveBeenCalledTimes(1);
+
+	resolveCapture({ data: { intake: { session: { id: "intake-1", status: "captured" }, conversationRefs: [] } }, error: undefined });
+	await waitFor(() => expect(navigateMock).toHaveBeenCalled());
+});
+
 it("reuses one capture request key when the same submission is retried", async () => {
 	postMock.mockResolvedValueOnce({ data: undefined, error: { code: "DAEMON_UNAVAILABLE" } }).mockResolvedValueOnce({ data: { intake: { session: { id: "intake-1", status: "captured" }, conversationRefs: [] } }, error: undefined });
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -224,6 +242,7 @@ it("names the agent that is working and always offers a way out of waiting", asy
 	respondWith({ session: { id: "intake-waiting", status: "analyzing", currentProposalRevision: 0 }, conversationRefs: [] }, OPEN_ASK);
 
 	expect(await screen.findByTestId("intake-analysis-waiting")).toBeInTheDocument();
+	expect(screen.getByTestId("intake-analysis-waiting")).toHaveAttribute("aria-busy", "true");
 	// An anonymous spinner gives a person nothing to judge; the harness is named.
 	expect(screen.getByRole("heading", { name: /codex is reading the project/i })).toBeInTheDocument();
 	expect(screen.queryByRole("button", { name: "Use the offline proposal instead" })).not.toBeInTheDocument();

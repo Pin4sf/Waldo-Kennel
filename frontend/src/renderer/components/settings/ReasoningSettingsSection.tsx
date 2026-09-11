@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Check } from "lucide-react";
 import { useSettings, useUpdateReasoning, useVerifyReasoning } from "../../hooks/useSettings";
 import { SettingsOptionMenu, type SettingsOption } from "./SettingsOptionMenu";
 import { SettingsRow } from "./SettingsRow";
@@ -24,6 +25,7 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 	const [effort, setEffort] = useState("");
 	const [apiKey, setApiKey] = useState("");
 	const [draftDirty, setDraftDirty] = useState(false);
+	const [saved, setSaved] = useState(false);
 
 	useEffect(() => {
 		const value = settings?.reasoning;
@@ -65,6 +67,7 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 					value={provider}
 					options={providers}
 					onChange={(value) => {
+						setSaved(false);
 						setDraftDirty(true);
 						setProvider(value);
 					}}
@@ -75,6 +78,7 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 				<Input
 					value={model}
 					onChange={(event) => {
+						setSaved(false);
 						setDraftDirty(true);
 						setModel(event.target.value);
 					}}
@@ -87,6 +91,7 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 				<Input
 					value={effort}
 					onChange={(event) => {
+						setSaved(false);
 						setDraftDirty(true);
 						setEffort(event.target.value);
 					}}
@@ -101,8 +106,9 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 						type="password"
 						value={apiKey}
 						onChange={(event) => {
-							setDraftDirty(true);
-							setApiKey(event.target.value);
+						setSaved(false);
+						setDraftDirty(true);
+						setApiKey(event.target.value);
 						}}
 						placeholder={
 							status?.provider === provider && status.keyConfigured
@@ -118,6 +124,7 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 			<div className="flex items-center justify-between gap-3 px-3 py-3">
 				<p
 					className={saveError || loadError || !status?.ready ? "text-xs text-error" : "text-xs text-muted-foreground"}
+					aria-live="polite"
 					role="status"
 				>
 					{message}
@@ -132,16 +139,18 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 					variant="secondary"
 					disabled={saving || verifying}
 					onClick={() => {
+						setSaved(false);
 						void update({ provider, model, effort, ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}) })
 							.then(() => {
 								setApiKey("");
 								setDraftDirty(false);
+								setSaved(true);
 								resetVerification();
 							})
 							.catch(() => undefined);
 					}}
 				>
-					{saving ? t("settings.reasoning.saving") : t("settings.reasoning.save")}
+					{saving ? t("settings.reasoning.saving") : saved ? <><Check aria-hidden="true" className="mr-1.5 inline size-3.5" />{t("settings.reasoning.saved")}</> : t("settings.reasoning.save")}
 				</Button>
 				<Button
 					type="button"
