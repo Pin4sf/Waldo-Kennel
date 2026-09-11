@@ -36,6 +36,13 @@ type Manager interface {
 	CreateContribution(ctx context.Context, parentID domain.OutcomeID, in CreateContributionInput) (View, error)
 	Composition(ctx context.Context, id domain.OutcomeID) (CompositionView, error)
 	ProposePlan(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) (PlanView, error)
+	PlanningCandidates(ctx context.Context, outcomeID domain.OutcomeID, expectedContractRevision int64) ([]ports.PlanningCandidate, error)
+	StartPlanning(ctx context.Context, outcomeID domain.OutcomeID, in StartPlanningInput) (PlanningView, error)
+	GetPlanning(ctx context.Context, outcomeID domain.OutcomeID, sessionID domain.PlanningSessionID) (PlanningView, error)
+	GetCurrentPlanning(ctx context.Context, outcomeID domain.OutcomeID) (PlanningView, error)
+	ContinuePlanning(ctx context.Context, outcomeID domain.OutcomeID, sessionID domain.PlanningSessionID, in PlanningMessageInput) (PlanningView, error)
+	FinalizePlanning(ctx context.Context, outcomeID domain.OutcomeID, sessionID domain.PlanningSessionID, in PlanningFinalizeInput) (PlanningView, error)
+	CancelPlanning(ctx context.Context, outcomeID domain.OutcomeID, sessionID domain.PlanningSessionID, expectedRevision int64) (PlanningView, error)
 	ApprovePlan(ctx context.Context, outcomeID domain.OutcomeID, in ApprovePlanInput) (AuthorizedPlanView, error)
 	GetLatestPlan(ctx context.Context, outcomeID domain.OutcomeID) (PlanView, error)
 }
@@ -97,6 +104,8 @@ type Service struct {
 	clock    func() time.Time
 
 	planIntelligence ports.IntelligenceProvider
+	planningDialogue ports.PlanningIntelligenceProvider
+	planningSessions ports.PlanningSessionStore
 	intelligenceRuns ports.IntelligenceRunStore
 	routing          ports.ExecutionRoutingInventory
 
@@ -182,6 +191,9 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 	if runs, ok := store.(ports.IntelligenceRunStore); ok {
 		service.intelligenceRuns = runs
 	}
+	if sessions, ok := store.(ports.PlanningSessionStore); ok {
+		service.planningSessions = sessions
+	}
 	// The SQLite store implements every one of these; the assertions keep the
 	// service usable with narrower fakes in tests rather than forcing each one
 	// to satisfy the whole surface.
@@ -196,6 +208,9 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 // only transition from proposal to execution authority.
 func (s *Service) WithPlanning(provider ports.IntelligenceProvider, routing ports.ExecutionRoutingInventory) *Service {
 	s.planIntelligence = provider
+	if dialogue, ok := provider.(ports.PlanningIntelligenceProvider); ok {
+		s.planningDialogue = dialogue
+	}
 	s.routing = routing
 	return s
 }

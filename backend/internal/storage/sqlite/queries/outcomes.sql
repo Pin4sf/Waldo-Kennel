@@ -84,16 +84,16 @@ WHERE id = ? AND outcome_id = ? AND status = 'proposed';
 SELECT COALESCE(MAX(number), 0) FROM plan_revisions WHERE outcome_id = ?;
 
 -- name: LatestProposedPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, planning_session_id, source_intelligence_run_id, routing_decisions_json
 FROM plan_revisions WHERE outcome_id = ? AND contract_revision_number = ? AND status = 'proposed'
 ORDER BY number DESC LIMIT 1;
 
 -- name: GetPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, planning_session_id, source_intelligence_run_id, routing_decisions_json
 FROM plan_revisions WHERE id = ? AND outcome_id = ?;
 
 -- name: GetLatestPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, planning_session_id, source_intelligence_run_id, routing_decisions_json
 FROM plan_revisions WHERE outcome_id = ? ORDER BY number DESC LIMIT 1;
 
 -- name: CreateWorkUnit :exec

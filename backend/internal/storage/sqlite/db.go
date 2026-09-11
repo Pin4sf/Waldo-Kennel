@@ -155,6 +155,9 @@ func migrate(db *sql.DB) error {
 	if err := preparePlanReviewContextMigration(db); err != nil {
 		return fmt.Errorf("prepare plan-review context migration: %w", err)
 	}
+	if err := prepareInteractivePlanningMigration(db); err != nil {
+		return fmt.Errorf("prepare interactive-planning migration: %w", err)
+	}
 	// Builds can advance a database past a migration that is added or
 	// renumbered later (notably across fast-moving Nightly releases). Apply
 	// those embedded migrations instead of permanently wedging daemon startup
@@ -183,11 +186,63 @@ func migrate(db *sql.DB) error {
 	if err := reconcilePlanReviewSchema(db); err != nil {
 		return fmt.Errorf("reconcile plan-review schema: %w", err)
 	}
+	if err := reconcileInteractivePlanningSchema(db); err != nil {
+		return fmt.Errorf("reconcile interactive-planning schema: %w", err)
+	}
+	if err := reconcilePlanningPlanImmutability(db); err != nil {
+		return fmt.Errorf("reconcile planning Plan immutability: %w", err)
+	}
+	// A degraded profile can acquire the planning tables only during the
+	// reconciliation above, after the first CDC restoration pass.
+	if err := restoreChangeLogWriters(db); err != nil {
+		return fmt.Errorf("restore reconciled change log writers: %w", err)
+	}
 	if err := reconcileSchema(db); err != nil {
 		return err
 	}
 	if err := installOutcomeDeletionSchema(db); err != nil {
 		return fmt.Errorf("install scoped Outcome deletion guards: %w", err)
+	}
+	return nil
+}
+
+// prepareInteractivePlanningMigration lets a profile whose Outcome migration
+// versions were burned complete goose without running 0133 against absent
+// authority tables. The migration is recorded as applied and the physical
+// shape is installed by reconcileInteractivePlanningSchema once every
+// dependency actually exists; no authority or provenance is synthesized.
+func prepareInteractivePlanningMigration(db *sql.DB) error {
+	var gooseTable int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'goose_db_version'`,
+	).Scan(&gooseTable); err != nil {
+		return err
+	}
+	if gooseTable == 0 {
+		return nil
+	}
+	var applied int
+	if err := db.QueryRow(`
+SELECT COALESCE((
+    SELECT is_applied FROM goose_db_version
+    WHERE version_id = 133 ORDER BY id DESC LIMIT 1
+), 0)`).Scan(&applied); err != nil {
+		return err
+	}
+	if applied != 0 {
+		return nil
+	}
+	for _, table := range []string{"projects", "outcomes", "contract_revisions", "plan_revisions", "intelligence_runs"} {
+		var present int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table,
+		).Scan(&present); err != nil {
+			return err
+		}
+		if present == 0 {
+			_, err := db.Exec(`INSERT INTO goose_db_version (version_id, is_applied) VALUES (133, 1)`)
+			return err
+		}
 	}
 	return nil
 }
@@ -278,6 +333,228 @@ WHEN OLD.id <> NEW.id
      OR OLD.blockers_json <> NEW.blockers_json
      OR OLD.run_brief_core_digest <> NEW.run_brief_core_digest
      OR OLD.run_brief_compiled_digest IS NOT NEW.run_brief_compiled_digest
+     OR OLD.routing_decisions_json IS NOT NEW.routing_decisions_json
+     OR OLD.created_at <> NEW.created_at
+BEGIN
+    SELECT RAISE(ABORT, 'plan revisions are immutable');
+END`)
+	return err
+}
+
+// reconcileInteractivePlanningSchema is the degraded-profile counterpart to
+// migration 0133. It installs the same Contract-bound conversation shape only
+// after every referenced authority/provenance table exists. Existing rows are
+// left untouched, so a repair cannot invent a planning grant or Plan source.
+func reconcileInteractivePlanningSchema(db *sql.DB) error {
+	for _, table := range []string{"projects", "outcomes", "contract_revisions", "plan_revisions", "intelligence_runs"} {
+		var present int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table,
+		).Scan(&present); err != nil {
+			return err
+		}
+		if present == 0 {
+			return nil
+		}
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec(`
+CREATE TABLE IF NOT EXISTS planning_sessions (
+    id                        TEXT PRIMARY KEY,
+    outcome_id                TEXT NOT NULL REFERENCES outcomes (id),
+    project_id                TEXT NOT NULL REFERENCES projects (id),
+    contract_revision_id      TEXT NOT NULL REFERENCES contract_revisions (id),
+    contract_revision_number  INTEGER NOT NULL CHECK (contract_revision_number >= 1),
+    revision                  INTEGER NOT NULL CHECK (revision >= 1),
+    latest_turn_sequence      INTEGER NOT NULL DEFAULT 0 CHECK (latest_turn_sequence >= 0),
+    status                    TEXT NOT NULL CHECK (status IN ('active','proposal_ready','superseded','cancelled')),
+    waiting_on                TEXT NOT NULL CHECK (waiting_on IN ('owner','provider','none')),
+    mode                      TEXT NOT NULL CHECK (mode IN ('direct_api','native_harness')),
+    requested_provider        TEXT NOT NULL,
+    model_selection           TEXT NOT NULL CHECK (model_selection IN ('provider_default','explicit')),
+    requested_model           TEXT NOT NULL DEFAULT '',
+    requested_effort          TEXT NOT NULL DEFAULT '',
+    context_mode              TEXT NOT NULL CHECK (context_mode IN ('repository_read','supplied_packet')),
+    planning_grant_digest     TEXT NOT NULL CHECK (length(planning_grant_digest) = 64 AND planning_grant_digest NOT GLOB '*[^0-9a-f]*'),
+    context_digest            TEXT NOT NULL CHECK (length(context_digest) = 64 AND context_digest NOT GLOB '*[^0-9a-f]*'),
+    context_snapshot_json     TEXT NOT NULL CHECK (json_valid(context_snapshot_json)),
+    effective_provider        TEXT NOT NULL DEFAULT '',
+    effective_model           TEXT NOT NULL DEFAULT '',
+    native_conversation_ref   TEXT NOT NULL DEFAULT '',
+    proposed_plan_revision_id TEXT REFERENCES plan_revisions (id),
+    last_failure_code         TEXT NOT NULL DEFAULT '',
+    last_failure_detail       TEXT NOT NULL DEFAULT '',
+    request_key               TEXT NOT NULL UNIQUE,
+    request_fingerprint       TEXT NOT NULL CHECK (length(request_fingerprint) = 64 AND request_fingerprint NOT GLOB '*[^0-9a-f]*'),
+    created_at                TIMESTAMP NOT NULL,
+    updated_at                TIMESTAMP NOT NULL,
+    closed_at                 TIMESTAMP,
+    CHECK ((model_selection = 'provider_default' AND requested_model = '') OR (model_selection = 'explicit' AND requested_model <> '')),
+    CHECK (effective_provider <> '' OR (effective_model = '' AND native_conversation_ref = '')),
+    CHECK ((status = 'active' AND waiting_on <> 'none' AND closed_at IS NULL AND proposed_plan_revision_id IS NULL)
+        OR (status <> 'active' AND waiting_on = 'none' AND closed_at IS NOT NULL)),
+    CHECK ((status = 'proposal_ready') = (proposed_plan_revision_id IS NOT NULL)),
+    UNIQUE (id, outcome_id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_planning_sessions_one_active_outcome
+    ON planning_sessions (outcome_id) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_planning_sessions_outcome_created
+    ON planning_sessions (outcome_id, created_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS planning_turns (
+    id                      TEXT PRIMARY KEY,
+    planning_session_id     TEXT NOT NULL REFERENCES planning_sessions (id),
+    sequence                INTEGER NOT NULL CHECK (sequence >= 1),
+    reply_to_turn_id        TEXT REFERENCES planning_turns (id),
+    role                    TEXT NOT NULL CHECK (role IN ('owner','planner')),
+    kind                    TEXT NOT NULL CHECK (kind IN ('message','finalize_request','clarification','contract_change_proposal','plan_proposal')),
+    text                    TEXT NOT NULL,
+    structured_payload_json TEXT CHECK (structured_payload_json IS NULL OR json_valid(structured_payload_json)),
+    intelligence_run_id     TEXT REFERENCES intelligence_runs (id),
+    request_key             TEXT,
+    request_fingerprint     TEXT CHECK (request_fingerprint IS NULL OR (length(request_fingerprint) = 64 AND request_fingerprint NOT GLOB '*[^0-9a-f]*')),
+    created_at              TIMESTAMP NOT NULL,
+    CHECK ((role = 'owner' AND reply_to_turn_id IS NULL AND intelligence_run_id IS NULL AND request_key IS NOT NULL AND request_fingerprint IS NOT NULL AND kind IN ('message','finalize_request'))
+        OR (role = 'planner' AND reply_to_turn_id IS NOT NULL AND intelligence_run_id IS NOT NULL AND request_key IS NULL AND request_fingerprint IS NULL AND kind IN ('clarification','contract_change_proposal','plan_proposal'))),
+    UNIQUE (planning_session_id, sequence),
+    UNIQUE (planning_session_id, request_key)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_planning_turns_reply
+    ON planning_turns (reply_to_turn_id) WHERE reply_to_turn_id IS NOT NULL;
+`); err != nil {
+		return err
+	}
+
+	for _, column := range []struct {
+		name string
+		ddl  string
+	}{
+		{name: "planning_session_id", ddl: `ALTER TABLE plan_revisions ADD COLUMN planning_session_id TEXT REFERENCES planning_sessions (id)`},
+		{name: "source_intelligence_run_id", ddl: `ALTER TABLE plan_revisions ADD COLUMN source_intelligence_run_id TEXT REFERENCES intelligence_runs (id)`},
+	} {
+		var present int
+		if err := tx.QueryRow(
+			`SELECT COUNT(*) FROM pragma_table_info('plan_revisions') WHERE name = ?`, column.name,
+		).Scan(&present); err != nil {
+			return err
+		}
+		if present == 0 {
+			if _, err := tx.Exec(column.ddl); err != nil {
+				return err
+			}
+		}
+	}
+
+	if _, err := tx.Exec(`
+CREATE UNIQUE INDEX IF NOT EXISTS idx_plan_revisions_planning_session
+    ON plan_revisions (planning_session_id) WHERE planning_session_id IS NOT NULL;
+
+DROP TRIGGER IF EXISTS plan_revisions_planning_source_guard;
+CREATE TRIGGER plan_revisions_planning_source_guard
+BEFORE INSERT ON plan_revisions
+WHEN NEW.planning_session_id IS NOT NULL OR NEW.source_intelligence_run_id IS NOT NULL
+BEGIN
+    SELECT CASE WHEN NEW.planning_session_id IS NULL OR NEW.source_intelligence_run_id IS NULL
+        THEN RAISE(ABORT, 'planning Plan provenance must be complete') END;
+    SELECT CASE WHEN NOT EXISTS (
+        SELECT 1 FROM planning_sessions s
+        JOIN planning_turns t ON t.planning_session_id = s.id
+        WHERE s.id = NEW.planning_session_id
+          AND s.outcome_id = NEW.outcome_id
+          AND s.contract_revision_number = NEW.contract_revision_number
+          AND s.status = 'active'
+          AND t.intelligence_run_id = NEW.source_intelligence_run_id
+          AND t.kind = 'plan_proposal'
+    ) THEN RAISE(ABORT, 'planning Plan provenance does not match active session') END;
+END;
+
+DROP TRIGGER IF EXISTS planning_sessions_update_guard;
+CREATE TRIGGER planning_sessions_update_guard
+BEFORE UPDATE ON planning_sessions
+WHEN OLD.id <> NEW.id
+     OR OLD.outcome_id <> NEW.outcome_id
+     OR OLD.project_id <> NEW.project_id
+     OR OLD.contract_revision_id <> NEW.contract_revision_id
+     OR OLD.contract_revision_number <> NEW.contract_revision_number
+     OR OLD.mode <> NEW.mode
+     OR OLD.requested_provider <> NEW.requested_provider
+     OR OLD.model_selection <> NEW.model_selection
+     OR OLD.requested_model <> NEW.requested_model
+     OR OLD.requested_effort <> NEW.requested_effort
+     OR OLD.context_mode <> NEW.context_mode
+     OR OLD.planning_grant_digest <> NEW.planning_grant_digest
+     OR OLD.context_digest <> NEW.context_digest
+     OR OLD.context_snapshot_json <> NEW.context_snapshot_json
+     OR OLD.request_key <> NEW.request_key
+     OR OLD.request_fingerprint <> NEW.request_fingerprint
+     OR OLD.created_at <> NEW.created_at
+     OR NEW.revision <> OLD.revision + 1
+     OR NEW.latest_turn_sequence < OLD.latest_turn_sequence
+     OR (OLD.status <> 'active' AND NEW.status <> OLD.status)
+     OR (OLD.effective_provider <> '' AND NEW.effective_provider <> OLD.effective_provider)
+     OR (OLD.effective_model <> '' AND NEW.effective_model <> OLD.effective_model)
+     OR (OLD.native_conversation_ref <> '' AND NEW.native_conversation_ref <> OLD.native_conversation_ref)
+     OR (OLD.proposed_plan_revision_id IS NOT NULL AND NEW.proposed_plan_revision_id IS NOT OLD.proposed_plan_revision_id)
+BEGIN
+    SELECT RAISE(ABORT, 'planning session binding, lineage, and terminal state are immutable');
+END;
+
+DROP TRIGGER IF EXISTS planning_turns_immutable_update;
+CREATE TRIGGER planning_turns_immutable_update
+BEFORE UPDATE ON planning_turns BEGIN
+    SELECT RAISE(ABORT, 'planning turns are immutable');
+END;
+DROP TRIGGER IF EXISTS planning_turns_immutable_delete;
+CREATE TRIGGER planning_turns_immutable_delete
+BEFORE DELETE ON planning_turns BEGIN
+    SELECT RAISE(ABORT, 'planning turns are immutable');
+END;
+`); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// reconcilePlanningPlanImmutability restores the newest trigger after the
+// older plan-review repair has rebuilt its historical shape. It is conditional
+// so a degraded profile that has not acquired the planning columns does not
+// reference columns it does not have.
+func reconcilePlanningPlanImmutability(db *sql.DB) error {
+	for _, column := range []string{"planning_session_id", "source_intelligence_run_id"} {
+		var present int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('plan_revisions') WHERE name = ?`, column).Scan(&present); err != nil {
+			return err
+		}
+		if present == 0 {
+			return nil
+		}
+	}
+	if _, err := db.Exec(`DROP TRIGGER IF EXISTS plan_revisions_immutable_update`); err != nil {
+		return err
+	}
+	_, err := db.Exec(`
+CREATE TRIGGER plan_revisions_immutable_update
+BEFORE UPDATE ON plan_revisions
+WHEN OLD.id <> NEW.id
+     OR OLD.outcome_id <> NEW.outcome_id
+     OR OLD.number <> NEW.number
+     OR OLD.contract_revision_number <> NEW.contract_revision_number
+     OR OLD.summary <> NEW.summary
+     OR OLD.assumptions_json <> NEW.assumptions_json
+     OR OLD.blockers_json <> NEW.blockers_json
+     OR OLD.run_brief_core_digest <> NEW.run_brief_core_digest
+     OR OLD.run_brief_compiled_digest IS NOT NEW.run_brief_compiled_digest
+     OR OLD.routing_decisions_json IS NOT NEW.routing_decisions_json
+     OR OLD.planning_session_id IS NOT NEW.planning_session_id
+     OR OLD.source_intelligence_run_id IS NOT NEW.source_intelligence_run_id
      OR OLD.created_at <> NEW.created_at
 BEGIN
     SELECT RAISE(ABORT, 'plan revisions are immutable');

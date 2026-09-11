@@ -15,8 +15,9 @@ import (
 const insertPlanRevisionCanonicalSQL = `
 INSERT INTO plan_revisions (
     id, outcome_id, number, contract_revision_number, status, summary,
-    assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, routing_decisions_json
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) `
+    assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest,
+    planning_session_id, source_intelligence_run_id, routing_decisions_json
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) `
 
 const insertWorkUnitExecutionBindingCanonicalSQL = `
 INSERT INTO work_unit_provider_bindings (work_unit_id, provider, model_selection, model)
@@ -72,7 +73,8 @@ func (s *Store) AppendPlanRevision(ctx context.Context, outcomeID domain.Outcome
 	}
 	if _, err := tx.ExecContext(ctx, insertPlanRevisionCanonicalSQL,
 		plan.ID, plan.OutcomeID, plan.Number, plan.ContractRevisionNumber, string(plan.Status), plan.Summary,
-		assumptionsJSON, blockersJSON, plan.RunBriefCoreDigest, plan.RunBriefCompiledDigest, string(routingJSON),
+		assumptionsJSON, blockersJSON, plan.RunBriefCoreDigest, plan.RunBriefCompiledDigest,
+		nullString(plan.PlanningSessionID.String()), nullString(string(plan.SourceIntelligenceRunID)), string(routingJSON),
 	); err != nil {
 		return domain.PlanRevision{}, fmt.Errorf("create plan revision %s: %w", plan.ID, err)
 	}
@@ -231,7 +233,8 @@ func (s *Store) LatestProposedPlanRevision(ctx context.Context, outcomeID domain
 		ID: row.ID, OutcomeID: row.OutcomeID, Number: row.Number, ContractRevisionNumber: row.ContractRevisionNumber,
 		Status: row.Status, Summary: row.Summary, AssumptionsJson: row.AssumptionsJson, BlockersJson: row.BlockersJson,
 		RunBriefCoreDigest: row.RunBriefCoreDigest, RunBriefCompiledDigest: row.RunBriefCompiledDigest,
-		CreatedAt: row.CreatedAt, RoutingDecisionsJson: row.RoutingDecisionsJson,
+		CreatedAt: row.CreatedAt, PlanningSessionID: row.PlanningSessionID,
+		SourceIntelligenceRunID: row.SourceIntelligenceRunID, RoutingDecisionsJson: row.RoutingDecisionsJson,
 	})
 }
 
@@ -248,7 +251,8 @@ func (s *Store) GetPlanRevision(ctx context.Context, outcomeID domain.OutcomeID,
 		ID: row.ID, OutcomeID: row.OutcomeID, Number: row.Number, ContractRevisionNumber: row.ContractRevisionNumber,
 		Status: row.Status, Summary: row.Summary, AssumptionsJson: row.AssumptionsJson, BlockersJson: row.BlockersJson,
 		RunBriefCoreDigest: row.RunBriefCoreDigest, RunBriefCompiledDigest: row.RunBriefCompiledDigest,
-		CreatedAt: row.CreatedAt, RoutingDecisionsJson: row.RoutingDecisionsJson,
+		CreatedAt: row.CreatedAt, PlanningSessionID: row.PlanningSessionID,
+		SourceIntelligenceRunID: row.SourceIntelligenceRunID, RoutingDecisionsJson: row.RoutingDecisionsJson,
 	})
 }
 
@@ -265,7 +269,8 @@ func (s *Store) GetLatestPlanRevision(ctx context.Context, outcomeID domain.Outc
 		ID: row.ID, OutcomeID: row.OutcomeID, Number: row.Number, ContractRevisionNumber: row.ContractRevisionNumber,
 		Status: row.Status, Summary: row.Summary, AssumptionsJson: row.AssumptionsJson, BlockersJson: row.BlockersJson,
 		RunBriefCoreDigest: row.RunBriefCoreDigest, RunBriefCompiledDigest: row.RunBriefCompiledDigest,
-		CreatedAt: row.CreatedAt, RoutingDecisionsJson: row.RoutingDecisionsJson,
+		CreatedAt: row.CreatedAt, PlanningSessionID: row.PlanningSessionID,
+		SourceIntelligenceRunID: row.SourceIntelligenceRunID, RoutingDecisionsJson: row.RoutingDecisionsJson,
 	})
 }
 
@@ -343,7 +348,8 @@ func planFromParts(row gen.PlanRevision, units []gen.WorkUnit, grants []gen.Capa
 		ID: row.ID, OutcomeID: row.OutcomeID, Number: row.Number,
 		ContractRevisionNumber: row.ContractRevisionNumber, Status: domain.PlanStatus(row.Status),
 		Summary: row.Summary, Assumptions: assumptions, Blockers: blockers, RunBriefCoreDigest: row.RunBriefCoreDigest,
-		RunBriefCompiledDigest: row.RunBriefCompiledDigest, CreatedAt: row.CreatedAt,
+		RunBriefCompiledDigest: row.RunBriefCompiledDigest, PlanningSessionID: domain.PlanningSessionID(row.PlanningSessionID.String),
+		SourceIntelligenceRunID: domain.IntelligenceRunID(row.SourceIntelligenceRunID.String), CreatedAt: row.CreatedAt,
 	}
 	for _, item := range units {
 		checks, err := unmarshalJSONStrings(item.EvidenceChecks)

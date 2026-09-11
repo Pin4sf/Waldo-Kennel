@@ -796,18 +796,67 @@ type PRURLAlias struct {
 }
 
 type PlanRevision struct {
-	ID                     domain.PlanRevisionID
-	OutcomeID              domain.OutcomeID
-	Number                 int64
+	ID                      domain.PlanRevisionID
+	OutcomeID               domain.OutcomeID
+	Number                  int64
+	ContractRevisionNumber  int64
+	Status                  string
+	Summary                 string
+	RunBriefCoreDigest      string
+	RunBriefCompiledDigest  string
+	CreatedAt               time.Time
+	AssumptionsJson         string
+	BlockersJson            string
+	PlanningSessionID       sql.NullString
+	SourceIntelligenceRunID sql.NullString
+	RoutingDecisionsJson    sql.NullString
+}
+
+type PlanningSession struct {
+	ID                     string
+	OutcomeID              string
+	ProjectID              string
+	ContractRevisionID     string
 	ContractRevisionNumber int64
+	Revision               int64
+	LatestTurnSequence     int64
 	Status                 string
-	Summary                string
-	RunBriefCoreDigest     string
-	RunBriefCompiledDigest string
+	WaitingOn              string
+	Mode                   string
+	RequestedProvider      string
+	ModelSelection         string
+	RequestedModel         string
+	RequestedEffort        string
+	ContextMode            string
+	PlanningGrantDigest    string
+	ContextDigest          string
+	ContextSnapshotJson    string
+	EffectiveProvider      string
+	EffectiveModel         string
+	NativeConversationRef  string
+	ProposedPlanRevisionID sql.NullString
+	LastFailureCode        string
+	LastFailureDetail      string
+	RequestKey             string
+	RequestFingerprint     string
 	CreatedAt              time.Time
-	AssumptionsJson        string
-	BlockersJson           string
-	RoutingDecisionsJson   sql.NullString
+	UpdatedAt              time.Time
+	ClosedAt               sql.NullTime
+}
+
+type PlanningTurn struct {
+	ID                    string
+	PlanningSessionID     string
+	Sequence              int64
+	ReplyToTurnID         sql.NullString
+	Role                  string
+	Kind                  string
+	Text                  string
+	StructuredPayloadJson sql.NullString
+	IntelligenceRunID     sql.NullString
+	RequestKey            sql.NullString
+	RequestFingerprint    sql.NullString
+	CreatedAt             time.Time
 }
 
 type Project struct {

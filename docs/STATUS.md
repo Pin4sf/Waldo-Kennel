@@ -32,6 +32,7 @@ Source and automated checks support these implementation claims; they are not en
 - Five active execution-provider identities: Codex, Claude Code, OpenCode, Cursor and Pi. Identity is not role/capability conformance.
 - PR99: preference-aware routing, persisted approved provider/model binding, historical-unbound rejection, provider-local model semantics, graph validation and serial scheduler decisions. L1a now carries the frozen binding through Manager.Spawn for TUI/Chat; live provider conformance remains unproved.
 - PR99: IntelligenceRun storage (migration 0115), provider-neutral intelligence/LLM ports, direct Anthropic/OpenAI reasoning adapters, model-backed Contract and Plan proposals.
+- Candidate interactive-planning slice: Contract-bound `PlanningSession`/turn storage, exact direct-API planner selection, frozen bounded repository context, typed clarification/Contract-change/Plan replies, canonical Plan compilation, and generated HTTP/TypeScript contracts. Native Codex planning, frontend integration, live-provider behavior, packaged Electron usability, and owner acceptance remain open.
 - Existing Understand/Decide/Act/Prove Work surfaces, Project Brief/conversation foundation and composed-Outcome storage remain available to evolve.
 
 ## Current policy: ADR0012
@@ -41,6 +42,8 @@ Waldo reasoning requires the owner's configured reasoning credential. Provider/m
 There is **no deterministic/offline proposal floor** and no hidden alternate-model fallback. Missing configuration must be recoverable setup failure. The old session-spawn intake/decomposition proposers were removed; model-backed decomposition proposal remains unavailable. Do not reconstruct those retired paths from old plans. Reasoning secrets must not enter canonical Work rows or logs.
 
 ADRs 0010/0011/0012, product architecture and ADRs 0008/0009 govern the target. ADR0012 supersedes older fallback/key-optional wording. Migrations through 0115 are merged and immutable; use the next unused migration number for fixes.
+
+ADR 0015 adds durable interactive planning before Plan approval. Direct API planning receives only a daemon-built bounded repository packet; it has no filesystem/tool handle or execution/effect authority. Contract-change output is advisory, a Plan remains proposed until the owner approves it, and planning creates no Attempt. Native Codex remains unavailable for this flow until the runtime boundary proves conversational continuity and confinement.
 
 ## Confirmed remaining source gaps
 

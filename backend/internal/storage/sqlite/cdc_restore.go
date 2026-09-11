@@ -424,6 +424,18 @@ var changeLogWriters = []struct {
 		since: "0127",
 		sql:   "CREATE TRIGGER outcome_deliveries_cdc_update\nAFTER UPDATE ON outcome_deliveries\nWHEN OLD.state <> NEW.state\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES ((SELECT rs.project_id FROM outcomes o JOIN responsibility_spaces rs ON rs.id = o.space_id WHERE o.id = NEW.outcome_id), NULL, 'outcome_delivery_changed', json_object('outcomeId', NEW.outcome_id, 'deliveryId', NEW.id, 'state', NEW.state, 'artifactVersion', NEW.artifact_version), COALESCE(NEW.completed_at, NEW.requested_at));\nEND;",
 	},
+	{
+		name:  "planning_sessions_cdc_insert",
+		table: "planning_sessions",
+		since: "0133",
+		sql:   "CREATE TRIGGER planning_sessions_cdc_insert\nAFTER INSERT ON planning_sessions\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'outcome_updated',\n        json_object('id', NEW.outcome_id, 'type', 'planning_session', 'planningSessionId', NEW.id, 'revision', NEW.revision),\n        NEW.updated_at);\nEND;",
+	},
+	{
+		name:  "planning_sessions_cdc_update",
+		table: "planning_sessions",
+		since: "0133",
+		sql:   "CREATE TRIGGER planning_sessions_cdc_update\nAFTER UPDATE ON planning_sessions\nBEGIN\n    INSERT INTO change_log (project_id, session_id, event_type, payload, created_at)\n    VALUES (NEW.project_id, NULL, 'outcome_updated',\n        json_object('id', NEW.outcome_id, 'type', 'planning_session', 'planningSessionId', NEW.id, 'revision', NEW.revision),\n        NEW.updated_at);\nEND;",
+	},
 }
 
 // restoreChangeLogWriters recreates any missing change_log-writing trigger

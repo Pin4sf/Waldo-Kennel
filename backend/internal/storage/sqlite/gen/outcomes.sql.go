@@ -1035,23 +1035,25 @@ func (q *Queries) GetDecompositionRevision(ctx context.Context, arg GetDecomposi
 }
 
 const getLatestPlanRevision = `-- name: GetLatestPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, planning_session_id, source_intelligence_run_id, routing_decisions_json
 FROM plan_revisions WHERE outcome_id = ? ORDER BY number DESC LIMIT 1
 `
 
 type GetLatestPlanRevisionRow struct {
-	ID                     domain.PlanRevisionID
-	OutcomeID              domain.OutcomeID
-	Number                 int64
-	ContractRevisionNumber int64
-	Status                 string
-	Summary                string
-	AssumptionsJson        string
-	BlockersJson           string
-	RunBriefCoreDigest     string
-	RunBriefCompiledDigest string
-	CreatedAt              time.Time
-	RoutingDecisionsJson   sql.NullString
+	ID                      domain.PlanRevisionID
+	OutcomeID               domain.OutcomeID
+	Number                  int64
+	ContractRevisionNumber  int64
+	Status                  string
+	Summary                 string
+	AssumptionsJson         string
+	BlockersJson            string
+	RunBriefCoreDigest      string
+	RunBriefCompiledDigest  string
+	CreatedAt               time.Time
+	PlanningSessionID       sql.NullString
+	SourceIntelligenceRunID sql.NullString
+	RoutingDecisionsJson    sql.NullString
 }
 
 func (q *Queries) GetLatestPlanRevision(ctx context.Context, outcomeID domain.OutcomeID) (GetLatestPlanRevisionRow, error) {
@@ -1069,6 +1071,8 @@ func (q *Queries) GetLatestPlanRevision(ctx context.Context, outcomeID domain.Ou
 		&i.RunBriefCoreDigest,
 		&i.RunBriefCompiledDigest,
 		&i.CreatedAt,
+		&i.PlanningSessionID,
+		&i.SourceIntelligenceRunID,
 		&i.RoutingDecisionsJson,
 	)
 	return i, err
@@ -1116,7 +1120,7 @@ func (q *Queries) GetOutcomeDocumentContext(ctx context.Context, id string) (Out
 }
 
 const getPlanRevision = `-- name: GetPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, planning_session_id, source_intelligence_run_id, routing_decisions_json
 FROM plan_revisions WHERE id = ? AND outcome_id = ?
 `
 
@@ -1126,18 +1130,20 @@ type GetPlanRevisionParams struct {
 }
 
 type GetPlanRevisionRow struct {
-	ID                     domain.PlanRevisionID
-	OutcomeID              domain.OutcomeID
-	Number                 int64
-	ContractRevisionNumber int64
-	Status                 string
-	Summary                string
-	AssumptionsJson        string
-	BlockersJson           string
-	RunBriefCoreDigest     string
-	RunBriefCompiledDigest string
-	CreatedAt              time.Time
-	RoutingDecisionsJson   sql.NullString
+	ID                      domain.PlanRevisionID
+	OutcomeID               domain.OutcomeID
+	Number                  int64
+	ContractRevisionNumber  int64
+	Status                  string
+	Summary                 string
+	AssumptionsJson         string
+	BlockersJson            string
+	RunBriefCoreDigest      string
+	RunBriefCompiledDigest  string
+	CreatedAt               time.Time
+	PlanningSessionID       sql.NullString
+	SourceIntelligenceRunID sql.NullString
+	RoutingDecisionsJson    sql.NullString
 }
 
 func (q *Queries) GetPlanRevision(ctx context.Context, arg GetPlanRevisionParams) (GetPlanRevisionRow, error) {
@@ -1155,6 +1161,8 @@ func (q *Queries) GetPlanRevision(ctx context.Context, arg GetPlanRevisionParams
 		&i.RunBriefCoreDigest,
 		&i.RunBriefCompiledDigest,
 		&i.CreatedAt,
+		&i.PlanningSessionID,
+		&i.SourceIntelligenceRunID,
 		&i.RoutingDecisionsJson,
 	)
 	return i, err
@@ -1229,7 +1237,7 @@ func (q *Queries) LatestDecompositionRevision(ctx context.Context, outcomeID dom
 }
 
 const latestProposedPlanRevision = `-- name: LatestProposedPlanRevision :one
-SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, routing_decisions_json
+SELECT id, outcome_id, number, contract_revision_number, status, summary, assumptions_json, blockers_json, run_brief_core_digest, run_brief_compiled_digest, created_at, planning_session_id, source_intelligence_run_id, routing_decisions_json
 FROM plan_revisions WHERE outcome_id = ? AND contract_revision_number = ? AND status = 'proposed'
 ORDER BY number DESC LIMIT 1
 `
@@ -1240,18 +1248,20 @@ type LatestProposedPlanRevisionParams struct {
 }
 
 type LatestProposedPlanRevisionRow struct {
-	ID                     domain.PlanRevisionID
-	OutcomeID              domain.OutcomeID
-	Number                 int64
-	ContractRevisionNumber int64
-	Status                 string
-	Summary                string
-	AssumptionsJson        string
-	BlockersJson           string
-	RunBriefCoreDigest     string
-	RunBriefCompiledDigest string
-	CreatedAt              time.Time
-	RoutingDecisionsJson   sql.NullString
+	ID                      domain.PlanRevisionID
+	OutcomeID               domain.OutcomeID
+	Number                  int64
+	ContractRevisionNumber  int64
+	Status                  string
+	Summary                 string
+	AssumptionsJson         string
+	BlockersJson            string
+	RunBriefCoreDigest      string
+	RunBriefCompiledDigest  string
+	CreatedAt               time.Time
+	PlanningSessionID       sql.NullString
+	SourceIntelligenceRunID sql.NullString
+	RoutingDecisionsJson    sql.NullString
 }
 
 func (q *Queries) LatestProposedPlanRevision(ctx context.Context, arg LatestProposedPlanRevisionParams) (LatestProposedPlanRevisionRow, error) {
@@ -1269,6 +1279,8 @@ func (q *Queries) LatestProposedPlanRevision(ctx context.Context, arg LatestProp
 		&i.RunBriefCoreDigest,
 		&i.RunBriefCompiledDigest,
 		&i.CreatedAt,
+		&i.PlanningSessionID,
+		&i.SourceIntelligenceRunID,
 		&i.RoutingDecisionsJson,
 	)
 	return i, err

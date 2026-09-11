@@ -10,14 +10,15 @@ For kernel/Work implementation, read in this order and stop when you have enough
 2. `docs/adr/0010-outcome-first-control-plane-and-session-subordination.md` — Outcome-first authority and session subordination.
 3. `docs/adr/0011-go-control-plane-and-non-authoritative-intelligence.md` — Go control plane and intelligence boundary.
 4. `docs/adr/0012-waldo-reasons-with-the-owners-model.md` — Waldo reasons with the owner's model; there is no deterministic floor.
-5. `docs/product/kennel-v1-product-architecture.md` — canonical product/kernel ontology and user-facing hierarchy.
-6. `docs/product/2026-09-08-outcome-control-plane-mvp-reset.md` — current MVP architecture reset.
-7. `docs/product/2026-09-08-pre-execution-ux-and-tech-debt-audit.md` — mandatory UX reuse / debt guardrails.
-8. `docs/STATUS.md` — implemented runtime truth versus accepted target behavior.
-9. `docs/adr/0008-responsibility-composition-and-workunit-execution-dag.md` — responsibility decomposition versus execution decomposition.
-10. `docs/adr/0009-workunit-scheduling-workspace-leases-and-effect-fencing.md` — scheduler, workspace custody, concurrency, effects, and recovery.
-11. `docs/superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md` — current implementation order and verification gates.
-12. `docs/architecture.md` and `docs/research/2026-09-04-kernel-runtime-reference-index.md` when touching lower-level chassis/provider/runtime details.
+5. `docs/adr/0015-contract-bound-interactive-planning.md` — durable pre-execution planning conversation and authority boundary.
+6. `docs/product/kennel-v1-product-architecture.md` — canonical product/kernel ontology and user-facing hierarchy.
+7. `docs/product/2026-09-08-outcome-control-plane-mvp-reset.md` — current MVP architecture reset.
+8. `docs/product/2026-09-08-pre-execution-ux-and-tech-debt-audit.md` — mandatory UX reuse / debt guardrails.
+9. `docs/STATUS.md` — implemented runtime truth versus accepted target behavior.
+10. `docs/adr/0008-responsibility-composition-and-workunit-execution-dag.md` — responsibility decomposition versus execution decomposition.
+11. `docs/adr/0009-workunit-scheduling-workspace-leases-and-effect-fencing.md` — scheduler, workspace custody, concurrency, effects, and recovery.
+12. `docs/superpowers/plans/2026-09-08-outcome-control-plane-mvp-reset.md` — current implementation order and verification gates.
+13. `docs/architecture.md` and `docs/research/2026-09-04-kernel-runtime-reference-index.md` when touching lower-level chassis/provider/runtime details.
 
 The current Work interaction specs remain implementation companions:
 
@@ -39,6 +40,8 @@ Project
 ├── ProjectBriefRevision*                 persistent context; never “done”
 └── Outcome*                              finite responsibility
     └── ContractRevision
+        ├── PlanningSession*                 bounded pre-execution discussion
+        │   └── PlanningTurn* / IntelligenceRun*
         ├── DecompositionRevision         when responsibility splits
         │   └── Contributing Outcome*     each owns its own Contract/Plan
         └── PlanRevision                  for a direct Outcome

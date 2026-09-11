@@ -290,20 +290,22 @@ func (r WorkUnitRoutingDecision) ValidateAgainst(unit WorkUnit) error {
 
 // PlanRevision is immutable recommendation state until explicit owner approval.
 type PlanRevision struct {
-	ID                     PlanRevisionID
-	OutcomeID              OutcomeID
-	Number                 int64
-	ContractRevisionNumber int64
-	Status                 PlanStatus
-	Summary                string
-	Assumptions            []string
-	Blockers               []string
-	WorkUnits              []WorkUnit
-	Grants                 []CapabilityGrant
-	RoutingDecisions       []WorkUnitRoutingDecision
-	RunBriefCoreDigest     string
-	RunBriefCompiledDigest string
-	CreatedAt              time.Time
+	ID                      PlanRevisionID
+	OutcomeID               OutcomeID
+	Number                  int64
+	ContractRevisionNumber  int64
+	Status                  PlanStatus
+	Summary                 string
+	Assumptions             []string
+	Blockers                []string
+	WorkUnits               []WorkUnit
+	Grants                  []CapabilityGrant
+	RoutingDecisions        []WorkUnitRoutingDecision
+	RunBriefCoreDigest      string
+	RunBriefCompiledDigest  string
+	PlanningSessionID       PlanningSessionID
+	SourceIntelligenceRunID IntelligenceRunID
+	CreatedAt               time.Time
 }
 
 // Validate checks the plan revision's graph, authority, and proof bindings.
@@ -375,6 +377,9 @@ func (p PlanRevision) Validate() error {
 	}
 	if !isSHA256Hex(p.RunBriefCoreDigest) {
 		return fmt.Errorf("plan revision requires a SHA-256 run brief core digest")
+	}
+	if p.PlanningSessionID.IsZero() != p.SourceIntelligenceRunID.IsZero() {
+		return fmt.Errorf("planning Plan provenance must be complete")
 	}
 	return nil
 }
