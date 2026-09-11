@@ -133,6 +133,8 @@ var shippedMigrations = map[int64]string{
 	127: "0127_outcome_delivery.sql",
 	128: "0128_outcome_delivery_recovery.sql",
 	129: "0129_attempt_check_baseline.sql",
+	130: "0130_outcome_trash.sql",
+	131: "0131_outcome_purge_scope.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

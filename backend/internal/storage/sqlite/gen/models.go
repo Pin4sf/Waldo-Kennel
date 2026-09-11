@@ -664,6 +664,11 @@ type OutcomeDocumentSource struct {
 	SizeBytes     int64
 }
 
+type OutcomePurgeScope struct {
+	TableName string
+	RowID     int64
+}
+
 type OutcomeRunIntent struct {
 	ID                     string
 	OutcomeID              string
@@ -675,6 +680,13 @@ type OutcomeRunIntent struct {
 	RequestedAt            time.Time
 	AcknowledgedAt         sql.NullTime
 	RequestFingerprint     string
+}
+
+type OutcomeTrash struct {
+	OutcomeID   string
+	TrashRootID string
+	Erasing     int64
+	DeletedAt   time.Time
 }
 
 type PR struct {

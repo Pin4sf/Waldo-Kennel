@@ -1054,7 +1054,7 @@ func (q *Queries) GetLatestPlanRevision(ctx context.Context, outcomeID domain.Ou
 
 const getOutcome = `-- name: GetOutcome :one
 SELECT id, space_id, title, current_revision_number, idempotency_key, created_at, updated_at, parent_outcome_id
-FROM outcomes WHERE id = ?
+FROM outcomes WHERE id = ? AND NOT EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=outcomes.id)
 `
 
 func (q *Queries) GetOutcome(ctx context.Context, id domain.OutcomeID) (Outcome, error) {
@@ -1631,7 +1631,7 @@ func (q *Queries) ListContributionLinksForParent(ctx context.Context, parentOutc
 const listCurrentRunIntentsByDesired = `-- name: ListCurrentRunIntentsByDesired :many
 SELECT i.id, i.outcome_id, i.generation, i.desired, i.plan_revision_id, i.contract_revision_number, i.request_key, i.request_fingerprint, i.requested_at, i.acknowledged_at
 FROM outcome_run_intents i
-WHERE i.desired = ?
+WHERE i.desired = ? AND NOT EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=i.outcome_id)
   AND i.generation = (SELECT MAX(g.generation) FROM outcome_run_intents g WHERE g.outcome_id = i.outcome_id)
 ORDER BY i.outcome_id
 `
@@ -1889,7 +1889,7 @@ const listOutcomesByProject = `-- name: ListOutcomesByProject :many
 SELECT o.id, o.space_id, o.title, o.current_revision_number, o.idempotency_key, o.created_at, o.updated_at, o.parent_outcome_id
 FROM outcomes o
 JOIN responsibility_spaces rs ON rs.id = o.space_id
-WHERE rs.project_id = ? AND rs.kind = 'WorkProject'
+WHERE rs.project_id = ? AND rs.kind = 'WorkProject' AND NOT EXISTS (SELECT 1 FROM outcome_trash WHERE outcome_id=o.id)
 ORDER BY o.created_at, o.id
 `
 

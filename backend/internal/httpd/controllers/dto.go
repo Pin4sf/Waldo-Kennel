@@ -3829,3 +3829,25 @@ func agentProposalInput(req SubmitAgentProposalRequest) outcomevc.ProposeDecompo
 		Dependencies:     req.Dependencies,
 	})
 }
+
+// OutcomeDeletionEnvelope is the daemon's current erasure scope and blockers.
+type OutcomeDeletionEnvelope struct {
+	Deletion ports.OutcomeDeletionPreview `json:"deletion"`
+}
+
+// OutcomeTrashEnvelope lists recoverable Outcomes and cleanup jobs.
+type OutcomeTrashEnvelope struct {
+	Outcomes []ports.OutcomeTrashEntry `json:"outcomes"`
+}
+
+// ChangeOutcomeDeletionRequest names the current revision and explicit owner action.
+type ChangeOutcomeDeletionRequest struct {
+	Revision     int64  `json:"revision"`
+	Action       string `json:"action"`
+	Confirmation string `json:"confirmation"`
+}
+
+// OutcomeDeletionResult acknowledges a completed lifecycle action.
+type OutcomeDeletionResult struct {
+	Action string `json:"action"`
+}

@@ -824,6 +824,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/outcomes/{outcomeId}/deletion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview Outcome deletion scope and active execution blockers */
+        get: operations["previewOutcomeDeletion"];
+        put?: never;
+        /** Move to Trash, restore, or permanently delete an inactive Outcome */
+        post: operations["changeOutcomeDeletion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/outcomes/{outcomeId}/deliveries": {
         parameters: {
             query?: never;
@@ -1162,6 +1180,23 @@ export interface paths {
         };
         /** Board projection: Mission state and eligible actions for a Project's Outcomes */
         get: operations["listProjectOutcomeRunStates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{id}/outcome-trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List recoverable Outcomes and pending permanent cleanup */
+        get: operations["listTrashedOutcomes"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2999,6 +3034,12 @@ export interface components {
             requests: null | number;
             totals: components["schemas"]["UsageTotalsResponse"];
         };
+        ControllersChangeOutcomeDeletionRequest: {
+            action: string;
+            confirmation: string;
+            /** Format: int64 */
+            revision: number;
+        };
         ControllersDocumentSourceResponse: {
             contentDigest: string;
             id: string;
@@ -3089,6 +3130,12 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        ControllersOutcomeDeletionEnvelope: {
+            deletion: components["schemas"]["PortsOutcomeDeletionPreview"];
+        };
+        ControllersOutcomeDeletionResult: {
+            action: string;
+        };
         ControllersOutcomeDeliveriesEnvelope: {
             deliveries: components["schemas"]["ControllersOutcomeDeliveryResponse"][];
         };
@@ -3175,6 +3222,9 @@ export interface components {
             /** Format: date-time */
             observedAt: string;
             runStates: components["schemas"]["ControllersOutcomeRunStateResponse"][];
+        };
+        ControllersOutcomeTrashEnvelope: {
+            outcomes: components["schemas"]["PortsOutcomeTrashEntry"][];
         };
         ControllersOutcomeUsageAttemptResponse: {
             attemptId: string;
@@ -4113,6 +4163,30 @@ export interface components {
             stopConditions: string[];
             title: string;
             verificationRequirement: string;
+        };
+        PortsOutcomeDeletionPreview: {
+            attemptIds: string[];
+            blockers: string[];
+            documentContextIds: string[];
+            erasing: boolean;
+            outcomeCount: number;
+            outcomeId: string;
+            projectId: string;
+            recordCount: number;
+            /** Format: int64 */
+            revision: number;
+            sessionIds: string[];
+            title: string;
+            trashed: boolean;
+            workspacePaths: string[];
+        };
+        PortsOutcomeTrashEntry: {
+            erasing: boolean;
+            outcomeId: string;
+            /** Format: int64 */
+            revision: number;
+            title: string;
+            trashed: boolean;
         };
         PreviewServerStatusResponse: {
             configuration?: string;
@@ -8190,6 +8264,119 @@ export interface operations {
             };
         };
     };
+    previewOutcomeDeletion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDeletionEnvelope"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    changeOutcomeDeletion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Outcome identifier, e.g. out-<uuid>. */
+                outcomeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersChangeOutcomeDeletionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeDeletionResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     listOutcomeDeliveries: {
         parameters: {
             query?: never;
@@ -9716,6 +9903,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listTrashedOutcomes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersOutcomeTrashEnvelope"];
                 };
             };
             /** @description Internal Server Error */

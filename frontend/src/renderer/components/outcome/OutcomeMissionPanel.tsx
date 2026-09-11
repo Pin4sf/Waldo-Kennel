@@ -1,3 +1,4 @@
+import { OutcomeDeletionControls } from "./OutcomeDeletionControls";
 import { MissionContractEditor } from "./MissionContractEditor";
 import { useOutcomeRunState } from "../../hooks/useOutcomeRunState";
 import { X, Maximize2, Minimize2 } from "lucide-react";
@@ -63,6 +64,7 @@ export function OutcomeMissionPanel({
 						{projects.data?.find((project) => project.id === projectId)?.name ?? projectId}
 					</span>
 					<div className="flex gap-1">
+ <OutcomeDeletionControls outcomeId={outcomeId} onRemoved={onClose} />
 						<Button className="hidden @[1050px]/mission:inline-flex" size="sm" variant="ghost" onClick={onExpand}>
 							{expanded ? (
 								<Minimize2 aria-hidden="true" className="size-3.5" />

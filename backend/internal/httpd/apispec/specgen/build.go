@@ -607,6 +607,21 @@ func outcomeRunOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/outcome-trash", id: "listTrashedOutcomes", tag: "outcomes",
+			summary: "List recoverable Outcomes and pending permanent cleanup", pathParams: []any{controllers.ProjectIDParam{}},
+			resps: []respUnit{{http.StatusOK, controllers.OutcomeTrashEnvelope{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/deletion", id: "previewOutcomeDeletion", tag: "outcomes",
+			summary: "Preview Outcome deletion scope and active execution blockers", pathParams: []any{controllers.OutcomeIDParam{}},
+			resps: []respUnit{{http.StatusOK, controllers.OutcomeDeletionEnvelope{}}, {http.StatusNotFound, envelope.APIError{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}},
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/outcomes/{outcomeId}/deletion", id: "changeOutcomeDeletion", tag: "outcomes",
+			summary: "Move to Trash, restore, or permanently delete an inactive Outcome", pathParams: []any{controllers.OutcomeIDParam{}}, reqBody: controllers.ChangeOutcomeDeletionRequest{},
+			resps: []respUnit{{http.StatusOK, controllers.OutcomeDeletionResult{}}, {http.StatusBadRequest, envelope.APIError{}}, {http.StatusNotFound, envelope.APIError{}}, {http.StatusInternalServerError, envelope.APIError{}}, {http.StatusNotImplemented, envelope.APIError{}}},
+		},
+		{
 			method: http.MethodGet, path: "/api/v1/outcomes/{outcomeId}/deliveries", id: "listOutcomeDeliveries", tag: "outcomes",
 			summary:    "List durable deliveries of this Outcome's retained results",
 			pathParams: []any{controllers.OutcomeIDParam{}},

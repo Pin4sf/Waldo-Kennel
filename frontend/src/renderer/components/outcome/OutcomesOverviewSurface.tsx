@@ -1,3 +1,4 @@
+import { OutcomeTrash } from "./OutcomeDeletionControls";
 import { useMissionAttention } from "../../hooks/useMissionAttention";
 import { type MissionAttention } from "../../lib/mission-attention";
 import { Fragment, useMemo, useState } from "react";
@@ -127,7 +128,6 @@ export function OutcomesOverviewSurface({
 }
 
 function ProjectOutcomesGroup({
-	showEmpty,
 	attentionFilter,
 	includeContributors,
 	selectedOutcomeId,
@@ -167,11 +167,11 @@ function ProjectOutcomesGroup({
 	const lanes = view === "board" ? (["define", "observe", "needsYou", "accepted"] as const) : [undefined];
 
 
-	if (!showEmpty && !outcomesQuery.isLoading && !outcomesQuery.failure && outcomes.length === 0) return null;
+	// Keep the project heading and Trash reachable after its final Outcome is removed.
 
 	return (
 		<section className="flex flex-col gap-2" data-testid="outcomes-overview-project">
-			<h3 className="text-sm font-medium text-foreground">{workspace.name}</h3>
+			<div className="flex items-center justify-between"><h3 className="text-sm font-medium text-foreground">{workspace.name}</h3><OutcomeTrash projectId={workspace.id}/></div>
 			{outcomesQuery.failure ? (
 				<div
 					className="flex items-center gap-3 rounded-md hairline border-border bg-card px-3 py-2 text-xs text-muted-foreground"

@@ -3,6 +3,7 @@ package outcome
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -79,6 +80,15 @@ func (s *Service) SelectDocuments(ctx context.Context, outcomeID domain.OutcomeI
 		SelectedAt: s.clock(), Sources: sources,
 	})
 	if err != nil {
+		// A concurrent Trash/purge can reject admission after snapshotting.
+		// Remove only this fresh, uncommitted document selection.
+		if cleaner, ok := s.documentBytes.(interface {
+			RemoveOutcomeContent(context.Context, []string, []string) error
+		}); ok {
+			if cleanupErr := cleaner.RemoveOutcomeContent(ctx, nil, []string{string(contextID)}); cleanupErr != nil {
+				return DocumentContextView{}, fmt.Errorf("document admission failed: %w; snapshot cleanup: %w", err, cleanupErr)
+			}
+		}
 		return DocumentContextView{}, err
 	}
 	return DocumentContextView{Context: stored}, nil
