@@ -26,6 +26,7 @@ import (
 	kennelprocess "github.com/Pin4sf/Waldo-Kennel/backend/internal/process"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/sessionguard"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/skillassets"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/supervisorcap"
 )
 
 // Sentinel errors returned by the Session Manager; callers match them with
@@ -158,7 +159,8 @@ const (
 	// EnvDataDir tells a spawned agent's Kennel hook commands where the store lives.
 	EnvDataDir = "KENNEL_DATA_DIR"
 	// EnvBrowserCapability proves ownership of the session's browser target.
-	EnvBrowserCapability = "KENNEL_BROWSER_CAPABILITY"
+	EnvBrowserCapability    = "KENNEL_BROWSER_CAPABILITY"
+	EnvSupervisorCapability = supervisorcap.EnvCapability
 	// EnvBrowserRuntimeToken must never be inherited by a worker. It authenticates
 	// the privileged Electron runtime, not session-scoped browser callers.
 	EnvBrowserRuntimeToken = "KENNEL_BROWSER_RUNTIME_TOKEN" //nolint:gosec // Environment variable name, not a credential.
@@ -307,16 +309,17 @@ type Manager struct {
 	// defaults resolves the daemon-owned default session interface for a spawn
 	// that names no mode. Nil falls back to the compatibility default, so a build
 	// without it behaves exactly as before.
-	defaults            SessionModeDefaults
-	chat                ChatLauncher
-	lcm                 lifecycleRecorder
-	preview             PreviewLifecycle
-	browser             BrowserLifecycle
-	browserCapabilities BrowserCapabilityIssuer
-	attachments         *attachmentstore.Store
-	attachmentSuffix    func() (string, error)
-	dataDir             string
-	clock               func() time.Time
+	defaults               SessionModeDefaults
+	chat                   ChatLauncher
+	lcm                    lifecycleRecorder
+	preview                PreviewLifecycle
+	browser                BrowserLifecycle
+	browserCapabilities    BrowserCapabilityIssuer
+	supervisorCapabilities SupervisorCapabilityIssuer
+	attachments            *attachmentstore.Store
+	attachmentSuffix       func() (string, error)
+	dataDir                string
+	clock                  func() time.Time
 	// openTranscriptFile is os.Open in production. The narrow seam lets tests
 	// deterministically prove that a post-stop transcript read failure falls
 	// back without advertising the provider path.
@@ -535,6 +538,11 @@ type BrowserCapabilityIssuer interface {
 	Issue(id domain.SessionID) (token, verifier string, err error)
 }
 
+// SupervisorCapabilityIssuer mints a bearer held only by Kennels process wrapper.
+type SupervisorCapabilityIssuer interface {
+	Issue(id domain.SessionID, launchID string) (token, verifier string, err error)
+}
+
 // sendConfirmConfig bounds the best-effort activity-confirmation loop run after
 // Send. Kennel has no delivery ack: kennel send returns 200 the moment tmux send-keys
 // exits 0, and for a large multiline paste the single Enter may not submit the
@@ -582,11 +590,12 @@ type Deps struct {
 	// Chat launches the structured controller for a chat-mode session. Nil means
 	// chat mode is unavailable, and a chat spawn is refused rather than silently
 	// downgraded to a terminal.
-	Chat                ChatLauncher
-	Lifecycle           lifecycleRecorder
-	Preview             PreviewLifecycle
-	Browser             BrowserLifecycle
-	BrowserCapabilities BrowserCapabilityIssuer
+	Chat                   ChatLauncher
+	Lifecycle              lifecycleRecorder
+	Preview                PreviewLifecycle
+	Browser                BrowserLifecycle
+	BrowserCapabilities    BrowserCapabilityIssuer
+	SupervisorCapabilities SupervisorCapabilityIssuer
 	// DataDir owns durable attachment storage and is exported to spawned agents
 	// as KENNEL_DATA_DIR so their hook commands can open the same store.
 	DataDir string
@@ -623,6 +632,7 @@ func New(d Deps) *Manager {
 		preview:                      d.Preview,
 		browser:                      d.Browser,
 		browserCapabilities:          d.BrowserCapabilities,
+		supervisorCapabilities:       d.SupervisorCapabilities,
 		attachments:                  attachmentstore.New(d.DataDir),
 		attachmentSuffix:             randomSuffix,
 		dataDir:                      d.DataDir,
@@ -951,10 +961,15 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (rec domain.
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: %w", id, err)
 	}
 	m.augmentRuntimePATHForLaunchBinary(ctx, env, argv)
-	argv, launchID, err := m.superviseAgentProcess(agent, id, env, argv)
+	argv, launchID, supervisorVerifier, err := m.superviseAgentProcess(agent, id, env, argv, cfg.ExecutionPolicy != nil)
 	if err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, true)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: supervisor: %w", id, err)
+	}
+	rec, err = m.persistSupervisorCapabilityVerifier(ctx, rec, supervisorVerifier)
+	if err != nil {
+		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, true)
+		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: persist supervisor capability: %w", id, err)
 	}
 	if err := m.lcm.PrepareLaunch(id, launchID); err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, true)
@@ -982,6 +997,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (rec domain.
 		Prompt:                        prompt,
 		LatestUserPrompt:              prompt,
 		BrowserCapabilityVerifier:     browserCapabilityVerifier,
+		SupervisorCapabilityVerifier:  supervisorVerifier,
 		GovernedExecutionPolicyDigest: rec.Metadata.GovernedExecutionPolicyDigest,
 	}
 	if projectKind == domain.ProjectKindSingleRepo {
@@ -1903,10 +1919,15 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		return RestoreResult{}, fmt.Errorf("%s %s: %w", operation, rec.ID, err)
 	}
 	m.augmentRuntimePATHForLaunchBinary(ctx, env, argv)
-	argv, launchID, err := m.superviseAgentProcess(agent, rec.ID, env, argv)
+	argv, launchID, supervisorVerifier, err := m.superviseAgentProcess(agent, rec.ID, env, argv, execution != nil)
 	if err != nil {
 		m.cleanupSystemPromptDir(rec.ID)
 		return RestoreResult{}, fmt.Errorf("%s %s: supervisor: %w", operation, rec.ID, err)
+	}
+	rec, err = m.persistSupervisorCapabilityVerifier(ctx, rec, supervisorVerifier)
+	if err != nil {
+		m.cleanupSystemPromptDir(rec.ID)
+		return RestoreResult{}, fmt.Errorf("%s %s: persist supervisor capability: %w", operation, rec.ID, err)
 	}
 	if err := m.lcm.PrepareLaunch(rec.ID, launchID); err != nil {
 		m.cleanupSystemPromptDir(rec.ID)
@@ -3545,6 +3566,7 @@ func spawnEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueI
 func (m *Manager) runtimeEnv(id domain.SessionID, project domain.ProjectID, issue domain.IssueID, projectEnv map[string]string) map[string]string {
 	env := spawnEnv(id, project, issue, m.dataDir, projectEnv)
 	env[EnvBrowserCapability] = ""
+	env[EnvSupervisorCapability] = ""
 	env[EnvBrowserRuntimeToken] = ""
 	env[EnvBrowserRuntimeTokenStdin] = ""
 	path, err := HookPATH(m.executable, os.Getenv, projectEnv)
@@ -3582,6 +3604,18 @@ func (m *Manager) persistBrowserCapabilityVerifier(ctx context.Context, rec doma
 		return rec, nil
 	}
 	rec.Metadata.BrowserCapabilityVerifier = verifier
+	rec.UpdatedAt = m.clock()
+	if err := m.store.UpdateSession(ctx, rec); err != nil {
+		return rec, err
+	}
+	return rec, nil
+}
+
+func (m *Manager) persistSupervisorCapabilityVerifier(ctx context.Context, rec domain.SessionRecord, verifier string) (domain.SessionRecord, error) {
+	if verifier == "" {
+		return rec, nil
+	}
+	rec.Metadata.SupervisorCapabilityVerifier = verifier
 	rec.UpdatedAt = m.clock()
 	if err := m.store.UpdateSession(ctx, rec); err != nil {
 		return rec, err
@@ -4245,21 +4279,52 @@ func tmuxInstallGuidance(goos string) string {
 	}
 }
 
-func (m *Manager) superviseAgentProcess(agent ports.Agent, id domain.SessionID, env map[string]string, argv []string) ([]string, string, error) {
+func (m *Manager) superviseAgentProcess(agent ports.Agent, id domain.SessionID, env map[string]string, argv []string, governed bool) ([]string, string, string, error) {
 	// Switching-capable providers always use the exact-generation
 	// supervisor, even when their native hooks also report exit. That gives a
 	// later semantic handoff a safe foreground-process proof and ensures an exit
 	// races into the non-interpreting tmux sink rather than a shell.
 	_, switchingCapable := agent.(ports.AgentContinuationCapabilityProvider)
-	return m.superviseAgentProcessMode(agent, id, env, argv, switchingCapable)
+	wrapped, launchID, err := m.superviseAgentProcessMode(agent, id, env, argv, switchingCapable)
+	if err != nil {
+		return nil, "", "", err
+	}
+	verifier, err := m.issueSupervisorCapability(id, launchID, env, governed)
+	if err != nil {
+		return nil, "", "", err
+	}
+	return wrapped, launchID, verifier, nil
+}
+
+func (m *Manager) issueSupervisorCapability(id domain.SessionID, launchID string, env map[string]string, governed bool) (string, error) {
+	if !governed || env[EnvSupervisedProcess] != "1" || m.supervisorCapabilities == nil {
+		return "", nil
+	}
+	token, verifier, err := m.supervisorCapabilities.Issue(id, launchID)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(token) == "" || strings.TrimSpace(verifier) == "" {
+		return "", errors.New("supervisor capability issuer returned an empty credential")
+	}
+	env[EnvSupervisorCapability] = token
+	return verifier, nil
 }
 
 // superviseAgentProcessForSwitch always installs Kennel's generation-bearing
 // wrapper. Native hooks still report activity, while the wrapper gives crash
 // recovery a process-level proof that a surviving workload belongs to the
 // target generation rather than the provider that was stopped.
-func (m *Manager) superviseAgentProcessForSwitch(agent ports.Agent, id domain.SessionID, env map[string]string, argv []string) ([]string, string, error) {
-	return m.superviseAgentProcessMode(agent, id, env, argv, true)
+func (m *Manager) superviseAgentProcessForSwitch(agent ports.Agent, id domain.SessionID, env map[string]string, argv []string, governed bool) ([]string, string, string, error) {
+	wrapped, launchID, err := m.superviseAgentProcessMode(agent, id, env, argv, true)
+	if err != nil {
+		return nil, "", "", err
+	}
+	verifier, err := m.issueSupervisorCapability(id, launchID, env, governed)
+	if err != nil {
+		return nil, "", "", err
+	}
+	return wrapped, launchID, verifier, nil
 }
 
 func (m *Manager) superviseAgentProcessMode(agent ports.Agent, id domain.SessionID, env map[string]string, argv []string, force bool) ([]string, string, error) {

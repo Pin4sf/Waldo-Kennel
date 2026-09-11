@@ -376,10 +376,11 @@ type fakeSpawner struct {
 	// a clean proven stop whose workspace was freed. Tests inject the
 	// dirty-preserved shape {ProviderStopped:true, WorkspaceFreed:false} to
 	// prove workspace preservation is not provider liveness.
-	terminateResult *ports.TerminationResult
-	terminated      []string
-	spawned         []ports.AttemptSpawnRequest
-	sessionN        int
+	terminateResult    *ports.TerminationResult
+	terminated         []string
+	spawned            []ports.AttemptSpawnRequest
+	completionBoundary domain.AttemptCompletionBoundary
+	sessionN           int
 }
 
 func (f *fakeSpawner) ProfileReadiness(_ context.Context, _ domain.ProjectID, _ domain.ExecutionBinding, _ *domain.AttemptExecutionPolicy) (ports.AgentProfileReadiness, error) {
@@ -423,7 +424,7 @@ func (f *fakeSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (p
 			LastActivityAt: time.Now(),
 		},
 	}
-	return ports.AttemptSpawnResult{Session: domain.Session{SessionRecord: rec}}, nil
+	return ports.AttemptSpawnResult{Session: domain.Session{SessionRecord: rec}, CompletionBoundary: f.completionBoundary}, nil
 }
 
 // Terminate records the request; failures AND result shapes are injectable

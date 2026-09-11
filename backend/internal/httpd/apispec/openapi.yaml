@@ -10718,6 +10718,20 @@ components:
         proposal:
           $ref: '#/components/schemas/IntakeProposalInput'
       type: object
+    ControllersSupervisedProcessExitRequest:
+      properties:
+        exitCode:
+          description: Exact provider process exit code when available.
+          type:
+          - "null"
+          - integer
+        reason:
+          description: Supervisor exit reason.
+          type: string
+      required:
+      - exitCode
+      - reason
+      type: object
     ConversationAccountPayload:
       properties:
         authMode:
@@ -14619,6 +14633,9 @@ components:
         launchId:
           description: Kennel process generation that produced the signal.
           type: string
+        processExit:
+          $ref: '#/components/schemas/ControllersSupervisedProcessExitRequest'
+          description: Authenticated process exit observation from Kennels supervisor.
         state:
           description: Agent activity state reported by an agent hook. Optional for
             metadata-only hooks.

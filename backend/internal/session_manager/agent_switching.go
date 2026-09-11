@@ -77,6 +77,7 @@ type preparedTargetActivation struct {
 	native                   domain.AgentNativeSession
 	nativeExpectedGeneration domain.AgentGenerationID
 	startMode                domain.AgentSwitchTargetStartMode
+	supervisorVerifier       string
 }
 
 type prFactReader interface {
@@ -728,6 +729,7 @@ func (m *Manager) executeAgentSwitch(ctx context.Context, admitted *admittedAgen
 		TargetNativeSessionRef:        target.native.ID,
 		TargetGenerationID:            target.launchID,
 		RuntimeHandleID:               handle.ID,
+		SupervisorCapabilityVerifier:  target.supervisorVerifier,
 		ActivatedAt:                   activatedAt,
 	}
 	activated, activationErr := m.lcm.ActivateAgentSwitchTarget(ctx, activation)
@@ -1172,7 +1174,7 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 		return preparedTargetActivation{}, err
 	}
 	m.augmentRuntimePATHForLaunchBinary(ctx, env, argv)
-	argv, rawLaunchID, err := m.superviseAgentProcessForSwitch(agent, rec.ID, env, argv)
+	argv, rawLaunchID, supervisorVerifier, err := m.superviseAgentProcessForSwitch(agent, rec.ID, env, argv, rec.Metadata.GovernedExecutionPolicyDigest != "")
 	if err != nil {
 		return preparedTargetActivation{}, fmt.Errorf("supervisor: %w", err)
 	}
@@ -1193,7 +1195,8 @@ func (m *Manager) prepareTargetActivation(ctx context.Context, store ports.Agent
 	return preparedTargetActivation{
 		agent: agent, harness: harness, env: env, launch: launch, argv: argv,
 		launchID: launchID, native: candidate, nativeExpectedGeneration: expectedGeneration,
-		startMode: mode,
+		startMode:          mode,
+		supervisorVerifier: supervisorVerifier,
 	}, nil
 }
 

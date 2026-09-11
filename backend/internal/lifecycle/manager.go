@@ -109,6 +109,14 @@ type sessionOperationGate interface {
 	SessionMutationInProgress(id domain.SessionID) bool
 }
 
+type supervisorCapabilityValidator interface {
+	Valid(sessionID domain.SessionID, launchID, token, verifier string) bool
+}
+
+type governedSessionEvidenceStore interface {
+	LatestAttemptSessionRefForSession(ctx context.Context, sessionID string) (domain.AttemptSessionRef, bool, error)
+}
+
 type pendingLaunch struct {
 	launchID string
 	ready    chan struct{}
@@ -116,6 +124,11 @@ type pendingLaunch struct {
 
 // Option customizes a Manager.
 type Option func(*Manager)
+
+// WithSupervisorCapabilityValidator authenticates launch-bound supervisor reports.
+func WithSupervisorCapabilityValidator(validator supervisorCapabilityValidator) Option {
+	return func(m *Manager) { m.supervisorCapabilities = validator }
+}
 
 // WithNotificationSink wires lifecycle notification intents to a write-side producer.
 func WithNotificationSink(sink notificationSink) Option {
@@ -188,7 +201,8 @@ type Manager struct {
 	// active turn (input steers the run) rather than only while idle. Supplied by
 	// the agent adapter via WithActiveSteering; the default answers false, so an
 	// unknown harness is only written to while idle.
-	steerActive func(domain.AgentHarness) bool
+	steerActive            func(domain.AgentHarness) bool
+	supervisorCapabilities supervisorCapabilityValidator
 }
 
 // New builds a Lifecycle Manager over the session store it writes and the messenger it uses for agent nudges.
@@ -350,6 +364,78 @@ func needsInputResolutions(prev, next domain.SessionRecord, now time.Time) []por
 	}}
 }
 
+// RecordSupervisedProcessExit persists an authenticated observation for the
+// exact current runtime generation. It records process truth only; the reaper
+// separately proves that the workload is absent before termination.
+func (m *Manager) RecordSupervisedProcessExit(ctx context.Context, id domain.SessionID, exit ports.SupervisedProcessExit, token string) error {
+	exit.LaunchID = strings.TrimSpace(exit.LaunchID)
+	exit.Reason = strings.TrimSpace(exit.Reason)
+	token = strings.TrimSpace(token)
+	m.mu.Lock()
+	for {
+		pending, ok := m.pendingLaunches[id]
+		if !ok || exit.LaunchID == "" || pending.launchID != exit.LaunchID {
+			break
+		}
+		ready := pending.ready
+		m.mu.Unlock()
+		select {
+		case <-ready:
+			m.mu.Lock()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	defer m.mu.Unlock()
+
+	rec, ok, err := m.store.GetSession(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("%w: %s", ports.ErrSessionNotFound, id)
+	}
+	if exit.LaunchID == "" || rec.Metadata.RuntimeLaunchID != exit.LaunchID {
+		return ports.ErrSupervisorLaunchStale
+	}
+	if m.supervisorCapabilities == nil || !m.supervisorCapabilities.Valid(
+		id, exit.LaunchID, token, rec.Metadata.SupervisorCapabilityVerifier,
+	) {
+		return ports.ErrSupervisorCapabilityInvalid
+	}
+	if exit.ExitCode != nil {
+		code := *exit.ExitCode
+		rec.Metadata.SupervisedProcessExitCode = &code
+	} else {
+		rec.Metadata.SupervisedProcessExitCode = nil
+	}
+	rec.Metadata.SupervisedProcessExitReason = exit.Reason
+	rec.Activity = domain.Activity{State: domain.ActivityExited, LastActivityAt: m.clock()}
+	rec.UpdatedAt = m.clock()
+	return m.store.UpdateSession(ctx, rec)
+}
+
+func (m *Manager) governedProcessExitCanTerminate(ctx context.Context, rec domain.SessionRecord) bool {
+	if strings.TrimSpace(rec.Metadata.GovernedExecutionPolicyDigest) == "" ||
+		strings.TrimSpace(rec.Metadata.SupervisorCapabilityVerifier) == "" ||
+		strings.TrimSpace(rec.Metadata.SupervisedProcessExitReason) == "" {
+		return false
+	}
+	store, ok := m.store.(governedSessionEvidenceStore)
+	if !ok {
+		return false
+	}
+	ref, found, err := store.LatestAttemptSessionRefForSession(ctx, string(rec.ID))
+	if err != nil || !found {
+		return false
+	}
+	snapshot, err := domain.ParseAdmissionSnapshot(ref.AdmissionSnapshot)
+	if err != nil || snapshot.ValidateSession(rec, ref, rec.Metadata.GovernedExecutionPolicyDigest) != nil {
+		return false
+	}
+	return snapshot.CompletionBoundary == domain.AttemptCompletionProcessExit
+}
+
 // ApplyRuntimeObservation only writes when runtime liveness is unambiguous. A
 // failed probe or liveness disagreement is ignored. Runtime death keeps the
 // existing recent-activity guard; supervised workload death is independently
@@ -371,11 +457,14 @@ func (m *Manager) ApplyRuntimeObservation(ctx context.Context, id domain.Session
 		}
 		currentLaunch := cur.Metadata.RuntimeLaunchID
 		if currentLaunch != "" && f.Runtime == ports.ProbeAlive && f.Workload == ports.ProbeDead {
-			if cur.Activity.State == domain.ActivityExited {
+			if cur.Activity.State == domain.ActivityExited && !m.governedProcessExitCanTerminate(ctx, cur) {
 				return cur, false
 			}
 			next := cur
 			next.Activity = domain.Activity{State: domain.ActivityExited, LastActivityAt: timeOr(f.ObservedAt, now)}
+			if m.governedProcessExitCanTerminate(ctx, cur) {
+				next.IsTerminated = true
+			}
 			delete(m.flights, id)
 			return next, true
 		}

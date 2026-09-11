@@ -1,6 +1,7 @@
 package ports
 
 import (
+	"errors"
 	"time"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
@@ -16,6 +17,11 @@ const (
 	ProbeAlive  ProbeResult = "alive"
 	ProbeDead   ProbeResult = "dead"
 	ProbeFailed ProbeResult = "failed"
+)
+
+var (
+	ErrSupervisorCapabilityInvalid = errors.New("supervisor capability invalid")
+	ErrSupervisorLaunchStale       = errors.New("supervisor launch generation stale")
 )
 
 // RuntimeFacts is what the reaper reports each probe of a session runtime.
@@ -64,4 +70,9 @@ type ActivitySignal struct {
 	// public hook endpoint): lifecycle rejects it after a mode handoff or Chat
 	// controller replacement.
 	ControllerGeneration string
+}
+type SupervisedProcessExit struct {
+	LaunchID string
+	ExitCode *int
+	Reason   string
 }

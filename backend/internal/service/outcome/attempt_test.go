@@ -1174,3 +1174,30 @@ func TestLeaseRenewalGatesOnProvableLiveness(t *testing.T) {
 		t.Fatalf("renewal count = %d, want >=2 (alive + sticky passes)", store.renewals)
 	}
 }
+
+func TestLivenessLoopClassifiesNonzeroGovernedProcessExitAsFailed(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	spawner.completionBoundary = domain.AttemptCompletionProcessExit
+	view, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := domain.SessionID(view.Sessions[0].SessionID)
+	exitCode := 23
+	rec := heartbeats.sessions[sessionID]
+	rec.IsTerminated = true
+	rec.Metadata.SupervisedProcessExitCode = &exitCode
+	rec.Metadata.SupervisedProcessExitReason = "failed"
+	heartbeats.sessions[sessionID] = rec
+
+	if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	reread, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reread.Attempt.Status != domain.AttemptFailed {
+		t.Fatalf("status = %s, want failed", reread.Attempt.Status)
+	}
+}

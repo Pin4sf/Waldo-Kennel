@@ -392,6 +392,7 @@ type AgentSwitchTargetActivation struct {
 	TargetNativeSessionRef        AgentNativeSessionID
 	TargetGenerationID            AgentGenerationID
 	RuntimeHandleID               string
+	SupervisorCapabilityVerifier  string
 	ActivatedAt                   time.Time
 }
 

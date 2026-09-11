@@ -61,6 +61,10 @@ func (p *Plugin) ExitDetectionMode() ports.AgentExitDetectionMode {
 	return ports.AgentExitDetectionSupervisor
 }
 
+func (p *Plugin) GovernedCompletionBoundary() domain.AttemptCompletionBoundary {
+	return domain.AttemptCompletionProcessExit
+}
+
 // SteersActiveTurn is true: submitting input to the codex TUI mid-turn steers
 // the running turn rather than being swallowed or queued, so Kennel may write an
 // unsolicited coordination message into an active codex session. See
@@ -174,6 +178,7 @@ func (p *Plugin) GetLaunchCommand(ctx context.Context, cfg ports.LaunchConfig) (
 		SystemPromptFile: cfg.SystemPromptFile,
 		Permission:       agentruntime.PermissionPolicy(permission),
 		ProviderArgs:     providerArgs,
+		OneShot:          cfg.ExecutionPolicy != nil,
 	})
 }
 
@@ -234,6 +239,7 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 		SystemPromptFile: cfg.SystemPromptFile,
 		Permission:       agentruntime.PermissionPolicy(permission),
 		ProviderArgs:     providerArgs,
+		OneShot:          cfg.ExecutionPolicy != nil,
 	})
 }
 

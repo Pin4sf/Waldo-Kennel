@@ -56,14 +56,17 @@ UPDATE sessions SET
     first_signal_at = NULL,
     runtime_handle_id = ?3,
     runtime_launch_id = ?4,
-    agent_session_id = ?5,
-    native_transcript_path = ?6,
+    supervisor_capability_verifier = ?5,
+    supervised_process_exit_code = NULL,
+    supervised_process_exit_reason = '',
+    agent_session_id = ?6,
+    native_transcript_path = ?7,
     updated_at = ?2
-WHERE id = ?7
+WHERE id = ?8
   AND is_terminated = 0
   AND activity_state = 'exited'
-  AND harness = ?8
-  AND runtime_launch_id = ?9
+  AND harness = ?9
+  AND runtime_launch_id = ?10
   AND activity_last_at <= ?2
 `
 
@@ -72,6 +75,7 @@ type ActivateSessionAgentSwitchTargetParams struct {
 	ActivatedAt                   time.Time
 	RuntimeHandleID               string
 	TargetGenerationID            string
+	SupervisorCapabilityVerifier  string
 	TargetNativeSessionID         string
 	TargetNativeTranscriptPath    string
 	SessionID                     domain.SessionID
@@ -85,6 +89,7 @@ func (q *Queries) ActivateSessionAgentSwitchTarget(ctx context.Context, arg Acti
 		arg.ActivatedAt,
 		arg.RuntimeHandleID,
 		arg.TargetGenerationID,
+		arg.SupervisorCapabilityVerifier,
 		arg.TargetNativeSessionID,
 		arg.TargetNativeTranscriptPath,
 		arg.SessionID,

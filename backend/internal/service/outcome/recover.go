@@ -321,8 +321,15 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 		if !facts.terminated() {
 			continue
 		}
+		target := domain.AttemptReconciled
+		outcome := "provider session ended; result unclassified"
+		if facts.completionBoundary == domain.AttemptCompletionProcessExit &&
+			(facts.exitCode == nil || *facts.exitCode != 0) {
+			target = domain.AttemptFailed
+			outcome = "governed provider process exited unsuccessfully"
+		}
 		rows, err := s.store.TransitionAttemptStatus(ctx, attempt.OutcomeID, attempt.ID,
-			domain.AttemptRunning, domain.AttemptReconciled, s.clock())
+			domain.AttemptRunning, target, s.clock())
 		if err != nil {
 			failures = append(failures, fmt.Errorf("attempt %s: %w", attempt.ID, err))
 			continue
@@ -331,11 +338,18 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 			continue // moved concurrently; next tick sees the truth
 		}
 		payload := mustJSON(map[string]any{
-			"sessionId": facts.sessionID,
-			"outcome":   "provider session ended; result unclassified",
+			"sessionId":  facts.sessionID,
+			"outcome":    outcome,
+			"exitCode":   facts.exitCode,
+			"exitReason": facts.exitReason,
 		})
 		if _, err := s.store.AppendAttemptObservation(ctx, attempt.ID, domain.ObservationProviderExit, payload, s.clock()); err != nil {
 			failures = append(failures, fmt.Errorf("observation for %s: %w", attempt.ID, err))
+		}
+		if target == domain.AttemptFailed {
+			if err := s.releaseCustody(ctx, attempt.ID, "governed_provider_process_failed"); err != nil {
+				failures = append(failures, fmt.Errorf("release failed provider custody for %s: %w", attempt.ID, err))
+			}
 		}
 	}
 	switch len(failures) {
@@ -350,8 +364,11 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 
 // attemptFacts pairs derived heartbeat facts with the binding they came from.
 type attemptFacts struct {
-	sessionID string
-	facts     domain.SessionHeartbeatFacts
+	sessionID          string
+	facts              domain.SessionHeartbeatFacts
+	completionBoundary domain.AttemptCompletionBoundary
+	exitCode           *int
+	exitReason         string
 }
 
 // alive reports PROVABLE current liveness: present, signalled, not
@@ -387,6 +404,14 @@ func (s *Service) heartbeatFacts(ctx context.Context, attemptID domain.AttemptID
 	if !present {
 		return attemptFacts{sessionID: ref.SessionID}, nil
 	}
+	var completionBoundary domain.AttemptCompletionBoundary
+	if domain.LooksLikeGovernedAdmissionSnapshot(ref.AdmissionSnapshot) {
+		snapshot, err := domain.ParseAdmissionSnapshot(ref.AdmissionSnapshot)
+		if err != nil {
+			return attemptFacts{}, fmt.Errorf("parse governed admission snapshot: %w", err)
+		}
+		completionBoundary = snapshot.CompletionBoundary
+	}
 	return attemptFacts{
 		sessionID: ref.SessionID,
 		facts: domain.SessionHeartbeatFacts{
@@ -396,6 +421,9 @@ func (s *Service) heartbeatFacts(ctx context.Context, attemptID domain.AttemptID
 			LastActivityAt: rec.Activity.LastActivityAt,
 			IsTerminated:   rec.IsTerminated,
 		},
+		completionBoundary: completionBoundary,
+		exitCode:           rec.Metadata.SupervisedProcessExitCode,
+		exitReason:         rec.Metadata.SupervisedProcessExitReason,
 	}, nil
 }
 

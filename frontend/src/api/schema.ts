@@ -3501,6 +3501,12 @@ export interface components {
             clarification?: components["schemas"]["ControllersIntakeClarificationInput"];
             proposal?: components["schemas"]["IntakeProposalInput"];
         };
+        ControllersSupervisedProcessExitRequest: {
+            /** @description Exact provider process exit code when available. */
+            exitCode: null | number;
+            /** @description Supervisor exit reason. */
+            reason: string;
+        };
         ConversationAccountPayload: {
             authMode?: string;
             planLabel?: string;
@@ -4970,6 +4976,8 @@ export interface components {
             latestUserPrompt?: string;
             /** @description Kennel process generation that produced the signal. */
             launchId?: string;
+            /** @description Authenticated process exit observation from Kennels supervisor. */
+            processExit?: components["schemas"]["ControllersSupervisedProcessExitRequest"];
             /**
              * @description Agent activity state reported by an agent hook. Optional for metadata-only hooks.
              * @enum {string}

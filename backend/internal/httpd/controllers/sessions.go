@@ -122,6 +122,12 @@ type ActivityRecorder interface {
 	ApplyActivitySignal(ctx context.Context, id domain.SessionID, s ports.ActivitySignal) error
 }
 
+// SupervisedExitRecorder authenticates and persists one exact-generation
+// process observation. Ordinary hook activity never satisfies this boundary.
+type SupervisedExitRecorder interface {
+	RecordSupervisedProcessExit(ctx context.Context, id domain.SessionID, exit ports.SupervisedProcessExit, token string) error
+}
+
 // ManagedPreviewServer is the deterministic server lifecycle attached to a
 // worker. It is separate from static file rendering and browser automation.
 type ManagedPreviewServer interface {
@@ -145,12 +151,13 @@ type UsageHookRecorder interface {
 // SessionsController owns the session routes. Nil keeps routes registered but
 // returns OpenAPI-backed 501s.
 type SessionsController struct {
-	Svc           SessionService
-	Activity      ActivityRecorder
-	Usage         UsageHookRecorder
-	Attachments   *attachmentstore.Store
-	PreviewServer ManagedPreviewServer
-	Capabilities  SessionCapabilityValidator
+	Svc             SessionService
+	Activity        ActivityRecorder
+	SupervisedExits SupervisedExitRecorder
+	Usage           UsageHookRecorder
+	Attachments     *attachmentstore.Store
+	PreviewServer   ManagedPreviewServer
+	Capabilities    SessionCapabilityValidator
 }
 
 // Register mounts the session routes on the supplied router.
@@ -1354,7 +1361,7 @@ func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request
 // lifecycle.Manager so the reaper and hooks never race on the session's
 // activity/termination columns.
 func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
-	if c.Activity == nil && c.Usage == nil {
+	if c.Activity == nil && c.Usage == nil && c.SupervisedExits == nil {
 		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/activity")
 		return
 	}
@@ -1393,6 +1400,33 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 		LatestAssistantUpdate: capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.LatestAssistantUpdate)), 16<<10),
 		TranscriptPath:        capActivityText(domain.SanitizeControlChars(strings.TrimSpace(in.TranscriptPath)), 4096),
 		LaunchID:              capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.LaunchID))),
+	}
+	if in.ProcessExit != nil {
+		reason := capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.ProcessExit.Reason)))
+		if state != domain.ActivityExited || sig.Event != "process-exited" || sig.LaunchID == "" ||
+			(reason != "exited" && reason != "failed" && reason != "cancelled" && reason != "start_failed" && reason != "unknown") ||
+			(in.ProcessExit.ExitCode != nil && *in.ProcessExit.ExitCode < 0) {
+			envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "SUPERVISED_EXIT_INVALID", "Supervised process exit is invalid", nil)
+			return
+		}
+		if c.SupervisedExits == nil {
+			apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/activity")
+			return
+		}
+		exit := ports.SupervisedProcessExit{LaunchID: sig.LaunchID, ExitCode: in.ProcessExit.ExitCode, Reason: reason}
+		if err := c.SupervisedExits.RecordSupervisedProcessExit(r.Context(), sessionID(r), exit, r.Header.Get("X-Kennel-Supervisor-Capability")); err != nil {
+			switch {
+			case errors.Is(err, ports.ErrSessionNotFound):
+				envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "SESSION_NOT_FOUND", "Unknown session", nil)
+			case errors.Is(err, ports.ErrSupervisorCapabilityInvalid):
+				envelope.WriteAPIError(w, r, http.StatusForbidden, "forbidden", "SUPERVISOR_CAPABILITY_INVALID", "Supervisor capability is invalid", nil)
+			case errors.Is(err, ports.ErrSupervisorLaunchStale):
+				envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SUPERVISOR_LAUNCH_STALE", "Supervisor launch generation is stale", nil)
+			default:
+				envelope.WriteError(w, r, err)
+			}
+			return
+		}
 	}
 	if c.Activity != nil && (sig.Valid || sig.AgentSessionID != "") {
 		if err := c.Activity.ApplyActivitySignal(r.Context(), sessionID(r), sig); err != nil {

@@ -369,6 +369,7 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 		"executionPolicy":        policy,
 		"executionPolicyDigest":  policyDigest,
 		"sessionId":              session.ID,
+		"completionBoundary":     spawned.CompletionBoundary,
 		"requestedAt":            now,
 		// The exact predecessor artifacts this Attempt consumed. Recording
 		// them is what lets a replay or an audit say which bytes the successor

@@ -578,6 +578,20 @@ func TestGetLaunchCommandMapsAttemptExecutionPolicy(t *testing.T) {
 	if contains(cmd, "--dangerously-bypass-approvals-and-sandbox") {
 		t.Fatalf("policy launch retained broad bypass: %#v", cmd)
 	}
+	if !contains(cmd, "exec") {
+		t.Fatalf("governed launch did not use one-shot codex exec: %#v", cmd)
+	}
+}
+
+func TestGetLaunchCommandKeepsOrdinarySessionInteractive(t *testing.T) {
+	plugin := &Plugin{resolvedBinary: "codex"}
+	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{Prompt: "continue interactively"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contains(cmd, "exec") {
+		t.Fatalf("ordinary launch unexpectedly used one-shot exec: %#v", cmd)
+	}
 }
 
 func TestValidateExecutionPolicyRejectsWideningCapabilitySet(t *testing.T) {
@@ -1048,6 +1062,22 @@ func TestGetRestoreCommandPinsGovernedWorkspaceWriteBoundary(t *testing.T) {
 	}
 	if containsSubsequence(cmd, []string{"--ask-for-approval", "never"}) || !containsSubsequence(cmd, []string{"--ask-for-approval", "on-request"}) {
 		t.Fatalf("restore command %#v did not force governed approval posture", cmd)
+	}
+	if !containsSubsequence(cmd, []string{"exec", "resume", "thread-123"}) {
+		t.Fatalf("governed restore did not use one-shot codex exec resume: %#v", cmd)
+	}
+}
+
+func TestGetRestoreCommandKeepsOrdinarySessionInteractive(t *testing.T) {
+	plugin := &Plugin{resolvedBinary: "codex"}
+	cmd, ok, err := plugin.GetRestoreCommand(context.Background(), ports.RestoreConfig{
+		Session: ports.SessionRef{Metadata: map[string]string{ports.MetadataKeyAgentSessionID: "thread-ordinary"}},
+	})
+	if err != nil || !ok {
+		t.Fatalf("restore = (ok=%v, err=%v), want ok", ok, err)
+	}
+	if len(cmd) < 2 || cmd[0] != "codex" || cmd[1] != "resume" || contains(cmd, "exec") {
+		t.Fatalf("ordinary restore did not preserve interactive resume: %#v", cmd)
 	}
 }
 

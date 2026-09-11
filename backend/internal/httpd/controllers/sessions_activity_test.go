@@ -397,3 +397,53 @@ func TestSessionsAPI_ActivityWithoutRecorderIs501(t *testing.T) {
 	body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions/kennel-1/activity", `{"state":"idle"}`)
 	assertErrorCode(t, body, status, http.StatusNotImplemented, "NOT_IMPLEMENTED")
 }
+
+type fakeSupervisedExitRecorder struct {
+	gotID    domain.SessionID
+	gotExit  ports.SupervisedProcessExit
+	gotToken string
+	calls    int
+	err      error
+}
+
+func (f *fakeSupervisedExitRecorder) RecordSupervisedProcessExit(_ context.Context, id domain.SessionID, exit ports.SupervisedProcessExit, token string) error {
+	f.calls++
+	f.gotID = id
+	f.gotExit = exit
+	f.gotToken = token
+	return f.err
+}
+
+func TestSessionsAPI_ActivityAuthenticatesSupervisedProcessExit(t *testing.T) {
+	recorder := &fakeSupervisedExitRecorder{}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	srv := httptest.NewServer(httpd.NewRouterWithControl(
+		config.Config{}, log, nil,
+		httpd.APIDeps{Activity: &fakeActivityRecorder{}, SupervisedExits: recorder},
+		httpd.ControlDeps{},
+	))
+	t.Cleanup(srv.Close)
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/sessions/kennel-1/activity",
+		strings.NewReader(`{"state":"exited","event":"process-exited","launchId":"launch-1","processExit":{"exitCode":23,"reason":"failed"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Kennel-Supervisor-Capability", "supervisor-token")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status=%d body=%s", resp.StatusCode, body)
+	}
+	if recorder.calls != 1 || recorder.gotID != "kennel-1" || recorder.gotToken != "supervisor-token" {
+		t.Fatalf("recorder = %+v", recorder)
+	}
+	if recorder.gotExit.LaunchID != "launch-1" || recorder.gotExit.ExitCode == nil || *recorder.gotExit.ExitCode != 23 || recorder.gotExit.Reason != "failed" {
+		t.Fatalf("exit = %+v", recorder.gotExit)
+	}
+}

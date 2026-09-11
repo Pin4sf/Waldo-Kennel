@@ -274,7 +274,13 @@ func (a attemptSpawner) Spawn(ctx context.Context, req ports.AttemptSpawnRequest
 	// The ordinary session read model does not currently expose a runtime-
 	// reported effective model. Leave it unknown rather than fabricating one;
 	// the immutable requested binding remains recorded separately by Attempt.
-	return ports.AttemptSpawnResult{Session: sess}, nil
+	var completionBoundary domain.AttemptCompletionBoundary
+	if agent, ok := a.agents.Agent(binding.Provider); ok {
+		if provider, ok := agent.(ports.GovernedCompletionBoundaryProvider); ok {
+			completionBoundary = provider.GovernedCompletionBoundary()
+		}
+	}
+	return ports.AttemptSpawnResult{Session: sess, CompletionBoundary: completionBoundary}, nil
 }
 
 func (a attemptSpawner) Terminate(ctx context.Context, _ domain.ProjectID, sessionID string) (ports.TerminationResult, error) {
