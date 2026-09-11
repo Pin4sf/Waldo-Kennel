@@ -25,11 +25,22 @@ export function reasoningStatusMessage(
   switch (status.errorCode) {
     case "MISSING_CREDENTIAL":
       return t("settings.reasoning.missing");
+    case "CREDENTIAL_REJECTED":
+    case "AUTH_REQUIRED":
+      return t("settings.reasoning.credentialRejected");
     case "PROVIDER_NOT_READY":
     case "REASONING_NOT_READY":
       if (status.provider === "codex")
         return t("onboarding.agent.reasoningNotReady");
       return t("settings.reasoning.missing");
+    case "REASONING_RATE_LIMITED":
+    case "REASONING_TIMED_OUT":
+    case "REASONING_CANCELLED":
+    case "REASONING_DECLINED":
+    case "REASONING_INCOMPLETE":
+    case "REASONING_INVALID_OUTPUT":
+    case "REASONING_UNAVAILABLE":
+      return t("settings.reasoning.unavailable");
     default:
       break;
   }

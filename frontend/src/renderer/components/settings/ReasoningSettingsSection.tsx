@@ -18,7 +18,7 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 	const { t } = useTranslation();
 	const { settings, isLoading, error: loadError } = useSettings();
 	const { update, saving, error: saveError } = useUpdateReasoning();
-	const { verify, verifying, error: verifyError } = useVerifyReasoning();
+	const { verify, verifying, error: verifyError, errorCode: verifyErrorCode } = useVerifyReasoning();
 	const [provider, setProvider] = useState<"anthropic" | "openai" | "codex">("anthropic");
 	const [model, setModel] = useState("");
 	const [effort, setEffort] = useState("");
@@ -43,7 +43,11 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 		!saveError &&
 		!verifyError &&
 		!loadError;
-	const message = saveError ?? verifyError ?? loadError ?? reasoningStatusMessage(status, provider, t);
+	const statusWithVerifyError = status && verifyErrorCode ? { ...status, errorCode: verifyErrorCode } : status;
+	const message =
+		saveError ??
+		loadError ??
+		(verifyError ? reasoningStatusMessage(statusWithVerifyError, provider, t) : reasoningStatusMessage(status, provider, t));
 
 	return (
 		<SettingsSection title={t("settings.reasoning.title")} titleHidden={titleHidden} grouped>

@@ -41,7 +41,7 @@ beforeEach(async () => {
 	update.mockResolvedValue(settings.reasoning);
 	verify.mockResolvedValue(settings.reasoning);
 	vi.mocked(useUpdateReasoning).mockReturnValue({ update, saving: false, error: undefined });
-	vi.mocked(useVerifyReasoning).mockReturnValue({ verify, verifying: false, error: undefined });
+	vi.mocked(useVerifyReasoning).mockReturnValue({ verify, verifying: false, error: undefined, errorCode: undefined });
 });
 
 describe("ReasoningSettingsSection", () => {
@@ -113,6 +113,33 @@ describe("ReasoningSettingsSection", () => {
 		expect(verifyButton).toBeDisabled();
 		expect(screen.getByRole("status")).toHaveTextContent("Unsaved provider change");
 		expect(verify).not.toHaveBeenCalled();
+	});
+
+	it("surfaces a rejected saved credential instead of calling it unverified", () => {
+		vi.mocked(useSettings).mockReturnValue({
+			settings: {
+				...settings,
+				reasoning: {
+					...settings.reasoning,
+					provider: "openai",
+					configured: true,
+					ready: true,
+					verified: false,
+				},
+			},
+			isLoading: false,
+			error: undefined,
+		});
+		vi.mocked(useVerifyReasoning).mockReturnValue({
+			verify,
+			verifying: false,
+			error: "credential rejected",
+			errorCode: "CREDENTIAL_REJECTED",
+		});
+
+		renderSection();
+		expect(screen.getByRole("status")).toHaveTextContent("The saved reasoning credential was rejected");
+		expect(screen.queryByText(/Configured, but not verified yet/)).not.toBeInTheDocument();
 	});
 
 	it("does not carry a configured-key placeholder across provider changes", async () => {
