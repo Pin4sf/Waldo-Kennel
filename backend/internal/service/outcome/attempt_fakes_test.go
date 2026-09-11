@@ -124,9 +124,14 @@ func (f *attemptFakeStore) CreateAttemptWithFence(_ context.Context, admission p
 		Number:                 int64(len(f.attempts[outcomeID]) + 1),
 		Status:                 domain.AttemptQueued,
 		ContractRevisionNumber: admission.ContractRevisionNumber,
-		RequestKey:             requestKey,
-		CreatedAt:              at,
-		UpdatedAt:              at,
+		// The durable store binds the admitting authorization generation inside
+		// the admission transaction. Dropping it here would make this fake
+		// unable to tell which authorization an Attempt belongs to, which is
+		// exactly what decides whether an older stop may act on it.
+		RunIntentGeneration: admission.RunIntentGeneration,
+		RequestKey:          requestKey,
+		CreatedAt:           at,
+		UpdatedAt:           at,
 	}
 	f.attempts[outcomeID] = append(f.attempts[outcomeID], attempt)
 	if requestKey != "" {

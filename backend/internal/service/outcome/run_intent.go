@@ -381,6 +381,13 @@ func (s *Service) refuseUnknownSurvivingWork(ctx context.Context, outcomeID doma
 // additionally asks the active Attempt to stop, and is acknowledged only when
 // that stop is proven — an unproven stop leaves the request visible rather
 // than reporting a cancellation that may not have happened.
+//
+// It acts only on execution its own authorization covered. That is what makes
+// it safe to call from a snapshot: reconciliation and replay both hand it a row
+// that was current when it was read, and the owner may have authorized fresh
+// work since. Re-reading the current intent here would narrow that window
+// without closing it, because the read is still not the effect. The durable
+// binding closes it instead — see stopCoversAttempt.
 func (s *Service) applyStopIntent(ctx context.Context, outcomeID domain.OutcomeID, intent domain.OutcomeRunIntent) error {
 	switch intent.Desired {
 	case domain.RunIntentPaused, domain.RunIntentCancelled:
@@ -391,10 +398,11 @@ func (s *Service) applyStopIntent(ctx context.Context, outcomeID domain.OutcomeI
 	if err != nil {
 		return err
 	}
-	active := activeAttempt(attempts)
+	active := activeAttemptUnderAuthorization(attempts, intent.Generation)
 	if active == nil {
-		// Nothing is running, so no further admission can follow this
-		// generation and the request has already taken effect.
+		// Nothing this authorization covers is running, so the request has
+		// taken full effect. Work admitted under a later authorization is not
+		// this stop's business and does not hold its acknowledgement open.
 		return s.runIntents.AcknowledgeRunIntent(ctx, outcomeID, intent.Generation, s.clock())
 	}
 	if intent.Desired == domain.RunIntentPaused {
@@ -413,6 +421,37 @@ func (s *Service) applyStopIntent(ctx context.Context, outcomeID domain.OutcomeI
 		return err
 	}
 	return s.runIntents.AcknowledgeRunIntent(ctx, outcomeID, intent.Generation, s.clock())
+}
+
+// activeAttemptUnderAuthorization returns the newest active Attempt a stop at
+// this generation actually covers.
+//
+// The coverage rule is a fact about durable rows, not about when anything was
+// read, which is what makes it immune to the interleaving that defeats a
+// re-read. Admission records the authorization generation that admitted each
+// Attempt inside the same transaction that validates it, and admission is
+// refused outright while an intent is paused or cancelled — so no Attempt can
+// ever be admitted under a stopped generation, and an Attempt bound to a later
+// generation is necessarily work the owner authorized after this stop.
+//
+// Generation zero is covered by any stop: it means the Attempt was started
+// individually before any authorization existed, so nothing later authorized
+// it and a stop is the only thing that can account for it.
+func activeAttemptUnderAuthorization(attempts []domain.Attempt, generation int64) *domain.Attempt {
+	var latest *domain.Attempt
+	for i := range attempts {
+		attempt := attempts[i]
+		if !attemptActiveForScheduling(attempt.Status) {
+			continue
+		}
+		if attempt.RunIntentGeneration > generation {
+			continue
+		}
+		if latest == nil || attempt.CreatedAt.After(latest.CreatedAt) {
+			latest = &attempt
+		}
+	}
+	return latest
 }
 
 // ReconcileRunIntents carries out stop requests whose effect has not happened
