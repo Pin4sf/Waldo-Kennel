@@ -1965,6 +1965,7 @@ func (m *Manager) relaunchSessionWithPolicy(ctx context.Context, operation strin
 		AgentSessionID:                rec.Metadata.AgentSessionID,
 		Prompt:                        rec.Metadata.Prompt,
 		BrowserCapabilityVerifier:     browserCapabilityVerifier,
+		SupervisorCapabilityVerifier:  supervisorVerifier,
 		GovernedExecutionPolicyDigest: rec.Metadata.GovernedExecutionPolicyDigest,
 	}
 	if err := m.lcm.MarkSpawned(ctx, rec.ID, metadata); err != nil {
