@@ -6,7 +6,6 @@ import { runStateAttention } from "../../lib/mission-attention";
 import { MissionUsage } from "./MissionUsage";
 import { useSettings } from "../../hooks/useSettings";
 import { ReasoningSettingsSection } from "../settings/ReasoningSettingsSection";
-import { MissionReplanForm } from "./MissionReplanForm";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useOutcome, useOutcomePlan, useOutcomeProof } from "../../hooks/useOutcome";
@@ -170,15 +169,12 @@ export function OutcomeMissionPanel({
 									disabled={connection !== "connected" || Boolean(reasoningUnavailable && !plan)}
 									className="min-w-0"
 								>
-									<OutcomeDecideAuthorizeSurface outcomeId={outcomeId} onReviewWork={() => setTab("execution")} />
-								</fieldset>
-								{plan && !reasoningUnavailable && (
-									<MissionReplanForm
-										key={outcome.currentRevision.id}
+									<OutcomeDecideAuthorizeSurface
+										onReviewContract={() => setTab("contract")}
+										onReviewWork={() => setTab("execution")}
 										outcomeId={outcomeId}
-										revision={outcome.currentRevisionNumber}
 									/>
-								)}
+								</fieldset>
 							</div>
 							<div hidden={tab !== "execution"}>
 								<OutcomeRunSurface

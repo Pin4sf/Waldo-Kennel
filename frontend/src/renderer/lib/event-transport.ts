@@ -141,7 +141,7 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 					if (outcomeFactsInvalidationPending) {
 						// A connected stream does not make cached responsibility facts current.
 						// Refresh the Mission and portfolio together after CDC or a reconnect gap.
-						for (const root of ["project-outcomes", "outcome", "outcome-plan", "outcome-attempts", "outcome-proof", "outcome-schedule", "outcome-run-state", "project-run-states"]) {
+						for (const root of ["project-outcomes", "outcome", "outcome-plan", "outcome-attempts", "outcome-proof", "outcome-schedule", "outcome-run-state", "project-run-states", "outcome-planning-session", "outcome-planning-candidates"]) {
 							void queryClient.invalidateQueries({ queryKey: [root] });
 						}
 						outcomeFactsInvalidationPending = false;
