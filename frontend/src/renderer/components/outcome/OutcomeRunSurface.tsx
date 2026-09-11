@@ -163,6 +163,7 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 				<section className="max-w-2xl rounded-group hairline border-border bg-card px-4.5 py-3.5" data-testid="outcome-run-schedule">
 					<MissionPlanView
 						criterionText={criterionText}
+						attempts={attempts}
 						schedule={schedule}
 						workUnits={schedule.workUnits.map((entry) => entry.workUnit)}
 					/>

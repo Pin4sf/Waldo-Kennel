@@ -2,6 +2,7 @@ import { ApprovedChecks } from "./ApprovedChecks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { components } from "../../../api/schema";
+import type { AttemptRecord } from "../../hooks/useOutcome";
 import { MissionWorkUnitGraph } from "./MissionWorkUnitGraph";
 import { layerByDependency } from "../../lib/dependency-layers";
 import { Button } from "../ui/button";
@@ -14,10 +15,12 @@ export function MissionPlanView({
 	workUnits,
 	schedule,
 	criterionText,
+	attempts,
 }: {
 	workUnits: Unit[];
 	schedule?: Schedule;
 	criterionText?: (id: string) => string | undefined;
+	attempts?: AttemptRecord[];
 }) {
 	const { t } = useTranslation();
 	const [view, setView] = useState<"graph" | "table">("graph");
@@ -27,6 +30,7 @@ export function MissionPlanView({
 	).flat();
 	const selected = units.find((unit) => unit.id === selectedId);
 	const entry = schedule?.workUnits.find((item) => item.workUnit.id === selectedId);
+	const selectedAttempts = attempts?.filter((attempt) => attempt.workUnitId === selectedId) ?? [];
 	const title = (id: string) => units.find((unit) => unit.id === id)?.title ?? id;
 	return (
 		<section className="flex min-w-0 flex-col gap-3" data-testid="mission-plan-view">
@@ -110,19 +114,35 @@ export function MissionPlanView({
 				</table>
 			</div>
 			{selected ? (
-				<section className="border-t border-border pt-3" aria-label={selected.title} data-testid="mission-unit-detail">
-					<h3 className="text-sm font-medium break-words">{selected.title}</h3>
-					<dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
-						<dt>{t("mission.output")}</dt>
-						<dd className="whitespace-pre-wrap break-words">{selected.outputSummary || t("mission.unknown")}</dd>
-						<dt>{t("mission.criteria")}</dt>
+					<section className="border-t border-border pt-3" aria-label={selected.title} data-testid="mission-unit-detail">
+						<h3 className="text-sm font-medium break-words">{selected.title}</h3>
+						<p className="mt-1 text-2xs text-muted-foreground">
+							{t("mission.planBinding", {
+								plan: schedule?.plan?.number ?? t("mission.notApproved"),
+								contract: selected.contractRevisionNumber,
+							})}
+						</p>
+						<dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
+							<dt>{t("mission.objective")}</dt>
+							<dd className="whitespace-pre-wrap break-words">{selected.title}</dd>
+							<dt>{t("mission.dependencies")}</dt>
+							<dd>{(selected.dependsOn ?? []).map(title).join(", ") || t("outcome.decide.dependsOnNone")}</dd>
+							<dt>{t("mission.output")}</dt>
+							<dd className="whitespace-pre-wrap break-words">{selected.outputSummary || t("mission.unknown")}</dd>
+							<dt>{t("mission.agent")}</dt>
+							<dd>
+								{selected.provider || t("outcome.missionGraph.bindingUnset")} · {selected.modelSelection === "provider_default"
+									? t("outcome.missionGraph.providerDefault")
+									: selected.model || t("outcome.missionGraph.modelUnknown")}
+							</dd>
+							<dt>{t("mission.criteria")}</dt>
 						<dd>
 							{(selected.criterionIds ?? []).map((id) => criterionText?.(id) ?? id).join(" · ") || t("mission.none")}
 						</dd>
-						<dt>{t("mission.evidence")}</dt>
-						<dd>
-							{(selected.evidenceChecks ?? []).join(" · ")}
-							<p>{selected.verificationRequirement}</p>
+							<dt>{t("mission.evidence")}</dt>
+							<dd>
+								{(selected.evidenceChecks ?? []).join(" · ")}
+								<p>{selected.verificationRequirement}</p>
 							{(selected.criterionIds ?? []).map((id) => (
 								<p key={id}>
 									{criterionText?.(id) ?? id}:{" "}
@@ -132,14 +152,21 @@ export function MissionPlanView({
 											? t("mission.proofReady")
 											: t("mission.proofMissing")}
 								</p>
-							))}
-						</dd>
-						<dt>{t("mission.capabilities")}</dt>
+								))}
+								<ApprovedChecks criterionText={criterionText} unit={selected} />
+							</dd>
+							{entry?.blockedDetail && (
+								<>
+									<dt>{t("mission.blocker")}</dt>
+									<dd className="whitespace-pre-wrap break-words text-warning">{entry.blockedDetail}</dd>
+								</>
+							)}
+							<dt>{t("mission.capabilities")}</dt>
 						<dd>{(selected.requiredCapabilities ?? []).join(", ") || t("mission.none")}</dd>
 						<dt>{t("mission.stops")}</dt>
 						<dd>{(selected.stopConditions ?? []).join(" · ") || t("mission.none")}</dd>
-						<dt>{t("mission.attempts")}</dt>
-						<dd>
+							<dt>{t("mission.attempts")}</dt>
+							<dd>
 							{entry?.attempts.length ? (
 								<ul>
 									{entry.attempts.map((attempt) => (
@@ -150,14 +177,28 @@ export function MissionPlanView({
 												<summary>{t("mission.attempts")}</summary>
 												<code>{attempt.id}</code>
 											</details>
-										</li>
-									))}
-								</ul>
+											</li>
+										))}
+									</ul>
 							) : (
 								t("mission.noAttempts")
-							)}
-						</dd>
-					</dl>
+								)}
+							</dd>
+							<dt>{t("mission.sessions")}</dt>
+							<dd>
+								{selectedAttempts.length > 0 ? (
+									<ul className="space-y-1">
+										{selectedAttempts.flatMap((attempt) => attempt.sessions.map((session) => (
+											<li key={session.id}>
+												<code>{session.sessionId}</code> · {session.harness} · {session.mode ?? t("mission.modeUnknown")}
+											</li>
+										)))}
+									</ul>
+								) : (
+									t("mission.noSessions")
+								)}
+							</dd>
+						</dl>
 				</section>
 			) : (
 				<p className="text-xs text-muted-foreground">{t("mission.selectUnit")}</p>

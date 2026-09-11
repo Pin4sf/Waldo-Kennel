@@ -114,7 +114,12 @@ function renderStageBody({
 				outcomeId={outcome}
 				projectId={project}
 				stage={stage}
-				onClose={() => void navigate({ to: "/work", search: { view: "outcomes", portfolio, project: portfolio } })}
+				onClose={() =>
+					void navigate({
+						to: "/work",
+						search: { view: "outcomes", portfolio: portfolio ?? project, project: portfolio ?? project },
+					})
+				}
 				onOpenOutcome={(projectId: string, openedOutcome: OutcomeRecord, openedStage: OutcomeDestinationStage) => {
 					void navigate({
 						to: "/work",

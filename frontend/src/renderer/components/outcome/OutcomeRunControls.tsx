@@ -17,6 +17,8 @@ export function OutcomeRunControls({
 	const state = query.data;
 	const unavailable = query.isError || !state || query.isFetching || connection !== "connected";
 	const intent = state?.intent;
+	const startEligibility = state?.eligibleActions.find((item) => item.action === "start");
+	const resumeEligibility = state?.eligibleActions.find((item) => item.action === "resume");
 	return (
 		<section className="rounded-group border border-border bg-card p-4" aria-label={t("mission.run.controls")}>
 			<p role="status" className="text-sm">
@@ -32,6 +34,38 @@ export function OutcomeRunControls({
 							: t("mission.run.idle"))}
 			</p>
 			{state?.blocker && <p className="mt-2 text-sm text-muted-foreground">{state.blocker.message}</p>}
+			{intent && !intent.bindsCurrentPlan && (
+				<p className="mt-2 text-sm text-warning">{t("mission.run.supersededIntent")}</p>
+			)}
+			{state?.blocker?.detail && (
+				<details className="mt-2 text-xs text-muted-foreground">
+					<summary className="cursor-pointer">{t("mission.run.blockerDetail")}</summary>
+					<div className="mt-1 space-y-1 pl-3">
+						{Object.entries(state.blocker.detail).map(([key, value]) => (
+							<p key={key}>
+								<span className="font-medium">{key}:</span>{" "}
+								{typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : JSON.stringify(value)}
+							</p>
+						))}
+					</div>
+				</details>
+			)}
+			{startEligibility && !startEligibility.available && startEligibility.reason && (
+				<p className="mt-2 text-xs text-warning" data-testid="outcome-run-start-refusal">
+					{t("mission.run.actionUnavailable", {
+						action: t("mission.run.action.start"),
+						reason: t(`mission.run.reason.${startEligibility.reason}`, { defaultValue: startEligibility.reason }),
+					})}
+				</p>
+			)}
+			{resumeEligibility && !resumeEligibility.available && resumeEligibility.reason && (
+				<p className="mt-2 text-xs text-warning" data-testid="outcome-run-resume-refusal">
+					{t("mission.run.actionUnavailable", {
+						action: t("mission.run.action.resume"),
+						reason: t(`mission.run.reason.${resumeEligibility.reason}`, { defaultValue: resumeEligibility.reason }),
+					})}
+				</p>
+			)}
 			{unavailable && <p className="text-xs text-muted-foreground">{t("mission.run.unavailable")}</p>}
 			<div className="mt-3 flex flex-wrap gap-2">
 				{(["start", "pause", "resume", "cancel"] as const).map((action) => {

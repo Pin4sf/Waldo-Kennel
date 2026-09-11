@@ -90,3 +90,23 @@ it("disables run authority during disconnection", async () => {
 	mount();
 	expect(await screen.findByRole("button", { name: "Start approved Plan" })).toBeDisabled();
 });
+it("translates canonical run refusal codes into human-readable blockers", async () => {
+	get.mockResolvedValue({
+		data: {
+			runState: {
+				...state,
+				eligibleActions: [
+					{ action: "start", available: false, reason: "plan_not_approved" },
+					{ action: "resume", available: false, reason: "no_active_run" },
+				],
+			},
+		},
+	});
+	mount();
+	expect(await screen.findByTestId("outcome-run-start-refusal")).toHaveTextContent(
+		"Start approved Plan unavailable: the Plan has not been approved",
+	);
+	expect(screen.getByTestId("outcome-run-resume-refusal")).toHaveTextContent(
+		"Resume Plan unavailable: there is no active run",
+	);
+});
