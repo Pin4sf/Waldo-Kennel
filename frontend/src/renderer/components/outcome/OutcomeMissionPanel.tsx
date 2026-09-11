@@ -1,3 +1,4 @@
+import { MissionContractEditor } from "./MissionContractEditor";
 import { useOutcomeRunState } from "../../hooks/useOutcomeRunState";
 import { X, Maximize2, Minimize2 } from "lucide-react";
 import { runStateAttention } from "../../lib/mission-attention";
@@ -143,6 +144,7 @@ export function OutcomeMissionPanel({
 						</nav>
 						<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-2 pb-6">
 							<div hidden={tab !== "contract"}>
+								<MissionContractEditor key={outcomeId} outcomeId={outcomeId} contract={outcome.currentRevision} disabled={connection !== "connected"} />
 								<ContractOverview contract={outcome.currentRevision} />
 								<OutcomeDocumentsPanel outcomeId={outcomeId} />
 								<Button className="mt-4" onClick={() => setTab("plan")}>

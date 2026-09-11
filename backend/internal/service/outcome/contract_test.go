@@ -679,3 +679,36 @@ func (f *fakeStore) BindDecompositionRequestSession(_ context.Context, id domain
 	f.requests[id] = request
 	return nil
 }
+
+func TestRevisionEvidenceBindsNewCriterionIdentities(t *testing.T) {
+	svc, _ := newService()
+	ctx := context.Background()
+	original, err := svc.Create(ctx, validCreateInput())
+	if err != nil {
+		t.Fatal(err)
+	}
+	revised, err := svc.ReviseContract(ctx, original.Outcome.ID, outcome.ReviseContractInput{
+		ExpectedRevision: 1, Goal: "Revised goal", SuccessCriteria: []string{"New criterion"}, Review: "Owner reviews evidence",
+		CriterionEvidence: [][]string{{"Source path and quoted result"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(revised.Current.EvidenceExpectations) != 1 || revised.Current.EvidenceExpectations[0].CriterionID != revised.Current.Criteria[0].ID {
+		t.Fatalf("evidence is not bound to the new criterion: %#v", revised.Current)
+	}
+	if revised.Current.Criteria[0].ID == original.Current.Criteria[0].ID {
+		t.Fatal("revision reused old criterion identity")
+	}
+	_, err = svc.ReviseContract(ctx, original.Outcome.ID, outcome.ReviseContractInput{
+		ExpectedRevision: 2, Goal: "Invalid revision", SuccessCriteria: []string{"One", "Two"}, Review: "Owner review",
+		CriterionEvidence: [][]string{{"Only one"}},
+	})
+	if err == nil {
+		t.Fatal("mismatched criterion evidence was accepted")
+	}
+	current, err := svc.Get(ctx, original.Outcome.ID)
+	if err != nil || current.Current.Number != 2 {
+		t.Fatal("invalid revision changed current contract")
+	}
+}

@@ -372,16 +372,23 @@ func (c *OutcomesController) revise(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
 		return
 	}
+	facets := make([]domain.ContractFacet, 0, len(req.Facets))
+	for _, facet := range req.Facets {
+		facets = append(facets, domain.ContractFacet{Kind: domain.ContractFacetKind(facet.Kind), Summary: facet.Summary, Requirements: facet.Requirements})
+	}
 	view, err := c.Svc.ReviseContract(r.Context(), domain.OutcomeID(chi.URLParam(r, "outcomeId")), outcomevc.ReviseContractInput{
-		ExpectedRevision: req.ExpectedRevision,
-		Goal:             req.Goal,
-		SuccessCriteria:  req.SuccessCriteria,
-		Review:           req.Review,
-		Constraints:      req.Constraints,
-		NonGoals:         req.NonGoals,
-		Clarification:    req.Clarification,
-		AuthorityCeiling: proposedAuthority(req.AuthorityCeiling),
-		StopConditions:   req.StopConditions,
+		CriterionEvidence: req.CriterionEvidence,
+		TemporalCondition: req.TemporalCondition,
+		Facets:            facets,
+		ExpectedRevision:  req.ExpectedRevision,
+		Goal:              req.Goal,
+		SuccessCriteria:   req.SuccessCriteria,
+		Review:            req.Review,
+		Constraints:       req.Constraints,
+		NonGoals:          req.NonGoals,
+		Clarification:     req.Clarification,
+		AuthorityCeiling:  proposedAuthority(req.AuthorityCeiling),
+		StopConditions:    req.StopConditions,
 	})
 	if err != nil {
 		envelope.WriteError(w, r, err)

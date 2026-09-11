@@ -1961,6 +1961,10 @@ type ReviseOutcomeContractRequest struct {
 	// unplannable.
 	AuthorityCeiling IntakeAuthority `json:"authorityCeiling,omitempty"`
 	StopConditions   []string        `json:"stopConditions,omitempty"`
+	// CriterionEvidence binds by position to the newly assigned criterion IDs.
+	CriterionEvidence [][]string    `json:"criterionEvidence,omitempty"`
+	TemporalCondition *string       `json:"temporalCondition,omitempty"`
+	Facets            []IntakeFacet `json:"facets,omitempty"`
 }
 
 // ContractRevisionResponse is one immutable contract revision.

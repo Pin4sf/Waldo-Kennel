@@ -4441,13 +4441,16 @@ export interface components {
             authorityCeiling?: components["schemas"]["ControllersIntakeAuthority"];
             clarification?: string;
             constraints?: string[];
+            criterionEvidence?: string[][];
             /** Format: int64 */
             expectedRevision: number;
+            facets?: components["schemas"]["ControllersIntakeFacet"][];
             goal: string;
             nonGoals?: string[];
             review: string;
             stopConditions?: string[];
             successCriteria: string[];
+            temporalCondition?: null | string;
         };
         RoleOverride: {
             agent?: string;

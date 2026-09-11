@@ -2519,5 +2519,21 @@
 	"mission.boardLane.define": "To do",
 	"mission.boardLane.observe": "In progress",
 	"mission.boardLane.needsYou": "Needs you",
-	"mission.boardLane.accepted": "Finished"
+	"mission.boardLane.accepted": "Finished",
+	"mission.editor.edit": "Edit Contract",
+	"mission.editor.changed": "The Contract changed while you were editing. Your draft is preserved. Close the editor and reopen to review the latest revision.",
+	"mission.editor.goal": "Desired result",
+	"mission.editor.evidence": "Evidence expected (one per line)",
+	"mission.editor.add": "Add criterion",
+	"mission.editor.review": "How it will be reviewed",
+	"mission.editor.constraints": "Constraints (one per line)",
+	"mission.editor.nonGoals": "Out of scope (one per line)",
+	"mission.editor.stops": "Pause conditions (one per line)",
+	"mission.editor.permissions": "Permissions",
+	"mission.editor.discard": "Discard draft",
+	"mission.editor.note": "Save as revision {{revision}}. Your previous Contract stays in history. Review a new Plan before starting revised work; this does not stop an already running session.",
+	"mission.editor.criterion": "Success criterion {{number}}",
+	"mission.editor.remove": "Remove criterion {{number}}",
+	"mission.editor.saving": "Saving…",
+	"mission.editor.save": "Save new revision"
 }

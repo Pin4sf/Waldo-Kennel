@@ -393,16 +393,37 @@ func (p *LLMProvider) DraftPlan(ctx context.Context, request ports.PlanIntellige
 	if len(request.Contract.NonGoals) > 0 {
 		fmt.Fprintf(&input, "\nExplicitly not in scope:\n- %s\n", strings.Join(request.Contract.NonGoals, "\n- "))
 	}
+	ceiling := request.Contract.AuthorityCeiling
+	fmt.Fprintf(&input, "\nFrozen Contract permissions (false means forbidden; this proposal cannot change them):\nreadWorkspace=%t\nwriteWorkspace=%t\nexecuteLocal=%t\nuseNetwork=%t\ncommitLocal=%t\ncreatePR=%t\ndeploy=%t\nexternalEffect=%t\n",
+		ceiling.ReadWorkspace, ceiling.WriteWorkspace, ceiling.ExecuteLocal, ceiling.UseNetwork,
+		ceiling.CommitLocal, ceiling.CreatePR, ceiling.Deploy, ceiling.ExternalEffect)
+	if !ceiling.ExecuteLocal {
+		input.WriteString("Local command execution is forbidden: checkCommands must be empty. Use permitted inspection and evidence for owner review; do not invent executable verification or claim manual review proves a criterion automatically. If the result needs more authority, state that as a blocker requiring an owner Contract revision.\n")
+	}
 	if feedback := strings.TrimSpace(request.ReplanFeedback); feedback != "" {
 		fmt.Fprintf(&input, "\nOwner replan feedback (this is an explicit new proposal request):\n%s\n", feedback)
 	}
 	appendRepositoryContext(&input, request.RepositoryContext)
 
+	schema := planSchema(sortedAliasKeys(request.CriterionAliases))
+	if !ceiling.ExecuteLocal {
+		unit := schema["properties"].(map[string]any)["workUnits"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+		// A null field is portable across strict-output providers, unlike a
+		// maxItems:0 bound that some schema adapters must strip. It decodes to
+		// no proposed checks; the daemon still validates every returned Plan.
+		unit["checkCommands"] = map[string]any{"type": "null", "description": "No executable checks: the Contract forbids local command execution"}
+		intents := []any{"inspect"}
+		if ceiling.WriteWorkspace {
+			intents = append(intents, "modify")
+		}
+		unit["intent"] = map[string]any{"type": "string", "enum": intents}
+		input.WriteString("For this read-only command boundary, encode checkCommands as null as required by the schema.\n")
+	}
 	response, err := p.client.Complete(ctx, ports.LLMRequest{
 		System:     planSystemPrompt,
 		User:       input.String(),
 		SchemaName: "plan_draft",
-		Schema:     planSchema(sortedAliasKeys(request.CriterionAliases)),
+		Schema:     schema,
 	})
 	if err != nil {
 		return ports.PlanIntelligenceResponse{}, err

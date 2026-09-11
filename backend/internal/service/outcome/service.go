@@ -68,6 +68,7 @@ type ReviseContractInput struct {
 	Constraints          []string
 	NonGoals             []string
 	Clarification        string
+	CriterionEvidence    [][]string
 	EvidenceExpectations []domain.ContractEvidenceExpectation
 	AuthorityCeiling     domain.ProposedAuthority
 	StopConditions       []string
@@ -332,10 +333,12 @@ func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in Re
 		return View{}, err
 	}
 
-	if _, ok, err := s.store.GetOutcome(ctx, id); err != nil {
+	previous, err := s.Get(ctx, id)
+	if err != nil {
 		return View{}, err
-	} else if !ok {
-		return View{}, apierr.NotFound("OUTCOME_NOT_FOUND", "That Outcome does not exist")
+	}
+	if in.ExecutionPreference == nil {
+		in.ExecutionPreference = previous.Current.ExecutionPreference
 	}
 
 	next := domain.ContractRevision{
@@ -356,6 +359,18 @@ func (s *Service) ReviseContract(ctx context.Context, id domain.OutcomeID, in Re
 		CreatedAt:            s.clock(),
 	}
 	next.Criteria = stableCriteria(next.ID, next.SuccessCriteria)
+	if in.CriterionEvidence != nil {
+		if len(in.CriterionEvidence) != len(next.Criteria) {
+			return View{}, apierr.Invalid("CONTRACT_EVIDENCE_MISMATCH", "Provide evidence expectations for each success criterion", nil)
+		}
+		next.EvidenceExpectations = nil
+		for i, descriptions := range in.CriterionEvidence {
+			if len(descriptions) > 0 {
+				next.EvidenceExpectations = append(next.EvidenceExpectations, domain.ContractEvidenceExpectation{CriterionID: next.Criteria[i].ID, Descriptions: descriptions})
+			}
+		}
+	}
+
 	number, err := s.store.AppendContractRevision(ctx, id, in.ExpectedRevision, next)
 	if err != nil {
 		var conflict *ports.OutcomeConflictError
