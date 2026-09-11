@@ -675,6 +675,7 @@
 	"settings.reasoning.verify": "Verify now",
 	"settings.reasoning.verifying": "Verifying…",
 	"settings.reasoning.missing": "Configure a provider and credential to enable reasoning.",
+	"settings.reasoning.draftChanged": "Unsaved provider change. Save before checking readiness.",
 	"settings.reasoning.save": "Save reasoning settings",
 	"settings.reasoning.saving": "Saving…",
 	"settings.reasoning.privacy": "The key is kept in the local daemon secret store and is never returned to the renderer or stored in Work records.",

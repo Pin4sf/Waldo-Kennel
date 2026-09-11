@@ -82,9 +82,37 @@ describe("ReasoningSettingsSection", () => {
 
 		renderSection();
 
-		expect(screen.getByText("Codex app-server is unavailable")).toBeInTheDocument();
+		expect(screen.getByText(/Codex is selected for sessions, but its App Server is not ready/)).toBeInTheDocument();
 		expect(screen.getByText(/signing in alone does not establish reasoning capability/)).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Verify now" })).toBeDisabled();
+	});
+
+	it("does not verify the saved provider while a different provider is still a draft", async () => {
+		const user = userEvent.setup();
+		vi.mocked(useSettings).mockReturnValue({
+			settings: {
+				...settings,
+				reasoning: {
+					...settings.reasoning,
+					provider: "anthropic",
+					configured: true,
+					ready: true,
+				},
+			},
+			isLoading: false,
+			error: undefined,
+		});
+
+		renderSection();
+		const verifyButton = screen.getByRole("button", { name: "Verify now" });
+		expect(verifyButton).toBeEnabled();
+
+		await user.click(screen.getByRole("button", { name: "Provider" }));
+		await user.click(screen.getByRole("menuitem", { name: "OpenAI API" }));
+
+		expect(verifyButton).toBeDisabled();
+		expect(screen.getByRole("status")).toHaveTextContent("Unsaved provider change");
+		expect(verify).not.toHaveBeenCalled();
 	});
 
 	it("does not carry a configured-key placeholder across provider changes", async () => {

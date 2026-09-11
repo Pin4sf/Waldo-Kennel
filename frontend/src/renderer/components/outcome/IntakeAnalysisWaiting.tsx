@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { useAgentsQuery } from "../../hooks/useAgentsQuery";
 import type { IntakeAnalysisRequest } from "../../hooks/useIntakeAnalysisRequest";
+import { intakeFailureMessage, nativeReasoningUnavailable, reasoningStatusMessage } from "../../lib/reasoning-status";
 import { AgentAvatar } from "../AgentAvatar";
 import { Button } from "../ui/button";
 
@@ -99,8 +100,12 @@ export function IntakeAnalysisRefused({
 }) {
 	const { t } = useTranslation();
 	const harness = useHarnessLabel(request?.harness?.trim());
-	const reason = request?.refusalReason || failureCode;
 	const { settings } = useSettings();
+	const savedReasoning = settings?.reasoning;
+	const safeFailure = request?.rawProposal ? request.refusalReason : intakeFailureMessage(failureCode, t);
+	const nativeReason = savedReasoning && nativeReasoningUnavailable(savedReasoning)
+		? reasoningStatusMessage(savedReasoning, savedReasoning.provider, t)
+		: undefined;
 	return (
 		<div
 			className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-4 py-8 sm:px-8"
@@ -114,12 +119,17 @@ export function IntakeAnalysisRefused({
 					{t(request?.rawProposal ? "outcome.intake.refused.body" : "outcome.intake.reasoningFailedBody")}
 				</p>
 			</div>
-			{reason ? (
+			{safeFailure ? (
 				<p
 					className="rounded-group hairline border-border bg-card px-4.5 py-3.5 text-sm leading-body text-warning"
 					role="alert"
 				>
-					{reason}
+					{safeFailure}
+				</p>
+			) : null}
+			{nativeReason ? (
+				<p className="rounded-group hairline border-border bg-card px-4.5 py-3.5 text-sm leading-body text-warning" role="status">
+					{nativeReason}
 				</p>
 			) : null}
 			{request?.rawProposal ? (

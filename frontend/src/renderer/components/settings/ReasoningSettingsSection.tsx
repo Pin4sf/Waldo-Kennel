@@ -6,6 +6,7 @@ import { SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
+import { reasoningStatusMessage } from "../../lib/reasoning-status";
 
 const providers = [
 	{ value: "anthropic", label: "Anthropic / Claude API" },
@@ -42,16 +43,7 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 		!saveError &&
 		!verifyError &&
 		!loadError;
-	const message =
-		saveError ??
-		verifyError ??
-		loadError ??
-		status?.error ??
-		(status?.verified
-			? t("settings.reasoning.verified")
-			: status?.configured
-				? t("settings.reasoning.unverified")
-				: t("settings.reasoning.missing"));
+	const message = saveError ?? verifyError ?? loadError ?? reasoningStatusMessage(status, provider, t);
 
 	return (
 		<SettingsSection title={t("settings.reasoning.title")} titleHidden={titleHidden} grouped>
@@ -141,7 +133,7 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 				<Button
 					type="button"
 					variant="ghost"
-					disabled={!status?.ready || !status?.configured || saving || verifying}
+					disabled={!status?.ready || !status?.configured || saving || verifying || draftDirty}
 					onClick={() => void verify().catch(() => undefined)}
 				>
 					{verifying ? t("settings.reasoning.verifying") : t("settings.reasoning.verify")}
