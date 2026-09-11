@@ -8,9 +8,9 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 
 const providers = [
-	{ value: "anthropic", label: "Anthropic API" },
+	{ value: "anthropic", label: "Anthropic / Claude API" },
 	{ value: "openai", label: "OpenAI API" },
-	{ value: "codex", label: "Codex — unavailable", disabled: true },
+	{ value: "codex", label: "Codex App Server (sign-in)" },
 ] satisfies SettingsOption<"anthropic" | "openai" | "codex">[];
 
 export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolean }) {
@@ -34,6 +34,14 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 	}, [settings?.reasoning, draftDirty]);
 
 	const status = settings?.reasoning;
+	const codexNeedsSetup =
+		provider === "codex" &&
+		status?.provider === "codex" &&
+		status.configured &&
+		!status.ready &&
+		!saveError &&
+		!verifyError &&
+		!loadError;
 	const message =
 		saveError ??
 		verifyError ??
@@ -108,10 +116,15 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 				>
 					{message}
 				</p>
+				{codexNeedsSetup && (
+					<p className="text-xs text-error" role="note">
+						{t("settings.reasoning.codexSetup")}
+					</p>
+				)}
 				<Button
 					type="button"
 					variant="secondary"
-					disabled={provider === "codex" || saving || verifying}
+					disabled={saving || verifying}
 					onClick={() =>
 						void update({ provider, model, effort, ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}) }).then(() => {
 							setApiKey("");
