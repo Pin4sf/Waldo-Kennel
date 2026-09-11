@@ -70,6 +70,7 @@ export function useVerifyReasoning() {
 		verifying: mutation.isPending,
 		error: mutation.error ? apiErrorMessage(mutation.error) : undefined,
 		errorCode: mutation.error ? apiErrorCode(mutation.error) : undefined,
+		reset: mutation.reset,
 	};
 }
 

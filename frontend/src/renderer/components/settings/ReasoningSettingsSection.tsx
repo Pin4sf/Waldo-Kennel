@@ -18,7 +18,7 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 	const { t } = useTranslation();
 	const { settings, isLoading, error: loadError } = useSettings();
 	const { update, saving, error: saveError } = useUpdateReasoning();
-	const { verify, verifying, error: verifyError, errorCode: verifyErrorCode } = useVerifyReasoning();
+	const { verify, verifying, error: verifyError, errorCode: verifyErrorCode, reset: resetVerification } = useVerifyReasoning();
 	const [provider, setProvider] = useState<"anthropic" | "openai" | "codex">("anthropic");
 	const [model, setModel] = useState("");
 	const [effort, setEffort] = useState("");
@@ -43,11 +43,19 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 		!saveError &&
 		!verifyError &&
 		!loadError;
-	const statusWithVerifyError = status && verifyErrorCode ? { ...status, errorCode: verifyErrorCode } : status;
+	const statusWithVerifyError = verifyError
+		? status
+			? { ...status, errorCode: verifyErrorCode ?? "REASONING_UNAVAILABLE" }
+			: { provider, configured: true, ready: true, verified: false, errorCode: verifyErrorCode ?? "REASONING_UNAVAILABLE" }
+		: status;
 	const message =
 		saveError ??
 		loadError ??
-		(verifyError ? reasoningStatusMessage(statusWithVerifyError, provider, t) : reasoningStatusMessage(status, provider, t));
+		(draftDirty
+			? t("settings.reasoning.draftChanged")
+			: verifyError
+				? reasoningStatusMessage(statusWithVerifyError, provider, t)
+				: reasoningStatusMessage(status, provider, t));
 
 	return (
 		<SettingsSection title={t("settings.reasoning.title")} titleHidden={titleHidden} grouped>
@@ -128,6 +136,7 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 							.then(() => {
 								setApiKey("");
 								setDraftDirty(false);
+								resetVerification();
 							})
 							.catch(() => undefined);
 					}}

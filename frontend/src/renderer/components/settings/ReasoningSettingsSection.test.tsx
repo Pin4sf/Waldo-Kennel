@@ -28,6 +28,7 @@ const settings = {
 
 const update = vi.fn();
 const verify = vi.fn();
+const resetVerification = vi.fn();
 
 function renderSection() {
 	return render(<ReasoningSettingsSection />);
@@ -38,10 +39,11 @@ beforeEach(async () => {
 	vi.mocked(useSettings).mockReturnValue({ settings, isLoading: false, error: undefined });
 	update.mockReset();
 	verify.mockReset();
+	resetVerification.mockReset();
 	update.mockResolvedValue(settings.reasoning);
 	verify.mockResolvedValue(settings.reasoning);
 	vi.mocked(useUpdateReasoning).mockReturnValue({ update, saving: false, error: undefined });
-	vi.mocked(useVerifyReasoning).mockReturnValue({ verify, verifying: false, error: undefined, errorCode: undefined });
+	vi.mocked(useVerifyReasoning).mockReturnValue({ verify, verifying: false, error: undefined, errorCode: undefined, reset: resetVerification });
 });
 
 describe("ReasoningSettingsSection", () => {
@@ -135,11 +137,58 @@ describe("ReasoningSettingsSection", () => {
 			verifying: false,
 			error: "credential rejected",
 			errorCode: "CREDENTIAL_REJECTED",
+			reset: resetVerification,
 		});
 
 		renderSection();
 		expect(screen.getByRole("status")).toHaveTextContent("The saved reasoning credential was rejected");
 		expect(screen.queryByText(/Configured, but not verified yet/)).not.toBeInTheDocument();
+	});
+
+	it("shows safe generic guidance when verification fails without a stable code", () => {
+		vi.mocked(useSettings).mockReturnValue({
+			settings: {
+				...settings,
+				reasoning: {
+					...settings.reasoning,
+					provider: "openai",
+					configured: true,
+					ready: true,
+					verified: true,
+				},
+			},
+			isLoading: false,
+			error: undefined,
+		});
+		vi.mocked(useVerifyReasoning).mockReturnValue({
+			verify,
+			verifying: false,
+			error: "Failed to fetch",
+			errorCode: undefined,
+			reset: resetVerification,
+		});
+
+		renderSection();
+		expect(screen.getByRole("status")).toHaveTextContent("Reasoning is unavailable for this provider. Check its setup and retry.");
+		expect(screen.queryByText("Verified for this provider and model.")).not.toBeInTheDocument();
+	});
+
+	it("clears a failed verification when saving new reasoning settings succeeds", async () => {
+		const user = userEvent.setup();
+		vi.mocked(useVerifyReasoning).mockReturnValue({
+			verify,
+			verifying: false,
+			error: "credential rejected",
+			errorCode: "CREDENTIAL_REJECTED",
+			reset: resetVerification,
+		});
+
+		renderSection();
+		await user.click(screen.getByRole("button", { name: "Provider" }));
+		await user.click(screen.getByRole("menuitem", { name: "OpenAI API" }));
+		await user.click(screen.getByRole("button", { name: "Save reasoning settings" }));
+
+		await vi.waitFor(() => expect(resetVerification).toHaveBeenCalledTimes(1));
 	});
 
 	it("does not carry a configured-key placeholder across provider changes", async () => {
