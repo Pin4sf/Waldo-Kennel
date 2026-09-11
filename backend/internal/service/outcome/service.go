@@ -108,6 +108,8 @@ type Service struct {
 	planningSessions ports.PlanningSessionStore
 	intelligenceRuns ports.IntelligenceRunStore
 	routing          ports.ExecutionRoutingInventory
+	planningTurnMu   sync.Mutex
+	planningTurns    map[domain.PlanningSessionID]*planningTurnCancellation
 
 	PolicyLayers [][]string
 
@@ -184,7 +186,10 @@ func New(store ports.OutcomeStore, clock func() time.Time) *Service {
 	if clock == nil {
 		clock = func() time.Time { return time.Now().UTC() }
 	}
-	service := &Service{store: store, clock: clock, checkReservationEpoch: uuid.NewString(), activeCheckRuns: map[string]int{}}
+	service := &Service{
+		store: store, clock: clock, checkReservationEpoch: uuid.NewString(), activeCheckRuns: map[string]int{},
+		planningTurns: make(map[domain.PlanningSessionID]*planningTurnCancellation),
+	}
 	if proof, ok := store.(ports.OutcomeProofStore); ok {
 		service.proof = proof
 	}

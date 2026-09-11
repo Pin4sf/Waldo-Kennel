@@ -37,6 +37,13 @@ type PlanningFinalizeInput struct {
 	RequestKey              string
 }
 
+// planningTurnCancellation is process-local liveness for one direct provider
+// call. Durable session state remains canonical; this entry only lets an owner
+// cancellation interrupt work that is still executing in this daemon.
+type planningTurnCancellation struct {
+	cancel context.CancelFunc
+}
+
 // PlanningView is the daemon-owned projection rendered by Mission Control.
 type PlanningView struct {
 	Outcome      domain.Outcome
@@ -271,10 +278,33 @@ func (s *Service) CancelPlanning(ctx context.Context, outcomeID domain.OutcomeID
 	if err != nil {
 		return PlanningView{}, err
 	}
-	closed, err := s.planningSessions.ClosePlanningSession(ctx, sessionID, expectedRevision, domain.PlanningSessionCancelled)
+	if view.Session.Status == domain.PlanningSessionCancelled {
+		s.cancelPlanningTurn(sessionID)
+		return view, nil
+	}
+	if view.Session.Status != domain.PlanningSessionActive {
+		return PlanningView{}, apierr.New(apierr.KindConflict, "PLANNING_SESSION_CLOSED", "This planning conversation is closed", nil)
+	}
+	closeRevision := expectedRevision
+	// The owner starts a turn from revision N, while the durable owner-turn write
+	// advances the session to N+1 before the provider call begins. Accept that
+	// exact one-step fence while waiting on the provider so Cancel remains usable
+	// before the original HTTP request can return its newer revision.
+	if view.Session.WaitingOn == domain.PlanningWaitingProvider && expectedRevision+1 == view.Session.Revision {
+		closeRevision = view.Session.Revision
+	}
+	closed, err := s.planningSessions.ClosePlanningSession(ctx, sessionID, closeRevision, domain.PlanningSessionCancelled)
 	if err != nil {
+		// Two concurrent or response-lost cancellation requests converge on the
+		// same terminal fact instead of turning success into an ambiguous conflict.
+		current, currentErr := s.GetPlanning(ctx, outcomeID, sessionID)
+		if currentErr == nil && current.Session.Status == domain.PlanningSessionCancelled {
+			s.cancelPlanningTurn(sessionID)
+			return current, nil
+		}
 		return PlanningView{}, planningAPIError(err)
 	}
+	s.cancelPlanningTurn(sessionID)
 	return s.planningView(ctx, view.Outcome, closed)
 }
 
@@ -330,6 +360,22 @@ func (s *Service) runPlanningTurn(ctx context.Context, outcomeID domain.OutcomeI
 	if replay {
 		return s.resumePlanningReply(ctx, view.Outcome, session, storedOwner)
 	}
+	turnCtx, turn := s.beginPlanningTurn(ctx, sessionID)
+	defer s.endPlanningTurn(sessionID, turn)
+	// Cancel can commit in the small interval after the owner turn becomes
+	// durable and before its process-local cancellation entry is registered.
+	// Re-read after registration so that race still prevents provider work.
+	currentSession, found, err := s.planningSessions.GetPlanningSession(ctx, outcomeID, sessionID)
+	if err != nil {
+		return PlanningView{}, err
+	}
+	if !found {
+		return PlanningView{}, apierr.NotFound("PLANNING_SESSION_NOT_FOUND", "That planning conversation does not exist")
+	}
+	if currentSession.Status != domain.PlanningSessionActive || currentSession.WaitingOn != domain.PlanningWaitingProvider || currentSession.Revision != session.Revision {
+		turn.cancel()
+		return PlanningView{}, apierr.New(apierr.KindConflict, "PLANNING_SESSION_CLOSED", "This planning conversation is closed", nil)
+	}
 	var snapshot ports.RepositoryContextSnapshot
 	if err := json.Unmarshal(session.ContextSnapshotJSON, &snapshot); err != nil {
 		return PlanningView{}, apierr.Internal("PLANNING_CONTEXT_CORRUPT", "The frozen planning context could not be read")
@@ -361,7 +407,10 @@ func (s *Service) runPlanningTurn(ctx context.Context, outcomeID domain.OutcomeI
 		return PlanningView{}, err
 	}
 	started := time.Now()
-	response, err := s.planningDialogue.DiscussPlan(ctx, request)
+	response, err := s.planningDialogue.DiscussPlan(turnCtx, request)
+	if err == nil && turnCtx.Err() != nil {
+		err = ports.ClassifyReasoningTransport(turnCtx, 0, turnCtx.Err())
+	}
 	if err != nil {
 		completed := s.clock().UTC()
 		duration := time.Since(started).Milliseconds()
@@ -434,6 +483,40 @@ func (s *Service) runPlanningTurn(ctx context.Context, outcomeID domain.OutcomeI
 		return s.finishPlanningProposal(ctx, currentOutcome, revision, session, run.ID, response.Result)
 	}
 	return s.planningView(ctx, currentOutcome, session)
+}
+
+func (s *Service) beginPlanningTurn(parent context.Context, sessionID domain.PlanningSessionID) (context.Context, *planningTurnCancellation) {
+	ctx, cancel := context.WithCancel(parent)
+	entry := &planningTurnCancellation{cancel: cancel}
+	s.planningTurnMu.Lock()
+	if s.planningTurns == nil {
+		s.planningTurns = make(map[domain.PlanningSessionID]*planningTurnCancellation)
+	}
+	previous := s.planningTurns[sessionID]
+	s.planningTurns[sessionID] = entry
+	s.planningTurnMu.Unlock()
+	if previous != nil {
+		previous.cancel()
+	}
+	return ctx, entry
+}
+
+func (s *Service) endPlanningTurn(sessionID domain.PlanningSessionID, entry *planningTurnCancellation) {
+	entry.cancel()
+	s.planningTurnMu.Lock()
+	if s.planningTurns[sessionID] == entry {
+		delete(s.planningTurns, sessionID)
+	}
+	s.planningTurnMu.Unlock()
+}
+
+func (s *Service) cancelPlanningTurn(sessionID domain.PlanningSessionID) {
+	s.planningTurnMu.Lock()
+	entry := s.planningTurns[sessionID]
+	s.planningTurnMu.Unlock()
+	if entry != nil {
+		entry.cancel()
+	}
 }
 
 func (s *Service) resumePlanningReply(ctx context.Context, outcomeRecord domain.Outcome, session domain.PlanningSession, owner domain.PlanningTurn) (PlanningView, error) {

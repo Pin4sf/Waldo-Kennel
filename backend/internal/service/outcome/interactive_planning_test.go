@@ -15,6 +15,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/storage/sqlite/sqlitetest"
 )
 
@@ -26,6 +27,9 @@ type interactivePlanningFake struct {
 	candidates         []ports.PlanningCandidate
 	effectiveModel     string
 	beforeDiscuss      func()
+	discussStarted     chan struct{}
+	discussRelease     chan struct{}
+	ignoreCancellation bool
 }
 
 func initPlanningRepo(t *testing.T) string {
@@ -64,8 +68,22 @@ func (f *interactivePlanningFake) PlanningCandidates(context.Context) ([]ports.P
 		Binding: domain.PlanningBinding{Mode: domain.PlanningModeDirectAPI, Provider: "openai", ModelSelection: domain.PlanningModelExplicit, Model: "planner-test"},
 	}}, nil
 }
-func (f *interactivePlanningFake) DiscussPlan(_ context.Context, request ports.PlanningDiscussionRequest) (ports.PlanningDiscussionResponse, error) {
+func (f *interactivePlanningFake) DiscussPlan(ctx context.Context, request ports.PlanningDiscussionRequest) (ports.PlanningDiscussionResponse, error) {
 	f.discussCalls++
+	if f.discussStarted != nil {
+		close(f.discussStarted)
+	}
+	if f.discussRelease != nil {
+		if f.ignoreCancellation {
+			<-f.discussRelease
+		} else {
+			select {
+			case <-f.discussRelease:
+			case <-ctx.Done():
+				return ports.PlanningDiscussionResponse{}, ports.ClassifyReasoningTransport(ctx, 0, ctx.Err())
+			}
+		}
+	}
 	if f.beforeDiscuss != nil {
 		hook := f.beforeDiscuss
 		f.beforeDiscuss = nil
@@ -104,6 +122,32 @@ func (f *interactivePlanningFake) DiscussPlan(_ context.Context, request ports.P
 		Kind: ports.PlanningResultClarification, Message: "One choice will keep the Plan small.",
 		Clarification: &ports.PlanClarification{Question: "Should the first slice stay local only?", Reason: "Remote effects need separate authority.", Recommendation: "Keep it local.", Alternatives: []string{"Include remote delivery later"}},
 	}}, nil
+}
+
+func newPlanningCancellationFixture(t *testing.T, provider *interactivePlanningFake) (*outcome.Service, *sqlite.Store, domain.Outcome, domain.PlanningSession) {
+	t.Helper()
+	ctx := context.Background()
+	store := sqlitetest.MustOpen(t)
+	project := domain.ProjectRecord{ID: "planning-cancel-project", Path: initPlanningRepo(t), DisplayName: "Cancel", RegisteredAt: time.Now().UTC()}
+	if err := store.UpsertProject(ctx, project); err != nil {
+		t.Fatal(err)
+	}
+	svc := outcome.New(store, nil).WithPlanning(provider, &routingInventoryFake{candidates: []domain.RoutingCandidate{readyClaudeCandidate()}})
+	created, err := svc.Create(ctx, outcome.CreateInput{
+		ProjectID: domain.ProjectID(project.ID), Title: "Cancel planning", Goal: "Keep cancellation bounded.",
+		SuccessCriteria: []string{"No late planning reply is published."}, Review: "Inspect the durable session.",
+		AuthorityCeiling: domain.ProposedAuthority{ReadWorkspace: true}, RequestKey: "planning-cancel-outcome",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, err := svc.StartPlanning(ctx, created.Outcome.ID, outcome.StartPlanningInput{
+		ExpectedContractRevision: 1, CandidateID: "direct-openai-planner", RequestKey: "planning-cancel-start",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc, store, created.Outcome, started.Session
 }
 
 func TestInteractivePlanning_RepositoryDiscussionProducesOnlyAProposedPlan(t *testing.T) {
@@ -396,5 +440,89 @@ func TestInteractivePlanning_SuppliedPacketDoesNotReadRepository(t *testing.T) {
 	}
 	if snapshot.Root != "supplied-documents" || snapshot.UnavailableReason != "" {
 		t.Fatalf("supplied planning snapshot=%+v", snapshot)
+	}
+}
+
+func TestInteractivePlanning_CancelInterruptsProviderAndReplaysTerminalView(t *testing.T) {
+	provider := &interactivePlanningFake{discussStarted: make(chan struct{}), discussRelease: make(chan struct{})}
+	svc, store, created, session := newPlanningCancellationFixture(t, provider)
+	ctx := context.Background()
+	type turnResult struct {
+		view outcome.PlanningView
+		err  error
+	}
+	result := make(chan turnResult, 1)
+	go func() {
+		view, err := svc.ContinuePlanning(ctx, created.ID, session.ID, outcome.PlanningMessageInput{
+			ExpectedSessionRevision: session.Revision, Text: "Wait for cancellation.", RequestKey: "planning-cancel-turn",
+		})
+		result <- turnResult{view: view, err: err}
+	}()
+
+	select {
+	case <-provider.discussStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("provider call did not start")
+	}
+	cancelled, err := svc.CancelPlanning(ctx, created.ID, session.ID, session.Revision)
+	if err != nil || cancelled.Session.Status != domain.PlanningSessionCancelled {
+		t.Fatalf("cancel in-flight planning: session=%+v err=%v", cancelled.Session, err)
+	}
+	replayed, err := svc.CancelPlanning(ctx, created.ID, session.ID, session.Revision)
+	if err != nil || replayed.Session.Status != domain.PlanningSessionCancelled || replayed.Session.ID != cancelled.Session.ID {
+		t.Fatalf("replay cancellation: session=%+v err=%v", replayed.Session, err)
+	}
+
+	select {
+	case completed := <-result:
+		if code := requireAPICode(t, completed.err); code != "REASONING_CANCELLED" {
+			t.Fatalf("cancelled provider call code=%s err=%v", code, completed.err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("provider call did not observe cancellation")
+	}
+	turns, err := store.ListPlanningTurns(ctx, session.ID)
+	if err != nil || len(turns) != 1 || turns[0].Role != domain.PlanningTurnOwner {
+		t.Fatalf("cancelled turn history=%+v err=%v", turns, err)
+	}
+}
+
+func TestInteractivePlanning_LateProviderResponseCannotPublishAfterCancel(t *testing.T) {
+	provider := &interactivePlanningFake{
+		discussStarted: make(chan struct{}), discussRelease: make(chan struct{}), ignoreCancellation: true,
+	}
+	svc, store, created, session := newPlanningCancellationFixture(t, provider)
+	ctx := context.Background()
+	result := make(chan error, 1)
+	go func() {
+		_, err := svc.FinalizePlanning(ctx, created.ID, session.ID, outcome.PlanningFinalizeInput{
+			ExpectedSessionRevision: session.Revision, RequestKey: "planning-late-finalize",
+		})
+		result <- err
+	}()
+
+	select {
+	case <-provider.discussStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("provider call did not start")
+	}
+	if _, err := svc.CancelPlanning(ctx, created.ID, session.ID, session.Revision); err != nil {
+		t.Fatalf("cancel in-flight finalization: %v", err)
+	}
+	close(provider.discussRelease)
+	select {
+	case err := <-result:
+		if code := requireAPICode(t, err); code != "REASONING_CANCELLED" {
+			t.Fatalf("late provider response code=%s err=%v", code, err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("late provider call did not return")
+	}
+	turns, err := store.ListPlanningTurns(ctx, session.ID)
+	if err != nil || len(turns) != 1 || turns[0].Kind != domain.PlanningTurnFinalizeRequest {
+		t.Fatalf("late response published a planning turn: turns=%+v err=%v", turns, err)
+	}
+	if _, found, err := store.GetLatestPlanRevision(ctx, created.ID); err != nil || found {
+		t.Fatalf("late response published a Plan: found=%v err=%v", found, err)
 	}
 }
