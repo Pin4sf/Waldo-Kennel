@@ -2114,7 +2114,7 @@ app.whenReady().then(async () => {
 		}
 	}
 
-	if (process.platform === "darwin" && app.isPackaged) {
+	if (process.platform === "darwin" && app.isPackaged && !electronDataDir) {
 		const bundlePath = resolveBundlePath();
 		const action = decideRelocation({
 			inApplicationsFolder: app.isInApplicationsFolder(),
