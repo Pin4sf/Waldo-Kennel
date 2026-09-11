@@ -642,9 +642,9 @@ func computeCompiledBriefDigest(binding domain.ExecutionBinding, mode domain.Ses
 // manager when it holds partial content, so failed custody stays inspectable.
 func (s *Service) admitPrelaunchFailure(ctx context.Context, outcomeID domain.OutcomeID, unit domain.WorkUnit, attempt domain.Attempt, cause error) error {
 	payload := mustJSON(map[string]any{"error": cause.Error(), "workUnitId": string(unit.ID), "providerLaunched": false})
-	kind := domain.ObservationInputProvisioningFailed
-	if errors.Is(cause, ports.ErrAttemptWorkspacePreparation) {
-		kind = domain.ObservationAdmissionFailed
+	kind := domain.ObservationAdmissionFailed
+	if errors.Is(cause, ports.ErrAttemptInputProvisioning) {
+		kind = domain.ObservationInputProvisioningFailed
 	}
 
 	if _, err := s.store.FailAttemptBeforeLaunch(ctx, ports.AttemptPrelaunchFailure{
@@ -658,7 +658,7 @@ func (s *Service) admitPrelaunchFailure(ctx context.Context, outcomeID domain.Ou
 		refused = apierr.New(apierr.KindConflict, CodeAttemptWorkspacePreparationFailed, "The workspace could not be prepared; no provider was started", map[string]any{"attemptId": string(attempt.ID), "detail": cause.Error()})
 	} else if errors.Is(cause, ports.ErrAgentBinaryNotFound) {
 		refused = apierr.New(apierr.KindConflict, CodeAgentBinaryNotFound, "The authorized agent binary is not installed on this machine; no provider was started", map[string]any{"attemptId": string(attempt.ID), "detail": cause.Error()})
-	} else {
+	} else if !errors.Is(cause, ports.ErrAttemptInputProvisioning) {
 		var prelaunch *ports.AttemptPrelaunchError
 		if errors.As(cause, &prelaunch) {
 			refused = apierr.New(apierr.KindConflict, CodeAttemptPrelaunchFailed, "The Attempt could not launch; no provider was started", map[string]any{"attemptId": string(attempt.ID), "stage": prelaunch.Stage, "detail": cause.Error()})

@@ -45,7 +45,10 @@ func TestStartAttempt_InputProvisioningFailureEndsTheAttemptWithoutLaunching(t *
 		t.Fatalf("read plan: %v", err)
 	}
 	rememberFirstWorkUnit(plan.Plan)
-	spawner.failNextSpawn(fmt.Errorf("%w: predecessor blob digest mismatch", ports.ErrAttemptInputProvisioning))
+	spawner.failNextSpawn(&ports.AttemptPrelaunchError{
+		Stage: "prepare_workspace",
+		Err:   fmt.Errorf("%w: predecessor blob digest mismatch", ports.ErrAttemptInputProvisioning),
+	})
 
 	_, startErr := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
 	if code := requireAPICode(t, startErr); code != "UPSTREAM_MATERIALIZATION_FAILED" {
