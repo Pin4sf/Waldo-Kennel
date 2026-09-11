@@ -4,7 +4,7 @@ import type { AppLocale } from "../../i18n";
 import { useLocaleStore } from "../../stores/locale-store";
 import { useUiStore } from "../../stores/ui-store";
 import { SettingsOptionMenu, type SettingsOption } from "./SettingsOptionMenu";
-import { SettingsLinkRow, SettingsRow } from "./SettingsRow";
+import { SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
 import { cn } from "../../lib/utils";
 import { Switch } from "../ui/switch";
@@ -80,10 +80,8 @@ const COLOR_THEME_OPTIONS = [
 ] satisfies SettingsOption<ThemeStyle>[];
 
 export function GeneralSettingsSection({
-	onConnectMobile,
 	titleHidden,
 }: {
-	onConnectMobile: () => void;
 	titleHidden?: boolean;
 }) {
 	const { t } = useTranslation();
@@ -160,7 +158,6 @@ export function GeneralSettingsSection({
 					onCheckedChange={setDeveloperMode}
 				/>
 			</SettingsRow>
-			<SettingsLinkRow label={t("settings.connectMobile")} onClick={onConnectMobile} />
 		</SettingsSection>
 	);
 }

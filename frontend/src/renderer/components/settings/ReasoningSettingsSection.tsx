@@ -101,7 +101,9 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 							setApiKey(event.target.value);
 						}}
 						placeholder={
-							status?.keyConfigured ? t("settings.reasoning.keyConfigured") : t("settings.reasoning.keyMissing")
+							status?.provider === provider && status.keyConfigured
+								? t("settings.reasoning.keyConfigured")
+								: t("settings.reasoning.keyMissing")
 						}
 						disabled={saving}
 						aria-label={t("settings.reasoning.apiKey")}
@@ -125,12 +127,14 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 					type="button"
 					variant="secondary"
 					disabled={saving || verifying}
-					onClick={() =>
-						void update({ provider, model, effort, ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}) }).then(() => {
-							setApiKey("");
-							setDraftDirty(false);
-						})
-					}
+					onClick={() => {
+						void update({ provider, model, effort, ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}) })
+							.then(() => {
+								setApiKey("");
+								setDraftDirty(false);
+							})
+							.catch(() => undefined);
+					}}
 				>
 					{saving ? t("settings.reasoning.saving") : t("settings.reasoning.save")}
 				</Button>
@@ -138,7 +142,7 @@ export function ReasoningSettingsSection({ titleHidden }: { titleHidden?: boolea
 					type="button"
 					variant="ghost"
 					disabled={!status?.ready || !status?.configured || saving || verifying}
-					onClick={() => void verify()}
+					onClick={() => void verify().catch(() => undefined)}
 				>
 					{verifying ? t("settings.reasoning.verifying") : t("settings.reasoning.verify")}
 				</Button>

@@ -14,11 +14,9 @@ export type GlobalSettingsSection = "general" | "reasoning" | "updates" | "help"
 export function GlobalSettingsForm({
 	section = "all",
 	onOpenKeyboardShortcuts,
-	onOpenConnectMobile,
 }: {
 	section?: GlobalSettingsSection;
 	onOpenKeyboardShortcuts?: () => void;
-	onOpenConnectMobile?: () => void;
 }) {
 	const { t } = useTranslation();
 	const [reportProblemOpen, setReportProblemOpen] = useState(false);
@@ -39,7 +37,6 @@ export function GlobalSettingsForm({
 				{(section === "all" || section === "general") && (
 					<>
 						<GeneralSettingsSection
-							onConnectMobile={() => onOpenConnectMobile?.()}
 							titleHidden={leadingTitleHidden}
 						/>
 						<SettingsSection title={t("settings.preferences")} grouped>

@@ -87,6 +87,30 @@ describe("ReasoningSettingsSection", () => {
 		expect(screen.getByRole("button", { name: "Verify now" })).toBeDisabled();
 	});
 
+	it("does not carry a configured-key placeholder across provider changes", async () => {
+		const user = userEvent.setup();
+		vi.mocked(useSettings).mockReturnValue({
+			settings: {
+				...settings,
+				reasoning: {
+					...settings.reasoning,
+					provider: "anthropic",
+					keyConfigured: true,
+				},
+			},
+			isLoading: false,
+			error: undefined,
+		});
+
+		renderSection();
+		expect(screen.getByLabelText("API key")).toHaveAttribute("placeholder", "Stored locally; enter a new key to replace");
+
+		await user.click(screen.getByRole("button", { name: "Provider" }));
+		await user.click(screen.getByRole("menuitem", { name: "OpenAI API" }));
+
+		expect(screen.getByLabelText("API key")).toHaveAttribute("placeholder", "Enter a provider key");
+	});
+
 	it("enables owner-triggered verification only after Codex is locally ready", async () => {
 		const user = userEvent.setup();
 		vi.mocked(useSettings).mockReturnValue({
@@ -111,5 +135,20 @@ describe("ReasoningSettingsSection", () => {
 
 		await user.click(verifyButton);
 		expect(verify).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps API keys password-protected and surfaces save failures", async () => {
+		const user = userEvent.setup();
+		update.mockRejectedValue(new Error("provider settings unavailable"));
+		vi.mocked(useUpdateReasoning).mockReturnValue({ update, saving: false, error: "Could not save provider settings" });
+
+		renderSection();
+		const key = screen.getByLabelText("API key");
+		await user.type(key, "sk-secret-value");
+		await user.click(screen.getByRole("button", { name: "Save reasoning settings" }));
+
+		expect(key).toHaveAttribute("type", "password");
+		expect(screen.queryByText("sk-secret-value")).not.toBeInTheDocument();
+		expect(screen.getByRole("status")).toHaveTextContent("Could not save provider settings");
 	});
 });
