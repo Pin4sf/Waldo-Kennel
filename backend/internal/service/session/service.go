@@ -953,6 +953,9 @@ func toAPIError(err error) error {
 	case errors.Is(err, sessionmanager.ErrUnsupportedSwitchKind):
 		return apierr.Invalid("WORKER_SESSION_REQUIRED",
 			"Only worker sessions support agent switching", nil)
+	case errors.Is(err, sessionmanager.ErrGovernedSwitchUnsupported):
+		return apierr.Invalid("GOVERNED_SWITCH_UNSUPPORTED",
+			"Agent switching is not supported for a governed session; its provider and policy are frozen by the admitted Attempt", nil)
 	case errors.Is(err, sessionmanager.ErrUnsupportedSwitchHarness):
 		return apierr.Invalid("UNSUPPORTED_SWITCH_HARNESS",
 			"Agent switching is not supported for the requested harness", nil)

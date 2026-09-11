@@ -65,6 +65,21 @@ func (m *Manager) loadRecoveryExecution(ctx context.Context, rec domain.SessionR
 	return &recoveryExecution{binding: binding, policy: snapshot.ExecutionPolicy}, nil
 }
 
+// sessionIsGoverned reports whether rec is bound to a governed Attempt's
+// frozen ExecutionPolicy and provider binding, reusing the exact evidence
+// resolution recovery already trusts (loadRecoveryExecution) rather than a
+// second, possibly-diverging notion of "governed". Ambiguous or invalid
+// governed evidence fails closed: it is treated as governed, the same way
+// recovery itself refuses to proceed on evidence it cannot validate. An
+// `unknown` verdict here must never read as "ordinary session".
+func (m *Manager) sessionIsGoverned(ctx context.Context, rec domain.SessionRecord) bool {
+	execution, err := m.loadRecoveryExecution(ctx, rec)
+	if err != nil {
+		return true
+	}
+	return execution != nil
+}
+
 func recoveryAgentConfig(rec domain.SessionRecord, project domain.ProjectRecord, execution *recoveryExecution) (ports.AgentConfig, error) {
 	if execution == nil {
 		return effectiveAgentConfig(rec.Kind, project.Config), nil

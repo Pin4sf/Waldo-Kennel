@@ -138,6 +138,12 @@ var (
 	// would answer it on the user's behalf. The API maps it to a 409; the
 	// caller retries once the user has answered in the terminal.
 	ErrAwaitingDecision = errors.New("session: awaiting a user decision")
+	// ErrGovernedSwitchUnsupported rejects agent switching for a session bound
+	// to a governed Attempt's frozen ExecutionPolicy and provider binding.
+	// Switching would launch a target outside that admitted policy/provider,
+	// which is a separate governed-provider-migration capability this release
+	// does not ship. Ordinary (non-governed) session switching is unaffected.
+	ErrGovernedSwitchUnsupported = errors.New("session: agent switching is not supported for a governed session")
 )
 
 // Env vars a spawned process reads to learn who it is. A worker that starts

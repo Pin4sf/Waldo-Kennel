@@ -247,6 +247,15 @@ func (m *Manager) admitAgentSwitch(ctx context.Context, id domain.SessionID, cfg
 	if rec.Metadata.WorkspacePath == "" || rec.Metadata.RuntimeHandleID == "" {
 		return domain.AgentSwitch{}, nil, fmt.Errorf("switch agent %s: %w", id, ErrIncompleteHandle)
 	}
+	// A governed session is bound to an admitted Attempt's frozen
+	// ExecutionPolicy and provider binding. Switching would launch a target
+	// outside that policy/provider, so refuse here — before any target
+	// process, target generation, or canonical state change — rather than
+	// relying on the UI to grey out the control or special-casing a provider
+	// name. Governed provider migration is a separate, unshipped capability.
+	if m.sessionIsGoverned(ctx, rec) {
+		return domain.AgentSwitch{}, nil, fmt.Errorf("switch agent %s: %w", id, ErrGovernedSwitchUnsupported)
+	}
 	// Switch targets are capability-gated beyond plain worker admission:
 	// continuing a prior conversation needs verified continuation identity and
 	// prompt delivery, which only admitted switch-capable harnesses have.

@@ -1459,6 +1459,52 @@ func TestSwitchAgentRejectsWorkerOnlyHarnessTargetBeforeMutation(t *testing.T) {
 	}
 }
 
+// TestSwitchAgentRefusesGovernedSessionBeforeMutation covers fix #2: a
+// session bound to an admitted Attempt's frozen ExecutionPolicy (marked by a
+// non-empty GovernedExecutionPolicyDigest) must refuse switching before any
+// target process, target generation, or canonical state change — not rely
+// on a UI-only disable. The target harness here is otherwise fully switch
+// admitted, so the only thing that can be blocking is the governed check.
+func TestSwitchAgentRefusesGovernedSessionBeforeMutation(t *testing.T) {
+	runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
+	manager, store, _ := newSwitchTestManager(t, runtime)
+	rec := store.sessions["proj-1"]
+	rec.Harness = domain.HarnessClaudeCode
+	rec.Metadata.GovernedExecutionPolicyDigest = strings.Repeat("a", 64)
+	store.sessions[rec.ID] = rec
+
+	_, err := switchAgentSynchronously(context.Background(), manager, rec.ID, SwitchAgentConfig{
+		TargetHarness: domain.HarnessCodex, IdempotencyKey: "governed-switch-refused",
+	})
+	if !errors.Is(err, ErrGovernedSwitchUnsupported) {
+		t.Fatalf("SwitchAgent error = %v, want ErrGovernedSwitchUnsupported", err)
+	}
+	if runtime.created != 0 || runtime.destroyed != 0 || len(store.switches) != 0 {
+		t.Fatalf("refused governed switch mutated runtime/saga: created=%d destroyed=%d switches=%d", runtime.created, runtime.destroyed, len(store.switches))
+	}
+	if got := store.sessions[rec.ID]; got.Harness != domain.HarnessClaudeCode || got.Metadata.GovernedExecutionPolicyDigest == "" {
+		t.Fatalf("governed session state changed = %+v", got.Metadata)
+	}
+}
+
+// TestSwitchAgentAllowsOrdinarySessionAfterGovernedGate is the positive
+// counterpart: an ordinary (ungoverned) session must still switch normally,
+// proving the new gate does not over-refuse.
+func TestSwitchAgentAllowsOrdinarySessionAfterGovernedGate(t *testing.T) {
+	runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
+	manager, store, _ := newSwitchTestManager(t, runtime)
+	rec := store.sessions["proj-1"]
+	rec.Harness = domain.HarnessClaudeCode
+	store.sessions[rec.ID] = rec
+
+	_, err := switchAgentSynchronously(context.Background(), manager, rec.ID, SwitchAgentConfig{
+		TargetHarness: domain.HarnessCodex, IdempotencyKey: "ordinary-switch-allowed",
+	})
+	if errors.Is(err, ErrGovernedSwitchUnsupported) {
+		t.Fatalf("SwitchAgent error = %v, ordinary session must not be refused as governed", err)
+	}
+}
+
 func TestSwitchAgentFreshPreservesAOIdentityAndDeliversArtifact(t *testing.T) {
 	runtime := &fakeRestartRuntime{fakeRuntime: &fakeRuntime{}}
 	manager, store, _ := newSwitchTestManager(t, runtime)
