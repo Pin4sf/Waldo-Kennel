@@ -38,6 +38,19 @@ it("starts with one Outcome statement prompt and supports keyboard submission", 
 	expect(navigateMock).toHaveBeenCalledWith({ to: "/work", search: { project: "project-1", intake: "intake-1" } });
 });
 
+it("carries one explicit deeper-read choice through the intake conversation", async () => {
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+	render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" /></QueryClientProvider>);
+	await userEvent.type(screen.getByRole("textbox"), "Inspect this repository");
+	await userEvent.click(screen.getByRole("checkbox", { name: "Use project context" }));
+	await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+	expect(navigateMock).toHaveBeenCalledWith({
+		to: "/work",
+		search: { project: "project-1", intake: "intake-1", repositoryRead: true },
+	});
+});
+
 it("keeps the statement visibly unsaved when the daemon rejects capture", async () => {
 	postMock.mockResolvedValueOnce({ data: undefined, error: { code: "DAEMON_UNAVAILABLE" } });
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -224,7 +237,7 @@ const OPEN_ASK = {
 	createdAt: "2026-08-31T10:00:00Z",
 };
 
-function respondWith(intake: unknown, request: unknown) {
+function respondWith(intake: unknown, request: unknown, repositoryToolUse = false) {
 	getMock.mockImplementation((path: string) => {
 		if (path === "/api/v1/intakes/{intakeId}") return Promise.resolve({ data: { intake }, error: undefined, response: { status: 200 } });
 		if (path === "/api/v1/intakes/{intakeId}/analysis-request") {
@@ -235,7 +248,7 @@ function respondWith(intake: unknown, request: unknown) {
 		return Promise.resolve({ data: { projects: [], sessions: [] }, error: undefined, response: { status: 200 } });
 	});
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-	return render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" intakeId="intake-waiting" /></QueryClientProvider>);
+	return render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" intakeId="intake-waiting" repositoryToolUse={repositoryToolUse} /></QueryClientProvider>);
 }
 
 it("names the agent that is working and always offers a way out of waiting", async () => {
@@ -286,6 +299,41 @@ it("keeps a refused draft inspectable beside the reason it was refused", async (
 	// Both ways forward, so a refusal is never a dead end.
 	expect(screen.queryByRole("button", { name: "Use the offline proposal instead" })).not.toBeInTheDocument();
 	expect(screen.getByRole("button", { name: "Ask an agent again" })).toBeEnabled();
+});
+
+it("keeps selected project reading available across analysis retries and clarification", async () => {
+	const failed = { session: { id: "intake-waiting", status: "analysis_failed", currentProposalRevision: 2 }, conversationRefs: [] };
+	const refused = respondWith(failed, { ...OPEN_ASK, status: "rejected", refusalReason: "Try again." }, true);
+	postMock.mockResolvedValueOnce({ data: { intake: failed }, error: undefined });
+
+	await userEvent.click(await screen.findByRole("button", { name: "Ask an agent again" }));
+	expect(postMock).toHaveBeenLastCalledWith(
+		"/api/v1/intakes/{intakeId}/analysis",
+		expect.objectContaining({ body: { expectedProposalRevision: 2, repositoryToolUse: true } }),
+	);
+	refused.unmount();
+
+	postMock.mockReset();
+	getMock.mockResolvedValue({
+		data: {
+			intake: {
+				session: { id: "intake-question", status: "needs_user", currentProposalRevision: 3 },
+				conversationRefs: [],
+				clarification: { question: "Which module?", reason: "Keep scope bounded.", recommendation: "Use the existing module." },
+			},
+		},
+		error: undefined,
+	});
+	postMock.mockResolvedValue({ data: { intake: failed }, error: undefined });
+	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+	const clarification = render(<QueryClientProvider client={client}><AdaptiveIntakeSurface projectId="project-1" intakeId="intake-question" repositoryToolUse={true} /></QueryClientProvider>);
+	await userEvent.type(await screen.findByRole("textbox", { name: "Your answer" }), "Planning");
+	await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+	expect(postMock).toHaveBeenLastCalledWith(
+		"/api/v1/intakes/{intakeId}/clarification",
+		expect.objectContaining({ body: { expectedProposalRevision: 3, answer: "Planning", repositoryToolUse: true } }),
+	);
+	clarification.unmount();
 });
 
 it("says whether anything actually analyzed the proposal on screen", async () => {

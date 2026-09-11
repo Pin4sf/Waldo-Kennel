@@ -121,7 +121,7 @@ func newTestDriver(t *testing.T) (*Driver, *scriptedServer) {
 		responses: map[string]string{
 			"initialize":     `{"userAgent":"ao/test","codexHome":"/tmp/.codex"}`,
 			"model/list":     `{"data":[{"id":"gpt-test","displayName":"GPT Test","isDefault":true}]}`,
-			"thread/start":   `{"thread":{"id":"thread-1"},"model":"gpt-test","cwd":"/tmp/ws"}`,
+			"thread/start":   `{"thread":{"id":"thread-1"},"model":"gpt-test","cwd":"/tmp/ws","approvalPolicy":"never","activePermissionProfile":{"id":"kennel_reasoning_read"}}`,
 			"turn/start":     `{"turn":{"id":"turn-1","status":"inProgress","items":[]}}`,
 			"turn/interrupt": `{}`,
 			"thread/resume":  `{"thread":{"id":"thread-1"}}`,

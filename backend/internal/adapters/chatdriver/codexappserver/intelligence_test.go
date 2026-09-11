@@ -92,8 +92,14 @@ func TestIntelligenceClientPinsBoundedStructuredTurn(t *testing.T) {
 		t.Fatalf("reasoning network scope = %#v", profile["network"])
 	}
 	features, ok := startParams.Config["features"].(map[string]any)
-	if !ok || features["plugins"] != false || features["apps"] != false {
-		t.Fatalf("ambient plugin/app config = %#v", startParams.Config["features"])
+	if !ok || features["apps"] != false {
+		t.Fatalf("ambient app config = %#v", startParams.Config["features"])
+	}
+	if features["plugins"] == false {
+		t.Fatalf("Kennel plugins were disabled: %#v", startParams.Config["features"])
+	}
+	if _, found := startParams.Config["skills"]; found {
+		t.Fatalf("repository-local skills were overconstrained: %#v", startParams.Config["skills"])
 	}
 
 	turn := srv.awaitFrame(func(f frame) bool { return f.Method == "turn/start" })
@@ -235,7 +241,7 @@ func TestIntelligenceClientPinsAuthorizedRepositoryReadWithoutWidening(t *testin
 	if err := json.Unmarshal(turn.Params, &turnParams); err != nil {
 		t.Fatalf("turn/start params: %v", err)
 	}
-	if len(turnParams.Input) != 1 || !strings.Contains(turnParams.Input[0].Text, root) || strings.Contains(turnParams.Input[0].Text, "Do not use tools") {
+	if len(turnParams.Input) != 1 || !strings.Contains(turnParams.Input[0].Text, root) || strings.Contains(turnParams.Input[0].Text, "Do not use tools") || !strings.Contains(turnParams.Input[0].Text, "skills") {
 		t.Fatalf("repository tool instruction = %#v", turnParams.Input)
 	}
 	srv.push(`{"method":"item/completed","params":{"threadId":"thread-1","turnId":"turn-1","item":{"id":"msg-1","type":"agentMessage","text":"{\"summary\":\"inspected\"}"}}}`)

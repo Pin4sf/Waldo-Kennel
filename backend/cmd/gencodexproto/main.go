@@ -659,12 +659,13 @@ func (g *generator) renderDef(b *strings.Builder, name string, s *schema, inline
 		emitted[name] = true
 		doc(b, name, s.Description)
 		fmt.Fprintf(b, "type %s string\n\nconst (\n", name)
+		usedNames := map[string]bool{}
 		for _, v := range s.Enum {
 			str, ok := v.(string)
 			if !ok {
 				continue
 			}
-			fmt.Fprintf(b, "\t%s%s %s = %q\n", name, exportName(str), name, str)
+			fmt.Fprintf(b, "\t%s %s = %q\n", uniqueEnumName(name, str, usedNames), name, str)
 		}
 		b.WriteString(")\n\n")
 		return
@@ -679,6 +680,7 @@ func (g *generator) renderDef(b *strings.Builder, name string, s *schema, inline
 			arms = s.AnyOf
 		}
 		seen := map[string]bool{}
+		usedNames := map[string]bool{}
 		for _, a := range arms {
 			for _, v := range a.Enum {
 				str, ok := v.(string)
@@ -689,7 +691,7 @@ func (g *generator) renderDef(b *strings.Builder, name string, s *schema, inline
 				if a.Description != "" {
 					fmt.Fprintf(b, "\t// %s\n", oneLine(a.Description))
 				}
-				fmt.Fprintf(b, "\t%s%s %s = %q\n", name, exportName(str), name, str)
+				fmt.Fprintf(b, "\t%s %s = %q\n", uniqueEnumName(name, str, usedNames), name, str)
 			}
 		}
 		b.WriteString(")\n\n")
@@ -954,15 +956,28 @@ func (g *generator) renderFlattenedUnion(
 	emitted[tagType] = true
 	fmt.Fprintf(b, "// %s is the discriminator of %s.\ntype %s string\n\nconst (\n", tagType, name, tagType)
 	seen := map[string]bool{}
+	usedNames := map[string]bool{}
 	sort.Strings(tagValues)
 	for _, v := range tagValues {
 		if seen[v] {
 			continue
 		}
 		seen[v] = true
-		fmt.Fprintf(b, "\t%s%s %s = %q\n", tagType, exportName(v), tagType, v)
+		fmt.Fprintf(b, "\t%s %s = %q\n", uniqueEnumName(tagType, v, usedNames), tagType, v)
 	}
 	b.WriteString(")\n\n")
+}
+
+// uniqueEnumName preserves every distinct wire value even when punctuation or
+// casing makes two values normalize to the same exported Go identifier. The
+// suffix is deterministic because callers emit schema values in stable order.
+func uniqueEnumName(prefix, wireValue string, used map[string]bool) string {
+	name := prefix + exportName(wireValue)
+	for used[name] {
+		name += "_"
+	}
+	used[name] = true
+	return name
 }
 
 func isStringEnum(s *schema) bool {

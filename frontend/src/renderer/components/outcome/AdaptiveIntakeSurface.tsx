@@ -19,7 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 type IntakeSnapshot = components["schemas"]["IntakeSnapshotResponse"];
 type ProposalInput = components["schemas"]["IntakeProposalInput"];
 
-export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: string; intakeId?: string }) {
+export function AdaptiveIntakeSurface({ projectId, intakeId, repositoryToolUse = false }: { projectId: string; intakeId?: string; repositoryToolUse?: boolean }) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { t } = useTranslation();
@@ -27,6 +27,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 	const [statement, setStatement] = useState("");
 	const [answer, setAnswer] = useState("");
 	const [cancellationReason, setCancellationReason] = useState("");
+	const [repositoryToolUseDraft, setRepositoryToolUseDraft] = useState(false);
 	const [snapshot, setSnapshot] = useState<IntakeSnapshot | null>(null);
 	const [draft, setDraft] = useState<ProposalInput | null>(null);
 	const [initialDraft, setInitialDraft] = useState("");
@@ -116,7 +117,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		try {
 			const { data, error: apiError } = await apiClient.POST("/api/v1/intakes/{intakeId}/analysis", {
 				params: { path: { intakeId } },
-				body: { expectedProposalRevision: snapshot.session.currentProposalRevision },
+				body: { expectedProposalRevision: snapshot.session.currentProposalRevision, repositoryToolUse },
 			});
 			if (apiError) throw apiError;
 			await refreshIntake(data.intake);
@@ -148,7 +149,7 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 		if (!intakeId || !snapshot || snapshot.session.status !== "captured" || analyzed.current === intakeId) return;
 		analyzed.current = intakeId;
 		setPending(true); setError(null);
-		void apiClient.POST("/api/v1/intakes/{intakeId}/analysis", { params: { path: { intakeId } }, body: { expectedProposalRevision: snapshot.session.currentProposalRevision } })
+		void apiClient.POST("/api/v1/intakes/{intakeId}/analysis", { params: { path: { intakeId } }, body: { expectedProposalRevision: snapshot.session.currentProposalRevision, repositoryToolUse } })
 			.then(({ data, error: apiError }) => { if (apiError) throw apiError; setSnapshot(data.intake); })
 			.catch((cause) => {
 				setError(apiErrorMessage(cause));
@@ -194,14 +195,14 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 			// whole point of saying it was not saved.
 			setStatement("");
 			captureIntent.current = null;
-			await navigate({ to: "/work", search: { project: projectId, intake: data.intake.session.id } });
+			await navigate({ to: "/work", search: { project: projectId, intake: data.intake.session.id, repositoryRead: repositoryToolUseDraft || undefined } });
 		} catch (cause) { setError(apiErrorMessage(cause)); } finally { setPending(false); }
 	}
 
 	async function answerQuestion(event: FormEvent) {
 		event.preventDefault(); if (!snapshot || !intakeId || !answer.trim() || pending) return;
 		setPending(true); setError(null);
-		try { const { data, error: apiError } = await apiClient.POST("/api/v1/intakes/{intakeId}/clarification", { params: { path: { intakeId } }, body: { expectedProposalRevision: snapshot.session.currentProposalRevision, answer: answer.trim() } }); if (apiError) throw apiError; setSnapshot(data.intake); }
+		try { const { data, error: apiError } = await apiClient.POST("/api/v1/intakes/{intakeId}/clarification", { params: { path: { intakeId } }, body: { expectedProposalRevision: snapshot.session.currentProposalRevision, answer: answer.trim(), repositoryToolUse } }); if (apiError) throw apiError; setSnapshot(data.intake); }
 		catch (cause) { setError(apiErrorMessage(cause)); } finally { setPending(false); }
 	}
 
@@ -280,6 +281,10 @@ export function AdaptiveIntakeSurface({ projectId, intakeId }: { projectId: stri
 				<div className="flex items-center justify-between gap-3">
 					<p className="min-w-0 truncate text-2xs text-passive">{t("outcome.intake.hint")}</p>
 					<div className="flex shrink-0 items-center gap-1.5">
+						<label className="flex cursor-pointer items-center gap-1.5 rounded-full bg-accent/45 px-2 py-1 text-2xs text-muted-foreground">
+							<input checked={repositoryToolUseDraft} className="size-3" onChange={(event) => setRepositoryToolUseDraft(event.target.checked)} type="checkbox" />
+							{t("outcome.intake.repositoryTools")}
+						</label>
 						{/* Who will do this, decided beside what is being asked for.
 						    Writes the project's durable worker/orchestrator agents. */}
 						<details className="relative text-xs text-muted-foreground">

@@ -2016,6 +2016,8 @@
 	"outcome.intake.roles.replaceFailed": "The orchestrator could not be replaced.",
 	"outcome.intake.placeholder": "What should be true when this is done? Describe the result, not the steps.",
 	"outcome.intake.hint": "⌘↵ to continue · small Outcomes move ahead without ceremony",
+	"outcome.intake.repositoryTools": "프로젝트 컨텍스트 사용",
+	"planning.repositoryNativeHelp": "Codex는 로컬 도구와 Kennel 스킬을 사용해 이 프로젝트를 이해할 수 있습니다. 작업 시작에는 여전히 사용자의 승인이 필요합니다.",
 	"outcome.intake.continue": "Continue",
 	"outcome.intake.saving": "Saving…",
 	"outcome.intake.unsaved": "Your statement has not been saved.",

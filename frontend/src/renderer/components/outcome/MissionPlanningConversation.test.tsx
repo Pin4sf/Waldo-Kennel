@@ -43,6 +43,21 @@ describe("MissionPlanningConversation", () => {
 		expect(start).toBeEnabled();
 		await user.click(start);
 		expect(postMock).toHaveBeenCalledWith("/api/v1/outcomes/{outcomeId}/planning-sessions", expect.objectContaining({ body: { expectedContractRevision: 3, candidateId: candidate.id, contextMode: "repository_read", requestKey: expect.any(String) } }));
+		expect(screen.getByText(/bounded repository context packet/i)).toBeInTheDocument();
+	});
+
+	it("describes native repository tools without implying edit or network authority", async () => {
+		const nativeCandidate = { id: "native_harness|codex|provider_default", ready: true, binding: { mode: "native_harness", provider: "codex", modelSelection: "provider_default" } };
+		getMock.mockImplementation(async (url: string) => {
+			if (url.endsWith("/planning-candidates")) return { data: { candidates: [nativeCandidate] }, error: undefined };
+			return { data: undefined, error: { code: "PLANNING_SESSION_NOT_FOUND", message: "none" } };
+		});
+		const user = userEvent.setup();
+		renderConversation();
+		await user.click(await screen.findByRole("radio", { name: /codex/i }));
+		await user.click(screen.getByRole("button", { name: "Change" }));
+		expect(screen.getByText(/local tools and Kennel skills/i)).toBeInTheDocument();
+		expect(screen.getByText(/starting work still needs your approval/i)).toBeInTheDocument();
 	});
 
 	it("renders a clarification and Contract-change proposal without mutating the Contract", async () => {

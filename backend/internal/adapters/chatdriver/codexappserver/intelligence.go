@@ -122,7 +122,7 @@ func (c *IntelligenceClient) Complete(ctx context.Context, request ports.LLMRequ
 	}
 	text += "\n\nReturn only the JSON object required by the structured output schema. Do not use Markdown fences or commentary."
 	if request.ContextAccess.Mode == ports.ReasoningContextRepositoryRead {
-		text += fmt.Sprintf(" You may use local tools only to inspect files under the authorized repository root %q. Do not request expanded permissions, read outside that root, write files, use network access, skills, MCP servers, or external effects.", workspace)
+		text += fmt.Sprintf(" You may use local tools and installed skills to inspect files under the authorized repository root %q. Do not request expanded permissions, read outside that root, write files, use network access, MCP servers, or external effects.", workspace)
 	} else {
 		text += " Do not use tools, skills, MCP servers, or external effects."
 	}
@@ -234,12 +234,14 @@ func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model
 		"environments":          []any{},
 		"ephemeral":             true,
 		"config": map[string]any{
-			"default_permissions":      intelligencePermissionProfile,
-			"permissions":              map[string]any{intelligencePermissionProfile: profile},
-			"features":                 map[string]any{"plugins": false, "apps": false},
-			"skills":                   map[string]any{"include_instructions": false},
+			"default_permissions": intelligencePermissionProfile,
+			"permissions":         map[string]any{intelligencePermissionProfile: profile},
+			// Local plugins and their skills remain available. Apps and MCP servers
+			// stay out of this one-shot path because it cannot relay an interactive
+			// approval before an external effect; ordinary Session UI owns that loop.
+			"features":                 map[string]any{"apps": false},
 			"mcp_servers":              map[string]any{},
-			"shell_environment_policy": map[string]any{"inherit": "none"},
+			"shell_environment_policy": reasoningShellEnvironment(),
 		},
 	}
 	if system = strings.TrimSpace(system); system != "" {
@@ -254,8 +256,12 @@ func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model
 		Thread struct {
 			ID string `json:"id"`
 		} `json:"thread"`
-		Model           string `json:"model"`
-		ReasoningEffort string `json:"reasoningEffort"`
+		Model                   string `json:"model"`
+		ReasoningEffort         string `json:"reasoningEffort"`
+		ApprovalPolicy          string `json:"approvalPolicy"`
+		ActivePermissionProfile *struct {
+			ID string `json:"id"`
+		} `json:"activePermissionProfile"`
 	}
 	if err := conv.conn.request(ctx, "thread/start", params, &resp); err != nil {
 		_ = conv.Close()
@@ -265,10 +271,27 @@ func (d *Driver) startIntelligence(ctx context.Context, workspace, system, model
 		_ = conv.Close()
 		return nil, errors.New("thread/start returned no thread id")
 	}
+	if resp.ApprovalPolicy != "never" || resp.ActivePermissionProfile == nil || resp.ActivePermissionProfile.ID != intelligencePermissionProfile {
+		_ = conv.Close()
+		return nil, fmt.Errorf("thread/start did not activate Kennel's bounded reasoning permission profile")
+	}
 	conv.start(resp.Thread.ID, resp.Model, resp.ReasoningEffort, nil)
 	conv.intelligencePermissions = intelligencePermissionProfile
 	conv.intelligenceWorkspace = workspace
 	return conv, nil
+}
+
+func reasoningShellEnvironment() map[string]any {
+	path := strings.TrimSpace(os.Getenv("PATH"))
+	if path == "" {
+		path = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+	}
+	// Expose only executable discovery. Inheriting no other variables prevents
+	// provider tools from receiving API keys or unrelated daemon configuration.
+	return map[string]any{
+		"inherit": "none",
+		"set":     map[string]any{"PATH": path},
+	}
 }
 
 func waitForIntelligenceTurn(ctx context.Context, conv *conversation, turnID string) ([]byte, error) {

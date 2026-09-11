@@ -211,6 +211,9 @@ func (d *Driver) Probe(ctx context.Context) (ports.ChatCapabilities, error) {
 // protocol needed by bounded Waldo proposals. The owner-triggered structured
 // verification still proves the model path separately.
 func (d *Driver) ProbeIntelligence(ctx context.Context) error {
+	if d == nil || d.plugin == nil {
+		return fmt.Errorf("%w: Codex app-server plugin is unavailable", ports.ErrChatDriverUnavailable)
+	}
 	bin, err := d.plugin.ResolveBinary(ctx)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ports.ErrChatDriverUnavailable, err)
