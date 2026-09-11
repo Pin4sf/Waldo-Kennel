@@ -2192,7 +2192,7 @@
 	"outcome.missionGraph.modelUnknown": "model reported at run time",
 	"outcome.missionGraph.state.proposed": "proposed",
 	"outcome.missionGraph.state.runnable": "ready to start",
-	"outcome.missionGraph.state.executing": "working",
+	"outcome.missionGraph.state.executing": "Attempt open",
 	"outcome.missionGraph.state.paused": "paused",
 	"outcome.missionGraph.state.blocked": "waiting",
 	"outcome.missionGraph.state.proven": "proved",
@@ -2201,7 +2201,7 @@
 	"outcome.missionGraph.blocked.custody_held": "Ready, but another work unit holds the workspace",
 	"outcome.missionGraph.blocked.upstream_artifact_unavailable": "A dependency is proved, but its result cannot be handed to this work unit",
 	"outcome.missionGraph.noRunnable.all_units_proven": "Every work unit is proved. Review the result and decide whether to accept it.",
-	"outcome.missionGraph.noRunnable.attempt_executing": "An attempt is working now. Kennel runs one at a time.",
+	"outcome.missionGraph.noRunnable.attempt_executing": "An open Attempt holds this step. Check its session or recovery status before retrying.",
 	"outcome.missionGraph.noRunnable.attempt_paused": "A paused attempt holds the workspace. Resume or cancel it to continue.",
 	"outcome.missionGraph.noRunnable.awaiting_proof": "Nothing can start: the remaining work is waiting on evidence. Record or repair proof to continue.",
 	"waldo.project.badge": "Project",
@@ -2501,5 +2501,6 @@
 	"mission.editor.criterion": "Success criterion {{number}}",
 	"mission.editor.remove": "Remove criterion {{number}}",
 	"mission.editor.saving": "Saving…",
-	"mission.editor.save": "Save new revision"
+	"mission.editor.save": "Save new revision",
+	"mission.expandGraph": "Expand graph"
 }

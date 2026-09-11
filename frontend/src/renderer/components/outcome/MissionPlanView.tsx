@@ -1,3 +1,4 @@
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } from "../ui/dialog";
 import { ApprovedChecks } from "./ApprovedChecks";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -40,6 +41,18 @@ export function MissionPlanView({
 						{t(`mission.${mode}`)}
 					</Button>
 				))}
+
+                <Dialog>
+                    <DialogTrigger asChild><Button size="sm" variant="outline">{t("mission.expandGraph")}</Button></DialogTrigger>
+                    <DialogContent className="h-[90vh] w-[95vw] max-w-[95vw] overflow-hidden">
+                        <DialogTitle>{t("outcome.missionGraph.heading")}</DialogTitle>
+                        <DialogDescription>{t(schedule ? "outcome.missionGraph.serialNote" : "outcome.missionGraph.proposedNote")}</DialogDescription>
+                        <div className="min-h-0 flex-1 overflow-auto p-4">
+                            <MissionWorkUnitGraph workUnits={units} schedule={schedule} criterionText={criterionText} selectedWorkUnitId={selected?.id} onSelectWorkUnit={setSelectedId} />
+                            {selected && <section className="mt-6 border-t border-border pt-4"><h3 className="font-medium">{selected.title}</h3><p className="mt-2 text-sm">{selected.outputSummary}</p><ApprovedChecks unit={selected} criterionText={criterionText} /></section>}
+                        </div>
+                    </DialogContent>
+                </Dialog>
 			</div>
 			<div className="space-y-3">{units.map(unit => <div key={unit.id}><p className="text-sm font-medium">{unit.title}</p><ApprovedChecks unit={unit} criterionText={criterionText} /></div>)}</div>
             {/* Keep both views mounted to preserve graph zoom, focus and scroll on refresh. */}
