@@ -41,6 +41,8 @@ const {
 	}),
 );
 let terminalLinkHandler: ((uri: string) => void) | undefined;
+const previewMode = vi.hoisted(() => ({ usesLiveDaemonPreview: false }));
+vi.mock("../lib/preview-mode", () => previewMode);
 
 vi.mock("../lib/api-client", () => ({
 	apiClient: {
@@ -120,6 +122,7 @@ const orchestrator = {
 } satisfies WorkspaceSession;
 
 beforeEach(() => {
+	previewMode.usesLiveDaemonPreview = false;
 	getMock.mockClear();
 	postMock.mockReset();
 	postMock.mockResolvedValue({ data: {} });
@@ -218,6 +221,18 @@ function activeXterm(): HTMLElement {
 }
 
 describe("TerminalPane empty states", () => {
+	it("never shows a demo transcript for a real daemon browser session", () => {
+		const previous = window.kennel;
+		window.kennel = undefined;
+		previewMode.usesLiveDaemonPreview = true;
+		try {
+			render(<TerminalPane daemonReady fontSize={12} session={worker} theme="dark" />);
+			expect(screen.getByTestId("live-terminal-unavailable")).toBeInTheDocument();
+			expect(screen.queryByText(/demo terminal is populated/)).not.toBeInTheDocument();
+		} finally {
+			window.kennel = previous;
+		}
+	});
 	it("uses the full top, right, and bottom extent for the terminal grid", () => {
 		const view = renderPane({ ...worker, terminalHandleId: "term-1" });
 		try {

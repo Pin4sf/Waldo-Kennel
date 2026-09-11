@@ -2621,5 +2621,6 @@
 	"planning.status.active": "Planification",
 	"planning.status.proposal_ready": "Proposition prête",
 	"planning.status.superseded": "Remplacée",
-	"planning.status.cancelled": "Annulée"
+	"planning.status.cancelled": "Annulée",
+	"terminal.liveDesktopRequired": "Open this session in the Kennel desktop app to view its live terminal."
 }
