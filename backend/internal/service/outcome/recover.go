@@ -324,7 +324,7 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 		target := domain.AttemptReconciled
 		outcome := "provider session ended; result unclassified"
 		if facts.completionBoundary == domain.AttemptCompletionProcessExit &&
-			(facts.exitCode == nil || *facts.exitCode != 0) {
+			!domain.SupervisedExitSucceeded(facts.exitCode, facts.exitReason) {
 			target = domain.AttemptFailed
 			outcome = "governed provider process exited unsuccessfully"
 		}

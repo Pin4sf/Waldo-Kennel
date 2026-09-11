@@ -22,6 +22,7 @@ const (
 var (
 	ErrSupervisorCapabilityInvalid = errors.New("supervisor capability invalid")
 	ErrSupervisorLaunchStale       = errors.New("supervisor launch generation stale")
+	ErrSupervisedExitInvalid       = errors.New("supervised process exit facts are internally inconsistent")
 )
 
 // RuntimeFacts is what the reaper reports each probe of a session runtime.

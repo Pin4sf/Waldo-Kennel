@@ -1405,7 +1405,8 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 		reason := capActivityMeta(domain.SanitizeControlChars(strings.TrimSpace(in.ProcessExit.Reason)))
 		if state != domain.ActivityExited || sig.Event != "process-exited" || sig.LaunchID == "" ||
 			(reason != "exited" && reason != "failed" && reason != "cancelled" && reason != "start_failed" && reason != "unknown") ||
-			(in.ProcessExit.ExitCode != nil && *in.ProcessExit.ExitCode < 0) {
+			(in.ProcessExit.ExitCode != nil && *in.ProcessExit.ExitCode < 0) ||
+			!domain.SupervisedExitFactsConsistent(in.ProcessExit.ExitCode, reason) {
 			envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "SUPERVISED_EXIT_INVALID", "Supervised process exit is invalid", nil)
 			return
 		}
@@ -1422,6 +1423,8 @@ func (c *SessionsController) activity(w http.ResponseWriter, r *http.Request) {
 				envelope.WriteAPIError(w, r, http.StatusForbidden, "forbidden", "SUPERVISOR_CAPABILITY_INVALID", "Supervisor capability is invalid", nil)
 			case errors.Is(err, ports.ErrSupervisorLaunchStale):
 				envelope.WriteAPIError(w, r, http.StatusConflict, "conflict", "SUPERVISOR_LAUNCH_STALE", "Supervisor launch generation is stale", nil)
+			case errors.Is(err, ports.ErrSupervisedExitInvalid):
+				envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "SUPERVISED_EXIT_INVALID", "Supervised process exit is invalid", nil)
 			default:
 				envelope.WriteError(w, r, err)
 			}

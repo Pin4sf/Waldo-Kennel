@@ -89,6 +89,30 @@ type SessionMetadata struct {
 	SupervisedProcessExitReason string `json:"-"`
 }
 
+// SupervisedExitReasonExited is the only reason value a successful supervised
+// process exit may report.
+const SupervisedExitReasonExited = "exited"
+
+// SupervisedExitFactsConsistent reports whether an (exitCode, reason) pair is
+// internally consistent: a zero exit code and the "exited" reason must agree
+// in both directions. This rejects "zero exit code plus a failure reason" and
+// "exited reason plus a missing or nonzero exit code" as the same kind of
+// contradiction, without needing to enumerate every non-exited reason string.
+func SupervisedExitFactsConsistent(exitCode *int, reason string) bool {
+	zero := exitCode != nil && *exitCode == 0
+	exited := reason == SupervisedExitReasonExited
+	return zero == exited
+}
+
+// SupervisedExitSucceeded is the single definition of a successful supervised
+// process exit: exit code zero AND reason "exited", nothing else. Callers
+// must use this instead of re-deriving success from either fact alone, so a
+// contradictory or partial report (nil/nonzero code, a non-exited reason, or
+// a mismatched combination) never reads as success.
+func SupervisedExitSucceeded(exitCode *int, reason string) bool {
+	return exitCode != nil && *exitCode == 0 && reason == SupervisedExitReasonExited
+}
+
 // SessionRecord is the persistence shape. It intentionally stores only durable
 // facts: identity, agent harness, activity_state, is_terminated, and operational
 // metadata. The user-facing Status is derived from these facts plus PR facts.

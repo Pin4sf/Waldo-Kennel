@@ -403,6 +403,9 @@ func (m *Manager) RecordSupervisedProcessExit(ctx context.Context, id domain.Ses
 	) {
 		return ports.ErrSupervisorCapabilityInvalid
 	}
+	if !domain.SupervisedExitFactsConsistent(exit.ExitCode, exit.Reason) {
+		return ports.ErrSupervisedExitInvalid
+	}
 	if exit.ExitCode != nil {
 		code := *exit.ExitCode
 		rec.Metadata.SupervisedProcessExitCode = &code

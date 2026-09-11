@@ -1201,3 +1201,94 @@ func TestLivenessLoopClassifiesNonzeroGovernedProcessExitAsFailed(t *testing.T) 
 		t.Fatalf("status = %s, want failed", reread.Attempt.Status)
 	}
 }
+
+// TestLivenessLoopClassifiesContradictoryZeroExitAsFailed covers the
+// "zero-plus-failure" case: an exit code of 0 paired with a non-"exited"
+// reason is a contradiction, not a success, even though a check on exit code
+// alone would have read it as zero and let it through to reconciled/eligible
+// for succeeded promotion.
+func TestLivenessLoopClassifiesContradictoryZeroExitAsFailed(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	spawner.completionBoundary = domain.AttemptCompletionProcessExit
+	view, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := domain.SessionID(view.Sessions[0].SessionID)
+	exitCode := 0
+	rec := heartbeats.sessions[sessionID]
+	rec.IsTerminated = true
+	rec.Metadata.SupervisedProcessExitCode = &exitCode
+	rec.Metadata.SupervisedProcessExitReason = "failed"
+	heartbeats.sessions[sessionID] = rec
+
+	if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	reread, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reread.Attempt.Status != domain.AttemptFailed {
+		t.Fatalf("status = %s, want failed", reread.Attempt.Status)
+	}
+}
+
+// TestLivenessLoopReconcilesLegitimateZeroExit is the positive counterpart:
+// a genuine zero exit code paired with reason "exited" must NOT be
+// classified as failed.
+func TestLivenessLoopReconcilesLegitimateZeroExit(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	spawner.completionBoundary = domain.AttemptCompletionProcessExit
+	view, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := domain.SessionID(view.Sessions[0].SessionID)
+	exitCode := 0
+	rec := heartbeats.sessions[sessionID]
+	rec.IsTerminated = true
+	rec.Metadata.SupervisedProcessExitCode = &exitCode
+	rec.Metadata.SupervisedProcessExitReason = domain.SupervisedExitReasonExited
+	heartbeats.sessions[sessionID] = rec
+
+	if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	reread, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reread.Attempt.Status != domain.AttemptReconciled {
+		t.Fatalf("status = %s, want reconciled", reread.Attempt.Status)
+	}
+}
+
+// TestLivenessLoopClassifiesMissingExitCodeAsFailed covers a durably
+// terminated session whose reason claims "exited" but carries no exit code
+// at all — never successful reconciliation from a nil code.
+func TestLivenessLoopClassifiesMissingExitCodeAsFailed(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	spawner.completionBoundary = domain.AttemptCompletionProcessExit
+	view, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := domain.SessionID(view.Sessions[0].SessionID)
+	rec := heartbeats.sessions[sessionID]
+	rec.IsTerminated = true
+	rec.Metadata.SupervisedProcessExitCode = nil
+	rec.Metadata.SupervisedProcessExitReason = "unknown"
+	heartbeats.sessions[sessionID] = rec
+
+	if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	reread, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reread.Attempt.Status != domain.AttemptFailed {
+		t.Fatalf("status = %s, want failed", reread.Attempt.Status)
+	}
+}

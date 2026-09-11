@@ -447,3 +447,33 @@ func TestSessionsAPI_ActivityAuthenticatesSupervisedProcessExit(t *testing.T) {
 		t.Fatalf("exit = %+v", recorder.gotExit)
 	}
 }
+
+// TestSessionsAPI_ActivityRejectsContradictorySupervisedProcessExit covers
+// the "zero exit code plus a failure reason" case: a report claiming success
+// on the exit code while also reporting a non-"exited" reason must never
+// reach the recorder — it is rejected at the HTTP input boundary as invalid,
+// not silently persisted and left for a downstream success check to
+// misclassify.
+func TestSessionsAPI_ActivityRejectsContradictorySupervisedProcessExit(t *testing.T) {
+	recorder := &fakeSupervisedExitRecorder{}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	srv := httptest.NewServer(httpd.NewRouterWithControl(
+		config.Config{}, log, nil,
+		httpd.APIDeps{Activity: &fakeActivityRecorder{}, SupervisedExits: recorder},
+		httpd.ControlDeps{},
+	))
+	t.Cleanup(srv.Close)
+
+	cases := []string{
+		`{"state":"exited","event":"process-exited","launchId":"launch-1","processExit":{"exitCode":0,"reason":"failed"}}`,
+		`{"state":"exited","event":"process-exited","launchId":"launch-1","processExit":{"exitCode":7,"reason":"exited"}}`,
+		`{"state":"exited","event":"process-exited","launchId":"launch-1","processExit":{"reason":"exited"}}`,
+	}
+	for _, payload := range cases {
+		body, status, _ := doRequest(t, srv, "POST", "/api/v1/sessions/kennel-1/activity", payload)
+		assertErrorCode(t, body, status, http.StatusBadRequest, "SUPERVISED_EXIT_INVALID")
+	}
+	if recorder.calls != 0 {
+		t.Fatalf("recorder should not have been called, got %d calls", recorder.calls)
+	}
+}
