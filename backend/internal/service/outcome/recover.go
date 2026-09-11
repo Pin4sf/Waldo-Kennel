@@ -342,17 +342,15 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 		// would otherwise leave a terminal Attempt holding its workspace fence
 		// forever: normal liveness scanning only revisits Running attempts, so
 		// nothing else would ever converge that cleanup.
-		_, applied, err := s.store.TerminateRunningAttemptWithObservation(ctx, ports.AttemptRunningTermination{
+		// applied is false only when the Attempt moved off Running concurrently
+		// (a competing reconciler already committed); nothing else follows in
+		// this iteration either way, so the next tick simply sees the truth.
+		if _, _, err := s.store.TerminateRunningAttemptWithObservation(ctx, ports.AttemptRunningTermination{
 			OutcomeID: attempt.OutcomeID, AttemptID: attempt.ID, TargetStatus: target,
 			ObservationKind: domain.ObservationProviderExit, ObservationPayload: payload,
 			ReleaseReason: releaseReason, At: s.clock(),
-		})
-		if err != nil {
+		}); err != nil {
 			failures = append(failures, fmt.Errorf("attempt %s: %w", attempt.ID, err))
-			continue
-		}
-		if !applied {
-			continue // moved concurrently; next tick sees the truth
 		}
 	}
 	switch len(failures) {

@@ -61,6 +61,8 @@ func (p *Plugin) ExitDetectionMode() ports.AgentExitDetectionMode {
 	return ports.AgentExitDetectionSupervisor
 }
 
+// GovernedCompletionBoundary reports that a governed Codex session's
+// completion is bound to its supervised process exit.
 func (p *Plugin) GovernedCompletionBoundary() domain.AttemptCompletionBoundary {
 	return domain.AttemptCompletionProcessExit
 }

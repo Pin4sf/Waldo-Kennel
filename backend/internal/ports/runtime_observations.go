@@ -20,9 +20,15 @@ const (
 )
 
 var (
+	// ErrSupervisorCapabilityInvalid means the supervised-exit report's bearer
+	// token did not verify against the session's current generation.
 	ErrSupervisorCapabilityInvalid = errors.New("supervisor capability invalid")
-	ErrSupervisorLaunchStale       = errors.New("supervisor launch generation stale")
-	ErrSupervisedExitInvalid       = errors.New("supervised process exit facts are internally inconsistent")
+	// ErrSupervisorLaunchStale means the exit report named a runtime launch id
+	// other than the session's current one.
+	ErrSupervisorLaunchStale = errors.New("supervisor launch generation stale")
+	// ErrSupervisedExitInvalid means the reported exit code and reason
+	// contradict each other (see domain.SupervisedExitFactsConsistent).
+	ErrSupervisedExitInvalid = errors.New("supervised process exit facts are internally inconsistent")
 )
 
 // RuntimeFacts is what the reaper reports each probe of a session runtime.
@@ -72,6 +78,9 @@ type ActivitySignal struct {
 	// controller replacement.
 	ControllerGeneration string
 }
+
+// SupervisedProcessExit is an authenticated exit report for one runtime
+// generation of a Kennel-supervised provider process.
 type SupervisedProcessExit struct {
 	LaunchID string
 	ExitCode *int

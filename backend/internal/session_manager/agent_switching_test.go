@@ -1537,13 +1537,13 @@ func TestSwitchAgentRefusesGovernedSessionWithValidAdmissionEvidenceBeforeMutati
 	source := &switchTestAgent{configDir: filepath.Join(root, "codex"), available: map[string]ports.NativeSessionAvailability{"source-native": ports.NativeSessionAvailabilityAvailable}}
 	target := &switchTestAgent{configDir: filepath.Join(root, "opencode"), available: map[string]ports.NativeSessionAvailability{}}
 	manager := New(Deps{
-		Runtime:    runtime,
-		Agents:     switchTestAgents{domain.HarnessCodex: source, domain.HarnessOpenCode: target},
-		Workspace:  switchTestWorkspace{fakeWorkspace: &fakeWorkspace{path: workspacePath}},
-		Store:      store, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: base.fakeStore},
-		DataDir:    filepath.Join(root, "ao"),
-		LookPath:   func(string) (string, error) { return "/bin/agent", nil },
-		Executable: func() (string, error) { return filepath.Join(root, "bin", "ao"), nil },
+		Runtime:   runtime,
+		Agents:    switchTestAgents{domain.HarnessCodex: source, domain.HarnessOpenCode: target},
+		Workspace: switchTestWorkspace{fakeWorkspace: &fakeWorkspace{path: workspacePath}},
+		Store:     store, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: base.fakeStore},
+		DataDir:     filepath.Join(root, "ao"),
+		LookPath:    func(string) (string, error) { return "/bin/agent", nil },
+		Executable:  func() (string, error) { return filepath.Join(root, "bin", "ao"), nil },
 		NewLaunchID: func() string { return "target-generation" },
 	})
 

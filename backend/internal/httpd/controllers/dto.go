@@ -824,6 +824,14 @@ type ClaimPRResponse struct {
 	TakenOverFrom []domain.SessionID `json:"takenOverFrom"`
 }
 
+// SupervisedProcessExitRequest is the authenticated process exit fact a
+// Kennel-supervised provider process wrapper reports for the current runtime
+// generation.
+type SupervisedProcessExitRequest struct {
+	ExitCode *int   `json:"exitCode" description:"Exact provider process exit code when available."`
+	Reason   string `json:"reason" description:"Supervisor exit reason."`
+}
+
 // SetActivityRequest is the body of POST /api/v1/sessions/{sessionId}/activity.
 // Event/ToolName/ToolUseID are optional correlation facts: which Kennel hook
 // sub-command produced the state and, for tool-use hooks, which tool call it
@@ -832,11 +840,6 @@ type ClaimPRResponse struct {
 // payloads carry no tool identity — the signal then keeps its plain
 // state-only semantics.
 // AgentSessionID may arrive without State on metadata-only SessionStart hooks.
-type SupervisedProcessExitRequest struct {
-	ExitCode *int   `json:"exitCode" description:"Exact provider process exit code when available."`
-	Reason   string `json:"reason" description:"Supervisor exit reason."`
-}
-
 type SetActivityRequest struct {
 	State                 string                        `json:"state,omitempty" enum:"active,idle,waiting_input,blocked,exited" description:"Agent activity state reported by an agent hook. Optional for metadata-only hooks."`
 	Event                 string                        `json:"event,omitempty" description:"Kennel hook sub-command that produced this state (e.g. post-tool-use)."`

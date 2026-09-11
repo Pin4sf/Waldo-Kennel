@@ -11,9 +11,14 @@ import (
 type AttemptCompletionBoundary string
 
 const (
+	// AttemptCompletionProcessExit means the subordinate session ends when its
+	// supervised provider process exits; an authenticated exit report may then
+	// terminate it.
 	AttemptCompletionProcessExit AttemptCompletionBoundary = "process_exit"
 )
 
+// Valid reports whether b is a recognized completion boundary (including the
+// empty, legacy value).
 func (b AttemptCompletionBoundary) Valid() bool {
 	return b == "" || b == AttemptCompletionProcessExit
 }
@@ -36,6 +41,8 @@ type AdmissionSnapshot struct {
 	CompletionBoundary     AttemptCompletionBoundary      `json:"completionBoundary,omitempty"`
 }
 
+// ParseAdmissionSnapshot decodes a durable AttemptSessionRef's admission
+// snapshot JSON.
 func ParseAdmissionSnapshot(raw string) (AdmissionSnapshot, error) {
 	var snapshot AdmissionSnapshot
 	if err := json.Unmarshal([]byte(raw), &snapshot); err != nil {
@@ -44,6 +51,8 @@ func ParseAdmissionSnapshot(raw string) (AdmissionSnapshot, error) {
 	return snapshot, nil
 }
 
+// LooksLikeGovernedAdmissionSnapshot reports whether raw parses as a
+// snapshot carrying a frozen ExecutionPolicy, without fully validating it.
 func LooksLikeGovernedAdmissionSnapshot(raw string) bool {
 	var envelope struct {
 		SnapshotVersion       int             `json:"snapshotVersion"`
