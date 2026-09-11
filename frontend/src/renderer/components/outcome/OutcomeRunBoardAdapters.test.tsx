@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AttemptRecord, PlanRecord } from "../../hooks/useOutcome";
-import { AttemptCardAdapter, AttemptRowAdapter, toAttemptBoardPresentation } from "./OutcomeRunBoardAdapters";
+import { AttemptCardAdapter, AttemptRowAdapter, newestAttemptSession, toAttemptBoardPresentation } from "./OutcomeRunBoardAdapters";
 
 // The Ready lane (a succeeded attempt) should offer a real Merge action next
 // to Engage/Instruct when its bound session has a real pull request — never
@@ -45,6 +45,17 @@ function attempt(overrides: Partial<AttemptRecord> = {}): AttemptRecord {
 const plan = undefined as PlanRecord | undefined;
 
 describe("OutcomeRunBoardAdapters — Ready lane Merge action", () => {
+	it("uses the newest bound session for board attribution", () => {
+		const current = attempt({
+			sessions: [
+				{ id: "ref-old", seq: 1, sessionId: "sess-old", harness: "codex", runBriefCoreDigest: "a".repeat(64), boundAt: "2026-08-29T00:00:00Z" },
+				{ id: "ref-new", seq: 2, sessionId: "sess-new", harness: "claude-code", runBriefCoreDigest: "b".repeat(64), boundAt: "2026-08-30T00:00:00Z" },
+			],
+		});
+		expect(newestAttemptSession(current)?.sessionId).toBe("sess-new");
+		expect(toAttemptBoardPresentation(current, plan, true, ((key: string) => key) as never).provider).toBe("claude-code");
+	});
+
 	it("offers Engage and a real Merge link when the bound session has an open PR", () => {
 		workspaceQueryMock.mockReturnValue({
 			data: [{ id: "proj-1", sessions: [{ id: "sess-1", prs: [] }] }],

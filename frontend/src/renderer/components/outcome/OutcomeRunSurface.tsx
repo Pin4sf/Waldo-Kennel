@@ -23,6 +23,7 @@ import {
 	AttemptCardAdapter,
 	AttemptRowAdapter,
 	outcomeRunBoardLabels,
+	newestAttempt,
 	toAttemptBoardPresentation,
 	type AttemptBoardPresentation,
 } from "./OutcomeRunBoardAdapters";
@@ -94,9 +95,7 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 	);
 	const failure = action.failure ?? recovery.failure ?? attemptsQuery.failure ?? scheduleQuery.failure;
 	const attempts = attemptsQuery.attempts ?? [];
-	// Lineage order is ascending by number; the current attempt is the newest.
-	const current: AttemptRecord | undefined =
-		attempts.length > 0 ? attempts[attempts.length - 1] : undefined;
+	const current = newestAttempt(attempts);
 
 
 	const outcomeRunViewMode = useUiStore((state) => state.outcomeRunViewMode);
@@ -117,7 +116,7 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 	useEffect(() => {
 		closeAttemptPanel();
 	}, [current?.id, closeAttemptPanel]);
-	const engageCurrentAttempt = () => openAttemptPanel();
+	const engageAttempt = (attempt: AttemptRecord) => openAttemptPanel(attempt.id);
 
 
 	async function act(actionName: "cancel") {
@@ -163,8 +162,9 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 				<section className="max-w-2xl rounded-group hairline border-border bg-card px-4.5 py-3.5" data-testid="outcome-run-schedule">
 					<MissionPlanView
 						criterionText={criterionText}
-						attempts={attempts}
-						schedule={schedule}
+							attempts={attempts}
+							onOpenAttempt={engageAttempt}
+							schedule={schedule}
 						workUnits={schedule.workUnits.map((entry) => entry.workUnit)}
 					/>
 				</section>
@@ -188,7 +188,7 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 								columns={boardColumns}
 								labels={boardLabels}
 								renderSessionRow={(presentation) => (
-									<AttemptRowAdapter onEngage={engageCurrentAttempt} presentation={presentation} />
+									<AttemptRowAdapter onEngage={() => engageAttempt(presentation.attempt)} presentation={presentation} />
 								)}
 								sessions={attemptPresentations}
 							/>
@@ -197,7 +197,7 @@ export function OutcomeRunSurface({ outcomeId, onReviewProof, admissionBlocked =
 								columns={boardColumns}
 								labels={boardLabels}
 								renderSessionCard={(presentation) => (
-									<AttemptCardAdapter onEngage={engageCurrentAttempt} presentation={presentation} />
+									<AttemptCardAdapter onEngage={() => engageAttempt(presentation.attempt)} presentation={presentation} />
 								)}
 								sessions={attemptPresentations}
 							/>

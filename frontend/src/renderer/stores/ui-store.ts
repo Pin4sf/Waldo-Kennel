@@ -59,6 +59,9 @@ type UiState = {
 	 *  and it is shared between the WorkShell toggle button and the Board/List
 	 *  "Instruct"/"Engage" card actions so both open the exact same panel. */
 	isOutcomeAttemptPanelOpen: boolean;
+	/** Explicit WorkUnit selection for the attempt panel; null means the
+	 * persistent WorkShell toggle resolves the newest Attempt. */
+	outcomeAttemptPanelAttemptId: string | null;
 	/** Agent seeded into new project and session forms. Empty means "let the app
 	 *  pick", which is what a person who skipped the setup tour gets. */
 	defaultAgentId: string;
@@ -110,7 +113,7 @@ type UiState = {
 	setWorkbenchTab: (tab: WorkbenchTab) => void;
 	setSessionsViewMode: (mode: SessionsViewMode) => void;
 	setOutcomeRunViewMode: (mode: SessionsViewMode) => void;
-	openOutcomeAttemptPanel: () => void;
+	openOutcomeAttemptPanel: (attemptId?: string) => void;
 	closeOutcomeAttemptPanel: () => void;
 	toggleOutcomeAttemptPanel: () => void;
 	setDefaultAgentId: (agentId: string) => void;
@@ -196,6 +199,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	sessionsViewMode: initialSessionsViewMode(),
 	outcomeRunViewMode: initialOutcomeRunViewMode(),
 	isOutcomeAttemptPanelOpen: false,
+	outcomeAttemptPanelAttemptId: null,
 	defaultAgentId: initialDefaultAgentId(),
 	hasCompletedOnboarding: initialHasCompletedOnboarding(),
 	isOnboardingOpen: false,
@@ -225,10 +229,15 @@ export const useUiStore = create<UiState>((set, get) => ({
 		getLocalStorage()?.setItem(outcomeRunViewModeStorageKey, outcomeRunViewMode);
 		set({ outcomeRunViewMode });
 	},
-	openOutcomeAttemptPanel: () => set({ isOutcomeAttemptPanelOpen: true }),
-	closeOutcomeAttemptPanel: () => set({ isOutcomeAttemptPanelOpen: false }),
+	openOutcomeAttemptPanel: (outcomeAttemptPanelAttemptId) =>
+		set({ isOutcomeAttemptPanelOpen: true, outcomeAttemptPanelAttemptId: outcomeAttemptPanelAttemptId ?? null }),
+	closeOutcomeAttemptPanel: () => set({ isOutcomeAttemptPanelOpen: false, outcomeAttemptPanelAttemptId: null }),
 	toggleOutcomeAttemptPanel: () =>
-		set((state) => ({ isOutcomeAttemptPanelOpen: !state.isOutcomeAttemptPanelOpen })),
+		set((state) => ({
+			isOutcomeAttemptPanelOpen: !state.isOutcomeAttemptPanelOpen,
+			// The global toggle means "newest Attempt" for this Outcome.
+			outcomeAttemptPanelAttemptId: null,
+		})),
 	setDefaultAgentId: (defaultAgentId) => {
 		getLocalStorage()?.setItem(defaultAgentStorageKey, defaultAgentId);
 		set({ defaultAgentId });
