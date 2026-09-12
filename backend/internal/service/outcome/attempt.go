@@ -356,6 +356,15 @@ func (s *Service) StartAttempt(ctx context.Context, outcomeID domain.OutcomeID, 
 	}
 
 	session := spawned.Session
+	if spawned.ExecutionPolicy == nil {
+		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous,
+			errors.New("governed spawn did not return its workspace-bound execution policy"))
+	}
+	policy = *spawned.ExecutionPolicy
+	if err := policy.ValidateWorkspaceRoot(session.Metadata.WorkspacePath); err != nil {
+		return AttemptView{}, s.admitUnresolved(ctx, attempt.ID, domain.ObservationActivationAmbiguous,
+			fmt.Errorf("governed spawn workspace evidence mismatch: %w", err))
+	}
 	mode := session.Mode
 	policyDigest, err := policy.Digest()
 	if err != nil {

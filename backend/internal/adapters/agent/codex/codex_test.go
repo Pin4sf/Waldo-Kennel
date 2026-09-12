@@ -604,10 +604,15 @@ func TestGetLaunchCommandMapsAttemptExecutionPolicy(t *testing.T) {
 		RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
 		Grants:               []domain.CapabilityGrant{{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"}},
 	}
+	workspace := canonicalTempDir(t)
+	policy, err := policy.BindWorkspaceRoot(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{
 		Permissions:     ports.PermissionModeBypassPermissions,
 		ExecutionPolicy: &policy,
-		WorkspacePath:   t.TempDir(),
+		WorkspacePath:   workspace,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -708,11 +713,16 @@ func TestGetLaunchCommandPinsWorkspaceWriteBoundary(t *testing.T) {
 		},
 		ApprovedChecks: []domain.ApprovedCheck{{ID: "check-1", CriterionID: "criterion-1", Argv: []string{"go", "test", "./..."}, TimeoutSeconds: 60}},
 	}
-	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{ExecutionPolicy: &policy, WorkspacePath: t.TempDir()})
+	workspace := canonicalTempDir(t)
+	policy, err := policy.BindWorkspaceRoot(workspace)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsSubsequence(cmd, []string{"--sandbox", "workspace-write"}) || !contains(cmd, "--ignore-user-config") || !containsSubsequence(cmd, []string{"--disable", "shell_tool"}) {
+	cmd, err := plugin.GetLaunchCommand(context.Background(), ports.LaunchConfig{ExecutionPolicy: &policy, WorkspacePath: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsSubsequence(cmd, []string{"--sandbox", "read-only"}) || !contains(cmd, "--ignore-user-config") || !containsSubsequence(cmd, []string{"--disable", "shell_tool"}) {
 		t.Fatalf("command does not pin the workspace-write boundary: %#v", cmd)
 	}
 }
@@ -1088,6 +1098,14 @@ func TestGetRestoreCommandPinsGovernedWorkspaceWriteBoundary(t *testing.T) {
 		ApprovedChecks: []domain.ApprovedCheck{{ID: "check-1", CriterionID: "criterion-1", Argv: []string{"go", "test", "./..."}, TimeoutSeconds: 60}},
 	}
 	workspace := t.TempDir()
+	workspace, err := filepath.EvalSymlinks(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err = policy.BindWorkspaceRoot(workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cmd, ok, err := plugin.GetRestoreCommand(context.Background(), ports.RestoreConfig{
 		Config:          ports.AgentConfig{Model: "approved-model"},
 		Permissions:     ports.PermissionModeBypassPermissions,
@@ -1099,7 +1117,7 @@ func TestGetRestoreCommandPinsGovernedWorkspaceWriteBoundary(t *testing.T) {
 	}
 	for _, want := range []string{
 		"--sandbox",
-		"workspace-write",
+		"read-only",
 		"--ignore-user-config",
 	} {
 		if !containsSubsequence(cmd, []string{want}) {
@@ -1111,6 +1129,28 @@ func TestGetRestoreCommandPinsGovernedWorkspaceWriteBoundary(t *testing.T) {
 	}
 	if !containsSubsequence(cmd, []string{"exec", "--ignore-user-config", "resume", "thread-123"}) {
 		t.Fatalf("governed restore did not use one-shot codex exec resume: %#v", cmd)
+	}
+}
+
+func TestGetRestoreCommandRejectsDifferentWorkspaceThanFrozenPolicy(t *testing.T) {
+	policy := domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1, RunBriefCoreDigest: "brief",
+		RequiredCapabilities: []string{domain.CapabilityWorktreeRead},
+		Grants:               []domain.CapabilityGrant{{ID: "read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*"}},
+	}
+	first := canonicalTempDir(t)
+	policy, err := policy.BindWorkspaceRoot(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = (&Plugin{}).GetRestoreCommand(context.Background(), ports.RestoreConfig{
+		ExecutionPolicy: &policy,
+		Session: ports.SessionRef{WorkspacePath: canonicalTempDir(t), Metadata: map[string]string{
+			ports.MetadataKeyAgentSessionID: "thread-123",
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "does not match launch root") {
+		t.Fatalf("restore mismatch err = %v", err)
 	}
 }
 

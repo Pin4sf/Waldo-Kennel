@@ -3,6 +3,7 @@ package outcome_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -263,7 +264,7 @@ func TestStartAttemptAdmissionOrdering(t *testing.T) {
 	if len(ref.RunBriefCoreDigest) != 64 || len(ref.RunBriefCompiledDigest) != 64 {
 		t.Fatal("both digests must be recorded on the ref")
 	}
-	if !strings.Contains(ref.AdmissionSnapshot, `"snapshotVersion":2`) {
+	if !strings.Contains(ref.AdmissionSnapshot, fmt.Sprintf(`"snapshotVersion":%d`, domain.AdmissionSnapshotVersion)) {
 		t.Fatalf("admission snapshot missing version pin: %s", ref.AdmissionSnapshot)
 	}
 	if view.Fence == nil || !view.Fence.Open() || view.Fence.AttemptID != view.Attempt.ID {

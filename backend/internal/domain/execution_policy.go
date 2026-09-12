@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -19,9 +20,44 @@ type AttemptExecutionPolicy struct {
 	WorkUnitID             WorkUnitID        `json:"workUnitId"`
 	ContractRevisionNumber int64             `json:"contractRevisionNumber"`
 	RunBriefCoreDigest     string            `json:"runBriefCoreDigest"`
+	WorkspaceRoot          string            `json:"workspaceRoot,omitempty"`
 	RequiredCapabilities   []string          `json:"requiredCapabilities"`
 	Grants                 []CapabilityGrant `json:"grants"`
 	ApprovedChecks         []ApprovedCheck   `json:"approvedChecks,omitempty"`
+}
+
+// BindWorkspaceRoot freezes the exact leased workspace into a policy after
+// workspace allocation but before any provider launch. Recovery must present
+// the same root; a policy is never silently rebound to a replacement path.
+func (p AttemptExecutionPolicy) BindWorkspaceRoot(root string) (AttemptExecutionPolicy, error) {
+	root = filepath.Clean(strings.TrimSpace(root))
+	if root == "." || !filepath.IsAbs(root) {
+		return AttemptExecutionPolicy{}, fmt.Errorf("execution policy workspace root must be absolute")
+	}
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
+	if p.WorkspaceRoot != "" && p.WorkspaceRoot != root {
+		return AttemptExecutionPolicy{}, fmt.Errorf("execution policy workspace root %q does not match %q", p.WorkspaceRoot, root)
+	}
+	p.WorkspaceRoot = root
+	if err := p.Validate(); err != nil {
+		return AttemptExecutionPolicy{}, err
+	}
+	return p, nil
+}
+
+// ValidateWorkspaceRoot proves a launch or restore is using the workspace
+// identity frozen before the original provider process started.
+func (p AttemptExecutionPolicy) ValidateWorkspaceRoot(root string) error {
+	root = filepath.Clean(strings.TrimSpace(root))
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
+	if p.WorkspaceRoot == "" || p.WorkspaceRoot != root {
+		return fmt.Errorf("execution policy workspace root %q does not match launch root %q", p.WorkspaceRoot, root)
+	}
+	return nil
 }
 
 // BuildAttemptExecutionPolicy selects only grants required by the admitted
@@ -103,6 +139,9 @@ func (p AttemptExecutionPolicy) Validate() error {
 	}
 	if strings.TrimSpace(p.RunBriefCoreDigest) == "" {
 		return fmt.Errorf("execution policy RunBrief digest is required")
+	}
+	if p.WorkspaceRoot != "" && (!filepath.IsAbs(p.WorkspaceRoot) || filepath.Clean(p.WorkspaceRoot) != p.WorkspaceRoot) {
+		return fmt.Errorf("execution policy workspace root must be an absolute clean path")
 	}
 	required := uniqueSortedStrings(append([]string(nil), p.RequiredCapabilities...))
 	if len(required) == 0 {

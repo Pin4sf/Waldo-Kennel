@@ -857,6 +857,28 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (rec domain.
 		m.rollbackSpawnSeedRow(ctx, id)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: workspace: %w: %w", id, ports.ErrAttemptWorkspacePreparation, err)
 	}
+	if cfg.ExecutionPolicy != nil {
+		canonicalRoot, rootErr := filepath.Abs(filepath.Clean(ws.Path))
+		if rootErr != nil {
+			m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: workspace policy binding: %w", id, rootErr)
+		}
+		if resolved, resolveErr := filepath.EvalSymlinks(canonicalRoot); resolveErr == nil {
+			canonicalRoot = resolved
+		}
+		bound, bindErr := cfg.ExecutionPolicy.BindWorkspaceRoot(canonicalRoot)
+		if bindErr != nil {
+			m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: workspace policy binding: %w", id, bindErr)
+		}
+		cfg.ExecutionPolicy = &bound
+		digest, digestErr := bound.Digest()
+		if digestErr != nil {
+			m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: workspace policy digest: %w", id, digestErr)
+		}
+		rec.Metadata.GovernedExecutionPolicyDigest = digest
+	}
 
 	// Per-project workspace provisioning: symlink shared files, then run any
 	// post-create commands (e.g. `pnpm install`) before the agent launches.
@@ -3132,7 +3154,7 @@ func (m *Manager) cleanupRecords(ctx context.Context, project domain.ProjectID) 
 
 func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 	var governedPolicyDigest string
-	if cfg.ExecutionPolicy != nil {
+	if cfg.ExecutionPolicy != nil && cfg.ExecutionPolicy.WorkspaceRoot != "" {
 		// Spawn validates the policy before creating this row. The digest is a
 		// durable marker that tells recovery a matching Attempt snapshot is
 		// mandatory; the snapshot remains the authority for the actual policy.

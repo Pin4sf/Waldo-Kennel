@@ -33,6 +33,11 @@ func recoveryPolicy(t *testing.T) (domain.AttemptExecutionPolicy, string) {
 			ID: "grant-read", Name: domain.CapabilityWorktreeRead, Scope: "worktree/*",
 		}},
 	}
+	var err error
+	policy, err = policy.BindWorkspaceRoot("/ws/mer-1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	digest, err := policy.Digest()
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +92,7 @@ func TestLoadRecoveryExecutionRejectsInvalidGovernedEvidence(t *testing.T) {
 	base := newFakeStore()
 	base.sessions["mer-1"] = domain.SessionRecord{
 		ID: "mer-1", ProjectID: "mer", Harness: domain.HarnessCodex,
-		Metadata: domain.SessionMetadata{GovernedExecutionPolicyDigest: digest},
+		Metadata: domain.SessionMetadata{WorkspacePath: "/ws/mer-1", GovernedExecutionPolicyDigest: digest},
 	}
 	store := &recoveryEvidenceFakeStore{
 		fakeStore: base,

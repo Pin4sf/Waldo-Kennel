@@ -58,6 +58,29 @@ func TestBuildAttemptExecutionPolicyFreezesApprovedChecksInDigest(t *testing.T) 
 	}
 }
 
+func TestAttemptExecutionPolicyFreezesWorkspaceForRecovery(t *testing.T) {
+	policy := AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1, RunBriefCoreDigest: "brief",
+		RequiredCapabilities: []string{CapabilityWorktreeRead},
+		Grants:               []CapabilityGrant{{ID: "read", Name: CapabilityWorktreeRead, Scope: "worktree/*"}},
+	}
+	bound, err := policy.BindWorkspaceRoot("/tmp/kennel-workspace-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := bound.ValidateWorkspaceRoot("/tmp/kennel-workspace-b"); err == nil {
+		t.Fatal("workspace-bound policy accepted a different recovery root")
+	}
+	if _, err := bound.BindWorkspaceRoot("/tmp/kennel-workspace-b"); err == nil {
+		t.Fatal("workspace-bound policy was rebound")
+	}
+	unboundDigest, _ := policy.Digest()
+	boundDigest, _ := bound.Digest()
+	if unboundDigest == boundDigest {
+		t.Fatal("workspace root was absent from policy digest")
+	}
+}
+
 func TestBuildAttemptExecutionPolicyDoesNotUseUnrequestedPlanGrant(t *testing.T) {
 	plan := PlanRevision{
 		ID:                     "plan-1",

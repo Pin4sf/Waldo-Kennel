@@ -9,11 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/governedcheck"
@@ -42,6 +45,7 @@ type Server struct {
 	In            io.Reader
 	Out           io.Writer
 	RunCheck      func(context.Context, governedcheck.Request) (governedcheck.Result, error)
+	root          *os.Root
 }
 
 // Serve runs the bounded MCP server until its stdio input closes.
@@ -54,6 +58,14 @@ func (s Server) Serve(ctx context.Context) error {
 		return errors.New("governed tools require an existing absolute workspace")
 	}
 	s.WorkspaceRoot = root
+	if err := s.Policy.ValidateWorkspaceRoot(root); err != nil {
+		return err
+	}
+	s.root, err = os.OpenRoot(root)
+	if err != nil {
+		return fmt.Errorf("open governed workspace: %w", err)
+	}
+	defer func() { _ = s.root.Close() }()
 	if s.In == nil {
 		s.In = os.Stdin
 	}
@@ -154,27 +166,39 @@ func (s Server) call(ctx context.Context, name string, args map[string]interface
 	switch name {
 	case "list_repository":
 		raw, _ := args["path"].(string)
-		root, err := s.safeExisting(raw)
+		path, err := repositoryPath(raw, true)
 		if err != nil {
 			return "", err
 		}
+		root, err := s.root.OpenRoot(path)
+		if err != nil {
+			return "", err
+		}
+		defer func() { _ = root.Close() }()
 		var files []string
-		err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		err = fs.WalkDir(root.FS(), ".", func(child string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
 			}
-			if path == root {
+			if child == "." {
 				return nil
 			}
-			rel, _ := filepath.Rel(s.WorkspaceRoot, path)
-			if entry.IsDir() && (entry.Name() == ".git" || entry.Name() == "node_modules") {
-				return filepath.SkipDir
-			}
-			if !entry.IsDir() {
-				files = append(files, filepath.ToSlash(rel))
-				if len(files) > 5000 {
-					return errors.New("repository listing exceeds 5000 files")
+			if entry.Name() == ".git" || entry.Name() == "node_modules" {
+				if entry.IsDir() {
+					return fs.SkipDir
 				}
+				return nil
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			rel := child
+			if path != "." {
+				rel = filepath.Join(path, child)
+			}
+			files = append(files, filepath.ToSlash(rel))
+			if len(files) > 5000 {
+				return errors.New("repository listing exceeds 5000 files")
 			}
 			return nil
 		})
@@ -185,18 +209,18 @@ func (s Server) call(ctx context.Context, name string, args map[string]interface
 		if err != nil {
 			return "", err
 		}
-		path, err := s.safeExisting(raw)
+		path, err := repositoryPath(raw, false)
 		if err != nil {
 			return "", err
 		}
-		info, err := os.Stat(path)
+		info, err := s.root.Stat(path)
 		if err != nil || !info.Mode().IsRegular() {
 			return "", errors.New("path is not a regular file")
 		}
 		if info.Size() > maxTextBytes {
 			return "", errors.New("file exceeds 1 MiB")
 		}
-		b, err := os.ReadFile(path)
+		b, err := s.root.ReadFile(path)
 		if err != nil {
 			return "", err
 		}
@@ -219,19 +243,20 @@ func (s Server) call(ctx context.Context, name string, args map[string]interface
 		if len(content) > maxTextBytes {
 			return "", errors.New("content exceeds 1 MiB")
 		}
-		path, err := s.safeForWrite(raw)
+		path, err := repositoryPath(raw, false)
 		if err != nil {
 			return "", err
 		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		parent := filepath.Dir(path)
+		if err := s.root.MkdirAll(parent, 0o750); err != nil {
 			return "", err
 		}
-		tmp, err := os.CreateTemp(filepath.Dir(path), ".kennel-write-*")
+		tmpPath := filepath.Join(parent, ".kennel-write-"+uuid.NewString())
+		tmp, err := s.root.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 		if err != nil {
 			return "", err
 		}
-		tmpName := tmp.Name()
-		defer os.Remove(tmpName)
+		defer func() { _ = s.root.Remove(tmpPath) }()
 		if _, err = tmp.WriteString(content); err == nil {
 			err = tmp.Chmod(0o600)
 		}
@@ -239,7 +264,7 @@ func (s Server) call(ctx context.Context, name string, args map[string]interface
 			err = closeErr
 		}
 		if err == nil {
-			err = os.Rename(tmpName, path)
+			err = s.root.Rename(tmpPath, path)
 		}
 		if err != nil {
 			return "", err
@@ -268,67 +293,24 @@ func (s Server) call(ctx context.Context, name string, args map[string]interface
 	}
 }
 
-func (s Server) safeExisting(raw string) (string, error) {
-	path, err := s.lexical(raw)
-	if err != nil {
-		return "", err
-	}
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return "", err
-	}
-	if !within(s.WorkspaceRoot, resolved) {
-		return "", errors.New("path escapes leased workspace")
-	}
-	return resolved, nil
-}
-func (s Server) safeForWrite(raw string) (string, error) {
-	path, err := s.lexical(raw)
-	if err != nil {
-		return "", err
-	}
-	parent, tail, err := existingAncestor(filepath.Dir(path))
-	if err != nil {
-		return "", err
-	}
-	if !within(s.WorkspaceRoot, parent) {
-		return "", errors.New("path escapes leased workspace")
-	}
-	return filepath.Join(append([]string{parent}, append(tail, filepath.Base(path))...)...), nil
-}
-func (s Server) lexical(raw string) (string, error) {
+func repositoryPath(raw string, allowRoot bool) (string, error) {
 	if raw == "" {
 		raw = "."
 	}
 	if filepath.IsAbs(raw) {
 		return "", errors.New("path must be workspace-relative")
 	}
-	path := filepath.Clean(filepath.Join(s.WorkspaceRoot, raw))
-	if !within(s.WorkspaceRoot, path) {
+	path := filepath.Clean(raw)
+	if path == ".." || strings.HasPrefix(path, ".."+string(filepath.Separator)) {
 		return "", errors.New("path escapes leased workspace")
 	}
-	return path, nil
-}
-func within(root, path string) bool {
-	rel, err := filepath.Rel(root, path)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
-}
-
-func existingAncestor(path string) (string, []string, error) {
-	var tail []string
-	for {
-		resolved, err := filepath.EvalSymlinks(path)
-		if err == nil {
-			return resolved, tail, nil
-		}
-		if !errors.Is(err, os.ErrNotExist) {
-			return "", nil, err
-		}
-		parent := filepath.Dir(path)
-		if parent == path {
-			return "", nil, err
-		}
-		tail = append([]string{filepath.Base(path)}, tail...)
-		path = parent
+	if path == "." && !allowRoot {
+		return "", errors.New("path must name a repository file")
 	}
+	for _, component := range strings.Split(filepath.ToSlash(path), "/") {
+		if component == ".git" {
+			return "", errors.New("git custody metadata is not part of worktree file authority")
+		}
+	}
+	return path, nil
 }

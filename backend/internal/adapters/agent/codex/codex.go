@@ -80,8 +80,9 @@ var _ adapters.Adapter = (*Plugin)(nil)
 var _ ports.Agent = (*Plugin)(nil)
 
 // ValidateExecutionPolicy admits only the two Codex sandbox postures that
-// preserve the WorkUnit capability boundary: read-only inspection, or
-// workspace-write execution with provider network effects disabled. A
+// preserve the WorkUnit capability boundary. Native Codex always remains
+// sandboxed read-only for governed work; writes and exact checks cross only
+// the private Kennel tool boundary. A
 // write-only or execute-without-write WorkUnit cannot be represented by Codex's
 // sandbox without widening authority, so it is refused before launch.
 func (p *Plugin) ValidateExecutionPolicy(ctx context.Context, _ ports.AgentConfig, policy domain.AttemptExecutionPolicy) error {
@@ -237,12 +238,15 @@ func (p *Plugin) GetRestoreCommand(ctx context.Context, cfg ports.RestoreConfig)
 }
 
 func governedRepositoryArgs(policy domain.AttemptExecutionPolicy, workspace string) ([]string, error) {
-	sandbox, err := codexpolicy.SandboxFor(policy)
-	if err != nil {
+	if _, err := codexpolicy.SandboxFor(policy); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(workspace) == "" || !filepath.IsAbs(workspace) {
-		return nil, fmt.Errorf("codex governed repository tools require an absolute workspace path")
+	canonicalWorkspace, err := filepath.EvalSymlinks(filepath.Clean(strings.TrimSpace(workspace)))
+	if err != nil || !filepath.IsAbs(canonicalWorkspace) {
+		return nil, fmt.Errorf("codex governed repository tools require an existing absolute workspace path")
+	}
+	if err := policy.ValidateWorkspaceRoot(canonicalWorkspace); err != nil {
+		return nil, err
 	}
 	binary, err := os.Executable()
 	if err != nil {
@@ -253,19 +257,25 @@ func governedRepositoryArgs(policy domain.AttemptExecutionPolicy, workspace stri
 		return nil, fmt.Errorf("marshal governed repository policy: %w", err)
 	}
 	encoded := base64.RawURLEncoding.EncodeToString(raw)
-	mcp := "mcp_servers={kennel_governed={command=" + strconv.Quote(binary) + ",args=[" + strconv.Quote("governed-tools") + "," + strconv.Quote("--workspace") + "," + strconv.Quote(workspace) + "," + strconv.Quote("--policy") + "," + strconv.Quote(encoded) + "],default_tools_approval_mode=\"approve\"}}"
+	enabledTools := []string{"list_repository", "read_text_file"}
+	if policy.Has(domain.CapabilityWorktreeWrite) {
+		enabledTools = append(enabledTools, "write_text_file")
+	}
+	if policy.Has(domain.CapabilityWorktreeExec) {
+		enabledTools = append(enabledTools, "run_approved_check")
+	}
+	quotedTools := make([]string, 0, len(enabledTools))
+	for _, name := range enabledTools {
+		quotedTools = append(quotedTools, strconv.Quote(name))
+	}
+	mcp := "mcp_servers={kennel_governed={command=" + strconv.Quote(binary) + ",args=[" + strconv.Quote("governed-tools") + "," + strconv.Quote("--workspace") + "," + strconv.Quote(canonicalWorkspace) + "," + strconv.Quote("--policy") + "," + strconv.Quote(encoded) + "],required=true,enabled_tools=[" + strings.Join(quotedTools, ",") + "],default_tools_approval_mode=\"approve\"}}"
 	args := []string{
-		"--sandbox", sandbox,
+		// Built-in or newly introduced native effect tools remain unable to
+		// mutate the repository. Only the separately governed MCP process owns
+		// the frozen write/check authority.
+		"--sandbox", "read-only",
 		"-c", "web_search=\"disabled\"",
 		"-c", mcp,
-	}
-	if sandbox == "workspace-write" {
-		args = append(args,
-			"-c", "sandbox_workspace_write.network_access=false",
-			"-c", "sandbox_workspace_write.writable_roots=[]",
-			"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
-			"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
-		)
 	}
 	for _, feature := range []string{"shell_tool", "unified_exec", "plugins", "apps", "remote_plugin", "browser_use", "computer_use", "standalone_web_search", "multi_agent"} {
 		args = append(args, "--disable", feature)
