@@ -1,73 +1,46 @@
-# Waldo Kennel documentation
+# Kennel documentation
 
-This directory contains both current architecture authority and historical/future research. They are **not** equal sources of truth.
+Read only the documents relevant to your change. Current implementation, target
+architecture and historical evidence serve different purposes.
 
-## Kernel authority order
+| Need | Start here |
+| --- | --- |
+| Understand or run Kennel | [Project README](../README.md), [development guide](development.md) |
+| Find contribution work | [Contributing](../CONTRIBUTING.md), [issues](https://github.com/Pin4sf/Waldo-Kennel/issues), [milestones](https://github.com/Pin4sf/Waldo-Kennel/milestones) |
+| Know what works and remains open | [Current status](STATUS.md) |
+| Understand direction | [Public roadmap](../ROADMAP.md) |
+| Change product or kernel behavior | [AGENTS.md authority order](../AGENTS.md#canonical-read-order) |
+| Understand the control plane | [Product architecture](product/kennel-v1-product-architecture.md), [MVP reset](product/2026-09-08-outcome-control-plane-mvp-reset.md), [technical architecture](architecture.md) |
+| Work on providers or runtime | [Runtime reference index](research/2026-09-04-kernel-runtime-reference-index.md), [CLI](cli/README.md) |
+| Inspect launch evidence | [PR #110 handoff](handoffs/2026-09-12-pr110-launch-fixes/HANDOFF.md), [execution ledger](handoffs/2026-09-12-pr110-launch-fixes/EXECUTION-LEDGER.md) |
 
-For Work/kernel implementation, use this order:
+## Authority and scope
 
-1. [`../AGENTS.md`](../AGENTS.md) — repository rules and non-negotiable boundaries.
-2. [`product/kennel-v1-product-architecture.md`](product/kennel-v1-product-architecture.md) — canonical v1 kernel/product ontology.
-3. [`adr/0008-responsibility-composition-and-workunit-execution-dag.md`](adr/0008-responsibility-composition-and-workunit-execution-dag.md) — Outcome composition vs WorkUnit DAG.
-4. [`adr/0009-workunit-scheduling-workspace-leases-and-effect-fencing.md`](adr/0009-workunit-scheduling-workspace-leases-and-effect-fencing.md) — scheduling, workspaces, concurrency, effects, and recovery.
-5. [`STATUS.md`](STATUS.md) — what exists on `beta` today.
-6. [`product/kennel-build-program.md`](product/kennel-build-program.md) — ordered implementation slices and gates.
-7. [`superpowers/plans/2026-09-04-kennel-builds-kennel.md`](superpowers/plans/2026-09-04-kennel-builds-kennel.md) — next-session implementation plan.
-8. [`product/kennel-dogfood-acceptance-matrix.md`](product/kennel-dogfood-acceptance-matrix.md) — falsifiable self-hosting acceptance tests.
+[AGENTS.md](../AGENTS.md) maintains the canonical read order; this index does not
+keep a competing copy. ADRs 0010–0012 establish Outcome authority and
+non-authoritative owner-configured reasoning; ADR 0015 adds contract-bound
+interactive planning. ADR 0008 separates contributing Outcomes from execution
+WorkUnits, and ADR 0009 defines scheduling, workspace custody and effect fencing.
+Earlier ADRs remain applicable inside their scope unless explicitly superseded.
 
-Companion Work specifications:
+The [Work flow](superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md)
+and [screen interaction](superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md)
+specifications are implementation companions. Target designs do not prove
+shipped behavior; use [STATUS.md](STATUS.md) for that boundary.
 
-- [`superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md`](superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md)
-- [`superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md`](superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md)
+## Future lanes and history
 
-Public direction lives in [`../ROADMAP.md`](../ROADMAP.md). It provides
-milestones and exit gates but does not override the authority order or establish
-implementation status.
+The [roadmap](../ROADMAP.md) links active future work. Relevant designs include
+[owner-correctable Memory](superpowers/specs/2026-08-21-home-personal-agent-memory-design.md),
+[governed learning](superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md)
+and [ADR 0005](adr/0005-governed-project-learning-and-skill-evolution.md).
+Memory research includes the [infrastructure benchmark](research/2026-08-21-agent-memory-infrastructure-benchmark.md)
+and [personal-agent benchmark](research/2026-08-21-personal-agent-memory-research-benchmark.md).
+Home, mobile, capture and hosted attachment are separately scoped work; their
+presence here does not make them launch commitments.
 
-Technical references:
-
-- [`architecture.md`](architecture.md) — current Go daemon/package/lifecycle chassis.
-- [`research/2026-09-04-kernel-runtime-reference-index.md`](research/2026-09-04-kernel-runtime-reference-index.md) — provider protocols, runtime references, and implementation patterns.
-- [`cli/README.md`](cli/README.md) — thin CLI contract.
-- [`plans/island-app-unification.md`](plans/island-app-unification.md) — Island/Electron process integration when working on Island lifecycle.
-
-## ADR precedence
-
-ADRs are historical decisions and may be superseded by later ADRs. Do not infer authority from the highest amount of detail in an older ADR.
-
-For the current Work ontology:
-
-- ADR 0007 remains useful for composed-Outcome governance, but its claim that Outcome composition and a WorkUnit graph are competing mechanisms is superseded by ADR 0008.
-- ADR 0008 defines responsibility decomposition vs execution decomposition.
-- ADR 0009 defines WorkUnit scheduling and workspace/effect custody.
-- Earlier local-first, LAN-listener, Home, learning, and durable-Waldo ADRs remain authoritative only inside their stated scope unless a newer ADR says otherwise.
-
-## Future product lanes
-
-Home, personal capture, durable Memory, communication, learning/skill evolution, mobile/health, hosted attachment, and cross-device work are future or parallel lanes. Their research/specifications remain in the repository for scoped tasks, but **kernel coding agents must not load them by default** or use them to override the Work authority chain.
-
-Notable future-lane documents include:
-
-- `superpowers/specs/2026-08-21-home-personal-agent-memory-design.md`
-- `superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md`
-- `adr/0005-governed-project-learning-and-skill-evolution.md`
-- `adr/0006-one-durable-waldo-multiple-governed-presences.md`
-- `research/2026-08-21-agent-memory-infrastructure-benchmark.md`
-- `research/2026-08-21-personal-agent-memory-research-benchmark.md`
-
-## Historical documents
-
-Dated plans/specs not linked from the kernel authority order are historical implementation records unless their header explicitly says otherwise. Git history preserves removed handoffs, review packets, prototypes, and superseded delivery plans.
-
-Rules for agents:
-
-- do not recursively ingest all of `docs/` into context;
-- do not resurrect a rule solely because an older handoff says it was once approved;
-- prefer a current ADR over an older plan;
-- prefer `STATUS.md` for implemented reality;
-- prefer the canonical architecture for accepted target semantics;
-- when current code and accepted target differ, implement only through the ordered build program and preserve compatibility/recovery explicitly.
-
-## One-sentence mental model
-
-> Provider Sessions are execution machinery; Outcomes are what the user owns; Kennel keeps that machinery coherently moving toward the user's definition of done.
+Dated plans and verification records describe their own revisions and test
+boundaries. They are not instructions to resume historical assignments. Preserve
+referenced evidence and decisions; remove obsolete disconnected handoffs instead
+of turning this directory into a second task tracker. Git history retains removed
+material. See the [cleanup record](maintenance/2026-09-12-public-docs-cleanup.md).
