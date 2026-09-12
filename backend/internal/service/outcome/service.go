@@ -18,6 +18,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/apierr"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/ports"
+	intelligencesvc "github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence"
 )
 
 // Manager is the controller-facing boundary for canonical Outcome work.
@@ -108,8 +109,11 @@ type Service struct {
 	planningSessions ports.PlanningSessionStore
 	intelligenceRuns ports.IntelligenceRunStore
 	routing          ports.ExecutionRoutingInventory
-	planningTurnMu   sync.Mutex
-	planningTurns    map[domain.PlanningSessionID]*planningTurnCancellation
+	// contextLimits resolves the owner-configurable bounds for
+	// BuildRepositoryContext. Optional: nil means DefaultRepositoryContextLimits.
+	contextLimits  intelligencesvc.RepositoryContextLimitsSource
+	planningTurnMu sync.Mutex
+	planningTurns  map[domain.PlanningSessionID]*planningTurnCancellation
 
 	PolicyLayers [][]string
 
@@ -227,6 +231,28 @@ func (s *Service) WithExecution(spawner ports.AttemptSessionSpawner, heartbeats 
 	s.heartbeats = heartbeats
 	s.staleHeartbeat = domain.DefaultStaleHeartbeatWindow
 	return s
+}
+
+// WithRepositoryContextLimits wires the owner-configurable bounds for
+// BuildRepositoryContext. Optional: without it, planning and Plan drafting
+// use intelligencesvc.DefaultRepositoryContextLimits.
+func (s *Service) WithRepositoryContextLimits(source intelligencesvc.RepositoryContextLimitsSource) *Service {
+	s.contextLimits = source
+	return s
+}
+
+// repositoryContextLimits resolves the effective bounds for one
+// BuildRepositoryContext call, falling back to the package default when no
+// source is wired or it fails to resolve.
+func (s *Service) repositoryContextLimits(ctx context.Context) intelligencesvc.RepositoryContextLimits {
+	if s.contextLimits == nil {
+		return intelligencesvc.DefaultRepositoryContextLimits
+	}
+	maxFiles, maxBytes, maxVisited, err := s.contextLimits.RepositoryContextLimits(ctx)
+	if err != nil {
+		return intelligencesvc.DefaultRepositoryContextLimits
+	}
+	return intelligencesvc.RepositoryContextLimits{MaxFiles: maxFiles, MaxBytes: maxBytes, MaxVisited: maxVisited}
 }
 
 // WithAttemptRetainer attaches the restart-safe workspace capture used before

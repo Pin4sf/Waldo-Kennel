@@ -20,6 +20,8 @@ type SettingsService interface {
 	GetReasoning(ctx context.Context) (settingssvc.ReasoningStatus, error)
 	SetReasoning(ctx context.Context, input settingssvc.ReasoningInput) (settingssvc.ReasoningStatus, error)
 	ChatHarnesses(candidates []domain.AgentHarness) []domain.AgentHarness
+	RepositoryContextLimits(ctx context.Context) (maxFiles, maxBytes, maxVisited int, err error)
+	SetRepositoryContextLimits(ctx context.Context, maxFiles, maxBytes, maxVisited *int64) (settingssvc.Snapshot, error)
 }
 
 // SettingsController owns the daemon-owned preference routes.
@@ -37,6 +39,7 @@ func (c *SettingsController) Register(r chi.Router) {
 	r.Patch("/settings/session-interface", c.setSessionInterface)
 	r.Patch("/settings/reasoning", c.setReasoning)
 	r.Post("/settings/reasoning/verification", c.verifyReasoning)
+	r.Patch("/settings/repository-context", c.setRepositoryContextLimits)
 }
 
 func (c *SettingsController) get(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +117,43 @@ func (c *SettingsController) response(ctx context.Context, snapshot settingssvc.
 		DefaultSessionMode: string(snapshot.DefaultSessionMode),
 		ChatHarnesses:      names,
 		Reasoning:          reasoningResponse(reasoning),
+		RepositoryContext:  c.repositoryContextLimitsResponse(ctx, snapshot),
 	}
+}
+
+func (c *SettingsController) repositoryContextLimitsResponse(ctx context.Context, snapshot settingssvc.Snapshot) RepositoryContextLimitsResponse {
+	out := RepositoryContextLimitsResponse{
+		MaxFiles: snapshot.RepositoryContextMaxFiles, MaxBytes: snapshot.RepositoryContextMaxBytes, MaxVisited: snapshot.RepositoryContextMaxVisited,
+		EffectiveMaxFiles: settingssvc.DefaultRepositoryContextMaxFiles, EffectiveMaxBytes: settingssvc.DefaultRepositoryContextMaxBytes, EffectiveMaxVisited: settingssvc.DefaultRepositoryContextMaxVisited,
+	}
+	if maxFiles, maxBytes, maxVisited, err := c.Svc.RepositoryContextLimits(ctx); err == nil {
+		out.EffectiveMaxFiles, out.EffectiveMaxBytes, out.EffectiveMaxVisited = int64(maxFiles), int64(maxBytes), int64(maxVisited)
+	}
+	return out
+}
+
+// setRepositoryContextLimits configures the owner's bounds for Waldo's
+// bounded repository-context packet (intake analysis, planning).
+func (c *SettingsController) setRepositoryContextLimits(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, http.MethodPatch, "/api/v1/settings/repository-context")
+		return
+	}
+	var req UpdateRepositoryContextLimitsRequest
+	if !decodeConversationBody(w, r, &req) {
+		return
+	}
+	if req.MaxFiles < 0 || req.MaxBytes < 0 || req.MaxVisited < 0 {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "REPOSITORY_CONTEXT_LIMIT_INVALID",
+			"maxFiles, maxBytes, and maxVisited must be zero (uncapped) or positive", nil)
+		return
+	}
+	snapshot, err := c.Svc.SetRepositoryContextLimits(r.Context(), &req.MaxFiles, &req.MaxBytes, &req.MaxVisited)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, c.repositoryContextLimitsResponse(r.Context(), snapshot))
 }
 
 func reasoningResponse(status settingssvc.ReasoningStatus) ReasoningResponse {

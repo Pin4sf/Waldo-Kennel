@@ -18,21 +18,58 @@ import (
 )
 
 const (
-	contextMaxFiles   = 32
-	contextMaxBytes   = 96 * 1024
 	contextMaxFile    = 12 * 1024
 	contextMaxRuntime = 2 * time.Second
-	// contextMaxVisited bounds directory-walk discovery, not content exposure:
-	// contextMaxFiles/contextMaxBytes/contextMaxFile still cap what actually
-	// reaches the model, and contextMaxRuntime remains the real backstop
-	// against a pathological tree. A real mid-size repository can easily hold
-	// several thousand non-vendored entries (most excluded/irrelevant), so a
-	// too-low visit cap gives up discovery before it ever reaches the files
-	// that matter — observed directly against a ~3,500-entry real repository
-	// during the launch-stabilization end-to-end exercise.
-	contextMaxVisited    = 20000
-	contextMaxCandidates = contextMaxFiles * 3
 )
+
+// RepositoryContextLimits bounds one BuildRepositoryContext call. In every
+// field, zero or negative means uncapped — this package interprets that
+// directly, so a caller (including a zero-value struct) never silently
+// collapses to "allow nothing".
+//
+// MaxFiles and MaxBytes cap content exposure (the real token-management
+// lever); MaxVisited only bounds directory-walk discovery. contextMaxFile
+// (per-file truncation) and contextMaxRuntime (wall-clock backstop) remain
+// fixed: they are safety bounds, not a token budget an owner would tune.
+type RepositoryContextLimits struct {
+	MaxFiles   int
+	MaxBytes   int
+	MaxVisited int
+}
+
+// DefaultRepositoryContextLimits are Kennel's built-in bounds, used whenever
+// the owner has not configured an override. A too-low MaxVisited previously
+// gave up directory-walk discovery before it ever reached the files that
+// mattered on an ordinary real repository — observed directly against a
+// ~3,500-entry repository during the launch-stabilization end-to-end
+// exercise — which is why it is now a configurable, owner-raisable value
+// rather than a fixed constant.
+var DefaultRepositoryContextLimits = RepositoryContextLimits{
+	MaxFiles:   32,
+	MaxBytes:   96 * 1024,
+	MaxVisited: 20000,
+}
+
+// RepositoryContextLimitsSource resolves the owner's configured bounds
+// (already normalized: unset -> DefaultRepositoryContextLimits, uncapped ->
+// zero or negative). It is intentionally satisfied structurally: the
+// settings service implements this shape without either package importing
+// the other.
+type RepositoryContextLimitsSource interface {
+	RepositoryContextLimits(ctx context.Context) (maxFiles, maxBytes, maxVisited int, err error)
+}
+
+// atCap reports whether count has reached limit. limit <= 0 means uncapped:
+// no count ever reaches it.
+func atCap(count, limit int) bool {
+	return limit > 0 && count >= limit
+}
+
+// overCap reports whether count has exceeded limit. limit <= 0 means
+// uncapped: no count ever exceeds it.
+func overCap(count, limit int) bool {
+	return limit > 0 && count > limit
+}
 
 var errContextEntryLimit = errors.New("repository inspection reached its entry limit; context is partial")
 
@@ -48,7 +85,7 @@ type briefSource interface {
 
 // BuildRepositoryContext inspects only bounded, text-oriented repository facts.
 // It never runs package scripts, follows symlinks, or reads ignored files.
-func BuildRepositoryContext(ctx context.Context, project domain.ProjectRecord, brief briefSource) (ports.RepositoryContextSnapshot, error) {
+func BuildRepositoryContext(ctx context.Context, project domain.ProjectRecord, brief briefSource, limits RepositoryContextLimits) (ports.RepositoryContextSnapshot, error) {
 	snapshot := ports.RepositoryContextSnapshot{ProjectID: domain.ProjectID(project.ID), Root: filepath.Clean(project.Path)}
 	if brief != nil {
 		current, ok, err := brief.GetCurrentProjectBriefRevision(ctx, snapshot.ProjectID)
@@ -74,7 +111,7 @@ func BuildRepositoryContext(ctx context.Context, project domain.ProjectRecord, b
 		snapshot.UnavailableReason = "repository revision could not be inspected"
 	}
 
-	files, instructions, checks, collectErr := boundedFiles(inspectCtx, snapshot.Root)
+	files, instructions, checks, collectErr := boundedFiles(inspectCtx, snapshot.Root, limits)
 	snapshot.Files, snapshot.Instructions, snapshot.CheckCommands = files, instructions, checks
 	if collectErr != nil {
 		if errors.Is(collectErr, errContextEntryLimit) {
@@ -97,7 +134,14 @@ func readGitFact(ctx context.Context, root string, args ...string) string {
 	return strings.TrimSpace(string(output))
 }
 
-func boundedFiles(ctx context.Context, root string) (files, instructions []ports.RepositoryContextFile, checks []string, collectErr error) {
+func boundedFiles(ctx context.Context, root string, limits RepositoryContextLimits) (files, instructions []ports.RepositoryContextFile, checks []string, collectErr error) {
+	// candidateLimit bounds path discovery, scaled off MaxFiles (uncapped when
+	// MaxFiles is): it only needs to comfortably outnumber MaxFiles so the
+	// later content pass has enough priority candidates to choose from.
+	candidateLimit := 0
+	if limits.MaxFiles > 0 {
+		candidateLimit = limits.MaxFiles * 3
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, nil, nil, err
 	}
@@ -134,7 +178,7 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 			return err
 		}
 		visited++
-		if visited > contextMaxVisited {
+		if overCap(visited, limits.MaxVisited) {
 			// Reaching a bounded discovery limit does not invalidate files found
 			// before it. Stop discovery and inspect those candidates normally.
 			collectErr = errContextEntryLimit
@@ -170,7 +214,7 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 			return nil
 		}
 		candidates = append(candidates, rel)
-		if len(candidates) >= contextMaxCandidates {
+		if atCap(len(candidates), candidateLimit) {
 			return filepath.SkipAll
 		}
 		return nil
@@ -196,7 +240,7 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 		if err := ctx.Err(); err != nil {
 			return files, instructions, checks, err
 		}
-		if len(files)+len(instructions) >= contextMaxFiles || seenBytes >= contextMaxBytes {
+		if atCap(len(files)+len(instructions), limits.MaxFiles) || atCap(seenBytes, limits.MaxBytes) {
 			break
 		}
 		path := filepath.Join(root, rel)
@@ -217,10 +261,12 @@ func boundedFiles(ctx context.Context, root string) (files, instructions []ports
 		if truncated {
 			content = content[:contextMaxFile]
 		}
-		remaining := contextMaxBytes - seenBytes
-		if len(content) > remaining {
-			content = content[:remaining]
-			truncated = true
+		if limits.MaxBytes > 0 {
+			remaining := limits.MaxBytes - seenBytes
+			if len(content) > remaining {
+				content = content[:remaining]
+				truncated = true
+			}
 		}
 		item := ports.RepositoryContextFile{Path: filepath.ToSlash(rel), Content: string(content), Truncated: truncated}
 		seenBytes += len(content)

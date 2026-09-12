@@ -15,7 +15,7 @@ import (
 
 const getAppSettings = `-- name: GetAppSettings :one
 
-SELECT id, default_session_mode, updated_at, reasoning_provider, reasoning_model, reasoning_effort, reasoning_verified_at, reasoning_verified_provider, reasoning_verified_model, reasoning_generation, reasoning_verified_generation, reasoning_verification_fingerprint FROM app_settings WHERE id = 1
+SELECT id, default_session_mode, updated_at, reasoning_provider, reasoning_model, reasoning_effort, reasoning_verified_at, reasoning_verified_provider, reasoning_verified_model, reasoning_generation, reasoning_verified_generation, reasoning_verification_fingerprint, repository_context_max_files, repository_context_max_bytes, repository_context_max_visited FROM app_settings WHERE id = 1
 `
 
 // Daemon-owned user preferences. One row, seeded by migration 0042, so a read
@@ -36,6 +36,9 @@ func (q *Queries) GetAppSettings(ctx context.Context) (AppSetting, error) {
 		&i.ReasoningGeneration,
 		&i.ReasoningVerifiedGeneration,
 		&i.ReasoningVerificationFingerprint,
+		&i.RepositoryContextMaxFiles,
+		&i.RepositoryContextMaxBytes,
+		&i.RepositoryContextMaxVisited,
 	)
 	return i, err
 }
@@ -137,4 +140,27 @@ func (q *Queries) SetReasoningVerificationForGeneration(ctx context.Context, arg
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const setRepositoryContextLimits = `-- name: SetRepositoryContextLimits :exec
+UPDATE app_settings
+SET repository_context_max_files = ?, repository_context_max_bytes = ?, repository_context_max_visited = ?, updated_at = ?
+WHERE id = 1
+`
+
+type SetRepositoryContextLimitsParams struct {
+	RepositoryContextMaxFiles   sql.NullInt64
+	RepositoryContextMaxBytes   sql.NullInt64
+	RepositoryContextMaxVisited sql.NullInt64
+	UpdatedAt                   time.Time
+}
+
+func (q *Queries) SetRepositoryContextLimits(ctx context.Context, arg SetRepositoryContextLimitsParams) error {
+	_, err := q.db.ExecContext(ctx, setRepositoryContextLimits,
+		arg.RepositoryContextMaxFiles,
+		arg.RepositoryContextMaxBytes,
+		arg.RepositoryContextMaxVisited,
+		arg.UpdatedAt,
+	)
+	return err
 }

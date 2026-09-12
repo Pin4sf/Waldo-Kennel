@@ -2644,6 +2644,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/repository-context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Configure the owner's bounds for Waldo's bounded repository-context packet */
+        patch: operations["updateRepositoryContextLimits"];
+        trace?: never;
+    };
     "/api/v1/settings/session-interface": {
         parameters: {
             query?: never;
@@ -3365,6 +3382,17 @@ export interface components {
             usage: components["schemas"]["ControllersAttributedUsageResponse"];
             workUnitId: string;
         };
+        ControllersRepositoryContextLimitsResponse: {
+            /** Format: int64 */
+            effectiveMaxBytes: number;
+            /** Format: int64 */
+            effectiveMaxFiles: number;
+            /** Format: int64 */
+            effectiveMaxVisited: number;
+            maxBytes: null | number;
+            maxFiles: null | number;
+            maxVisited: null | number;
+        };
         ControllersRequestOutcomeDeliveryRequest: {
             acceptanceDecisionId?: string;
             artifactVersion: string;
@@ -3506,6 +3534,14 @@ export interface components {
             exitCode: null | number;
             /** @description Supervisor exit reason. */
             reason: string;
+        };
+        ControllersUpdateRepositoryContextLimitsRequest: {
+            /** Format: int64 */
+            maxBytes: number;
+            /** Format: int64 */
+            maxFiles: number;
+            /** Format: int64 */
+            maxVisited: number;
         };
         ConversationAccountPayload: {
             authMode?: string;
@@ -5067,6 +5103,7 @@ export interface components {
             /** @enum {string} */
             defaultSessionMode: "chat" | "tui";
             reasoning: components["schemas"]["ReasoningResponse"];
+            repositoryContext: components["schemas"]["ControllersRepositoryContextLimitsResponse"];
         };
         ShellTerminalEnvelope: {
             shellTerminal: components["schemas"]["ShellTerminalResponse"];
@@ -16049,6 +16086,57 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    updateRepositoryContextLimits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControllersUpdateRepositoryContextLimitsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControllersRepositoryContextLimitsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
                 headers: {
                     [name: string]: unknown;
                 };

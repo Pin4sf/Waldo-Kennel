@@ -54,6 +54,11 @@ func (s *reasoningSettingsStore) SetReasoningVerificationForGeneration(_ context
 	return true, nil
 }
 
+func (s *reasoningSettingsStore) SetRepositoryContextLimits(_ context.Context, maxFiles, maxBytes, maxVisited *int64, _ time.Time) error {
+	s.snapshot.RepositoryContextMaxFiles, s.snapshot.RepositoryContextMaxBytes, s.snapshot.RepositoryContextMaxVisited = maxFiles, maxBytes, maxVisited
+	return nil
+}
+
 type reasoningSecret struct{ value string }
 
 func (s *reasoningSecret) Get(context.Context) (string, error) { return s.value, nil }
@@ -205,5 +210,44 @@ func TestSetReasoningCodexDoesNotRequireOrAcceptAnAPIKey(t *testing.T) {
 	}
 	if _, err := svc.SetReasoning(context.Background(), ReasoningInput{Provider: "codex", APIKey: "must-not-be-used"}); err == nil {
 		t.Fatal("Codex harness unexpectedly accepted an API key")
+	}
+}
+
+func TestRepositoryContextLimitsUsesBuiltInDefaultWhenUnconfigured(t *testing.T) {
+	store := &reasoningSettingsStore{}
+	svc := New(store, nil, nil)
+
+	maxFiles, maxBytes, maxVisited, err := svc.RepositoryContextLimits(context.Background())
+	if err != nil {
+		t.Fatalf("RepositoryContextLimits() error = %v", err)
+	}
+	if int64(maxFiles) != DefaultRepositoryContextMaxFiles || int64(maxBytes) != DefaultRepositoryContextMaxBytes || int64(maxVisited) != DefaultRepositoryContextMaxVisited {
+		t.Fatalf("unconfigured limits = (%d, %d, %d), want built-in defaults (%d, %d, %d)",
+			maxFiles, maxBytes, maxVisited, DefaultRepositoryContextMaxFiles, DefaultRepositoryContextMaxBytes, DefaultRepositoryContextMaxVisited)
+	}
+}
+
+func TestSetRepositoryContextLimitsRoundTripsAndSupportsUncapped(t *testing.T) {
+	store := &reasoningSettingsStore{}
+	svc := New(store, nil, nil)
+
+	custom, uncapped := int64(500), int64(0)
+	if _, err := svc.SetRepositoryContextLimits(context.Background(), &custom, &uncapped, &custom); err != nil {
+		t.Fatalf("SetRepositoryContextLimits() error = %v", err)
+	}
+	maxFiles, maxBytes, maxVisited, err := svc.RepositoryContextLimits(context.Background())
+	if err != nil {
+		t.Fatalf("RepositoryContextLimits() error = %v", err)
+	}
+	if int64(maxFiles) != custom || maxBytes != 0 || int64(maxVisited) != custom {
+		t.Fatalf("configured limits = (%d, %d, %d), want (%d, 0 [uncapped], %d)", maxFiles, maxBytes, maxVisited, custom, custom)
+	}
+
+	snapshot, err := store.GetAppSettings(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.RepositoryContextMaxBytes == nil || *snapshot.RepositoryContextMaxBytes != 0 {
+		t.Fatalf("persisted uncapped bound = %v, want a stored explicit zero (not nil/default)", snapshot.RepositoryContextMaxBytes)
 	}
 }

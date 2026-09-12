@@ -25,6 +25,7 @@ type Store interface {
 	SetDefaultSessionMode(ctx context.Context, mode domain.SessionMode, now time.Time) error
 	SetReasoningSettings(ctx context.Context, provider, model, effort string, now time.Time) error
 	SetReasoningVerification(ctx context.Context, verifiedAt *time.Time, provider, model string, now time.Time) error
+	SetRepositoryContextLimits(ctx context.Context, maxFiles, maxBytes, maxVisited *int64, now time.Time) error
 }
 
 // VerificationGenerationStore is implemented by durable stores that can
@@ -48,7 +49,14 @@ type Snapshot struct {
 	ReasoningGeneration              int64
 	ReasoningVerifiedGeneration      int64
 	ReasoningVerificationFingerprint string
-	UpdatedAt                        time.Time
+	// RepositoryContextMaxFiles/MaxBytes/MaxVisited are the owner-configured
+	// bounds for Waldo's bounded repository-context packet (intake analysis,
+	// planning). Nil means Kennel's built-in default is in force; zero means
+	// uncapped.
+	RepositoryContextMaxFiles   *int64
+	RepositoryContextMaxBytes   *int64
+	RepositoryContextMaxVisited *int64
+	UpdatedAt                   time.Time
 }
 
 // SecretStore is intentionally narrower than a general credential manager.
@@ -557,6 +565,53 @@ func (s *Service) SetDefaultSessionMode(ctx context.Context, mode domain.Session
 		return Snapshot{}, fmt.Errorf("%w: %q", ports.ErrChatUnsupported, mode)
 	}
 	if err := s.store.SetDefaultSessionMode(ctx, mode, s.now()); err != nil {
+		return Snapshot{}, err
+	}
+	return s.store.GetAppSettings(ctx)
+}
+
+// DefaultRepositoryContextMaxFiles, DefaultRepositoryContextMaxBytes, and
+// DefaultRepositoryContextMaxVisited are Kennel's built-in repository-context
+// bounds, reported to owners who have not configured an override. They must
+// stay equal to intelligence.DefaultRepositoryContextLimits; a dedicated test
+// pins that equality since this package cannot import intelligence's type
+// without importing the package (kept structural on purpose — see
+// RepositoryContextLimits).
+const (
+	DefaultRepositoryContextMaxFiles   int64 = 32
+	DefaultRepositoryContextMaxBytes   int64 = 96 * 1024
+	DefaultRepositoryContextMaxVisited int64 = 20000
+)
+
+// RepositoryContextLimits resolves the owner's configured repository-context
+// bounds, already normalized: an unconfigured (nil) field becomes Kennel's
+// built-in default; zero passes through as uncapped. This method's shape
+// deliberately matches intelligence.RepositoryContextLimitsSource so the
+// intelligence package can consume this Service without either package
+// importing the other.
+func (s *Service) RepositoryContextLimits(ctx context.Context) (maxFiles, maxBytes, maxVisited int, err error) {
+	snapshot, err := s.store.GetAppSettings(ctx)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	return int(resolveLimit(snapshot.RepositoryContextMaxFiles, DefaultRepositoryContextMaxFiles)),
+		int(resolveLimit(snapshot.RepositoryContextMaxBytes, DefaultRepositoryContextMaxBytes)),
+		int(resolveLimit(snapshot.RepositoryContextMaxVisited, DefaultRepositoryContextMaxVisited)),
+		nil
+}
+
+func resolveLimit(configured *int64, builtinDefault int64) int64 {
+	if configured == nil {
+		return builtinDefault
+	}
+	return *configured
+}
+
+// SetRepositoryContextLimits stores the owner's repository-context bounds. A
+// nil field clears that override back to Kennel's built-in default; zero
+// means uncapped.
+func (s *Service) SetRepositoryContextLimits(ctx context.Context, maxFiles, maxBytes, maxVisited *int64) (Snapshot, error) {
+	if err := s.store.SetRepositoryContextLimits(ctx, maxFiles, maxBytes, maxVisited, s.now()); err != nil {
 		return Snapshot{}, err
 	}
 	return s.store.GetAppSettings(ctx)

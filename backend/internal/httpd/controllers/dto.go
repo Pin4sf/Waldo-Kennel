@@ -1794,8 +1794,9 @@ type SettingsResponse struct {
 	DefaultSessionMode string `json:"defaultSessionMode" enum:"chat,tui"`
 	// ChatHarnesses are the agents that can run in chat mode today. Empty means
 	// chat cannot be used yet, which a client should say plainly.
-	ChatHarnesses []string          `json:"chatHarnesses"`
-	Reasoning     ReasoningResponse `json:"reasoning"`
+	ChatHarnesses     []string                        `json:"chatHarnesses"`
+	Reasoning         ReasoningResponse               `json:"reasoning"`
+	RepositoryContext RepositoryContextLimitsResponse `json:"repositoryContext"`
 }
 
 // ReasoningResponse reports reasoning readiness without returning a secret.
@@ -1833,6 +1834,34 @@ type UpdateReasoningRequest struct {
 // UpdateSessionInterfaceRequest changes the default interface for new sessions.
 type UpdateSessionInterfaceRequest struct {
 	DefaultSessionMode string `json:"defaultSessionMode" enum:"chat,tui"`
+}
+
+// RepositoryContextLimitsResponse reports the owner's configured bounds for
+// Waldo's bounded repository-context packet (intake analysis, planning) and
+// the effective values actually in force once Kennel's built-in defaults are
+// substituted for anything unconfigured.
+type RepositoryContextLimitsResponse struct {
+	// MaxFiles/MaxBytes/MaxVisited are the owner's raw override, or null when
+	// Kennel's built-in default is in force for that bound.
+	MaxFiles   *int64 `json:"maxFiles"`
+	MaxBytes   *int64 `json:"maxBytes"`
+	MaxVisited *int64 `json:"maxVisited"`
+	// EffectiveMaxFiles/EffectiveMaxBytes/EffectiveMaxVisited are what actually
+	// governs the next repository-context build: the override above, or
+	// Kennel's built-in default when unset. Zero means uncapped.
+	EffectiveMaxFiles   int64 `json:"effectiveMaxFiles"`
+	EffectiveMaxBytes   int64 `json:"effectiveMaxBytes"`
+	EffectiveMaxVisited int64 `json:"effectiveMaxVisited"`
+}
+
+// UpdateRepositoryContextLimitsRequest sets the owner's repository-context
+// bounds. All three are required, mirroring reasoning settings: send the
+// full set of values you want in force, not just the one you're changing.
+// Zero means uncapped.
+type UpdateRepositoryContextLimitsRequest struct {
+	MaxFiles   int64 `json:"maxFiles"`
+	MaxBytes   int64 `json:"maxBytes"`
+	MaxVisited int64 `json:"maxVisited"`
 }
 
 // capabilityNames lists the abilities a provider has, sorted so a client sees a

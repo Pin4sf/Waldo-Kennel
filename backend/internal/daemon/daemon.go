@@ -444,6 +444,7 @@ func Run() error {
 	}
 	outcomeSvc := outcomevc.New(store, nil).
 		WithPlanning(intelligenceProvider, agentSvc).
+		WithRepositoryContextLimits(settingsSvc).
 		WithExecution(attempts, store).
 		WithAttemptRetainer(attempts).
 		WithCheckRunner(attemptChecks, store).
@@ -488,7 +489,9 @@ func Run() error {
 	// before the user approves a Plan. The reaper is retained only so historical
 	// interrupted session-backed intake can be cleaned up during compatibility
 	// recovery; the canonical analyzer itself never spawns one.
-	intakeAnalyzer := intelligencesvc.NewIntakeAnalyzer(intelligenceProvider, store, nil).WithRepositoryContextSource(store)
+	intakeAnalyzer := intelligencesvc.NewIntakeAnalyzer(intelligenceProvider, store, nil).
+		WithRepositoryContextSource(store).
+		WithRepositoryContextLimits(settingsSvc)
 	intakeSvc := intakevc.New(store, intakeAnalyzer, nil).WithAnalystSessionReaper(reaper)
 	// Order matters. Expiry runs FIRST: it closes asks whose deadline passed
 	// while the daemon was down and returns their intakes to a retryable

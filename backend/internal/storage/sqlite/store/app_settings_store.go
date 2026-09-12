@@ -35,7 +35,13 @@ type AppSettings struct {
 	ReasoningGeneration              int64
 	ReasoningVerifiedGeneration      int64
 	ReasoningVerificationFingerprint string
-	UpdatedAt                        time.Time
+	// RepositoryContextMaxFiles/MaxBytes/MaxVisited are the owner-configured
+	// bounds for Waldo's bounded repository-context packet. Nil means the
+	// owner has not overridden Kennel's built-in default; zero means uncapped.
+	RepositoryContextMaxFiles   *int64
+	RepositoryContextMaxBytes   *int64
+	RepositoryContextMaxVisited *int64
+	UpdatedAt                   time.Time
 }
 
 // GetAppSettings reads the preference row.
@@ -57,8 +63,37 @@ func (s *Store) GetAppSettings(ctx context.Context) (AppSettings, error) {
 		ReasoningGeneration:              row.ReasoningGeneration,
 		ReasoningVerifiedGeneration:      row.ReasoningVerifiedGeneration,
 		ReasoningVerificationFingerprint: row.ReasoningVerificationFingerprint,
+		RepositoryContextMaxFiles:        int64Ptr(row.RepositoryContextMaxFiles),
+		RepositoryContextMaxBytes:        int64Ptr(row.RepositoryContextMaxBytes),
+		RepositoryContextMaxVisited:      int64Ptr(row.RepositoryContextMaxVisited),
 		UpdatedAt:                        row.UpdatedAt,
 	}, nil
+}
+
+// toNullInt64 converts Go's natural "not set" representation (a nil pointer)
+// into the nullable SQLite column shape.
+func toNullInt64(v *int64) sql.NullInt64 {
+	if v == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *v, Valid: true}
+}
+
+// SetRepositoryContextLimits stores the owner's repository-context bounds.
+// A nil pointer clears the override back to Kennel's built-in default; zero
+// means uncapped.
+func (s *Store) SetRepositoryContextLimits(ctx context.Context, maxFiles, maxBytes, maxVisited *int64, now time.Time) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if err := s.qw.SetRepositoryContextLimits(ctx, gen.SetRepositoryContextLimitsParams{
+		RepositoryContextMaxFiles:   toNullInt64(maxFiles),
+		RepositoryContextMaxBytes:   toNullInt64(maxBytes),
+		RepositoryContextMaxVisited: toNullInt64(maxVisited),
+		UpdatedAt:                   now,
+	}); err != nil {
+		return fmt.Errorf("set repository context limits: %w", err)
+	}
+	return nil
 }
 
 // SetReasoningSettings stores only non-secret reasoning preferences. The

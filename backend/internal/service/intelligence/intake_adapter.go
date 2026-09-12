@@ -21,6 +21,9 @@ type IntakeAnalyzer struct {
 	runs     ports.IntelligenceRunStore
 	clock    func() time.Time
 	projects ProjectSource
+	// limits resolves the owner's configured repository-context bounds.
+	// Optional so historical/unit callers still get DefaultRepositoryContextLimits.
+	limits RepositoryContextLimitsSource
 }
 
 // NewIntakeAnalyzer constructs the Intake intelligence adapter.
@@ -37,6 +40,25 @@ func NewIntakeAnalyzer(provider ports.IntelligenceProvider, runs ports.Intellige
 func (a *IntakeAnalyzer) WithRepositoryContextSource(source ProjectSource) *IntakeAnalyzer {
 	a.projects = source
 	return a
+}
+
+// WithRepositoryContextLimits wires the owner-configurable repository-context
+// bounds. Optional: without it, BuildRepositoryContext uses
+// DefaultRepositoryContextLimits.
+func (a *IntakeAnalyzer) WithRepositoryContextLimits(source RepositoryContextLimitsSource) *IntakeAnalyzer {
+	a.limits = source
+	return a
+}
+
+func (a *IntakeAnalyzer) repositoryContextLimits(ctx context.Context) RepositoryContextLimits {
+	if a.limits == nil {
+		return DefaultRepositoryContextLimits
+	}
+	maxFiles, maxBytes, maxVisited, err := a.limits.RepositoryContextLimits(ctx)
+	if err != nil {
+		return DefaultRepositoryContextLimits
+	}
+	return RepositoryContextLimits{MaxFiles: maxFiles, MaxBytes: maxBytes, MaxVisited: maxVisited}
 }
 
 // Analyze records bounded contract-analysis provenance and returns its proposal.
@@ -64,7 +86,7 @@ func (a *IntakeAnalyzer) Analyze(ctx context.Context, input ports.IntakeAnalysis
 		if candidate, ok := a.projects.(briefSource); ok {
 			brief = candidate
 		}
-		request.RepositoryContext, err = BuildRepositoryContext(ctx, project, brief)
+		request.RepositoryContext, err = BuildRepositoryContext(ctx, project, brief, a.repositoryContextLimits(ctx))
 		if err != nil {
 			return ports.IntakeAnalysisTicket{}, err
 		}

@@ -85,6 +85,9 @@ type AppSetting struct {
 	ReasoningGeneration              int64
 	ReasoningVerifiedGeneration      int64
 	ReasoningVerificationFingerprint string
+	RepositoryContextMaxFiles        sql.NullInt64
+	RepositoryContextMaxBytes        sql.NullInt64
+	RepositoryContextMaxVisited      sql.NullInt64
 }
 
 type Attempt struct {

@@ -24,3 +24,8 @@ SET reasoning_verified_at = ?, reasoning_verified_provider = ?, reasoning_verifi
     reasoning_verification_fingerprint = CASE WHEN ? IS NULL THEN '' ELSE ? END,
     updated_at = ?
 WHERE id = 1 AND reasoning_generation = ?;
+
+-- name: SetRepositoryContextLimits :exec
+UPDATE app_settings
+SET repository_context_max_files = ?, repository_context_max_bytes = ?, repository_context_max_visited = ?, updated_at = ?
+WHERE id = 1;
