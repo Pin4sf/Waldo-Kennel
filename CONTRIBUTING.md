@@ -18,8 +18,8 @@ scope, authority documents and shared-file ownership are clear.
 
 1. **Read the contract** — [AGENTS.md](AGENTS.md) (layout, commands, hard rules, PR hygiene)
 2. **Check current truth** — [docs/STATUS.md](docs/STATUS.md), then use [ROADMAP.md](ROADMAP.md) for direction
-3. **Pick something focused** — [open issues](https://github.com/Pin4sf/Waldo-Kennel/issues); prefer an assigned issue in the current milestone
-4. **Claim it** — comment `I'd like to work on this` and wait for assignment
+3. **Pick something focused** — [open issues](https://github.com/Pin4sf/Waldo-Kennel/issues); check the [milestones](https://github.com/Pin4sf/Waldo-Kennel/milestones) and issue dependencies
+4. **Coordinate scope** — comment on the issue with your proposed slice and check for overlapping work
 5. **Open a clear PR** — narrow change, link the issue, user-visible impact, tests
 6. **Iterate** — address review; maintainers merge
 
@@ -27,10 +27,20 @@ Need the product/run overview first? Start with [README.md](README.md),
 [docs/architecture.md](docs/architecture.md), and
 [docs/development.md](docs/development.md).
 
-Two onboarding notes matter on current `main`:
+## Local checks
 
-- On fresh Linux setups, prefer `cd frontend && npm run package` unless you have also installed distro packaging tools such as `rpm`/`rpmbuild` for `npm run make`.
-- Mobile companion app docs are still being filled in. Do not assume `packages/mobile/README.md` is a complete headless setup guide on this branch.
+Install the [pinned toolchain](docs/development.md#toolchain), then run
+`npm run bootstrap` from your checkout. Start with the test nearest your change.
+The required repository gates and generation rules are in
+[AGENTS.md](AGENTS.md#required-commands); the
+[development guide](docs/development.md) explains packaging and the full
+foundation check. Do not describe a check as passing unless you ran it at the
+submitted revision; report failures and unavailable checks with their cause.
+
+For API changes, regenerate OpenAPI and frontend TypeScript together with
+`npm run api`. For SQLite changes, add migrations and regenerate with
+`npm run sqlc`. User-visible changes also need a real-daemon desktop journey;
+fixture tests alone do not prove runtime behavior.
 
 ### Bugs and features
 
