@@ -38,6 +38,10 @@ var (
 	ErrAgentExited      = errors.New("session: agent exited")
 	ErrAgentNotExited   = errors.New("session: agent has not exited")
 	ErrIncompleteHandle = errors.New("session: incomplete teardown handle")
+	// ErrGovernedAttemptClosed prevents a subordinate provider session from
+	// reopening execution after its owning Attempt reached a terminal state.
+	// Rework or retry requires a new Attempt and authority lineage.
+	ErrGovernedAttemptClosed = errors.New("session: governed attempt is closed")
 	// ErrProjectNotResolvable means the spawn's project has no usable repo
 	// (unregistered, archived, or missing a path). The API maps it to a 400.
 	ErrProjectNotResolvable = errors.New("session: project repo not resolvable")
@@ -1816,6 +1820,9 @@ func (m *Manager) RestoreWithMode(ctx context.Context, id domain.SessionID) (Res
 	if meta.WorkspacePath == "" || (meta.Branch == "" && project.Kind.WithDefault() != domain.ProjectKindScratch) {
 		return RestoreResult{}, fmt.Errorf("restore %s: %w", id, ErrIncompleteHandle)
 	}
+	if err := m.ensureGovernedAttemptOpen(ctx, rec); err != nil {
+		return RestoreResult{}, fmt.Errorf("restore %s: %w", id, err)
+	}
 	// Resumability is decided inside restoreArgv, not here. A promptless session
 	// can still be fully resumable when the harness pins a deterministic session id
 	// (Claude Code). restoreArgv returns ErrNotResumable only for a promptless,
@@ -1897,7 +1904,13 @@ func (m *Manager) ResumeAgentWithMode(ctx context.Context, id domain.SessionID) 
 		ProjectID: rec.ProjectID,
 	}
 	if mode == domain.SessionModeChat {
+		if err := m.ensureGovernedAttemptOpen(ctx, rec); err != nil {
+			return RestoreResult{}, fmt.Errorf("resume agent %s: %w", id, err)
+		}
 		return m.relaunchSession(ctx, "resume agent", rec, project, ws, nil)
+	}
+	if err := m.ensureGovernedAttemptOpen(ctx, rec); err != nil {
+		return RestoreResult{}, fmt.Errorf("resume agent %s: %w", id, err)
 	}
 	handle := ports.RuntimeHandle{ID: meta.RuntimeHandleID}
 	return m.relaunchSession(ctx, "resume agent", rec, project, ws, &handle)

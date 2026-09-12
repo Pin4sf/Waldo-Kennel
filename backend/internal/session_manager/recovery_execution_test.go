@@ -3,6 +3,7 @@ package sessionmanager
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -11,13 +12,26 @@ import (
 
 type recoveryEvidenceFakeStore struct {
 	*fakeStore
-	ref   domain.AttemptSessionRef
-	found bool
-	err   error
+	ref        domain.AttemptSessionRef
+	found      bool
+	err        error
+	attempt    *domain.Attempt
+	attemptErr error
 }
 
 func (s *recoveryEvidenceFakeStore) LatestAttemptSessionRefForSession(context.Context, string) (domain.AttemptSessionRef, bool, error) {
 	return s.ref, s.found, s.err
+}
+
+func (s *recoveryEvidenceFakeStore) GetAttempt(_ context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (domain.Attempt, bool, error) {
+	if s.attemptErr != nil {
+		return domain.Attempt{}, false, s.attemptErr
+	}
+	if s.attempt != nil {
+		return *s.attempt, true, nil
+	}
+	// Existing recovery tests model an admitted Attempt that is still running.
+	return domain.Attempt{ID: attemptID, OutcomeID: outcomeID, Status: domain.AttemptRunning}, true, nil
 }
 
 func recoveryPolicy(t *testing.T) (domain.AttemptExecutionPolicy, string) {
@@ -124,6 +138,81 @@ func TestLoadRecoveryExecutionLeavesHistoricalSnapshotReadable(t *testing.T) {
 
 	if execution, err := mgr.loadRecoveryExecution(context.Background(), rec); err != nil || execution != nil {
 		t.Fatalf("loadRecoveryExecution = (%v, %v), want legacy snapshot readable without synthesized policy", execution, err)
+	}
+}
+
+func TestRestoreGovernedSessionRejectsTerminalAttemptBeforeWorkspaceOrRuntimeMutation(t *testing.T) {
+	policy, digest := recoveryPolicy(t)
+	base := newFakeStore()
+	base.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
+	base.sessions["mer-1"] = domain.SessionRecord{
+		ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex,
+		IsTerminated: true,
+		Metadata: domain.SessionMetadata{
+			WorkspacePath: "/ws/mer-1", Branch: "kennel/mer-1", AgentSessionID: "native-1",
+			GovernedExecutionPolicyDigest: digest,
+		},
+	}
+	store := &recoveryEvidenceFakeStore{
+		fakeStore: base,
+		ref:       recoveryRef(t, "mer-1", domain.SessionModeTUI, policy, digest),
+		found:     true,
+		attempt: &domain.Attempt{
+			ID: "att-1", OutcomeID: policy.OutcomeID, PlanRevisionID: policy.PlanRevisionID,
+			WorkUnitID: policy.WorkUnitID, Number: 1, Status: domain.AttemptSucceeded,
+		},
+	}
+	workspace := &fakeWorkspace{}
+	runtime := &fakeRuntime{}
+	mgr := New(Deps{
+		Runtime: runtime, Agents: singleAgent{agent: &recordingAgent{}}, Workspace: workspace,
+		Store: store, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: base},
+		LookPath: func(string) (string, error) { return "/bin/true", nil },
+	})
+
+	_, err := mgr.RestoreWithMode(context.Background(), "mer-1")
+	if !errors.Is(err, ErrGovernedAttemptClosed) {
+		t.Fatalf("RestoreWithMode error = %v, want ErrGovernedAttemptClosed", err)
+	}
+	if len(workspace.restoreConfigs) != 0 || runtime.created != 0 {
+		t.Fatalf("terminal Attempt restore mutated execution boundary: workspace restores=%d runtime creates=%d", len(workspace.restoreConfigs), runtime.created)
+	}
+}
+
+func TestResumeGovernedSessionRejectsTerminalAttemptBeforeRuntimeMutation(t *testing.T) {
+	policy, digest := recoveryPolicy(t)
+	base := newFakeStore()
+	base.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
+	base.sessions["mer-1"] = domain.SessionRecord{
+		ID: "mer-1", ProjectID: "mer", Kind: domain.KindWorker, Harness: domain.HarnessCodex,
+		Activity: domain.Activity{State: domain.ActivityExited},
+		Metadata: domain.SessionMetadata{
+			WorkspacePath: "/ws/mer-1", Branch: "kennel/mer-1", RuntimeHandleID: "h1", AgentSessionID: "native-1",
+			GovernedExecutionPolicyDigest: digest,
+		},
+	}
+	store := &recoveryEvidenceFakeStore{
+		fakeStore: base,
+		ref:       recoveryRef(t, "mer-1", domain.SessionModeTUI, policy, digest),
+		found:     true,
+		attempt: &domain.Attempt{
+			ID: "att-1", OutcomeID: policy.OutcomeID, PlanRevisionID: policy.PlanRevisionID,
+			WorkUnitID: policy.WorkUnitID, Number: 1, Status: domain.AttemptReconciled,
+		},
+	}
+	runtime := &fakeRuntime{aliveByHandle: map[string]bool{"h1": true}}
+	mgr := New(Deps{
+		Runtime: runtime, Agents: singleAgent{agent: &recordingAgent{}}, Workspace: &fakeWorkspace{},
+		Store: store, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: base},
+		LookPath: func(string) (string, error) { return "/bin/true", nil },
+	})
+
+	_, err := mgr.ResumeAgentWithMode(context.Background(), "mer-1")
+	if !errors.Is(err, ErrGovernedAttemptClosed) {
+		t.Fatalf("ResumeAgentWithMode error = %v, want ErrGovernedAttemptClosed", err)
+	}
+	if runtime.created != 0 {
+		t.Fatalf("terminal Attempt resume created %d runtimes, want 0", runtime.created)
 	}
 }
 
