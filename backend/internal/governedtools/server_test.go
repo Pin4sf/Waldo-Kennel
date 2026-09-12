@@ -98,7 +98,7 @@ func TestRepositoryToolsProtectGitCustodyAndSymlinkBoundary(t *testing.T) {
 	}
 	outside := t.TempDir()
 	server := testServer(t, root, true, false)
-	for _, path := range []string{".git", ".git/config", "nested/.git/config"} {
+	for _, path := range []string{".git", ".git/config", "nested/.git/config", ".GIT/config", "nested/.GiT/config"} {
 		if _, err := server.call(context.Background(), "write_text_file", map[string]interface{}{"path": path, "content": "corrupt"}); err == nil {
 			t.Fatalf("write to custody path %q succeeded", path)
 		}
@@ -111,6 +111,39 @@ func TestRepositoryToolsProtectGitCustodyAndSymlinkBoundary(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(outside, "pwned")); !os.IsNotExist(err) {
 		t.Fatalf("outside file exists after refused write: %v", err)
+	}
+}
+
+func TestRepositoryToolsDoNotWidenWriteOnlyPolicyIntoRead(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := (domain.AttemptExecutionPolicy{
+		OutcomeID: "out-1", PlanRevisionID: "plan-1", WorkUnitID: "wu-1", ContractRevisionNumber: 1,
+		RunBriefCoreDigest: "brief", RequiredCapabilities: []string{domain.CapabilityWorktreeWrite},
+		Grants: []domain.CapabilityGrant{{ID: "write", Name: domain.CapabilityWorktreeWrite, Scope: "worktree/*"}},
+	}).BindWorkspaceRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = opened.Close() })
+	server := Server{Policy: policy, WorkspaceRoot: root, root: opened}
+	for _, advertised := range server.tools() {
+		name, _ := advertised["name"].(string)
+		if name == "list_repository" || name == "read_text_file" {
+			t.Fatalf("write-only policy advertised %q", name)
+		}
+	}
+	if _, err := server.call(context.Background(), "read_text_file", map[string]interface{}{"path": "source.txt"}); err == nil {
+		t.Fatal("write-only policy allowed direct read invocation")
+	}
+	if _, err := server.call(context.Background(), "write_text_file", map[string]interface{}{"path": "report.md", "content": "bounded"}); err != nil {
+		t.Fatalf("write-only policy lost approved write: %v", err)
 	}
 }
 

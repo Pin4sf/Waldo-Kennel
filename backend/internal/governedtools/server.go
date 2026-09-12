@@ -137,9 +137,12 @@ func tool(name, description string, properties map[string]interface{}, required 
 
 func (s Server) tools() []map[string]interface{} {
 	path := map[string]interface{}{"path": map[string]interface{}{"type": "string", "description": "Workspace-relative path"}}
-	tools := []map[string]interface{}{
-		tool("list_repository", "List repository files beneath an optional workspace-relative path.", path),
-		tool("read_text_file", "Read one UTF-8 text file inside the leased workspace.", path, "path"),
+	var tools []map[string]interface{}
+	if s.Policy.Has(domain.CapabilityWorktreeRead) {
+		tools = append(tools,
+			tool("list_repository", "List repository files beneath an optional workspace-relative path.", path),
+			tool("read_text_file", "Read one UTF-8 text file inside the leased workspace.", path, "path"),
+		)
 	}
 	if s.Policy.Has(domain.CapabilityWorktreeWrite) {
 		tools = append(tools, tool("write_text_file", "Write one UTF-8 text file inside the leased workspace.", map[string]interface{}{"path": path["path"], "content": map[string]interface{}{"type": "string"}}, "path", "content"))
@@ -165,6 +168,9 @@ func stringArg(args map[string]interface{}, key string) (string, error) {
 func (s Server) call(ctx context.Context, name string, args map[string]interface{}) (string, error) {
 	switch name {
 	case "list_repository":
+		if !s.Policy.Has(domain.CapabilityWorktreeRead) {
+			return "", errors.New("repository read capability denied")
+		}
 		raw, _ := args["path"].(string)
 		path, err := repositoryPath(raw, true)
 		if err != nil {
@@ -205,6 +211,9 @@ func (s Server) call(ctx context.Context, name string, args map[string]interface
 		sort.Strings(files)
 		return strings.Join(files, "\n"), err
 	case "read_text_file":
+		if !s.Policy.Has(domain.CapabilityWorktreeRead) {
+			return "", errors.New("repository read capability denied")
+		}
 		raw, err := stringArg(args, "path")
 		if err != nil {
 			return "", err
@@ -308,7 +317,7 @@ func repositoryPath(raw string, allowRoot bool) (string, error) {
 		return "", errors.New("path must name a repository file")
 	}
 	for _, component := range strings.Split(filepath.ToSlash(path), "/") {
-		if component == ".git" {
+		if strings.EqualFold(component, ".git") {
 			return "", errors.New("git custody metadata is not part of worktree file authority")
 		}
 	}

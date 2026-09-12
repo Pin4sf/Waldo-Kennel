@@ -918,6 +918,22 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (rec domain.
 		prompt = appendAttachmentReferences(prompt, refs)
 	}
 
+	// A governed provider must never exist before recovery can see that this
+	// session consumes frozen authority. Persist the leased root and policy
+	// marker before either controller is allowed to start; the Attempt snapshot
+	// follows after Spawn returns and recovery treats a missing snapshot as
+	// ambiguous rather than as an ordinary ungoverned session.
+	if cfg.ExecutionPolicy != nil {
+		rec.Metadata.Branch = ws.Branch
+		rec.Metadata.WorkspacePath = ws.Path
+		rec.Metadata.WorkspaceRepoPath = ws.RepoPath
+		rec.UpdatedAt = m.clock()
+		if err := m.store.UpdateSession(ctx, rec); err != nil {
+			m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: persist governed prelaunch evidence: %w", id, err)
+		}
+	}
+
 	// Everything above is shared: project, harness, prompts, seed row, worktree,
 	// provisioning, attachments. From here the two modes launch different
 	// controllers, and exactly one of them runs.
@@ -1250,11 +1266,29 @@ func (m *Manager) rollbackSeedSpawnWorkspace(ctx context.Context, rec domain.Ses
 		if prepared {
 			m.cleanupAgentWorkspace(ctx, rec, ws.Path)
 		}
+		m.clearSpawnPrelaunchEvidence(ctx, rec.ID)
 		m.rollbackSpawnSeedRow(ctx, rec.ID)
 		return
 	}
 	m.preserveFailedSpawnWorkspace(ctx, rec.ID, ws, true)
 	m.markSpawnFailedTerminated(ctx, rec.ID)
+}
+
+// clearSpawnPrelaunchEvidence returns a row to deletable seed state only after
+// its workspace was confirmed destroyed. A failed clear leaves the governed
+// marker durable and the row terminal, which is safer than erasing evidence
+// for a resource whose cleanup cannot be reconstructed.
+func (m *Manager) clearSpawnPrelaunchEvidence(ctx context.Context, id domain.SessionID) {
+	rec, ok, err := m.store.GetSession(ctx, id)
+	if err != nil || !ok {
+		return
+	}
+	rec.Metadata.Branch = ""
+	rec.Metadata.WorkspacePath = ""
+	rec.Metadata.WorkspaceRepoPath = ""
+	rec.Metadata.GovernedExecutionPolicyDigest = ""
+	rec.UpdatedAt = m.clock()
+	_ = m.store.UpdateSession(ctx, rec)
 }
 
 func (m *Manager) preserveFailedSpawnWorkspace(ctx context.Context, id domain.SessionID, ws ports.WorkspaceInfo, runtimeDestroyed bool) {
