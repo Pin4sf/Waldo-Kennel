@@ -76,6 +76,7 @@ artifact browsing and durable export require backend interfaces still under deve
 Acceptance does not export, merge, publish or deploy files. No export success is implied.
 
 Focused Work is the default. Home and standalone Waldo chat are hidden; existing data
-is retained. `VITE_KENNEL_WORK_LAUNCH=0` opts out for development. Island startup retains
-its separate explicit opt-in. A full live-provider and packaged end-to-end release
+is retained. `VITE_KENNEL_WORK_LAUNCH=0` opts out for development. Island starts
+with the desktop when supported and can be hidden or shown from Kennel Settings.
+A full live-provider and packaged end-to-end release
 rehearsal remains required before launch claims.

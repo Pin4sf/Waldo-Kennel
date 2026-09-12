@@ -29,7 +29,8 @@ work. It does not claim a release or owner Acceptance.
   unsupported policy shapes and unverified App Server injection fail closed.
 - Work is the default destination. Plan/graph views and attached Attempt
   supervision expose daemon facts; provider Sessions remain technical detail.
-  Island startup is opt-in with `KENNEL_ENABLE_ISLAND=1`.
+  Kennel Island starts with the desktop when the display supports it; its
+  persisted visibility preference remains owner-controlled in Settings.
 - Codex, Claude Code, OpenCode, Cursor and Pi are active execution-provider
   identities; this does not establish every role's live conformance.
 
