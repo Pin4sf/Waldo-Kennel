@@ -1,6 +1,6 @@
 # Development guide
 
-This guide covers the current Kennel foundation. It intentionally does not prescribe Mission, memory, personal-agent, or other post-foundation architecture.
+This guide covers source development and verification. See [STATUS.md](STATUS.md) for current runtime limits and [AGENTS.md](../AGENTS.md) for product and engineering authority.
 
 ## Toolchain
 
@@ -17,7 +17,7 @@ Provider CLIs such as Codex or Claude Code are discovered locally and retain the
 ## Checkout and bootstrap
 
 ```sh
-git clone https://github.com/Pin4sf/Waldo-Kennel.git
+git clone --branch beta https://github.com/Pin4sf/Waldo-Kennel.git
 cd Waldo-Kennel
 npm run bootstrap
 ```
