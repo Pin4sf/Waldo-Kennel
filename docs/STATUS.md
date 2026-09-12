@@ -73,13 +73,21 @@ WorkUnit-scoped Verification or an owner `AcceptanceDecision`.
 Post-review correctness repairs now preserve executable modes across governed
 text replacement and durably fence write/check effects when approved-check
 termination is unknown, including private-server restart and Outcome recovery
-before ordinary liveness observation. Fresh package and canonical Plan setup
-were repeated at code checkpoint `3192b27ea`; the disposable pre-remote Attempt
-correctly stayed unconfirmed. The environment then refused the explicit owner
-assertion required to replace that unconfirmed Attempt, so the replacement, provider
-execution, and daemon-restart half of the final-code canary remains open. The
-verification record distinguishes this API-only setup from the attempted
-Electron launch; no final-code UI interaction or owner Acceptance is claimed.
+before ordinary liveness observation. One final-code pre-remote Attempt remains
+unconfirmed because the environment refused the explicit owner assertion needed
+to replace it; that case was not bypassed.
+
+An independent corrected-code canary then started with a resolvable local
+remote before execution. The real packaged Electron UI imported the disposable
+repository, selected Codex, showed the Outcome in progress, and later rendered
+it `Ready for review`. One Codex Attempt modified only its retained leased
+worktree, passed the exact approved check under the macOS seatbelt runner, and
+created canonical deterministic Evidence and Verification. Restart with the
+same isolated profile/data preserved exactly one succeeded Attempt and one
+terminated session without automatic duplication. Post-restart session
+inspection subsequently exposed a restore/duplicate-session error and app-exit
+disposal warning; those observations remain open and are not folded into Issue
+#115 completion. No owner Acceptance was created.
 
 The [PR #110 handoff](handoffs/2026-09-12-pr110-launch-fixes/HANDOFF.md)
 and [execution ledger](handoffs/2026-09-12-pr110-launch-fixes/EXECUTION-LEDGER.md)

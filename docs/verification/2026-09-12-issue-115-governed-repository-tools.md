@@ -195,9 +195,103 @@ and restart sequence has **not** been repeated end-to-end on checkpoint
 Plan/route/check setup, and the safe unconfirmed-start boundary only. It does not
 upgrade the earlier runtime evidence or establish UI acceptance.
 
+## Independent corrected-code execution and restart canary
+
+A second isolated canary at
+`/private/tmp/kennel-issue115-final2.OLionH` left the earlier unconfirmed
+Attempt and its data untouched. Its disposable repository and local bare remote
+were initialized with a resolvable `main` default before any Attempt. The
+packaged daemon reported build revision
+`3192b27ea4fa659edde5320d5077755d1ab5dd6d` and the package hashes recorded
+above.
+
+This launch used the supported absolute `KENNEL_ELECTRON_DATA_DIR` override,
+plus isolated `KENNEL_DATA_DIR`, `KENNEL_RUN_FILE`, and `KENNEL_PORT` values.
+Unlike the first rerun, this established the real packaged Electron main
+window. Through the UI, the first-run prompt was dismissed, the disposable
+repository was imported through the native folder picker, Codex was selected,
+and Project `repo` rendered in the Outcome board. Contract and Plan creation
+used the loopback API for exact reproducibility. The UI then showed the Outcome
+move from `In progress` to `Ready for review`, exposed the succeeded Attempt in
+Mission Control, and displayed the retained terminal output.
+
+Canonical identities:
+
+- Outcome `out-c9e277e8-b9df-42c3-9e4f-9b12d2910b9f`;
+- Contract `cr-5bc0bf29-b97e-4608-8918-bc4bb71c2aa4`, revision 1;
+- criterion `crit-d1792bd3-19c5-405f-9722-bd169cf916d4`;
+- Plan `plan-306d3188-8849-45dd-8c9e-b57471fdf4cf`, revision 1;
+- WorkUnit `wu-4d62ea03-1009-4a51-ba86-6f4e60d981b2`;
+- approved check `chk-a13fb7f0-6bef-4c7e-8675-042279a2191b-1` with argv
+  `cmp source.txt report.md`;
+- run-brief core digest
+  `d195bee1d4bcbe02677157e0624dff2ece5894f0e21089bad2e564a4f1ff1dd9`;
+- Attempt `att-d1710d20-5761-4199-899b-78be060039cb`;
+- session reference `asr-522d1ff6-ae6f-48bd-aedb-8847200e56fa` and Codex
+  session `repo-1`.
+
+The immutable base revision was
+`da3c5c74aaf86d79d1ff5ef969bd0cd2f31bcb1e`. Before execution, its source and
+report digests were respectively:
+
+```text
+7cc28cc977e32de7185ee5455227e25042da1d932d5356fb44e0b0707717234d
+d0ddf87eb1b13b41792650e2ef05630791f411f00a58b32ca0479437fb627d2d
+```
+
+The stored check record independently confirms `baselineRan=true` and
+`baselinePassed=false`. The retained leased worktree was
+`/private/tmp/kennel-issue115-final2.OLionH/data/worktrees/repo/repo-1`.
+After execution, its source, report, and retained artifact all had the source
+digest `7cc28c...7234d`; the registered checkout report retained the original
+`d0ddf8...27d2d` digest and a clean Git status. The leased worktree contained
+only the intended `report.md` modification and preserved mode `0644`.
+
+The real Codex terminal showed governed repository reads, one governed
+`write_text_file`, post-write reads, and
+`run_approved_check(chk-a13fb7f0-6bef-4c7e-8675-042279a2191b-1)`. It reported
+the exact payload `opal meadow 8621\n`, check exit 0, and stopped after
+verification. Canonical storage recorded one observed check run with
+`enforced_by=macos-seatbelt-workspace-write`, `termination_unknown=false`, an
+artifact version of
+`937a09a99404232b6e7e530aae24a8a8bd6784a2b56ffd11711a859a343902ea`,
+one supporting deterministic-check Evidence item, and one passed deterministic
+Verification run.
+
+The app was quit through its UI and relaunched with the same isolated profile
+and daemon data. Before any post-restart inspector action, the API and UI both
+showed exactly one succeeded Attempt, one terminated bound session, zero new
+Attempts, and the Outcome still `Ready for review`. This establishes canonical
+restart persistence without automatic duplication on corrected code.
+
+While closing the post-restart session inspector through accessibility
+automation, a stale element action unintentionally invoked `Restore session` on
+the already-terminated `repo-1`. It reused the same canonical session identity;
+no new Attempt, session row, check run, or file change appeared. A second
+restore call was rejected as `duplicate session: repo-1`, and final app shutdown
+left no canary daemon/provider process. This occurred after the clean restart
+snapshot above, is not automatic recovery evidence, and remains an observed
+session-inspector/runtime issue outside Issue #115 rather than a hidden pass.
+Both app exits also emitted an unhandled `Object has been destroyed` disposal
+warning despite exit 0 and successful daemon shutdown.
+
+Safe uncertainty fault injection was rerun without an owner assertion:
+
+```text
+go test ./internal/governedtools -run 'TestServeRecordsUnknownTerminationAndRefusesLaterEffects|TestUncertaintyStorePersistsUnknownTerminationAcrossInstances|TestUncertaintyStoreClearsMarkerOnlyOnConfirmedTermination' -count=1 -v
+go test ./internal/service/outcome -run 'TestLivenessLoopBlocksCompletionAfterUnknownGovernedCheckTerminationUntilOwnerReconciles' -count=1 -v
+```
+
+All four tests passed. They exercise the actual private MCP request sequence,
+durable server restart latch, later-effect refusal, and recovery-before-liveness
+import. They are controlled fault-injection evidence, not a packaged live
+process-termination probe. The earlier rejected replacement of
+`att-442a3772-ad9d-4999-b25c-7d3749f50b7b` remains explicitly open.
+
 ## Boundary of this evidence
 
-Attempt success is execution evidence, not owner Acceptance. No
-`AcceptanceDecision` was created. Retained-artifact ingestion and canonical
-WorkUnit-scoped Evidence/Verification remain later launch work; this record does
-not infer them from a provider exit, matching hashes or a green local check.
+Attempt success, retained output, deterministic Evidence, and a passed
+Verification are not owner Acceptance. No `AcceptanceDecision` was created.
+The Outcome remains `Ready for review`; the original rejected replacement and
+the post-restart session-inspector observations are not treated as closed by the
+successful independent canary.
