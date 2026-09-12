@@ -2126,6 +2126,7 @@ func TestToAPIErrorMapsWorkspaceBranchSentinels(t *testing.T) {
 		{"awaiting decision", fmt.Errorf("send mer-1: %w", sessionmanager.ErrAwaitingDecision), apierr.KindConflict, "SESSION_AWAITING_DECISION"},
 		{"agent exited", fmt.Errorf("send mer-1: %w", sessionmanager.ErrAgentExited), apierr.KindConflict, "AGENT_EXITED"},
 		{"agent not exited", fmt.Errorf("resume agent mer-1: %w", sessionmanager.ErrAgentNotExited), apierr.KindConflict, "AGENT_NOT_EXITED"},
+		{"governed attempt closed", fmt.Errorf("restore mer-1: %w", sessionmanager.ErrGovernedAttemptClosed), apierr.KindConflict, "GOVERNED_ATTEMPT_CLOSED"},
 		{"resume in progress", fmt.Errorf("resume agent mer-1: %w", sessionmanager.ErrResumeInProgress), apierr.KindConflict, "AGENT_RESUME_IN_PROGRESS"},
 		{"target agent unauthorized", fmt.Errorf("switch agent mer-1: %w", sessionmanager.ErrTargetAgentUnauthorized), apierr.KindInvalid, "TARGET_AGENT_UNAUTHORIZED"},
 		{"worker session required", fmt.Errorf("switch agent mer-orchestrator: %w", sessionmanager.ErrUnsupportedSwitchKind), apierr.KindInvalid, "WORKER_SESSION_REQUIRED"},

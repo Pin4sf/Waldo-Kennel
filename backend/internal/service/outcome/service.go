@@ -119,6 +119,10 @@ type Service struct {
 
 	spawner    ports.AttemptSessionSpawner
 	heartbeats heartbeatSource
+	// governedCheckUncertainty imports crash-safe denial evidence emitted by
+	// the private repository-tool process. It can only block completion; it
+	// cannot authorize or classify an Attempt.
+	governedCheckUncertainty ports.GovernedCheckUncertaintySource
 	// receipts records what each attempt produced. Optional so a degraded
 	// profile still schedules and reports truthfully; when absent, artifact
 	// continuity is unavailable rather than silently faked.
@@ -230,6 +234,13 @@ func (s *Service) WithExecution(spawner ports.AttemptSessionSpawner, heartbeats 
 	s.spawner = spawner
 	s.heartbeats = heartbeats
 	s.staleHeartbeat = domain.DefaultStaleHeartbeatWindow
+	return s
+}
+
+// WithGovernedCheckUncertainty wires the durable denial-only bridge from the
+// private governed-tool process into canonical Attempt reconciliation.
+func (s *Service) WithGovernedCheckUncertainty(source ports.GovernedCheckUncertaintySource) *Service {
+	s.governedCheckUncertainty = source
 	return s
 }
 

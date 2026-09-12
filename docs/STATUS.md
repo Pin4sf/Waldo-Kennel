@@ -1,8 +1,10 @@
 # Kennel status
 
-Reviewed against `beta` revision `b9f69d949` on 2026-09-12. The latest runtime
-checkpoint is PR #110, integrated at `9e45f99de034572a7ad6d77148705e16c1bbe95a`;
-its tested head is `5a58434ad275a7f5078c6d50e7f714651e8d0907`.
+Checkpoint dated 2026-09-12, based on `beta` revision
+`f2132a83c6a09145cd38234d55097128815de432`, combining Issue #115 governed
+repository tools, the shell/onboarding/Mission UI lane, and terminal-session
+restore and desktop-disposal fixes. Branch publication is separate from
+packaged runtime verification and release readiness.
 This page separates implementation, recorded verification and remaining launch
 work. It does not claim a release or owner Acceptance.
 
@@ -20,9 +22,17 @@ work. It does not claim a release or owner Acceptance.
 - Approved provider/model bindings, capability admission, serial scheduling and
   restart/replay fences. The normal frontend Start request uses the approved
   Plan identity and request key, not a mutable Project provider preference.
+- Codex governed Attempts receive a private, frozen-policy repository surface:
+  bounded listing/text reads, scoped text writes when granted, and execution of
+  exact approved check IDs. The allocated workspace root is frozen into the
+  admission snapshot; provider-native execution remains read-only, while a
+  required positively allowlisted Kennel MCP carries the narrow write/check
+  authority. Generic shell, unified-exec, web and plugin surfaces are disabled;
+  unsupported policy shapes and unverified App Server injection fail closed.
 - Work is the default destination. Plan/graph views and attached Attempt
   supervision expose daemon facts; provider Sessions remain technical detail.
-  Island startup is opt-in with `KENNEL_ENABLE_ISLAND=1`.
+  Kennel Island starts with the desktop when the display supports it; its
+  persisted visibility preference remains owner-controlled in Settings.
 - Codex, Claude Code, OpenCode, Cursor and Pi are active execution-provider
   identities; this does not establish every role's live conformance.
 
@@ -50,11 +60,63 @@ tested-path blocker where a symlinked Codex CLI could not find
 `codex-code-mode-host`. It does not establish native tool/plugin/approval parity
 or provider conformance across every installation.
 
-The real Attempt returned `needs_you` and produced no report because the
-approved WorkUnit exposed its validator command but did not derive a separate
-repository-inspection capability/tool affordance. Provider exit and Attempt
-reconciliation therefore prove launch mechanics only; no artifact,
-WorkUnit-scoped Verification or `AcceptanceDecision` was created.
+The Issue #115 packaged canary closed that repository-affordance blocker for
+Codex. A real approved Outcome repaired `report.md` only in its leased worktree,
+then ran the exact frozen SHA-256 check through Kennel. The original checkout
+remained unchanged. A prelaunch workspace failure held custody until explicit
+replacement, and restart retained the two historical Attempts without replaying
+the succeeded provider session. The then-current pre-repair packaged daemon was
+re-probed under native read-only Codex: it repaired the disposable report, passed the
+same exact check, and refused mixed-case `.GIT` custody and traversal writes.
+Exact IDs, hashes and refusal evidence are in
+the [Issue #115 verification record](verification/2026-09-12-issue-115-governed-repository-tools.md).
+This proves the bounded execution slice, not retained-artifact automation,
+WorkUnit-scoped Verification or an owner `AcceptanceDecision`.
+
+Post-review correctness repairs now preserve executable modes across governed
+text replacement and durably fence write/check effects when approved-check
+termination is unknown, including private-server restart and Outcome recovery
+before ordinary liveness observation. One final-code pre-remote Attempt remains
+unconfirmed because the environment refused the explicit owner assertion needed
+to replace it; that case was not bypassed.
+
+An independent corrected-code canary then started with a resolvable local
+remote before execution. The real packaged Electron UI imported the disposable
+repository, selected Codex, showed the Outcome in progress, and later rendered
+it `Ready for review`. One Codex Attempt modified only its retained leased
+worktree, passed the exact approved check under the macOS seatbelt runner, and
+created canonical deterministic Evidence and Verification. Restart with the
+same isolated profile/data preserved exactly one succeeded Attempt and one
+terminated session without automatic duplication. Post-restart session
+inspection subsequently exposed a restore/duplicate-session error and app-exit
+disposal warning; those observations were left open at that checkpoint and are
+not folded into Issue #115 completion. No owner Acceptance was created.
+
+A [post-canary lifecycle follow-up](verification/2026-09-12-post-canary-lifecycle-and-issue-35-delta.md)
+now blocks manual, resume, and startup restoration of a terminal governed
+Attempt and guards destroyed-window composition disposal. At source revision
+`f7d57d80c3229053d1f3ce96ab398b7d172fca2d`, full Go tests,
+focused Electron lifecycle tests, typecheck, isolated-cache lint, and a fresh
+package build passed, as recorded in that follow-up. That package was not
+launched. These results do not prove the fixes through the combined UI lane;
+UI-driven quit and restart behavior remains runtime-unverified. The follow-up
+also records the
+exact Issue #35 delta, including the still-open duplicate check invocation
+between the provider tool and terminal reconciliation.
+
+The [combined desktop verification](verification/2026-09-12-demo-integration.md)
+records a separate packaged UI run at code revision
+`b2c7ec908a6da2f020806ab71f77fece42cfa275`, before the lifecycle fixes.
+Onboarding, repository import, editable Contract and explicit provider
+verification worked. Native planning stayed “Waiting for the agent”; the
+daemon exited, no Plan revision was created, and execution was not reached.
+Restart restored the Project and Contract once. This is not a complete
+UI-driven Plan/execution/proof/rework/Acceptance journey. The earlier successful
+execution canary used API-created Contract/Plan state and remains distinct.
+Fresh combined-source Go tests (including the full race suite), build/vet,
+frontend typecheck and five selected
+frontend suites passed. Full lint passed with isolated caches and zero issues;
+the combined verification record retains the exact source provenance.
 
 The [PR #110 handoff](handoffs/2026-09-12-pr110-launch-fixes/HANDOFF.md)
 and [execution ledger](handoffs/2026-09-12-pr110-launch-fixes/EXECUTION-LEDGER.md)
@@ -73,9 +135,9 @@ packaged journey and owner-acceptance gates remain distinct.
 
 | Priority | Area | Current gap |
 | --- | --- | --- |
-| 1 | WorkUnit capability/tool delivery | Derive and deliver bounded repository inspection/tool affordances in addition to the validator command; the verified Attempt returned `needs_you` without authoring its report. |
-| 2 | Autonomous proof and closure | Prove a fresh Outcome through artifact production, governed checks, WorkUnit-scoped Evidence/Verification and separate owner Acceptance or rework. |
-| 3 | Evidence and Result experience | Automate artifact/check collection, complete WorkUnit-scoped proof and result review, and materialize retained outputs for downstream WorkUnits. |
+| 1 | Native planning and daemon recovery | Combined packaged UI remained “Waiting for the agent” and the daemon exited before a Plan existed. Root cause is not established; prove planning completion and recovery before claiming the full demo journey. |
+| 2 | Autonomous proof and closure | Automatic artifact retention and deterministic Evidence/Verification passed one bounded canary. Unify provider-tool and reconciler check invocation (currently the command runs twice), complete provenance and live negative/rework paths, and preserve separate owner Acceptance. |
+| 3 | Evidence and Result experience | Complete a cohesive Result summary and ordinary rework flow; prove retained downstream WorkUnit output materialization in a real multi-unit canary. Existing backend proof and retention are not full Result acceptance. |
 | 4 | Mission Control | Complete the direct WorkUnit DAG projection and integrated Board/List navigation while retaining the session Kanban beneath the graph. |
 | 5 | Parallel scheduling | Replace the intentional concurrency-`1` Project fence only after durable WorkspaceLease, dependency, integration, recovery and cleanup gates prove safe. |
 | 6 | Session continuity | Decide and implement historical-session inspection or engagement beyond the currently engageable active session. |
@@ -94,7 +156,9 @@ A zero-exit provider session is only one part of this journey.
 
 ## Public release readiness
 
-There are no published release artifacts at this checkpoint. Installation/update
+There are no published release artifacts at this checkpoint. The DMG maker
+attempt stalled; a packaged application build does not establish a completed
+installer, signing/notarization, or an install/update release. Installation/update
 publication, CI enforcement and private security reporting still need maintainer
 work; follow the [launch checklist](../ROADMAP.md#public-release-readiness) and
 [open issues](https://github.com/Pin4sf/Waldo-Kennel/issues).

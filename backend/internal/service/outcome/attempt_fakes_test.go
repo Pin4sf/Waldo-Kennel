@@ -483,15 +483,20 @@ func (f *fakeSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (p
 	}
 	f.sessionN++
 	rec := domain.SessionRecord{
-		ID:      domain.SessionID("sess-provider-" + string(rune('a'+f.sessionN))),
-		Mode:    domain.SessionModeTUI,
-		Harness: req.Harness,
+		ID:       domain.SessionID("sess-provider-" + string(rune('a'+f.sessionN))),
+		Mode:     domain.SessionModeTUI,
+		Harness:  req.Harness,
+		Metadata: domain.SessionMetadata{WorkspacePath: "/tmp/kennel-fake-attempt-workspace"},
 		Activity: domain.Activity{
 			State:          domain.ActivityActive,
 			LastActivityAt: time.Now(),
 		},
 	}
-	return ports.AttemptSpawnResult{Session: domain.Session{SessionRecord: rec}, CompletionBoundary: f.completionBoundary}, nil
+	bound, err := req.ExecutionPolicy.BindWorkspaceRoot(rec.Metadata.WorkspacePath)
+	if err != nil {
+		return ports.AttemptSpawnResult{}, err
+	}
+	return ports.AttemptSpawnResult{Session: domain.Session{SessionRecord: rec}, ExecutionPolicy: &bound, CompletionBoundary: f.completionBoundary}, nil
 }
 
 // Terminate records the request; failures AND result shapes are injectable

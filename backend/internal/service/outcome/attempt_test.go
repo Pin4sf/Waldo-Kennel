@@ -3,6 +3,8 @@ package outcome_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +15,17 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/intelligence/intelligencetest"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/service/outcome"
 )
+
+type governedCheckUncertaintyFake struct {
+	fact ports.GovernedCheckUncertainty
+}
+
+func (f governedCheckUncertaintyFake) GovernedCheckUncertainty(_ context.Context, sessionID domain.SessionID) (ports.GovernedCheckUncertainty, bool, error) {
+	if f.fact.SessionID != sessionID {
+		return ports.GovernedCheckUncertainty{}, false, nil
+	}
+	return f.fact, true, nil
+}
 
 // newAttemptHarness builds a fully wired Act & Observe fixture: an in-memory
 // store, an execution seam double, and a heartbeat table. The returned service
@@ -262,7 +275,7 @@ func TestStartAttemptAdmissionOrdering(t *testing.T) {
 	if len(ref.RunBriefCoreDigest) != 64 || len(ref.RunBriefCompiledDigest) != 64 {
 		t.Fatal("both digests must be recorded on the ref")
 	}
-	if !strings.Contains(ref.AdmissionSnapshot, `"snapshotVersion":2`) {
+	if !strings.Contains(ref.AdmissionSnapshot, fmt.Sprintf(`"snapshotVersion":%d`, domain.AdmissionSnapshotVersion)) {
 		t.Fatalf("admission snapshot missing version pin: %s", ref.AdmissionSnapshot)
 	}
 	if view.Fence == nil || !view.Fence.Open() || view.Fence.AttemptID != view.Attempt.ID {
@@ -394,11 +407,14 @@ func TestStartAttemptDeliversExactAssignedContractAndApprovedCheckMaterial(t *te
 	if strings.Contains(req.Prompt, unrelatedText) {
 		t.Fatalf("spawn prompt widened criterion scope:\n%s", req.Prompt)
 	}
-	if !strings.Contains(req.Prompt, "Kennel, not this worker, decides when to execute these checks") {
+	if !strings.Contains(req.Prompt, "run_approved_check") || !strings.Contains(req.Prompt, "Do not reconstruct or run these vectors through another execution surface") {
 		t.Fatalf("spawn prompt did not distinguish verification ownership from worker authority:\n%s", req.Prompt)
 	}
 	if req.ExecutionPolicy == nil || req.ExecutionPolicy.ContractRevisionNumber != revision.Number || req.ExecutionPolicy.PlanRevisionID != planID || req.ExecutionPolicy.WorkUnitID != unit.ID || req.ExecutionPolicy.RunBriefCoreDigest != plan.RunBriefCoreDigest {
 		t.Fatalf("spawn policy lost frozen attribution: %+v", req.ExecutionPolicy)
+	}
+	if len(req.ExecutionPolicy.ApprovedChecks) != 1 || req.ExecutionPolicy.ApprovedChecks[0].ID != unit.Checks[0].ID || !reflect.DeepEqual(req.ExecutionPolicy.ApprovedChecks[0].Argv, unit.Checks[0].Argv) {
+		t.Fatalf("spawn policy lost frozen executable check: %+v", req.ExecutionPolicy.ApprovedChecks)
 	}
 	if len(started.Sessions) != 1 || started.Sessions[0].RunBriefCoreDigest != plan.RunBriefCoreDigest {
 		t.Fatalf("durable session binding lost frozen RunBrief: %+v", started.Sessions)
@@ -1371,6 +1387,66 @@ func TestLivenessLoopReconcilesLegitimateZeroExit(t *testing.T) {
 	if reread.Attempt.Status != domain.AttemptReconciled {
 		t.Fatalf("status = %s, want reconciled", reread.Attempt.Status)
 	}
+}
+
+func TestLivenessLoopBlocksCompletionAfterUnknownGovernedCheckTerminationUntilOwnerReconciles(t *testing.T) {
+	svc, _, spawner, heartbeats, outcomeID, planID := newAttemptHarness(t)
+	spawner.completionBoundary = domain.AttemptCompletionProcessExit
+	view, err := svc.StartAttempt(context.Background(), outcomeID, startInput(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionID := domain.SessionID(view.Sessions[0].SessionID)
+	exitCode := 0
+	rec := heartbeats.sessions[sessionID]
+	rec.IsTerminated = true
+	rec.Metadata.SupervisedProcessExitCode = &exitCode
+	rec.Metadata.SupervisedProcessExitReason = domain.SupervisedExitReasonExited
+	heartbeats.sessions[sessionID] = rec
+	svc.WithGovernedCheckUncertainty(governedCheckUncertaintyFake{fact: ports.GovernedCheckUncertainty{
+		SessionID: sessionID, CheckID: "check-1", TerminationUnknown: true,
+		TimedOut: true, EnforcedBy: "test-fence", ObservedAt: time.Now().UTC(),
+	}})
+
+	// Exercise recovery before any periodic liveness import: the durable MCP
+	// marker itself must close the race and require explicit containment.
+	if _, err := svc.RecoverAttempt(context.Background(), outcomeID, view.Attempt.ID, outcome.RecoveryInput{Action: outcome.RecoveryActionReplace}); err == nil {
+		t.Fatal("provider exit alone must not release custody for an unknown check process tree")
+	}
+	for i := 0; i < 2; i++ {
+		if err := svc.EvaluateAttemptLiveness(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	blocked, err := svc.GetAttempt(context.Background(), outcomeID, view.Attempt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blocked.Attempt.Status != domain.AttemptRunning || blocked.Fence == nil {
+		t.Fatalf("unknown termination must retain running custody: status=%s fence=%v", blocked.Attempt.Status, blocked.Fence)
+	}
+	if !blocked.Presentation.Unconfirmed || !strings.Contains(blocked.Presentation.NextAction, "effects in flight") {
+		t.Fatalf("presentation did not surface unknown check effects: %+v", blocked.Presentation)
+	}
+	unknownObservations := 0
+	for _, observation := range blocked.Observations {
+		if observation.Kind == domain.ObservationGovernedCheckTerminationUnknown {
+			unknownObservations++
+		}
+	}
+	if unknownObservations != 1 {
+		t.Fatalf("unknown termination observations = %d, want exactly one", unknownObservations)
+	}
+	recovered, err := svc.RecoverAttempt(context.Background(), outcomeID, view.Attempt.ID, outcome.RecoveryInput{
+		Action: outcome.RecoveryActionReplace, ConfirmProviderStopped: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered.Attempt.Attempt.Status != domain.AttemptLost || recovered.Attempt.Fence != nil {
+		t.Fatalf("owner-confirmed reconciliation = status %s fence %v", recovered.Attempt.Attempt.Status, recovered.Attempt.Fence)
+	}
+	assertReplacementStartable(t, svc, spawner, outcomeID, planID)
 }
 
 // TestLivenessLoopClassifiesMissingExitCodeAsFailed covers a durably

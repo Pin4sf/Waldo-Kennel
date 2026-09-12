@@ -218,7 +218,10 @@ func (r AttemptSessionRef) Validate() error {
 
 // AdmissionSnapshotVersion pins the shape of the recorded admission snapshot
 // so later slices can evolve the payload without reinterpreting old rows.
-const AdmissionSnapshotVersion = 2
+// Version 3 adds the immutable leased-workspace root. Version 2 records remain
+// readable history but cannot be resumed because rebinding them would invent
+// authority they never froze.
+const AdmissionSnapshotVersion = 3
 
 // AttemptObservation is one append-only, ordered fact observed about an
 // attempt. Observations are insertable ALWAYS — including for stale attempts
@@ -273,6 +276,10 @@ const (
 	// durable promotion to running could not be recorded. Same unconfirmed
 	// contract as admission ambiguity; custody stays held.
 	ObservationActivationAmbiguous = "activation_ambiguous"
+	// ObservationGovernedCheckTerminationUnknown records that an approved
+	// repository check may still have effects in flight. The Attempt remains
+	// Running and keeps custody until explicit recovery reconciles that risk.
+	ObservationGovernedCheckTerminationUnknown = "governed_check_termination_unknown"
 	// ObservationProviderStopFailed records a failed terminate through the
 	// execution seam; cancellation was refused, not silently dropped.
 	ObservationProviderStopFailed = "provider_stop_failed"
@@ -527,7 +534,7 @@ const (
 //     Waiting, and exempt from staleness;
 //   - an unknown start/activation outcome presents as unconfirmed too;
 //   - only stored statuses speak for themselves; nothing here mutates.
-func DeriveAttemptPresentation(status AttemptStatus, facts SessionHeartbeatFacts, unresolvedAdmission bool, policy LivenessPolicy) AttemptPresentation {
+func DeriveAttemptPresentation(status AttemptStatus, facts SessionHeartbeatFacts, unresolvedAdmission, unresolvedCheckTermination bool, policy LivenessPolicy) AttemptPresentation {
 	switch status {
 	case AttemptQueued:
 		if unresolvedAdmission {
@@ -544,6 +551,8 @@ func DeriveAttemptPresentation(status AttemptStatus, facts SessionHeartbeatFacts
 		}
 	case AttemptRunning:
 		switch {
+		case unresolvedCheckTermination:
+			return unconfirmedPresentation("An approved check may still have effects in flight — explicitly confirm containment before replacement.")
 		case facts.IsTerminated:
 			return endedUnclassifiedPresentation("The provider session ended. Completion is not done — classify through Verification.")
 		case !facts.Present || facts.FirstSignalAt.IsZero() || !facts.RecentlyActive(policy):

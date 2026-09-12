@@ -16,9 +16,14 @@ type attemptSessionEvidenceStore interface {
 	LatestAttemptSessionRefForSession(ctx context.Context, sessionID string) (domain.AttemptSessionRef, bool, error)
 }
 
+type governedAttemptStateStore interface {
+	GetAttempt(ctx context.Context, outcomeID domain.OutcomeID, attemptID domain.AttemptID) (domain.Attempt, bool, error)
+}
+
 type recoveryExecution struct {
-	binding domain.ExecutionBinding
-	policy  domain.AttemptExecutionPolicy
+	attemptID domain.AttemptID
+	binding   domain.ExecutionBinding
+	policy    domain.AttemptExecutionPolicy
 }
 
 func (m *Manager) loadRecoveryExecution(ctx context.Context, rec domain.SessionRecord) (*recoveryExecution, error) {
@@ -62,7 +67,37 @@ func (m *Manager) loadRecoveryExecution(ctx context.Context, rec domain.SessionR
 	if err := binding.ValidateForNewWork(); err != nil {
 		return nil, fmt.Errorf("governed recovery execution binding is invalid: %w", err)
 	}
-	return &recoveryExecution{binding: binding, policy: snapshot.ExecutionPolicy}, nil
+	return &recoveryExecution{attemptID: ref.AttemptID, binding: binding, policy: snapshot.ExecutionPolicy}, nil
+}
+
+// ensureGovernedAttemptOpen prevents a subordinate provider session from
+// becoming a second execution of an Attempt whose lifecycle already ended.
+// Ordinary sessions have no recoveryExecution and retain their existing
+// restore semantics. Ambiguous governed state fails closed before workspace or
+// runtime mutation.
+func (m *Manager) ensureGovernedAttemptOpen(ctx context.Context, rec domain.SessionRecord) error {
+	execution, err := m.loadRecoveryExecution(ctx, rec)
+	if err != nil {
+		return err
+	}
+	if execution == nil {
+		return nil
+	}
+	store, ok := m.store.(governedAttemptStateStore)
+	if !ok {
+		return fmt.Errorf("governed recovery attempt state is unavailable")
+	}
+	attempt, found, err := store.GetAttempt(ctx, execution.policy.OutcomeID, execution.attemptID)
+	if err != nil {
+		return fmt.Errorf("load governed recovery attempt %s: %w", execution.attemptID, err)
+	}
+	if !found {
+		return fmt.Errorf("governed recovery attempt %s is missing", execution.attemptID)
+	}
+	if attempt.Status.Terminal() {
+		return fmt.Errorf("%w: attempt %s is %s", ErrGovernedAttemptClosed, attempt.ID, attempt.Status)
+	}
+	return nil
 }
 
 // sessionIsGoverned reports whether rec is bound to a governed Attempt's

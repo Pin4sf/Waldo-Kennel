@@ -12,6 +12,11 @@ func TestAdmissionSnapshotValidatesProcessExitCompletionBoundary(t *testing.T) {
 		RunBriefCoreDigest: strings.Repeat("a", 64), RequiredCapabilities: []string{CapabilityWorktreeRead},
 		Grants: []CapabilityGrant{{ID: "read", Name: CapabilityWorktreeRead, Scope: "worktree/*"}},
 	}
+	var err error
+	policy, err = policy.BindWorkspaceRoot("/ws/session-1")
+	if err != nil {
+		t.Fatal(err)
+	}
 	digest, err := policy.Digest()
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +38,7 @@ func TestAdmissionSnapshotValidatesProcessExitCompletionBoundary(t *testing.T) {
 		ID: "ref-1", AttemptID: "att-1", Seq: 1, SessionID: "session-1", Harness: HarnessCodex, Mode: SessionModeTUI,
 		RunBriefCoreDigest: strings.Repeat("a", 64), RunBriefCompiledDigest: "compiled", AdmissionSnapshot: string(raw),
 	}
-	rec := SessionRecord{ID: "session-1", Harness: HarnessCodex, Mode: SessionModeTUI}
+	rec := SessionRecord{ID: "session-1", Harness: HarnessCodex, Mode: SessionModeTUI, Metadata: SessionMetadata{WorkspacePath: "/ws/session-1"}}
 	if err := snapshot.ValidateSession(rec, ref, digest); err != nil {
 		t.Fatal(err)
 	}

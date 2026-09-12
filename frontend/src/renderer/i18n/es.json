@@ -2641,5 +2641,12 @@
 	"planning.status.proposal_ready": "Propuesta lista",
 	"planning.status.superseded": "Reemplazada",
 	"planning.status.cancelled": "Cancelada",
+	"onboarding.step.outcome.title": "Tu primer Outcome",
+	"onboarding.welcome.outcomeTitle": "Empieza con un Outcome",
+	"onboarding.welcome.outcomeBody": "Registra un proyecto y describe tu primer Outcome en Work.",
+	"onboarding.outcome.heading": "Crea tu primer Outcome",
+	"onboarding.outcome.body": "Kennel mantiene la responsabilidad contigo. Registra un proyecto, describe lo que quieres lograr y revisa el Contract y el Plan antes de autorizar trabajo.",
+	"onboarding.outcome.projectHint": "Un proyecto reúne el contexto del repositorio y las preferencias de proveedores. No inicia trabajo.",
+	"onboarding.outcome.createProject": "Crear un proyecto",
 	"terminal.liveDesktopRequired": "Open this session in the Kennel desktop app to view its live terminal."
 }

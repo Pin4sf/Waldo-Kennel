@@ -25,6 +25,7 @@ import (
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/config"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/daemon/supervisor"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/domain"
+	"github.com/Pin4sf/Waldo-Kennel/backend/internal/governedtools"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/httpd/controllers"
 	"github.com/Pin4sf/Waldo-Kennel/backend/internal/mobilebridge"
@@ -431,6 +432,10 @@ func Run() error {
 	// Deterministic checks run under the same frozen policy as the Attempt
 	// that produced the result, in the workspace that produced it.
 	attemptChecks := &attemptCheckRunner{sessions: sessionSvc, refs: store, artifacts: artifactContent}
+	governedCheckUncertainty, uncertaintyErr := governedtools.NewUncertaintyStore(cfg.DataDir)
+	if uncertaintyErr != nil {
+		return fmt.Errorf("governed check uncertainty store: %w", uncertaintyErr)
+	}
 	// Waldo thinks with its own model; coding agents only execute authorized
 	// work. The provider resolves current settings at each call, so missing or
 	// invalid credentials remain actionable without daemon restart.
@@ -446,6 +451,7 @@ func Run() error {
 		WithPlanning(intelligenceProvider, agentSvc).
 		WithRepositoryContextLimits(settingsSvc).
 		WithExecution(attempts, store).
+		WithGovernedCheckUncertainty(governedCheckUncertainty).
 		WithAttemptRetainer(attempts).
 		WithCheckRunner(attemptChecks, store).
 		WithRunIntents(store).

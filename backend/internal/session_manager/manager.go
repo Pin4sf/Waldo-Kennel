@@ -38,6 +38,10 @@ var (
 	ErrAgentExited      = errors.New("session: agent exited")
 	ErrAgentNotExited   = errors.New("session: agent has not exited")
 	ErrIncompleteHandle = errors.New("session: incomplete teardown handle")
+	// ErrGovernedAttemptClosed prevents a subordinate provider session from
+	// reopening execution after its owning Attempt reached a terminal state.
+	// Rework or retry requires a new Attempt and authority lineage.
+	ErrGovernedAttemptClosed = errors.New("session: governed attempt is closed")
 	// ErrProjectNotResolvable means the spawn's project has no usable repo
 	// (unregistered, archived, or missing a path). The API maps it to a 400.
 	ErrProjectNotResolvable = errors.New("session: project repo not resolvable")
@@ -857,6 +861,28 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (rec domain.
 		m.rollbackSpawnSeedRow(ctx, id)
 		return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: workspace: %w: %w", id, ports.ErrAttemptWorkspacePreparation, err)
 	}
+	if cfg.ExecutionPolicy != nil {
+		canonicalRoot, rootErr := filepath.Abs(filepath.Clean(ws.Path))
+		if rootErr != nil {
+			m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: workspace policy binding: %w", id, rootErr)
+		}
+		if resolved, resolveErr := filepath.EvalSymlinks(canonicalRoot); resolveErr == nil {
+			canonicalRoot = resolved
+		}
+		bound, bindErr := cfg.ExecutionPolicy.BindWorkspaceRoot(canonicalRoot)
+		if bindErr != nil {
+			m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: workspace policy binding: %w", id, bindErr)
+		}
+		cfg.ExecutionPolicy = &bound
+		digest, digestErr := bound.Digest()
+		if digestErr != nil {
+			m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: workspace policy digest: %w", id, digestErr)
+		}
+		rec.Metadata.GovernedExecutionPolicyDigest = digest
+	}
 
 	// Per-project workspace provisioning: symlink shared files, then run any
 	// post-create commands (e.g. `pnpm install`) before the agent launches.
@@ -894,6 +920,22 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (rec domain.
 			m.logger.Warn("spawn: exclude attachments dir", "sessionID", id, "error", err)
 		}
 		prompt = appendAttachmentReferences(prompt, refs)
+	}
+
+	// A governed provider must never exist before recovery can see that this
+	// session consumes frozen authority. Persist the leased root and policy
+	// marker before either controller is allowed to start; the Attempt snapshot
+	// follows after Spawn returns and recovery treats a missing snapshot as
+	// ambiguous rather than as an ordinary ungoverned session.
+	if cfg.ExecutionPolicy != nil {
+		rec.Metadata.Branch = ws.Branch
+		rec.Metadata.WorkspacePath = ws.Path
+		rec.Metadata.WorkspaceRepoPath = ws.RepoPath
+		rec.UpdatedAt = m.clock()
+		if err := m.store.UpdateSession(ctx, rec); err != nil {
+			m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn %s: persist governed prelaunch evidence: %w", id, err)
+		}
 	}
 
 	// Everything above is shared: project, harness, prompts, seed row, worktree,
@@ -1228,11 +1270,40 @@ func (m *Manager) rollbackSeedSpawnWorkspace(ctx context.Context, rec domain.Ses
 		if prepared {
 			m.cleanupAgentWorkspace(ctx, rec, ws.Path)
 		}
-		m.rollbackSpawnSeedRow(ctx, rec.ID)
+		if m.clearSpawnPrelaunchEvidence(ctx, rec.ID) {
+			m.rollbackSpawnSeedRow(ctx, rec.ID)
+		} else {
+			m.markSpawnFailedTerminated(ctx, rec.ID)
+		}
 		return
 	}
 	m.preserveFailedSpawnWorkspace(ctx, rec.ID, ws, true)
 	m.markSpawnFailedTerminated(ctx, rec.ID)
+}
+
+// clearSpawnPrelaunchEvidence returns a row to deletable seed state only after
+// its workspace was confirmed destroyed. A failed clear leaves the governed
+// marker durable and best-effort parks the row terminal, which is safer than
+// erasing evidence for a resource whose cleanup cannot be reconstructed.
+func (m *Manager) clearSpawnPrelaunchEvidence(ctx context.Context, id domain.SessionID) bool {
+	rec, ok, err := m.store.GetSession(ctx, id)
+	if err != nil {
+		m.logger.Warn("spawn rollback: failed to load prelaunch evidence", "sessionID", id, "error", err)
+		return false
+	}
+	if !ok {
+		return true
+	}
+	rec.Metadata.Branch = ""
+	rec.Metadata.WorkspacePath = ""
+	rec.Metadata.WorkspaceRepoPath = ""
+	rec.Metadata.GovernedExecutionPolicyDigest = ""
+	rec.UpdatedAt = m.clock()
+	if err := m.store.UpdateSession(ctx, rec); err != nil {
+		m.logger.Warn("spawn rollback: failed to clear prelaunch evidence", "sessionID", id, "error", err)
+		return false
+	}
+	return true
 }
 
 func (m *Manager) preserveFailedSpawnWorkspace(ctx context.Context, id domain.SessionID, ws ports.WorkspaceInfo, runtimeDestroyed bool) {
@@ -1749,6 +1820,9 @@ func (m *Manager) RestoreWithMode(ctx context.Context, id domain.SessionID) (Res
 	if meta.WorkspacePath == "" || (meta.Branch == "" && project.Kind.WithDefault() != domain.ProjectKindScratch) {
 		return RestoreResult{}, fmt.Errorf("restore %s: %w", id, ErrIncompleteHandle)
 	}
+	if err := m.ensureGovernedAttemptOpen(ctx, rec); err != nil {
+		return RestoreResult{}, fmt.Errorf("restore %s: %w", id, err)
+	}
 	// Resumability is decided inside restoreArgv, not here. A promptless session
 	// can still be fully resumable when the harness pins a deterministic session id
 	// (Claude Code). restoreArgv returns ErrNotResumable only for a promptless,
@@ -1830,7 +1904,13 @@ func (m *Manager) ResumeAgentWithMode(ctx context.Context, id domain.SessionID) 
 		ProjectID: rec.ProjectID,
 	}
 	if mode == domain.SessionModeChat {
+		if err := m.ensureGovernedAttemptOpen(ctx, rec); err != nil {
+			return RestoreResult{}, fmt.Errorf("resume agent %s: %w", id, err)
+		}
 		return m.relaunchSession(ctx, "resume agent", rec, project, ws, nil)
+	}
+	if err := m.ensureGovernedAttemptOpen(ctx, rec); err != nil {
+		return RestoreResult{}, fmt.Errorf("resume agent %s: %w", id, err)
 	}
 	handle := ports.RuntimeHandle{ID: meta.RuntimeHandleID}
 	return m.relaunchSession(ctx, "resume agent", rec, project, ws, &handle)
@@ -2328,6 +2408,24 @@ func (m *Manager) RestoreAll(ctx context.Context) error {
 		}
 		rows = restorableWorktreeRows(rows)
 		if len(rows) == 0 {
+			continue
+		}
+		// Startup recovery is a separate entry point from RestoreWithMode. Apply
+		// the same governed Attempt fence before recreating any workspace: a
+		// shutdown marker is recovery metadata, never fresh execution authority.
+		if err := m.ensureGovernedAttemptOpen(ctx, rec); err != nil {
+			if errors.Is(err, ErrGovernedAttemptClosed) {
+				// The marker is one-shot. Clearing it prevents every later boot from
+				// reconsidering this ended execution; retained artifacts and the
+				// inspectable session/workspace record are untouched.
+				if clearErr := m.store.DeleteSessionWorktrees(ctx, rec.ID); clearErr != nil {
+					m.logger.Error("restore-all: clear closed Attempt marker failed", "sessionID", rec.ID, "error", clearErr)
+				} else {
+					m.logger.Info("restore-all: terminal governed Attempt left terminated", "sessionID", rec.ID)
+				}
+			} else {
+				m.logger.Error("restore-all: governed Attempt state unavailable", "sessionID", rec.ID, "error", err)
+			}
 			continue
 		}
 
@@ -3132,7 +3230,7 @@ func (m *Manager) cleanupRecords(ctx context.Context, project domain.ProjectID) 
 
 func seedRecord(cfg ports.SpawnConfig, now time.Time) domain.SessionRecord {
 	var governedPolicyDigest string
-	if cfg.ExecutionPolicy != nil {
+	if cfg.ExecutionPolicy != nil && cfg.ExecutionPolicy.WorkspaceRoot != "" {
 		// Spawn validates the policy before creating this row. The digest is a
 		// durable marker that tells recovery a matching Attempt snapshot is
 		// mandatory; the snapshot remains the authority for the actual policy.

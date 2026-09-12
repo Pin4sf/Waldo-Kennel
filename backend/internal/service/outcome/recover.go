@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -153,7 +154,16 @@ func (s *Service) reconcileAttempt(ctx context.Context, in RecoveryInput, attemp
 		}
 		return RecoveryView{Attempt: view, Receipt: receipt}, nil
 	}
+	unknownCheck, err := s.resolveGovernedCheckTerminationUnknown(ctx, attempt.ID, domain.SessionID(facts.sessionID))
+	if err != nil {
+		return RecoveryView{}, err
+	}
 	proof := s.proveProviderStopped(facts, in.ConfirmProviderStopped)
+	if unknownCheck {
+		// Provider termination cannot prove that a detached check process tree
+		// ended. Only the owner's explicit containment assertion reconciles it.
+		proof = s.proveProviderStopped(attemptFacts{}, in.ConfirmProviderStopped)
+	}
 	if !proof.proven {
 		return RecoveryView{}, s.refuseUnprovenCustody(ctx, attempt)
 	}
@@ -234,7 +244,14 @@ func (s *Service) recoveryReplace(ctx context.Context, in RecoveryInput, attempt
 	if fErr != nil {
 		return RecoveryView{}, fErr
 	}
+	unknownCheck, err := s.resolveGovernedCheckTerminationUnknown(ctx, attempt.ID, domain.SessionID(facts.sessionID))
+	if err != nil {
+		return RecoveryView{}, err
+	}
 	proof := s.proveProviderStopped(facts, in.ConfirmProviderStopped)
+	if unknownCheck {
+		proof = s.proveProviderStopped(attemptFacts{}, in.ConfirmProviderStopped)
+	}
 	if !proof.proven {
 		return RecoveryView{}, s.refuseUnprovenCustody(ctx, attempt)
 	}
@@ -322,6 +339,15 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 		if !facts.terminated() {
 			continue
 		}
+		if blocked, checkErr := s.importGovernedCheckUncertainty(ctx, attempt.ID, domain.SessionID(facts.sessionID)); checkErr != nil {
+			failures = append(failures, fmt.Errorf("attempt %s: %w", attempt.ID, checkErr))
+			continue
+		} else if blocked {
+			// Unknown process-tree termination is stronger than a provider exit:
+			// completion and custody release remain forbidden until explicit
+			// owner recovery reconciles the possibly-surviving effect.
+			continue
+		}
 		target := domain.AttemptReconciled
 		outcome := "provider session ended; result unclassified"
 		releaseReason := ""
@@ -361,6 +387,65 @@ func (s *Service) EvaluateAttemptLiveness(ctx context.Context) error {
 	default:
 		return fmt.Errorf("attempt liveness evaluation: %d failures: %w", len(failures), errors.Join(failures...))
 	}
+}
+
+func (s *Service) importGovernedCheckUncertainty(ctx context.Context, attemptID domain.AttemptID, sessionID domain.SessionID) (bool, error) {
+	if s.governedCheckUncertainty == nil || strings.TrimSpace(string(sessionID)) == "" {
+		return false, nil
+	}
+	fact, found, err := s.governedCheckUncertainty.GovernedCheckUncertainty(ctx, sessionID)
+	if err != nil {
+		return false, fmt.Errorf("read governed check uncertainty for session %s: %w", sessionID, err)
+	}
+	if !found || !fact.TerminationUnknown {
+		return false, nil
+	}
+	observations, err := s.store.ListAttemptObservations(ctx, attemptID)
+	if err != nil {
+		return false, fmt.Errorf("list observations before importing governed check uncertainty: %w", err)
+	}
+	for _, observation := range observations {
+		if observation.Kind == domain.ObservationGovernedCheckTerminationUnknown {
+			return true, nil
+		}
+	}
+	payload := mustJSON(map[string]any{
+		"sessionId":          fact.SessionID,
+		"checkId":            fact.CheckID,
+		"terminationUnknown": fact.TerminationUnknown,
+		"timedOut":           fact.TimedOut,
+		"cancelled":          fact.Cancelled,
+		"enforcedBy":         fact.EnforcedBy,
+		"observedAt":         fact.ObservedAt,
+		"outcome":            "approved check termination unknown; completion and custody remain blocked",
+	})
+	if _, err := s.store.AppendAttemptObservation(ctx, attemptID, domain.ObservationGovernedCheckTerminationUnknown, payload, s.clock()); err != nil {
+		return false, fmt.Errorf("record governed check uncertainty: %w", err)
+	}
+	return true, nil
+}
+
+func (s *Service) hasGovernedCheckTerminationUnknown(ctx context.Context, attemptID domain.AttemptID) (bool, error) {
+	observations, err := s.store.ListAttemptObservations(ctx, attemptID)
+	if err != nil {
+		return false, err
+	}
+	for _, observation := range observations {
+		if observation.Kind == domain.ObservationGovernedCheckTerminationUnknown {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (s *Service) resolveGovernedCheckTerminationUnknown(ctx context.Context, attemptID domain.AttemptID, sessionID domain.SessionID) (bool, error) {
+	// Recovery can run before the periodic liveness tick. Consult the durable
+	// marker synchronously so that provider termination alone can never race
+	// ahead of unknown child-process custody evidence.
+	if blocked, err := s.importGovernedCheckUncertainty(ctx, attemptID, sessionID); err != nil || blocked {
+		return blocked, err
+	}
+	return s.hasGovernedCheckTerminationUnknown(ctx, attemptID)
 }
 
 // attemptFacts pairs derived heartbeat facts with the binding they came from.

@@ -221,15 +221,20 @@ func (controllerSpawner) Terminate(_ context.Context, _ domain.ProjectID, _ stri
 
 func (controllerSpawner) Spawn(_ context.Context, req ports.AttemptSpawnRequest) (ports.AttemptSpawnResult, error) {
 	rec := domain.SessionRecord{
-		ID:      domain.SessionID("sess-func-" + req.Harness),
-		Mode:    domain.SessionModeTUI,
-		Harness: req.Harness,
+		ID:       domain.SessionID("sess-func-" + req.Harness),
+		Mode:     domain.SessionModeTUI,
+		Harness:  req.Harness,
+		Metadata: domain.SessionMetadata{WorkspacePath: "/tmp/kennel-controller-attempt-workspace"},
 		Activity: domain.Activity{
 			State:          domain.ActivityActive,
 			LastActivityAt: time.Now(),
 		},
 	}
-	return ports.AttemptSpawnResult{Session: domain.Session{SessionRecord: rec}}, nil
+	bound, err := req.ExecutionPolicy.BindWorkspaceRoot(rec.Metadata.WorkspacePath)
+	if err != nil {
+		return ports.AttemptSpawnResult{}, err
+	}
+	return ports.AttemptSpawnResult{Session: domain.Session{SessionRecord: rec}, ExecutionPolicy: &bound}, nil
 }
 
 // TestAttemptRoutesFunctionalThroughRealStore is the end-to-end proof for
