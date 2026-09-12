@@ -1,8 +1,9 @@
 # Kennel status
 
-Reviewed against `beta` revision `830d47a8b68eb936a3a0143d7b24cbf6582ea0a8`
-on 2026-09-12. The latest local runtime checkpoint is Issue #115 branch
-`codex/issue-115-real-work`; it is not merged, pushed, deployed or released.
+Reviewed against `origin/beta` revision `f2132a83c6a09145cd38234d55097128815de432`
+on 2026-09-12. This local integration candidate combines the completed Issue
+#115 work with the shell/onboarding/Mission UI lane; it is not pushed, merged,
+deployed or released.
 This page separates implementation, recorded verification and remaining launch
 work. It does not claim a release or owner Acceptance.
 
