@@ -1,8 +1,8 @@
 # Kennel status
 
-Reviewed against `beta` revision `b9f69d949` on 2026-09-12. The latest runtime
-checkpoint is PR #110, integrated at `9e45f99de034572a7ad6d77148705e16c1bbe95a`;
-its tested head is `5a58434ad275a7f5078c6d50e7f714651e8d0907`.
+Reviewed against `beta` revision `830d47a8b68eb936a3a0143d7b24cbf6582ea0a8`
+on 2026-09-12. The latest local runtime checkpoint is Issue #115 branch
+`codex/issue-115-real-work`; it is not merged, pushed, deployed or released.
 This page separates implementation, recorded verification and remaining launch
 work. It does not claim a release or owner Acceptance.
 
@@ -20,6 +20,13 @@ work. It does not claim a release or owner Acceptance.
 - Approved provider/model bindings, capability admission, serial scheduling and
   restart/replay fences. The normal frontend Start request uses the approved
   Plan identity and request key, not a mutable Project provider preference.
+- Codex governed Attempts receive a private, frozen-policy repository surface:
+  bounded listing/text reads, scoped text writes when granted, and execution of
+  exact approved check IDs. The allocated workspace root is frozen into the
+  admission snapshot; provider-native execution remains read-only, while a
+  required positively allowlisted Kennel MCP carries the narrow write/check
+  authority. Generic shell, unified-exec, web and plugin surfaces are disabled;
+  unsupported policy shapes and unverified App Server injection fail closed.
 - Work is the default destination. Plan/graph views and attached Attempt
   supervision expose daemon facts; provider Sessions remain technical detail.
   Island startup is opt-in with `KENNEL_ENABLE_ISLAND=1`.
@@ -50,11 +57,18 @@ tested-path blocker where a symlinked Codex CLI could not find
 `codex-code-mode-host`. It does not establish native tool/plugin/approval parity
 or provider conformance across every installation.
 
-The real Attempt returned `needs_you` and produced no report because the
-approved WorkUnit exposed its validator command but did not derive a separate
-repository-inspection capability/tool affordance. Provider exit and Attempt
-reconciliation therefore prove launch mechanics only; no artifact,
-WorkUnit-scoped Verification or `AcceptanceDecision` was created.
+The Issue #115 packaged canary closed that repository-affordance blocker for
+Codex. A real approved Outcome repaired `report.md` only in its leased worktree,
+then ran the exact frozen SHA-256 check through Kennel. The original checkout
+remained unchanged. A prelaunch workspace failure held custody until explicit
+replacement, and restart retained the two historical Attempts without replaying
+the succeeded provider session. The final packaged daemon was then re-probed
+under native read-only Codex: it repaired the disposable report, passed the
+same exact check, and refused mixed-case `.GIT` custody and traversal writes.
+Exact IDs, hashes and refusal evidence are in
+the [Issue #115 verification record](verification/2026-09-12-issue-115-governed-repository-tools.md).
+This proves the bounded execution slice, not retained-artifact automation,
+WorkUnit-scoped Verification or an owner `AcceptanceDecision`.
 
 The [PR #110 handoff](handoffs/2026-09-12-pr110-launch-fixes/HANDOFF.md)
 and [execution ledger](handoffs/2026-09-12-pr110-launch-fixes/EXECUTION-LEDGER.md)
@@ -73,14 +87,13 @@ packaged journey and owner-acceptance gates remain distinct.
 
 | Priority | Area | Current gap |
 | --- | --- | --- |
-| 1 | WorkUnit capability/tool delivery | Derive and deliver bounded repository inspection/tool affordances in addition to the validator command; the verified Attempt returned `needs_you` without authoring its report. |
-| 2 | Autonomous proof and closure | Prove a fresh Outcome through artifact production, governed checks, WorkUnit-scoped Evidence/Verification and separate owner Acceptance or rework. |
-| 3 | Evidence and Result experience | Automate artifact/check collection, complete WorkUnit-scoped proof and result review, and materialize retained outputs for downstream WorkUnits. |
-| 4 | Mission Control | Complete the direct WorkUnit DAG projection and integrated Board/List navigation while retaining the session Kanban beneath the graph. |
-| 5 | Parallel scheduling | Replace the intentional concurrency-`1` Project fence only after durable WorkspaceLease, dependency, integration, recovery and cleanup gates prove safe. |
-| 6 | Session continuity | Decide and implement historical-session inspection or engagement beyond the currently engageable active session. |
-| 7 | Release/update | Publish and test actual install/update artifacts. Package identity is verified, but the updater reports no published GitHub versions. |
-| 8 | Remaining manual acceptance | Complete applicable mobile rendering and manually verify reduced-motion behavior. |
+| 1 | Autonomous proof and closure | Carry the produced artifact and governed-check result into WorkUnit-scoped Evidence/Verification, then leave the separate owner Acceptance or rework decision explicit. |
+| 2 | Evidence and Result experience | Automate artifact/check collection, complete WorkUnit-scoped proof and result review, and materialize retained outputs for downstream WorkUnits. |
+| 3 | Mission Control | Complete the direct WorkUnit DAG projection and integrated Board/List navigation while retaining the session Kanban beneath the graph. |
+| 4 | Parallel scheduling | Replace the intentional concurrency-`1` Project fence only after durable WorkspaceLease, dependency, integration, recovery and cleanup gates prove safe. |
+| 5 | Session continuity | Decide and implement historical-session inspection or engagement beyond the currently engageable active session. |
+| 6 | Release/update | Publish and test actual install/update artifacts. Package identity is verified, but the updater reports no published GitHub versions. |
+| 7 | Remaining manual acceptance | Complete applicable mobile rendering and manually verify reduced-motion behavior. |
 
 General non-repository Outcomes, supplied-document wiring and durable delivery
 also need their own integration/verification evidence; repository planning alone
