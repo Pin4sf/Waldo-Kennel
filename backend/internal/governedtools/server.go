@@ -293,7 +293,12 @@ func (s *Server) call(ctx context.Context, name string, args map[string]interfac
 			return "", err
 		}
 		defer func() { _ = s.root.Remove(tmpPath) }()
-		_, err = tmp.WriteString(content)
+		// OpenFile's creation mode is filtered through the process umask. Apply
+		// the captured mode explicitly before rename so a tracked executable
+		// cannot silently become non-executable under a restrictive launcher.
+		if err = tmp.Chmod(mode); err == nil {
+			_, err = tmp.WriteString(content)
+		}
 		if closeErr := tmp.Close(); err == nil {
 			err = closeErr
 		}

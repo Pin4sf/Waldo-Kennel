@@ -1266,8 +1266,11 @@ func (m *Manager) rollbackSeedSpawnWorkspace(ctx context.Context, rec domain.Ses
 		if prepared {
 			m.cleanupAgentWorkspace(ctx, rec, ws.Path)
 		}
-		m.clearSpawnPrelaunchEvidence(ctx, rec.ID)
-		m.rollbackSpawnSeedRow(ctx, rec.ID)
+		if m.clearSpawnPrelaunchEvidence(ctx, rec.ID) {
+			m.rollbackSpawnSeedRow(ctx, rec.ID)
+		} else {
+			m.markSpawnFailedTerminated(ctx, rec.ID)
+		}
 		return
 	}
 	m.preserveFailedSpawnWorkspace(ctx, rec.ID, ws, true)
@@ -1276,19 +1279,27 @@ func (m *Manager) rollbackSeedSpawnWorkspace(ctx context.Context, rec domain.Ses
 
 // clearSpawnPrelaunchEvidence returns a row to deletable seed state only after
 // its workspace was confirmed destroyed. A failed clear leaves the governed
-// marker durable and the row terminal, which is safer than erasing evidence
-// for a resource whose cleanup cannot be reconstructed.
-func (m *Manager) clearSpawnPrelaunchEvidence(ctx context.Context, id domain.SessionID) {
+// marker durable and best-effort parks the row terminal, which is safer than
+// erasing evidence for a resource whose cleanup cannot be reconstructed.
+func (m *Manager) clearSpawnPrelaunchEvidence(ctx context.Context, id domain.SessionID) bool {
 	rec, ok, err := m.store.GetSession(ctx, id)
-	if err != nil || !ok {
-		return
+	if err != nil {
+		m.logger.Warn("spawn rollback: failed to load prelaunch evidence", "sessionID", id, "error", err)
+		return false
+	}
+	if !ok {
+		return true
 	}
 	rec.Metadata.Branch = ""
 	rec.Metadata.WorkspacePath = ""
 	rec.Metadata.WorkspaceRepoPath = ""
 	rec.Metadata.GovernedExecutionPolicyDigest = ""
 	rec.UpdatedAt = m.clock()
-	_ = m.store.UpdateSession(ctx, rec)
+	if err := m.store.UpdateSession(ctx, rec); err != nil {
+		m.logger.Warn("spawn rollback: failed to clear prelaunch evidence", "sessionID", id, "error", err)
+		return false
+	}
+	return true
 }
 
 func (m *Manager) preserveFailedSpawnWorkspace(ctx context.Context, id domain.SessionID, ws ports.WorkspaceInfo, runtimeDestroyed bool) {
