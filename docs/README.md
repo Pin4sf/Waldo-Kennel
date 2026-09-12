@@ -20,6 +20,10 @@ Companion Work specifications:
 - [`superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md`](superpowers/specs/2026-08-25-work-control-plane-canonical-flow-design.md)
 - [`superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md`](superpowers/specs/2026-08-25-work-experience-screen-interaction-spec.md)
 
+Public direction lives in [`../ROADMAP.md`](../ROADMAP.md). It provides
+milestones and exit gates but does not override the authority order or establish
+implementation status.
+
 Technical references:
 
 - [`architecture.md`](architecture.md) — current Go daemon/package/lifecycle chassis.
@@ -48,6 +52,8 @@ Notable future-lane documents include:
 - `superpowers/specs/2026-08-21-waldo-learning-skill-evolution-design.md`
 - `adr/0005-governed-project-learning-and-skill-evolution.md`
 - `adr/0006-one-durable-waldo-multiple-governed-presences.md`
+- `research/2026-08-21-agent-memory-infrastructure-benchmark.md`
+- `research/2026-08-21-personal-agent-memory-research-benchmark.md`
 
 ## Historical documents
 

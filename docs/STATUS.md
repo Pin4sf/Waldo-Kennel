@@ -1,9 +1,31 @@
 # Kennel status
 
-**Current integration:** PR #101 fresh Outcome-first foundation, including the Wednesday L2–L4 code, direct WorkUnit graph, retention/proof corrections and fresh-start entry. Consult Git for the current beta SHA; the dated inventories below are historical evidence, not current remote-state assertions.
-**Current objective:** finish the usable Outcome Continuity loop on this foundation.
+**Status revision:** `bf06970948078d5e3c6d564ec2c336cfc9bfaabf` (`origin/beta`, verified 2026-09-12).
+**Current integration:** PR #109 adds the native Codex packet-mode planning path on top of the fresh Outcome-first foundation and PR #107 interaction feedback. This is source/integration state, not packaged launch acceptance.
+**Current objective:** prove one usable serial Outcome Continuity loop on this exact foundation. The public milestones after launch are in [`../ROADMAP.md`](../ROADMAP.md).
 **Team boundary:** [fresh Kennel beta and Island integration](product/2026-09-10-fresh-kennel-beta-boundary.md).
 **Execution authority:** [completion handoff](superpowers/plans/2026-09-10-luna-kennel-work-completion.md).
+
+## Current beta boundary — 2026-09-12
+
+Current `beta` includes direct OpenAI/Anthropic reasoning configuration,
+Contract-bound interactive planning, and native Codex read-only packet-mode
+reasoning. It does not silently fall back between providers. The native path
+passes a daemon-compiled bounded packet; it does not yet provide a general
+tool-enabled planning session.
+
+Launch remains unaccepted until a packaged real-repository journey proves the
+whole sequence through attached execution, retained proof, Ready for Review and
+explicit owner closure. The executing WorkUnit must receive the exact frozen
+criteria and validator requirements; prior real-loop review found this
+task-delivery boundary incomplete. PR #110 is an open candidate stabilization
+branch and is not included in this status revision.
+
+The scheduler remains serial behind the Project custody fence. A WorkUnit-scoped
+`WorkspaceLease` scheduler and truthful parallel Mission Graph remain planned
+work under ADR 0009. The sections below are retained dated implementation and
+verification evidence; where they conflict with this current boundary, this
+section and Git at the status revision take precedence.
 
 ## Fresh-start checkpoint — 2026-09-10
 
@@ -32,18 +54,30 @@ Source and automated checks support these implementation claims; they are not en
 - Five active execution-provider identities: Codex, Claude Code, OpenCode, Cursor and Pi. Identity is not role/capability conformance.
 - PR99: preference-aware routing, persisted approved provider/model binding, historical-unbound rejection, provider-local model semantics, graph validation and serial scheduler decisions. L1a now carries the frozen binding through Manager.Spawn for TUI/Chat; live provider conformance remains unproved.
 - PR99: IntelligenceRun storage (migration 0115), provider-neutral intelligence/LLM ports, direct Anthropic/OpenAI reasoning adapters, model-backed Contract and Plan proposals.
-- Candidate interactive-planning slice: Contract-bound `PlanningSession`/turn storage, exact direct-API planner selection, frozen bounded repository or approved-document context, typed clarification/Contract-change/Plan replies, canonical Plan compilation, atomic current-Contract Plan finalization, idempotent replay, restart ambiguity recovery, governed erasure, and generated HTTP/TypeScript contracts. Native Codex planning, frontend integration, live-provider behavior, packaged Electron usability, and owner acceptance remain open.
+- Contract-bound `PlanningSession`/turn storage, exact direct-API planner selection, frozen bounded repository or approved-document context, typed clarification/Contract-change/Plan replies, canonical Plan compilation, atomic current-Contract Plan finalization, idempotent replay, restart ambiguity recovery, governed erasure, and generated HTTP/TypeScript contracts. PR #109 adds native Codex packet-mode planning and frontend integration; live end-to-end behavior, packaged Electron usability, and owner acceptance remain open.
 - Existing Understand/Decide/Act/Prove Work surfaces, Project Brief/conversation foundation and composed-Outcome storage remain available to evolve.
 
 ## Current policy: ADR0012
 
-Waldo reasoning requires the owner's configured reasoning credential. Provider/model/effort are durable daemon settings and the secret is daemon-owned; `KENNEL_WALDO_*` environment values remain explicit development overrides with documented precedence in `daemon/waldo_reasoning.go`.
+Waldo reasoning requires an explicitly configured and ready reasoning path.
+Direct OpenAI/Anthropic API paths use an owner-supplied daemon-owned credential;
+the native Codex path uses the owner's authenticated Codex installation and a
+bounded daemon-compiled packet. Provider/model/effort are durable daemon
+settings. `KENNEL_WALDO_*` environment values remain explicit development
+overrides for supported direct-API configuration with documented precedence in
+`daemon/waldo_reasoning.go`.
 
 There is **no deterministic/offline proposal floor** and no hidden alternate-model fallback. Missing configuration must be recoverable setup failure. The old session-spawn intake/decomposition proposers were removed; model-backed decomposition proposal remains unavailable. Do not reconstruct those retired paths from old plans. Reasoning secrets must not enter canonical Work rows or logs.
 
 ADRs 0010/0011/0012, product architecture and ADRs 0008/0009 govern the target. ADR0012 supersedes older fallback/key-optional wording. Migrations through 0115 are merged and immutable; use the next unused migration number for fixes.
 
-ADR 0015 adds durable interactive planning before Plan approval. Direct API planning receives only a daemon-built bounded repository packet; it has no filesystem/tool handle or execution/effect authority. Contract-change output is advisory, a Plan remains proposed until the owner approves it, and planning creates no Attempt. Native Codex remains unavailable for this flow until the runtime boundary proves conversational continuity and confinement.
+ADR 0015 adds durable interactive planning before Plan approval. Direct API
+planning receives only a daemon-built bounded repository packet; it has no
+filesystem/tool handle or execution/effect authority. Contract-change output is
+advisory, a Plan remains proposed until the owner approves it, and planning
+creates no Attempt. PR #109 now provides native Codex packet-mode planning under
+the same bounded context semantics; general tool-enabled native planning remains
+outside this status revision.
 
 ## Confirmed remaining source gaps
 
